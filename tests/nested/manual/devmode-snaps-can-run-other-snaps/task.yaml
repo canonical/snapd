@@ -22,37 +22,12 @@ environment:
   SNAPCRAFT_BUILD_ENVIRONMENT: lxd
 
 prepare: |
-  # install lxd so we can build the snapd snap
-  snap install lxd --channel="$LXD_SNAP_CHANNEL"
-  tests.cleanup defer snap remove lxd
-
-  snap install snapcraft --channel=4.x/candidate --classic
-  tests.cleanup defer snap remove --purge snapcraft
-
-  # much of what follows is copied from tests/main/snapd-snap
-
-  echo "Remove any installed debs (some images carry them) to ensure we test the snap"
-  # apt -v to test if apt is usable
-  if command -v apt && apt -v; then
-      # meh trusty's apt doesn't support -y, so use apt-get
-      apt-get autoremove -y lxd
-      apt-get autoremove -y lxd-client
-  fi
-
   # load the fuse kernel module before installing lxd
   modprobe fuse
 
-  snap set lxd waitready.timeout=240
-  lxd waitready
-  lxd init --auto
-
-  echo "Setting up proxy for lxc"
-  if [ -n "${http_proxy:-}" ]; then
-      lxd.lxc config set core.proxy_http "$http_proxy"
-  fi
-  if [ -n "${https_proxy:-}" ]; then
-      lxd.lxc config set core.proxy_https "$http_proxy"
-  fi
+  # install lxd so we can build the snapd snap
+  "$TESTSTOOLS"/lxd-state prepare-snap
+  snap install snapcraft --channel=4.x/candidate --classic
 
   # TODO: do we need to address the spread system prepare shenanigans as 
   # mentioned in tests/main/snapd-snap ?

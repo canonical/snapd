@@ -67,7 +67,8 @@ main() {
             fi
             ;;
         prepare-snap)
-            
+                shift
+                prepare_snap "$@"
             ;;
         *)
             echo "lxd-state: unknown command $*" >&2

@@ -16,20 +16,7 @@ execute: |
     apt autoremove -y squashfuse
 
     echo "Install lxd"
-    snap install lxd --channel="$LXD_SNAP_CHANNEL"
-
-    echo "Create a trivial container using the lxd snap"
-    snap set lxd waitready.timeout=240
-    lxd waitready
-    lxd init --auto
-
-    echo "Setting up proxy for lxc"
-    if [ -n "${http_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_http "$http_proxy"
-    fi
-    if [ -n "${https_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_https "$http_proxy"
-    fi
+    "$TESTSTOOLS"/lxd-state prepare-snap
 
     # There isn't an official image for kinetic yet, let's use the community one
     if os.query is-ubuntu 23.04; then
