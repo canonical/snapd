@@ -823,7 +823,7 @@ func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, laidOutVols map[st
 		// here it is okay that we require there to be either a partition label
 		// or a filesystem label since we require there to be a system-boot role
 		// on this volume which by definition must have a filesystem
-		structureDevice, err := FindDeviceForStructure(&vs)
+		structureDevice, err := FindDeviceForStructure(vs.VolumeStructure)
 		if err == ErrDeviceNotFound {
 			continue
 		}
