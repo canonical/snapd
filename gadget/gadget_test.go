@@ -2154,6 +2154,9 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 	c.Assert(all["frobinator-image"], DeepEquals, systemLv)
 	c.Assert(all["u-boot-frobinator"].LaidOutStructure, DeepEquals, []gadget.LaidOutStructure{
 		{
+			OnDiskStructure: gadget.OnDiskStructure{
+				Size: quantity.Size(623000),
+			},
 			VolumeStructure: &gadget.VolumeStructure{
 				VolumeName: "u-boot-frobinator",
 				Name:       "u-boot",

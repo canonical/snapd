@@ -46,7 +46,7 @@ func NewRawStructureWriter(contentDir string, ps *LaidOutStructure) (*RawStructu
 	if ps == nil {
 		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
 	}
-	if ps.HasFilesystem() {
+	if ps.VolumeStructure.HasFilesystem() {
 		return nil, fmt.Errorf("internal error: structure %s has a filesystem", ps)
 	}
 	if contentDir == "" {

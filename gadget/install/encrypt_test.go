@@ -108,7 +108,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
+		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, s.mockedEncryptionKey, "some-label-enc", "some-label")
 		c.Assert(calls, Equals, 1)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)

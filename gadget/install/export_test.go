@@ -28,7 +28,6 @@ import (
 )
 
 type MkfsParams = mkfsParams
-type OnDiskAndLaidoutStructure = onDiskAndLaidoutStructure
 
 var (
 	MakeFilesystem         = makeFilesystem
@@ -101,16 +100,4 @@ func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevic
 	}
 
 	return nil
-}
-
-func MockOnDiskAndLaidoutStructure(onDisk *gadget.OnDiskStructure, laidOut *gadget.LaidOutStructure) OnDiskAndLaidoutStructure {
-	return OnDiskAndLaidoutStructure{onDisk, laidOut}
-}
-
-func OnDiskFromOnDiskAndLaidoutStructure(odls OnDiskAndLaidoutStructure) *gadget.OnDiskStructure {
-	return odls.onDisk
-}
-
-func LaidOutFromOnDiskAndLaidoutStructure(odls OnDiskAndLaidoutStructure) *gadget.LaidOutStructure {
-	return odls.laidOut
 }

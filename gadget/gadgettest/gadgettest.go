@@ -182,11 +182,13 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 			},
 			{
 				PartitionLabel:   "ubuntu-save",
+				FilesystemLabel:  "ubuntu-save-enc",
 				KernelDeviceNode: "/dev/vda4",
 				DiskIndex:        4,
 			},
 			{
 				PartitionLabel:   "ubuntu-data",
+				FilesystemLabel:  "ubuntu-data-enc",
 				KernelDeviceNode: "/dev/vda5",
 				DiskIndex:        5,
 			},
