@@ -195,6 +195,10 @@ execute: |
     #shellcheck disable=SC2016
     su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs3-tcp"' test
 
+    # ensure snap remove/install with user-data works
+    snap remove test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
     # Unmount /home and restart snapd so that we can check another thing.
     umount_with_retry /home
     restart_snapd
