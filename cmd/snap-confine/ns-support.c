@@ -360,12 +360,16 @@ static bool should_discard_current_ns(const struct sc_invocation *inv,
 	// The namespace may become "stale" when the rootfs is not the same
 	// device we found above. This will happen whenever the base snap is
 	// refreshed since the namespace was first created.
-	if (base_snap_device_changed(mi, base_snap_dev)) return true;
+	if (base_snap_device_changed(mi, base_snap_dev)) {
+		return true;
+	}
 
 	// Another reason for becoming stale is if the homedirs configuration has
 	// changed: so this code will check that all homedirs are mounted in the
 	// namespace.
-	if (!homedirs_are_mounted(mi, inv->homedirs)) return true;
+	if (!homedirs_are_mounted(mi, inv->homedirs)) {
+		return true;
+	}
 
 	return false;
 }
