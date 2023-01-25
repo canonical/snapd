@@ -277,3 +277,11 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 func (s *FwupdInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *FwupdInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, "allows operating as the fwupd service")
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "fwupd")
+}
