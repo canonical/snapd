@@ -66,6 +66,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -87,6 +88,8 @@ type snapmgrBaseTest struct {
 	user  *auth.UserState
 	user2 *auth.UserState
 	user3 *auth.UserState
+
+	reloadOrRestarts map[string]int
 }
 
 // state must be locked by caller
@@ -118,6 +121,28 @@ func (s *snapmgrBaseTest) logTasks(c *C) {
 }
 
 var fakeRevDateEpoch = time.Date(2018, 1, 0, 0, 0, 0, 0, time.UTC)
+
+func (s *snapmgrBaseTest) mockSystemctlCallsUpdateMounts(c *C) (restore func()) {
+	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		if len(args) == 1 && args[0] == "daemon-reload" {
+			return []byte(""), nil
+		}
+		if len(args) == 3 && args[0] == "--no-reload" && args[1] == "enable" {
+			return []byte(""), nil
+		}
+		if len(args) == 2 && args[0] == "reload-or-restart" {
+			value, ok := s.reloadOrRestarts[args[1]]
+			if ok {
+				s.reloadOrRestarts[args[1]] = value + 1
+			}
+			return []byte(""), nil
+		}
+		c.Errorf("unexpected and unhandled systemctl command: %+v", args)
+		return nil, fmt.Errorf("broken test")
+	})
+
+	return r
+}
 
 func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
@@ -299,6 +324,9 @@ SNAPD_APPARMOR_REEXEC=1
 		return nil
 	}))
 	s.AddCleanup(osutil.MockMountInfo(""))
+
+	s.reloadOrRestarts = make(map[string]int)
+	s.AddCleanup(s.mockSystemctlCallsUpdateMounts(c))
 }
 
 func (s *snapmgrBaseTest) TearDownTest(c *C) {
@@ -7315,7 +7343,7 @@ func (s *snapmgrTestSuite) TestStartSnapServicesWithDisabledServicesNowApp(c *C)
 	s.runStartSnapServicesWithDisabledServices(c, "hello")
 
 	// check the log for the notice
-	c.Assert(buf.String(), Matches, `.*previously disabled service hello is now an app and not a service\n.*`)
+	c.Assert(buf.String(), Matches, `(?s).*previously disabled service hello is now an app and not a service\n.*`)
 }
 
 func (s *snapmgrTestSuite) TestStartSnapServicesWithDisabledServicesMissing(c *C) {
@@ -7326,7 +7354,7 @@ func (s *snapmgrTestSuite) TestStartSnapServicesWithDisabledServicesMissing(c *C
 	s.runStartSnapServicesWithDisabledServices(c, "old-disabled-svc")
 
 	// check the log for the notice
-	c.Assert(buf.String(), Matches, `.*previously disabled service old-disabled-svc no longer exists\n.*`)
+	c.Assert(buf.String(), Matches, `(?s).*previously disabled service old-disabled-svc no longer exists\n.*`)
 }
 
 func (s *snapmgrTestSuite) TestStartSnapServicesUndo(c *C) {
@@ -8630,4 +8658,198 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorWithInvalidS
 
 	_, _, err := snapstate.ResolveValidationSetsEnforcementError(context.TODO(), s.state, valErr, nil, s.user.ID)
 	c.Assert(err, ErrorMatches, "cannot auto-resolve validation set constraints that require removing snaps: \"snap-a\"")
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMounts(c *C) {
+	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
+	defer restore()
+
+	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
+	testSnapState := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{testSnapSideInfo},
+		Current:  snap.R(42),
+		Active:   true,
+		SnapType: "app",
+	}
+	testYaml := `name: test-snap
+version: v1
+apps:
+  test-snap:
+    command: bin.sh
+`
+
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, testSnapSideInfo)
+	s.state.Unlock()
+
+	what := fmt.Sprintf("%s/%s_%s.snap", "/var/lib/snapd/snaps", "test-snap", "42")
+	unitName := systemd.EscapeUnitNamePath(filepath.Join("/snap", "test-snap", fmt.Sprintf("%s.mount", "42")))
+	mountFile := filepath.Join(dirs.SnapServicesDir, unitName)
+	mountContent := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for test-snap, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/test-snap/42
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,otheroptions
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], what)
+	os.MkdirAll(dirs.SnapServicesDir, 0755)
+	err := ioutil.WriteFile(mountFile, []byte(mountContent), 0644)
+	c.Assert(err, IsNil)
+
+	s.reloadOrRestarts[unitName] = 0
+
+	err = s.snapmgr.Ensure()
+	c.Assert(err, IsNil)
+
+	c.Assert(s.reloadOrRestarts[unitName], Equals, 1)
+
+	expectedContent := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for test-snap, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/test-snap/42
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], what)
+
+	c.Assert(mountFile, testutil.FileEquals, expectedContent)
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsNoChange(c *C) {
+	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
+	defer restore()
+
+	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
+	testSnapState := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{testSnapSideInfo},
+		Current:  snap.R(42),
+		Active:   true,
+		SnapType: "app",
+	}
+	testYaml := `name: test-snap
+version: v1
+apps:
+  test-snap:
+    command: bin.sh
+`
+
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, testSnapSideInfo)
+	s.state.Unlock()
+
+	what := fmt.Sprintf("%s/%s_%s.snap", "/var/lib/snapd/snaps", "test-snap", "42")
+	unitName := systemd.EscapeUnitNamePath(filepath.Join("/snap", "test-snap", fmt.Sprintf("%s.mount", "42")))
+	mountFile := filepath.Join(dirs.SnapServicesDir, unitName)
+	mountContent := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for test-snap, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/test-snap/42
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], what)
+	os.MkdirAll(dirs.SnapServicesDir, 0755)
+	err := ioutil.WriteFile(mountFile, []byte(mountContent), 0644)
+	c.Assert(err, IsNil)
+
+	s.reloadOrRestarts[unitName] = 0
+
+	err = s.snapmgr.Ensure()
+	c.Assert(err, IsNil)
+
+	c.Assert(s.reloadOrRestarts[unitName], Equals, 0)
+
+	c.Assert(mountFile, testutil.FileEquals, mountContent)
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsCreated(c *C) {
+	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
+	testSnapState := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{testSnapSideInfo},
+		Current:  snap.R(42),
+		Active:   true,
+		SnapType: "app",
+	}
+	testYaml := `name: test-snap
+version: v1
+apps:
+  test-snap:
+    command: bin.sh
+`
+
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, testSnapSideInfo)
+	s.state.Unlock()
+
+	what := fmt.Sprintf("%s/%s_%s.snap", "/var/lib/snapd/snaps", "test-snap", "42")
+	unitName := systemd.EscapeUnitNamePath(filepath.Join("/snap", "test-snap", fmt.Sprintf("%s.mount", "42")))
+	mountFile := filepath.Join(dirs.SnapServicesDir, unitName)
+	if osutil.FileExists(mountFile) {
+		c.Assert(os.Remove(mountFile), IsNil)
+	}
+
+	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
+	defer restore()
+
+	s.reloadOrRestarts[unitName] = 0
+
+	err := s.snapmgr.Ensure()
+	c.Assert(err, IsNil)
+
+	c.Assert(s.reloadOrRestarts[unitName], Equals, 1)
+
+	expectedContent := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for test-snap, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/test-snap/42
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], what)
+
+	c.Assert(mountFile, testutil.FileEquals, expectedContent)
 }

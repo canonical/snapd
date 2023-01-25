@@ -272,6 +272,8 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	o.InterfaceManager().DisableUDevMonitor()
 	s.o = o
 
+	s.AddCleanup(snapstate.MockEnsuredMountsUpdated(s.o.SnapManager(), true))
+
 	st.Lock()
 	defer st.Unlock()
 
@@ -8986,7 +8988,7 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"--no-reload", "enable", "snap-snapd-x1.mount"})
 			return nil, nil
 		case 3:
-			c.Check(cmd, DeepEquals, []string{"start", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"reload-or-restart", "snap-snapd-x1.mount"})
 			return nil, nil
 			// next we get the calls for the rewritten service files after snapd
 			// restarts
@@ -9216,7 +9218,7 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"--no-reload", "enable", "snap-snapd-x1.mount"})
 			return nil, nil
 		case 3:
-			c.Check(cmd, DeepEquals, []string{"start", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"reload-or-restart", "snap-snapd-x1.mount"})
 			return nil, nil
 			// next we get the calls for the rewritten service files after snapd
 			// restarts

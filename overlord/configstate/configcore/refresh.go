@@ -40,7 +40,7 @@ func init() {
 	supportedConfigurations["core.refresh.rate-limit"] = true
 }
 
-func reportOrIgnoreInvalidManageRefreshes(tr Conf, optName string) error {
+func reportOrIgnoreInvalidManageRefreshes(tr RunTransaction, optName string) error {
 	// check if the option is set as part of transaction changes; if not than
 	// it's already set in the config state and we shouldn't error out about it
 	// now. refreshScheduleManaged will do the right thing when refresh cannot
@@ -53,7 +53,7 @@ func reportOrIgnoreInvalidManageRefreshes(tr Conf, optName string) error {
 	return nil
 }
 
-func validateRefreshSchedule(tr Conf) error {
+func validateRefreshSchedule(tr RunTransaction) error {
 	refreshRetainStr, err := coreCfg(tr, "refresh.retain")
 	if err != nil {
 		return err
@@ -132,7 +132,7 @@ func validateRefreshSchedule(tr Conf) error {
 	return err
 }
 
-func validateRefreshRateLimit(tr Conf) error {
+func validateRefreshRateLimit(tr RunTransaction) error {
 	refreshRateLimit, err := coreCfg(tr, "refresh.rate-limit")
 	if err != nil {
 		return err

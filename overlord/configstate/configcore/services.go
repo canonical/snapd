@@ -373,7 +373,7 @@ func handleServiceConfigSSHListen(dev sysconfig.Device, tr ConfGetter, opts *fsO
 
 	if opts == nil {
 		sysd := systemd.New(systemd.SystemMode, &sysdLogger{})
-		if err := sysd.ReloadOrRestart("ssh.service"); err != nil {
+		if err := sysd.ReloadOrRestart([]string{"ssh.service"}); err != nil {
 			return err
 		}
 	}

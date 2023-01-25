@@ -354,7 +354,7 @@ volumes:
 		SnapType: "snapd",
 	})
 
-	witnessConfigcoreRun := func(dev sysconfig.Device, conf configcore.Conf) error {
+	witnessConfigcoreRun := func(dev sysconfig.Device, conf configcore.RunTransaction) error {
 		c.Check(dev.Kernel(), Equals, "kernel")
 		// called with no state lock!
 		conf.State().Lock()
@@ -414,7 +414,7 @@ volumes:
 		SnapType: "os",
 	})
 
-	witnessConfigcoreRun := func(dev sysconfig.Device, conf configcore.Conf) error {
+	witnessConfigcoreRun := func(dev sysconfig.Device, conf configcore.RunTransaction) error {
 		c.Check(dev.Kernel(), Equals, "kernel")
 		// called with no state lock!
 		conf.State().Lock()

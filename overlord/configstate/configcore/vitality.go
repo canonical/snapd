@@ -44,7 +44,7 @@ func init() {
 	supportedConfigurations["core."+vitalityOpt] = true
 }
 
-func handleVitalityConfiguration(tr Conf, opts *fsOnlyContext) error {
+func handleVitalityConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 	var pristineVitalityStr, newVitalityStr string
 
 	if err := tr.GetPristine("core", vitalityOpt, &pristineVitalityStr); err != nil && !config.IsNoOption(err) {
@@ -177,7 +177,7 @@ func handleVitalityConfiguration(tr Conf, opts *fsOnlyContext) error {
 	return nil
 }
 
-func validateVitalitySettings(tr Conf) error {
+func validateVitalitySettings(tr RunTransaction) error {
 	option, err := coreCfg(tr, vitalityOpt)
 	if err != nil {
 		return err

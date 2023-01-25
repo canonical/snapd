@@ -45,6 +45,7 @@ type mockConf struct {
 	conf    map[string]interface{}
 	changes map[string]interface{}
 	err     error
+	task    *state.Task
 }
 
 func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
@@ -96,6 +97,10 @@ func (cfg *mockConf) GetPristineMaybe(snapName, key string, result interface{}) 
 	return nil
 }
 
+func (cfg *mockConf) Task() *state.Task {
+	return cfg.task
+}
+
 func (cfg *mockConf) Set(snapName, key string, v interface{}) error {
 	if snapName != "core" {
 		return fmt.Errorf("mockConf only knows about core")
@@ -118,6 +123,8 @@ func (cfg *mockConf) Changes() []string {
 func (cfg *mockConf) State() *state.State {
 	return cfg.state
 }
+
+func (cfg *mockConf) Commit() {}
 
 // configcoreSuite is the base for all the configcore tests
 type configcoreSuite struct {
