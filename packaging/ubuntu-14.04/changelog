@@ -1,3 +1,10 @@
+snapd (2.58.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1998462
+    - bootloader: fix dirty build by hardcoding copyright year
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 25 Jan 2023 20:02:08 +0100
+
 snapd (2.58.1~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1998462
