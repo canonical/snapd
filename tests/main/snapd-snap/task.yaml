@@ -253,6 +253,12 @@ execute: |
     echo "Ensure we restarted into the snapd snap"
     "$TESTSTOOLS"/journal-state match-log  'restarting into "/snap/snapd/'
 
+    # TODO: fix dirty version number on riscv
+    echo "Ensure the version number is not 'dirty'"
+    if ! uname -m | grep -q riscv64; then
+        snap version | NOMATCH dirty
+    fi
+
     echo "Ensure sandbox-features shows the internal apparmor_parser"
     snap debug sandbox-features --required apparmor:parser:snapd-internal
 
