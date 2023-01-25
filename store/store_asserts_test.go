@@ -88,9 +88,7 @@ T/A8LqZYmIzKRHGwCVucCyAUD8xnwt9nyWLgLB+LLPOVFNK8SR6YyNsX05Yz1BUSndBfaTN8j/k8
 8isKGZE6P0O9ozBbNIAE8v8NMWQegJ4uWuil7D3psLkzQIrxSypk9TrQ2GlIG2hJdUovc5zBuroe
 xS4u9rVT6UY=`
 
-func (s *storeAssertsSuite) TestAssertion(c *C) {
-	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 88)
-	defer restore()
+func (s *storeAssertsSuite) testAssertion(c *C, assertionMaxFormats map[string]int) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", "/v2/assertions/.*")
 		// check device authorization is set, implicitly checking doRequest was used
@@ -112,10 +110,27 @@ func (s *storeAssertsSuite) TestAssertion(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
+	if assertionMaxFormats != nil {
+		sto.SetAssertionMaxFormats(assertionMaxFormats)
+	}
+
 	a, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(a, NotNil)
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
+}
+
+func (s *storeAssertsSuite) TestAssertion(c *C) {
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 88)
+	defer restore()
+
+	s.testAssertion(c, nil)
+}
+
+func (s *storeAssertsSuite) TestAssertionSetAssertionMaxFormats(c *C) {
+	s.testAssertion(c, map[string]int{
+		"snap-declaration": 88,
+	})
 }
 
 var testAssertionOptionalPrimaryKeys = `type: snap-revision
@@ -503,10 +518,7 @@ P8aWCC2W3HIrdx2mnikT3oVf6yN1KSY5qCE2xdhyyKtt+4y5ZJdQK6JxzTanzh4PZVdiPIUhDv4r
 AeDBddPc+mqQtb8bpZ7hMD+dA/B4dA3cRl44Nb/5KcfKjdvl7qpmJQl88OA3DOMpXuxmrrVA
 `
 
-func (s *storeAssertsSuite) TestSeqFormingAssertion(c *C) {
-	restore := asserts.MockMaxSupportedFormat(asserts.ValidationSetType, 88)
-	defer restore()
-
+func (s *storeAssertsSuite) testSeqFormingAssertion(c *C, assertionMaxFormats map[string]int) {
 	// overwritten by test loop for each test case
 	expectedSeqArg := "sample"
 
@@ -543,11 +555,28 @@ func (s *storeAssertsSuite) TestSeqFormingAssertion(c *C) {
 		dauthCtx := &testDauthContext{c: c, device: s.device}
 		sto := store.New(&cfg, dauthCtx)
 
+		if assertionMaxFormats != nil {
+			sto.SetAssertionMaxFormats(assertionMaxFormats)
+		}
+
 		a, err := sto.SeqFormingAssertion(asserts.ValidationSetType, tc.sequenceKey, tc.sequence, nil)
 		c.Assert(err, IsNil)
 		c.Check(a, NotNil)
 		c.Check(a.Type(), Equals, asserts.ValidationSetType)
 	}
+}
+
+func (s *storeAssertsSuite) TestSeqFormingAssertion(c *C) {
+	restore := asserts.MockMaxSupportedFormat(asserts.ValidationSetType, 88)
+	defer restore()
+
+	s.testSeqFormingAssertion(c, nil)
+}
+
+func (s *storeAssertsSuite) TestSeqFormingAssertionSetAssertionMaxFormats(c *C) {
+	s.testSeqFormingAssertion(c, map[string]int{
+		"validation-set": 88,
+	})
 }
 
 func (s *storeAssertsSuite) TestSeqFormingAssertionNotFound(c *C) {
