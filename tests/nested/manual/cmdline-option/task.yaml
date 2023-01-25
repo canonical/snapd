@@ -1,0 +1,170 @@
+summary: Check that kernel command line options work
+
+details: |
+  This test checks that the system options that affect the kernel
+  command line options work as expected.
+
+# TODO enable for 22 when we have developer1-22-dangerous.model
+systems: [ubuntu-20.04-64]
+
+environment:
+  # use tpm + secure boot to get full disk encryption, this is explicitly needed
+  # for grade: secured
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+
+  # use snapd from the spread run so that we have testkeys trusted in the snapd
+  # run
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+
+  # don't use cloud-init from the seed, as we use it from the gadget so it
+  # can work for non-dangerous models
+  NESTED_USE_CLOUD_INIT: false
+
+  # sign all the snaps we build for the image with fakestore
+  NESTED_SIGN_SNAPS_FAKESTORE: true
+
+  # two variants, for signed and secured grades
+  MODEL_GRADE/dangerous: dangerous
+  MODEL_GRADE/signed: signed
+
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-${MODEL_GRADE}.model
+
+  # for the fake store
+  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+
+  # unset this otherwise ubuntu-image complains about overriding the channel for
+  # a model with grade higher than dangerous when building the image
+  NESTED_CORE_CHANNEL: ""
+
+prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+
+  # setup the fakestore, but don't use it for our snapd here on the host VM, so
+  # tear down the staging_store immediately afterwards so that only the SAS is 
+  # running and our snapd is not pointed at it, ubuntu-image is the only thing 
+  # that actually needs to use the fakestore, and we will manually point it at
+  # the fakestore below using NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL
+  setup_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+  teardown_staging_store
+
+  echo Expose the needed assertions through the fakestore
+  cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+
+  # modify and repack gadget snap to add a defaults section and use our own
+  # prepare-device hook to use the fakedevicesvc
+
+  # Get the snakeoil key and cert for signing gadget assets (shim)
+  KEY_NAME=$(tests.nested download snakeoil-key)
+  SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+  SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+  # Get the nested system version
+  VERSION="$(tests.nested show version)"
+
+  snap download --basename=pc --channel="$VERSION/edge" pc
+  unsquashfs -d pc-gadget pc.snap
+
+  # delay all refreshes for a week from now, as otherwise refreshes for our 
+  # snaps (which are asserted by the testrootorg authority-id) may happen, which
+  # will break things because the signing keys won't match, etc. and 
+  # specifically snap-bootstrap in the kernel snap from the store won't trust
+  # the seed keys to unlock the encrypted data partition in the initramfs
+  sed defaults.yaml -e "s/@HOLD-TIME@/$(date --date="next week" +%Y-%m-%dT%H:%M:%S%:z)/" >> \
+    pc-gadget/meta/gadget.yaml
+
+  # install the cloud.conf
+  cp cloud.conf pc-gadget/cloud.conf
+
+  # copy the prepare-device hook to use our fakedevicesvc
+  mkdir -p pc-gadget/meta/hooks/
+  cp prepare-device pc-gadget/meta/hooks/
+
+  tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+  snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
+  rm -rf pc-gadget/
+
+  rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+
+  # start fake device svc
+  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+
+  tests.nested build-image core
+  tests.nested create-vm core
+
+restore: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
+  # stop fake device svc
+  systemctl stop fakedevicesvc
+
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+
+debug: |
+  systemctl status fakedevicesvc || true
+
+execute: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
+  echo "Waiting for the system to be seeded"
+  remote.exec "sudo snap wait system seed.loaded"
+
+  echo "secure boot is enabled on the nested vm"
+  remote.exec "xxd /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c" |
+      MATCH "00000000: 0600 0000 01\s+....."
+
+  echo "Check we have the right model from snap model"
+  remote.exec "sudo snap model --verbose" | MATCH "grade:\s+${MODEL_GRADE}"
+
+  cmdlineExtraDang="extradang.val=1 extradang.flag"
+  remoteCmd="sudo snap set system system.boot.dangerous-cmdline-extra=\"$cmdlineExtraDang\""
+  if [ "$MODEL_GRADE" = "dangerous" ]; then
+      if ! remote.exec "$remoteCmd"; then
+          echo "Failure setting dangerous-cmdline-extra"
+          exit 1
+      fi
+      boot_id="$(tests.nested boot-id)"
+      echo "Rebooting"
+      remote.exec "sudo reboot" || true
+      tests.nested wait-for reboot "$boot_id"
+
+      remote.exec "sudo cat /proc/cmdline" | MATCH "$cmdlineExtraDang"
+  else
+      if remote.exec "$remoteCmd"; then
+          echo "Unexpected success setting dangerous-cmdline-extra for model $MODEL_GRADE"
+          exit 1
+      fi
+      echo "Failure setting dangerous-cmdline-extra (as expected)"
+  fi
+
+  cmdlineExtra="extra.val=1 extra.flag"
+  if [ "$MODEL_GRADE" = "dangerous" ]; then
+      remote.exec "sudo snap set system system.boot.dangerous-cmdline-extra="
+  fi
+  remote.exec "sudo snap set system system.boot.cmdline-extra=\"$cmdlineExtra\""
+
+  boot_id="$(tests.nested boot-id)"
+  echo "Rebooting"
+  remote.exec "sudo reboot" || true
+  tests.nested wait-for reboot "$boot_id"
+
+  remote.exec "sudo cat /proc/cmdline" | MATCH "$cmdlineExtra"
