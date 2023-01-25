@@ -59,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
+	userclient "github.com/snapcore/snapd/usersession/client"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -738,7 +739,9 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	st.Lock()
 	tasks, err := findTasksMatching(st, "pre-download", snapsup.InstanceName(), snapsup.Revision())
+	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -834,8 +837,6 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	// there are download tasks waiting for this one so unblock them
-	// TODO: do we still need to notify the user given there's a ongoing refresh?
-	// Can the hard check fail?
 	if len(waitingTasks) > 0 {
 		for _, chg := range st.Changes() {
 			for _, t := range chg.Tasks() {
@@ -848,18 +849,60 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	}
 
-	for _, ts := range t.Change().Tasks() {
-		if ts.Kind() == "monitor-snaps" {
-			var names []string
-			if err := ts.Get("snap-names", names); err != nil {
-				return err
-			}
-
-			names = append(names, snapsup.InstanceName())
-			ts.Set("snap-names", names)
-			break
-		}
+	_, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
 	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	err = backend.WithSnapLock(info, func() error {
+		return runinhibit.LockWithHint(snapsup.InstanceName(), runinhibit.HintInhibitedForPreDownload)
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := refreshAppsCheck(info); err != nil {
+		var refreshInfo *userclient.PendingSnapRefreshInfo
+		if err := t.Get("refresh-info", &refreshInfo); err != nil {
+			return err
+		}
+
+		// notify the user about the blocked refresh and continue refresh once it closes
+		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+		return asyncRefreshOnSnapClose(m.state, snapsup.InstanceName())
+	}
+
+	// signal that there's an auto-refresh to be continued
+	st.Set("continue-autorefresh", true)
+	st.EnsureBefore(0)
+
+	return nil
+}
+
+// asyncRefreshOnSnapClose asynchronously waits for the snap the close and then
+// triggers an auto-refresh, unless a non-nil error is returned.
+func asyncRefreshOnSnapClose(st *state.State, name string) error {
+	// monitor the snap until it closes
+	done := make(chan string)
+	if err := cgroup.MonitorSnapEnded(name, done); err != nil {
+		return fmt.Errorf("failed to monitor for snap closure: %w", err)
+
+	}
+
+	go func() {
+		<-done
+		st.Lock()
+		defer st.Unlock()
+
+		// signal that there's an auto-refresh to be continued
+		st.Set("continue-autorefresh", true)
+		st.EnsureBefore(0)
+	}()
 
 	return nil
 }
@@ -886,66 +929,6 @@ func findTasksMatching(st *state.State, kind string, snapName string, revision s
 	}
 
 	return tasks, nil
-}
-
-func (m *SnapManager) doMonitorSnaps(t *state.Task, tomb *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	var snapNames []string
-	if err := t.Get("snap-names", &snapNames); err != nil {
-		return err
-	}
-
-	done := make(chan string, len(snapNames))
-	var openSnaps int
-
-	for _, name := range snapNames {
-		var snapst SnapState
-		err := Get(t.State(), name, &snapst)
-		if err != nil && !errors.Is(err, state.ErrNoState) {
-			return err
-		}
-
-		info, err := snapst.CurrentInfo()
-		if err != nil {
-			return err
-		}
-
-		err = backend.WithSnapLock(info, func() error {
-			return runinhibit.LockWithHint(name, runinhibit.HintInhibitedForPreDownload)
-		})
-		if err != nil {
-			return err
-		}
-
-		if err := refreshAppsCheck(info); err != nil {
-			// TODO: enable notification. Get refresh-info from pre-download task or move it?
-			//asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
-
-			// TODO: notifying about multiple snaps in one call? new API endpoint?
-
-			if err := cgroup.MonitorSnapEnded(name, done); err != nil {
-				// TODO: go ahead with others?
-				return err
-			}
-
-			openSnaps++
-		}
-	}
-
-	st.Unlock()
-	for open := len(snapNames); open > 0; open-- {
-		select {
-		case <-done:
-			// TODO: timeouts?
-		}
-	}
-	st.Lock()
-
-	// TODO: hard check and then auto-refresh
-	return nil
 }
 
 var (
@@ -1213,6 +1196,19 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		// XXX: should we skip it if type is snap.TypeSnapd?
 		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo)
 		if err != nil {
+			// notify user to close the running snap and trigger the auto-refresh again
+			// once it's closed
+			if snapsup.Flags.IsAutoRefresh {
+				refreshInfo := &userclient.PendingSnapRefreshInfo{
+					InstanceName: snapsup.InstanceName(),
+				}
+
+				asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+				if err := asyncRefreshOnSnapClose(m.state, snapsup.InstanceName()); err != nil {
+					return err
+				}
+			}
+
 			return err
 		}
 		defer lock.Close()

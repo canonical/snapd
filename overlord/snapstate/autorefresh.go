@@ -278,6 +278,19 @@ func (m *autoRefresh) Ensure() error {
 		return err
 	}
 
+	// check if we're continuing an autorefresh that was previously blocked by running snaps
+	var continueRefresh bool
+	if err := m.state.Get("continue-autorefresh", &continueRefresh); !errors.Is(err, &state.NoStateError{}) {
+		return err
+	}
+
+	if continueRefresh {
+		m.state.Set("delayed-autorefresh", nil)
+
+		// TODO: do an early hard check so we fail early instead of mid-autorefresh
+		return m.launchAutoRefresh()
+	}
+
 	// get lastRefresh and schedule
 	lastRefresh, err := m.LastRefresh()
 	if err != nil {
@@ -537,34 +550,20 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}
 
 	var preDlTss, autorefreshTss []*state.TaskSet
-	var busySnaps []string
+
 	for _, ts := range tasksets {
 		tasks := ts.Tasks()
 		if len(tasks) == 1 && tasks[0].Kind() == "pre-download-snap" {
 			preDlTss = append(preDlTss, ts)
-
-			var snapsup *SnapSetup
-			if err := tasks[0].Get("snap-setup", &snapsup); err != nil {
-				return err
-			}
-
-			busySnaps = append(busySnaps, snapsup.InstanceName())
 		} else {
 			autorefreshTss = append(autorefreshTss, ts)
 		}
 	}
 
-	if preDlTss != nil {
+	if len(preDlTss) != 0 {
 		chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
-
-		// TODO; the monitor task waits for all pre-downloads. If any fail, maybe we
-		// shouldn't notify the user about it and we shouldn't wait for it to stop
-		monitorTask := m.state.NewTask("monitor-snaps", i18n.G("Monitor pre-downloaded snaps"))
-		chg.AddTask(monitorTask)
-
 		for _, ts := range preDlTss {
 			chg.AddAll(ts)
-			monitorTask.WaitAll(ts)
 		}
 	}
 
@@ -579,27 +578,25 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return err
 	}
 
-	// TODO: no longer necessary; restore to how it was
-	chg := mkAutoRefreshChange(m.state, updated, autorefreshTss)
-	state.TagTimingsWithChange(perfTimings, chg)
-	return nil
-}
+	if len(autorefreshTss) == 0 {
+		return nil
+	}
 
-func mkAutoRefreshChange(st *state.State, snaps []string, tasksets []*state.TaskSet) *state.Change {
-	msg := autoRefreshSummary(snaps)
+	msg := autoRefreshSummary(updated)
 	if msg == "" {
 		logger.Noticef(i18n.G("auto-refresh: all snaps are up-to-date"))
 		return nil
 	}
 
-	chg := st.NewChange("auto-refresh", msg)
+	chg := m.state.NewChange("auto-refresh", msg)
 	for _, ts := range tasksets {
 		chg.AddAll(ts)
 	}
-	chg.Set("snap-names", snaps)
-	chg.Set("api-data", map[string]interface{}{"snap-names": snaps})
+	chg.Set("snap-names", updated)
+	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
 
-	return chg
+	state.TagTimingsWithChange(perfTimings, chg)
+	return nil
 }
 
 func autoRefreshInFlight(st *state.State) bool {
@@ -667,12 +664,11 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 		Set(st, info.InstanceName(), snapst)
 	case now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition:
-		// TODO: clean this up, no need for it now
-		//// If we are still in the allowed window then just return the error but
-		//// don't change the snap state again.
-		//// TODO: as time left shrinks, send additional notifications with
-		//// increasing frequency, allowing the user to understand the urgency.
-		//refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+		// If we are still in the allowed window then just return the error but
+		// don't change the snap state again.
+		// TODO: as time left shrinks, send additional notifications with
+		// increasing frequency, allowing the user to understand the urgency.
+		refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 	default:
 		// If we run out of time then consume the error that would normally
 		// inhibit refresh and notify the user that the snap is refreshing right
@@ -683,7 +679,8 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 
 	// notify if we're refreshing right now. If we're postponing, we'll notify
 	// after pre-downloading the task. If it's a manual refresh, we don't notify at all
-	if snapsup.IsAutoRefresh && refreshInfo.TimeRemaining == 0 {
+	// TODO: only notify here if the snap is refreshing now? (do we do that anymore?)
+	if snapsup.IsAutoRefresh { //&& refreshInfo.TimeRemaining == 0 {
 		// Send the notification asynchronously to avoid holding the state lock.
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 	}
