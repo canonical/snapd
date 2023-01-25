@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.58.1
+Version:        2.58.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -996,6 +996,10 @@ fi
 
 
 %changelog
+* Wed Jan 25 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.58.2
+ - bootloader: fix dirty build by hardcoding copyright year
+
 * Mon Jan 23 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.58.1
  - secboot: detect lockout mode in CheckTPMKeySealingSupported
