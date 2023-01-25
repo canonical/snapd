@@ -25,9 +25,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -51,24 +53,31 @@ func changedBootConfigs(c RunTransaction) []string {
 	return changed
 }
 
-func validateParamsAreAllowed(st *state.State, params []string) error {
-	st.Lock()
-	defer st.Unlock()
-	devCtx, err := devicestate.DeviceCtx(st, nil, nil)
-	if err != nil {
-		return err
-	}
-	gd, err := devicestate.CurrentGadgetInfo(st, devCtx)
-	if err != nil {
-		return err
-	}
-	logger.Debugf("gadget data read from %s", gd.RootDir)
+func validateParamsAreAllowed(st *state.State, devCtx snapstate.DeviceContext, params []string) error {
+	// gd, err := devicestate.CurrentGadgetInfo(st, devCtx)
+	// if err != nil {
+	// 	return err
+	// }
+	// logger.Debugf("gadget data read from %s", gd.RootDir)
 	// TODO use gadgetdata to check against allowed values
 
 	return nil
 }
 
 func validateCmdlineExtra(c RunTransaction) error {
+	changed := changedBootConfigs(c)
+	if len(changed) == 0 {
+		return nil
+	}
+
+	st := c.State()
+	st.Lock()
+	defer st.Unlock()
+	devCtx, err := devicestate.DeviceCtx(st, nil, nil)
+	if err != nil {
+		return err
+	}
+
 	for _, opt := range changedBootConfigs(c) {
 		optWithoutSnap := strings.SplitN(opt, ".", 2)[1]
 		cmdExtra, err := coreCfg(c, optWithoutSnap)
@@ -83,8 +92,13 @@ func validateCmdlineExtra(c RunTransaction) error {
 		}
 		if optWithoutSnap == OptionBootCmdlineExtra {
 			// check against allowed values from gadget
-			if err := validateParamsAreAllowed(c.State(), params); err != nil {
+			if err := validateParamsAreAllowed(c.State(), devCtx, params); err != nil {
 				return fmt.Errorf("while validating params: %v", err)
+			}
+		} else { // OptionBootDangerousCmdlineExtra
+			if devCtx.Model().Grade() != asserts.ModelDangerous {
+				return fmt.Errorf("cannot use %s for non-dangerous model",
+					optWithoutSnap)
 			}
 		}
 	}
