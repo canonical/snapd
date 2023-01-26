@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -96,37 +97,13 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-type seededSystem struct {
-	// System carries the recovery system label that was used to seed the
-	// current system
-	System string `json:"system"`
-	Model  string `json:"model"`
-	// BrandID is the brand account ID
-	BrandID string `json:"brand-id"`
-	// Revision of the model assertion
-	Revision int `json:"revision"`
-	// Timestamp of model assertion
-	Timestamp time.Time `json:"timestamp"`
-	// SeedTime holds the timestamp when the system was seeded
-	SeedTime time.Time `json:"seed-time"`
-}
-
-func (s *seededSystem) sameAs(other *seededSystem) bool {
-	// in theory the system labels are unique, however be extra paranoid and
-	// check all model related fields too
-	return s.System == other.System &&
-		s.Model == other.Model &&
-		s.BrandID == other.BrandID &&
-		s.Revision == other.Revision
-}
-
-func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSystem) error {
-	var seeded []seededSystem
+func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *install.SeededSystem) error {
+	var seeded []install.SeededSystem
 	if err := st.Get("seeded-systems", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	for _, sys := range seeded {
-		if sys.sameAs(whatSeeded) {
+		if sys.SameAs(whatSeeded) {
 			return nil
 		}
 	}
@@ -134,7 +111,7 @@ func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSy
 	// like we do with modeenv, the recently seeded system is added at the
 	// front, as it is not considered candidate like for the other entries,
 	// but rather it describes the currently existing
-	seeded = append([]seededSystem{*whatSeeded}, seeded...)
+	seeded = append([]install.SeededSystem{*whatSeeded}, seeded...)
 	st.Set("seeded-systems", seeded)
 	return nil
 }
@@ -170,7 +147,7 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	now := time.Now()
-	var whatSeeded *seededSystem
+	var whatSeeded *install.SeededSystem
 	if err := t.Get("seed-system", &whatSeeded); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}

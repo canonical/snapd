@@ -68,3 +68,27 @@ var recoverSystemActions = []SystemAction{
 	{Title: "Run normally", Mode: "run"},
 }
 
+type SeededSystem struct {
+	// System carries the recovery system label that was used to seed the
+	// current system
+	System string `json:"system"`
+	Model  string `json:"model"`
+	// BrandID is the brand account ID
+	BrandID string `json:"brand-id"`
+	// Revision of the model assertion
+	Revision int `json:"revision"`
+	// Timestamp of model assertion
+	Timestamp time.Time `json:"timestamp"`
+	// SeedTime holds the timestamp when the system was seeded
+	SeedTime time.Time `json:"seed-time"`
+}
+
+func (s *SeededSystem) SameAs(other *SeededSystem) bool {
+	// in theory the system labels are unique, however be extra paranoid and
+	// check all model related fields too
+	return s.System == other.System &&
+		s.Model == other.Model &&
+		s.BrandID == other.BrandID &&
+		s.Revision == other.Revision
+}
+

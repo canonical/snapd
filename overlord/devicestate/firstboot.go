@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -319,7 +320,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		endTs.AddTask(preseedDoneTask)
 		markSeeded.WaitFor(preseedDoneTask)
 	}
-	whatSeeds := &seededSystem{
+	whatSeeds := &install.SeededSystem{
 		System:    sysLabel,
 		Model:     model.Model(),
 		BrandID:   model.BrandID(),

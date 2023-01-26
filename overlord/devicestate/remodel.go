@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -276,7 +277,7 @@ func (rc *baseRemodelContext) updateRunModeSystem() error {
 	if err := boot.DeviceChange(oldDeviceContext, newDeviceContext); err != nil {
 		return fmt.Errorf("cannot switch device: %v", err)
 	}
-	if err := rc.deviceMgr.recordSeededSystem(rc.st, &seededSystem{
+	if err := rc.deviceMgr.recordSeededSystem(rc.st, &install.SeededSystem{
 		System:    rc.recoverySystemLabel,
 		Model:     rc.model.Model(),
 		BrandID:   rc.model.BrandID(),
