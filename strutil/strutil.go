@@ -355,3 +355,10 @@ func WordWrapPadded(out io.Writer, text []rune, pad string, termWidth int) error
 	}
 	return WordWrap(out, text, indent, indent, termWidth)
 }
+
+func UntestedCode(s string) bool {
+	if s == "test-me" {
+		return true
+	}
+	return false
+}
