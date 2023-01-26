@@ -22,7 +22,6 @@ prepare: |
   snap set system experimental.quota-groups=true
   tests.cleanup defer snap unset system experimental.quota-groups
 
-
 execute: |
   echo "Starting service and verifying that log messages are sent to default journal namespace"
   snap start test-snapd-journal-quota.logger
