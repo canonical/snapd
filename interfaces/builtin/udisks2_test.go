@@ -100,6 +100,17 @@ apps:
   slots: [udisks2]
 `
 
+const udisks2WithUdevFileProducerYamlTemplate = `name: producer
+version: 0
+slots:
+  udisks2:
+    interface: udisks2
+    udev-file: %s
+apps:
+ app:
+  slots: [udisks2]
+`
+
 const udisks2ProducerTwoAppsYaml = `name: producer
 version: 0
 apps:
@@ -255,6 +266,16 @@ func (s *UDisks2InterfaceSuite) TestUDevSpecFile(c *C) {
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfoWithUdevFile), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `# Test UDev file`)
+}
+
+func (s *UDisks2InterfaceSuite) TestUDevSpecFileCannotOpen(c *C) {
+	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
+	c.Assert(ioutil.WriteFile(filepath.Join(producerDir, "non-readable"), []byte(""), 0222), IsNil)
+	yaml := fmt.Sprintf(udisks2WithUdevFileProducerYamlTemplate, "non-readable")
+	_, slotInfo := MockConnectedSlot(c, yaml, nil, "udisks2")
+
+	spec := &udev.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, slotInfo), ErrorMatches, "cannot open udev-file: .*")
 }
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecOnClassic(c *C) {
