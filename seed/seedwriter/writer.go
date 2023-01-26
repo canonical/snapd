@@ -193,12 +193,12 @@ type Writer struct {
 	snapsFromModel []*SeedSnap
 	extraSnaps     []*SeedSnap
 
-	consideredForAssertions int
+	consideredForAssertionsIndex int
 
-	consideredForSnapdCarrying int
-	systemSnap                 *SeedSnap
-	kernelSnap                 *SeedSnap
-	noKernelSnap               bool
+	consideredForSnapdCarryingIndex int
+	systemSnap                      *SeedSnap
+	kernelSnap                      *SeedSnap
+	noKernelSnap                    bool
 }
 
 type policy interface {
@@ -880,29 +880,29 @@ func isKernelSnap(sn *SeedSnap) bool {
 	return sn.modelSnap != nil && sn.modelSnap.SnapType == "kernel"
 }
 
-// snapdCarryingSnapsKnown returns true once it all the snaps that carry snapd
+// snapdCarryingSnapsKnown returns true once all the snaps that carry snapd
 // or parts of it have been captured; they need to be known before assertions
 // can be fetched with the correct max formats
 func (w *Writer) snapdCarryingSnapsKnown() bool {
 	return w.systemSnap != nil && (w.noKernelSnap || w.kernelSnap != nil)
 }
 
-func (w *Writer) considerForSnapdCarrying(sn *SeedSnap) error {
+func (w *Writer) considerForSnapdCarrying(sn *SeedSnap) {
 	if w.systemSnap == nil {
 		if w.policy.isSystemSnapCandidate(sn) {
 			w.systemSnap = sn
-			return nil
+			return
 		}
 	}
 	if w.noKernelSnap {
-		return nil
+		return
 	}
 	if isKernelSnap(sn) {
 		w.kernelSnap = sn
-		return nil
+		return
 	}
 	w.noKernelSnap = true
-	return nil
+	return
 }
 
 // An AssertsFetchFunc should fetch appropriate assertions for the snap sn, it
@@ -915,8 +915,11 @@ func (w *Writer) ensureARefs(upToSnap *SeedSnap, fetchAsserts AssertsFetchFunc) 
 	n := len(w.snapsFromModel)
 	xn := len(w.extraSnaps)
 
-	iterateUpTo := func(count *int, f func(sn *SeedSnap) error) error {
-		i := *count
+	// apply f on the combined lists w.snapsFromModel and w.extraSnaps,
+	// starting from combined index start and until hitting
+	// upToSnap or the end
+	applyFromUpTo := func(start int, f func(sn *SeedSnap) error) (indexAter int, err error) {
+		i, indexAfter := start, start
 		snaps := w.snapsFromModel
 		for ; i < n+xn; i++ {
 			j := i
@@ -926,19 +929,27 @@ func (w *Writer) ensureARefs(upToSnap *SeedSnap, fetchAsserts AssertsFetchFunc) 
 			}
 			sn := snaps[j]
 			if err := f(sn); err != nil {
-				return err
+				return -1, err
 			}
-			*count += 1
+			indexAfter++
 			if sn == upToSnap {
 				break
 			}
 		}
-		return nil
+		return indexAfter, nil
 	}
 
 	if !w.snapdCarryingSnapsKnown() {
-		iterateUpTo(&w.consideredForSnapdCarrying, w.considerForSnapdCarrying)
+		// no error expected from considerForSnapdCarrying
+		w.consideredForSnapdCarryingIndex, _ = applyFromUpTo(w.consideredForSnapdCarryingIndex, func(sn *SeedSnap) error {
+			w.considerForSnapdCarrying(sn)
+			return nil
+		})
 	}
+	// check whether after applying considerForSnapdCarrying the snaps
+	// carrying snapd are known. if they are we can start fetching
+	// assertions if they aren't return here or ignore or error
+	// as appropriate
 	if !w.snapdCarryingSnapsKnown() {
 		if upToSnap == nil && n+xn > 0 {
 			if !w.policy.ignoreUndeterminedSystemSnap() {
@@ -948,7 +959,7 @@ func (w *Writer) ensureARefs(upToSnap *SeedSnap, fetchAsserts AssertsFetchFunc) 
 		return nil
 	}
 
-	return iterateUpTo(&w.consideredForAssertions, func(sn *SeedSnap) error {
+	indexAfter, err := applyFromUpTo(w.consideredForAssertionsIndex, func(sn *SeedSnap) error {
 		if sn.Info.ID() == "" {
 			return nil
 		}
@@ -962,6 +973,11 @@ func (w *Writer) ensureARefs(upToSnap *SeedSnap, fetchAsserts AssertsFetchFunc) 
 		sn.aRefs = aRefs
 		return w.checkPublisher(sn)
 	})
+	if err != nil {
+		return err
+	}
+	w.consideredForAssertionsIndex = indexAfter
+	return nil
 }
 
 func (w *Writer) downloaded(seedSnaps []*SeedSnap, fetchAsserts AssertsFetchFunc) error {
