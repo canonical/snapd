@@ -4,8 +4,7 @@ details: |
   This test checks that the system options that affect the kernel
   command line options work as expected.
 
-# TODO enable for 22 when we have developer1-22-dangerous.model
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-2*]
 
 environment:
   # use tpm + secure boot to get full disk encryption, this is explicitly needed
