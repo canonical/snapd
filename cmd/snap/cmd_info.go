@@ -418,6 +418,9 @@ func (iw *infoWriter) printDescr() {
 }
 
 func (iw *infoWriter) maybePrintCategories() {
+	if !iw.verbose {
+		return
+	}
 	if len(iw.theSnap.Categories) == 0 {
 		return
 	}
