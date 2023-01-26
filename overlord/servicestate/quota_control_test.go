@@ -354,11 +354,15 @@ func (s *quotaControlSuite) TestCreateQuotaJournalNotEnabled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.quota-groups", false)
+	tr.Commit()
+
 	quotaConstraits := quota.NewResourcesBuilder().WithJournalNamespace().Build()
 	_, err := servicestate.CreateQuota(s.state, "foo", servicestate.CreateQuotaOptions{
 		ResourceLimits: quotaConstraits,
 	})
-	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.journal-quota' to true`)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
 }
 
 func (s *quotaControlSuite) TestCreateQuotaJournalEnabled(c *C) {
