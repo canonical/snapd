@@ -71,6 +71,7 @@ func quotaGroupsAvailable(st *state.State) error {
 		return fmt.Errorf("cannot use quotas with incompatible systemd: %v", systemdVersionError)
 	}
 
+	// TODO: remove this check
 	tr := config.NewTransaction(st)
 	enableQuotaGroups, err := features.Flag(tr, features.QuotaGroups)
 	if err != nil && !config.IsNoOption(err) {
@@ -80,6 +81,58 @@ func quotaGroupsAvailable(st *state.State) error {
 		return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.quota-groups' to true")
 	}
 
+	return nil
+}
+
+func isQuotaAvailable(st *state.State, feature features.SnapdFeature, settingName string) error {
+	tr := config.NewTransaction(st)
+	status, err := features.Flag(tr, feature)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if !status {
+		return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.%s' to true", settingName)
+	}
+	return nil
+}
+
+func verifyQuotaRequirements(st *state.State, resourceLimits quota.Resources) error {
+	// validate quotas in general are available
+	if err := quotaGroupsAvailable(st); err != nil {
+		return err
+	}
+
+	// Upon initialization verification for systemd version 230 has already been done,
+	// but for some of these quota types we need even higher version.
+	// see: EnsureQuotaUsability
+
+	// MemoryLimit requires systemd 211, so it's covered by the initial check
+	// CPUQuota requires systemd 213, so no further checks need to be done
+	// TasksMax requires systemd 228, so no further checks need to be done
+
+	// AllowedCPUs requires systemd 243, so we need to verify the version here
+	if resourceLimits.CPUSet != nil {
+		if err := systemd.EnsureAtLeast(243); err != nil {
+			return fmt.Errorf("cannot use the cpu-set quota with incompatible systemd: %v", err)
+		}
+	}
+
+	// Journal quotas require systemd 245, so we need to verify the version here as well
+	if resourceLimits.Journal != nil {
+		if err := systemd.EnsureAtLeast(245); err != nil {
+			return fmt.Errorf("cannot use journal quota with incompatible systemd: %v", err)
+		}
+
+		// We also need to check against experimental features for journal quota
+		if journErr := isQuotaAvailable(st, features.JournalQuota, "journal-quota"); journErr != nil {
+			// For backwards compatibility with current uses of journal quota before this added feature
+			// we also allow the enabled quota-groups feature switch to be set
+			if err := isQuotaAvailable(st, features.QuotaGroups, "quota-groups"); err != nil {
+				// but is that not enabled either, let's point them to the new option
+				return journErr
+			}
+		}
+	}
 	return nil
 }
 
@@ -105,7 +158,7 @@ type CreateQuotaOptions struct {
 // CreateQuota attempts to create the specified quota group with the specified
 // snaps in it.
 func CreateQuota(st *state.State, name string, createOpts CreateQuotaOptions) (*state.TaskSet, error) {
-	if err := quotaGroupsAvailable(st); err != nil {
+	if err := verifyQuotaRequirements(st, createOpts.ResourceLimits); err != nil {
 		return nil, err
 	}
 
@@ -243,7 +296,7 @@ type UpdateQuotaOptions struct {
 // parents, removing sub-groups from their parents, and removing snaps from
 // the group.
 func UpdateQuota(st *state.State, name string, updateOpts UpdateQuotaOptions) (*state.TaskSet, error) {
-	if err := quotaGroupsAvailable(st); err != nil {
+	if err := verifyQuotaRequirements(st, updateOpts.NewResourceLimits); err != nil {
 		return nil, err
 	}
 
