@@ -97,6 +97,26 @@ func (s *infoSuite) TestMaybePrintServicesNoServices(c *check.C) {
 	}
 }
 
+func (s *infoSuite) TestMaybePrintCategories(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+
+	buf.Reset()
+	snap.SetVerbose(iw, false)
+	snap.SetupDiskSnap(iw, "", &client.Snap{Categories: []snaplib.CategoryInfo{{Featured: true, Name: "category1"}, {Featured: false, Name: "category2"}}})
+	snap.MaybePrintCategories(iw)
+	c.Check(buf.String(), check.Equals, "")
+
+	buf.Reset()
+	snap.SetVerbose(iw, true)
+	snap.SetupDiskSnap(iw, "", &client.Snap{Categories: []snaplib.CategoryInfo{{Featured: true, Name: "category1"}, {Featured: false, Name: "category2"}}})
+	snap.MaybePrintCategories(iw)
+	c.Check(buf.String(), check.Equals, `categories:
+  - category1
+  - category2
+`)
+}
+
 func (s *infoSuite) TestMaybePrintCommands(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriter(&buf)
