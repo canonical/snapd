@@ -33,6 +33,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	_ "golang.org/x/crypto/sha3"
@@ -46,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -54,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -705,4 +708,52 @@ func checkFDEFeatures(runSetupHook fde.RunSetupHookFunc) (et secboot.EncryptionT
 func HasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
 	_, ok := kernelInfo.Hooks["fde-setup"]
 	return ok
+}
+
+func EnsureUbuntuSaveIsMounted() error {
+	saveMounted, err := osutil.IsMounted(dirs.SnapSaveDir)
+	if err != nil {
+		return err
+	}
+	if saveMounted {
+		logger.Noticef("save already mounted under %v", dirs.SnapSaveDir)
+		return nil
+	}
+
+	runMntSaveMounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
+	if err != nil {
+		return err
+	}
+	if !runMntSaveMounted {
+		// we don't have ubuntu-save, save will be used directly
+		logger.Noticef("no ubuntu-save mount")
+		return nil
+	}
+
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
+
+	// In newer core20/core22 we have a mount unit for ubuntu-save, which we
+	// will try to start first. Invoking systemd-mount in this case would fail.
+	err = sysd.Start([]string{"var-lib-snapd-save.mount"})
+	if err == nil {
+		logger.Noticef("mount unit for ubuntu-save was started")
+		return nil
+	} else {
+		// We only fall through and mount directly if the failure was because of a missing
+		// mount file, which possible does not exist. Any other failure we treat as an actual
+		// error.
+		// XXX: systemd ideally should start returning some kind UnitNotFound errors in this situation
+		if !strings.Contains(err.Error(), "Unit var-lib-snapd-save.mount not found.") {
+			return err
+		}
+	}
+
+	// Otherwise try to directly mount the partition with systemd-mount.
+	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
+	err = sysd.Mount(boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, "-o", "bind")
+	if err != nil {
+		logger.Noticef("bind-mounting ubuntu-save failed %v", err)
+		return fmt.Errorf("cannot bind mount %v under %v: %v", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, err)
+	}
+	return nil
 }

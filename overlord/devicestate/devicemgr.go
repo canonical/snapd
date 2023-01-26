@@ -51,7 +51,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -61,7 +60,6 @@ import (
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -322,54 +320,6 @@ func (m *DeviceManager) shouldMountUbuntuSave(dev snap.Device) bool {
 	return m.SystemMode(SysHasModeenv) == "run"
 }
 
-func (m *DeviceManager) ensureUbuntuSaveIsMounted() error {
-	saveMounted, err := osutil.IsMounted(dirs.SnapSaveDir)
-	if err != nil {
-		return err
-	}
-	if saveMounted {
-		logger.Noticef("save already mounted under %v", dirs.SnapSaveDir)
-		return nil
-	}
-
-	runMntSaveMounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
-	if err != nil {
-		return err
-	}
-	if !runMntSaveMounted {
-		// we don't have ubuntu-save, save will be used directly
-		logger.Noticef("no ubuntu-save mount")
-		return nil
-	}
-
-	sysd := systemd.New(systemd.SystemMode, progress.Null)
-
-	// In newer core20/core22 we have a mount unit for ubuntu-save, which we
-	// will try to start first. Invoking systemd-mount in this case would fail.
-	err = sysd.Start([]string{"var-lib-snapd-save.mount"})
-	if err == nil {
-		logger.Noticef("mount unit for ubuntu-save was started")
-		return nil
-	} else {
-		// We only fall through and mount directly if the failure was because of a missing
-		// mount file, which possible does not exist. Any other failure we treat as an actual
-		// error.
-		// XXX: systemd ideally should start returning some kind UnitNotFound errors in this situation
-		if !strings.Contains(err.Error(), "Unit var-lib-snapd-save.mount not found.") {
-			return err
-		}
-	}
-
-	// Otherwise try to directly mount the partition with systemd-mount.
-	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
-	err = sysd.Mount(boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, "-o", "bind")
-	if err != nil {
-		logger.Noticef("bind-mounting ubuntu-save failed %v", err)
-		return fmt.Errorf("cannot bind mount %v under %v: %v", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, err)
-	}
-	return nil
-}
-
 // ensureUbuntuSaveSnapFolders creates the necessary folder structure for
 // /var/lib/snapd/save/snap/<snap>. This is normally done during installation
 // of a snap, but there are two cases where this can be insufficient.
@@ -398,7 +348,7 @@ func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
 // to mount ubuntu-save (if feasible), and ensures the correct snap
 // folders are present according to currently installed snaps.
 func (m *DeviceManager) setupUbuntuSave(dev snap.Device) error {
-	if err := m.ensureUbuntuSaveIsMounted(); err != nil {
+	if err := installHandler.EnsureUbuntuSaveIsMounted(); err != nil {
 		return err
 	}
 
