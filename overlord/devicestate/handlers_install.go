@@ -1261,7 +1261,7 @@ func mountSeedSnap(seedSn *seed.Snap) (mountpoint string, unmount func() error, 
 }
 
 func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (
-	*System, map[snap.Type]*snap.Info, map[snap.Type]*seed.Snap, map[snap.Type]string, func(), error) {
+	*installHandler.System, map[snap.Type]*snap.Info, map[snap.Type]*seed.Snap, map[snap.Type]string, func(), error) {
 
 	essentialTypes := []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget}
 	sys, snapInfos, snapSeeds, err := m.loadSystemAndEssentialSnaps(systemLabel, essentialTypes)

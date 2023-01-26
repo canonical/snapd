@@ -34,3 +34,37 @@ func MaybeReadModeenv() (*boot.Modeenv, error) {
 	return modeenv, nil
 }
 
+type SystemAction struct {
+	Title string
+	Mode  string
+}
+
+type System struct {
+	// Current is true when the system running now was installed from that
+	// seed
+	Current bool
+	// Label of the seed system
+	Label string
+	// Model assertion of the system
+	Model *asserts.Model
+	// Brand information
+	Brand *asserts.Account
+	// Actions available for this system
+	Actions []SystemAction
+}
+
+var defaultSystemActions = []SystemAction{
+	{Title: "Install", Mode: "install"},
+}
+var currentSystemActions = []SystemAction{
+	{Title: "Reinstall", Mode: "install"},
+	{Title: "Recover", Mode: "recover"},
+	{Title: "Factory reset", Mode: "factory-reset"},
+	{Title: "Run normally", Mode: "run"},
+}
+var recoverSystemActions = []SystemAction{
+	{Title: "Reinstall", Mode: "install"},
+	{Title: "Factory reset", Mode: "factory-reset"},
+	{Title: "Run normally", Mode: "run"},
+}
+

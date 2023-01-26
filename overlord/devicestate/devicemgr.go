@@ -1928,45 +1928,11 @@ func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
 	return &smi, nil
 }
 
-type SystemAction struct {
-	Title string
-	Mode  string
-}
-
-type System struct {
-	// Current is true when the system running now was installed from that
-	// seed
-	Current bool
-	// Label of the seed system
-	Label string
-	// Model assertion of the system
-	Model *asserts.Model
-	// Brand information
-	Brand *asserts.Account
-	// Actions available for this system
-	Actions []SystemAction
-}
-
-var defaultSystemActions = []SystemAction{
-	{Title: "Install", Mode: "install"},
-}
-var currentSystemActions = []SystemAction{
-	{Title: "Reinstall", Mode: "install"},
-	{Title: "Recover", Mode: "recover"},
-	{Title: "Factory reset", Mode: "factory-reset"},
-	{Title: "Run normally", Mode: "run"},
-}
-var recoverSystemActions = []SystemAction{
-	{Title: "Reinstall", Mode: "install"},
-	{Title: "Factory reset", Mode: "factory-reset"},
-	{Title: "Run normally", Mode: "run"},
-}
-
 var ErrNoSystems = errors.New("no systems seeds")
 
 // Systems list the available recovery/seeding systems. Returns the list of
 // systems, ErrNoSystems when no systems seeds were found or other error.
-func (m *DeviceManager) Systems() ([]*System, error) {
+func (m *DeviceManager) Systems() ([]*installHandler.System, error) {
 	// it's tough luck when we cannot determine the current system seed
 	systemMode := m.SystemMode(SysAny)
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
@@ -1980,7 +1946,7 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 		return nil, ErrNoSystems
 	}
 
-	var systems []*System
+	var systems []*installHandler.System
 	for _, fpLabel := range systemLabels {
 		label := filepath.Base(fpLabel)
 		system, err := systemFromSeed(label, currentSys)
@@ -1998,7 +1964,7 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 // SystemAndGadgetAndEncryptionInfo return the system details
 // including the model assertion, gadget details and encryption info
 // for the given system label.
-func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel string) (*System, *gadget.Info, *EncryptionSupportInfo, error) {
+func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel string) (*installHandler.System, *gadget.Info, *EncryptionSupportInfo, error) {
 	// TODO check that the system is not a classic boot one when the
 	// installer is not anymore.
 
@@ -2039,7 +2005,7 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 // includes system, gadget information, gadget and kernel snaps info,
 // and gadget and kernel seed snap info.
 func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, types []snap.Type) (
-	*System, map[snap.Type]*snap.Info, map[snap.Type]*seed.Snap, error) {
+	*installHandler.System, map[snap.Type]*snap.Info, map[snap.Type]*seed.Snap, error) {
 
 	// get current system as input for loadSeedAndSystem()
 	systemMode := m.SystemMode(SysAny)
@@ -2124,7 +2090,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 		systemLabel = currentSys.System
 	}
 
-	switched := func(systemLabel string, sysAction *SystemAction) {
+	switched := func(systemLabel string, sysAction *installHandler.SystemAction) {
 		logger.Noticef("rebooting into system %q in %q mode", systemLabel, sysAction.Mode)
 		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
@@ -2137,13 +2103,13 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 // given mode as specified by action.
 // A system reboot will be requested when the request can be
 // successfully carried out.
-func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
+func (m *DeviceManager) RequestSystemAction(systemLabel string, action installHandler.SystemAction) error {
 	if systemLabel == "" {
 		return fmt.Errorf("internal error: system label is unset")
 	}
 
 	nop := func() {}
-	switched := func(systemLabel string, sysAction *SystemAction) {
+	switched := func(systemLabel string, sysAction *installHandler.SystemAction) {
 		logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
 		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
@@ -2155,7 +2121,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 // If the systemLabel and mode are the same as current, it calls
 // sameSystemAndMode. If successful otherwise it calls switched. Both
 // are called with the state lock held.
-func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSystemAndMode func(), switched func(systemLabel string, sysAction *SystemAction)) error {
+func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSystemAndMode func(), switched func(systemLabel string, sysAction *installHandler.SystemAction)) error {
 	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
 		return err
 	}
@@ -2178,7 +2144,7 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 		return fmt.Errorf("cannot load seed system: %v", err)
 	}
 
-	var sysAction *SystemAction
+	var sysAction *installHandler.SystemAction
 	for _, act := range system.Actions {
 		if mode == act.Mode {
 			sysAction = &act
