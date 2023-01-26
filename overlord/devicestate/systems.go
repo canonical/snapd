@@ -27,13 +27,11 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -75,124 +73,6 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 		}
 	}
 	return nil
-}
-
-func systemFromSeed(label string, current *currentSystem) (*System, error) {
-	_, sys, err := loadSeedAndSystem(label, current)
-	return sys, err
-}
-
-func loadSeedAndSystem(label string, current *currentSystem) (seed.Seed, *System, error) {
-	s, err := seedOpen(dirs.SnapSeedDir, label)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot open: %v", err)
-	}
-	if err := s.LoadAssertions(nil, nil); err != nil {
-		return nil, nil, fmt.Errorf("cannot load assertions for label %q: %v", label, err)
-	}
-	// get the model
-	model := s.Model()
-	brand, err := s.Brand()
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot obtain brand: %v", err)
-	}
-	system := &System{
-		Current: false,
-		Label:   label,
-		Model:   model,
-		Brand:   brand,
-		Actions: defaultSystemActions,
-	}
-	if current.sameAs(system) {
-		system.Current = true
-		system.Actions = current.actions
-	}
-	return s, system, nil
-}
-
-type currentSystem struct {
-	*seededSystem
-	actions []SystemAction
-}
-
-func (c *currentSystem) sameAs(other *System) bool {
-	return c != nil &&
-		c.System == other.Label &&
-		c.Model == other.Model.Model() &&
-		c.BrandID == other.Brand.AccountID()
-}
-
-func currentSystemForMode(st *state.State, mode string) (*currentSystem, error) {
-	var system *seededSystem
-	var actions []SystemAction
-	var err error
-
-	switch mode {
-	case "run":
-		actions = currentSystemActions
-		system, err = currentSeededSystem(st)
-	case "install":
-		// there is no current system for install mode
-		return nil, nil
-	case "recover":
-		actions = recoverSystemActions
-		// recover mode uses modeenv for reference
-		system, err = seededSystemFromModeenv()
-	default:
-		return nil, fmt.Errorf("internal error: cannot identify current system for unsupported mode %q", mode)
-	}
-	if err != nil {
-		return nil, err
-	}
-	currentSys := &currentSystem{
-		seededSystem: system,
-		actions:      actions,
-	}
-	return currentSys, nil
-}
-
-func currentSeededSystem(st *state.State) (*seededSystem, error) {
-	st.Lock()
-	defer st.Unlock()
-
-	var whatseeded []seededSystem
-	if err := st.Get("seeded-systems", &whatseeded); err != nil {
-		return nil, err
-	}
-	if len(whatseeded) == 0 {
-		// unexpected
-		return nil, state.ErrNoState
-	}
-	// seeded systems are prepended to the list, so the most recently seeded
-	// one comes first
-	return &whatseeded[0], nil
-}
-
-func seededSystemFromModeenv() (*seededSystem, error) {
-	modeEnv, err := install.maybeReadModeenv()
-	if err != nil {
-		return nil, err
-	}
-	if modeEnv == nil {
-		return nil, fmt.Errorf("internal error: modeenv does not exist")
-	}
-	if modeEnv.RecoverySystem == "" {
-		return nil, fmt.Errorf("internal error: recovery system is unset")
-	}
-
-	system, err := systemFromSeed(modeEnv.RecoverySystem, nil)
-	if err != nil {
-		return nil, err
-	}
-	seededSys := &seededSystem{
-		System:    modeEnv.RecoverySystem,
-		Model:     system.Model.Model(),
-		BrandID:   system.Model.BrandID(),
-		Revision:  system.Model.Revision(),
-		Timestamp: system.Model.Timestamp(),
-		// SeedTime is intentionally left unset
-	}
-	return seededSys, nil
 }
 
 // getInfoFunc is expected to return for a given snap name a snap.Info for that

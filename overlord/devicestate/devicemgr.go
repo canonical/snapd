@@ -1935,7 +1935,7 @@ var ErrNoSystems = errors.New("no systems seeds")
 func (m *DeviceManager) Systems() ([]*installHandler.System, error) {
 	// it's tough luck when we cannot determine the current system seed
 	systemMode := m.SystemMode(SysAny)
-	currentSys, _ := currentSystemForMode(m.state, systemMode)
+	currentSys, _ := installHandler.CurrentSystemForMode(m.state, systemMode)
 
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
 	if err != nil && !os.IsNotExist(err) {
@@ -1949,7 +1949,7 @@ func (m *DeviceManager) Systems() ([]*installHandler.System, error) {
 	var systems []*installHandler.System
 	for _, fpLabel := range systemLabels {
 		label := filepath.Base(fpLabel)
-		system, err := systemFromSeed(label, currentSys)
+		system, err := installHandler.SystemFromSeed(label, currentSys)
 		if err != nil {
 			// TODO:UC20 add a Broken field to the seed system like
 			// we do for snap.Info
@@ -2009,9 +2009,9 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 
 	// get current system as input for loadSeedAndSystem()
 	systemMode := m.SystemMode(SysAny)
-	currentSys, _ := currentSystemForMode(m.state, systemMode)
+	currentSys, _ := installHandler.CurrentSystemForMode(m.state, systemMode)
 
-	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys)
+	s, sys, err := installHandler.LoadSeedAndSystem(wantedSystemLabel, currentSys)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -2083,7 +2083,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	// no systemLabel means "current" so get the current system label
 	if systemLabel == "" {
 		systemMode := m.SystemMode(SysAny)
-		currentSys, err := currentSystemForMode(m.state, systemMode)
+		currentSys, err := installHandler.CurrentSystemForMode(m.state, systemMode)
 		if err != nil {
 			return fmt.Errorf("cannot get current system: %v", err)
 		}
@@ -2132,14 +2132,14 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 	// make sure that currentSys == nil does not break
 	// the code below!
 	// TODO: should we log the error?
-	currentSys, _ := currentSystemForMode(m.state, systemMode)
+	currentSys, _ := installHandler.CurrentSystemForMode(m.state, systemMode)
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
 		// XXX: should we wrap this instead return a naked stat error?
 		return err
 	}
-	system, err := systemFromSeed(systemLabel, currentSys)
+	system, err := installHandler.SystemFromSeed(systemLabel, currentSys)
 	if err != nil {
 		return fmt.Errorf("cannot load seed system: %v", err)
 	}
