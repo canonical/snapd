@@ -1371,7 +1371,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 			URL:  "https://vimeo.com/194577403",
 		},
 	})
-	c.Check(result.Categories, DeepEquals, snap.CategoryInfos{
+	c.Check(result.Categories, DeepEquals, []snap.CategoryInfo{
 		{
 			Featured: true,
 			Name:     "featured",
@@ -2656,7 +2656,7 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
 		},
 	})
-	c.Check(snp.Categories, DeepEquals, snap.CategoryInfos{
+	c.Check(snp.Categories, DeepEquals, []snap.CategoryInfo{
 		{
 			Featured: true,
 			Name:     "featured",

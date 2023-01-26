@@ -359,7 +359,7 @@ type Info struct {
 	// OriginalLinks is a map links keys to link lists
 	OriginalLinks map[string][]string
 
-	Categories CategoryInfos
+	Categories []CategoryInfo
 }
 
 // StoreAccount holds information about a store account, for example of snap
@@ -1093,8 +1093,6 @@ type CategoryInfo struct {
 	Featured bool   `json:"featured"`
 	Name     string `json:"name"`
 }
-
-type CategoryInfos []CategoryInfo
 
 // File returns the path to the *.socket file
 func (socket *SocketInfo) File() string {

@@ -377,7 +377,7 @@ func addCategories(info *snap.Info, categories []storeSnapCategory) {
 	if len(categories) == 0 {
 		return
 	}
-	info.Categories = make(snap.CategoryInfos, len(categories))
+	info.Categories = make([]snap.CategoryInfo, len(categories))
 	for i, category := range categories {
 		info.Categories[i].Featured = category.Featured
 		info.Categories[i].Name = category.Name
