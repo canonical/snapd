@@ -325,7 +325,7 @@ const (
 // by an update of boot config or the gadget snap. When needed, the modeenv is
 // updated with a candidate command line and the encryption keys are resealed.
 // This helper should be called right before updating the managed boot config.
-func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReason, gadgetSnapOrDir, cmdlineDyn string) (updated bool, err error) {
+func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReason, gadgetSnapOrDir, cmdlineExtra string) (updated bool, err error) {
 	// TODO:UC20: consider updating a recovery system command line
 
 	m, err := loadModeenv()
@@ -353,7 +353,7 @@ func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReas
 		return false, err
 	}
 	// Add part coming from options
-	candidateCmdline += cmdlineDyn
+	candidateCmdline += cmdlineExtra
 	if cmdline == candidateCmdline {
 		// command line is the same or no actual change in modeenv
 		return false, nil
