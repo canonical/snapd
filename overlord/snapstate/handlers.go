@@ -807,8 +807,9 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
+	defer st.Unlock()
+
 	snapsup, theStore, user, err := downloadSnapParams(st, t)
-	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -823,16 +824,15 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		RateLimit:     autoRefreshRateLimited(st),
 	}
 
+	st.Unlock()
 	err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
+	st.Lock()
 	if err != nil {
 		return err
 	}
 
-	st.Lock()
-	defer st.Unlock()
-
 	var waitingTasks []string
-	if err := t.Get("waiting-tasks", &waitingTasks); err != nil {
+	if err := t.Get("waiting-tasks", &waitingTasks); !errors.Is(err, &state.NoStateError{}) {
 		return err
 	}
 

@@ -285,7 +285,7 @@ func (m *autoRefresh) Ensure() error {
 	}
 
 	if continueRefresh {
-		m.state.Set("delayed-autorefresh", nil)
+		m.state.Set("continue-autorefresh", nil)
 
 		// TODO: do an early hard check so we fail early instead of mid-autorefresh
 		return m.launchAutoRefresh()
@@ -589,7 +589,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}
 
 	chg := m.state.NewChange("auto-refresh", msg)
-	for _, ts := range tasksets {
+	for _, ts := range autorefreshTss {
 		chg.AddAll(ts)
 	}
 	chg.Set("snap-names", updated)
