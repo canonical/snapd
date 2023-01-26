@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/seed"
@@ -55,7 +56,7 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 	// holding the state lock so there is no race against mark-seeded
 	// clearing recovery system; recovery system is not cleared when seeding
 	// fails
-	modeEnv, err := maybeReadModeenv()
+	modeEnv, err := install.MaybeReadModeenv()
 	if err != nil {
 		return err
 	}
@@ -168,7 +169,7 @@ func currentSeededSystem(st *state.State) (*seededSystem, error) {
 }
 
 func seededSystemFromModeenv() (*seededSystem, error) {
-	modeEnv, err := maybeReadModeenv()
+	modeEnv, err := install.maybeReadModeenv()
 	if err != nil {
 		return nil, err
 	}

@@ -322,7 +322,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	kernelDir := kernelInfo.MountDir()
 
-	modeEnv, err := maybeReadModeenv()
+	modeEnv, err := installHandler.MaybeReadModeenv()
 	if err != nil {
 		return err
 	}
@@ -563,7 +563,7 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	modeEnv, err := maybeReadModeenv()
+	modeEnv, err := installHandler.MaybeReadModeenv()
 	if err != nil {
 		return err
 	}
@@ -881,7 +881,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	}
 	kernelDir := kernelInfo.MountDir()
 
-	modeEnv, err := maybeReadModeenv()
+	modeEnv, err := installHandler.MaybeReadModeenv()
 	if err != nil {
 		return err
 	}
