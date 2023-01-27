@@ -24,8 +24,6 @@ systems:
 
 prepare: |
   snap install hello-world go-example-webserver remarshal jq
-  snap set system experimental.quota-groups=true
-  tests.cleanup defer snap unset system experimental.quota-groups
 
 execute: |
   # the bug mainly happens when we create a quota group with nothing in it,
