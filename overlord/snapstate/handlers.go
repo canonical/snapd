@@ -760,6 +760,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 				t.Set("waiting-tasks", taskIDs)
 			}
 
+			logger.Debugf("Download task %s wait for pre-download task %s", t.ID(), preTask.ID())
 			return &state.Retry{After: time.Minute}
 		}
 	}
@@ -808,6 +809,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
+	perfTimings := state.TimingsForTask(t)
 
 	snapsup, theStore, user, err := downloadSnapParams(st, t)
 	if err != nil {
@@ -825,7 +827,9 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	st.Unlock()
-	err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
+	timings.Run(perfTimings, "pre-download", fmt.Sprintf("pre-download snap %q", snapsup.SnapName()), func(timings.Measurer) {
+		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
+	})
 	st.Lock()
 	if err != nil {
 		return err
@@ -872,27 +876,28 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 			return err
 		}
 
-		// notify the user about the blocked refresh and continue refresh once it closes
-		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
-		return asyncRefreshOnSnapClose(m.state, snapsup.InstanceName())
+		return asyncRefreshOnSnapClose(m.state, refreshInfo)
 	}
 
-	// signal that there's an auto-refresh to be continued
+	// signal to the autorefresh manager to continue the pre-downloaded autorefresh
 	st.Set("continue-autorefresh", true)
 	st.EnsureBefore(0)
 
+	perfTimings.Save(st)
 	return nil
 }
 
-// asyncRefreshOnSnapClose asynchronously waits for the snap the close and then
-// triggers an auto-refresh, unless a non-nil error is returned.
-func asyncRefreshOnSnapClose(st *state.State, name string) error {
+// asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
+// the user and then triggers an auto-refresh.
+func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) error {
 	// monitor the snap until it closes
 	done := make(chan string)
-	if err := cgroup.MonitorSnapEnded(name, done); err != nil {
+	if err := cgroup.MonitorSnapEnded(refreshInfo.InstanceName, done); err != nil {
 		return fmt.Errorf("failed to monitor for snap closure: %w", err)
-
 	}
+
+	// notify the user about the blocked refresh
+	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 
 	go func() {
 		<-done
@@ -1203,8 +1208,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 					InstanceName: snapsup.InstanceName(),
 				}
 
-				asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
-				if err := asyncRefreshOnSnapClose(m.state, snapsup.InstanceName()); err != nil {
+				if err := asyncRefreshOnSnapClose(m.state, refreshInfo); err != nil {
 					return err
 				}
 			}

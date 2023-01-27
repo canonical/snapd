@@ -1685,7 +1685,22 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 	if err != nil {
 		return nil, nil, err
 	}
-	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
+
+	var hasRefresh bool
+	for _, taskset := range tasksets {
+		for _, ts := range taskset.Tasks() {
+			if ts.Kind() != "pre-download-snap" {
+				hasRefresh = true
+				break
+			}
+		}
+	}
+
+	// if there are only pre-downloads, don't add a check-rerefresh task
+	if hasRefresh {
+		tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
+	}
+
 	return updated, tasksets, nil
 }
 

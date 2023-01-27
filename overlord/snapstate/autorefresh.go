@@ -280,7 +280,7 @@ func (m *autoRefresh) Ensure() error {
 
 	// check if we're continuing an autorefresh that was previously blocked by running snaps
 	var continueRefresh bool
-	if err := m.state.Get("continue-autorefresh", &continueRefresh); !errors.Is(err, &state.NoStateError{}) {
+	if err := m.state.Get("continue-autorefresh", &continueRefresh); err != nil && !errors.Is(err, &state.NoStateError{}) {
 		return err
 	}
 
@@ -677,10 +677,9 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		checkerErr = nil
 	}
 
-	// notify if we're refreshing right now. If we're postponing, we'll notify
+	// notify if we're out of time and auto-refreshing now. Otherwise, we'll notify
 	// after pre-downloading the task. If it's a manual refresh, we don't notify at all
-	// TODO: only notify here if the snap is refreshing now? (do we do that anymore?)
-	if snapsup.IsAutoRefresh { //&& refreshInfo.TimeRemaining == 0 {
+	if snapsup.IsAutoRefresh && checkerErr == nil {
 		// Send the notification asynchronously to avoid holding the state lock.
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 	}
