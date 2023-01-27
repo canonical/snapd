@@ -73,8 +73,9 @@ type PartiallyLaidOutVolume struct {
 	LaidOutStructure []LaidOutStructure
 }
 
-// LaidOutStructure describes an OnDiskStructure that has been placed within the
-// volume.
+// LaidOutStructure describes a VolumeStructure coming from the gadget plus the
+// OnDiskStructure that describes how it would be applied to a given disk and
+// additional data used when writing data in the structure.
 type LaidOutStructure struct {
 	OnDiskStructure
 	// VolumeStructure is the volume structure defined in gadget.yaml
@@ -206,7 +207,7 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 		}
 		// Fill the parts of OnDiskStructure that do not depend on the disk
 		// or on whether we are encrypting or not.
-		// TODO how to fill everything? and about removing startoffset?
+		// TODO how to fill everything?
 		ps.OnDiskStructure = OnDiskStructure{
 			//Name:        ps.VolumeStructure.Name,
 			//Type:        ps.VolumeStructure.Type,

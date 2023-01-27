@@ -157,7 +157,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 	canExpandData := false
 	if n := len(lov.LaidOutStructure); n > 0 {
 		last := lov.LaidOutStructure[n-1]
-		if last.VolumeStructure.Role == gadget.SystemData {
+		if last.Role() == gadget.SystemData {
 			canExpandData = true
 		}
 	}
@@ -169,7 +169,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 	// Write new partition data in named-fields format
 	buf := &bytes.Buffer{}
 	for _, laidOut := range lov.LaidOutStructure {
-		if !laidOut.VolumeStructure.IsPartition() {
+		if !laidOut.IsPartition() {
 			continue
 		}
 
@@ -188,7 +188,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 
 		// Check if the data partition should be expanded
 		newSizeInSectors := uint64(laidOut.Size) / sectorSize
-		if laidOut.VolumeStructure.Role == gadget.SystemData && canExpandData && startInSectors+newSizeInSectors < dl.UsableSectorsEnd {
+		if laidOut.Role() == gadget.SystemData && canExpandData && startInSectors+newSizeInSectors < dl.UsableSectorsEnd {
 			// note that if startInSectors + newSizeInSectors == dl.UsableSectorEnd
 			// then we won't hit this branch, but it would be redundant anyways
 			newSizeInSectors = dl.UsableSectorsEnd - startInSectors
@@ -309,7 +309,7 @@ func removeCreatedPartitions(gadgetRoot string, lv *gadget.LaidOutVolume, dl *ga
 func partitionsWithRolesAndContent(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume, roles []string) []gadget.LaidOutStructure {
 	roleForOffset := map[quantity.Offset]*gadget.LaidOutStructure{}
 	for idx, los := range lv.LaidOutStructure {
-		if los.VolumeStructure.Role != "" {
+		if los.Role() != "" {
 			roleForOffset[los.StartOffset] = &lv.LaidOutStructure[idx]
 		}
 	}
@@ -317,7 +317,7 @@ func partitionsWithRolesAndContent(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVo
 	var loStructures []gadget.LaidOutStructure
 	for _, part := range dl.Structure {
 		laidOut := roleForOffset[part.StartOffset]
-		if laidOut == nil || laidOut.VolumeStructure.Role == "" || !strutil.ListContains(roles, laidOut.VolumeStructure.Role) {
+		if laidOut == nil || laidOut.Role() == "" || !strutil.ListContains(roles, laidOut.Role()) {
 			continue
 		}
 		// now that we have a match, set the on-disk-structure structure

@@ -212,7 +212,7 @@ func installOnePartition(laidOut *gadget.LaidOutStructure, encryptionType secboo
 	return fsDevice, encryptionKey, nil
 }
 
-func setCryptoInfoInLaidOuts(encType secboot.EncryptionType, los []gadget.LaidOutStructure) {
+func setCryptoDetailsInLaidOuts(encType secboot.EncryptionType, los []gadget.LaidOutStructure) {
 	if encType != "" {
 		for i := range los {
 			switch los[i].Role() {
@@ -262,7 +262,7 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 	}
 	// Tweak laid out data depending on encryption type
 	// TODO: try to build LaidOutVolume with all info in the future
-	setCryptoInfoInLaidOuts(options.EncryptionType, laidOutBootVol.LaidOutStructure)
+	setCryptoDetailsInLaidOuts(options.EncryptionType, laidOutBootVol.LaidOutStructure)
 
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
@@ -295,7 +295,7 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 	}
 	// Tweak laid out data depending on encryption type
 	// TODO: try to build LaidOutVolume with all info in the future
-	setCryptoInfoInLaidOuts(options.EncryptionType, created)
+	setCryptoDetailsInLaidOuts(options.EncryptionType, created)
 
 	bootVolGadgetName = laidOutBootVol.Name
 	bootVolSectorSize = diskLayout.SectorSize
@@ -368,7 +368,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 			keyForRole[laidOut.Role()] = encryptionKey
 			partsEncrypted[laidOut.Name()] = createEncryptionParams(options.EncryptionType)
 		}
-		if options.Mount && laidOut.Label() != "" && laidOut.VolumeStructure.HasFilesystem() {
+		if options.Mount && laidOut.Label() != "" && laidOut.HasFilesystem() {
 			// fs is taken from gadget, as on disk one might be displayed as
 			// crypto_LUKS, which is not useful for formatting.
 			if err := mountFilesystem(fsDevice, laidOut.VolumeStructure.Filesystem, getMntPointForPart(laidOut.VolumeStructure)); err != nil {
@@ -787,7 +787,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 			}
 			keyForRole[laidOut.Role()] = encryptionKey
 		}
-		if options.Mount && laidOut.Label() != "" && laidOut.VolumeStructure.HasFilesystem() {
+		if options.Mount && laidOut.Label() != "" && laidOut.HasFilesystem() {
 			// fs is taken from gadget, as on disk one might be displayed as
 			// crypto_LUKS, which is not useful for formatting.
 			if err := mountFilesystem(fsDevice, laidOut.VolumeStructure.Filesystem, getMntPointForPart(laidOut.VolumeStructure)); err != nil {
