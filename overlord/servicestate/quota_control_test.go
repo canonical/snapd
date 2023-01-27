@@ -354,14 +354,30 @@ func (s *quotaControlSuite) TestUpdateQuotaJournalNotEnabled(c *C) {
 	defer st.Unlock()
 
 	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB * 2).Build()
-	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, quotaConstraits)
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, nil, quotaConstraits)
 	c.Assert(err, IsNil)
 
-	opts := servicestate.QuotaGroupUpdate{
+	opts := servicestate.UpdateQuotaOptions{
 		NewResourceLimits: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
 	}
 	_, err = servicestate.UpdateQuota(st, "foo", opts)
 	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.journal-quota' to true`)
+}
+
+func (s *quotaControlSuite) TestCreateQuotaJournalNotEnabledBackwardsCompatible(c *C) {
+	// Make sure that journal quotas are available still, as long as quota-groups is set
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.quota-groups", true)
+	tr.Commit()
+
+	quotaConstraits := quota.NewResourcesBuilder().WithJournalNamespace().Build()
+	_, err := servicestate.CreateQuota(s.state, "foo", servicestate.CreateQuotaOptions{
+		ResourceLimits: quotaConstraits,
+	})
+	c.Assert(err, IsNil)
 }
 
 func (s *quotaControlSuite) TestCreateQuotaJournalEnabled(c *C) {
