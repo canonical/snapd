@@ -26,8 +26,6 @@ package configstate
 import (
 	"errors"
 	"fmt"
-	"os"
-	"time"
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
@@ -43,16 +41,6 @@ import (
 
 func init() {
 	snapstate.Configure = Configure
-}
-
-func ConfigureHookTimeout() time.Duration {
-	timeout := 5 * time.Minute
-	if s := os.Getenv("SNAPD_CONFIGURE_HOOK_TIMEOUT"); s != "" {
-		if to, err := time.ParseDuration(s); err == nil {
-			timeout = to
-		}
-	}
-	return timeout
 }
 
 func canConfigure(st *state.State, snapName string) error {
@@ -116,7 +104,7 @@ func Configure(st *state.State, snapName string, patch map[string]interface{}, f
 		IgnoreError: flags&snapstate.IgnoreHookError != 0,
 		TrackError:  flags&snapstate.TrackHookError != 0,
 		// all configure hooks must finish within this timeout
-		Timeout: ConfigureHookTimeout(),
+		Timeout: config.ConfigureHookTimeout(),
 	}
 	var contextData map[string]interface{}
 	if flags&snapstate.UseConfigDefaults != 0 {

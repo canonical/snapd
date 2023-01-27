@@ -24,10 +24,13 @@ package configcore
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -115,18 +118,35 @@ func handleCmdlineExtra(c RunTransaction, opts *fsOnlyContext) error {
 
 	st := c.State()
 	st.Lock()
-	defer st.Unlock()
 
-	// Add task to the hook change to set the new kernel command line
-	hookTask := c.Task()
-	chg := hookTask.Change()
+	// We need to commit now the changes, otherwise they won't be
+	// seen by the change we are about to create - as we wait for
+	// the new change to finish, the end of the hook which is
+	// committing these changes will not have been called yet.
+	// TODO how to fix this in a cleaner way?
+	c.Commit()
+
+	// We need to create a new change that will change the kernel
+	// command line and wait for it to finish, otherwise we cannot
+	// wait on the changes to happen.
+	// TODO fix this in the future.
+	cmdlineChg := st.NewChange("apply-extra-cmdline",
+		i18n.G("Updating command line due to change in system configuration"))
+	// Add task to the new change to set the new kernel command line
 	t := st.NewTask("update-gadget-cmdline",
 		"Updating command line due to change in system configuration")
 	t.Set("system-option", true)
-	t.WaitFor(hookTask)
-
-	chg.AddTask(t)
+	cmdlineChg.AddTask(t)
 	st.EnsureBefore(0)
 
-	return nil
+	st.Unlock()
+
+	select {
+	case <-cmdlineChg.Ready():
+		st.Lock()
+		defer st.Unlock()
+		return cmdlineChg.Err()
+	case <-time.After(2 * config.ConfigureHookTimeout() / 3):
+		return fmt.Errorf("%s is taking too long", cmdlineChg.Kind())
+	}
 }

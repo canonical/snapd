@@ -28,7 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
-	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -166,7 +166,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 		st.Lock()
 		defer st.Unlock()
 		return chg.Err()
-	case <-time.After(configstate.ConfigureHookTimeout() / 2):
+	case <-time.After(config.ConfigureHookTimeout() / 2):
 		return fmt.Errorf("%s command is taking too long", inst.Action)
 	}
 }

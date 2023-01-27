@@ -24,9 +24,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/state"
@@ -321,4 +323,14 @@ func sortPatchKeysByDepth(patch map[string]interface{}) []string {
 		return depths[keys[i]] < depths[keys[j]]
 	})
 	return keys
+}
+
+func ConfigureHookTimeout() time.Duration {
+	timeout := 5 * time.Minute
+	if s := os.Getenv("SNAPD_CONFIGURE_HOOK_TIMEOUT"); s != "" {
+		if to, err := time.ParseDuration(s); err == nil {
+			timeout = to
+		}
+	}
+	return timeout
 }
