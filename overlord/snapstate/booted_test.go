@@ -540,3 +540,49 @@ func (bs *bootedSuite) TestFinishRestartEphemeralModeSkipsRollbackDetection(c *C
 	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, IsNil)
 }
+
+func (bs *bootedSuite) TestFinishRestartClassicWithModesCoreIgnored(c *C) {
+	r := release.MockOnClassic(true)
+	defer r()
+	r = snapstatetest.MockDeviceModel(MakeModelClassicWithModes("pc", nil))
+	defer r()
+
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
+	// classic+modes has a kernel
+	snaptest.MockSnap(c, "name: canonical-pc-linux\ntype: os\nversion: 2", kernelSI2)
+	snapstate.Set(st, "canonical-pc-linux", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{kernelSI1, kernelSI2},
+		Current:  snap.R(2),
+	})
+	// we have core22 and current is r2
+	osSI1 := &snap.SideInfo{RealName: "core22", Revision: snap.R(1)}
+	osSI2 := &snap.SideInfo{RealName: "core22", Revision: snap.R(2)}
+	snaptest.MockSnap(c, "name: core22\ntype: os\nversion: 1", osSI1)
+	snaptest.MockSnap(c, "name: core22\ntype: os\nversion: 2", osSI2)
+	snapstate.Set(st, "core22", &snapstate.SnapState{
+		SnapType: "base",
+		Active:   true,
+		Sequence: []*snap.SideInfo{osSI1, osSI2},
+		Current:  snap.R(2),
+	})
+	// now pretend that for whatever reason the modeenv reports that
+	// r1 was booted (which is a bug as on a classic+modes
+	// there is no boot base)
+	bs.bootloader.SetBootBase("core22_1.snap")
+
+	err := snapstate.UpdateBootRevisions(st)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	bs.settle()
+	st.Lock()
+
+	// and validate that this does not trigger a "Update kernel
+	// and core snap revisions" change
+	c.Assert(st.Changes(), HasLen, 0)
+}
