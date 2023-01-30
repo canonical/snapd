@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 )
 
 type homedirsSuite struct {
@@ -174,6 +175,52 @@ func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, "reload error")
+}
+
+func (s *homedirsSuite) TestConfigureApparmorUnsupported(c *C) {
+	// Currently the homedir option will act more or less as a no-op on
+	// systems that do not have apparmor support. Thus lets test that
+	// both unsupported and unusable will return no error, as it should be
+	// a no-op.
+
+	// let's mock this to ensure we do get an error should the function
+	// *not* act as a no-op
+	restore := configcore.MockApparmorReloadAllSnapProfiles(func() error {
+		return errors.New("ReloadAllSnapProfiles() was called!")
+	})
+	defer restore()
+
+	// always update
+	restore = configcore.MockEnsureFileState(func(string, osutil.FileState) error {
+		return nil
+	})
+	defer restore()
+
+	for _, testData := range []struct {
+		level         apparmor.LevelType
+		expectedError string
+	}{
+		{apparmor.Unknown, ``},
+		{apparmor.Unsupported, ``},
+		{apparmor.Unusable, ``},
+		{apparmor.Partial, `ReloadAllSnapProfiles\(\) was called!`},
+		{apparmor.Full, `ReloadAllSnapProfiles\(\) was called!`},
+	} {
+		resetAA := apparmor.MockLevel(testData.level)
+
+		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"homedirs": "/home/existingDir",
+			},
+		})
+		if testData.expectedError != "" {
+			c.Check(err, ErrorMatches, testData.expectedError, Commentf("%v", testData.level.String()))
+		} else {
+			c.Check(err, IsNil, Commentf("%v", testData.level.String()))
+		}
+		resetAA()
+	}
 }
 
 func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
