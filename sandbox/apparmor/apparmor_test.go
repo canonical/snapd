@@ -327,7 +327,7 @@ profile snap-test {
  network xdp,
 }
 profile snap-test {
- allow userns create,
+ userns,
 }
 `)
 	}

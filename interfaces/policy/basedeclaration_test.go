@@ -839,6 +839,7 @@ var (
 		"pkcs11":          nil,
 		"posix-mq":        nil,
 		"shared-memory":   nil,
+		"userns":          nil,
 	}
 
 	restrictedPlugInstallation = map[string][]string{
@@ -902,6 +903,12 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err = ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation denied by \"shared-memory\" slot rule of interface \"shared-memory\"")
+
+	// test userns specially
+	ic = s.installSlotCand(c, "userns", snap.TypeApp, ``)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"userns\" slot rule of interface \"userns\"")
 
 	// The core and snapd snaps may provide a shared-memory slot
 	ic = s.installSlotCand(c, "shared-memory", snap.TypeOS, `name: core
@@ -1013,6 +1020,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"ubuntu-download-manager":   true,
 		"unity8-calendar":           true,
 		"unity8-contacts":           true,
+		"userns":                    true,
 	}
 
 	for _, iface := range all {

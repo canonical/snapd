@@ -374,7 +374,7 @@ func probeParserFeatures() ([]string, error) {
 		},
 		{
 			feature: "userns",
-			probe:   "allow userns create,",
+			probe:   "userns,",
 		},
 	}
 	_, internal, err := AppArmorParser()
