@@ -292,13 +292,8 @@ execute: |
   remote.exec "snap watch $change_id"
   remote.exec "snap change $change_id" | NOMATCH Error
 
-  # TODO: enable once the kernel is ready
-  exit 0
-  # XXX: todo this fails today because:
-  #    snap-bootstrap[162]: error: seed partition found but not defined in the gadget
-  # which happens because the released kernel is not supporting the new
-  # "ubuntu-seed-null" role yet
   # make new kernel
+  unsquashfs -d pc-kernel pc-kernel.snap
   fakestore make-refreshable --dir "$STORE_DIR" --snap-orig-blob pc-kernel.snap.orig --snap-blob ./pc-kernel pc-kernel
 
   # refresh kernel
@@ -314,3 +309,6 @@ execute: |
   tests.nested wait-for reboot "$boot_id"
   remote.exec "snap watch $change_id"
   remote.exec "snap change $change_id" | NOMATCH Error
+
+  # TODO test core22 refresh and that after a reboot the core22 is not
+  # reverted
