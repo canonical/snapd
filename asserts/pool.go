@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -51,16 +51,15 @@ type Grouping string
 // any Add or AddBatch AddUnresolved/AddToUpdate can also be used
 // again.
 //
-//                      V
-//                      |
-//        /-> AddUnresolved, AddToUpdate
-//        |             |
-//        |             V
-//        |------> ToResolve -> empty? done
-//        |             |
-//        |             V
-//        \ __________ Add
-//
+//	              V
+//	              |
+//	/-> AddUnresolved, AddToUpdate
+//	|             |
+//	|             V
+//	|------> ToResolve -> empty? done
+//	|             |
+//	|             V
+//	\ __________ Add
 //
 // If errors prevent from fulfilling assertions from a ToResolve,
 // AddError and AddGroupingError can be used to report the errors so
@@ -561,10 +560,7 @@ func (p *Pool) add(a Assertion, g *internal.Grouping) error {
 		Type:       AccountKeyType,
 		PrimaryKey: []string{a.SignKeyID()},
 	}
-	if err := p.addPrerequisite(keyRef, g); err != nil {
-		return err
-	}
-	return nil
+	return p.addPrerequisite(keyRef, g)
 }
 
 func (p *Pool) resolveWith(unresolved map[string]unresolvedAssertRecord, uniq string, u unresolvedAssertRecord, a Assertion, extrag *internal.Grouping) (ok bool, err error) {
@@ -742,11 +738,12 @@ var (
 
 // unresolvedBookkeeping processes any left over unresolved assertions
 // since the last ToResolve invocation and intervening calls to Add/AddBatch,
-//  * they were either marked as in error which will be propagated
-//    to all groups requiring them
-//  * simply unresolved, which will be propagated to groups requiring them
-//    as ErrUnresolved
-//  * unchanged (update case)
+//   - they were either marked as in error which will be propagated
+//     to all groups requiring them
+//   - simply unresolved, which will be propagated to groups requiring them
+//     as ErrUnresolved
+//   - unchanged (update case)
+//
 // unresolvedBookkeeping will also promote any recorded prerequisites
 // into actively unresolved, as long as not all the groups requiring them
 // are in error.

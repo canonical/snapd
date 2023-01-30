@@ -53,6 +53,8 @@ const (
 	DbusActivation
 	// HiddenSnapDataHomeDir controls if the snaps' data dir is ~/.snap/data instead of ~/snap
 	HiddenSnapDataHomeDir
+	// MoveSnapHomeDir controls whether snap user data under ~/snap (or ~/.snap/data) can be moved to ~/Snap.
+	MoveSnapHomeDir
 	// CheckDiskSpaceRemove controls free disk space check on remove whenever automatic snapshot needs to be created.
 	CheckDiskSpaceRemove
 	// CheckDiskSpaceInstall controls free disk space check on snap install.
@@ -64,6 +66,9 @@ const (
 
 	// QuotaGroups enable creating resource quota groups for snaps via the rest API and cli.
 	QuotaGroups
+
+	// JournalQuota enables journal quotas for quota groups.
+	JournalQuota
 
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
@@ -95,6 +100,7 @@ var featureNames = map[SnapdFeature]string{
 	DbusActivation: "dbus-activation",
 
 	HiddenSnapDataHomeDir: "hidden-snap-folder",
+	MoveSnapHomeDir:       "move-snap-home-dir",
 
 	CheckDiskSpaceInstall: "check-disk-space-install",
 	CheckDiskSpaceRefresh: "check-disk-space-refresh",
@@ -102,12 +108,14 @@ var featureNames = map[SnapdFeature]string{
 
 	GateAutoRefreshHook: "gate-auto-refresh-hook",
 
-	QuotaGroups: "quota-groups",
+	QuotaGroups:  "quota-groups",
+	JournalQuota: "journal-quota",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
 var featuresEnabledWhenUnset = map[SnapdFeature]bool{
 	Layouts:                       true,
+	RefreshAppAwareness:           true,
 	RobustMountNamespaceUpdates:   true,
 	ClassicPreservesXdgRuntimeDir: true,
 	DbusActivation:                true,
@@ -122,6 +130,7 @@ var featuresExported = map[SnapdFeature]bool{
 	ClassicPreservesXdgRuntimeDir: true,
 	RobustMountNamespaceUpdates:   true,
 	HiddenSnapDataHomeDir:         true,
+	MoveSnapHomeDir:               true,
 }
 
 // String returns the name of a snapd feature.

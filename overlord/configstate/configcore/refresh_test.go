@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
+// +build !nomanagers
 
 /*
  * Copyright (C) 2017-2018 Canonical Ltd
@@ -127,6 +129,16 @@ func (s *refreshSuite) TestConfigureRefreshHoldHappy(c *C) {
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.hold": "2018-08-18T15:00:00Z",
+		},
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *refreshSuite) TestConfigureRefreshHoldForeverHappy(c *C) {
+	err := configcore.Run(classicDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.hold": "forever",
 		},
 	})
 	c.Assert(err, IsNil)

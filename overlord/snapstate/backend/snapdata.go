@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -50,6 +50,22 @@ func (b Backend) RemoveSnapCommonData(snap *snap.Info, opts *dirs.SnapDirOptions
 	}
 
 	return removeDirs(dirs)
+}
+
+// RemoveSnapSaveData removes the common save data in the case of a complete removal of a snap.
+func (b Backend) RemoveSnapSaveData(snapInfo *snap.Info, dev snap.Device) error {
+	// ubuntu-save per-snap directories are only created on core systems
+	if dev.Classic() {
+		return nil
+	}
+
+	saveDir := snap.CommonDataSaveDir(snapInfo.InstanceName())
+	if exists, isDir, err := osutil.DirExists(saveDir); err == nil && !(exists && isDir) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return os.RemoveAll(saveDir)
 }
 
 // RemoveSnapDataDir removes base snap data directory
@@ -119,6 +135,10 @@ func snapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, e
 	if err != nil {
 		return nil, err
 	}
+
+	// then the root user's common data dir
+	rootCommon := snap.UserCommonDataDir(filepath.Join(dirs.GlobalRootDir, "/root/"), opts)
+	found = append(found, rootCommon)
 
 	// then XDG_RUNTIME_DIRs for the users
 	foundXdg, err := filepath.Glob(snap.XdgRuntimeDirs())

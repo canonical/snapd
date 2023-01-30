@@ -81,6 +81,9 @@ network packet,
 /sys/devices/virtual/net/**/dev_id r,
 /sys/devices/**/net/**/ifindex r,
 
+# access to bridge sysfs interfaces for bridge settings
+/sys/devices/virtual/net/*/bridge/* rw,
+
 /dev/rfkill rw,
 
 /run/udev/data/* r,
@@ -124,25 +127,29 @@ network packet,
 #
 # Allow access to the safe members of the systemd-resolved D-Bus API:
 #
-#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#   https://www.freedesktop.org/software/systemd/man/org.freedesktop.resolve1.html
 #
 # This API may be used directly over the D-Bus system bus or it may be used
 # indirectly via the nss-resolve plugin:
 #
 #   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
 #
+# In the case of NM, the destination is not the well-known DBus name,
+# instead it tracks the name owner and sends the message to the
+# the owner's connection name, so we cannot have the name= restriction
+# in peer=...
 dbus send
      bus=system
      path="/org/freedesktop/resolve1"
      interface="org.freedesktop.resolve1.Manager"
      member="Resolve{Address,Hostname,Record,Service}"
-     peer=(name="org.freedesktop.resolve1"),
+     peer=(label=unconfined),
 
 dbus (send)
      bus=system
      path="/org/freedesktop/resolve1"
      interface="org.freedesktop.resolve1.Manager"
-     member="SetLink{DNS,MulticastDNS,Domains,LLMNR}"
+     member="SetLink{DefaultRoute,DNSOverTLS,DNS,DNSEx,DNSSEC,DNSSECNegativeTrustAnchors,MulticastDNS,Domains,LLMNR}"
      peer=(label=unconfined),
 
 dbus (send)
@@ -170,6 +177,10 @@ dbus (receive, send)
 dbus (bind)
     bus=system
     name="org.freedesktop.NetworkManager",
+# Allow binding OpenVPN names
+dbus (bind)
+    bus=system
+    name="org.freedesktop.NetworkManager.openvpn.*",
 
 # Allow traffic to/from our path and interface with any method for unconfined
 # clients to talk to our service.
@@ -296,6 +307,14 @@ dbus (receive, send)
     path=/org/freedesktop
     interface=org.freedesktop.DBus.ObjectManager
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# nmcli uses this in newer versions
+dbus (send)
+   bus=system
+   path=/org/freedesktop/DBus
+   interface=org.freedesktop.DBus
+   member=GetConnectionUnixUser
+   peer=(label=unconfined),
 `
 
 const networkManagerConnectedPlugIntrospectionSnippet = `
@@ -366,6 +385,10 @@ const networkManagerPermanentSlotDBus = `
     -->
     <allow own="org.freedesktop.NetworkManager.dnsmasq"/>
     <allow send_destination="org.freedesktop.NetworkManager.dnsmasq"/>
+
+    <!-- VPN support -->
+    <allow own_prefix="org.freedesktop.NetworkManager.openvpn"/>
+    <allow send_destination="org.freedesktop.NetworkManager.openvpn"/>
 </policy>
 
 <policy context="default">
@@ -471,6 +494,10 @@ const networkManagerPermanentSlotDBus = `
 
     <deny own="org.freedesktop.NetworkManager.dnsmasq"/>
     <deny send_destination="org.freedesktop.NetworkManager.dnsmasq"/>
+
+    <!-- VPN support -->
+    <deny own_prefix="org.freedesktop.NetworkManager.openvpn"/>
+    <deny send_destination="org.freedesktop.NetworkManager.openvpn"/>
 </policy>
 
 <limit name="max_replies_per_connection">1024</limit>

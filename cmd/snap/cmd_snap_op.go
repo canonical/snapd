@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -56,7 +56,8 @@ To install multiple instances of the same snap, append an underscore and a
 unique identifier (for each instance) to a snap's name.
 
 With no further options, the snaps are installed tracking the stable channel,
-with strict security confinement.
+with strict security confinement. All available channels of a snap are listed in
+its 'snap info' output.
 
 Revision choice via the --revision override requires the user to
 have developer access to the snap, either directly or through the
@@ -85,13 +86,25 @@ The refresh command updates the specified snaps, or all snaps in the system if
 none are specified.
 
 With no further options, the snaps are refreshed to the current revision of the
-channel they're tracking, preserving their confinement options.
+channel they're tracking, preserving their confinement options. All available
+channels of a snap are listed in its 'snap info' output.
 
 Revision choice via the --revision override requires the user to
 have developer access to the snap, either directly or through the
 store's collaboration feature, and to be logged in (see 'snap help login').
 
 Note a later refresh will typically undo a revision override.
+
+Hold (--hold) is used to postpone snap refresh updates for all snaps when no
+snaps are specified, or for the specified snaps.
+
+When no snaps are specified --hold is only effective on auto-refreshes and will
+not block either general refresh requests from 'snap refresh' or specific snap
+requests from 'snap refresh target-snap'.
+
+When snaps are specified --hold is effective on both their auto-refreshes
+and general refresh requests from 'snap refresh'. However, specific snap
+requests from 'snap refresh target-snap' remain unblocked and will proceed.
 `)
 
 var longTryHelp = i18n.G(`
@@ -130,7 +143,7 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 
 	changeID, err := x.client.Remove(name, opts)
 	if err != nil {
-		msg, err := errorToCmdMessage(name, err, opts)
+		msg, err := errorToCmdMessage(name, "remove", err, opts)
 		if err != nil {
 			return err
 		}
@@ -157,7 +170,19 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 	names := installedSnapNames(x.Positional.Snaps)
 	changeID, err := x.client.RemoveMany(names, opts)
 	if err != nil {
-		return err
+		var name string
+		if cerr, ok := err.(*client.Error); ok {
+			if snapName, ok := cerr.Value.(string); ok {
+				name = snapName
+			}
+		}
+
+		msg, err := errorToCmdMessage(name, "remove", err, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stderr, msg)
+		return nil
 	}
 
 	chg, err := x.wait(changeID)
@@ -196,10 +221,10 @@ func (x *cmdRemove) Execute([]string) error {
 		return x.removeOne(opts)
 	}
 
-	if x.Purge || x.Revision != "" {
-		return errors.New(i18n.G("a single snap name is needed to specify options"))
+	if x.Revision != "" {
+		return errors.New(i18n.G("cannot use --revision with multiple snap names"))
 	}
-	return x.removeMany(nil)
+	return x.removeMany(opts)
 }
 
 type channelMixin struct {
@@ -474,11 +499,13 @@ type cmdInstall struct {
 
 	Name string `long:"name"`
 
-	Cohort           string `long:"cohort"`
-	IgnoreValidation bool   `long:"ignore-validation"`
-	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
+	Cohort           string                 `long:"cohort"`
+	IgnoreValidation bool                   `long:"ignore-validation"`
+	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
+	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
+	QuotaGroupName   string                 `long:"quota-group"`
 	Positional       struct {
-		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
+		Snaps []remoteSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -488,7 +515,9 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	var snapName string
 	var path string
 
-	if strings.Contains(nameOrPath, "/") || strings.HasSuffix(nameOrPath, ".snap") || strings.Contains(nameOrPath, ".snap.") {
+	if isLocalSnap(nameOrPath) {
+		// don't log the request's body because the encoded snap is large.
+		x.client.SetMayLogBody(false)
 		path = nameOrPath
 		changeID, err = x.client.InstallPath(path, x.Name, opts)
 	} else {
@@ -499,7 +528,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 		changeID, err = x.client.Install(snapName, opts)
 	}
 	if err != nil {
-		msg, err := errorToCmdMessage(nameOrPath, err, opts)
+		msg, err := errorToCmdMessage(nameOrPath, "install", err, opts)
 		if err != nil {
 			return err
 		}
@@ -526,21 +555,39 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	return showDone(x.client, []string{snapName}, "install", opts, x.getEscapes())
 }
 
+func isLocalSnap(name string) bool {
+	return strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.")
+}
+
 func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error {
-	// sanity check
+	isLocal := isLocalSnap(names[0])
 	for _, name := range names {
-		if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
-			return fmt.Errorf("only one snap file can be installed at a time")
+		if isLocalSnap(name) != isLocal {
+			return fmt.Errorf(i18n.G("cannot install local and store snaps at the same time"))
 		}
 	}
 
-	changeID, err := x.client.InstallMany(names, opts)
+	var changeID string
+	var err error
+
+	if isLocal {
+		// don't log the request's body because the encoded snap is large
+		x.client.SetMayLogBody(false)
+		changeID, err = x.client.InstallPathMany(names, opts)
+	} else {
+		if x.asksForMode() {
+			return errors.New(i18n.G("cannot specify mode for multiple store snaps (only for one store snap or several local ones)"))
+		}
+
+		changeID, err = x.client.InstallMany(names, opts)
+	}
+
 	if err != nil {
 		var snapName string
 		if err, ok := err.(*client.Error); ok {
 			snapName, _ = err.Value.(string)
 		}
-		msg, err := errorToCmdMessage(snapName, err, opts)
+		msg, err := errorToCmdMessage(snapName, "install", err, opts)
 		if err != nil {
 			return err
 		}
@@ -565,6 +612,11 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		if err := showDone(x.client, installed, "install", opts, x.getEscapes()); err != nil {
 			return err
 		}
+	}
+
+	// local installs aren't skipped if the snap is installed
+	if isLocal {
+		return nil
 	}
 
 	// show skipped
@@ -600,13 +652,12 @@ func (x *cmdInstall) Execute([]string) error {
 		CohortKey:        x.Cohort,
 		IgnoreValidation: x.IgnoreValidation,
 		IgnoreRunning:    x.IgnoreRunning,
+		Transaction:      x.Transaction,
+		QuotaGroupName:   x.QuotaGroupName,
 	}
 	x.setModes(opts)
 
 	names := remoteSnapNames(x.Positional.Snaps)
-	if len(names) == 0 {
-		return errors.New(i18n.G("cannot install zero snaps"))
-	}
 	for _, name := range names {
 		if len(name) == 0 {
 			return errors.New(i18n.G("cannot install snap with empty name"))
@@ -617,8 +668,8 @@ func (x *cmdInstall) Execute([]string) error {
 		return x.installOne(names[0], x.Name, opts)
 	}
 
-	if x.asksForMode() || x.asksForChannel() {
-		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
+	if x.asksForChannel() {
+		return errors.New(i18n.G("a single snap name is needed to specify channel flags"))
 	}
 	if x.IgnoreValidation {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
@@ -627,7 +678,7 @@ func (x *cmdInstall) Execute([]string) error {
 	if x.Name != "" {
 		return errors.New(i18n.G("cannot use instance name when installing multiple snaps"))
 	}
-	return x.installMany(names, nil)
+	return x.installMany(names, opts)
 }
 
 type cmdRefresh struct {
@@ -637,14 +688,17 @@ type cmdRefresh struct {
 	channelMixin
 	modeMixin
 
-	Amend            bool   `long:"amend"`
-	Revision         string `long:"revision"`
-	Cohort           string `long:"cohort"`
-	LeaveCohort      bool   `long:"leave-cohort"`
-	List             bool   `long:"list"`
-	Time             bool   `long:"time"`
-	IgnoreValidation bool   `long:"ignore-validation"`
-	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
+	Amend            bool                   `long:"amend"`
+	Revision         string                 `long:"revision"`
+	Cohort           string                 `long:"cohort"`
+	LeaveCohort      bool                   `long:"leave-cohort"`
+	List             bool                   `long:"list"`
+	Time             bool                   `long:"time"`
+	IgnoreValidation bool                   `long:"ignore-validation"`
+	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
+	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
+	Hold             string                 `long:"hold" optional:"yes" optional-value:"forever"`
+	Unhold           bool                   `long:"unhold"`
 	Positional       struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -681,7 +735,7 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 	changeID, err := x.client.Refresh(name, opts)
 	if err != nil {
-		msg, err := errorToCmdMessage(name, err, opts)
+		msg, err := errorToCmdMessage(name, "refresh", err, opts)
 		if err != nil {
 			return err
 		}
@@ -732,7 +786,13 @@ func (x *cmdRefresh) showRefreshTimes() error {
 		fmt.Fprintf(Stdout, "last: n/a\n")
 	}
 	if !hold.IsZero() {
-		fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
+		// show holds over 100 years as "forever", like in the input of 'snap refresh
+		// --hold', instead of as a distant time (how they're internally represented)
+		if hold.After(timeNow().Add(100 * 365 * 24 * time.Hour)) {
+			fmt.Fprintf(Stdout, "hold: forever\n")
+		} else {
+			fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
+		}
 	}
 	// only show "next" if its after "hold" to not confuse users
 	if !next.IsZero() {
@@ -804,6 +864,20 @@ func (x *cmdRefresh) Execute([]string) error {
 		return nil
 	}
 
+	otherFlags := x.Amend || x.Revision != "" || x.Cohort != "" ||
+		x.LeaveCohort || x.List || x.Time || x.IgnoreValidation || x.IgnoreRunning ||
+		x.Transaction != client.TransactionPerSnap
+
+	if x.Hold != "" && (x.Unhold || otherFlags) {
+		return errors.New(i18n.G("cannot use --hold with other flags"))
+	} else if x.Unhold && (x.Hold != "" || otherFlags) {
+		return errors.New(i18n.G("cannot use --unhold with other flags"))
+	} else if x.Hold != "" {
+		return x.holdRefreshes()
+	} else if x.Unhold {
+		return x.unholdRefreshes()
+	}
+
 	names := installedSnapNames(x.Positional.Snaps)
 	if len(names) == 1 {
 		opts := &client.SnapOptions{
@@ -814,9 +888,16 @@ func (x *cmdRefresh) Execute([]string) error {
 			Revision:         x.Revision,
 			CohortKey:        x.Cohort,
 			LeaveCohort:      x.LeaveCohort,
+			Transaction:      x.Transaction,
 		}
 		x.setModes(opts)
 		return x.refreshOne(names[0], opts)
+	}
+	// transaction flag and ignore-running flags are the only ones with meaning when
+	// refreshing many snaps
+	opts := &client.SnapOptions{
+		IgnoreRunning: x.IgnoreRunning,
+		Transaction:   x.Transaction,
 	}
 
 	if x.asksForMode() || x.asksForChannel() {
@@ -826,11 +907,93 @@ func (x *cmdRefresh) Execute([]string) error {
 	if x.IgnoreValidation {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
 	}
-	if x.IgnoreRunning {
-		return errors.New(i18n.G("a single snap name must be specified when ignoring running apps and hooks"))
+
+	return x.refreshMany(names, opts)
+}
+
+func (x *cmdRefresh) holdRefreshes() (err error) {
+	var opts client.SnapOptions
+
+	if x.Hold == "forever" {
+		opts.Time = "forever"
+	} else {
+		dur, err := time.ParseDuration(x.Hold)
+		if err != nil {
+			return fmt.Errorf("hold value must be a number of hours, minutes or seconds, or \"forever\": %v", err)
+		} else if dur < time.Second {
+			return fmt.Errorf("cannot hold refreshes for less than a second: %s", x.Hold)
+		}
+
+		opts.Time = timeNow().Add(dur).Format(time.RFC3339)
 	}
 
-	return x.refreshMany(names, nil)
+	names := installedSnapNames(x.Positional.Snaps)
+	var changeID string
+	opts.HoldLevel = "general"
+	if len(names) == 0 {
+		opts.HoldLevel = "auto-refresh"
+	}
+	if len(names) == 1 {
+		changeID, err = x.client.HoldRefreshes(names[0], &opts)
+	} else {
+		changeID, err = x.client.HoldRefreshesMany(names, &opts)
+	}
+	if err != nil {
+		return err
+	}
+
+	_, err = x.wait(changeID)
+	if err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	var timeStr string
+	if opts.Time == "forever" {
+		timeStr = i18n.G("indefinitely")
+	} else {
+		timeStr = fmt.Sprintf(i18n.G("until %s"), opts.Time)
+	}
+
+	if len(names) == 0 {
+		fmt.Fprintf(Stdout, i18n.G("Auto-refresh of all snaps held %s\n"), timeStr)
+	} else {
+		fmt.Fprintf(Stdout, i18n.G("General refreshes of %s held %s\n"), strutil.Quoted(names), timeStr)
+	}
+
+	return nil
+}
+
+func (x *cmdRefresh) unholdRefreshes() (err error) {
+	names := installedSnapNames(x.Positional.Snaps)
+	var changeID string
+	if len(names) == 1 {
+		changeID, err = x.client.UnholdRefreshes(names[0], nil)
+	} else {
+		changeID, err = x.client.UnholdRefreshesMany(names, nil)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	_, err = x.wait(changeID)
+	if err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	if len(names) == 0 {
+		fmt.Fprintf(Stdout, i18n.G("Removed auto-refresh hold on all snaps\n"))
+	} else {
+		fmt.Fprintf(Stdout, i18n.G("Removed general refresh hold of %s\n"), strutil.Quoted(names))
+	}
+
+	return nil
 }
 
 type cmdTry struct {
@@ -885,7 +1048,7 @@ func (x *cmdTry) Execute([]string) error {
 
 	changeID, err := x.client.Try(path, opts)
 	if err != nil {
-		msg, err := errorToCmdMessage(name, err, opts)
+		msg, err := errorToCmdMessage(name, "try", err, opts)
 		if err != nil {
 			return err
 		}
@@ -1032,7 +1195,8 @@ func (x *cmdRevert) Execute(args []string) error {
 var shortSwitchHelp = i18n.G("Switches snap to a different channel")
 var longSwitchHelp = i18n.G(`
 The switch command switches the given snap to a different channel without
-doing a refresh.
+doing a refresh. All available channels of a snap are listed in
+its 'snap info' output.
 `)
 
 type cmdSwitch struct {
@@ -1115,6 +1279,10 @@ func init() {
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the installation"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the installation"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"quota-group": i18n.G("Add the snap to a quota group on install"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
@@ -1134,6 +1302,12 @@ func init() {
 			"cohort": i18n.G("Refresh the snap into the given cohort"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"leave-cohort": i18n.G("Refresh the snap out of its cohort"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"hold": i18n.G("Hold refreshes for a specified duration (or forever, if no value is specified)"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"unhold": i18n.G("Remove refresh hold"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)

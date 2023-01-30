@@ -164,6 +164,21 @@ func (s *specSuite) TestMountEntryFromLayout(c *C) {
 	})
 }
 
+func (s *specSuite) TestMountEntryFromExtraLayouts(c *C) {
+	extraLayouts := []snap.Layout{
+		{
+			Path: "/test",
+			Bind: "/usr/home/test",
+			Mode: 0755,
+		},
+	}
+
+	s.spec.AddExtraLayouts(extraLayouts)
+	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		{Dir: "/test", Name: "/usr/home/test", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+	})
+}
+
 func (s *specSuite) TestParallelInstanceMountEntryFromLayout(c *C) {
 	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
 	snapInfo.InstanceKey = "instance"
@@ -204,6 +219,53 @@ layout:
 		// /foo but there is no way to request things like that for now.
 		{Dir: "/usr/foo", Type: "tmpfs", Name: "tmpfs"},
 	})
+}
+
+func (s *specSuite) TestSpecificationMergedClash(c *C) {
+	defaultEntry := osutil.MountEntry{
+		Dir:  "/usr/foo",
+		Type: "tmpfs",
+		Name: "/here",
+	}
+	for _, td := range []struct {
+		// Options for all the clashing mount entries
+		Options [][]string
+		// Expected options for the merged mount entry
+		ExpectedOptions []string
+	}{
+		{
+			// If all entries are read-only, the merged entry is also RO
+			Options:         [][]string{{"noatime", "ro"}, {"ro"}},
+			ExpectedOptions: []string{"noatime", "ro"},
+		},
+		{
+			// If one entry is rbind, the recursiveness is preserved
+			Options:         [][]string{{"bind", "rw"}, {"rbind", "ro"}},
+			ExpectedOptions: []string{"rbind"},
+		},
+		{
+			// With simple bind, no recursiveness is added
+			Options:         [][]string{{"bind", "noatime"}, {"bind", "noexec"}},
+			ExpectedOptions: []string{"noatime", "noexec", "bind"},
+		},
+		{
+			// Ordinary flags are preserved
+			Options:         [][]string{{"noexec", "noatime"}, {"noatime", "nomand"}, {"nodev"}},
+			ExpectedOptions: []string{"noexec", "noatime", "nomand", "nodev"},
+		},
+	} {
+		for _, options := range td.Options {
+			entry := defaultEntry
+			entry.Options = options
+			s.spec.AddMountEntry(entry)
+		}
+		c.Check(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+			{Dir: "/usr/foo", Name: "/here", Type: "tmpfs", Options: td.ExpectedOptions},
+		}, Commentf("Clashing entries: %q", td.Options))
+
+		// reset the spec after each iteration, or flags will leak
+		s.spec = &mount.Specification{}
+	}
 }
 
 func (s *specSuite) TestParallelInstanceMountEntriesNoInstanceKey(c *C) {

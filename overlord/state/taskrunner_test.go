@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,7 +36,9 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type taskRunnerSuite struct{}
+type taskRunnerSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&taskRunnerSuite{})
 
@@ -87,19 +89,19 @@ func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change
 // handlers will be called, assuming the provided setup is in place.
 //
 // Setup options:
-//     <task>:was-<status>    - set task status before calling ensure (must be sensible)
-//     <task>:(do|undo)-block - block handler until task tomb dies
-//     <task>:(do|undo)-retry - return from handler with with state.Retry
-//     <task>:(do|undo)-error - return from handler with an error
-//     <task>:...:1,2         - one of the above, and add task to lanes 1 and 2
-//     chg:abort              - call abort on the change
+//
+//	<task>:was-<status>    - set task status before calling ensure (must be sensible)
+//	<task>:(do|undo)-block - block handler until task tomb dies
+//	<task>:(do|undo)-retry - return from handler with with state.Retry
+//	<task>:(do|undo)-error - return from handler with an error
+//	<task>:...:1,2         - one of the above, and add task to lanes 1 and 2
+//	chg:abort              - call abort on the change
 //
 // Task wait order: ( t11 | t12 ) => ( t21 ) => ( t31 | t32 )
 //
 // Task t12 has no undo.
 //
 // Final task statuses are tested based on the resulting events list.
-//
 var sequenceTests = []struct{ setup, result string }{{
 	setup:  "",
 	result: "t11:do t12:do t21:do t31:do t32:do",
@@ -140,6 +142,10 @@ var sequenceTests = []struct{ setup, result string }{{
 	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:2 t31:was-done:2 t32:do-error:2",
 	result: "t31:undo t32:do t32:do-error t21:undo",
 }}
+
+func (ts *taskRunnerSuite) SetUpTest(c *C) {
+	ts.BaseTest.SetUpTest(c)
+}
 
 func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 	sb := &stateBackend{}
@@ -396,7 +402,7 @@ func (ts *taskRunnerSuite) TestAbortAcrossLanesDescendantTask(c *C) {
 		c.Logf("do %q", task.Summary())
 		label := task.Summary()
 		if label == "t15" {
-			ch <- fmt.Sprintf("t15:error")
+			ch <- "t15:error"
 			return fmt.Errorf("mock error")
 		}
 		ch <- fmt.Sprintf("%s:do", label)
@@ -498,7 +504,7 @@ func (ts *taskRunnerSuite) TestAbortAcrossLanesStriclyOrderedTasks(c *C) {
 		c.Logf("do %q", task.Summary())
 		label := task.Summary()
 		if label == "t24" {
-			ch <- fmt.Sprintf("t24:error")
+			ch <- "t24:error"
 			return fmt.Errorf("mock error")
 		}
 		ch <- fmt.Sprintf("%s:do", label)
@@ -570,6 +576,101 @@ func (ts *taskRunnerSuite) TestExternalAbort(c *C) {
 
 	// The Abort above must make Ensure kill the task, or this will never end.
 	ensureChange(c, r, sb, chg)
+}
+
+func (ts *taskRunnerSuite) TestUndoSingleLane(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	r.AddHandler("noop", func(t *state.Task, tb *tomb.Tomb) error {
+		return nil
+	}, func(t *state.Task, tb *tomb.Tomb) error {
+		return nil
+	})
+
+	r.AddHandler("noop-slow", func(t *state.Task, tb *tomb.Tomb) error {
+		time.Sleep(10 * time.Millisecond)
+		t.State().Lock()
+		defer t.State().Unlock()
+		// critical
+		t.SetStatus(state.DoneStatus)
+		return nil
+	}, func(t *state.Task, tb *tomb.Tomb) error {
+		return nil
+	})
+
+	r.AddHandler("fail", func(t *state.Task, tb *tomb.Tomb) error {
+		return fmt.Errorf("fail")
+	}, nil)
+
+	st.Lock()
+
+	lane := st.NewLane()
+	chg := st.NewChange("install", "...")
+
+	// first taskset
+	var prev *state.Task
+	for i := 0; i < 10; i++ {
+		t := st.NewTask("noop-slow", "...")
+		if prev != nil {
+			t.WaitFor(prev)
+		}
+		chg.AddTask(t)
+		t.JoinLane(lane)
+
+		prev = t
+	}
+
+	// second taskset with a failing task that triggers undo of the change
+	prev = nil
+	for i := 0; i < 10; i++ {
+		t := st.NewTask("noop", "...")
+		if prev != nil {
+			t.WaitFor(prev)
+		}
+		chg.AddTask(t)
+		t.JoinLane(lane)
+		prev = t
+	}
+
+	// error trigger
+	t := st.NewTask("fail", "...")
+	t.WaitFor(prev)
+	chg.AddTask(t)
+	t.JoinLane(lane)
+
+	st.Unlock()
+
+	var done bool
+	for !done {
+		c.Assert(r.Ensure(), Equals, nil)
+		st.Lock()
+		done = chg.IsReady() && chg.IsClean()
+		st.Unlock()
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	// make sure all tasks are either undone or on hold (except for "fail" task which
+	// is in error).
+	for _, t := range st.Tasks() {
+		switch t.Kind() {
+		case "fail":
+			c.Assert(t.Status(), Equals, state.ErrorStatus)
+		case "noop", "noop-slow":
+			if t.Status() != state.UndoneStatus && t.Status() != state.HoldStatus {
+				for _, tsk := range st.Tasks() {
+					fmt.Printf("%s -> %s\n", tsk.Kind(), tsk.Status())
+				}
+				c.Fatalf("unexpected status: %s", t.Status())
+			}
+		default:
+			c.Fatalf("unexpected kind: %s", t.Kind())
+		}
+	}
 }
 
 func (ts *taskRunnerSuite) TestStopHandlerJustFinishing(c *C) {
@@ -706,6 +807,44 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 	defer st.Unlock()
 	c.Check(t.Status(), Equals, state.DoingStatus)
 	c.Check(t.AtTime().IsZero(), Equals, false)
+}
+
+func (ts *taskRunnerSuite) TestTaskReturningWait(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	r.AddHandler("ask-for-wait", func(t *state.Task, tb *tomb.Tomb) error {
+		// ask for wait
+		return &state.Wait{}
+	}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := st.NewTask("ask-for-wait", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	r.Ensure()
+	// wait for handler to finish
+	r.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(chg.Status().Ready(), Equals, false)
+
+	st.Unlock()
+	defer st.Lock()
+	// does nothing
+	r.Ensure()
+
+	// state is unchanged
+	st.Lock()
+	defer st.Unlock()
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(chg.Status().Ready(), Equals, false)
 }
 
 func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
@@ -1023,7 +1162,7 @@ func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
 	terr.WaitFor(prev)
 	chg.AddTask(terr)
 
-	c.Check(chg.Tasks(), HasLen, 9) // sanity check
+	c.Check(chg.Tasks(), HasLen, 9) // validity check
 
 	st.Unlock()
 

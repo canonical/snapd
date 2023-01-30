@@ -46,12 +46,10 @@ type loggerSuite struct {
 var _ = check.Suite(&loggerSuite{})
 
 func (s *loggerSuite) TearDownTest(c *check.C) {
-	os.Unsetenv("SNAPD_DEBUG")
 	s.restoreLogger()
 }
 
 func (s *loggerSuite) SetUpTest(c *check.C) {
-	os.Setenv("SNAPD_DEBUG", "true")
 	s.logbuf = bytes.NewBuffer(nil)
 	s.logbuf, s.restoreLogger = logger.MockLogger()
 }

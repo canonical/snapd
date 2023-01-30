@@ -23,23 +23,23 @@ restore: |
         rm -f /etc/systemd/user/snapd.session-agent.service
         rm -f /etc/systemd/user/snapd.session-agent.socket
         rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
-        systemctl --user daemon-reload
+        systemctl --user daemon-reload || true
         rm -f /etc/dbus-1/session.d/snapd.session-services.conf
         rm -f /etc/dbus-1/system.d/snapd.system-services.conf
     fi
 
 debug: |
     # dump failure data
-    journalctl -u snapd.failure.service
-    journalctl -u snapd.socket || true
+    "$TESTSTOOLS"/journal-state get-log -u snapd.failure.service
+    "$TESTSTOOLS"/journal-state get-log -u snapd.socket
     if os.query is-core16; then
         # might be useful to know what's up with the core snap too on uc16
-        ls -l /snap/core/
+        ls -l /snap/core/ || true
     fi
-    ls -l /snap/snapd/
+    ls -l /snap/snapd/ || true
 
-    cat /etc/systemd/system/snapd.service
-    cat /etc/systemd/system/usr-lib-snapd.mount
+    cat /etc/systemd/system/snapd.service || true
+    cat /etc/systemd/system/usr-lib-snapd.mount || true
     /snap/snapd/x1/usr/bin/snap debug state /var/lib/snapd/state.json || true
     /snap/snapd/x1/usr/bin/snap debug state --change="$(/snap/snapd/x1/usr/bin/snap debug state /var/lib/snapd/state.json|tail -n1|awk '{print $1}')" /var/lib/snapd/state.json || true
 
@@ -136,6 +136,8 @@ execute: |
             rm -f /etc/systemd/system/snapd.{service,timer,socket}
             rm -f /etc/systemd/system/snapd.*.{service,timer,socket}
             rm -f /etc/systemd/system/*.wants/snapd.*.{service,timer,socket}
+            rm -f /etc/systemd/system/snapd.mounts.target.wants/snap-snapd-*.mount
+            rm -f /etc/systemd/system/multi-user.target.wants/snap-snapd-*.mount
             systemctl daemon-reload
             # this will have the "snapd" snap /usr/lib/snapd bind mounted
             umount --lazy /usr/lib/snapd
@@ -150,9 +152,16 @@ execute: |
         # the test's execution on uc16, but just be extra safe
         if os.query is-core16; then
             # now remove the snapd snap since we booted with the core snap
+            # we need first to unmount snapd snaps
+            for mntpnt in /snap/snapd/*; do
+              if mountpoint -q "${mntpnt}"; then
+                unit="$(systemd-escape --path "${mntpnt}").mount"
+                umount "${mntpnt}" || true
+                rm -f "/etc/systemd/system/${unit}"
+              fi
+            done
+            systemctl daemon-reload || true
             snap list
-            # this only succeeds because we reverted back to having the core 
-            # snap on UC16, and the snapd snap is in a broken state
             snap remove snapd
             # and we can still run the rsync snap after the reboot
             rsync --help

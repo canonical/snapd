@@ -29,6 +29,8 @@ import (
 	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
@@ -53,6 +55,14 @@ func (s *grubTestSuite) SetUpTest(c *C) {
 	bootloader.MockGrubFiles(c, s.rootdir)
 
 	s.bootdir = filepath.Join(s.rootdir, "boot")
+	// By default assume amd64 in the tests: there are specialized
+	// tests for other arches
+	s.AddCleanup(archtest.MockArchitecture("amd64"))
+	snippets := []assets.ForEditions{
+		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
+	}
+	s.AddCleanup(assets.MockSnippetsForEdition("grub.cfg:static-cmdline", snippets))
+	s.AddCleanup(assets.MockSnippetsForEdition("grub-recovery.cfg:static-cmdline", snippets))
 }
 
 // grubEditenvCmd finds the right grub{,2}-editenv command
@@ -610,6 +620,26 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	exists, _, err := osutil.DirExists(filepath.Dir(kernefi))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, false)
+}
+
+func (s *grubTestSuite) TestListTrustedAssetsNotForArch(c *C) {
+	oldArch := arch.DpkgArchitecture()
+	defer arch.SetArchitecture(arch.ArchitectureType(oldArch))
+	arch.SetArchitecture("non-existing-architecture")
+
+	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
+some random boot config`))
+
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+
+	tg, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	ta, err := tg.TrustedAssets()
+	c.Check(err, ErrorMatches, `cannot find grub assets for "non-existing-architecture"`)
+	c.Check(ta, HasLen, 0)
 }
 
 func (s *grubTestSuite) TestListManagedAssets(c *C) {
@@ -1178,6 +1208,26 @@ func (s *grubTestSuite) TestTrustedAssetsRoot(c *C) {
 	c.Check(ta, IsNil)
 }
 
+func (s *grubTestSuite) TestTrustedAssetsFailAtPrepareImageTime(c *C) {
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte("grub.cfg"))
+
+	opts := []bootloader.Options{
+		{NoSlashBoot: true, PrepareImageTime: true},
+		{NoSlashBoot: true, PrepareImageTime: true, Role: bootloader.RoleRecovery}}
+	for _, opt := range opts {
+		g := bootloader.NewGrub(s.rootdir, &opt)
+		c.Assert(g, NotNil)
+
+		tab, ok := g.(bootloader.TrustedAssetsBootloader)
+		c.Assert(ok, Equals, true)
+
+		ta, err := tab.TrustedAssets()
+		c.Assert(err, ErrorMatches, "internal error: retrieving boot assets at prepare image time")
+		c.Check(ta, IsNil)
+	}
+}
+
 func (s *grubTestSuite) TestRecoveryBootChains(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, nil)
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
@@ -1217,6 +1267,26 @@ func (s *grubTestSuite) TestBootChains(c *C) {
 		{Path: "EFI/boot/bootx64.efi", Role: bootloader.RoleRecovery},
 		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRecovery},
 		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+}
+
+func (s *grubTestSuite) TestBootChainsArm64(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	r := archtest.MockArchitecture("arm64")
+	defer r()
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
+
+	chain, err := tab.BootChain(g2, "kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chain, DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/boot/bootaa64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubaa64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubaa64.efi", Role: bootloader.RoleRunMode},
 		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
 	})
 }

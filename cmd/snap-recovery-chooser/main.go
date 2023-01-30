@@ -27,14 +27,14 @@
 //
 // The JSON object carrying the list of systems is the client.ChooserSystems
 // structure. The response is defined as follows:
-// {
-//     "label": "<system-label",
-//     "action": {} // client.SystemAction object
-// }
+//
+//	{
+//	    "label": "<system-label",
+//	    "action": {} // client.SystemAction object
+//	}
 //
 // No action is forwarded to snapd if the chooser UI exits with an error code or
 // the response structure is invalid.
-//
 package main
 
 import (

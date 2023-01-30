@@ -20,6 +20,7 @@
 package snapstatetest
 
 import (
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -28,7 +29,7 @@ import (
 // to witness the restart requests.
 type MockRestartHandler func(restart.RestartType)
 
-func (h MockRestartHandler) HandleRestart(t restart.RestartType) {
+func (h MockRestartHandler) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInfo) {
 	if h == nil {
 		return
 	}

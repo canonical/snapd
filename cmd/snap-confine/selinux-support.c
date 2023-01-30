@@ -82,7 +82,7 @@ int sc_selinux_set_snap_execcon(void) {
         }
 
         /* freed by context_free(ctx) */
-        char *new_ctx_str = context_str(ctx);
+        const char *new_ctx_str = context_str(ctx);
         if (new_ctx_str == NULL) {
             die("cannot obtain updated SELinux context string");
         }

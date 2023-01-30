@@ -20,27 +20,28 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type cmdValidate struct {
-	clientMixin
-	Monitor bool `long:"monitor"`
-	// XXX: enforce mode is not supported yet
-	Enforce    bool `long:"enforce" hidden:"yes"`
+	Monitor    bool `long:"monitor"`
+	Enforce    bool `long:"enforce"`
 	Forget     bool `long:"forget"`
+	Refresh    bool `long:"refresh"`
 	Positional struct {
 		ValidationSet string `positional-arg-name:"<validation-set>"`
 	} `positional-args:"yes"`
 	colorMixin
+	waitMixin
 }
 
 var shortValidateHelp = i18n.G("List or apply validation sets")
@@ -49,14 +50,16 @@ The validate command lists or applies validations sets
 `)
 
 func init() {
-	cmd := addCommand("validate", shortValidateHelp, longValidateHelp, func() flags.Commander { return &cmdValidate{} }, colorDescs.also(map[string]string{
+	cmd := addCommand("validate", shortValidateHelp, longValidateHelp, func() flags.Commander { return &cmdValidate{} }, waitDescs.also(colorDescs.also(map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"monitor": i18n.G("Monitor the given validations set"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"enforce": i18n.G("Enforce the given validation set"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"forget": i18n.G("Forget the given validation set"),
-	}), []argDesc{{
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"refresh": i18n.G("Refresh or remove snaps to satisfy enforced validation sets"),
+	})), []argDesc{{
 		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<validation-set>"),
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -64,35 +67,6 @@ func init() {
 	}})
 	// XXX: remove once api has landed
 	cmd.hidden = true
-}
-
-func splitValidationSetArg(arg string) (account, name string, seq int, err error) {
-	parts := strings.Split(arg, "=")
-	if len(parts) > 2 {
-		return "", "", 0, fmt.Errorf("cannot parse validation set, expected account/name=seq")
-	}
-	if len(parts) == 2 {
-		seq, err = strconv.Atoi(parts[1])
-		if err != nil {
-			return "", "", 0, err
-		}
-	}
-
-	parts = strings.Split(parts[0], "/")
-	if len(parts) != 2 {
-		return "", "", 0, fmt.Errorf("expected a single account/name")
-	}
-
-	account = parts[0]
-	name = parts[1]
-	if !asserts.IsValidAccountID(account) {
-		return "", "", 0, fmt.Errorf("invalid account ID %q", account)
-	}
-	if !asserts.IsValidValidationSetName(name) {
-		return "", "", 0, fmt.Errorf("invalid validation set name %q", name)
-	}
-
-	return account, name, seq, nil
 }
 
 func fmtValid(res *client.ValidationSetResult) string {
@@ -136,13 +110,46 @@ func (cmd *cmdValidate) Execute(args []string) error {
 	var seq int
 	var err error
 	if cmd.Positional.ValidationSet != "" {
-		accountID, name, seq, err = splitValidationSetArg(cmd.Positional.ValidationSet)
+		accountID, name, seq, err = snapasserts.ParseValidationSet(cmd.Positional.ValidationSet)
 		if err != nil {
-			return fmt.Errorf("cannot parse validation set %q: %v", cmd.Positional.ValidationSet, err)
+			return err
 		}
 	}
 
 	if action != "" {
+		if cmd.Refresh && action != "enforce" {
+			return fmt.Errorf("--refresh can only be used together with --enforce")
+		}
+
+		if cmd.Refresh {
+			changeID, err := cmd.client.RefreshMany(nil, &client.SnapOptions{
+				ValidationSets: []string{cmd.Positional.ValidationSet},
+			})
+			if err != nil {
+				return err
+			}
+			chg, err := cmd.wait(changeID)
+			if err != nil {
+				if err == noWait {
+					return nil
+				}
+				return err
+			}
+
+			var names []string
+			if err := chg.Get("snap-names", &names); err != nil && !errors.Is(err, client.ErrNoData) {
+				return err
+			}
+
+			if len(names) != 0 {
+				fmt.Fprintf(Stdout, i18n.G("Refreshed/installed snaps %s to enforce validation set %q\n"), strutil.Quoted(names), cmd.Positional.ValidationSet)
+			} else {
+				fmt.Fprintf(Stdout, i18n.G("Enforced validation set %q\n"), cmd.Positional.ValidationSet)
+			}
+
+			return nil
+		}
+
 		// forget
 		if cmd.Forget {
 			return cmd.client.ForgetValidationSet(accountID, name, seq)
@@ -152,7 +159,16 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			Mode:     action,
 			Sequence: seq,
 		}
-		return cmd.client.ApplyValidationSet(accountID, name, opts)
+		res, err := cmd.client.ApplyValidationSet(accountID, name, opts)
+		if err != nil {
+			return err
+		}
+		// only print valid/invalid status for monitor mode; enforce fails with an error if invalid
+		// and otherwise has no output.
+		if action == "monitor" {
+			fmt.Fprintln(Stdout, fmtValid(res))
+		}
+		return nil
 	}
 
 	// no validation set argument, print list with extended info

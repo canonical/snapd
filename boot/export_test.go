@@ -26,12 +26,14 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
-func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev Device) *coreBootParticipant {
+func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev snap.Device) *coreBootParticipant {
 	bs, err := bootStateFor(t, dev)
 	if err != nil {
 		panic(err)
@@ -39,7 +41,7 @@ func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev Device) *coreBoot
 	return &coreBootParticipant{s: s, bs: bs}
 }
 
-func NewCoreKernel(s snap.PlaceInfo, d Device) *coreKernel {
+func NewCoreKernel(s snap.PlaceInfo, d snap.Device) *coreKernel {
 	return &coreKernel{s, bootloaderOptionsForDeviceKernel(d)}
 }
 
@@ -62,7 +64,7 @@ var (
 	NewTrustedAssetsCache = newTrustedAssetsCache
 
 	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
-	SealKeyToModeenv                = sealKeyToModeenv
+	SealKeyToModeenv                = sealKeyToModeenvImpl
 	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
 	SealKeyModelParams              = sealKeyModelParams
@@ -94,12 +96,18 @@ func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() Boo
 	return o.currentTrustedRecoveryBootAssetsMap()
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentDataEncryptionKey() secboot.EncryptionKey {
+func (o *TrustedAssetsInstallObserver) CurrentDataEncryptionKey() keys.EncryptionKey {
 	return o.dataEncryptionKey
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentSaveEncryptionKey() secboot.EncryptionKey {
+func (o *TrustedAssetsInstallObserver) CurrentSaveEncryptionKey() keys.EncryptionKey {
 	return o.saveEncryptionKey
+}
+
+func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error) (restore func()) {
+	restore = testutil.Backup(&secbootProvisionTPM)
+	secbootProvisionTPM = f
+	return restore
 }
 
 func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error) (restore func()) {
@@ -124,6 +132,18 @@ func MockSeedReadSystemEssential(f func(seedDir, label string, essentialTypes []
 	return func() {
 		seedReadSystemEssential = old
 	}
+}
+
+func MockSecbootPCRHandleOfSealedKey(f func(p string) (uint32, error)) (restore func()) {
+	restore = testutil.Backup(&secbootPCRHandleOfSealedKey)
+	secbootPCRHandleOfSealedKey = f
+	return restore
+}
+
+func MockSecbootReleasePCRResourceHandles(f func(handles ...uint32) error) (restore func()) {
+	restore = testutil.Backup(&secbootReleasePCRResourceHandles)
+	secbootReleasePCRResourceHandles = f
+	return restore
 }
 
 func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash string, recovery bool) {
@@ -199,7 +219,13 @@ func (b *bootChain) KernelBootFile() bootloader.BootFile {
 	return b.kernelBootFile
 }
 
-func MockHasFDESetupHook(f func() (bool, error)) (restore func()) {
+func MockRebootArgsPath(argsPath string) (restore func()) {
+	oldRebootArgsPath := rebootArgsPath
+	rebootArgsPath = argsPath
+	return func() { rebootArgsPath = oldRebootArgsPath }
+}
+
+func MockHasFDESetupHook(f func(*snap.Info) (bool, error)) (restore func()) {
 	oldHasFDESetupHook := HasFDESetupHook
 	HasFDESetupHook = f
 	return func() {
@@ -235,4 +261,9 @@ func MockWriteModelToUbuntuBoot(mock func(*asserts.Model) error) (restore func()
 	return func() {
 		writeModelToUbuntuBoot = old
 	}
+}
+
+func EnableTestingRebootFunction() (restore func()) {
+	testingRebootItself = true
+	return func() { testingRebootItself = false }
 }

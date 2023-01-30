@@ -141,6 +141,8 @@ func ConfigureTargetSystem(model *asserts.Model, opts *Options) error {
 	if gadgetInfo != nil {
 		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
 		if len(defaults) > 0 {
+			// TODO for classic with modes we do not want it under
+			// _writable_defaults folder.
 			if err := ApplyFilesystemOnlyDefaults(model, WritableDefaultsDir(opts.TargetRootDir), defaults); err != nil {
 				return err
 			}

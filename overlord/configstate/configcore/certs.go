@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
 // +build !nomanagers
 
 /*
@@ -29,10 +30,9 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
-func handleCertConfiguration(tr config.Conf, opts *fsOnlyContext) error {
+func handleCertConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 	// This handles the "snap revert core" case:
 	// We need to go over each pem cert on disk and check if there is
 	// a matching config entry - if not->delete the cert
@@ -90,7 +90,7 @@ func handleCertConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	return nil
 }
 
-func validateCertSettings(tr config.Conf) error {
+func validateCertSettings(tr RunTransaction) error {
 	for _, name := range tr.Changes() {
 		if !strings.HasPrefix(name, "core.store-certs.") {
 			continue

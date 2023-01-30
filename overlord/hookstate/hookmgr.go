@@ -21,6 +21,7 @@ package hookstate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -95,7 +96,7 @@ type HookSetup struct {
 func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
 	// Make sure we only run 1 hook task for given snap at a time
 	runner.AddBlocked(func(thisTask *state.Task, running []*state.Task) bool {
-		// check if we're a hook task, probably not needed but let's take extra care
+		// check if we're a hook task
 		if thisTask.Kind() != "run-hook" {
 			return false
 		}
@@ -135,7 +136,7 @@ func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
 
 	setupHooks(manager)
 
-	snapstate.AddAffectedSnapsByAttr("hook-setup", manager.hookAffectedSnaps)
+	snapstate.RegisterAffectedSnapsByAttr("hook-setup", manager.hookAffectedSnaps)
 
 	return manager, nil
 }
@@ -226,7 +227,7 @@ func hookSetup(task *state.Task, key string) (*HookSetup, *snapstate.SnapState, 
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(task.State(), hooksup.Snap, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, fmt.Errorf("cannot handle %q snap: %v", hooksup.Snap, err)
 	}
 
@@ -276,7 +277,7 @@ func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	hooksup, snapst, err := hookSetup(task, "undo-hook-setup")
 	task.State().Unlock()
 	if err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			// no undo hook setup
 			return nil
 		}

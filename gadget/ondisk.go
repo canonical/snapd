@@ -30,10 +30,37 @@ import (
 
 // OnDiskStructure represents a gadget structure laid on a block device.
 type OnDiskStructure struct {
-	LaidOutStructure
+	// Name, when non empty, provides the name of the structure
+	Name string
+	// PartitionFSLabel provides the filesystem label
+	PartitionFSLabel string
+	// Type of the structure, which can be 2-hex digit MBR partition,
+	// 36-char GUID partition, comma separated <mbr>,<guid> for hybrid
+	// partitioning schemes, or 'bare' when the structure is not considered
+	// a partition.
+	//
+	// For backwards compatibility type 'mbr' is also accepted, and the
+	// structure is treated as if it is of role 'mbr'.
+	Type string
+	// PartitionFSType used for the partition filesystem: 'vfat', 'ext4',
+	// 'none' for structures of type 'bare', or 'crypto_LUKS' for encrypted
+	// partitions.
+	PartitionFSType string
+	// StartOffset defines the start offset of the structure within the
+	// enclosing volume
+	StartOffset quantity.Offset
 
 	// Node identifies the device node of the block device.
 	Node string
+
+	// DiskIndex is the index of the structure on the disk - this should be
+	// used instead of YamlIndex for an OnDiskStructure, YamlIndex comes from
+	// the embedded LaidOutStructure which is 0-based and does not have the same
+	// meaning. A LaidOutStructure's YamlIndex position will include that of
+	// bare structures which will not show up as an OnDiskStructure, so the
+	// range of OnDiskStructure.DiskIndex values is not necessarily the same as
+	// the range of LaidOutStructure.YamlIndex values.
+	DiskIndex int
 
 	// Size of the on disk structure, which is at least equal to the
 	// LaidOutStructure.Size but may be bigger if the partition was
@@ -82,10 +109,14 @@ func OnDiskVolumeFromDisk(disk disks.Disk) (*OnDiskVolume, error) {
 		return nil, err
 	}
 
-	structure := make([]VolumeStructure, len(parts))
 	ds := make([]OnDiskStructure, len(parts))
 
 	for _, p := range parts {
+		s, err := OnDiskStructureFromPartition(p)
+		if err != nil {
+			return nil, err
+		}
+
 		// Use the index of the structure on the disk rather than the order in
 		// which we iterate over the list of partitions, since the order of the
 		// partitions is returned "last seen first" which matches the behavior
@@ -93,41 +124,11 @@ func OnDiskVolumeFromDisk(disk disks.Disk) (*OnDiskVolume, error) {
 		// populating /dev/disk/by-label/ and friends.
 		// All that is to say the order that the list of partitions from
 		// Partitions() is in is _not_ the same as the order that the structures
-		// actually appear in on disk, but this is why the StructureIndex
-		// property exists. Also note that StructureIndex starts at 1, as
+		// actually appear in on disk, but this is why the DiskIndex
+		// property exists. Also note that DiskIndex starts at 1, as
 		// opposed to gadget.LaidOutVolume.Structure's Index which starts at 0.
-		i := p.StructureIndex - 1
-
-		// the PartitionLabel and FilesystemLabel are encoded, so they must be
-		// decoded before they can be used in other gadget functions
-
-		decodedPartLabel, err := disks.BlkIDDecodeLabel(p.PartitionLabel)
-		if err != nil {
-			return nil, fmt.Errorf("cannot decode partition label for partition on disk %s: %v", disk.KernelDeviceNode(), err)
-		}
-		decodedFsLabel, err := disks.BlkIDDecodeLabel(p.FilesystemLabel)
-		if err != nil {
-			return nil, fmt.Errorf("cannot decode partition label for partition on disk %s: %v", disk.KernelDeviceNode(), err)
-		}
-
-		structure[i] = VolumeStructure{
-			Name:       decodedPartLabel,
-			Size:       quantity.Size(p.SizeInBytes),
-			Label:      decodedFsLabel,
-			Type:       p.PartitionType,
-			Filesystem: p.FilesystemType,
-			ID:         p.PartitionUUID,
-		}
-
-		ds[i] = OnDiskStructure{
-			LaidOutStructure: LaidOutStructure{
-				VolumeStructure: &structure[i],
-				StartOffset:     quantity.Offset(p.StartInBytes),
-				Index:           int(p.StructureIndex),
-			},
-			Size: quantity.Size(p.SizeInBytes),
-			Node: p.KernelDeviceNode,
-		}
+		i := p.DiskIndex - 1
+		ds[i] = s
 	}
 
 	diskSz, err := disk.SizeInBytes()
@@ -158,17 +159,28 @@ func OnDiskVolumeFromDisk(disk disks.Disk) (*OnDiskVolume, error) {
 	return dl, nil
 }
 
-// UpdatePartitionList re-reads the partitioning data from the device and
-// updates the volume structures in the specified volume.
-func UpdatePartitionList(dl *OnDiskVolume) error {
-	layout, err := OnDiskVolumeFromDevice(dl.Device)
+func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
+	// the PartitionLabel and FilesystemLabel are encoded, so they must be
+	// decoded before they can be used in other gadget functions
+
+	decodedPartLabel, err := disks.BlkIDDecodeLabel(p.PartitionLabel)
 	if err != nil {
-		return fmt.Errorf("cannot read disk layout: %v", err)
+		return OnDiskStructure{}, fmt.Errorf("cannot decode partition label for partition %s: %v", p.KernelDeviceNode, err)
 	}
-	if dl.ID != layout.ID {
-		return fmt.Errorf("partition table IDs don't match")
+	decodedFsLabel, err := disks.BlkIDDecodeLabel(p.FilesystemLabel)
+	if err != nil {
+		return OnDiskStructure{}, fmt.Errorf("cannot decode filesystem label for partition %s: %v", p.KernelDeviceNode, err)
 	}
 
-	dl.Structure = layout.Structure
-	return nil
+	// TODO add ID in second part of the gadget refactoring?
+	return OnDiskStructure{
+		Name:             decodedPartLabel,
+		PartitionFSLabel: decodedFsLabel,
+		Type:             p.PartitionType,
+		PartitionFSType:  p.FilesystemType,
+		StartOffset:      quantity.Offset(p.StartInBytes),
+		DiskIndex:        int(p.DiskIndex),
+		Size:             quantity.Size(p.SizeInBytes),
+		Node:             p.KernelDeviceNode,
+	}, nil
 }

@@ -61,6 +61,14 @@ const networkSetupControlConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 
+# Allow use of Netplan Generate API, used to generate network configuration
+dbus (send)
+	bus=system
+	interface=io.netplan.Netplan
+	path=/io/netplan/Netplan
+	member=Generate
+	peer=(label=unconfined),
+
 # Allow use of Netplan Apply API, used to apply network configuration
 dbus (send)
     bus=system

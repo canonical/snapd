@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -67,26 +67,36 @@ func securityTagFromCgroupPath(path string) naming.SecurityTag {
 	return nil
 }
 
-// PidsOfSnap returns the association of security tags to PIDs.
+type InstancePathsOptions struct {
+	ReturnCGroupPath bool
+}
+
+// InstancePathsOfSnap returns the list of active cgroup paths for a given snap
+// If options.returnCGroupPath is TRUE, it will return the path of the CGroup itself;
+// but if it is FALSE, it will return the path of the file with the PIDs of the running snap
 //
-// NOTE: This function returns a reliable result only if the refresh-app-awareness
-// feature was enabled since all processes related to the given snap were started.
-// If the feature wasn't always enabled then only service process are correctly
-// accounted for.
-//
-// The return value is a snapshot of the pids for a given snap, grouped by
-// security tag. The result may be immediately stale as processes fork and
-// exit.
-//
-// Importantly, if the per-snap lock is held while computing the set, then the
-// following guarantee is true: if a security tag is not among the results then
-// no such tag can come into existence while the lock is held.
-//
-// This can be used to classify the activity of a given snap into activity
-// classes, based on the nature of the security tags encountered.
-func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
-	// pidsByTag maps security tag to a list of pids.
-	pidsByTag := make(map[string][]int)
+// The return value is a snapshot of the cgroup paths
+
+func InstancePathsOfSnap(snapInstanceName string, options InstancePathsOptions) ([]string, error) {
+	var cgroupPathToScan string
+	var pathList []string
+
+	ver, err := Version()
+	if err != nil {
+		return nil, err
+	}
+
+	if ver == V2 {
+		// In v2 mode scan all of /sys/fs/cgroup as there is no specialization
+		// anymore (each directory represents a hierarchy with equal
+		// capabilities and old split into controllers is gone).
+		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint)
+	} else {
+		// In v1 mode scan just /sys/fs/cgroup/systemd as that is sufficient
+		// for finding snap-specific cgroup names. Systemd uses this for
+		// tracking and scopes and services are represented there.
+		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint, "systemd")
+	}
 
 	// Walk the cgroup tree and look for "cgroup.procs" files. Having found one
 	// we try to derive the snap security tag from it. If successful and the
@@ -100,6 +110,14 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 			// that error quickly.
 			return err
 		}
+
+		// ignore snaps inside containers
+		for _, slice := range []string{"lxc.payload", "machine.slice", "docker"} {
+			if strings.HasPrefix(path, filepath.Join(cgroupPathToScan, slice)) {
+				return filepath.SkipDir
+			}
+		}
+
 		if fileInfo.IsDir() {
 			// We don't care about directories.
 			return nil
@@ -122,33 +140,16 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 		if parsedTag.InstanceName() != snapInstanceName {
 			return nil
 		}
-		pids, err := pidsInFile(path)
-		if err != nil {
-			return err
+		if options.ReturnCGroupPath {
+			pathList = append(pathList, cgroupPath)
+		} else {
+			pathList = append(pathList, path)
 		}
-		tag := parsedTag.String()
-		pidsByTag[tag] = append(pidsByTag[tag], pids...)
 		// Since we've found the file we are looking for (cgroup.procs) we no
 		// longer need to scan the remaining files of this directory.
 		return filepath.SkipDir
 	}
 
-	var cgroupPathToScan string
-	ver, err := Version()
-	if err != nil {
-		return nil, err
-	}
-	if ver == V2 {
-		// In v2 mode scan all of /sys/fs/cgroup as there is no specialization
-		// anymore (each directory represents a hierarchy with equal
-		// capabilities and old split into controllers is gone).
-		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint)
-	} else {
-		// In v1 mode scan just /sys/fs/cgroup/systemd as that is sufficient
-		// for finding snap-specific cgroup names. Systemd uses this for
-		// tracking and scopes and services are represented there.
-		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint, "systemd")
-	}
 	// NOTE: Walk is internally performed in lexical order so the output is
 	// deterministic and we don't need to sort the returned aggregated PIDs.
 	if err := filepath.Walk(cgroupPathToScan, walkFunc); err != nil {
@@ -156,6 +157,51 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 			return nil, nil
 		}
 		return nil, err
+	}
+	return pathList, nil
+}
+
+// PidsOfSnap returns the association of security tags to PIDs.
+//
+// NOTE: This function returns a reliable result only if the refresh-app-awareness
+// feature was enabled before all processes related to the given snap were started.
+// If the feature wasn't always enabled then only service process are correctly
+// accounted for.
+//
+// The return value is a snapshot of the pids for a given snap, grouped by
+// security tag. The result may be immediately stale as processes fork and
+// exit.
+//
+// Importantly, if the per-snap lock is held while computing the set, then the
+// following guarantee is true: if a security tag is not among the results then
+// no such tag can come into existence while the lock is held.
+//
+// This can be used to classify the activity of a given snap into activity
+// classes, based on the nature of the security tags encountered.
+func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
+	options := InstancePathsOptions{
+		ReturnCGroupPath: false,
+	}
+	paths, err := InstancePathsOfSnap(snapInstanceName, options)
+	if err != nil {
+		return nil, err
+	}
+
+	// pidsByTag maps security tag to a list of pids.
+	pidsByTag := make(map[string][]int)
+
+	for _, path := range paths {
+		pids, err := pidsInFile(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		cgroupPath := filepath.Dir(path)
+		parsedTag := securityTagFromCgroupPath(cgroupPath)
+		tag := parsedTag.String()
+		pidsByTag[tag] = append(pidsByTag[tag], pids...)
 	}
 
 	return pidsByTag, nil

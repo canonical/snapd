@@ -1,5 +1,14 @@
 summary: check the session support status of various distributions
 execute: |
+
+    # In case ubuntu core is not already built in prepare helper, the check for uc18
+    # is the same than for ubuntu 18.04
+    if [[ "$SPREAD_SYSTEM" = ubuntu-core-18-* ]]; then
+        if MATCH '^ID=ubuntu$' < /etc/os-release; then
+            exit 0
+        fi
+    fi
+
     case "$SPREAD_SYSTEM/$USER" in
         amazon-linux-2-*|centos-7-*)
             tests.session has-system-systemd-and-dbus | MATCH 'ok'
@@ -30,9 +39,9 @@ execute: |
         ubuntu-core-1[68]-*)
             tests.session has-system-systemd-and-dbus | MATCH 'ok'
             tests.session has-system-systemd-and-dbus
-            # Ubuntu Core 16 and Ubuntu Core 18 did not support user sessions.
-            # Note that Ubuntu Core 20 is in the default case down below, and
-            # does support this feature.
+            # Ubuntu Core 16 did not support user sessions.
+            # Note that Ubuntu Core 18 and later are in the default case down
+            # below, and do support this feature.
             tests.session has-session-systemd-and-dbus | MATCH 'no user dbus.socket'
             not tests.session has-session-systemd-and-dbus
             ;;

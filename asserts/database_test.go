@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,9 +24,11 @@ import (
 	"crypto"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"testing"
 	"time"
@@ -37,6 +39,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -201,6 +204,18 @@ func (dbs *databaseSuite) TestPublicKeyNotFound(c *C) {
 	c.Check(err, ErrorMatches, "cannot find key pair")
 }
 
+func (dbs *databaseSuite) TestNotFoundErrorIs(c *C) {
+	this := &asserts.NotFoundError{
+		Headers: map[string]string{"a": "a"},
+		Type:    asserts.ValidationSetType,
+	}
+	that := &asserts.NotFoundError{
+		Headers: map[string]string{"b": "b"},
+		Type:    asserts.RepairType,
+	}
+	c.Check(this, testutil.ErrorIs, that)
+}
+
 type checkSuite struct {
 	bs asserts.Backstore
 	a  asserts.Assertion
@@ -235,17 +250,54 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 }
 
 func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
+	fixedTimeStr := "0003-01-01T00:00:00Z"
+	fixedTime, err := time.Parse(time.RFC3339, fixedTimeStr)
+	c.Assert(err, IsNil)
+
+	restore := asserts.MockTimeNow(fixedTime)
+	defer restore()
+
 	trustedKey := testPrivKey0
 
+	expiredAccKey := asserts.ExpiredAccountKeyForTest("canonical", trustedKey.PublicKey())
 	cfg := &asserts.DatabaseConfig{
 		Backstore: chks.bs,
-		Trusted:   []asserts.Assertion{asserts.ExpiredAccountKeyForTest("canonical", trustedKey.PublicKey())},
+		Trusted:   []asserts.Assertion{expiredAccKey},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 
+	expSince := regexp.QuoteMeta(expiredAccKey.Since().Format(time.RFC3339))
+	expUntil := regexp.QuoteMeta(expiredAccKey.Until().Format(time.RFC3339))
+	curTime := regexp.QuoteMeta(fixedTimeStr)
 	err = db.Check(chks.a)
-	c.Assert(err, ErrorMatches, `assertion is signed with expired public key "[[:alnum:]_-]+" from "canonical"`)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`assertion is signed with expired public key "[[:alnum:]_-]+" from "canonical": current time is %s but key is valid during \[%s, %s\)`, curTime, expSince, expUntil))
+}
+
+func (chks *checkSuite) TestCheckExpiredPubKeyNoUntil(c *C) {
+	curTimeStr := "0002-01-01T00:00:00Z"
+	curTime, err := time.Parse(time.RFC3339, curTimeStr)
+	c.Assert(err, IsNil)
+
+	restore := asserts.MockTimeNow(curTime)
+	defer restore()
+
+	trustedKey := testPrivKey0
+
+	keyTimeStr := "0003-01-01T00:00:00Z"
+	keyTime, err := time.Parse(time.RFC3339, keyTimeStr)
+	c.Assert(err, IsNil)
+	expiredAccKey := asserts.MakeAccountKeyForTestWithUntil("canonical", trustedKey.PublicKey(), keyTime, time.Time{}, 1)
+	cfg := &asserts.DatabaseConfig{
+		Backstore: chks.bs,
+		Trusted:   []asserts.Assertion{expiredAccKey},
+	}
+
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	err = db.Check(chks.a)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`assertion is signed with expired public key "[[:alnum:]_-]+" from "canonical": current time is %s but key is valid from %s`, regexp.QuoteMeta(curTimeStr), regexp.QuoteMeta(keyTimeStr)))
 }
 
 func (chks *checkSuite) TestCheckForgery(c *C) {
@@ -1218,6 +1270,100 @@ func (safs *signAddFindSuite) TestFindMaxFormat(c *C) {
 		"primary-key": "foo",
 	}, 3)
 	c.Check(err, ErrorMatches, `cannot find "test-only" assertions for format 3 higher than supported format 1`)
+	c.Check(a, IsNil)
+}
+
+func (safs *signAddFindSuite) TestFindOptionalPrimaryKeys(c *C) {
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	defer r()
+
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "k1",
+	}
+	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(a1)
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "k2",
+		"opt1":         "A",
+	}
+	a2, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(a2)
+	c.Assert(err, IsNil)
+
+	a, err := safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k1",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.HeaderString("primary-key"), Equals, "k1")
+	c.Check(a.HeaderString("opt1"), Equals, "o1-defl")
+
+	a, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k1",
+		"opt1":        "o1-defl",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.HeaderString("primary-key"), Equals, "k1")
+	c.Check(a.HeaderString("opt1"), Equals, "o1-defl")
+
+	a, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k2",
+		"opt1":        "A",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.HeaderString("primary-key"), Equals, "k2")
+	c.Check(a.HeaderString("opt1"), Equals, "A")
+
+	_, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k3",
+	})
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+		Headers: map[string]string{
+			"primary-key": "k3",
+		},
+	})
+
+	_, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k2",
+	})
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+		Headers: map[string]string{
+			"primary-key": "k2",
+		},
+	})
+
+	_, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k2",
+		"opt1":        "B",
+	})
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+		Headers: map[string]string{
+			"primary-key": "k2",
+			"opt1":        "B",
+		},
+	})
+
+	_, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k1",
+		"opt1":        "B",
+	})
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+		Headers: map[string]string{
+			"primary-key": "k1",
+			"opt1":        "B",
+		},
+	})
 }
 
 func (safs *signAddFindSuite) TestWithStackedBackstore(c *C) {

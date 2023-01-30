@@ -19,6 +19,8 @@
 
 package snapstate
 
+import "github.com/snapcore/snapd/client"
+
 // Flags are used to pass additional flags to operations and to keep track of
 // snap modes.
 type Flags struct {
@@ -90,6 +92,19 @@ type Flags struct {
 	// This may eventually be set for specific snaps mentioned in the model
 	// assertion for non-dangerous grade models too.
 	ApplySnapDevMode bool `json:"apply-snap-devmode,omitempty"`
+
+	// Transaction is set to "all-snaps" to request that the set of
+	// snaps is transactionally installed/updated jointly, or to
+	// "per-snap" in case each snap is treated in a different
+	// transaction.
+	Transaction client.TransactionType `json:"transaction,omitempty"`
+
+	// QuotaGroupName represents the quota group a snap should be assigned
+	// to during installation.
+	QuotaGroupName string `json:"quota-group,omitempty"`
+
+	// Lane is the lane that tasks should join if Transaction is set to "all-snaps".
+	Lane int `json:"lane,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode
@@ -106,5 +121,6 @@ func (f Flags) ForSnapSetup() Flags {
 	f.NoReRefresh = false
 	f.RequireTypeBase = false
 	f.ApplySnapDevMode = false
+	f.Lane = 0
 	return f
 }

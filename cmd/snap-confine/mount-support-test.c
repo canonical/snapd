@@ -21,6 +21,7 @@
 #include "mount-support-nvidia.c"
 
 #include <glib.h>
+#include <glib/gstdio.h>
 
 static void replace_slashes_with_NUL(char *path, size_t len)
 {

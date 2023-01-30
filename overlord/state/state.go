@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -46,7 +46,7 @@ type customData map[string]*json.RawMessage
 func (data customData) get(key string, value interface{}) error {
 	entryJSON := data[key]
 	if entryJSON == nil {
-		return ErrNoState
+		return &NoStateError{Key: key}
 	}
 	err := json.Unmarshal(*entryJSON, value)
 	if err != nil {
@@ -97,18 +97,21 @@ type State struct {
 	modified bool
 
 	cache map[interface{}]interface{}
+
+	pendingChangeByAttr map[string]func(*Change) bool
 }
 
 // New returns a new empty state.
 func New(backend Backend) *State {
 	return &State{
-		backend:  backend,
-		data:     make(customData),
-		changes:  make(map[string]*Change),
-		tasks:    make(map[string]*Task),
-		warnings: make(map[string]*Warning),
-		modified: true,
-		cache:    make(map[interface{}]interface{}),
+		backend:             backend,
+		data:                make(customData),
+		changes:             make(map[string]*Change),
+		tasks:               make(map[string]*Task),
+		warnings:            make(map[string]*Warning),
+		modified:            true,
+		cache:               make(map[interface{}]interface{}),
+		pendingChangeByAttr: make(map[string]func(*Change) bool),
 	}
 }
 
@@ -241,12 +244,40 @@ func (s *State) EnsureBefore(d time.Duration) {
 // ErrNoState represents the case of no state entry for a given key.
 var ErrNoState = errors.New("no state entry for key")
 
+// NoStateError represents the case where no state could be found for a given key.
+type NoStateError struct {
+	// Key is the key for which no state could be found.
+	Key string
+}
+
+func (e *NoStateError) Error() string {
+	var keyMsg string
+	if e.Key != "" {
+		keyMsg = fmt.Sprintf(" %q", e.Key)
+	}
+
+	return fmt.Sprintf("no state entry for key%s", keyMsg)
+}
+
+// Is returns true if the error is of type *NoStateError or equal to ErrNoState.
+// NoStateError's key isn't compared between errors.
+func (e *NoStateError) Is(err error) bool {
+	_, ok := err.(*NoStateError)
+	return ok || errors.Is(err, ErrNoState)
+}
+
 // Get unmarshals the stored value associated with the provided key
 // into the value parameter.
 // It returns ErrNoState if there is no entry for key.
 func (s *State) Get(key string, value interface{}) error {
 	s.reading()
 	return s.data.get(key, value)
+}
+
+// Has returns whether the provided key has an associated value.
+func (s *State) Has(key string) bool {
+	s.reading()
+	return s.data.has(key)
 }
 
 // Set associates value with key for future consulting by managers.
@@ -357,16 +388,24 @@ func (s *State) tasksIn(tids []string) []*Task {
 	return res
 }
 
+// RegisterPendingChangeByAttr registers predicates that will be invoked by
+// Prune on changes with the specified attribute set to check whether even if
+// they meet the time criteria they must not be aborted yet.
+func (s *State) RegisterPendingChangeByAttr(attr string, f func(*Change) bool) {
+	s.pendingChangeByAttr[attr] = f
+}
+
 // Prune does several cleanup tasks to the in-memory state:
 //
-//  * it removes changes that became ready for more than pruneWait and aborts
-//    tasks spawned for more than abortWait.
+//   - it removes changes that became ready for more than pruneWait and aborts
+//     tasks spawned for more than abortWait unless prevented by predicates
+//     registered with RegisterPendingChangeByAttr.
 //
-//  * it removes tasks unlinked to changes after pruneWait. When there are more
-//    changes than the limit set via "maxReadyChanges" those changes in ready
-//    state will also removed even if they are below the pruneWait duration.
+//   - it removes tasks unlinked to changes after pruneWait. When there are more
+//     changes than the limit set via "maxReadyChanges" those changes in ready
+//     state will also removed even if they are below the pruneWait duration.
 //
-//  * it removes expired warnings.
+//   - it removes expired warnings.
 func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Duration, maxReadyChanges int) {
 	now := time.Now()
 	pruneLimit := now.Add(-pruneWait)
@@ -394,6 +433,7 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 		}
 	}
 
+NextChange:
 	for _, chg := range changes {
 		readyTime := chg.ReadyTime()
 		spawnTime := chg.SpawnTime()
@@ -405,7 +445,12 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 				chg.Abort()
 				delete(s.changes, chg.ID())
 			} else if spawnTime.Before(abortLimit) {
-				chg.Abort()
+				for attr, pending := range s.pendingChangeByAttr {
+					if chg.Has(attr) && pending(chg) {
+						continue NextChange
+					}
+				}
+				chg.AbortUnreadyLanes()
 			}
 			continue
 		}
@@ -431,8 +476,7 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 
 // GetMaybeTimings implements timings.GetSaver
 func (s *State) GetMaybeTimings(timings interface{}) error {
-	err := s.Get("timings", timings)
-	if err != nil && err != ErrNoState {
+	if err := s.Get("timings", timings); err != nil && !errors.Is(err, ErrNoState) {
 		return err
 	}
 	return nil
@@ -456,5 +500,6 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s.backend = backend
 	s.modified = false
 	s.cache = make(map[interface{}]interface{})
+	s.pendingChangeByAttr = make(map[string]func(*Change) bool)
 	return s, err
 }

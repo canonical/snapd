@@ -45,30 +45,30 @@ func (p *layoutTestSuite) SetUpTest(c *C) {
 	p.dir = c.MkDir()
 }
 
-var defaultConstraints = gadget.LayoutConstraints{
-	NonMBRStartOffset: 1 * quantity.OffsetMiB,
-}
-
 func (p *layoutTestSuite) TestVolumeSize(c *C) {
 	vol := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
-			{Size: 2 * quantity.SizeMiB},
+			{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB},
 		},
 	}
-	v, err := gadget.LayoutVolume(p.dir, "", &vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(&vol, opts)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: &gadget.Volume{
 			Structure: []gadget.VolumeStructure{
-				{Size: 2 * quantity.SizeMiB},
+				{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB},
 			},
 		},
 		Size:    3 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{{
-			VolumeStructure: &gadget.VolumeStructure{Size: 2 * quantity.SizeMiB},
-			StartOffset:     1 * quantity.OffsetMiB,
+			VolumeStructure: &gadget.VolumeStructure{
+				Offset: asOffsetPtr(quantity.OffsetMiB),
+				Size:   2 * quantity.SizeMiB,
+			},
+			StartOffset: 1 * quantity.OffsetMiB,
 		}},
 	})
 }
@@ -96,7 +96,8 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first-image")
 	c.Assert(vol.Structure, HasLen, 2)
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
@@ -107,12 +108,12 @@ volumes:
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           0,
+				YamlIndex:       0,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     401 * quantity.OffsetMiB,
-				Index:           1,
+				YamlIndex:       1,
 			},
 		},
 	})
@@ -138,7 +139,8 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 	c.Assert(vol.Structure, HasLen, 4)
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
@@ -149,22 +151,22 @@ volumes:
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           0,
+				YamlIndex:       0,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     401 * quantity.OffsetMiB,
-				Index:           1,
+				YamlIndex:       1,
 			},
 			{
 				VolumeStructure: &vol.Structure[2],
 				StartOffset:     901 * quantity.OffsetMiB,
-				Index:           2,
+				YamlIndex:       2,
 			},
 			{
 				VolumeStructure: &vol.Structure[3],
 				StartOffset:     1001 * quantity.OffsetMiB,
-				Index:           3,
+				YamlIndex:       3,
 			},
 		},
 	})
@@ -194,7 +196,8 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 	c.Assert(vol.Structure, HasLen, 4)
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
@@ -205,22 +208,22 @@ volumes:
 			{
 				VolumeStructure: &vol.Structure[3],
 				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           3,
+				YamlIndex:       3,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     200 * quantity.OffsetMiB,
-				Index:           1,
+				YamlIndex:       1,
 			},
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     800 * quantity.OffsetMiB,
-				Index:           0,
+				YamlIndex:       0,
 			},
 			{
 				VolumeStructure: &vol.Structure[2],
 				StartOffset:     1200 * quantity.OffsetMiB,
-				Index:           2,
+				YamlIndex:       2,
 			},
 		},
 	})
@@ -249,7 +252,8 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 	c.Assert(vol.Structure, HasLen, 4)
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
@@ -260,22 +264,22 @@ volumes:
 			{
 				VolumeStructure: &vol.Structure[3],
 				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           3,
+				YamlIndex:       3,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     200 * quantity.OffsetMiB,
-				Index:           1,
+				YamlIndex:       1,
 			},
 			{
 				VolumeStructure: &vol.Structure[2],
 				StartOffset:     700 * quantity.OffsetMiB,
-				Index:           2,
+				YamlIndex:       2,
 			},
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     800 * quantity.OffsetMiB,
-				Index:           0,
+				YamlIndex:       0,
 			},
 		},
 	})
@@ -295,9 +299,49 @@ volumes:
               - image: foo.img
 `
 	vol := mustParseVolume(c, gadgetYaml, "first")
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img":.*no such file or directory`)
+}
+
+func (p *layoutTestSuite) TestLayoutVolumeContentCanIgnoreContent(c *C) {
+	gadgetYaml := `
+volumes:
+  first:
+    schema: gpt
+    bootloader: grub
+    structure:
+        - type: 00000000-0000-0000-0000-dd00deadbeef
+          size: 400M
+          offset: 800M
+          content:
+              - image: foo.img
+`
+	vol := mustParseVolume(c, gadgetYaml, "first")
+	opts := &gadget.LayoutOptions{
+		GadgetRootDir: p.dir,
+	}
+	// LayoutVolume fails with default options because the foo.img
+	// file is missing
+	_, err := gadget.LayoutVolume(vol, opts)
+	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img":.*no such file or directory`)
+
+	// But LayoutVolume works with the IgnoreContent works
+	opts.IgnoreContent = true
+	v, err := gadget.LayoutVolume(vol, opts)
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
+		Volume:  vol,
+		Size:    1200 * quantity.SizeMiB,
+		RootDir: p.dir,
+		LaidOutStructure: []gadget.LaidOutStructure{
+			{
+				StartOffset:     800 * quantity.OffsetMiB,
+				VolumeStructure: &vol.Structure[0],
+			},
+		},
+	})
 }
 
 func makeSizedFile(c *C, path string, size quantity.Size, content []byte) {
@@ -333,7 +377,8 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img" does not fit in the structure`)
 }
@@ -356,10 +401,8 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	constraints := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-	}
-	v, err := gadget.LayoutVolume(p.dir, "", vol, constraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "bar.img" does not fit in the structure`)
 }
@@ -382,7 +425,8 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img" does not fit in the structure`)
 }
@@ -404,7 +448,8 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot lay out structure #0: content "foo.img" size %v is larger than declared %v`, quantity.SizeMiB+1, quantity.SizeMiB))
 }
@@ -432,7 +477,8 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img" overlaps with preceding image "bar.img"`)
 }
@@ -461,7 +507,8 @@ volumes:
 	c.Assert(vol.Structure, HasLen, 1)
 	c.Assert(vol.Structure[0].Content, HasLen, 2)
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:  vol,
@@ -512,7 +559,8 @@ volumes:
 	c.Assert(vol.Structure, HasLen, 1)
 	c.Assert(vol.Structure[0].Content, HasLen, 2)
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:  vol,
@@ -560,7 +608,8 @@ volumes:
 	c.Assert(vol.Structure, HasLen, 1)
 	c.Assert(vol.Structure[0].Content, HasLen, 1)
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:  vol,
@@ -602,7 +651,8 @@ volumes:
 	c.Assert(vol.Structure, HasLen, 1)
 	c.Assert(vol.Structure[0].Content, HasLen, 1)
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:  vol,
@@ -626,115 +676,7 @@ volumes:
 	})
 }
 
-func (p *layoutTestSuite) TestLayoutVolumeConstraintsChange(c *C) {
-	gadgetYaml := `
-volumes:
-  first:
-    schema: gpt
-    bootloader: grub
-    structure:
-        - role: mbr
-          type: bare
-          size: 446
-          offset: 0
-        - type: 00000000-0000-0000-0000-0000deadbeef
-          filesystem: ext4
-          size: 2M
-          content:
-              - source: foo.txt
-                target: /boot
-`
-	resolvedContent := []gadget.ResolvedContent{
-		{
-			VolumeContent: &gadget.VolumeContent{
-				UnresolvedSource: "foo.txt",
-				Target:           "/boot",
-			},
-			ResolvedSource: filepath.Join(p.dir, "foo.txt"),
-		},
-	}
-
-	makeSizedFile(c, filepath.Join(p.dir, "foo.txt"), 0, []byte("foobar\n"))
-
-	vol := mustParseVolume(c, gadgetYaml, "first")
-	c.Assert(vol.Structure, HasLen, 2)
-	c.Assert(vol.Structure[1].Content, HasLen, 1)
-
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
-	c.Assert(err, IsNil)
-	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    3 * quantity.SizeMiB,
-		RootDir: p.dir,
-		LaidOutStructure: []gadget.LaidOutStructure{
-			{
-				VolumeStructure: &vol.Structure[0],
-				StartOffset:     0,
-				Index:           0,
-			},
-			{
-				VolumeStructure: &vol.Structure[1],
-				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           1,
-				ResolvedContent: resolvedContent,
-			},
-		},
-	})
-
-	// still valid
-	constraints := gadget.LayoutConstraints{
-		// 512kiB
-		NonMBRStartOffset: 512 * quantity.OffsetKiB,
-	}
-	v, err = gadget.LayoutVolume(p.dir, "", vol, constraints)
-	c.Assert(err, IsNil)
-	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    2*quantity.SizeMiB + 512*quantity.SizeKiB,
-		RootDir: p.dir,
-		LaidOutStructure: []gadget.LaidOutStructure{
-			{
-				VolumeStructure: &vol.Structure[0],
-				StartOffset:     0,
-				Index:           0,
-			},
-			{
-				VolumeStructure: &vol.Structure[1],
-				StartOffset:     512 * quantity.OffsetKiB,
-				Index:           1,
-				ResolvedContent: resolvedContent,
-			},
-		},
-	})
-
-	// constraints would make a non MBR structure overlap with MBR, but
-	// structures start one after another unless offset is specified
-	// explicitly
-	constraintsBad := gadget.LayoutConstraints{
-		NonMBRStartOffset: 400,
-	}
-	v, err = gadget.LayoutVolume(p.dir, "", vol, constraintsBad)
-	c.Assert(err, IsNil)
-	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    2*quantity.SizeMiB + 446,
-		RootDir: p.dir,
-		LaidOutStructure: []gadget.LaidOutStructure{
-			{
-				VolumeStructure: &vol.Structure[0],
-				Index:           0,
-			},
-			{
-				VolumeStructure: &vol.Structure[1],
-				StartOffset:     446,
-				Index:           1,
-				ResolvedContent: resolvedContent,
-			},
-		},
-	})
-}
-
-func (p *layoutTestSuite) TestLayoutVolumeMBRImplicitConstraints(c *C) {
+func (p *layoutTestSuite) TestLayoutVolumeMBR(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -752,7 +694,8 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 	c.Assert(vol.Structure, HasLen, 2)
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:  vol,
@@ -763,11 +706,11 @@ volumes:
 				// MBR
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     0,
-				Index:           0,
+				YamlIndex:       0,
 			}, {
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           1,
+				YamlIndex:       1,
 			},
 		},
 	})
@@ -804,7 +747,8 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "pc")
 	c.Assert(vol.Structure, HasLen, 3)
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:  vol,
@@ -815,12 +759,12 @@ volumes:
 				// mbr
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     0,
-				Index:           0,
+				YamlIndex:       0,
 			}, {
 				// foo
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           1,
+				YamlIndex:       1,
 				// break for gofmt < 1.11
 				AbsoluteOffsetWrite: asOffsetPtr(92),
 				LaidOutContent: []gadget.LaidOutContent{
@@ -836,7 +780,7 @@ volumes:
 				// bar
 				VolumeStructure: &vol.Structure[2],
 				StartOffset:     2 * quantity.OffsetMiB,
-				Index:           2,
+				YamlIndex:       2,
 				// break for gofmt < 1.11
 				AbsoluteOffsetWrite: asOffsetPtr(600),
 				LaidOutContent: []gadget.LaidOutContent{
@@ -858,9 +802,10 @@ func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteBadRelativeTo(c *C) {
 	volBadStructure := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{
-				Name: "foo",
-				Type: "DA,21686148-6449-6E6F-744E-656564454649",
-				Size: 1 * quantity.SizeMiB,
+				Name:   "foo",
+				Type:   "DA,21686148-6449-6E6F-744E-656564454649",
+				Offset: asOffsetPtr(0),
+				Size:   1 * quantity.SizeMiB,
 				OffsetWrite: &gadget.RelativeOffset{
 					RelativeTo: "bar",
 					Offset:     10,
@@ -871,9 +816,10 @@ func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteBadRelativeTo(c *C) {
 	volBadContent := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{
-				Name: "foo",
-				Type: "DA,21686148-6449-6E6F-744E-656564454649",
-				Size: 1 * quantity.SizeMiB,
+				Name:   "foo",
+				Type:   "DA,21686148-6449-6E6F-744E-656564454649",
+				Offset: asOffsetPtr(0),
+				Size:   1 * quantity.SizeMiB,
 				Content: []gadget.VolumeContent{
 					{
 						Image: "foo.img",
@@ -889,11 +835,12 @@ func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteBadRelativeTo(c *C) {
 
 	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*quantity.SizeKiB, []byte(""))
 
-	v, err := gadget.LayoutVolume(p.dir, "", &volBadStructure, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(&volBadStructure, opts)
 	c.Check(v, IsNil)
 	c.Check(err, ErrorMatches, `cannot resolve offset-write of structure #0 \("foo"\): refers to an unknown structure "bar"`)
 
-	v, err = gadget.LayoutVolume(p.dir, "", &volBadContent, defaultConstraints)
+	v, err = gadget.LayoutVolume(&volBadContent, opts)
 	c.Check(v, IsNil)
 	c.Check(err, ErrorMatches, `cannot resolve offset-write of structure #0 \("foo"\) content "foo.img": refers to an unknown structure "bar"`)
 }
@@ -917,7 +864,8 @@ volumes:
 `
 	vol := mustParseVolume(c, gadgetYamlStructure, "pc")
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	// offset-write is at 1GB
 	c.Check(v.Size, Equals, 1*quantity.SizeGiB+gadget.SizeLBA48Pointer)
@@ -952,7 +900,7 @@ volumes:
 
 	vol = mustParseVolume(c, gadgetYamlContent, "pc")
 
-	v, err = gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	v, err = gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	// foo.img offset-write is at 3GB
 	c.Check(v.Size, Equals, 3*quantity.SizeGiB+gadget.SizeLBA48Pointer)
@@ -974,14 +922,14 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 	c.Assert(vol.Structure, HasLen, 1)
 
-	v, err := gadget.LayoutVolumePartially(vol, defaultConstraints)
+	v, err := gadget.LayoutVolumePartially(vol)
 	c.Assert(v, DeepEquals, &gadget.PartiallyLaidOutVolume{
 		Volume: vol,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     800 * quantity.OffsetMiB,
-				Index:           0,
+				YamlIndex:       0,
 			},
 		},
 	})
@@ -1010,7 +958,8 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYamlContent, "pc")
 
-	v, err := gadget.LayoutVolume(p.dir, "", vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
+	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v.LaidOutStructure, HasLen, 1)
 	c.Assert(v.LaidOutStructure[0].LaidOutContent, HasLen, 2)
@@ -1021,7 +970,7 @@ volumes:
 		// foo
 		VolumeStructure: &vol.Structure[0],
 		StartOffset:     1 * quantity.OffsetMiB,
-		Index:           0,
+		YamlIndex:       0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
@@ -1042,7 +991,7 @@ volumes:
 		// foo
 		VolumeStructure: &vol.Structure[0],
 		StartOffset:     0,
-		Index:           0,
+		YamlIndex:       0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
@@ -1063,7 +1012,7 @@ volumes:
 		// foo
 		VolumeStructure: &vol.Structure[0],
 		StartOffset:     2 * quantity.OffsetMiB,
-		Index:           0,
+		YamlIndex:       0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
@@ -1081,7 +1030,7 @@ volumes:
 }
 
 func mockKernel(c *C, kernelYaml string, filesWithContent map[string]string) string {
-	// sanity
+	// precondition
 	_, err := kernel.InfoFromKernelYaml([]byte(kernelYaml))
 	c.Assert(err, IsNil)
 
@@ -1131,8 +1080,37 @@ func (p *layoutTestSuite) TestResolveContentPathsNotInWantedAssets(c *C) {
 	c.Assert(vol.Structure, HasLen, 1)
 
 	kernelSnapDir := c.MkDir()
-	_, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
+	_, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 at index 0: cannot find "dtbs" in kernel info from "/.*"`)
+}
+
+func (p *layoutTestSuite) TestResolveContentPathsSkipResolveContent(c *C) {
+	vol := mustParseVolume(c, gadgetYamlWithKernelRef, "pi")
+	c.Assert(vol.Structure, HasLen, 1)
+
+	kernelSnapDir := c.MkDir()
+	defaultOpts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
+
+	opts := defaultOpts
+	_, err := gadget.LayoutVolume(vol, opts)
+	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 at index 0: cannot find "dtbs" in kernel info from "/.*"`)
+
+	// SkipResolveContent will allow to layout the volume even if
+	// files are missing
+	opts = defaultOpts
+	opts.SkipResolveContent = true
+	v, err := gadget.LayoutVolume(vol, opts)
+	c.Assert(err, IsNil)
+	c.Assert(v.Structure, HasLen, 1)
+
+	// As does IgnoreContent will allow to layout the volume even if
+	// files are missing
+	opts = defaultOpts
+	opts.IgnoreContent = true
+	v, err = gadget.LayoutVolume(vol, opts)
+	c.Assert(err, IsNil)
+	c.Assert(v.Structure, HasLen, 1)
 }
 
 func (p *layoutTestSuite) TestResolveContentPathsErrorInKernelRef(c *C) {
@@ -1144,7 +1122,8 @@ func (p *layoutTestSuite) TestResolveContentPathsErrorInKernelRef(c *C) {
 	c.Assert(vol.Structure, HasLen, 1)
 
 	kernelSnapDir := c.MkDir()
-	_, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
+	_, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 at index 0: cannot parse kernel ref: invalid asset name in kernel ref "\$kernel:-invalid-kernel-ref/boot-assets/"`)
 }
 
@@ -1163,7 +1142,8 @@ assets:
 	kernelSnapDir := mockKernel(c, kernelYaml, map[string]string{
 		"dtbs/foo.dtb": "foo.dtb content",
 	})
-	_, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
+	_, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 at index 0: cannot find wanted kernel content "boot-assets/" in "/.*"`)
 }
 
@@ -1184,7 +1164,8 @@ assets:
 		"some-file":       "some-file content",
 	}
 	kernelSnapDir := mockKernel(c, kernelYaml, kernelSnapFiles)
-	lv, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
+	lv, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	// Volume.Content is unchanged
 	c.Assert(lv.Structure, HasLen, 1)
@@ -1264,7 +1245,8 @@ assets:
 	kernelSnapDir := mockKernel(c, kernelYaml, map[string]string{
 		"dtbs/foo.dtb": "foo.dtb content",
 	})
-	lv, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
+	lv, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	// Volume.Content is unchanged
 	c.Assert(lv.Structure, HasLen, 1)
@@ -1333,6 +1315,7 @@ assets:
 	kernelSnapDir := mockKernel(c, kernelYaml, map[string]string{
 		"a/foo.dtb": "foo.dtb content",
 	})
-	_, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
+	_, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, ErrorMatches, `.*: cannot find wanted kernel content "ab" in.*`)
 }

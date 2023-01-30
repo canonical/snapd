@@ -25,7 +25,6 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -39,10 +38,6 @@ import (
 // start it directly.
 func UpdateBootRevisions(st *state.State) error {
 	const errorPrefix = "cannot update revisions after boot changes: "
-
-	if release.OnClassic {
-		return nil
-	}
 
 	// nothing to check if there's no kernel
 	ok, err := HasSnapOfType(st, snap.TypeKernel)
@@ -78,7 +73,7 @@ func UpdateBootRevisions(st *state.State) error {
 		if actual.SnapRevision() != info.SideInfo.Revision {
 			// FIXME: check that there is no task
 			//        for this already in progress
-			ts, err := RevertToRevision(st, actual.SnapName(), actual.SnapRevision(), Flags{})
+			ts, err := RevertToRevision(st, actual.SnapName(), actual.SnapRevision(), Flags{}, "")
 			if err != nil {
 				return err
 			}

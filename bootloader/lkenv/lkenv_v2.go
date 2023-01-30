@@ -114,6 +114,19 @@ type SnapBootSelect_v2_recovery struct {
 	 */
 	Recovery_system_status [SNAP_FILE_NAME_MAX_LEN]byte
 
+	/** device_lock_state contains the lock state of the device. It is used by the
+	 * bootloader to track device lock changes. When lock state changes, device goes
+	 * automatically to install mode. This entry is completely transparent
+	 * to the snapd and is only modified by bootloader.
+	 * Only first char in the array is used (device_lock_state[0])
+	 * Permitted values:
+	 *  0: DEVICE_STATE_UNKNOWN:  initial value at first boot.
+	 *          This is changed by the bootloader to reflect actual device state.
+	 *  1: DEVICE_STATE_UNLOCKED: unlocked device
+	 *  2: DEVICE_STATE_LOCKED:   locked device
+	 */
+	Device_lock_state [SNAP_FILE_NAME_MAX_LEN]byte
+
 	/* unused placeholders for additional parameters in the future */
 	Unused_key_01 [SNAP_FILE_NAME_MAX_LEN]byte
 	Unused_key_02 [SNAP_FILE_NAME_MAX_LEN]byte
@@ -132,7 +145,6 @@ type SnapBootSelect_v2_recovery struct {
 	Unused_key_15 [SNAP_FILE_NAME_MAX_LEN]byte
 	Unused_key_16 [SNAP_FILE_NAME_MAX_LEN]byte
 	Unused_key_17 [SNAP_FILE_NAME_MAX_LEN]byte
-	Unused_key_18 [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* unused array of 10 key value pairs */
 	Key_value_pairs [10][2][SNAP_FILE_NAME_MAX_LEN]byte

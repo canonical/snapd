@@ -24,15 +24,33 @@ export GOCACHE:=/tmp/go-build
 
 include /etc/os-release
 
+SUBSTVARS =
 # On 18.04 the released version of apt (1.6.1) has a bug that causes
 # problem on "apt purge snapd". To ensure this won't happen add the
 # right dependency on 18.04.
 ifeq (${VERSION_ID},"18.04")
-	SUBSTVARS = -Vsnapd:Breaks="systemd (<< 237-3ubuntu10.24), apt (<< 1.6.3)"
+	SUBSTVARS += -Vsnapd:Breaks="systemd (<< 237-3ubuntu10.24), apt (<< 1.6.3)"
 endif
 # Same as above for 18.10 just a different version.
 ifeq (${VERSION_ID},"18.10")
-	SUBSTVARS = -Vsnapd:Breaks="apt (<< 1.7.0~alpha2)"
+	SUBSTVARS += -Vsnapd:Breaks="apt (<< 1.7.0~alpha2)"
+endif
+# Since 21.10 is using cgroups v2, having a session bus is a hard requirement,
+# for earlier versions it's nice to have and allows snaps to be tracked
+# correctly. However, the (default-)dbus-session-bus virtual packages were only
+# introduced in 2018, so earlier supported releases (16.04) have to explicitly
+# specify the requirement.
+ifneq (${VERSION_ID},"16.04")
+	# version with appropriate virtual packages
+	SUBSTVARS += -Vdbussession:Depends="default-dbus-session-bus | dbus-session-bus"
+endif
+
+# Restart snapd only after the upgrade, this does not work on 16.04 so
+# we keep the existing behavior there, see
+# https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1969162
+DH_SYSTEMD_START_OPTS=
+ifneq (${VERSION_ID},"16.04")
+	DH_SYSTEMD_START_OPTS += --restart-after-upgrade
 endif
 
 # this is overridden in the ubuntu/14.04 release branch
@@ -154,9 +172,6 @@ override_dh_clean:
 	$(MAKE) -C cmd distclean || true
 	# XXX: hacky^2
 	(cd c-vendor/squashfuse && rm -f snapfuse && make distclean || true )
-	# XXX: drop old mvo5/libseccomp
-	rm -f ./cmd/snap-seccomp/old_seccomp.go
-	sed '/mvo5\/libseccomp-golang/d' -i go.mod go.sum vendor/modules.txt || true
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -215,8 +230,13 @@ endif
 	(cd c-vendor/squashfuse && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
 
 override_dh_auto_test:
+	# skip running tests on riscv64 for now because they are too slow and fail
+	# constantly
+ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),riscv64)
 	GO111MODULE=on \
 		dh_auto_test -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/...
+endif
+
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
@@ -254,6 +274,8 @@ override_dh_install:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 	# bootloader assets generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
+	# asserts/info
+	rm -f ${CURDIR}/debian/tmp/usr/bin/info
 	# docs generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 
@@ -297,3 +319,14 @@ override_dh_auto_clean:
 
 override_dh_gencontrol:
 	dh_gencontrol -- -VBuilt-Using="$(BUILT_USING)" $(SUBSTVARS)
+
+override_dh_systemd_start:
+	# Due to https://github.com/systemd/systemd/issues/8102
+	# debhelper supporting --remaining like behaviour here would
+	# have been useful
+	# (Re-)start socket first
+	dh_systemd_start $(DH_SYSTEMD_START_OPTS) snapd.socket
+	# Then service
+	dh_systemd_start $(DH_SYSTEMD_START_OPTS) snapd.service
+	# Then the rest
+	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service, $(shell ls debian/snapd/lib/systemd/system/))

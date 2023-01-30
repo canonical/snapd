@@ -275,14 +275,14 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 	// mark as already seeded
 	st.Lock()
 	st.Set("seeded", true)
+	// and registered
+	s.mockModel(st, nil)
 	st.Unlock()
 	c.Assert(d.Overlord().StartUp(), check.IsNil)
 
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, sto)
-	// registered
-	s.mockModel(st, nil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which
@@ -294,6 +294,9 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 }
 
 func (s *apiBaseSuite) resetDaemon() {
+	if s.d != nil {
+		s.d.Overlord().Stop()
+	}
 	s.d = nil
 }
 
@@ -343,7 +346,12 @@ func (s *apiBaseSuite) asUserAuth(c *check.C, req *http.Request) {
 	if s.authUser == nil {
 		st := s.d.Overlord().State()
 		st.Lock()
-		u, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+		u, err := auth.NewUser(st, auth.NewUserParams{
+			Username:   "username",
+			Email:      "email@test.com",
+			Macaroon:   "macaroon",
+			Discharges: []string{"discharge"},
+		})
 		st.Unlock()
 		c.Assert(err, check.IsNil)
 		s.authUser = u
@@ -369,7 +377,7 @@ func (m *fakeSnapManager) Ensure() error {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ overlord.StateManager = (*fakeSnapManager)(nil)
 
 func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *daemon.Daemon {

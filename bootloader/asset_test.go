@@ -74,6 +74,14 @@ func (s *configAssetTestSuite) TestRealConfig(c *C) {
 	c.Assert(grubConfig, NotNil)
 	e, err := bootloader.EditionFromConfigAsset(bytes.NewReader(grubConfig))
 	c.Assert(err, IsNil)
+	c.Assert(e, Equals, uint(3))
+}
+
+func (s *configAssetTestSuite) TestRealRecoveryConfig(c *C) {
+	grubRecoveryConfig := assets.Internal("grub-recovery.cfg")
+	c.Assert(grubRecoveryConfig, NotNil)
+	e, err := bootloader.EditionFromConfigAsset(bytes.NewReader(grubRecoveryConfig))
+	c.Assert(err, IsNil)
 	c.Assert(e, Equals, uint(1))
 }
 

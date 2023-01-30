@@ -56,9 +56,9 @@ func isSessionBusLikelyPresent() bool {
 // a new dbus-daemon when a bus is not already available.
 //
 // The go-dbus package will launch a session bus instance on demand when none
-// is present, something we do not want to do. In all contexts where there is a need
-//  to use the session bus, we expect session bus daemon to have been started and
-// managed by the corresponding user session manager.
+// is present, something we do not want to do. In all contexts where there is a
+// need to use the session bus, we expect session bus daemon to have been started
+// and managed by the corresponding user session manager.
 //
 // This function is mockable by either MockConnections or
 // MockOnlySessionBusAvailable.

@@ -47,6 +47,10 @@ var diskFromMountPoint = func(mountpoint string, opts *Options) (Disk, error) {
 	return diskFromMountPointImpl(mountpoint, opts)
 }
 
+var abstractCalculateLastUsableLBA = func(device string, diskSize uint64, sectorSize uint64) (uint64, error) {
+	return CalculateLastUsableLBA(device, diskSize, sectorSize)
+}
+
 func parseDeviceMajorMinor(s string) (int, int, error) {
 	errMsg := fmt.Errorf("invalid device number format: (expected <int>:<int>)")
 	devNums := strings.SplitN(s, ":", 2)
@@ -272,7 +276,7 @@ var diskFromPartitionDeviceNode = func(node string) (Disk, error) {
 		return nil, err
 	}
 
-	disk, err := diskFromPartUDevProps(props, nil)
+	disk, err := diskFromPartUDevProps(props)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find disk from partition device node %s: %v", node, err)
 	}
@@ -348,38 +352,17 @@ func (d *disk) SizeInBytes() (uint64, error) {
 	// TODO: this could be implemented by reading the "size" file in sysfs
 	// instead of using blockdev
 
-	// The size of the disk is always given by using blockdev, but blockdev
-	// returns the size in 512-byte blocks, so for bytes we have to multiply by
-	// 512.
-	num512Sectors, err := blockDeviceSizeInSectors(d.devname)
-	// if err is non-nil, numSectors will be 0 and thus 0*512 will still be
-	// zero
-	return num512Sectors * 512, err
+	return blockDeviceSize(d.devname)
 }
 
-// okay to use in initrd for dos disks since it uses blockdev command, but for
-// gpt disks, we need to use sfdisk, which is not okay to use in the initrd
-func (d *disk) UsableSectorsEnd() (uint64, error) {
-	if d.schema == "dos" {
-		// for DOS disks, it is sufficient to just get the size in bytes and
-		// divide by the sector size
-		byteSz, err := d.SizeInBytes()
-		if err != nil {
-			return 0, err
-		}
-		sectorSz, err := d.SectorSize()
-		if err != nil {
-			return 0, err
-		}
-		return byteSz / sectorSz, nil
-	}
-
+// TODO: remove this code in favor of abstractCalculateLastUsableLBA()
+func lastLBAfromSFdisk(devname string) (uint64, error) {
 	// TODO: this could also be accomplished by reading from the GPT headers
 	// directly to get the last logical block address (LBA) instead of using
 	// sfdisk, in which case this function could then be used in the initrd
 
 	// otherwise for GPT, we need to use sfdisk on the device node
-	output, err := exec.Command("sfdisk", "--json", d.devname).Output()
+	output, err := exec.Command("sfdisk", "--json", devname).Output()
 	if err != nil {
 		return 0, err
 	}
@@ -403,83 +386,121 @@ func (d *disk) UsableSectorsEnd() (uint64, error) {
 	return (dump.PartitionTable.LastLBA + 1), nil
 }
 
+// okay to use in initrd for dos disks since it uses blockdev command, but for
+// gpt disks, we need to use sfdisk, which is not okay to use in the initrd
+func (d *disk) UsableSectorsEnd() (uint64, error) {
+	if d.schema == "dos" {
+		// for DOS disks, it is sufficient to just get the size in bytes and
+		// divide by the sector size
+		byteSz, err := d.SizeInBytes()
+		if err != nil {
+			return 0, err
+		}
+		sectorSz, err := d.SectorSize()
+		if err != nil {
+			return 0, err
+		}
+		return byteSz / sectorSz, nil
+	}
+
+	// on UC20 (sfdisk 2.34) we use fdisk to determine the last LBA
+	// to minimize the risk of moving to the new
+	// abstractCalculateLastUsableLBA()
+	//
+	// TODO: remove this and use the abstractCalculateLastUsableLBA()
+	//       everywhere (and also remove "lastLBAfromSFdisk" above)
+	if output, err := exec.Command("sfdisk", "--version").Output(); err == nil {
+		if strings.Contains(string(output), " 2.34") {
+			return lastLBAfromSFdisk(d.devname)
+		}
+	}
+
+	// calculated is last LBA
+	byteSize, err := d.SizeInBytes()
+	if err != nil {
+		return 0, err
+	}
+	sectorSize, err := d.SectorSize()
+	if err != nil {
+		return 0, err
+	}
+	calculated, err := abstractCalculateLastUsableLBA(d.devname, byteSize, sectorSize)
+	// end (or size) LBA is the last LBA + 1
+	return calculated + 1, err
+}
+
 func (d *disk) Schema() string {
 	return d.schema
 }
 
-func diskFromPartUDevProps(props map[string]string, opts *Options) (*disk, error) {
-	if opts != nil && opts.IsDecryptedDevice {
-		// verify that the mount point is indeed a mapper device, it should:
-		// 1. have DEVTYPE == disk from udev
-		// 2. have dm files in the sysfs entry for the maj:min of the device
-		if props["DEVTYPE"] != "disk" {
-			// not a decrypted device
-			return nil, fmt.Errorf("not a decrypted device: devtype is not disk (is %s)", props["DEVTYPE"])
-		}
+func parentPartitionPropsForOptions(props map[string]string) (map[string]string, error) {
+	// verify that the mount point is indeed a mapper device, it should:
+	// 1. have DEVTYPE == disk from udev
+	// 2. have dm files in the sysfs entry for the maj:min of the device
+	if props["DEVTYPE"] != "disk" {
+		// not a decrypted device
+		return nil, fmt.Errorf("not a decrypted device: devtype is not disk (is %s)", props["DEVTYPE"])
+	}
 
-		// TODO:UC20: currently, we effectively parse the DM_UUID env variable
-		//            that is set for the mapper device volume, but doing so is
-		//            actually wrong, since the value of DM_UUID is an
-		//            implementation detail that depends on the subsystem
-		//            "owner" of the device such that the prefix is considered
-		//            the owner and the suffix is private data owned by the
-		//            subsystem. In our case, in UC20 initramfs, we have the
-		//            device "owned" by systemd-cryptsetup, so we should ideally
-		//            parse that the first part of DM_UUID matches CRYPT- and
-		//            then use `cryptsetup status` (since CRYPT indicates it is
-		//            "owned" by cryptsetup) to get more information on the
-		//            device sufficient for our purposes to find the encrypted
-		//            device/partition underneath the mapper.
-		//            However we don't currently have cryptsetup in the initrd,
-		//            so we can't do that yet :-(
+	// TODO:UC20: currently, we effectively parse the DM_UUID env variable
+	//            that is set for the mapper device volume, but doing so is
+	//            actually wrong, since the value of DM_UUID is an
+	//            implementation detail that depends on the subsystem
+	//            "owner" of the device such that the prefix is considered
+	//            the owner and the suffix is private data owned by the
+	//            subsystem. In our case, in UC20 initramfs, we have the
+	//            device "owned" by systemd-cryptsetup, so we should ideally
+	//            parse that the first part of DM_UUID matches CRYPT- and
+	//            then use `cryptsetup status` (since CRYPT indicates it is
+	//            "owned" by cryptsetup) to get more information on the
+	//            device sufficient for our purposes to find the encrypted
+	//            device/partition underneath the mapper.
+	//            However we don't currently have cryptsetup in the initrd,
+	//            so we can't do that yet :-(
 
-		// TODO:UC20: these files are also likely readable through udev env
-		//            properties, but it's unclear if reading there is reliable
-		//            or not, given that these variables have been observed to
-		//            be missing from the initrd previously, and are not
-		//            available at all during userspace on UC20 for some reason
-		errFmt := "not a decrypted device: could not read device mapper metadata: %v"
+	// TODO:UC20: these files are also likely readable through udev env
+	//            properties, but it's unclear if reading there is reliable
+	//            or not, given that these variables have been observed to
+	//            be missing from the initrd previously, and are not
+	//            available at all during userspace on UC20 for some reason
+	errFmt := "not a decrypted device: could not read device mapper metadata: %v"
 
-		if props["MAJOR"] == "" {
-			return nil, fmt.Errorf("incomplete udev output missing required property \"MAJOR\"")
-		}
-		if props["MINOR"] == "" {
-			return nil, fmt.Errorf("incomplete udev output missing required property \"MAJOR\"")
-		}
+	if props["MAJOR"] == "" {
+		return nil, fmt.Errorf("incomplete udev output missing required property \"MAJOR\"")
+	}
+	if props["MINOR"] == "" {
+		return nil, fmt.Errorf("incomplete udev output missing required property \"MAJOR\"")
+	}
 
-		majmin := props["MAJOR"] + ":" + props["MINOR"]
+	majmin := props["MAJOR"] + ":" + props["MINOR"]
 
-		dmDir := filepath.Join(dirs.SysfsDir, "dev", "block", majmin, "dm")
-		dmUUID, err := ioutil.ReadFile(filepath.Join(dmDir, "uuid"))
-		if err != nil {
-			return nil, fmt.Errorf(errFmt, err)
-		}
-		dmUUID = bytes.TrimSpace(dmUUID)
+	dmDir := filepath.Join(dirs.SysfsDir, "dev", "block", majmin, "dm")
+	dmUUID, err := ioutil.ReadFile(filepath.Join(dmDir, "uuid"))
+	if err != nil {
+		return nil, fmt.Errorf(errFmt, err)
+	}
+	dmUUID = bytes.TrimSpace(dmUUID)
 
-		dmName, err := ioutil.ReadFile(filepath.Join(dmDir, "name"))
-		if err != nil {
-			return nil, fmt.Errorf(errFmt, err)
-		}
-		dmName = bytes.TrimSpace(dmName)
+	dmName, err := ioutil.ReadFile(filepath.Join(dmDir, "name"))
+	if err != nil {
+		return nil, fmt.Errorf(errFmt, err)
+	}
+	dmName = bytes.TrimSpace(dmName)
 
-		matchedHandler := false
-		for _, resolver := range deviceMapperBackResolvers {
-			if dev, ok := resolver(dmUUID, dmName); ok {
-				props, err = udevPropertiesForName(dev)
-				if err != nil {
-					return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", dev, err)
-				}
-
-				matchedHandler = true
-				break
+	for _, resolver := range deviceMapperBackResolvers {
+		if dev, ok := resolver(dmUUID, dmName); ok {
+			props, err = udevPropertiesForName(dev)
+			if err != nil {
+				return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", dev, err)
 			}
-		}
-
-		if !matchedHandler {
-			return nil, fmt.Errorf("internal error: no back resolver supports decrypted device mapper with UUID %q and name %q", dmUUID, dmName)
+			return props, nil
 		}
 	}
 
+	return nil, fmt.Errorf("internal error: no back resolver supports decrypted device mapper with UUID %q and name %q", dmUUID, dmName)
+}
+
+func diskFromPartUDevProps(props map[string]string) (*disk, error) {
 	// ID_PART_ENTRY_DISK will give us the major and minor of the disk that this
 	// partition originated from if this mount point is indeed for a partition
 	if props["ID_PART_ENTRY_DISK"] == "" {
@@ -553,42 +574,58 @@ func diskFromPartUDevProps(props map[string]string, opts *Options) (*disk, error
 	return d, nil
 }
 
-// diskFromMountPointImpl returns a Disk for the underlying mount source of the
-// specified mount point. For mount points which have sources that are not
-// partitions, and thus are a part of a disk, the returned Disk refers to the
-// volume/disk of the mount point itself.
-func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
+func partitionPropsFromMountPoint(mountpoint string) (source string, props map[string]string, err error) {
 	// first get the mount entry for the mountpoint
 	mounts, err := osutil.LoadMountInfo()
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	var partMountPointSource string
 	// loop over the mount entries in reverse order to prevent shadowing of a
 	// particular mount on top of another one
 	for i := len(mounts) - 1; i >= 0; i-- {
 		if mounts[i].MountDir == mountpoint {
-			partMountPointSource = mounts[i].MountSource
+			source = mounts[i].MountSource
 			break
 		}
 	}
-	if partMountPointSource == "" {
-		return nil, fmt.Errorf("cannot find mountpoint %q", mountpoint)
+	if source == "" {
+		return "", nil, fmt.Errorf("cannot find mountpoint %q", mountpoint)
 	}
 
 	// now we have the partition for this mountpoint, we need to tie that back
 	// to a disk with a major minor, so query udev with the mount source path
 	// of the mountpoint for properties
-	props, err := udevPropertiesForName(partMountPointSource)
+	props, err = udevPropertiesForName(source)
 	if err != nil && props == nil {
 		// only fail here if props is nil, if it's available we validate it
 		// below
-		return nil, fmt.Errorf("cannot find disk for partition %s: %v", partMountPointSource, err)
+		return "", nil, fmt.Errorf("cannot process udev properties of %s: %v", source, err)
+	}
+	return source, props, nil
+}
+
+// diskFromMountPointImpl returns a Disk for the underlying mount source of the
+// specified mount point. For mount points which have sources that are not
+// partitions, and thus are a part of a disk, the returned Disk refers to the
+// volume/disk of the mount point itself.
+func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
+	source, props, err := partitionPropsFromMountPoint(mountpoint)
+	if err != nil {
+		return nil, err
 	}
 
-	disk, err := diskFromPartUDevProps(props, opts)
+	if opts != nil && opts.IsDecryptedDevice {
+		props, err = parentPartitionPropsForOptions(props)
+		if err != nil {
+			return nil, fmt.Errorf("cannot process properties of %v parent device: %v", source, err)
+		}
+	}
+
+	disk, err := diskFromPartUDevProps(props)
 	if err != nil {
-		return nil, fmt.Errorf("cannot find disk from mountpoint source %s of %s: %v", partMountPointSource, mountpoint, err)
+		// TODO: leave the inclusion of mpointpoint source in the error
+		// to the caller
+		return nil, fmt.Errorf("cannot find disk from mountpoint source %s of %s: %v", source, mountpoint, err)
 	}
 	return disk, nil
 }
@@ -635,8 +672,23 @@ func (d *disk) populatePartitions() error {
 				continue
 			}
 
-			// then the device is a partition, get the udev props for it
 			partDev := filepath.Base(path)
+
+			// then the device is a partition, trigger any udev events for it
+			// that might be sitting around and then get the udev props for it
+
+			// trigger
+			out, err := exec.Command("udevadm", "trigger", "--name-match="+partDev).CombinedOutput()
+			if err != nil {
+				return osutil.OutputErr(out, err)
+			}
+
+			// then settle
+			out, err = exec.Command("udevadm", "settle", "--timeout=180").CombinedOutput()
+			if err != nil {
+				return osutil.OutputErr(out, err)
+			}
+
 			udevProps, err := udevPropertiesForName(partDev)
 			if err != nil {
 				continue
@@ -691,7 +743,7 @@ func (d *disk) populatePartitions() error {
 				return emitUDevPropErr(err)
 			}
 
-			part.StructureIndex, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_NUMBER")
+			part.DiskIndex, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_NUMBER")
 			if err != nil {
 				return emitUDevPropErr(err)
 			}
@@ -889,4 +941,45 @@ func AllPhysicalDisks() ([]Disk, error) {
 		disks = append(disks, disk)
 	}
 	return disks, nil
+}
+
+// PartitionUUIDFromMountPoint returns the UUID of the partition which is a
+// source of a given mount point.
+func PartitionUUIDFromMountPoint(mountpoint string, opts *Options) (string, error) {
+	_, props, err := partitionPropsFromMountPoint(mountpoint)
+	if err != nil {
+		return "", err
+	}
+
+	if opts != nil && opts.IsDecryptedDevice {
+		props, err = parentPartitionPropsForOptions(props)
+		if err != nil {
+			return "", err
+		}
+	}
+	partUUID := props["ID_PART_ENTRY_UUID"]
+	if partUUID == "" {
+		partDev := filepath.Join("/dev", props["DEVNAME"])
+		return "", fmt.Errorf("cannot get required partition UUID udev property for device %s", partDev)
+	}
+	return partUUID, nil
+}
+
+// PartitionUUID returns the UUID of a given partition
+func PartitionUUID(node string) (string, error) {
+	props, err := udevPropertiesForName(node)
+	if err != nil && props == nil {
+		// only fail here if props is nil, if it's available we validate it
+		// below
+		return "", fmt.Errorf("cannot process udev properties: %v", err)
+	}
+	partUUID := props["ID_PART_ENTRY_UUID"]
+	if partUUID == "" {
+		return "", fmt.Errorf("cannot get required udev partition UUID property")
+	}
+	return partUUID, nil
+}
+
+func SectorSize(devname string) (uint64, error) {
+	return blockDeviceSectorSize(devname)
 }

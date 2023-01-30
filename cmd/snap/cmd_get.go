@@ -179,10 +179,10 @@ func (x *cmdGet) outputList(conf map[string]interface{}) error {
 
 // outputDefault will be used when no commandline switch to override the
 // output where used. The output follows the following rules:
-// - a single key with a string value is printed directly
-// - multiple keys are printed as a list to the terminal (if there is one)
-//   or as json if there is no terminal
-// - the option "typed" is honored
+//   - a single key with a string value is printed directly
+//   - multiple keys are printed as a list to the terminal (if there is one)
+//     or as json if there is no terminal
+//   - the option "typed" is honored
 func (x *cmdGet) outputDefault(conf map[string]interface{}, snapName string, confKeys []string) error {
 	if rootRequested(confKeys) && len(conf) == 0 {
 		return fmt.Errorf("snap %q has no configuration", snapName)

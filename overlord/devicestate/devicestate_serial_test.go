@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -65,6 +66,11 @@ type deviceMgrSerialSuite struct {
 }
 
 var _ = Suite(&deviceMgrSerialSuite{})
+
+func (s *deviceMgrSerialSuite) SetUpTest(c *C) {
+	classic := false
+	s.setupBaseTest(c, classic)
+}
 
 func (s *deviceMgrSerialSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 	brandID := headers["brand-id"].(string)
@@ -841,30 +847,55 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialNoReachableDNS(c *C) {
 }
 
 func (s *deviceMgrSerialSuite) testDoRequestSerialKeepsRetrying(c *C, rt http.RoundTripper) {
+	chg, t := s.makeRequestChangeWithTransport(c, rt)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// ensure we keep trying even if we are well above maxTentative
+	for i := 0; i < 10; i++ {
+		s.state.Unlock()
+		s.se.Ensure()
+		s.se.Wait()
+		s.state.Lock()
+
+		c.Check(chg.Status(), Equals, state.DoingStatus)
+		c.Assert(chg.Err(), IsNil)
+	}
+
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+
+	var nTentatives int
+	err := t.Get("pre-poll-tentatives", &nTentatives)
+	c.Assert(err, IsNil)
+	c.Check(nTentatives, Equals, 0)
+}
+
+func (s *deviceMgrSerialSuite) makeRequestChangeWithTransport(c *C, rt http.RoundTripper) (*state.Change, *state.Task) {
 	privKey, _ := assertstest.GenerateKey(testKeyLength)
 
 	// immediate
 	r := devicestate.MockRetryInterval(0)
-	defer r()
+	s.AddCleanup(r)
 
 	// set a low maxRetry value
 	r = devicestate.MockMaxTentatives(3)
-	defer r()
+	s.AddCleanup(r)
 
 	mockServer := s.mockServer(c, "REQID-1", nil)
-	defer mockServer.Close()
+	s.AddCleanup(mockServer.Close)
 
 	restore := devicestate.MockBaseStoreURL(mockServer.URL)
-	defer restore()
+	s.AddCleanup(restore)
 
 	restore = devicestate.MockRepeatRequestSerial("after-add-serial")
-	defer restore()
+	s.AddCleanup(restore)
 
 	restore = devicestate.MockHttputilNewHTTPClient(func(opts *httputil.ClientOptions) *http.Client {
 		c.Check(opts.ProxyConnectHeader, NotNil)
 		return &http.Client{Transport: rt}
 	})
-	defer restore()
+	s.AddCleanup(restore)
 
 	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
 	s.state.Lock()
@@ -892,23 +923,44 @@ func (s *deviceMgrSerialSuite) testDoRequestSerialKeepsRetrying(c *C, rt http.Ro
 	// avoid full seeding
 	s.seeding()
 
-	// ensure we keep trying even if we are well above maxTentative
-	for i := 0; i < 10; i++ {
+	return chg, t
+}
+
+type simulateCertExpiredErrorRoundTripper struct{}
+
+func (s *simulateCertExpiredErrorRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	return nil, x509.CertificateInvalidError{
+		Reason: x509.Expired,
+	}
+}
+
+func (s *deviceMgrSerialSuite) TestDoRequestSerialCertExpired(c *C) {
+	chg, t := s.makeRequestChangeWithTransport(c, &simulateCertExpiredErrorRoundTripper{})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// keep trying well beyond the 21 retry attempts we do
+	for i := 0; i < 100; i++ {
 		s.state.Unlock()
 		s.se.Ensure()
 		s.se.Wait()
 		s.state.Lock()
 
-		c.Check(chg.Status(), Equals, state.DoingStatus)
-		c.Check(chg.Err(), IsNil)
+		if chg.Status() == state.ErrorStatus {
+			break
+		}
 	}
 
-	c.Check(chg.Status(), Equals, state.DoingStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.Err(), ErrorMatches, `(?ms).*cannot retrieve request-id for making a request for a serial: Post \"?http://.*/request-id\"?: x509: certificate has expired or is not yet valid.*`)
 
 	var nTentatives int
 	err := t.Get("pre-poll-tentatives", &nTentatives)
 	c.Assert(err, IsNil)
-	c.Check(nTentatives, Equals, 0)
+	// this is one above maxTentativesCertExpired (35)
+	c.Check(nTentatives, Equals, 21)
+
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationPollHappy(c *C) {
@@ -1224,7 +1276,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// sanity
+	// validity
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 0)
 
 	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
@@ -1318,7 +1370,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMismatchedSerial(c *C) 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// sanity
+	// validity
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 0)
 
 	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
@@ -1354,9 +1406,9 @@ func (s *deviceMgrSerialSuite) TestModelAndSerial(c *C) {
 	defer s.state.Unlock()
 	// nothing in the state
 	_, err := s.mgr.Model()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	_, err = s.mgr.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// just brand and model
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -1364,9 +1416,9 @@ func (s *deviceMgrSerialSuite) TestModelAndSerial(c *C) {
 		Model: "pc",
 	})
 	_, err = s.mgr.Model()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	_, err = s.mgr.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a model assertion
 	model := s.brands.Model("canonical", "pc", map[string]interface{}{
@@ -1381,7 +1433,7 @@ func (s *deviceMgrSerialSuite) TestModelAndSerial(c *C) {
 	c.Assert(mod.BrandID(), Equals, "canonical")
 
 	_, err = s.mgr.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a serial as well
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -1392,7 +1444,7 @@ func (s *deviceMgrSerialSuite) TestModelAndSerial(c *C) {
 	_, err = s.mgr.Model()
 	c.Assert(err, IsNil)
 	_, err = s.mgr.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a serial assertion
 	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
@@ -1429,9 +1481,9 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendModelAndSerial(c *C) {
 
 	// nothing in the state
 	_, err := scb.Model()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	_, err = scb.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// just brand and model
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -1439,9 +1491,9 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendModelAndSerial(c *C) {
 		Model: "pc",
 	})
 	_, err = scb.Model()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	_, err = scb.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a model assertion
 	model := s.brands.Model("canonical", "pc", map[string]interface{}{
@@ -1456,7 +1508,7 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	c.Assert(mod.BrandID(), Equals, "canonical")
 
 	_, err = scb.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a serial as well
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -1467,7 +1519,7 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	_, err = scb.Model()
 	c.Assert(err, IsNil)
 	_, err = scb.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a serial assertion
 	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
@@ -1555,7 +1607,7 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendProxyStore(c *C) {
 
 	// nothing in the state
 	_, err := scb.ProxyStore()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a store referenced
 	tr := config.NewTransaction(s.state)
@@ -1564,7 +1616,7 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendProxyStore(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = scb.ProxyStore()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 
@@ -1771,7 +1823,7 @@ func (s *deviceMgrSerialSuite) testDoRequestSerialReregistration(c *C, setAncill
 	remodCtx.Init(chg)
 	chg.AddTask(t)
 
-	// sanity
+	// validity
 	regCtx, err := devicestate.RegistrationCtx(s.mgr, t)
 	c.Assert(err, IsNil)
 	c.Check(regCtx, Equals, remodCtx.(devicestate.RegistrationContext))
@@ -1913,6 +1965,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationUC20Happy(c *C) {
 
 	r2 := devicestate.MockBaseStoreURL(mockServer.URL)
 	defer r2()
+
+	s.setUC20PCModelInState(c)
 
 	// setup state as will be done by first-boot
 	s.state.Lock()
@@ -2108,6 +2162,9 @@ func (s *deviceMgrSerialSuite) testFullDeviceUnregisterReregisterClassicGeneric(
 	c.Check(device.KeyID, Equals, "")
 	// and session
 	c.Check(device.SessionMacaroon, Equals, "")
+	// key was deleted
+	_, err = devicestate.KeypairManager(s.mgr).Get(keyID1)
+	c.Check(err, ErrorMatches, "cannot find key pair")
 
 	noRegistrationUntilReboot := opts != nil && opts.NoRegistrationUntilReboot
 	noregister := filepath.Join(dirs.SnapRunDir, "noregister")
@@ -2198,4 +2255,117 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationBlockedByNoRegister(c *
 	// same, noregister blocked it
 	becomeOperational = s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, IsNil)
+}
+
+func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// in this case is just marked seeded without snaps
+	s.state.Set("seeded", true)
+
+	// save is available (where device keys are kept)
+	devicestate.SetSaveAvailable(s.mgr, true)
+
+	// this is the regular assertions DB
+	c.Assert(os.MkdirAll(dirs.SnapAssertsDBDir, 0755), IsNil)
+	// this is the ubuntu-save is bind mounted under /var/lib/snapd/save,
+	// there is a device directory under it
+	c.Assert(os.MkdirAll(dirs.SnapDeviceSaveDir, 0755), IsNil)
+
+	bs, err := asserts.OpenFSBackstore(dirs.SnapAssertsDBDir)
+	c.Assert(err, IsNil)
+
+	// the test suite uses a memory backstore DB, but we need to look at the
+	// filesystem
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore:       bs,
+		Trusted:         s.storeSigning.Trusted,
+		OtherPredefined: s.storeSigning.Generic,
+	})
+	c.Assert(err, IsNil)
+	// cleanup is done by the suite
+	assertstate.ReplaceDB(s.state, db)
+	err = db.Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	model := s.makeModelAssertionInState(c, "my-brand", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		// UC20
+		"base": "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+
+	// the mock has written key under snap asserts dir, but when ubuntu-save
+	// exists, the key is written under ubuntu-save/device, thus
+	// factory-reset never restores is to the asserts dir
+	kp, err := asserts.OpenFSKeypairManager(dirs.SnapAssertsDBDir)
+	c.Assert(err, IsNil)
+
+	otherKey, _ := assertstest.GenerateKey(testKeyLength)
+	// an assertion for which there is no corresponding device key
+	makeDeviceSerialAssertionInDir(c, dirs.SnapAssertsDBDir, s.storeSigning, s.brands,
+		model, otherKey, "serial-other-key")
+	c.Assert(kp.Delete(otherKey.PublicKey().ID()), IsNil)
+	// an assertion which has a device key, which needs to be moved to the
+	// right location
+	makeDeviceSerialAssertionInDir(c, dirs.SnapAssertsDBDir, s.storeSigning, s.brands,
+		model, devKey, "serial-1234")
+	c.Assert(kp.Delete(devKey.PublicKey().ID()), IsNil)
+	// write the key under a location which corresponds to ubuntu-save/device
+	kp, err = asserts.OpenFSKeypairManager(dirs.SnapDeviceSaveDir)
+	c.Assert(err, IsNil)
+	c.Assert(kp.Put(devKey), IsNil)
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "pc-20",
+	})
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.state.Lock()
+
+	// no need for the operational change
+	becomeOperational := s.findBecomeOperationalChange()
+	c.Check(becomeOperational, IsNil)
+
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "my-brand")
+	c.Check(device.Model, Equals, "pc-20")
+	// serial was restored
+	c.Check(device.Serial, Equals, "serial-1234")
+	// key ID was restored
+	c.Check(device.KeyID, Equals, devKey.PublicKey().ID())
+	// key is present
+	_, err = devicestate.KeypairManager(s.mgr).Get(devKey.PublicKey().ID())
+	c.Check(err, IsNil)
+	// no session yet
+	c.Check(device.SessionMacaroon, Equals, "")
+	// and something was logged
+	c.Check(log.String(), testutil.Contains,
+		fmt.Sprintf("restored serial serial-1234 for my-brand/pc-20 signed with key %v", devKey.PublicKey().ID()))
 }

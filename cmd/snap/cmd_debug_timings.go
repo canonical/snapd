@@ -94,11 +94,11 @@ func printTaskTiming(w io.Writer, t *Timing, verbose, doing bool) {
 }
 
 // sortTimingsTasks sorts tasks from changeTimings by lane and ready time with special treatment of lane 0 tasks:
-// - tasks from lanes >0 are grouped by lanes and sorted by ready time.
-// - tasks from lane 0 are sorted by ready time and inserted before and after other lanes based on the min/max
-//   ready times of non-zero lanes.
-// - tasks from lane 0 with ready time between non-zero lane tasks are not really expected in our system and will
-//   appear after non-zero lane tasks.
+//   - tasks from lanes >0 are grouped by lanes and sorted by ready time.
+//   - tasks from lane 0 are sorted by ready time and inserted before and after other lanes based on the min/max
+//     ready times of non-zero lanes.
+//   - tasks from lane 0 with ready time between non-zero lane tasks are not really expected in our system and will
+//     appear after non-zero lane tasks.
 func sortTimingsTasks(timings map[string]changeTimings) []string {
 	tasks := make([]string, 0, len(timings))
 

@@ -21,6 +21,7 @@ package assertstate
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
@@ -66,6 +67,17 @@ func (vs *ValidationSetTracking) sameAs(tr *ValidationSetTracking) bool {
 		vs.Name == tr.Name && vs.PinnedAt == tr.PinnedAt
 }
 
+// Sequence returns the sequence number of the currently used validation set.
+func (vs *ValidationSetTracking) Sequence() int {
+	// Current was occasionally set to the latest sequence number even when Pinned != 0,
+	// this should no longer happen but return PinnedAt anyway to be safe
+	if vs.PinnedAt > 0 {
+		return vs.PinnedAt
+	}
+
+	return vs.Current
+}
+
 // ValidationSetKey formats the given account id and name into a validation set key.
 func ValidationSetKey(accountID, name string) string {
 	return fmt.Sprintf("%s/%s", accountID, name)
@@ -76,7 +88,7 @@ func ValidationSetKey(accountID, name string) string {
 func UpdateValidationSet(st *state.State, tr *ValidationSetTracking) {
 	var vsmap map[string]*json.RawMessage
 	err := st.Get("validation-sets", &vsmap)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		panic("internal error: cannot unmarshal validation set tracking state: " + err.Error())
 	}
 	if vsmap == nil {
@@ -97,7 +109,7 @@ func UpdateValidationSet(st *state.State, tr *ValidationSetTracking) {
 func ForgetValidationSet(st *state.State, accountID, name string) error {
 	var vsmap map[string]*json.RawMessage
 	err := st.Get("validation-sets", &vsmap)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		panic("internal error: cannot unmarshal validation set tracking state: " + err.Error())
 	}
 	if len(vsmap) == 0 {
@@ -139,15 +151,17 @@ func GetValidationSet(st *state.State, accountID, name string, tr *ValidationSet
 // ValidationSets retrieves all ValidationSetTracking data.
 func ValidationSets(st *state.State) (map[string]*ValidationSetTracking, error) {
 	var vsmap map[string]*ValidationSetTracking
-	if err := st.Get("validation-sets", &vsmap); err != nil && err != state.ErrNoState {
+	if err := st.Get("validation-sets", &vsmap); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	return vsmap, nil
 }
 
-// EnforcedValidationSets returns ValidationSets object with all currently tracked
-// validation sets that are in enforcing mode.
-func EnforcedValidationSets(st *state.State) (*snapasserts.ValidationSets, error) {
+// TrackedEnforcedValidationSets returns ValidationSets object with all currently tracked
+// validation sets that are in enforcing mode. If extraVss is not nil then they are
+// added to the returned set and replaces validation sets with same account/name
+// in case they were tracked already.
+func TrackedEnforcedValidationSets(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 	valsets, err := ValidationSets(st)
 	if err != nil {
 		return nil, err
@@ -156,8 +170,20 @@ func EnforcedValidationSets(st *state.State) (*snapasserts.ValidationSets, error
 	db := DB(st)
 	sets := snapasserts.NewValidationSets()
 
+	skip := make(map[string]bool, len(extraVss))
+	for _, extraVs := range extraVss {
+		sets.Add(extraVs)
+		skip[fmt.Sprintf("%s:%s", extraVs.AccountID(), extraVs.Name())] = true
+	}
+
 	for _, vs := range valsets {
 		if vs.Mode != Enforce {
+			continue
+		}
+
+		// if extraVs matches an already enforced validation set, then skip that one, extraVs has been added
+		// before the loop.
+		if skip[fmt.Sprintf("%s:%s", vs.AccountID, vs.Name)] {
 			continue
 		}
 
@@ -178,7 +204,9 @@ func EnforcedValidationSets(st *state.State) (*snapasserts.ValidationSets, error
 		}
 
 		vsetAssert := as.(*asserts.ValidationSet)
-		sets.Add(vsetAssert)
+		if err := sets.Add(vsetAssert); err != nil {
+			return nil, err
+		}
 	}
 
 	return sets, err
@@ -238,7 +266,7 @@ func addToValidationSetsHistory(st *state.State, validationSets map[string]*Vali
 // the validations sets tracking history.
 func validationSetsHistoryTop(st *state.State) (map[string]*ValidationSetTracking, error) {
 	var vshist []*json.RawMessage
-	if err := st.Get("validation-sets-history", &vshist); err != nil && err != state.ErrNoState {
+	if err := st.Get("validation-sets-history", &vshist); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if len(vshist) == 0 {
@@ -256,8 +284,24 @@ func validationSetsHistoryTop(st *state.State) (map[string]*ValidationSetTrackin
 // ValidationSetsHistory returns the complete history of validation sets tracking.
 func ValidationSetsHistory(st *state.State) ([]map[string]*ValidationSetTracking, error) {
 	var vshist []map[string]*ValidationSetTracking
-	if err := st.Get("validation-sets-history", &vshist); err != nil && err != state.ErrNoState {
+	if err := st.Get("validation-sets-history", &vshist); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	return vshist, nil
+}
+
+// RestoreValidationSetsTracking restores validation-sets state to the last state
+// stored in the validation-sets-stack. It should only be called when the stack
+// is not empty, otherwise an error is returned.
+func RestoreValidationSetsTracking(st *state.State) error {
+	trackingState, err := validationSetsHistoryTop(st)
+	if err != nil {
+		return err
+	}
+	if len(trackingState) == 0 {
+		// we should never be called when there is nothing in the stack
+		return state.ErrNoState
+	}
+	st.Set("validation-sets", trackingState)
+	return nil
 }

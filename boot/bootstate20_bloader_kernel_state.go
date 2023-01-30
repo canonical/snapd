@@ -177,6 +177,31 @@ func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.P
 	return nil
 }
 
+func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernelNoTry(sn snap.PlaceInfo) error {
+	if sn.Filename() != bks.currentKernel.Filename() {
+		err := bks.ebl.EnableKernel(sn)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Make sure that no try-kernel.efi link is left around. We do
+	// not really care if this method fails as depending on when
+	// we are undoing it might be there or not.
+	bks.ebl.DisableTryKernel()
+
+	if bks.currentKernelStatus != DefaultStatus {
+		m := map[string]string{
+			"kernel_status": DefaultStatus,
+		}
+
+		// set the boot variables
+		return bks.ebl.SetBootVars(m)
+	}
+
+	return nil
+}
+
 // envRefExtractedKernelBootloaderKernelState implements bootloaderKernelState20 for
 // bootloaders that only support using bootloader env and i.e. don't support
 // ExtractedRunKernelImageBootloader
@@ -286,6 +311,17 @@ func (envbks *envRefExtractedKernelBootloaderKernelState) markSuccessfulKernel(s
 func (envbks *envRefExtractedKernelBootloaderKernelState) setNextKernel(sn snap.PlaceInfo, status string) error {
 	envbks.toCommit["kernel_status"] = status
 	bootenvChanged := envbks.commonStateCommitUpdate(sn, "snap_try_kernel")
+
+	if bootenvChanged {
+		return envbks.bl.SetBootVars(envbks.toCommit)
+	}
+
+	return nil
+}
+
+func (envbks *envRefExtractedKernelBootloaderKernelState) setNextKernelNoTry(sn snap.PlaceInfo) error {
+	envbks.toCommit["kernel_status"] = ""
+	bootenvChanged := envbks.commonStateCommitUpdate(sn, "snap_kernel")
 
 	if bootenvChanged {
 		return envbks.bl.SetBootVars(envbks.toCommit)

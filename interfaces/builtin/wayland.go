@@ -99,6 +99,10 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 const waylandConnectedSlotAppArmor = `
 # Allow access to common client Wayland sockets for connected snaps
 owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/{mesa,mutter,sdl,wayland-cursor,weston,xwayland}-shared-* rw,
+
+# TODO: this can be removed when Mozilla's WaylandAllocateShmMemory()
+# function is updated to use memfd_create() instead.
+owner /{dev,run}/shm/###PLUG_SECURITY_TAGS###.wayland.mozilla.ipc.[0-9]* rw,
 `
 
 const waylandConnectedPlugAppArmor = `

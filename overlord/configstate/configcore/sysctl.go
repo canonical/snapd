@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -50,7 +49,7 @@ const (
 // these are the sysctl parameters prefixes we handle
 var sysctlPrefixes = []string{"kernel.printk"}
 
-func validateSysctlOptions(tr config.ConfGetter) error {
+func validateSysctlOptions(tr ConfGetter) error {
 	consoleLoglevelStr, err := coreCfg(tr, "system.kernel.printk.console-loglevel")
 	if err != nil {
 		return err
@@ -63,7 +62,7 @@ func validateSysctlOptions(tr config.ConfGetter) error {
 	return nil
 }
 
-func handleSysctlConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleSysctlConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	root := dirs.GlobalRootDir
 	if opts != nil {
 		root = opts.RootDir

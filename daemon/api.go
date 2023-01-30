@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -72,6 +73,7 @@ var api = []*Command{
 	systemsCmd,
 	systemsActionCmd,
 	themesCmd,
+	accessoriesChangeCmd,
 	validationSetsListCmd,
 	validationSetsCmd,
 	routineConsoleConfStartCmd,
@@ -130,19 +132,28 @@ func storeFrom(d *Daemon) snapstate.StoreService {
 }
 
 var (
-	snapstateInstall           = snapstate.Install
-	snapstateInstallPath       = snapstate.InstallPath
-	snapstateRefreshCandidates = snapstate.RefreshCandidates
-	snapstateTryPath           = snapstate.TryPath
-	snapstateUpdate            = snapstate.Update
-	snapstateUpdateMany        = snapstate.UpdateMany
-	snapstateInstallMany       = snapstate.InstallMany
-	snapstateRemoveMany        = snapstate.RemoveMany
-	snapstateRevert            = snapstate.Revert
-	snapstateRevertToRevision  = snapstate.RevertToRevision
-	snapstateSwitch            = snapstate.Switch
+	snapstateInstall                        = snapstate.Install
+	snapstateInstallPath                    = snapstate.InstallPath
+	snapstateInstallPathMany                = snapstate.InstallPathMany
+	snapstateRefreshCandidates              = snapstate.RefreshCandidates
+	snapstateTryPath                        = snapstate.TryPath
+	snapstateUpdate                         = snapstate.Update
+	snapstateUpdateMany                     = snapstate.UpdateMany
+	snapstateInstallMany                    = snapstate.InstallMany
+	snapstateRemoveMany                     = snapstate.RemoveMany
+	snapstateResolveValSetsEnforcementError = snapstate.ResolveValidationSetsEnforcementError
+	snapstateRevert                         = snapstate.Revert
+	snapstateRevertToRevision               = snapstate.RevertToRevision
+	snapstateSwitch                         = snapstate.Switch
+	snapstateProceedWithRefresh             = snapstate.ProceedWithRefresh
+	snapstateHoldRefreshesBySystem          = snapstate.HoldRefreshesBySystem
+	snapstateLongestGatingHold              = snapstate.LongestGatingHold
+	snapstateSystemHold                     = snapstate.SystemHold
 
-	assertstateRefreshSnapAssertions = assertstate.RefreshSnapAssertions
+	configstateConfigureInstalled = configstate.ConfigureInstalled
+
+	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
+	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
 )
 
 func ensureStateSoonImpl(st *state.State) {

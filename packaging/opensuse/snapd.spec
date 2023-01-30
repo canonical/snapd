@@ -29,7 +29,7 @@
 
 # The list of systemd services we are expected to ship. Note that this does
 # not include services that are only required on core systems.
-%global systemd_services_list snapd.socket snapd.service snapd.seeded.service snapd.failure.service %{?with_apparmor:snapd.apparmor.service}
+%global systemd_services_list snapd.socket snapd.service snapd.seeded.service snapd.failure.service %{?with_apparmor:snapd.apparmor.service} snapd.mounts.target snapd.mounts-pre.target
 %global systemd_user_services_list snapd.session-agent.socket
 
 # Alternate snap mount directory: not used by openSUSE.
@@ -47,6 +47,7 @@
 %{?!_systemdusergeneratordir: %global _systemdusergeneratordir %{_prefix}/lib/systemd/user-generators}
 %{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
 %{?!_systemd_user_env_generator_dir: %global _systemd_user_env_generator_dir %{_prefix}/lib/systemd/user-environment-generators}
+%{!?_tmpfilesdir: %global _tmpfilesdir %{_prefix}/lib/tmpfiles.d}
 
 # This is fixed in SUSE Linux 15
 # Cf. https://build.opensuse.org/package/rdiff/Base:System/rpm?linkrev=base&rev=396
@@ -81,7 +82,7 @@
 
 
 Name:           snapd
-Version:        2.53.2
+Version:        2.58.2
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -91,6 +92,7 @@ Source0:        https://github.com/snapcore/snapd/releases/download/%{version}/%
 Source1:        snapd-rpmlintrc
 BuildRequires:  autoconf
 BuildRequires:  automake
+BuildRequires:  fakeroot
 BuildRequires:  glib2-devel
 BuildRequires:  glibc-devel-static
 BuildRequires:  go >= 1.13
@@ -125,6 +127,7 @@ BuildRequires:  ca-certificates-mozilla
 %if %{with apparmor}
 BuildRequires:  libapparmor-devel
 BuildRequires:  apparmor-rpm-macros
+BuildRequires:  apparmor-parser
 %endif
 
 PreReq:         permissions
@@ -204,7 +207,7 @@ __DEFINES__
 
 # Set the version that is compiled into the various executables/
 pushd %{indigo_srcdir}
-./mkversion.sh %{version}-%{release}
+./mkversion.sh %{version}
 popd
 
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
@@ -274,6 +277,7 @@ done
 		LIBEXECDIR=%{_libexecdir} \
 		DATADIR=%{_datadir} \
 		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
+		TMPFILESDIR=%{_tmpfilesdir} \
 		SNAP_MOUNT_DIR=%{snap_mount_dir}
 # Install all the C executables.
 %make_install -C %{indigo_srcdir}/cmd
@@ -281,6 +285,11 @@ done
 %make_install -f %{indigo_srcdir}/packaging/snapd.mk \
             GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
             install
+%if ! %{with apparmor}
+rm %{buildroot}%{_unitdir}/snapd.aa-prompt-listener.service
+rm %{buildroot}%{_userunitdir}/snapd.aa-prompt-ui.service
+rm %{buildroot}%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
+%endif
 
 # Undo special permissions of the void directory. We handle that in RPM files
 # section below.
@@ -410,6 +419,7 @@ fi
 %dir %{_sharedstatedir}/snapd/sequence
 %dir %{_sharedstatedir}/snapd/snaps
 %dir %{_systemd_system_env_generator_dir}
+%dir %{_tmpfilesdir}
 %dir %{_systemdgeneratordir}
 %dir %{_userunitdir}
 %dir %{snap_mount_dir}
@@ -418,6 +428,7 @@ fi
 %dir %{_datadir}/zsh
 %dir %{_datadir}/zsh/site-functions
 # similar case for fish
+%dir %{_datadir}/fish
 %dir %{_datadir}/fish/vendor_conf.d
 
 # Ghost entries for things created at runtime
@@ -443,6 +454,7 @@ fi
 %{_datadir}/dbus-1/system.d/snapd.system-services.conf
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_datadir}/fish/vendor_conf.d/snapd.fish
+%{_datadir}/snapd/snapcraft-logo-bird.svg
 %{_environmentdir}/990-snapd.conf
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
@@ -467,20 +479,26 @@ fi
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %{_systemd_system_env_generator_dir}/snapd-env-generator
 %{_systemdgeneratordir}/snapd-generator
+%{_tmpfilesdir}/snapd.conf
 %{_unitdir}/snapd.failure.service
 %{_unitdir}/snapd.seeded.service
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
+%{_unitdir}/snapd.mounts.target
+%{_unitdir}/snapd.mounts-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
 
 # When apparmor is enabled there are some additional entries.
 %if %{with apparmor}
 %config %{_sysconfdir}/apparmor.d
+%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
 %{_libexecdir}/snapd/snapd-apparmor
 %{_sbindir}/rcsnapd.apparmor
 %{_sysconfdir}/apparmor.d/%{apparmor_snapconfine_profile}
 %{_unitdir}/snapd.apparmor.service
+%{_unitdir}/snapd.aa-prompt-listener.service
+%{_userunitdir}/snapd.aa-prompt-ui.service
 %endif
 
 %changelog

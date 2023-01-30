@@ -863,7 +863,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore16(c *C) {
 		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
 	}
 
-	// sanity check of seedtest helper
+	// validity check of seedtest helper
 	const usesSnapd = false
 	// core seeds do not use system labels
 	seedtest.ValidateSeed(c, s.opts.SeedDir, "", usesSnapd, s.StoreSigning.Trusted)
@@ -899,7 +899,9 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snaps, HasLen, 6)
 
-	s.AssertedSnapInfo("cont-producer").EditedContact = "mailto:author@cont-producer.net"
+	s.AssertedSnapInfo("cont-producer").EditedLinks = map[string][]string{
+		"contact": {"mailto:author@cont-producer.net"},
+	}
 	for _, sn := range snaps {
 		s.fillDownloadedSnap(c, w, sn)
 	}
@@ -980,7 +982,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
 	}
 
-	// sanity check of seedtest helper
+	// validity check of seedtest helper
 	const usesSnapd = true
 	// core18 seeds do not use system labels
 	seedtest.ValidateSeed(c, s.opts.SeedDir, "", usesSnapd, s.StoreSigning.Trusted)
@@ -1105,7 +1107,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 	c.Assert(localSnaps, HasLen, 5)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 		if !asserts.IsNotFound(err) {
 			c.Assert(err, IsNil)
 		}
@@ -1636,7 +1638,9 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 6)
 
-	s.AssertedSnapInfo("cont-producer").EditedContact = "mailto:author@cont-producer.net"
+	s.AssertedSnapInfo("cont-producer").EditedLinks = map[string][]string{
+		"contact": {"mailto:author@cont-producer.net"},
+	}
 	for _, sn := range snaps {
 		s.fillDownloadedSnap(c, w, sn)
 	}
@@ -1760,7 +1764,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 		if !asserts.IsNotFound(err) {
 			c.Assert(err, IsNil)
 		}
@@ -1779,7 +1783,9 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 6)
 
-	s.AssertedSnapInfo("cont-producer").EditedContact = "mailto:author@cont-producer.net"
+	s.AssertedSnapInfo("cont-producer").EditedLinks = map[string][]string{
+		"contact": {"mailto:author@cont-producer.net"},
+	}
 	for _, sn := range snaps {
 		s.fillDownloadedSnap(c, w, sn)
 	}
@@ -1913,7 +1919,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -1935,7 +1941,9 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snaps, HasLen, 7)
 
-	s.AssertedSnapInfo("cont-producer").EditedContact = "mailto:author@cont-producer.net"
+	s.AssertedSnapInfo("cont-producer").EditedLinks = map[string][]string{
+		"contact": {"mailto:author@cont-producer.net"},
+	}
 	s.AssertedSnapInfo("cont-consumer").Private = true
 	for _, sn := range snaps {
 		// check the used channel at this level because in the
@@ -2057,13 +2065,16 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 			"private": true,
 		},
 		s.AssertedSnapID("cont-producer"): {
+			"links": map[string]interface{}{
+				"contact": []interface{}{"mailto:author@cont-producer.net"},
+			},
 			"contact": "mailto:author@cont-producer.net",
 		},
 	})
 
 	c.Check(filepath.Join(systemDir, "options.yaml"), testutil.FileAbsent)
 
-	// sanity check of seedtest helper
+	// validity check of seedtest helper
 	const usesSnapd = true
 	seedtest.ValidateSeed(c, s.opts.SeedDir, s.opts.Label, usesSnapd,
 		s.StoreSigning.Trusted)
@@ -2131,7 +2142,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBase(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -2178,7 +2189,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseModes(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -2226,7 +2237,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseEphemeralOK(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -2348,7 +2359,7 @@ func (s *writerSuite) TestDownloadedCore20MissingDefaultProviderModes(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -2476,7 +2487,7 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 			c.Assert(localSnaps, HasLen, 1)
 
 			for _, sn := range localSnaps {
-				si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+				si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 				if !asserts.IsNotFound(err) {
 					c.Assert(err, IsNil)
 				}
@@ -2564,7 +2575,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
 
 	s.makeSnap(c, "snapd", "")
@@ -2588,7 +2599,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 		c.Assert(asserts.IsNotFound(err), Equals, true)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
@@ -2691,7 +2702,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
 
 	s.makeSnap(c, "snapd", "")
@@ -2795,7 +2806,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
 			}},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -2895,7 +2906,7 @@ func (s *writerSuite) TestSnapsToDownloadCore20OptionalSnaps(c *C) {
 			}},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -2943,7 +2954,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 			}},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
 
 	s.makeSnap(c, "snapd", "")
@@ -2969,7 +2980,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 		c.Assert(asserts.IsNotFound(err), Equals, true)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
@@ -3117,7 +3128,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 			}},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
 
 	s.makeSnap(c, "snapd", "")
@@ -3141,7 +3152,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 	c.Assert(localSnaps, HasLen, 2)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 		c.Assert(err, IsNil)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
@@ -3265,7 +3276,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C)
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 		c.Assert(err, IsNil)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
@@ -3352,4 +3363,73 @@ func (s *writerSuite) TestSeedSnapsWriteCore20ErrWhenDirExists(c *C) {
 	_, err = w.Start(s.db, s.newFetcher)
 	c.Assert(err, ErrorMatches, `system "1234" already exists`)
 	c.Assert(seedwriter.IsSytemDirectoryExistsError(err), Equals, true)
+}
+
+func (s *writerSuite) testDownloadedCore20CheckClassic(c *C, modelGrade asserts.ModelGrade, classicFlag bool) error {
+	classicSnap := map[string]interface{}{
+		"name":  "classic-snap",
+		"id":    s.AssertedSnapID("classic-snap"),
+		"modes": []interface{}{"run"},
+	}
+	if classicFlag {
+		classicSnap["classic"] = "true"
+	}
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-store",
+		"base":         "core20",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"grade":        string(modelGrade),
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core",
+				"id":   s.AssertedSnapID("core"),
+				"type": "core",
+			},
+			classicSnap,
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, modelGrade)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "core", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "classic-snap", "developerid")
+
+	s.opts.Label = "20221125"
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	return err
+}
+
+func (s *writerSuite) TestDownloadedCore20CheckClassicDangerous(c *C) {
+	err := s.testDownloadedCore20CheckClassic(c, asserts.ModelDangerous, false)
+	c.Check(err, IsNil)
+}
+
+func (s *writerSuite) TestDownloadedCore20CheckClassicSignedNoFlag(c *C) {
+	err := s.testDownloadedCore20CheckClassic(c, asserts.ModelSigned, false)
+	c.Check(err, ErrorMatches, `cannot use classic snap "classic-snap" with a model of grade higher than dangerous that does not allow it explicitly \(missing classic: true in snap stanza\)`)
+}
+
+func (s *writerSuite) TestDownloadedCore20CheckClassicSignedWithFlag(c *C) {
+	err := s.testDownloadedCore20CheckClassic(c, asserts.ModelSigned, true)
+	c.Check(err, IsNil)
 }

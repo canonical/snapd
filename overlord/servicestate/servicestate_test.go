@@ -22,6 +22,8 @@ package servicestate_test
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/wrappers"
@@ -75,15 +78,18 @@ func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
 			if strings.HasSuffix(unit, ".timer") || strings.HasSuffix(unit, ".socket") || strings.HasSuffix(unit, ".target") {
 				// Units using the baseProperties query
 				return []byte(fmt.Sprintf(`Id=%s
+Names=%[1]s
 ActiveState=%s
 UnitFileState=%s
 `, args[2], activeState, unitState)), nil
 			} else {
 				// Units using the extendedProperties query
 				return []byte(fmt.Sprintf(`Id=%s
+Names=%[1]s
 Type=simple
 ActiveState=%s
 UnitFileState=%s
+NeedDaemonReload=no
 `, args[2], activeState, unitState)), nil
 			}
 		case "--user":
@@ -287,17 +293,21 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsVitalityRank(c *C) {
 	c.Assert(err, IsNil)
 	t.Commit()
 
-	opts, err := servicestate.SnapServiceOptions(st, "foo", nil)
+	fooInfo := snaptest.MockInfo(c, "name: foo\nversion: 0", nil)
+	barInfo := snaptest.MockInfo(c, "name: bar\nversion: 0", nil)
+	bazInfo := snaptest.MockInfo(c, "name: baz\nversion: 0", nil)
+
+	opts, err := servicestate.SnapServiceOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		VitalityRank: 2,
 	})
-	opts, err = servicestate.SnapServiceOptions(st, "bar", nil)
+	opts, err = servicestate.SnapServiceOptions(st, barInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		VitalityRank: 1,
 	})
-	opts, err = servicestate.SnapServiceOptions(st, "unknown", nil)
+	opts, err = servicestate.SnapServiceOptions(st, bazInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		VitalityRank: 0,
@@ -309,8 +319,13 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	fooInfo := snaptest.MockInfo(c, `
+name: foosnap
+version: 0
+`, nil)
+
 	// make a quota group
-	grp, err := quota.NewGroup("foogroup", quantity.SizeGiB)
+	grp, err := quota.NewGroup("foogroup", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
 	c.Assert(err, IsNil)
 
 	grp.Snaps = []string{"foosnap"}
@@ -322,7 +337,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 		"foogroup": grp,
 	})
 
-	opts, err := servicestate.SnapServiceOptions(st, "foosnap", nil)
+	opts, err := servicestate.SnapServiceOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		QuotaGroup: grp,
@@ -343,7 +358,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 
 	// we can still get the quota group using the local map we got before
 	// modifying state
-	opts, err = servicestate.SnapServiceOptions(st, "foosnap", grps)
+	opts, err = servicestate.SnapServiceOptions(st, fooInfo, grps)
 	c.Assert(err, IsNil)
 	grp.Snaps = []string{"foosnap"}
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
@@ -351,13 +366,14 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	})
 
 	// but using state produces nothing for the non-instance name snap
-	opts, err = servicestate.SnapServiceOptions(st, "foosnap", nil)
+	opts, err = servicestate.SnapServiceOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{})
 
 	// but it does work with instance names
+	fooInfo.InstanceKey = "instance"
 	grp.Snaps = []string{"foosnap_instance"}
-	opts, err = servicestate.SnapServiceOptions(st, "foosnap_instance", nil)
+	opts, err = servicestate.SnapServiceOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		QuotaGroup: grp,
@@ -369,7 +385,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	c.Assert(err, IsNil)
 	t.Commit()
 
-	opts, err = servicestate.SnapServiceOptions(st, "foosnap_instance", nil)
+	opts, err = servicestate.SnapServiceOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		VitalityRank: 2,
@@ -447,4 +463,129 @@ func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 		task := tasks[0]
 		c.Check(task.Summary(), Equals, tc.expectedSummary)
 	}
+}
+
+func (s *snapServiceOptionsSuite) TestLogReader(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	si := snap.SideInfo{RealName: "foo", Revision: snap.R(1)}
+	snp := &snap.Info{SideInfo: si}
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	appInfos := []*snap.AppInfo{
+		{
+			Snap:        snp,
+			Name:        "svc1",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+		{
+			Snap:        snp,
+			Name:        "svc2",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+	}
+
+	restore := systemd.MockSystemdVersion(230, nil)
+	defer restore()
+
+	var jctlCalls int
+	restore = systemd.MockJournalctl(func(svcs []string, n int, follow, namespaces bool) (rc io.ReadCloser, err error) {
+		jctlCalls++
+		c.Check(svcs, DeepEquals, []string{"snap.foo.svc1.service", "snap.foo.svc2.service"})
+		c.Check(n, Equals, 100)
+		c.Check(follow, Equals, false)
+		c.Check(namespaces, Equals, false)
+		return ioutil.NopCloser(strings.NewReader("")), nil
+	})
+	defer restore()
+
+	_, err := servicestate.LogReader(appInfos, 100, false)
+	c.Assert(err, IsNil)
+	c.Check(jctlCalls, Equals, 1)
+}
+
+func (s *snapServiceOptionsSuite) TestLogReaderFailsWithNonServices(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	si := snap.SideInfo{RealName: "foo", Revision: snap.R(1)}
+	snp := &snap.Info{SideInfo: si}
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	appInfos := []*snap.AppInfo{
+		{
+			Snap:        snp,
+			Name:        "svc1",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+		// Introduce a non-service to make sure we fail on this
+		{
+			Snap: snp,
+			Name: "app1",
+		},
+	}
+
+	_, err := servicestate.LogReader(appInfos, 100, false)
+	c.Assert(err.Error(), Equals, `cannot read logs for app "app1": not a service`)
+}
+
+func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	si := snap.SideInfo{RealName: "foo", Revision: snap.R(1)}
+	snp := &snap.Info{SideInfo: si}
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	appInfos := []*snap.AppInfo{
+		{
+			Snap:        snp,
+			Name:        "svc1",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+		{
+			Snap:        snp,
+			Name:        "svc2",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+	}
+
+	var jctlCalls int
+
+	restore := systemd.MockSystemdVersion(245, nil)
+	defer restore()
+	restore = systemd.MockJournalctl(func(svcs []string, n int, follow, namespaces bool) (rc io.ReadCloser, err error) {
+		jctlCalls++
+		c.Check(svcs, DeepEquals, []string{"snap.foo.svc1.service", "snap.foo.svc2.service"})
+		c.Check(n, Equals, 100)
+		c.Check(follow, Equals, false)
+		c.Check(namespaces, Equals, true)
+		return ioutil.NopCloser(strings.NewReader("")), nil
+	})
+	defer restore()
+
+	_, err := servicestate.LogReader(appInfos, 100, false)
+	c.Assert(err, IsNil)
+	c.Check(jctlCalls, Equals, 1)
 }

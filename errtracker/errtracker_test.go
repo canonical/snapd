@@ -395,7 +395,7 @@ func (s *ErrtrackerTestSuite) TestReportWithNoWhoopsieInstalled(c *C) {
 
 func (s *ErrtrackerTestSuite) TestProcCpuinfo(c *C) {
 	fn := filepath.Join(s.tmpdir, "cpuinfo")
-	// sanity check
+	// validity check
 	buf, err := ioutil.ReadFile(fn)
 	c.Assert(err, IsNil)
 	c.Check(string(buf), Equals, `

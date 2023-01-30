@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,12 +23,12 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/yaml.v2"
@@ -77,41 +77,6 @@ func init() {
 		}), nil)
 }
 
-func (iw *infoWriter) maybePrintHealth() {
-	if iw.localSnap == nil {
-		return
-	}
-	health := iw.localSnap.Health
-	if health == nil {
-		if !iw.verbose {
-			return
-		}
-		health = &client.SnapHealth{
-			Status:  "unknown",
-			Message: "health has not been set",
-		}
-	}
-	if health.Status == "okay" && !iw.verbose {
-		return
-	}
-
-	fmt.Fprintln(iw, "health:")
-	fmt.Fprintf(iw, "  status:\t%s\n", health.Status)
-	if health.Message != "" {
-		wrapGeneric(iw, quotedIfNeeded(health.Message), "  message:\t", "    ", iw.termWidth)
-	}
-	if health.Code != "" {
-		fmt.Fprintf(iw, "  code:\t%s\n", health.Code)
-	}
-	if !health.Timestamp.IsZero() {
-		fmt.Fprintf(iw, "  checked:\t%s\n", iw.fmtTime(health.Timestamp))
-	}
-	if !health.Revision.Unset() {
-		fmt.Fprintf(iw, "  revision:\t%s\n", health.Revision)
-	}
-	iw.Flush()
-}
-
 func clientSnapFromPath(path string) (*client.Snap, error) {
 	snapf, err := snapfile.Open(path)
 	if err != nil {
@@ -139,98 +104,10 @@ func norm(path string) string {
 	return path
 }
 
-// runesTrimRightSpace returns text, with any trailing whitespace dropped.
-func runesTrimRightSpace(text []rune) []rune {
-	j := len(text)
-	for j > 0 && unicode.IsSpace(text[j-1]) {
-		j--
-	}
-	return text[:j]
-}
-
-// runesLastIndexSpace returns the index of the last whitespace rune
-// in the text. If the text has no whitespace, returns -1.
-func runesLastIndexSpace(text []rune) int {
-	for i := len(text) - 1; i >= 0; i-- {
-		if unicode.IsSpace(text[i]) {
-			return i
-		}
-	}
-	return -1
-}
-
-// wrapLine wraps a line, assumed to be part of a block-style yaml
-// string, to fit into termWidth, preserving the line's indent, and
-// writes it out prepending padding to each line.
-func wrapLine(out io.Writer, text []rune, pad string, termWidth int) error {
-	// discard any trailing whitespace
-	text = runesTrimRightSpace(text)
-	// establish the indent of the whole block
-	idx := 0
-	for idx < len(text) && unicode.IsSpace(text[idx]) {
-		idx++
-	}
-	indent := pad + string(text[:idx])
-	text = text[idx:]
-	if len(indent) > termWidth/2 {
-		// If indent is too big there's not enough space for the actual
-		// text, in the pathological case the indent can even be bigger
-		// than the terminal which leads to lp:1828425.
-		// Rather than let that happen, give up.
-		indent = pad + "  "
-	}
-	return wrapGeneric(out, text, indent, indent, termWidth)
-}
-
 // wrapFlow wraps the text using yaml's flow style, allowing indent
 // characters for the first line.
 func wrapFlow(out io.Writer, text []rune, indent string, termWidth int) error {
-	return wrapGeneric(out, text, indent, "  ", termWidth)
-}
-
-// wrapGeneric wraps the given text to the given width, prefixing the
-// first line with indent and the remaining lines with indent2
-func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, termWidth int) error {
-	// Note: this is _wrong_ for much of unicode (because the width of a rune on
-	//       the terminal is anything between 0 and 2, not always 1 as this code
-	//       assumes) but fixing that is Hard. Long story short, you can get close
-	//       using a couple of big unicode tables (which is what wcwidth
-	//       does). Getting it 100% requires a terminfo-alike of unicode behaviour.
-	//       However, before this we'd count bytes instead of runes, so we'd be
-	//       even more broken. Think of it as successive approximations... at least
-	//       with this work we share tabwriter's opinion on the width of things!
-
-	// This (and possibly printDescr below) should move to strutil once
-	// we're happy with it getting wider (heh heh) use.
-
-	indentWidth := utf8.RuneCountInString(indent)
-	delta := indentWidth - utf8.RuneCountInString(indent2)
-	width := termWidth - indentWidth
-
-	// establish the indent of the whole block
-	var err error
-	for len(text) > width && err == nil {
-		// find a good place to chop the text
-		idx := runesLastIndexSpace(text[:width+1])
-		if idx < 0 {
-			// there's no whitespace; just chop at line width
-			idx = width
-		}
-		_, err = fmt.Fprint(out, indent, string(text[:idx]), "\n")
-		// prune any remaining whitespace before the start of the next line
-		for idx < len(text) && unicode.IsSpace(text[idx]) {
-			idx++
-		}
-		text = text[idx:]
-		width += delta
-		indent = indent2
-		delta = 0
-	}
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprint(out, indent, string(text), "\n")
-	return err
+	return strutil.WordWrap(out, text, indent, "  ", termWidth)
 }
 
 func quotedIfNeeded(raw string) []rune {
@@ -258,7 +135,7 @@ func printDescr(w io.Writer, descr string, termWidth int) error {
 	var err error
 	descr = strings.TrimRightFunc(descr, unicode.IsSpace)
 	for _, line := range strings.Split(descr, "\n") {
-		err = wrapLine(w, []rune(line), "  ", termWidth)
+		err = strutil.WordWrapPadded(w, []rune(line), "  ", termWidth)
 		if err != nil {
 			break
 		}
@@ -338,6 +215,41 @@ func (iw *infoWriter) maybePrintID() {
 	}
 }
 
+func (iw *infoWriter) maybePrintHealth() {
+	if iw.localSnap == nil {
+		return
+	}
+	health := iw.localSnap.Health
+	if health == nil {
+		if !iw.verbose {
+			return
+		}
+		health = &client.SnapHealth{
+			Status:  "unknown",
+			Message: "health has not been set",
+		}
+	}
+	if health.Status == "okay" && !iw.verbose {
+		return
+	}
+
+	fmt.Fprintln(iw, "health:")
+	fmt.Fprintf(iw, "  status:\t%s\n", health.Status)
+	if health.Message != "" {
+		strutil.WordWrap(iw, quotedIfNeeded(health.Message), "  message:\t", "    ", iw.termWidth)
+	}
+	if health.Code != "" {
+		fmt.Fprintf(iw, "  code:\t%s\n", health.Code)
+	}
+	if !health.Timestamp.IsZero() {
+		fmt.Fprintf(iw, "  checked:\t%s\n", iw.fmtTime(health.Timestamp))
+	}
+	if !health.Revision.Unset() {
+		fmt.Fprintf(iw, "  revision:\t%s\n", health.Revision)
+	}
+	iw.Flush()
+}
+
 func (iw *infoWriter) maybePrintTrackingChannel() {
 	if iw.localSnap == nil {
 		return
@@ -348,14 +260,30 @@ func (iw *infoWriter) maybePrintTrackingChannel() {
 	fmt.Fprintf(iw, "tracking:\t%s\n", iw.localSnap.TrackingChannel)
 }
 
-func (iw *infoWriter) maybePrintInstallDate() {
+func (iw *infoWriter) maybePrintRefreshInfo() {
 	if iw.localSnap == nil {
 		return
 	}
-	if iw.localSnap.InstallDate.IsZero() {
-		return
+
+	if iw.localSnap.InstallDate != nil && !iw.localSnap.InstallDate.IsZero() {
+		fmt.Fprintf(iw, "refresh-date:\t%s\n", iw.fmtTime(*iw.localSnap.InstallDate))
 	}
-	fmt.Fprintf(iw, "refresh-date:\t%s\n", iw.fmtTime(iw.localSnap.InstallDate))
+
+	maybePrintHold := func(key string, hold *time.Time) {
+		if hold == nil || hold.Before(timeNow()) {
+			return
+		}
+
+		longTime := timeNow().Add(100 * 365 * 24 * time.Hour)
+		if hold.After(longTime) {
+			fmt.Fprintf(iw, "%s:\tforever\n", key)
+		} else {
+			fmt.Fprintf(iw, "%s:\t%s\n", key, iw.fmtTime(*hold))
+		}
+	}
+
+	maybePrintHold("hold", iw.localSnap.Hold)
+	maybePrintHold("hold-by-gating", iw.localSnap.GatingHold)
 }
 
 func (iw *infoWriter) maybePrintChinfo() {
@@ -453,13 +381,27 @@ func (iw *infoWriter) maybePrintBuildDate() {
 	fmt.Fprintf(iw, "build-date:\t%s\n", iw.fmtTime(buildDate))
 }
 
-func (iw *infoWriter) maybePrintContact() error {
+func (iw *infoWriter) maybePrintLinks() {
 	contact := strings.TrimPrefix(iw.theSnap.Contact, "mailto:")
-	if contact == "" {
-		return nil
+	if contact != "" {
+		fmt.Fprintf(iw, "contact:\t%s\n", contact)
 	}
-	_, err := fmt.Fprintf(iw, "contact:\t%s\n", contact)
-	return err
+	if !iw.verbose || len(iw.theSnap.Links) == 0 {
+		return
+	}
+	links := iw.theSnap.Links
+	fmt.Fprintln(iw, "links:")
+	linkKeys := make([]string, 0, len(iw.theSnap.Links))
+	for k := range links {
+		linkKeys = append(linkKeys, k)
+	}
+	sort.Strings(linkKeys)
+	for _, k := range linkKeys {
+		fmt.Fprintf(iw, "  %s:\n", k)
+		for _, v := range links[k] {
+			fmt.Fprintf(iw, "    - %s\n", v)
+		}
+	}
 }
 
 func (iw *infoWriter) printLicense() {
@@ -733,7 +675,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.maybePrintStoreURL()
 		iw.maybePrintStandaloneVersion()
 		iw.maybePrintBuildDate()
-		iw.maybePrintContact()
+		iw.maybePrintLinks()
 		iw.printLicense()
 		iw.maybePrintPrice()
 		iw.printDescr()
@@ -748,7 +690,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.maybePrintID()
 		iw.maybePrintCohortKey()
 		iw.maybePrintTrackingChannel()
-		iw.maybePrintInstallDate()
+		iw.maybePrintRefreshInfo()
 		iw.maybePrintChinfo()
 	}
 	w.Flush()

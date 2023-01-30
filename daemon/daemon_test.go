@@ -36,6 +36,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -94,7 +95,7 @@ func (s *daemonSuite) TearDownTest(c *check.C) {
 }
 
 // build a new daemon, with only a little of Init(), suitable for the tests
-func newTestDaemon(c *check.C) *Daemon {
+func (s *daemonSuite) newTestDaemon(c *check.C) *Daemon {
 	d, err := New()
 	c.Assert(err, check.IsNil)
 	d.addRoutes()
@@ -103,6 +104,10 @@ func newTestDaemon(c *check.C) *Daemon {
 	// needs doing after the call to devicestate.Manager (which
 	// happens in daemon.New via overlord.New)
 	snapstate.CanAutoRefresh = nil
+
+	if d.Overlord() != nil {
+		s.AddCleanup(snapstate.MockEnsuredMountsUpdated(d.Overlord().SnapManager(), true))
+	}
 
 	return d
 }
@@ -118,10 +123,15 @@ func (mck *mockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	st := d.Overlord().State()
 	st.Lock()
-	authUser, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	authUser, err := auth.NewUser(st, auth.NewUserParams{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -171,7 +181,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 func (s *daemonSuite) TestCommandMethodDispatchRoot(c *check.C) {
 	fakeUserAgent := "some-agent-talking-to-snapd/1.0"
 
-	cmd := &Command{d: newTestDaemon(c)}
+	cmd := &Command{d: s.newTestDaemon(c)}
 	mck := &mockHandler{cmd: cmd}
 	rf := func(innerCmd *Command, req *http.Request, user *auth.UserState) Response {
 		c.Assert(cmd, check.Equals, innerCmd)
@@ -212,7 +222,7 @@ func (s *daemonSuite) TestCommandMethodDispatchRoot(c *check.C) {
 }
 
 func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 
 	cmd := &Command{d: d}
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
@@ -309,7 +319,7 @@ func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), check.IsNil)
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
 
 	s.markSeeded(d)
@@ -321,7 +331,7 @@ func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 }
 
 func (s *daemonSuite) TestFillsWarnings(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 
 	cmd := &Command{d: d}
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
@@ -365,7 +375,7 @@ func (f accessCheckFunc) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 }
 
 func (s *daemonSuite) TestReadAccess(c *check.C) {
-	cmd := &Command{d: newTestDaemon(c)}
+	cmd := &Command{d: s.newTestDaemon(c)}
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
@@ -395,7 +405,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestWriteAccess(c *check.C) {
-	cmd := &Command{d: newTestDaemon(c)}
+	cmd := &Command{d: s.newTestDaemon(c)}
 	cmd.PUT = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
@@ -436,10 +446,15 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	st := d.Overlord().State()
 	st.Lock()
-	authUser, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	authUser, err := auth.NewUser(st, auth.NewUserParams{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -486,7 +501,7 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 }
 
 func (s *daemonSuite) TestPolkitAccessPath(c *check.C) {
-	cmd := &Command{d: newTestDaemon(c)}
+	cmd := &Command{d: s.newTestDaemon(c)}
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
@@ -524,7 +539,7 @@ func (s *daemonSuite) TestCommandAccessSane(c *check.C) {
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 
 	expected := make([]string, len(api))
 	for i, v := range api {
@@ -580,17 +595,12 @@ func (l *witnessAcceptListener) Close() error {
 func (s *daemonSuite) markSeeded(d *Daemon) {
 	st := d.overlord.State()
 	st.Lock()
-	st.Set("seeded", true)
-	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand:  "canonical",
-		Model:  "pc",
-		Serial: "serialserial",
-	})
+	devicestatetest.MarkInitialized(st)
 	st.Unlock()
 }
 
 func (s *daemonSuite) TestStartStop(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
 	// and pretend we have snaps
@@ -653,7 +663,7 @@ version: 1`, si)
 }
 
 func (s *daemonSuite) TestRestartWiring(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
 
@@ -699,7 +709,7 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 
 	st := d.overlord.State()
 	st.Lock()
-	restart.Request(st, restart.RestartDaemon)
+	restart.Request(st, restart.RestartDaemon, nil)
 	st.Unlock()
 
 	select {
@@ -715,7 +725,7 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 }
 
 func (s *daemonSuite) TestGracefulStop(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 
 	responding := make(chan struct{})
 	doRespond := make(chan bool, 1)
@@ -813,7 +823,7 @@ version: 1`, si)
 }
 
 func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 
 	// mark as already seeded
 	s.markSeeded(d)
@@ -904,8 +914,8 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 	}
 }
 
-func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), doRestart func(*state.State, restart.RestartType), restartKind restart.RestartType, wait time.Duration) {
-	d := newTestDaemon(c)
+func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), doRestart func(*state.State, restart.RestartType, *boot.RebootInfo), restartKind restart.RestartType, wait time.Duration) {
+	d := s.newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
 
@@ -925,24 +935,24 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	oldRebootNoticeWait := rebootNoticeWait
 	oldRebootWaitTimeout := rebootWaitTimeout
 	defer func() {
-		reboot = rebootImpl
+		reboot = boot.Reboot
 		rebootNoticeWait = oldRebootNoticeWait
 		rebootWaitTimeout = oldRebootWaitTimeout
 	}()
 	rebootWaitTimeout = 100 * time.Millisecond
 	rebootNoticeWait = 150 * time.Millisecond
 
-	expectedAction := rebootReboot
+	expectedAction := boot.RebootReboot
 	expectedOp := "reboot"
 	if restartKind == restart.RestartSystemHaltNow {
-		expectedAction = rebootHalt
+		expectedAction = boot.RebootHalt
 		expectedOp = "halt"
 	} else if restartKind == restart.RestartSystemPoweroffNow {
-		expectedAction = rebootPoweroff
+		expectedAction = boot.RebootPoweroff
 		expectedOp = "poweroff"
 	}
 	var delays []time.Duration
-	reboot = func(a rebootAction, d time.Duration) error {
+	reboot = func(a boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
 		c.Check(a, check.Equals, expectedAction)
 		delays = append(delays, d)
 		return nil
@@ -977,7 +987,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	<-snapDone
 
 	st.Lock()
-	doRestart(st, restartKind)
+	doRestart(st, restartKind, nil)
 	st.Unlock()
 
 	defer func() {
@@ -1065,7 +1075,7 @@ type rstManager struct {
 func (m *rstManager) Ensure() error {
 	m.st.Lock()
 	defer m.st.Unlock()
-	restart.Request(m.st, restart.RestartSystemNow)
+	restart.Request(m.st, restart.RestartSystemNow, nil)
 	return nil
 }
 
@@ -1094,49 +1104,11 @@ func (s *daemonSuite) TestRestartSystemFromEnsure(c *check.C) {
 		o.AddManager(wm)
 	}
 
-	nop := func(*state.State, restart.RestartType) {}
+	nop := func(*state.State, restart.RestartType, *boot.RebootInfo) {}
 
 	s.testRestartSystemWiring(c, prep, nop, restart.RestartSystemNow, 0)
 
 	c.Check(wm.ensureCalled, check.Equals, 1)
-}
-
-func (s *daemonSuite) TestRebootHelper(c *check.C) {
-	cmd := testutil.MockCommand(c, "shutdown", "")
-	defer cmd.Restore()
-
-	tests := []struct {
-		delay    time.Duration
-		delayArg string
-	}{
-		{-1, "+0"},
-		{0, "+0"},
-		{time.Minute, "+1"},
-		{10 * time.Minute, "+10"},
-		{30 * time.Second, "+0"},
-	}
-
-	args := []struct {
-		a   rebootAction
-		arg string
-		msg string
-	}{
-		{rebootReboot, "-r", "reboot scheduled to update the system"},
-		{rebootHalt, "--halt", "system halt scheduled"},
-		{rebootPoweroff, "--poweroff", "system poweroff scheduled"},
-	}
-
-	for _, arg := range args {
-		for _, t := range tests {
-			err := reboot(arg.a, t.delay)
-			c.Assert(err, check.IsNil)
-			c.Check(cmd.Calls(), check.DeepEquals, [][]string{
-				{"shutdown", arg.arg, t.delayArg, arg.msg},
-			})
-
-			cmd.ForgetCalls()
-		}
-	}
 }
 
 func makeDaemonListeners(c *check.C, d *Daemon) {
@@ -1164,10 +1136,27 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	}()
 	rebootNoticeWait = 150 * time.Millisecond
 
-	cmd := testutil.MockCommand(c, "shutdown", "")
-	defer cmd.Restore()
+	nRebootCall := 0
+	rebootCheck := func(ra boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
+		// Check arguments passed to reboot call
+		nRebootCall++
+		c.Check(ra, check.Equals, boot.RebootReboot)
+		switch nRebootCall {
+		case 1:
+			c.Check(d, check.Equals, 10*time.Minute)
+			c.Check(ri, check.IsNil)
+		case 2:
+			c.Check(d, check.Equals, 1*time.Minute)
+			c.Check(ri, check.DeepEquals, &boot.RebootInfo{})
+		default:
+			c.Error("reboot called more times than expected")
+		}
+		return nil
+	}
+	r := MockReboot(rebootCheck)
+	defer r()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
 	s.markSeeded(d)
 
@@ -1175,7 +1164,7 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	st := d.overlord.State()
 
 	st.Lock()
-	restart.Request(st, restart.RestartSystem)
+	restart.Request(st, restart.RestartSystem, nil)
 	st.Unlock()
 
 	ch := make(chan os.Signal, 2)
@@ -1183,6 +1172,9 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	// stop will check if we got a sigterm in between (which we did)
 	err := d.Stop(ch)
 	c.Assert(err, check.IsNil)
+
+	// we must have called reboot twice
+	c.Check(nRebootCall, check.Equals, 2)
 }
 
 // This test tests that when there is a shutdown we close the sigterm
@@ -1197,10 +1189,27 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	rebootWaitTimeout = 100 * time.Millisecond
 	rebootNoticeWait = 150 * time.Millisecond
 
-	cmd := testutil.MockCommand(c, "shutdown", "")
-	defer cmd.Restore()
+	nRebootCall := 0
+	rebootCheck := func(ra boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
+		// Check arguments passed to reboot call
+		nRebootCall++
+		c.Check(ra, check.Equals, boot.RebootReboot)
+		switch nRebootCall {
+		case 1:
+			c.Check(d, check.Equals, 100*time.Millisecond)
+			c.Check(ri, check.IsNil)
+		case 2:
+			c.Check(d, check.Equals, 1*time.Minute)
+			c.Check(ri, check.DeepEquals, &boot.RebootInfo{})
+		default:
+			c.Error("reboot called more times than expected")
+		}
+		return nil
+	}
+	r := MockReboot(rebootCheck)
+	defer r()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
 	s.markSeeded(d)
 
@@ -1208,7 +1217,7 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	st := d.overlord.State()
 
 	st.Lock()
-	restart.Request(st, restart.RestartSystem)
+	restart.Request(st, restart.RestartSystem, nil)
 	st.Unlock()
 
 	sigCh := make(chan os.Signal, 2)
@@ -1218,6 +1227,9 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	// ensure that the sigCh got closed as part of the stop
 	_, chOpen := <-sigCh
 	c.Assert(chOpen, check.Equals, false)
+
+	// we must have called reboot twice
+	c.Check(nRebootCall, check.Equals, 2)
 }
 
 func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
@@ -1237,10 +1249,19 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	rebootRetryWaitTimeout = 100 * time.Millisecond
 	rebootNoticeWait = 150 * time.Millisecond
 
-	cmd := testutil.MockCommand(c, "shutdown", "")
-	defer cmd.Restore()
+	nRebootCall := 0
+	rebootCheck := func(ra boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
+		nRebootCall++
+		// an immediate shutdown was scheduled again
+		c.Check(ra, check.Equals, boot.RebootReboot)
+		c.Check(d <= 0, check.Equals, true)
+		c.Check(ri, check.IsNil)
+		return nil
+	}
+	r := MockReboot(rebootCheck)
+	defer r()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	c.Check(d.overlord, check.IsNil)
 	c.Check(d.expectedRebootDidNotHappen, check.Equals, true)
 
@@ -1265,10 +1286,8 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	// stop (this will timeout but thats not relevant for this test)
 	d.Stop(sigCh)
 
-	// an immediate shutdown was scheduled again
-	c.Check(cmd.Calls(), check.DeepEquals, [][]string{
-		{"shutdown", "-r", "+0", "reboot scheduled to update the system"},
-	})
+	// we must have called reboot once
+	c.Check(nRebootCall, check.Equals, 1)
 }
 
 func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {
@@ -1279,7 +1298,7 @@ func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	c.Assert(d.overlord, check.NotNil)
 
 	st := d.overlord.State()
@@ -1287,8 +1306,8 @@ func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {
 	defer st.Unlock()
 	var v interface{}
 	// these were cleared
-	c.Check(st.Get("daemon-system-restart-at", &v), check.Equals, state.ErrNoState)
-	c.Check(st.Get("system-restart-from-boot-id", &v), check.Equals, state.ErrNoState)
+	c.Check(st.Get("daemon-system-restart-at", &v), testutil.ErrorIs, state.ErrNoState)
+	c.Check(st.Get("system-restart-from-boot-id", &v), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *daemonSuite) TestRestartExpectedRebootGiveUp(c *check.C) {
@@ -1303,7 +1322,7 @@ func (s *daemonSuite) TestRestartExpectedRebootGiveUp(c *check.C) {
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	c.Assert(d.overlord, check.NotNil)
 
 	st := d.overlord.State()
@@ -1311,16 +1330,16 @@ func (s *daemonSuite) TestRestartExpectedRebootGiveUp(c *check.C) {
 	defer st.Unlock()
 	var v interface{}
 	// these were cleared
-	c.Check(st.Get("daemon-system-restart-at", &v), check.Equals, state.ErrNoState)
-	c.Check(st.Get("system-restart-from-boot-id", &v), check.Equals, state.ErrNoState)
-	c.Check(st.Get("daemon-system-restart-tentative", &v), check.Equals, state.ErrNoState)
+	c.Check(st.Get("daemon-system-restart-at", &v), testutil.ErrorIs, state.ErrNoState)
+	c.Check(st.Get("system-restart-from-boot-id", &v), testutil.ErrorIs, state.ErrNoState)
+	c.Check(st.Get("daemon-system-restart-tentative", &v), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *daemonSuite) TestRestartIntoSocketModeNoNewChanges(c *check.C) {
 	restore := standby.MockStandbyWait(5 * time.Millisecond)
 	defer restore()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
 
 	// mark as already seeded, we also have no snaps so this will
@@ -1349,7 +1368,7 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	restore := standby.MockStandbyWait(5 * time.Millisecond)
 	defer restore()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
 
 	// mark as already seeded, we also have no snaps so this will
@@ -1410,7 +1429,7 @@ func doTestReq(c *check.C, cmd *Command, mth string) *httptest.ResponseRecorder 
 }
 
 func (s *daemonSuite) TestDegradedModeReply(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	cmd := &Command{d: d}
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)

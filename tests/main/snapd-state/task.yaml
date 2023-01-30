@@ -1,5 +1,7 @@
 summary: smoke test for the snapd-state test tool
 
+backends: [google, qemu]
+
 prepare: |
     snap install test-snapd-tools
     snap install --devmode jq
@@ -54,6 +56,9 @@ execute: |
 
     "$TESTSTOOLS"/snapd-state check-state '.data["last-refresh"]' = "$(date +'%F')" "ErrorOnTest" 2>&1 | MATCH "ErrorOnTest"
     "$TESTSTOOLS"/snapd-state check-state '.data["last-refresh"]' != "$current_date" "ErrorOnTest" 2>&1 | MATCH "ErrorOnTest"
+
+    # must remove refresh holds for autorefresh command to succeed
+    snap set system refresh.hold!
 
     # check how snap channel is changed    
     current_channel="$("$TESTSTOOLS"/snapd-state print-state '.data.snaps["test-snapd-tools"].channel')"
