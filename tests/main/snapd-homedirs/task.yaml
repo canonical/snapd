@@ -2,6 +2,9 @@ summary: Test support for non-standard home directory paths
 
 systems:
     - -ubuntu-core-*  # Home dirs cannot be changed
+    - -centos-*       # No AppArmor support
+    - -fedora-*       # No AppArmor support
+    - -amazon-linux-* # No AppArmor support
 
 environment:
     USERNAME: home-sweet-home
