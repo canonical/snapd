@@ -697,18 +697,27 @@ type cacheObserver struct {
 
 	gets []string
 	puts []string
+
+	getErr error
 }
 
 func (co *cacheObserver) Get(cacheKey, targetPath string) error {
 	co.gets = append(co.gets, fmt.Sprintf("%s:%s", cacheKey, targetPath))
+
+	if co.getErr != nil {
+		return co.getErr
+	}
+
 	if !co.inCache[cacheKey] {
 		return fmt.Errorf("cannot find %s in cache", cacheKey)
 	}
 	return nil
 }
+
 func (co *cacheObserver) GetPath(cacheKey string) string {
 	return ""
 }
+
 func (co *cacheObserver) Put(cacheKey, sourcePath string) error {
 	co.puts = append(co.puts, fmt.Sprintf("%s:%s", cacheKey, sourcePath))
 	return nil
@@ -758,6 +767,31 @@ func (s *storeDownloadSuite) TestDownloadCacheMiss(c *C) {
 
 	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("the-snaps-sha3_384:%s", path)})
 	c.Check(obs.puts, DeepEquals, []string{fmt.Sprintf("the-snaps-sha3_384:%s", path)})
+}
+
+func (s *storeDownloadSuite) TestDownloadCacheHitIfAlreadyThere(c *C) {
+	obs := &cacheObserver{inCache: map[string]bool{}, getErr: os.ErrExist}
+	restore := s.store.MockCacher(obs)
+	defer restore()
+
+	restore = store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+		c.Fatal("unexpected download call (cache miss)")
+		return nil
+	})
+	defer restore()
+
+	snap := &snap.Info{
+		DownloadInfo: snap.DownloadInfo{
+			Sha3_384: "the-snaps-sha3_384",
+		},
+	}
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+
+	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("the-snaps-sha3_384:%s", path)})
+	c.Check(obs.puts, HasLen, 0)
 }
 
 func (s *storeDownloadSuite) TestDownloadStreamOK(c *C) {
