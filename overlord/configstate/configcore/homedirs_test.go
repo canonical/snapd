@@ -95,7 +95,7 @@ func (s *homedirsSuite) TestValidationUnhappy(c *C) {
 	} {
 		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			changes: map[string]interface{}{
 				"homedirs": testData.homedirs,
 			},
 		})
@@ -110,7 +110,7 @@ func (s *homedirsSuite) TestConfigureWriteFailure(c *C) {
 	defer restore()
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
 	})
@@ -138,7 +138,28 @@ func (s *homedirsSuite) TestConfigureUnchanged(c *C) {
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
+		changes: map[string]interface{}{
+			"homedirs": "/home/existingDir",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(tunableUpdated, Equals, false)
+}
+
+func (s *homedirsSuite) TestConfigureUnchangedConfig(c *C) {
+	tunableUpdated := false
+	restore := configcore.MockApparmorUpdateHomedirsTunable(func(paths []string) error {
+		tunableUpdated = true
+		return nil
+	})
+	defer restore()
+
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
+			"homedirs": "/home/existingDir",
+		},
+		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
 	})
@@ -155,7 +176,7 @@ func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
 	defer restore()
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir/one,/home/existingDir/two",
 		},
 	})
@@ -170,7 +191,7 @@ func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
 	defer restore()
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
 	})
@@ -210,7 +231,7 @@ func (s *homedirsSuite) TestConfigureApparmorUnsupported(c *C) {
 
 		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			changes: map[string]interface{}{
 				"homedirs": "/home/existingDir",
 			},
 		})
@@ -240,7 +261,7 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
 	})
