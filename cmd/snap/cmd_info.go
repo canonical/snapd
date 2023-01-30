@@ -425,14 +425,9 @@ func (iw *infoWriter) maybePrintCategories() {
 		return
 	}
 
-	categories := make([]string, 0, len(iw.theSnap.Categories))
-	for _, category := range iw.theSnap.Categories {
-		categories = append(categories, category.Name)
-	}
-
 	fmt.Fprintf(iw, "categories:\n")
-	for _, cmd := range categories {
-		fmt.Fprintf(iw, "  - %s\n", cmd)
+	for _, category := range iw.theSnap.Categories {
+		fmt.Fprintf(iw, "  - %s\n", category.Name)
 	}
 }
 
