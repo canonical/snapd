@@ -206,8 +206,10 @@ func (s *homedirsSuite) TestConfigureApparmorUnsupported(c *C) {
 
 	// let's mock this to ensure we do get an error should the function
 	// *not* act as a no-op
+	var reloadProfilesCalled bool
 	restore := configcore.MockApparmorReloadAllSnapProfiles(func() error {
-		return errors.New("ReloadAllSnapProfiles() was called!")
+		reloadProfilesCalled = true
+		return nil
 	})
 	defer restore()
 
@@ -218,16 +220,18 @@ func (s *homedirsSuite) TestConfigureApparmorUnsupported(c *C) {
 	defer restore()
 
 	for _, testData := range []struct {
-		level         apparmor.LevelType
-		expectedError string
+		level          apparmor.LevelType
+		updateProfiles bool
 	}{
-		{apparmor.Unknown, ``},
-		{apparmor.Unsupported, ``},
-		{apparmor.Unusable, ``},
-		{apparmor.Partial, `ReloadAllSnapProfiles\(\) was called!`},
-		{apparmor.Full, `ReloadAllSnapProfiles\(\) was called!`},
+		{apparmor.Unknown, false},
+		{apparmor.Unsupported, false},
+		{apparmor.Unusable, false},
+		{apparmor.Partial, true},
+		{apparmor.Full, true},
 	} {
+		// initialize test by mocking the aa level and reseting the boolean
 		resetAA := apparmor.MockLevel(testData.level)
+		reloadProfilesCalled = false
 
 		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
@@ -235,11 +239,8 @@ func (s *homedirsSuite) TestConfigureApparmorUnsupported(c *C) {
 				"homedirs": "/home/existingDir",
 			},
 		})
-		if testData.expectedError != "" {
-			c.Check(err, ErrorMatches, testData.expectedError, Commentf("%v", testData.level.String()))
-		} else {
-			c.Check(err, IsNil, Commentf("%v", testData.level.String()))
-		}
+		c.Check(err, IsNil)
+		c.Check(reloadProfilesCalled, Equals, testData.updateProfiles, Commentf("%v", testData.level.String()))
 		resetAA()
 	}
 }
