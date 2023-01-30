@@ -73,14 +73,14 @@ func quotaGroupsAvailable(st *state.State) error {
 	return nil
 }
 
-func isQuotaAvailable(st *state.State, feature features.SnapdFeature, settingName string) error {
+func isExperimentalQuotasAvailable(st *state.State, quotaName string) error {
 	tr := config.NewTransaction(st)
-	status, err := features.Flag(tr, feature)
+	status, err := features.Flag(tr, features.QuotaGroups)
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}
 	if !status {
-		return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.%s' to true", settingName)
+		return fmt.Errorf("%s quota options are experimental - test it by setting 'experimental.quota-groups' to true", quotaName)
 	}
 	return nil
 }
@@ -112,8 +112,8 @@ func verifyQuotaRequirements(st *state.State, resourceLimits quota.Resources) er
 			return fmt.Errorf("cannot use journal quota with incompatible systemd: %v", err)
 		}
 
-		// To use journal quotas, the quota-groups experimental feature must be enabled.
-		if err := isQuotaAvailable(st, features.QuotaGroups, "quota-groups"); err != nil {
+		// To use journal quotas, the quota-group experimental features must be enabled.
+		if err := isExperimentalQuotasAvailable(st, "journal"); err != nil {
 			return err
 		}
 	}
