@@ -198,18 +198,13 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 
 		// synthesize the node name and on disk structure
 		node := deviceName(dl.Device, pIndex)
-		// TODO fill in construction of LaidOutStructure instead?
-		// TODO PartitionFS* needs to be corrected if encryption
-		laidOut.OnDiskStructure = gadget.OnDiskStructure{
-			Name:             laidOut.Name(),
-			PartitionFSLabel: laidOut.Label(),
-			Type:             laidOut.Type(),
-			PartitionFSType:  laidOut.Filesystem(),
-			StartOffset:      laidOut.StartOffset,
-			Node:             node,
-			DiskIndex:        pIndex,
-			Size:             quantity.Size(newSizeInSectors * sectorSize),
-		}
+		// Change bits that depend on the disk, which includes
+		// overriding the size from the gadget as we might be
+		// expanding the data partition.
+		// TODO fill in construction of LaidOutStructure instead if/when possible
+		laidOut.Node = node
+		laidOut.DiskIndex = pIndex
+		laidOut.Size = quantity.Size(newSizeInSectors * sectorSize)
 
 		// format sfdisk input for creating this partition
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,

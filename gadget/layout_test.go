@@ -110,6 +110,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-0000deadbeef",
 					Size:        400 * quantity.SizeMiB,
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
@@ -118,6 +119,7 @@ volumes:
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "83,00000000-0000-0000-0000-0000feedface",
 					Size:        100 * quantity.SizeMiB,
 					StartOffset: 401 * quantity.OffsetMiB,
 				},
@@ -159,6 +161,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-dd00deadbeef",
 					Size:        400 * quantity.SizeMiB,
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
@@ -167,6 +170,7 @@ volumes:
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-cc00deadbeef",
 					Size:        500 * quantity.SizeMiB,
 					StartOffset: 401 * quantity.OffsetMiB,
 				},
@@ -175,6 +179,7 @@ volumes:
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-bb00deadbeef",
 					Size:        100 * quantity.SizeMiB,
 					StartOffset: 901 * quantity.OffsetMiB,
 				},
@@ -183,6 +188,7 @@ volumes:
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-aa00deadbeef",
 					Size:        100 * quantity.SizeMiB,
 					StartOffset: 1001 * quantity.OffsetMiB,
 				},
@@ -228,6 +234,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-aa00deadbeef",
 					Size:        100 * quantity.SizeMiB,
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
@@ -236,6 +243,7 @@ volumes:
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-cc00deadbeef",
 					Size:        500 * quantity.SizeMiB,
 					StartOffset: 200 * quantity.OffsetMiB,
 				},
@@ -244,6 +252,7 @@ volumes:
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-dd00deadbeef",
 					Size:        400 * quantity.SizeMiB,
 					StartOffset: 800 * quantity.OffsetMiB,
 				},
@@ -252,6 +261,7 @@ volumes:
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-bb00deadbeef",
 					Size:        100 * quantity.SizeMiB,
 					StartOffset: 1200 * quantity.OffsetMiB,
 				},
@@ -296,6 +306,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-aa00deadbeef",
 					Size:        100 * quantity.SizeMiB,
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
@@ -304,6 +315,7 @@ volumes:
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-cc00deadbeef",
 					Size:        500 * quantity.SizeMiB,
 					StartOffset: 200 * quantity.OffsetMiB,
 				},
@@ -312,6 +324,7 @@ volumes:
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-bb00deadbeef",
 					Size:        100 * quantity.SizeMiB,
 					StartOffset: 700 * quantity.OffsetMiB,
 				},
@@ -320,6 +333,7 @@ volumes:
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-dd00deadbeef",
 					Size:        400 * quantity.SizeMiB,
 					StartOffset: 800 * quantity.OffsetMiB,
 				},
@@ -383,6 +397,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-dd00deadbeef",
 					Size:        400 * quantity.SizeMiB,
 					StartOffset: 800 * quantity.OffsetMiB,
 				},
@@ -565,6 +580,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-0000deadbeef",
 					Size:        2 * quantity.SizeMiB,
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
@@ -620,6 +636,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-0000deadbeef",
 					Size:        2 * quantity.SizeMiB,
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
@@ -672,6 +689,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-0000deadbeef",
 					Size:        2 * quantity.SizeMiB,
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
@@ -718,8 +736,10 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
-					Size:        2 * quantity.SizeMiB,
-					StartOffset: 1 * quantity.OffsetMiB,
+					Type:            "00000000-0000-0000-0000-0000deadbeef",
+					PartitionFSType: "ext4",
+					Size:            2 * quantity.SizeMiB,
+					StartOffset:     1 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[0],
 				ResolvedContent: []gadget.ResolvedContent{
@@ -765,6 +785,8 @@ volumes:
 			{
 				// MBR
 				OnDiskStructure: gadget.OnDiskStructure{
+					Name:        "mbr",
+					Type:        "bare",
 					Size:        quantity.Size(446),
 					StartOffset: 0,
 				},
@@ -772,6 +794,8 @@ volumes:
 				YamlIndex:       0,
 			}, {
 				OnDiskStructure: gadget.OnDiskStructure{
+					Name:        "other",
+					Type:        "00000000-0000-0000-0000-0000deadbeef",
 					Size:        quantity.SizeMiB,
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
@@ -824,6 +848,8 @@ volumes:
 			{
 				// mbr
 				OnDiskStructure: gadget.OnDiskStructure{
+					Name:        "mbr",
+					Type:        "mbr",
 					Size:        quantity.Size(440),
 					StartOffset: 0,
 				},
@@ -832,6 +858,8 @@ volumes:
 			}, {
 				// foo
 				OnDiskStructure: gadget.OnDiskStructure{
+					Name:        "foo",
+					Type:        "DA,21686148-6449-6E6F-744E-656564454649",
 					Size:        quantity.SizeMiB,
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
@@ -851,6 +879,8 @@ volumes:
 			}, {
 				// bar
 				OnDiskStructure: gadget.OnDiskStructure{
+					Name:        "bar",
+					Type:        "DA,21686148-6449-6E6F-744E-656564454649",
 					Size:        quantity.SizeMiB,
 					StartOffset: 2 * quantity.OffsetMiB,
 				},
@@ -1003,6 +1033,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
+					Type:        "00000000-0000-0000-0000-dd00deadbeef",
 					Size:        400 * quantity.SizeMiB,
 					StartOffset: 800 * quantity.OffsetMiB,
 				},
@@ -1047,6 +1078,8 @@ volumes:
 	c.Assert(ps, DeepEquals, gadget.LaidOutStructure{
 		// foo
 		OnDiskStructure: gadget.OnDiskStructure{
+			Name:        "foo",
+			Type:        "DA,21686148-6449-6E6F-744E-656564454649",
 			Size:        quantity.SizeMiB,
 			StartOffset: 1 * quantity.OffsetMiB,
 		},
@@ -1071,6 +1104,8 @@ volumes:
 	c.Assert(shiftedTo0, DeepEquals, gadget.LaidOutStructure{
 		// foo
 		OnDiskStructure: gadget.OnDiskStructure{
+			Name:        "foo",
+			Type:        "DA,21686148-6449-6E6F-744E-656564454649",
 			Size:        quantity.SizeMiB,
 			StartOffset: 0,
 		},
@@ -1095,6 +1130,8 @@ volumes:
 	c.Assert(shiftedTo2M, DeepEquals, gadget.LaidOutStructure{
 		// foo
 		OnDiskStructure: gadget.OnDiskStructure{
+			Name:        "foo",
+			Type:        "DA,21686148-6449-6E6F-744E-656564454649",
 			Size:        quantity.SizeMiB,
 			StartOffset: 2 * quantity.OffsetMiB,
 		},

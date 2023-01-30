@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
+	"github.com/snapcore/snapd/secboot"
 )
 
 // LayoutOptions defines the options to layout a given volume.
@@ -44,6 +45,8 @@ type LayoutOptions struct {
 
 	GadgetRootDir string
 	KernelRootDir string
+
+	EncType secboot.EncryptionType
 }
 
 // NonMBRStartOffset is the minimum start offset of the first non-MBR structure
@@ -75,7 +78,7 @@ type PartiallyLaidOutVolume struct {
 
 // LaidOutStructure describes a VolumeStructure coming from the gadget plus the
 // OnDiskStructure that describes how it would be applied to a given disk and
-// additional data used when writing data in the structure.
+// additional content used when writing/updating data in the structure.
 type LaidOutStructure struct {
 	OnDiskStructure
 	// VolumeStructure is the volume structure defined in gadget.yaml
@@ -207,10 +210,10 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 		}
 		// Fill the parts of OnDiskStructure that do not depend on the disk
 		// or on whether we are encrypting or not.
-		// TODO how to fill everything?
+		// TODO Eventually fill everything here by passing all needed info
 		ps.OnDiskStructure = OnDiskStructure{
-			//Name:        ps.VolumeStructure.Name,
-			//Type:        ps.VolumeStructure.Type,
+			Name:        ps.VolumeStructure.Name,
+			Type:        ps.VolumeStructure.Type,
 			StartOffset: *volume.Structure[idx].Offset,
 			Size:        ps.VolumeStructure.Size,
 		}
@@ -252,6 +255,20 @@ func LayoutVolumePartially(volume *Volume) (*PartiallyLaidOutVolume, error) {
 	return vol, nil
 }
 
+func setOnDiskLabelAndTypeInLaidOuts(encType secboot.EncryptionType, los []LaidOutStructure) {
+	for i := range los {
+		los[i].PartitionFSLabel = los[i].Label()
+		los[i].PartitionFSType = los[i].Filesystem()
+		if encType != secboot.EncryptionTypeNone {
+			switch los[i].Role() {
+			case SystemData, SystemSave:
+				los[i].PartitionFSLabel += "-enc"
+				los[i].PartitionFSType = "crypto_LUKS"
+			}
+		}
+	}
+}
+
 // LayoutVolume attempts to completely lay out the volume, that is the
 // structures and their content, using provided options.
 func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
@@ -291,6 +308,10 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		if end := ps.StartOffset + quantity.Offset(ps.VolumeStructure.Size); end > farthestEnd {
 			farthestEnd = end
 		}
+
+		// Set appropriately label and type details
+		// TODO: set this in layoutVolumeStructures in the future.
+		setOnDiskLabelAndTypeInLaidOuts(opts.EncType, structures)
 
 		// Lay out raw content. This can be skipped when only partition
 		// creation is needed and is safe because each volume structure

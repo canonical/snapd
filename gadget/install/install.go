@@ -212,18 +212,6 @@ func installOnePartition(laidOut *gadget.LaidOutStructure, encryptionType secboo
 	return fsDevice, encryptionKey, nil
 }
 
-func setCryptoDetailsInLaidOuts(encType secboot.EncryptionType, los []gadget.LaidOutStructure) {
-	if encType != "" {
-		for i := range los {
-			switch los[i].Role() {
-			case gadget.SystemData, gadget.SystemSave:
-				los[i].PartitionFSLabel += "-enc"
-				los[i].PartitionFSType = "crypto_LUKS"
-			}
-		}
-	}
-}
-
 // createPartitions creates partitions on the disk and returns the
 // volume name where partitions have been created, the on disk
 // structures after that, the laidout volumes, and the disk sector
@@ -241,7 +229,7 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 		return "", nil, nil, 0, fmt.Errorf("cannot run install mode on pre-UC20 system")
 	}
 
-	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
+	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model, options.EncryptionType)
 	if err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot layout volumes: %v", err)
 	}
@@ -260,9 +248,6 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 	if err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
-	// Tweak laid out data depending on encryption type
-	// TODO: try to build LaidOutVolume with all info in the future
-	setCryptoDetailsInLaidOuts(options.EncryptionType, laidOutBootVol.LaidOutStructure)
 
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
@@ -293,9 +278,6 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 	if err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot create the partitions: %v", err)
 	}
-	// Tweak laid out data depending on encryption type
-	// TODO: try to build LaidOutVolume with all info in the future
-	setCryptoDetailsInLaidOuts(options.EncryptionType, created)
 
 	bootVolGadgetName = laidOutBootVol.Name
 	bootVolSectorSize = diskLayout.SectorSize
@@ -468,6 +450,8 @@ func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode strin
 	if err != nil {
 		return nil, err
 	}
+	logger.Noticef("laidOutStruct.OnDiskStructure: %+v, *onDiskStruct: %+v",
+		laidOutStruct.OnDiskStructure, *onDiskStruct)
 	// This fills LaidOutStructure, including (importantly) the ResolvedContent field
 	laidOutStruct.OnDiskStructure = *onDiskStruct
 
@@ -633,7 +617,7 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 	// TODO for partial gadgets we should use the data from onVolumes instead of
 	// what using only what comes from gadget.yaml.
 	// we might not want to take onVolumes as such as input at that point
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model, encryptionType)
 	if err != nil {
 		return nil, fmt.Errorf("when encrypting partitions: cannot layout volumes: %v", err)
 	}
@@ -712,7 +696,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		return nil, fmt.Errorf("cannot run factory-reset mode on pre-UC20 system")
 	}
 
-	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
+	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model, options.EncryptionType)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volumes: %v", err)
 	}

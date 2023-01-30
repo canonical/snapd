@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/secboot"
 )
 
 // LayoutMultiVolumeFromYaml returns all LaidOutVolumes for the given
@@ -41,7 +42,7 @@ func LayoutMultiVolumeFromYaml(newDir, kernelDir, gadgetYaml string, model gadge
 		return nil, err
 	}
 
-	_, allVolumes, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model)
+	_, allVolumes, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volumes: %v", err)
 	}
@@ -151,7 +152,7 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	_, laidVols, err = gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model)
+	_, laidVols, err = gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

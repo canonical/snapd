@@ -162,6 +162,12 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 
 	restore = install.MockEnsureNodesExist(func(dss []gadget.OnDiskStructure, timeout time.Duration) error {
 		c.Assert(timeout, Equals, 5*time.Second)
+		suffix := ""
+		dataPartFs := "ext4"
+		if opts.encryption {
+			suffix = "-enc"
+			dataPartFs = "crypto_LUKS"
+		}
 		c.Assert(dss, DeepEquals, []gadget.OnDiskStructure{{
 			Name:             "ubuntu-boot",
 			PartitionFSLabel: "ubuntu-boot",
@@ -174,9 +180,9 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			Size:      750 * quantity.SizeMiB,
 		}, {
 			Name:             "ubuntu-save",
-			PartitionFSLabel: "ubuntu-save",
+			PartitionFSLabel: "ubuntu-save" + suffix,
 			Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			PartitionFSType:  "ext4",
+			PartitionFSType:  dataPartFs,
 			StartOffset:      (1 + 1200 + 750) * quantity.OffsetMiB,
 			// note this is YamlIndex + 1, the YamlIndex starts at 0
 			DiskIndex: 3,
@@ -184,9 +190,9 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			Size:      16 * quantity.SizeMiB,
 		}, {
 			Name:             "ubuntu-data",
-			PartitionFSLabel: "ubuntu-data",
+			PartitionFSLabel: "ubuntu-data" + suffix,
 			Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			PartitionFSType:  "ext4",
+			PartitionFSType:  dataPartFs,
 			StartOffset:      (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
 			// note this is YamlIndex + 1, the YamlIndex starts at 0
 			DiskIndex: 4,
