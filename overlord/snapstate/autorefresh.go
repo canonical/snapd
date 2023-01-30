@@ -630,6 +630,21 @@ var asyncPendingRefreshNotification = func(context context.Context, client *user
 	}()
 }
 
+type timedBusySnapError struct {
+	err           *BusySnapError
+	timeRemaining time.Duration
+}
+
+func (e *timedBusySnapError) PendingSnapRefreshInfo() *userclient.PendingSnapRefreshInfo {
+	refreshInfo := e.err.PendingSnapRefreshInfo()
+	refreshInfo.TimeRemaining = e.timeRemaining
+	return refreshInfo
+}
+
+func (e *timedBusySnapError) Error() string {
+	return e.err.Error()
+}
+
 // inhibitRefresh returns an error if refresh is inhibited by running apps.
 //
 // Internally the snap state is updated to remember when the inhibition first
@@ -641,14 +656,13 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		return nil
 	}
 
-	// Get pending refresh information from compatible errors or synthesize a new one.
-	var refreshInfo *userclient.PendingSnapRefreshInfo
-	if err, ok := checkerErr.(*BusySnapError); ok {
-		refreshInfo = err.PendingSnapRefreshInfo()
-	} else {
-		refreshInfo = &userclient.PendingSnapRefreshInfo{
-			InstanceName: info.InstanceName(),
-		}
+	// carries the remaining inhibition time along with the BusySnapError
+	busyErr := &timedBusySnapError{}
+
+	// if it's not a snap busy error or the refresh is manual, surface the error
+	// to the user instead of notifying or delaying the refresh
+	if !snapsup.IsAutoRefresh || !errors.As(checkerErr, &(busyErr.err)) {
+		return checkerErr
 	}
 
 	// Decide on what to do depending on the state of the snap and the remaining
@@ -661,30 +675,23 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		// time in the snap state's RefreshInhibitedTime field. This field is
 		// reset to nil on successful refresh.
 		snapst.RefreshInhibitedTime = &now
-		refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+		busyErr.timeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 		Set(st, info.InstanceName(), snapst)
 	case now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition:
 		// If we are still in the allowed window then just return the error but
 		// don't change the snap state again.
 		// TODO: as time left shrinks, send additional notifications with
 		// increasing frequency, allowing the user to understand the urgency.
-		refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+		busyErr.timeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 	default:
-		// If we run out of time then consume the error that would normally
-		// inhibit refresh and notify the user that the snap is refreshing right
-		// now, by not setting the TimeRemaining field of the refresh
-		// notification message.
-		checkerErr = nil
-	}
-
-	// notify if we're out of time and auto-refreshing now. Otherwise, we'll notify
-	// after pre-downloading the task. If it's a manual refresh, we don't notify at all
-	if snapsup.IsAutoRefresh && checkerErr == nil {
-		// Send the notification asynchronously to avoid holding the state lock.
+		// if the refresh inhibition window has ended, notify the user that the
+		// refresh is happening now and ignore the error
+		refreshInfo := busyErr.PendingSnapRefreshInfo()
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+		busyErr = nil
 	}
 
-	return checkerErr
+	return busyErr
 }
 
 // for testing outside of snapstate

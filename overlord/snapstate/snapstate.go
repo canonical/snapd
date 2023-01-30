@@ -379,7 +379,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			// after the conflict check done above.
 			if err := softCheckNothingRunningForRefresh(st, snapst, snapsup, info); err != nil {
 				// snap is running; schedule its downloading before notifying to close
-				var busyErr *BusySnapError
+				var busyErr *timedBusySnapError
 				if errors.As(err, &busyErr) && snapsup.IsAutoRefresh {
 					tasks, err := findTasksMatching(st, "pre-download", snapsup.InstanceName(), snapsup.Revision())
 					if err != nil {
@@ -1808,7 +1808,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 
 		ts, err := doInstall(st, snapst, snapsup, 0, fromChange, inUseFor(deviceCtx))
 		if err != nil {
-			if errors.Is(err, &BusySnapError{}) && len(ts.Tasks()) > 0 {
+			if errors.Is(err, &timedBusySnapError{}) && len(ts.Tasks()) > 0 {
 				// snap is busy and pre-download tasks were made for it
 				ts.JoinLane(st.NewLane())
 				tasksets = append(tasksets, ts)

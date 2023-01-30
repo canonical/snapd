@@ -323,6 +323,7 @@ var (
 )
 
 type RefreshCandidate = refreshCandidate
+type TimedBusySnapError = timedBusySnapError
 
 func NewBusySnapError(info *snap.Info, pids []int, busyAppNames, busyHookNames []string) *BusySnapError {
 	return &BusySnapError{
