@@ -440,7 +440,7 @@ func onDiskVolumeFromPartitionSysfsPath(partPath string) (*gadget.OnDiskVolume, 
 // applyLayoutToOnDiskStructure finds the on disk structure from a
 // partition node and takes the laid out information from laidOutVols
 // and inserts it there.
-func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode string, laidOutVols map[string]*gadget.LaidOutVolume, gadgetVolName string) (*gadget.LaidOutStructure, error) {
+func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode string, laidOutVols map[string]*gadget.LaidOutVolume, gadgetVolName string, creatingPart bool) (*gadget.LaidOutStructure, error) {
 	onDiskStruct, err := structureFromPartDevice(onDiskVol, partNode)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find partition %q: %v", partNode, err)
@@ -452,6 +452,13 @@ func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode strin
 	}
 	logger.Noticef("laidOutStruct.OnDiskStructure: %+v, *onDiskStruct: %+v",
 		laidOutStruct.OnDiskStructure, *onDiskStruct)
+
+	// Keep wanted filesystem label and type, as that is what we actually want
+	// on the disk.
+	if creatingPart {
+		onDiskStruct.PartitionFSType = laidOutStruct.PartitionFSType
+		onDiskStruct.PartitionFSLabel = laidOutStruct.PartitionFSLabel
+	}
 	// This fills LaidOutStructure, including (importantly) the ResolvedContent field
 	laidOutStruct.OnDiskStructure = *onDiskStruct
 
@@ -508,7 +515,8 @@ func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string
 			// TODO: do we need to consider different
 			// sector sizes for the encrypted/unencrypted
 			// cases here?
-			laidOut, err := applyLayoutToOnDiskStructure(onDiskVol, volStruct.Device, allLaidOutVols, volName)
+			const creatingPart = false
+			laidOut, err := applyLayoutToOnDiskStructure(onDiskVol, volStruct.Device, allLaidOutVols, volName, creatingPart)
 			if err != nil {
 				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", volStruct.Device, err)
 			}
@@ -649,7 +657,8 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 				}
 			}
 			// Obtain partition data and link with laid out information
-			laidOut, err := applyLayoutToOnDiskStructure(onDiskVol, device, allLaidOutVols, volName)
+			const creatingPart = true
+			laidOut, err := applyLayoutToOnDiskStructure(onDiskVol, device, allLaidOutVols, volName, creatingPart)
 			if err != nil {
 				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", device, err)
 			}
