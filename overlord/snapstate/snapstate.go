@@ -386,9 +386,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 						return nil, err
 					}
 
-					// there's already a task for this snap/revision combination
-					if len(tasks) > 0 {
-						return nil, err
+					for _, task := range tasks {
+						switch task.Status() {
+						case state.DoStatus, state.DoneStatus, state.DoingStatus:
+							// there's already a task for this snap/revision combination
+							return nil, busyErr
+						}
 					}
 
 					preDownTask := st.NewTask("pre-download-snap", fmt.Sprintf(i18n.G("Pre-download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
@@ -396,7 +399,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 					preDownTask.Set("refresh-info", busyErr.PendingSnapRefreshInfo())
 
 					ts.AddTask(preDownTask)
-					return ts, err
+					return ts, busyErr
 				}
 
 				return nil, err
