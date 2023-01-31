@@ -397,7 +397,6 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		// installed
 		CurrentKernelCommandLines: nil,
 		// keep this comment to make gofmt 1.9 happy
-		Base:           bootWith.Base.Filename(),
 		Gadget:         bootWith.Gadget.Filename(),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 		BrandID:        model.BrandID(),
@@ -406,6 +405,12 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		Classic:        model.Classic(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+	}
+	// XXX: ideally this would use boot.Participant() but that
+	//  requires quite a bit of refactor because we need to pass a
+	//  snap.Device instead of a model here
+	if !model.Classic() {
+		modeenv.Base = bootWith.Base.Filename()
 	}
 
 	// get the ubuntu-boot bootloader and extract the kernel there
