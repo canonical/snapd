@@ -74,7 +74,7 @@ func init() {
 	supportedConfigurations["core.homedirs"] = true
 }
 
-func configureAppArmorAndReload(homedirs []string, opts *fsOnlyContext) error {
+func configureHomedirsInAppArmorAndReload(homedirs []string, opts *fsOnlyContext) error {
 	// important to note here that when a configure hook is invoked, handlers are invoked,
 	// so they are not *just* invoked by user-interaction, and we do not want to break those
 	// actions. So no-op on systems that do not support apparmor.
@@ -126,7 +126,7 @@ func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
 	if len(config) > 0 {
 		homedirs = strings.Split(config, ",")
 	}
-	return configureAppArmorAndReload(homedirs, opts)
+	return configureHomedirsInAppArmorAndReload(homedirs, opts)
 }
 
 func handleHomedirsConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
