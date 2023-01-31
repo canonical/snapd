@@ -27,7 +27,9 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const dockerSupportSummary = `allows operating as the Docker daemon`
@@ -53,6 +55,11 @@ const dockerSupportConnectedPlugAppArmorCore = `
 # /system-data/var/snap/docker/common/var-lib-docker/overlay2/$SHA/diff/
 /system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**} rwl,
 /system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**} rwl,
+`
+
+const dockerSupportConnectedPlugAppArmorUserNS = `
+# allow use of user namespaces
+userns,
 `
 
 const dockerSupportConnectedPlugAppArmor = `
@@ -1013,6 +1020,15 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	if !release.OnClassic {
 		spec.AddSnippet(dockerSupportConnectedPlugAppArmorCore)
 	}
+	// if apparmor supports userns mediation then add this too
+	if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
+		if features, err := apparmor_sandbox.ParserFeatures(); err == nil {
+			if strutil.ListContains(features, "userns") {
+				spec.AddSnippet(dockerSupportConnectedPlugAppArmorUserNS)
+			}
+		}
+	}
+
 	spec.SetUsesPtraceTrace()
 	return nil
 }
