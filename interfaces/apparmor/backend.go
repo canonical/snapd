@@ -586,6 +586,18 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 	return errors
 }
 
+func RemoveAllSnapAppArmorProfiles() error {
+	dir := dirs.SnapAppArmorDir
+	globs := []string{"snap.*", "snap-confine.*"}
+	cache := apparmor_sandbox.CacheDir
+	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, nil)
+	errUnload := unloadProfiles(removed, cache)
+	if errEnsure != nil {
+		return fmt.Errorf("cannot remove apparmor profiles: %s", errEnsure)
+	}
+	return errUnload
+}
+
 // Remove removes and unloads apparmor profiles of a given snap.
 func (b *Backend) Remove(snapName string) error {
 	dir := dirs.SnapAppArmorDir

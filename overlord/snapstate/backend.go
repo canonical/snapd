@@ -98,6 +98,7 @@ type managerBackend interface {
 	RemoveSnapMountUnits(s snap.PlaceInfo, meter progress.Meter) error
 	DiscardSnapNamespace(snapName string) error
 	RemoveSnapInhibitLock(snapName string) error
+	RemoveAllSnapAppArmorProfiles() error
 
 	// alias related
 	UpdateAliases(add []*backend.Alias, remove []*backend.Alias) error
