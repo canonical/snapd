@@ -876,7 +876,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 			return err
 		}
 
-		return asyncRefreshOnSnapClose(m.state, refreshInfo)
+		return asyncRefreshOnSnapClose(m.state, snapst, refreshInfo)
 	}
 
 	// signal to the autorefresh manager to continue the pre-downloaded autorefresh
@@ -889,7 +889,13 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 // asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
 // the user and then triggers an auto-refresh.
-func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) error {
+func asyncRefreshOnSnapClose(st *state.State, snapst *SnapState, refreshInfo *userclient.PendingSnapRefreshInfo) error {
+	// there's already a goroutine waiting for this snap to close so just notify
+	if snapst.WaitingOnClose {
+		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+		return nil
+	}
+
 	// monitor the snap until it closes
 	done := make(chan string)
 	if err := cgroup.MonitorSnapEnded(refreshInfo.InstanceName, done); err != nil {
@@ -899,6 +905,9 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 	// notify the user about the blocked refresh
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 
+	snapst.WaitingOnClose = true
+	Set(st, refreshInfo.InstanceName, snapst)
+
 	go func() {
 		<-done
 		st.Lock()
@@ -907,6 +916,9 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 		// signal that there's an auto-refresh to be continued
 		st.Set("continue-autorefresh", true)
 		st.EnsureBefore(0)
+
+		snapst.WaitingOnClose = false
+		Set(st, refreshInfo.InstanceName, snapst)
 	}()
 
 	return nil
@@ -1208,7 +1220,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 					InstanceName: snapsup.InstanceName(),
 				}
 
-				if err := asyncRefreshOnSnapClose(m.state, refreshInfo); err != nil {
+				if err := asyncRefreshOnSnapClose(m.state, snapst, refreshInfo); err != nil {
 					return err
 				}
 			}

@@ -230,6 +230,10 @@ type SnapState struct {
 	// LastRefreshTime records the time when the snap was last refreshed.
 	LastRefreshTime *time.Time `json:"last-refresh-time,omitempty"`
 
+	// WaitingOnClose determines whether there is a goroutine waiting for this snap
+	// to stop.
+	WaitingOnClose bool `json:"waiting-close,omitempty"`
+
 	// MigratedHidden is set if the user's snap dir has been migrated
 	// to ~/.snap/data.
 	MigratedHidden bool `json:"migrated-hidden,omitempty"`
