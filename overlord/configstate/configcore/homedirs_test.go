@@ -200,12 +200,12 @@ func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
 
 func (s *homedirsSuite) TestConfigureApparmorUnsupported(c *C) {
 	// Currently the homedir option will act more or less as a no-op on
-	// systems that do not have apparmor support. Thus lets test that
+	// systems that do not have apparmor support. So let's test that
 	// both unsupported and unusable will return no error, as it should be
 	// a no-op.
 
-	// let's mock this to ensure we do get an error should the function
-	// *not* act as a no-op
+	// let's mock this to ensure we can track whether this was called, as we don't
+	// want this called when unsupported.
 	var reloadProfilesCalled bool
 	restore := configcore.MockApparmorReloadAllSnapProfiles(func() error {
 		reloadProfilesCalled = true
