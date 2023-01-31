@@ -1899,6 +1899,11 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
 	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
 	defer restoreIsGraphicalSession()
 
+	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(snapName string) (bool, error) {
+		return false, nil
+	})
+	defer restoreTryNotifyRefresh()
+
 	var notification *usersessionclient.PendingSnapRefreshInfo
 	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
 		notification = refreshInfo
@@ -1944,6 +1949,11 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
 	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
 	defer restoreIsGraphicalSession()
 
+	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(snapName string) (bool, error) {
+		return false, nil
+	})
+	defer restoreTryNotifyRefresh()
+
 	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
 		return fmt.Errorf("boom")
 	})
@@ -1964,6 +1974,11 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowErrorOnFinish(c *ch
 
 	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
 	defer restoreIsGraphicalSession()
+
+	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(snapName string) (bool, error) {
+		return false, nil
+	})
+	defer restoreTryNotifyRefresh()
 
 	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
 		return nil
