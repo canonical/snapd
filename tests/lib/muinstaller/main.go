@@ -433,7 +433,6 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	if err != nil {
 		return err
 	}
-	logger.Noticef("encrypting: %t", shouldEncrypt)
 	// TODO: grow the data-partition based on disk size
 	encType := secboot.EncryptionTypeNone
 	if shouldEncrypt {

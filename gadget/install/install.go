@@ -450,7 +450,7 @@ func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode strin
 	if err != nil {
 		return nil, err
 	}
-	logger.Noticef("laidOutStruct.OnDiskStructure: %+v, *onDiskStruct: %+v",
+	logger.Debugf("when applying layout to disk structure: laidOutStruct.OnDiskStructure: %+v, *onDiskStruct: %+v",
 		laidOutStruct.OnDiskStructure, *onDiskStruct)
 
 	// Keep wanted filesystem label and type, as that is what we actually want

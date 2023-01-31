@@ -173,7 +173,8 @@ func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
 		return OnDiskStructure{}, fmt.Errorf("cannot decode filesystem label for partition %s: %v", p.KernelDeviceNode, err)
 	}
 
-	logger.Noticef("OnDiskStructureFromPartition: p.FilesystemType %q, p.FilesystemLabel %q", p.FilesystemType, p.FilesystemLabel)
+	logger.Debugf("OnDiskStructureFromPartition: p.FilesystemType %q, p.FilesystemLabel %q",
+		p.FilesystemType, p.FilesystemLabel)
 
 	// TODO add ID in second part of the gadget refactoring?
 	return OnDiskStructure{
