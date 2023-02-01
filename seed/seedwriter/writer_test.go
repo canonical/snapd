@@ -21,6 +21,7 @@ package seedwriter_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -1108,7 +1109,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
-		if !asserts.IsNotFound(err) {
+		if !errors.Is(err, &asserts.NotFoundError{}) {
 			c.Assert(err, IsNil)
 		}
 		f, err := snapfile.Open(sn.Path)
@@ -1765,7 +1766,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
-		if !asserts.IsNotFound(err) {
+		if !errors.Is(err, &asserts.NotFoundError{}) {
 			c.Assert(err, IsNil)
 		}
 		f, err := snapfile.Open(sn.Path)
@@ -2488,7 +2489,7 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 
 			for _, sn := range localSnaps {
 				si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
-				if !asserts.IsNotFound(err) {
+				if !errors.Is(err, &asserts.NotFoundError{}) {
 					c.Assert(err, IsNil)
 				}
 				f, err := snapfile.Open(sn.Path)
@@ -2600,7 +2601,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 
 	for _, sn := range localSnaps {
 		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
-		c.Assert(asserts.IsNotFound(err), Equals, true)
+		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
@@ -2981,7 +2982,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 
 	for _, sn := range localSnaps {
 		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
-		c.Assert(asserts.IsNotFound(err), Equals, true)
+		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)

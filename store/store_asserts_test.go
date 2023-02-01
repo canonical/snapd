@@ -21,6 +21,7 @@ package store_test
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -232,7 +233,7 @@ func (s *storeAssertsSuite) TestAssertionNotFoundV1(c *C) {
 	sto := store.New(&cfg, nil)
 
 	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.SnapDeclarationType,
 		Headers: map[string]string{
@@ -262,7 +263,7 @@ func (s *storeAssertsSuite) TestAssertionNotFoundV2(c *C) {
 	sto := store.New(&cfg, nil)
 
 	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.SnapDeclarationType,
 		Headers: map[string]string{
@@ -599,7 +600,7 @@ func (s *storeAssertsSuite) TestSeqFormingAssertionNotFound(c *C) {
 	sto := store.New(&cfg, nil)
 
 	_, err := sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar"}, 1, nil)
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.ValidationSetType,
 		Headers: map[string]string{
@@ -612,7 +613,7 @@ func (s *storeAssertsSuite) TestSeqFormingAssertionNotFound(c *C) {
 
 	// latest requested
 	_, err = sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar"}, 0, nil)
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.ValidationSetType,
 		Headers: map[string]string{

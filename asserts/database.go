@@ -45,14 +45,7 @@ func (e *NotFoundError) Error() string {
 }
 
 func (e *NotFoundError) Is(err error) bool {
-	// TODO: replace IsNotFound usages for errors.Is(err, &NotFoundError{})
-	return IsNotFound(err)
-}
-
-// IsNotFound returns whether err is an assertion not found error.
-func IsNotFound(err error) bool {
-	_, ok := err.(*NotFoundError)
-	return ok
+	return errors.Is(err, &NotFoundError{})
 }
 
 // A Backstore stores assertions. It can store and retrieve assertions
@@ -410,7 +403,7 @@ func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, erro
 			}
 			return hit, nil
 		}
-		if !IsNotFound(err) {
+		if !errors.Is(err, &NotFoundError{}) {
 			return nil, err
 		}
 	}
@@ -456,7 +449,7 @@ func (db *Database) Check(assert Assertion) error {
 	if typ.flags&noAuthority == 0 {
 		// TODO: later may need to consider type of assert to find candidate keys
 		accKey, err = db.findAccountKey(assert.AuthorityID(), assert.SignKeyID())
-		if IsNotFound(err) {
+		if errors.Is(err, &NotFoundError{}) {
 			return fmt.Errorf("no matching public key %q for signature by %q", assert.SignKeyID(), assert.AuthorityID())
 		}
 		if err != nil {
@@ -491,7 +484,7 @@ func (db *Database) Add(assert Assertion) error {
 	if err != nil {
 		if ufe, ok := err.(*UnsupportedFormatError); ok {
 			_, err := ref.Resolve(db.Find)
-			if err != nil && !IsNotFound(err) {
+			if err != nil && !errors.Is(err, &NotFoundError{}) {
 				return err
 			}
 			return &UnsupportedFormatError{Ref: ufe.Ref, Format: ufe.Format, Update: err == nil}
@@ -509,12 +502,12 @@ func (db *Database) Add(assert Assertion) error {
 	// through the os snap this seems the safest policy until we
 	// know more/better
 	_, err = db.trusted.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
-	if !IsNotFound(err) {
+	if !errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("cannot add %q assertion with primary key clashing with a trusted assertion: %v", ref.Type.Name, ref.PrimaryKey)
 	}
 
 	_, err = db.predefined.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
-	if !IsNotFound(err) {
+	if !errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("cannot add %q assertion with primary key clashing with a predefined assertion: %v", ref.Type.Name, ref.PrimaryKey)
 	}
 
@@ -531,7 +524,7 @@ func (db *Database) Add(assert Assertion) error {
 			if curRev >= rev {
 				return &RevisionError{Current: curRev, Used: rev}
 			}
-		} else if !IsNotFound(err) {
+		} else if !errors.Is(err, &NotFoundError{}) {
 			return err
 		}
 	}
@@ -575,7 +568,7 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 			assert = a
 			break
 		}
-		if !IsNotFound(err) {
+		if !errors.Is(err, &NotFoundError{}) {
 			return nil, err
 		}
 	}
@@ -723,7 +716,7 @@ func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[
 			assert = better(assert, a)
 			continue
 		}
-		if !IsNotFound(err) {
+		if !errors.Is(err, &NotFoundError{}) {
 			return nil, err
 		}
 	}

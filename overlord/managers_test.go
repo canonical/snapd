@@ -1092,7 +1092,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 				PrimaryKey: comps[2:],
 			}
 			a, err := ref.Resolve(s.storeSigning.Find)
-			if asserts.IsNotFound(err) {
+			if errors.Is(err, &asserts.NotFoundError{}) {
 				w.Header().Set("Content-Type", "application/problem+json")
 				w.WriteHeader(404)
 				w.Write([]byte(`{"error-list":[{"code":"not-found","message":"..."}]}`))

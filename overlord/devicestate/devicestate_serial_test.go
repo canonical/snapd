@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -678,7 +679,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C)
 		"model":    "pc",
 		"serial":   "9999",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	s.state.Unlock()
 	s.se.Ensure()

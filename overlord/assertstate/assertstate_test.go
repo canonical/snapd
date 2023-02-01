@@ -427,7 +427,7 @@ func (s *assertMgrSuite) TestAddBatchPrecheckPartial(c *C) {
 		"series":  "16",
 		"snap-id": "foo-id",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (s *assertMgrSuite) TestAddBatchPrecheckHappy(c *C) {
@@ -808,7 +808,7 @@ func (s *assertMgrSuite) TestValidateSnapStoreNotFound(c *C) {
 	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
 		"store": "my-brand-store",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (s *assertMgrSuite) TestValidateSnapMissingSnapSetup(c *C) {
@@ -1228,7 +1228,7 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 		"name":       "bar",
 		"sequence":   "4",
 	})
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsTooEarly(c *C) {
@@ -1404,7 +1404,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsChangingKey(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = storeKey2.Ref().Resolve(assertstate.DB(s.state).Find)
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	c.Assert(err, IsNil)
@@ -2215,7 +2215,7 @@ func (s *assertMgrSuite) TestBaseSnapDeclaration(c *C) {
 	defer r1()
 
 	baseDecl, err := assertstate.BaseDeclaration(s.state)
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(baseDecl, IsNil)
 
 	r2 := assertstest.MockBuiltinBaseDeclaration([]byte(`
@@ -2247,7 +2247,7 @@ func (s *assertMgrSuite) TestSnapDeclaration(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	snapDecl, err := assertstate.SnapDeclaration(s.state, "foo-id")
 	c.Assert(err, IsNil)
@@ -2405,7 +2405,7 @@ func (s *assertMgrSuite) TestPublisher(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	acct, err := assertstate.Publisher(s.state, "foo-id")
 	c.Assert(err, IsNil)
@@ -2427,7 +2427,7 @@ func (s *assertMgrSuite) TestPublisherStoreAccount(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	acct, err := assertstate.PublisherStoreAccount(s.state, "foo-id")
 	c.Assert(err, IsNil)
@@ -2456,7 +2456,7 @@ func (s *assertMgrSuite) TestStore(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = assertstate.Store(s.state, "bar")
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	store, err := assertstate.Store(s.state, "foo")
 	c.Assert(err, IsNil)
@@ -2531,7 +2531,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefreshError(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 	err := assertstate.AutoRefreshAssertions(s.state, 0)
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (s *assertMgrSuite) TestRefreshValidationSetAssertionsStoreError(c *C) {
@@ -2620,7 +2620,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 		"name":       "bar",
 		"sequence":   "4",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	s.fakeStore.(*fakeStore).requestedTypes = nil
 	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
@@ -2715,7 +2715,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 		"name":       "bar",
 		"sequence":   "7",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	// tracking current remains at 2
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
@@ -3004,7 +3004,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 		"name":       "foo",
 		"sequence":   "2",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
@@ -3068,7 +3068,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeMissingS
 		"name":       "foo",
 		"sequence":   "2",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
@@ -3345,7 +3345,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyMis
 		"name":       "bar",
 		"sequence":   "2",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyConflict(c *C) {
@@ -3392,7 +3392,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyCon
 		"name":       "bar",
 		"sequence":   "2",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterForgetHappy(c *C) {
@@ -3535,7 +3535,7 @@ func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 	// model isn't found in the main DB
 	_, err = assertstate.DB(st).Find(asserts.ModelType, hdrs)
 	c.Assert(err, NotNil)
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	// let's get a temporary DB
 	tempDB := assertstate.TemporaryDB(st)
 	c.Assert(tempDB, NotNil)
@@ -3548,7 +3548,7 @@ func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 	// the model is only in the temp database
 	_, err = assertstate.DB(st).Find(asserts.ModelType, hdrs)
 	c.Assert(err, NotNil)
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	// let's add it to the DB now
 	err = assertstate.Add(st, model)
@@ -3963,14 +3963,14 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 		"name":       "bar",
 		"sequence":   "2",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "baz",
 		"sequence":   "1",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, false)
 }
 
@@ -4226,7 +4226,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsConflictError(c *
 		"name":       "bar",
 		"sequence":   "2",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, false)
 }
 
