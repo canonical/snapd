@@ -168,12 +168,16 @@ func (s *homedirsSuite) TestConfigureUnchangedConfig(c *C) {
 }
 
 func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
+	restore := apparmor.MockLevel(apparmor.Full)
+	defer restore()
+
 	var homedirs []string
-	restore := configcore.MockApparmorUpdateHomedirsTunable(func(paths []string) error {
+	restore = configcore.MockApparmorUpdateHomedirsTunable(func(paths []string) error {
 		homedirs = paths
 		return errors.New("tunable error")
 	})
 	defer restore()
+
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
@@ -185,7 +189,10 @@ func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
 }
 
 func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
-	restore := configcore.MockApparmorReloadAllSnapProfiles(func() error {
+	restore := apparmor.MockLevel(apparmor.Full)
+	defer restore()
+
+	restore = configcore.MockApparmorReloadAllSnapProfiles(func() error {
 		return errors.New("reload error")
 	})
 	defer restore()
@@ -246,8 +253,11 @@ func (s *homedirsSuite) TestConfigureApparmorUnsupported(c *C) {
 }
 
 func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
+	restore := apparmor.MockLevel(apparmor.Full)
+	defer restore()
+
 	reloadProfilesCallCount := 0
-	restore := configcore.MockApparmorReloadAllSnapProfiles(func() error {
+	restore = configcore.MockApparmorReloadAllSnapProfiles(func() error {
 		reloadProfilesCallCount++
 		return nil
 	})
