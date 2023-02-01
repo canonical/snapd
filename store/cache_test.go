@@ -96,9 +96,9 @@ func (s *cacheSuite) TestPutMany(c *C) {
 	}
 }
 
-func (s *cacheSuite) TestGetNotExistant(c *C) {
-	err := s.cm.Get("hash-not-in-cache", "some-target-path")
-	c.Check(err, ErrorMatches, `link .*: no such file or directory`)
+func (s *cacheSuite) TestGetNotExistent(c *C) {
+	cacheHit := s.cm.Get("hash-not-in-cache", "some-target-path")
+	c.Check(cacheHit, Equals, false)
 }
 
 func (s *cacheSuite) TestGet(c *C) {
@@ -108,8 +108,8 @@ func (s *cacheSuite) TestGet(c *C) {
 	c.Assert(err, IsNil)
 
 	targetPath := filepath.Join(s.tmp, "new-location")
-	err = s.cm.Get("some-cache-key", targetPath)
-	c.Check(err, IsNil)
+	cacheHit := s.cm.Get("some-cache-key", targetPath)
+	c.Check(cacheHit, Equals, true)
 	c.Check(osutil.FileExists(targetPath), Equals, true)
 	c.Assert(targetPath, testutil.FileEquals, canary)
 }
@@ -156,7 +156,7 @@ func (s *cacheSuite) TestClenaup(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[len(cacheKeys)-1])), Equals, true)
 }
 
-func (s *cacheSuite) TestClenaupContinuesOnError(c *C) {
+func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
 	cacheKeys, testFiles := s.makeTestFiles(c, s.maxItems+2)
 	for _, p := range testFiles {
 		err := os.Remove(p)
@@ -214,4 +214,17 @@ func (s *cacheSuite) TestHardLinkCount(c *C) {
 	n, err = store.HardLinkCount(fi)
 	c.Assert(err, IsNil)
 	c.Check(n, Equals, uint64(10))
+}
+
+func (s *cacheSuite) TestCacheHitOnErrExist(c *C) {
+	targetPath := filepath.Join(s.tmp, "foo")
+	err := ioutil.WriteFile(targetPath, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// put file in target path
+	c.Assert(s.cm.Put("foo", targetPath), IsNil)
+
+	// cache tries to link to an occupied path
+	cacheHit := s.cm.Get("foo", targetPath)
+	c.Assert(cacheHit, Equals, true)
 }

@@ -196,7 +196,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 
-	if err := s.cacher.Get(downloadInfo.Sha3_384, targetPath); err == nil || errors.Is(err, os.ErrExist) {
+	if s.cacher.Get(downloadInfo.Sha3_384, targetPath) {
 		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
 		return nil
 	}

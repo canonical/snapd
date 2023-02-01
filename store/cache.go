@@ -20,6 +20,7 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -37,8 +38,9 @@ var osRemove = os.Remove
 
 // downloadCache is the interface that a store download cache must provide
 type downloadCache interface {
-	// Get gets the given cacheKey content and puts it into targetPath
-	Get(cacheKey, targetPath string) error
+	// Get gets the given cacheKey content and puts it into targetPath. Returns
+	// true if a cached file was moved to targetPath or if one was already there.
+	Get(cacheKey, targetPath string) bool
 	// Put adds a new file to the cache
 	Put(cacheKey, sourcePath string) error
 	// Get full path of the file in cache
@@ -48,8 +50,8 @@ type downloadCache interface {
 // nullCache is cache that does not cache
 type nullCache struct{}
 
-func (cm *nullCache) Get(cacheKey, targetPath string) error {
-	return fmt.Errorf("cannot get items from the nullCache")
+func (cm *nullCache) Get(cacheKey, targetPath string) bool {
+	return false
 }
 func (cm *nullCache) GetPath(cacheKey string) string {
 	return ""
@@ -100,13 +102,14 @@ func (cm *CacheManager) GetPath(cacheKey string) string {
 }
 
 // Get gets the given cacheKey content and puts it into targetPath
-func (cm *CacheManager) Get(cacheKey, targetPath string) error {
+func (cm *CacheManager) Get(cacheKey, targetPath string) bool {
 	if err := os.Link(cm.path(cacheKey), targetPath); err != nil {
-		return err
+		return errors.Is(err, os.ErrExist)
 	}
+
 	logger.Debugf("using cache for %s", targetPath)
 	now := time.Now()
-	return os.Chtimes(targetPath, now, now)
+	return os.Chtimes(targetPath, now, now) == nil
 }
 
 // Put adds a new file to the cache with the given cacheKey
