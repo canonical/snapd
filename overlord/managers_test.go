@@ -787,10 +787,6 @@ apps:
 `
 	s.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
 
-	tr := config.NewTransaction(st)
-	c.Assert(tr.Set("core", "experimental.quota-groups", "true"), IsNil)
-	tr.Commit()
-
 	// put the snap in a quota group
 	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"}, nil,
 		quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
@@ -838,10 +834,6 @@ apps:
   daemon: simple
 `
 	si := s.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
-
-	tr := config.NewTransaction(st)
-	c.Assert(tr.Set("core", "experimental.quota-groups", "true"), IsNil)
-	tr.Commit()
 
 	// add the snap to a quota group
 	ts, err := servicestate.CreateQuota(st, "grp", servicestate.CreateQuotaOptions{

@@ -63,12 +63,11 @@ const (
 	CheckDiskSpaceRefresh
 	// GateAutoRefreshHook enables refresh control from snaps via gate-auto-refresh hook.
 	GateAutoRefreshHook
-
-	// QuotaGroups enable creating resource quota groups for snaps via the rest API and cli.
+	// QuotaGroups enables any current experimental features related to the Quota Groups API, on top of the features
+	// already graduated past experimental:
+	//  * journal quotas are still experimental
+	// while guota groups creation and management and memory, cpu, quotas are no longer experimental.
 	QuotaGroups
-
-	// JournalQuota enables journal quotas for quota groups.
-	JournalQuota
 
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
@@ -108,8 +107,7 @@ var featureNames = map[SnapdFeature]string{
 
 	GateAutoRefreshHook: "gate-auto-refresh-hook",
 
-	QuotaGroups:  "quota-groups",
-	JournalQuota: "journal-quota",
+	QuotaGroups: "quota-groups",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.

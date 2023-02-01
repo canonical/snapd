@@ -70,28 +70,17 @@ func quotaGroupsAvailable(st *state.State) error {
 	if systemdVersionError != nil {
 		return fmt.Errorf("cannot use quotas with incompatible systemd: %v", systemdVersionError)
 	}
-
-	// TODO: remove this check
-	tr := config.NewTransaction(st)
-	enableQuotaGroups, err := features.Flag(tr, features.QuotaGroups)
-	if err != nil && !config.IsNoOption(err) {
-		return err
-	}
-	if !enableQuotaGroups {
-		return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.quota-groups' to true")
-	}
-
 	return nil
 }
 
-func isQuotaAvailable(st *state.State, feature features.SnapdFeature, settingName string) error {
+func isExperimentalQuotasAvailable(st *state.State, quotaName string) error {
 	tr := config.NewTransaction(st)
-	status, err := features.Flag(tr, feature)
+	status, err := features.Flag(tr, features.QuotaGroups)
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}
 	if !status {
-		return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.%s' to true", settingName)
+		return fmt.Errorf("%s quota options are experimental - test it by setting 'experimental.quota-groups' to true", quotaName)
 	}
 	return nil
 }
@@ -123,14 +112,9 @@ func verifyQuotaRequirements(st *state.State, resourceLimits quota.Resources) er
 			return fmt.Errorf("cannot use journal quota with incompatible systemd: %v", err)
 		}
 
-		// We also need to check against experimental features for journal quota
-		if journErr := isQuotaAvailable(st, features.JournalQuota, "journal-quota"); journErr != nil {
-			// For backwards compatibility with current uses of journal quota before this added feature
-			// we also allow the enabled quota-groups feature switch to be set
-			if err := isQuotaAvailable(st, features.QuotaGroups, "quota-groups"); err != nil {
-				// but is that not enabled either, let's point them to the new option
-				return journErr
-			}
+		// To use journal quotas, the quota-group experimental features must be enabled.
+		if err := isExperimentalQuotasAvailable(st, "journal"); err != nil {
+			return err
 		}
 	}
 	return nil
