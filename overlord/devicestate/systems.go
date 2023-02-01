@@ -325,7 +325,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// better way
 		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, f, db)
 		if err != nil {
-			if !asserts.IsNotFound(err) {
+			if !errors.Is(err, &asserts.NotFoundError{}) {
 				return recoverySystemDir, err
 			} else if info.SnapID != "" {
 				// snap info from state must have come

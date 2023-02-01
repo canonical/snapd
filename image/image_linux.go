@@ -20,6 +20,7 @@
 package image
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -387,7 +388,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	var curSnaps []*tooling.CurrentSnap
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, f, db)
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return err
 		}
 

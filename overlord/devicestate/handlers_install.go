@@ -1074,7 +1074,7 @@ func restoreDeviceSerialFromSave(model *asserts.Model) error {
 		"brand-id": model.BrandID(),
 		"model":    model.Model(),
 	})
-	if (err != nil && asserts.IsNotFound(err)) || len(serials) == 0 {
+	if (err != nil && errors.Is(err, &asserts.NotFoundError{})) || len(serials) == 0 {
 		// there is no serial assertion in the old system that matches
 		// our model, it is still possible that the old system could
 		// have generated device keys and sent out a serial request, but

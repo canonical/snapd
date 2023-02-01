@@ -22,6 +22,7 @@
 package configcore
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -118,7 +119,7 @@ func validateProxyStore(tr RunTransaction) error {
 	defer st.Unlock()
 
 	store, err := assertstate.Store(st, proxyStore)
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return fmt.Errorf("cannot set proxy.store to %q without a matching store assertion", proxyStore)
 	}
 	if err == nil && store.URL() == nil {

@@ -20,6 +20,7 @@
 package seedtest
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -305,7 +306,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, rf, db)
-		if !asserts.IsNotFound(err) {
+		if !errors.Is(err, &asserts.NotFoundError{}) {
 			c.Assert(err, IsNil)
 		}
 		f, err := snapfile.Open(sn.Path)

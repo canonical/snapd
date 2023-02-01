@@ -720,7 +720,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 	if modelAs.Store() != "" {
 		var err error
 		storeAs, err = assertstate.Store(c.st, modelAs.Store())
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return false, nil, err
 		}
 	}
@@ -881,7 +881,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 	if modelAs.Store() != "" {
 		var err error
 		storeAs, err = assertstate.Store(c.st, modelAs.Store())
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return false, err
 		}
 	}
@@ -1080,7 +1080,7 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 		return mapper.RemapSnapFromRequest(snapID), nil
 	}
 	decl, err := assertstate.SnapDeclaration(st, snapID)
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return "", nil
 	}
 	if err != nil {
