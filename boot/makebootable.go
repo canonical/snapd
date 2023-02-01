@@ -406,9 +406,8 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
 	}
-	// XXX: ideally this would use boot.Participant() but that
-	//  requires quite a bit of refactor because we need to pass a
-	//  snap.Device instead of a model here
+	// Note on classic systems there is no boot base, the system boots
+	// from debs.
 	if !model.Classic() {
 		modeenv.Base = bootWith.Base.Filename()
 	}
