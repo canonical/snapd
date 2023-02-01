@@ -45,7 +45,8 @@ func (e *NotFoundError) Error() string {
 }
 
 func (e *NotFoundError) Is(err error) bool {
-	return errors.Is(err, &NotFoundError{})
+	_, ok := err.(*NotFoundError)
+	return ok
 }
 
 // A Backstore stores assertions. It can store and retrieve assertions
