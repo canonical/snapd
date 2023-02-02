@@ -355,3 +355,17 @@ func WordWrapPadded(out io.Writer, text []rune, pad string, termWidth int) error
 	}
 	return WordWrap(out, text, indent, indent, termWidth)
 }
+
+// ConcatNonEmptyStrings concatenates non-empty strings with a space
+// separation. This overcomes a problem with strings.Join, which will
+// introduce separators for empty strings.
+func ConcatNonEmptyStrings(strs []string) string {
+	nonEmpty := make([]string, 0, len(strs))
+	for _, s := range strs {
+		s = strings.Trim(s, " ")
+		if s != "" {
+			nonEmpty = append(nonEmpty, s)
+		}
+	}
+	return strings.Join(nonEmpty, " ")
+}
