@@ -38,6 +38,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
@@ -79,7 +80,19 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
 	}
 	if err := UpdateSnapNamespace(snapName); err != nil {
-		return fmt.Errorf("cannot update mount namespace of snap %q: %s", snapName, err)
+		// try to discard the mount namespace and retry, but only if there aren't daemons in the snap
+		for _, app := range snapInfo.Apps {
+			if app.Daemon != "" {
+				return fmt.Errorf("cannot update mount namespace of snap %q when trying to update it, and cannot discard it and retry because it contains a daemon: %s", snapName, err)
+			}
+		}
+		logger.Debugf("cannot update mount namespace of snap %q; discarding namespace and retrying.", snapName)
+		if err = DiscardSnapNamespace(snapName); err != nil {
+			return fmt.Errorf("cannot discard mount namespace of snap %q when trying to update it: %s", snapName, err)
+		}
+		if err = UpdateSnapNamespace(snapName); err != nil {
+			return fmt.Errorf("cannot update mount namespace of snap %q: %s", snapName, err)
+		}
 	}
 	return nil
 }
