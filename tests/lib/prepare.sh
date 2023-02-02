@@ -735,9 +735,13 @@ EOF
         # current host, this should work for most cases, since the image will be
         # running on the same host
         # TODO:UC20: enable when ready
-        local uc20_is_ready=false
 
-        if [ "$uc20_is_ready" = "true" ]; then
+        # To avoid shellcheck unused code warning, we cannot use "exit 0" to disable
+        # the module drop code. To avoid commented out code, we use a flag instead.
+        # Strip off the check when this UC20 code is enabled.
+        uc20Ready=false
+
+        if [ "$uc20Ready" = "true" ]; then
             # drop unnecessary modules
             awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
             #shellcheck disable=SC2044
