@@ -880,7 +880,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	// signal to the autorefresh manager to continue the pre-downloaded autorefresh
-	st.Set("continue-autorefresh", true)
+	st.Cache("continue-autorefresh", true)
 	st.EnsureBefore(0)
 
 	perfTimings.Save(st)
@@ -890,8 +890,13 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 // asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
 // the user and then triggers an auto-refresh.
 func asyncRefreshOnSnapClose(st *state.State, snapst *SnapState, refreshInfo *userclient.PendingSnapRefreshInfo) error {
+	var monitoredSnaps map[string]bool
+	if cachedMonitored := st.Cached("monitored-snaps"); cachedMonitored != nil {
+		monitoredSnaps, _ = cachedMonitored.(map[string]bool)
+	}
+
 	// there's already a goroutine waiting for this snap to close so just notify
-	if snapst.WaitingOnClose {
+	if monitoredSnaps[refreshInfo.InstanceName] {
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 		return nil
 	}
@@ -905,20 +910,21 @@ func asyncRefreshOnSnapClose(st *state.State, snapst *SnapState, refreshInfo *us
 	// notify the user about the blocked refresh
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 
-	snapst.WaitingOnClose = true
-	Set(st, refreshInfo.InstanceName, snapst)
+	monitoredSnaps[refreshInfo.InstanceName] = true
+	st.Cache("monitored-snaps", monitoredSnaps)
 
+	// TODO: stop monitoring on refresh and clear related state
 	go func() {
 		<-done
 		st.Lock()
 		defer st.Unlock()
 
-		// signal that there's an auto-refresh to be continued
-		st.Set("continue-autorefresh", true)
+		// signal that there's an auto-refresh to be continued (for auto-refresh code)
+		st.Cache("continue-autorefresh", true)
 		st.EnsureBefore(0)
 
-		snapst.WaitingOnClose = false
-		Set(st, refreshInfo.InstanceName, snapst)
+		delete(monitoredSnaps, refreshInfo.InstanceName)
+		st.Cache("monitored-snaps", monitoredSnaps)
 	}()
 
 	return nil

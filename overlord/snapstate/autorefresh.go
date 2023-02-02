@@ -266,7 +266,7 @@ func (m *autoRefresh) canRefreshRespectingMetered(now, lastRefresh time.Time) (c
 }
 
 // Ensure ensures that we refresh all installed snaps periodically
-func (m *autoRefresh) Ensure() error {
+func (m *autoRefresh) Ensure() (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -278,16 +278,14 @@ func (m *autoRefresh) Ensure() error {
 		return err
 	}
 
-	// check if we're continuing an autorefresh that was previously blocked by running snaps
-	var continueRefresh bool
-	if err := m.state.Get("continue-autorefresh", &continueRefresh); err != nil && !errors.Is(err, &state.NoStateError{}) {
-		return err
-	}
-
-	if continueRefresh {
-		m.state.Set("continue-autorefresh", nil)
-
-		// TODO: do an early hard check so we fail early instead of mid-autorefresh
+	// can we continue an autorefresh that was previously blocked by running snaps
+	if continueAutorefresh(m.state) {
+		defer func() {
+			// clear the continue flag if the auto-refresh ran successfully
+			if err == nil {
+				m.state.Cache("continue-autorefresh", nil)
+			}
+		}()
 		return m.launchAutoRefresh()
 	}
 
@@ -388,6 +386,15 @@ func (m *autoRefresh) Ensure() error {
 	}
 
 	return err
+}
+
+func continueAutorefresh(st *state.State) bool {
+	if cachedCont := st.Cached("continue-autorefresh"); cachedCont != nil {
+		cont, _ := cachedCont.(bool)
+		return cont
+	}
+
+	return false
 }
 
 // isRefreshHeld returns whether an auto-refresh is currently held back or not,
