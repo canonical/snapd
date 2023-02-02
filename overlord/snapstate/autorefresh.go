@@ -567,14 +567,14 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return err
 	}
 
-	if tasksetGroup.PreDownload != nil {
+	if tasksetGroup != nil && tasksetGroup.PreDownload != nil {
 		chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
 		for _, ts := range tasksetGroup.PreDownload {
 			chg.AddAll(ts)
 		}
 	}
 
-	if tasksetGroup.Refresh == nil {
+	if tasksetGroup == nil || tasksetGroup.Refresh == nil {
 		return nil
 	}
 
