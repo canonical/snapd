@@ -52,7 +52,7 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
-type bootSuite struct {
+type kernelSuite struct {
 	configcoreSuite
 	storetest.Store
 
@@ -62,13 +62,13 @@ type bootSuite struct {
 	Brands       *assertstest.SigningAccounts
 }
 
-var _ = Suite(&bootSuite{})
+var _ = Suite(&kernelSuite{})
 
 var (
 	brandPrivKey, _ = assertstest.GenerateKey(752)
 )
 
-func (s *bootSuite) SetUpTest(c *C) {
+func (s *kernelSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
 	var err error
@@ -149,7 +149,7 @@ func (s *bootSuite) SetUpTest(c *C) {
 	s.mockEarlyConfig()
 }
 
-func (s *bootSuite) mockEarlyConfig() {
+func (s *kernelSuite) mockEarlyConfig() {
 	devicestate.EarlyConfig = func(*state.State, func() (
 		sysconfig.Device, *gadget.Info, error)) error {
 		return nil
@@ -157,7 +157,7 @@ func (s *bootSuite) mockEarlyConfig() {
 	s.AddCleanup(func() { devicestate.EarlyConfig = nil })
 }
 
-func (s *bootSuite) mockModel(st *state.State, grade string) {
+func (s *kernelSuite) mockModel(st *state.State, grade string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -191,7 +191,7 @@ func (s *bootSuite) mockModel(st *state.State, grade string) {
 	})
 }
 
-func (s *bootSuite) testConfigureBootCmdlineHappy(c *C, option, cmdline, modelGrade string) {
+func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option, cmdline, modelGrade string) {
 	s.mockModel(s.state, modelGrade)
 	doHandlerCalls := 0
 
@@ -275,19 +275,19 @@ func (s *bootSuite) testConfigureBootCmdlineHappy(c *C, option, cmdline, modelGr
 	s.state.Unlock()
 }
 
-func (s *bootSuite) TestConfigureBootCmdlineDangGrade(c *C) {
-	s.testConfigureBootCmdlineHappy(c, configcore.OptionBootCmdlineExtra, "par=val param", "dangerous")
+func (s *kernelSuite) TestConfigureKernelCmdlineDangGrade(c *C) {
+	s.testConfigureKernelCmdlineHappy(c, configcore.OptionKernelCmdlineAppend, "par=val param", "dangerous")
 }
 
-func (s *bootSuite) TestConfigureBootCmdlineSignedGrade(c *C) {
-	s.testConfigureBootCmdlineHappy(c, configcore.OptionBootCmdlineExtra, "par=val param", "signed")
+func (s *kernelSuite) TestConfigureKernelCmdlineSignedGrade(c *C) {
+	s.testConfigureKernelCmdlineHappy(c, configcore.OptionKernelCmdlineAppend, "par=val param", "signed")
 }
 
-func (s *bootSuite) TestConfigureBootCmdlineDangGradeDangCmdline(c *C) {
-	s.testConfigureBootCmdlineHappy(c, configcore.OptionBootDangerousCmdlineExtra, "par=val param", "dangerous")
+func (s *kernelSuite) TestConfigureKernelCmdlineDangGradeDangCmdline(c *C) {
+	s.testConfigureKernelCmdlineHappy(c, configcore.OptionKernelDangerousCmdlineAppend, "par=val param", "dangerous")
 }
 
-func (s *bootSuite) TestConfigureBootCmdlineSignedGradeDangCmdline(c *C) {
+func (s *kernelSuite) TestConfigureKernelCmdlineSignedGradeDangCmdline(c *C) {
 	s.mockModel(s.state, "signed")
 
 	cmdline := "param1=val1"
@@ -298,7 +298,7 @@ func (s *bootSuite) TestConfigureBootCmdlineSignedGradeDangCmdline(c *C) {
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), ts)
 	s.state.Unlock()
 
-	rt.Set("core", configcore.OptionBootDangerousCmdlineExtra, cmdline)
+	rt.Set("core", configcore.OptionKernelDangerousCmdlineAppend, cmdline)
 
 	err := configcore.Run(coreDev, rt)
 	c.Assert(err, ErrorMatches, "cannot use system.kernel.dangerous-cmdline-append for non-dangerous model")

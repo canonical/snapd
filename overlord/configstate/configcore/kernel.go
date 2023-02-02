@@ -37,16 +37,16 @@ import (
 )
 
 const (
-	OptionBootCmdlineExtra          = "system.kernel.cmdline-append"
-	OptionBootDangerousCmdlineExtra = "system.kernel.dangerous-cmdline-append"
+	OptionKernelCmdlineAppend          = "system.kernel.cmdline-append"
+	OptionKernelDangerousCmdlineAppend = "system.kernel.dangerous-cmdline-append"
 )
 
 func init() {
-	supportedConfigurations["core."+OptionBootCmdlineExtra] = true
-	supportedConfigurations["core."+OptionBootDangerousCmdlineExtra] = true
+	supportedConfigurations["core."+OptionKernelCmdlineAppend] = true
+	supportedConfigurations["core."+OptionKernelDangerousCmdlineAppend] = true
 }
 
-func changedBootConfigs(c RunTransaction) []string {
+func changedKernelConfigs(c RunTransaction) []string {
 	changed := []string{}
 	for _, name := range c.Changes() {
 		if strings.HasPrefix(name, "core.system.kernel.") {
@@ -68,7 +68,7 @@ func validateParamsAreAllowed(st *state.State, devCtx snapstate.DeviceContext, p
 }
 
 func validateCmdlineExtra(c RunTransaction) error {
-	changed := changedBootConfigs(c)
+	changed := changedKernelConfigs(c)
 	if len(changed) == 0 {
 		return nil
 	}
@@ -81,7 +81,7 @@ func validateCmdlineExtra(c RunTransaction) error {
 		return err
 	}
 
-	for _, opt := range changedBootConfigs(c) {
+	for _, opt := range changedKernelConfigs(c) {
 		optWithoutSnap := strings.SplitN(opt, ".", 2)[1]
 		cmdExtra, err := coreCfg(c, optWithoutSnap)
 		if err != nil {
@@ -93,12 +93,12 @@ func validateCmdlineExtra(c RunTransaction) error {
 		if err != nil {
 			return err
 		}
-		if optWithoutSnap == OptionBootCmdlineExtra {
+		if optWithoutSnap == OptionKernelCmdlineAppend {
 			// check against allowed values from gadget
 			if err := validateParamsAreAllowed(c.State(), devCtx, params); err != nil {
 				return fmt.Errorf("while validating params: %v", err)
 			}
-		} else { // OptionBootDangerousCmdlineExtra
+		} else { // OptionKernelDangerousCmdlineAppend
 			if devCtx.Model().Grade() != asserts.ModelDangerous {
 				return fmt.Errorf("cannot use %s for non-dangerous model",
 					optWithoutSnap)
@@ -110,11 +110,11 @@ func validateCmdlineExtra(c RunTransaction) error {
 }
 
 func handleCmdlineExtra(c RunTransaction, opts *fsOnlyContext) error {
-	bootOpts := changedBootConfigs(c)
-	if len(bootOpts) == 0 {
+	kernelOpts := changedKernelConfigs(c)
+	if len(kernelOpts) == 0 {
 		return nil
 	}
-	logger.Debugf("handling %v", bootOpts)
+	logger.Debugf("handling %v", kernelOpts)
 
 	st := c.State()
 	st.Lock()
