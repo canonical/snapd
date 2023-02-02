@@ -301,5 +301,5 @@ func (s *bootSuite) TestConfigureBootCmdlineSignedGradeDangCmdline(c *C) {
 	rt.Set("core", configcore.OptionBootDangerousCmdlineExtra, cmdline)
 
 	err := configcore.Run(coreDev, rt)
-	c.Assert(err, ErrorMatches, "cannot use system.boot.dangerous-cmdline-extra for non-dangerous model")
+	c.Assert(err, ErrorMatches, "cannot use system.kernel.dangerous-cmdline-append for non-dangerous model")
 }

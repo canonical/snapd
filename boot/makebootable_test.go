@@ -2234,8 +2234,8 @@ version: 5.0
 func (s *makeBootable20Suite) TestMakeBootableImageOptionalKernelArgsHappy(c *C) {
 	model := boottest.MakeMockUC20Model()
 	const cmdline = "param1=val param2"
-	for _, opt := range []string{"system.boot.cmdline-extra",
-		"system.boot.dangerous-cmdline-extra"} {
+	for _, opt := range []string{"system.kernel.cmdline-append",
+		"system.kernel.dangerous-cmdline-append"} {
 		options := map[string]string{
 			opt: cmdline,
 		}
@@ -2248,10 +2248,10 @@ func (s *makeBootable20Suite) TestMakeBootableImageOptionalKernelArgsBothBootOpt
 	const cmdline = "param1=val param2"
 	const cmdlineDanger = "param3=val param4"
 	options := map[string]string{
-		"system.boot.cmdline-extra":           cmdline,
-		"system.boot.dangerous-cmdline-extra": cmdlineDanger,
+		"system.kernel.cmdline-append":           cmdline,
+		"system.kernel.dangerous-cmdline-append": cmdlineDanger,
 	}
-	s.testMakeBootableImageOptionalKernelArgs(c, model, options, cmdline, "while retrieving optional kernel command line: system.boot.dangerous-cmdline-extra cannot be set if system.boot.cmdline-extra is set too")
+	s.testMakeBootableImageOptionalKernelArgs(c, model, options, cmdline+" "+cmdlineDanger, "")
 }
 
 func (s *makeBootable20Suite) TestMakeBootableImageOptionalKernelArgsErrorSignedAndDangerous(c *C) {
@@ -2260,7 +2260,7 @@ func (s *makeBootable20Suite) TestMakeBootableImageOptionalKernelArgsErrorSigned
 	})
 	const cmdline = "param1=val param2"
 	options := map[string]string{
-		"system.boot.dangerous-cmdline-extra": cmdline,
+		"system.kernel.dangerous-cmdline-append": cmdline,
 	}
-	s.testMakeBootableImageOptionalKernelArgs(c, model, options, cmdline, "while retrieving optional kernel command line: system.boot.dangerous-cmdline-extra is valid only for dangerous models")
+	s.testMakeBootableImageOptionalKernelArgs(c, model, options, cmdline, "while retrieving optional kernel command line: system.kernel.dangerous-cmdline-append is valid only for dangerous models")
 }

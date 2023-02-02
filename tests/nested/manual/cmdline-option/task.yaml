@@ -134,11 +134,11 @@ execute: |
   echo "Check we have the right model from snap model"
   remote.exec "sudo snap model --verbose" | MATCH "grade:\s+${MODEL_GRADE}"
 
-  cmdlineExtraDang="extradang.val=1 extradang.flag"
-  remoteCmd="sudo snap set system system.boot.dangerous-cmdline-extra=\"$cmdlineExtraDang\""
+  cmdlineOptDang="extradang.val=1 extradang.flag"
+  remoteCmd="sudo snap set system system.kernel.dangerous-cmdline-append=\"$cmdlineOptDang\""
   if [ "$MODEL_GRADE" = "dangerous" ]; then
       if ! remote.exec "$remoteCmd"; then
-          echo "Failure setting dangerous-cmdline-extra"
+          echo "Failure setting dangerous-cmdline-append"
           exit 1
       fi
       boot_id="$(tests.nested boot-id)"
@@ -146,24 +146,24 @@ execute: |
       remote.exec "sudo reboot" || true
       tests.nested wait-for reboot "$boot_id"
 
-      remote.exec "sudo cat /proc/cmdline" | MATCH "$cmdlineExtraDang"
+      remote.exec "sudo cat /proc/cmdline" | MATCH "$cmdlineOptDang"
   else
       if remote.exec "$remoteCmd"; then
-          echo "Unexpected success setting dangerous-cmdline-extra for model $MODEL_GRADE"
+          echo "Unexpected success setting dangerous-cmdline-append for model $MODEL_GRADE"
           exit 1
       fi
-      echo "Failure setting dangerous-cmdline-extra (as expected)"
+      echo "Failure setting dangerous-cmdline-append (as expected)"
   fi
 
-  cmdlineExtra="extra.val=1 extra.flag"
+  cmdlineOpt="extra.val=1 extra.flag"
   if [ "$MODEL_GRADE" = "dangerous" ]; then
-      remote.exec "sudo snap set system system.boot.dangerous-cmdline-extra="
+      remote.exec "sudo snap set system system.kernel.dangerous-cmdline-append="
   fi
-  remote.exec "sudo snap set system system.boot.cmdline-extra=\"$cmdlineExtra\""
+  remote.exec "sudo snap set system system.kernel.cmdline-append=\"$cmdlineOpt\""
 
   boot_id="$(tests.nested boot-id)"
   echo "Rebooting"
   remote.exec "sudo reboot" || true
   tests.nested wait-for reboot "$boot_id"
 
-  remote.exec "sudo cat /proc/cmdline" | MATCH "$cmdlineExtra"
+  remote.exec "sudo cat /proc/cmdline" | MATCH "$cmdlineOpt"

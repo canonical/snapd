@@ -299,7 +299,7 @@ func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRe
 		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
 	}
 	if _, ok := bl.(bootloader.TrustedAssetsBootloader); ok {
-		// Look at gadget default values for system.boot.*cmdline-extra options
+		// Look at gadget default values for system.kernel.*cmdline-append options
 		cmdlineOpt, err := buildOptionalKernelCommandLine(bootWith.GadgetSnapOrDir, model)
 		if err != nil {
 			return fmt.Errorf("while retrieving optional kernel command line: %v", err)
@@ -490,7 +490,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		}
 		modeenv.CurrentKernelCommandLines = bootCommandLines{cmdline}
 
-		// Look at gadget default values for system.boot.*cmdline-extra options
+		// Look at gadget default values for system.kernel.*cmdline-append options
 		cmdlineOpt, err := buildOptionalKernelCommandLine(bootWith.UnpackedGadgetDir, model)
 		if err != nil {
 			return fmt.Errorf("while retrieving optional kernel command line: %v", err)
@@ -551,30 +551,32 @@ func buildOptionalKernelCommandLine(gadgetSnapOrDir string, model *asserts.Model
 
 	var cmdlineOpt, cmdlineOptDang string
 
-	if cmdlineOptIf, ok := defaults["system.boot.cmdline-extra"]; ok {
+	if cmdlineOptIf, ok := defaults["system.kernel.cmdline-append"]; ok {
 		cmdlineOpt, ok = cmdlineOptIf.(string)
 		if !ok {
-			return "", fmt.Errorf("internal error: cannot convert value of system.boot.cmdline-extra to string")
+			return "", fmt.Errorf("internal error: cannot convert value of system.kernel.cmdline-append to string")
 		}
 	}
 
-	if cmdlineOptIf, ok := defaults["system.boot.dangerous-cmdline-extra"]; ok {
+	if cmdlineOptIf, ok := defaults["system.kernel.dangerous-cmdline-append"]; ok {
 		cmdlineOptDang, ok = cmdlineOptIf.(string)
 		if !ok {
-			return "", fmt.Errorf("internal error: cannot convert value of system.boot.dangerous-cmdline-extra to string")
+			return "", fmt.Errorf("internal error: cannot convert value of system.kernel.dangerous-cmdline-append to string")
 		}
 		if model.Grade() != asserts.ModelDangerous {
-			return "", fmt.Errorf("system.boot.dangerous-cmdline-extra is valid only for dangerous models")
+			return "", fmt.Errorf("system.kernel.dangerous-cmdline-append is valid only for dangerous models")
 		}
 	}
 
-	if cmdlineOpt == "" {
-		cmdlineOpt = cmdlineOptDang
-	} else {
-		if cmdlineOptDang != "" {
-			return "", fmt.Errorf("system.boot.dangerous-cmdline-extra cannot be set if system.boot.cmdline-extra is set too")
-		}
+	if cmdlineOpt != "" {
 		// TODO perform validation against what is allowed by the gadget
+	}
+
+	if cmdlineOptDang != "" {
+		if cmdlineOpt != "" {
+			cmdlineOpt += " "
+		}
+		cmdlineOpt += cmdlineOptDang
 	}
 
 	return cmdlineOpt, nil

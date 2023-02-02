@@ -441,7 +441,7 @@ func UpdateManagedBootConfigs(dev snap.Device, gadgetSnapOrDir, cmdlineExtra str
 	return updateManagedBootConfigForBootloader(dev, ModeRun, gadgetSnapOrDir, cmdlineExtra)
 }
 
-func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir, cmdlineExtra string) (updated bool, err error) {
+func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir, cmdlineOpt string) (updated bool, err error) {
 	if mode != ModeRun {
 		return false, fmt.Errorf("internal error: updating boot config of recovery bootloader is not supported yet")
 	}
@@ -459,7 +459,7 @@ func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir
 		return false, err
 	}
 	// boot config update can lead to a change of kernel command line
-	_, err = observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir, cmdlineExtra)
+	_, err = observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir, cmdlineOpt)
 	if err != nil {
 		return false, err
 	}

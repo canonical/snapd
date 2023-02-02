@@ -216,26 +216,27 @@ func buildOptionalKernelCommandLine(st *state.State) (string, error) {
 	var cmdlineOpt, cmdlineOptDanger string
 	tr := config.NewTransaction(st)
 	// Note that validation has already happened in configcore.
-	if err := tr.Get("core", "system.boot.cmdline-extra",
+	if err := tr.Get("core", "system.kernel.cmdline-append",
 		&cmdlineOpt); err != nil && !config.IsNoOption(err) {
 		return "", err
 	}
 
-	// Dangerous extra cmdline only considered for dangerous models and if
-	// the extra cmdline is not set.
-	if cmdlineOpt == "" {
-		deviceCtx, err := DeviceCtx(st, nil, nil)
-		if err != nil {
+	// Dangerous extra cmdline only considered for dangerous models
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return "", err
+	}
+	if deviceCtx.Model().Grade() == asserts.ModelDangerous {
+		if err := tr.Get("core", "system.kernel.dangerous-cmdline-append",
+			&cmdlineOptDanger); err != nil && !config.IsNoOption(err) {
 			return "", err
 		}
-		if deviceCtx.Model().Grade() == asserts.ModelDangerous {
-			if err := tr.Get("core", "system.boot.dangerous-cmdline-extra",
-				&cmdlineOptDanger); err != nil && !config.IsNoOption(err) {
-				return "", err
-			}
-			cmdlineOpt = cmdlineOptDanger
+		if cmdlineOptDanger != "" {
+			cmdlineOpt += " "
+			cmdlineOpt += cmdlineOptDanger
 		}
 	}
+
 	logger.Debugf("optional command line part is %q", cmdlineOpt)
 
 	if cmdlineOpt != "" {

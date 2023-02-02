@@ -37,8 +37,8 @@ import (
 )
 
 const (
-	OptionBootCmdlineExtra          = "system.boot.cmdline-extra"
-	OptionBootDangerousCmdlineExtra = "system.boot.dangerous-cmdline-extra"
+	OptionBootCmdlineExtra          = "system.kernel.cmdline-append"
+	OptionBootDangerousCmdlineExtra = "system.kernel.dangerous-cmdline-append"
 )
 
 func init() {
@@ -49,7 +49,7 @@ func init() {
 func changedBootConfigs(c RunTransaction) []string {
 	changed := []string{}
 	for _, name := range c.Changes() {
-		if strings.HasPrefix(name, "core.system.boot.") {
+		if strings.HasPrefix(name, "core.system.kernel.") {
 			changed = append(changed, name)
 		}
 	}

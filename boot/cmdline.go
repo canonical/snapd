@@ -117,7 +117,12 @@ func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineOpt str
 		full = false
 	}
 	logger.Debugf("extraOrFull: %q, cmdlineOpt: %q", extraOrFull, cmdlineOpt)
-	extraOrFull += cmdlineOpt
+	if cmdlineOpt != "" {
+		if extraOrFull != "" {
+			extraOrFull += " "
+		}
+		extraOrFull += cmdlineOpt
+	}
 	// gadget has the kernel command line
 	args := map[string]string{
 		"snapd_extra_cmdline_args": "",

@@ -73,13 +73,13 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		return fmt.Errorf("internal error: no current gadget")
 	}
 
-	cmdlineExtra, err := buildOptionalKernelCommandLine(st)
+	cmdlineOpt, err := buildOptionalKernelCommandLine(st)
 	if err != nil {
 		return fmt.Errorf("cannot build extra kernel command line: %v", err)
 	}
 
 	// TODO:UC20 update recovery boot config
-	updated, err := boot.UpdateManagedBootConfigs(devCtx, currentData.RootDir, cmdlineExtra)
+	updated, err := boot.UpdateManagedBootConfigs(devCtx, currentData.RootDir, cmdlineOpt)
 	if err != nil {
 		return fmt.Errorf("cannot update boot config assets: %v", err)
 	}
