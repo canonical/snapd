@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var sealKeyToModeenv = sealKeyToModeenvImpl
@@ -572,12 +573,7 @@ func buildOptionalKernelCommandLine(gadgetSnapOrDir string, model *asserts.Model
 		// TODO perform validation against what is allowed by the gadget
 	}
 
-	if cmdlineOptDang != "" {
-		if cmdlineOpt != "" {
-			cmdlineOpt += " "
-		}
-		cmdlineOpt += cmdlineOptDang
-	}
+	cmdlineOpt = strutil.ConcatNonEmptyStrings([]string{cmdlineOpt, cmdlineOptDang})
 
 	return cmdlineOpt, nil
 }

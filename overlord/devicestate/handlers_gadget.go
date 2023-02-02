@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 func makeRollbackDir(name string) (string, error) {
@@ -231,17 +232,12 @@ func buildOptionalKernelCommandLine(st *state.State) (string, error) {
 			&cmdlineOptDanger); err != nil && !config.IsNoOption(err) {
 			return "", err
 		}
-		if cmdlineOptDanger != "" {
-			cmdlineOpt += " "
-			cmdlineOpt += cmdlineOptDanger
-		}
+		cmdlineOpt = strutil.ConcatNonEmptyStrings(
+			[]string{cmdlineOpt, cmdlineOptDanger})
 	}
 
 	logger.Debugf("optional command line part is %q", cmdlineOpt)
 
-	if cmdlineOpt != "" {
-		cmdlineOpt = " " + cmdlineOpt
-	}
 	return cmdlineOpt, nil
 }
 

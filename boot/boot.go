@@ -470,7 +470,7 @@ func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir
 // contributes to the kernel command line of the run system. Returns true when a
 // change in command line has been observed and a reboot is needed. The reboot,
 // if needed, should be requested at the the earliest possible occasion.
-func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdlineExtra string) (needsReboot bool, err error) {
+func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdlineOpt string) (needsReboot bool, err error) {
 	if !dev.HasModeenv() {
 		// only UC20 devices are supported
 		return false, fmt.Errorf("internal error: command line component cannot be updated on pre-UC20 devices")
@@ -490,7 +490,7 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdli
 	}
 
 	// gadget update can lead to a change of kernel command line
-	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonGadget, gadgetSnapOrDir, cmdlineExtra)
+	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonGadget, gadgetSnapOrDir, cmdlineOpt)
 	if err != nil {
 		return false, err
 	}
@@ -499,7 +499,7 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdli
 	}
 	// update the bootloader environment, maybe clearing the relevant
 	// variables
-	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineExtra)
+	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineOpt)
 	if err != nil {
 		return false, fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
 	}
