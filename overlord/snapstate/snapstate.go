@@ -1302,12 +1302,12 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 		return nil, flagsByInstanceName[name], stateByInstanceName[name]
 	}
 
-	_, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "")
+	_, tasksetGroup, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "")
 	if err != nil {
 		return nil, err
 	}
 
-	return tasksets, nil
+	return tasksetGroup.Refresh, nil
 }
 
 // InstallMany installs everything from the given list of names. When specifying
@@ -1440,7 +1440,7 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
-func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, *TaskSetGroup, error) {
 	return updateManyFiltered(ctx, st, names, revOpts, userID, nil, flags, "")
 }
 
@@ -1486,12 +1486,12 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		// between epochs should managed by through  the validation sets
 		flags := &Flags{Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true}
 
-		updated, tss, err := UpdateMany(ctx, st, names, revOpts, userID, flags)
+		updated, tasksetGroup, err := UpdateMany(ctx, st, names, revOpts, userID, flags)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
 		}
 
-		tasksets = append(tasksets, tss...)
+		tasksets = append(tasksets, tasksetGroup.Refresh...)
 		affected = append(affected, updated...)
 	}
 
@@ -1612,7 +1612,7 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 	return nil
 }
 
-func updateManyFiltered(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
+func updateManyFiltered(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, *TaskSetGroup, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1684,27 +1684,17 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 		return nil, nil, err
 	}
 
-	updated, tasksets, err := doUpdate(ctx, st, names, toUpdate, params, userID, flags, deviceCtx, fromChange)
+	updated, tasksetGroup, err := doUpdate(ctx, st, names, toUpdate, params, userID, flags, deviceCtx, fromChange)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	var hasRefresh bool
-	for _, taskset := range tasksets {
-		for _, ts := range taskset.Tasks() {
-			if ts.Kind() != "pre-download-snap" {
-				hasRefresh = true
-				break
-			}
-		}
-	}
-
 	// if there are only pre-downloads, don't add a check-rerefresh task
-	if hasRefresh {
-		tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
+	if tasksetGroup.Refresh != nil {
+		tasksetGroup.Refresh = finalizeUpdate(st, tasksetGroup.Refresh, len(updates) > 0, updated, userID, flags)
 	}
 
-	return updated, tasksets, nil
+	return updated, tasksetGroup, nil
 }
 
 // filterHeldSnaps filters held snaps from being updated in a general refresh.
@@ -1728,12 +1718,22 @@ func filterHeldSnaps(st *state.State, updates []minimalInstallInfo, flags *Flags
 	return filteredUpdates, nil
 }
 
-func doUpdate(ctx context.Context, st *state.State, names []string, updates []minimalInstallInfo, params updateParamsFunc, userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, []*state.TaskSet, error) {
+// TODO:
+type TaskSetGroup struct {
+	// PreDownload holds the pre-downloads tasksets created when there are busy
+	// snaps that can't be refreshed during an auto-refresh.
+	PreDownload []*state.TaskSet
+	// Refresh holds the refresh tasksets.
+	Refresh []*state.TaskSet
+}
+
+func doUpdate(ctx context.Context, st *state.State, names []string, updates []minimalInstallInfo, params updateParamsFunc, userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, *TaskSetGroup, error) {
 	if globalFlags == nil {
 		globalFlags = &Flags{}
 	}
 
-	tasksets := make([]*state.TaskSet, 0, len(updates)+2) // 1 for auto-aliases, 1 for re-refresh
+	var installTasksets []*state.TaskSet
+	var preDlTasksets []*state.TaskSet
 
 	refreshAll := len(names) == 0
 	var nameSet map[string]bool
@@ -1762,7 +1762,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		if err != nil {
 			return nil, nil, err
 		}
-		tasksets = append(tasksets, pruningAutoAliasesTs)
+		installTasksets = append(installTasksets, pruningAutoAliasesTs)
 	}
 
 	// wait for the auto-alias prune tasks as needed
@@ -1814,7 +1814,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			if errors.Is(err, &timedBusySnapError{}) && len(ts.Tasks()) > 0 {
 				// snap is busy and pre-download tasks were made for it
 				ts.JoinLane(st.NewLane())
-				tasksets = append(tasksets, ts)
+				preDlTasksets = append(preDlTasksets, ts)
 				continue
 			}
 
@@ -1886,7 +1886,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		}
 
 		scheduleUpdate(update.InstanceName(), ts)
-		tasksets = append(tasksets, ts)
+		installTasksets = append(installTasksets, ts)
 	}
 	// Kernel must wait for gadget because the gadget may define
 	// new "$kernel:refs". Sorting the other way is impossible
@@ -1915,7 +1915,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		if err != nil {
 			return nil, nil, err
 		}
-		tasksets = append(tasksets, addAutoAliasesTs)
+		installTasksets = append(installTasksets, addAutoAliasesTs)
 	}
 
 	updated := make([]string, 0, len(reportUpdated))
@@ -1923,7 +1923,11 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		updated = append(updated, name)
 	}
 
-	return updated, tasksets, nil
+	group := &TaskSetGroup{
+		Refresh:     installTasksets,
+		PreDownload: preDlTasksets,
+	}
+	return updated, group, nil
 }
 
 func finalizeUpdate(st *state.State, tasksets []*state.TaskSet, hasUpdates bool, updated []string, userID int, globalFlags *Flags) []*state.TaskSet {
@@ -2317,10 +2321,13 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return opts, flags, &snapst
 	}
 
-	_, tts, err := doUpdate(context.TODO(), st, []string{name}, toUpdate, params, userID, &flags, deviceCtx, fromChange)
+	_, tasksetGroup, err := doUpdate(context.TODO(), st, []string{name}, toUpdate, params, userID, &flags, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
+
+	// pre-download tasksets are only used for auto-refreshes
+	tts := tasksetGroup.Refresh
 
 	// see if we need to switch the channel or cohort, or toggle ignore-validation
 	switchChannel := snapst.TrackingChannel != opts.Channel
@@ -2432,7 +2439,7 @@ var RestoreValidationSetsTracking func(st *state.State) error
 // AutoRefresh is the wrapper that will do a refresh of all the installed
 // snaps on the system. In addition to that it will also refresh important
 // assertions.
-func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskSet, error) {
+func AutoRefresh(ctx context.Context, st *state.State) ([]string, *TaskSetGroup, error) {
 	userID := 0
 
 	if AutoRefreshAssertions != nil {
@@ -2454,7 +2461,12 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
-	return autoRefreshPhase1(ctx, st, "")
+	updated, tss, err := autoRefreshPhase1(ctx, st, "")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return updated, &TaskSetGroup{Refresh: tss}, nil
 }
 
 // autoRefreshPhase1 creates gate-auto-refresh hooks and conditional-auto-refresh
@@ -2608,7 +2620,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 }
 
 // autoRefreshPhase2 creates tasks for refreshing snaps from updates.
-func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate, fromChange string) ([]*state.TaskSet, error) {
+func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate, fromChange string) (*TaskSetGroup, error) {
 	flags := &Flags{IsAutoRefresh: true}
 	userID := 0
 
@@ -2626,13 +2638,17 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 		return nil, err
 	}
 
-	updated, tasksets, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, deviceCtx, fromChange)
+	updated, tasksetGroup, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
 
-	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
-	return tasksets, nil
+	// pre-download tasksets are only used for auto-refreshes
+	if tasksetGroup.Refresh != nil {
+		tasksetGroup.Refresh = finalizeUpdate(st, tasksetGroup.Refresh, len(updates) > 0, updated, userID, flags)
+	}
+
+	return tasksetGroup, nil
 }
 
 // checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites

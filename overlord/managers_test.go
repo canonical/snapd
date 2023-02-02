@@ -1611,13 +1611,12 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBump(c *C) {
 	}
 
 	// refresh
-
-	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
+	affected, tasksetGroup, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
 	chg = st.NewChange("upgrade-snaps", "...")
-	for _, taskset := range tasksets {
+	for _, taskset := range tasksetGroup.Refresh {
 		chg.AddAll(taskset)
 	}
 
@@ -1737,13 +1736,13 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyFails(c *C) {
 	}
 
 	// refresh
-	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, nil, 0,
+	affected, tasksetGroup, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0,
 		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
 	chg = st.NewChange("upgrade-snaps", "...")
-	for _, taskset := range tasksets {
+	for _, taskset := range tasksetGroup.Refresh {
 		chg.AddAll(taskset)
 	}
 
@@ -1822,13 +1821,13 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyOk(c *C) {
 	}
 
 	// refresh
-	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, nil, 0,
+	affected, tasksetGroup, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0,
 		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
 	chg = st.NewChange("upgrade-snaps", "...")
-	for _, taskset := range tasksets {
+	for _, taskset := range tasksetGroup.Refresh {
 		chg.AddAll(taskset)
 	}
 
@@ -1902,12 +1901,12 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBumpAndOneFailin
 	}
 
 	// refresh
-	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
+	affected, tasksetGroup, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
 	chg = st.NewChange("upgrade-snaps", "...")
-	for _, taskset := range tasksets {
+	for _, taskset := range tasksetGroup.Refresh {
 		chg.AddAll(taskset)
 	}
 
@@ -2213,10 +2212,10 @@ version: @VERSION@
 	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
-	c.Assert(tss, HasLen, 2)
-	verifyLastTasksetIsRerefresh(c, tss)
+	c.Assert(tss.Refresh, HasLen, 2)
+	verifyLastTasksetIsRerefresh(c, tss.Refresh)
 	chg = st.NewChange("upgrade-snaps", "...")
-	chg.AddAll(tss[0])
+	chg.AddAll(tss.Refresh[0])
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -3365,7 +3364,8 @@ apps:
 	s.serveSnap(fooPath, "15")
 
 	// refresh all
-	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
+	updated, tssGroup, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
+	tss := tssGroup.Refresh
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
 	c.Assert(tss, HasLen, 2)
@@ -3612,7 +3612,8 @@ apps:
 	err = assertstate.RefreshSnapDeclarations(st, 0, nil)
 	c.Assert(err, IsNil)
 
-	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
+	updated, tssGroup, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
+	tss := tssGroup.Refresh
 	c.Assert(err, IsNil)
 	sort.Strings(updated)
 	c.Assert(updated, DeepEquals, []string{"bar", "foo"})
@@ -3739,7 +3740,8 @@ apps:
 	s.serveSnap(fooPath, "15")
 
 	// refresh all
-	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
+	updated, tssGroup, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
+	tss := tssGroup.Refresh
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
 	c.Assert(tss, HasLen, 2)
@@ -3776,7 +3778,8 @@ apps:
 	s.serveSnap(fooPath, "20")
 
 	// refresh all
-	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
+	updated, tssGroup, err = snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
+	tss = tssGroup.Refresh
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
 	c.Assert(tss, HasLen, 2)
@@ -3964,11 +3967,11 @@ assumes: [something-that-is-not-provided]
 	})
 
 	// updateMany will just skip snaps with assumes but not error
-	affected, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
+	affected, tssGroup, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(affected, HasLen, 0)
 	// the skipping is logged though
-	c.Check(tss, HasLen, 0)
+	c.Check(tssGroup.Refresh, HasLen, 0)
 	c.Check(s.logbuf.String(), testutil.Contains, `cannot update "some-snap": snap "some-snap" assumes unsupported features: something-that-is-not-provided (try`)
 }
 
@@ -4355,7 +4358,8 @@ version: @VERSION@`
 	err := assertstate.RefreshSnapDeclarations(st, 0, nil)
 	c.Assert(err, IsNil)
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap", "other-snap"}, nil, 0, nil)
+	updates, tssGroup, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap", "other-snap"}, nil, 0, nil)
+	tts := tssGroup.Refresh
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 3)
 	c.Assert(tts, HasLen, 4)
@@ -4457,7 +4461,8 @@ version: 1`
 	err := assertstate.RefreshSnapDeclarations(st, 0, nil)
 	c.Assert(err, IsNil)
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"some-snap"}, nil, 0, nil)
+	updates, tssGroup, err := snapstate.UpdateMany(context.TODO(), st, []string{"some-snap"}, nil, 0, nil)
+	tts := tssGroup.Refresh
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 1)
 	c.Assert(tts, HasLen, 2)
@@ -10121,7 +10126,8 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootSetup(c *C) (*boottest.R
 	p, _ = s.makeStoreTestSnap(c, snapYamlContent, "2")
 	s.serveSnap(p, "2")
 
-	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20", "some-snap"}, nil, 0, nil)
+	affected, tssGroup, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20", "some-snap"}, nil, 0, nil)
+	tss := tssGroup.Refresh
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"core20", "pc-kernel", "some-snap"})
 	chg := st.NewChange("update-many", "...")
@@ -10390,7 +10396,8 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootWithGadgetSetup(c *C, sn
 	})
 	s.serveSnap(p, "2")
 
-	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20", "pc", "snapd"}, nil, 0, nil)
+	affected, tssGroup, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20", "pc", "snapd"}, nil, 0, nil)
+	tss := tssGroup.Refresh
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"core20", "pc", "pc-kernel", "snapd"})
 	chg := st.NewChange("update-many", "...")
@@ -11232,13 +11239,13 @@ volumes:
 		// notice: no dtbs anymore in the gadget
 	})
 
-	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
+	affected, tssGroup, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, []string{"pi", "pi-kernel"})
 
 	chg := st.NewChange("upgrade-snaps", "...")
-	for _, ts := range tasksets {
+	for _, ts := range tssGroup.Refresh {
 		// skip the taskset of UpdateMany that does the
 		// check-rerefresh, see tsWithoutReRefresh for details
 		if ts.Tasks()[0].Kind() == "check-rerefresh" {
@@ -11385,13 +11392,13 @@ volumes:
 	// kernel provides assets that are not consumed by the old (installed)
 	// gadget
 
-	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, []string{"pi"}, nil, 0, &snapstate.Flags{})
+	affected, tssGroup, err := snapstate.UpdateMany(context.TODO(), st, []string{"pi"}, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, []string{"pi"})
 
 	addTaskSetsToChange := func(chg *state.Change, tss []*state.TaskSet) {
-		for _, ts := range tasksets {
+		for _, ts := range tss {
 			// skip the taskset of UpdateMany that does the
 			// check-rerefresh, see tsWithoutReRefresh for details
 			if ts.Tasks()[0].Kind() == "check-rerefresh" {
@@ -11401,7 +11408,7 @@ volumes:
 		}
 	}
 	chg := st.NewChange("upgrade-snaps", "...")
-	addTaskSetsToChange(chg, tasksets)
+	addTaskSetsToChange(chg, tssGroup.Refresh)
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -11413,13 +11420,13 @@ volumes:
 	c.Assert(restarting, Equals, false, Commentf("unexpected restart"))
 
 	// let's try updating the kernel;
-	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi-kernel"}, nil, 0, &snapstate.Flags{})
+	affected, tssGroup, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi-kernel"}, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, []string{"pi-kernel"})
 
 	chg = st.NewChange("upgrade-snaps", "...")
-	addTaskSetsToChange(chg, tasksets)
+	addTaskSetsToChange(chg, tssGroup.Refresh)
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -11470,13 +11477,13 @@ epoch: 1
 		{"boot-assets/start.elf", "start.elf rev1"},
 	})
 
-	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi"}, nil, 0, &snapstate.Flags{})
+	affected, tssGroup, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi"}, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, []string{"pi"})
 
 	chg = st.NewChange("upgrade-snaps", "...")
-	addTaskSetsToChange(chg, tasksets)
+	addTaskSetsToChange(chg, tssGroup.Refresh)
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -11500,13 +11507,13 @@ epoch: 1
 	c.Assert(restarting, Equals, false, Commentf("unexpected restart"))
 
 	// and now we can perform a refresh of the kernel
-	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi-kernel"}, nil, 0, &snapstate.Flags{})
+	affected, tssGroup, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi-kernel"}, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, []string{"pi-kernel"})
 
 	chg = st.NewChange("upgrade-snaps", "...")
-	addTaskSetsToChange(chg, tasksets)
+	addTaskSetsToChange(chg, tssGroup.Refresh)
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -11546,13 +11553,13 @@ epoch: 1
 	// cases and is probably why folks got into the circular dependency in
 	// the first place, for this we add another revision of the gadget snap
 
-	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi"}, nil, 0, &snapstate.Flags{})
+	affected, tssGroup, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi"}, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, []string{"pi"})
 
 	chg = st.NewChange("upgrade-snaps", "...")
-	addTaskSetsToChange(chg, tasksets)
+	addTaskSetsToChange(chg, tssGroup.Refresh)
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -11678,14 +11685,14 @@ volumes:
 		// notice: no dtbs anymore in the gadget
 	})
 
-	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
+	affected, tssGroup, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, []string{"pi", "pi-kernel"})
 
 	chg := st.NewChange("upgrade-snaps", "...")
 	tError := st.NewTask("error-trigger", "gadget failed")
-	for _, ts := range tasksets {
+	for _, ts := range tssGroup.Refresh {
 		// skip the taskset of UpdateMany that does the
 		// check-rerefresh, see tsWithoutReRefresh for details
 		tasks := ts.Tasks()
@@ -11829,14 +11836,14 @@ volumes:
 		// notice: no dtbs anymore in the gadget
 	})
 
-	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
+	affected, tssGroup, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, []string{"pi", "pi-kernel"})
 
 	chg := st.NewChange("upgrade-snaps", "...")
 	tError := st.NewTask("error-trigger", "kernel failed")
-	for _, ts := range tasksets {
+	for _, ts := range tssGroup.Refresh {
 		// skip the taskset of UpdateMany that does the
 		// check-rerefresh, see tsWithoutReRefresh for details
 		tasks := ts.Tasks()
@@ -11942,7 +11949,7 @@ func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
 	// "update-gadget-assets" task, see LP:#1940553
 	snapstate.TestingLeaveOutKernelUpdateGadgetAssets = true
 	defer func() { snapstate.TestingLeaveOutKernelUpdateGadgetAssets = false }()
-	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
+	affected, tssGroup, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, []string{"pi", "pi-kernel"})
@@ -11951,7 +11958,7 @@ func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
 	// is no "update-gadget-assets" task for the kernel, unfortunately
 	// there is no "state.TaskSet.RemoveTask" nor a "state.Task.Unwait()"
 	chg := st.NewChange("upgrade-snaps", "...")
-	for _, ts := range tasksets {
+	for _, ts := range tssGroup.Refresh {
 		// skip the taskset of UpdateMany that does the
 		// check-rerefresh, see tsWithoutReRefresh for details
 		if ts.Tasks()[0].Kind() == "check-rerefresh" {

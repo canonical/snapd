@@ -535,7 +535,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
 
 	// NOTE: this will unlock and re-lock state for network ops
-	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
+	updated, tasksetGroup, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
 
 	// TODO: we should have some way to lock just creating and starting changes,
 	//       as that would alleviate this race condition we are guarding against
@@ -556,24 +556,6 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return nil
 	}
 
-	var preDlTss, autorefreshTss []*state.TaskSet
-
-	for _, ts := range tasksets {
-		tasks := ts.Tasks()
-		if len(tasks) == 1 && tasks[0].Kind() == "pre-download-snap" {
-			preDlTss = append(preDlTss, ts)
-		} else {
-			autorefreshTss = append(autorefreshTss, ts)
-		}
-	}
-
-	if len(preDlTss) != 0 {
-		chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
-		for _, ts := range preDlTss {
-			chg.AddAll(ts)
-		}
-	}
-
 	if _, ok := err.(*httputil.PersistentNetworkError); ok {
 		logger.Noticef("Cannot prepare auto-refresh change due to a permanent network error: %s", err)
 		return err
@@ -585,7 +567,14 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return err
 	}
 
-	if len(autorefreshTss) == 0 {
+	if tasksetGroup.PreDownload != nil {
+		chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
+		for _, ts := range tasksetGroup.PreDownload {
+			chg.AddAll(ts)
+		}
+	}
+
+	if tasksetGroup.Refresh == nil {
 		return nil
 	}
 
@@ -596,7 +585,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}
 
 	chg := m.state.NewChange("auto-refresh", msg)
-	for _, ts := range autorefreshTss {
+	for _, ts := range tasksetGroup.Refresh {
 		chg.AddAll(ts)
 	}
 	chg.Set("snap-names", updated)

@@ -3895,7 +3895,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	updated, tasksets, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID())
+	updated, tasksetGroup, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID())
 	if err != nil {
 		return err
 	}
@@ -3905,7 +3905,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	} else {
 		t.Logf("Found re-refresh for %s.", strutil.Quoted(updated))
 
-		for _, taskset := range tasksets {
+		for _, taskset := range tasksetGroup.Refresh {
 			chg.AddAll(taskset)
 		}
 		st.EnsureBefore(0)
@@ -3930,33 +3930,36 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		return nil
 	}
 
-	tss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
+	tssGroup, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
 	if err != nil {
-		if errors.Is(err, &BusySnapError{}) {
-			chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
-			for _, ts := range tss {
-				chg.AddAll(ts)
-			}
-		}
-
 		return err
 	}
 
-	// update the map of refreshed snaps on the task, this affects
-	// conflict checks (we don't want to conflict on snaps that were held and
-	// won't be refreshed) -  see conditionalAutoRefreshAffectedSnaps().
-	newToUpdate := make(map[string]*refreshCandidate, len(snaps))
-	for _, candidate := range snaps {
-		newToUpdate[candidate.InstanceName()] = candidate
+	if tssGroup.PreDownload != nil {
+		chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
+		for _, ts := range tssGroup.PreDownload {
+			chg.AddAll(ts)
+		}
 	}
-	t.Set("snaps", newToUpdate)
 
-	// update original auto-refresh change
-	chg := t.Change()
-	for _, ts := range tss {
-		ts.WaitFor(t)
-		chg.AddAll(ts)
+	if tssGroup.Refresh != nil {
+		// update the map of refreshed snaps on the task, this affects
+		// conflict checks (we don't want to conflict on snaps that were held and
+		// won't be refreshed) -  see conditionalAutoRefreshAffectedSnaps().
+		newToUpdate := make(map[string]*refreshCandidate, len(snaps))
+		for _, candidate := range snaps {
+			newToUpdate[candidate.InstanceName()] = candidate
+		}
+		t.Set("snaps", newToUpdate)
+
+		// update original auto-refresh change
+		chg := t.Change()
+		for _, ts := range tssGroup.Refresh {
+			ts.WaitFor(t)
+			chg.AddAll(ts)
+		}
 	}
+
 	t.SetStatus(state.DoneStatus)
 
 	st.EnsureBefore(0)
