@@ -74,6 +74,9 @@ func (s *homedirsSuite) SetUpTest(c *C) {
 		}
 	})
 	s.AddCleanup(restore)
+
+	// Mock full apparmor support by default for the tests here
+	s.AddCleanup(apparmor.MockLevel(apparmor.Full))
 }
 
 func (s *homedirsSuite) TestValidationUnhappy(c *C) {
@@ -174,6 +177,7 @@ func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
 		return errors.New("tunable error")
 	})
 	defer restore()
+
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
