@@ -37,19 +37,23 @@ import (
 )
 
 const (
-	OptionKernelCmdlineAppend          = "system.kernel.cmdline-append"
-	OptionKernelDangerousCmdlineAppend = "system.kernel.dangerous-cmdline-append"
+	OptionKernelCmdlineAppend              = "system.kernel.cmdline-append"
+	OptionKernelDangerousCmdlineAppend     = "system.kernel.dangerous-cmdline-append"
+	CoreOptionKernelCmdlineAppend          = "core.system.kernel.cmdline-append"
+	CoreOptionKernelDangerousCmdlineAppend = "core.system.kernel.dangerous-cmdline-append"
 )
 
 func init() {
-	supportedConfigurations["core."+OptionKernelCmdlineAppend] = true
-	supportedConfigurations["core."+OptionKernelDangerousCmdlineAppend] = true
+	supportedConfigurations[CoreOptionKernelCmdlineAppend] = true
+	supportedConfigurations[CoreOptionKernelDangerousCmdlineAppend] = true
 }
 
 func changedKernelConfigs(c RunTransaction) []string {
 	changed := []string{}
 	for _, name := range c.Changes() {
-		if strings.HasPrefix(name, "core.system.kernel.") {
+		// Note that we cannot just check the prefix as we have
+		// system.kernel.* options also defined in sysctl.go.
+		if name == CoreOptionKernelCmdlineAppend || name == CoreOptionKernelDangerousCmdlineAppend {
 			changed = append(changed, name)
 		}
 	}
