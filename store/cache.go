@@ -103,8 +103,8 @@ func (cm *CacheManager) GetPath(cacheKey string) string {
 
 // Get gets the given cacheKey content and puts it into targetPath
 func (cm *CacheManager) Get(cacheKey, targetPath string) bool {
-	if err := os.Link(cm.path(cacheKey), targetPath); err != nil {
-		return errors.Is(err, os.ErrExist)
+	if err := os.Link(cm.path(cacheKey), targetPath); err != nil && !errors.Is(err, os.ErrExist) {
+		return false
 	}
 
 	logger.Debugf("using cache for %s", targetPath)

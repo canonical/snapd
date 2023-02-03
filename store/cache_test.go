@@ -132,7 +132,7 @@ func (s *cacheSuite) makeTestFiles(c *C, n int) (cacheKeys []string, testFiles [
 	return cacheKeys, testFiles
 }
 
-func (s *cacheSuite) TestClenaup(c *C) {
+func (s *cacheSuite) TestCleanup(c *C) {
 	cacheKeys, testFiles := s.makeTestFiles(c, s.maxItems+2)
 
 	// Nothing was removed at this point because the test files are
