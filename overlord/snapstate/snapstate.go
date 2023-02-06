@@ -359,10 +359,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	targetRevision := snapsup.Revision()
-	var revisionStr string
-	if snapsup.SideInfo != nil {
-		revisionStr = fmt.Sprintf(" (%s)", targetRevision)
-	}
+	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
 
 	ts := state.NewTaskSet()
 	if snapst.IsInstalled() {
@@ -1811,7 +1808,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 
 		ts, err := doInstall(st, snapst, snapsup, 0, fromChange, inUseFor(deviceCtx))
 		if err != nil {
-			if errors.Is(err, &timedBusySnapError{}) && len(ts.Tasks()) > 0 {
+			if errors.Is(err, &timedBusySnapError{}) && ts != nil {
 				// snap is busy and pre-download tasks were made for it
 				ts.JoinLane(st.NewLane())
 				preDlTasksets = append(preDlTasksets, ts)

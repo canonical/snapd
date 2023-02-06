@@ -170,6 +170,8 @@ type fakeStore struct {
 	downloadError   map[string]error
 	state           *state.State
 	seenPrivacyKeys map[string]bool
+
+	downloadCallback func()
 }
 
 func (f *fakeStore) pokeStateLock() {
@@ -695,6 +697,8 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	if _, key := snap.SplitInstanceName(name); key != "" {
 		return fmt.Errorf("internal error: unsupported download with instance name %q", name)
 	}
+	f.downloadCallback()
+
 	var macaroon string
 	if user != nil {
 		macaroon = user.StoreMacaroon

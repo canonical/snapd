@@ -59,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -9043,4 +9044,22 @@ func (s *snapmgrTestSuite) TestUpdateLaneErrorsWithLaneButNoTransaction(c *C) {
 	ts, err = snapstate.Update(s.state, "some-snap", nil, s.user.ID, *flags)
 	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
 	c.Check(ts, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestDownloadTaskWaitsForPredownload(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	preDlChg := s.state.NewChange("pre-download", "")
+	preDlTask := s.state.NewTask("pre-download-snap", "")
+
+	refreshChg := s.state.NewChange("refresh", "")
+	s.fakeStore.downloadCallback = func() {
+		dlTask := s.state.NewTask("download-snap", "")
+		refreshChg.AddTask(dlTask)
+
+	}
+
+	// TODO
+
 }

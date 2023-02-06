@@ -935,7 +935,7 @@ func findTasksMatching(st *state.State, kind string, snapName string, revision s
 
 	chgs := st.Changes()
 	for _, chg := range chgs {
-		if chg.ID() != kind {
+		if chg.Kind() != kind {
 			continue
 		}
 

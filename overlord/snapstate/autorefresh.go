@@ -561,13 +561,13 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return err
 	}
 
-	m.state.Set("last-refresh", time.Now())
+	m.state.Set("last-refresh", timeNow())
 	if err != nil {
 		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err
 	}
 
-	if tasksetGroup != nil && tasksetGroup.PreDownload != nil {
+	if tasksetGroup != nil && len(tasksetGroup.PreDownload) > 0 {
 		chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
 		for _, ts := range tasksetGroup.PreDownload {
 			chg.AddAll(ts)
@@ -639,6 +639,11 @@ func (e *timedBusySnapError) PendingSnapRefreshInfo() *userclient.PendingSnapRef
 
 func (e *timedBusySnapError) Error() string {
 	return e.err.Error()
+}
+
+func (e *timedBusySnapError) Is(err error) bool {
+	_, ok := err.(*timedBusySnapError)
+	return ok
 }
 
 // inhibitRefresh returns an error if refresh is inhibited by running apps.
