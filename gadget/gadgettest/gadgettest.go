@@ -162,7 +162,10 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 		return nil, nil, nil, nil, err
 	}
 
-	// "Real" disk data that will be read
+	// "Real" disk data that will be read. Filesystem type and label are not
+	// filled as the filesystem is considered not created yet, which is
+	// expected by some tests (some option would have to be added to fill or
+	// not if this data is needed by some test in the future).
 	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
 	disk := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
@@ -183,13 +186,11 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 			},
 			{
 				PartitionLabel:   "ubuntu-save",
-				FilesystemLabel:  "ubuntu-save-enc",
 				KernelDeviceNode: "/dev/vda4",
 				DiskIndex:        4,
 			},
 			{
 				PartitionLabel:   "ubuntu-data",
-				FilesystemLabel:  "ubuntu-data-enc",
 				KernelDeviceNode: "/dev/vda5",
 				DiskIndex:        5,
 			},
