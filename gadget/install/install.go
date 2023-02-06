@@ -437,10 +437,10 @@ func onDiskVolumeFromPartitionSysfsPath(partPath string) (*gadget.OnDiskVolume, 
 	return onDiskVol, nil
 }
 
-// applyLayoutToOnDiskStructure finds the on disk structure from a
+// applyOnDiskStructureToLaidOut finds the on disk structure from a
 // partition node and takes the laid out information from laidOutVols
 // and inserts it there.
-func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode string, laidOutVols map[string]*gadget.LaidOutVolume, gadgetVolName string, creatingPart bool) (*gadget.LaidOutStructure, error) {
+func applyOnDiskStructureToLaidOut(onDiskVol *gadget.OnDiskVolume, partNode string, laidOutVols map[string]*gadget.LaidOutVolume, gadgetVolName string, creatingPart bool) (*gadget.LaidOutStructure, error) {
 	onDiskStruct, err := structureFromPartDevice(onDiskVol, partNode)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find partition %q: %v", partNode, err)
@@ -516,7 +516,7 @@ func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string
 			// sector sizes for the encrypted/unencrypted
 			// cases here?
 			const creatingPart = false
-			laidOut, err := applyLayoutToOnDiskStructure(onDiskVol, volStruct.Device, allLaidOutVols, volName, creatingPart)
+			laidOut, err := applyOnDiskStructureToLaidOut(onDiskVol, volStruct.Device, allLaidOutVols, volName, creatingPart)
 			if err != nil {
 				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", volStruct.Device, err)
 			}
@@ -658,7 +658,7 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 			}
 			// Obtain partition data and link with laid out information
 			const creatingPart = true
-			laidOut, err := applyLayoutToOnDiskStructure(onDiskVol, device, allLaidOutVols, volName, creatingPart)
+			laidOut, err := applyOnDiskStructureToLaidOut(onDiskVol, device, allLaidOutVols, volName, creatingPart)
 			if err != nil {
 				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", device, err)
 			}
