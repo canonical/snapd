@@ -556,7 +556,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	sc_do_mounts(scratch_dir, config->mounts);
 
 	// Dynamic mounts handle things like user-specified home directories. These
-	// can change between runs, so they are stored seperately. As we don't know
+	// can change between runs, so they are stored separately. As we don't know
 	// these in advance, make sure paths also exist in the scratch dir.
 	sc_create_mount_points(scratch_dir, config->dynamic_mounts);
 	sc_do_mounts(scratch_dir, config->dynamic_mounts);
