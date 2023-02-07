@@ -273,6 +273,42 @@ static dev_t find_base_snap_device(const char *base_snap_name,
 	return base_snap_dev;
 }
 
+static bool base_snap_device_changed(sc_mountinfo *mi, dev_t base_snap_dev)
+{
+	sc_mountinfo_entry *mie;
+
+	/* We are looking for a mount entry matching the device ID of the base
+	 * snap. We need to take these cases into account:
+	 * 1) In the typical case, this will be mounted on the "/" directory.
+	 * 2) If the root directory is a tmpfs, the base snap would be mounted
+	 *    under /usr.
+	 * 3) If the snap has a layout that adds directories or files directly
+	 *    under /usr, a writable mimic will be created: /usr will be a tmpfs,
+	 *    with all of the original directory entries inside of /usr being
+	 *    bind-mounted onto mount-points created into the tmpfs.
+	 * In light of the above, we do ignore all tmpfs entries and accept that
+	 * our base snap might be mounted under /, /usr, or anywhere under /usr.
+	 */
+	for (mie = sc_first_mountinfo_entry(mi); mie != NULL;
+	     mie = sc_next_mountinfo_entry(mie)) {
+		if (sc_streq(mie->fs_type, "tmpfs")) {
+			continue;
+		}
+
+		if (base_snap_dev == makedev(mie->dev_major, mie->dev_minor) &&
+		    (sc_streq(mie->mount_dir, "/") ||
+		     sc_streq(mie->mount_dir, "/usr") ||
+		     sc_startswith(mie->mount_dir, "/usr/"))) {
+			debug("found base snap device %d:%d on %s",
+			      mie->dev_major, mie->dev_minor, mie->mount_dir);
+			return false;
+		}
+	}
+	debug("base snap device %d:%d not found in existing mount ns",
+	      major(base_snap_dev), minor(base_snap_dev));
+	return true;
+}
+
 static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs)
 {
 	if (homedirs == NULL) return true;
@@ -308,42 +344,6 @@ static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs)
 		}
 	}
 	return all_seen;
-}
-
-static bool base_snap_device_changed(sc_mountinfo *mi, dev_t base_snap_dev)
-{
-	sc_mountinfo_entry *mie;
-
-	/* We are looking for a mount entry matching the device ID of the base
-	 * snap. We need to take these cases into account:
-	 * 1) In the typical case, this will be mounted on the "/" directory.
-	 * 2) If the root directory is a tmpfs, the base snap would be mounted
-	 *    under /usr.
-	 * 3) If the snap has a layout that adds directories or files directly
-	 *    under /usr, a writable mimic will be created: /usr will be a tmpfs,
-	 *    with all of the original directory entries inside of /usr being
-	 *    bind-mounted onto mount-points created into the tmpfs.
-	 * In light of the above, we do ignore all tmpfs entries and accept that
-	 * our base snap might be mounted under /, /usr, or anywhere under /usr.
-	 */
-	for (mie = sc_first_mountinfo_entry(mi); mie != NULL;
-	     mie = sc_next_mountinfo_entry(mie)) {
-		if (sc_streq(mie->fs_type, "tmpfs")) {
-			continue;
-		}
-
-		if (base_snap_dev == makedev(mie->dev_major, mie->dev_minor) &&
-		    (sc_streq(mie->mount_dir, "/") ||
-		     sc_streq(mie->mount_dir, "/usr") ||
-		     sc_startswith(mie->mount_dir, "/usr/"))) {
-			debug("found base snap device %d:%d on %s",
-			      mie->dev_major, mie->dev_minor, mie->mount_dir);
-			return false;
-		}
-	}
-	debug("base snap device %d:%d not found in existing mount ns",
-	      major(base_snap_dev), minor(base_snap_dev));
-	return true;
 }
 
 // Inspect the namespace and check if we should discard it.
