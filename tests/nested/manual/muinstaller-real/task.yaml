@@ -59,6 +59,7 @@ execute: |
   version=22
   snap download --basename=pc --channel="$version/edge" pc
   cp pc.snap pc.snap.orig
+  # the fakestore needs the assertion
   snap ack pc.assert
   unsquashfs -d pc-gadget pc.snap
   echo 'console=ttyS0 systemd.journald.forward_to_console=1' > pc-gadget/cmdline.extra
@@ -74,6 +75,7 @@ execute: |
   # get an updated kernel
   snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
   cp pc-kernel.snap pc-kernel.snap.orig
+  # the fakestore needs this assertion
   snap ack pc-kernel.assert
   uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
@@ -258,8 +260,36 @@ execute: |
       jq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"
   fi
 
-
   # test kernel/gadget refreshes via the fake-store
+
+  # setup refresh for a rebooting snap
+  refresh_rebooting_snap()
+  {
+      local snap_name=$1
+      local snap_orig_blob=$2
+      local snap_new_dir=$3
+
+      local reboot_action=$3
+      printf "Test installing snap from file %s\n" "$snap_name"
+      fakestore make-refreshable --dir "$STORE_DIR" --snap-orig-blob "$snap_orig_blob" --snap-blob "$snap_new_dir" "$snap_name"
+      boot_id=$(tests.nested boot-id)
+      REMOTE_CHG_ID=$(remote.exec sudo snap refresh --amend --no-wait --channel="$version/edge" "$snap_name")
+      # Wait until we stall in the connection of interface as we wait for a reboot
+      retry --wait 1 -n 120 sh -c "remote.exec \"snap change $REMOTE_CHG_ID | grep -E 'Task set to wait until a manual system restart'\""
+
+      # Check that a reboot notification was setup
+      remote.exec test -f /run/reboot-required
+      remote.exec cat /run/reboot-required.pkgs | MATCH "snap:${snap_name}"
+      # Check that no reboot has been scheduled, then force a reboot
+      remote.exec not test -f /run/systemd/shutdown/scheduled
+
+      remote.exec sudo reboot || true
+      tests.nested wait-for reboot "$boot_id"
+      remote.exec sudo snap watch "$REMOTE_CHG_ID"
+      remote.exec "snap change $REMOTE_CHG_ID" | NOMATCH Error
+  }
+  # ensure update-notifier-common is installed so that reboot notification works
+  remote.exec "sudo apt install -y update-notifier-common"
 
   # setup fake store again and make it available inside the nested vm
   setup_fake_store "$STORE_DIR"
@@ -275,40 +305,27 @@ execute: |
   nested_start_core_vm
   unset NESTED_TPM_NO_RESTART
 
-  # make new gadget
-  fakestore make-refreshable --dir "$STORE_DIR" --snap-orig-blob pc.snap.orig --snap-blob ./pc-gadget pc
+  # test gadget/kernel refresh
+  refresh_rebooting_snap pc pc.snap.orig ./pc-gadget
 
-  # refresh gadget
-  boot_id="$(tests.nested boot-id)"
-  remote.exec "sudo snap refresh --amend --no-wait --channel=$version/edge pc" > refresh-change-id
-  change_id="$(cat refresh-change-id)"
-  while true; do
-      if remote.exec "snap change $change_id" | grep "Task set to wait until a manual system restart"; then
-          break
-      fi
-  done
-  remote.exec "sudo reboot" || true
-  tests.nested wait-for reboot "$boot_id"
-  remote.exec "snap watch $change_id"
-  remote.exec "snap change $change_id" | NOMATCH Error
-
-  # make new kernel
   unsquashfs -d pc-kernel pc-kernel.snap
-  fakestore make-refreshable --dir "$STORE_DIR" --snap-orig-blob pc-kernel.snap.orig --snap-blob ./pc-kernel pc-kernel
+  refresh_rebooting_snap pc-kernel pc-kernel.snap.orig ./pc-kernel
 
-  # refresh kernel
-  boot_id="$(tests.nested boot-id)"
-  remote.exec "sudo snap refresh --amend --no-wait --channel=$version/edge pc-kernel" > refresh-change-id
-  change_id="$(cat refresh-change-id)"
-  while true; do
-      if remote.exec "snap change $change_id" | grep "Task set to wait until a manual system restart"; then
-          break
-      fi
-  done
-  remote.exec "sudo reboot" || true
+  # test that core22+ refreshes fine and does not revert after a reboot
+  # (see https://github.com/snapcore/snapd/pull/12532)
+  snap download --basename="core${version}" --channel="edge" "core${version}"
+  cp "core${version}".snap "core${version}".snap.orig
+  unsquashfs -d "core${version}" "core${version}".snap
+  echo "modified" >> ./"core${version}"/etc/motd
+  snap pack --filename="core${version}".snap ./"core${version}"
+  fakestore make-refreshable --dir "$STORE_DIR" --snap-orig-blob "core${version}.snap.orig" --snap-blob "./core${version}" "core${version}"
+  remote.exec sudo snap refresh --amend --channel="edge" "core${version}"
+  remote.exec snap list "core${version}" > "core${version}".before-boot
+  boot_id=$(tests.nested boot-id)
+  remote.exec sudo reboot || true
   tests.nested wait-for reboot "$boot_id"
-  remote.exec "snap watch $change_id"
-  remote.exec "snap change $change_id" | NOMATCH Error
-
-  # TODO test core22 refresh and that after a reboot the core22 is not
-  # reverted
+  # ensure no revert of core22+ was performed
+  remote.exec sudo snap changes | NOMATCH "Update kernel and core snap revisions"
+  remote.exec snap list "core${version}" > "core${version}".after-boot
+  # and check that the versions are the same after boot
+  diff -u "core${version}".before-boot "core${version}".after-boot
