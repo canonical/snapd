@@ -286,7 +286,7 @@ dbus (receive, send)
 # internal process addresses that live in that file, but that has no adverse
 # effects for NetworkManager, which just wants to find out the start time of the
 # process.
-deny ptrace (trace) peer=###PLUG_SECURITY_TAGS###,
+deny ptrace (trace,read) peer=###PLUG_SECURITY_TAGS###,
 `
 
 const networkManagerConnectedPlugAppArmor = `
