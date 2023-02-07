@@ -211,19 +211,16 @@ struct sc_mount_config {
 	const char *snap_instance;
 };
 
+/**
+ * Ensures all required mount points have been created
+ */
 static void sc_create_mount_points(const char *scratch_dir,
                                    const struct sc_mount *mounts)
 {
 	char dst[PATH_MAX] = { 0 };
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	// Bind mount certain directories from the host filesystem to the scratch
-	// directory. By default mount events will propagate in both into and out
-	// of the peer group. This way the running application can alter any global
-	// state visible on the host and in other snaps. This can be restricted by
-	// disabling the "is_bidirectional" flag as can be seen below.
 	for (const struct sc_mount * mnt = mounts; mnt->path != NULL; mnt++) {
-		sc_must_snprintf(dst, sizeof(dst), "%s/%s", scratch_dir,
-		                 mnt->path);
+		sc_must_snprintf(dst, sizeof(dst), "%s/%s", scratch_dir, mnt->path);
 		if (sc_nonfatal_mkpath(dst, 0755) < 0) {
 			die("cannot create mount point %s", dst);
 		}
@@ -557,6 +554,10 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// below serves as the foundation of the mount sandbox.
 	sc_do_mount("none", scratch_dir, NULL, MS_REC | MS_SLAVE, NULL);
 	sc_do_mounts(scratch_dir, config->mounts);
+
+	// Dynamic mounts handle things like user-specified home directories. These
+	// can change between runs, so they are stored seperately. As we don't know
+	// these in advance, make sure paths also exist in the scratch dir.
 	sc_create_mount_points(scratch_dir, config->dynamic_mounts);
 	sc_do_mounts(scratch_dir, config->dynamic_mounts);
 
@@ -977,6 +978,9 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		struct sc_mount_config normal_config = {
 			.rootfs_dir = inv->rootfs_dir,
 			.mounts = mounts,
+			// Homedir mounts are user-specified paths that snaps are allowed
+			// to access, which don't reside in the regular home path. They can change
+			// between runs, so we must dynamically handle them.
 			.dynamic_mounts = sc_create_homedir_mounts(inv),
 			.distro = distro,
 			.normal_mode = true,
