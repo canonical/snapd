@@ -137,6 +137,9 @@ const fwupdPermanentSlotAppArmor = `
   /sys/firmware/efi/ r,
   /sys/firmware/efi/fw_platform_size r,
 
+  # os-release from host is needed for UEFI
+  /var/lib/snapd/hostfs/{etc,usr/lib}/os-release r,
+
   # DBus accesses
   #include <abstractions/dbus-strict>
   dbus (send)
