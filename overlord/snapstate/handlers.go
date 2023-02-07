@@ -739,30 +739,8 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	st.Lock()
-	tasks, err := findTasksMatching(st, "pre-download", snapsup.InstanceName(), snapsup.Revision())
-	st.Unlock()
-	if err != nil {
+	if err := waitForPreDownload(t, snapsup); err != nil {
 		return err
-	}
-
-	// if there are pre-download tasks for the same snap, wait for it to finish
-	for _, preTask := range tasks {
-		switch preTask.Status() {
-		case state.DoingStatus:
-			var taskIDs []string
-			if err := preTask.Get("waiting-tasks", &taskIDs); err != nil {
-				return err
-			}
-
-			if !strutil.ListContains(taskIDs, t.ID()) {
-				taskIDs = append(taskIDs, t.ID())
-				t.Set("waiting-tasks", taskIDs)
-			}
-
-			logger.Debugf("Download task %s wait for pre-download task %s", t.ID(), preTask.ID())
-			return &state.Retry{After: time.Minute}
-		}
 	}
 
 	meter := NewTaskProgressAdapterUnlocked(t)
@@ -805,6 +783,62 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
+func waitForPreDownload(task *state.Task, snapsup *SnapSetup) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tasks, err := findTasksMatching(st, "pre-download", snapsup.InstanceName(), snapsup.Revision())
+	if err != nil {
+		return err
+	}
+
+	// if there is a pre-download task for the same snap, wait for it to finish
+	for _, preTask := range tasks {
+		switch preTask.Status() {
+		case state.DoingStatus:
+			var taskIDs []string
+			if err := preTask.Get("waiting-tasks", &taskIDs); err != nil && !errors.Is(err, &state.NoStateError{}) {
+				return err
+			}
+
+			if !strutil.ListContains(taskIDs, task.ID()) {
+				taskIDs = append(taskIDs, task.ID())
+				preTask.Set("waiting-tasks", taskIDs)
+			}
+
+			logger.Debugf("Download task %s wait for pre-download task %s", task.ID(), preTask.ID())
+			return &state.Retry{After: time.Minute}
+		}
+	}
+
+	return nil
+}
+
+func findTasksMatching(st *state.State, kind string, snapName string, revision snap.Revision) ([]*state.Task, error) {
+	var tasks []*state.Task
+
+	chgs := st.Changes()
+	for _, chg := range chgs {
+		if chg.Kind() != kind {
+			continue
+		}
+
+		for _, t := range chg.Tasks() {
+			snapsup, _, err := snapSetupAndState(t)
+			if err != nil {
+				return nil, err
+			}
+
+			if snapsup.InstanceName() == snapName && snapsup.Revision() == revision {
+				tasks = append(tasks, t)
+			}
+		}
+	}
+
+	return tasks, nil
+}
+
 func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -836,19 +870,16 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	var waitingTasks []string
-	if err := t.Get("waiting-tasks", &waitingTasks); !errors.Is(err, &state.NoStateError{}) {
+	if err := t.Get("waiting-tasks", &waitingTasks); err != nil && !errors.Is(err, &state.NoStateError{}) {
 		return err
 	}
 
 	// there are download tasks waiting for this one so unblock them
 	if len(waitingTasks) > 0 {
-		for _, chg := range st.Changes() {
-			for _, t := range chg.Tasks() {
-				if strutil.ListContains(waitingTasks, t.ID()) {
-					t.At(time.Time{})
-				}
-			}
+		for _, taskID := range waitingTasks {
+			st.Task(taskID).At(time.Time{})
 		}
+
 		st.EnsureBefore(0)
 		return nil
 	}
@@ -876,7 +907,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 			return err
 		}
 
-		return asyncRefreshOnSnapClose(m.state, snapst, refreshInfo)
+		return asyncRefreshOnSnapClose(m.state, refreshInfo)
 	}
 
 	// signal to the autorefresh manager to continue the pre-downloaded autorefresh
@@ -889,7 +920,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 // asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
 // the user and then triggers an auto-refresh.
-func asyncRefreshOnSnapClose(st *state.State, snapst *SnapState, refreshInfo *userclient.PendingSnapRefreshInfo) error {
+func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) error {
 	var monitoredSnaps map[string]bool
 	if cachedMonitored := st.Cached("monitored-snaps"); cachedMonitored != nil {
 		monitoredSnaps, _ = cachedMonitored.(map[string]bool)
@@ -928,30 +959,6 @@ func asyncRefreshOnSnapClose(st *state.State, snapst *SnapState, refreshInfo *us
 	}()
 
 	return nil
-}
-
-func findTasksMatching(st *state.State, kind string, snapName string, revision snap.Revision) ([]*state.Task, error) {
-	var tasks []*state.Task
-
-	chgs := st.Changes()
-	for _, chg := range chgs {
-		if chg.Kind() != kind {
-			continue
-		}
-
-		for _, t := range chg.Tasks() {
-			snapsup, _, err := snapSetupAndState(t)
-			if err != nil {
-				return nil, err
-			}
-
-			if snapsup.InstanceName() == snapName && snapsup.Revision() == revision {
-				tasks = append(tasks, t)
-			}
-		}
-	}
-
-	return tasks, nil
 }
 
 var (
@@ -1226,7 +1233,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 					InstanceName: snapsup.InstanceName(),
 				}
 
-				if err := asyncRefreshOnSnapClose(m.state, snapst, refreshInfo); err != nil {
+				if err := asyncRefreshOnSnapClose(m.state, refreshInfo); err != nil {
 					return err
 				}
 			}

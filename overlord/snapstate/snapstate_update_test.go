@@ -59,7 +59,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -9046,20 +9045,77 @@ func (s *snapmgrTestSuite) TestUpdateLaneErrorsWithLaneButNoTransaction(c *C) {
 	c.Check(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestDownloadTaskWaitsForPredownload(c *C) {
+func (s *snapmgrTestSuite) TestDownloadTaskWaitsForPreDownload(c *C) {
+	now := time.Now()
+	restore := state.MockTime(now)
+	defer restore()
+
 	s.state.Lock()
 	defer s.state.Unlock()
+	preDlChg := s.state.NewChange("pre-download", "Pre-download")
+	preDlTask := s.state.NewTask("pre-download-snap", "re")
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(2),
+		},
+	}
+	preDlTask.Set("snap-setup", snapsup)
+	preDlChg.AddTask(preDlTask)
 
-	preDlChg := s.state.NewChange("pre-download", "")
-	preDlTask := s.state.NewTask("pre-download-snap", "")
+	dlChg := s.state.NewChange("download", "Download")
+	dlTask := s.state.NewTask("download-snap", "")
+	dlTask.Set("snap-setup", snapsup)
+	// wait until the pre-download is running
+	dlTask.At(now.Add(time.Hour))
+	dlChg.AddTask(dlTask)
 
-	refreshChg := s.state.NewChange("refresh", "")
+	var downloadCalls int
 	s.fakeStore.downloadCallback = func() {
-		dlTask := s.state.NewTask("download-snap", "")
-		refreshChg.AddTask(dlTask)
+		downloadCalls++
 
+		switch downloadCalls {
+		case 1:
+			s.state.Lock()
+			// schedule download to run while pre-download is running
+			dlTask.At(time.Time{})
+			s.state.Unlock()
+
+			c.Assert(s.o.TaskRunner().Ensure(), IsNil)
+
+			for i := 0; i < 5; i++ {
+				select {
+				case <-time.After(time.Second):
+					s.state.Lock()
+					atTime := dlTask.AtTime()
+					s.state.Unlock()
+					if atTime.IsZero() {
+						continue
+					}
+
+					s.state.Lock()
+					defer s.state.Unlock()
+
+					// the download task registers itself w/ the pre-download and retries
+					c.Assert(atTime.Equal(now.Add(time.Minute)), Equals, true)
+					var taskIDs []string
+					c.Assert(preDlTask.Get("waiting-tasks", &taskIDs), IsNil)
+					c.Assert(taskIDs, DeepEquals, []string{dlTask.ID()})
+					return
+				}
+			}
+
+			c.Fatal("download task hasn't run")
+		case 2:
+			return
+		default:
+			c.Fatal("only expected 2 calls to the store")
+		}
 	}
 
-	// TODO
+	s.settle(c)
 
+	c.Assert(downloadCalls, Equals, 2)
+	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
+	c.Assert(dlTask.Status(), Equals, state.DoneStatus)
 }
