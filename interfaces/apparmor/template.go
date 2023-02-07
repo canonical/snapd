@@ -92,6 +92,7 @@ var templateCommon = `
   # The base abstraction doesn't yet have this
   /etc/sysconfig/clock r,
   owner @{PROC}/@{pid}/maps k,
+  @{PROC}/@{pid}/map_files/ r,
   # While the base abstraction has rules for encryptfs encrypted home and
   # private directories, it is missing rules for directory read on the toplevel
   # directory of the mount (LP: #1848919)
