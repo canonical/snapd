@@ -269,7 +269,6 @@ execute: |
       local snap_orig_blob=$2
       local snap_new_dir=$3
 
-      local reboot_action=$3
       printf "Test installing snap from file %s\n" "$snap_name"
       fakestore make-refreshable --dir "$STORE_DIR" --snap-orig-blob "$snap_orig_blob" --snap-blob "$snap_new_dir" "$snap_name"
       boot_id=$(tests.nested boot-id)
