@@ -905,7 +905,9 @@ static bool __attribute__((used))
 
 static struct sc_mount *sc_create_homedir_mounts(const struct sc_invocation *inv)
 {
-	if (inv->homedirs == NULL) return NULL;
+	if (inv->homedirs == NULL) {
+		return NULL;
+	}
 
 	int num_homedirs = 0;
 	for (char **path = inv->homedirs; *path != NULL; path++) {
@@ -919,13 +921,11 @@ static struct sc_mount *sc_create_homedir_mounts(const struct sc_invocation *inv
 	}
 
 	struct sc_mount *current_mount = mounts;
-
 	for (char **path = inv->homedirs; *path != NULL; path++) {
 		debug("Adding homedir: %s", *path);
 		current_mount->path = *path;
 		current_mount++;
 	}
-
 	return mounts;
 }
 
