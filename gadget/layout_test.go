@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
+	"github.com/snapcore/snapd/secboot"
 )
 
 type layoutTestSuite struct {
@@ -128,6 +129,82 @@ volumes:
 			},
 		},
 	})
+}
+
+func (p *layoutTestSuite) testLayoutVolumeWithDataPartitions(c *C, encType secboot.EncryptionType) {
+	gadgetYaml := `
+volumes:
+  first:
+    schema: gpt
+    bootloader: grub
+    structure:
+        - type: 00000000-0000-0000-0000-dd00deadbeef
+          filesystem: ext4
+          filesystem-label: ubuntu-save
+          role: system-save
+          size: 1M
+        - type: 00000000-0000-0000-0000-cc00deadbeef
+          filesystem: ext4
+          filesystem-label: ubuntu-data
+          role: system-data
+          size: 500M
+`
+	vol := mustParseVolume(c, gadgetYaml, "first")
+	c.Assert(vol.Structure, HasLen, 2)
+
+	opts := &gadget.LayoutOptions{
+		GadgetRootDir: p.dir,
+		EncType:       encType}
+	v, err := gadget.LayoutVolume(vol, opts)
+	c.Assert(err, IsNil)
+
+	saveFsLabel := "ubuntu-save"
+	saveFsType := "ext4"
+	dataFsLabel := "ubuntu-data"
+	dataFsType := "ext4"
+	if encType == secboot.EncryptionTypeLUKS {
+		saveFsLabel = "ubuntu-save-enc"
+		saveFsType = "crypto_LUKS"
+		dataFsLabel = "ubuntu-data-enc"
+		dataFsType = "crypto_LUKS"
+	}
+	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
+		Volume:  vol,
+		Size:    502 * quantity.SizeMiB,
+		RootDir: p.dir,
+		LaidOutStructure: []gadget.LaidOutStructure{
+			{
+				OnDiskStructure: gadget.OnDiskStructure{
+					Type:             "00000000-0000-0000-0000-dd00deadbeef",
+					Size:             1 * quantity.SizeMiB,
+					StartOffset:      1 * quantity.OffsetMiB,
+					PartitionFSType:  saveFsType,
+					PartitionFSLabel: saveFsLabel,
+				},
+				VolumeStructure: &vol.Structure[0],
+				YamlIndex:       0,
+			},
+			{
+				OnDiskStructure: gadget.OnDiskStructure{
+					Type:             "00000000-0000-0000-0000-cc00deadbeef",
+					Size:             500 * quantity.SizeMiB,
+					StartOffset:      2 * quantity.OffsetMiB,
+					PartitionFSType:  dataFsType,
+					PartitionFSLabel: dataFsLabel,
+				},
+				VolumeStructure: &vol.Structure[1],
+				YamlIndex:       1,
+			},
+		},
+	})
+}
+
+func (p *layoutTestSuite) TestLayoutVolumeWithDataPartitions(c *C) {
+	p.testLayoutVolumeWithDataPartitions(c, secboot.EncryptionTypeNone)
+}
+
+func (p *layoutTestSuite) TestLayoutVolumeWithDataPartitionsEncrypted(c *C) {
+	p.testLayoutVolumeWithDataPartitions(c, secboot.EncryptionTypeLUKS)
 }
 
 func (p *layoutTestSuite) TestLayoutVolumeImplicitOrdering(c *C) {
