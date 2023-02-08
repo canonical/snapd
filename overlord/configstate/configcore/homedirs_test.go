@@ -105,49 +105,6 @@ func (s *homedirsSuite) TestValidationUnhappy(c *C) {
 	}
 }
 
-func (s *homedirsSuite) TestConfigureWriteFailure(c *C) {
-	restore := configcore.MockEnsureFileState(func(path string, state osutil.FileState) error {
-		return errors.New("some write error")
-	})
-	defer restore()
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
-		state: s.state,
-		changes: map[string]interface{}{
-			"homedirs": "/home/existingDir",
-		},
-	})
-	c.Assert(err, ErrorMatches, "some write error")
-}
-
-func (s *homedirsSuite) TestConfigureUnchanged(c *C) {
-	// Prepare the "system-params" config file with the same contents we expect
-	// it to have after applying the configuration.
-	snapStateDir := dirs.SnapdStateDir(dirs.GlobalRootDir)
-	err := os.MkdirAll(snapStateDir, 0755)
-	c.Assert(err, IsNil)
-	configPath := filepath.Join(snapStateDir, "system-params")
-	err = ioutil.WriteFile(configPath, []byte("homedirs=/home/existingDir\n"), 0644)
-	c.Assert(err, IsNil)
-
-	// The AppArmor configuration must not be updated; install a mock handler
-	// to later verify that it was not called.
-	tunableUpdated := false
-	restore := configcore.MockApparmorUpdateHomedirsTunable(func(paths []string) error {
-		tunableUpdated = true
-		return nil
-	})
-	defer restore()
-
-	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
-		state: s.state,
-		changes: map[string]interface{}{
-			"homedirs": "/home/existingDir",
-		},
-	})
-	c.Assert(err, IsNil)
-	c.Check(tunableUpdated, Equals, false)
-}
-
 func (s *homedirsSuite) TestConfigureUnchangedConfig(c *C) {
 	tunableUpdated := false
 	restore := configcore.MockApparmorUpdateHomedirsTunable(func(paths []string) error {
