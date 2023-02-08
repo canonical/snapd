@@ -57,6 +57,7 @@ import (
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
@@ -2065,6 +2066,11 @@ func (m *SnapManager) maybeDiscardNamespacesOnSnapdDowngrade(st *state.State, sn
 // the State is locked.
 func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.State, snapInfo *snap.Info) error {
 	if snapInfo.Type() != snap.TypeSnapd || snapInfo.Version == "" {
+		return nil
+	}
+
+	// ignore during preseeding
+	if snapdenv.Preseeding() {
 		return nil
 	}
 
