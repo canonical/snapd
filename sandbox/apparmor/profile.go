@@ -309,7 +309,7 @@ var LoadHomedirs = func() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return strings.Split(ssp.Homedirs, ","), nil
+	return strutil.CommaSeparatedList(ssp.Homedirs), nil
 }
 
 // SetupSnapConfineSnippets inspects the system and sets up local apparmor
