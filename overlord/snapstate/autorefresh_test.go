@@ -1079,19 +1079,23 @@ func (s *autoRefreshTestSuite) TestDelayedAutoRefreshIsContinued(c *C) {
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Lock()
-	s.state.Set("continue-autorefresh", true)
+	s.state.Cache("continue-autorefresh", true)
 	s.state.Unlock()
 
 	err := af.Ensure()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
 
-	var lastRefresh time.Time
 	s.state.Lock()
+	defer s.state.Unlock()
+	var lastRefresh time.Time
 	err = s.state.Get("last-refresh", &lastRefresh)
-	s.state.Unlock()
 	c.Assert(err, IsNil)
 	c.Check(lastRefresh.Equal(now), Equals, true)
+
+	var continueAutorefresh bool
+	err = s.state.Get("continue-autorefresh", &continueAutorefresh)
+	c.Check(err, testutil.ErrorIs, &state.NoStateError{})
 }
 
 func (s *autoRefreshTestSuite) TestBlockedAutoRefreshCreatesPreDowloads(c *C) {

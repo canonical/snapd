@@ -697,7 +697,9 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	if _, key := snap.SplitInstanceName(name); key != "" {
 		return fmt.Errorf("internal error: unsupported download with instance name %q", name)
 	}
-	f.downloadCallback()
+	if f.downloadCallback != nil {
+		f.downloadCallback()
+	}
 
 	var macaroon string
 	if user != nil {

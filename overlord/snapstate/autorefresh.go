@@ -662,7 +662,7 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 
 	// if it's not a snap busy error or the refresh is manual, surface the error
 	// to the user instead of notifying or delaying the refresh
-	if !snapsup.IsAutoRefresh || !errors.As(checkerErr, &(busyErr.err)) {
+	if !snapsup.IsAutoRefresh || !errors.As(checkerErr, &busyErr.err) {
 		return checkerErr
 	}
 

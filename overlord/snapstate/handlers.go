@@ -76,6 +76,8 @@ var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ sn
 	panic("internal error: snapstate.SecurityProfilesRemoveLate is unset")
 }
 
+var cgroupMonitorSnapEnded = cgroup.MonitorSnapEnded
+
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the task.
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	var snapsup SnapSetup
@@ -901,12 +903,13 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	if err := refreshAppsCheck(info); err != nil {
-		var refreshInfo *userclient.PendingSnapRefreshInfo
-		if err := t.Get("refresh-info", &refreshInfo); err != nil {
+	if err := inhibitRefresh(st, snapst, snapsup, info); err != nil {
+		var busyErr *timedBusySnapError
+		if !errors.As(err, &busyErr) {
 			return err
 		}
 
+		refreshInfo := busyErr.PendingSnapRefreshInfo()
 		return asyncRefreshOnSnapClose(m.state, refreshInfo)
 	}
 
@@ -924,6 +927,8 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 	var monitoredSnaps map[string]bool
 	if cachedMonitored := st.Cached("monitored-snaps"); cachedMonitored != nil {
 		monitoredSnaps, _ = cachedMonitored.(map[string]bool)
+	} else {
+		monitoredSnaps = make(map[string]bool)
 	}
 
 	// there's already a goroutine waiting for this snap to close so just notify
@@ -934,7 +939,7 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 
 	// monitor the snap until it closes
 	done := make(chan string)
-	if err := cgroup.MonitorSnapEnded(refreshInfo.InstanceName, done); err != nil {
+	if err := cgroupMonitorSnapEnded(refreshInfo.InstanceName, done); err != nil {
 		return fmt.Errorf("failed to monitor for snap closure: %w", err)
 	}
 
@@ -944,18 +949,21 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 	monitoredSnaps[refreshInfo.InstanceName] = true
 	st.Cache("monitored-snaps", monitoredSnaps)
 
-	// TODO: stop monitoring on refresh and clear related state
+	// TODO: clear the monitoring related state and goroutines when an auto-refresh happens
 	go func() {
 		<-done
 		st.Lock()
 		defer st.Unlock()
 
+		delete(monitoredSnaps, refreshInfo.InstanceName)
+		if len(monitoredSnaps) == 0 {
+			monitoredSnaps = nil
+		}
+		st.Cache("monitored-snaps", monitoredSnaps)
+
 		// signal that there's an auto-refresh to be continued (for auto-refresh code)
 		st.Cache("continue-autorefresh", true)
 		st.EnsureBefore(0)
-
-		delete(monitoredSnaps, refreshInfo.InstanceName)
-		st.Cache("monitored-snaps", monitoredSnaps)
 	}()
 
 	return nil
