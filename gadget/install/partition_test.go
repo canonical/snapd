@@ -324,10 +324,10 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	defer cmdUdevadm.Restore()
 
 	calls := 0
-	restore = install.MockEnsureNodesExist(func(los []gadget.OnDiskStructure, timeout time.Duration) error {
+	restore = install.MockEnsureNodesExist(func(nodes []string, timeout time.Duration) error {
 		calls++
-		c.Assert(los, HasLen, 1)
-		c.Assert(los[0].Node, Equals, "/dev/node3")
+		c.Assert(nodes, HasLen, 1)
+		c.Assert(nodes[0], Equals, "/dev/node3")
 		return nil
 	})
 	defer restore()
@@ -376,17 +376,12 @@ func (s *partitionTestSuite) TestCreatePartitionsNonRolePartitions(c *C) {
 	defer cmdUdevadm.Restore()
 
 	calls := 0
-	restore = install.MockEnsureNodesExist(func(ds []gadget.OnDiskStructure, timeout time.Duration) error {
+	restore = install.MockEnsureNodesExist(func(nodes []string, timeout time.Duration) error {
 		calls++
-		c.Assert(ds, HasLen, 3)
-		// Ensure all partitions are created as asked for via
-		// the install.CreateOptions
-		c.Assert(ds[0].Node, Equals, "/dev/node1")
-		c.Assert(ds[0].Name, Equals, "BIOS Boot")
-		c.Assert(ds[1].Node, Equals, "/dev/node2")
-		c.Assert(ds[1].Name, Equals, "Recovery")
-		c.Assert(ds[2].Node, Equals, "/dev/node3")
-		c.Assert(ds[2].Name, Equals, "Writable")
+		c.Assert(nodes, HasLen, 3)
+		c.Assert(nodes[0], Equals, "/dev/node1")
+		c.Assert(nodes[1], Equals, "/dev/node2")
+		c.Assert(nodes[2], Equals, "/dev/node3")
 		return nil
 	})
 	defer restore()
@@ -815,8 +810,8 @@ func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {
 		cmdUdevadm := testutil.MockCommand(c, "udevadm", fmt.Sprintf(mockUdevadmScript, tc.utErr))
 		defer cmdUdevadm.Restore()
 
-		los := []gadget.OnDiskStructure{{Node: node}}
-		err = install.EnsureNodesExist(los, 10*time.Millisecond)
+		nodes := []string{node}
+		err = install.EnsureNodesExist(nodes, 10*time.Millisecond)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -834,10 +829,10 @@ func (s *partitionTestSuite) TestEnsureNodesExistTimeout(c *C) {
 	defer cmdUdevadm.Restore()
 
 	node := filepath.Join(c.MkDir(), "node")
-	los := []gadget.OnDiskStructure{{Node: node}}
+	nodes := []string{node}
 	t := time.Now()
 	timeout := 1 * time.Second
-	err := install.EnsureNodesExist(los, timeout)
+	err := install.EnsureNodesExist(nodes, timeout)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("device %s not available", node))
 	c.Assert(time.Since(t) >= timeout, Equals, true)
 	c.Assert(cmdUdevadm.Calls(), HasLen, 0)
