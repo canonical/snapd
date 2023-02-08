@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -2087,6 +2088,11 @@ func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.Stat
 			// We don't propagate the error as we don't want to block the
 			// downgrade for this. Let's just log it down.
 			logger.Noticef("WARNING: removing AppArmor profiles failed")
+		}
+		// also remove system-key to ensure the AppArmor profiles get
+		// regenerated when the new snapd starts up
+		if err = interfaces.RemoveSystemKey(); err != nil {
+			logger.Noticef("WARNING: failed to remove system-key")
 		}
 	}
 	return nil
