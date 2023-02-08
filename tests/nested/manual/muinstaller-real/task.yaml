@@ -315,6 +315,8 @@ execute: |
   # (see https://github.com/snapcore/snapd/pull/12532)
   snap download --basename="core${version}" --channel="edge" "core${version}"
   cp "core${version}".snap "core${version}".snap.orig
+  # the fakestore needs the assertion
+  snap ack "core${version}".assert
   unsquashfs -d "core${version}" "core${version}".snap
   echo "modified" >> ./"core${version}"/etc/motd
   snap pack --filename="core${version}".snap ./"core${version}"
