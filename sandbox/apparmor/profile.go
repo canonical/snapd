@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/sysparams"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -303,6 +304,14 @@ var SnapConfineDistroProfilePath = func() string {
 	return ""
 }
 
+var LoadHomedirs = func() ([]string, error) {
+	ssp, err := sysparams.Open("")
+	if err != nil {
+		return nil, err
+	}
+	return strings.Split(ssp.Homedirs, ","), nil
+}
+
 // SetupSnapConfineSnippets inspects the system and sets up local apparmor
 // policy for snap-confine. Local policy is included by the system-wide policy.
 // Returns whether any modifications was made to the snap-confine snippets.
@@ -352,7 +361,9 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 		}
 	}
 
-	if len(homedirs) > 0 {
+	if homedirs, err := LoadHomedirs(); err != nil {
+		logger.Noticef("cannot determine if any homedirs are set: %v", err)
+	} else if len(homedirs) > 0 {
 		policy["homedirs"] = &osutil.MemoryFileState{
 			Content: []byte(snapConfineHomedirsSnippet(homedirs)),
 			Mode:    0644,

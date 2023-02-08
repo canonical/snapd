@@ -906,7 +906,9 @@ static bool __attribute__((used))
 static struct sc_mount *sc_create_homedir_mounts(const struct sc_invocation *inv)
 {
 	if (inv->homedirs == NULL) {
-		return NULL;
+		// Return empty array, but never NULL as functions rely
+		// on the mounts array to be non-NULL
+		return calloc(1, sizeof(struct sc_mount));
 	}
 
 	int num_homedirs = 0;
