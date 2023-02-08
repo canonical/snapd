@@ -286,6 +286,7 @@ execute: |
       tests.nested wait-for reboot "$boot_id"
       remote.exec sudo snap watch "$REMOTE_CHG_ID"
       remote.exec "snap change $REMOTE_CHG_ID" | NOMATCH Error
+      remote.exec "journalctl -u snapd" | NOMATCH "cannot mark boot successful"
   }
   # ensure update-notifier-common is installed so that reboot notification works
   remote.exec "sudo apt install -y update-notifier-common"
