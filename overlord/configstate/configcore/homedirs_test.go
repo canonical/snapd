@@ -263,6 +263,11 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 	})
 	defer restore()
 
+	restore = configcore.MockApparmorSetupSnapConfineSnippets(func() (bool, error) {
+		return false, nil
+	})
+	defer restore()
+
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
@@ -288,6 +293,10 @@ func (s *homedirsSuite) TestConfigureHomedirsEmptyHappy(c *C) {
 	restore := configcore.MockApparmorUpdateHomedirsTunable(func(paths []string) error {
 		passedHomeDirs = paths
 		return nil
+	})
+	defer restore()
+	restore = configcore.MockApparmorSetupSnapConfineSnippets(func() (bool, error) {
+		return false, nil
 	})
 	defer restore()
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
