@@ -12,14 +12,24 @@ systems: [-debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     echo "Ensure the snap-confine profiles on core are not loaded"
+    # ensure the right apparmor_parser is used
+    APPARMOR_PARSER="apparmor_parser"
+    if snap debug sandbox-features --required apparmor:parser:snapd-internal; then
+      APPARMOR_PARSER="/snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/3.0"
+    fi
     for p in /var/lib/snapd/apparmor/profiles/snap-confine.*; do
-        apparmor_parser -R "$p"
+        $APPARMOR_PARSER -R "$p"
     done
 
 restore: |
     echo "Ensure the snap-confine profiles are restored"
+    # ensure the right apparmor_parser is used
+    APPARMOR_PARSER="apparmor_parser"
+    if snap debug sandbox-features --required apparmor:parser:snapd-internal; then
+      APPARMOR_PARSER="/snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/3.0"
+    fi
     for p in /var/lib/snapd/apparmor/profiles/snap-confine.*; do
-        apparmor_parser -r "$p"
+      $APPARMOR_PARSER -r "$p"
     done
 
 debug: |
