@@ -357,6 +357,9 @@ func MarkBootSuccessful(dev snap.Device) error {
 
 	var u bootStateUpdate
 	for _, t := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
+		if !SnapTypeParticipatesInBoot(t, dev) {
+			continue
+		}
 		s, err := bootStateFor(t, dev)
 		if err != nil {
 			return err
