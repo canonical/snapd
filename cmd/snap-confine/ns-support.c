@@ -311,7 +311,9 @@ static bool base_snap_device_changed(sc_mountinfo *mi, dev_t base_snap_dev)
 
 static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs)
 {
-	if (homedirs == NULL) return true;
+	if (homedirs == NULL) {
+		return true;
+	}
 
 	int num_homedirs = 0;
 	for (char **path = homedirs; *path != NULL; path++) {

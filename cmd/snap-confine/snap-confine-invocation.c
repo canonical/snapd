@@ -146,7 +146,7 @@ void sc_check_rootfs_dir(sc_invocation *inv) {
     die("cannot locate base snap %s", inv->base_snap_name);
 }
 
-void sc_invocation_check_homedirs(sc_invocation *inv)
+static char* read_homedirs_from_system_params(void)
 {
     FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
     f = fopen("var/lib/snapd/system-params", "r");
@@ -156,24 +156,29 @@ void sc_invocation_check_homedirs(sc_invocation *inv)
 
     char *line SC_CLEANUP(sc_cleanup_string) = NULL;
     size_t line_size = 0;
-    bool config_found = false;
     while (getline(&line, &line_size, f) != -1) {
         if (sc_startswith(line, "homedirs=")) {
-            config_found = true;
-            break;
+            return strdup(line + (sizeof("homedirs=") - 1));
         }
     }
+    return NULL;
+}
 
-    if (!config_found) return;
-
-    char *config_line = line + sizeof("homedirs=") - 1;
+void sc_invocation_check_homedirs(sc_invocation *inv)
+{
+    char *config_line SC_CLEANUP(sc_cleanup_string) = read_homedirs_from_system_params();
+    if (config_line == NULL) {
+        return;
+    }
 
     /* The homedirs setting is a comma-separated list. In order to allocate the
      * right number of strings, let's count how many commas we have.
      */
     int num_commas = 0;
     for (char *c = config_line; *c != '\0'; c++) {
-        if (*c == ',') num_commas++;
+        if (*c == ',') {
+            num_commas++;
+        }
     }
 
     /* We add *two* elements here: one is because of course the number of
