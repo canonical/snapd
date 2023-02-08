@@ -69,7 +69,7 @@
 
 # Until we have a way to add more extldflags to gobuild macro...
 # Always use external linking when building static binaries.
-%if 0%{?fedora} || 0%{?rhel} >= 8
+%if 0%{?fedora} || 0%{?rhel} >= 8 || 0%{?openEuler}
 %define gobuild_static(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
 %if 0%{?rhel} == 7
@@ -78,7 +78,7 @@
 %endif
 
 # These macros are missing BUILDTAGS in RHEL 8/9, see RHBZ#1825138
-%if 0%{?rhel} >= 8
+%if 0%{?rhel} >= 8 || 0%{?openEuler}
 %define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %endif
 
@@ -120,7 +120,9 @@ ExclusiveArch:  %{ix86} x86_64 %{arm} aarch64 ppc64le s390x
 
 # If go_compiler is not set to 1, there is no virtual provide. Use golang instead.
 BuildRequires: make
+%if ! 0%{?openEuler}
 BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang >= 1.9}
+%endif
 BuildRequires:  systemd
 %{?systemd_requires}
 
@@ -136,8 +138,10 @@ Requires:       squashfuse
 Requires:       fuse
 %endif
 %else
+%if ! 0%{?openEuler}
 # snapd will use squashfuse in the event that squashfs.ko isn't available (cloud instances, containers, etc.)
 Requires:       ((squashfuse and fuse) or kmod(squashfs.ko))
+%endif
 %endif
 
 # bash-completion owns /usr/share/bash-completion/completions
@@ -512,7 +516,7 @@ rm -rf vendor/*
 %build
 
 # Build snapd
-mkdir -p src/github.com/snapcore
+mkdir -p src/github.com/snapcore && rm -f src/github.com/snapcore/snapd
 ln -s ../../../ src/github.com/snapcore/snapd
 
 %if ! 0%{?with_bundled}
