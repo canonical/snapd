@@ -255,7 +255,7 @@ func LayoutVolumePartially(volume *Volume) (*PartiallyLaidOutVolume, error) {
 	return vol, nil
 }
 
-func setOnDiskLabelAndTypeInLaidOuts(encType secboot.EncryptionType, los []LaidOutStructure) {
+func setOnDiskLabelAndTypeInLaidOuts(los []LaidOutStructure, encType secboot.EncryptionType) {
 	for i := range los {
 		los[i].PartitionFSLabel = los[i].Label()
 		los[i].PartitionFSType = los[i].Filesystem()
@@ -311,7 +311,7 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 
 		// Set appropriately label and type details
 		// TODO: set this in layoutVolumeStructures in the future.
-		setOnDiskLabelAndTypeInLaidOuts(opts.EncType, structures)
+		setOnDiskLabelAndTypeInLaidOuts(structures, opts.EncType)
 
 		// Lay out raw content. This can be skipped when only partition
 		// creation is needed and is safe because each volume structure
