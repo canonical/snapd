@@ -151,7 +151,7 @@ static char* read_homedirs_from_system_params(void)
     FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
     f = fopen("var/lib/snapd/system-params", "r");
     if (f == NULL) {
-        return;
+        return NULL;
     }
 
     char *line SC_CLEANUP(sc_cleanup_string) = NULL;
