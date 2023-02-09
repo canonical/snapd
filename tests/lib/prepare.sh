@@ -1034,6 +1034,19 @@ EOF
         snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
         test -e pc.snap
         unsquashfs -d pc-gadget pc.snap
+
+        # change the schema to DOS if that env var is set
+        if [ "${CORE_GADGET_SCHEMA:-}" != "" ]; then
+            if os.query is-core20 || os.query is-core22; then
+                # to use DOS on UC20+, we cannot have ubuntu-save otherwise we 
+                # have too many partitions for DOS, so remove ubuntu-save from
+                # the gadget.yaml since we can't use encryption on GCE anyways
+                # and the tests using DOS are mainly about gadget asset updates
+                # anyways
+                sed -i "/name: ubuntu-save/,+4 d" pc-gadget/meta/gadget.yaml
+            fi
+            sed -i -e "s@bootloader: grub@schema: $CORE_GADGET_SCHEMA\n    bootloader: grub@g" pc-gadget/meta/gadget.yaml
+        fi
         
         # TODO: it would be desirable when we need to do in-depth debugging of
         # UC20 runs in google to have snapd.debug=1 always on the kernel command

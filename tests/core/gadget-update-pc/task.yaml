@@ -5,6 +5,8 @@ environment:
     # snap-id of 'pc' gadget snap
     PC_SNAP_ID: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
     START_REVISION: 1000
+    CORE_GADGET_SCHEMA/gpt: "gpt"
+    CORE_GADGET_SCHEMA/mbr: "mbr"
 
 prepare: |
     # external backends do not enable test keys
@@ -177,7 +179,14 @@ execute: |
         # using foo.img from x2
         szfoo=$(stat -c '%s' foo-x2.img)
         # a raw content was written
-        dd if='/dev/disk/by-partlabel/BIOS\x20Boot' skip="$szimg" bs=1 count="$szfoo" of=foo-written.img
+        if [ "$CORE_GADGET_SCHEMA" = "gpt" ]; then
+            # on GPT can use by-partlabel
+            dd if='/dev/disk/by-partlabel/BIOS\x20Boot' skip="$szimg" bs=1 count="$szfoo" of=foo-written.img
+        else
+            # on MBR no partition labels and BIOS Boot does not have a 
+            # filesystem so we just assume that it's the first partition
+            dd if='/dev/sda1' skip="$szimg" bs=1 count="$szfoo" of=foo-written.img
+        fi
         test "$(cat foo-written.img)" = 'this is foo-x2'
 
         if os.query is-core20 || os.query is-core20; then
@@ -221,7 +230,15 @@ execute: |
         # using foo.img from x3
         szfoo=$(stat -c '%s' foo-x3.img)
         # a raw content was written
-        dd if='/dev/disk/by-partlabel/BIOS\x20Boot' skip="$szimg" bs=1 count="$szfoo" of=foo-updated-written.img
+        if [ "$CORE_GADGET_SCHEMA" = "gpt" ]; then
+            # on GPT can use by-partlabel
+            dd if='/dev/disk/by-partlabel/BIOS\x20Boot' skip="$szimg" bs=1 count="$szfoo" of=foo-updated-written.img
+        else
+            # on MBR no partition labels and BIOS Boot does not have a 
+            # filesystem so we just assume that it's the first partition
+            dd if='/dev/sda1' skip="$szimg" bs=1 count="$szfoo" of=foo-updated-written.img
+        fi
+        
         test "$(cat foo-updated-written.img)" = 'this is updated foo-x3'
 
         if os.query is-core20 || os.query is-core22; then
