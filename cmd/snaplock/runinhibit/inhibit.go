@@ -54,7 +54,8 @@ const (
 	HintInhibitedGateRefresh Hint = "gate-refresh"
 	// HintInhibitedForRefresh represents inhibition of a "snap run" while a refresh change is being performed.
 	HintInhibitedForRefresh Hint = "refresh"
-	// HintInhibitedForPreDownload TODO
+	// HintInhibitedForPreDownload represents inhibition of a "snap run" while a
+	// pre-download is triggering a refresh.
 	HintInhibitedForPreDownload Hint = "pre-download"
 )
 
