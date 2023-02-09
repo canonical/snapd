@@ -99,7 +99,7 @@ jobs:
       fail-fast: false      
       matrix:
         gochannel:
-          - 1.13
+          - 1.18
           - latest/stable
 
     steps:
@@ -180,13 +180,13 @@ jobs:
     - name: Run static checks
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-          # run gofmt checks only with Go 1.13
+          # run gofmt checks only with Go 1.18
           if ! echo "${{ matrix.gochannel }}" | grep -E '1\.13' ; then
               # and skip with other versions
               export SKIP_GOFMT=1
               echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
           else
-              # misspell and infessassign do not build with Go 1.13
+              # misspell and infessassign do not build with Go 1.18
               export SKIP_MISSPELL=1
               export SKIP_INEFFASSIGN=1
           fi
@@ -210,7 +210,7 @@ jobs:
       fail-fast: false      
       matrix:
         gochannel:
-          - 1.13
+          - 1.18
           - latest/stable
         unit-scenario:
           - normal
