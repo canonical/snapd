@@ -95,7 +95,7 @@ BuildRequires:  automake
 BuildRequires:  fakeroot
 BuildRequires:  glib2-devel
 BuildRequires:  glibc-devel-static
-BuildRequires:  go >= 1.13
+BuildRequires:  go >= 1.18
 BuildRequires:  gpg2
 BuildRequires:  indent
 BuildRequires:  libcap-devel

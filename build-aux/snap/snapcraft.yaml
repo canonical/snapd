@@ -32,7 +32,7 @@ parts:
   snapd-deb:
     plugin: nil
     source: .
-    build-snaps: [go/1.13/stable]
+    build-snaps: [go/1.18/stable]
     # these packages are needed to call mkversion.sh in override-pull, all other
     # dependencies are installed using apt-get build-dep
     build-packages:
