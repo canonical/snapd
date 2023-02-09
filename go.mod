@@ -1,5 +1,8 @@
 module github.com/snapcore/snapd
 
+// TODO: update to 1.18, doing this naively breaks the builds because it
+// seems this enables automatic vendoring, see
+// https://go.dev/ref/mod#go-mod-file-go
 go 1.13
 
 // maze.io/x/crypto/afis imported by github.com/snapcore/secboot/tpm2

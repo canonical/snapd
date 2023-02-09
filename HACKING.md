@@ -16,7 +16,7 @@ may be required when installing dependencies.
 
 ### Supported Go version
 
-Go 1.13 (or later) is required to build `snapd`.
+Go 1.18 (or later) is required to build `snapd`.
 
 > If you need to build older versions of snapd, please have a look at the file
 [debian/control](debian/control) to find out what dependencies were needed at the time

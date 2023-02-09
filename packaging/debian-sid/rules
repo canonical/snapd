@@ -18,7 +18,7 @@ export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_GO_GENERATE=0
 
 export PATH:=${PATH}:${CURDIR}
-# GOCACHE is needed by go-1.13
+# GOCACHE is needed by go-1.13+
 export GOCACHE:=/tmp/go-build
 
 include /etc/os-release
