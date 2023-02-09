@@ -2069,8 +2069,10 @@ func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.Stat
 		return nil
 	}
 
-	// ignore during preseeding
-	if snapdenv.Preseeding() {
+	// ignore if not preseeded yet or if preseeding
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if errors.Is(err, state.ErrNoState) || !seeded || snapdenv.Preseeding() {
 		return nil
 	}
 

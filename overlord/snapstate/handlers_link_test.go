@@ -1271,6 +1271,12 @@ func (s *linkSnapSuite) TestDoLinkSnapdRemovesAppArmorProfilesOnSnapdDowngrade(c
 		Channel:  "beta",
 	})
 
+	// set seeded so that AppArmor profile cleanup should occur - however
+	// since we now appear to be seeded this would trigger the mount units
+	// to be updated etc which would call into systemctl - so turn that off
+	// too
+	s.state.Set("seeded", true)
+	s.AddCleanup(snapstate.MockEnsuredMountsUpdated(s.snapmgr, true))
 	s.state.NewChange("sample", "...").AddTask(t)
 	s.state.Unlock()
 
