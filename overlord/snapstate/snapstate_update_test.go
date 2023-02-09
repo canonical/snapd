@@ -60,7 +60,6 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
-	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 func verifyUpdateTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskSet) {
@@ -1804,9 +1803,9 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
 	// no user is passed to use for UpdateMany
-	updated, tssGroup, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
+	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
-	for _, ts := range tssGroup.Refresh {
+	for _, ts := range tts {
 		chg.AddAll(ts)
 	}
 	c.Check(updated, HasLen, 3)
@@ -1910,9 +1909,9 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
 	// do UpdateMany using user 2 as fallback
-	updated, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 2, nil)
+	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 2, nil)
 	c.Assert(err, IsNil)
-	for _, ts := range ttsGroup.Refresh {
+	for _, ts := range tts {
 		chg.AddAll(ts)
 	}
 	c.Check(updated, HasLen, 3)
@@ -2035,9 +2034,9 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
 	// no user is passed to use for UpdateMany
-	updated, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
+	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
-	for _, ts := range ttsGroup.Refresh {
+	for _, ts := range tts {
 		chg.AddAll(ts)
 	}
 	c.Check(updated, HasLen, 3)
@@ -3156,8 +3155,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	s.fakeStore.refreshRevnos = map[string]snap.Revision{
 		"some-snap-id": snap.R(12),
 	}
-	_, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, nil)
-	tts := ttsGroup.Refresh
+	_, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Check(tts, HasLen, 2)
 	verifyLastTasksetIsReRefresh(c, tts)
@@ -3357,8 +3355,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 	s.fakeStore.refreshRevnos = map[string]snap.Revision{
 		"some-snap-id": snap.R(12),
 	}
-	updates, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-snap_instance"}, nil, s.user.ID, nil)
-	tts := ttsGroup.Refresh
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-snap_instance"}, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Check(tts, HasLen, 3)
 	verifyLastTasksetIsReRefresh(c, tts)
@@ -3854,8 +3851,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 			snapstate.Set(s.state, instanceName, &snapst)
 		}
 
-		updates, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, scenario.names, nil, s.user.ID, nil)
-		tts := ttsGroup.Refresh
+		updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, scenario.names, nil, s.user.ID, nil)
 		c.Check(err, IsNil)
 		if scenario.update {
 			verifyLastTasksetIsReRefresh(c, tts)
@@ -4616,8 +4612,7 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 		SnapType: "app",
 	})
 
-	updates, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
-	tts := ttsGroup.Refresh
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	verifyLastTasksetIsReRefresh(c, tts)
@@ -4659,9 +4654,8 @@ func (s *snapmgrTestSuite) TestUpdateManyIgnoreRunning(c *C) {
 		TrackingChannel: "latest/stable",
 	})
 
-	updates, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state,
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"some-snap"}, nil, 0, &snapstate.Flags{IgnoreRunning: true})
-	tts := ttsGroup.Refresh
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	verifyLastTasksetIsReRefresh(c, tts)
@@ -4705,10 +4699,9 @@ func (s *snapmgrTestSuite) TestUpdateManyTransactionally(c *C) {
 		TrackingChannel: "latest/stable",
 	})
 
-	updates, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state,
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"some-snap", "some-other-snap"}, nil, 0,
 		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
-	tts := ttsGroup.Refresh
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 3)
 	verifyLastTasksetIsReRefresh(c, tts)
@@ -4763,13 +4756,13 @@ func (s *snapmgrTestSuite) TestUpdateManyTransactionallyFails(c *C) {
 	})
 
 	chg := s.state.NewChange("refresh", "refresh some snaps")
-	updated, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state,
+	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"some-snap", "some-other-snap"}, nil, 0,
 		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Check(updated, testutil.DeepUnsortedMatches,
 		[]string{"some-snap", "some-other-snap"})
-	for _, ts := range ttsGroup.Refresh {
+	for _, ts := range tts {
 		chg.AddAll(ts)
 	}
 
@@ -4835,8 +4828,7 @@ func (s *snapmgrTestSuite) TestUpdateManyFailureDoesntUndoSnapdRefresh(c *C) {
 		SnapType: "app",
 	})
 
-	updates, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-base", "snapd"}, nil, 0, nil)
-	tts := ttsGroup.Refresh
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-base", "snapd"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 4)
 	c.Assert(updates, HasLen, 3)
@@ -4903,9 +4895,9 @@ func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
 	})
 
 	// updated snap is devmode, updatemany doesn't update it
-	_, ttsGroup, _ := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, nil)
+	_, tts, _ := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, nil)
 	// FIXME: UpdateMany will not error out in this case (daemon catches this case, with a weird error)
-	c.Assert(ttsGroup, IsNil)
+	c.Assert(tts, HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
@@ -4924,9 +4916,9 @@ func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
 	})
 
 	// if a snap installed without --classic gets a classic update it isn't installed
-	_, ttsGroup, _ := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, nil)
+	_, tts, _ := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, nil)
 	// FIXME: UpdateMany will not error out in this case (daemon catches this case, with a weird error)
-	c.Assert(ttsGroup, IsNil)
+	c.Assert(tts, HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyClassic(c *C) {
@@ -4946,8 +4938,7 @@ func (s *snapmgrTestSuite) TestUpdateManyClassic(c *C) {
 	})
 
 	// snap installed with classic: refresh gets classic
-	_, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, nil)
-	tts := ttsGroup.Refresh
+	_, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	verifyLastTasksetIsReRefresh(c, tts)
@@ -4970,8 +4961,7 @@ func (s *snapmgrTestSuite) TestUpdateManyClassicToStrict(c *C) {
 	})
 
 	// snap installed with classic: refresh gets classic
-	_, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, &snapstate.Flags{Classic: true})
-	tts := ttsGroup.Refresh
+	_, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, &snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	// ensure we clear the classic flag
@@ -5052,8 +5042,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC16(c *C) {
 		TrackingChannel: "channel-for-base/stable",
 	})
 
-	updates, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "core", "some-base"}, nil, 0, nil)
-	tts := ttsGroup.Refresh
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "core", "some-base"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 4)
 	verifyLastTasksetIsReRefresh(c, tts)
@@ -5133,8 +5122,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 		TrackingChannel: "channel-for-base/stable",
 	})
 
-	updates, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "core18", "some-base", "snapd"}, nil, 0, nil)
-	tts := ttsGroup.Refresh
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "core18", "some-base", "snapd"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 5)
 	verifyLastTasksetIsReRefresh(c, tts)
@@ -5213,12 +5201,12 @@ func (s *validationSetsSuite) TestUpdateManyWithRevisionOpts(c *C) {
 	// updating "some-snap" with revision opts should succeed because current
 	// validation sets should be ignored
 	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(2), ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/2"}}}
-	affected, tssGroup, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, revOpts, 0, nil)
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, revOpts, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"some-snap"})
 
 	chg := s.state.NewChange("refresh", "")
-	for _, ts := range tssGroup.Refresh {
+	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
 
@@ -5253,8 +5241,7 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 	// hook it up
 	snapstate.ValidateRefreshes = validateRefreshes
 
-	updates, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
-	tts := ttsGroup.Refresh
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	verifyLastTasksetIsReRefresh(c, tts)
@@ -5298,8 +5285,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
 		InstanceKey: "instance",
 	})
 
-	updates, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
-	tts := ttsGroup.Refresh
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 3)
 	verifyLastTasksetIsReRefresh(c, tts)
@@ -5378,8 +5364,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateManyValidateRefreshes(c *C)
 	// hook it up
 	snapstate.ValidateRefreshes = validateRefreshes
 
-	updates, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
-	tts := ttsGroup.Refresh
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 3)
 	verifyLastTasksetIsReRefresh(c, tts)
@@ -5415,15 +5400,15 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshesUnhappy(c *C) {
 	snapstate.ValidateRefreshes = validateRefreshes
 
 	// refresh all => no error
-	updates, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
-	c.Check(ttsGroup.Refresh, HasLen, 0)
+	c.Check(tts, HasLen, 0)
 	c.Check(updates, HasLen, 0)
 
 	// refresh some-snap => report error
-	updates, ttsGroup, err = snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, 0, nil)
+	updates, tts, err = snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, 0, nil)
 	c.Assert(err, Equals, validateErr)
-	c.Check(ttsGroup, IsNil)
+	c.Check(tts, HasLen, 0)
 	c.Check(updates, HasLen, 0)
 
 }
@@ -5894,10 +5879,10 @@ func (s *snapmgrTestSuite) TestUpdateContentProviderDownloadFailure(c *C) {
 	})
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
-	updated, ttsGroup, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
+	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updated, testutil.DeepUnsortedMatches, []string{"snap-content-plug", "snap-content-slot"})
-	for _, ts := range ttsGroup.Refresh {
+	for _, ts := range tts {
 		chg.AddAll(ts)
 	}
 
@@ -6205,12 +6190,12 @@ func (s *snapmgrTestSuite) TestUpdateSnapAndOutdatedPrereq(c *C) {
 	}
 
 	chg := s.state.NewChange("refresh-snap", "test: update snaps")
-	updated, tssGroup, err := snapstate.UpdateMany(context.Background(), s.state, updateSnaps, nil, s.user.ID, nil)
+	updated, tss, err := snapstate.UpdateMany(context.Background(), s.state, updateSnaps, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
-	c.Check(tssGroup.Refresh, Not(HasLen), 0)
+	c.Check(tss, Not(HasLen), 0)
 	c.Assert(updated, testutil.DeepUnsortedMatches, updateSnaps)
 
-	for _, ts := range tssGroup.Refresh {
+	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
 	s.settle(c)
@@ -7318,12 +7303,12 @@ func (s *validationSetsSuite) testUpdateManyValidationSetsPartialFailure(c *C) *
 
 	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-other-snap/11")
 
-	names, tssGroup, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, s.user.ID, &snapstate.Flags{})
+	names, tss, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, s.user.ID, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"some-other-snap", "some-snap"})
 	c.Check(logbuf.String(), Equals, "")
 	chg := s.state.NewChange("update", "")
-	for _, ts := range tssGroup.Refresh {
+	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
 
@@ -8229,13 +8214,13 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	}
 
 	chg := s.state.NewChange("refresh", "refresh kernel and base")
-	affected, tssGroup, err := snapstate.UpdateMany(context.Background(), s.state,
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"kernel", "core18"}, nil, s.user.ID, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"core18", "kernel"})
 	snapTasks := make(map[string]*state.Task)
 	var kernelTs, baseTs *state.TaskSet
-	for _, ts := range tssGroup.Refresh {
+	for _, ts := range tss {
 		chg.AddAll(ts)
 		for _, tsk := range ts.Tasks() {
 			switch tsk.Kind() {
@@ -8415,13 +8400,13 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHa
 	}
 
 	chg := s.state.NewChange("refresh", "refresh kernel and base")
-	affected, tssGroup, err := snapstate.UpdateMany(context.Background(), s.state,
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"kernel", "core"}, nil, s.user.ID, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"core", "kernel"})
 	snapTasks := make(map[string]*state.Task)
 	var kernelTs, coreTs *state.TaskSet
-	for _, ts := range tssGroup.Refresh {
+	for _, ts := range tss {
 		chg.AddAll(ts)
 		for _, tsk := range ts.Tasks() {
 			switch tsk.Kind() {
@@ -8566,12 +8551,12 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithGadget
 	}
 
 	chg := s.state.NewChange("refresh", "refresh kernel and base")
-	affected, tssGroup, err := snapstate.UpdateMany(context.Background(), s.state,
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"kernel", "core18", "gadget"}, nil, s.user.ID, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"core18", "gadget", "kernel"})
 	var kernelTsk, baseTsk, gadgetTsk *state.Task
-	for _, ts := range tssGroup.Refresh {
+	for _, ts := range tss {
 		chg.AddAll(ts)
 		for _, tsk := range ts.Tasks() {
 			switch tsk.Kind() {
@@ -8650,12 +8635,12 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	}
 
 	chg := s.state.NewChange("refresh", "refresh kernel and base")
-	affected, tssGroup, err := snapstate.UpdateMany(context.Background(), s.state,
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"kernel", "core18"}, nil, s.user.ID, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"core18", "kernel"})
 	var autoConnectBase, autoConnectKernel *state.Task
-	for _, ts := range tssGroup.Refresh {
+	for _, ts := range tss {
 		chg.AddAll(ts)
 		for _, tsk := range ts.Tasks() {
 			if tsk.Kind() == "auto-connect" {
@@ -8790,7 +8775,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseAndSnapdOrder(c *C) {
 	})
 
 	chg := s.state.NewChange("refresh", "refresh snapd and base")
-	affected, tssGroup, err := snapstate.UpdateMany(context.Background(), s.state,
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"core18", "snapd"}, nil, s.user.ID, &snapstate.Flags{NoReRefresh: true})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
@@ -8798,7 +8783,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseAndSnapdOrder(c *C) {
 
 	// grab the task sets of snapd and the base
 	var snapdTs, baseTs *state.TaskSet
-	for _, ts := range tssGroup.Refresh {
+	for _, ts := range tss {
 		chg.AddAll(ts)
 		for _, tsk := range ts.Tasks() {
 			if tsk.Kind() == "link-snap" {
@@ -8889,11 +8874,11 @@ func (s *snapmgrTestSuite) TestGeneralRefreshSkipsGatedSnaps(c *C) {
 	defer restore()
 
 	chg := s.state.NewChange("update", "update all snaps")
-	updates, tssGroup, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, s.user.ID, nil)
+	updates, tss, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, s.user.ID, nil)
 	c.Check(err, IsNil)
 	c.Check(updates, DeepEquals, []string{"some-other-snap"})
 
-	for _, ts := range tssGroup.Refresh {
+	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
 
@@ -8931,12 +8916,12 @@ func (s *snapmgrTestSuite) TestUpdateManyTransactionalWithLane(c *C) {
 		// the check rerefresh taskset doesn't run in the same lane
 		NoReRefresh: true,
 	}
-	affected, tssGroup, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
 	c.Assert(err, IsNil)
 	c.Check(affected, testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
-	c.Check(tssGroup.Refresh, HasLen, 2)
+	c.Check(tss, HasLen, 2)
 
-	for _, ts := range tssGroup.Refresh {
+	for _, ts := range tss {
 		for _, t := range ts.Tasks() {
 			c.Assert(t.Lanes(), DeepEquals, []int{lane})
 		}
@@ -9044,333 +9029,4 @@ func (s *snapmgrTestSuite) TestUpdateLaneErrorsWithLaneButNoTransaction(c *C) {
 	ts, err = snapstate.Update(s.state, "some-snap", nil, s.user.ID, *flags)
 	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
 	c.Check(ts, IsNil)
-}
-
-func (s *snapmgrTestSuite) TestDownloadTaskWaitsForPreDownload(c *C) {
-	now := time.Now()
-	restore := state.MockTime(now)
-	defer restore()
-
-	var notified bool
-	restore = snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo) {
-		notified = true
-	})
-	defer restore()
-
-	var monitored bool
-	restore = snapstate.MockCgroupMonitorSnapEnded(func(string, chan<- string) error {
-		monitored = true
-		return nil
-	})
-	defer restore()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	preDlChg := s.state.NewChange("pre-download", "Pre-download")
-	preDlTask := s.state.NewTask("pre-download-snap", "re")
-	snapsup := &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "foo",
-			Revision: snap.R(2),
-		},
-		Flags: snapstate.Flags{IsAutoRefresh: true},
-	}
-	preDlTask.Set("snap-setup", snapsup)
-	preDlChg.AddTask(preDlTask)
-
-	dlChg := s.state.NewChange("download", "Download")
-	dlTask := s.state.NewTask("download-snap", "")
-	dlTask.Set("snap-setup", snapsup)
-	// wait until the pre-download is running
-	dlTask.At(now.Add(time.Hour))
-	dlChg.AddTask(dlTask)
-
-	var downloadCalls int
-	s.fakeStore.downloadCallback = func() {
-		downloadCalls++
-
-		switch downloadCalls {
-		case 1:
-			s.state.Lock()
-			// schedule download to run while pre-download is running
-			dlTask.At(time.Time{})
-			s.state.Unlock()
-
-			c.Assert(s.o.TaskRunner().Ensure(), IsNil)
-
-			for i := 0; i < 5; i++ {
-				select {
-				case <-time.After(time.Second):
-					s.state.Lock()
-					atTime := dlTask.AtTime()
-					s.state.Unlock()
-					if atTime.IsZero() {
-						continue
-					}
-
-					s.state.Lock()
-					defer s.state.Unlock()
-
-					// the download task registers itself w/ the pre-download and retries
-					c.Assert(atTime.Equal(now.Add(time.Minute)), Equals, true)
-					var taskIDs []string
-					c.Assert(preDlTask.Get("waiting-tasks", &taskIDs), IsNil)
-					c.Assert(taskIDs, DeepEquals, []string{dlTask.ID()})
-					return
-				}
-			}
-
-			c.Fatal("download task hasn't run")
-		case 2:
-			return
-		default:
-			c.Fatal("only expected 2 calls to the store")
-		}
-	}
-
-	s.settle(c)
-
-	c.Assert(downloadCalls, Equals, 2)
-	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
-	c.Assert(dlTask.Status(), Equals, state.DoneStatus)
-	c.Check(notified, Equals, false)
-	c.Check(monitored, Equals, false)
-}
-
-func (s *snapmgrTestSuite) TestPreDownloadTaskTriggersAutoRefreshIfSoftCheckOk(c *C) {
-	var softChecked bool
-	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
-		c.Assert(info.InstanceName(), Equals, "foo")
-		softChecked = true
-		return nil
-	})
-	defer restore()
-
-	var notified bool
-	restore = snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo) {
-		notified = true
-	})
-	defer restore()
-
-	var monitored bool
-	restore = snapstate.MockCgroupMonitorSnapEnded(func(string, chan<- string) error {
-		monitored = true
-		return nil
-	})
-	defer restore()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	si := &snap.SideInfo{
-		RealName: "foo",
-		SnapID:   "foo-id",
-		Revision: snap.R(1),
-	}
-
-	snaptest.MockSnap(c, `name: foo`, si)
-	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  si.Revision,
-	})
-	snapsup := &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "foo",
-			Revision: snap.R(2),
-		},
-		Flags: snapstate.Flags{IsAutoRefresh: true},
-	}
-
-	preDlChg := s.state.NewChange("pre-download", "Pre-download")
-	preDlTask := s.state.NewTask("pre-download-snap", "re")
-
-	preDlTask.Set("snap-setup", snapsup)
-	preDlChg.AddTask(preDlTask)
-
-	s.settle(c)
-
-	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
-	c.Assert(s.fakeStore.downloads, HasLen, 1)
-	c.Check(s.fakeStore.downloads[0].name, Equals, "foo")
-
-	c.Check(softChecked, Equals, true)
-	c.Check(notified, Equals, false)
-	c.Check(monitored, Equals, false)
-	c.Check(s.state.Cached("continue-autorefresh"), Equals, true)
-}
-
-func (s *snapmgrTestSuite) TestDownloadTaskMonitorsSnapStoppedAndNotifiesOnSoftCheckFail(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	si := &snap.SideInfo{
-		RealName: "foo",
-		SnapID:   "foo-id",
-		Revision: snap.R(1),
-	}
-	snaptest.MockSnap(c, `name: foo`, si)
-	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  si.Revision,
-	})
-	snapsup := &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "foo",
-			Revision: snap.R(2),
-		},
-		Flags: snapstate.Flags{IsAutoRefresh: true},
-	}
-
-	var softChecked bool
-	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
-		c.Assert(info.InstanceName(), Equals, "foo")
-		softChecked = true
-		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
-	})
-	defer restore()
-
-	var notified bool
-	restore = snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo) {
-		notified = true
-	})
-	defer restore()
-
-	var monitorSignal chan<- string
-	restore = snapstate.MockCgroupMonitorSnapEnded(func(name string, done chan<- string) error {
-		c.Assert(name, Equals, "foo")
-		monitorSignal = done
-		return nil
-	})
-	defer restore()
-
-	preDlChg := s.state.NewChange("pre-download", "Pre-download")
-	preDlTask := s.state.NewTask("pre-download-snap", "re")
-
-	preDlTask.Set("snap-setup", snapsup)
-	preDlChg.AddTask(preDlTask)
-
-	s.settle(c)
-
-	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
-	c.Assert(s.fakeStore.downloads, HasLen, 1)
-	c.Check(s.fakeStore.downloads[0].name, Equals, "foo")
-
-	// the soft check failed so we notified and started monitoring
-	c.Check(softChecked, Equals, true)
-	c.Check(notified, Equals, true)
-	c.Assert(monitorSignal, NotNil)
-
-	monitored := s.state.Cached("monitored-snaps")
-	c.Assert(monitored, FitsTypeOf, map[string]bool{})
-	c.Assert(monitored.(map[string]bool), DeepEquals, map[string]bool{"foo": true})
-	c.Assert(s.state.Cached("continue-autorefresh"), Equals, nil)
-
-	// signal snap has stopped and wait for pending goroutine to finish
-	s.state.Unlock()
-	monitorSignal <- "foo"
-
-	for i := 0; i < 5; i++ {
-		select {
-		case <-time.After(time.Second):
-			s.state.Lock()
-			finished := s.state.Cached("continue-autorefresh")
-			if finished == nil || !finished.(bool) {
-				s.state.Unlock()
-				continue
-			}
-
-			c.Assert(s.state.Cached("monitored-snaps"), IsNil)
-			c.Check(s.state.Cached("continue-autorefresh"), Equals, true)
-			return
-		}
-	}
-
-	c.Fatal("couldn't check monitoring goroutine ended properly")
-}
-
-func (s *snapmgrTestSuite) TestDownloadTaskMonitorsRepeated(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	si := &snap.SideInfo{
-		RealName: "foo",
-		SnapID:   "foo-id",
-		Revision: snap.R(1),
-	}
-	snaptest.MockSnap(c, `name: foo`, si)
-	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  si.Revision,
-	})
-	snapsup := &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "foo",
-			Revision: snap.R(2),
-		},
-		Flags: snapstate.Flags{IsAutoRefresh: true},
-	}
-
-	var softChecked bool
-	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
-		c.Assert(info.InstanceName(), Equals, "foo")
-		softChecked = true
-		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
-	})
-	defer restore()
-
-	var notified bool
-	restore = snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo) {
-		notified = true
-	})
-	defer restore()
-
-	var monitorSignal chan<- string
-	restore = snapstate.MockCgroupMonitorSnapEnded(func(name string, done chan<- string) error {
-		c.Assert(name, Equals, "foo")
-		monitorSignal = done
-		return nil
-	})
-	defer restore()
-
-	preDlChg := s.state.NewChange("pre-download", "Pre-download")
-	preDlTask := s.state.NewTask("pre-download-snap", "re")
-
-	preDlTask.Set("snap-setup", snapsup)
-	preDlChg.AddTask(preDlTask)
-
-	s.settle(c)
-
-	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
-	// monitoring snap
-	monitored := s.state.Cached("monitored-snaps")
-	c.Assert(monitored, FitsTypeOf, map[string]bool{})
-	c.Assert(monitored.(map[string]bool), DeepEquals, map[string]bool{"foo": true})
-	c.Assert(notified, Equals, true)
-	// waiting for the monitoring to end
-	c.Check(s.state.Cached("monitored-snaps"), NotNil)
-	c.Check(s.state.Cached("continue-autorefresh"), Equals, nil)
-
-	// start a new pre-download which shouldn't
-	preDlChg = s.state.NewChange("pre-download", "Pre-download")
-	preDlTask = s.state.NewTask("pre-download-snap", "re")
-	preDlTask.Set("snap-setup", snapsup)
-	preDlChg.AddTask(preDlTask)
-
-	// reset the watcher variables
-	notified = false
-	softChecked = false
-	firstMonitorSignal := monitorSignal
-	monitorSignal = nil
-
-	s.settle(c)
-
-	c.Check(softChecked, Equals, true)
-	c.Check(notified, Equals, true)
-	// didn't wait for snap to stop because there's already a goroutine doing it
-	c.Check(monitorSignal, IsNil)
-
-	// unblock goroutine to finish
-	s.state.Unlock()
-	defer s.state.Lock()
-	firstMonitorSignal <- "foo"
 }

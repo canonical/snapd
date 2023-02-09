@@ -1437,8 +1437,12 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
-func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, *TaskSetGroup, error) {
-	return updateManyFiltered(ctx, st, names, revOpts, userID, nil, flags, "")
+func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+	updated, tasksetGrp, err := updateManyFiltered(ctx, st, names, revOpts, userID, nil, flags, "")
+	if err != nil {
+		return nil, nil, err
+	}
+	return updated, tasksetGrp.Refresh, nil
 }
 
 // ResolveValidationSetsEnforcementError installs and updates snaps in order to
@@ -1483,12 +1487,12 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		// between epochs should managed by through  the validation sets
 		flags := &Flags{Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true}
 
-		updated, tasksetGroup, err := UpdateMany(ctx, st, names, revOpts, userID, flags)
+		updated, tss, err := UpdateMany(ctx, st, names, revOpts, userID, flags)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
 		}
 
-		tasksets = append(tasksets, tasksetGroup.Refresh...)
+		tasksets = append(tasksets, tss...)
 		affected = append(affected, updated...)
 	}
 
@@ -1720,7 +1724,7 @@ type TaskSetGroup struct {
 	// PreDownload holds the pre-downloads tasksets created when there are busy
 	// snaps that can't be refreshed during an auto-refresh.
 	PreDownload []*state.TaskSet
-	// Refresh holds the refresh tasksets.
+	// Refresh holds the Refresh tasksets.
 	Refresh []*state.TaskSet
 }
 
@@ -2454,7 +2458,7 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, *TaskSetGroup,
 	}
 	if !gateAutoRefreshHook {
 		// old-style refresh (gate-auto-refresh-hook feature disabled)
-		return UpdateMany(ctx, st, nil, nil, userID, &Flags{IsAutoRefresh: true})
+		return updateManyFiltered(ctx, st, nil, nil, userID, nil, &Flags{IsAutoRefresh: true}, "")
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.

@@ -190,7 +190,7 @@ func MockSnapstateInstallMany(mock func(*state.State, []string, []*snapstate.Rev
 	}
 }
 
-func MockSnapstateUpdateMany(mock func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, *snapstate.Flags) ([]string, *snapstate.TaskSetGroup, error)) (restore func()) {
+func MockSnapstateUpdateMany(mock func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
 	oldSnapstateUpdateMany := snapstateUpdateMany
 	snapstateUpdateMany = mock
 	return func() {

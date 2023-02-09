@@ -495,11 +495,10 @@ func (s *snapsSuite) TestPostSnapsOpSystemRestartImmediate(c *check.C) {
 
 func (s *snapsSuite) testPostSnapsOp(c *check.C, extraJSON, contentType string) (systemRestartImmediate bool) {
 	defer daemon.MockAssertstateRefreshSnapAssertions(func(*state.State, int, *assertstate.RefreshAssertionsOptions) error { return nil })()
-	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, _ int, _ *snapstate.Flags) ([]string, *snapstate.TaskSetGroup, error) {
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, _ int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
-		tss := []*state.TaskSet{state.NewTaskSet(t)}
-		return []string{"fake1", "fake2"}, &snapstate.TaskSetGroup{Refresh: tss}, nil
+		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemonWithOverlordMockAndStore()
@@ -564,11 +563,10 @@ func (s *snapsSuite) TestRefreshAll(c *check.C) {
 		refreshSnapAssertions = false
 		refreshAssertionsOpts = nil
 
-		defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, *snapstate.TaskSetGroup, error) {
+		defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 			c.Check(names, check.HasLen, 0)
 			t := s.NewTask("fake-refresh-all", "Refreshing everything")
-			tss := []*state.TaskSet{state.NewTaskSet(t)}
-			return tst.snaps, &snapstate.TaskSetGroup{Refresh: tss}, nil
+			return tst.snaps, []*state.TaskSet{state.NewTaskSet(t)}, nil
 		})()
 
 		inst := &daemon.SnapInstruction{Action: "refresh"}
@@ -591,7 +589,7 @@ func (s *snapsSuite) TestRefreshAllNoChanges(c *check.C) {
 		return assertstate.RefreshSnapAssertions(s, userID, opts)
 	})()
 
-	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, *snapstate.TaskSetGroup, error) {
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		return nil, nil, nil
 	})()
@@ -620,7 +618,7 @@ func (s *snapsSuite) TestRefreshAllRestoresValidationSets(c *check.C) {
 		return nil
 	})()
 
-	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, *snapstate.TaskSetGroup, error) {
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		return nil, nil, fmt.Errorf("boom")
 	})()
 
@@ -647,13 +645,12 @@ func (s *snapsSuite) TestRefreshManyTransactionally(c *check.C) {
 		return nil
 	})()
 
-	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, *snapstate.TaskSetGroup, error) {
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		calledFlags = flags
 
 		c.Check(names, check.HasLen, 2)
 		t := s.NewTask("fake-refresh-2", "Refreshing two")
-		tss := []*state.TaskSet{state.NewTaskSet(t)}
-		return names, &snapstate.TaskSetGroup{Refresh: tss}, nil
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -685,11 +682,10 @@ func (s *snapsSuite) TestRefreshMany(c *check.C) {
 		return nil
 	})()
 
-	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, *snapstate.TaskSetGroup, error) {
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 2)
 		t := s.NewTask("fake-refresh-2", "Refreshing two")
-		tss := []*state.TaskSet{state.NewTaskSet(t)}
-		return names, &snapstate.TaskSetGroup{Refresh: tss}, nil
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -712,13 +708,12 @@ func (s *snapsSuite) TestRefreshManyIgnoreRunning(c *check.C) {
 	})()
 
 	var calledFlags *snapstate.Flags
-	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, *snapstate.TaskSetGroup, error) {
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		calledFlags = flags
 
 		c.Check(names, check.HasLen, 2)
 		t := s.NewTask("fake-refresh-2", "Refreshing two")
-		tss := []*state.TaskSet{state.NewTaskSet(t)}
-		return names, &snapstate.TaskSetGroup{Refresh: tss}, nil
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -744,11 +739,10 @@ func (s *snapsSuite) TestRefreshMany1(c *check.C) {
 		return nil
 	})()
 
-	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, *snapstate.TaskSetGroup, error) {
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 1)
 		t := s.NewTask("fake-refresh-1", "Refreshing one")
-		tss := []*state.TaskSet{state.NewTaskSet(t)}
-		return names, &snapstate.TaskSetGroup{Refresh: tss}, nil
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)

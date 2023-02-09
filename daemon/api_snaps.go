@@ -694,7 +694,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 
 	transaction := inst.Transaction
 	// TODO: use a per-request context
-	updated, tasksetGroup, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, nil, inst.userID, &snapstate.Flags{
+	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, nil, inst.userID, &snapstate.Flags{
 		IgnoreRunning: inst.IgnoreRunning,
 		Transaction:   transaction,
 	})
@@ -724,15 +724,10 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
 	}
 
-	var tss []*state.TaskSet
-	if tasksetGroup != nil {
-		tss = tasksetGroup.Refresh
-	}
-
 	return &snapInstructionResult{
 		Summary:  msg,
 		Affected: updated,
-		Tasksets: tss,
+		Tasksets: tasksets,
 	}, nil
 }
 

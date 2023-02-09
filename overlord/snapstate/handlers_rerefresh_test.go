@@ -173,8 +173,8 @@ func (s *reRefreshSuite) TestDoCheckReRefreshAddsNewTasks(c *C) {
 
 		task := st.NewTask("witness", "...")
 
-		tss := []*state.TaskSet{state.NewTaskSet(task)}
-		return []string{"won"}, &snapstate.TaskSetGroup{Refresh: tss}, nil
+		tasksetGrp := &snapstate.TaskSetGroup{Refresh: []*state.TaskSet{state.NewTaskSet(task)}}
+		return []string{"won"}, tasksetGrp, nil
 	})()
 
 	s.state.Lock()
