@@ -38,7 +38,7 @@ var osRemove = os.Remove
 
 // downloadCache is the interface that a store download cache must provide
 type downloadCache interface {
-	// Get gets the given cacheKey content and puts it into targetPath. Returns
+	// Get retrieves the given cacheKey content and puts it into targetPath. Returns
 	// true if a cached file was moved to targetPath or if one was already there.
 	Get(cacheKey, targetPath string) bool
 	// Put adds a new file to the cache
@@ -101,7 +101,8 @@ func (cm *CacheManager) GetPath(cacheKey string) string {
 	return cm.path(cacheKey)
 }
 
-// Get gets the given cacheKey content and puts it into targetPath
+// Get retrieves the given cacheKey content and puts it into targetPath. Returns
+// true if a cached file was moved to targetPath or if one was already there.
 func (cm *CacheManager) Get(cacheKey, targetPath string) bool {
 	if err := os.Link(cm.path(cacheKey), targetPath); err != nil && !errors.Is(err, os.ErrExist) {
 		return false
@@ -109,7 +110,9 @@ func (cm *CacheManager) Get(cacheKey, targetPath string) bool {
 
 	logger.Debugf("using cache for %s", targetPath)
 	now := time.Now()
-	return os.Chtimes(targetPath, now, now) == nil
+	// the modification time is updated on a best-effort basis
+	_ = os.Chtimes(targetPath, now, now)
+	return true
 }
 
 // Put adds a new file to the cache with the given cacheKey
