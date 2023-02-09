@@ -60,6 +60,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []string, filterOut map[string]bool) []string {
@@ -423,10 +424,10 @@ func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", inUseCheck)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has running apps \(app\), pids: 1234`)
 
-	// The state records the time of the failed refresh operation.
+	// Don't record time since it wasn't a failed refresh
 	err = snapstate.Get(s.state, "some-snap", snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.RefreshInhibitedTime, NotNil)
+	c.Check(snapst.RefreshInhibitedTime, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInstallWithIgnoreRunningProceedsOnBusySnap(c *C) {
@@ -5613,4 +5614,83 @@ func (s *snapmgrTestSuite) TestInstallWithTransactionLaneForbidden(c *C) {
 	tss, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{Lane: 1}, nil, "")
 	c.Assert(err, ErrorMatches, "transaction lane is unsupported in InstallWithDeviceContext")
 	c.Check(tss, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	snapst := &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: string(snap.TypeApp),
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+		Flags:    snapstate.Flags{IsAutoRefresh: true},
+	}
+
+	ts, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", inUseCheck)
+
+	var busyErr *snapstate.TimedBusySnapError
+	c.Assert(errors.As(err, &busyErr), Equals, true)
+	refreshInfo := busyErr.PendingSnapRefreshInfo()
+	c.Check(refreshInfo, DeepEquals, &userclient.PendingSnapRefreshInfo{
+		InstanceName:  "some-snap",
+		TimeRemaining: snapstate.MaxInhibition,
+	})
+
+	tasks := ts.Tasks()
+	c.Assert(tasks, HasLen, 1)
+	c.Assert(tasks[0].Kind(), Equals, "pre-download-snap")
+	c.Assert(tasks[0].Summary(), testutil.Contains, "Pre-download snap \"some-snap\" (2) from channel")
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	snapst := &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: string(snap.TypeApp),
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+		Flags:    snapstate.Flags{IsAutoRefresh: true},
+	}
+
+	// create ongoing pre-download
+	chg := s.state.NewChange("pre-download", "")
+	task := s.state.NewTask("pre-download-snap", "")
+	task.Set("snap-setup", snapsup)
+	chg.AddTask(task)
+	chg.SetStatus(state.DoStatus)
+
+	ts, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", inUseCheck)
+
+	var busyErr *snapstate.TimedBusySnapError
+	c.Assert(errors.As(err, &busyErr), Equals, true)
+	refreshInfo := busyErr.PendingSnapRefreshInfo()
+	c.Check(refreshInfo, DeepEquals, &userclient.PendingSnapRefreshInfo{
+		InstanceName:  "some-snap",
+		TimeRemaining: snapstate.MaxInhibition,
+	})
+	c.Assert(ts, IsNil)
 }

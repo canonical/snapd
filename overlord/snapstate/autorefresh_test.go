@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -928,11 +929,8 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	notificationCount := 0
 	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
-		notificationCount++
-		c.Check(refreshInfo.InstanceName, Equals, "pkg")
-		c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24-time.Second)
+		c.Fatal("shouldn't trigger pending refresh notification unless it was an auto-refresh and we're overdue")
 	})
 	defer restore()
 
@@ -951,20 +949,22 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 
 	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
-	c.Check(notificationCount, Equals, 1)
+
+	var timedErr *snapstate.TimedBusySnapError
+	c.Assert(errors.As(err, &timedErr), Equals, true)
+
+	refreshInfo := timedErr.PendingSnapRefreshInfo()
+	c.Assert(refreshInfo, NotNil)
+	c.Check(refreshInfo.InstanceName, Equals, "pkg")
+	c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24-time.Second)
 }
 
 func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	notificationCount := 0
 	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
-		notificationCount++
-		c.Check(refreshInfo.InstanceName, Equals, "pkg")
-		// XXX: This test measures real time, with second granularity.
-		// It takes non-zero (hence the subtracted second) to execute the test.
-		c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24/2-time.Second)
+		c.Fatal("shouldn't trigger pending refresh notification unless it was an auto-refresh and we're overdue")
 	})
 	defer restore()
 
@@ -987,7 +987,16 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 
 	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
-	c.Check(notificationCount, Equals, 1)
+
+	var timedErr *snapstate.TimedBusySnapError
+	c.Assert(errors.As(err, &timedErr), Equals, true)
+	refreshInfo := timedErr.PendingSnapRefreshInfo()
+
+	c.Assert(refreshInfo, NotNil)
+	c.Check(refreshInfo.InstanceName, Equals, "pkg")
+	// XXX: This test measures real time, with second granularity.
+	// It takes non-zero (hence the subtracted second) to execute the test.
+	c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24/2-time.Second)
 }
 
 func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
@@ -1051,5 +1060,5 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 	defer restore()
 
 	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
-	c.Assert(err, IsNil)
+	c.Assert(err, testutil.ErrorIs, &snapstate.BusySnapError{})
 }
