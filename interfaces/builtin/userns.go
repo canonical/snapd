@@ -46,7 +46,8 @@ userns,
 `
 
 const userNSConnectedPlugSeccomp = `
-# allow the use of unshare to use new user namespaces
+# allow the use of clone and unshare to use new user namespaces
+clone
 unshare
 `
 
