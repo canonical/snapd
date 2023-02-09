@@ -1719,7 +1719,8 @@ func filterHeldSnaps(st *state.State, updates []minimalInstallInfo, flags *Flags
 	return filteredUpdates, nil
 }
 
-// TODO:
+// TaskSetGroup distinguishes tasksets for refreshes and pre-downloads since an
+// auto-refresh can return both (even simultaneously).
 type TaskSetGroup struct {
 	// PreDownload holds the pre-downloads tasksets created when there are busy
 	// snaps that can't be refreshed during an auto-refresh.

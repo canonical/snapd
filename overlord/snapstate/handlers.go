@@ -845,7 +845,6 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	perfTimings := state.TimingsForTask(t)
 
 	snapsup, theStore, user, err := downloadSnapParams(st, t)
 	if err != nil {
@@ -862,6 +861,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		RateLimit:     autoRefreshRateLimited(st),
 	}
 
+	perfTimings := state.TimingsForTask(t)
 	st.Unlock()
 	timings.Run(perfTimings, "pre-download", fmt.Sprintf("pre-download snap %q", snapsup.SnapName()), func(timings.Measurer) {
 		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
@@ -870,6 +870,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	perfTimings.Save(st)
 
 	var waitingTasks []string
 	if err := t.Get("waiting-tasks", &waitingTasks); err != nil && !errors.Is(err, &state.NoStateError{}) {
@@ -917,7 +918,6 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st.Cache("continue-autorefresh", true)
 	st.EnsureBefore(0)
 
-	perfTimings.Save(st)
 	return nil
 }
 
