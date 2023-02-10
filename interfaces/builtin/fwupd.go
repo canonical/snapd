@@ -127,6 +127,8 @@ const fwupdPermanentSlotAppArmor = `
   /boot/efi/EFI/*/ rw,
   /boot/efi/EFI/*/fw/ rw,
   /boot/efi/EFI/*/fw/** rw,
+  /boot/efi/EFI/fwupd/ rw,
+  /boot/efi/EFI/fwupd/** rw,
 
   # Allow access from efivar library
   /sys/devices/{pci*,platform}/**/block/**/partition r,
