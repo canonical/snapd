@@ -46,23 +46,6 @@ type Transaction struct {
 	changes  map[string]map[string]interface{}
 }
 
-// RunTransaction holds a transaction with a task that is in charge of
-// appliying a change to the configuration. It is used in the context of
-// configcore.
-type RunTransaction struct {
-	*Transaction
-	task *state.Task
-}
-
-func (rt *RunTransaction) Task() *state.Task {
-	return rt.task
-}
-
-func NewRunTransaction(tr *Transaction, tk *state.Task) *RunTransaction {
-	runTransaction := &RunTransaction{Transaction: tr, task: tk}
-	return runTransaction
-}
-
 // NewTransaction creates a new configuration transaction initialized with the given state.
 //
 // The provided state must be locked by the caller.
