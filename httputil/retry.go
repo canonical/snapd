@@ -21,6 +21,7 @@ package httputil
 
 import (
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -300,7 +301,8 @@ func IsCertExpiredOrNotValidYetError(err error) bool {
 	if urlErr, ok := err.(*url.Error); ok {
 		err = urlErr.Err
 	}
-	if certErr, ok := err.(x509.CertificateInvalidError); ok {
+	var certErr x509.CertificateInvalidError
+	if errors.As(err, &certErr) {
 		// Expired is misleading, also means not valid yet
 		return certErr.Reason == x509.Expired
 	}
