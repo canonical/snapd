@@ -388,6 +388,14 @@ prepare_project() {
         quiet eatmydata apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
     fi
 
+    # ubuntu-16.04 is EOL so the updated go-1.18 is only available via
+    # the ppa:snappy-dev/image ppa for now. if needed the package could
+    # be copied from the PPA to the ESM archive.
+    if os.query is-xenial; then
+        quiet add-apt-repository ppa:snappy-dev/image
+        quiet eatmydata apt-get update
+    fi
+
     # WORKAROUND for older postrm scripts that did not do
     # "rm -rf /var/cache/snapd"
     rm -rf /var/cache/snapd/aux
