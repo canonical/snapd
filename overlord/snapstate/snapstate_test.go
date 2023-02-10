@@ -8175,6 +8175,58 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetBadType(c *C) {
 	c.Assert(ts, IsNil)
 }
 
+func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetConflict(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.addSnapsForRemodel(c)
+
+	tugc := s.state.NewTask("update-gadget-cmdline", "update gadget cmdline")
+	chg := s.state.NewChange("optional-kernel-cmdline", "optional kernel cmdline")
+	chg.AddTask(tugc)
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
+	snaptest.MockSnapCurrent(c, "name: snap-gadget\nversion: 1.0\n", si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+	ts, err := snapstate.SwitchToNewGadget(s.state, "some-snap")
+	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
+	c.Assert(ts, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetConflictExclusiveKind(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.addSnapsForRemodel(c)
+
+	tugc := s.state.NewTask("some-random-task", "...")
+	chg := s.state.NewChange("transition-to-snapd-snap", "...")
+	chg.AddTask(tugc)
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
+	snaptest.MockSnapCurrent(c, "name: snap-gadget\nversion: 1.0\n", si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+	ts, err := snapstate.SwitchToNewGadget(s.state, "some-snap")
+	c.Assert(err, ErrorMatches, "transition to snapd snap in progress, no other changes allowed until this is done")
+	c.Assert(ts, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -8223,6 +8275,33 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	ts = state.NewTaskSet()
 	tsNew, err = snapstate.AddGadgetAssetsTasks(s.state, ts)
 	c.Assert(err, ErrorMatches, `internal error: cannot identify task with snap-setup`)
+	c.Assert(tsNew, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasksConflict(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-gadget", Revision: snap.R(3)}
+	tPrepare := s.state.NewTask("prepare-snap", "test task")
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     "gadget",
+	}
+	tPrepare.Set("snap-setup", snapsup)
+	testTask := s.state.NewTask("test-task", "test task")
+	ts := state.NewTaskSet(tPrepare, testTask)
+
+	tugc := s.state.NewTask("update-gadget-cmdline", "update gadget cmdline")
+	chg := s.state.NewChange("optional-kernel-cmdline", "optional kernel cmdline")
+	chg.AddTask(tugc)
+
+	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts)
+	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
 	c.Assert(tsNew, IsNil)
 }
 
