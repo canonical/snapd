@@ -79,6 +79,17 @@ slots:
   mount-control:
 `
 
+const mountControlYaml = `name: consumer
+version: 0
+plugs:
+ mntctl:
+  interface: mount-control
+  %s
+apps:
+ app:
+  plugs: [mntctl]
+`
+
 func (s *MountControlInterfaceSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -109,16 +120,6 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugOldSystemd(c *C) {
 }
 
 func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
-	var mountControlYaml = `name: consumer
-version: 0
-plugs:
- mntctl:
-  interface: mount-control
-  %s
-apps:
- app:
-  plugs: [mntctl]
-`
 	data := []struct {
 		plugYaml      string
 		expectedError string
@@ -320,4 +321,19 @@ func (s *MountControlInterfaceSuite) TestAutoConnect(c *C) {
 
 func (s *MountControlInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *MountControlInterfaceSuite) TestFunctionfsValidates(c *C) {
+	plugYaml := `
+  mount:
+  - persistent: true
+    what: diag
+    where: /dev/ffs-diag
+    type: [functionfs]
+    options: [rw]
+`
+	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
+	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
+	err := interfaces.BeforeConnectPlug(s.iface, plug)
+	c.Check(err, IsNil)
 }

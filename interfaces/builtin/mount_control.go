@@ -346,8 +346,14 @@ func optionIncompatibleWithFsType(options []string) string {
 }
 
 func validateMountInfo(mountInfo *MountInfo) error {
-	if err := validateWhatAttr(mountInfo.what); err != nil {
-		return err
+	// with "functionfs" the "what" can essentially be anything, see
+	// https://www.kernel.org/doc/html/latest/usb/functionfs.html
+	isFunctionfs := len(mountInfo.types) == 1 && mountInfo.types[0] == "functionfs"
+
+	if !isFunctionfs {
+		if err := validateWhatAttr(mountInfo.what); err != nil {
+			return err
+		}
 	}
 
 	if err := validateWhereAttr(mountInfo.where); err != nil {
