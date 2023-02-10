@@ -249,7 +249,7 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			`mount-control "what" attribute can be "none" only with "tmpfs"`,
 		},
 		{
-			"mount:\n  - what: none\n    where: /media/*\n    options: [rw]\n    type: [tmpfs,ext4]",
+			"mount:\n  - what: /\n    where: /media/*\n    options: [rw]\n    type: [tmpfs,ext4]",
 			`mount-control filesystem type "tmpfs" cannot be listed with other types`,
 		},
 		{
