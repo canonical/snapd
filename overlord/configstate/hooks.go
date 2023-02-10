@@ -73,7 +73,8 @@ func (h *configureHandler) Before() error {
 	h.context.Lock()
 	defer h.context.Unlock()
 
-	tr := ContextTransaction(h.context)
+	task, _ := h.context.Task()
+	rt := config.NewRunTransaction(ContextTransaction(h.context), task)
 
 	// Initialize the transaction if there's a patch provided in the
 	// context or useDefaults is set in which case gadget defaults are used.
@@ -115,7 +116,7 @@ func (h *configureHandler) Before() error {
 		}
 	}
 
-	if err := config.Patch(tr, instanceName, patch); err != nil {
+	if err := config.Patch(rt, instanceName, patch); err != nil {
 		return err
 	}
 
