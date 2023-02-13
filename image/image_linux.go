@@ -386,18 +386,19 @@ func manifestFromLocalSnaps(snaps localSnapRefs, opts *Options) (map[string]snap
 }
 
 func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
-	var storeSnaps []*tooling.CurrentSnap
+	var localSnaps []*tooling.CurrentSnap
 	for sn := range snaps {
-		if sn.Info.ID() != "" {
-			storeSnaps = append(storeSnaps, &tooling.CurrentSnap{
-				SnapName: sn.Info.SnapName(),
-				SnapID:   sn.Info.ID(),
-				Revision: sn.Info.Revision,
-				Epoch:    sn.Info.Epoch,
-			})
+		if sn.Info.ID() == "" {
+			continue
 		}
+		localSnaps = append(localSnaps, &tooling.CurrentSnap{
+			SnapName: sn.Info.SnapName(),
+			SnapID:   sn.Info.ID(),
+			Revision: sn.Info.Revision,
+			Epoch:    sn.Info.Epoch,
+		})
 	}
-	return storeSnaps
+	return localSnaps
 }
 
 func downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap, w *seedwriter.Writer, tsto *tooling.ToolingStore, opts *Options) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
