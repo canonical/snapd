@@ -9157,3 +9157,62 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 	})
 	c.Assert(ts, IsNil)
 }
+
+func (s *snapmgrTestSuite) TestReRefreshCreatesPreDownloadChange(c *C) {
+	restore := snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, snapstate.UpdateFilter, *snapstate.Flags, string) ([]string, *snapstate.UpdateTaskSets, error) {
+		task := s.state.NewTask("test-pre-download", "test task")
+		ts := state.NewTaskSet(task)
+		return nil, &snapstate.UpdateTaskSets{PreDownload: []*state.TaskSet{ts}}, nil
+	})
+	defer restore()
+
+	s.o.TaskRunner().AddHandler("pre-download-snap", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	snapst := &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: string(snap.TypeApp),
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+		Flags:    snapstate.Flags{IsAutoRefresh: true},
+	}
+
+	chg := s.state.NewChange("auto-refresh", "test change")
+	// rerefresh looks for snaps by iterating through the other tasks in the change
+	otherTask := s.state.NewTask("other-task", "other test task")
+	otherTask.Set("snap-setup", snapsup)
+	otherTask.JoinLane(s.state.NewLane())
+	otherTask.SetStatus(state.DoneStatus)
+	otherTask.SetClean()
+
+	chg.AddTask(otherTask)
+	rerefreshTask := s.state.NewTask("check-rerefresh", "rerefresh task")
+	rerefreshTask.Set("rerefresh-setup", snapstate.ReRefreshSetup{
+		Flags: &snapstate.Flags{IsAutoRefresh: true},
+	})
+	chg.AddTask(rerefreshTask)
+
+	s.settle(c)
+
+	chgs := s.state.Changes()
+	// sort "auto-refresh" into first and "pre-download" into second
+	sort.Slice(chgs, func(i, j int) bool {
+		return chgs[i].Kind() < chgs[j].Kind()
+	})
+
+	c.Assert(chgs, HasLen, 2)
+	c.Assert(chgs[0].Err(), IsNil)
+
+	preDlChg := chgs[1]
+	c.Assert(preDlChg.Err(), IsNil)
+	c.Assert(preDlChg.Kind(), Equals, "pre-download")
+	c.Assert(preDlChg.Summary(), Equals, "Pre-download tasks for auto-refresh")
+	c.Assert(preDlChg.Tasks(), HasLen, 1)
+}

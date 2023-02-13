@@ -41,6 +41,8 @@ type (
 	ByType              = byType
 	DirMigrationOptions = dirMigrationOptions
 	Migration           = migration
+
+	ReRefreshSetup = reRefreshSetup
 )
 
 const (

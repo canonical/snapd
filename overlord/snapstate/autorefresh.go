@@ -546,12 +546,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return err
 	}
 
-	if len(updateTss.PreDownload) > 0 {
-		chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
-		for _, ts := range updateTss.PreDownload {
-			chg.AddAll(ts)
-		}
-	}
+	createPreDownloadChange(m.state, updateTss)
 
 	if len(updateTss.Refresh) == 0 {
 		return nil
@@ -572,6 +567,19 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	state.TagTimingsWithChange(perfTimings, chg)
 
 	return nil
+}
+
+// createPreDownloadChange creates a pre-download change if any relevant tasksets
+// exist in the UpdateTaskSets and returns whether or not a change was created.
+func createPreDownloadChange(st *state.State, updateTss *UpdateTaskSets) bool {
+	if updateTss != nil && len(updateTss.PreDownload) > 0 {
+		preDlChg := st.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
+		for _, ts := range updateTss.PreDownload {
+			preDlChg.AddAll(ts)
+		}
+		return true
+	}
+	return false
 }
 
 func autoRefreshInFlight(st *state.State) bool {

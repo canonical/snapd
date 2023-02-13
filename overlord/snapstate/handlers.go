@@ -3711,6 +3711,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	var newTasks bool
 	if len(updated) == 0 {
 		t.Logf("No re-refreshes found.")
 	} else {
@@ -3718,7 +3719,15 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 
 		for _, taskset := range updateTss.Refresh {
 			chg.AddAll(taskset)
+			newTasks = true
 		}
+	}
+
+	if createPreDownloadChange(st, updateTss) {
+		newTasks = true
+	}
+
+	if newTasks {
 		st.EnsureBefore(0)
 	}
 	t.SetStatus(state.DoneStatus)
@@ -3746,12 +3755,7 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		return err
 	}
 
-	if updateTss.PreDownload != nil {
-		chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
-		for _, ts := range updateTss.PreDownload {
-			chg.AddAll(ts)
-		}
-	}
+	createPreDownloadChange(st, updateTss)
 
 	if updateTss.Refresh != nil {
 		// update the map of refreshed snaps on the task, this affects
