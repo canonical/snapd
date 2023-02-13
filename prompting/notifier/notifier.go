@@ -36,6 +36,11 @@ type Request struct {
 	Pid uint32
 	// Label is the apparmor label on the process triggering the request.
 	Label string
+
+	// TODO: include SUID (seems to be the uid of the process that
+	// triggered the prompt) and (maybe) OUID (seems to be the uid
+	// of the filesystem object)
+
 	// Path is the path of the file, as seen by the process triggering the request.
 	Path string
 	// Permission is the opaque permission that is being requested.
