@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -126,19 +127,37 @@ func (s *deviceMgrBootconfigSuite) setupClassicWithModesModel(c *C) *asserts.Mod
 		})
 }
 
-func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted, applied bool, errMatch string) {
+type testBootConfigUpdateOpts struct {
+	updateAttempted     bool
+	updateApplied       bool
+	cmdlineAppend       string
+	cmdlineAppendDanger string
+}
+
+func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, opts testBootConfigUpdateOpts, errMatch string) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	s.state.Lock()
+
+	// Set options that influence the final kernel command line
+	tr := config.NewTransaction(s.state)
+	err := tr.Set("core", "cmdline-append", opts.cmdlineAppend)
+	c.Assert(err, IsNil)
+	tr.Set("core", "dangerous-cmdline-append", opts.cmdlineAppendDanger)
+	c.Assert(err, IsNil)
+	tr.Commit()
+
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
 	tsk.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &s.gadgetSnapInfo.SideInfo,
 		Type:     snap.TypeGadget,
 	})
 	chg := s.state.NewChange("sample", "...")
+
 	chg.AddTask(tsk)
 	chg.Set("system-restart-immediate", true)
+
 	s.state.Unlock()
 
 	s.settle(c)
@@ -154,9 +173,9 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted
 		c.Check(chg.Err(), ErrorMatches, errMatch)
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
 	}
-	if updateAttempted {
+	if opts.updateAttempted {
 		c.Assert(s.managedbl.UpdateCalls, Equals, 1)
-		if errMatch == "" && applied {
+		if errMatch == "" && opts.updateApplied {
 			// we log on success
 			log := tsk.Log()
 			c.Assert(log, HasLen, 2)
@@ -173,11 +192,20 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted
 	}
 }
 
-func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, updateAttempted, applied bool, errMatch string) {
+func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, opts testBootConfigUpdateOpts, errMatch string) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
 	s.state.Lock()
+
+	// Set options that influence the final kernel command line
+	tr := config.NewTransaction(s.state)
+	err := tr.Set("core", "cmdline-append", opts.cmdlineAppend)
+	c.Assert(err, IsNil)
+	tr.Set("core", "dangerous-cmdline-append", opts.cmdlineAppendDanger)
+	c.Assert(err, IsNil)
+	tr.Commit()
+
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
 	tsk.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &s.gadgetSnapInfo.SideInfo,
@@ -186,6 +214,7 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, updateAt
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	chg.Set("system-restart-immediate", true)
+
 	s.state.Unlock()
 
 	s.settle(c)
@@ -202,9 +231,9 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, updateAt
 		c.Check(chg.Err(), ErrorMatches, errMatch)
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
 	}
-	if updateAttempted {
+	if opts.updateAttempted {
 		c.Assert(s.managedbl.UpdateCalls, Equals, 1)
-		if errMatch == "" && applied {
+		if errMatch == "" && opts.updateApplied {
 			// we log on success
 			log := tsk.Log()
 			c.Assert(log, HasLen, 2)
@@ -225,9 +254,11 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccess(c *C) {
 
 	s.managedbl.Updated = true
 
-	updateAttempted := true
-	updateApplied := true
-	s.testBootConfigUpdateRun(c, updateAttempted, updateApplied, "")
+	opts := testBootConfigUpdateOpts{
+		updateAttempted: true,
+		updateApplied:   true,
+	}
+	s.testBootConfigUpdateRun(c, opts, "")
 
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -244,15 +275,39 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithMode
 
 	s.managedbl.Updated = true
 
-	updateAttempted := true
-	updateApplied := true
-	s.testBootConfigUpdateRunClassic(c, updateAttempted, updateApplied, "")
+	opts := testBootConfigUpdateOpts{
+		updateAttempted: true,
+		updateApplied:   true,
+	}
+	s.testBootConfigUpdateRunClassic(c, opts, "")
 
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate",
+	})
+}
+
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithModesWithAppend(c *C) {
+	s.state.Lock()
+	s.setupClassicWithModesModel(c)
+	s.state.Unlock()
+
+	s.managedbl.Updated = true
+
+	opts := testBootConfigUpdateOpts{
+		updateAttempted: true,
+		updateApplied:   true,
+		cmdlineAppend:   "par1=val par2",
+	}
+	s.testBootConfigUpdateRunClassic(c, opts, "")
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate par1=val par2",
 	})
 }
 
@@ -277,9 +332,11 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateWithGadgetExtra(c *C) {
 	}
 	c.Assert(m.Write(), IsNil)
 
-	updateAttempted := true
-	updateApplied := true
-	s.testBootConfigUpdateRun(c, updateAttempted, updateApplied, "")
+	opts := testBootConfigUpdateOpts{
+		updateAttempted: true,
+		updateApplied:   true,
+	}
+	s.testBootConfigUpdateRun(c, opts, "")
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -290,6 +347,50 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateWithGadgetExtra(c *C) {
 	})
 }
 
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithAppend(c *C) {
+	s.state.Lock()
+	s.setupUC20Model(c)
+	s.state.Unlock()
+
+	s.managedbl.Updated = true
+
+	opts := testBootConfigUpdateOpts{
+		updateAttempted: true,
+		updateApplied:   true,
+		cmdlineAppend:   "par1=val par2",
+	}
+	s.testBootConfigUpdateRun(c, opts, "")
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate par1=val par2",
+	})
+}
+
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithDangerousAppend(c *C) {
+	s.state.Lock()
+	s.setupUC20Model(c)
+	s.state.Unlock()
+
+	s.managedbl.Updated = true
+
+	opts := testBootConfigUpdateOpts{
+		updateAttempted:     true,
+		updateApplied:       true,
+		cmdlineAppendDanger: "par1=val par2",
+	}
+	s.testBootConfigUpdateRun(c, opts, "")
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate par1=val par2",
+	})
+}
+
 func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunButNotUpdated(c *C) {
 	s.state.Lock()
 	s.setupUC20Model(c)
@@ -297,9 +398,11 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunButNotUpdated(c *C) {
 
 	s.managedbl.Updated = false
 
-	updateAttempted := true
-	updateApplied := false
-	s.testBootConfigUpdateRun(c, updateAttempted, updateApplied, "")
+	opts := testBootConfigUpdateOpts{
+		updateAttempted: true,
+		updateApplied:   false,
+	}
+	s.testBootConfigUpdateRun(c, opts, "")
 }
 
 func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateUpdateErr(c *C) {
@@ -309,9 +412,11 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateUpdateErr(c *C) {
 
 	s.managedbl.UpdateErr = errors.New("update fail")
 	// actually tried to update
-	updateAttempted := true
-	updateApplied := false
-	s.testBootConfigUpdateRun(c, updateAttempted, updateApplied,
+	opts := testBootConfigUpdateOpts{
+		updateAttempted: true,
+		updateApplied:   false,
+	}
+	s.testBootConfigUpdateRun(c, opts,
 		`(?ms).*cannot update boot config assets: update fail\)`)
 
 }
@@ -331,9 +436,11 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigNoUC20(c *C) {
 	})
 	s.state.Unlock()
 
-	updateAttempted := false
-	updateApplied := false
-	s.testBootConfigUpdateRun(c, updateAttempted, updateApplied, "")
+	opts := testBootConfigUpdateOpts{
+		updateAttempted: false,
+		updateApplied:   false,
+	}
+	s.testBootConfigUpdateRun(c, opts, "")
 }
 
 func (s *deviceMgrBootconfigSuite) TestBootConfigRemodelDoNothing(c *C) {

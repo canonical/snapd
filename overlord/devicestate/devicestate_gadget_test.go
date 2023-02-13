@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -1151,8 +1152,15 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
 	c.Check(rollbackDir, Equals, passedRollbackDir)
 }
 
-func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, toFiles [][]string, errMatch, logMatch string, updated, isClassic bool) {
-	restore := release.MockOnClassic(isClassic)
+type testGadgetCommandlineUpdateOpts struct {
+	updated             bool
+	isClassic           bool
+	cmdlineAppend       string
+	cmdlineAppendDanger string
+}
+
+func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, toFiles [][]string, errMatch, logMatch string, opts testGadgetCommandlineUpdateOpts) {
+	restore := release.MockOnClassic(opts.isClassic)
 	defer restore()
 
 	s.state.Lock()
@@ -1178,6 +1186,15 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		SideInfo: &updateSi,
 		Type:     snap.TypeGadget,
 	})
+	argsAppended := false
+	if opts.cmdlineAppend != "" {
+		tsk.Set("cmdline-append", opts.cmdlineAppend)
+		argsAppended = true
+	}
+	if opts.cmdlineAppendDanger != "" {
+		tsk.Set("dangerous-cmdline-append", opts.cmdlineAppendDanger)
+		argsAppended = true
+	}
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	s.state.Unlock()
@@ -1189,7 +1206,7 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 
 	if errMatch == "" {
 		c.Check(chg.Err(), IsNil)
-		if isClassic {
+		if opts.isClassic && !argsAppended {
 			c.Assert(chg.IsReady(), Equals, false)
 			c.Check(tsk.Status(), Equals, state.WaitStatus)
 		} else {
@@ -1199,19 +1216,22 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		// we log on success
 		log := tsk.Log()
 		if logMatch != "" {
-			c.Assert(log, HasLen, 2)
 			c.Check(log[0], Matches, fmt.Sprintf(".* %v", logMatch))
-			if isClassic {
+			if argsAppended {
+				c.Assert(log, HasLen, 1)
+			} else if opts.isClassic {
+				c.Assert(log, HasLen, 2)
 				c.Check(log[1], Matches, ".* Task set to wait until a manual system restart allows to continue")
 			} else {
+				c.Assert(log, HasLen, 2)
 				c.Check(log[1], Matches, ".* Requested system restart")
 			}
 		} else {
 			c.Check(log, HasLen, 0)
 		}
-		if isClassic {
+		if opts.isClassic || argsAppended {
 			c.Check(s.restartRequests, HasLen, 0)
-		} else if updated {
+		} else if opts.updated {
 			// update was applied, thus a restart was requested
 			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystem})
 		} else {
@@ -1250,8 +1270,10 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExistingArgs(c *C)
 
 	s.state.Unlock()
 
-	const update = true
-	const isClassic = false
+	opts := testGadgetCommandlineUpdateOpts{
+		updated:   true,
+		isClassic: false,
+	}
 	s.testGadgetCommandlineUpdateRun(c,
 		[][]string{
 			{"meta/gadget.yaml", gadgetYaml},
@@ -1261,7 +1283,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExistingArgs(c *C)
 			{"meta/gadget.yaml", gadgetYaml},
 			{"cmdline.extra", "args from updated gadget"},
 		},
-		"", "Updated kernel command line", update, isClassic)
+		"", "Updated kernel command line", opts)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -1304,8 +1326,10 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineClassicWithModesWithEx
 
 	s.state.Unlock()
 
-	const update = true
-	const isClassic = true
+	opts := testGadgetCommandlineUpdateOpts{
+		updated:   true,
+		isClassic: true,
+	}
 	s.testGadgetCommandlineUpdateRun(c,
 		[][]string{
 			{"meta/gadget.yaml", gadgetYaml},
@@ -1315,7 +1339,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineClassicWithModesWithEx
 			{"meta/gadget.yaml", gadgetYaml},
 			{"cmdline.extra", "args from updated gadget"},
 		},
-		"", "Updated kernel command line", update, isClassic)
+		"", "Updated kernel command line", opts)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -1357,8 +1381,10 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewArgs(c *C) {
 
 	s.state.Unlock()
 
-	const update = true
-	const isClassic = false
+	opts := testGadgetCommandlineUpdateOpts{
+		updated:   true,
+		isClassic: false,
+	}
 	s.testGadgetCommandlineUpdateRun(c,
 		[][]string{
 			{"meta/gadget.yaml", gadgetYaml},
@@ -1368,7 +1394,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewArgs(c *C) {
 			{"meta/gadget.yaml", gadgetYaml},
 			{"cmdline.extra", "args from new gadget"},
 		},
-		"", "Updated kernel command line", update, isClassic)
+		"", "Updated kernel command line", opts)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -1384,6 +1410,79 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewArgs(c *C) {
 	c.Assert(vars, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "args from new gadget",
 	})
+}
+
+func (s *deviceMgrGadgetSuite) testUpdateGadgetCommandlineWithNewAppendedArgs(c *C, opts testGadgetCommandlineUpdateOpts) {
+	// no command line arguments prior to the gadget update
+	bootloader.Force(s.managedbl)
+	s.state.Lock()
+	s.setupUC20ModelWithGadget(c, "pc")
+	s.mockModeenvForMode(c, "run")
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.state.Set("seeded", true)
+
+	// mimic system state
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	m.CurrentKernelCommandLines = []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+	}
+	c.Assert(m.Write(), IsNil)
+	err = s.managedbl.SetBootVars(map[string]string{
+		"snapd_extra_cmdline_args": "",
+	})
+	c.Assert(err, IsNil)
+	s.managedbl.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+
+	files := [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	}
+	// The task comes from setting a system option so it is not a
+	// real gadget update and to/from files are the same.
+	s.testGadgetCommandlineUpdateRun(c, files, files, "",
+		"Updated kernel command line", opts)
+
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		// gadget arguments are picked up for the candidate command line
+		strutil.JoinNonEmpty([]string{"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1", opts.cmdlineAppend, opts.cmdlineAppendDanger}, " "),
+	})
+	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
+	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
+	c.Assert(err, IsNil)
+	// bootenv was cleared
+	c.Assert(vars, DeepEquals, map[string]string{
+		"snapd_extra_cmdline_args": strutil.JoinNonEmpty([]string{opts.cmdlineAppend, opts.cmdlineAppendDanger}, " "),
+	})
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewAppendedArgs(c *C) {
+	var opts testGadgetCommandlineUpdateOpts
+	for _, isClassic := range []bool{false, true} {
+		opts = testGadgetCommandlineUpdateOpts{
+			updated:       true,
+			isClassic:     isClassic,
+			cmdlineAppend: "append1=val append2",
+		}
+		s.testUpdateGadgetCommandlineWithNewAppendedArgs(c, opts)
+		opts = testGadgetCommandlineUpdateOpts{
+			updated:             true,
+			isClassic:           isClassic,
+			cmdlineAppendDanger: "danger1=val danger2",
+		}
+		s.testUpdateGadgetCommandlineWithNewAppendedArgs(c, opts)
+		opts = testGadgetCommandlineUpdateOpts{
+			updated:             true,
+			isClassic:           isClassic,
+			cmdlineAppend:       "append1=val append2",
+			cmdlineAppendDanger: "danger1=val danger2",
+		}
+		s.testUpdateGadgetCommandlineWithNewAppendedArgs(c, opts)
+	}
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineDroppedArgs(c *C) {
@@ -1410,8 +1509,10 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineDroppedArgs(c *C) {
 
 	s.state.Unlock()
 
-	const update = true
-	const isClassic = false
+	opts := testGadgetCommandlineUpdateOpts{
+		updated:   true,
+		isClassic: false,
+	}
 	s.testGadgetCommandlineUpdateRun(c,
 		[][]string{
 			{"meta/gadget.yaml", gadgetYaml},
@@ -1422,7 +1523,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineDroppedArgs(c *C) {
 			{"meta/gadget.yaml", gadgetYaml},
 			// new one does not
 		},
-		"", "Updated kernel command line", update, isClassic)
+		"", "Updated kernel command line", opts)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -1469,10 +1570,11 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineUnchanged(c *C) {
 		{"cmdline.extra", "args from gadget"},
 	}
 	// old and new gadget have the same command line arguments, nothing changes
-	const update = false
-	const isClassic = false
-	s.testGadgetCommandlineUpdateRun(c, sameFiles, sameFiles,
-		"", "", update, isClassic)
+	opts := testGadgetCommandlineUpdateOpts{
+		updated:   false,
+		isClassic: false,
+	}
+	s.testGadgetCommandlineUpdateRun(c, sameFiles, sameFiles, "", "", opts)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -1492,8 +1594,10 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineNonUC20(c *C) {
 	// there is no modeenv either
 
 	s.state.Unlock()
-	const update = false
-	const isClassic = false
+	opts := testGadgetCommandlineUpdateOpts{
+		updated:   false,
+		isClassic: false,
+	}
 	s.testGadgetCommandlineUpdateRun(c,
 		[][]string{
 			{"meta/gadget.yaml", gadgetYaml},
@@ -1503,7 +1607,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineNonUC20(c *C) {
 			{"meta/gadget.yaml", gadgetYaml},
 			{"cmdline.extra", "args from new gadget"},
 		},
-		"", "", update, isClassic)
+		"", "", opts)
 }
 
 func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
@@ -1842,8 +1946,10 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithFullArgs(c *C) {
 
 	s.state.Unlock()
 
-	const update = true
-	const isClassic = false
+	opts := testGadgetCommandlineUpdateOpts{
+		updated:   true,
+		isClassic: false,
+	}
 	s.testGadgetCommandlineUpdateRun(c,
 		[][]string{
 			{"meta/gadget.yaml", gadgetYaml},
@@ -1853,7 +1959,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithFullArgs(c *C) {
 			{"meta/gadget.yaml", gadgetYaml},
 			{"cmdline.full", "full args"},
 		},
-		"", "Updated kernel command line", update, isClassic)
+		"", "Updated kernel command line", opts)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
