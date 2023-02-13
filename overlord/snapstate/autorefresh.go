@@ -515,7 +515,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
 
 	// NOTE: this will unlock and re-lock state for network ops
-	updated, tasksetGroup, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
+	updated, updateTss, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
 
 	// TODO: we should have some way to lock just creating and starting changes,
 	//       as that would alleviate this race condition we are guarding against
@@ -546,14 +546,14 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return err
 	}
 
-	if len(tasksetGroup.PreDownload) > 0 {
+	if len(updateTss.PreDownload) > 0 {
 		chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
-		for _, ts := range tasksetGroup.PreDownload {
+		for _, ts := range updateTss.PreDownload {
 			chg.AddAll(ts)
 		}
 	}
 
-	if len(tasksetGroup.Refresh) == 0 {
+	if len(updateTss.Refresh) == 0 {
 		return nil
 	}
 
@@ -564,7 +564,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}
 
 	chg := m.state.NewChange("auto-refresh", msg)
-	for _, ts := range tasksetGroup.Refresh {
+	for _, ts := range updateTss.Refresh {
 		chg.AddAll(ts)
 	}
 	chg.Set("snap-names", updated)

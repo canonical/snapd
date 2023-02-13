@@ -3706,7 +3706,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	updated, tasksetGroup, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID())
+	updated, updateTss, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID())
 	if err != nil {
 		return err
 	}
@@ -3716,7 +3716,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	} else {
 		t.Logf("Found re-refresh for %s.", strutil.Quoted(updated))
 
-		for _, taskset := range tasksetGroup.Refresh {
+		for _, taskset := range updateTss.Refresh {
 			chg.AddAll(taskset)
 		}
 		st.EnsureBefore(0)
@@ -3741,19 +3741,19 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		return nil
 	}
 
-	tssGroup, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
+	updateTss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
 	if err != nil {
 		return err
 	}
 
-	if tssGroup.PreDownload != nil {
+	if updateTss.PreDownload != nil {
 		chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
-		for _, ts := range tssGroup.PreDownload {
+		for _, ts := range updateTss.PreDownload {
 			chg.AddAll(ts)
 		}
 	}
 
-	if tssGroup.Refresh != nil {
+	if updateTss.Refresh != nil {
 		// update the map of refreshed snaps on the task, this affects
 		// conflict checks (we don't want to conflict on snaps that were held and
 		// won't be refreshed) -  see conditionalAutoRefreshAffectedSnaps().
@@ -3765,7 +3765,7 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 
 		// update original auto-refresh change
 		chg := t.Change()
-		for _, ts := range tssGroup.Refresh {
+		for _, ts := range updateTss.Refresh {
 			ts.WaitFor(t)
 			chg.AddAll(ts)
 		}
