@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -54,7 +55,8 @@ type autoRefreshStore struct {
 
 	ops []string
 
-	err error
+	err         error
+	refreshable []*snap.Info
 
 	snapActionOpsFunc func()
 }
@@ -89,7 +91,12 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 
 	r.ops = append(r.ops, "list-refresh")
 
-	return nil, nil, r.err
+	var res []store.SnapActionResult
+	for _, rs := range r.refreshable {
+		res = append(res, store.SnapActionResult{Info: rs})
+	}
+
+	return res, nil, r.err
 }
 
 type autoRefreshTestSuite struct {
@@ -1061,4 +1068,100 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 
 	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, testutil.ErrorIs, &snapstate.BusySnapError{})
+}
+
+func (s *autoRefreshTestSuite) TestBlockedAutoRefreshCreatesPreDownloads(c *C) {
+	s.addRefreshableSnap("foo")
+
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.Ensure()
+	c.Check(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chgs := s.state.Changes()
+	c.Assert(chgs, HasLen, 1)
+	checkPreDownloadChange(c, chgs[0], "foo", snap.R(8))
+}
+
+func (s *autoRefreshTestSuite) TestAutoRefreshCreatesBothRefreshAndPreDownload(c *C) {
+	s.addRefreshableSnap("foo", "bar")
+
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+		if si.RealName == "foo" {
+			return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
+		}
+
+		return nil
+	})
+	defer restore()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.Ensure()
+	c.Check(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chgs := s.state.Changes()
+	c.Assert(chgs, HasLen, 2)
+	// sort "auto-refresh" into first and "pre-download" into second
+	sort.Slice(chgs, func(i, j int) bool {
+		return chgs[i].Kind() < chgs[j].Kind()
+	})
+
+	checkPreDownloadChange(c, chgs[1], "foo", snap.R(8))
+
+	c.Assert(chgs[0].Kind(), Equals, "auto-refresh")
+	var names []string
+	err = chgs[0].Get("snap-names", &names)
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"bar"})
+}
+
+func checkPreDownloadChange(c *C, chg *state.Change, name string, rev snap.Revision) {
+	c.Assert(chg.Kind(), Equals, "pre-download")
+	c.Assert(chg.Summary(), Equals, "Pre-download tasks for auto-refresh")
+	c.Assert(chg.Tasks(), HasLen, 1)
+	task := chg.Tasks()[0]
+	c.Assert(task.Kind(), Equals, "pre-download-snap")
+	c.Assert(task.Summary(), testutil.Contains, fmt.Sprintf("Pre-download snap %q (%s) from channel", name, rev))
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(task.Get("snap-setup", &snapsup), IsNil)
+	c.Assert(snapsup.InstanceName(), Equals, name)
+	c.Assert(snapsup.Revision(), Equals, rev)
+
+	var refreshInfo userclient.PendingSnapRefreshInfo
+	c.Assert(task.Get("refresh-info", &refreshInfo), IsNil)
+	c.Assert(refreshInfo.InstanceName, Equals, name)
+}
+
+func (s *autoRefreshTestSuite) addRefreshableSnap(names ...string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, name := range names {
+		si := &snap.SideInfo{RealName: name, SnapID: fmt.Sprintf("%s-id", name), Revision: snap.R(1)}
+		snapstate.Set(s.state, name, &snapstate.SnapState{
+			Active:   true,
+			Sequence: []*snap.SideInfo{si},
+			Current:  si.Revision,
+			SnapType: string(snap.TypeApp),
+		})
+
+		s.store.refreshable = append(s.store.refreshable, &snap.Info{
+			SnapType:      snap.TypeApp,
+			Architectures: []string{"all"},
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Revision: snap.R(8),
+			}})
+	}
 }

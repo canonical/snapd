@@ -9030,3 +9030,50 @@ func (s *snapmgrTestSuite) TestUpdateLaneErrorsWithLaneButNoTransaction(c *C) {
 	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
 	c.Check(ts, IsNil)
 }
+
+func (s *snapmgrTestSuite) TestConditionalAutoRefreshCreatesPreDownloadChange(c *C) {
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	snapst := &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: string(snap.TypeApp),
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+
+	chg := s.state.NewChange("auto-refresh", "test change")
+	task := s.state.NewTask("conditional-auto-refresh", "test task")
+	chg.AddTask(task)
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+		Flags:    snapstate.Flags{IsAutoRefresh: true},
+	}
+	task.Set("snap-setup", snapsup)
+	task.Set("snaps", map[string]*snapstate.RefreshCandidate{
+		"some-snap": {
+			SnapSetup: *snapsup,
+		}})
+
+	s.settle(c)
+
+	chgs := s.state.Changes()
+	// sort "auto-refresh" into first and "pre-download" into second
+	sort.Slice(chgs, func(i, j int) bool {
+		return chgs[i].Kind() < chgs[j].Kind()
+	})
+
+	c.Assert(chgs, HasLen, 2)
+	c.Assert(chgs[0].Err(), IsNil)
+	c.Assert(chgs[0].Status(), Equals, state.DoneStatus)
+
+	checkPreDownloadChange(c, chgs[1], "some-snap", snap.R(2))
+}
