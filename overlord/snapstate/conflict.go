@@ -184,7 +184,9 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 		}
 		switch chg.Kind() {
 		case "pre-download":
-			// pre-download tasks don't produce conflicts
+			// pre-download changes only have pre-download tasks which don't generate
+			// conflicts because they only download the snap and download tasks check
+			// for them explicitly
 			fallthrough
 		case "become-operational":
 			// become-operational will be retried until success
