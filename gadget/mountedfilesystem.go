@@ -56,7 +56,7 @@ func checkContent(content *ResolvedContent) error {
 	return nil
 }
 
-func observe(observer ContentObserver, op ContentOperation, ps *LaidOutStructure, root, dst string, data *ContentChange) (ContentChangeAction, error) {
+func observe(observer ContentObserver, op ContentOperation, partRole, root, dst string, data *ContentChange) (ContentChangeAction, error) {
 	if observer == nil {
 		return ChangeApply, nil
 	}
@@ -69,7 +69,7 @@ func observe(observer ContentObserver, op ContentOperation, ps *LaidOutStructure
 		}
 		relativeTarget = relative
 	}
-	return observer.Observe(op, ps.Role(), root, relativeTarget, data)
+	return observer.Observe(op, partRole, root, relativeTarget, data)
 }
 
 // TODO: MountedFilesystemWriter should not be exported
@@ -191,7 +191,7 @@ func (m *MountedFilesystemWriter) observedWriteFileOrSymlink(volumeRoot, src, ds
 		// with content in this file
 		After: src,
 	}
-	act, err := observe(m.observer, ContentWrite, m.ps, volumeRoot, dst, data)
+	act, err := observe(m.observer, ContentWrite, m.ps.Role(), volumeRoot, dst, data)
 	if err != nil {
 		return fmt.Errorf("cannot observe file write: %v", err)
 	}
@@ -637,7 +637,7 @@ func (f *mountedFilesystemUpdater) observedBackupOrCheckpointFile(dstRoot, sourc
 	}
 	if change != nil {
 		dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
-		act, err := observe(f.updateObserver, ContentUpdate, f.ps, f.mountPoint, dstPath, change)
+		act, err := observe(f.updateObserver, ContentUpdate, f.ps.Role(), f.mountPoint, dstPath, change)
 		if err != nil {
 			return fmt.Errorf("cannot observe pending file write %v\n", err)
 		}
@@ -896,7 +896,7 @@ func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 	}
 	// avoid passing source path during rollback, the file has been restored
 	// to the disk already
-	_, err := observe(f.updateObserver, ContentRollback, f.ps, f.mountPoint, dstPath, data)
+	_, err := observe(f.updateObserver, ContentRollback, f.ps.Role(), f.mountPoint, dstPath, data)
 	if err != nil {
 		return fmt.Errorf("cannot observe pending file rollback %v\n", err)
 	}
