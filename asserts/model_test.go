@@ -1191,3 +1191,119 @@ func (mods *modelSuite) TestClassicWithSnapsMinimalDecodeOK(c *C) {
 		c.Check(noEssential.Size(), Equals, len(snaps)-1)
 	}
 }
+
+func (mods *modelSuite) TestValidationSetsDecodeFAIL(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	tests := []struct {
+		frag        string
+		expectedErr string
+	}{
+		// missing name
+		{`validation-sets:
+  -
+    mode: prefer-enforce
+`, "assertion model: \"name\" header is mandatory"},
+		// missing mode
+		{`validation-sets:
+  -
+    name: my-set
+`, "assertion model: \"mode\" header is mandatory"},
+		// invalid value in mode
+		{`validation-sets:
+  -
+    account-id: developer1
+    name: my-set
+    sequence: 10
+    mode: hello
+`, "assertion model: validation-set mode for model must be monitor|prefer-enforce|enforce, not \"hello\""},
+		// sequence number invalid
+		{`validation-sets:
+  -
+    account-id: developer1
+    sequence: -1
+    name: my-set
+    mode: monitor
+`, "assertion model: invalid sequence number for validation set, sequence must be larger than 0"},
+		// duplicate validation-set
+		{`validation-sets:
+  -
+    account-id: developer1
+    name: my-set
+    mode: monitor
+  -
+    account-id: developer1
+    name: my-set
+    mode: enforce
+`, "assertion model: cannot add validation set \"developer1/my-set\" twice"},
+	}
+
+	for _, t := range tests {
+		data := strings.Replace(encoded, "OTHER", t.frag, 1)
+		_, err := asserts.Decode([]byte(data))
+		c.Assert(err, ErrorMatches, t.expectedErr)
+	}
+}
+
+func (mods *modelSuite) TestValidationSetsDecodeOK(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	tests := []struct {
+		frag     string
+		expected []*asserts.ModelValidationSet
+	}{
+		// brand validation-set
+		{`validation-sets:
+  -
+    name: my-set
+    mode: prefer-enforce
+`,
+			[]*asserts.ModelValidationSet{
+				{
+					AccountID: "",
+					Name:      "my-set",
+					Mode:      asserts.ModelValidationSetModePreferEnforced,
+				},
+			}},
+		// pinned set
+		{`validation-sets:
+  -
+    account-id: developer1
+    name: my-set
+    sequence: 10
+    mode: enforce
+`,
+			[]*asserts.ModelValidationSet{
+				{
+					AccountID: "developer1",
+					Name:      "my-set",
+					Sequence:  10,
+					Mode:      asserts.ModelValidationSetModeEnforced,
+				},
+			}},
+		// unpinned set
+		{`validation-sets:
+  -
+    account-id: developer1
+    name: my-set
+    mode: monitor
+`,
+			[]*asserts.ModelValidationSet{
+				{
+					AccountID: "developer1",
+					Name:      "my-set",
+					Mode:      asserts.ModelValidationSetModeMonitor,
+				},
+			}},
+	}
+
+	for _, t := range tests {
+		data := strings.Replace(encoded, "OTHER", t.frag, 1)
+		a, err := asserts.Decode([]byte(data))
+		c.Assert(err, IsNil)
+		c.Check(a.Type(), Equals, asserts.ModelType)
+		model := a.(*asserts.Model)
+		c.Check(model.Architecture(), Equals, "amd64")
+		c.Check(model.Classic(), Equals, false)
+		c.Check(model.Base(), Equals, "core20")
+		c.Check(model.ValidationSets(), DeepEquals, t.expected)
+	}
+}
