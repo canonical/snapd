@@ -96,3 +96,12 @@ execute: |
 
     echo "Then the new version is listed"
     snap list | grep -Pzq "$expected"
+
+    echo "Snapd will try to serial register to the proxy store"
+    curl --data '{"action":"forget"}' --unix-socket /run/snapd.socket http://localhost/v2/model/serial
+    snap debug ensure-state-soon
+    FAKESTORE_HOST=$(snap known store | grep 'url:' | sed 's#url: http://\(.*\)#\1#p' | tail -1)
+    # TODO: write code in the fakestore that handles getting a serial
+    # i.e. just refactor tests/lib/fakedevicesvc so that the relevant
+    # endpoint is available in the fakestore too if desired.
+    retry -n 10 -c "journalctl -u snapd | grep \"POST /api/v1/snaps/auth/request-id.*$FAKESTORE_HOST\""
