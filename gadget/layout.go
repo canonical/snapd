@@ -63,8 +63,6 @@ type LaidOutVolume struct {
 	// LaidOutStructure is a list of structures within the volume, sorted
 	// by their start offsets
 	LaidOutStructure []LaidOutStructure
-	// RootDir is the root directory for volume data
-	RootDir string
 }
 
 // PartiallyLaidOutVolume defines the layout of volume structures, but lacks the
@@ -349,7 +347,6 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		Volume:           volume,
 		Size:             volumeSize,
 		LaidOutStructure: structures,
-		RootDir:          opts.GadgetRootDir,
 	}
 	return vol, nil
 }
