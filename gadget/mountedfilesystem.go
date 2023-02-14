@@ -69,7 +69,7 @@ func observe(observer ContentObserver, op ContentOperation, ps *LaidOutStructure
 		}
 		relativeTarget = relative
 	}
-	return observer.Observe(op, ps, root, relativeTarget, data)
+	return observer.Observe(op, ps.Role(), root, relativeTarget, data)
 }
 
 // TODO: MountedFilesystemWriter should not be exported

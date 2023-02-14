@@ -274,19 +274,6 @@ func (s *assetsSuite) TestInstallObserverNew(c *C) {
 	c.Assert(obs, IsNil)
 }
 
-var (
-	mockRunBootStruct = &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role: gadget.SystemBoot,
-		},
-	}
-	mockSeedStruct = &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role: gadget.SystemSeed,
-		},
-	}
-)
-
 func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 	d := c.MkDir()
 
@@ -318,24 +305,24 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 		Before: "",
 	}
 	// only grubx64.efi gets installed to system-boot
-	res, err := obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+	res, err := obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
 		"EFI/boot/grubx64.efi", writeChange)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// Observe is called when populating content, but one can freely specify
 	// overlapping content entries, so a same file may be observed more than
 	// once
-	res, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
 		"EFI/boot/grubx64.efi", writeChange)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// try with one more file, which is not a trusted asset of a run mode, so it is ignored
-	res, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
 		"EFI/boot/bootx64.efi", writeChange)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// a managed boot asset is to be held
-	res, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
 		"EFI/ubuntu/grub.cfg", writeChange)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeIgnore)
@@ -346,15 +333,11 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 	})
 
 	// and one more, a non system-boot structure, so the file is ignored
-	systemSeedStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role: gadget.SystemSeed,
-		},
-	}
 	otherWriteChange := &gadget.ContentChange{
 		After: filepath.Join(d, "other-foobar"),
 	}
-	res, err = obs.Observe(gadget.ContentWrite, systemSeedStruct, boot.InitramfsUbuntuBootDir,
+	// set a non system-boot structure, so the file is ignored
+	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemSeed, boot.InitramfsUbuntuBootDir,
 		"EFI/boot/grubx64.efi", otherWriteChange)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -399,22 +382,22 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 		// there is no original file in place
 		Before: "",
 	}
-	res, err := obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+	res, err := obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
 		"asset", writeChange)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe same asset again
-	res, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
 		"asset", writeChange)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// different one
-	res, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
 		"nested/other-asset", writeChange)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// a non trusted asset
-	res, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
 		"non-trusted", writeChange)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -458,7 +441,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMockedUnencryptedWithM
 		// there is no original file in place
 		Before: "",
 	}
-	res, err := obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+	res, err := obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
 		"managed", writeChange)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeIgnore)
@@ -527,12 +510,12 @@ func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(d, "other"), []byte("other"), 0644)
 	c.Assert(err, IsNil)
-	res, err := obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir, "asset",
+	res, err := obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// same asset name but different content
-	res, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir, "nested/asset",
+	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir, "nested/asset",
 		&gadget.ContentChange{After: filepath.Join(d, "other")})
 	c.Assert(err, ErrorMatches, `cannot reuse asset name "asset"`)
 	c.Check(res, Equals, gadget.ChangeAbort)
@@ -728,7 +711,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 	// the list of trusted assets is obtained upfront
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 
-	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content would get backed up by the updater
@@ -736,16 +719,16 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 		})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content
@@ -753,7 +736,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 		})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "nested/other-asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "nested/other-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -778,7 +761,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 	})
 
 	// verify that managed assets are to be preserved
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "managed-asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "managed-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeIgnore)
@@ -847,15 +830,15 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
 	// observe the updates
-	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -879,11 +862,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	})
 
 	// verify that managed assets are to be preserved
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "managed-asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "managed-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeIgnore)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "nested/managed-asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "nested/managed-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeIgnore)
@@ -927,11 +910,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateNothingTrackedMocked(c *C) {
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
 	// observe the updates
-	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -973,15 +956,8 @@ func (s *assetsSuite) TestUpdateObserverUpdateOtherRoleStructMocked(c *C) {
 	// and once again for the recovery bootloader
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 
-	// non system-boot or system-seed structure gets ignored
-	mockVolumeStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role: gadget.SystemData,
-		},
-	}
-
-	// observe the updates
-	res, err := obs.Observe(gadget.ContentUpdate, mockVolumeStruct, root, "asset",
+	// observe the updates (system-data gets ignored)
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemData, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -1028,11 +1004,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateTrivialErr(c *C) {
 	c.Check(bl.TrustedAssetsCalls, Equals, 2)
 
 	// no modeenv
-	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, ErrorMatches, `cannot load modeenv: .* no such file or directory`)
 	c.Check(res, Equals, gadget.ChangeAbort)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, ErrorMatches, `cannot load modeenv: .* no such file or directory`)
 	c.Check(res, Equals, gadget.ChangeAbort)
@@ -1044,15 +1020,15 @@ func (s *assetsSuite) TestUpdateObserverUpdateTrivialErr(c *C) {
 	c.Assert(err, IsNil)
 
 	// no source file, hash will fail
-	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, ErrorMatches, `cannot open asset file: .*/foobar: no such file or directory`)
 	c.Check(res, Equals, gadget.ChangeAbort)
-	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{Before: filepath.Join(d, "before"), After: filepath.Join(d, "foobar")})
 	c.Assert(err, ErrorMatches, `cannot open asset file: .*/before: no such file or directory`)
 	c.Check(res, Equals, gadget.ChangeAbort)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, ErrorMatches, `cannot open asset file: .*/foobar: no such file or directory`)
 	c.Check(res, Equals, gadget.ChangeAbort)
@@ -1086,11 +1062,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateRepeatedAssetErr(c *C) {
 	err = ioutil.WriteFile(filepath.Join(d, "foobar"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, ErrorMatches, `cannot reuse asset name "asset"`)
 	c.Check(res, Equals, gadget.ChangeAbort)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, ErrorMatches, `cannot reuse asset name "asset"`)
 	c.Check(res, Equals, gadget.ChangeAbort)
@@ -1146,7 +1122,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
-	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content would get backed up by the updater
@@ -1154,7 +1130,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
 		})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content
@@ -1249,14 +1225,14 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	res, err := obs.Observe(gadget.ContentRollback, mockRunBootStruct, root, "asset",
+	res, err := obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{
 			After:  filepath.Join(d, "asset"),
 			Before: filepath.Join(backups, "asset.backup"),
 		})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentRollback, mockRunBootStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "shim",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "shim"),
 			// no before content, new file
@@ -1264,21 +1240,21 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, rootSeed, "shim",
+	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, rootSeed, "shim",
 		&gadget.ContentChange{
 			After:  filepath.Join(d, "shim"),
 			Before: filepath.Join(backups, "shim.backup"),
 		})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, rootSeed, "asset",
+	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, rootSeed, "asset",
 		&gadget.ContentChange{
 			After:  filepath.Join(d, "asset"),
 			Before: filepath.Join(backups, "asset.backup"),
 		})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, rootSeed, "nested/other-asset",
+	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, rootSeed, "nested/other-asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "asset"),
 		})
@@ -1326,12 +1302,12 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 	// file does not exist on disk
-	res, err := obs.Observe(gadget.ContentRollback, mockRunBootStruct, root, "asset",
+	res, err := obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -1357,11 +1333,11 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 	// again, file does not exist on disk, but we expected it to be there
-	res, err = obs.Observe(gadget.ContentRollback, mockRunBootStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{})
 	c.Assert(err, ErrorMatches, `tracked asset "asset" is unexpectedly missing from disk`)
 	c.Check(res, Equals, gadget.ChangeAbort)
-	res, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{})
 	c.Assert(err, ErrorMatches, `tracked asset "asset" is unexpectedly missing from disk`)
 	c.Check(res, Equals, gadget.ChangeAbort)
@@ -1370,11 +1346,11 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 	err = ioutil.WriteFile(filepath.Join(root, "asset"), nil, 0644)
 	c.Assert(err, IsNil)
 	// once more, the file exists on disk, but has unexpected checksum
-	res, err = obs.Observe(gadget.ContentRollback, mockRunBootStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{})
 	c.Assert(err, ErrorMatches, `unexpected content of existing asset "asset"`)
 	c.Check(res, Equals, gadget.ChangeAbort)
-	res, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{})
 	c.Assert(err, ErrorMatches, `unexpected content of existing asset "asset"`)
 	c.Check(res, Equals, gadget.ChangeAbort)
@@ -1479,24 +1455,24 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 	c.Assert(err, IsNil)
 
 	// updates first
-	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, bootDir, "EFI/boot/grubx64.efi",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, bootDir, "EFI/boot/grubx64.efi",
 		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grubx64.efi")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, seedDir, "EFI/boot/grubx64.efi",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, seedDir, "EFI/boot/grubx64.efi",
 		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grubx64.efi")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, seedDir, "EFI/boot/bootx64.efi",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, seedDir, "EFI/boot/bootx64.efi",
 		&gadget.ContentChange{After: filepath.Join(gadgetDir, "bootx64.efi")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// grub.cfg on ubuntu-seed and ubuntu-boot is managed by snapd
-	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, seedDir, "EFI/ubuntu/grub.cfg",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, seedDir, "EFI/ubuntu/grub.cfg",
 		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grub.conf")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeIgnore)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, seedDir, "EFI/ubuntu/grub.cfg",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, seedDir, "EFI/ubuntu/grub.cfg",
 		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grub.conf")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeIgnore)
@@ -1544,15 +1520,15 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 	// hiya, update failed, pretend we do a rollback, files on disk are as
 	// if they were restored
 
-	res, err = obs.Observe(gadget.ContentRollback, mockRunBootStruct, bootDir, "EFI/boot/grubx64.efi",
+	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemBoot, bootDir, "EFI/boot/grubx64.efi",
 		&gadget.ContentChange{})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, seedDir, "EFI/boot/grubx64.efi",
+	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, seedDir, "EFI/boot/grubx64.efi",
 		&gadget.ContentChange{})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, seedDir, "EFI/boot/bootx64.efi",
+	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, seedDir, "EFI/boot/bootx64.efi",
 		&gadget.ContentChange{})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -1609,20 +1585,20 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 	err = ioutil.WriteFile(filepath.Join(d, "shim"), shim, 0644)
 	c.Assert(err, IsNil)
 
-	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -1715,17 +1691,17 @@ func (s *assetsSuite) TestUpdateObserverCanceledPartiallyUsedMocked(c *C) {
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
 	// XXX: shim is not updated
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -1826,7 +1802,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 	err = ioutil.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644)
 	c.Assert(err, IsNil)
 	// observe only recovery bootloader update, no action for run bootloader
-	res, err := obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "shim",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -1862,7 +1838,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledEmptyModeenvAssets(c *C) {
 	err = ioutil.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644)
 	c.Assert(err, IsNil)
 	// observe an update only for the recovery bootloader, the run bootloader trusted assets remain empty
-	res, err := obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "shim",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -1877,7 +1853,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledEmptyModeenvAssets(c *C) {
 
 	// get a new observer, and observe an update for run bootloader asset only
 	obs, _ = s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
-	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -1915,11 +1891,11 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 	// trigger loading modeenv and bootloader information
 	err = ioutil.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644)
 	c.Assert(err, IsNil)
-	res, err := obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "shim",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -1986,11 +1962,11 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
 	err = ioutil.WriteFile(filepath.Join(d, "shim"), shim, 0644)
 	c.Assert(err, IsNil)
-	res, err := obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "shim",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -2470,7 +2446,7 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content would get backed up by the updater
@@ -2478,16 +2454,16 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content
@@ -2621,20 +2597,20 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	c.Assert(err, IsNil)
 
 	// trigger a bunch of updates, so that we have things to cancel
-	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -2743,10 +2719,10 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 		// original content would get backed up by the updater
 		Before: filepath.Join(backups, "asset.backup"),
 	}
-	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset", change)
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset", change)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset", change)
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset", change)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// trusted assets were asked for when setting up bootloader context
@@ -2760,11 +2736,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, HasLen, 0)
 
 	// verify that managed assets are to be preserved
-	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "managed-asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "managed-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeIgnore)
-	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "managed-asset",
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "managed-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeIgnore)
