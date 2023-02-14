@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -395,7 +396,7 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 		// partitions we can't map to a device directly at first using the
 		// device symlinks that FindDeviceForStructure uses
 		dev := ""
-		for _, vs := range vol.LaidOutStructure {
+		for _, ls := range vol.LaidOutStructure {
 			// TODO: This code works for volumes that have at least one
 			// partition (i.e. not type: bare structure), but does not work for
 			// volumes which contain only type: bare structures with no other
@@ -407,12 +408,12 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 			// at the expected locations, but that is probably fragile and very
 			// non-performant.
 
-			if !vs.IsPartition() {
+			if !ls.IsPartition() {
 				// skip trying to find non-partitions on disk, it won't work
 				continue
 			}
 
-			structureDevice, err := FindDeviceForStructure(&vs)
+			structureDevice, err := FindDeviceForStructure(ls.VolumeStructure)
 			if err != nil && err != ErrDeviceNotFound {
 				return nil, err
 			}
@@ -1239,7 +1240,7 @@ func IsCompatible(current, new *Info) error {
 // flashed and managed separately at image build/flash time, while the system
 // volume with all the system-* roles on it can be manipulated during install
 // mode.
-func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
+func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model, encType secboot.EncryptionType) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
 	all = make(map[string]*LaidOutVolume)
 	// model should never be nil here
 	if model == nil {
@@ -1256,6 +1257,7 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (syste
 	opts := &LayoutOptions{
 		GadgetRootDir: gadgetRoot,
 		KernelRootDir: kernelRoot,
+		EncType:       encType,
 	}
 
 	// find the volume with the system-boot role on it, we already validated

@@ -1357,9 +1357,13 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	encType := secboot.EncryptionTypeNone
+	if useEncryption {
+		encType = secboot.EncryptionTypeLUKS
+	}
 	// TODO for partial gadgets we should also use the data from onVolumes instead of
 	// using only what comes from gadget.yaml.
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model)
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, encType)
 	if err != nil {
 		return fmt.Errorf("on finish install: cannot layout volumes: %v", err)
 	}
