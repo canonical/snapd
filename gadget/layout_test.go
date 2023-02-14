@@ -62,8 +62,7 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 				{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB},
 			},
 		},
-		Size:    3 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Size: 3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{{
 			OnDiskStructure: gadget.OnDiskStructure{
 				Size:        2 * quantity.SizeMiB,
@@ -105,9 +104,8 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    501 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   501 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -169,9 +167,8 @@ volumes:
 		dataFsType = "crypto_LUKS"
 	}
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    502 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   502 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -232,9 +229,8 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    1101 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   1101 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -305,9 +301,8 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    1300 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   1300 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -377,9 +372,8 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    1200 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   1200 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -468,9 +462,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    1200 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   1200 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -651,9 +644,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    3 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -707,9 +699,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    3 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -760,9 +751,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    3 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -807,9 +797,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    3 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -855,9 +844,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    2 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   2 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// MBR
@@ -918,9 +906,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    3 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// mbr
