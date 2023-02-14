@@ -734,8 +734,7 @@ type mockUpdateProcessObserver struct {
 	canceledErr       error
 }
 
-func (m *mockUpdateProcessObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+func (m *mockUpdateProcessObserver) Observe(op gadget.ContentOperation, partRole, targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	return gadget.ChangeAbort, errors.New("unexpected call")
 }
 

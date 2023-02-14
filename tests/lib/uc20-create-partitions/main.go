@@ -51,7 +51,7 @@ type cmdCreatePartitions struct {
 
 type simpleObserver struct{}
 
-func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, dst string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+func (o *simpleObserver) Observe(op gadget.ContentOperation, partRole, root, dst string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	return gadget.ChangeApply, nil
 }
 

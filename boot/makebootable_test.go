@@ -570,14 +570,9 @@ version: 5.0
 	obs, err := boot.TrustedAssetsInstallObserverForModel(model, unpackedGadgetDir, useEncryption)
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
-	runBootStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role: gadget.SystemBoot,
-		},
-	}
 
 	// only grubx64.efi gets installed to system-boot
-	_, err = obs.Observe(gadget.ContentWrite, runBootStruct, boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi",
+	_, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi",
 		&gadget.ContentChange{After: filepath.Join(unpackedGadgetDir, "grubx64.efi")})
 	c.Assert(err, IsNil)
 
@@ -1076,14 +1071,9 @@ version: 5.0
 	obs, err := boot.TrustedAssetsInstallObserverForModel(model, unpackedGadgetDir, useEncryption)
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
-	runBootStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role: gadget.SystemBoot,
-		},
-	}
 
 	// only grubx64.efi gets installed to system-boot
-	_, err = obs.Observe(gadget.ContentWrite, runBootStruct, boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi",
+	_, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi",
 		&gadget.ContentChange{After: filepath.Join(unpackedGadgetDir, "grubx64.efi")})
 	c.Assert(err, IsNil)
 
@@ -1271,14 +1261,9 @@ version: 5.0
 	obs, err := boot.TrustedAssetsInstallObserverForModel(model, unpackedGadgetDir, useEncryption)
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
-	runBootStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role: gadget.SystemBoot,
-		},
-	}
 
 	// only grubx64.efi gets installed to system-boot
-	_, err = obs.Observe(gadget.ContentWrite, runBootStruct, boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi",
+	_, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi",
 		&gadget.ContentChange{After: filepath.Join(unpackedGadgetDir, "grubx64.efi")})
 	c.Assert(err, IsNil)
 
