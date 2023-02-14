@@ -8,7 +8,7 @@ environment:
     # List of expected snap install failures due to libseccomp/golang-seccomp
     # being too old. This should only reduce with time since new systems should
     # have newer libseccomp and golang-seccomp
-    EXFAIL: "centos-7-64 debian-9-64 debian-10-64 opensuse-15\\.0-64 ubuntu-14"
+    EXFAIL: "centos-7-64 debian-10-64 ubuntu-14"
 
 prepare: |
     echo "Install helper snaps with default confinement"

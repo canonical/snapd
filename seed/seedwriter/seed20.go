@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -59,6 +59,21 @@ func (pol *policy20) checkDefaultChannel(channel.Channel) error {
 
 func (pol *policy20) checkSnapChannel(ch channel.Channel, whichSnap string) error {
 	return pol.checkAllowedDangerous()
+}
+
+func (pol *policy20) checkClassicSnap(sn *SeedSnap) error {
+	if pol.model.Grade() == asserts.ModelDangerous {
+		// implicit classic snaps are accepted
+		return nil
+	}
+	modSnap, ok := sn.SnapRef.(*asserts.ModelSnap)
+	if !ok {
+		return fmt.Errorf("internal error: extra snap with non-dangerous grade")
+	}
+	if !modSnap.Classic {
+		return fmt.Errorf("cannot use classic snap %q with a model of grade higher than dangerous that does not allow it explicitly (missing classic: true in snap stanza)", modSnap.Name)
+	}
+	return nil
 }
 
 func (pol *policy20) systemSnap() *asserts.ModelSnap {
@@ -139,6 +154,18 @@ func (pol *policy20) implicitSnaps(map[string]*naming.SnapSet) []*asserts.ModelS
 
 func (pol *policy20) implicitExtraSnaps(map[string]*naming.SnapSet) []*OptionsSnap {
 	return nil
+}
+
+func (pol *policy20) isSystemSnapCandidate(sn *SeedSnap) bool {
+	if sn.modelSnap != nil {
+		return sn.modelSnap.SnapType == "snapd"
+	}
+	return false
+}
+
+func (pol *policy20) ignoreUndeterminedSystemSnap() bool {
+	// a system snap should always be known
+	return false
 }
 
 type tree20 struct {
@@ -285,7 +312,7 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 			refs := make(chan *asserts.Ref)
 			go func() {
 				for _, sn := range snaps {
-					for _, aRef := range sn.ARefs {
+					for _, aRef := range sn.aRefs {
 						if !pushRef(refs, aRef, stop) {
 							return
 						}
@@ -367,10 +394,10 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	addAuxInfos := func(seedSnaps []*SeedSnap) {
 		for _, sn := range seedSnaps {
 			if sn.Info.ID() != "" {
-				if sn.Info.EditedContact != "" || sn.Info.Private {
+				if len(sn.Info.Links()) != 0 || sn.Info.Private {
 					auxInfos[sn.Info.ID()] = &internal.AuxInfo20{
 						Private: sn.Info.Private,
-						// TODO: set this only if the snap has no links
+						Links:   sn.Info.Links(),
 						Contact: sn.Info.Contact(),
 					}
 				}

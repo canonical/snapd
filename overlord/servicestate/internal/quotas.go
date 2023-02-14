@@ -20,10 +20,10 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
-	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/quota"
 )
@@ -33,7 +33,7 @@ import (
 func AllQuotas(st *state.State) (map[string]*quota.Group, error) {
 	var quotas map[string]*quota.Group
 	if err := st.Get("quotas", &quotas); err != nil {
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
 		// otherwise there are no quotas so just return nil
@@ -103,19 +103,28 @@ func PatchQuotas(st *state.State, grps ...*quota.Group) (map[string]*quota.Group
 		return nil, fmt.Errorf("cannot update quota%s %s: %v", plural, updated, err)
 	}
 
+	// Verify that the update of the new quota groups will result in
+	// correct nesting of groups. Execute this verification after updating
+	// group pointers in ResolveCrossReferences.
+	for _, grp := range grps {
+		if err := grp.ValidateNestingAndSnaps(); err != nil {
+			return nil, fmt.Errorf("cannot update quota %q: %v", grp.Name, err)
+		}
+	}
+
 	st.Set("quotas", allGrps)
 	return allGrps, nil
 }
 
-// CreateQuotaInState creates a quota group with the given paremeters
+// CreateQuotaInState creates a quota group with the given parameters
 // in the state.  It takes the current map of all quota groups.
-func CreateQuotaInState(st *state.State, quotaName string, parentGrp *quota.Group, snaps []string, memoryLimit quantity.Size, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
+func CreateQuotaInState(st *state.State, quotaName string, parentGrp *quota.Group, snaps, services []string, resourceLimits quota.Resources, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
 	// make sure that the parent group exists if we are creating a sub-group
 	var grp *quota.Group
 	var err error
 	updatedGrps := []*quota.Group{}
 	if parentGrp != nil {
-		grp, err = parentGrp.NewSubGroup(quotaName, memoryLimit)
+		grp, err = parentGrp.NewSubGroup(quotaName, resourceLimits)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -123,15 +132,16 @@ func CreateQuotaInState(st *state.State, quotaName string, parentGrp *quota.Grou
 		updatedGrps = append(updatedGrps, parentGrp)
 	} else {
 		// make a new group
-		grp, err = quota.NewGroup(quotaName, memoryLimit)
+		grp, err = quota.NewGroup(quotaName, resourceLimits)
 		if err != nil {
 			return nil, nil, err
 		}
 	}
 	updatedGrps = append(updatedGrps, grp)
 
-	// put the snaps in the group
+	// put the snaps and services in the group
 	grp.Snaps = snaps
+	grp.Services = services
 	// update the modified groups in state
 	newAllGrps, err := PatchQuotas(st, updatedGrps...)
 	if err != nil {

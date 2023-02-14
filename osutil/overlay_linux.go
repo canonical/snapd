@@ -24,7 +24,7 @@ import (
 	"strings"
 )
 
-// IsRootWritableOverlay detects if the current '/' is a writable overlay
+// isRootWritableOverlay detects if the current '/' is a writable overlay
 // (fstype is 'overlay' and 'upperdir' is specified) and returns upperdir or
 // the empty string if not used.
 //
@@ -41,7 +41,7 @@ import (
 // man 5 proc
 //
 // Currently uses variables and Mock functions from nfs.go
-func IsRootWritableOverlay() (string, error) {
+var isRootWritableOverlay = func() (string, error) {
 	mountinfo, err := LoadMountInfo()
 	if err != nil {
 		return "", fmt.Errorf("cannot parse mountinfo: %s", err)

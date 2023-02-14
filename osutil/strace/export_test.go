@@ -19,10 +19,6 @@
 
 package strace
 
-var (
-	ExcludedSyscalls = excludedSyscalls
-)
-
 func (stt *ExecveTiming) ExeRuntimes() []ExeRuntime {
 	return stt.exeRuntimes
 }

@@ -3,7 +3,7 @@
 # Welcome to snapd
 
 This is the code repository for **snapd**, the background service that manages
-and maintains installed snaps. 
+and maintains installed snaps.
 
 Snaps are app packages for desktop, cloud and IoT that update automatically,
 are easy to install, secure, cross-platform and dependency-free. They're being
@@ -35,8 +35,8 @@ contributing, please take a look at our [Code of Conduct](CODE_OF_CONDUCT.md)
 first.
 
 - to report an issue, please file [a bug
-  report](https://bugs.launchpad.net/snappy/+filebug) on our [Launchpad issue
-tracker](https://bugs.launchpad.net/snappy/)
+  report](https://bugs.launchpad.net/snapd/+filebug) on our [Launchpad issue
+tracker](https://bugs.launchpad.net/snapd/)
 - for suggestions and constructive feedback, create a post on the [Snapcraft
   forum](https://forum.snapcraft.io/c/snapd)
 - to build snapd manually, or to get started with snapd development, see
@@ -58,17 +58,15 @@ and on [Facebook](https://www.facebook.com/snapcraftio).
 
 | Service | Status |
 |-----|:---|
-| [Github Actions](https://github.com/actions/) |  ![Build Status][actions-image]  |
+| [Github Actions](https://github.com/actions/) |  [![Build Status][actions-image]][actions-url]  |
 | [GoReport](https://goreportcard.com/) |  [![Go Report Card][goreportcard-image]][goreportcard-url] |
 | [Codecov](https://codecov.io/) |  [![codecov][codecov-image]][codecov-url] |
 
-[actions-image]: https://github.com/snapcore/snapd/actions
+[actions-image]: https://github.com/snapcore/snapd/actions/workflows/test.yaml/badge.svg?branch=master
+[actions-url]: https://github.com/snapcore/snapd/actions?query=branch%3Amaster+event%3Apush
 
 [goreportcard-image]: https://goreportcard.com/badge/github.com/snapcore/snapd
 [goreportcard-url]: https://goreportcard.com/report/github.com/snapcore/snapd
-
-[coveralls-image]: https://coveralls.io/repos/snapcore/snapd/badge.svg?branch=master&service=github
-[coveralls-url]: https://coveralls.io/github/snapcore/snapd?branch=master
 
 [codecov-url]: https://codecov.io/gh/snapcore/snapd
 [codecov-image]: https://codecov.io/gh/snapcore/snapd/branch/master/graph/badge.svg

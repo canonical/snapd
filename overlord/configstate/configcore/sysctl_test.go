@@ -53,7 +53,7 @@ func (s *sysctlSuite) TearDownTest(c *C) {
 }
 
 func (s *sysctlSuite) TestConfigureSysctlIntegration(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "2",
@@ -67,7 +67,7 @@ func (s *sysctlSuite) TestConfigureSysctlIntegration(c *C) {
 	s.systemdSysctlArgs = nil
 
 	// Unset console-loglevel and restore default vaule
-	err = configcore.Run(coreDev, &mockConf{
+	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "",
@@ -81,7 +81,7 @@ func (s *sysctlSuite) TestConfigureSysctlIntegration(c *C) {
 }
 
 func (s *sysctlSuite) TestConfigureLoglevelUnderRange(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "-1",
@@ -92,7 +92,7 @@ func (s *sysctlSuite) TestConfigureLoglevelUnderRange(c *C) {
 }
 
 func (s *sysctlSuite) TestConfigureLoglevelOverRange(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "8",
@@ -103,7 +103,7 @@ func (s *sysctlSuite) TestConfigureLoglevelOverRange(c *C) {
 }
 
 func (s *sysctlSuite) TestConfigureLevelRejected(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "invalid",
@@ -114,7 +114,7 @@ func (s *sysctlSuite) TestConfigureLevelRejected(c *C) {
 }
 
 func (s *sysctlSuite) TestConfigureSysctlIntegrationNoSetting(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{},
 	})

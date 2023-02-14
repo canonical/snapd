@@ -20,6 +20,7 @@
 package ctlcmd
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -189,7 +190,7 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	}
 
 	var candidates map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &candidates); err != nil && err != state.ErrNoState {
+	if err := st.Get("refresh-candidates", &candidates); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -272,7 +273,8 @@ func (c *refreshCommand) hold() error {
 
 	// no duration specified, use maximum allowed for this gating snap.
 	var holdDuration time.Duration
-	remaining, err := snapstate.HoldRefresh(st, ctx.InstanceName(), holdDuration, affecting...)
+	// XXX for now snaps hold other snaps only for auto-refreshes
+	remaining, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, ctx.InstanceName(), holdDuration, affecting...)
 	if err != nil {
 		// TODO: let a snap hold again once for 1h.
 		return err

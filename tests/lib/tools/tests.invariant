@@ -9,6 +9,7 @@ show_help() {
 	echo "    lxcfs-mounted: /var/lib/lxcfs is a mount point"
 	echo "    stray-dbus-daemon: at most one dbus-daemon is running"
 	echo "    leftover-defer-sh: defer.sh must not be left over by tests"
+	echo "    broken-snaps: snaps must not be left around that are in a broken state"
 }
 
 if [ $# -eq 0 ]; then
@@ -81,7 +82,7 @@ check_stray_dbus_daemon() {
 	(
 		skipped_system=0
 		skipped_root_session=0
-		for pid in $(pgrep dbus-daemon); do
+		for pid in $(pgrep -x dbus-daemon); do
 			cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
 			# Ignore one dbus-daemon responsible for the system bus.
 			if echo "$cmdline" | grep -q 'dbus-daemon --system' && [ "$skipped_system" -eq 0 ]; then
@@ -122,6 +123,41 @@ check_leftover_defer_sh() {
 	fi
 }
 
+check_broken_snaps() {
+	n="$1" # invariant name
+	(
+		SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+		# first column is the snap name, revision is 3rd
+		snap list --all | awk '/,?broken,?/ {print $1,$3}' | while read -r name rev; do
+			echo "snap $name ($rev) is broken:"
+			systemctl status "$(systemd-escape -p "$SNAP_MOUNT_DIR/${name}/${rev}).mount")" || true
+			ls -l "/${SNAP_MOUNT_DIR}/${name}/" || true
+			echo "---"
+		done
+	) > "$TESTSTMP/tests.invariant.$n"
+	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
+		echo "tests.invariant: broken snaps" >&2
+		cat "$TESTSTMP/tests.invariant.$n" >&2
+		return 1
+	fi
+}
+
+check_cgroup_scopes() {
+	# xenial has leftover scope files possibly due to an old systemd bug
+	# https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1934147
+	if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]] || [[ "$SPREAD_SYSTEM" == ubuntu-16.04-* ]]; then
+		return 0
+	fi
+
+	n="$1" # invariant name
+	find /sys/fs/cgroup -name 'snap.*.scope' > "$TESTSTMP/tests.invariant.$n"
+	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
+		echo "tests.invariant: leftover cgroup scope files" >&2
+		cat "$TESTSTMP/tests.invariant.$n" >&2
+		return 1
+	fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -139,6 +175,12 @@ check_invariant() {
 		leftover-defer-sh)
 			check_leftover_defer_sh "$1"
 			;;
+		broken-snaps)
+			check_broken_snaps "$1"
+			;;
+		cgroup-scopes)
+			check_cgroup_scopes "$1"
+			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -147,7 +189,7 @@ check_invariant() {
 }
 
 main() {
-	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh"
+	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh broken-snaps cgroup-scopes"
 
 	case "$action" in
 		check)

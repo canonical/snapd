@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestState(t *testing.T) { TestingT(t) }
@@ -76,6 +77,20 @@ func (ss *stateSuite) TestGetAndSet(c *C) {
 	c.Check(&mSt2B, DeepEquals, mSt2)
 }
 
+func (ss *stateSuite) TestHas(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(st.Has("a"), Equals, false)
+
+	st.Set("a", 1)
+	c.Check(st.Has("a"), Equals, true)
+
+	st.Set("a", nil)
+	c.Check(st.Has("a"), Equals, false)
+}
+
 func (ss *stateSuite) TestStrayTaskWithNoChange(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -111,7 +126,7 @@ func (ss *stateSuite) TestGetNoState(c *C) {
 
 	var mSt1B mgrState1
 	err := st.Get("mgr9", &mSt1B)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (ss *stateSuite) TestSetToNilDeletes(c *C) {
@@ -129,7 +144,7 @@ func (ss *stateSuite) TestSetToNilDeletes(c *C) {
 
 	var v1 map[string]int
 	err = st.Get("a", &v1)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(v1, HasLen, 0)
 }
 
@@ -143,7 +158,7 @@ func (ss *stateSuite) TestNullMeansNoState(c *C) {
 
 	var v1 map[string]int
 	err = st.Get("a", &v1)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(v1, HasLen, 0)
 }
 
@@ -811,6 +826,55 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Check(st.AllWarnings(), HasLen, 1)
 }
 
+func (ss *stateSuite) TestRegisterPendingChangeByAttr(c *C) {
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now()
+	pruneWait := 1 * time.Hour
+	abortWait := 3 * time.Hour
+
+	unset := time.Time{}
+
+	t1 := st.NewTask("foo", "...")
+	t2 := st.NewTask("foo", "...")
+	t3 := st.NewTask("foo", "...")
+	t4 := st.NewTask("foo", "...")
+
+	chg1 := st.NewChange("abort", "...")
+	chg1.AddTask(t1)
+	chg1.AddTask(t2)
+	state.MockChangeTimes(chg1, now.Add(-abortWait), unset)
+
+	chg2 := st.NewChange("pending", "...")
+	chg2.AddTask(t3)
+	chg2.AddTask(t4)
+	state.MockChangeTimes(chg2, now.Add(-abortWait), unset)
+	chg2.Set("pending-flag", true)
+	t3.SetStatus(state.HoldStatus)
+
+	st.RegisterPendingChangeByAttr("pending-flag", func(chg *state.Change) bool {
+		c.Check(chg.ID(), Equals, chg2.ID())
+		return true
+	})
+
+	past := time.Now().AddDate(-1, 0, 0)
+	st.Prune(past, pruneWait, abortWait, 100)
+
+	c.Assert(st.Change(chg1.ID()), Equals, chg1)
+	c.Assert(st.Change(chg2.ID()), Equals, chg2)
+	c.Assert(st.Task(t1.ID()), Equals, t1)
+	c.Assert(st.Task(t2.ID()), Equals, t2)
+	c.Assert(st.Task(t3.ID()), Equals, t3)
+	c.Assert(st.Task(t4.ID()), Equals, t4)
+
+	c.Assert(t1.Status(), Equals, state.HoldStatus)
+	c.Assert(t2.Status(), Equals, state.HoldStatus)
+	c.Assert(t3.Status(), Equals, state.HoldStatus)
+	c.Assert(t4.Status(), Equals, state.DoStatus)
+}
+
 func (ss *stateSuite) TestPruneEmptyChange(c *C) {
 	// Empty changes are a bit special because they start out on Hold
 	// which is a Ready status, but the change itself is not considered Ready
@@ -975,7 +1039,7 @@ func (ss *stateSuite) TestPruneHonorsStartOperationTime(c *C) {
 	c.Check(chg.Status(), Equals, state.HoldStatus)
 }
 
-func (ss *stateSuite) TestReadStateInitsCache(c *C) {
+func (ss *stateSuite) TestReadStateInitsTransientMapFields(c *C) {
 	st, err := state.ReadState(nil, bytes.NewBufferString("{}"))
 	c.Assert(err, IsNil)
 	st.Lock()
@@ -983,6 +1047,7 @@ func (ss *stateSuite) TestReadStateInitsCache(c *C) {
 
 	st.Cache("key", "value")
 	c.Assert(st.Cached("key"), Equals, "value")
+	st.RegisterPendingChangeByAttr("attr", func(*state.Change) bool { return false })
 }
 
 func (ss *stateSuite) TestTimingsSupport(c *C) {
@@ -1001,4 +1066,18 @@ func (ss *stateSuite) TestTimingsSupport(c *C) {
 	err = st.GetMaybeTimings(&tims)
 	c.Assert(err, IsNil)
 	c.Check(tims, DeepEquals, []int{1, 2, 3})
+}
+
+func (ss *stateSuite) TestNoStateErrorIs(c *C) {
+	err := &state.NoStateError{Key: "foo"}
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{Key: "bar"})
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+}
+
+func (ss *stateSuite) TestNoStateErrorString(c *C) {
+	err := &state.NoStateError{}
+	c.Assert(err.Error(), Equals, `no state entry for key`)
+	err.Key = "foo"
+	c.Assert(err.Error(), Equals, `no state entry for key "foo"`)
 }

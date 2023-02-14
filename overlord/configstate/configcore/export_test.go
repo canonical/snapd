@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,7 +19,12 @@
 
 package configcore
 
-import "github.com/snapcore/snapd/osutil/sys"
+import (
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/testutil"
+)
 
 var (
 	UpdatePiConfig       = updatePiConfig
@@ -27,11 +32,17 @@ var (
 	SwitchDisableService = switchDisableService
 	UpdateKeyValueStream = updateKeyValueStream
 	AddFSOnlyHandler     = addFSOnlyHandler
-	AddWithStateHandler  = addWithStateHandler
 	FilesystemOnlyApply  = filesystemOnlyApply
 )
 
 type PlainCoreConfig = plainCoreConfig
+
+// FilesystemOnlyRun is used for tests that run also when nomanagers flag is
+// set, that is, for config groups that do not need access to the
+// state but only the filesystem.
+func FilesystemOnlyRun(dev sysconfig.Device, cfg ConfGetter) error {
+	return filesystemOnlyRun(dev, cfg, nil)
+}
 
 func MockFindGid(f func(string) (uint64, error)) func() {
 	old := osutilFindGid
@@ -47,4 +58,28 @@ func MockChownPath(f func(string, sys.UserID, sys.GroupID) error) func() {
 	return func() {
 		sysChownPath = old
 	}
+}
+
+func MockEnsureFileState(f func(string, osutil.FileState) error) func() {
+	r := testutil.Backup(&osutilEnsureFileState)
+	osutilEnsureFileState = f
+	return r
+}
+
+func MockDirExists(f func(string) (bool, bool, error)) func() {
+	r := testutil.Backup(&osutilDirExists)
+	osutilDirExists = f
+	return r
+}
+
+func MockApparmorUpdateHomedirsTunable(f func([]string) error) func() {
+	r := testutil.Backup(&apparmorUpdateHomedirsTunable)
+	apparmorUpdateHomedirsTunable = f
+	return r
+}
+
+func MockApparmorReloadAllSnapProfiles(f func() error) func() {
+	r := testutil.Backup(&apparmorReloadAllSnapProfiles)
+	apparmorReloadAllSnapProfiles = f
+	return r
 }

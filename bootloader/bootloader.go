@@ -226,6 +226,27 @@ type TrustedAssetsBootloader interface {
 	BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error)
 }
 
+// NotScriptableBootloader cannot change the bootloader environment
+// because it supports no scripting or cannot do any writes. This
+// applies to piboot for the moment.
+type NotScriptableBootloader interface {
+	Bootloader
+
+	// Sets boot variables from initramfs - this is needed in
+	// addition to SetBootVars() to prevent side effects like
+	// re-writing the bootloader configuration.
+	SetBootVarsFromInitramfs(values map[string]string) error
+}
+
+// RebootBootloader needs arguments to the reboot syscall when snaps
+// are being updated.
+type RebootBootloader interface {
+	Bootloader
+
+	// GetRebootArguments returns the needed reboot arguments
+	GetRebootArguments() (string, error)
+}
+
 func genericInstallBootConfig(gadgetFile, systemFile string) error {
 	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
 		return err
@@ -294,6 +315,7 @@ var (
 		newGrub,
 		newAndroidBoot,
 		newLk,
+		newPiboot,
 	}
 )
 
@@ -307,7 +329,8 @@ var (
 //
 // The rootdir option is useful for image creation operations. It
 // can also be used to find the recovery bootloader, e.g. on uc20:
-//   bootloader.Find("/run/mnt/ubuntu-seed")
+//
+//	bootloader.Find("/run/mnt/ubuntu-seed")
 func Find(rootdir string, opts *Options) (Bootloader, error) {
 	if err := opts.validate(); err != nil {
 		return nil, err

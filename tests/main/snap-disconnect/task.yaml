@@ -1,7 +1,5 @@
 summary: Check that snap disconnect works
 
-systems: [-ubuntu-core-16-64]
-
 environment:
     SNAP_FILE: "home-consumer_1.0_all.snap"
 

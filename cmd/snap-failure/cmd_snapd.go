@@ -126,6 +126,11 @@ func (c *cmdSnapd) Execute(args []string) error {
 		// system, either a remodel or a plain snapd installation, call
 		// the snapd from the core snap
 		snapdPath = filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd")
+		if !osutil.FileExists(snapdPath) {
+			// it is possible that the core snap is not installed at
+			// all, in which case we should try the snapd snap
+			snapdPath = filepath.Join(dirs.SnapMountDir, "snapd", "current", "/usr/lib/snapd/snapd")
+		}
 		prevRev = "0"
 	case nil:
 		// the snapd snap was installed before, use the previous revision

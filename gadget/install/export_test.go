@@ -20,32 +20,27 @@
 package install
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 )
 
-var (
-	MakeFilesystem  = makeFilesystem
-	WriteContent    = writeContent
-	MountFilesystem = mountFilesystem
+type MkfsParams = mkfsParams
 
-	CreateMissingPartitions = createMissingPartitions
+var (
+	MakeFilesystem         = makeFilesystem
+	WriteFilesystemContent = writeFilesystemContent
+	MountFilesystem        = mountFilesystem
+
 	BuildPartitionList      = buildPartitionList
 	RemoveCreatedPartitions = removeCreatedPartitions
 	EnsureNodesExist        = ensureNodesExist
 
-	CreatedDuringInstall = createdDuringInstall
-	CreationSupported    = creationSupported
+	CreatedDuringInstall        = createdDuringInstall
+	TestCreateMissingPartitions = createMissingPartitions
 )
-
-func MockContentMountpoint(new string) (restore func()) {
-	old := contentMountpoint
-	contentMountpoint = new
-	return func() {
-		contentMountpoint = old
-	}
-}
 
 func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
 	old := sysMount
@@ -63,10 +58,46 @@ func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
 	}
 }
 
-func MockEnsureNodesExist(f func(dss []gadget.OnDiskStructure, timeout time.Duration) error) (restore func()) {
+func MockEnsureNodesExist(f func(nodes []string, timeout time.Duration) error) (restore func()) {
 	old := ensureNodesExist
 	ensureNodesExist = f
 	return func() {
 		ensureNodesExist = old
 	}
+}
+
+func MockMkfsMake(f func(typ, img, label string, devSize, sectorSize quantity.Size) error) (restore func()) {
+	old := mkfsImpl
+	mkfsImpl = f
+	return func() {
+		mkfsImpl = old
+	}
+}
+
+func MockSysfsPathForBlockDevice(f func(device string) (string, error)) (restore func()) {
+	old := sysfsPathForBlockDevice
+	sysfsPathForBlockDevice = f
+	return func() {
+		sysfsPathForBlockDevice = old
+	}
+}
+
+func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevice map[string]string) error {
+	for label, part := range encryptSetup.parts {
+		switch part.role {
+		case gadget.SystemData, gadget.SystemSave:
+			// ok
+		default:
+			return fmt.Errorf("unexpected role in %q: %q", label, part.role)
+		}
+		if part.encryptedDevice != labelToEncDevice[label] {
+			return fmt.Errorf("encrypted device in EncryptionSetupData (%q) different to expected (%q)",
+				encryptSetup.parts[label].encryptedDevice, labelToEncDevice[label])
+		}
+		if len(part.encryptionKey) == 0 {
+			return fmt.Errorf("encryption key for %q is empty", label)
+		}
+	}
+
+	return nil
 }

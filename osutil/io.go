@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/randutil"
@@ -57,6 +58,7 @@ type AtomicFile struct {
 	tmpname string
 	uid     sys.UserID
 	gid     sys.GroupID
+	mtime   time.Time
 	closed  bool
 	renamed bool
 }
@@ -64,7 +66,7 @@ type AtomicFile struct {
 // NewAtomicFile builds an AtomicFile backed by an *os.File that will have
 // the given filename, permissions and uid/gid when Committed.
 //
-//   It _might_ be implemented using O_TMPFILE (see open(2)).
+//	It _might_ be implemented using O_TMPFILE (see open(2)).
 //
 // Note that it won't follow symlinks and will replace existing symlinks with
 // the real file, unless the AtomicWriteFollow flag is specified.
@@ -145,6 +147,11 @@ var chown = sys.Chown
 
 const NoChown = sys.FlagID
 
+// SetModTime sets the given modification time on the created file.
+func (aw *AtomicFile) SetModTime(t time.Time) {
+	aw.mtime = t
+}
+
 func (aw *AtomicFile) commit() error {
 	if aw.uid != NoChown || aw.gid != NoChown {
 		if err := chown(aw.File, aw.uid, aw.gid); err != nil {
@@ -169,6 +176,12 @@ func (aw *AtomicFile) commit() error {
 
 	if err := aw.Close(); err != nil {
 		return err
+	}
+
+	if !aw.mtime.IsZero() {
+		if err := os.Chtimes(aw.tmpname, time.Now(), aw.mtime); err != nil {
+			return err
+		}
 	}
 
 	if err := os.Rename(aw.tmpname, aw.target); err != nil {

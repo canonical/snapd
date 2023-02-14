@@ -70,7 +70,7 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 		}
 	}()
 
-	pb := progress.MakeProgressBar()
+	pb := progress.MakeProgressBar(Stdout)
 	defer func() {
 		pb.Finished()
 		// next two not strictly needed for CLI, but without

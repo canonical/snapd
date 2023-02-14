@@ -60,6 +60,7 @@ save_snapd_state() {
             /var/cache/snapd \
             "$SNAP_MOUNT_DIR" \
             /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount \
+            /etc/systemd/system/snapd.mounts.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
             /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
             $snap_confine_profiles \
             $snapd_env \
@@ -122,7 +123,7 @@ restore_snapd_lib() {
     # Synchronize snaps, seed and cache directories. The this is done separately in order to avoid copying
     # the snap files due to it is a heavy task and take most of the time of the restore phase.
     rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/snaps /var/lib/snapd
-    if os.query is-core20 ; then
+    if os.query is-core20 || os.query is-core22; then
         # TODO:UC20: /var/lib/snapd/seed is a read only bind mount, use the rw
         # mount or later mount seed as needed
         rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed/ /run/mnt/ubuntu-seed/
@@ -130,4 +131,10 @@ restore_snapd_lib() {
         rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed/ /var/lib/snapd/seed/
     fi
     rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/cache /var/lib/snapd
+}
+
+remove_disabled_snaps() {
+    snap list --all | grep disabled | while read -r name _ revision _ ; do
+        snap remove "$name" --revision="$revision"
+    done
 }

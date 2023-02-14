@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package store_test
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -88,9 +89,7 @@ T/A8LqZYmIzKRHGwCVucCyAUD8xnwt9nyWLgLB+LLPOVFNK8SR6YyNsX05Yz1BUSndBfaTN8j/k8
 8isKGZE6P0O9ozBbNIAE8v8NMWQegJ4uWuil7D3psLkzQIrxSypk9TrQ2GlIG2hJdUovc5zBuroe
 xS4u9rVT6UY=`
 
-func (s *storeAssertsSuite) TestAssertion(c *C) {
-	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 88)
-	defer restore()
+func (s *storeAssertsSuite) testAssertion(c *C, assertionMaxFormats map[string]int) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", "/v2/assertions/.*")
 		// check device authorization is set, implicitly checking doRequest was used
@@ -112,10 +111,70 @@ func (s *storeAssertsSuite) TestAssertion(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
+	if assertionMaxFormats != nil {
+		sto.SetAssertionMaxFormats(assertionMaxFormats)
+	}
+
 	a, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(a, NotNil)
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
+}
+
+func (s *storeAssertsSuite) TestAssertion(c *C) {
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 88)
+	defer restore()
+
+	s.testAssertion(c, nil)
+}
+
+func (s *storeAssertsSuite) TestAssertionSetAssertionMaxFormats(c *C) {
+	s.testAssertion(c, map[string]int{
+		"snap-declaration": 88,
+	})
+}
+
+var testAssertionOptionalPrimaryKeys = `type: snap-revision
+authority-id: super
+snap-sha3-384: QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL
+snap-id: snap-id-1
+snap-size: 123
+snap-revision: 1
+developer-id: dev-id1
+timestamp: 2022-02-25T12:22:16Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`
+
+func (s *storeAssertsSuite) TestAssertionReducedPrimaryKey(c *C) {
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapRevisionType, 88)
+	defer restore()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", "/v2/assertions/.*")
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Matches, ".*/snap-revision/QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL")
+		c.Check(r.URL.Query().Get("max-format"), Equals, "88")
+		io.WriteString(w, testAssertionOptionalPrimaryKeys)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	a, err := sto.Assertion(asserts.SnapRevisionType, []string{"QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL", "global-upload"}, nil)
+	c.Assert(err, IsNil)
+	c.Check(a, NotNil)
+	c.Check(a.Type(), Equals, asserts.SnapRevisionType)
+	c.Check(a.HeaderString("provenance"), Equals, "global-upload")
 }
 
 func (s *storeAssertsSuite) TestAssertionProxyStoreFromAuthContext(c *C) {
@@ -174,7 +233,7 @@ func (s *storeAssertsSuite) TestAssertionNotFoundV1(c *C) {
 	sto := store.New(&cfg, nil)
 
 	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.SnapDeclarationType,
 		Headers: map[string]string{
@@ -204,7 +263,7 @@ func (s *storeAssertsSuite) TestAssertionNotFoundV2(c *C) {
 	sto := store.New(&cfg, nil)
 
 	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.SnapDeclarationType,
 		Headers: map[string]string{
@@ -460,12 +519,9 @@ P8aWCC2W3HIrdx2mnikT3oVf6yN1KSY5qCE2xdhyyKtt+4y5ZJdQK6JxzTanzh4PZVdiPIUhDv4r
 AeDBddPc+mqQtb8bpZ7hMD+dA/B4dA3cRl44Nb/5KcfKjdvl7qpmJQl88OA3DOMpXuxmrrVA
 `
 
-func (s *storeAssertsSuite) TestSeqFormingAssertion(c *C) {
-	restore := asserts.MockMaxSupportedFormat(asserts.ValidationSetType, 88)
-	defer restore()
-
+func (s *storeAssertsSuite) testSeqFormingAssertion(c *C, assertionMaxFormats map[string]int) {
 	// overwritten by test loop for each test case
-	expectedSeqArg := "dummy"
+	expectedSeqArg := "sample"
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", "/v2/assertions/.*")
@@ -500,11 +556,28 @@ func (s *storeAssertsSuite) TestSeqFormingAssertion(c *C) {
 		dauthCtx := &testDauthContext{c: c, device: s.device}
 		sto := store.New(&cfg, dauthCtx)
 
+		if assertionMaxFormats != nil {
+			sto.SetAssertionMaxFormats(assertionMaxFormats)
+		}
+
 		a, err := sto.SeqFormingAssertion(asserts.ValidationSetType, tc.sequenceKey, tc.sequence, nil)
 		c.Assert(err, IsNil)
 		c.Check(a, NotNil)
 		c.Check(a.Type(), Equals, asserts.ValidationSetType)
 	}
+}
+
+func (s *storeAssertsSuite) TestSeqFormingAssertion(c *C) {
+	restore := asserts.MockMaxSupportedFormat(asserts.ValidationSetType, 88)
+	defer restore()
+
+	s.testSeqFormingAssertion(c, nil)
+}
+
+func (s *storeAssertsSuite) TestSeqFormingAssertionSetAssertionMaxFormats(c *C) {
+	s.testSeqFormingAssertion(c, map[string]int{
+		"validation-set": 88,
+	})
 }
 
 func (s *storeAssertsSuite) TestSeqFormingAssertionNotFound(c *C) {
@@ -527,7 +600,7 @@ func (s *storeAssertsSuite) TestSeqFormingAssertionNotFound(c *C) {
 	sto := store.New(&cfg, nil)
 
 	_, err := sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar"}, 1, nil)
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.ValidationSetType,
 		Headers: map[string]string{
@@ -540,7 +613,7 @@ func (s *storeAssertsSuite) TestSeqFormingAssertionNotFound(c *C) {
 
 	// latest requested
 	_, err = sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar"}, 0, nil)
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.ValidationSetType,
 		Headers: map[string]string{

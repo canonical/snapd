@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,7 +32,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -162,10 +161,6 @@ func (s *Store) cdnHeader() (string, error) {
 		return "none", nil
 	}
 
-	if s.dauthCtx == nil {
-		return "", nil
-	}
-
 	// set Snap-CDN from cloud instance information
 	// if available
 
@@ -173,25 +168,7 @@ func (s *Store) cdnHeader() (string, error) {
 	// where we first to send this header and if the
 	// operation fails that way to even get the connection
 	// then we retry without sending this?
-
-	cloudInfo, err := s.dauthCtx.CloudInfo()
-	if err != nil {
-		return "", err
-	}
-
-	if cloudInfo != nil {
-		cdnParams := []string{fmt.Sprintf("cloud-name=%q", cloudInfo.Name)}
-		if cloudInfo.Region != "" {
-			cdnParams = append(cdnParams, fmt.Sprintf("region=%q", cloudInfo.Region))
-		}
-		if cloudInfo.AvailabilityZone != "" {
-			cdnParams = append(cdnParams, fmt.Sprintf("availability-zone=%q", cloudInfo.AvailabilityZone))
-		}
-
-		return strings.Join(cdnParams, " "), nil
-	}
-
-	return "", nil
+	return s.buildLocationString()
 }
 
 type HashError struct {
@@ -219,7 +196,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 
-	if err := s.cacher.Get(downloadInfo.Sha3_384, targetPath); err == nil {
+	if s.cacher.Get(downloadInfo.Sha3_384, targetPath) {
 		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
 		return nil
 	}
@@ -264,16 +241,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		logger.Debugf("Starting download of %q.", partialPath)
 	}
 
-	authAvail, err := s.authAvailable(user)
-	if err != nil {
-		return err
-	}
-
-	url := downloadInfo.AnonDownloadURL
-	if url == "" || authAvail {
-		url = downloadInfo.DownloadURL
-	}
-
+	url := downloadInfo.DownloadURL
 	if downloadInfo.Size == 0 || resume < downloadInfo.Size {
 		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar, dlOpts)
 		if err != nil {
@@ -626,17 +594,7 @@ func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *s
 		return file, 206, nil
 	}
 
-	authAvail, err := s.authAvailable(user)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	downloadURL := downloadInfo.AnonDownloadURL
-	if downloadURL == "" || authAvail {
-		downloadURL = downloadInfo.DownloadURL
-	}
-
-	storeURL, err := url.Parse(downloadURL)
+	storeURL, err := url.Parse(downloadInfo.DownloadURL)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -677,15 +635,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		return fmt.Errorf("store returned unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 
-	authAvail, err := s.authAvailable(user)
-	if err != nil {
-		return err
-	}
-
-	url := deltaInfo.AnonDownloadURL
-	if url == "" || authAvail {
-		url = deltaInfo.DownloadURL
-	}
+	url := deltaInfo.DownloadURL
 
 	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar, dlOpts)
 }
@@ -711,7 +661,7 @@ func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.De
 
 	xdelta3Args := []string{"-d", "-s", snapPath, deltaPath, partialTargetPath}
 
-	// sanity check that deltas are available and that the path for the xdelta3
+	// validity check that deltas are available and that the path for the xdelta3
 	// command is set
 	if ok := s.useDeltas(); !ok {
 		return fmt.Errorf("internal error: applyDelta used when deltas are not available")

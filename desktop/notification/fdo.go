@@ -22,6 +22,8 @@ package notification
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/godbus/dbus"
 
@@ -38,8 +40,10 @@ const (
 type fdoBackend struct {
 	conn            *dbus.Conn
 	obj             dbus.BusObject
+	mu              sync.Mutex
 	serverToLocalID map[uint32]ID
 	localToServerID map[ID]uint32
+	lastRemove      time.Time
 	desktopID       string
 }
 
@@ -92,7 +96,9 @@ func (srv *fdoBackend) SendNotification(id ID, msg *Message) error {
 
 	// serverSideId may be 0, but if it exists it is going to replace previous
 	// notification with same local id.
+	srv.mu.Lock()
 	serverSideId := srv.localToServerID[id]
+	srv.mu.Unlock()
 	call := srv.obj.Call(dBusInterfaceName+".Notify", 0,
 		msg.AppName, serverSideId, msg.Icon, msg.Title, msg.Body,
 		flattenActions(msg.Actions), hints,
@@ -100,6 +106,9 @@ func (srv *fdoBackend) SendNotification(id ID, msg *Message) error {
 	if err := call.Store(&serverSideId); err != nil {
 		return err
 	}
+
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
 	srv.serverToLocalID[serverSideId] = id
 	srv.localToServerID[id] = serverSideId
 	return nil
@@ -137,17 +146,28 @@ func fdoPriority(priority Priority) uint8 {
 
 // CloseNotification closes a notification message with the given ID.
 func (srv *fdoBackend) CloseNotification(id ID) error {
+	srv.mu.Lock()
 	serverSideId, ok := srv.localToServerID[id]
+	srv.mu.Unlock()
+
 	if !ok {
 		return fmt.Errorf("unknown notification with id %q", id)
 	}
 	call := srv.obj.Call(dBusInterfaceName+".CloseNotification", 0, serverSideId)
-	if err := call.Store(); err != nil {
-		return err
+	return call.Store()
+}
+
+func (srv *fdoBackend) IdleDuration() time.Duration {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	if len(srv.serverToLocalID) > 0 {
+		return 0
 	}
-	delete(srv.localToServerID, id)
-	delete(srv.serverToLocalID, serverSideId)
-	return nil
+	return time.Since(srv.lastRemove)
+}
+
+func (srv *fdoBackend) HandleNotifications(ctx context.Context) error {
+	return srv.ObserveNotifications(ctx, nil)
 }
 
 // ObserveNotifications blocks and processes message notification signals.
@@ -158,7 +178,10 @@ func (srv *fdoBackend) CloseNotification(id ID) error {
 func (srv *fdoBackend) ObserveNotifications(ctx context.Context, observer Observer) (err error) {
 	// TODO: upgrade godbus and use un-buffered channel.
 	ch := make(chan *dbus.Signal, 10)
-	defer close(ch)
+
+	// XXX: do not close as this may lead to panic on already closed channel due
+	// to https://github.com/godbus/dbus/issues/271
+	// defer close(ch)
 
 	srv.conn.Signal(ch)
 	defer srv.conn.RemoveSignal(ch)
@@ -185,7 +208,10 @@ func (srv *fdoBackend) ObserveNotifications(ctx context.Context, observer Observ
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case sig := <-ch:
+		case sig, ok := <-ch:
+			if !ok {
+				return nil
+			}
 			if err := srv.processSignal(sig, observer); err != nil {
 				return err
 			}
@@ -220,11 +246,26 @@ func (srv *fdoBackend) processNotificationClosed(sig *dbus.Signal, observer Obse
 		return fmt.Errorf("expected second body element to be uint32, got %T", sig.Body[1])
 	}
 
+	srv.mu.Lock()
+
 	// we may receive signals for notifications we don't know about, silently
 	// ignore them.
-	if localID, ok := srv.serverToLocalID[id]; ok {
-		delete(srv.localToServerID, localID)
-		delete(srv.serverToLocalID, id)
+	localID, ok := srv.serverToLocalID[id]
+	if !ok {
+		srv.mu.Unlock()
+		return nil
+	}
+
+	delete(srv.localToServerID, localID)
+	delete(srv.serverToLocalID, id)
+	if len(srv.serverToLocalID) == 0 {
+		srv.lastRemove = time.Now()
+	}
+
+	// unlock the mutex before calling observer
+	srv.mu.Unlock()
+
+	if observer != nil {
 		return observer.NotificationClosed(localID, CloseReason(reason))
 	}
 	return nil
@@ -242,5 +283,9 @@ func (srv *fdoBackend) processActionInvoked(sig *dbus.Signal, observer Observer)
 	if !ok {
 		return fmt.Errorf("expected second body element to be string, got %T", sig.Body[1])
 	}
-	return observer.ActionInvoked(id, actionKey)
+
+	if observer != nil {
+		return observer.ActionInvoked(id, actionKey)
+	}
+	return nil
 }

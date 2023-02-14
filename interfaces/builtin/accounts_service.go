@@ -65,7 +65,7 @@ dbus (receive, send)
 dbus (send)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
-    path=/com/ubuntu/OnlineAccounts{,/**}
+    path=/org/gnome/OnlineAccounts{,/**}
     member=Introspect,
 `
 

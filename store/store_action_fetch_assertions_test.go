@@ -72,7 +72,7 @@ func (q *testAssertQuery) AddGroupingError(e error, grouping asserts.Grouping) e
 	return nil
 }
 
-func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
+func (s *storeActionFetchAssertionsSuite) testFetch(c *C, assertionMaxFormats map[string]int) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -110,7 +110,11 @@ func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
 		}
 		c.Assert(req.Actions[0], DeepEquals, expectedAction)
 
-		c.Assert(req.AssertionMaxFormats, DeepEquals, asserts.MaxSupportedFormats(1))
+		if assertionMaxFormats != nil {
+			c.Assert(req.AssertionMaxFormats, DeepEquals, assertionMaxFormats)
+		} else {
+			c.Assert(req.AssertionMaxFormats, DeepEquals, asserts.MaxSupportedFormats(1))
+		}
 
 		fmt.Fprintf(w, `{
   "results": [{
@@ -133,6 +137,10 @@ func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
 	}
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
+
+	if assertionMaxFormats != nil {
+		sto.SetAssertionMaxFormats(assertionMaxFormats)
+	}
 
 	assertq := &testAssertQuery{
 		toResolve: map[asserts.Grouping][]*asserts.AtRevision{
@@ -157,6 +165,16 @@ func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
 	c.Check(aresults[0].Grouping, Equals, asserts.Grouping("g1"))
 	c.Check(aresults[0].StreamURLs, DeepEquals, []string{
 		"https://api.snapcraft.io/v2/assertions/snap-declaration/16/iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5",
+	})
+}
+
+func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
+	s.testFetch(c, nil)
+}
+
+func (s *storeActionFetchAssertionsSuite) TestFetchSetAssertionMaxFormats(c *C) {
+	s.testFetch(c, map[string]int{
+		"snap-declaration": 7,
 	})
 }
 
@@ -870,4 +888,91 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceFormingCommonGroupin
 
 	_, _, err := sto.SnapAction(s.ctx, nil, nil, assertq, nil, nil)
 	c.Assert(err, IsNil)
+}
+
+func (s *storeActionFetchAssertionsSuite) TestFetchOptionalPrimaryKeys(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+
+			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 0)
+		c.Assert(req.Actions, HasLen, 1)
+		expectedAction := map[string]interface{}{
+			"action": "fetch-assertions",
+			"key":    "g1",
+			"assertions": []interface{}{
+				map[string]interface{}{
+					"type": "snap-revision",
+					"primary-key": []interface{}{
+						"QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL",
+					},
+				},
+			},
+		}
+		c.Assert(req.Actions[0], DeepEquals, expectedAction)
+
+		c.Assert(req.AssertionMaxFormats, DeepEquals, asserts.MaxSupportedFormats(1))
+
+		fmt.Fprintf(w, `{
+  "results": [{
+     "result": "fetch-assertions",
+     "key": "g1",
+     "assertion-stream-urls": [
+        "https://api.snapcraft.io/v2/assertions/snap-revision/QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL/global-upload"
+      ]
+     }
+   ]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	assertq := &testAssertQuery{
+		toResolve: map[asserts.Grouping][]*asserts.AtRevision{
+			asserts.Grouping("g1"): {{
+				Ref: asserts.Ref{
+					Type: asserts.SnapRevisionType,
+					PrimaryKey: []string{
+						"QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL",
+						"global-upload",
+					},
+				},
+				Revision: asserts.RevisionNotKnown,
+			}},
+		},
+	}
+
+	results, aresults, err := sto.SnapAction(s.ctx, nil,
+		nil, assertq, nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(results, HasLen, 0)
+	c.Check(aresults, HasLen, 1)
+	c.Check(aresults[0].Grouping, Equals, asserts.Grouping("g1"))
+	c.Check(aresults[0].StreamURLs, DeepEquals, []string{
+		"https://api.snapcraft.io/v2/assertions/snap-revision/QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL/global-upload",
+	})
 }

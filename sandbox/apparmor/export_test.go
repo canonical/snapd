@@ -19,6 +19,58 @@
 
 package apparmor
 
+import (
+	"io"
+	"os"
+
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
+)
+
+var (
+	NumberOfJobsParam = numberOfJobsParam
+)
+
+func MockRuntimeNumCPU(new func() int) (restore func()) {
+	old := runtimeNumCPU
+	runtimeNumCPU = new
+	return func() {
+		runtimeNumCPU = old
+	}
+}
+
+func MockMkdirAll(f func(string, os.FileMode) error) func() {
+	r := testutil.Backup(&osMkdirAll)
+	osMkdirAll = f
+	return r
+}
+
+func MockAtomicWrite(f func(string, io.Reader, os.FileMode, osutil.AtomicWriteFlags) error) func() {
+	r := testutil.Backup(&osutilAtomicWrite)
+	osutilAtomicWrite = f
+	return r
+}
+
+func MockLoadProfiles(f func([]string, string, AaParserFlags) error) func() {
+	r := testutil.Backup(&LoadProfiles)
+	LoadProfiles = f
+	return r
+}
+
+func MockSnapConfineDistroProfilePath(f func() string) func() {
+	r := testutil.Backup(&SnapConfineDistroProfilePath)
+	SnapConfineDistroProfilePath = f
+	return r
+}
+
+// MockProfilesPath mocks the file read by LoadedProfiles()
+func MockProfilesPath(t *testutil.BaseTest, profiles string) {
+	profilesPath = profiles
+	t.AddCleanup(func() {
+		profilesPath = realProfilesPath
+	})
+}
+
 func MockFsRootPath(path string) (restorer func()) {
 	old := rootPath
 	rootPath = path
@@ -27,12 +79,10 @@ func MockFsRootPath(path string) (restorer func()) {
 	}
 }
 
-func MockParserSearchPath(new string) (restore func()) {
-	oldAppArmorParserSearchPath := parserSearchPath
-	parserSearchPath = new
-	return func() {
-		parserSearchPath = oldAppArmorParserSearchPath
-	}
+func MockSnapdAppArmorSupportsReexec(new func() bool) (restore func()) {
+	restore = testutil.Backup(&snapdAppArmorSupportsReexec)
+	snapdAppArmorSupportsReexec = new
+	return restore
 }
 
 var (
@@ -43,6 +93,8 @@ var (
 	RequiredParserFeatures  = requiredParserFeatures
 	PreferredKernelFeatures = preferredKernelFeatures
 	PreferredParserFeatures = preferredParserFeatures
+
+	SnapdAppArmorSupportsRexecImpl = snapdAppArmorSupportsReexecImpl
 )
 
 func FreshAppArmorAssessment() {

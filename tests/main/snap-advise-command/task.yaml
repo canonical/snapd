@@ -48,6 +48,10 @@ execute: |
             echo "Store is reporting catalog refresh failed: cannot retrieve the sections, skipping the test"
             exit 0
         fi
+        if "$TESTSTOOLS"/journal-state get-log -u snapd | MATCH "cannot decode new commands catalog: got unexpected HTTP status code 403"; then
+            echo "Store is reporting 403: cannot retrieve the sections, skipping the test"
+            exit 0
+        fi
         exit 1
     fi
     echo "Ensure the database is readable by a regular user"

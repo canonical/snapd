@@ -17,6 +17,8 @@ execute: |
     echo "Build a list of syscalls known to libseccomp by using the internal test tool arch-syscall-dump"
     git clone https://github.com/seccomp/libseccomp
     pushd libseccomp
+    # so that we know what is the latest revision tried in the test
+    git log -1
     ./autogen.sh
     ./configure
     pushd src && make arch-syscall-dump

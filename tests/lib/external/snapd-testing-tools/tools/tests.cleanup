@@ -1,0 +1,97 @@
+#!/bin/bash -e
+
+show_help() {
+    echo "usage: tests.cleanup defer <cmd> [args]"
+    echo "       tests.cleanup pop"
+    echo "       tests.cleanup restore"
+    echo
+    echo "COMMANDS:"
+    echo "  restore: invokes all cleanup commands in reverse order"
+    echo "  defer: pushes a command onto the cleanup stack"
+    echo "  pop: invoke the most recently deferred command, discarding it"
+    echo
+    echo "The defer and pop commands can be to establish temporary"
+    echo "cleanup handler and remove it, in the case of success"
+}
+
+cmd_defer() {
+    if [ ! -e defer.sh ]; then
+        truncate --size=0 defer.sh
+        chmod +x defer.sh
+    fi
+    echo "$*" >> defer.sh
+}
+
+run_one_cmd() {
+    CMD="$1"
+    set +e
+    sh -ec "$CMD"
+    RET=$?
+    set -e
+    if [ $RET -ne 0 ]; then
+        echo "tests.cleanup: deferred command \"$CMD\" failed with exit code $RET"
+        exit $RET
+    fi
+}
+
+cmd_pop() {
+    if [ ! -s defer.sh ]; then
+        echo "tests.cleanup: cannot pop, cleanup stack is empty" >&2
+        exit 1
+    fi
+    head -n-1 defer.sh >defer.sh.pop
+    trap "mv defer.sh.pop defer.sh" EXIT
+    tail -n-1 defer.sh | while read -r CMD; do
+        run_one_cmd "$CMD"
+    done
+}
+
+cmd_restore() {
+    if [ -e defer.sh ]; then
+        tac defer.sh | while read -r CMD; do
+            run_one_cmd "$CMD"
+        done
+        rm -f defer.sh
+    fi
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit
+    fi
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit
+                ;;
+            defer)
+                shift
+                cmd_defer "$@"
+                exit
+                ;;
+            pop)
+                shift
+                cmd_pop "$@"
+                exit
+                ;;
+            restore)
+                shift
+                cmd_restore
+                exit
+                ;;
+            -*)
+                echo "tests.cleanup: unknown option $1" >&2
+                exit 1
+                ;;
+            *)
+                echo "tests.cleanup: unknown command $1" >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+main "$@"

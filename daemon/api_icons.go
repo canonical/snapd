@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/snapcore/snapd/overlord/auth"
@@ -50,7 +51,7 @@ func iconGet(st *state.State, name string) Response {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, name, &snapst)
 	if err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			return SnapNotFound(name, err)
 		}
 		return InternalError("cannot consult state: %v", err)

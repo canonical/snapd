@@ -39,7 +39,7 @@ type ServiceState struct {
 func HandleMockAllUnitsActiveOutput(cmd []string, states map[string]ServiceState) []byte {
 	osutil.MustBeTestBinary("mocking systemctl output can only be done from tests")
 	if cmd[0] != "show" ||
-		cmd[1] != "--property=Id,ActiveState,UnitFileState,Type" {
+		cmd[1] != "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload" {
 		return nil
 	}
 	var output []byte
@@ -52,10 +52,12 @@ func HandleMockAllUnitsActiveOutput(cmd []string, states map[string]ServiceState
 			state = ServiceState{"active", "enabled"}
 		}
 		output = append(output, []byte(fmt.Sprintf(`Id=%s
+Names=%s
 ActiveState=%s
 UnitFileState=%s
 Type=simple
-`, unit, state.ActiveState, state.UnitFileState))...)
+NeedDaemonReload=no
+`, unit, unit, state.ActiveState, state.UnitFileState))...)
 	}
 	return output
 }

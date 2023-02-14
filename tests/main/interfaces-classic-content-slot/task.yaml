@@ -53,7 +53,9 @@ execute: |
     "$CONSUMER_SNAP".content-plug | MATCH "Some shared content"
 
     echo "And the current mount profile is the same as the desired mount profile"
-    diff -u /run/snapd/ns/snap."$CONSUMER_SNAP".fstab /var/lib/snapd/mount/snap."$CONSUMER_SNAP".fstab
+    # Exclude the rootfs line, which is only in the /run/ fstab
+    grep -v "x-snapd.origin=rootfs" /run/snapd/ns/snap."$CONSUMER_SNAP".fstab \
+        | diff -u - /var/lib/snapd/mount/snap."$CONSUMER_SNAP".fstab
 
     echo "When the plug is disconnected"
     snap disconnect "$CONSUMER_SNAP":shared-content-plug "$PROVIDER_SNAP":shared-content-slot

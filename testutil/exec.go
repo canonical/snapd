@@ -187,10 +187,11 @@ func (cmd *MockCmd) Restore() {
 
 // Calls returns a list of calls that were made to the mock command.
 // of the form:
-// [][]string{
-//     {"cmd", "arg1", "arg2"}, // first invocation of "cmd"
-//     {"cmd", "arg1", "arg2"}, // second invocation of "cmd"
-// }
+//
+//	[][]string{
+//	    {"cmd", "arg1", "arg2"}, // first invocation of "cmd"
+//	    {"cmd", "arg1", "arg2"}, // second invocation of "cmd"
+//	}
 func (cmd *MockCmd) Calls() [][]string {
 	raw, err := ioutil.ReadFile(cmd.logFile)
 	if os.IsNotExist(err) {

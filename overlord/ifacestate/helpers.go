@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package ifacestate
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -30,17 +31,25 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
+)
+
+var (
+	snapdAppArmorServiceIsDisabled = snapdAppArmorServiceIsDisabledImpl
+	profilesNeedRegeneration       = profilesNeedRegenerationImpl
+
+	writeSystemKey = interfaces.WriteSystemKey
 )
 
 func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
@@ -67,8 +76,40 @@ func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
 }
 
 func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error {
-	opts := interfaces.SecurityBackendOptions{Preseed: m.preseed}
-	for _, backend := range backends.All {
+	// get the snapd snap info if it is installed
+	var snapdSnap snapstate.SnapState
+	var snapdSnapInfo *snap.Info
+	err := snapstate.Get(m.state, "snapd", &snapdSnap)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return fmt.Errorf("cannot access snapd snap state: %v", err)
+	}
+	if err == nil {
+		snapdSnapInfo, err = snapdSnap.CurrentInfo()
+		if err != nil && err != snapstate.ErrNoCurrent {
+			return fmt.Errorf("cannot access snapd snap info: %v", err)
+		}
+	}
+
+	// get the core snap info if it is installed
+	var coreSnap snapstate.SnapState
+	var coreSnapInfo *snap.Info
+	err = snapstate.Get(m.state, "core", &coreSnap)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return fmt.Errorf("cannot access core snap state: %v", err)
+	}
+	if err == nil {
+		coreSnapInfo, err = coreSnap.CurrentInfo()
+		if err != nil && err != snapstate.ErrNoCurrent {
+			return fmt.Errorf("cannot access core snap info: %v", err)
+		}
+	}
+
+	opts := interfaces.SecurityBackendOptions{
+		Preseed:       m.preseed,
+		CoreSnapInfo:  coreSnapInfo,
+		SnapdSnapInfo: snapdSnapInfo,
+	}
+	for _, backend := range allSecurityBackends() {
 		if err := backend.Initialize(&opts); err != nil {
 			return err
 		}
@@ -108,8 +149,13 @@ func profilesNeedRegenerationImpl() bool {
 	return mismatch
 }
 
-var profilesNeedRegeneration = profilesNeedRegenerationImpl
-var writeSystemKey = interfaces.WriteSystemKey
+// snapdAppArmorServiceIsDisabledImpl returns true if the snapd.apparmor
+// service unit exists but is disabled
+func snapdAppArmorServiceIsDisabledImpl() bool {
+	sysd := systemd.New(systemd.SystemMode, nil)
+	isEnabled, err := sysd.IsEnabled("snapd.apparmor")
+	return err == nil && !isEnabled
+}
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
 func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) error {
@@ -143,8 +189,18 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
 			logger.Noticef("cannot get state of snap %q: %s", snapName, err)
+			return interfaces.ConfinementOptions{}
 		}
-		return confinementOptions(snapst.Flags)
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			logger.Noticef("cannot get current info for snap %q: %s", snapName, err)
+			return interfaces.ConfinementOptions{}
+		}
+		opts, err := buildConfinementOptions(m.state, snapInfo, snapst.Flags)
+		if err != nil {
+			logger.Noticef("cannot get confinement options for snap %q: %s", snapName, err)
+		}
+		return opts
 	}
 
 	// For each backend:
@@ -214,14 +270,14 @@ var removeStaleConnections = func(st *state.State) error {
 		}
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
-			if err != state.ErrNoState {
+			if !errors.Is(err, state.ErrNoState) {
 				return err
 			}
 			staleConns = append(staleConns, id)
 			continue
 		}
 		if err := snapstate.Get(st, connRef.SlotRef.Snap, &snapst); err != nil {
-			if err != state.ErrNoState {
+			if !errors.Is(err, state.ErrNoState) {
 				return err
 			}
 			staleConns = append(staleConns, id)
@@ -241,7 +297,7 @@ var removeStaleConnections = func(st *state.State) error {
 func isBroken(st *state.State, snapName string) (bool, error) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, snapName, &snapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return false, nil
 	}
 	if err != nil {
@@ -471,26 +527,6 @@ func addHotplugSlot(st *state.State, repo *interfaces.Repository, stateSlots map
 	return nil
 }
 
-type connState struct {
-	Auto      bool   `json:"auto,omitempty"`
-	ByGadget  bool   `json:"by-gadget,omitempty"`
-	Interface string `json:"interface,omitempty"`
-	// Undesired tracks connections that were manually disconnected after being auto-connected,
-	// so that they are not automatically reconnected again in the future.
-	Undesired        bool                   `json:"undesired,omitempty"`
-	StaticPlugAttrs  map[string]interface{} `json:"plug-static,omitempty"`
-	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty"`
-	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty"`
-	DynamicSlotAttrs map[string]interface{} `json:"slot-dynamic,omitempty"`
-	// Hotplug-related attributes: HotplugGone indicates a connection that
-	// disappeared because the device was removed, but may potentially be
-	// restored in the future if we see the device again. HotplugKey is the
-	// key of the associated device; it's empty for connections of regular
-	// slots.
-	HotplugGone bool            `json:"hotplug-gone,omitempty"`
-	HotplugKey  snap.HotplugKey `json:"hotplug-key,omitempty"`
-}
-
 type gadgetConnect struct {
 	st   *state.State
 	task *state.Task
@@ -514,10 +550,10 @@ func newGadgetConnect(s *state.State, task *state.Task, repo *interfaces.Reposit
 // addGadgetConnections adds to newconns any applicable connections
 // from the gadget connections stanza.
 // conflictError is called to handle checkAutoconnectConflicts errors.
-func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.ConnRef, conns map[string]*connState, conflictError func(*state.Retry, error) error) error {
+func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.ConnRef, conns map[string]*schema.ConnState, conflictError func(*state.Retry, error) error) error {
 	var seeded bool
 	err := gc.st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	// we apply gadget connections only during seeding or a remodeling
@@ -545,7 +581,7 @@ func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.Co
 
 	gconns, err := snapstate.GadgetConnections(gc.st, gc.deviceCtx)
 	if err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			// no gadget yet, nothing to do
 			return nil
 		}
@@ -601,7 +637,7 @@ func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.Co
 	return nil
 }
 
-func addNewConnection(st *state.State, task *state.Task, newconns map[string]*interfaces.ConnRef, conns map[string]*connState, plug *snap.PlugInfo, slot *snap.SlotInfo, conflictError func(*state.Retry, error) error) error {
+func addNewConnection(st *state.State, task *state.Task, newconns map[string]*interfaces.ConnRef, conns map[string]*schema.ConnState, plug *snap.PlugInfo, slot *snap.SlotInfo, conflictError func(*state.Retry, error) error) error {
 	connRef := interfaces.NewConnRef(plug, slot)
 	key := connRef.ID()
 	if _, ok := conns[key]; ok {
@@ -634,6 +670,10 @@ func addNewConnection(st *state.State, task *state.Task, newconns map[string]*in
 	newconns[key] = connRef
 	return nil
 }
+
+// DebugAutoConnectCheck is a hook that can be set to debug auto-connection
+// candidates as they are checked.
+var DebugAutoConnectCheck func(*policy.ConnectCandidate, interfaces.SideArity, error)
 
 type autoConnectChecker struct {
 	st   *state.State
@@ -680,7 +720,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 	if modelAs.Store() != "" {
 		var err error
 		storeAs, err = assertstate.Store(c.st, modelAs.Store())
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return false, nil, err
 		}
 	}
@@ -717,6 +757,9 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 	}
 
 	arity, err := ic.CheckAutoConnect()
+	if DebugAutoConnectCheck != nil {
+		DebugAutoConnectCheck(&ic, arity, err)
+	}
 	if err == nil {
 		return true, arity, nil
 	}
@@ -763,7 +806,7 @@ func filterUbuntuCoreSlots(candidates []*snap.SlotInfo, arities []interfaces.Sid
 // conns. cannotAutoConnectLog is called to build a log message in
 // case no applicable pair was found. conflictError is called
 // to handle checkAutoconnectConflicts errors.
-func (c *autoConnectChecker) addAutoConnections(newconns map[string]*interfaces.ConnRef, plugs []*snap.PlugInfo, filter func([]*snap.SlotInfo) []*snap.SlotInfo, conns map[string]*connState, cannotAutoConnectLog func(plug *snap.PlugInfo, candRefs []string) string, conflictError func(*state.Retry, error) error) error {
+func (c *autoConnectChecker) addAutoConnections(newconns map[string]*interfaces.ConnRef, plugs []*snap.PlugInfo, filter func([]*snap.SlotInfo) []*snap.SlotInfo, conns map[string]*schema.ConnState, cannotAutoConnectLog func(plug *snap.PlugInfo, candRefs []string) string, conflictError func(*state.Retry, error) error) error {
 	for _, plug := range plugs {
 		candSlots, arities := c.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, c.check)
 
@@ -838,7 +881,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 	if modelAs.Store() != "" {
 		var err error
 		storeAs, err = assertstate.Store(c.st, modelAs.Store())
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return false, err
 		}
 	}
@@ -898,10 +941,10 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 // getConns returns information about connections from the state.
 //
 // Connections are transparently re-mapped according to remapIncomingConnRef
-func getConns(st *state.State) (conns map[string]*connState, err error) {
+func getConns(st *state.State) (conns map[string]*schema.ConnState, err error) {
 	var raw *json.RawMessage
 	err = st.Get("conns", &raw)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("cannot obtain raw data about existing connections: %s", err)
 	}
 	if raw != nil {
@@ -911,9 +954,9 @@ func getConns(st *state.State) (conns map[string]*connState, err error) {
 		}
 	}
 	if conns == nil {
-		conns = make(map[string]*connState)
+		conns = make(map[string]*schema.ConnState)
 	}
-	remapped := make(map[string]*connState, len(conns))
+	remapped := make(map[string]*schema.ConnState, len(conns))
 	for id, cstate := range conns {
 		cref, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -933,8 +976,8 @@ func getConns(st *state.State) (conns map[string]*connState, err error) {
 // setConns sets information about connections in the state.
 //
 // Connections are transparently re-mapped according to remapOutgoingConnRef
-func setConns(st *state.State, conns map[string]*connState) {
-	remapped := make(map[string]*connState, len(conns))
+func setConns(st *state.State, conns map[string]*schema.ConnState) {
+	remapped := make(map[string]*schema.ConnState, len(conns))
 	for id, cstate := range conns {
 		cref, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -949,17 +992,46 @@ func setConns(st *state.State, conns map[string]*connState) {
 }
 
 // snapsWithSecurityProfiles returns all snaps that have active
-// security profiles: these are either snaps that are active, or about
-// to be active (pending link-snap) with a done setup-profiles
+// security profiles: these are either snaps that are active,
+// inactive snaps that are being operated on, whose profile state
+// is tracked with SnapState.PendingSecurity,
+// or snap about to be active (pending link-snap) with a done
+// setup-profiles
 func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
-	infos, err := snapstate.ActiveInfos(st)
+	all, err := snapstate.All(st)
 	if err != nil {
 		return nil, err
 	}
-	seen := make(map[string]bool, len(infos))
-	for _, info := range infos {
-		seen[info.InstanceName()] = true
+	infos := make([]*snap.Info, 0, len(all))
+	seen := make(map[string]bool, len(all))
+	for instanceName, snapst := range all {
+		if snapst.Active {
+			snapInfo, err := snapst.CurrentInfo()
+			if err != nil {
+				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
+				continue
+			}
+			infos = append(infos, snapInfo)
+			seen[instanceName] = true
+		} else if snapst.PendingSecurity != nil {
+			// we tracked any pending security profiles for the snap
+			seen[instanceName] = true
+			si := snapst.PendingSecurity.SideInfo
+			if si == nil {
+				// profiles removed (already)
+				continue
+			}
+			snapInfo, err := snap.ReadInfo(instanceName, si)
+			if err != nil {
+				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
+				continue
+			}
+			infos = append(infos, snapInfo)
+		}
 	}
+	// look at the changes for old snapds and also
+	// the situation that are being installed, so they do not
+	// have SnapState yet
 	for _, t := range st.Tasks() {
 		if t.Kind() != "link-snap" || t.Status().Ready() {
 			continue
@@ -1008,7 +1080,7 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 		return mapper.RemapSnapFromRequest(snapID), nil
 	}
 	decl, err := assertstate.SnapDeclaration(st, snapID)
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return "", nil
 	}
 	if err != nil {
@@ -1195,7 +1267,7 @@ func getHotplugAttrs(task *state.Task) (ifaceName string, hotplugKey snap.Hotplu
 
 func allocHotplugSeq(st *state.State) (int, error) {
 	var seq int
-	if err := st.Get("hotplug-seq", &seq); err != nil && err != state.ErrNoState {
+	if err := st.Get("hotplug-seq", &seq); err != nil && !errors.Is(err, state.ErrNoState) {
 		return 0, fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
 	}
 	seq++
@@ -1247,7 +1319,7 @@ func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
 	var slots map[string]*HotplugSlotInfo
 	err := st.Get("hotplug-slots", &slots)
 	if err != nil {
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
 		slots = make(map[string]*HotplugSlotInfo)
@@ -1268,7 +1340,7 @@ func findHotplugSlot(stateSlots map[string]*HotplugSlotInfo, ifaceName string, h
 	return nil
 }
 
-func findConnsForHotplugKey(conns map[string]*connState, ifaceName string, hotplugKey snap.HotplugKey) []string {
+func findConnsForHotplugKey(conns map[string]*schema.ConnState, ifaceName string, hotplugKey snap.HotplugKey) []string {
 	var connsForDevice []string
 	for id, connSt := range conns {
 		if connSt.Interface != ifaceName || connSt.HotplugKey != hotplugKey {

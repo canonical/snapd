@@ -38,7 +38,7 @@ execute: |
     export UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL=1
 
     echo Running prepare-image as a user
-    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps test-snapd-tools $ROOT/model.assertion $ROOT" test
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --snap test-snapd-tools $ROOT/model.assertion $ROOT" test
 
     echo Verifying the result
     ls -lR "$IMAGE"

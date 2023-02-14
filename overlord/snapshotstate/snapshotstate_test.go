@@ -38,6 +38,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -69,10 +70,13 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+	old := snapstate.EnforcedValidationSets
+	s.AddCleanup(func() {
+		snapstate.EnforcedValidationSets = old
 	})
-	s.AddCleanup(restore)
+	snapstate.EnforcedValidationSets = func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	}
 }
 
 func (s *snapshotSuite) TearDownTest(c *check.C) {
@@ -499,6 +503,18 @@ func (snapshotSuite) TestSaveNoSnapsInState(c *check.C) {
 	c.Check(taskset.Tasks(), check.HasLen, 0)
 }
 
+func (snapshotSuite) TestSaveSnapNotInstalled(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	setID, saved, taskset, err := snapshotstate.Save(st, []string{"foo"}, nil)
+	c.Assert(err, check.ErrorMatches, `snap "foo" is not installed`)
+	c.Check(setID, check.Equals, uint64(0))
+	c.Check(saved, check.HasLen, 0)
+	c.Check(taskset, check.IsNil)
+}
+
 func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
 		return map[string]*snapstate.SnapState{
@@ -526,17 +542,23 @@ func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	c.Check(tasks[1].Summary(), check.Equals, `Save data of snap "c-snap" in snapshot set #1`)
 }
 
-func (snapshotSuite) TestSaveOneSnap(c *check.C) {
-	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
+func (s snapshotSuite) TestSaveOneSnap(c *check.C) {
+	defer snapshotstate.MockSnapstateAll(func(*state.State) (map[string]*snapstate.SnapState, error) {
 		// snapstate.All isn't called when a snap name is passed in
 		return nil, errors.New("bzzt")
-	}
-
-	defer snapshotstate.MockSnapstateAll(fakeSnapstateAll)()
+	})()
 
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
+
+	snapstate.Set(st, "a-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "a-snap", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+	})
 
 	setID, saved, taskset, err := snapshotstate.Save(st, []string{"a-snap"}, []string{"a-user"})
 	c.Assert(err, check.IsNil)
@@ -651,7 +673,7 @@ func (snapshotSuite) TestSaveIntegrationFails(c *check.C) {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
-	// sanity check: no files in snapshot dir
+	// precondition check: no files in snapshot dir
 	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
@@ -734,18 +756,18 @@ exec /bin/tar "$@"
 	c.Assert(tasks, check.HasLen, 3)
 
 	// task 0 (for "one-snap") will have been undone
-	c.Check(tasks[0].Summary(), testutil.Contains, `"one-snap"`) // sanity check: task 0 is one-snap's
+	c.Check(tasks[0].Summary(), testutil.Contains, `"one-snap"`) // validity check: task 0 is one-snap's
 	c.Check(tasks[0].Status(), check.Equals, state.UndoneStatus)
 
 	// task 1 (for "too-snap") will have errored
-	c.Check(tasks[1].Summary(), testutil.Contains, `"too-snap"`) // sanity check: task 1 is too-snap's
+	c.Check(tasks[1].Summary(), testutil.Contains, `"too-snap"`) // validity check: task 1 is too-snap's
 	c.Check(tasks[1].Status(), check.Equals, state.ErrorStatus)
 	c.Check(strings.Join(tasks[1].Log(), "\n"), check.Matches, `(?ms)\S+ ERROR cannot create archive:
 /bin/tar: common/common-too-snap: .* Permission denied
 /bin/tar: Exiting with failure status due to previous errors`)
 
 	// task 2 (for "tri-snap") will have errored as well, hopefully, but it's a race (see the "tar" comment above)
-	c.Check(tasks[2].Summary(), testutil.Contains, `"tri-snap"`) // sanity check: task 2 is tri-snap's
+	c.Check(tasks[2].Summary(), testutil.Contains, `"tri-snap"`) // validity check: task 2 is tri-snap's
 	c.Check(tasks[2].Status(), check.Equals, state.ErrorStatus, check.Commentf("if this ever fails, duplicate the fake tar sleeps please"))
 	// sometimes you'll get one, sometimes you'll get the other (depending on ordering of events)
 	c.Check(strings.Join(tasks[2].Log(), "\n"), check.Matches, `\S+ ERROR( tar failed:)? context canceled`)
@@ -761,7 +783,7 @@ func (snapshotSuite) testSaveIntegrationTarFails(c *check.C, tarLogLines int, ex
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
-	// sanity check: no files in snapshot dir
+	// precondition check: no files in snapshot dir
 	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
@@ -834,7 +856,7 @@ exec /bin/tar "$@"
 	c.Assert(tasks, check.HasLen, 1)
 
 	// task 1 (for "too-snap") will have errored
-	c.Check(tasks[0].Summary(), testutil.Contains, `"tar-fail-snap"`) // sanity check: task 1 is too-snap's
+	c.Check(tasks[0].Summary(), testutil.Contains, `"tar-fail-snap"`) // validity check: task 1 is too-snap's
 	c.Check(tasks[0].Status(), check.Equals, state.ErrorStatus)
 	c.Check(strings.Join(tasks[0].Log(), "\n"), check.Matches, expectedErr)
 
@@ -1099,8 +1121,9 @@ func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(found, check.DeepEquals, []string{"a-snap"})
 	tasks := taskset.Tasks()
-	c.Assert(tasks, check.HasLen, 1)
+	c.Assert(tasks, check.HasLen, 2)
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
+	c.Check(tasks[1].Kind(), check.Equals, "cleanup-after-restore")
 	c.Check(tasks[0].Summary(), check.Equals, `Restore data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
@@ -1135,8 +1158,9 @@ func (snapshotSuite) TestRestore(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(found, check.DeepEquals, []string{"a-snap"})
 	tasks := taskset.Tasks()
-	c.Assert(tasks, check.HasLen, 1)
+	c.Assert(tasks, check.HasLen, 2)
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
+	c.Check(tasks[1].Kind(), check.Equals, "cleanup-after-restore")
 	c.Check(tasks[0].Summary(), check.Equals, `Restore data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
@@ -1150,6 +1174,20 @@ func (snapshotSuite) TestRestore(c *check.C) {
 }
 
 func (snapshotSuite) TestRestoreIntegration(c *check.C) {
+	testRestoreIntegration(c, dirs.UserHomeSnapDir, nil)
+}
+
+func (snapshotSuite) TestRestoreIntegrationHiddenSnapDir(c *check.C) {
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	restore := snapshotstate.MockGetSnapDirOptions(func(*state.State, string) (*dirs.SnapDirOptions, error) {
+		return opts, nil
+	})
+	defer restore()
+
+	testRestoreIntegration(c, dirs.HiddenSnapDataHomeDir, opts)
+}
+
+func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOptions) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
@@ -1194,16 +1232,16 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 		snapInfo := snaptest.MockSnap(c, fmt.Sprintf("{name: %s, version: v1}", name), sideInfo)
 
 		for _, home := range []string{homedirA, homedirB} {
-			c.Assert(os.MkdirAll(filepath.Join(home, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
-			c.Assert(os.MkdirAll(filepath.Join(home, "snap", name, "common", "common-"+name), 0755), check.IsNil)
+			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
+			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name, "common", "common-"+name), 0755), check.IsNil)
 		}
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"})
+		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, opts)
 		c.Assert(err, check.IsNil)
 	}
 
 	// move the old away
-	c.Assert(os.Rename(filepath.Join(homedirA, "snap"), filepath.Join(homedirA, "snap.old")), check.IsNil)
+	c.Assert(os.Rename(filepath.Join(homedirA, snapDataDir), filepath.Join(homedirA, "snap.old")), check.IsNil)
 	// remove b-user's home
 	c.Assert(os.RemoveAll(homedirB), check.IsNil)
 
@@ -1222,13 +1260,15 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 	defer st.Unlock()
 
 	// the three restores warn about the missing home (but no errors, no panics)
-	for _, task := range change.Tasks() {
+	c.Assert(change.Tasks(), check.HasLen, 4)
+	restoreTasks := change.Tasks()[:3]
+	for _, task := range restoreTasks {
 		c.Check(strings.Join(task.Log(), "\n"), check.Matches, `.* Skipping restore of "[^"]+/home/b-user/[^"]+" as "[^"]+/home/b-user" doesn't exist.`)
 	}
 
 	// check it was all brought back \o/
-	out, err := exec.Command("diff", "-rN", filepath.Join(homedirA, "snap"), filepath.Join("snap.old")).CombinedOutput()
-	c.Assert(err, check.IsNil)
+	out, err := exec.Command("diff", "-rN", filepath.Join(homedirA, snapDataDir), filepath.Join("snap.old")).CombinedOutput()
+	c.Check(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
 }
 
@@ -1275,7 +1315,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
 		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common", "common-"+name), 0755), check.IsNil)
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"})
+		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"}, nil)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1300,8 +1340,9 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	defer st.Unlock()
 
 	tasks := change.Tasks()
-	c.Check(tasks, check.HasLen, 3)
-	for _, task := range tasks {
+	c.Check(tasks, check.HasLen, 4)
+	restoreTasks := tasks[:3]
+	for _, task := range restoreTasks {
 		if strings.Contains(task.Summary(), `"too-snap"`) {
 			// too-snap was set up to fail, should always fail with
 			// 'permission denied' (see the mkdirall w/mode 0 above)
@@ -1847,7 +1888,7 @@ func (snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 		Current:  sideInfo.Revision,
 	})
 
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(*snap.Info, []string, *dirs.SnapDirOptions) (uint64, error) {
 		return 123, nil
 	})()
 
@@ -1868,7 +1909,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithConfig(c *check.C) {
 		Current:  sideInfo.Revision,
 	})
 
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(*snap.Info, []string, *dirs.SnapDirOptions) (uint64, error) {
 		return 100, nil
 	})()
 
@@ -1896,7 +1937,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeError(c *check.C) {
 		Current:  sideInfo.Revision,
 	})
 
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(*snap.Info, []string, *dirs.SnapDirOptions) (uint64, error) {
 		return 0, fmt.Errorf("an error")
 	})()
 
@@ -1917,7 +1958,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithUsers(c *check.C) {
 	})
 
 	var gotUsers []string
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string, opts *dirs.SnapDirOptions) (uint64, error) {
 		gotUsers = users
 		return 0, nil
 	})()

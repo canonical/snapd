@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
+// +build !nomanagers
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -22,6 +24,7 @@
 package configstate
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -61,7 +64,7 @@ func canConfigure(st *state.State, snapName string) error {
 
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, snapName, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -167,9 +170,10 @@ func EarlyConfig(st *state.State, preloadGadget func() (sysconfig.Device, *gadge
 	if err != nil {
 		return err
 	}
-	tr := config.NewTransaction(st)
+	// No task is associated to the transaction if it is an early config
+	rt := configcore.NewRunTransaction(config.NewTransaction(st), nil)
 	if configed {
-		if err := configcoreExportExperimentalFlags(tr); err != nil {
+		if err := configcoreExportExperimentalFlags(rt); err != nil {
 			return fmt.Errorf("cannot export experimental config flags: %v", err)
 		}
 		return nil
@@ -177,24 +181,24 @@ func EarlyConfig(st *state.State, preloadGadget func() (sysconfig.Device, *gadge
 	if preloadGadget != nil {
 		dev, gi, err := preloadGadget()
 		if err != nil {
-			if err == state.ErrNoState {
+			if errors.Is(err, state.ErrNoState) {
 				// nothing to do
 				return nil
 			}
 			return err
 		}
 		values := gadget.SystemDefaults(gi.Defaults)
-		if err := configcoreEarly(dev, tr, values); err != nil {
+		if err := configcoreEarly(dev, rt, values); err != nil {
 			return err
 		}
-		tr.Commit()
+		rt.Commit()
 	}
 	return nil
 }
 
 func systemAlreadyConfigured(st *state.State) (bool, error) {
 	var seeded bool
-	if err := st.Get("seeded", &seeded); err != nil && err != state.ErrNoState {
+	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
 	if seeded {

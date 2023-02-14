@@ -33,11 +33,11 @@ import (
 // order, there's a simplified expression they can use which should cover the
 // majority of the cases:
 //
-//   epoch: N
+//	epoch: N
 //
 // means a snap can read/write exactly the Nth epoch's data, and
 //
-//   epoch: N*
+//	epoch: N*
 //
 // means a snap can additionally read (N-1)th epoch's data, which means it's a
 // snap that can migrate epochs (so a user on epoch 0 can get offered a refresh
@@ -46,9 +46,9 @@ import (
 // If the above is not enough, a developer can explicitly describe what epochs a
 // snap can read and write:
 //
-//   epoch:
-//     read: [1, 2, 3]
-//     write: [1, 3]
+//	epoch:
+//	  read: [1, 2, 3]
+//	  write: [1, 3]
 //
 // the read attribute defaults to the value of the write attribute, and the
 // write attribute defaults to the last item in the read attribute. If both are

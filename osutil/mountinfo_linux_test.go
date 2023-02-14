@@ -166,9 +166,7 @@ func (s *mountinfoSuite) TestLoadMountInfo1(c *C) {
 	fname := filepath.Join(c.MkDir(), "mountinfo")
 	err := ioutil.WriteFile(fname, []byte(mountInfoSample), 0644)
 	c.Assert(err, IsNil)
-	restore := osutil.MountInfoMustMock(false)
-	defer restore()
-	restore = osutil.MockProcSelfMountInfoLocation(fname)
+	restore := osutil.MockProcSelfMountInfoLocation(fname)
 	defer restore()
 	entries, err := osutil.LoadMountInfo()
 	c.Assert(err, IsNil)
@@ -178,9 +176,7 @@ func (s *mountinfoSuite) TestLoadMountInfo1(c *C) {
 // Test that loading mountinfo from a missing file reports an error.
 func (s *mountinfoSuite) TestLoadMountInfo2(c *C) {
 	fname := filepath.Join(c.MkDir(), "mountinfo")
-	restore := osutil.MountInfoMustMock(false)
-	defer restore()
-	restore = osutil.MockProcSelfMountInfoLocation(fname)
+	restore := osutil.MockProcSelfMountInfoLocation(fname)
 	defer restore()
 	_, err := osutil.LoadMountInfo()
 	c.Assert(err, ErrorMatches, "*. no such file or directory")
@@ -193,10 +189,12 @@ func (s *mountinfoSuite) TestLoadMountInfo3(c *C) {
 	c.Assert(err, IsNil)
 	err = os.Chmod(fname, 0000)
 	c.Assert(err, IsNil)
-	restore := osutil.MountInfoMustMock(false)
-	defer restore()
-	restore = osutil.MockProcSelfMountInfoLocation(fname)
+	restore := osutil.MockProcSelfMountInfoLocation(fname)
 	defer restore()
 	_, err = osutil.LoadMountInfo()
 	c.Assert(err, ErrorMatches, "*. permission denied")
+}
+
+func (s *mountinfoSuite) TestLoadMountInfoComplainsWhenNotMockedInTest(c *C) {
+	c.Assert(func() { osutil.LoadMountInfo() }, PanicMatches, "/proc/self/mountinfo must be mocked in tests")
 }

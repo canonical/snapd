@@ -24,7 +24,7 @@ setup_staging_store(){
 
 teardown_staging_store(){
     systemctl stop snapd.service snapd.socket
-    rm -rf "$STORE_CONFIG"
+    rm -f "$STORE_CONFIG"
     systemctl daemon-reload
     systemctl start snapd.socket
 }
@@ -48,12 +48,14 @@ make_snap_installable(){
     local dir="$1"
     local snap_path="$2"
 
-    p_decl=$(new_snap_declaration "$dir" "$snap_path")
-    p_rev=$(new_snap_revision "$dir" "$snap_path")
+    # NOTE: snap id and snap name are derived from snap file name
+    p_decl=$(fakestore new-snap-declaration --dir "$dir" "$snap_path")
+    p_rev=$(fakestore new-snap-revision --dir "$dir" "$snap_path")
     if [ $ACK = true ]; then
         snap ack "$p_decl"
         snap ack "$p_rev"
     fi
+    cp -av "$snap_path" "$dir/"
 }
 
 make_snap_installable_with_id(){
@@ -118,40 +120,16 @@ EOF
 }
 EOF
 
-    p_decl=$(new_snap_declaration "$dir" "$snap_path" --snap-decl-json=/tmp/snap-decl.json)
-    p_rev=$(new_snap_revision "$dir" "$snap_path" --snap-rev-json=/tmp/snap-rev.json)
+    p_decl=$(fakestore new-snap-declaration --dir "$dir" "$snap_path" --snap-decl-json=/tmp/snap-decl.json)
+    p_rev=$(fakestore new-snap-revision --dir "$dir" "$snap_path" --snap-rev-json=/tmp/snap-rev.json)
     if [ $ACK = true ]; then
         snap ack "$p_decl"
         snap ack "$p_rev"
     fi
+    cp -av "$snap_path" "$dir/"
 
     rm -rf /tmp/snap-decl.json
     rm -rf /tmp/snap-rev.json
-}
-
-new_snap_declaration(){
-    local dir="$1"
-    local snap_path="$2"
-    shift 2
-
-    cp -a "$snap_path" "$dir"
-    fakestore new-snap-declaration --dir "$dir" "$@" "${snap_path}"
-}
-
-new_snap_revision(){
-    local dir="$1"
-    local snap_path="$2"
-    shift 2
-
-    fakestore new-snap-revision --dir "$dir" "$@" "${snap_path}"
-}
-
-new_repair(){
-    local dir="$1"
-    local script_path="$2"
-    shift 2
-
-    fakestore new-repair --dir "$dir" "$@" "${script_path}" > /dev/null
 }
 
 setup_fake_store(){

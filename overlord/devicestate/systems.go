@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -42,7 +43,7 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 	defer st.Unlock()
 
 	var seeded bool
-	if err := st.Get("seeded", &seeded); err != nil && err != state.ErrNoState {
+	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if seeded {
@@ -76,18 +77,23 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 }
 
 func systemFromSeed(label string, current *currentSystem) (*System, error) {
-	s, err := seed.Open(dirs.SnapSeedDir, label)
+	_, sys, err := loadSeedAndSystem(label, current)
+	return sys, err
+}
+
+func loadSeedAndSystem(label string, current *currentSystem) (seed.Seed, *System, error) {
+	s, err := seedOpen(dirs.SnapSeedDir, label)
 	if err != nil {
-		return nil, fmt.Errorf("cannot open: %v", err)
+		return nil, nil, fmt.Errorf("cannot open: %v", err)
 	}
 	if err := s.LoadAssertions(nil, nil); err != nil {
-		return nil, fmt.Errorf("cannot load assertions: %v", err)
+		return nil, nil, fmt.Errorf("cannot load assertions for label %q: %v", label, err)
 	}
 	// get the model
 	model := s.Model()
 	brand, err := s.Brand()
 	if err != nil {
-		return nil, fmt.Errorf("cannot obtain brand: %v", err)
+		return nil, nil, fmt.Errorf("cannot obtain brand: %v", err)
 	}
 	system := &System{
 		Current: false,
@@ -100,7 +106,7 @@ func systemFromSeed(label string, current *currentSystem) (*System, error) {
 		system.Current = true
 		system.Actions = current.actions
 	}
-	return system, nil
+	return s, system, nil
 }
 
 type currentSystem struct {
@@ -210,7 +216,7 @@ type snapWriteObserveFunc func(systemDir, where string) error
 // systems on ubuntu-seed.
 func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, db asserts.RODatabase, getInfo getSnapInfoFunc, observeWrite snapWriteObserveFunc) (dir string, err error) {
 	if model.Grade() == asserts.ModelGradeUnset {
-		return "", fmt.Errorf("cannot create a system for non UC20 model")
+		return "", fmt.Errorf("cannot create a system for pre-UC20 model")
 	}
 
 	logger.Noticef("creating recovery system with label %q for %q", label, model.Model())
@@ -308,6 +314,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		return recoverySystemDir, err
 	}
 
+	localARefs := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
 	for _, sn := range localSnaps {
 		info, ok := modelSnaps[sn.Path]
 		if !ok {
@@ -317,9 +324,9 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// we have in snap.Info, but getting it this way can be
 		// expensive as we need to compute the hash, try to find a
 		// better way
-		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, f, db)
+		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, f, db)
 		if err != nil {
-			if !asserts.IsNotFound(err) {
+			if !errors.Is(err, &asserts.NotFoundError{}) {
 				return recoverySystemDir, err
 			} else if info.SnapID != "" {
 				// snap info from state must have come
@@ -331,11 +338,15 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		if err := w.SetInfo(sn, info); err != nil {
 			return recoverySystemDir, err
 		}
-		sn.ARefs = aRefs
+		localARefs[sn] = aRefs
 	}
 
 	if err := w.InfoDerived(); err != nil {
 		return recoverySystemDir, err
+	}
+
+	retrieveAsserts := func(sn, _, _ *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
+		return localARefs[sn], nil
 	}
 
 	for {
@@ -354,7 +365,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 			return recoverySystemDir, fmt.Errorf("internal error: need to download snaps: %v", strings.Join(which, ", "))
 		}
 
-		complete, err := w.Downloaded()
+		complete, err := w.Downloaded(retrieveAsserts)
 		if err != nil {
 			return recoverySystemDir, err
 		}

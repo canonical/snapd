@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -168,7 +169,7 @@ func (b *Batch) commitTo(db *Database, observe func(Assertion)) error {
 		return err
 	}
 
-	// TODO: trigger w. caller a global sanity check if something is revoked
+	// TODO: trigger w. caller a global validity check if something is revoked
 	// (but try to save as much possible still),
 	// or err is a check error
 
@@ -203,7 +204,7 @@ func (b *Batch) prereqSort(db *Database) error {
 	ordered := make([]Assertion, 0, len(b.added))
 	retrieve := func(ref *Ref) (Assertion, error) {
 		a, err := b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
-		if IsNotFound(err) {
+		if errors.Is(err, &NotFoundError{}) {
 			// fallback to pre-existing assertions
 			a, err = ref.Resolve(db.Find)
 		}
@@ -230,7 +231,7 @@ func (b *Batch) prereqSort(db *Database) error {
 }
 
 func resolveError(format string, ref *Ref, err error) error {
-	if IsNotFound(err) {
+	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf(format, ref)
 	} else {
 		return fmt.Errorf(format+": %v", ref, err)

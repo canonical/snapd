@@ -20,6 +20,9 @@
 package notification
 
 import (
+	"context"
+	"time"
+
 	"github.com/godbus/dbus"
 )
 
@@ -33,6 +36,7 @@ type gtkBackend struct {
 	conn      *dbus.Conn
 	manager   dbus.BusObject
 	desktopID string
+	firstUse  time.Time
 }
 
 // TODO: support actions via session agent.
@@ -40,7 +44,7 @@ var newGtkBackend = func(conn *dbus.Conn, desktopID string) (NotificationManager
 	// If the D-Bus service is not already running, assume it is
 	// not available.
 	// Use owner to verify that the return values of the method call have the
-	// types we expect, which is generally a good sanity check.
+	// types we expect, which is generally a good validity check.
 	var owner string
 	if err := conn.BusObject().Call("org.freedesktop.DBus.GetNameOwner", 0, gtkBusName).Store(&owner); err != nil {
 		return nil, err
@@ -50,6 +54,7 @@ var newGtkBackend = func(conn *dbus.Conn, desktopID string) (NotificationManager
 		conn:      conn,
 		manager:   conn.Object(gtkBusName, gtkObjectPath),
 		desktopID: desktopID,
+		firstUse:  time.Now(),
 	}
 	return b, nil
 }
@@ -94,4 +99,13 @@ func (srv *gtkBackend) SendNotification(id ID, msg *Message) error {
 func (srv *gtkBackend) CloseNotification(id ID) error {
 	call := srv.manager.Call(gtkInterface+".RemoveNotification", 0, srv.desktopID, id)
 	return call.Store()
+}
+
+func (srv *gtkBackend) HandleNotifications(context.Context) error {
+	// do nothing
+	return nil
+}
+
+func (srv *gtkBackend) IdleDuration() time.Duration {
+	return time.Since(srv.firstUse)
 }

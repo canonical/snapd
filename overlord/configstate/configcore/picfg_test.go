@@ -127,7 +127,7 @@ func (s *piCfgSuite) TestConfigurePiConfigNoChangeSet(c *C) {
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": 1,
@@ -138,7 +138,7 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 	expected := strings.Replace(mockConfigTxt, "#disable_overscan=1", "disable_overscan=1", -1)
 	s.checkMockConfig(c, expected)
 
-	err = configcore.Run(coreDev, &mockConf{
+	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": "",
@@ -150,7 +150,7 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigRegression(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.gpu-mem-512": true,
@@ -183,7 +183,7 @@ func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
 	c.Assert(err, IsNil)
 
 	// apply the config
-	err = configcore.Run(uc20DevRunMode, &mockConf{
+	err = configcore.FilesystemOnlyRun(uc20DevRunMode, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.gpu-mem-512": true,
@@ -215,7 +215,7 @@ func (s *piCfgSuite) testUpdateConfigUC20NonRunMode(c *C, mode string) {
 	c.Assert(err, IsNil)
 
 	// apply the config
-	err = configcore.Run(uc20DevMode, &mockConf{
+	err = configcore.FilesystemOnlyRun(uc20DevMode, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.gpu-mem-512": true,
@@ -259,7 +259,7 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnAvnetKernel(c *C) {
 
 	avnetDev := mockDev{classic: false, kernel: "avnet-avt-iiotg20-kernel"}
 
-	err := configcore.Run(avnetDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(avnetDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": 1,
@@ -282,7 +282,7 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
 		uc20:    true,
 	}
 
-	err := configcore.Run(uc20DevInstallMode, &mockConf{
+	err := configcore.FilesystemOnlyRun(uc20DevInstallMode, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": 1,
@@ -317,7 +317,7 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnIgnoreHeader(c *C) {
 	for _, tc := range tests {
 		mockConfigWithHeader := tc.header + mockConfigTxt
 		s.mockConfig(c, mockConfigWithHeader)
-		err := configcore.Run(coreDev, &mockConf{
+		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"pi-config.disable-overscan": 1,
