@@ -688,6 +688,19 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 	return nil, fmt.Errorf("%q header must be '*' or a list of account ids", name)
 }
 
+func checkModelValidationSetAccountID(headers map[string]interface{}, brandID string) (string, error) {
+	accountID, err := checkOptionalString(headers, "account-id")
+	if err != nil {
+		return "", err
+	}
+
+	// default to brand ID if account ID is not provided
+	if accountID == "" {
+		return brandID, nil
+	}
+	return accountID, nil
+}
+
 // checkModelValidationSetSequence reads the optional 'sequence' member, if
 // not set, returns 0 as this means unpinned. Unfortunately we are not able
 // to reuse `checkSequence` as it operates inside different parameters.
@@ -717,8 +730,8 @@ func checkModelValidationSetMode(headers map[string]interface{}) (ModelValidatio
 	return ModelValidationSetMode(modeStr), nil
 }
 
-func checkModelValidationSet(headers map[string]interface{}) (*ModelValidationSet, error) {
-	accountID, err := checkOptionalString(headers, "account-id")
+func checkModelValidationSet(headers map[string]interface{}, brandID string) (*ModelValidationSet, error) {
+	accountID, err := checkModelValidationSetAccountID(headers, brandID)
 	if err != nil {
 		return nil, err
 	}
@@ -746,7 +759,7 @@ func checkModelValidationSet(headers map[string]interface{}) (*ModelValidationSe
 	}, nil
 }
 
-func checkOptionalModelValidationSets(headers map[string]interface{}) ([]*ModelValidationSet, error) {
+func checkOptionalModelValidationSets(headers map[string]interface{}, brandID string) ([]*ModelValidationSet, error) {
 	valSets, ok := headers["validation-sets"]
 	if !ok {
 		return nil, nil
@@ -772,7 +785,7 @@ func checkOptionalModelValidationSets(headers map[string]interface{}) ([]*ModelV
 			return nil, fmt.Errorf(`"validation-sets" must contain a list of validation sets`)
 		}
 
-		vs, err := checkModelValidationSet(data)
+		vs, err := checkModelValidationSet(data, brandID)
 		if err != nil {
 			return nil, err
 		}
@@ -1006,7 +1019,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 
 	allSnaps, requiredWithEssentialSnaps, numEssentialSnaps := modSnaps.list()
 
-	valSets, err := checkOptionalModelValidationSets(assert.headers)
+	valSets, err := checkOptionalModelValidationSets(assert.headers, brandID)
 	if err != nil {
 		return nil, err
 	}

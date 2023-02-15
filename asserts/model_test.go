@@ -1250,7 +1250,8 @@ func (mods *modelSuite) TestValidationSetsDecodeOK(c *C) {
 		frag     string
 		expected []*asserts.ModelValidationSet
 	}{
-		// brand validation-set
+		// brand validation-set, this should instead use the brand specified
+		// by the core20ModelExample, as account-id is not set
 		{`validation-sets:
   -
     name: my-set
@@ -1258,7 +1259,7 @@ func (mods *modelSuite) TestValidationSetsDecodeOK(c *C) {
 `,
 			[]*asserts.ModelValidationSet{
 				{
-					AccountID: "",
+					AccountID: "brand-id1",
 					Name:      "my-set",
 					Mode:      asserts.ModelValidationSetModePreferEnforced,
 				},
