@@ -2348,7 +2348,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return nil, err
 	}
 
-	// pre-download tasksets are only used for auto-refreshes
+	// only auto-refreshes can generate pre-download tasks so we don't need to check them
 	tts := updateTss.Refresh
 
 	// see if we need to switch the channel or cohort, or toggle ignore-validation
@@ -2665,7 +2665,7 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 		return nil, err
 	}
 
-	// pre-download tasksets are only used for auto-refreshes
+	// only auto-refreshes can generate pre-download tasks so we don't need to check them
 	if len(updateTss.Refresh) > 0 {
 		updateTss.Refresh = finalizeUpdate(st, updateTss.Refresh, len(updates) > 0, updated, userID, flags)
 	}
