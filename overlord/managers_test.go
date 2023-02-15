@@ -3958,14 +3958,10 @@ assumes: [something-that-is-not-provided]
 	// updateMany will just skip snaps with assumes but not error
 	affected, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
+	c.Check(tss, HasLen, 0)
 	c.Check(affected, HasLen, 0)
 	// the skipping is logged though
 	c.Check(s.logbuf.String(), testutil.Contains, `cannot update "some-snap": snap "some-snap" assumes unsupported features: something-that-is-not-provided (try`)
-	// XXX: should we really check for re-refreshes if there is nothing
-	// to update?
-	c.Check(tss, HasLen, 1)
-	c.Check(tss[0].Tasks(), HasLen, 1)
-	c.Check(tss[0].Tasks()[0].Kind(), Equals, "check-rerefresh")
 }
 
 type storeCtxSetupSuite struct {
