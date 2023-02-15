@@ -83,8 +83,6 @@ var (
 	}
 
 	secbootProvisionForCVM                       func(initramfsUbuntuSeedDir string) error
-	secbootMeasureSnapSystemEpochWhenPossible    func() error
-	secbootMeasureSnapModelWhenPossible          func(findModel func() (*asserts.Model, error)) error
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
 	secbootUnlockEncryptedVolumeUsingKey         func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)
 
