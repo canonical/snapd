@@ -117,34 +117,12 @@ var LoadProfiles = func(fnames []string, cacheDir string, flags AaParserFlags) e
 	return nil
 }
 
-// UnloadProfiles is meant to remove the named profiles from the running
-// kernel and then remove any cache files. Importantly, we can only unload
-// profiles when we are sure there are no lingering processes from the snap
-// (ie, forcibly stop all running processes from the snap). Otherwise, any
-// running processes will become unconfined. Since we don't have this guarantee
-// yet, leave the profiles loaded in the kernel but remove the cache files from
-// the system so the policy is gone on the next reboot. LP: #1818241
-func UnloadProfiles(names []string, cacheDir string) error {
+// Remove any of the AppArmor profiles in names from the AppArmor cache in
+// cacheDir
+func RemoveCachedProfiles(names []string, cacheDir string) error {
 	if len(names) == 0 {
 		return nil
 	}
-
-	/* TODO: uncomment when no lingering snap processes is guaranteed
-	// By the time this function is called, all the profiles (names) have
-	// been removed from dirs.SnapAppArmorDir, so to unload the profiles
-	// from the running kernel we must instead use sysfs and write the
-	// profile names one at a time to
-	// /sys/kernel/security/apparmor/.remove (with no trailing \n).
-	apparmorSysFsRemove := "/sys/kernel/security/apparmor/.remove"
-	if !osutil.IsWritable(appArmorSysFsRemove) {
-	        return fmt.Errorf("cannot unload apparmor profile: %s does not exist\n", appArmorSysFsRemove)
-	}
-	for _, n := range names {
-	        // ignore errors since it is ok if the profile isn't removed
-	        // from the kernel
-	        ioutil.WriteFile(appArmorSysFsRemove, []byte(n), 0666)
-	}
-	*/
 
 	// AppArmor 2.13 and higher has a cache forest while 2.12 and lower has
 	// a flat directory (on 2.12 and earlier, .features and the snap

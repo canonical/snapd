@@ -128,19 +128,19 @@ func (s *appArmorSuite) TestLoadProfilesRunsAppArmorParserReplaceWithSnapdDebug(
 	})
 }
 
-// Tests for Profile.Unload()
+// Tests for Profile.RemoveCachedProfiles()
 
-func (s *appArmorSuite) TestUnloadProfilesMany(c *C) {
-	err := apparmor.UnloadProfiles([]string{"/path/to/snap.samba.smbd", "/path/to/another.profile"}, apparmor.CacheDir)
+func (s *appArmorSuite) TestRemoveCachedProfilesMany(c *C) {
+	err := apparmor.RemoveCachedProfiles([]string{"/path/to/snap.samba.smbd", "/path/to/another.profile"}, apparmor.CacheDir)
 	c.Assert(err, IsNil)
 }
 
-func (s *appArmorSuite) TestUnloadProfilesNone(c *C) {
-	err := apparmor.UnloadProfiles([]string{}, apparmor.CacheDir)
+func (s *appArmorSuite) TestRemoveCachedProfilesNone(c *C) {
+	err := apparmor.RemoveCachedProfiles([]string{}, apparmor.CacheDir)
 	c.Assert(err, IsNil)
 }
 
-func (s *appArmorSuite) TestUnloadRemovesCachedProfile(c *C) {
+func (s *appArmorSuite) TestRemoveCachedProfiles(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
 	restore := apparmor.MockParserSearchPath(cmd.BinDir())
@@ -153,13 +153,13 @@ func (s *appArmorSuite) TestUnloadRemovesCachedProfile(c *C) {
 
 	fname := filepath.Join(apparmor.CacheDir, "profile")
 	ioutil.WriteFile(fname, []byte("blob"), 0600)
-	err = apparmor.UnloadProfiles([]string{"profile"}, apparmor.CacheDir)
+	err = apparmor.RemoveCachedProfiles([]string{"profile"}, apparmor.CacheDir)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fname)
 	c.Check(os.IsNotExist(err), Equals, true)
 }
 
-func (s *appArmorSuite) TestUnloadRemovesCachedProfileInForest(c *C) {
+func (s *appArmorSuite) TestRemoveCachedProfilesInForest(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
 	restore := apparmor.MockParserSearchPath(cmd.BinDir())
@@ -178,7 +178,7 @@ func (s *appArmorSuite) TestUnloadRemovesCachedProfileInForest(c *C) {
 
 	fname := filepath.Join(subdir, "profile")
 	ioutil.WriteFile(fname, []byte("blob"), 0600)
-	err = apparmor.UnloadProfiles([]string{"profile"}, apparmor.CacheDir)
+	err = apparmor.RemoveCachedProfiles([]string{"profile"}, apparmor.CacheDir)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fname)
 	c.Check(os.IsNotExist(err), Equals, true)

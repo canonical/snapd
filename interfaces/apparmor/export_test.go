@@ -41,9 +41,9 @@ func MockLoadProfiles(f func(fnames []string, cacheDir string, flags apparmor_sa
 	return r
 }
 
-func MockUnloadProfiles(f func(fnames []string, cacheDir string) error) (restore func()) {
-	r := testutil.Backup(&unloadProfiles)
-	unloadProfiles = f
+func MockRemoveCachedProfiles(f func(fnames []string, cacheDir string) error) (restore func()) {
+	r := testutil.Backup(&removeCachedProfiles)
+	removeCachedProfiles = f
 	return r
 }
 
