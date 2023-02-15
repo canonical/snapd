@@ -739,28 +739,33 @@ EOF
         # current host, this should work for most cases, since the image will be
         # running on the same host
         # TODO:UC20: enable when ready
-        exit 0
 
-        # drop unnecessary modules
-        awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
-        #shellcheck disable=SC2044
-        for m in $(find modules/ -name '*.ko'); do
-            noko=$(basename "$m"); noko="${noko%.ko}"
-            if echo "$noko" | grep -f /tmp/mods -q ; then
-                echo "keeping $m - $noko"
-            else
-                rm -f "$m"
-            fi
-        done
+        # To avoid shellcheck unused code warning, we cannot use "exit 0" to disable
+        # the module drop code. To avoid commented out code, we use a flag instead.
+        # Strip off the check when this UC20 code is enabled.
+        uc20Ready=false
 
-        #shellcheck disable=SC2010
-        kver=$(ls "config"-* | grep -Po 'config-\K.*')
+        if [ "$uc20Ready" = "true" ]; then
+            # drop unnecessary modules
+            awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
+            #shellcheck disable=SC2044
+            for m in $(find modules/ -name '*.ko'); do
+                noko=$(basename "$m"); noko="${noko%.ko}"
+                if echo "$noko" | grep -f /tmp/mods -q ; then
+                    echo "keeping $m - $noko"
+                else
+                    rm -f "$m"
+                fi
+            done
+            #shellcheck disable=SC2010
+            kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
-        # depmod assumes that /lib/modules/$kver is under basepath
-        mkdir -p fake/lib
-        ln -s "$PWD/modules" fake/lib/modules
-        depmod -b "$PWD/fake" -A -v "$kver"
-        rm -rf fake
+            # depmod assumes that /lib/modules/$kver is under basepath
+            mkdir -p fake/lib
+            ln -s "$PWD/modules" fake/lib/modules
+            depmod -b "$PWD/fake" -A -v "$kver"
+            rm -rf fake
+        fi
     )
 
     # copy any extra files that tests may need for the kernel

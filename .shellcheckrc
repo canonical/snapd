@@ -1,5 +1,0 @@
-# Disable "Unreachable code ..." warnings which log a warning for each line (not block)
-# of unreachable code. That code is often meant to be re-enabled later and we can't
-# do file-wide disables in spread tests https://github.com/koalaman/shellcheck/wiki/Ignore
-disable=SC2317
-
