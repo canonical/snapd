@@ -266,7 +266,7 @@ func (m *autoRefresh) canRefreshRespectingMetered(now, lastRefresh time.Time) (c
 }
 
 // Ensure ensures that we refresh all installed snaps periodically
-func (m *autoRefresh) Ensure() error {
+func (m *autoRefresh) Ensure() (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -275,6 +275,16 @@ func (m *autoRefresh) Ensure() error {
 		return nil
 	}
 	if ok, err := CanAutoRefresh(m.state); err != nil || !ok {
+		return err
+	}
+
+	// is there a previously partially inhibited auto-refresh that can now be continued?
+	if canContinueAutoRefresh(m.state) {
+		err := m.launchAutoRefresh()
+		if err == nil {
+			// clear the continue flag if the auto-refresh was scheduled successfully
+			m.state.Cache("continue-auto-refresh", nil)
+		}
 		return err
 	}
 
@@ -375,6 +385,15 @@ func (m *autoRefresh) Ensure() error {
 	}
 
 	return err
+}
+
+func canContinueAutoRefresh(st *state.State) bool {
+	if cachedCont := st.Cached("continue-auto-refresh"); cachedCont != nil {
+		cont, _ := cachedCont.(bool)
+		return cont
+	}
+
+	return false
 }
 
 // isRefreshHeld returns whether an auto-refresh is currently held back or not,
@@ -540,7 +559,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		logger.Noticef("Cannot prepare auto-refresh change due to a permanent network error: %s", err)
 		return err
 	}
-	m.state.Set("last-refresh", time.Now())
+	m.state.Set("last-refresh", timeNow())
 	if err != nil {
 		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err

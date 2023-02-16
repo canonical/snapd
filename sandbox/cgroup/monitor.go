@@ -196,7 +196,7 @@ func (iw *inotifyWatcher) monitorDelete(folders []string, name string, channel c
 // MonitorSnapEnded monitors the running instances of a snap. Once all
 // instances of the snap have stopped, its name is pushed through the supplied
 // channel. This allows the caller to use the same channel to monitor several snaps.
-func MonitorSnapEnded(snapName string, channel chan string) error {
+func MonitorSnapEnded(snapName string, channel chan<- string) error {
 	options := InstancePathsOptions{
 		ReturnCGroupPath: true,
 	}

@@ -9143,6 +9143,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 	chg := s.state.NewChange("pre-download", "")
 	task := s.state.NewTask("pre-download-snap", "")
 	task.Set("snap-setup", snapsup)
+	task.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "some-snap"})
 	chg.AddTask(task)
 	chg.SetStatus(state.DoStatus)
 
@@ -9215,4 +9216,338 @@ func (s *snapmgrTestSuite) TestReRefreshCreatesPreDownloadChange(c *C) {
 	c.Assert(preDlChg.Kind(), Equals, "pre-download")
 	c.Assert(preDlChg.Summary(), Equals, "Pre-download tasks for auto-refresh")
 	c.Assert(preDlChg.Tasks(), HasLen, 1)
+}
+
+func (s *snapmgrTestSuite) TestDownloadTaskWaitsForPreDownload(c *C) {
+	now := time.Now()
+	restore := state.MockTime(now)
+	defer restore()
+
+	var notified bool
+	restore = snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo) {
+		notified = true
+	})
+	defer restore()
+
+	var monitored bool
+	restore = snapstate.MockCgroupMonitorSnapEnded(func(string, chan<- string) error {
+		monitored = true
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	preDlChg := s.state.NewChange("pre-download", "pre-download change")
+	preDlTask := s.state.NewTask("pre-download-snap", "pre-download task")
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(2),
+		},
+		Flags: snapstate.Flags{IsAutoRefresh: true},
+	}
+	preDlTask.Set("snap-setup", snapsup)
+	preDlTask.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "foo"})
+	preDlChg.AddTask(preDlTask)
+
+	dlChg := s.state.NewChange("download", "download change")
+	dlTask := s.state.NewTask("download-snap", "download task")
+	dlTask.Set("snap-setup", snapsup)
+	// wait until the pre-download is running
+	dlTask.At(now.Add(time.Hour))
+	dlChg.AddTask(dlTask)
+
+	var downloadCalls int
+	s.fakeStore.downloadCallback = func() {
+		downloadCalls++
+
+		switch downloadCalls {
+		case 1:
+			s.state.Lock()
+			// schedule download to run while pre-download is running
+			dlTask.At(time.Time{})
+			s.state.Unlock()
+
+			c.Assert(s.o.TaskRunner().Ensure(), IsNil)
+
+			for i := 0; i < 5; i++ {
+				select {
+				case <-time.After(time.Second):
+					s.state.Lock()
+					atTime := dlTask.AtTime()
+					s.state.Unlock()
+					if atTime.IsZero() {
+						continue
+					}
+
+					s.state.Lock()
+					defer s.state.Unlock()
+
+					// the download task registers itself w/ the pre-download and retries
+					c.Assert(atTime.Equal(now.Add(2*time.Minute)), Equals, true)
+					var taskIDs []string
+					c.Assert(preDlTask.Get("waiting-tasks", &taskIDs), IsNil)
+					c.Assert(taskIDs, DeepEquals, []string{dlTask.ID()})
+					return
+				}
+			}
+
+			c.Fatal("download task hasn't run")
+		case 2:
+			return
+		default:
+			c.Fatal("only expected 2 calls to the store")
+		}
+	}
+
+	s.settle(c)
+
+	c.Assert(downloadCalls, Equals, 2)
+	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
+	c.Assert(dlTask.Status(), Equals, state.DoneStatus)
+	c.Check(notified, Equals, false)
+	c.Check(monitored, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestPreDownloadTaskTriggersAutoRefreshIfSoftCheckOk(c *C) {
+	var softChecked bool
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		c.Assert(info.InstanceName(), Equals, "foo")
+		softChecked = true
+		return nil
+	})
+	defer restore()
+
+	var notified bool
+	restore = snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo) {
+		notified = true
+	})
+	defer restore()
+
+	var monitored bool
+	restore = snapstate.MockCgroupMonitorSnapEnded(func(string, chan<- string) error {
+		monitored = true
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "foo-id",
+		Revision: snap.R(1),
+	}
+
+	snaptest.MockSnap(c, `name: foo`, si)
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(2),
+		},
+		Flags: snapstate.Flags{IsAutoRefresh: true},
+	}
+
+	preDlChg := s.state.NewChange("pre-download", "pre-download change")
+	preDlTask := s.state.NewTask("pre-download-snap", "pre-download task")
+
+	preDlTask.Set("snap-setup", snapsup)
+	preDlTask.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "foo"})
+	preDlChg.AddTask(preDlTask)
+
+	s.settle(c)
+
+	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
+	c.Assert(s.fakeStore.downloads, HasLen, 1)
+	c.Check(s.fakeStore.downloads[0].name, Equals, "foo")
+
+	c.Check(softChecked, Equals, true)
+	c.Check(notified, Equals, false)
+	c.Check(monitored, Equals, false)
+	c.Check(s.state.Cached("continue-auto-refresh"), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestDownloadTaskMonitorsSnapStoppedAndNotifiesOnSoftCheckFail(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "foo-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: foo`, si)
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(2),
+		},
+		Flags: snapstate.Flags{IsAutoRefresh: true},
+	}
+
+	var softChecked bool
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		c.Assert(info.InstanceName(), Equals, "foo")
+		softChecked = true
+		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	var notified bool
+	restore = snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo) {
+		notified = true
+	})
+	defer restore()
+
+	var monitorSignal chan<- string
+	restore = snapstate.MockCgroupMonitorSnapEnded(func(name string, done chan<- string) error {
+		c.Assert(name, Equals, "foo")
+		monitorSignal = done
+		return nil
+	})
+	defer restore()
+
+	preDlChg := s.state.NewChange("pre-download", "pre-download change")
+	preDlTask := s.state.NewTask("pre-download-snap", "pre-download task")
+
+	preDlTask.Set("snap-setup", snapsup)
+	preDlTask.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "foo"})
+	preDlChg.AddTask(preDlTask)
+
+	s.settle(c)
+
+	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
+	c.Assert(s.fakeStore.downloads, HasLen, 1)
+	c.Check(s.fakeStore.downloads[0].name, Equals, "foo")
+
+	// the soft check failed so we notified and started monitoring
+	c.Check(softChecked, Equals, true)
+	c.Check(notified, Equals, true)
+	c.Assert(monitorSignal, NotNil)
+
+	monitored := s.state.Cached("monitored-snaps")
+	c.Assert(monitored, FitsTypeOf, map[string]bool{})
+	c.Assert(monitored.(map[string]bool), DeepEquals, map[string]bool{"foo": true})
+	c.Assert(s.state.Cached("continue-auto-refresh"), Equals, nil)
+
+	// signal snap has stopped and wait for pending goroutine to finish
+	s.state.Unlock()
+	monitorSignal <- "foo"
+
+	for i := 0; i < 5; i++ {
+		select {
+		case <-time.After(time.Second):
+			s.state.Lock()
+			finished := s.state.Cached("continue-auto-refresh")
+			if finished == nil || !finished.(bool) {
+				s.state.Unlock()
+				continue
+			}
+
+			c.Assert(s.state.Cached("monitored-snaps"), IsNil)
+			c.Check(s.state.Cached("continue-auto-refresh"), Equals, true)
+			return
+		}
+	}
+
+	c.Fatal("couldn't check monitoring goroutine ended properly")
+}
+
+func (s *snapmgrTestSuite) TestDownloadTaskMonitorsRepeated(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "foo-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: foo`, si)
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(2),
+		},
+		Flags: snapstate.Flags{IsAutoRefresh: true},
+	}
+
+	var softChecked bool
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		c.Assert(info.InstanceName(), Equals, "foo")
+		softChecked = true
+		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	var notified bool
+	restore = snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo) {
+		notified = true
+	})
+	defer restore()
+
+	var monitorSignal chan<- string
+	restore = snapstate.MockCgroupMonitorSnapEnded(func(name string, done chan<- string) error {
+		c.Assert(name, Equals, "foo")
+		monitorSignal = done
+		return nil
+	})
+	defer restore()
+
+	preDlChg := s.state.NewChange("pre-download", "pre-download change")
+	preDlTask := s.state.NewTask("pre-download-snap", "pre-download task")
+
+	preDlTask.Set("snap-setup", snapsup)
+	preDlTask.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "foo"})
+	preDlChg.AddTask(preDlTask)
+
+	s.settle(c)
+
+	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
+	// monitoring snap
+	monitored := s.state.Cached("monitored-snaps")
+	c.Assert(monitored, FitsTypeOf, map[string]bool{})
+	c.Assert(monitored.(map[string]bool), DeepEquals, map[string]bool{"foo": true})
+	c.Assert(notified, Equals, true)
+	// waiting for the monitoring to end
+	c.Check(s.state.Cached("monitored-snaps"), NotNil)
+	c.Check(s.state.Cached("continue-auto-refresh"), Equals, nil)
+
+	// start a new pre-download which shouldn't start monitoring
+	preDlChg = s.state.NewChange("pre-download", "pre-download change")
+	preDlTask = s.state.NewTask("pre-download-snap", "pre-download task")
+	preDlTask.Set("snap-setup", snapsup)
+	preDlTask.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "foo"})
+	preDlChg.AddTask(preDlTask)
+
+	// reset the watcher variables
+	notified = false
+	softChecked = false
+	firstMonitorSignal := monitorSignal
+	monitorSignal = nil
+
+	s.settle(c)
+
+	c.Check(softChecked, Equals, true)
+	c.Check(notified, Equals, true)
+	// didn't wait for snap to stop because there's already a goroutine doing it
+	c.Check(monitorSignal, IsNil)
+
+	// unblock goroutine to finish
+	s.state.Unlock()
+	defer s.state.Lock()
+	firstMonitorSignal <- "foo"
 }
