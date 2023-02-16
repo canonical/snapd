@@ -155,9 +155,9 @@ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
 	# we must force a static build here. We need a static snap-{exec,update-ns}
 	# inside the core snap because not all bases will have a libc
-	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-exec)
-	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snapctl)
-	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-update-ns)
+	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -tags "$(TAGS)" $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-exec)
+	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -tags "$(TAGS)" $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snapctl)
+	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. go build -tags "$(TAGS)" --ldflags '-extldflags "-static"' $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-update-ns)
 
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
@@ -170,7 +170,7 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
 	# (static linking on powerpc with cgo is broken)
  ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	sed -i "s|#cgo LDFLAGS:|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
-	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-seccomp)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build -tags "$(TAGS)" $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-seccomp)
 	# ensure that libseccomp is not dynamically linked
 	ldd _build/bin/snap-seccomp
 	test "$$(ldd _build/bin/snap-seccomp | grep libseccomp)" = ""
