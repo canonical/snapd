@@ -262,7 +262,7 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 		},
 		{
 			"mount:\n  - what: a?\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw]",
-			`"a\?" contains a reserved apparmor char from.*`,
+			`cannot use mount-control "what" attribute: "a\?" contains a reserved apparmor char from.*`,
 		},
 	}
 

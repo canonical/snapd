@@ -278,7 +278,10 @@ func validateWhatAttr(mountInfo *MountInfo) error {
 	// with "functionfs" the "what" can essentially be anything, see
 	// https://www.kernel.org/doc/html/latest/usb/functionfs.html
 	if len(mountInfo.types) == 1 && mountInfo.types[0] == "functionfs" {
-		return apparmor_sandbox.ValidateNoAppArmorRegexp(what)
+		if err := apparmor_sandbox.ValidateNoAppArmorRegexp(what); err != nil {
+			return fmt.Errorf(`cannot use mount-control "what" attribute: %w`, err)
+		}
+		return nil
 	}
 
 	if !whatRegexp.MatchString(what) {
