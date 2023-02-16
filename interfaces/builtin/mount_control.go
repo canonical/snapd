@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/utils"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -272,13 +273,14 @@ func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error
 }
 
 func validateWhatAttr(mountInfo *MountInfo) error {
+	what := mountInfo.what
+
 	// with "functionfs" the "what" can essentially be anything, see
 	// https://www.kernel.org/doc/html/latest/usb/functionfs.html
 	if len(mountInfo.types) == 1 && mountInfo.types[0] == "functionfs" {
-		return nil
+		return apparmor_sandbox.ValidateNoAppArmorRegexp(what)
 	}
 
-	what := mountInfo.what
 	if !whatRegexp.MatchString(what) {
 		return fmt.Errorf(`mount-control "what" attribute is invalid: must start with / and not contain special characters`)
 	}

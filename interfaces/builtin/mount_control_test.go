@@ -260,6 +260,10 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			"mount:\n  - what: /\n    where: $SNAP_DATA/foo\n    options: [ro]\n    persistent: true",
 			`mount-control "persistent" attribute cannot be used to mount onto \$SNAP_DATA`,
 		},
+		{
+			"mount:\n  - what: a?\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw]",
+			`"a\?" contains a reserved apparmor char from.*`,
+		},
 	}
 
 	for _, testData := range data {
