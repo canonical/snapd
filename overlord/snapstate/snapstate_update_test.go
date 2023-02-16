@@ -9551,3 +9551,81 @@ func (s *snapmgrTestSuite) TestDownloadTaskMonitorsRepeated(c *C) {
 	defer s.state.Lock()
 	firstMonitorSignal <- "foo"
 }
+
+func (s *snapmgrTestSuite) TestUnlinkMonitorSnapOnHardCheckFailure(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: some-snap`, si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	s.fakeStore.downloads = []fakeDownload{{
+		macaroon: s.user.StoreMacaroon,
+		name:     "some-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
+	}}
+
+	var notified bool
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(_ context.Context, _ *userclient.Client, pendingInfo *userclient.PendingSnapRefreshInfo) {
+		c.Check(pendingInfo.InstanceName, Equals, "some-snap")
+		c.Check(pendingInfo.TimeRemaining, Equals, snapstate.MaxInhibition)
+		notified = true
+	})
+	defer restore()
+
+	var monitorSignal chan<- string
+	restore = snapstate.MockCgroupMonitorSnapEnded(func(name string, done chan<- string) error {
+		c.Check(name, Equals, "some-snap")
+		monitorSignal = done
+		return nil
+	})
+	defer restore()
+
+	var check int
+	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		check++
+		c.Check(info.InstanceName(), Equals, "some-snap")
+
+		switch check {
+		case 1:
+			return nil
+		case 2:
+			return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+		default:
+			c.Errorf("only expected 2 checks, now on %d", check)
+			return errors.New("unexpected refresh check")
+		}
+	})
+	defer restore()
+
+	updated, tss, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	c.Check(updated, DeepEquals, []string{"some-snap"})
+	c.Assert(tss, NotNil)
+	c.Check(tss.Refresh, NotNil)
+	c.Check(tss.PreDownload, IsNil)
+
+	chg := s.state.NewChange("refresh", "test refresh")
+	for _, ts := range tss.Refresh {
+		chg.AddAll(ts)
+	}
+
+	s.settle(c)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	c.Check(notified, Equals, true)
+	c.Check(check, Equals, 2)
+	c.Check(monitorSignal, NotNil)
+
+	monitored := s.state.Cached("monitored-snaps")
+	c.Assert(monitored, DeepEquals, map[string]bool{"some-snap": true})
+	close(monitorSignal)
+}

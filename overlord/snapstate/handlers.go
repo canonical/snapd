@@ -1212,8 +1212,18 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		// XXX: should we skip it if type is snap.TypeSnapd?
 		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo)
 		if err != nil {
+			var busyErr *timedBusySnapError
+			if errors.As(err, &busyErr) {
+				// notify user to close the snap and trigger the auto-refresh once it's closed
+				refreshInfo := busyErr.PendingSnapRefreshInfo()
+				if err := asyncRefreshOnSnapClose(m.state, refreshInfo); err != nil {
+					return err
+				}
+			}
+
 			return err
 		}
+
 		defer lock.Close()
 	}
 
