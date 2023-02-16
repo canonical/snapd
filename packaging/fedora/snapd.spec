@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.58
+Version:        2.58.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -574,8 +574,8 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %if 0%{?rhel} == 7
     M4PARAM='-D distro_rhel7'
 %endif
-%if 0%{?rhel} == 7 || 0%{?rhel} == 8 || 0%{?rhel} == 9
-    # RHEL7, RHEL8 and RHEL9 are missing the BPF interfaces from their reference policy
+%if 0%{?rhel} == 7 || 0%{?rhel} == 8
+    # RHEL7 and RHEL8 are missing the BPF interfaces from their reference policy
     M4PARAM="$M4PARAM -D no_bpf"
 %endif
     # Build SELinux module
@@ -996,6 +996,30 @@ fi
 
 
 %changelog
+* Wed Jan 25 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.58.2
+ - bootloader: fix dirty build by hardcoding copyright year
+
+* Mon Jan 23 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.58.1
+ - secboot: detect lockout mode in CheckTPMKeySealingSupported
+ - cmd/snap-update-ns: prevent keeping unneeded mountpoints
+ - o/snapstate: do not infinitely retry when an update fails during
+   seeding
+ - interfaces/modem-manager: add permissions for NETLINK_ROUTE
+ - systemd/emulation.go: use `systemctl --root` to enable/disable
+ - snap: provide more error context in `NotSnapError`
+ - interfaces: add read access to /run for cryptsetup
+ - boot: avoid reboot loop if there is a bad try kernel
+ - devicestate: retry serial acquire on time based certificate
+   errors
+ - o/devicestate: run systemctl daemon-reload after install-device
+   hook
+ - cmd/snap,daemon: add 'held' to notes in 'snap list'
+ - o/snapshotstate: check snapshots are self-contained on import
+ - cmd/snap: show user+gating hold info in 'snap info'
+ - daemon: expose user and gating holds at /v2/snaps/{name}
+
 * Thu Dec 01 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.58
  - many: Use /tmp/snap-private-tmp for per-snap private tmps

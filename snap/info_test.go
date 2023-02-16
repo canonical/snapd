@@ -389,7 +389,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(1)}
 	info := snaptest.MockSnap(c, sampleYaml, si)
 	// not current -> Zero
-	c.Check(info.InstallDate().IsZero(), Equals, true)
+	c.Check(info.InstallDate(), IsNil)
 	c.Check(snap.InstallDate(info.InstanceName()).IsZero(), Equals, true)
 
 	mountdir := info.MountDir()
@@ -1945,4 +1945,106 @@ func (s *infoSuite) TestGetAttributeHappy(c *C) {
 	err := snap.GetAttribute("snap0", "iface0", attrs, "attr1", &intVal)
 	c.Check(err, IsNil)
 	c.Check(intVal, Equals, 12)
+}
+
+func (s *infoSuite) TestSnapdAssertionMaxFormatsFromSnapFileFromSnapd(c *C) {
+	tests := []struct {
+		info     string
+		snapDecl int
+		sysUser  int
+	}{
+		{info: `VERSION=2.58
+SNAPD_ASSERTS_FORMATS='{"snap-declaration":5,"system-user":2}'`, snapDecl: 5, sysUser: 2},
+		{info: `VERSION=2.56
+SNAPD_ASSERTS_FORMATS='{"snap-declaration":5,"system-user":1}'`, snapDecl: 5, sysUser: 1},
+		{info: `VERSION=2.55`, snapDecl: 5, sysUser: 1},
+		{info: `VERSION=2.54`, snapDecl: 5, sysUser: 1},
+		{info: `VERSION=2.47`, snapDecl: 4, sysUser: 1},
+		{info: `VERSION=2.46`, snapDecl: 4, sysUser: 1},
+		{info: `VERSION=2.45`, snapDecl: 4},
+		{info: `VERSION=2.44`, snapDecl: 4},
+		{info: `VERSION=2.36`, snapDecl: 3},
+		// old
+		{info: `VERSION=2.23`, snapDecl: 2},
+		// ancient
+		{info: `VERSION=2.17`, snapDecl: 1},
+		{info: `VERSION=2.16`},
+	}
+	for _, t := range tests {
+		snapdPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
+type: snapd
+version: 1.0`, [][]string{{
+			"/usr/lib/snapd/info", t.info}})
+		snapf, err := snapfile.Open(snapdPath)
+		c.Assert(err, IsNil)
+
+		maxFormats, ver, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+		c.Assert(err, IsNil)
+		expectedMaxFormats := map[string]int{}
+		if t.sysUser > 0 {
+			expectedMaxFormats["system-user"] = t.sysUser
+		}
+		if t.snapDecl > 0 {
+			expectedMaxFormats["snap-declaration"] = t.snapDecl
+		}
+		c.Check(maxFormats, DeepEquals, expectedMaxFormats)
+		c.Check(strings.HasPrefix(t.info, fmt.Sprintf("VERSION=%s", ver)), Equals, true)
+	}
+}
+
+func (s *infoSuite) TestSnapdAssertionMaxFormatsFromSnapFileFromCore(c *C) {
+	corePath := snaptest.MakeTestSnapWithFiles(c, `name: core
+type: os
+version: 1.0`, [][]string{{
+		"/usr/lib/snapd/info", `VERSION=2.47`}})
+	snapf, err := snapfile.Open(corePath)
+	c.Assert(err, IsNil)
+
+	maxFormats, ver, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+	c.Assert(err, IsNil)
+	c.Check(ver, Equals, "2.47")
+	c.Check(maxFormats, DeepEquals, map[string]int{
+		"snap-declaration": 4,
+		"system-user":      1,
+	})
+}
+
+func (s *infoSuite) TestSnapdAssertionMaxFormatsFromSnapFileFromKernel(c *C) {
+	krnlPath := snaptest.MakeTestSnapWithFiles(c, `name: krnl
+type: kernel
+version: 1.0`, [][]string{{
+		"/snapd-info", `VERSION=2.56
+SNAPD_ASSERTS_FORMATS='{"snap-declaration":5,"system-user":1}'`}})
+	snapf, err := snapfile.Open(krnlPath)
+	c.Assert(err, IsNil)
+
+	maxFormats, ver, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+	c.Assert(err, IsNil)
+	c.Check(ver, Equals, "2.56")
+	c.Check(maxFormats, DeepEquals, map[string]int{
+		"snap-declaration": 5,
+		"system-user":      1,
+	})
+
+	// no snadd-info
+	krnlPath = snaptest.MakeTestSnapWithFiles(c, `name: krnl
+type: kernel
+version: 1.0`, nil)
+	snapf, err = snapfile.Open(krnlPath)
+	c.Assert(err, IsNil)
+
+	maxFormats, ver, err = snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+	c.Assert(err, IsNil)
+	c.Check(ver, Equals, "")
+	c.Check(maxFormats, IsNil)
+}
+
+func (s *infoSuite) TestSnapdAssertionMaxFormatsFromSnapFileFromOther(c *C) {
+	appPath := snaptest.MakeTestSnapWithFiles(c, `name: app
+version: 1.0`, nil)
+	snapf, err := snapfile.Open(appPath)
+	c.Assert(err, IsNil)
+
+	_, _, err = snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+	c.Check(err, ErrorMatches, `cannot extract assertion max formats information, snaps of type app do not carry snapd`)
 }

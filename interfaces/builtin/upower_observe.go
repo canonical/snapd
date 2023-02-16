@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -96,7 +95,7 @@ dbus (send)
     bus=system
     path=/org/freedesktop/login1{,/**}
     interface=org.freedesktop.login1.Manager
-    member={CanPowerOff,CanSuspend,CanHibernate,CanHybridSleep,PowerOff,Suspend,Hibernate,HybridSleep}
+    member={CanPowerOff,CanSuspend,CanHibernate,CanHybridSleep,PowerOff,Suspend,Hibernate,HybridSleep,Inhibit}
     peer=(label=unconfined),
 `
 
@@ -123,7 +122,8 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const upowerObservePermanentSlotDBus = `
-<!-- DBus policy for upower (based on upstream version 0.99.4) -->
+<!-- From upstream version 1.90.0 -->
+<!-- Only root can own the service -->
 <policy user="root">
   <allow own="org.freedesktop.UPower"/>
 </policy>
@@ -141,8 +141,6 @@ const upowerObservePermanentSlotDBus = `
          send_interface="org.freedesktop.DBus.Properties"/>
   <allow send_destination="org.freedesktop.UPower.KbdBacklight"
          send_interface="org.freedesktop.DBus.Properties"/>
-  <allow send_destination="org.freedesktop.UPower.Wakeups"
-         send_interface="org.freedesktop.DBus.Properties"/>
 
   <allow send_destination="org.freedesktop.UPower"
          send_interface="org.freedesktop.UPower"/>
@@ -150,8 +148,6 @@ const upowerObservePermanentSlotDBus = `
          send_interface="org.freedesktop.UPower.Device"/>
   <allow send_destination="org.freedesktop.UPower"
          send_interface="org.freedesktop.UPower.KbdBacklight"/>
-  <allow send_destination="org.freedesktop.UPower"
-         send_interface="org.freedesktop.UPower.Wakeups"/>
 </policy>
 `
 
@@ -231,7 +227,7 @@ func (iface *upowerObserveInterface) StaticInfo() interfaces.StaticInfo {
 func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
-	if release.OnClassic {
+	if implicitSystemConnectedSlot(slot) {
 		// Let confined apps access unconfined upower on classic
 		new = "unconfined"
 	}
@@ -241,17 +237,23 @@ func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 }
 
 func (iface *upowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(upowerObservePermanentSlotAppArmor)
+	if !implicitSystemPermanentSlot(slot) {
+		spec.AddSnippet(upowerObservePermanentSlotAppArmor)
+	}
 	return nil
 }
 
 func (iface *upowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(upowerObservePermanentSlotSeccomp)
+	if !implicitSystemPermanentSlot(slot) {
+		spec.AddSnippet(upowerObservePermanentSlotSeccomp)
+	}
 	return nil
 }
 
 func (iface *upowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(upowerObservePermanentSlotDBus)
+	if !implicitSystemPermanentSlot(slot) {
+		spec.AddSnippet(upowerObservePermanentSlotDBus)
+	}
 	return nil
 }
 

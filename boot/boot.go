@@ -337,26 +337,29 @@ type bootStateUpdate interface {
 // target for rollback.
 //
 // The states that a boot goes through for UC16/18 are the following:
-// - By default snap_mode is "" in which case the bootloader loads
-//   two squashfs'es denoted by variables snap_core and snap_kernel.
-// - On a refresh of core/kernel snapd will set snap_mode=try and
-//   will also set snap_try_{core,kernel} to the core/kernel that
-//   will be tried next.
-// - On reboot the bootloader will inspect the snap_mode and if the
-//   mode is set to "try" it will set "snap_mode=trying" and then
-//   try to boot the snap_try_{core,kernel}".
-// - On a successful boot snapd resets snap_mode to "" and copies
-//   snap_try_{core,kernel} to snap_{core,kernel}. The snap_try_*
-//   values are cleared afterwards.
-// - On a failing boot the bootloader will see snap_mode=trying which
-//   means snapd did not start successfully. In this case the bootloader
-//   will set snap_mode="" and the system will boot with the known good
-//   values from snap_{core,kernel}
+//   - By default snap_mode is "" in which case the bootloader loads
+//     two squashfs'es denoted by variables snap_core and snap_kernel.
+//   - On a refresh of core/kernel snapd will set snap_mode=try and
+//     will also set snap_try_{core,kernel} to the core/kernel that
+//     will be tried next.
+//   - On reboot the bootloader will inspect the snap_mode and if the
+//     mode is set to "try" it will set "snap_mode=trying" and then
+//     try to boot the snap_try_{core,kernel}".
+//   - On a successful boot snapd resets snap_mode to "" and copies
+//     snap_try_{core,kernel} to snap_{core,kernel}. The snap_try_*
+//     values are cleared afterwards.
+//   - On a failing boot the bootloader will see snap_mode=trying which
+//     means snapd did not start successfully. In this case the bootloader
+//     will set snap_mode="" and the system will boot with the known good
+//     values from snap_{core,kernel}
 func MarkBootSuccessful(dev snap.Device) error {
 	const errPrefix = "cannot mark boot successful: %s"
 
 	var u bootStateUpdate
 	for _, t := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
+		if !SnapTypeParticipatesInBoot(t, dev) {
+			continue
+		}
 		s, err := bootStateFor(t, dev)
 		if err != nil {
 			return err

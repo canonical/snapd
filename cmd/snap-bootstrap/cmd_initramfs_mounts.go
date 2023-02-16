@@ -253,7 +253,7 @@ func copyNetworkConfig(src, dst string) error {
 
 // copyUbuntuDataMisc copies miscellaneous other files from the run mode system
 // to the recover system such as:
-//  - timesync clock to keep the same time setting in recover as in run mode
+//   - timesync clock to keep the same time setting in recover as in run mode
 func copyUbuntuDataMisc(src, dst string) error {
 	for _, globEx := range []string{
 		// systemd's timesync clock file so that the time in recover mode moves
@@ -273,9 +273,10 @@ func copyUbuntuDataMisc(src, dst string) error {
 }
 
 // copyUbuntuDataAuth copies the authentication files like
-//  - extrausers passwd,shadow etc
-//  - sshd host configuration
-//  - user .ssh dir
+//   - extrausers passwd,shadow etc
+//   - sshd host configuration
+//   - user .ssh dir
+//
 // to the target directory. This is used to copy the authentication
 // data from a real uc20 ubuntu-data partition into a ephemeral one.
 func copyUbuntuDataAuth(src, dst string) error {
@@ -825,10 +826,10 @@ func (m *recoverModeStateMachine) trustData() bool {
 
 // mountBoot is the first state to execute in the state machine, it can
 // transition to the following states:
-// - if ubuntu-boot is mounted successfully, execute unlockDataRunKey
-// - if ubuntu-boot can't be mounted, execute unlockDataFallbackKey
-// - if we mounted the wrong ubuntu-boot (or otherwise can't verify which one we
-//   mounted), return fatal error
+//   - if ubuntu-boot is mounted successfully, execute unlockDataRunKey
+//   - if ubuntu-boot can't be mounted, execute unlockDataFallbackKey
+//   - if we mounted the wrong ubuntu-boot (or otherwise can't verify which one we
+//     mounted), return fatal error
 func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 	part := m.degradedState.partition("ubuntu-boot")
 	// use the disk we mounted ubuntu-seed from as a reference to find
@@ -1316,6 +1317,45 @@ var waitFile = func(path string, wait time.Duration, n int) error {
 	return fmt.Errorf("no %v after waiting for %v", path, time.Duration(n)*wait)
 }
 
+// TODO: those have to be waited by udev instead
+func waitForDevice(path string) error {
+	if !osutil.FileExists(filepath.Join(dirs.GlobalRootDir, path)) {
+		pollWait := 50 * time.Millisecond
+		pollIterations := 1200
+		logger.Noticef("waiting up to %v for %v to appear", time.Duration(pollIterations)*pollWait, path)
+		if err := waitFile(filepath.Join(dirs.GlobalRootDir, path), pollWait, pollIterations); err != nil {
+			return fmt.Errorf("cannot find device: %v", err)
+		}
+	}
+	return nil
+}
+
+func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
+	values, err := osutil.KernelCommandLineKeyValues("snapd_system_disk")
+	if err != nil {
+		return "", err
+	}
+	if value, ok := values["snapd_system_disk"]; ok {
+		if err := waitForDevice(value); err != nil {
+			return "", err
+		}
+		systemdDisk, err := disks.DiskFromDeviceName(value)
+		if err != nil {
+			systemdDiskDevicePath, errDevicePath := disks.DiskFromDevicePath(value)
+			if errDevicePath != nil {
+				return "", fmt.Errorf("%q can neither be used as a device nor as a block: %v; %v", value, errDevicePath, err)
+			}
+			systemdDisk = systemdDiskDevicePath
+		}
+		partition, err := systemdDisk.FindMatchingPartitionWithFsLabel(fallbacklabel)
+		if err != nil {
+			return "", err
+		}
+		return partition.KernelDeviceNode, nil
+	}
+	return filepath.Join("/dev/disk/by-label", fallbacklabel), nil
+}
+
 // mountNonDataPartitionMatchingKernelDisk will select the partition to mount at
 // dir, using the boot package function FindPartitionUUIDForBootedKernelDisk to
 // determine what partition the booted kernel came from. If which disk the
@@ -1323,24 +1363,23 @@ var waitFile = func(path string, wait time.Duration, n int) error {
 // the specified disk label.
 func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
-	// TODO: the by-partuuid is only available on gpt disks, on mbr we need
-	//       to use by-uuid or by-id
-	partSrc := filepath.Join("/dev/disk/by-partuuid", partuuid)
-	if err != nil {
-		// no luck, try mounting by label instead
-		partSrc = filepath.Join("/dev/disk/by-label", fallbacklabel)
+	var partSrc string
+	if err == nil {
+		// TODO: the by-partuuid is only available on gpt disks, on mbr we need
+		//       to use by-uuid or by-id
+		partSrc = filepath.Join("/dev/disk/by-partuuid", partuuid)
+	} else {
+		partSrc, err = getNonUEFISystemDisk(fallbacklabel)
+		if err != nil {
+			return err
+		}
 	}
 
 	// The partition uuid is read from the EFI variables. At this point
 	// the kernel may not have initialized the storage HW yet so poll
 	// here.
-	if !osutil.FileExists(filepath.Join(dirs.GlobalRootDir, partSrc)) {
-		pollWait := 50 * time.Millisecond
-		pollIterations := 1200
-		logger.Noticef("waiting up to %v for %v to appear", time.Duration(pollIterations)*pollWait, partSrc)
-		if err := waitFile(filepath.Join(dirs.GlobalRootDir, partSrc), pollWait, pollIterations); err != nil {
-			return fmt.Errorf("cannot mount source: %v", err)
-		}
+	if err := waitForDevice(partSrc); err != nil {
+		return err
 	}
 
 	opts := &systemdMountOptions{

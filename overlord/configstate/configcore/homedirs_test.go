@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 )
 
 type homedirsSuite struct {
@@ -73,6 +74,9 @@ func (s *homedirsSuite) SetUpTest(c *C) {
 		}
 	})
 	s.AddCleanup(restore)
+
+	// Mock full apparmor support by default for the tests here
+	s.AddCleanup(apparmor.MockLevel(apparmor.Full))
 }
 
 func (s *homedirsSuite) TestValidationUnhappy(c *C) {
@@ -92,9 +96,9 @@ func (s *homedirsSuite) TestValidationUnhappy(c *C) {
 		// combine a valid path with an invalid one
 		{"/home/existingDir,/boot/invalid", `path "/boot/invalid/" uses reserved root directory "/boot/"`},
 	} {
-		err := configcore.Run(coreDev, &mockConf{
+		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
-			conf: map[string]interface{}{
+			changes: map[string]interface{}{
 				"homedirs": testData.homedirs,
 			},
 		})
@@ -107,9 +111,9 @@ func (s *homedirsSuite) TestConfigureWriteFailure(c *C) {
 		return errors.New("some write error")
 	})
 	defer restore()
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
 	})
@@ -135,9 +139,30 @@ func (s *homedirsSuite) TestConfigureUnchanged(c *C) {
 	})
 	defer restore()
 
-	err = configcore.Run(coreDev, &mockConf{
+	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"homedirs": "/home/existingDir",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(tunableUpdated, Equals, false)
+}
+
+func (s *homedirsSuite) TestConfigureUnchangedConfig(c *C) {
+	tunableUpdated := false
+	restore := configcore.MockApparmorUpdateHomedirsTunable(func(paths []string) error {
+		tunableUpdated = true
+		return nil
+	})
+	defer restore()
+
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
+			"homedirs": "/home/existingDir",
+		},
+		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
 	})
@@ -152,9 +177,10 @@ func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
 		return errors.New("tunable error")
 	})
 	defer restore()
-	err := configcore.Run(coreDev, &mockConf{
+
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir/one,/home/existingDir/two",
 		},
 	})
@@ -167,13 +193,60 @@ func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
 		return errors.New("reload error")
 	})
 	defer restore()
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
 	})
 	c.Assert(err, ErrorMatches, "reload error")
+}
+
+func (s *homedirsSuite) TestConfigureApparmorUnsupported(c *C) {
+	// Currently the homedir option will act more or less as a no-op on
+	// systems that do not have apparmor support. So let's test that
+	// both unsupported and unusable will return no error, as it should be
+	// a no-op.
+
+	// let's mock this to ensure we can track whether this was called, as we don't
+	// want this called when unsupported.
+	var reloadProfilesCalled bool
+	restore := configcore.MockApparmorReloadAllSnapProfiles(func() error {
+		reloadProfilesCalled = true
+		return nil
+	})
+	defer restore()
+
+	// always update
+	restore = configcore.MockEnsureFileState(func(string, osutil.FileState) error {
+		return nil
+	})
+	defer restore()
+
+	for _, testData := range []struct {
+		level          apparmor.LevelType
+		updateProfiles bool
+	}{
+		{apparmor.Unknown, false},
+		{apparmor.Unsupported, false},
+		{apparmor.Unusable, false},
+		{apparmor.Partial, true},
+		{apparmor.Full, true},
+	} {
+		// initialize test by mocking the aa level and reseting the boolean
+		resetAA := apparmor.MockLevel(testData.level)
+		reloadProfilesCalled = false
+
+		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+			state: s.state,
+			changes: map[string]interface{}{
+				"homedirs": "/home/existingDir",
+			},
+		})
+		c.Check(err, IsNil)
+		c.Check(reloadProfilesCalled, Equals, testData.updateProfiles, Commentf("%v", testData.level.String()))
+		resetAA()
+	}
 }
 
 func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
@@ -191,9 +264,9 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 	})
 	defer restore()
 
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
 	})
@@ -218,7 +291,7 @@ func (s *homedirsSuite) TestConfigureHomedirsEmptyHappy(c *C) {
 		return nil
 	})
 	defer restore()
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "",

@@ -264,6 +264,11 @@ var helpCategories = []helpCategory{
 		Commands:        []string{"download", "pack", "run", "try"},
 		AllOnlyCommands: []string{"prepare-image"},
 	},
+	{
+		Label:       i18n.G("Quota Groups"),
+		Description: i18n.G("Manage quota groups for snaps"),
+		Commands:    []string{"set-quota", "remove-quota", "quotas", "quota"},
+	},
 }
 
 var (

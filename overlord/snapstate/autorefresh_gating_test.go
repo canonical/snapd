@@ -1417,8 +1417,9 @@ func (s *autorefreshGatingSuite) TestAutorefreshPhase1FeatureFlag(c *C) {
 	mockInstalledSnap(c, s.state, snapAyaml, useHook)
 
 	// gate-auto-refresh-hook feature not enabled, expect old-style refresh.
-	_, tss, err := snapstate.AutoRefresh(context.TODO(), st)
+	_, updateTss, err := snapstate.AutoRefresh(context.TODO(), st)
 	c.Check(err, IsNil)
+	tss := updateTss.Refresh
 	c.Assert(tss, HasLen, 2)
 	c.Check(tss[0].Tasks()[0].Kind(), Equals, "prerequisites")
 	c.Check(tss[0].Tasks()[1].Kind(), Equals, "download-snap")
@@ -1429,8 +1430,9 @@ func (s *autorefreshGatingSuite) TestAutorefreshPhase1FeatureFlag(c *C) {
 	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
 	tr.Commit()
 
-	_, tss, err = snapstate.AutoRefresh(context.TODO(), st)
+	_, updateTss, err = snapstate.AutoRefresh(context.TODO(), st)
 	c.Check(err, IsNil)
+	tss = updateTss.Refresh
 	c.Assert(tss, HasLen, 2)
 	task := tss[0].Tasks()[0]
 	c.Check(task.Kind(), Equals, "conditional-auto-refresh")

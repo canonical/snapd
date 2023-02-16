@@ -570,14 +570,9 @@ version: 5.0
 	obs, err := boot.TrustedAssetsInstallObserverForModel(model, unpackedGadgetDir, useEncryption)
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
-	runBootStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role: gadget.SystemBoot,
-		},
-	}
 
 	// only grubx64.efi gets installed to system-boot
-	_, err = obs.Observe(gadget.ContentWrite, runBootStruct, boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi",
+	_, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi",
 		&gadget.ContentChange{After: filepath.Join(unpackedGadgetDir, "grubx64.efi")})
 	c.Assert(err, IsNil)
 
@@ -798,18 +793,19 @@ version: 5.0
 	c.Check(extractedKernelSymlink, testutil.FilePresent)
 
 	// ensure modeenv looks correct
-	var ubuntuDataModeEnvPath, classicLine string
+	var ubuntuDataModeEnvPath, classicLine, base string
 	if classic {
+		base = ""
 		ubuntuDataModeEnvPath = filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/var/lib/snapd/modeenv")
 		classicLine = "\nclassic=true"
 	} else {
+		base = "\nbase=core20_3.snap"
 		ubuntuDataModeEnvPath = filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	}
 	expectedModeenv := fmt.Sprintf(`mode=run
 recovery_system=20191216
 current_recovery_systems=20191216
-good_recovery_systems=20191216
-base=core20_3.snap
+good_recovery_systems=20191216%s
 gadget=pc_4.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20%s
@@ -818,7 +814,7 @@ model_sign_key_id=Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQu
 current_trusted_boot_assets={"grubx64.efi":["5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"]}
 current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"],"grubx64.efi":["aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"]}
 current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"]
-`, classicLine)
+`, base, classicLine)
 	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, expectedModeenv)
 	copiedGrubBin := filepath.Join(
 		dirs.SnapBootAssetsDirUnder(installHostWritableDir),
@@ -1075,14 +1071,9 @@ version: 5.0
 	obs, err := boot.TrustedAssetsInstallObserverForModel(model, unpackedGadgetDir, useEncryption)
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
-	runBootStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role: gadget.SystemBoot,
-		},
-	}
 
 	// only grubx64.efi gets installed to system-boot
-	_, err = obs.Observe(gadget.ContentWrite, runBootStruct, boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi",
+	_, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi",
 		&gadget.ContentChange{After: filepath.Join(unpackedGadgetDir, "grubx64.efi")})
 	c.Assert(err, IsNil)
 
@@ -1270,14 +1261,9 @@ version: 5.0
 	obs, err := boot.TrustedAssetsInstallObserverForModel(model, unpackedGadgetDir, useEncryption)
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
-	runBootStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role: gadget.SystemBoot,
-		},
-	}
 
 	// only grubx64.efi gets installed to system-boot
-	_, err = obs.Observe(gadget.ContentWrite, runBootStruct, boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi",
+	_, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi",
 		&gadget.ContentChange{After: filepath.Join(unpackedGadgetDir, "grubx64.efi")})
 	c.Assert(err, IsNil)
 

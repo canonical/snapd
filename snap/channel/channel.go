@@ -211,14 +211,15 @@ type ChannelMatch struct {
 }
 
 // String returns the string represantion of the match, results can be:
-//  "architecture:track:risk"
-//  "architecture:track"
-//  "architecture:risk"
-//  "track:risk"
-//  "architecture"
-//  "track"
-//  "risk"
-//  ""
+//
+//	"architecture:track:risk"
+//	"architecture:track"
+//	"architecture:risk"
+//	"track:risk"
+//	"architecture"
+//	"track"
+//	"risk"
+//	""
 func (cm ChannelMatch) String() string {
 	matching := []string{}
 	if cm.Architecture {

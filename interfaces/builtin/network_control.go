@@ -370,11 +370,13 @@ var networkControlConnectedPlugMount = []osutil.MountEntry{{
 //
 // When setting up a mount entry, we also need corresponding
 // snap-updates-ns rules. Eg, if have:
-// []osutil.MountEntry{{
-//	Name:    "/foo/bar",
-//	Dir:     "/bar",
-//	Options: []string{"rw", "bind"},
-// }}
+//
+//	[]osutil.MountEntry{{
+//		Name:    "/foo/bar",
+//		Dir:     "/bar",
+//		Options: []string{"rw", "bind"},
+//	}}
+//
 // Then you can expect to need:
 // /foo/ r,
 // /foo/bar/ r,

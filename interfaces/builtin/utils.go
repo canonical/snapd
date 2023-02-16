@@ -129,11 +129,12 @@ func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attre
 
 // aareExclusivePatterns takes a string and generates deny alternations. Eg,
 // aareExclusivePatterns("foo") returns:
-// []string{
-//   "[^f]*",
-//   "f[^o]*",
-//   "fo[^o]*",
-// }
+//
+//	[]string{
+//	  "[^f]*",
+//	  "f[^o]*",
+//	  "fo[^o]*",
+//	}
 func aareExclusivePatterns(orig string) []string {
 	// This function currently is only intended to be used with desktop
 	// prefixes as calculated by info.DesktopPrefix (the snap name and

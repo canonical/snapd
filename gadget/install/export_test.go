@@ -28,7 +28,6 @@ import (
 )
 
 type MkfsParams = mkfsParams
-type OnDiskAndLaidoutStructure = onDiskAndLaidoutStructure
 
 var (
 	MakeFilesystem         = makeFilesystem
@@ -59,7 +58,7 @@ func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
 	}
 }
 
-func MockEnsureNodesExist(f func(dss []OnDiskAndLaidoutStructure, timeout time.Duration) error) (restore func()) {
+func MockEnsureNodesExist(f func(nodes []string, timeout time.Duration) error) (restore func()) {
 	old := ensureNodesExist
 	ensureNodesExist = f
 	return func() {
@@ -101,16 +100,4 @@ func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevic
 	}
 
 	return nil
-}
-
-func MockOnDiskAndLaidoutStructure(onDisk *gadget.OnDiskStructure, laidOut *gadget.LaidOutStructure) OnDiskAndLaidoutStructure {
-	return OnDiskAndLaidoutStructure{onDisk, laidOut}
-}
-
-func OnDiskFromOnDiskAndLaidoutStructure(odls OnDiskAndLaidoutStructure) *gadget.OnDiskStructure {
-	return odls.onDisk
-}
-
-func LaidOutFromOnDiskAndLaidoutStructure(odls OnDiskAndLaidoutStructure) *gadget.LaidOutStructure {
-	return odls.laidOut
 }

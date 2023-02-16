@@ -72,7 +72,7 @@ func (q *testAssertQuery) AddGroupingError(e error, grouping asserts.Grouping) e
 	return nil
 }
 
-func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
+func (s *storeActionFetchAssertionsSuite) testFetch(c *C, assertionMaxFormats map[string]int) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -110,7 +110,11 @@ func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
 		}
 		c.Assert(req.Actions[0], DeepEquals, expectedAction)
 
-		c.Assert(req.AssertionMaxFormats, DeepEquals, asserts.MaxSupportedFormats(1))
+		if assertionMaxFormats != nil {
+			c.Assert(req.AssertionMaxFormats, DeepEquals, assertionMaxFormats)
+		} else {
+			c.Assert(req.AssertionMaxFormats, DeepEquals, asserts.MaxSupportedFormats(1))
+		}
 
 		fmt.Fprintf(w, `{
   "results": [{
@@ -133,6 +137,10 @@ func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
 	}
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
+
+	if assertionMaxFormats != nil {
+		sto.SetAssertionMaxFormats(assertionMaxFormats)
+	}
 
 	assertq := &testAssertQuery{
 		toResolve: map[asserts.Grouping][]*asserts.AtRevision{
@@ -157,6 +165,16 @@ func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
 	c.Check(aresults[0].Grouping, Equals, asserts.Grouping("g1"))
 	c.Check(aresults[0].StreamURLs, DeepEquals, []string{
 		"https://api.snapcraft.io/v2/assertions/snap-declaration/16/iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5",
+	})
+}
+
+func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
+	s.testFetch(c, nil)
+}
+
+func (s *storeActionFetchAssertionsSuite) TestFetchSetAssertionMaxFormats(c *C) {
+	s.testFetch(c, map[string]int{
+		"snap-declaration": 7,
 	})
 }
 

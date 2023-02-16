@@ -168,7 +168,7 @@ func MockInvalidInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 // directory with given content
 //
 // The caller is responsible for mocking root directory with dirs.SetRootDir()
-//and for altering the overlord state if required.
+// and for altering the overlord state if required.
 func MockSnapWithFiles(c *check.C, yamlText string, si *snap.SideInfo, files [][]string) *snap.Info {
 	info := MockSnap(c, yamlText, si)
 

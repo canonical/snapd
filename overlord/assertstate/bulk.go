@@ -21,6 +21,7 @@ package assertstate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -105,7 +106,7 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 			PrimaryKey: []string{modelAs.Store()},
 		}
 		if err := pool.AddToUpdate(&storeRef, storeGroup); err != nil {
-			if !asserts.IsNotFound(err) {
+			if !errors.Is(err, &asserts.NotFoundError{}) {
 				return fmt.Errorf("cannot prepare store assertion refresh: %v", err)
 			}
 			// assertion is not present in the db yet,
@@ -126,7 +127,7 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 	}
 
 	if mergedRPErr != nil {
-		if e := mergedRPErr.errors[storeGroup]; asserts.IsNotFound(e) || e == asserts.ErrUnresolved {
+		if e := mergedRPErr.errors[storeGroup]; errors.Is(e, &asserts.NotFoundError{}) || e == asserts.ErrUnresolved {
 			// ignore
 			delete(mergedRPErr.errors, storeGroup)
 		}
@@ -191,7 +192,7 @@ func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*Validatio
 		// ignore resolving errors for validation sets that are local only (no
 		// assertion in the store).
 		for group := range ignoreNotFound {
-			if e := rerr.errors[group]; asserts.IsNotFound(e) || e == asserts.ErrUnresolved {
+			if e := rerr.errors[group]; errors.Is(e, &asserts.NotFoundError{}) || e == asserts.ErrUnresolved {
 				delete(rerr.errors, group)
 			}
 		}

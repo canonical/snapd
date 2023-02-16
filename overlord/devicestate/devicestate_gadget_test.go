@@ -325,16 +325,11 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 			// check that observer is behaving correctly with
 			// respect to trusted and managed assets
 			targetDir := c.MkDir()
-			sourceStruct := &gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Role: gadget.SystemSeed,
-				},
-			}
-			act, err := observer.Observe(gadget.ContentUpdate, sourceStruct, targetDir, "managed-asset",
+			act, err := observer.Observe(gadget.ContentUpdate, gadget.SystemSeed, targetDir, "managed-asset",
 				&gadget.ContentChange{After: filepath.Join(update.RootDir, "managed-asset")})
 			c.Assert(err, IsNil)
 			c.Check(act, Equals, gadget.ChangeIgnore)
-			act, err = observer.Observe(gadget.ContentUpdate, sourceStruct, targetDir, "trusted-asset",
+			act, err = observer.Observe(gadget.ContentUpdate, gadget.SystemSeed, targetDir, "trusted-asset",
 				&gadget.ContentChange{After: filepath.Join(update.RootDir, "trusted-asset")})
 			c.Assert(err, IsNil)
 			c.Check(act, Equals, gadget.ChangeApply)

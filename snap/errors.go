@@ -19,7 +19,9 @@
 
 package snap
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type AlreadyInstalledError struct {
 	Snap string
@@ -41,10 +43,19 @@ func (e NotInstalledError) Error() string {
 	return fmt.Sprintf("revision %s of snap %q is not installed", e.Rev, e.Snap)
 }
 
+// NotSnapError is returned if an operation expects a snap file or snap dir
+// but no valid input is provided. When creating it ensure "Err" is set
+// so that a useful error can be displayed to the user.
 type NotSnapError struct {
 	Path string
+
+	Err error
 }
 
 func (e NotSnapError) Error() string {
-	return fmt.Sprintf("%q is not a snap or snapdir", e.Path)
+	// e.Err should always be set but support if not
+	if e.Err == nil {
+		return fmt.Sprintf("cannot process snap or snapdir %q", e.Path)
+	}
+	return fmt.Sprintf("cannot process snap or snapdir: %v", e.Err)
 }

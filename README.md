@@ -3,7 +3,7 @@
 # Welcome to snapd
 
 This is the code repository for **snapd**, the background service that manages
-and maintains installed snaps. 
+and maintains installed snaps.
 
 Snaps are app packages for desktop, cloud and IoT that update automatically,
 are easy to install, secure, cross-platform and dependency-free. They're being
@@ -67,9 +67,6 @@ and on [Facebook](https://www.facebook.com/snapcraftio).
 
 [goreportcard-image]: https://goreportcard.com/badge/github.com/snapcore/snapd
 [goreportcard-url]: https://goreportcard.com/report/github.com/snapcore/snapd
-
-[coveralls-image]: https://coveralls.io/repos/snapcore/snapd/badge.svg?branch=master&service=github
-[coveralls-url]: https://coveralls.io/github/snapcore/snapd?branch=master
 
 [codecov-url]: https://codecov.io/gh/snapcore/snapd
 [codecov-image]: https://codecov.io/gh/snapcore/snapd/branch/master/graph/badge.svg

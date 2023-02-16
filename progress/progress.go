@@ -100,11 +100,11 @@ var isTerminal = func() bool {
 // MakeProgressBar creates an appropriate progress.Meter for the environ in
 // which it is called:
 //
-// * if MockMeter has been called, return that.
-// * if w is not nil nor os.Stdout, a QuietMeter outputting to it is returned.
-// * if no terminal is attached, or we think we're running a test,
-//   a minimalistic QuietMeter outputting to stdout is returned.
-// * otherwise, an ANSIMeter is returned.
+//   - if MockMeter has been called, return that.
+//   - if w is not nil nor os.Stdout, a QuietMeter outputting to it is returned.
+//   - if no terminal is attached, or we think we're running a test,
+//     a minimalistic QuietMeter outputting to stdout is returned.
+//   - otherwise, an ANSIMeter is returned.
 func MakeProgressBar(w io.Writer) Meter {
 	if testMeter != nil {
 		return testMeter

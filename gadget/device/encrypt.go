@@ -102,7 +102,7 @@ func TpmLockoutAuthUnder(saveDeviceFDEDir string) string {
 	return filepath.Join(saveDeviceFDEDir, "tpm-lockout-auth")
 }
 
-/// ErrNoSealedKeys error if there are no sealed keys
+// ErrNoSealedKeys error if there are no sealed keys
 var ErrNoSealedKeys = errors.New("no sealed keys")
 
 // SealingMethod represents the sealing method

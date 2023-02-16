@@ -144,21 +144,20 @@ type mockContentChange struct {
 }
 
 type mockWriteObserver struct {
-	content        map[string][]*mockContentChange
-	observeErr     error
-	expectedStruct *gadget.LaidOutStructure
-	c              *C
+	content      map[string][]*mockContentChange
+	observeErr   error
+	expectedRole string
+	c            *C
 }
 
-func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
+func (m *mockWriteObserver) Observe(op gadget.ContentOperation, partRole,
 	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	if m.content == nil {
 		m.content = make(map[string][]*mockContentChange)
 	}
 	m.content[targetRootDir] = append(m.content[targetRootDir],
 		&mockContentChange{path: relativeTargetPath, change: data})
-	m.c.Assert(sourceStruct, NotNil)
-	m.c.Check(sourceStruct, DeepEquals, m.expectedStruct)
+	m.c.Check(partRole, Equals, m.expectedRole)
 	return gadget.ChangeApply, m.observeErr
 }
 
@@ -206,9 +205,9 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 		// copy existing mock
 		m := mockOnDiskStructureSystemSeed(s.gadgetRoot)
 		obs := &mockWriteObserver{
-			c:              c,
-			observeErr:     tc.observeErr,
-			expectedStruct: m,
+			c:            c,
+			observeErr:   tc.observeErr,
+			expectedRole: m.Role(),
 		}
 		err := install.WriteFilesystemContent(m, "/dev/node2", obs)
 		if tc.err == "" {

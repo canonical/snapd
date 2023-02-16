@@ -369,6 +369,13 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, deviceCtx, "")
 	if err != nil {
 		if conflErr, ok := err.(*ChangeConflictError); ok {
+			// If we aren't seeded, then it's to early to do any updates and we cannot
+			// handle this during seeding, so expect the ChangeConflictError in this scenario.
+			if conflErr.ChangeKind == "seed" {
+				t.Logf("cannot update %q during seeding, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), conflErr)
+				return nil, nil
+			}
+
 			// there's already an update for the same snap in this change,
 			// just skip this one
 			if conflErr.ChangeID == t.Change().ID() {
@@ -380,7 +387,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 
 		// don't propagate error to avoid failing the main install since the
 		// content provider is (for now) a soft dependency
-		t.Logf("failed to update %q, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), err)
+		t.Logf("cannot update %q, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), err)
 		return nil, nil
 	}
 
@@ -1033,7 +1040,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
 		// below, completes.
 		// XXX: should we skip it if type is snap.TypeSnapd?
-		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, oldInfo)
+		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo)
 		if err != nil {
 			return err
 		}
@@ -1763,6 +1770,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}()
 
+	if err := m.maybeDiscardNamespacesOnSnapdDowngrade(st, newInfo); err != nil {
+		return fmt.Errorf("cannot discard preserved namespaces: %v", err)
+	}
+
 	rebootInfo, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
@@ -2005,6 +2016,37 @@ func daemonRestartReason(st *state.State, typ snap.Type) string {
 	}
 
 	return "Requested daemon restart (snapd snap)."
+}
+
+// maybeDiscardNamespacesOnSnapdDowngrade must be called when we are about to
+// activate a different snapd version. It checks whether we are performing a
+// downgrade to a snapd version that does not support the
+// "x-snapd.origin=rootfs" option (which we use when mounting a snap's "/" as a
+// tmpfs) and, if so, discards all preserved snap namespaces; failure to do so
+// would cause snap-update-ns to misbehave and destroy our namespace.
+// This method assumes that the State is locked.
+func (m *SnapManager) maybeDiscardNamespacesOnSnapdDowngrade(st *state.State, snapInfo *snap.Info) error {
+	if snapInfo.Type() != snap.TypeSnapd || snapInfo.Version == "" {
+		return nil
+	}
+
+	// Support for "x-snapd.origin=rootfs" was introduced in snapd 2.57
+	if compare, err := strutil.VersionCompare(snapInfo.Version, "2.57"); err == nil && compare < 0 {
+		logger.Noticef("Downgrading snapd to version %q, discarding preserved namespaces", snapInfo.Version)
+		allSnaps, err := All(st)
+		if err != nil {
+			return err
+		}
+		for _, snap := range allSnaps {
+			logger.Debugf("Discarding namespace for snap %q", snap.InstanceName())
+			if err := m.backend.DiscardSnapNamespace(snap.InstanceName()); err != nil {
+				// We don't propagate the error as we don't want to block the
+				// downgrade for this. Let's just log it down.
+				logger.Noticef("WARNING: discarding namespace of snap %q failed, snap might be unusable until next reboot", snap.InstanceName())
+			}
+		}
+	}
+	return nil
 }
 
 // maybeUndoRemodelBootChanges will check if an undo needs to update the
@@ -3664,19 +3706,28 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	updated, tasksets, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID())
+	updated, updateTss, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID())
 	if err != nil {
 		return err
 	}
 
+	var newTasks bool
 	if len(updated) == 0 {
 		t.Logf("No re-refreshes found.")
 	} else {
 		t.Logf("Found re-refresh for %s.", strutil.Quoted(updated))
 
-		for _, taskset := range tasksets {
+		for _, taskset := range updateTss.Refresh {
 			chg.AddAll(taskset)
+			newTasks = true
 		}
+	}
+
+	if createPreDownloadChange(st, updateTss) {
+		newTasks = true
+	}
+
+	if newTasks {
 		st.EnsureBefore(0)
 	}
 	t.SetStatus(state.DoneStatus)
@@ -3699,28 +3750,32 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		return nil
 	}
 
-	tss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
+	updateTss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
 	if err != nil {
 		return err
 	}
 
-	// update the map of refreshed snaps on the task, this affects
-	// conflict checks (we don't want to conflict on snaps that were held and
-	// won't be refreshed) -  see conditionalAutoRefreshAffectedSnaps().
-	newToUpdate := make(map[string]*refreshCandidate, len(snaps))
-	for _, candidate := range snaps {
-		newToUpdate[candidate.InstanceName()] = candidate
-	}
-	t.Set("snaps", newToUpdate)
+	createPreDownloadChange(st, updateTss)
 
-	// update original auto-refresh change
-	chg := t.Change()
-	for _, ts := range tss {
-		ts.WaitFor(t)
-		chg.AddAll(ts)
+	if updateTss.Refresh != nil {
+		// update the map of refreshed snaps on the task, this affects
+		// conflict checks (we don't want to conflict on snaps that were held and
+		// won't be refreshed) -  see conditionalAutoRefreshAffectedSnaps().
+		newToUpdate := make(map[string]*refreshCandidate, len(snaps))
+		for _, candidate := range snaps {
+			newToUpdate[candidate.InstanceName()] = candidate
+		}
+		t.Set("snaps", newToUpdate)
+
+		// update original auto-refresh change
+		chg := t.Change()
+		for _, ts := range updateTss.Refresh {
+			ts.WaitFor(t)
+			chg.AddAll(ts)
+		}
 	}
+
 	t.SetStatus(state.DoneStatus)
-
 	st.EnsureBefore(0)
 	return nil
 }

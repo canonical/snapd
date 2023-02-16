@@ -24,6 +24,7 @@ package spdx
 // Version: 3.11 2020-11-25
 //
 // jq < json/licenses.json '.licenses | .[] | select(.isOsiApproved == true) | .licenseId' | sort | sed -e 's/$/,/'
+//
 //nolint:deadcode,unused
 var osi = []string{
 	"0BSD",

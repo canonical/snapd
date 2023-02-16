@@ -20,6 +20,7 @@
 package image
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -384,10 +385,11 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
+	localARefs := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
 	var curSnaps []*tooling.CurrentSnap
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, f, db)
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return err
 		}
 
@@ -403,7 +405,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		if err := w.SetInfo(sn, info); err != nil {
 			return err
 		}
-		sn.ARefs = aRefs
+		localARefs[sn] = aRefs
 
 		if info.ID() != "" {
 			curSnaps = append(curSnaps, &tooling.CurrentSnap{
@@ -439,6 +441,21 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		}
 	}
 
+	fetchAsserts := func(sn, _, _ *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
+		if aRefs, ok := localARefs[sn]; ok {
+			return aRefs, nil
+		}
+		// fetch snap assertions
+		prev := len(f.Refs())
+		if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, f, db); err != nil {
+			return nil, err
+		}
+		if !sn.Info.Revision.Unset() {
+			imageManifest[sn.Info.SnapName()] = sn.Info.Revision
+		}
+		return f.Refs()[prev:], nil
+	}
+
 	for {
 		toDownload, err := w.SnapsToDownload()
 		if err != nil {
@@ -455,7 +472,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			if !rev.Unset() {
 				fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), rev)
 			} else {
-				fmt.Fprintf(Stdout, "Fetching %s\n", sn.SnapName())
+				fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), info.Revision)
 			}
 			if err := w.SetInfo(sn, info); err != nil {
 				return "", err
@@ -480,22 +497,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 
 		for _, sn := range toDownload {
 			dlsn := downloadedSnaps[sn.SnapName()]
-
 			if err := w.SetRedirectChannel(sn, dlsn.RedirectChannel); err != nil {
 				return err
 			}
-
-			// fetch snap assertions
-			prev := len(f.Refs())
-			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, model, f, db); err != nil {
-				return err
-			}
-			if !sn.Info.Revision.Unset() {
-				imageManifest[sn.Info.SnapName()] = sn.Info.Revision
-			}
-			aRefs := f.Refs()[prev:]
-			sn.ARefs = aRefs
-
 			curSnaps = append(curSnaps, &tooling.CurrentSnap{
 				SnapName: sn.Info.SnapName(),
 				SnapID:   sn.Info.ID(),
@@ -505,7 +509,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			})
 		}
 
-		complete, err := w.Downloaded()
+		complete, err := w.Downloaded(fetchAsserts)
 		if err != nil {
 			return err
 		}

@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -925,7 +926,7 @@ snaps:
 	defer rhk()
 
 	// ensure we have something that captures the core config
-	restore := configstate.MockConfigcoreRun(func(sysconfig.Device, config.Conf) error {
+	restore := configstate.MockConfigcoreRun(func(sysconfig.Device, configcore.RunTransaction) error {
 		configured = append(configured, "configcore")
 		return nil
 	})

@@ -113,8 +113,7 @@ An existing sub group cannot be moved from one parent to another.
 `)
 
 func init() {
-	// TODO: unhide the commands when non-experimental
-	cmd := addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp,
+	addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp,
 		func() flags.Commander { return &cmdSetQuota{} },
 		waitDescs.also(map[string]string{
 			"memory":             i18n.G("Memory quota"),
@@ -125,16 +124,9 @@ func init() {
 			"journal-rate-limit": i18n.G("Journal rate limit as <message count>/<message period>"),
 			"parent":             i18n.G("Parent quota group"),
 		}), nil)
-	cmd.hidden = true
-
-	cmd = addCommand("quota", shortQuotaHelp, longQuotaHelp, func() flags.Commander { return &cmdQuota{} }, nil, nil)
-	cmd.hidden = true
-
-	cmd = addCommand("quotas", shortQuotasHelp, longQuotasHelp, func() flags.Commander { return &cmdQuotas{} }, nil, nil)
-	cmd.hidden = true
-
-	cmd = addCommand("remove-quota", shortRemoveQuotaHelp, longRemoveQuotaHelp, func() flags.Commander { return &cmdRemoveQuota{} }, nil, nil)
-	cmd.hidden = true
+	addCommand("quota", shortQuotaHelp, longQuotaHelp, func() flags.Commander { return &cmdQuota{} }, nil, nil)
+	addCommand("quotas", shortQuotasHelp, longQuotasHelp, func() flags.Commander { return &cmdQuotas{} }, nil, nil)
+	addCommand("remove-quota", shortRemoveQuotaHelp, longRemoveQuotaHelp, func() flags.Commander { return &cmdRemoveQuota{} }, nil, nil)
 }
 
 type cmdSetQuota struct {
@@ -345,7 +337,12 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// orphan a sub-group to no longer have a parent, but currently it just
 		// means leave the group with whatever parent it has, or if it doesn't
 		// currently exist, create the group without a parent group
-		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, snaps, services, quotaValues)
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, &client.EnsureQuotaOptions{
+			Parent:      x.Parent,
+			Snaps:       snaps,
+			Services:    services,
+			Constraints: quotaValues,
+		})
 		if err != nil {
 			return err
 		}
@@ -358,8 +355,11 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// snaps or services with whatever was specified with some option, but we don't
 		// currently support that, so currently all snaps or services specified here are
 		// just added to the group
-
-		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, snaps, services, nil)
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, &client.EnsureQuotaOptions{
+			Parent:   x.Parent,
+			Snaps:    snaps,
+			Services: services,
+		})
 		if err != nil {
 			return err
 		}

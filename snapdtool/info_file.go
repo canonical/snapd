@@ -22,6 +22,7 @@ package snapdtool
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,13 +30,7 @@ import (
 
 // SnapdVersionFromInfoFile returns the snapd version read from the info file in
 // the given dir, as well as any other key/value pairs/flags in the file.
-// The format of the "info" file are lines with "KEY=VALUE" with the typical key
-// being just VERSION. The file is produced by mkversion.sh and normally
-// installed along snapd binary in /usr/lib/snapd.
-// Other typical keys in this file include SNAPD_APPARMOR_REEXEC, which
-// indicates whether or not the snapd-apparmor binary installed via the
-// traditional linux package of snapd supports re-exec into the version in the
-// snapd or core snaps.
+// See ParseInfoFile for more format details.
 func SnapdVersionFromInfoFile(dir string) (version string, flags map[string]string, err error) {
 	infoPath := filepath.Join(dir, "info")
 	f, err := os.Open(infoPath)
@@ -44,6 +39,21 @@ func SnapdVersionFromInfoFile(dir string) (version string, flags map[string]stri
 	}
 	defer f.Close()
 
+	return ParseInfoFile(f, fmt.Sprintf("%q", infoPath))
+}
+
+// ParseInfoFile parses the "info" file provided via an io.Reader. It returns
+// the snapd version read from the info file, as well as any other key/value
+// pairs/flags in the file.
+// whence is used to construct error messages as "... info file %s".
+// The format of the "info" file are lines with "KEY=VALUE" with the typical key
+// being just VERSION. The file is produced by mkversion.sh and normally
+// installed along snapd binary in /usr/lib/snapd.
+// Other typical keys in this file include SNAPD_APPARMOR_REEXEC, which
+// indicates whether or not the snapd-apparmor binary installed via the
+// traditional linux package of snapd supports re-exec into the version in the
+// snapd or core snaps.
+func ParseInfoFile(f io.Reader, whence string) (version string, flags map[string]string, err error) {
 	flags = map[string]string{}
 
 	scanner := bufio.NewScanner(f)
@@ -63,11 +73,11 @@ func SnapdVersionFromInfoFile(dir string) (version string, flags map[string]stri
 	}
 
 	if err := scanner.Err(); err != nil {
-		return "", nil, fmt.Errorf("error reading snapd info file %q: %v", infoPath, err)
+		return "", nil, fmt.Errorf("error reading snapd info file %s: %v", whence, err)
 	}
 
 	if version == "" {
-		return "", nil, fmt.Errorf("cannot find snapd version information in file %q", infoPath)
+		return "", nil, fmt.Errorf("cannot find version in snapd info file %s", whence)
 	}
 
 	return version, flags, nil

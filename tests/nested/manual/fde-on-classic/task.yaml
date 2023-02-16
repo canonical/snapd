@@ -111,4 +111,25 @@ execute: |
       remote.exec sudo grep -q -a '"This program cannot be run in XXX mode"' "$f"
   done
 
+  # Test that installing a different base and a reboot cause no reverts
+  # (regression test for SNAPDENG-4975)
+
+  # precondition, the core22 is not a local version
+  remote.exec snap list core22 | NOMATCH " x1 "
+  # create modified core22
+  unsquashfs -d core22 "$CACHE_D"/core22_*.snap
+  touch core22/empty-file
+  snap pack --filename=core22-new.snap core22
+  remote.push "core22-new.snap"
+  # install and validate its now a local version
+  remote.exec sudo snap install --dangerous "core22-new.snap"
+  remote.exec sudo snap list core22 | MATCH " x1 "
+  # wait for reboot
+  boot_id=$(tests.nested boot-id)
+  remote.exec sudo reboot || true
+  tests.nested wait-for reboot "$boot_id"
+  # ensure that no revert of core22 happened after the reboot
+  remote.exec sudo snap changes | NOMATCH "Update kernel and core snap revisions"
+  remote.exec sudo snap list core22 | MATCH " x1 "
+
   rm -rf "$CACHE_D"

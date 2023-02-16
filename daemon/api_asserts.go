@@ -159,7 +159,7 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 	} else {
 		assertions, err = assertsFindManyInState(c, assertType, opts.headers, opts)
 	}
-	if err != nil && !asserts.IsNotFound(err) {
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return InternalError("searching assertions failed: %v", err)
 	}
 

@@ -20,7 +20,6 @@
 package client
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -41,7 +40,7 @@ type Snap struct {
 	DownloadSize  int64              `json:"download-size,omitempty"`
 	Icon          string             `json:"icon,omitempty"`
 	InstalledSize int64              `json:"installed-size,omitempty"`
-	InstallDate   time.Time          `json:"install-date,omitempty"`
+	InstallDate   *time.Time         `json:"install-date,omitempty"`
 	Name          string             `json:"name"`
 	Publisher     *snap.StoreAccount `json:"publisher,omitempty"`
 	StoreURL      string             `json:"store-url,omitempty"`
@@ -97,21 +96,6 @@ type SnapHealth struct {
 	Status    string        `json:"status"`
 	Message   string        `json:"message,omitempty"`
 	Code      string        `json:"code,omitempty"`
-}
-
-func (s *Snap) MarshalJSON() ([]byte, error) {
-	type auxSnap Snap // use auxiliary type so that Go does not call Snap.MarshalJSON()
-	// separate type just for marshalling
-	m := struct {
-		auxSnap
-		InstallDate *time.Time `json:"install-date,omitempty"`
-	}{
-		auxSnap: auxSnap(*s),
-	}
-	if !s.InstallDate.IsZero() {
-		m.InstallDate = &s.InstallDate
-	}
-	return json.Marshal(&m)
 }
 
 // Statuses and types a snap may have.

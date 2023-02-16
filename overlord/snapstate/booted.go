@@ -54,17 +54,16 @@ func UpdateBootRevisions(st *state.State) error {
 		return err
 	}
 
-	kernel, err := boot.GetCurrentBoot(snap.TypeKernel, deviceCtx)
-	if err != nil {
-		return fmt.Errorf(errorPrefix+"%s", err)
-	}
-	base, err := boot.GetCurrentBoot(snap.TypeBase, deviceCtx)
-	if err != nil {
-		return fmt.Errorf(errorPrefix+"%s", err)
-	}
-
 	var tsAll []*state.TaskSet
-	for _, actual := range []snap.PlaceInfo{kernel, base} {
+	for _, typ := range []snap.Type{snap.TypeKernel, snap.TypeBase} {
+		if !boot.SnapTypeParticipatesInBoot(typ, deviceCtx) {
+			continue
+		}
+
+		actual, err := boot.GetCurrentBoot(typ, deviceCtx)
+		if err != nil {
+			return fmt.Errorf(errorPrefix+"%s", err)
+		}
 		info, err := CurrentInfo(st, actual.SnapName())
 		if err != nil {
 			logger.Noticef("cannot get info for %q: %s", actual.SnapName(), err)

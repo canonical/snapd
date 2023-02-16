@@ -326,6 +326,14 @@ const (
 	EmulationModeBackend
 )
 
+type mountUpdateStatus int
+
+const (
+	mountUnchanged mountUpdateStatus = iota
+	mountUpdated
+	mountCreated
+)
+
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	// Backend returns the underlying implementation backend.
@@ -351,7 +359,7 @@ type Systemd interface {
 	// Restart the service, waiting for it to stop before starting it again.
 	Restart(services []string) error
 	// Reload or restart the service via 'systemctl reload-or-restart'
-	ReloadOrRestart(service string) error
+	ReloadOrRestart(services []string) error
 	// RestartAll restarts the given service using systemctl restart --all
 	RestartAll(service string) error
 	// Status fetches the status of given units. Statuses are
@@ -379,10 +387,10 @@ type Systemd interface {
 	// If namespaces is set to true, the log reader will include journal namespace
 	// logs, and is required to get logs for services which are in journal namespaces.
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
-	// AddMountUnitFile adds/enables/starts a mount unit.
-	AddMountUnitFile(name, revision, what, where, fstype string) (string, error)
-	// AddMountUnitFileWithOptions adds/enables/starts a mount unit with options.
-	AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
+	// EnsureMountUnitFile adds/enables/starts a mount unit.
+	EnsureMountUnitFile(name, revision, what, where, fstype string) (string, error)
+	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
+	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
 	// ListMountUnits gets the list of targets of the mount units created by
@@ -428,16 +436,16 @@ type RunOptions struct {
 // In almost all cases, the strings map to a single string value, but as per the
 // manpage for journalctl, under the json format,
 //
-//    Journal entries permit non-unique fields within the same log entry. JSON
-//    does not allow non-unique fields within objects. Due to this, if a
-//    non-unique field is encountered a JSON array is used as field value,
-//    listing all field values as elements.
+//	Journal entries permit non-unique fields within the same log entry. JSON
+//	does not allow non-unique fields within objects. Due to this, if a
+//	non-unique field is encountered a JSON array is used as field value,
+//	listing all field values as elements.
 //
 // and this snippet as well,
 //
-//    Fields containing non-printable or non-UTF8 bytes are
-//    encoded as arrays containing the raw bytes individually
-//    formatted as unsigned numbers.
+//	Fields containing non-printable or non-UTF8 bytes are
+//	encoded as arrays containing the raw bytes individually
+//	formatted as unsigned numbers.
 //
 // as such, we sometimes get array values which need to be handled differently,
 // so we manually try to decode the json for each message into different types.
@@ -1392,22 +1400,40 @@ const (
 	snappyOriginModule = "X-SnapdOrigin"
 )
 
-func writeMountUnitFile(u *MountUnitOptions) (mountUnitName string, err error) {
+func ensureMountUnitFile(u *MountUnitOptions) (mountUnitName string, modified mountUpdateStatus, err error) {
 	if u == nil {
-		return "", errors.New("writeMountUnitFile() expects valid mount options")
+		return "", mountUnchanged, errors.New("ensureMountUnitFile() expects valid mount options")
 	}
 
 	mu := MountUnitPathWithLifetime(u.Lifetime, u.Where)
-	outf, err := osutil.NewAtomicFile(mu, 0644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return "", fmt.Errorf("cannot open mount unit file: %v", err)
-	}
-	defer outf.Cancel()
+	var unitContent bytes.Buffer
 
-	if err := parsedMountUnitTemplate.Execute(outf, &u); err != nil {
-		return "", fmt.Errorf("cannot generate mount unit: %v", err)
+	if err := parsedMountUnitTemplate.Execute(&unitContent, &u); err != nil {
+		return "", mountUnchanged, fmt.Errorf("cannot generate mount unit: %v", err)
 	}
-	return filepath.Base(mu), outf.Commit()
+
+	if osutil.FileExists(mu) {
+		modified = mountUpdated
+	} else {
+		modified = mountCreated
+	}
+
+	if err := os.MkdirAll(filepath.Dir(mu), 0755); err != nil {
+		return "", mountUnchanged, fmt.Errorf("cannot create directory %s: %v", filepath.Dir(mu), err)
+	}
+
+	stateErr := osutil.EnsureFileState(mu, &osutil.MemoryFileState{
+		Content: unitContent.Bytes(),
+		Mode:    0644,
+	})
+
+	if stateErr == osutil.ErrSameState {
+		modified = mountUnchanged
+	} else if err != nil {
+		return "", mountUnchanged, err
+	}
+
+	return filepath.Base(mu), modified, nil
 }
 
 func fsMountOptions(fstype string) []string {
@@ -1436,13 +1462,13 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 	return hostFsType, options
 }
 
-func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
+func (s *systemd) EnsureMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
 	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
-	return s.AddMountUnitFileWithOptions(&MountUnitOptions{
+	return s.EnsureMountUnitFileWithOptions(&MountUnitOptions{
 		Lifetime: Persistent,
 		SnapName: snapName,
 		Revision: revision,
@@ -1453,27 +1479,32 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 	})
 }
 
-func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
+func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	mountUnitName, err := writeMountUnitFile(unitOptions)
+	mountUnitName, modified, err := ensureMountUnitFile(unitOptions)
 	if err != nil {
 		return "", err
 	}
+	if modified != mountUnchanged {
+		// we need to do a daemon-reload here to ensure that systemd really
+		// knows about this new mount unit file
+		if err := s.daemonReloadNoLock(); err != nil {
+			return "", err
+		}
 
-	// we need to do a daemon-reload here to ensure that systemd really
-	// knows about this new mount unit file
-	if err := s.daemonReloadNoLock(); err != nil {
-		return "", err
-	}
-
-	units := []string{mountUnitName}
-	if err := s.EnableNoReload(units); err != nil {
-		return "", err
-	}
-	if err := s.Start(units); err != nil {
-		return "", err
+		units := []string{mountUnitName}
+		if err := s.EnableNoReload(units); err != nil {
+			return "", err
+		}
+		// In the case of mountCreated, ReloadOrRestart
+		// has the same effect as just Start.
+		// In the case of MountUpdate, we need to reload
+		// the unit.
+		if err := s.ReloadOrRestart(units); err != nil {
+			return "", err
+		}
 	}
 
 	return mountUnitName, nil
@@ -1616,11 +1647,11 @@ func (s *systemd) ListMountUnits(snapName, origin string) ([]string, error) {
 	return mountPoints, nil
 }
 
-func (s *systemd) ReloadOrRestart(serviceName string) error {
+func (s *systemd) ReloadOrRestart(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	_, err := s.systemctl("reload-or-restart", serviceName)
+	_, err := s.systemctl(append([]string{"reload-or-restart"}, serviceNames...)...)
 	return err
 }
 
