@@ -53,11 +53,13 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
+	userclient "github.com/snapcore/snapd/usersession/client"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -73,6 +75,8 @@ var EnsureSnapAbsentFromQuotaGroup = func(st *state.State, snap string) error {
 var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ snap.Type) error {
 	panic("internal error: snapstate.SecurityProfilesRemoveLate is unset")
 }
+
+var cgroupMonitorSnapEnded = cgroup.MonitorSnapEnded
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the task.
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
@@ -737,6 +741,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	if err := waitForPreDownload(t, snapsup); err != nil {
+		return err
+	}
+
 	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.MountFile()
 
@@ -773,6 +781,167 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	t.Set("snap-setup", snapsup)
 	perfTimings.Save(st)
 	st.Unlock()
+
+	return nil
+}
+
+func waitForPreDownload(task *state.Task, snapsup *SnapSetup) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tasks, err := findTasksMatchingKindAndSnap(st, "pre-download-snap", snapsup.InstanceName(), snapsup.Revision())
+	if err != nil {
+		return err
+	}
+
+	// if there is a pre-download task for the same snap, wait for it to finish
+	for _, preTask := range tasks {
+		if preTask.Status() != state.DoingStatus {
+			continue
+		}
+
+		var taskIDs []string
+		if err := preTask.Get("waiting-tasks", &taskIDs); err != nil && !errors.Is(err, &state.NoStateError{}) {
+			return err
+		}
+
+		if !strutil.ListContains(taskIDs, task.ID()) {
+			taskIDs = append(taskIDs, task.ID())
+			preTask.Set("waiting-tasks", taskIDs)
+		}
+
+		logger.Debugf("Download task %s will wait 1min for pre-download task %s", task.ID(), preTask.ID())
+		return &state.Retry{After: 2 * time.Minute}
+
+	}
+
+	return nil
+}
+
+func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, theStore, user, err := downloadSnapParams(st, t)
+	if err != nil {
+		return err
+	}
+
+	targetFn := snapsup.MountFile()
+	dlOpts := &store.DownloadOptions{
+		// pre-downloads are only triggered in auto-refreshes
+		IsAutoRefresh: true,
+		RateLimit:     autoRefreshRateLimited(st),
+	}
+
+	perfTimings := state.TimingsForTask(t)
+	st.Unlock()
+	timings.Run(perfTimings, "pre-download", fmt.Sprintf("pre-download snap %q", snapsup.SnapName()), func(timings.Measurer) {
+		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, nil, user, dlOpts)
+	})
+	st.Lock()
+	if err != nil {
+		return err
+	}
+	perfTimings.Save(st)
+
+	var waitingTasks []string
+	if err := t.Get("waiting-tasks", &waitingTasks); err != nil && !errors.Is(err, &state.NoStateError{}) {
+		return err
+	}
+
+	// there are download tasks waiting for this one so unblock them and we don't
+	// need to spawn a new change
+	if len(waitingTasks) > 0 {
+		for _, taskID := range waitingTasks {
+			st.Task(taskID).At(time.Time{})
+		}
+
+		st.EnsureBefore(0)
+		return nil
+	}
+
+	_, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	// TODO: in the future, do a hard check before starting an auto-refresh so there's
+	// no change of the snap starting between changes and preventing it from going through
+	err = backend.WithSnapLock(info, func() error {
+		return refreshAppsCheck(info)
+	})
+	if err != nil {
+		if !errors.Is(err, &BusySnapError{}) {
+			return err
+		}
+
+		var refreshInfo *userclient.PendingSnapRefreshInfo
+		if err := t.Get("refresh-info", &refreshInfo); err != nil {
+			return err
+		}
+
+		return asyncRefreshOnSnapClose(m.state, refreshInfo)
+	}
+
+	// signal to the autorefresh manager to continue the previously blocked autorefresh
+	st.Cache("continue-auto-refresh", true)
+	st.EnsureBefore(0)
+
+	return nil
+}
+
+// asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
+// the user and then triggers an auto-refresh.
+func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) error {
+	var monitoredSnaps map[string]bool
+	if cachedMonitored := st.Cached("monitored-snaps"); cachedMonitored != nil {
+		monitoredSnaps, _ = cachedMonitored.(map[string]bool)
+	} else {
+		monitoredSnaps = make(map[string]bool)
+	}
+
+	// there's already a goroutine waiting for this snap to close so just notify
+	if monitoredSnaps[refreshInfo.InstanceName] {
+		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+		return nil
+	}
+
+	// monitor the snap until it closes
+	done := make(chan string)
+	if err := cgroupMonitorSnapEnded(refreshInfo.InstanceName, done); err != nil {
+		return fmt.Errorf("cannot monitor for snap closure: %w", err)
+	}
+
+	// notify the user about the blocked refresh
+	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+
+	monitoredSnaps[refreshInfo.InstanceName] = true
+	st.Cache("monitored-snaps", monitoredSnaps)
+
+	// TODO: clear the monitoring related state and goroutines when an auto-refresh happens
+	go func() {
+		<-done
+		st.Lock()
+		defer st.Unlock()
+
+		delete(monitoredSnaps, refreshInfo.InstanceName)
+		if len(monitoredSnaps) == 0 {
+			monitoredSnaps = nil
+		}
+		st.Cache("monitored-snaps", monitoredSnaps)
+
+		// signal that there's an auto-refresh to be continued (for auto-refresh code)
+		st.Cache("continue-auto-refresh", true)
+		st.EnsureBefore(0)
+	}()
 
 	return nil
 }

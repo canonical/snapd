@@ -1165,3 +1165,28 @@ func (s *autoRefreshTestSuite) addRefreshableSnap(names ...string) {
 			}})
 	}
 }
+
+func (s *autoRefreshTestSuite) TestPartiallyInhibitedAutoRefreshIsContinued(c *C) {
+	now := time.Now()
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	s.state.Lock()
+	s.state.Cache("continue-auto-refresh", true)
+	s.state.Unlock()
+
+	err := af.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var lastRefresh time.Time
+	err = s.state.Get("last-refresh", &lastRefresh)
+	c.Assert(err, IsNil)
+	c.Check(lastRefresh.Equal(now), Equals, true)
+	c.Check(s.state.Cached("continue-auto-refresh"), IsNil)
+}

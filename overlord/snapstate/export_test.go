@@ -461,3 +461,11 @@ func MockEnforceValidationSets(f func(*state.State, map[string]*asserts.Validati
 		EnforceValidationSets = old
 	}
 }
+
+func MockCgroupMonitorSnapEnded(f func(string, chan<- string) error) func() {
+	old := cgroupMonitorSnapEnded
+	cgroupMonitorSnapEnded = f
+	return func() {
+		cgroupMonitorSnapEnded = old
+	}
+}
