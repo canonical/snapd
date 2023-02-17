@@ -33,11 +33,11 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type ParamsForAddMountUnitFile struct {
+type ParamsForEnsureMountUnitFile struct {
 	name, revision, what, where, fstype string
 }
 
-type ResultForAddMountUnitFile struct {
+type ResultForEnsureMountUnitFile struct {
 	path string
 	err  error
 }
@@ -45,8 +45,8 @@ type ResultForAddMountUnitFile struct {
 type FakeSystemd struct {
 	systemd.Systemd
 
-	AddMountUnitFileCalls  []ParamsForAddMountUnitFile
-	AddMountUnitFileResult ResultForAddMountUnitFile
+	EnsureMountUnitFileCalls  []ParamsForEnsureMountUnitFile
+	EnsureMountUnitFileResult ResultForEnsureMountUnitFile
 
 	RemoveMountUnitFileCalls  []string
 	RemoveMountUnitFileResult error
@@ -55,10 +55,10 @@ type FakeSystemd struct {
 	ListMountUnitsResult ResultForListMountUnits
 }
 
-func (s *FakeSystemd) AddMountUnitFile(name, revision, what, where, fstype string) (string, error) {
-	s.AddMountUnitFileCalls = append(s.AddMountUnitFileCalls,
-		ParamsForAddMountUnitFile{name, revision, what, where, fstype})
-	return s.AddMountUnitFileResult.path, s.AddMountUnitFileResult.err
+func (s *FakeSystemd) EnsureMountUnitFile(name, revision, what, where, fstype string) (string, error) {
+	s.EnsureMountUnitFileCalls = append(s.EnsureMountUnitFileCalls,
+		ParamsForEnsureMountUnitFile{name, revision, what, where, fstype})
+	return s.EnsureMountUnitFileResult.path, s.EnsureMountUnitFileResult.err
 }
 
 func (s *FakeSystemd) RemoveMountUnitFile(mountDir string) error {
@@ -101,7 +101,7 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 	var sysd *FakeSystemd
 	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
 		sysd = &FakeSystemd{}
-		sysd.AddMountUnitFileResult = ResultForAddMountUnitFile{"", expectedErr}
+		sysd.EnsureMountUnitFileResult = ResultForEnsureMountUnitFile{"", expectedErr}
 		return sysd
 	})
 	defer restore()
@@ -118,14 +118,14 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 	c.Check(err, Equals, expectedErr)
 
 	// ensure correct parameters
-	expectedParameters := ParamsForAddMountUnitFile{
+	expectedParameters := ParamsForEnsureMountUnitFile{
 		name:     "foo",
 		revision: "13",
 		what:     "/var/lib/snapd/snaps/foo_13.snap",
 		where:    fmt.Sprintf("%s/foo/13", dirs.StripRootDir(dirs.SnapMountDir)),
 		fstype:   "squashfs",
 	}
-	c.Check(sysd.AddMountUnitFileCalls, DeepEquals, []ParamsForAddMountUnitFile{
+	c.Check(sysd.EnsureMountUnitFileCalls, DeepEquals, []ParamsForEnsureMountUnitFile{
 		expectedParameters,
 	})
 }

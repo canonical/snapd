@@ -25,6 +25,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -417,7 +418,7 @@ func (ss *StoreStack) StoreAccountKey(keyID string) *asserts.AccountKey {
 		"account-id":          ss.AuthorityID,
 		"public-key-sha3-384": keyID,
 	})
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return nil
 	}
 	if err != nil {

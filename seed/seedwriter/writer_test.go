@@ -21,6 +21,7 @@ package seedwriter_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -60,6 +61,9 @@ type writerSuite struct {
 	devAcct *asserts.Account
 
 	aRefs map[string][]*asserts.Ref
+
+	expectedSysSnap  string
+	expectedKernSnap string
 }
 
 var _ = Suite(&writerSuite{})
@@ -120,6 +124,9 @@ func (s *writerSuite) SetUpTest(c *C) {
 	s.rf = seedwriter.MakeRefAssertsFetcher(s.newFetcher)
 
 	s.aRefs = make(map[string][]*asserts.Ref)
+	// default expected system and kernel snaps
+	s.expectedSysSnap = "snapd"
+	s.expectedKernSnap = "pc-kernel"
 }
 
 var snapYaml = seedtest.MergeSampleSnapYaml(seedtest.SampleSnapYaml, map[string]string{
@@ -179,22 +186,36 @@ func (s *writerSuite) makeLocalSnap(c *C, yamlKey string) (fname string) {
 	return snaptest.MakeTestSnapWithFiles(c, snapYaml[yamlKey], nil)
 }
 
+func (s *writerSuite) fetchAsserts(c *C) seedwriter.AssertsFetchFunc {
+	return func(sn, sysSn, kSn *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
+		c.Assert(sysSn, NotNil, Commentf("unexpectedly no known system snap was detected"))
+		c.Check(sysSn.SnapName(), Equals, s.expectedSysSnap)
+		c.Check(sysSn.Path, Not(Equals), "")
+		if kSn == nil {
+			c.Assert(s.expectedKernSnap, Equals, "", Commentf("no kernel should be expected"))
+		} else {
+			c.Check(kSn.SnapName(), Equals, s.expectedKernSnap)
+			c.Check(kSn.Path, Not(Equals), "")
+		}
+		aRefs := s.aRefs[sn.SnapName()]
+		if aRefs == nil {
+			prev := len(s.rf.Refs())
+			err := s.rf.Fetch(s.AssertedSnapRevision(sn.SnapName()).Ref())
+			if err != nil {
+				return nil, err
+			}
+			aRefs = s.rf.Refs()[prev:]
+			s.aRefs[sn.SnapName()] = aRefs
+		}
+		return aRefs, nil
+	}
+}
+
 func (s *writerSuite) doFillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap) *snap.Info {
 	info := s.AssertedSnapInfo(sn.SnapName())
 	c.Assert(info, NotNil, Commentf("%s not defined", sn.SnapName()))
 	err := w.SetInfo(sn, info)
 	c.Assert(err, IsNil)
-
-	aRefs := s.aRefs[sn.SnapName()]
-	if aRefs == nil {
-		prev := len(s.rf.Refs())
-		err = s.rf.Fetch(s.AssertedSnapRevision(sn.SnapName()).Ref())
-		c.Assert(err, IsNil)
-		aRefs = s.rf.Refs()[prev:]
-		s.aRefs[sn.SnapName()] = aRefs
-	}
-	sn.ARefs = aRefs
-
 	return info
 }
 
@@ -342,7 +363,9 @@ func (s *writerSuite) TestDownloadedCore16(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	s.expectedSysSnap = "core"
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -392,7 +415,7 @@ func (s *writerSuite) TestDownloadedCore18(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -477,7 +500,7 @@ func (s *writerSuite) TestSnapsToDownloadDefaultChannel(c *C) {
 	}
 }
 
-func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap)) (complete bool, w *seedwriter.Writer, err error) {
+func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap), fetchAsserts seedwriter.AssertsFetchFunc) (complete bool, w *seedwriter.Writer, err error) {
 	w, err = seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
@@ -491,7 +514,7 @@ func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C,
 		fill(c, w, sn)
 	}
 
-	complete, err = w.Downloaded()
+	complete, err = w.Downloaded(fetchAsserts)
 	return complete, w, err
 }
 
@@ -509,7 +532,7 @@ func (s *writerSuite) TestDownloadedCheckBaseGadget(c *C) {
 	s.makeSnap(c, "pc-kernel=18", "")
 	s.makeSnap(c, "pc", "")
 
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	c.Check(err, ErrorMatches, `cannot use gadget snap because its base "" is different from model base "core18"`)
 
 }
@@ -528,7 +551,9 @@ func (s *writerSuite) TestDownloadedCheckBase(c *C) {
 	s.makeSnap(c, "pc", "")
 	s.makeSnap(c, "cont-producer", "developerid")
 
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	s.expectedSysSnap = "core"
+
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	c.Check(err, ErrorMatches, `cannot add snap "cont-producer" without also adding its base "core18" explicitly`)
 
 }
@@ -550,7 +575,7 @@ func (s *writerSuite) TestOutOfOrder(c *C) {
 
 	_, err = w.Start(s.db, s.newFetcher)
 	c.Assert(err, IsNil)
-	_, err = w.Downloaded()
+	_, err = w.Downloaded(nil)
 	c.Check(err, ErrorMatches, "internal error: seedwriter.Writer expected SnapToDownload|LocalSnaps to be invoked on it at this point, not Downloaded")
 
 	_, err = w.BootSnaps()
@@ -602,7 +627,7 @@ func (s *writerSuite) TestDownloadedInfosNotSet(c *C) {
 
 	doNothingFill := func(*C, *seedwriter.Writer, *seedwriter.SeedSnap) {}
 
-	_, _, err := s.upToDownloaded(c, model, doNothingFill)
+	_, _, err := s.upToDownloaded(c, model, doNothingFill, nil)
 	c.Check(err, ErrorMatches, `internal error: before seedwriter.Writer.Downloaded snap \"core\" Info should have been set`)
 }
 
@@ -620,7 +645,9 @@ func (s *writerSuite) TestDownloadedUnexpectedClassicSnap(c *C) {
 	s.makeSnap(c, "pc", "")
 	s.makeSnap(c, "classic-snap", "developerid")
 
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	s.expectedSysSnap = "core"
+
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	c.Check(err, ErrorMatches, `cannot use classic snap "classic-snap" in a core system`)
 }
 
@@ -636,7 +663,9 @@ func (s *writerSuite) TestDownloadedPublisherMismatchKernel(c *C) {
 	s.makeSnap(c, "pc-kernel", "developerid")
 	s.makeSnap(c, "pc", "")
 
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	s.expectedSysSnap = "core"
+
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	c.Check(err, ErrorMatches, `cannot use kernel "pc-kernel" published by "developerid" for model by "my-brand"`)
 }
 
@@ -652,7 +681,9 @@ func (s *writerSuite) TestDownloadedPublisherMismatchGadget(c *C) {
 	s.makeSnap(c, "pc-kernel", "")
 	s.makeSnap(c, "pc", "developerid")
 
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	s.expectedSysSnap = "core"
+
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	c.Check(err, ErrorMatches, `cannot use gadget "pc" published by "developerid" for model by "my-brand"`)
 }
 
@@ -672,7 +703,7 @@ func (s *writerSuite) TestDownloadedMissingDefaultProvider(c *C) {
 	s.makeSnap(c, "pc=18", "")
 	s.makeSnap(c, "cont-consumer", "developerid")
 
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	c.Check(err, ErrorMatches, `cannot use snap "cont-consumer" without its default content provider "cont-producer" being added explicitly`)
 }
 
@@ -715,7 +746,7 @@ func (s *writerSuite) TestDownloadedCheckType(c *C) {
 			t.header: wrongTypeSnap,
 		})
 
-		_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
+		_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c))
 
 		expErr := fmt.Sprintf("%s %q has unexpected type: %v", t.what, t.wrongTypeSnap, s.AssertedSnapInfo(t.wrongTypeSnap).Type())
 		c.Check(err, ErrorMatches, expErr)
@@ -738,7 +769,7 @@ func (s *writerSuite) TestDownloadedCheckTypeSnapd(c *C) {
 
 	// break type
 	s.AssertedSnapInfo("snapd").SnapType = snap.TypeGadget
-	_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c))
 	c.Check(err, ErrorMatches, `snapd snap has unexpected type: gadget`)
 }
 
@@ -756,7 +787,7 @@ func (s *writerSuite) TestDownloadedCheckTypeCore(c *C) {
 
 	// break type
 	s.AssertedSnapInfo("core").SnapType = snap.TypeBase
-	_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c))
 	c.Check(err, ErrorMatches, `core snap has unexpected type: base`)
 }
 
@@ -790,7 +821,9 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore16(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	s.expectedSysSnap = "core"
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -906,7 +939,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -1013,7 +1046,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18StoreAssertion(c *C) {
 	s.makeSnap(c, "pc-kernel=18", "")
 	s.makeSnap(c, "pc=18", "")
 
-	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -1108,7 +1141,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
-		if !asserts.IsNotFound(err) {
+		if !errors.Is(err, &asserts.NotFoundError{}) {
 			c.Assert(err, IsNil)
 		}
 		f, err := snapfile.Open(sn.Path)
@@ -1116,7 +1149,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
 		w.SetInfo(sn, info)
-		sn.ARefs = aRefs
+		s.aRefs[sn.SnapName()] = aRefs
 	}
 
 	err = w.InfoDerived()
@@ -1131,7 +1164,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -1250,7 +1283,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaDefaultTrackCore18(c *C) {
 		}
 	}
 
-	complete, err := w.Downloaded()
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -1486,7 +1519,11 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 	s.makeSnap(c, "classic-gadget", "")
 	s.makeSnap(c, "required", "developerid")
 
-	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	s.expectedSysSnap = "core"
+	// no kernel
+	s.expectedKernSnap = ""
+
+	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, false)
 
@@ -1496,7 +1533,9 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 
 	s.fillDownloadedSnap(c, w, snaps[0])
 
-	complete, err = w.Downloaded()
+	s.expectedSysSnap = "core"
+
+	complete, err = w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -1546,7 +1585,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 	s.makeSnap(c, "classic-gadget18", "")
 	s.makeSnap(c, "required18", "developerid")
 
-	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	// no kernel
+	s.expectedKernSnap = ""
+
+	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, false)
 
@@ -1556,7 +1598,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 
 	s.fillDownloadedSnap(c, w, snaps[0])
 
-	complete, err = w.Downloaded()
+	complete, err = w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -1602,7 +1644,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnlyMissingCore16(c *C) 
 	s.makeSnap(c, "classic-gadget18", "")
 	s.makeSnap(c, "required-base-core16", "developerid")
 
-	_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c))
 	c.Check(err, ErrorMatches, `cannot use "required-base-core16" requiring base "core16" without adding "core16" \(or "core"\) explicitly`)
 }
 
@@ -1645,7 +1687,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Assert(complete, Equals, false)
 
@@ -1656,7 +1698,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 
 	s.fillDownloadedSnap(c, w, snaps[0])
 
-	complete, err = w.Downloaded()
+	complete, err = w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Assert(complete, Equals, false)
 
@@ -1667,7 +1709,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 
 	s.fillDownloadedSnap(c, w, snaps[0])
 
-	complete, err = w.Downloaded()
+	complete, err = w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Assert(complete, Equals, true)
 
@@ -1765,7 +1807,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
-		if !asserts.IsNotFound(err) {
+		if !errors.Is(err, &asserts.NotFoundError{}) {
 			c.Assert(err, IsNil)
 		}
 		f, err := snapfile.Open(sn.Path)
@@ -1773,7 +1815,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
 		w.SetInfo(sn, info)
-		sn.ARefs = aRefs
+		s.aRefs[sn.SnapName()] = aRefs
 	}
 
 	err = w.InfoDerived()
@@ -1790,7 +1832,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Assert(complete, Equals, false)
 
@@ -1798,7 +1840,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 0)
 
-	complete, err = w.Downloaded()
+	complete, err = w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Assert(complete, Equals, false)
 
@@ -1809,7 +1851,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 
 	s.fillDownloadedSnap(c, w, snaps[0])
 
-	complete, err = w.Downloaded()
+	complete, err = w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Assert(complete, Equals, true)
 
@@ -1958,7 +2000,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -2153,7 +2195,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBase(c *C) {
 	s.makeSnap(c, "cont-producer", "developerid")
 
 	s.opts.Label = "20191003"
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	c.Check(err, ErrorMatches, `cannot add snap "cont-producer" without also adding its base "core18" explicitly`)
 }
 
@@ -2200,7 +2242,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseModes(c *C) {
 	s.makeSnap(c, "cont-producer", "developerid")
 
 	s.opts.Label = "20191003"
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	c.Check(err, ErrorMatches, `cannot add snap "cont-producer" without also adding its base "core18" explicitly for all relevant modes \(run, ephemeral\)`)
 }
 
@@ -2248,7 +2290,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseEphemeralOK(c *C) {
 	s.makeSnap(c, "cont-producer", "developerid")
 
 	s.opts.Label = "20191003"
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	c.Check(err, IsNil)
 }
 
@@ -2314,7 +2356,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseCoreXX(c *C) {
 			"snaps":        snaps,
 		})
 
-		_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
+		_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c))
 		if t.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -2371,7 +2413,7 @@ func (s *writerSuite) TestDownloadedCore20MissingDefaultProviderModes(c *C) {
 	s.makeSnap(c, "cont-consumer", "developerid")
 
 	s.opts.Label = "20191003"
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	c.Check(err, ErrorMatches, `cannot use snap "cont-consumer" without its default content provider "cont-producer" being added explicitly for all relevant modes \(recover\)`)
 }
 
@@ -2487,8 +2529,8 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 			c.Assert(localSnaps, HasLen, 1)
 
 			for _, sn := range localSnaps {
-				si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
-				if !asserts.IsNotFound(err) {
+				si, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
+				if !errors.Is(err, &asserts.NotFoundError{}) {
 					c.Assert(err, IsNil)
 				}
 				f, err := snapfile.Open(sn.Path)
@@ -2496,7 +2538,6 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 				info, err := snap.ReadInfoFromSnapFile(f, si)
 				c.Assert(err, IsNil)
 				w.SetInfo(sn, info)
-				sn.ARefs = aRefs
 			}
 
 			err = w.InfoDerived()
@@ -2600,7 +2641,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 
 	for _, sn := range localSnaps {
 		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
-		c.Assert(asserts.IsNotFound(err), Equals, true)
+		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
@@ -2628,7 +2669,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -2730,7 +2771,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -2840,7 +2881,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -2981,7 +3022,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 
 	for _, sn := range localSnaps {
 		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
-		c.Assert(asserts.IsNotFound(err), Equals, true)
+		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
@@ -3006,7 +3047,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, false)
 
@@ -3031,7 +3072,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	complete, err = w.Downloaded()
+	complete, err = w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -3159,7 +3200,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
 		w.SetInfo(sn, info)
-		sn.ARefs = aRefs
+		s.aRefs[sn.SnapName()] = aRefs
 	}
 
 	err = w.InfoDerived()
@@ -3179,7 +3220,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, false)
 
@@ -3187,7 +3228,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 0)
 
-	complete, err = w.Downloaded()
+	complete, err = w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -3283,7 +3324,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
 		w.SetInfo(sn, info)
-		sn.ARefs = aRefs
+		s.aRefs[sn.SnapName()] = aRefs
 	}
 
 	err = w.InfoDerived()
@@ -3303,7 +3344,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C)
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded()
+	complete, err := w.Downloaded(s.fetchAsserts(c))
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
@@ -3415,7 +3456,7 @@ func (s *writerSuite) testDownloadedCore20CheckClassic(c *C, modelGrade asserts.
 	s.makeSnap(c, "classic-snap", "developerid")
 
 	s.opts.Label = "20221125"
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
 	return err
 }
 

@@ -51,6 +51,8 @@ type ToolingStore struct {
 
 	sto StoreImpl
 	cfg *store.Config
+
+	assertMaxFormats map[string]int
 }
 
 // A StoreImpl can find metadata on snaps, download snaps and fetch assertions.
@@ -59,11 +61,14 @@ type StoreImpl interface {
 	// SnapAction queries the store for snap information for the given install/refresh actions. Orthogonally it can be used to fetch or update assertions.
 	SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, store.AssertionQuery, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error)
 
-	// Download downloads the snap addressed by download info
+	// Download downloads the snap addressed by download info.
 	Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error
 
 	// Assertion retrieves the assertion for the given type and primary key.
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
+
+	// SetAssertionMaxFormats sets the assertion max formats to send.
+	SetAssertionMaxFormats(maxFormats map[string]int)
 }
 
 func newToolingStore(arch, storeID string) (*ToolingStore, error) {
@@ -378,6 +383,17 @@ func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]str
 		return nil, err
 	}
 	return tsto.sto.Assertion(at, pk, nil)
+}
+
+// SetAssertionMaxFormats sets the assertion max formats to use with Assertion and SnapAction.
+func (tsto *ToolingStore) SetAssertionMaxFormats(maxFormats map[string]int) {
+	tsto.sto.SetAssertionMaxFormats(maxFormats)
+	tsto.assertMaxFormats = maxFormats
+}
+
+// AssertionMaxFormats returns the max formats set with SetAssertionMaxFormats or nil.
+func (tsto *ToolingStore) AssertionMaxFormats() map[string]int {
+	return tsto.assertMaxFormats
 }
 
 // MockToolingStore creates a ToolingStore that uses the provided StoreImpl

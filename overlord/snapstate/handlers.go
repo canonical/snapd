@@ -369,6 +369,13 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, deviceCtx, "")
 	if err != nil {
 		if conflErr, ok := err.(*ChangeConflictError); ok {
+			// If we aren't seeded, then it's to early to do any updates and we cannot
+			// handle this during seeding, so expect the ChangeConflictError in this scenario.
+			if conflErr.ChangeKind == "seed" {
+				t.Logf("cannot update %q during seeding, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), conflErr)
+				return nil, nil
+			}
+
 			// there's already an update for the same snap in this change,
 			// just skip this one
 			if conflErr.ChangeID == t.Change().ID() {
@@ -380,7 +387,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 
 		// don't propagate error to avoid failing the main install since the
 		// content provider is (for now) a soft dependency
-		t.Logf("failed to update %q, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), err)
+		t.Logf("cannot update %q, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), err)
 		return nil, nil
 	}
 
@@ -3699,19 +3706,28 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	updated, tasksets, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID())
+	updated, updateTss, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID())
 	if err != nil {
 		return err
 	}
 
+	var newTasks bool
 	if len(updated) == 0 {
 		t.Logf("No re-refreshes found.")
 	} else {
 		t.Logf("Found re-refresh for %s.", strutil.Quoted(updated))
 
-		for _, taskset := range tasksets {
+		for _, taskset := range updateTss.Refresh {
 			chg.AddAll(taskset)
+			newTasks = true
 		}
+	}
+
+	if createPreDownloadChange(st, updateTss) {
+		newTasks = true
+	}
+
+	if newTasks {
 		st.EnsureBefore(0)
 	}
 	t.SetStatus(state.DoneStatus)
@@ -3734,28 +3750,32 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		return nil
 	}
 
-	tss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
+	updateTss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
 	if err != nil {
 		return err
 	}
 
-	// update the map of refreshed snaps on the task, this affects
-	// conflict checks (we don't want to conflict on snaps that were held and
-	// won't be refreshed) -  see conditionalAutoRefreshAffectedSnaps().
-	newToUpdate := make(map[string]*refreshCandidate, len(snaps))
-	for _, candidate := range snaps {
-		newToUpdate[candidate.InstanceName()] = candidate
-	}
-	t.Set("snaps", newToUpdate)
+	createPreDownloadChange(st, updateTss)
 
-	// update original auto-refresh change
-	chg := t.Change()
-	for _, ts := range tss {
-		ts.WaitFor(t)
-		chg.AddAll(ts)
+	if updateTss.Refresh != nil {
+		// update the map of refreshed snaps on the task, this affects
+		// conflict checks (we don't want to conflict on snaps that were held and
+		// won't be refreshed) -  see conditionalAutoRefreshAffectedSnaps().
+		newToUpdate := make(map[string]*refreshCandidate, len(snaps))
+		for _, candidate := range snaps {
+			newToUpdate[candidate.InstanceName()] = candidate
+		}
+		t.Set("snaps", newToUpdate)
+
+		// update original auto-refresh change
+		chg := t.Change()
+		for _, ts := range updateTss.Refresh {
+			ts.WaitFor(t)
+			chg.AddAll(ts)
+		}
 	}
+
 	t.SetStatus(state.DoneStatus)
-
 	st.EnsureBefore(0)
 	return nil
 }

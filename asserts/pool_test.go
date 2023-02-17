@@ -1096,7 +1096,7 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceSameRevisionNoop(c *C
 
 	// and sequence point 3 revision 5 wasn't added to asserts database.
 	_, err = s.seq3_1111r5.Ref().Resolve(s.db.Find)
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceNewerRevisionNoop(c *C) {
@@ -1147,7 +1147,7 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceNewerRevisionNoop(c *
 
 	// and sequence point 2 revision 7 wasn't added to asserts database.
 	_, err = s.seq2_1111r7.Ref().Resolve(s.db.Find)
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (s *poolSuite) TestUpdateSeqFormingPinnedSameSequenceNewerRevision(c *C) {
@@ -1319,7 +1319,7 @@ func (s *poolSuite) TestAddSeqToUpdateNotFound(c *C) {
 		Sequence:    1,
 	}
 	err := pool.AddSequenceToUpdate(atseq, "for_one")
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 var errBoom = errors.New("boom")

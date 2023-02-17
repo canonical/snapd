@@ -37,8 +37,15 @@ var (
 	validCertOption = regexp.MustCompile(`^core\.store-certs\.` + validCertRegexp + "$").MatchString
 )
 
+// ConfGetter is an interface for reading of config values.
+type ConfGetter interface {
+	Get(snapName, key string, result interface{}) error
+	GetMaybe(snapName, key string, result interface{}) error
+	GetPristine(snapName, key string, result interface{}) error
+}
+
 // coreCfg returns the configuration value for the core snap.
-func coreCfg(tr config.ConfGetter, key string) (result string, err error) {
+func coreCfg(tr ConfGetter, key string) (result string, err error) {
 	var v interface{} = ""
 	if err := tr.Get("core", key, &v); err != nil && !config.IsNoOption(err) {
 		return "", err
@@ -53,7 +60,7 @@ func coreCfg(tr config.ConfGetter, key string) (result string, err error) {
 // The actual values are populated by `init()` functions in each module.
 var supportedConfigurations = make(map[string]bool, 32)
 
-func validateBoolFlag(tr config.ConfGetter, flag string) error {
+func validateBoolFlag(tr ConfGetter, flag string) error {
 	value, err := coreCfg(tr, flag)
 	if err != nil {
 		return err
@@ -68,10 +75,10 @@ func validateBoolFlag(tr config.ConfGetter, flag string) error {
 }
 
 // plainCoreConfig carries a read-only copy of core config and implements
-// config.ConfGetter interface.
+// ConfGetter interface.
 type plainCoreConfig map[string]interface{}
 
-// Get implements config.ConfGetter interface.
+// Get implements ConfGetter interface.
 func (cfg plainCoreConfig) Get(snapName, key string, result interface{}) error {
 	if snapName != "core" {
 		return fmt.Errorf("internal error: expected core snap in Get(), %q was requested", snapName)
@@ -87,7 +94,7 @@ func (cfg plainCoreConfig) Get(snapName, key string, result interface{}) error {
 	return nil
 }
 
-// GetPristine implements config.ConfGetter interface
+// GetPristine implements ConfGetter interface
 // for plainCoreConfig, there are no "pristine" values, so just return nothing
 // this has the effect that every setting will be viewed as "dirty" and needing
 // to be applied
@@ -95,7 +102,7 @@ func (cfg plainCoreConfig) GetPristine(snapName, key string, result interface{})
 	return nil
 }
 
-// GetMaybe implements config.ConfGetter interface.
+// GetMaybe implements ConfGetter interface.
 func (cfg plainCoreConfig) GetMaybe(instanceName, key string, result interface{}) error {
 	err := cfg.Get(instanceName, key, result)
 	if err != nil && !config.IsNoOption(err) {

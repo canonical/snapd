@@ -20,6 +20,7 @@
 package ctlcmd_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -646,7 +647,7 @@ func (s *modelSuite) TestFindSerialAssertionNone(c *C) {
 	assertstatetest.AddMany(s.state, model)
 
 	result, err := ctlcmd.FindSerialAssertion(s.state, model)
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Assert(result, IsNil)
 }
 

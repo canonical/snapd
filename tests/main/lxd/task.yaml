@@ -138,7 +138,11 @@ execute: |
 
     echo "Sanity check that mount overrides were generated inside the container"
     lxd.lxc exec my-ubuntu -- find /var/run/systemd/generator/ -name container.conf | MATCH "/var/run/systemd/generator/snap-core-.*mount.d/container.conf"
-    lxd.lxc exec my-ubuntu -- test -f /var/run/systemd/generator/snap.mount
+
+    # On older LXD, we work around / with private propagation by
+    # creating a shared /snap mount point with snapd-generator (LP#1668659).
+    # The unit does not exist in newer LXD images where root is shared.
+    lxd.lxc exec my-ubuntu -- findmnt / -o PROPAGATION --noheadings | MATCH shared || lxd.lxc exec my-ubuntu -- test -f /var/run/systemd/generator/snap.mount
 
     # Ensure that we can run lxd as a snap inside a container to create a nested
     # container

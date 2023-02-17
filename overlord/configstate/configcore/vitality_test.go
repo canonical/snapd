@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
+// +build !nomanagers
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -30,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
@@ -192,9 +193,6 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 		return nil, nil
 	})
 	s.AddCleanup(systemctlRestorer)
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.quota-groups", true)
-	tr.Commit()
 
 	// make a new quota group with this snap in it
 	err := servicestatetest.MockQuotaInState(s.state, "foogroup", "", []string{"test-snap"}, nil,

@@ -132,6 +132,7 @@ execute: |
       remote.exec "sudo mv $(basename $s) /boot/efi/EFI/$s"
   done
 
+  remote.exec "sudo sh -c 'echo SNAPD_DEBUG=1 >> /etc/environment'"
   # push our snap down
   # TODO: this abuses /var/lib/snapd to store the deb so that mk-initramfs-classic
   # can pick it up. the real installer will also need a very recent snapd
@@ -233,4 +234,12 @@ execute: |
           remote.exec "sudo cat $DM | jq '.pc.\"structure-encryption\".\"ubuntu-save\".method'" | MATCH '"LUKS"'
           remote.exec "sudo cat $DM | jq '.pc.\"structure-encryption\".\"ubuntu-data\".method'" | MATCH '"LUKS"'
       done
+
+      # check that on an already provisioned system the API will give a
+      # sensible reason why the system cannot be installed without further
+      # action.
+      remote.exec "sudo apt install -y curl"
+      remote.exec "sudo curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems/$LABEL" > system
+      jq '.result."storage-encryption".support' < system | MATCH "unavailable"
+      jq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"
   fi

@@ -20,6 +20,7 @@
 package image
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -271,6 +272,25 @@ func makeLabel(now time.Time) string {
 	return now.UTC().Format("20060102")
 }
 
+func selectAssertionMaxFormats(tsto *tooling.ToolingStore, sysSn *seedwriter.SeedSnap) error {
+	if sysSn == nil {
+		// nothing to do
+		return nil
+	}
+	snapf, err := snapfile.Open(sysSn.Path)
+	if err != nil {
+		return err
+	}
+	// XXX take also kernel into account
+	// XXX warning logic
+	maxFormats, _, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+	if err != nil {
+		return err
+	}
+	tsto.SetAssertionMaxFormats(maxFormats)
+	return nil
+}
+
 var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
@@ -384,10 +404,21 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
+	// We need to use seedwriter.DeriveSideInfo earlier than
+	// we might possibly know the system and kernel snaps to
+	// know the correct assertion max format to use.
+	// Fetch assertions tentatively into a temporary database
+	// and later either copy them or fetch more appropriate ones.
+	tmpDb := db.WithStackedBackstore(asserts.NewMemoryBackstore())
+	tmpFetcher := seedwriter.MakeRefAssertsFetcher(func(save func(asserts.Assertion) error) asserts.Fetcher {
+		return tsto.AssertionFetcher(tmpDb, save)
+	})
+
+	localARefs := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
 	var curSnaps []*tooling.CurrentSnap
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, f, db)
-		if err != nil && !asserts.IsNotFound(err) {
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tmpFetcher, tmpDb)
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return err
 		}
 
@@ -403,7 +434,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		if err := w.SetInfo(sn, info); err != nil {
 			return err
 		}
-		sn.ARefs = aRefs
+		localARefs[sn] = aRefs
 
 		if info.ID() != "" {
 			curSnaps = append(curSnaps, &tooling.CurrentSnap{
@@ -437,6 +468,60 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		if !sn.Info.Revision.Unset() {
 			imageManifest[sn.Info.SnapName()] = sn.Info.Revision
 		}
+	}
+
+	assertMaxFormatsSelected := false
+	var assertMaxFormats map[string]int
+
+	copyOrRefetchIfFormatTooNewIntoDb := func(aRefs []*asserts.Ref) error {
+		// copy or re-fetch assertions to replace if the format is too
+		// new; as the replacing is based on the primary key previous
+		// cross check on provenance will still be valid or db
+		// consistency checks will fail
+		for _, aRef := range aRefs {
+			a, err := aRef.Resolve(tmpDb.Find)
+			if err != nil {
+				return fmt.Errorf("internal error: lost saved assertion")
+			}
+			if assertMaxFormats != nil && a.Format() > assertMaxFormats[aRef.Type.Name] {
+				// format was too new, re-fetch to replace
+				if err := f.Fetch(aRef); err != nil {
+					return err
+				}
+			} else {
+				// copy
+				if err := f.Save(a); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+
+	fetchAsserts := func(sn, sysSn, kSn *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
+		if !assertMaxFormatsSelected {
+			if err := selectAssertionMaxFormats(tsto, sysSn); err != nil {
+				return nil, err
+			}
+			assertMaxFormatsSelected = true
+			assertMaxFormats = tsto.AssertionMaxFormats()
+		}
+		prev := len(f.Refs())
+		if aRefs, ok := localARefs[sn]; ok {
+			if err := copyOrRefetchIfFormatTooNewIntoDb(aRefs); err != nil {
+				return nil, err
+			}
+
+		} else {
+			// fetch snap assertions
+			if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, f, db); err != nil {
+				return nil, err
+			}
+			if !sn.Info.Revision.Unset() {
+				imageManifest[sn.Info.SnapName()] = sn.Info.Revision
+			}
+		}
+		return f.Refs()[prev:], nil
 	}
 
 	for {
@@ -480,22 +565,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 
 		for _, sn := range toDownload {
 			dlsn := downloadedSnaps[sn.SnapName()]
-
 			if err := w.SetRedirectChannel(sn, dlsn.RedirectChannel); err != nil {
 				return err
 			}
-
-			// fetch snap assertions
-			prev := len(f.Refs())
-			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, model, f, db); err != nil {
-				return err
-			}
-			if !sn.Info.Revision.Unset() {
-				imageManifest[sn.Info.SnapName()] = sn.Info.Revision
-			}
-			aRefs := f.Refs()[prev:]
-			sn.ARefs = aRefs
-
 			curSnaps = append(curSnaps, &tooling.CurrentSnap{
 				SnapName: sn.Info.SnapName(),
 				SnapID:   sn.Info.ID(),
@@ -505,7 +577,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			})
 		}
 
-		complete, err := w.Downloaded()
+		complete, err := w.Downloaded(fetchAsserts)
 		if err != nil {
 			return err
 		}

@@ -73,7 +73,7 @@ func findModel(st *state.State) (*asserts.Model, error) {
 		"brand-id": device.Brand,
 		"model":    device.Model,
 	})
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, state.ErrNoState
 	}
 	if err != nil {
@@ -102,7 +102,7 @@ func findSerial(st *state.State, device *auth.DeviceState) (*asserts.Serial, err
 		"model":    device.Model,
 		"serial":   device.Serial,
 	})
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, state.ErrNoState
 	}
 	if err != nil {
@@ -265,7 +265,7 @@ func proxyStore(st *state.State, tr *config.Transaction) (*asserts.Store, error)
 	a, err := assertstate.DB(st).Find(asserts.StoreType, map[string]string{
 		"store": proxyStore,
 	})
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, state.ErrNoState
 	}
 	if err != nil {

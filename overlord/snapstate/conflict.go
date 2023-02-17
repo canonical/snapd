@@ -157,6 +157,34 @@ func CheckChangeConflictRunExclusively(st *state.State, newChangeKind string) er
 	return checkChangeConflictExclusiveKinds(st, newChangeKind, "")
 }
 
+// isIrrelevantChange checks if a change is ready or it can be ignored
+// if matching the passed ID, for conflict checking purposes.
+func isIrrelevantChange(chg *state.Change, ignoreChangeID string) bool {
+	if chg == nil || chg.Status().Ready() {
+		return true
+	}
+	if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+		return true
+	}
+	switch chg.Kind() {
+	case "pre-download":
+		// pre-download changes only have pre-download tasks
+		// which don't generate conflicts because they only
+		// download the snap and download tasks check for them
+		// explicitly
+		fallthrough
+	case "become-operational":
+		// become-operational will be retried until success
+		// and on its own just runs a hook on gadget:
+		// do not make it interfere with user requests
+		// TODO: consider a use vs change modeling of
+		// conflicts
+		return true
+	}
+
+	return false
+}
+
 // CheckChangeConflictMany ensures that for the given instanceNames no other
 // changes that alters the snaps (like remove, install, refresh) are in
 // progress. If a conflict is detected an error is returned.
@@ -176,18 +204,7 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 
 	for _, task := range st.Tasks() {
 		chg := task.Change()
-		if chg == nil || chg.Status().Ready() {
-			continue
-		}
-		if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
-			continue
-		}
-		if chg.Kind() == "become-operational" {
-			// become-operational will be retried until success
-			// and on its own just runs a hook on gadget:
-			// do not make it interfere with user requests
-			// TODO: consider a use vs change modeling of
-			// conflicts
+		if isIrrelevantChange(chg, ignoreChangeID) {
 			continue
 		}
 
@@ -238,6 +255,40 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 		// TODO: implement the rather-boring-but-more-performant SnapState.Equals
 		if !reflect.DeepEqual(snapst, &cursnapst) {
 			return &ChangeConflictError{Snap: instanceName}
+		}
+	}
+
+	return nil
+}
+
+// CheckUpdateKernelCommandLineConflict checks that no active change other
+// than ignoreChangeID has a task that touches the kernel command
+// line.
+func CheckUpdateKernelCommandLineConflict(st *state.State, ignoreChangeID string) error {
+	// check whether there are other changes that need to run exclusively
+	if err := checkChangeConflictExclusiveKinds(st, "", ignoreChangeID); err != nil {
+		return err
+	}
+
+	for _, task := range st.Tasks() {
+		chg := task.Change()
+		if isIrrelevantChange(chg, ignoreChangeID) {
+			continue
+		}
+
+		switch task.Kind() {
+		case "update-gadget-cmdline":
+			return &ChangeConflictError{
+				Message:    "kernel command line already being updated, no additional changes for it allowed meanwhile",
+				ChangeKind: task.Kind(),
+				ChangeID:   chg.ID(),
+			}
+		case "update-managed-boot-config":
+			return &ChangeConflictError{
+				Message:    "boot config is being updated, no change in kernel commnd line is allowed meanwhile",
+				ChangeKind: task.Kind(),
+				ChangeID:   chg.ID(),
+			}
 		}
 	}
 

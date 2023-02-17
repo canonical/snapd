@@ -314,6 +314,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		return recoverySystemDir, err
 	}
 
+	localARefs := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
 	for _, sn := range localSnaps {
 		info, ok := modelSnaps[sn.Path]
 		if !ok {
@@ -325,7 +326,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// better way
 		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, f, db)
 		if err != nil {
-			if !asserts.IsNotFound(err) {
+			if !errors.Is(err, &asserts.NotFoundError{}) {
 				return recoverySystemDir, err
 			} else if info.SnapID != "" {
 				// snap info from state must have come
@@ -337,11 +338,15 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		if err := w.SetInfo(sn, info); err != nil {
 			return recoverySystemDir, err
 		}
-		sn.ARefs = aRefs
+		localARefs[sn] = aRefs
 	}
 
 	if err := w.InfoDerived(); err != nil {
 		return recoverySystemDir, err
+	}
+
+	retrieveAsserts := func(sn, _, _ *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
+		return localARefs[sn], nil
 	}
 
 	for {
@@ -360,7 +365,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 			return recoverySystemDir, fmt.Errorf("internal error: need to download snaps: %v", strings.Join(which, ", "))
 		}
 
-		complete, err := w.Downloaded()
+		complete, err := w.Downloaded(retrieveAsserts)
 		if err != nil {
 			return recoverySystemDir, err
 		}

@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
+// +build !nosecboot
 
 /*
  * Copyright (C) 2022 Canonical Ltd
@@ -39,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/mkfs"
+	"github.com/snapcore/snapd/secboot"
 )
 
 func waitForDevice() string {
@@ -150,7 +153,7 @@ func maybeCreatePartitionTable(bootDevice, schema string) error {
 	return nil
 }
 
-func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]gadget.OnDiskStructure, error) {
+func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encType secboot.EncryptionType) ([]gadget.OnDiskStructure, error) {
 	// TODO: support multiple volumes, see gadget/install/install.go
 	if len(volumes) != 1 {
 		return nil, fmt.Errorf("got unexpected number of volumes %v", len(volumes))
@@ -173,6 +176,7 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]g
 
 	layoutOpts := &gadget.LayoutOptions{
 		IgnoreContent: true,
+		EncType:       encType,
 	}
 
 	lvol, err := gadget.LayoutVolume(vol, layoutOpts)
@@ -425,14 +429,18 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	if err != nil {
 		return err
 	}
-	// TODO: grow the data-partition based on disk size
-	laidoutStructs, err := createPartitions(bootDevice, details.Volumes)
-	if err != nil {
-		return fmt.Errorf("cannot setup partitions: %v", err)
-	}
 	shouldEncrypt, err := detectStorageEncryption(seedLabel)
 	if err != nil {
 		return err
+	}
+	// TODO: grow the data-partition based on disk size
+	encType := secboot.EncryptionTypeNone
+	if shouldEncrypt {
+		encType = secboot.EncryptionTypeLUKS
+	}
+	laidoutStructs, err := createPartitions(bootDevice, details.Volumes, encType)
+	if err != nil {
+		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
 	var encryptedDevices = make(map[string]string)
 	if shouldEncrypt {

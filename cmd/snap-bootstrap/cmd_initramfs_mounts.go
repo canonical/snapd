@@ -1317,6 +1317,45 @@ var waitFile = func(path string, wait time.Duration, n int) error {
 	return fmt.Errorf("no %v after waiting for %v", path, time.Duration(n)*wait)
 }
 
+// TODO: those have to be waited by udev instead
+func waitForDevice(path string) error {
+	if !osutil.FileExists(filepath.Join(dirs.GlobalRootDir, path)) {
+		pollWait := 50 * time.Millisecond
+		pollIterations := 1200
+		logger.Noticef("waiting up to %v for %v to appear", time.Duration(pollIterations)*pollWait, path)
+		if err := waitFile(filepath.Join(dirs.GlobalRootDir, path), pollWait, pollIterations); err != nil {
+			return fmt.Errorf("cannot find device: %v", err)
+		}
+	}
+	return nil
+}
+
+func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
+	values, err := osutil.KernelCommandLineKeyValues("snapd_system_disk")
+	if err != nil {
+		return "", err
+	}
+	if value, ok := values["snapd_system_disk"]; ok {
+		if err := waitForDevice(value); err != nil {
+			return "", err
+		}
+		systemdDisk, err := disks.DiskFromDeviceName(value)
+		if err != nil {
+			systemdDiskDevicePath, errDevicePath := disks.DiskFromDevicePath(value)
+			if errDevicePath != nil {
+				return "", fmt.Errorf("%q can neither be used as a device nor as a block: %v; %v", value, errDevicePath, err)
+			}
+			systemdDisk = systemdDiskDevicePath
+		}
+		partition, err := systemdDisk.FindMatchingPartitionWithFsLabel(fallbacklabel)
+		if err != nil {
+			return "", err
+		}
+		return partition.KernelDeviceNode, nil
+	}
+	return filepath.Join("/dev/disk/by-label", fallbacklabel), nil
+}
+
 // mountNonDataPartitionMatchingKernelDisk will select the partition to mount at
 // dir, using the boot package function FindPartitionUUIDForBootedKernelDisk to
 // determine what partition the booted kernel came from. If which disk the
@@ -1324,24 +1363,23 @@ var waitFile = func(path string, wait time.Duration, n int) error {
 // the specified disk label.
 func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
-	// TODO: the by-partuuid is only available on gpt disks, on mbr we need
-	//       to use by-uuid or by-id
-	partSrc := filepath.Join("/dev/disk/by-partuuid", partuuid)
-	if err != nil {
-		// no luck, try mounting by label instead
-		partSrc = filepath.Join("/dev/disk/by-label", fallbacklabel)
+	var partSrc string
+	if err == nil {
+		// TODO: the by-partuuid is only available on gpt disks, on mbr we need
+		//       to use by-uuid or by-id
+		partSrc = filepath.Join("/dev/disk/by-partuuid", partuuid)
+	} else {
+		partSrc, err = getNonUEFISystemDisk(fallbacklabel)
+		if err != nil {
+			return err
+		}
 	}
 
 	// The partition uuid is read from the EFI variables. At this point
 	// the kernel may not have initialized the storage HW yet so poll
 	// here.
-	if !osutil.FileExists(filepath.Join(dirs.GlobalRootDir, partSrc)) {
-		pollWait := 50 * time.Millisecond
-		pollIterations := 1200
-		logger.Noticef("waiting up to %v for %v to appear", time.Duration(pollIterations)*pollWait, partSrc)
-		if err := waitFile(filepath.Join(dirs.GlobalRootDir, partSrc), pollWait, pollIterations); err != nil {
-			return fmt.Errorf("cannot mount source: %v", err)
-		}
+	if err := waitForDevice(partSrc); err != nil {
+		return err
 	}
 
 	opts := &systemdMountOptions{

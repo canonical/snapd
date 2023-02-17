@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -86,7 +85,7 @@ func updateWatchdogConfig(config map[string]uint, opts *fsOnlyContext) error {
 	return nil
 }
 
-func handleWatchdogConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleWatchdogConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	config := map[string]uint{}
 
 	for _, key := range []string{"runtime-timeout", "shutdown-timeout"} {
@@ -129,7 +128,7 @@ func getSystemdConfSeconds(timeStr string) (uint, error) {
 	return uint(dur.Seconds()), nil
 }
 
-func validateWatchdogOptions(tr config.ConfGetter) error {
+func validateWatchdogOptions(tr ConfGetter) error {
 	for _, key := range []string{"runtime-timeout", "shutdown-timeout"} {
 		option, err := coreCfg(tr, "watchdog."+key)
 		if err != nil {

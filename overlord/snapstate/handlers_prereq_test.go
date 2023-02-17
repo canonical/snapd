@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -79,6 +80,10 @@ func (s *prereqSuite) SetUpTest(c *C) {
 		return nil, nil
 	})
 	s.AddCleanup(restore)
+
+	s.AddCleanup(osutil.MockMountInfo(``))
+
+	s.AddCleanup(snapstate.MockEnsuredMountsUpdated(s.snapmgr, true))
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
@@ -731,4 +736,94 @@ func (s *prereqSuite) TestDoPrereqSnapdNoRevision(c *C) {
 	defer s.state.Unlock()
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install system snap "snapd": no snap revision available as specified\)`)
+}
+
+func (s *prereqSuite) TestPreReqContentAttrsNotSatisfied(c *C) {
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	s.AddCleanup(func() { snapstate.AutoAliases = nil })
+
+	st := s.state
+	st.Lock()
+
+	// mock the snap which is the default-provider
+	mockInstalledSnap(c, st, `name: some-snap`, false)
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel:            "beta",
+		Base:               "core",
+		PrereqContentAttrs: map[string][]string{"some-snap": {"this-does-not-match"}},
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+
+	// As we are not seeding, expect no messages being logged for the task. Instead
+	// the update should have added a lot of tasks, so the resulting change should
+	// contain the update for some-snap.
+	c.Check(chg.Err(), IsNil)
+	c.Check(len(chg.Tasks()) > 1, Equals, true)
+
+	// Expect the initial prerequisites task to have completed
+	c.Check(chg.Tasks()[0].Kind(), Equals, "prerequisites")
+	c.Check(chg.Tasks()[0].Status(), Equals, state.DoneStatus)
+	c.Check(chg.Tasks()[0].Log(), HasLen, 0)
+}
+
+func (s *prereqSuite) TestPreReqContentAttrsNotSatisfiedSeeding(c *C) {
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	s.AddCleanup(func() { snapstate.AutoAliases = nil })
+
+	// mock that we are not seeded
+	r := snapstatetest.MockDeviceModelAndMode(DefaultModel(), "install")
+	defer r()
+
+	st := s.state
+	st.Lock()
+	st.Set("seeded", false)
+
+	// mock the snap which is the default-provider
+	mockInstalledSnap(c, st, `name: some-snap`, false)
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel:            "beta",
+		Base:               "core",
+		PrereqContentAttrs: map[string][]string{"some-snap": {"this-does-not-match"}},
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+
+	// We expect the change to complete without error, even if updating a snap is not
+	// allowed during seeding. Instead what we expect, is a task log message noting that
+	// updating the snap was not allowed due to the seeding stage.
+	c.Check(chg.Err(), IsNil)
+	c.Assert(chg.Tasks(), HasLen, 1)
+	c.Assert(chg.Tasks()[0].Log(), HasLen, 1)
+	c.Check(chg.Tasks()[0].Log()[0], testutil.Contains, `cannot update "some-snap" during seeding, will not have required content "this-does-not-match": too early for operation, device not yet seeded or device model not acknowledged`)
 }

@@ -59,7 +59,7 @@ func validateHostname(hostname string) error {
 	return nil
 }
 
-func handleHostnameConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleHostnameConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	hostname, err := coreCfg(tr, "system.hostname")
 	if err != nil {
 		return nil
