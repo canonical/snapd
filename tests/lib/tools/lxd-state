@@ -8,9 +8,14 @@ show_help() {
 prepare_snap(){    
     echo "lxd-state: installing lxd snap"
     snap install lxd --channel="$LXD_SNAP_CHANNEL"
+
     if tests.pkgs is-installed lxd; then
-        echo "lxd-state: remove any installed pkgs (some images carry them) to ensure we use the snap"
-        tests.pkgs remove lxd lxd-client
+        echo "lxd-state: remove the lxd pkg (some images carry them) to ensure we use the snap"
+        tests.pkgs remove lxd
+    fi
+    if tests.pkgs is-installed lxd-client; then
+        echo "lxd-state: remove the lxd-client pkg (some images carry them) to ensure we use the snap"
+        tests.pkgs remove lxd-client
     fi
 
     echo "lxd-state: initializing lxd"
