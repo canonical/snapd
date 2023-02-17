@@ -218,10 +218,6 @@ execute: |
 
     unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
 
-    # TODO:apparmor-vendoring
-    # remove this "exit 0" once apparmor-vendoring is ready
-    exit 0
-
     echo "Ensure we have apparmor_parser"
     unsquashfs -ll snapd_spread-test.snap | MATCH usr/lib/snapd/apparmor_parser
 
