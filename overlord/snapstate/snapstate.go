@@ -499,8 +499,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		addTask(gadgetUpdate)
 		prev = gadgetUpdate
 	}
+	// kernel command line from gadget is for core boot systems only
 	if isCoreBoot && snapsup.Type == snap.TypeGadget {
-		// kernel command line from gadget is for core boot systems only
+		// make sure no other active changes are changing the kernel command line
+		if err := CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
+			return nil, err
+		}
 		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(gadgetCmdline)
 		prev = gadgetCmdline
@@ -538,6 +542,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	prev = setupAliases
 
 	if isCoreBoot && snapsup.Type == snap.TypeSnapd {
+		// make sure no other active changes are changing the kernel command line
+		if err := CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
+			return nil, err
+		}
 		// only run for core devices and the snapd snap, run late enough
 		// so that the task is executed by the new snapd
 		bootConfigUpdate := st.NewTask("update-managed-boot-config", fmt.Sprintf(i18n.G("Update managed boot config assets from %q%s"), snapsup.InstanceName(), revisionStr))
@@ -2930,6 +2938,11 @@ func SwitchToNewGadget(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
+	// make sure no other active changes are changing the kernel command line
+	if err := CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
+		return nil, err
+	}
+
 	info, err := snapst.CurrentInfo()
 	if err != nil {
 		return nil, err
@@ -2974,6 +2987,12 @@ func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet) (*state.TaskSet, e
 	if snapSetupTask == nil {
 		return nil, fmt.Errorf("internal error: cannot identify task with snap-setup")
 	}
+
+	// make sure no other active changes are changing the kernel command line
+	if err := CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
+		return nil, err
+	}
+
 	gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapsup.Revision()))
 	gadgetUpdate.Set("snap-setup-task", snapSetupTask.ID())
 	// wait for the last task in existing set
