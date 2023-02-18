@@ -41,6 +41,8 @@ type (
 	ByType              = byType
 	DirMigrationOptions = dirMigrationOptions
 	Migration           = migration
+
+	ReRefreshSetup = reRefreshSetup
 )
 
 const (
@@ -240,7 +242,7 @@ var (
 
 type UpdateFilter = updateFilter
 
-func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, []*RevisionOptions, int, UpdateFilter, *Flags, string) ([]string, []*state.TaskSet, error)) (restore func()) {
+func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, []*RevisionOptions, int, UpdateFilter, *Flags, string) ([]string, *UpdateTaskSets, error)) (restore func()) {
 	old := reRefreshUpdateMany
 	reRefreshUpdateMany = f
 	return func() {
@@ -323,6 +325,7 @@ var (
 )
 
 type RefreshCandidate = refreshCandidate
+type TimedBusySnapError = timedBusySnapError
 
 func NewBusySnapError(info *snap.Info, pids []int, busyAppNames, busyHookNames []string) *BusySnapError {
 	return &BusySnapError{
@@ -333,10 +336,10 @@ func NewBusySnapError(info *snap.Info, pids []int, busyAppNames, busyHookNames [
 	}
 }
 
-func MockGenericRefreshCheck(fn func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error) (restore func()) {
-	old := genericRefreshCheck
-	genericRefreshCheck = fn
-	return func() { genericRefreshCheck = old }
+func MockRefreshAppsCheck(fn func(info *snap.Info) error) (restore func()) {
+	old := refreshAppsCheck
+	refreshAppsCheck = fn
+	return func() { refreshAppsCheck = old }
 }
 
 func (m *autoRefresh) EnsureRefreshHoldAtLeast(d time.Duration) error {
@@ -363,6 +366,7 @@ var (
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1
 	RefreshRetain              = refreshRetain
+	RefreshCheck               = refreshAppsCheck
 
 	ExcludeFromRefreshAppAwareness = excludeFromRefreshAppAwareness
 )

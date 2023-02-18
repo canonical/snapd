@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
+// +build !nomanagers
 
 /*
  * Copyright (C) 2021 Canonical Ltd
@@ -304,11 +306,12 @@ func (s *netplanSuite) TestNetplanWriteConfigSetReturnsFalse(c *C) {
 	s.backend.ConfigApiCancelRet = true
 
 	s.state.Lock()
-	tr := config.NewTransaction(s.state)
-	s.state.Unlock()
-	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 
-	err := configcore.Run(coreDev, tr)
+	s.state.Unlock()
+	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+
+	err := configcore.Run(coreDev, rt)
 	c.Assert(err, ErrorMatches, "cannot set netplan config: no specific reason returned from netplan")
 }
 
@@ -319,11 +322,11 @@ func (s *netplanSuite) TestNetplanWriteConfigSetFailsDBusErr(c *C) {
 	s.backend.ConfigApiSetErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
 
 	s.state.Lock()
-	tr := config.NewTransaction(s.state)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
-	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 
-	err := configcore.Run(coreDev, tr)
+	err := configcore.Run(coreDev, rt)
 	c.Assert(err, ErrorMatches, "cannot set netplan config: netplan failed with some error")
 }
 
@@ -334,11 +337,11 @@ func (s *netplanSuite) TestNetplanWriteConfigTryReturnsFalse(c *C) {
 	s.backend.ConfigApiCancelRet = true
 
 	s.state.Lock()
-	tr := config.NewTransaction(s.state)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
-	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 
-	err := configcore.Run(coreDev, tr)
+	err := configcore.Run(coreDev, rt)
 	c.Assert(err, ErrorMatches, "cannot try netplan config: no specific reason returned from netplan")
 }
 
@@ -349,11 +352,11 @@ func (s *netplanSuite) TestNetplanWriteConfigTryFailsDBusErr(c *C) {
 	s.backend.ConfigApiCancelRet = true
 
 	s.state.Lock()
-	tr := config.NewTransaction(s.state)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
-	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 
-	err := configcore.Run(coreDev, tr)
+	err := configcore.Run(coreDev, rt)
 	c.Assert(err, ErrorMatches, "cannot try netplan config: netplan failed with some error")
 }
 
@@ -380,12 +383,12 @@ func (s *netplanSuite) testNetplanWriteConfigHappy(c *C, seeded bool, expectedOr
 	s.backend.ConfigApiApplyRet = true
 
 	s.state.Lock()
-	tr := config.NewTransaction(s.state)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
-	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
-	tr.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
+	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+	rt.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
 
-	err := configcore.Run(coreDev, tr)
+	err := configcore.Run(coreDev, rt)
 	c.Assert(err, IsNil)
 
 	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
@@ -408,12 +411,12 @@ func (s *netplanSuite) TestNetplanApplyConfigFails(c *C) {
 	s.backend.ConfigApiApplyRet = false
 
 	s.state.Lock()
-	tr := config.NewTransaction(s.state)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
-	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
-	tr.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
+	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+	rt.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
 
-	err := configcore.Run(coreDev, tr)
+	err := configcore.Run(coreDev, rt)
 	c.Assert(err, ErrorMatches, "cannot apply netplan config: no specific reason returned from netplan")
 }
 
@@ -429,12 +432,12 @@ func (s *netplanSuite) TestNetplanApplyConfigErr(c *C) {
 	s.backend.ConfigApiApplyErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
 
 	s.state.Lock()
-	tr := config.NewTransaction(s.state)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
-	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
-	tr.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
+	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+	rt.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
 
-	err := configcore.Run(coreDev, tr)
+	err := configcore.Run(coreDev, rt)
 	c.Assert(err, ErrorMatches, "cannot apply netplan config: netplan failed with some error")
 }
 
@@ -458,11 +461,11 @@ func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
 	s.backend.ConfigApiCancelRet = true
 
 	s.state.Lock()
-	tr := config.NewTransaction(s.state)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
-	tr.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
+	rt.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
 
-	err := configcore.Run(coreDev, tr)
+	err := configcore.Run(coreDev, rt)
 	c.Assert(err, ErrorMatches, `cannot set netplan config: store no longer reachable`)
 
 	c.Check(s.backend.ConfigApiTryCalls, Equals, 1)
@@ -489,11 +492,11 @@ func (s *netplanSuite) TestNetplanWriteConfigCancelFails(c *C) {
 	s.backend.ConfigApiCancelRet = false
 
 	s.state.Lock()
-	tr := config.NewTransaction(s.state)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
-	tr.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
+	rt.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
 
-	err := configcore.Run(coreDev, tr)
+	err := configcore.Run(coreDev, rt)
 	c.Assert(err, ErrorMatches, `cannot set netplan config: store no longer reachable and cannot cancel netplan config: no specific reason returned from netplan`)
 }
 
@@ -515,11 +518,11 @@ func (s *netplanSuite) TestNetplanWriteConfigCancelFailsWithDbusErr(c *C) {
 	s.backend.ConfigApiCancelErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
 
 	s.state.Lock()
-	tr := config.NewTransaction(s.state)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
-	tr.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
+	rt.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
 
-	err := configcore.Run(coreDev, tr)
+	err := configcore.Run(coreDev, rt)
 	c.Assert(err, ErrorMatches, `cannot set netplan config: store no longer reachable and cannot cancel netplan config: netplan failed with some error`)
 }
 
@@ -544,11 +547,11 @@ network:
 	// we cannot use mockConf because we need the external config
 	// integration from the config.Transaction
 	s.state.Lock()
-	tr := config.NewTransaction(s.state)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
-	tr.Set("core", "system.network.netplan.network.bridges.br54.dhcp4", nil)
+	rt.Set("core", "system.network.netplan.network.bridges.br54.dhcp4", nil)
 
-	err := configcore.Run(coreDev, tr)
+	err := configcore.Run(coreDev, rt)
 	c.Assert(err, IsNil)
 
 	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{

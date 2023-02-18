@@ -416,7 +416,7 @@ nested_is_generic_image() {
 }
 
 nested_get_extra_snaps_path() {
-    echo "${PWD}/extra-snaps"
+    echo "/tmp/extra-snaps"
 }
 
 nested_get_assets_path() {
@@ -564,14 +564,14 @@ nested_prepare_kernel() {
                     epochBumpTime="--epoch-bump-time=$epochBumpTime"
                 fi
 
-                uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                rm -f "$PWD/pc-kernel.snap"
+                uc20_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
+                rm -f "pc-kernel.snap" "pc-kernel.assert"
 
                 # Prepare the pc kernel snap
                 kernel_snap=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
                 chmod 0600 "$kernel_snap"
             fi
-            cp "$kernel_snap" "$NESTED_ASSETS_DIR/$output_name"
+            mv "$kernel_snap" "$NESTED_ASSETS_DIR/$output_name"
         fi
         cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
 
@@ -653,7 +653,7 @@ EOF
 
             gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
             cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
-            rm -f "$PWD/pc.snap" "$snakeoil_key" "$snakeoil_cert"
+            rm -f "pc.snap" "pc.assert" "$snakeoil_key" "$snakeoil_cert"
         fi
         # sign the pc gadget snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
@@ -696,8 +696,9 @@ nested_prepare_base() {
             echo "Repacking $snap_name snap"
             snap download --channel="$CORE_CHANNEL" --basename="$snap_name" "$snap_name"
             repack_core_snap_with_tweaks "${snap_name}.snap" "new-${snap_name}.snap"
+            rm -f "$snap_name".snap "$snap_name".assert
 
-            cp "new-${snap_name}.snap" "$NESTED_ASSETS_DIR/$output_name"
+            mv "new-${snap_name}.snap" "$NESTED_ASSETS_DIR/$output_name"
         fi
         cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
 

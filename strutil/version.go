@@ -145,9 +145,10 @@ func compareSubversion(va, vb string) int {
 // VersionCompare compare two version strings that follow the debian
 // version policy and
 // Returns:
-//   -1 if a is smaller than b
-//    0 if a equals b
-//   +1 if a is bigger than b
+//
+//	-1 if a is smaller than b
+//	 0 if a equals b
+//	+1 if a is bigger than b
 func VersionCompare(va, vb string) (res int, err error) {
 	// FIXME: return err here instead
 	if !versionIsValid(va) {

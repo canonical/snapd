@@ -48,7 +48,7 @@ func (s *faillockSuite) SetUpTest(c *C) {
 }
 
 func (s *faillockSuite) TestFaillockSetTrue(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"users.lockout": "true"},
 	})
@@ -57,7 +57,7 @@ func (s *faillockSuite) TestFaillockSetTrue(c *C) {
 }
 
 func (s *faillockSuite) TestFaillockSetFalse(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"users.lockout": "false"},
 	})
@@ -69,7 +69,7 @@ func (s *faillockSuite) TestFaillockSetFalseReset(c *C) {
 	err := ioutil.WriteFile(s.markerPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = configcore.Run(coreDev, &mockConf{
+	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"users.lockout": "false"},
 	})
@@ -78,7 +78,7 @@ func (s *faillockSuite) TestFaillockSetFalseReset(c *C) {
 }
 
 func (s *faillockSuite) TestFaillockHandlesErrors(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"users.lockout": "invalid-value"},
 	})
@@ -89,7 +89,7 @@ func (s *faillockSuite) TestFaillockUnsetChangeNothing(c *C) {
 	err := ioutil.WriteFile(s.markerPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = configcore.Run(coreDev, &mockConf{
+	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"users.lockout": ""},
 	})

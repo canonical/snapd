@@ -133,6 +133,11 @@ var u2fDevices = []u2fDevice{
 		ProductIDPattern: "60fc",
 	},
 	{
+		Name:             "Thetis U2F BT Fido2 Key",
+		VendorIDPattern:  "1ea8",
+		ProductIDPattern: "fc25",
+	},
+	{
 		Name:             "MIRKey",
 		VendorIDPattern:  "0483",
 		ProductIDPattern: "a2ac",

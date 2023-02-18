@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -150,7 +151,7 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 	_, err := db.Find(AccountType, map[string]string{
 		"account-id": ak.AccountID(),
 	})
-	if IsNotFound(err) {
+	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("account-key assertion for %q does not have a matching account assertion", ak.AccountID())
 	}
 	if err != nil {
@@ -167,7 +168,7 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 			"account-id": ak.AccountID(),
 			"name":       ak.Name(),
 		})
-		if err != nil && !IsNotFound(err) {
+		if err != nil && !errors.Is(err, &NotFoundError{}) {
 			return err
 		}
 		for _, assertion := range assertions {
@@ -265,7 +266,7 @@ func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) 
 	_, err := db.Find(AccountType, map[string]string{
 		"account-id": akr.AccountID(),
 	})
-	if IsNotFound(err) {
+	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("account-key-request assertion for %q does not have a matching account assertion", akr.AccountID())
 	}
 	if err != nil {

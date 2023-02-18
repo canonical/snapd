@@ -58,6 +58,10 @@ ensure_jq() {
     elif os.query is-core22; then
         snap install --devmode --edge jq-core22
         snap alias jq-core22.jq jq
+    elif os.query is-core24; then
+        # TODO: publish jq-core24
+        snap install --devmode --edge jq-core22
+        snap alias jq-core22.jq jq
     else
         snap install --devmode jq
     fi
@@ -735,28 +739,33 @@ EOF
         # current host, this should work for most cases, since the image will be
         # running on the same host
         # TODO:UC20: enable when ready
-        exit 0
 
-        # drop unnecessary modules
-        awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
-        #shellcheck disable=SC2044
-        for m in $(find modules/ -name '*.ko'); do
-            noko=$(basename "$m"); noko="${noko%.ko}"
-            if echo "$noko" | grep -f /tmp/mods -q ; then
-                echo "keeping $m - $noko"
-            else
-                rm -f "$m"
-            fi
-        done
+        # To avoid shellcheck unused code warning, we cannot use "exit 0" to disable
+        # the module drop code. To avoid commented out code, we use a flag instead.
+        # Strip off the check when this UC20 code is enabled.
+        uc20Ready=false
 
-        #shellcheck disable=SC2010
-        kver=$(ls "config"-* | grep -Po 'config-\K.*')
+        if [ "$uc20Ready" = "true" ]; then
+            # drop unnecessary modules
+            awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
+            #shellcheck disable=SC2044
+            for m in $(find modules/ -name '*.ko'); do
+                noko=$(basename "$m"); noko="${noko%.ko}"
+                if echo "$noko" | grep -f /tmp/mods -q ; then
+                    echo "keeping $m - $noko"
+                else
+                    rm -f "$m"
+                fi
+            done
+            #shellcheck disable=SC2010
+            kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
-        # depmod assumes that /lib/modules/$kver is under basepath
-        mkdir -p fake/lib
-        ln -s "$PWD/modules" fake/lib/modules
-        depmod -b "$PWD/fake" -A -v "$kver"
-        rm -rf fake
+            # depmod assumes that /lib/modules/$kver is under basepath
+            mkdir -p fake/lib
+            ln -s "$PWD/modules" fake/lib/modules
+            depmod -b "$PWD/fake" -A -v "$kver"
+            rm -rf fake
+        fi
     )
 
     # copy any extra files that tests may need for the kernel
@@ -1354,6 +1363,9 @@ prepare_ubuntu_core() {
             rsync_snap="test-snapd-rsync-core20"
         elif os.query is-core22; then
             rsync_snap="test-snapd-rsync-core22"
+        elif os.query is-core24; then
+            # TODO: publish test-snapd-rsync-core24
+            rsync_snap="test-snapd-rsync-core22"
         fi
         snap install --devmode --edge "$rsync_snap"
         snap alias "$rsync_snap".rsync rsync
@@ -1365,7 +1377,7 @@ prepare_ubuntu_core() {
 
     echo "Ensure the core snap is cached"
     # Cache snaps
-    if os.query is-core18 || os.query is-core20 || os.query is-core22; then
+    if os.query is-core18 || os.query is-core20 || os.query is-core22 || os.query is-core24; then
         if snap list core >& /dev/null; then
             echo "core snap on core18 should not be installed yet"
             snap list

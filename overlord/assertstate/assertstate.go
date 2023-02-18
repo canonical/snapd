@@ -49,7 +49,7 @@ func AddBatch(s *state.State, batch *asserts.Batch, opts *asserts.CommitOptions)
 }
 
 func findError(format string, ref *asserts.Ref, err error) error {
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return fmt.Errorf(format, ref)
 	} else {
 		return fmt.Errorf(format+": %v", ref, err)
@@ -111,7 +111,7 @@ func RefreshSnapDeclarations(s *state.State, userID int, opts *RefreshAssertions
 		// fetch store assertion if available
 		if modelAs.Store() != "" {
 			err := snapasserts.FetchStore(f, modelAs.Store())
-			if err != nil && !asserts.IsNotFound(err) {
+			if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 				return err
 			}
 		}
@@ -562,7 +562,7 @@ func validationSetAssertionForMonitor(st *state.State, accountID, name string, s
 		// find latest
 		vs, err = db.FindSequence(asserts.ValidationSetType, headers, -1, -1)
 	}
-	if err != nil && !asserts.IsNotFound(err) {
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, false, err
 	}
 	if err == nil {
@@ -601,7 +601,7 @@ func validationSetAssertionForMonitor(st *state.State, accountID, name string, s
 	if err := resolvePoolNoFallback(st, pool, nil, userID, deviceCtx, refreshOpts); err != nil {
 		rerr, ok := err.(*resolvePoolError)
 		if ok && as != nil && opts.AllowLocalFallback {
-			if e := rerr.errors[atSeq.Unique()]; asserts.IsNotFound(e) {
+			if e := rerr.errors[atSeq.Unique()]; errors.Is(e, &asserts.NotFoundError{}) {
 				// fallback: support the scenario of local assertion (snap ack)
 				// not available in the store.
 				return as, true, nil
@@ -712,7 +712,7 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 			return vs, nil
 		}
 	} else {
-		if !asserts.IsNotFound(err) {
+		if !errors.Is(err, &asserts.NotFoundError{}) {
 			return nil, err
 		}
 
@@ -807,7 +807,7 @@ func TryEnforcedValidationSets(st *state.State, validationSets []string, userID 
 				return err
 			}
 		} else {
-			if !asserts.IsNotFound(err) {
+			if !errors.Is(err, &asserts.NotFoundError{}) {
 				return err
 			}
 			// try to resolve with pool

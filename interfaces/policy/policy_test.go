@@ -2490,39 +2490,44 @@ func (s *policySuite) TestNameConstraintsAutoConnection(c *C) {
 // makes it easy to verify correctness of a related set of patterns
 //
 // Eg, if base decl has:
-//   slots:
-//     system-files:
-//       allow-installation:
-//         slot-snap-type:
-//           - core
-//   plugs:
-//     system-files:
-//       allow-installation: false
+//
+//	slots:
+//	  system-files:
+//	    allow-installation:
+//	      slot-snap-type:
+//	        - core
+//	plugs:
+//	  system-files:
+//	    allow-installation: false
 //
 // then test snap decls of the form:
-//   plugs:
-//     system-files:
-//       allow-installation:
-//         plug-attributes:
-//           write: ...
-// or:
-//   plugs:
-//     system-files:
-//       allow-installation:
-//         -
-//           plug-attributes:
-//             write: ...
-// or:
-//   plugs:
-//     system-files:
-//       allow-installation:
-//         -
-//           plug-attributes:
-//             write: ...
-//         -
-//           plug-attributes:
-//             write: ...
 //
+//	plugs:
+//	  system-files:
+//	    allow-installation:
+//	      plug-attributes:
+//	        write: ...
+//
+// or:
+//
+//	plugs:
+//	  system-files:
+//	    allow-installation:
+//	      -
+//	        plug-attributes:
+//	          write: ...
+//
+// or:
+//
+//	plugs:
+//	  system-files:
+//	    allow-installation:
+//	      -
+//	        plug-attributes:
+//	          write: ...
+//	      -
+//	        plug-attributes:
+//	          write: ...
 func (s *policySuite) TestSnapDeclListAttribWithBaseAllowInstallationFalse(c *C) {
 	baseDeclStr := `type: base-declaration
 authority-id: canonical

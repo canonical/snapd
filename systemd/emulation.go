@@ -22,12 +22,10 @@ package systemd
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -90,7 +88,7 @@ func (s *emulation) Restart(services []string) error {
 	return nil
 }
 
-func (s *emulation) ReloadOrRestart(service string) error {
+func (s *emulation) ReloadOrRestart(services []string) error {
 	return &notImplementedError{"ReloadOrRestart"}
 }
 
@@ -126,7 +124,7 @@ func (s *emulation) LogReader(services []string, n int, follow, namespaces bool)
 	return nil, fmt.Errorf("LogReader")
 }
 
-func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
+func (s *emulation) EnsureMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
 	if osutil.IsDirectory(what) {
 		return "", fmt.Errorf("bind-mounted directory is not supported in emulation mode")
 	}
@@ -136,7 +134,7 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 	// This means that when preseeding in a lxd container, the snap will be
 	// mounted with fuse, but mount unit will use squashfs.
 	mountUnitOptions := append(fsMountOptions(fstype), squashfs.StandardOptions()...)
-	mountUnitName, err := writeMountUnitFile(&MountUnitOptions{
+	mountUnitName, modified, err := ensureMountUnitFile(&MountUnitOptions{
 		Lifetime: Persistent,
 		SnapName: snapName,
 		Revision: revision,
@@ -149,42 +147,28 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		return "", err
 	}
 
+	if modified == mountUnchanged {
+		return mountUnitName, nil
+	}
+
 	hostFsType, actualOptions := hostFsTypeAndMountOptions(fstype)
+	if modified == mountUpdated {
+		actualOptions = append(actualOptions, "remount")
+	}
 	cmd := exec.Command("mount", "-t", hostFsType, what, where, "-o", strings.Join(actualOptions, ","))
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("cannot mount %s (%s) at %s in preseed mode: %s; %s", what, hostFsType, where, err, string(out))
 	}
 
-	// Cannot call systemd, so manually enable the unit by
-	// symlinking into the targets' .wants directories.
-	// snapd.mounts.target is the proper target to install mounts.
-	// However, in order to handle preseeding of old images with old
-	// version of snapd, we also need to add the unit to
-	// multi-user.target
-	targets := []string{
-		"snapd.mounts.target",
-		"multi-user.target",
-	}
-
-	mu := MountUnitPath(where)
-
-	for _, target := range targets {
-		targetWantsDir := filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s.wants", target))
-		if err := os.MkdirAll(targetWantsDir, 0755); err != nil {
-			return "", err
-		}
-
-		enableUnitPath := filepath.Join(targetWantsDir, mountUnitName)
-		if err := os.Symlink(mu, enableUnitPath); err != nil {
-			return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
-		}
+	if err := s.EnableNoReload([]string{mountUnitName}); err != nil {
+		return "", err
 	}
 
 	return mountUnitName, nil
 }
 
-func (s *emulation) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
-	return "", &notImplementedError{"AddMountUnitFileWithOptions"}
+func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
+	return "", &notImplementedError{"EnsureMountUnitFileWithOptions"}
 }
 
 func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
@@ -204,30 +188,8 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 		}
 	}
 
-	// `systemctl disable` removes all symlinks, so we should do the same
-	units, err := ioutil.ReadDir(dirs.SnapServicesDir)
-	if err != nil {
+	if err := s.DisableNoReload([]string{filepath.Base(unit)}); err != nil {
 		return err
-	}
-	for _, target := range units {
-		if !target.IsDir() {
-			continue
-		}
-		if !strings.HasSuffix(target.Name(), ".wants") && !strings.HasSuffix(target.Name(), ".requires") {
-			continue
-		}
-		dir := filepath.Join(dirs.SnapServicesDir, target.Name())
-		enableUnitPathSymlink := filepath.Join(dir, filepath.Base(unit))
-		err := os.Remove(enableUnitPathSymlink)
-		if err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		if err := os.Remove(dir); err != nil {
-			pathErr, ok := err.(*os.PathError)
-			if !ok || pathErr.Err != syscall.ENOTEMPTY {
-				return err
-			}
-		}
 	}
 
 	if err := os.Remove(unit); err != nil {

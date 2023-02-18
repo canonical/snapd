@@ -266,11 +266,11 @@ type mockWriteObserver struct {
 	content         map[string][]*mockContentChange
 	preserveTargets []string
 	observeErr      error
-	expectedStruct  *gadget.LaidOutStructure
+	expectedRole    string
 	c               *C
 }
 
-func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
+func (m *mockWriteObserver) Observe(op gadget.ContentOperation, partRole,
 	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	if m.c == nil {
 		panic("c is unset")
@@ -291,8 +291,7 @@ func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *ga
 	m.content[targetRootDir] = append(m.content[targetRootDir],
 		&mockContentChange{path: relativeTargetPath, change: data})
 
-	m.c.Assert(sourceStruct, NotNil)
-	m.c.Check(m.expectedStruct, DeepEquals, sourceStruct)
+	m.c.Check(m.expectedRole, Equals, partRole)
 
 	if strutil.ListContains(m.preserveTargets, relativeTargetPath) {
 		return gadget.ChangeIgnore, nil
@@ -355,8 +354,8 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 	outDir := c.MkDir()
 
 	obs := &mockWriteObserver{
-		c:              c,
-		expectedStruct: ps,
+		c:            c,
+		expectedRole: ps.Role(),
 	}
 	rw, err := gadget.NewMountedFilesystemWriter(ps, obs)
 	c.Assert(err, IsNil)
@@ -724,8 +723,8 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserveWithObserver(c *C)
 	}
 
 	obs := &mockWriteObserver{
-		c:              c,
-		expectedStruct: ps,
+		c:            c,
+		expectedRole: ps.Role(),
 		preserveTargets: []string{
 			"foo",
 			"foo-new",
@@ -914,7 +913,7 @@ type mockContentUpdateObserver struct {
 	contentRollback map[string][]*mockContentChange
 	preserveTargets []string
 	observeErr      error
-	expectedStruct  *gadget.LaidOutStructure
+	expectedRole    string
 	c               *C
 }
 
@@ -923,7 +922,7 @@ func (m *mockContentUpdateObserver) reset() {
 	m.contentRollback = nil
 }
 
-func (m *mockContentUpdateObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
+func (m *mockContentUpdateObserver) Observe(op gadget.ContentOperation, partRole,
 	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	if m.c == nil {
 		panic("c is unset")
@@ -957,8 +956,7 @@ func (m *mockContentUpdateObserver) Observe(op gadget.ContentOperation, sourceSt
 		m.c.Fatalf("unexpected observe operation %v", op)
 	}
 
-	m.c.Assert(sourceStruct, NotNil)
-	m.c.Check(m.expectedStruct, DeepEquals, sourceStruct)
+	m.c.Check(m.expectedRole, Equals, partRole)
 
 	if m.observeErr != nil {
 		return gadget.ChangeAbort, m.observeErr
@@ -1025,8 +1023,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 	s.mustResolveVolumeContent(c, ps)
 
 	muo := &mockContentUpdateObserver{
-		c:              c,
-		expectedStruct: ps,
+		c:            c,
+		expectedRole: ps.Role(),
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -1123,9 +1121,9 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterObserverErr(c *C) {
 
 	outDir := c.MkDir()
 	obs := &mockWriteObserver{
-		c:              c,
-		observeErr:     errors.New("observe fail"),
-		expectedStruct: ps,
+		c:            c,
+		observeErr:   errors.New("observe fail"),
+		expectedRole: ps.Role(),
 	}
 	rw, err := gadget.NewMountedFilesystemWriter(ps, obs)
 	c.Assert(err, IsNil)
@@ -1683,8 +1681,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 	s.mustResolveVolumeContent(c, ps)
 
 	muo := &mockContentUpdateObserver{
-		c:              c,
-		expectedStruct: ps,
+		c:            c,
+		expectedRole: ps.Role(),
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -2171,8 +2169,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) 
 	s.mustResolveVolumeContent(c, ps)
 
 	muo := &mockContentUpdateObserver{
-		c:              c,
-		expectedStruct: ps,
+		c:            c,
+		expectedRole: ps.Role(),
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -2239,8 +2237,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipSame(c *C) {
 	s.mustResolveVolumeContent(c, ps)
 
 	muo := &mockContentUpdateObserver{
-		c:              c,
-		expectedStruct: ps,
+		c:            c,
+		expectedRole: ps.Role(),
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -2293,8 +2291,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipPreserved(c *
 	s.mustResolveVolumeContent(c, ps)
 
 	muo := &mockContentUpdateObserver{
-		c:              c,
-		expectedStruct: ps,
+		c:            c,
+		expectedRole: ps.Role(),
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -2352,8 +2350,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNewFiles(c *C) {
 	s.mustResolveVolumeContent(c, ps)
 
 	muo := &mockContentUpdateObserver{
-		c:              c,
-		expectedStruct: ps,
+		c:            c,
+		expectedRole: ps.Role(),
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -2487,8 +2485,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNotWritten(c *C) 
 	s.mustResolveVolumeContent(c, ps)
 
 	muo := &mockContentUpdateObserver{
-		c:              c,
-		expectedStruct: ps,
+		c:            c,
+		expectedRole: ps.Role(),
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -2571,8 +2569,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 	s.mustResolveVolumeContent(c, ps)
 
 	muo := &mockContentUpdateObserver{
-		c:              c,
-		expectedStruct: ps,
+		c:            c,
+		expectedRole: ps.Role(),
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -2750,8 +2748,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	s.mustResolveVolumeContent(c, ps)
 
 	muo := &mockContentUpdateObserver{
-		c:              c,
-		expectedStruct: ps,
+		c:            c,
+		expectedRole: ps.Role(),
 		preserveTargets: []string{
 			"preserved/same-content-for-observer",
 		},
@@ -3121,7 +3119,7 @@ managed grub.cfg from disk`
 
 	obs := &mockContentUpdateObserver{
 		c:               c,
-		expectedStruct:  ps,
+		expectedRole:    ps.Role(),
 		preserveTargets: []string{"EFI/ubuntu/grub.cfg"},
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(ps, s.backup,
@@ -3206,7 +3204,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveNewFile(c
 
 	obs := &mockContentUpdateObserver{
 		c:               c,
-		expectedStruct:  psForObserver,
+		expectedRole:    psForObserver.Role(),
 		preserveTargets: []string{"foo"},
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(psForObserver, s.backup,
@@ -3265,7 +3263,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveExistingF
 
 	obs := &mockContentUpdateObserver{
 		c:               c,
-		expectedStruct:  psForObserver,
+		expectedRole:    psForObserver.Role(),
 		preserveTargets: []string{"foo"},
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(psForObserver, s.backup,

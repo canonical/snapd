@@ -52,7 +52,7 @@ func (s *timezoneSuite) TestConfigureTimezoneInvalid(c *C) {
 	}
 
 	for _, tz := range invalidTimezones {
-		err := configcore.Run(coreDev, &mockConf{
+		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"system.timezone": tz,
@@ -73,7 +73,7 @@ func (s *timezoneSuite) TestConfigureTimezoneIntegration(c *C) {
 	}
 
 	for _, tz := range validTimezones {
-		err := configcore.Run(coreDev, &mockConf{
+		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"system.timezone": tz,

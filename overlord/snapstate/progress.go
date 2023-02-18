@@ -43,7 +43,7 @@ func NewTaskProgressAdapterUnlocked(t *state.Task) progress.Meter {
 	return &taskProgressAdapter{task: t, unlocked: true}
 }
 
-// NewTaskProgressAdapterUnlocked creates an adapter of the task into a progress.Meter to use while the state is locked
+// NewTaskProgressAdapterLocked creates an adapter of the task into a progress.Meter to use while the state is locked
 func NewTaskProgressAdapterLocked(t *state.Task) progress.Meter {
 	return &taskProgressAdapter{task: t, unlocked: false}
 }

@@ -82,10 +82,11 @@ var posixMQDefaultPlugPermissions = []string{
 }
 
 // Ensure that the name matches the criteria from the mq_overview man page:
-//   Each message queue is identified by a name of the form /somename;
-//   that is, a null-terminated string of up to NAME_MAX (i.e., 255)
-//   characters consisting of an initial slash, followed by one or more
-//   characters, none of which are slashes.
+//
+//	Each message queue is identified by a name of the form /somename;
+//	that is, a null-terminated string of up to NAME_MAX (i.e., 255)
+//	characters consisting of an initial slash, followed by one or more
+//	characters, none of which are slashes.
 var posixMQNamePattern = regexp.MustCompile(`^/[^/]{1,255}$`)
 
 type posixMQInterface struct {

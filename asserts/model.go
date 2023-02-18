@@ -380,9 +380,9 @@ var validStorageSafeties = []string{string(StorageSafetyEncrypted), string(Stora
 var validModelGrades = []string{string(ModelSecured), string(ModelSigned), string(ModelDangerous)}
 
 // gradeToCode encodes grades into 32 bits, trying to be slightly future-proof:
-// * lower 16 bits are reserved
-// * in the higher bits use the sequence 1, 8, 16 to have some space
-//   to possibly add new grades in between
+//   - lower 16 bits are reserved
+//   - in the higher bits use the sequence 1, 8, 16 to have some space
+//     to possibly add new grades in between
 var gradeToCode = map[ModelGrade]uint32{
 	ModelGradeUnset: 0,
 	ModelDangerous:  0x10000,

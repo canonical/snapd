@@ -14,7 +14,7 @@ execute: |
   if [ "$VERSION" -eq 16 ]; then
       CHANNEL=latest
   fi
-  rm -rf pc-kernel
+
   snap download --basename=pc-kernel --channel="$CHANNEL/edge" pc-kernel
   unsquashfs -d pc-kernel pc-kernel.snap
   HOOKS_D=pc-kernel/meta/hooks/

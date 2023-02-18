@@ -570,11 +570,11 @@ type FatalError struct {
 // Certain assumptions are made about the plan, it must closely resemble that
 // created by planWritableMimic, in particular the sequence must look like this:
 //
-// - bind a directory aside into safekeeping location
-// - cover the original with tmpfs
-// - bind mount something from safekeeping location to an empty file or
-//   directory in the tmpfs; this step can repeat any number of times
-// - unbind the safekeeping location
+//   - bind a directory aside into safekeeping location
+//   - cover the original with tmpfs
+//   - bind mount something from safekeeping location to an empty file or
+//     directory in the tmpfs; this step can repeat any number of times
+//   - unbind the safekeeping location
 //
 // Apart from merely executing the plan a fake plan is returned for undo. The
 // undo plan skips the following elements as compared to the original plan:

@@ -337,7 +337,7 @@ func MockBootEnsureNextBootToRunMode(f func(systemLabel string) error) (restore 
 	}
 }
 
-func MockSecbootCheckTPMKeySealingSupported(f func() error) (restore func()) {
+func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionMode) error) (restore func()) {
 	old := secbootCheckTPMKeySealingSupported
 	secbootCheckTPMKeySealingSupported = f
 	return func() {
@@ -443,12 +443,12 @@ func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]
 	return mgr.runFDESetupHook(req)
 }
 
-func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (secboot.EncryptionType, error) {
-	return mgr.checkEncryption(st, deviceCtx)
+func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext, mode secboot.TPMProvisionMode) (secboot.EncryptionType, error) {
+	return mgr.checkEncryption(st, deviceCtx, mode)
 }
 
-func DeviceManagerEncryptionSupportInfo(mgr *DeviceManager, model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
-	return mgr.encryptionSupportInfo(model, kernelInfo, gadgetInfo)
+func DeviceManagerEncryptionSupportInfo(mgr *DeviceManager, model *asserts.Model, mode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
+	return mgr.encryptionSupportInfo(model, mode, kernelInfo, gadgetInfo)
 }
 
 func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) (secboot.EncryptionType, error) {

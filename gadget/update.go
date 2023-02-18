@@ -93,7 +93,9 @@ const (
 type ContentObserver interface {
 	// Observe is called to observe an pending or completed action, related
 	// to content being written, updated or being rolled back. In each of
-	// the scenarios, the target path is relative under the root.
+	// the scenarios, the target path is relative under the root. The role
+	// of the affected partition is needed as different assets are tracked
+	// depending on whether this is a boot or a seed partition.
 	//
 	// For a file write or update, the source path points to the content
 	// that will be written. When called during rollback, observe call
@@ -105,8 +107,7 @@ type ContentObserver interface {
 	// ContentWrite operation, returning ChangeIgnore indicates that the
 	// change shall be ignored. ChangeAbort is expected to be returned along
 	// with a non-nil error.
-	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
-		targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeAction, error)
+	Observe(op ContentOperation, partRole, targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeAction, error)
 }
 
 // ContentUpdateObserver allows for observing update (and potentially a
@@ -823,7 +824,7 @@ func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, laidOutVols map[st
 		// here it is okay that we require there to be either a partition label
 		// or a filesystem label since we require there to be a system-boot role
 		// on this volume which by definition must have a filesystem
-		structureDevice, err := FindDeviceForStructure(&vs)
+		structureDevice, err := FindDeviceForStructure(vs.VolumeStructure)
 		if err == ErrDeviceNotFound {
 			continue
 		}
@@ -1150,27 +1151,26 @@ func volumeStructureToLocationMapImpl(old GadgetData, mod Model, laidOutVols map
 // rollback directory. Should the apply step fail, the modified data is
 // recovered.
 //
-//
 // The rules for gadget/kernel updates with "$kernel:refs":
 //
-// 1. When installing a kernel with assets that have "update: true"
-//    there *must* be a matching entry in gadget.yaml. If not we risk
-//    bricking the system because the kernel tells us that it *needs*
-//    this file to boot but without gadget.yaml we would not put it
-//    anywhere.
-// 2. When installing a gadget with "$kernel:ref" content it is okay
-//    if this content cannot get resolved as long as there is no
-//    "edition" jump. This means adding new "$kernel:ref" without
-//    "edition" updates is always possible.
+//  1. When installing a kernel with assets that have "update: true"
+//     there *must* be a matching entry in gadget.yaml. If not we risk
+//     bricking the system because the kernel tells us that it *needs*
+//     this file to boot but without gadget.yaml we would not put it
+//     anywhere.
+//  2. When installing a gadget with "$kernel:ref" content it is okay
+//     if this content cannot get resolved as long as there is no
+//     "edition" jump. This means adding new "$kernel:ref" without
+//     "edition" updates is always possible.
 //
 // To add a new "$kernel:ref" to gadget/kernel:
-// a. Update gadget and gadget.yaml and add "$kernel:ref" but do not
-//    update edition (if edition update is needed, use epoch)
+// a. Update gadget and gadget.yaml and add "$kernel:ref" but do not update
+// edition (if edition update is needed, use epoch)
 // b. Update kernel and kernel.yaml with new assets.
-// c. snapd will refresh gadget (see rule 2) but refuse to take the
-//    new kernel (rule 1)
-// d. After step (c) is completed the kernel refresh will now also
-//    work (no more violation of rule 1)
+// c. snapd will refresh gadget (see rule 2) but refuse to take the	new
+// kernel (rule 1)
+// d. After step (c) is completed the kernel refresh will now also work (no more
+// violation of rule 1)
 func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
 	// if the volumes from the old and the new gadgets do not match, then fail -
 	// we don't support adding or removing volumes from the gadget.yaml

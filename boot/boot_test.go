@@ -5302,3 +5302,35 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextCurrentKernelSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename()})
 }
+
+func (s *bootenv20Suite) TestMarkBootSuccessfulClassModes(c *C) {
+	// MarkBootSuccessful on classic+modes will not have a "base"
+	// in the modeenv
+	m := &boot.Modeenv{
+		Mode:           "run",
+		CurrentKernels: []string{s.kern1.Filename()},
+	}
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	classicWithModesDev := boottest.MockClassicWithModesDevice("", nil)
+	c.Assert(classicWithModesDev.HasModeenv(), Equals, true)
+
+	// mark successful
+	err := boot.MarkBootSuccessful(classicWithModesDev)
+	c.Assert(err, IsNil)
+
+	// no error, modeenv is unchanged
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m2.Base, Equals, "")
+	c.Check(m2.TryBase, Equals, "")
+}

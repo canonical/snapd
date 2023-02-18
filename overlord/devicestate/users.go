@@ -204,7 +204,7 @@ var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.ROData
 	}
 
 	assertions, err := assertDb.FindMany(asserts.SystemUserType, headers)
-	if err != nil && !asserts.IsNotFound(err) {
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, &UserError{Err: fmt.Errorf("cannot find system-user assertion: %s", err)}
 	}
 

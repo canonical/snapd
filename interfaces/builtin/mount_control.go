@@ -157,9 +157,13 @@ type mountControlInterface struct {
 // The "what" and "where" attributes end up in the AppArmor profile, surrounded
 // by double quotes; to ensure that a malicious snap cannot inject arbitrary
 // rules by specifying something like
-//   where: $SNAP_DATA/foo", /** rw, #
+//
+//	where: $SNAP_DATA/foo", /** rw, #
+//
 // which would generate a profile line like:
-//   mount options=() "$SNAP_DATA/foo", /** rw, #"
+//
+//	mount options=() "$SNAP_DATA/foo", /** rw, #"
+//
 // (which would grant read-write access to the whole filesystem), it's enough
 // to exclude the `"` character: without it, whatever is written in the
 // attribute will not be able to escape being treated like a pattern.
@@ -184,7 +188,8 @@ var (
 
 // Excluding spaces and other characters which might allow constructing a
 // malicious string like
-//   auto) options=() /malicious/content /var/lib/snapd/hostfs/...,\n mount fstype=(
+//
+//	auto) options=() /malicious/content /var/lib/snapd/hostfs/...,\n mount fstype=(
 var typeRegexp = regexp.MustCompile(`^[a-z0-9]+$`)
 
 type MountInfo struct {

@@ -36,31 +36,31 @@ type systemUsername struct {
 // 'external' (currently snapd only supports 'scope: shared') with the
 // following characteristics:
 //
-// - uid and gid shall match for the specified system-username
-// - a snapd-allocated [ug]id for a user/group name shall never change
-// - snapd should avoid [ug]ids that are known to overlap with uid ranges of
-//   common use cases and user namespace container managers so that DAC and
-//   AppArmor owner match work as intended.
-// - [ug]id shall be < 2^31 to avoid (at least) broken devpts kernel code
-// - [ug]id shall be >= 524288 (0x00080000) to give plenty of room for large
-//   sites, default uid/gid ranges for docker (231072-296608), LXD installs
-//   that setup a default /etc/sub{uid,gid} (100000-165536) and podman whose
-//   tutorials reference setting up a specific default user and range
-//   (100000-165536)
-// - [ug]id shall be < 1,000,000 and > 1,001,000,000 (ie, 1,000,000 subordinate
-//   uid with 1,000,000,000 range) to avoid overlapping with LXD's minimum and
-//   maximum id ranges. LXD allows for any id range >= 65536 and doesn't
-//   perform any [ug]id overlap detection with current users
-// - [ug]ids assigned by snapd initially will fall within a 65536 (2^16) range
-//   (see below) where the first [ug]id in the range has the 16 lower bits all
-//   set to zero. This allows snapd to conveniently be bitwise aligned, follows
-//   sensible conventions (see https://systemd.io/UIDS-GIDS.html) but also
-//   potentially discoverable by systemd-nspawn (it assigns a different 65536
-//   range to each container. Its allocation algorithm is not sequential and
-//   may choose anything within its range that isn't already allocated. It's
-//   detection algorithm includes (effectively) performing a getpwent()
-//   operation on CANDIDATE_UID & 0XFFFF0000 and selecting another range if it
-//   is assigned).
+//   - uid and gid shall match for the specified system-username
+//   - a snapd-allocated [ug]id for a user/group name shall never change
+//   - snapd should avoid [ug]ids that are known to overlap with uid ranges of
+//     common use cases and user namespace container managers so that DAC and
+//     AppArmor owner match work as intended.
+//   - [ug]id shall be < 2^31 to avoid (at least) broken devpts kernel code
+//   - [ug]id shall be >= 524288 (0x00080000) to give plenty of room for large
+//     sites, default uid/gid ranges for docker (231072-296608), LXD installs
+//     that setup a default /etc/sub{uid,gid} (100000-165536) and podman whose
+//     tutorials reference setting up a specific default user and range
+//     (100000-165536)
+//   - [ug]id shall be < 1,000,000 and > 1,001,000,000 (ie, 1,000,000 subordinate
+//     uid with 1,000,000,000 range) to avoid overlapping with LXD's minimum and
+//     maximum id ranges. LXD allows for any id range >= 65536 and doesn't
+//     perform any [ug]id overlap detection with current users
+//   - [ug]ids assigned by snapd initially will fall within a 65536 (2^16) range
+//     (see below) where the first [ug]id in the range has the 16 lower bits all
+//     set to zero. This allows snapd to conveniently be bitwise aligned, follows
+//     sensible conventions (see https://systemd.io/UIDS-GIDS.html) but also
+//     potentially discoverable by systemd-nspawn (it assigns a different 65536
+//     range to each container. Its allocation algorithm is not sequential and
+//     may choose anything within its range that isn't already allocated. It's
+//     detection algorithm includes (effectively) performing a getpwent()
+//     operation on CANDIDATE_UID & 0XFFFF0000 and selecting another range if it
+//     is assigned).
 //
 // What [ug]id range(s) should snapd use?
 //
@@ -94,21 +94,21 @@ type systemUsername struct {
 // Looking at the LSB and distribution defaults for login.defs, we can observe
 // uids and gids in the system's initial 65536 range (ie, 0-65536):
 //
-// - 0-99        LSB-suggested statically assigned range (eg, root, daemon,
-//               etc)
-// - 0           mandatory 'root' user
-// - 100-499     LSB-suggested dynamically assigned range for system users
-//               (distributions often prefer a higher range, see below)
-// - 500-999     typical distribution default for dynamically assigned range
-//               for system users (some distributions use a smaller
-//               SYS_[GU]ID_MIN)
-// - 1000-60000  typical distribution default for dynamically assigned range
-//               for regular users
-// - 65535 (-1)  should not be assigned since '-1' might be evaluated as this
-//               with set[ug]id* and chown families of functions
-// - 65534 (-2)  nobody/nogroup user for NFS/etc [ug]id anonymous squashing
-// - 65519-65533 systemd recommended reserved range for site-local anonymous
-//               additions, etc
+//   - 0-99        LSB-suggested statically assigned range (eg, root, daemon,
+//     etc)
+//   - 0           mandatory 'root' user
+//   - 100-499     LSB-suggested dynamically assigned range for system users
+//     (distributions often prefer a higher range, see below)
+//   - 500-999     typical distribution default for dynamically assigned range
+//     for system users (some distributions use a smaller
+//     SYS_[GU]ID_MIN)
+//   - 1000-60000  typical distribution default for dynamically assigned range
+//     for regular users
+//   - 65535 (-1)  should not be assigned since '-1' might be evaluated as this
+//     with set[ug]id* and chown families of functions
+//   - 65534 (-2)  nobody/nogroup user for NFS/etc [ug]id anonymous squashing
+//   - 65519-65533 systemd recommended reserved range for site-local anonymous
+//     additions, etc
 //
 // To facilitate potential future use cases within the 65536 range snapd will
 // assign from, snapd will only assign from the following subset of ranges

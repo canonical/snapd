@@ -169,8 +169,8 @@ func newAspect(dir *Directory, name string, aspectPatterns []map[string]string) 
 }
 
 // validateNamePathPair checks that:
-//     * names and paths are composed of valid subkeys (see: validateAspectString)
-//     * all placeholders in a name are in the path and vice-versa
+//   - names and paths are composed of valid subkeys (see: validateAspectString)
+//   - all placeholders in a name are in the path and vice-versa
 func validateNamePathPair(name, path string) error {
 	if err := validateAspectDottedPath(name); err != nil {
 		return fmt.Errorf("invalid access name %q: %w", name, err)
@@ -202,10 +202,10 @@ var (
 )
 
 // validateAspectDottedPath validates that names/paths in an aspect definition are:
-//     * composed of non-empty, dot-separated subkeys with optional placeholders ("foo.{bar}")
-//     * non-placeholder subkeys are made up of lowercase alphanumeric ASCII characters,
-//			optionally with dashes between alphanumeric characters (e.g., "a-b-c")
-//     * placeholder subkeys are composed of non-placeholder subkeys wrapped in curly brackets
+//   - composed of non-empty, dot-separated subkeys with optional placeholders ("foo.{bar}")
+//   - non-placeholder subkeys are made up of lowercase alphanumeric ASCII characters,
+//     optionally with dashes between alphanumeric characters (e.g., "a-b-c")
+//   - placeholder subkeys are composed of non-placeholder subkeys wrapped in curly brackets
 func validateAspectDottedPath(path string) (err error) {
 	subkeys := strings.Split(path, ".")
 

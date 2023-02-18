@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
+	"github.com/snapcore/snapd/secboot"
 )
 
 // LayoutOptions defines the options to layout a given volume.
@@ -44,6 +45,8 @@ type LayoutOptions struct {
 
 	GadgetRootDir string
 	KernelRootDir string
+
+	EncType secboot.EncryptionType
 }
 
 // NonMBRStartOffset is the minimum start offset of the first non-MBR structure
@@ -60,8 +63,6 @@ type LaidOutVolume struct {
 	// LaidOutStructure is a list of structures within the volume, sorted
 	// by their start offsets
 	LaidOutStructure []LaidOutStructure
-	// RootDir is the root directory for volume data
-	RootDir string
 }
 
 // PartiallyLaidOutVolume defines the layout of volume structures, but lacks the
@@ -73,13 +74,13 @@ type PartiallyLaidOutVolume struct {
 	LaidOutStructure []LaidOutStructure
 }
 
-// LaidOutStructure describes a VolumeStructure that has been placed within the
-// volume
+// LaidOutStructure describes a VolumeStructure coming from the gadget plus the
+// OnDiskStructure that describes how it would be applied to a given disk and
+// additional content used when writing/updating data in the structure.
 type LaidOutStructure struct {
+	OnDiskStructure
+	// VolumeStructure is the volume structure defined in gadget.yaml
 	VolumeStructure *VolumeStructure
-	// StartOffset defines the start offset of the structure within the
-	// enclosing volume
-	StartOffset quantity.Offset
 	// AbsoluteOffsetWrite is the resolved absolute position of offset-write
 	// for this structure element within the enclosing volume
 	AbsoluteOffsetWrite *quantity.Offset
@@ -157,8 +158,8 @@ func (b byStartOffset) Less(i, j int) bool { return b[i].StartOffset < b[j].Star
 // LaidOutContent describes raw content that has been placed within the
 // encompassing structure and volume
 //
-// TODO: this can't have "$kernel:" refs at this point, fail in validate
-//       for bare structures with "$kernel:" refs
+// TODO: this can't have "$kernel:" refs at this point, fail in validate for
+// bare structures with "$kernel:" refs
 type LaidOutContent struct {
 	*VolumeContent
 
@@ -193,42 +194,35 @@ type ResolvedContent struct {
 }
 
 func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
-	previousEnd := quantity.Offset(0)
 	structures = make([]LaidOutStructure, len(volume.Structure))
 	byName = make(map[string]*LaidOutStructure, len(volume.Structure))
 
-	for idx, s := range volume.Structure {
-		var start quantity.Offset
-		if s.Offset == nil {
-			if s.Role != schemaMBR && previousEnd < NonMBRStartOffset {
-				start = NonMBRStartOffset
-			} else {
-				start = previousEnd
-			}
-		} else {
-			start = *s.Offset
-		}
-
-		end := start + quantity.Offset(s.Size)
+	for idx := range volume.Structure {
 		ps := LaidOutStructure{
 			VolumeStructure: &volume.Structure[idx],
-			StartOffset:     start,
 			YamlIndex:       idx,
 		}
 
 		if ps.Name() != "" {
 			byName[ps.Name()] = &ps
 		}
+		// Fill the parts of OnDiskStructure that do not depend on the disk
+		// or on whether we are encrypting or not.
+		// TODO Eventually fill everything here by passing all needed info
+		ps.OnDiskStructure = OnDiskStructure{
+			Name:        ps.VolumeStructure.Name,
+			Type:        ps.VolumeStructure.Type,
+			StartOffset: *volume.Structure[idx].Offset,
+			Size:        ps.VolumeStructure.Size,
+		}
 
 		structures[idx] = ps
-
-		previousEnd = end
 	}
 
 	// sort by starting offset
 	sort.Sort(byStartOffset(structures))
 
-	previousEnd = quantity.Offset(0)
+	previousEnd := quantity.Offset(0)
 	for idx, ps := range structures {
 		if ps.StartOffset < previousEnd {
 			return nil, nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
@@ -257,6 +251,20 @@ func LayoutVolumePartially(volume *Volume) (*PartiallyLaidOutVolume, error) {
 		LaidOutStructure: structures,
 	}
 	return vol, nil
+}
+
+func setOnDiskLabelAndTypeInLaidOuts(los []LaidOutStructure, encType secboot.EncryptionType) {
+	for i := range los {
+		los[i].PartitionFSLabel = los[i].Label()
+		los[i].PartitionFSType = los[i].Filesystem()
+		if encType != secboot.EncryptionTypeNone {
+			switch los[i].Role() {
+			case SystemData, SystemSave:
+				los[i].PartitionFSLabel += "-enc"
+				los[i].PartitionFSType = "crypto_LUKS"
+			}
+		}
+	}
 }
 
 // LayoutVolume attempts to completely lay out the volume, that is the
@@ -299,6 +307,10 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 			farthestEnd = end
 		}
 
+		// Set appropriately label and type details
+		// TODO: set this in layoutVolumeStructures in the future.
+		setOnDiskLabelAndTypeInLaidOuts(structures, opts.EncType)
+
 		// Lay out raw content. This can be skipped when only partition
 		// creation is needed and is safe because each volume structure
 		// has a size so even without the structure content the layout
@@ -335,7 +347,6 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		Volume:           volume,
 		Size:             volumeSize,
 		LaidOutStructure: structures,
-		RootDir:          opts.GadgetRootDir,
 	}
 	return vol, nil
 }

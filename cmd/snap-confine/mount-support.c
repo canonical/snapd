@@ -345,7 +345,7 @@ static void sc_replicate_base_rootfs(const char *scratch_dir,
 		die("cannot change ownership on \"%s\"", scratch_dir);
 	}
 
-	int rootfs_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	int rootfs_fd = -1;
 	// Note that the rootfs here is a path like /snap/<snap>/current, which is
 	// always a symbolic link. Therefore, we cannot use O_NOFOLLOW here.
 	rootfs_fd = open(rootfs_dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
@@ -353,6 +353,7 @@ static void sc_replicate_base_rootfs(const char *scratch_dir,
 		die("cannot open directory \"%s\"", rootfs_dir);
 	}
 
+	// rootfs_fd is now managed by fdopendir() and should not be used after
 	DIR *rootfs SC_CLEANUP(sc_cleanup_closedir) = fdopendir(rootfs_fd);
 	if (rootfs == NULL) {
 		die("cannot open directory \"%s\" from file descriptor", rootfs_dir);

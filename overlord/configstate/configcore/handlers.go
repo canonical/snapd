@@ -22,13 +22,12 @@ package configcore
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
 type configHandler interface {
-	validate(config.ConfGetter) error
-	handle(sysconfig.Device, config.ConfGetter, *fsOnlyContext) error
+	validate(ConfGetter) error
+	handle(sysconfig.Device, ConfGetter, *fsOnlyContext) error
 	needsState() bool
 	flags() flags
 }
@@ -50,8 +49,8 @@ type flags struct {
 }
 
 type fsOnlyHandler struct {
-	validateFunc func(config.ConfGetter) error
-	handleFunc   func(sysconfig.Device, config.ConfGetter, *fsOnlyContext) error
+	validateFunc func(ConfGetter) error
+	handleFunc   func(sysconfig.Device, ConfGetter, *fsOnlyContext) error
 	configFlags  flags
 }
 
@@ -119,7 +118,7 @@ func init() {
 // addFSOnlyHandler registers functions to validate and handle a subset of
 // system config options that do not require to manipulate state but only
 // the file system.
-func addFSOnlyHandler(validate func(config.ConfGetter) error, handle func(sysconfig.Device, config.ConfGetter, *fsOnlyContext) error, flags *flags) {
+func addFSOnlyHandler(validate func(ConfGetter) error, handle func(sysconfig.Device, ConfGetter, *fsOnlyContext) error, flags *flags) {
 	if handle == nil {
 		panic("cannot have nil handle with fsOnlyHandler")
 	}
@@ -141,14 +140,14 @@ func (h *fsOnlyHandler) flags() flags {
 	return h.configFlags
 }
 
-func (h *fsOnlyHandler) validate(cfg config.ConfGetter) error {
+func (h *fsOnlyHandler) validate(cfg ConfGetter) error {
 	if h.validateFunc != nil {
 		return h.validateFunc(cfg)
 	}
 	return nil
 }
 
-func (h *fsOnlyHandler) handle(dev sysconfig.Device, cfg config.ConfGetter, opts *fsOnlyContext) error {
+func (h *fsOnlyHandler) handle(dev sysconfig.Device, cfg ConfGetter, opts *fsOnlyContext) error {
 	// handleFunc is guaranteed to be non-nil by addFSOnlyHandler
 	return h.handleFunc(dev, cfg, opts)
 }
@@ -164,10 +163,13 @@ func filesystemOnlyApply(dev sysconfig.Device, rootDir string, values map[string
 	}
 
 	cfg := plainCoreConfig(values)
-
 	ctx := &fsOnlyContext{
 		RootDir: rootDir,
 	}
+	return filesystemOnlyRun(dev, cfg, ctx)
+}
+
+func filesystemOnlyRun(dev sysconfig.Device, cfg ConfGetter, ctx *fsOnlyContext) error {
 	for _, h := range handlers {
 		if h.needsState() {
 			continue

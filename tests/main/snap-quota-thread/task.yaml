@@ -18,8 +18,6 @@ systems:
 prepare: |
   snap install test-snapd-stressd --edge --devmode
   snap install test-snapd-curl --edge --devmode
-  snap set system experimental.quota-groups=true
-  tests.cleanup defer snap unset system experimental.quota-groups
 
 restore: |
   echo "Stop the service"

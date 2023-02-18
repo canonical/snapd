@@ -57,7 +57,7 @@ var _ = encryptedDevice(&encryptedDeviceLUKS{})
 
 // newEncryptedDeviceLUKS creates an encrypted device in the existing
 // partition using the specified key with the LUKS backend.
-func newEncryptedDeviceLUKS(part *gadget.OnDiskStructure, key keys.EncryptionKey, name string) (encryptedDevice, error) {
+func newEncryptedDeviceLUKS(part *gadget.OnDiskStructure, key keys.EncryptionKey, label, name string) (encryptedDevice, error) {
 	dev := &encryptedDeviceLUKS{
 		parent: part,
 		name:   name,
@@ -67,7 +67,7 @@ func newEncryptedDeviceLUKS(part *gadget.OnDiskStructure, key keys.EncryptionKey
 		node: fmt.Sprintf("/dev/mapper/%s", name),
 	}
 
-	if err := secbootFormatEncryptedDevice(key, name+"-enc", part.Node); err != nil {
+	if err := secbootFormatEncryptedDevice(key, label, part.Node); err != nil {
 		return nil, fmt.Errorf("cannot format encrypted device: %v", err)
 	}
 

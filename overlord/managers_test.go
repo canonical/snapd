@@ -272,6 +272,8 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	o.InterfaceManager().DisableUDevMonitor()
 	s.o = o
 
+	s.AddCleanup(snapstate.MockEnsuredMountsUpdated(s.o.SnapManager(), true))
+
 	st.Lock()
 	defer st.Unlock()
 
@@ -785,10 +787,6 @@ apps:
 `
 	s.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
 
-	tr := config.NewTransaction(st)
-	c.Assert(tr.Set("core", "experimental.quota-groups", "true"), IsNil)
-	tr.Commit()
-
 	// put the snap in a quota group
 	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"}, nil,
 		quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
@@ -836,10 +834,6 @@ apps:
   daemon: simple
 `
 	si := s.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
-
-	tr := config.NewTransaction(st)
-	c.Assert(tr.Set("core", "experimental.quota-groups", "true"), IsNil)
-	tr.Commit()
 
 	// add the snap to a quota group
 	ts, err := servicestate.CreateQuota(st, "grp", servicestate.CreateQuotaOptions{
@@ -1098,7 +1092,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 				PrimaryKey: comps[2:],
 			}
 			a, err := ref.Resolve(s.storeSigning.Find)
-			if asserts.IsNotFound(err) {
+			if errors.Is(err, &asserts.NotFoundError{}) {
 				w.Header().Set("Content-Type", "application/problem+json")
 				w.WriteHeader(404)
 				w.Write([]byte(`{"error-list":[{"code":"not-found","message":"..."}]}`))
@@ -3964,14 +3958,10 @@ assumes: [something-that-is-not-provided]
 	// updateMany will just skip snaps with assumes but not error
 	affected, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
+	c.Check(tss, HasLen, 0)
 	c.Check(affected, HasLen, 0)
 	// the skipping is logged though
 	c.Check(s.logbuf.String(), testutil.Contains, `cannot update "some-snap": snap "some-snap" assumes unsupported features: something-that-is-not-provided (try`)
-	// XXX: should we really check for re-refreshes if there is nothing
-	// to update?
-	c.Check(tss, HasLen, 1)
-	c.Check(tss[0].Tasks(), HasLen, 1)
-	c.Check(tss[0].Tasks()[0].Kind(), Equals, "check-rerefresh")
 }
 
 type storeCtxSetupSuite struct {
@@ -8986,7 +8976,7 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"--no-reload", "enable", "snap-snapd-x1.mount"})
 			return nil, nil
 		case 3:
-			c.Check(cmd, DeepEquals, []string{"start", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"reload-or-restart", "snap-snapd-x1.mount"})
 			return nil, nil
 			// next we get the calls for the rewritten service files after snapd
 			// restarts
@@ -9216,7 +9206,7 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"--no-reload", "enable", "snap-snapd-x1.mount"})
 			return nil, nil
 		case 3:
-			c.Check(cmd, DeepEquals, []string{"start", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"reload-or-restart", "snap-snapd-x1.mount"})
 			return nil, nil
 			// next we get the calls for the rewritten service files after snapd
 			// restarts

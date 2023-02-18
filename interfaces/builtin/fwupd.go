@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -51,9 +52,23 @@ const fwupdPermanentSlotAppArmor = `
 # access to the system.
 
   # Allow read/write access for old efivars sysfs interface
+  # Also NVME_IOCTL_ADMIN_CMD (NVME plugin)
   capability sys_admin,
   # Allow libfwup to access efivarfs with immutable flag
   capability linux_immutable,
+
+  # SIOCETHTOOL (BCM57xx)
+  capability net_admin,
+
+  # SG_IO
+  # MMC_IOC_CMD, MMC_IOC_MULTI_CMD (eMMC plugin)
+  capability sys_rawio,
+
+  capability sys_nice,
+  capability dac_read_search,
+  capability dac_override,
+  capability sys_rawio,
+  capability sys_nice,
 
   # For udev
   network netlink raw,
@@ -71,18 +86,51 @@ const fwupdPermanentSlotAppArmor = `
   /sys/firmware/efi/efivars/ r,
   /sys/firmware/efi/efivars/** rw,
 
+  /proc/modules r,
+  /proc/swaps r,
+  /proc/sys/kernel/tainted r,
+  /sys/kernel/security/tpm*/binary_bios_measurements r,
+  /sys/kernel/security/lockdown r,
+  /sys/power/mem_sleep r,
+
+  /run/udev/data/* r,
+  /run/mount/utab r,
+
+  owner @{PROC}/@{pid}/mountinfo r,
+  owner @{PROC}/@{pid}/mounts r,
+
+  /dev/tpm* rw,
+  /dev/tpmrm* rw,
+  /dev/cpu/*/msr rw,
+  /dev/mei[0-9]* rw,
+  /dev/nvme[0-9]* rw,
+  /dev/gpiochip[0-9]* rw,
+  /dev/drm_dp_aux[0-9]* rw,
+  # Dell plugin
+  /dev/wmi/dell-smbios rw,
+  # MTD plugin
+  /dev/mtd[0-9]* rw,
+  # Plugin for Logitech Whiteboard camera
+  /dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] r,
+  /dev/video[0-9]* r,
+  # Realtek MST plugin
+  /dev/i2c-[0-9]* rw,
+
+  # MMC boot partitions
+  /dev/mmcblk[0-9]{,[0-9],[0-9][0-9]}boot[0-9]* rwk,
+  /sys/devices/**/mmcblk[0-9]{,[0-9],[0-9][0-9]}boot[0-9]*/force_ro rw,
+
   # Allow write access for efi firmware updater
   /boot/efi/{,**/} r,
   # allow access to fwupd* and fw/ under boot/ for core systems
-  /boot/efi/EFI/boot/fwupd*.efi* rw,
-  /boot/efi/EFI/boot/fw/** rw,
-  # allow access to fwupd* and fw/ under ubuntu/ for classic systems
-  # but it should be deprecated once old uefi-fw-tools is no longer used
-  /boot/efi/EFI/ubuntu/fwupd*.efi* rw,
-  /boot/efi/EFI/ubuntu/fw/** rw,
+  /boot/efi/EFI/*/fwupd*.efi* rw,
+  /boot/efi/EFI/*/ rw,
+  /boot/efi/EFI/*/fw/ rw,
+  /boot/efi/EFI/*/fw/** rw,
+  /boot/efi/EFI/fwupd/ rw,
+  /boot/efi/EFI/fwupd/** rw,
 
   # Allow access from efivar library
-  owner @{PROC}/@{pid}/mounts r,
   /sys/devices/{pci*,platform}/**/block/**/partition r,
   # Introspect the block devices to get partition guid and size information
   /run/udev/data/b[0-9]*:[0-9]* r,
@@ -90,6 +138,9 @@ const fwupdPermanentSlotAppArmor = `
   # Allow access UEFI firmware platform size
   /sys/firmware/efi/ r,
   /sys/firmware/efi/fw_platform_size r,
+
+  # os-release from host is needed for UEFI
+  /var/lib/snapd/hostfs/{etc,usr/lib}/os-release r,
 
   # DBus accesses
   #include <abstractions/dbus-strict>
@@ -111,6 +162,56 @@ const fwupdPermanentSlotAppArmor = `
   dbus (bind)
       bus=system
       name="org.freedesktop.fwupd",
+
+  # fwupdtool may need to stop fwupd
+  dbus (send)
+      bus=system
+      interface=org.freedesktop.DBus.Properties
+      path=/org/freedesktop/systemd1
+      member=Get{,All}
+      peer=(label=unconfined),
+
+  dbus (send)
+      bus=system
+      interface=org.freedesktop.DBus.Properties
+      path=/org/freedesktop/systemd1/unit/snap_2dfwupd_2dfwupd_2dservice
+      member=GetAll
+      peer=(label=unconfined),
+
+  dbus (send)
+      bus=system
+      path=/org/freedesktop/systemd1
+      interface=org.freedesktop.systemd1.Manager
+      member=GetUnit
+      peer=(label=unconfined),
+
+  dbus (send)
+      bus=system
+      interface=org.freedesktop.systemd1.Unit
+      path=/org/freedesktop/systemd1/unit/snap_2dfwupd_2dfwupd_2dservice
+      member=Stop
+      peer=(label=unconfined),
+
+  dbus (receive)
+      bus=system
+      path=/org/freedesktop/systemd1/unit/snap_2dfwupd_2dfwupd_2dservice
+      interface=org.freedesktop.DBus.Properties
+      member="PropertiesChanged"
+      peer=(label=unconfined),
+
+  dbus (receive)
+      bus=system
+      path=/org/freedesktop/systemd1
+      interface=org.freedesktop.systemd1.Manager
+      member="Job{New,Removed}"
+      peer=(label=unconfined),
+
+  dbus (send)
+      bus=system
+      path=/org/freedesktop/login1
+      interface=org.freedesktop.login1.Manager
+      member={Inhibit,Reboot}
+      peer=(label=unconfined),
 `
 
 const fwupdPermanentSlotAppArmorClassic = `
@@ -173,6 +274,27 @@ const fwupdConnectedPlugAppArmor = `
       interface=org.freedesktop.DBus.Introspectable
       member=Introspect
       peer=(label=###SLOT_SECURITY_TAGS###),
+
+  dbus (send)
+      bus=system
+      path=/org/freedesktop/systemd1
+      interface=org.freedesktop.systemd1.Manager
+      member="GetDefaultTarget"
+      peer=(label=unconfined),
+
+  dbus (send)
+      bus=system
+      interface=org.freedesktop.DBus.Properties
+      path=/org/freedesktop/systemd1
+      member=Get{,All}
+      peer=(label=unconfined),
+
+  dbus (send)
+      bus=system
+      path=/org/freedesktop/systemd1
+      interface=org.freedesktop.systemd1.Manager
+      member=GetUnit
+      peer=(label=unconfined),
 `
 
 const fwupdConnectedSlotAppArmor = `
@@ -209,14 +331,13 @@ const fwupdConnectedSlotAppArmor = `
 const fwupdPermanentSlotDBus = `
 <policy user="root">
     <allow own="org.freedesktop.fwupd"/>
+</policy>
+<policy context="default">
+    <deny own="org.freedesktop.fwupd"/>
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.fwupd"/>
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.DBus.Properties"/>
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.DBus.Introspectable"/>
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.DBus.Peer"/>
-</policy>
-<policy context="default">
-    <deny own="org.freedesktop.fwupd"/>
-    <deny send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.fwupd"/>
 </policy>
 `
 
@@ -248,6 +369,18 @@ func (iface *fwupdInterface) StaticInfo() interfaces.StaticInfo {
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: fwupdBaseDeclarationSlots,
 	}
+}
+
+func (iface *fwupdInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	if !implicitSystemPermanentSlot(slot) {
+		spec.TagDevice(`KERNEL=="drm_dp_aux[0-9]*"`)
+		spec.TagDevice(`KERNEL=="gpiochip[0-9]*"`)
+		spec.TagDevice(`KERNEL=="tpm[0-9]*"`)
+		spec.TagDevice(`KERNEL=="nvme[0-9]*"`)
+		spec.TagDevice(`KERNEL=="mei[0-9]*"`)
+	}
+
+	return nil
 }
 
 func (iface *fwupdInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {

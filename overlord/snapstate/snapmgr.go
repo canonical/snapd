@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var (
@@ -66,6 +67,8 @@ type SnapManager struct {
 	catalogRefresh *catalogRefresh
 
 	preseed bool
+
+	ensuredMountsUpdated bool
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -475,11 +478,12 @@ func Store(st *state.State, deviceCtx DeviceContext) StoreService {
 func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	preseed := snapdenv.Preseeding()
 	m := &SnapManager{
-		state:          st,
-		autoRefresh:    newAutoRefresh(st),
-		refreshHints:   newRefreshHints(st),
-		catalogRefresh: newCatalogRefresh(st),
-		preseed:        preseed,
+		state:                st,
+		autoRefresh:          newAutoRefresh(st),
+		refreshHints:         newRefreshHints(st),
+		catalogRefresh:       newCatalogRefresh(st),
+		preseed:              preseed,
+		ensuredMountsUpdated: false,
 	}
 	if preseed {
 		m.backend = backend.NewForPreseedMode()
@@ -1067,6 +1071,67 @@ func (m *SnapManager) localInstallCleanup() error {
 	return osutil.UnlinkManyAt(d, filenames)
 }
 
+func MockEnsuredMountsUpdated(m *SnapManager, ensured bool) (restore func()) {
+	osutil.MustBeTestBinary("ensured snap mounts can only be mocked from tests")
+	old := m.ensuredMountsUpdated
+	m.ensuredMountsUpdated = ensured
+	return func() {
+		m.ensuredMountsUpdated = old
+	}
+}
+
+func getSystemD() systemd.Systemd {
+	if snapdenv.Preseeding() {
+		return systemd.NewEmulationMode(dirs.GlobalRootDir)
+	} else {
+		return systemd.New(systemd.SystemMode, nil)
+	}
+}
+
+func (m *SnapManager) ensureMountsUpdated() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.ensuredMountsUpdated {
+		return nil
+	}
+
+	// only run after we are seeded
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	allStates, err := All(m.state)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	if len(allStates) != 0 {
+		sysd := getSystemD()
+
+		for _, snapSt := range allStates {
+			info, err := snapSt.CurrentInfo()
+			if err != nil {
+				return err
+			}
+			squashfsPath := dirs.StripRootDir(info.MountFile())
+			whereDir := dirs.StripRootDir(info.MountDir())
+			if _, err = sysd.EnsureMountUnitFile(info.InstanceName(), info.Revision.String(), squashfsPath, whereDir, "squashfs"); err != nil {
+				return err
+			}
+		}
+	}
+
+	m.ensuredMountsUpdated = true
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	if m.preseed {
@@ -1087,6 +1152,7 @@ func (m *SnapManager) Ensure() error {
 		m.catalogRefresh.Ensure(),
 		m.localInstallCleanup(),
 		m.ensureVulnerableSnapConfineVersionsRemovedOnClassic(),
+		m.ensureMountsUpdated(),
 	}
 
 	//FIXME: use firstErr helper
