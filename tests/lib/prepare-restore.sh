@@ -518,16 +518,19 @@ prepare_project() {
             best_golang=golang-1.18
             if [[ "$SPREAD_SYSTEM" == debian-10-* ]]; then
                 # debian-10 needs backports for golang-1.18
-                echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list
+                echo "deb http://deb.debian.org/debian buster-backports-sloppy main" >> /etc/apt/sources.list
                 apt update
                 # dh-golang must come from backports, gdebi/apt cannot
                 # resolve this on their own
-                apt install -y -t buster-backports dh-golang
-                # we need the specific golang-1.18 here, not golang-go
-                sed -i -e "s/golang-go (>=2:1.18).*,/${best_golang},/" ./debian/control
+                apt install -y -t buster-backports-sloppy dh-golang
+                # on buster-backports we only have golang 1.19
+                # we need the specific golang-1.19 here, not golang-go
+                best_golang=golang-1.19
+                sed -i -e "s/golang-go (>=2:1.18~).*,/${best_golang},/" ./debian/control
             fi
             # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-            gdebi --quiet --apt-line ./debian/control | quiet xargs -r eatmydata apt-get install -y
+            gdebi --quiet --apt-line ./debian/control >deps.txt
+            quiet xargs -r eatmydata apt-get install -y < deps.txt
             # The go 1.18 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
