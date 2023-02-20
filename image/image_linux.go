@@ -688,7 +688,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
-	// Build a map of snaps for the manifest file, but now after
+	// Build a map of snaps for the manifest file, but after
 	// InfoDerived has been called. InfoDerived fills out the snap
 	// revisions for the local snaps, and we need this to verify against
 	// expected revisions.
