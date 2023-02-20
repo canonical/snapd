@@ -221,6 +221,7 @@ const fwupdPermanentSlotAppArmorClassic = `
   # allow access to fwupd* and fw/ under any distro for classic systems
   /boot/efi/EFI/*/fwupd*.efi* rw,
   /boot/efi/EFI/*/fw/** rw,
+  /boot/efi/EFI/UpdateCapsule/** rw,
 `
 
 const fwupdConnectedPlugAppArmor = `
