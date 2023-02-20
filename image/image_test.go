@@ -1495,8 +1495,8 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 	c.Check(s.curSnaps[0], HasLen, 0)
 	c.Check(s.curSnaps[1], DeepEquals, []*store.CurrentSnap{
 		{
-			InstanceName:     "snapd",
-			SnapID:           s.AssertedSnapID("snapd"),
+			InstanceName:     "core18",
+			SnapID:           s.AssertedSnapID("core18"),
 			Revision:         snap.R(18),
 			TrackingChannel:  "stable",
 			Epoch:            snap.E("0"),
@@ -1506,14 +1506,6 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 			InstanceName:     "pc-kernel",
 			SnapID:           s.AssertedSnapID("pc-kernel"),
 			Revision:         snap.R(2),
-			TrackingChannel:  "stable",
-			Epoch:            snap.E("0"),
-			IgnoreValidation: true,
-		},
-		{
-			InstanceName:     "core18",
-			SnapID:           s.AssertedSnapID("core18"),
-			Revision:         snap.R(18),
 			TrackingChannel:  "stable",
 			Epoch:            snap.E("0"),
 			IgnoreValidation: true,
@@ -1530,6 +1522,14 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 			InstanceName:     "required-snap1",
 			SnapID:           s.AssertedSnapID("required-snap1"),
 			Revision:         snap.R(3),
+			TrackingChannel:  "stable",
+			Epoch:            snap.E("0"),
+			IgnoreValidation: true,
+		},
+		{
+			InstanceName:     "snapd",
+			SnapID:           s.AssertedSnapID("snapd"),
+			Revision:         snap.R(18),
 			TrackingChannel:  "stable",
 			Epoch:            snap.E("0"),
 			IgnoreValidation: true,

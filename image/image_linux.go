@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -427,6 +428,11 @@ func downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.C
 		snapToDownloadOptions[i].Revision = opts.Revisions[sn.SnapName()]
 		snapToDownloadOptions[i].CohortKey = opts.WideCohortKey
 	}
+
+	// sort the curSnaps slice for test consistency
+	sort.Slice(curSnaps, func(i, j int) bool {
+		return curSnaps[i].SnapName < curSnaps[j].SnapName
+	})
 	downloadedSnaps, err = tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
 		BeforeDownloadFunc: beforeDownload,
 		EnforceValidation:  opts.Customizations.Validation == "enforce",
