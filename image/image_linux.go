@@ -495,6 +495,112 @@ func selectAssertionMaxFormats(tsto *tooling.ToolingStore, sysSn *seedwriter.See
 	return nil
 }
 
+func seedClassicImage(hasModes bool, seedOpts *seedOptions) error {
+	var fpath string
+	if hasModes {
+		fpath = filepath.Join(seedOpts.seedDir, "systems")
+	} else {
+		fpath = filepath.Join(seedOpts.seedDir, "seed.yaml")
+	}
+	// warn about ownership if not root:root
+	fi, err := os.Stat(fpath)
+	if err != nil {
+		return fmt.Errorf("cannot stat %q: %s", fpath, err)
+	}
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+		if st.Uid != 0 || st.Gid != 0 {
+			fmt.Fprintf(Stderr, "WARNING: ensure that the contents under %s are owned by root:root in the (final) image\n", seedOpts.seedDir)
+		}
+	}
+	// done already
+	return nil
+}
+
+func seedCoreImage(w *seedwriter.Writer, model *asserts.Model, hasModes bool, opts *Options, seedOpts *seedOptions) error {
+	gadgetUnpackDir := filepath.Join(opts.PrepareDir, "gadget")
+	kernelUnpackDir := filepath.Join(opts.PrepareDir, "kernel")
+
+	bootSnaps, err := w.BootSnaps()
+	if err != nil {
+		return err
+	}
+
+	bootWith := &boot.BootableSet{
+		UnpackedGadgetDir: gadgetUnpackDir,
+		Recovery:          hasModes,
+	}
+	if seedOpts.label != "" {
+		bootWith.RecoverySystemDir = filepath.Join("/systems/", seedOpts.label)
+		bootWith.RecoverySystemLabel = seedOpts.label
+	}
+
+	// find the snap.Info/path for kernel/os/base/gadget so
+	// that boot.MakeBootable can DTRT
+	kernelFname := ""
+	for _, sn := range bootSnaps {
+		switch sn.Info.Type() {
+		case snap.TypeGadget:
+			bootWith.Gadget = sn.Info
+			bootWith.GadgetPath = sn.Path
+		case snap.TypeOS, snap.TypeBase:
+			bootWith.Base = sn.Info
+			bootWith.BasePath = sn.Path
+		case snap.TypeKernel:
+			bootWith.Kernel = sn.Info
+			bootWith.KernelPath = sn.Path
+			kernelFname = sn.Path
+		}
+	}
+
+	// unpacking the gadget for core models
+	if err := unpackSnap(bootWith.GadgetPath, gadgetUnpackDir); err != nil {
+		return err
+	}
+	if err := unpackSnap(kernelFname, kernelUnpackDir); err != nil {
+		return err
+	}
+
+	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
+	if err != nil {
+		return err
+	}
+	// validate content against the kernel as well
+	if err := gadget.ValidateContent(gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
+		return err
+	}
+
+	// write resolved content to structure root
+	if err := writeResolvedContent(opts.PrepareDir, gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
+		return err
+	}
+
+	if err := boot.MakeBootableImage(model, seedOpts.bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
+		return err
+	}
+
+	// early config & cloud-init config (done at install for Core 20)
+	if !hasModes {
+		// and the cloud-init things
+		if err := installCloudConfig(seedOpts.rootDir, gadgetUnpackDir); err != nil {
+			return err
+		}
+
+		defaultsDir := sysconfig.WritableDefaultsDir(seedOpts.rootDir)
+		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
+		if len(defaults) > 0 {
+			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(seedOpts.rootDir, "/etc"), 0755); err != nil {
+				return err
+			}
+			if err := sysconfig.ApplyFilesystemOnlyDefaults(model, defaultsDir, defaults); err != nil {
+				return err
+			}
+		}
+
+		customizeImage(seedOpts.rootDir, defaultsDir, &opts.Customizations)
+	}
+	return nil
+}
+
 var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
@@ -538,12 +644,10 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return tsto.AssertionFetcher(db, save)
 	}
 
-	// create directory for later unpacking the gadget in before starting
-	// the seed process
-	var gadgetUnpackDir, kernelUnpackDir string
+	// create directory for later unpacking the gadget in
 	if !opts.Classic {
-		gadgetUnpackDir = filepath.Join(opts.PrepareDir, "gadget")
-		kernelUnpackDir = filepath.Join(opts.PrepareDir, "kernel")
+		gadgetUnpackDir := filepath.Join(opts.PrepareDir, "gadget")
+		kernelUnpackDir := filepath.Join(opts.PrepareDir, "kernel")
 		for _, unpackDir := range []string{gadgetUnpackDir, kernelUnpackDir} {
 			if err := os.MkdirAll(unpackDir, 0755); err != nil {
 				return fmt.Errorf("cannot create unpack dir %q: %s", unpackDir, err)
@@ -672,114 +776,18 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
-	// TODO: There will be classic UC20+ model based systems
-	//       that will have a bootable  ubuntu-seed partition.
-	//       This will need to be handled here eventually too.
-	if opts.Classic {
-		var fpath string
-		if hasModes {
-			fpath = filepath.Join(seedOpts.seedDir, "systems")
-		} else {
-			fpath = filepath.Join(seedOpts.seedDir, "seed.yaml")
-		}
-		// warn about ownership if not root:root
-		fi, err := os.Stat(fpath)
-		if err != nil {
-			return fmt.Errorf("cannot stat %q: %s", fpath, err)
-		}
-		if st, ok := fi.Sys().(*syscall.Stat_t); ok {
-			if st.Uid != 0 || st.Gid != 0 {
-				fmt.Fprintf(Stderr, "WARNING: ensure that the contents under %s are owned by root:root in the (final) image\n", seedOpts.seedDir)
-			}
-		}
-		// done already
-		return nil
-	}
-
-	bootSnaps, err := w.BootSnaps()
-	if err != nil {
-		return err
-	}
-
-	bootWith := &boot.BootableSet{
-		UnpackedGadgetDir: gadgetUnpackDir,
-		Recovery:          hasModes,
-	}
-	if seedOpts.label != "" {
-		bootWith.RecoverySystemDir = filepath.Join("/systems/", seedOpts.label)
-		bootWith.RecoverySystemLabel = seedOpts.label
-	}
-
-	// find the snap.Info/path for kernel/os/base/gadget so
-	// that boot.MakeBootable can DTRT
-	kernelFname := ""
-	for _, sn := range bootSnaps {
-		switch sn.Info.Type() {
-		case snap.TypeGadget:
-			bootWith.Gadget = sn.Info
-			bootWith.GadgetPath = sn.Path
-		case snap.TypeOS, snap.TypeBase:
-			bootWith.Base = sn.Info
-			bootWith.BasePath = sn.Path
-		case snap.TypeKernel:
-			bootWith.Kernel = sn.Info
-			bootWith.KernelPath = sn.Path
-			kernelFname = sn.Path
-		}
-	}
-
-	// unpacking the gadget for core models
-	if err := unpackSnap(bootWith.GadgetPath, gadgetUnpackDir); err != nil {
-		return err
-	}
-	if err := unpackSnap(kernelFname, kernelUnpackDir); err != nil {
-		return err
-	}
-
-	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
-	if err != nil {
-		return err
-	}
-	// validate content against the kernel as well
-	if err := gadget.ValidateContent(gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
-		return err
-	}
-
-	// write resolved content to structure root
-	if err := writeResolvedContent(opts.PrepareDir, gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
-		return err
-	}
-
-	if err := boot.MakeBootableImage(model, seedOpts.bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
-		return err
-	}
-
-	// early config & cloud-init config (done at install for Core 20)
-	if !hasModes {
-		// and the cloud-init things
-		if err := installCloudConfig(seedOpts.rootDir, gadgetUnpackDir); err != nil {
-			return err
-		}
-
-		defaultsDir := sysconfig.WritableDefaultsDir(seedOpts.rootDir)
-		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
-		if len(defaults) > 0 {
-			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(seedOpts.rootDir, "/etc"), 0755); err != nil {
-				return err
-			}
-			if err := sysconfig.ApplyFilesystemOnlyDefaults(model, defaultsDir, defaults); err != nil {
-				return err
-			}
-		}
-
-		customizeImage(seedOpts.rootDir, defaultsDir, &opts.Customizations)
-	}
-
 	// last thing is to generate the image seed manifest file
 	if opts.SeedManifestPath != "" {
 		if err := WriteSeedManifest(opts.SeedManifestPath, imageManifest); err != nil {
 			return err
 		}
 	}
-	return nil
+
+	// TODO: There will be classic UC20+ model based systems
+	//       that will have a bootable  ubuntu-seed partition.
+	//       This will need to be handled here eventually too.
+	if opts.Classic {
+		return seedClassicImage(hasModes, seedOpts)
+	}
+	return seedCoreImage(w, model, hasModes, opts, seedOpts)
 }
