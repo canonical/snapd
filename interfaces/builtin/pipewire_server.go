@@ -56,6 +56,7 @@ const pipewireServerConnectedPlugAppArmor = `
 owner /{,var/}run/user/[0-9]*/ r,
 owner /{,var/}run/user/[0-9]*/pipewire-0 rwk,
 owner /{,var/}run/user/[0-9]*/pipewire-0.lock rwk,
+owner /{,var/}run/user/[0-9]*/pulse/pid rwk,
 `
 
 const pipewireServerConnectedPlugSecComp = `
@@ -83,6 +84,7 @@ network netlink raw,
 owner /{,var/}run/user/[0-9]*/ r,
 owner /{,var/}run/user/[0-9]*/pipewire-0 rwk,
 owner /{,var/}run/user/[0-9]*/pipewire-0.lock rwk,
+owner /{,var/}run/user/[0-9]*/pulse/pid rwk,
 `
 
 const pipewireServerPermanentSlotSecComp = `

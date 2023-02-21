@@ -158,6 +158,7 @@ func (s *PipewireServerInterfaceSuite) TestAppArmor(c *C) {
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/ r,\n")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/pipewire-0 rwk,\n")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/pipewire-0.lock rwk,\n")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/pulse/pid rwk,\n")
 
 	// connected core slot to plug
 	spec = &apparmor.Specification{}
@@ -182,6 +183,7 @@ func (s *PipewireServerInterfaceSuite) TestAppArmorOnClassic(c *C) {
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/ r,\n")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/pipewire-0 rwk,\n")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/pipewire-0.lock rwk,\n")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/pulse/pid rwk,\n")
 
 	// connected classic slot to plug
 	spec = &apparmor.Specification{}
