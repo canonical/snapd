@@ -3814,7 +3814,7 @@ func (s *imageSuite) TestSetupSeedCore20DelegatedSnapAssertionMaxFormatsAuthorit
 	c.Check(err, ErrorMatches, `cannot add assertion snap-revision \(.*; provenance:delegated-prov\): snap-revision assertion with provenance "delegated-prov" for snap id "required20ididididididididididid" is not signed by an authorized authority: my-brand`)
 }
 
-func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map[string]snap.Revision) error {
+func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, rules map[string]snap.Revision) error {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
@@ -3827,6 +3827,7 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map
 	coreFn := snaptest.MakeTestSnapWithFiles(c, packageCore, [][]string{{"local", ""}, snapdInfoFile})
 	requiredSnap1Fn := snaptest.MakeTestSnapWithFiles(c, requiredSnap1, [][]string{{"local", ""}})
 
+	seedManifest := image.SeedManifestFromSnapRevisions(rules)
 	opts := &image.Options{
 		Snaps: []string{
 			coreFn,
@@ -3836,7 +3837,7 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map
 		Customizations: image.Customizations{
 			Validation: "ignore",
 		},
-		Revisions: revisions,
+		SeedManifest: seedManifest,
 	}
 
 	if err := image.SetupSeed(s.tsto, s.model, opts); err != nil {
@@ -3910,13 +3911,13 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map
 		{
 			Action:       "download",
 			InstanceName: "pc-kernel",
-			Revision:     revisions["pc-kernel"],
+			Revision:     seedManifest.AllowedRevision("pc-kernel"),
 			Flags:        store.SnapActionIgnoreValidation,
 		},
 		{
 			Action:       "download",
 			InstanceName: "pc",
-			Revision:     revisions["pc"],
+			Revision:     seedManifest.AllowedRevision("pc"),
 			Flags:        store.SnapActionIgnoreValidation,
 		},
 	})
@@ -3932,8 +3933,8 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsWithCorrectLocalSnap(c *C) {
 	// 2. required-snap.
 	// So lets provide a revision for one of them and it should then fail
 	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]snap.Revision{
-		"pc-kernel": snap.R(1),
-		"pc":        snap.R(13),
+		"pc-kernel": snap.R(2),
+		"pc":        snap.R(1),
 		"core":      snap.R(-1),
 	})
 	c.Check(err, IsNil)
@@ -3948,19 +3949,19 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapFails(c *C) {
 	// 2. required-snap.
 	// So lets provide a revision for one of them and it should then fail
 	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]snap.Revision{
-		"pc-kernel": snap.R(1),
-		"pc":        snap.R(13),
+		"pc-kernel": snap.R(2),
+		"pc":        snap.R(1),
 		"core":      snap.R(5),
 	})
-	c.Check(err, ErrorMatches, `cannot use snap .*/snapsrc/core_16.04_all.snap for image, unknown/local revision does not match the value specified by revisions file \(x1 != 5\)`)
+	c.Check(err, ErrorMatches, `cannot use snap .*/snapsrc/core_16.04_all.snap for image: revision does not match the value specified by revisions rules \(x1 != 5\)`)
 }
 
 func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapHappy(c *C) {
 	// Make sure we can still provide specific revisions for snaps that are
 	// non-local.
 	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]snap.Revision{
-		"pc-kernel": snap.R(15),
-		"pc":        snap.R(28),
+		"pc-kernel": snap.R(2),
+		"pc":        snap.R(1),
 	})
 	c.Check(err, IsNil)
 }
@@ -3980,15 +3981,15 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 	// exact revisions will be used when the store action is invoked.
 	// The revisions provided to s.makeSnap won't matter, and they shouldn't.
 	// Instead the revision provided in the revisions map should be used instead.
-	s.makeSnap(c, "snapd", [][]string{snapdInfoFile}, snap.R(1), "")
-	s.makeSnap(c, "core20", nil, snap.R(20), "")
-	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
+	s.makeSnap(c, "snapd", nil, snap.R(133), "")
+	s.makeSnap(c, "core20", nil, snap.R(58), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(15), "")
 	gadgetContent := [][]string{
 		{"uboot.conf", ""},
 		{"meta/gadget.yaml", pcUC20GadgetYaml},
 	}
-	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "")
-	s.makeSnap(c, "required20", nil, snap.R(21), "other")
+	s.makeSnap(c, "pc=20", gadgetContent, snap.R(12), "")
+	s.makeSnap(c, "required20", nil, snap.R(59), "other")
 
 	opts := &image.Options{
 		PrepareDir: prepareDir,
@@ -3996,13 +3997,13 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 			BootFlags:  []string{"factory"},
 			Validation: "ignore",
 		},
-		Revisions: map[string]snap.Revision{
+		SeedManifest: image.SeedManifestFromSnapRevisions(map[string]snap.Revision{
 			"snapd":      snap.R(133),
 			"core20":     snap.R(58),
 			"pc-kernel":  snap.R(15),
 			"pc":         snap.R(12),
 			"required20": snap.R(59),
-		},
+		}),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -4040,7 +4041,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 		})
 	}
 	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
-		Path:     filepath.Join(seedsnapsdir, "required20_21.snap"),
+		Path:     filepath.Join(seedsnapsdir, "required20_59.snap"),
 		SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
 		Required: true,
 		Channel:  stableChannel,
@@ -4103,9 +4104,9 @@ func (s *imageSuite) TestLocalSnapRevisionMatchingStoreRevision(c *C) {
 		Customizations: image.Customizations{
 			Validation: "enforce",
 		},
-		Revisions: map[string]snap.Revision{
+		SeedManifest: image.SeedManifestFromSnapRevisions(map[string]snap.Revision{
 			"core": snap.R(3),
-		},
+		}),
 	}
 
 	err := image.SetupSeed(s.tsto, s.model, opts)
@@ -4335,7 +4336,7 @@ func (s *imageSuite) TestSetupSeedFetchText(c *C) {
 	prepareDir := c.MkDir()
 
 	// initialize a bunch of snaps for the model
-	s.makeSnap(c, "snapd", [][]string{snapdInfoFile}, snap.R(1), "")
+	s.makeSnap(c, "snapd", [][]string{snapdInfoFile}, snap.R(133), "")
 	s.makeSnap(c, "core20", nil, snap.R(1), "")
 	s.makeSnap(c, "pc-kernel=20", nil, snap.R(2), "")
 	gadgetContent := [][]string{
@@ -4352,9 +4353,9 @@ func (s *imageSuite) TestSetupSeedFetchText(c *C) {
 			Validation: "ignore",
 		},
 		// Make sure we also test the case of a specific revision
-		Revisions: map[string]snap.Revision{
+		SeedManifest: image.SeedManifestFromSnapRevisions(map[string]snap.Revision{
 			"snapd": snap.R(133),
-		},
+		}),
 	}
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
