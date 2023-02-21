@@ -36,6 +36,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/bootloader/efi"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 )
 
 func init() {
@@ -126,6 +127,18 @@ func probePartitions(node string) ([]Partition, error) {
 	return ret, nil
 }
 
+func samePath(a, b string) (bool, error) {
+	aSt, err := os.Stat(a)
+	if err != nil {
+		return false, err
+	}
+	bSt, err := os.Stat(b)
+	if err != nil {
+		return false, err
+	}
+	return os.SameFile(aSt, bSt), nil
+}
+
 func scanDiskNode(node string) error {
 	fmt.Fprintf(os.Stderr, "Scanning disk %s\n", node)
 	fallback := false
@@ -140,6 +153,33 @@ func scanDiskNode(node string) error {
 	partitions, err := probePartitions(node)
 	if err != nil {
 		return fmt.Errorf("Cannot get partitions: %s\n", err)
+	}
+
+	if fallback {
+		values, err := kcmdline.KeyValues("snapd_system_disk")
+		if err != nil {
+			return fmt.Errorf("Cannot read kernel command line: %s\n", err)
+		}
+
+		if value, ok := values["snapd_system_disk"]; ok {
+			var currentPath string
+			var expectedPath string
+			if strings.HasPrefix(value, "/dev/") || !strings.HasPrefix(value, "/") {
+				name := strings.TrimPrefix(value, "/dev/")
+				expectedPath = fmt.Sprintf("/dev/%s", name)
+				currentPath = node
+			} else {
+				expectedPath = value
+				currentPath = os.Getenv("DEVPATH")
+			}
+			same, err := samePath(expectedPath, currentPath)
+			if err != nil {
+				return fmt.Errorf("Cannot check snapd_system_disk kernel parameter: %s\n", err)
+			}
+			if !same {
+				return nil
+			}
+		}
 	}
 
 	found := false
