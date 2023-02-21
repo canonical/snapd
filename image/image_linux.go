@@ -281,7 +281,7 @@ type imageSeeder struct {
 	classic        bool
 	prepareDir     string
 	wideCohortKey  string
-	revisions      map[string]snap.Revision
+	manifest       *SeedManifest
 	customizations *Customizations
 	architecture   string
 
@@ -305,7 +305,7 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 		classic:       opts.Classic,
 		prepareDir:    opts.PrepareDir,
 		wideCohortKey: opts.WideCohortKey,
-		revisions:     opts.Revisions,
+		manifest:      initManifestFromOptions(opts),
 		// keep a pointer to the customization object in opts as the Validation
 		// member might be defaulted if not set.
 		customizations: &opts.Customizations,
@@ -350,6 +350,13 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 	}
 	s.w = w
 	return s, nil
+}
+
+func initManifestFromOptions(opts *Options) *SeedManifest {
+	if opts.SeedManifest == nil {
+		return NewSeedManifest()
+	}
+	return opts.SeedManifest
 }
 
 func determineImageArchitecture(model *asserts.Model, opts *Options) string {
@@ -474,7 +481,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 		if sn == nil {
 			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 		}
-		rev := s.revisions[sn.SnapName()]
+		rev := s.manifest.AllowedRevision(sn.SnapName())
 		if rev.Unset() {
 			rev = info.Revision
 		}
@@ -492,7 +499,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 		byName[sn.SnapName()] = sn
 		snapToDownloadOptions[i].Snap = sn
 		snapToDownloadOptions[i].Channel = sn.Channel
-		snapToDownloadOptions[i].Revision = s.revisions[sn.SnapName()]
+		snapToDownloadOptions[i].Revision = s.manifest.AllowedRevision(sn.SnapName())
 		snapToDownloadOptions[i].CohortKey = s.wideCohortKey
 	}
 
@@ -734,25 +741,19 @@ func optionSnaps(opts *Options) []*seedwriter.OptionsSnap {
 	return optSnaps
 }
 
-// manifestFromLocalSnaps creates an initial seed manifest based on the locally
-// available snaps. It also performs initial verification against any rules given
-// to seedSetup against these.
-func manifestFromLocalSnaps(snaps localSnapRefs, opts *Options) (map[string]snap.Revision, error) {
-	seedManifest := make(map[string]snap.Revision)
+// addLocalSnapsToManifest attempts adding the given local snaps as used in
+// the image manifest. If any of these goes against any rules setup by the manifest
+// this will return an error.
+func addLocalSnapsToManifest(manifest *SeedManifest, snaps localSnapRefs) error {
 	for sn := range snaps {
 		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
 		// available. Therefore the revision in the local snap must be exactly the revision specified
-		// in the manifest. If it's not, we fail.
-		specifiedRevision := opts.Revisions[sn.Info.SnapName()]
-		if !specifiedRevision.Unset() && specifiedRevision != sn.Info.Revision {
-			return nil, fmt.Errorf("cannot use snap %s for image, unknown/local revision does not match the value specified by revisions file (%s != %s)",
-				sn.Path, sn.Info.Revision, specifiedRevision)
-		}
-		if !sn.Info.Revision.Unset() {
-			seedManifest[sn.Info.SnapName()] = sn.Info.Revision
+		// in the manifest.
+		if err := manifest.MarkSnapRevisionUsed(sn.Info.SnapName(), sn.Info.Revision.N); err != nil {
+			return fmt.Errorf("cannot use snap %s for image: %s", sn.Path, err)
 		}
 	}
-	return seedManifest, nil
+	return nil
 }
 
 func selectAssertionMaxFormats(tsto *tooling.ToolingStore, model *asserts.Model, sysSn, kernSn *seedwriter.SeedSnap) error {
@@ -831,8 +832,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	// Create the initial manifest, derived from the locally available snaps.
 	// Must be done after deriveInfoForLocalSnaps, as the snap info must have
 	// been derived if possible.
-	imageManifest, err := manifestFromLocalSnaps(localSnaps, opts)
-	if err != nil {
+	if err := addLocalSnapsToManifest(s.manifest, localSnaps); err != nil {
 		return err
 	}
 
@@ -890,7 +890,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 				return nil, err
 			}
 			if !sn.Info.Revision.Unset() {
-				imageManifest[sn.Info.SnapName()] = sn.Info.Revision
+				if err := s.manifest.MarkSnapRevisionUsed(sn.Info.SnapName(), sn.Info.Revision.N); err != nil {
+					return nil, err
+				}
 			}
 		}
 		return s.f.Refs()[prev:], nil
@@ -902,7 +904,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 
 	// last thing is to generate the image seed manifest file
 	if opts.SeedManifestPath != "" {
-		if err := WriteSeedManifest(opts.SeedManifestPath, imageManifest); err != nil {
+		if err := s.manifest.Write(opts.SeedManifestPath); err != nil {
 			return err
 		}
 	}
