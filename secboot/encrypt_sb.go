@@ -49,7 +49,10 @@ const metadataKiBSize = 2048     // 2MB
 // FormatEncryptedDevice initializes an encrypted volume on the block device
 // given by node, setting the specified label. The key used to unlock the volume
 // is provided using the key argument.
-func FormatEncryptedDevice(key keys.EncryptionKey, label, node string, ice bool) error {
+func FormatEncryptedDevice(key keys.EncryptionKey, encType EncryptionType, label, node string) error {
+	useICE := encType == EncryptionTypeLUKSWithICE
+	logger.Debugf("using ICE: %v", useICE)
+
 	opts := &sb.InitializeLUKS2ContainerOptions{
 		// use a lower, but still reasonable size that should give us
 		// enough room
@@ -63,7 +66,8 @@ func FormatEncryptedDevice(key keys.EncryptionKey, label, node string, ice bool)
 			MemoryKiB:       32,
 			ForceIterations: 4,
 		},
-		InlineCryptoEngine: ice,
+		//TODO: enable once secboot PR is merged
+		//InlineCryptoEngine: useICE,
 	}
 	return sbInitializeLUKS2Container(node, label, key[:], opts)
 }
