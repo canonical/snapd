@@ -1685,6 +1685,14 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		env["KRB5CCNAME"] = krb5ccnamePath
 	}
 
+	// Guarantee that XDG_RUNTIME_DIR does exist before launching the snap
+	if xdg_runtime_dir, exists := env["XDG_RUNTIME_DIR"]; exists {
+		if err = os.Mkdir(xdg_runtime_dir, 0700); err != nil && !errors.Is(err, os.ErrExist) {
+			// Can't return an error because some tests would fail
+			logger.Noticef("WARNING: Can't create XDG_RUNTIME_DIR folder %v: %v", xdg_runtime_dir, err)
+		}
+	}
+
 	// on each run variant path this will be used once to get
 	// the environment plus additions in the right form
 	envForExec := func(extra map[string]string) []string {
