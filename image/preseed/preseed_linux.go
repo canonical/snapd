@@ -159,6 +159,7 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 }
 
 const snapdPreseedSupportVer = `2.43.3+`
+const snapdPreseedResetReexec = `2.59`
 
 // chooseTargetSnapdVersion checks if the version of snapd under chroot env
 // is good enough for preseeding. It checks both the snapd from the deb
@@ -187,15 +188,17 @@ func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 		return nil, err
 	}
 
-	var whichVer, snapdPath string
+	var whichVer, snapdPath, preseedPath string
 	if res < 0 {
 		// snapd from the deb under chroot is the candidate to run
 		whichVer = verFromDeb
 		snapdPath = filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir, "snapd")
+		preseedPath = filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir, "snap-preseed")
 	} else {
 		// snapd from the mounted core/snapd snap is the candidate to run
 		whichVer = verFromSnap
 		snapdPath = filepath.Join(snapdMountPath, dirs.CoreLibExecDir, "snapd")
+		preseedPath = filepath.Join(snapdMountPath, dirs.CoreLibExecDir, "snap-preseed")
 	}
 
 	res, err = strutil.VersionCompare(whichVer, snapdPreseedSupportVer)
@@ -207,7 +210,7 @@ func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 			whichVer, snapdPreseedSupportVer)
 	}
 
-	return &targetSnapdInfo{path: snapdPath, version: whichVer}, nil
+	return &targetSnapdInfo{path: snapdPath, preseedPath: preseedPath, version: whichVer}, nil
 }
 
 func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), err error) {
@@ -427,6 +430,63 @@ func prepareCore20Chroot(opts *CoreOptions) (popts *preseedCoreOptions, cleanup 
 	return popts, cleanup, nil
 }
 
+func mountSnapdSnap(rootDir string, coreSnapPath string) (cleanup func(), err error) {
+	// create mountpoint for core/snapd
+	where := filepath.Join(rootDir, snapdMountPath)
+	if err := os.MkdirAll(where, 0755); err != nil {
+		return nil, err
+	}
+
+	removeMountpoint := func() {
+		if err := os.Remove(where); err != nil {
+			fmt.Fprintf(Stderr, "%v", err)
+		}
+	}
+
+	fstype, fsopts := squashfs.FsType()
+	mountArgs := []string{"-t", fstype, "-o", strings.Join(fsopts, ","), coreSnapPath, where}
+	cmd := exec.Command("mount", mountArgs...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		removeMountpoint()
+		return nil, fmt.Errorf("cannot mount %s at %s in preseed mode: %v\n'mount %s' failed with: %s", coreSnapPath, where, err, strings.Join(mountArgs, " "), out)
+	}
+
+	unmount := func() {
+		fmt.Fprintf(Stdout, "unmounting: %s\n", where)
+		cmd := exec.Command("umount", where)
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(Stderr, "%v", err)
+		}
+	}
+
+	return func() {
+		unmount()
+		removeMountpoint()
+	}, nil
+}
+
+func getSnapdVersion(rootDir string) (string, error) {
+	coreSnapPath, _, err := systemSnapFromSeed(dirs.SnapSeedDirUnder(rootDir), "")
+	if err != nil {
+		return "", err
+	}
+
+	cleanup, err := mountSnapdSnap(rootDir, coreSnapPath)
+	if err != nil {
+		return "", err
+	}
+	defer cleanup()
+
+	snapdInfoDir := filepath.Join(rootDir, snapdMountPath, dirs.CoreLibExecDir)
+	ver, _, err := snapdtool.SnapdVersionFromInfoFile(snapdInfoDir)
+
+	if err != nil {
+		return "", err
+	}
+
+	return ver, nil
+}
+
 func prepareClassicChroot(preseedChroot string) (*targetSnapdInfo, func(), error) {
 	if err := syscallChroot(preseedChroot); err != nil {
 		return nil, nil, fmt.Errorf("cannot chroot into %s: %v", preseedChroot, err)
@@ -443,50 +503,67 @@ func prepareClassicChroot(preseedChroot string) (*targetSnapdInfo, func(), error
 		rootDir = "/"
 	}
 
+	cleanups := []func(){}
+	cleanup := func() {
+		for _, c := range cleanups {
+			c()
+		}
+	}
+	addCleanup := func(fun func()) {
+		cleanups = append([]func(){fun}, cleanups...)
+	}
+	defer func() {
+		cleanup()
+	}()
+
+	// The best would have been to check if /proc is a mountpoint.
+	// But we would need /proc/self/mountinfo for that.
+	if !osutil.FileExists(filepath.Join(rootDir, "/proc/self/cmdline")) {
+		cmd := exec.Command("mount", "-t", "proc", "none", filepath.Join(rootDir, "/proc"))
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return nil, nil, fmt.Errorf("Cannot mount proc and /proc is not available: %s\nOutput: %s", err, out)
+		}
+		addCleanup(func() {
+			cmd := exec.Command("umount", filepath.Join(rootDir, "/proc"))
+			if out, err := cmd.CombinedOutput(); err != nil {
+				fmt.Fprintf(Stdout, "cannot unmount /proc: %s\noutput: %s\n", err, out)
+			}
+		})
+	}
+
+	// We need loop devices to work to be able to mount the snap.
+	if !osutil.FileExists(filepath.Join(rootDir, "/dev/loop-control")) {
+		cmd := exec.Command("mount", "-t", "devtmpfs", "none", filepath.Join(rootDir, "/dev"))
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return nil, nil, fmt.Errorf("Cannot mount devtmpfs and /dev/loop-control not available: %s\nOutput: %s", err, out)
+		}
+		addCleanup(func() {
+			cmd := exec.Command("umount", "--lazy", filepath.Join(rootDir, "/dev"))
+			if out, err := cmd.CombinedOutput(); err != nil {
+				fmt.Fprintf(Stdout, "cannot unmount /dev: %s\noutput: %s\n", err, out)
+			}
+		})
+	}
+
 	coreSnapPath, _, err := systemSnapFromSeed(dirs.SnapSeedDirUnder(rootDir), "")
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// create mountpoint for core/snapd
-	where := filepath.Join(rootDir, snapdMountPath)
-	if err := os.MkdirAll(where, 0755); err != nil {
+	unmountSnapd, err := mountSnapdSnap(rootDir, coreSnapPath)
+	if err != nil {
 		return nil, nil, err
 	}
-
-	removeMountpoint := func() {
-		if err := os.Remove(where); err != nil {
-			fmt.Fprintf(Stderr, "%v", err)
-		}
-	}
-
-	fstype, fsopts := squashfs.FsType()
-	mountArgs := []string{"-t", fstype, "-o", strings.Join(fsopts, ","), coreSnapPath, where}
-	cmd := exec.Command("mount", mountArgs...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		removeMountpoint()
-		return nil, nil, fmt.Errorf("cannot mount %s at %s in preseed mode: %v\n'mount %s' failed with: %s", coreSnapPath, where, err, strings.Join(mountArgs, " "), out)
-	}
-
-	unmount := func() {
-		fmt.Fprintf(Stdout, "unmounting: %s\n", snapdMountPath)
-		cmd := exec.Command("umount", snapdMountPath)
-		if err := cmd.Run(); err != nil {
-			fmt.Fprintf(Stderr, "%v", err)
-		}
-	}
+	addCleanup(unmountSnapd)
 
 	targetSnapd, err := chooseTargetSnapdVersion()
 	if err != nil {
-		unmount()
-		removeMountpoint()
 		return nil, nil, err
 	}
 
-	return targetSnapd, func() {
-		unmount()
-		removeMountpoint()
-	}, nil
+	stolenCleanup := cleanup
+	cleanup = func() {}
+	return targetSnapd, stolenCleanup, nil
 }
 
 type preseedFilePatterns struct {
@@ -554,6 +631,19 @@ func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo) error {
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error running snapd in preseed mode: %v\n", err)
+	}
+
+	return nil
+}
+
+func reexecReset(preseedChroot string, targetSnapd *targetSnapdInfo) error {
+	cmd := exec.Command(targetSnapd.preseedPath, "--reset-chroot")
+	cmd.Env = os.Environ()
+	cmd.Stderr = Stderr
+	cmd.Stdout = Stdout
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("Error while re-executing snap-preseed --reset: %v\n", err)
 	}
 
 	return nil
@@ -633,6 +723,34 @@ func Classic(chrootDir string) error {
 
 	// executing inside the chroot
 	return runPreseedMode(chrootDir, targetSnapd)
+}
+
+func ClassicReset(chrootDir string) error {
+	var err error
+	chrootDir, err = filepath.Abs(chrootDir)
+	if err != nil {
+		return err
+	}
+
+	snapdVersion, err := getSnapdVersion(chrootDir)
+	if err != nil {
+		return err
+	}
+	res, err := strutil.VersionCompare(snapdVersion, snapdPreseedResetReexec)
+	if err != nil {
+		return err
+	}
+	if res < 0 {
+		return ResetPreseededChroot(chrootDir)
+	}
+
+	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	return reexecReset(chrootDir, targetSnapd)
 }
 
 func MockSyscallChroot(f func(string) error) (restore func()) {
