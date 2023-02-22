@@ -218,7 +218,7 @@ func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Respons
 }
 
 func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	setID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Users)
+	setID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Users, inst.SnapshotOptions)
 	if err != nil {
 		return nil, err
 	}

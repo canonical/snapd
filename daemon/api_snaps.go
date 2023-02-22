@@ -196,21 +196,22 @@ type snapInstruction struct {
 	Action string `json:"action"`
 	Amend  bool   `json:"amend"`
 	snapRevisionOptions
-	DevMode                bool                   `json:"devmode"`
-	JailMode               bool                   `json:"jailmode"`
-	Classic                bool                   `json:"classic"`
-	IgnoreValidation       bool                   `json:"ignore-validation"`
-	IgnoreRunning          bool                   `json:"ignore-running"`
-	Unaliased              bool                   `json:"unaliased"`
-	Purge                  bool                   `json:"purge,omitempty"`
-	SystemRestartImmediate bool                   `json:"system-restart-immediate"`
-	Transaction            client.TransactionType `json:"transaction"`
-	Snaps                  []string               `json:"snaps"`
-	Users                  []string               `json:"users"`
-	ValidationSets         []string               `json:"validation-sets"`
-	QuotaGroupName         string                 `json:"quota-group"`
-	Time                   string                 `json:"time"`
-	HoldLevel              string                 `json:"hold-level"`
+	DevMode                bool                            `json:"devmode"`
+	JailMode               bool                            `json:"jailmode"`
+	Classic                bool                            `json:"classic"`
+	IgnoreValidation       bool                            `json:"ignore-validation"`
+	IgnoreRunning          bool                            `json:"ignore-running"`
+	Unaliased              bool                            `json:"unaliased"`
+	Purge                  bool                            `json:"purge,omitempty"`
+	SystemRestartImmediate bool                            `json:"system-restart-immediate"`
+	Transaction            client.TransactionType          `json:"transaction"`
+	Snaps                  []string                        `json:"snaps"`
+	Users                  []string                        `json:"users"`
+	SnapshotOptions        map[string]snap.SnapshotOptions `json:"options"`
+	ValidationSets         []string                        `json:"validation-sets"`
+	QuotaGroupName         string                          `json:"quota-group"`
+	Time                   string                          `json:"time"`
+	HoldLevel              string                          `json:"hold-level"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -258,6 +259,24 @@ func (inst *snapInstruction) holdLevel() snapstate.HoldLevel {
 	default:
 		panic("not validated hold level")
 	}
+}
+
+func (inst *snapInstruction) validateSnapshotOptions() error {
+	if inst.SnapshotOptions != nil {
+		if inst.Action != "snapshot" {
+			return fmt.Errorf("options can only be specified for snapshot action")
+		}
+		for name, options := range inst.SnapshotOptions {
+			if !strutil.ListContains(inst.Snaps, name) {
+				return fmt.Errorf("cannot use options for snap %q that is not listed in snaps", name)
+			}
+			if err := (&options).Validate(); err != nil {
+				return fmt.Errorf("invalid options for snap %q: %v", name, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (inst *snapInstruction) validate() error {
@@ -587,6 +606,11 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Purge {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
+
+	if err := inst.validateSnapshotOptions(); err != nil {
+		return BadRequest("%v", err)
+	}
+
 	if err := inst.validate(); err != nil {
 		return BadRequest("%v", err)
 	}
