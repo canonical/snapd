@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -97,7 +96,7 @@ func saveStorageTraits(mod gadget.Model, allLaidOutVols map[string]*gadget.LaidO
 	return nil
 }
 
-func maybeEncryptPartition(laidOut *gadget.LaidOutStructure, encryptionType secboot.EncryptionType, ice bool, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, encryptionKey keys.EncryptionKey, err error) {
+func maybeEncryptPartition(laidOut *gadget.LaidOutStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, encryptionKey keys.EncryptionKey, err error) {
 	mustEncrypt := (encryptionType != secboot.EncryptionTypeNone)
 	// fsParams.Device is the kernel device that carries the
 	// filesystem, which is either the raw /dev/<partition>, or
@@ -132,7 +131,16 @@ func maybeEncryptPartition(laidOut *gadget.LaidOutStructure, encryptionType secb
 			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", laidOut.Role()),
 				fmt.Sprintf("Create encryption device for %s", laidOut.Role()),
 				func(timings.Measurer) {
-					dataPart, err = newEncryptedDeviceLUKS(&laidOut.OnDiskStructure, encryptionKey, ice, laidOut.PartitionFSLabel, laidOut.Name())
+					dataPart, err = newEncryptedDeviceLUKS(&laidOut.OnDiskStructure, encryptionType, encryptionKey, laidOut.PartitionFSLabel, laidOut.Name())
+				})
+			if err != nil {
+				return nil, nil, err
+			}
+		case secboot.EncryptionTypeLUKSWithICE:
+			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device-with-ice[%s]", laidOut.Role()),
+				fmt.Sprintf("Create encryption device for %s using ICE", laidOut.Role()),
+				func(timings.Measurer) {
+					dataPart, err = newEncryptedDeviceLUKS(&laidOut.OnDiskStructure, encryptionType, encryptionKey, laidOut.PartitionFSLabel, laidOut.Name())
 				})
 			if err != nil {
 				return nil, nil, err
@@ -191,10 +199,10 @@ func writePartitionContent(laidOut *gadget.LaidOutStructure, fsDevice string, ob
 	return nil
 }
 
-func installOnePartition(laidOut *gadget.LaidOutStructure, encryptionType secboot.EncryptionType, ice bool, sectorSize quantity.Size, observer gadget.ContentObserver, perfTimings timings.Measurer) (fsDevice string, encryptionKey keys.EncryptionKey, err error) {
+func installOnePartition(laidOut *gadget.LaidOutStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, observer gadget.ContentObserver, perfTimings timings.Measurer) (fsDevice string, encryptionKey keys.EncryptionKey, err error) {
 	// 1. Encrypt
 	role := laidOut.Role()
-	fsParams, encryptionKey, err := maybeEncryptPartition(laidOut, encryptionType, ice, sectorSize, perfTimings)
+	fsParams, encryptionKey, err := maybeEncryptPartition(laidOut, encryptionType, sectorSize, perfTimings)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot encrypt partition %s: %v", role, err)
 	}
@@ -300,12 +308,6 @@ func createEncryptionParams(encTyp secboot.EncryptionType) gadget.StructureEncry
 	return gadget.StructureEncryptionParameters{}
 }
 
-// check is device supports ICE fde
-func isIceSupported(gadgetRoot string) bool {
-	// check is device supports ICE fde
-	return osutil.FileExists(filepath.Join(gadgetRoot, "meta", "use-ice-fde"))
-}
-
 // Run creates partitions, encrypts them when expected, creates
 // filesystems, and finally writes content on them.
 func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
@@ -323,8 +325,6 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	partsEncrypted := map[string]gadget.StructureEncryptionParameters{}
 
 	hasSavePartition := false
-
-	ice := options.EncryptionType != "" && isIceSupported(gadgetRoot)
 
 	// Note that all partitions here will have a role (see
 	// gadget.IsCreatableAtInstall() which defines the list)
@@ -347,7 +347,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		// for encrypted device the filesystem device it will point to
 		// the mapper device otherwise it's the raw device node
 		fsDevice, encryptionKey, err := installOnePartition(&laidOut, options.EncryptionType,
-			ice, bootVolSectorSize, observer, perfTimings)
+			bootVolSectorSize, observer, perfTimings)
 		if err != nil {
 			return nil, err
 		}
@@ -639,8 +639,6 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 		return nil, fmt.Errorf("when encrypting partitions: cannot layout volumes: %v", err)
 	}
 
-	ice := isIceSupported(gadgetRoot)
-
 	setupData := &EncryptionSetupData{
 		parts: make(map[string]partEncryptionData),
 	}
@@ -677,7 +675,7 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 			logger.Debugf("encrypting partition %s", device)
 
 			fsParams, encryptionKey, err :=
-				maybeEncryptPartition(laidOut, encryptionType, ice, onDiskVol.SectorSize, perfTimings)
+				maybeEncryptPartition(laidOut, encryptionType, onDiskVol.SectorSize, perfTimings)
 			if err != nil {
 				return nil, fmt.Errorf("cannot encrypt %q: %v", device, err)
 			}
@@ -765,8 +763,6 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	var keyForRole map[string]keys.EncryptionKey
 	deviceForRole := map[string]string{}
 
-	ice := options.EncryptionType != "" && isIceSupported(gadgetRoot)
-
 	savePart := partitionsWithRolesAndContent(laidOutBootVol, diskLayout, []string{gadget.SystemSave})
 	hasSavePartition := len(savePart) != 0
 	if hasSavePartition {
@@ -782,7 +778,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		// device) for each role
 		deviceForRole[laidOut.Role()] = laidOut.Node
 
-		fsDevice, encryptionKey, err := installOnePartition(&laidOut, options.EncryptionType, ice,
+		fsDevice, encryptionKey, err := installOnePartition(&laidOut, options.EncryptionType,
 			diskLayout.SectorSize, observer, perfTimings)
 		if err != nil {
 			return nil, err

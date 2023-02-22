@@ -26,6 +26,7 @@ const (
 	EncryptionTypeNone            EncryptionType = ""
 	EncryptionTypeLUKS            EncryptionType = "cryptsetup"
 	EncryptionTypeDeviceSetupHook EncryptionType = "device-setup-hook"
+	EncryptionTypeLUKSWithICE     EncryptionType = "luks-with-ice"
 )
 
 type RecoveryKeyDevice struct {
