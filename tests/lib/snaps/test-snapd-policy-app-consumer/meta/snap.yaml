@@ -323,6 +323,9 @@ apps:
   network-status:
     command: bin/run
     plugs: [ network-status ]
+  nvidia-support:
+    command: bin/run
+    plugs: [ nvidia-support ]
   ofono:
     command: bin/run
     plugs: [ ofono ]
