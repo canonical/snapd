@@ -302,8 +302,16 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string, opts *dirs.SnapDirO
 }
 
 // Save a snapshot
-func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, opts *dirs.SnapDirOptions) (*client.Snapshot, error) {
+func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, options *snap.SnapshotOptions, opts *dirs.SnapDirOptions) (*client.Snapshot, error) {
 	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
+		return nil, err
+	}
+
+	snapshotOptions, err := snap.ReadSnapshotYaml(si)
+	if err != nil {
+		return nil, err
+	}
+	if err := snapshotOptions.Merge(options); err != nil {
 		return nil, err
 	}
 
@@ -315,15 +323,11 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		Version:  si.Version,
 		Epoch:    si.Epoch,
 		Time:     timeNow(),
+		Options:  options, // Dynamic options only
 		SHA3_384: make(map[string]string),
 		Size:     0,
 		Conf:     cfg,
 		// Note: Auto is no longer set in the Snapshot.
-	}
-
-	snapshotOptions, err := snap.ReadSnapshotYaml(si)
-	if err != nil {
-		return nil, err
 	}
 
 	aw, err := osutil.NewAtomicFile(Filename(snapshot), 0600, 0, osutil.NoChown, osutil.NoChown)

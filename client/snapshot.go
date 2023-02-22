@@ -77,6 +77,10 @@ type Snapshot struct {
 	SHA3_384 map[string]string `json:"sha3-384"`
 	// the sum of the archive sizes
 	Size int64 `json:"size,omitempty"`
+
+	// snapshot options
+	Options *snap.SnapshotOptions `json:"options,omitempty"`
+
 	// if the snapshot failed to open this will be the reason why
 	Broken string `json:"broken,omitempty"`
 
