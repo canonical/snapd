@@ -158,7 +158,7 @@ execute: |
   # HACK: better to change nested_start_vm() to take an image name
   # Note that use "core" here as the boot is so close to core that classic
   # does not work
-  IMAGE_NAME="$(tests.nested image-name core)"
+  IMAGE_NAME="$(nested_get_image_name core)"
   mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
 
   # boot into the created image
