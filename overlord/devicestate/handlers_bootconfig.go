@@ -64,7 +64,7 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		return nil
 	}
 
-	currentData, err := currentGadgetInfo(st, devCtx)
+	currentData, err := CurrentGadgetInfo(st, devCtx)
 	if err != nil {
 		return fmt.Errorf("cannot obtain current gadget data: %v", err)
 	}

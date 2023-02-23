@@ -49,7 +49,7 @@ func makeRollbackDir(name string) (string, error) {
 	return rollbackDir, nil
 }
 
-func currentGadgetInfo(st *state.State, curDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
+func CurrentGadgetInfo(st *state.State, curDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
 	currentInfo, err := snapstate.GadgetInfo(st, curDeviceCtx)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
@@ -130,7 +130,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 		// now calculate the "update" data, it's the same gadget but
 		// argumented from a different kernel
-		updateData, err = currentGadgetInfo(t.State(), groundDeviceCtx)
+		updateData, err = CurrentGadgetInfo(t.State(), groundDeviceCtx)
 		if err != nil {
 			return err
 		}
@@ -138,7 +138,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return fmt.Errorf("internal errror: doUpdateGadgetAssets called with snap type %v", snapsup.Type)
 	}
 
-	currentData, err := currentGadgetInfo(t.State(), groundDeviceCtx)
+	currentData, err := CurrentGadgetInfo(t.State(), groundDeviceCtx)
 	if err != nil {
 		return err
 	}
@@ -307,7 +307,7 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 		// but when undoing or when the change comes from a
 		// system option (no setup task), we use the current
 		// gadget (should have been restored in the undo case)
-		currentGadgetData, err := currentGadgetInfo(st, devCtx)
+		currentGadgetData, err := CurrentGadgetInfo(st, devCtx)
 		if err != nil {
 			return false, err
 		}

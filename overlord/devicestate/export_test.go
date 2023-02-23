@@ -276,7 +276,6 @@ var (
 	CachedRemodelCtx  = cachedRemodelCtx
 
 	GadgetUpdateBlocked = gadgetUpdateBlocked
-	CurrentGadgetInfo   = currentGadgetInfo
 	PendingGadgetInfo   = pendingGadgetInfo
 
 	CriticalTaskEdges = criticalTaskEdges
