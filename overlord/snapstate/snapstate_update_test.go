@@ -9370,7 +9370,7 @@ func (s *snapmgrTestSuite) TestPreDownloadTaskTriggersAutoRefreshIfSoftCheckOk(c
 	c.Check(softChecked, Equals, true)
 	c.Check(notified, Equals, false)
 	c.Check(monitored, Equals, false)
-	c.Check(s.state.Cached("continue-auto-refresh"), Equals, true)
+	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 1)
 }
 
 func (s *snapmgrTestSuite) TestDownloadTaskMonitorsSnapStoppedAndNotifiesOnSoftCheckFail(c *C) {
@@ -9438,7 +9438,7 @@ func (s *snapmgrTestSuite) TestDownloadTaskMonitorsSnapStoppedAndNotifiesOnSoftC
 	monitored := s.state.Cached("monitored-snaps")
 	c.Assert(monitored, FitsTypeOf, map[string]bool{})
 	c.Assert(monitored.(map[string]bool), DeepEquals, map[string]bool{"foo": true})
-	c.Assert(s.state.Cached("continue-auto-refresh"), Equals, nil)
+	c.Assert(s.state.Cached("auto-refresh-continue-attempt"), Equals, nil)
 
 	// signal snap has stopped and wait for pending goroutine to finish
 	s.state.Unlock()
@@ -9448,14 +9448,14 @@ func (s *snapmgrTestSuite) TestDownloadTaskMonitorsSnapStoppedAndNotifiesOnSoftC
 		select {
 		case <-time.After(time.Second):
 			s.state.Lock()
-			finished := s.state.Cached("continue-auto-refresh")
-			if finished == nil || !finished.(bool) {
+			finished := s.state.Cached("auto-refresh-continue-attempt")
+			if finished == nil || finished.(int) != 1 {
 				s.state.Unlock()
 				continue
 			}
 
 			c.Assert(s.state.Cached("monitored-snaps"), IsNil)
-			c.Check(s.state.Cached("continue-auto-refresh"), Equals, true)
+			c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 1)
 			return
 		}
 	}
@@ -9524,7 +9524,7 @@ func (s *snapmgrTestSuite) TestDownloadTaskMonitorsRepeated(c *C) {
 	c.Assert(notified, Equals, true)
 	// waiting for the monitoring to end
 	c.Check(s.state.Cached("monitored-snaps"), NotNil)
-	c.Check(s.state.Cached("continue-auto-refresh"), Equals, nil)
+	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, nil)
 
 	// start a new pre-download which shouldn't start monitoring
 	preDlChg = s.state.NewChange("pre-download", "pre-download change")

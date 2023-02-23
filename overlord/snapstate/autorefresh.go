@@ -279,13 +279,24 @@ func (m *autoRefresh) Ensure() (err error) {
 	}
 
 	// is there a previously partially inhibited auto-refresh that can now be continued?
-	if canContinueAutoRefresh(m.state) {
-		err := m.launchAutoRefresh()
-		if err == nil {
-			// clear the continue flag if the auto-refresh was scheduled successfully
-			m.state.Cache("continue-auto-refresh", nil)
+	if attempt, ok := canContinueAutoRefresh(m.state); ok {
+		// override the auto-refresh delay if we're continuing an inhibited auto-refresh
+		// for the first time (because the snap just closed after we notified the user)
+		overrideDelay := attempt == 1
+		err := m.launchAutoRefresh(overrideDelay)
+		if err != nil {
+			if errors.Is(err, tooSoonError{}) {
+				// ignore error, retry the auto-refresh later
+				return nil
+			}
+
+			// we didn't auto-refresh, so keep flag but increase attempt counter
+			m.state.Cache("auto-refresh-continue-attempt", attempt+1)
+			return err
 		}
-		return err
+		// clear the continue flag if the auto-refresh was scheduled successfully
+		m.state.Cache("auto-refresh-continue-attempt", nil)
+		return nil
 	}
 
 	// get lastRefresh and schedule
@@ -370,30 +381,30 @@ func (m *autoRefresh) Ensure() (err error) {
 				return nil
 			}
 
-			// Check that we have reasonable delays between attempts.
-			// If the store is under stress we need to make sure we do not
-			// hammer it too often
-			if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(refreshRetryDelay).After(time.Now()) {
+			overrideDelay := false
+			err = m.launchAutoRefresh(overrideDelay)
+			if _, ok := err.(*httputil.PersistentNetworkError); ok {
+				// refresh will be retried after refreshRetryDelay
+				return err
+			} else if errors.Is(err, tooSoonError{}) {
+				// ignore error, retry the auto-refresh later
 				return nil
 			}
 
-			err = m.launchAutoRefresh()
-			if _, ok := err.(*httputil.PersistentNetworkError); !ok {
-				m.nextRefresh = time.Time{}
-			} // else - refresh will be retried after refreshRetryDelay
+			// refreshed or hit an non-persistent network error, so reset nextRefresh
+			m.nextRefresh = time.Time{}
 		}
 	}
 
 	return err
 }
 
-func canContinueAutoRefresh(st *state.State) bool {
-	if cachedCont := st.Cached("continue-auto-refresh"); cachedCont != nil {
-		cont, _ := cachedCont.(bool)
-		return cont
+func canContinueAutoRefresh(st *state.State) (int, bool) {
+	if cachedAttempt := st.Cached("auto-refresh-continue-attempt"); cachedAttempt != nil {
+		return cachedAttempt.(int), true
 	}
 
-	return false
+	return 0, false
 }
 
 // isRefreshHeld returns whether an auto-refresh is currently held back or not,
@@ -522,16 +533,35 @@ func autoRefreshSummary(updated []string) string {
 	return msg
 }
 
+type tooSoonError struct{}
+
+func (e tooSoonError) Error() string {
+	return "cannot auto-refresh so soon"
+}
+
+func (tooSoonError) Is(err error) bool {
+	_, ok := err.(tooSoonError)
+	return ok
+}
+
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
-func (m *autoRefresh) launchAutoRefresh() error {
+func (m *autoRefresh) launchAutoRefresh(overrideDelay bool) error {
+	// Check that we have reasonable delays between attempts.
+	// If the store is under stress we need to make sure we do not
+	// hammer it too often
+	now := timeNow()
+	minAttempt := m.lastRefreshAttempt.Add(refreshRetryDelay)
+	if !overrideDelay && !m.lastRefreshAttempt.IsZero() && minAttempt.After(now) {
+		return tooSoonError{}
+	}
+	m.lastRefreshAttempt = now
+
 	perfTimings := timings.New(map[string]string{"ensure": "auto-refresh"})
 	tm := perfTimings.StartSpan("auto-refresh", "query store and setup auto-refresh change")
 	defer func() {
 		tm.Stop()
 		perfTimings.Save(m.state)
 	}()
-
-	m.lastRefreshAttempt = time.Now()
 
 	// NOTE: this will unlock and re-lock state for network ops
 	updated, updateTss, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
