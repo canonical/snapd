@@ -55,7 +55,7 @@ func FormatEncryptedDevice(key keys.EncryptionKey, encType EncryptionType, label
 	}
 
 	useICE := encType == EncryptionTypeLUKSWithICE
-	logger.Debugf("using ICE: %v", useICE)
+	logger.Debugf("node %q uses ICE: %v", node, useICE)
 
 	opts := &sb.InitializeLUKS2ContainerOptions{
 		// use a lower, but still reasonable size that should give us
