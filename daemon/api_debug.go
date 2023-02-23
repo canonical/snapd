@@ -304,6 +304,7 @@ func getGadgetDiskMapping(st *state.State) Response {
 		switch sealingMethod {
 		case device.SealingMethodLegacyTPM, device.SealingMethodTPM:
 			encType = secboot.EncryptionTypeLUKS
+			// TODO:ICE: device setup hook support goes away
 		case device.SealingMethodFDESetupHook:
 			encType = secboot.EncryptionTypeDeviceSetupHook
 		default:

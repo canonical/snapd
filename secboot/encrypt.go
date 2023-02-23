@@ -23,10 +23,12 @@ package secboot
 type EncryptionType string
 
 const (
-	EncryptionTypeNone            EncryptionType = ""
-	EncryptionTypeLUKS            EncryptionType = "cryptsetup"
+	EncryptionTypeNone        EncryptionType = ""
+	EncryptionTypeLUKS        EncryptionType = "cryptsetup"
+	EncryptionTypeLUKSWithICE EncryptionType = "cryptsetup-with-inline-crypto-engine"
+
+	// TODO:ICE: remove this
 	EncryptionTypeDeviceSetupHook EncryptionType = "device-setup-hook"
-	EncryptionTypeLUKSWithICE     EncryptionType = "cryptsetup-with-inline-crypto-engine"
 )
 
 type RecoveryKeyDevice struct {
