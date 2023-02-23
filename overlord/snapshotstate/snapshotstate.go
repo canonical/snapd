@@ -415,8 +415,8 @@ func Save(st *state.State, instanceNames []string, users []string, options map[s
 		desc := fmt.Sprintf("Save data of snap %q in snapshot set #%d", name, setID)
 		task := st.NewTask("save-snapshot", desc)
 
-		opts := options[name]
-		snapshotOptions := &opts
+		instanceOpts := options[name]
+		snapshotOptions := &instanceOpts
 		if snapshotOptions.IsEmpty() {
 			snapshotOptions = nil // Omit empty options
 		}

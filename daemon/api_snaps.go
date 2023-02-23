@@ -262,17 +262,18 @@ func (inst *snapInstruction) holdLevel() snapstate.HoldLevel {
 }
 
 func (inst *snapInstruction) validateSnapshotOptions() error {
-	if inst.SnapshotOptions != nil {
-		if inst.Action != "snapshot" {
-			return fmt.Errorf("options can only be specified for snapshot action")
+	if inst.SnapshotOptions == nil {
+		return nil
+	}
+	if inst.Action != "snapshot" {
+		return fmt.Errorf("options can only be specified for snapshot action")
+	}
+	for name, options := range inst.SnapshotOptions {
+		if !strutil.ListContains(inst.Snaps, name) {
+			return fmt.Errorf("cannot use options for snap %q that is not listed in snaps", name)
 		}
-		for name, options := range inst.SnapshotOptions {
-			if !strutil.ListContains(inst.Snaps, name) {
-				return fmt.Errorf("cannot use options for snap %q that is not listed in snaps", name)
-			}
-			if err := (&options).Validate(); err != nil {
-				return fmt.Errorf("invalid options for snap %q: %v", name, err)
-			}
+		if err := options.Validate(); err != nil {
+			return fmt.Errorf("invalid options for snap %q: %v", name, err)
 		}
 	}
 
@@ -606,11 +607,9 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Purge {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
-
 	if err := inst.validateSnapshotOptions(); err != nil {
 		return BadRequest("%v", err)
 	}
-
 	if err := inst.validate(); err != nil {
 		return BadRequest("%v", err)
 	}

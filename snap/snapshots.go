@@ -48,53 +48,30 @@ const (
 	snapshotManifestPath = "meta/snapshots.yaml"
 )
 
-func (opts *SnapshotOptions) validateExcludePaths() error {
-	if err := validateExcludePaths(opts.ExcludePaths); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (opts *SnapshotOptions) mergeExcludePaths(paths []string) error {
-	if err := validateExcludePaths(paths); err != nil {
-		return err
-	}
-	opts.ExcludePaths = append(opts.ExcludePaths, paths...)
-
-	return nil
-}
-
 // IsEmpty determines if SnapshotOptions structure is empty.
+//
+// For this function "empty" is defined as only containing empty containers
+// with no values. The purpose is to determine if representing the structure
+// in JSON would provide more than just keys, braces, brackets.
 func (opts *SnapshotOptions) IsEmpty() bool {
-	if len(opts.ExcludePaths) == 0 {
-		return true
-	}
-
-	return false
-}
-
-// Validate validates all options.
-func (opts *SnapshotOptions) Validate() error {
-	if err := opts.validateExcludePaths(); err != nil {
-		return err
-	}
-
-	return nil
+	return len(opts.ExcludePaths) == 0
 }
 
 // Merge combines existing with additional options.
 func (opts *SnapshotOptions) Merge(moreOptions *SnapshotOptions) error {
-	if moreOptions != nil {
-		if err := opts.mergeExcludePaths(moreOptions.ExcludePaths); err != nil {
-			return err
-		}
+	if moreOptions == nil {
+		return nil
 	}
+	if err := moreOptions.Validate(); err != nil {
+		return err
+	}
+	opts.ExcludePaths = append(opts.ExcludePaths, moreOptions.ExcludePaths...)
 
 	return nil
 }
 
-func validateExcludePaths(paths []string) error {
+// Validate checks the validity of all snapshot options.
+func (opts *SnapshotOptions) Validate() error {
 	// Validate the exclude list; note that this is an *exclusion* list, so
 	// even if the manifest specified paths starting with ../ this would not
 	// cause tar to navigate into those directories and pose a security risk.
@@ -103,7 +80,7 @@ func validateExcludePaths(paths []string) error {
 		"$SNAP_DATA", "$SNAP_COMMON", "$SNAP_USER_DATA", "$SNAP_USER_COMMON",
 	}
 	const invalidChars = "[]{}?"
-	for _, excludePath := range paths {
+	for _, excludePath := range opts.ExcludePaths {
 		firstComponent := strings.SplitN(excludePath, "/", 2)[0]
 		if !strutil.ListContains(validFirstComponents, firstComponent) {
 			return fmt.Errorf("snapshot exclude path must start with one of %q (got: %q)", validFirstComponents, excludePath)
@@ -159,7 +136,7 @@ func readSnapshotYaml(r io.Reader) (*SnapshotOptions, error) {
 	if err := yaml.NewDecoder(r).Decode(&opts); err != nil {
 		return nil, fmt.Errorf("cannot read snapshot manifest: %v", err)
 	}
-	if err := opts.validateExcludePaths(); err != nil {
+	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
