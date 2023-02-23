@@ -123,37 +123,32 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func newEnoughProxy(st *state.State, proxyURL *url.URL, client *http.Client) bool {
+func newEnoughProxy(st *state.State, proxyURL *url.URL, client *http.Client) (bool, error) {
 	st.Unlock()
 	defer st.Lock()
 
-	const prefix = "Cannot check whether proxy store supports a custom serial vault"
+	const prefix = "cannot check whether proxy store supports a custom serial vault"
 
 	req, err := http.NewRequest("HEAD", proxyURL.String(), nil)
 	if err != nil {
-		// can't really happen unless proxyURL is somehow broken
-		logger.Debugf(prefix+": %v", err)
-		return false
+		return false, fmt.Errorf(prefix+": %v", err)
 	}
 	req.Header.Set("User-Agent", snapdenv.UserAgent())
 	resp, err := client.Do(req)
 	if err != nil {
 		// some sort of network or protocol error
-		logger.Debugf(prefix+": %v", err)
-		return false
+		return false, fmt.Errorf(prefix+": %v", err)
 	}
 	resp.Body.Close()
 	if resp.StatusCode != 200 {
-		logger.Debugf(prefix+": Head request returned %s.", resp.Status)
-		return false
+		return false, fmt.Errorf(prefix+": Head request returned %s.", resp.Status)
 	}
 	verstr := resp.Header.Get("Snap-Store-Version")
 	ver, err := strconv.Atoi(verstr)
 	if err != nil {
-		logger.Debugf(prefix+": Bogus Snap-Store-Version header %q.", verstr)
-		return false
+		return false, fmt.Errorf(prefix+": Bogus Snap-Store-Version header %q.", verstr)
 	}
-	return ver >= 6
+	return ver >= 6, nil
 }
 
 func (cfg *serialRequestConfig) setURLs(proxyURL, svcURL *url.URL) {
@@ -659,9 +654,15 @@ func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *h
 		}
 	}
 
-	if proxyURL != nil && svcURL != nil && !newEnoughProxy(st, proxyURL, client) {
-		logger.Noticef("Proxy store does not support custom serial vault; ignoring the proxy")
-		proxyURL = nil
+	if proxyURL != nil && svcURL != nil {
+		newEnough, err := newEnoughProxy(st, proxyURL, client)
+		if err != nil {
+			return nil, err
+		}
+		if !newEnough {
+			logger.Noticef("Proxy store does not support custom serial vault; ignoring the proxy")
+			proxyURL = nil
+		}
 	}
 
 	cfg.setURLs(proxyURL, svcURL)

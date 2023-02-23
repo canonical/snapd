@@ -1690,14 +1690,13 @@ func (s *deviceMgrSerialSuite) TestNewEnoughProxyParse(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	log, restore := logger.MockLogger()
-	defer restore()
 	os.Setenv("SNAPD_DEBUG", "1")
 	defer os.Unsetenv("SNAPD_DEBUG")
 
 	badURL := &url.URL{Opaque: "%a"} // url.Parse(badURL.String()) needs to fail, which isn't easy :-)
-	c.Check(devicestate.NewEnoughProxy(s.state, badURL, http.DefaultClient), Equals, false)
-	c.Check(log.String(), Matches, "(?m).* DEBUG: Cannot check whether proxy store supports a custom serial vault: parse .*")
+	newEnoughProxy, err := devicestate.NewEnoughProxy(s.state, badURL, http.DefaultClient)
+	c.Check(err, ErrorMatches, "cannot check whether proxy store supports a custom serial vault: parse .*")
+	c.Check(newEnoughProxy, Equals, false)
 }
 
 func (s *deviceMgrSerialSuite) TestNewEnoughProxy(c *C) {
@@ -1746,18 +1745,19 @@ func (s *deviceMgrSerialSuite) TestNewEnoughProxy(c *C) {
 	u, err := url.Parse(server.URL)
 	c.Assert(err, IsNil)
 	for _, expected := range expecteds {
-		log.Reset()
-		c.Check(devicestate.NewEnoughProxy(s.state, u, http.DefaultClient), Equals, false)
-		if len(expected) > 0 {
-			expected = "(?m).* DEBUG: Cannot check whether proxy store supports a custom serial vault: " + expected
+		newEnoughProxy, err := devicestate.NewEnoughProxy(s.state, u, http.DefaultClient)
+		if expected != "" {
+			expected = "cannot check whether proxy store supports a custom serial vault: " + expected
+			c.Check(err, ErrorMatches, expected)
 		}
-		c.Check(log.String(), Matches, expected)
+		c.Check(newEnoughProxy, Equals, false)
 	}
 	c.Check(n, Equals, len(expecteds))
 
 	// and success at last
-	log.Reset()
-	c.Check(devicestate.NewEnoughProxy(s.state, u, http.DefaultClient), Equals, true)
+	newEnoughProxy, err := devicestate.NewEnoughProxy(s.state, u, http.DefaultClient)
+	c.Check(err, IsNil)
+	c.Check(newEnoughProxy, Equals, true)
 	c.Check(log.String(), Equals, "")
 	c.Check(n, Equals, len(expecteds)+1)
 }
