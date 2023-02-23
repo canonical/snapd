@@ -34,6 +34,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -523,6 +524,9 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 		MayLogBody:         true,
 		Proxy:              proxyConf.Conf,
 		ProxyConnectHeader: http.Header{"User-Agent": []string{snapdenv.UserAgent()}},
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+			Dir: dirs.SnapdStoreSSLCertsDir,
+		},
 	})
 
 	cfg, err := getSerialRequestConfig(t, regCtx, client)
