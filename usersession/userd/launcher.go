@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -205,6 +205,10 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 		return makeAccessDeniedError(fmt.Errorf("Supplied URL scheme %q is not allowed", u.Scheme))
 	}
 
+	// ATTENTION!
+	// this code must not add directories from the snap
+	// to XDG_DATA_DIRS and similar, see
+	// https://ubuntu.com/security/CVE-2020-11934
 	if err := exec.Command("xdg-open", addr).Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
 	}
