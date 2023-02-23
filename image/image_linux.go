@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/store/tooling"
+	"github.com/snapcore/snapd/strutil"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
 	"github.com/snapcore/snapd/image/preseed"
@@ -47,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -280,60 +280,60 @@ type imageSeeder struct {
 	seedDir     string
 	label       string
 
-	w     *seedwriter.Writer
 	model *asserts.Model
+	w     *seedwriter.Writer
 	tsto  *tooling.ToolingStore
 }
 
-func (is *imageSeeder) modelessDirs(opts *Options) error {
+func (s *imageSeeder) setModelessDirs(opts *Options) error {
 	if opts.Classic {
 		// Classic, PrepareDir is the root dir itself
-		is.rootDir = opts.PrepareDir
+		s.rootDir = opts.PrepareDir
 	} else {
 		// Core 16/18,  writing for the writeable partition
-		is.rootDir = filepath.Join(opts.PrepareDir, "image")
-		is.bootRootDir = is.rootDir
+		s.rootDir = filepath.Join(opts.PrepareDir, "image")
+		s.bootRootDir = s.rootDir
 	}
-	is.seedDir = dirs.SnapSeedDirUnder(is.rootDir)
+	s.seedDir = dirs.SnapSeedDirUnder(s.rootDir)
 
 	// validity check target
-	if osutil.FileExists(dirs.SnapStateFileUnder(is.rootDir)) {
-		return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(is.rootDir))
+	if osutil.FileExists(dirs.SnapStateFileUnder(s.rootDir)) {
+		return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(s.rootDir))
 	}
-	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDirUnder(is.rootDir), "*.snap")); len(snaps) > 0 {
+	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDirUnder(s.rootDir), "*.snap")); len(snaps) > 0 {
 		return fmt.Errorf("expected empty snap dir in rootdir, got: %v", snaps)
 	}
 	return nil
 }
 
-func (is *imageSeeder) modeDirs(opts *Options) error {
+func (s *imageSeeder) setModesDirs(opts *Options) error {
 	// Core 20, writing for the system-seed partition
-	is.seedDir = filepath.Join(opts.PrepareDir, "system-seed")
-	is.label = makeLabel(time.Now())
-	is.bootRootDir = is.seedDir
+	s.seedDir = filepath.Join(opts.PrepareDir, "system-seed")
+	s.label = makeLabel(time.Now())
+	s.bootRootDir = s.seedDir
 
 	// validity check target
-	if systems, _ := filepath.Glob(filepath.Join(is.seedDir, "systems", "*")); len(systems) > 0 {
+	if systems, _ := filepath.Glob(filepath.Join(s.seedDir, "systems", "*")); len(systems) > 0 {
 		return fmt.Errorf("expected empty systems dir in system-seed, got: %v", systems)
 	}
 	return nil
 }
 
-func makeImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) (*imageSeeder, error) {
+func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) (*imageSeeder, error) {
 	// Determine image seed paths, which can vary based on the type of image
 	// we are generating.
-	is := &imageSeeder{
+	s := &imageSeeder{
 		hasModes: model.Grade() != asserts.ModelGradeUnset,
 		model:    model,
 		tsto:     tsto,
 	}
 
-	if !is.hasModes {
-		if err := is.modelessDirs(opts); err != nil {
+	if !s.hasModes {
+		if err := s.setModelessDirs(opts); err != nil {
 			return nil, err
 		}
 	} else {
-		if err := is.modeDirs(opts); err != nil {
+		if err := s.setModesDirs(opts); err != nil {
 			return nil, err
 		}
 	}
@@ -350,8 +350,8 @@ func makeImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	}
 
 	wOpts := &seedwriter.Options{
-		SeedDir:        is.seedDir,
-		Label:          is.label,
+		SeedDir:        s.seedDir,
+		Label:          s.label,
 		DefaultChannel: opts.Channel,
 
 		TestSkipCopyUnverifiedModel: osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL"),
@@ -360,21 +360,31 @@ func makeImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	if err != nil {
 		return nil, err
 	}
-	is.w = w
-	return is, nil
+	s.w = w
+	return s, nil
+}
+
+func (s *imageSeeder) start(db *asserts.Database, optSnaps []*seedwriter.OptionsSnap) (seedwriter.RefAssertsFetcher, error) {
+	if err := s.w.SetOptionsSnaps(optSnaps); err != nil {
+		return nil, err
+	}
+	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
+		return s.tsto.AssertionFetcher(db, save)
+	}
+	return s.w.Start(db, newFetcher)
 }
 
 type localSnapRefs map[*seedwriter.SeedSnap][]*asserts.Ref
 
-func (is *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.RefAssertsFetcher, db *asserts.Database) (localSnapRefs, error) {
-	localSnaps, err := is.w.LocalSnaps()
+func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.RefAssertsFetcher, db *asserts.Database) (localSnapRefs, error) {
+	localSnaps, err := s.w.LocalSnaps()
 	if err != nil {
 		return nil, err
 	}
 
 	snaps := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, is.model, f, db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, s.model, f, db)
 		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return nil, err
 		}
@@ -388,35 +398,53 @@ func (is *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.RefAssertsFetcher, d
 			return nil, err
 		}
 
-		if err := is.w.SetInfo(sn, info); err != nil {
+		if err := s.w.SetInfo(sn, info); err != nil {
 			return nil, err
 		}
 		snaps[sn] = aRefs
 	}
-	return snaps, is.w.InfoDerived()
+	return snaps, s.w.InfoDerived()
 }
 
-func manifestFromLocalSnaps(snaps localSnapRefs, opts *Options) (map[string]snap.Revision, error) {
-	// Build a map of snaps for the manifest file
-	imageManifest := make(map[string]snap.Revision)
-
-	// Check local snaps again, but now after InfoDerived has been called. InfoDerived
-	// fills out the snap revisions for the local snaps, and we need this to verify against
-	// expected revisions.
-	for sn := range snaps {
-		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
-		// available. Therefore the revision in the local snap must be exactly the revision specified
-		// in the manifest. If it's not, we fail.
-		specifiedRevision := opts.Revisions[sn.Info.SnapName()]
-		if !specifiedRevision.Unset() && specifiedRevision != sn.Info.Revision {
-			return nil, fmt.Errorf("cannot use snap %s for image, unknown/local revision does not match the value specified by revisions file (%s != %s)",
-				sn.Path, sn.Info.Revision, specifiedRevision)
+func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap, opts *Options) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
+	byName := make(map[string]*seedwriter.SeedSnap, len(snapsToDownload))
+	beforeDownload := func(info *snap.Info) (string, error) {
+		sn := byName[info.SnapName()]
+		if sn == nil {
+			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 		}
-		if !sn.Info.Revision.Unset() {
-			imageManifest[sn.Info.SnapName()] = sn.Info.Revision
+		rev := opts.Revisions[sn.SnapName()]
+		if !rev.Unset() {
+			fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), rev)
+		} else {
+			fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), info.Revision)
 		}
+		if err := s.w.SetInfo(sn, info); err != nil {
+			return "", err
+		}
+		return sn.Path, nil
 	}
-	return imageManifest, nil
+	snapToDownloadOptions := make([]tooling.SnapToDownload, len(snapsToDownload))
+	for i, sn := range snapsToDownload {
+		byName[sn.SnapName()] = sn
+		snapToDownloadOptions[i].Snap = sn
+		snapToDownloadOptions[i].Channel = sn.Channel
+		snapToDownloadOptions[i].Revision = opts.Revisions[sn.SnapName()]
+		snapToDownloadOptions[i].CohortKey = opts.WideCohortKey
+	}
+
+	// sort the curSnaps slice for test consistency
+	sort.Slice(curSnaps, func(i, j int) bool {
+		return curSnaps[i].SnapName < curSnaps[j].SnapName
+	})
+	downloadedSnaps, err = s.tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
+		BeforeDownloadFunc: beforeDownload,
+		EnforceValidation:  opts.Customizations.Validation == "enforce",
+	})
+	if err != nil {
+		return nil, err
+	}
+	return downloadedSnaps, nil
 }
 
 func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
@@ -435,63 +463,22 @@ func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
 	return localSnaps
 }
 
-func (is *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap, opts *Options) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
-	byName := make(map[string]*seedwriter.SeedSnap, len(snapsToDownload))
-	beforeDownload := func(info *snap.Info) (string, error) {
-		sn := byName[info.SnapName()]
-		if sn == nil {
-			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
-		}
-		rev := opts.Revisions[sn.SnapName()]
-		if !rev.Unset() {
-			fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), rev)
-		} else {
-			fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), info.Revision)
-		}
-		if err := is.w.SetInfo(sn, info); err != nil {
-			return "", err
-		}
-		return sn.Path, nil
-	}
-	snapToDownloadOptions := make([]tooling.SnapToDownload, len(snapsToDownload))
-	for i, sn := range snapsToDownload {
-		byName[sn.SnapName()] = sn
-		snapToDownloadOptions[i].Snap = sn
-		snapToDownloadOptions[i].Channel = sn.Channel
-		snapToDownloadOptions[i].Revision = opts.Revisions[sn.SnapName()]
-		snapToDownloadOptions[i].CohortKey = opts.WideCohortKey
-	}
-
-	// sort the curSnaps slice for test consistency
-	sort.Slice(curSnaps, func(i, j int) bool {
-		return curSnaps[i].SnapName < curSnaps[j].SnapName
-	})
-	downloadedSnaps, err = is.tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
-		BeforeDownloadFunc: beforeDownload,
-		EnforceValidation:  opts.Customizations.Validation == "enforce",
-	})
-	if err != nil {
-		return nil, err
-	}
-	return downloadedSnaps, nil
-}
-
-func (is *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts func(sn, sysSn, kSn *seedwriter.SeedSnap) ([]*asserts.Ref, error), opts *Options) error {
+func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts func(sn, sysSn, kSn *seedwriter.SeedSnap) ([]*asserts.Ref, error), opts *Options) error {
 	curSnaps := localSnapsWithID(localSnaps)
 	for {
-		toDownload, err := is.w.SnapsToDownload()
+		toDownload, err := s.w.SnapsToDownload()
 		if err != nil {
 			return err
 		}
 
-		downloadedSnaps, err := is.downloadSnaps(toDownload, curSnaps, opts)
+		downloadedSnaps, err := s.downloadSnaps(toDownload, curSnaps, opts)
 		if err != nil {
 			return err
 		}
 
 		for _, sn := range toDownload {
 			dlsn := downloadedSnaps[sn.SnapName()]
-			if err := is.w.SetRedirectChannel(sn, dlsn.RedirectChannel); err != nil {
+			if err := s.w.SetRedirectChannel(sn, dlsn.RedirectChannel); err != nil {
 				return err
 			}
 
@@ -504,7 +491,7 @@ func (is *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts f
 			})
 		}
 
-		complete, err := is.w.Downloaded(fetchAsserts)
+		complete, err := s.w.Downloaded(fetchAsserts)
 		if err != nil {
 			return err
 		}
@@ -515,31 +502,12 @@ func (is *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts f
 	return nil
 }
 
-func selectAssertionMaxFormats(tsto *tooling.ToolingStore, sysSn *seedwriter.SeedSnap) error {
-	if sysSn == nil {
-		// nothing to do
-		return nil
-	}
-	snapf, err := snapfile.Open(sysSn.Path)
-	if err != nil {
-		return err
-	}
-	// XXX take also kernel into account
-	// XXX warning logic
-	maxFormats, _, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
-	if err != nil {
-		return err
-	}
-	tsto.SetAssertionMaxFormats(maxFormats)
-	return nil
-}
-
-func (is *imageSeeder) finishSeedClassic() error {
+func (s *imageSeeder) finishSeedClassic() error {
 	var fpath string
-	if is.hasModes {
-		fpath = filepath.Join(is.seedDir, "systems")
+	if s.hasModes {
+		fpath = filepath.Join(s.seedDir, "systems")
 	} else {
-		fpath = filepath.Join(is.seedDir, "seed.yaml")
+		fpath = filepath.Join(s.seedDir, "seed.yaml")
 	}
 	// warn about ownership if not root:root
 	fi, err := os.Stat(fpath)
@@ -548,29 +516,29 @@ func (is *imageSeeder) finishSeedClassic() error {
 	}
 	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
 		if st.Uid != 0 || st.Gid != 0 {
-			fmt.Fprintf(Stderr, "WARNING: ensure that the contents under %s are owned by root:root in the (final) image\n", is.seedDir)
+			fmt.Fprintf(Stderr, "WARNING: ensure that the contents under %s are owned by root:root in the (final) image\n", s.seedDir)
 		}
 	}
 	// done already
 	return nil
 }
 
-func (is *imageSeeder) finishSeedCore(opts *Options) error {
+func (s *imageSeeder) finishSeedCore(opts *Options) error {
 	gadgetUnpackDir := filepath.Join(opts.PrepareDir, "gadget")
 	kernelUnpackDir := filepath.Join(opts.PrepareDir, "kernel")
 
-	bootSnaps, err := is.w.BootSnaps()
+	bootSnaps, err := s.w.BootSnaps()
 	if err != nil {
 		return err
 	}
 
 	bootWith := &boot.BootableSet{
 		UnpackedGadgetDir: gadgetUnpackDir,
-		Recovery:          is.hasModes,
+		Recovery:          s.hasModes,
 	}
-	if is.label != "" {
-		bootWith.RecoverySystemDir = filepath.Join("/systems/", is.label)
-		bootWith.RecoverySystemLabel = is.label
+	if s.label != "" {
+		bootWith.RecoverySystemDir = filepath.Join("/systems/", s.label)
+		bootWith.RecoverySystemLabel = s.label
 	}
 
 	// find the snap.Info/path for kernel/os/base/gadget so
@@ -599,7 +567,7 @@ func (is *imageSeeder) finishSeedCore(opts *Options) error {
 		return err
 	}
 
-	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, is.model, nil)
+	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, s.model, nil)
 	if err != nil {
 		return err
 	}
@@ -613,31 +581,78 @@ func (is *imageSeeder) finishSeedCore(opts *Options) error {
 		return err
 	}
 
-	if err := boot.MakeBootableImage(is.model, is.bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
+	if err := boot.MakeBootableImage(s.model, s.bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
 		return err
 	}
 
 	// early config & cloud-init config (done at install for Core 20)
-	if !is.hasModes {
+	if !s.hasModes {
 		// and the cloud-init things
-		if err := installCloudConfig(is.rootDir, gadgetUnpackDir); err != nil {
+		if err := installCloudConfig(s.rootDir, gadgetUnpackDir); err != nil {
 			return err
 		}
 
-		defaultsDir := sysconfig.WritableDefaultsDir(is.rootDir)
+		defaultsDir := sysconfig.WritableDefaultsDir(s.rootDir)
 		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
 		if len(defaults) > 0 {
-			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(is.rootDir, "/etc"), 0755); err != nil {
+			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(s.rootDir, "/etc"), 0755); err != nil {
 				return err
 			}
-			if err := sysconfig.ApplyFilesystemOnlyDefaults(is.model, defaultsDir, defaults); err != nil {
+			if err := sysconfig.ApplyFilesystemOnlyDefaults(s.model, defaultsDir, defaults); err != nil {
 				return err
 			}
 		}
 
-		customizeImage(is.rootDir, defaultsDir, &opts.Customizations)
+		customizeImage(s.rootDir, defaultsDir, &opts.Customizations)
 	}
 	return nil
+}
+
+func (s *imageSeeder) warnOnUnassertedSnaps() error {
+	unassertedSnaps, err := s.w.UnassertedSnaps()
+	if err != nil {
+		return err
+	}
+	if len(unassertedSnaps) > 0 {
+		locals := make([]string, len(unassertedSnaps))
+		for i, sn := range unassertedSnaps {
+			locals[i] = sn.SnapName()
+		}
+		fmt.Fprintf(Stderr, "WARNING: %s installed from local snaps disconnected from a store cannot be refreshed subsequently!\n", strutil.Quoted(locals))
+	}
+	return nil
+}
+
+func (s *imageSeeder) finish(opts *Options) error {
+	// print any warnings that occurred during the download phase
+	for _, warn := range s.w.Warnings() {
+		fmt.Fprintf(Stderr, "WARNING: %s\n", warn)
+	}
+
+	// print warnings on unasserted snaps
+	if err := s.warnOnUnassertedSnaps(); err != nil {
+		return err
+	}
+
+	copySnap := func(name, src, dst string) error {
+		fmt.Fprintf(Stdout, "Copying %q (%s)\n", src, name)
+		return osutil.CopyFile(src, dst, 0)
+	}
+	if err := s.w.SeedSnaps(copySnap); err != nil {
+		return err
+	}
+
+	if err := s.w.WriteMeta(); err != nil {
+		return err
+	}
+
+	// TODO: There will be classic UC20+ model based systems
+	//       that will have a bootable  ubuntu-seed partition.
+	//       This will need to be handled here eventually too.
+	if opts.Classic {
+		return s.finishSeedClassic()
+	}
+	return s.finishSeedCore(opts)
 }
 
 func optionSnaps(opts *Options) []*seedwriter.OptionsSnap {
@@ -656,18 +671,55 @@ func optionSnaps(opts *Options) []*seedwriter.OptionsSnap {
 	return optSnaps
 }
 
+func manifestFromLocalSnaps(snaps localSnapRefs, opts *Options) (map[string]snap.Revision, error) {
+	// Build a map of snaps for the manifest file
+	imageManifest := make(map[string]snap.Revision)
+
+	// Check local snaps again, but now after InfoDerived has been called. InfoDerived
+	// fills out the snap revisions for the local snaps, and we need this to verify against
+	// expected revisions.
+	for sn := range snaps {
+		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
+		// available. Therefore the revision in the local snap must be exactly the revision specified
+		// in the manifest. If it's not, we fail.
+		specifiedRevision := opts.Revisions[sn.Info.SnapName()]
+		if !specifiedRevision.Unset() && specifiedRevision != sn.Info.Revision {
+			return nil, fmt.Errorf("cannot use snap %s for image, unknown/local revision does not match the value specified by revisions file (%s != %s)",
+				sn.Path, sn.Info.Revision, specifiedRevision)
+		}
+		if !sn.Info.Revision.Unset() {
+			imageManifest[sn.Info.SnapName()] = sn.Info.Revision
+		}
+	}
+	return imageManifest, nil
+}
+
+func selectAssertionMaxFormats(tsto *tooling.ToolingStore, sysSn *seedwriter.SeedSnap) error {
+	if sysSn == nil {
+		// nothing to do
+		return nil
+	}
+	snapf, err := snapfile.Open(sysSn.Path)
+	if err != nil {
+		return err
+	}
+	// XXX take also kernel into account
+	// XXX warning logic
+	maxFormats, _, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+	if err != nil {
+		return err
+	}
+	tsto.SetAssertionMaxFormats(maxFormats)
+	return nil
+}
+
 var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
 	}
 
-	is, err := makeImageSeeder(tsto, model, opts)
+	s, err := newImageSeeder(tsto, model, opts)
 	if err != nil {
-		return err
-	}
-
-	optSnaps := optionSnaps(opts)
-	if err := is.w.SetOptionsSnaps(optSnaps); err != nil {
 		return err
 	}
 
@@ -680,11 +732,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	if err != nil {
 		return err
 	}
-
-	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
-		return tsto.AssertionFetcher(db, save)
-	}
-	f, err := is.w.Start(db, newFetcher)
+	f, err := s.start(db, optionSnaps(opts))
 	if err != nil {
 		return err
 	}
@@ -699,7 +747,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return tsto.AssertionFetcher(tmpDb, save)
 	})
 
-	localSnaps, err := is.deriveInfoForLocalSnaps(tmpFetcher, tmpDb)
+	localSnaps, err := s.deriveInfoForLocalSnaps(tmpFetcher, tmpDb)
 	if err != nil {
 		return err
 	}
@@ -773,35 +821,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return f.Refs()[prev:], nil
 	}
 
-	if err := is.downloadAllSnaps(localSnaps, fetchAsserts, opts); err != nil {
-		return err
-	}
-
-	for _, warn := range is.w.Warnings() {
-		fmt.Fprintf(Stderr, "WARNING: %s\n", warn)
-	}
-
-	unassertedSnaps, err := is.w.UnassertedSnaps()
-	if err != nil {
-		return err
-	}
-	if len(unassertedSnaps) > 0 {
-		locals := make([]string, len(unassertedSnaps))
-		for i, sn := range unassertedSnaps {
-			locals[i] = sn.SnapName()
-		}
-		fmt.Fprintf(Stderr, "WARNING: %s installed from local snaps disconnected from a store cannot be refreshed subsequently!\n", strutil.Quoted(locals))
-	}
-
-	copySnap := func(name, src, dst string) error {
-		fmt.Fprintf(Stdout, "Copying %q (%s)\n", src, name)
-		return osutil.CopyFile(src, dst, 0)
-	}
-	if err := is.w.SeedSnaps(copySnap); err != nil {
-		return err
-	}
-
-	if err := is.w.WriteMeta(); err != nil {
+	if err := s.downloadAllSnaps(localSnaps, fetchAsserts, opts); err != nil {
 		return err
 	}
 
@@ -811,12 +831,5 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			return err
 		}
 	}
-
-	// TODO: There will be classic UC20+ model based systems
-	//       that will have a bootable  ubuntu-seed partition.
-	//       This will need to be handled here eventually too.
-	if opts.Classic {
-		return is.finishSeedClassic()
-	}
-	return is.finishSeedCore(opts)
+	return s.finish(opts)
 }
