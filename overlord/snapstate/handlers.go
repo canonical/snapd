@@ -874,7 +874,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	// TODO: in the future, do a hard check before starting an auto-refresh so there's
-	// no change of the snap starting between changes and preventing it from going through
+	// no chance of the snap starting between changes and preventing it from going through
 	err = backend.WithSnapLock(info, func() error {
 		return refreshAppsCheck(info)
 	})
@@ -891,10 +891,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return asyncRefreshOnSnapClose(m.state, refreshInfo)
 	}
 
-	// signal to the autorefresh manager to continue the previously blocked autorefresh
-	st.Cache("continue-auto-refresh", true)
-	st.EnsureBefore(0)
-
+	continueInhibitedAutoRefresh(st)
 	return nil
 }
 
@@ -937,13 +934,17 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 			monitoredSnaps = nil
 		}
 		st.Cache("monitored-snaps", monitoredSnaps)
-
-		// signal that there's an auto-refresh to be continued (for auto-refresh code)
-		st.Cache("continue-auto-refresh", true)
-		st.EnsureBefore(0)
+		continueInhibitedAutoRefresh(st)
 	}()
 
 	return nil
+}
+
+// continueInhibitedAutoRefresh triggers an auto-refresh so it can be continued
+func continueInhibitedAutoRefresh(st *state.State) {
+	// signal that there's an auto-refresh to be continued (for auto-refresh code)
+	st.Cache("auto-refresh-continue-attempt", 1)
+	st.EnsureBefore(0)
 }
 
 var (

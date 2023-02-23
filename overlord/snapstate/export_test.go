@@ -43,6 +43,8 @@ type (
 	Migration           = migration
 
 	ReRefreshSetup = reRefreshSetup
+
+	TooSoonError = tooSoonError
 )
 
 const (
