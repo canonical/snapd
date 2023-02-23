@@ -836,6 +836,7 @@ var (
 		"docker":          nil,
 		"lxd":             nil,
 		"microceph":       nil,
+		"microovn":        nil,
 		"pkcs11":          nil,
 		"posix-mq":        nil,
 		"shared-memory":   nil,
@@ -896,6 +897,12 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err = ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"microceph\" slot rule of interface \"microceph\"")
+
+	// test microovn specially
+	ic = s.installSlotCand(c, "microovn", snap.TypeApp, ``)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"microovn\" slot rule of interface \"microovn\"")
 
 	// test shared-memory specially
 	ic = s.installSlotCand(c, "shared-memory", snap.TypeApp, ``)
@@ -1003,6 +1010,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"lxd":                       true,
 		"maliit":                    true,
 		"microceph":                 true,
+		"microovn":                  true,
 		"mir":                       true,
 		"online-accounts-service":   true,
 		"posix-mq":                  true,
