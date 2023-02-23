@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
-// Discard all snap apparmor profiles
+// Discard all snap apparmor profiles.
 func (b Backend) RemoveAllSnapAppArmorProfiles() error {
 	return apparmor.RemoveAllSnapAppArmorProfiles()
 }

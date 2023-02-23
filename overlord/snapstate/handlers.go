@@ -2069,7 +2069,7 @@ func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.Stat
 		return nil
 	}
 
-	// ignore if not preseeded yet or if preseeding
+	// ignore if not seeded yet or if preseeding
 	var seeded bool
 	err := st.Get("seeded", &seeded)
 	if errors.Is(err, state.ErrNoState) || !seeded || snapdenv.Preseeding() {
@@ -2086,6 +2086,9 @@ func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.Stat
 		return err
 	}
 
+	// if we do not have a vendored AppArmor parser (ie the parser is not
+	// snapd-internal) then it is managed by the host and we don't have to
+	// worry about it
 	if !strutil.ListContains(feats, "snapd-internal") {
 		return nil
 	}

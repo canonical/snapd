@@ -311,6 +311,7 @@ func SystemKeysMatch(systemKey1, systemKey2 interface{}) (bool, error) {
 	return reflect.DeepEqual(systemKey1, systemKey2), nil
 }
 
+// RemoveSystemKey removes the system key from the disk.
 func RemoveSystemKey() error {
 	err := os.Remove(dirs.SnapSystemKeyFile)
 	if err != nil && !os.IsNotExist(err) {
