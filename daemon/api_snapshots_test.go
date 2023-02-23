@@ -53,7 +53,7 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 }
 
 func (s *snapshotSuite) TestSnapshotMany(c *check.C) {
-	defer daemon.MockSnapshotSave(func(s *state.State, snaps, users []string, _ map[string]snap.SnapshotOptions) (uint64, []string, *state.TaskSet, error) {
+	defer daemon.MockSnapshotSave(func(s *state.State, snaps, users []string, _ map[string]*snap.SnapshotOptions) (uint64, []string, *state.TaskSet, error) {
 		c.Check(snaps, check.HasLen, 2)
 		t := s.NewTask("fake-snapshot-2", "Snapshot two")
 		return 1, snaps, state.NewTaskSet(t), nil

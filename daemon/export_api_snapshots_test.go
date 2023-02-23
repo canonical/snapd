@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func MockSnapshotSave(newSave func(*state.State, []string, []string, map[string]snap.SnapshotOptions) (uint64, []string, *state.TaskSet, error)) (restore func()) {
+func MockSnapshotSave(newSave func(*state.State, []string, []string, map[string]*snap.SnapshotOptions) (uint64, []string, *state.TaskSet, error)) (restore func()) {
 	oldSave := snapshotSave
 	snapshotSave = newSave
 	return func() {

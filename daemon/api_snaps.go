@@ -190,28 +190,53 @@ func (ropt *snapRevisionOptions) validate() error {
 	return nil
 }
 
+// SnapshotOptionMap maps snap names to snapshot options.
+type SnapshotOptionMap map[string]*snap.SnapshotOptions
+
+// UnmarshalJSON implements interface for custom unmarshalling for shapshotOptionMap.
+//
+// With default marshalling, if a map key is present in JSON, a pointer to empty (value-less)
+// options object will be created. This unmarshaler sets such pointers to nil to avoid
+// downstream marshalling of empty options to JSON when specifying "omitempty".
+func (optsMap *SnapshotOptionMap) UnmarshalJSON(data []byte) error {
+	auxMap := map[string]*snap.SnapshotOptions{}
+	if err := json.Unmarshal(data, &auxMap); err != nil {
+		return err
+	}
+
+	optsMapObj := SnapshotOptionMap{}
+	for name, option := range auxMap {
+		if !option.IsEmpty() {
+			optsMapObj[name] = auxMap[name]
+		}
+	}
+	*optsMap = optsMapObj
+
+	return nil
+}
+
 type snapInstruction struct {
 	progress.NullMeter
 
 	Action string `json:"action"`
 	Amend  bool   `json:"amend"`
 	snapRevisionOptions
-	DevMode                bool                            `json:"devmode"`
-	JailMode               bool                            `json:"jailmode"`
-	Classic                bool                            `json:"classic"`
-	IgnoreValidation       bool                            `json:"ignore-validation"`
-	IgnoreRunning          bool                            `json:"ignore-running"`
-	Unaliased              bool                            `json:"unaliased"`
-	Purge                  bool                            `json:"purge,omitempty"`
-	SystemRestartImmediate bool                            `json:"system-restart-immediate"`
-	Transaction            client.TransactionType          `json:"transaction"`
-	Snaps                  []string                        `json:"snaps"`
-	Users                  []string                        `json:"users"`
-	SnapshotOptions        map[string]snap.SnapshotOptions `json:"options"`
-	ValidationSets         []string                        `json:"validation-sets"`
-	QuotaGroupName         string                          `json:"quota-group"`
-	Time                   string                          `json:"time"`
-	HoldLevel              string                          `json:"hold-level"`
+	DevMode                bool                   `json:"devmode"`
+	JailMode               bool                   `json:"jailmode"`
+	Classic                bool                   `json:"classic"`
+	IgnoreValidation       bool                   `json:"ignore-validation"`
+	IgnoreRunning          bool                   `json:"ignore-running"`
+	Unaliased              bool                   `json:"unaliased"`
+	Purge                  bool                   `json:"purge,omitempty"`
+	SystemRestartImmediate bool                   `json:"system-restart-immediate"`
+	Transaction            client.TransactionType `json:"transaction"`
+	Snaps                  []string               `json:"snaps"`
+	Users                  []string               `json:"users"`
+	Options                SnapshotOptionMap      `json:"options"`
+	ValidationSets         []string               `json:"validation-sets"`
+	QuotaGroupName         string                 `json:"quota-group"`
+	Time                   string                 `json:"time"`
+	HoldLevel              string                 `json:"hold-level"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -262,13 +287,13 @@ func (inst *snapInstruction) holdLevel() snapstate.HoldLevel {
 }
 
 func (inst *snapInstruction) validateSnapshotOptions() error {
-	if inst.SnapshotOptions == nil {
+	if inst.Options == nil {
 		return nil
 	}
 	if inst.Action != "snapshot" {
 		return fmt.Errorf("options can only be specified for snapshot action")
 	}
-	for name, options := range inst.SnapshotOptions {
+	for name, options := range inst.Options {
 		if !strutil.ListContains(inst.Snaps, name) {
 			return fmt.Errorf("cannot use options for snap %q that is not listed in snaps", name)
 		}
@@ -335,6 +360,10 @@ func (inst *snapInstruction) validate() error {
 		if inst.HoldLevel != "" {
 			return errors.New(`hold-level can only be specified for the "hold" action`)
 		}
+	}
+
+	if err := inst.validateSnapshotOptions(); err != nil {
+		return err
 	}
 
 	return inst.snapRevisionOptions.validate()
@@ -606,9 +635,6 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	// TODO: inst.Amend, etc?
 	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Purge {
 		return BadRequest("unsupported option provided for multi-snap operation")
-	}
-	if err := inst.validateSnapshotOptions(); err != nil {
-		return BadRequest("%v", err)
 	}
 	if err := inst.validate(); err != nil {
 		return BadRequest("%v", err)
