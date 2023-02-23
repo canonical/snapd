@@ -2656,15 +2656,6 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
 		},
 	})
-	c.Check(snp.Categories, DeepEquals, []snap.CategoryInfo{
-		{
-			Featured: true,
-			Name:     "featured",
-		}, {
-			Featured: false,
-			Name:     "productivity",
-		},
-	})
 	c.Check(snp.MustBuy, Equals, true)
 	c.Check(snp.Contact(), Equals, "mailto:snaps@canonical.com")
 	c.Check(snp.Base, Equals, "bare-base")
@@ -2686,6 +2677,15 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 		c.Check(snp.Website(), Equals, "https://ubuntu.com")
 		c.Check(snp.StoreURL, Equals, "https://snapcraft.io/hello-world")
 		c.Check(snp.CommonIDs, DeepEquals, []string{"aaa", "bbb"})
+		c.Check(snp.Categories, DeepEquals, []snap.CategoryInfo{
+			{
+				Featured: true,
+				Name:     "featured",
+			}, {
+				Featured: false,
+				Name:     "productivity",
+			},
+		})
 		c.Check(v2Hit, Equals, true)
 	}
 }

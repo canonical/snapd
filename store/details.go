@@ -39,14 +39,13 @@ type snapDetails struct {
 	Prices           map[string]float64 `json:"prices,omitempty"`
 	// Note that the publisher is really the "display name" of the
 	// publisher
-	Publisher      string              `json:"publisher,omitempty"`
-	RatingsAverage float64             `json:"ratings_average,omitempty"`
-	Revision       int                 `json:"revision"` // store revisions are ints starting at 1
-	SnapID         string              `json:"snap_id"`
-	License        string              `json:"license,omitempty"`
-	Base           string              `json:"base,omitempty"`
-	Media          []storeSnapMedia    `json:"media,omitempty"`
-	Categories     []storeSnapCategory `json:"categories,omitempty"`
+	Publisher      string           `json:"publisher,omitempty"`
+	RatingsAverage float64          `json:"ratings_average,omitempty"`
+	Revision       int              `json:"revision"` // store revisions are ints starting at 1
+	SnapID         string           `json:"snap_id"`
+	License        string           `json:"license,omitempty"`
+	Base           string           `json:"base,omitempty"`
+	Media          []storeSnapMedia `json:"media,omitempty"`
 
 	// FIXME: the store should send "contact" here, once it does we
 	//        can remove support_url
@@ -110,8 +109,6 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.CommonIDs = d.CommonIDs
 
 	addMedia(info, d.Media)
-
-	addCategories(info, d.Categories)
 
 	// FIXME: once the store sends "contact" for everything, remove
 	//        the "SupportURL" part of the if
