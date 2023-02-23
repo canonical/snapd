@@ -954,7 +954,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialCertExpired(c *C) {
 	}
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
-	c.Assert(chg.Err(), ErrorMatches, `(?ms).*cannot retrieve request-id for making a request for a serial: Post \"?http://.*/request-id\"?: x509: certificate has expired or is not yet valid.*`)
+	c.Assert(chg.Err(), ErrorMatches, `(?ms).*cannot retrieve request-id for making a request for a serial: Post \"?https://.*/request-id\"?: x509: certificate has expired or is not yet valid.*`)
 
 	var nTentatives int
 	err := t.Get("pre-poll-tentatives", &nTentatives)
@@ -1165,7 +1165,7 @@ func (s *deviceMgrSerialSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c
 		reqID = "REQID-42"
 		storeVersion = "6"
 		bhv.PostPreflight = func(c *C, bhv *devicestatetest.DeviceServiceBehavior, w http.ResponseWriter, r *http.Request) {
-			c.Check(r.Header.Get("X-Snap-Device-Service-URL"), Matches, "http://[^/]*/bad/svc/")
+			c.Check(r.Header.Get("X-Snap-Device-Service-URL"), Matches, "https://[^/]*/bad/svc/")
 			c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
 		}
 		svcPath = "/bad/svc/"

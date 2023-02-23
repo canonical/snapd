@@ -21,16 +21,20 @@ package devicestatetest
 
 import (
 	"bytes"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snapdenv"
 )
 
@@ -75,7 +79,8 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 
 	var mu sync.Mutex
 	count := 0
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// TODO: extract handler func
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// check.Assert here will produce harder to understand failure
 		// modes
 
@@ -252,4 +257,24 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 			}
 		}
 	}))
+	// write custom test-server TLS certificates to
+	// dirs.SnapdStoreSSLCertsDir
+	err := os.MkdirAll(dirs.SnapdStoreSSLCertsDir, 0755)
+	c.Assert(err, IsNil)
+	for i, c1 := range server.TLS.Certificates {
+		fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, fmt.Sprintf("test-server-cert-%v.pem", i))
+		f, err := os.Create(fname)
+		c.Assert(err, IsNil)
+		defer f.Close()
+
+		// there should be just one custom TLS cert in the test-server
+		c.Assert(c1.Certificate, HasLen, 1)
+		block := &pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: c1.Certificate[0],
+		}
+		err = pem.Encode(f, block)
+		c.Assert(err, IsNil)
+	}
+	return server
 }
