@@ -2093,6 +2093,13 @@ func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.Stat
 		return nil
 	}
 
+	// if we are downgrading snapd with a vendored AppArmor parser then
+	// remove any existing AppArmor profiles and the system-key to ensure
+	// that there are no profiles on disk when the downgraded snapd starts
+	// up (as otherwise they might be incompatible with the AppArmor parser
+	// that it is using - either because it also has a vendored AppArmor
+	// parser, or because it doesn't in which case it will be using the
+	// host's AppArmor parser)
 	if compare, err := strutil.VersionCompare(snapInfo.Version, snapdtool.Version); err == nil && compare < 0 {
 		logger.Noticef("Downgrading snapd to version %q, discarding all existing snap AppArmor profiles", snapInfo.Version)
 		if err = m.backend.RemoveAllSnapAppArmorProfiles(); err != nil {
