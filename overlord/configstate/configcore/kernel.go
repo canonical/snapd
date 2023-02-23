@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -60,15 +60,14 @@ func changedKernelConfigs(c RunTransaction) []string {
 	return changed
 }
 
-func validateCmdlineParamsAreAllowed(st *state.State, devCtx snapstate.DeviceContext, params []string) error {
-	// gd, err := devicestate.CurrentGadgetInfo(st, devCtx)
-	// if err != nil {
-	// 	return err
-	// }
-	// logger.Debugf("gadget data read from %s", gd.RootDir)
-	// TODO use gadgetdata to check against allowed values
+func validateCmdlineParamsAreAllowed(st *state.State, devCtx snapstate.DeviceContext, cmdline string) error {
+	gd, err := devicestate.CurrentGadgetInfo(st, devCtx)
+	if err != nil {
+		return err
+	}
+	logger.Debugf("gadget data read from %s", gd.RootDir)
 
-	return nil
+	return gadget.CheckCmdlineAllowed(cmdline, gd.Info.KernelCmdline.Allow)
 }
 
 func validateCmdlineAppend(c RunTransaction) error {
@@ -92,13 +91,9 @@ func validateCmdlineAppend(c RunTransaction) error {
 		}
 
 		logger.Debugf("validating %s=%q", opt, cmdAppend)
-		params, err := osutil.KernelCommandLineSplit(cmdAppend)
-		if err != nil {
-			return err
-		}
 		if opt == optionKernelCmdlineAppend {
 			// check against allowed values from gadget
-			if err := validateCmdlineParamsAreAllowed(c.State(), devCtx, params); err != nil {
+			if err := validateCmdlineParamsAreAllowed(c.State(), devCtx, cmdAppend); err != nil {
 				return err
 			}
 		} else { // OptionKernelDangerousCmdlineAppend
