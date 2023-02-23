@@ -287,7 +287,7 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 
 func createEncryptionParams(encTyp secboot.EncryptionType) gadget.StructureEncryptionParameters {
 	switch encTyp {
-	case secboot.EncryptionTypeLUKS, EncryptionTypeLUKSWithICE:
+	case secboot.EncryptionTypeLUKS, secboot.EncryptionTypeLUKSWithICE:
 		return gadget.StructureEncryptionParameters{
 			Method: gadget.EncryptionLUKS,
 		}
@@ -733,7 +733,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	if options.EncryptionType != secboot.EncryptionTypeNone {
 		var encryptionParam gadget.StructureEncryptionParameters
 		switch options.EncryptionType {
-		case secboot.EncryptionTypeLUKS:
+		case secboot.EncryptionTypeLUKS, secboot.EncryptionTypeLUKSWithICE:
 			encryptionParam = gadget.StructureEncryptionParameters{Method: gadget.EncryptionLUKS}
 		default:
 			// XXX what about ICE?

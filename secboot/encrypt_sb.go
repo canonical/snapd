@@ -50,6 +50,10 @@ const metadataKiBSize = 2048     // 2MB
 // given by node, setting the specified label. The key used to unlock the volume
 // is provided using the key argument.
 func FormatEncryptedDevice(key keys.EncryptionKey, encType EncryptionType, label, node string) error {
+	if encType != EncryptionTypeLUKS && encType != EncryptionTypeLUKSWithICE {
+		return fmt.Errorf("cannot use encryption type %q when formating device %q", encType, node)
+	}
+
 	useICE := encType == EncryptionTypeLUKSWithICE
 	logger.Debugf("using ICE: %v", useICE)
 
