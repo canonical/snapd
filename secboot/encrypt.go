@@ -31,6 +31,11 @@ const (
 	EncryptionTypeDeviceSetupHook EncryptionType = "device-setup-hook"
 )
 
+// TODO:ICE: once all EncryptionTypes are LUKS based this can probably go
+func (et EncryptionType) IsLUKS() bool {
+	return et == EncryptionTypeLUKS || et == EncryptionTypeLUKSWithICE
+}
+
 type RecoveryKeyDevice struct {
 	// Mountpoint of the device
 	Mountpoint string
