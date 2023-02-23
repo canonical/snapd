@@ -592,7 +592,7 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 // from the kernel and so we only remove it from the cache on disk
 func RemoveAllSnapAppArmorProfiles() error {
 	dir := dirs.SnapAppArmorDir
-	globs := []string{"snap.*", "snap-confine.*"}
+	globs := []string{"snap.*", "snap-update-ns.*", "snap-confine.*"}
 	cache := apparmor_sandbox.CacheDir
 	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, nil)
 	errRemoveCached := removeCachedProfiles(removed, cache)
