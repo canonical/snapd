@@ -274,6 +274,9 @@ func makeLabel(now time.Time) string {
 }
 
 type imageSeeder struct {
+	model *asserts.Model
+	tsto  *tooling.ToolingStore
+
 	classic        bool
 	prepareDir     string
 	wideCohortKey  string
@@ -285,47 +288,14 @@ type imageSeeder struct {
 	bootRootDir string
 	seedDir     string
 	label       string
-
-	model *asserts.Model
-	w     *seedwriter.Writer
-	tsto  *tooling.ToolingStore
-}
-
-func (s *imageSeeder) setModelessDirs() error {
-	if s.classic {
-		// Classic, PrepareDir is the root dir itself
-		s.rootDir = s.prepareDir
-	} else {
-		// Core 16/18,  writing for the writeable partition
-		s.rootDir = filepath.Join(s.prepareDir, "image")
-		s.bootRootDir = s.rootDir
-	}
-	s.seedDir = dirs.SnapSeedDirUnder(s.rootDir)
-
-	// validity check target
-	if osutil.FileExists(dirs.SnapStateFileUnder(s.rootDir)) {
-		return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(s.rootDir))
-	}
-	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDirUnder(s.rootDir), "*.snap")); len(snaps) > 0 {
-		return fmt.Errorf("expected empty snap dir in rootdir, got: %v", snaps)
-	}
-	return nil
-}
-
-func (s *imageSeeder) setModesDirs() error {
-	// Core 20, writing for the system-seed partition
-	s.seedDir = filepath.Join(s.prepareDir, "system-seed")
-	s.label = makeLabel(time.Now())
-	s.bootRootDir = s.seedDir
-
-	// validity check target
-	if systems, _ := filepath.Glob(filepath.Join(s.seedDir, "systems", "*")); len(systems) > 0 {
-		return fmt.Errorf("expected empty systems dir in system-seed, got: %v", systems)
-	}
-	return nil
+	w           *seedwriter.Writer
 }
 
 func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) (*imageSeeder, error) {
+	if model.Classic() != opts.Classic {
+		return nil, fmt.Errorf("internal error: classic model but classic mode not set")
+	}
+
 	// Determine image seed paths, which can vary based on the type of image
 	// we are generating.
 	s := &imageSeeder{
@@ -376,6 +346,40 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 	}
 	s.w = w
 	return s, nil
+}
+
+func (s *imageSeeder) setModelessDirs() error {
+	if s.classic {
+		// Classic, PrepareDir is the root dir itself
+		s.rootDir = s.prepareDir
+	} else {
+		// Core 16/18,  writing for the writeable partition
+		s.rootDir = filepath.Join(s.prepareDir, "image")
+		s.bootRootDir = s.rootDir
+	}
+	s.seedDir = dirs.SnapSeedDirUnder(s.rootDir)
+
+	// validity check target
+	if osutil.FileExists(dirs.SnapStateFileUnder(s.rootDir)) {
+		return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(s.rootDir))
+	}
+	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDirUnder(s.rootDir), "*.snap")); len(snaps) > 0 {
+		return fmt.Errorf("expected empty snap dir in rootdir, got: %v", snaps)
+	}
+	return nil
+}
+
+func (s *imageSeeder) setModesDirs() error {
+	// Core 20, writing for the system-seed partition
+	s.seedDir = filepath.Join(s.prepareDir, "system-seed")
+	s.label = makeLabel(time.Now())
+	s.bootRootDir = s.seedDir
+
+	// validity check target
+	if systems, _ := filepath.Glob(filepath.Join(s.seedDir, "systems", "*")); len(systems) > 0 {
+		return fmt.Errorf("expected empty systems dir in system-seed, got: %v", systems)
+	}
+	return nil
 }
 
 func (s *imageSeeder) start(db *asserts.Database, optSnaps []*seedwriter.OptionsSnap) (seedwriter.RefAssertsFetcher, error) {
@@ -728,10 +732,6 @@ func selectAssertionMaxFormats(tsto *tooling.ToolingStore, sysSn *seedwriter.See
 }
 
 var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) error {
-	if model.Classic() != opts.Classic {
-		return fmt.Errorf("internal error: classic model but classic mode not set")
-	}
-
 	s, err := newImageSeeder(tsto, model, opts)
 	if err != nil {
 		return err
