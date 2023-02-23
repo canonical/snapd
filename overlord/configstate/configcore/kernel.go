@@ -36,8 +36,8 @@ import (
 )
 
 const (
-	optionKernelCmdlineAppend              = "system.kernel.cmdline-append"
-	optionKernelDangerousCmdlineAppend     = "system.kernel.dangerous-cmdline-append"
+	optionKernelCmdlineAppend              = "system.kernel." + state.KernelCmdlineAppendTaskKey
+	optionKernelDangerousCmdlineAppend     = "system.kernel." + state.KernelDangerousCmdlineAppendTaskKey
 	coreOptionKernelCmdlineAppend          = "core." + optionKernelCmdlineAppend
 	coreOptionKernelDangerousCmdlineAppend = "core." + optionKernelDangerousCmdlineAppend
 )

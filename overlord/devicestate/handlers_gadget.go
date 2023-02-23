@@ -215,7 +215,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 // fromSystemOption tells us if t was created when setting a system
 // option for the kernel command line.
 func fromSystemOption(t *state.Task) (bool, error) {
-	for _, param := range []string{"system.kernel.cmdline-append", "system.kernel.dangerous-cmdline-append"} {
+	for _, param := range []string{state.KernelCmdlineAppendTaskKey, state.KernelDangerousCmdlineAppendTaskKey} {
 		var value string
 		err := t.Get(param, &value)
 		if err == nil {
