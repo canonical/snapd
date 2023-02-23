@@ -239,7 +239,8 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 		}
 		gadgetData = currentGadgetData
 	}
-	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir)
+	// TODO: set optional command line
+	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir, "")
 	if err != nil {
 		return false, fmt.Errorf("cannot update kernel command line from gadget: %v", err)
 	}
