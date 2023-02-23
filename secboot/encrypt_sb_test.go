@@ -83,6 +83,11 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 	}
 }
 
+func (s *encryptSuite) TestFormatEncryptedDeviceInvalidEncType(c *C) {
+	err := secboot.FormatEncryptedDevice(keys.EncryptionKey{}, secboot.EncryptionType("other-enc-type"), "my label", "/dev/node")
+	c.Check(err, ErrorMatches, `cannot use encryption type "other-enc-type" when formating device "/dev/node"`)
+}
+
 type keymgrSuite struct {
 	testutil.BaseTest
 
