@@ -2644,3 +2644,30 @@ func (s *backendSuite) TestCoreSnippetOnCoreSystem(c *C) {
 		s.RemoveSnap(c, snapInfo)
 	}
 }
+func (s *backendSuite) TestRemoveAllSnapAppArmorProfiles(c *C) {
+	dirs.SetRootDir(s.RootDir)
+
+	opts := interfaces.ConfinementOptions{}
+	snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+	snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
+	snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
+	snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	snap2nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap")
+	snap2AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.some-snap.someapp")
+
+	for _, p := range []string{snap1nsProfile, snap1AAprofile, snap2nsProfile, snap2AAprofile} {
+		_, err := os.Stat(p)
+		c.Assert(err, IsNil)
+	}
+
+	err := apparmor.RemoveAllSnapAppArmorProfiles()
+	c.Assert(err, IsNil)
+
+	for _, p := range []string{snap1nsProfile, snap1AAprofile, snap2nsProfile, snap2AAprofile} {
+		_, err := os.Stat(p)
+		c.Check(os.IsNotExist(err), Equals, true)
+	}
+
+	s.RemoveSnap(c, snapInfo2)
+	s.RemoveSnap(c, snapInfo1)
+}
