@@ -196,5 +196,6 @@ static void __attribute__((constructor)) init(void)
 	g_test_add_func("/cleanup/endmntent", test_cleanup_endmntent);
 	g_test_add_func("/cleanup/closedir", test_cleanup_closedir);
 	g_test_add_func("/cleanup/close", test_cleanup_close);
+	g_test_add_func("/cleanup/deep_strv", test_cleanup_deep_strv);
 	g_test_add_func("/cleanup/shallow_strv", test_cleanup_shallow_strv);
 }
