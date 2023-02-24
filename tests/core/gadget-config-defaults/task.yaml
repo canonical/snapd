@@ -117,14 +117,11 @@ restore: |
     restore_pc_snap
 
     TEST_REVNO=$(awk "/^snap-revision: / {print \$2}" "test-snapd-with-configure${SUFFIX}"_*.assert)
-    if systemctl status "$(systemd-escape --path "/snap/test-snapd-with-configure${SUFFIX}/$TEST_REVNO.mount")"; then
-       systemctl stop "$(systemd-escape --path "/snap/test-snapd-with-configure${SUFFIX}/$TEST_REVNO.mount")"
-       rm -f "/etc/systemd/system/snap-test-snapd-with-configure${SUFFIX}-${TEST_REVNO}.mount"
-       rm -f "/etc/systemd/system/snapd.mounts.target.wants/snap-test-snapd-with-configure${SUFFIX}-${TEST_REVNO}.mount"
-       rm -f "/etc/systemd/system/multi-user.target.wants/snap-test-snapd-with-configure${SUFFIX}-${TEST_REVNO}.mount"
-       rm -f "/var/lib/snapd/snaps/test-snapd-with-configure${SUFFIX}"_*.snap
-       systemctl daemon-reload
-    fi
+    mount_unit="$(systemd-escape --path "/snap/test-snapd-with-configure${SUFFIX}/$TEST_REVNO").mount"
+    systemctl stop "${mount_unit}" || true
+    systemctl disable "${mount_unit}" || true
+    rm -f "/etc/systemd/system/${mount_unit}"
+    systemctl daemon-reload
     rm "/var/lib/snapd/seed/snaps/test-snapd-with-configure${SUFFIX}"_*.snap
 
     # Generic restore for test account
