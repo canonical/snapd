@@ -25,6 +25,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/timerfd.h>
+#include <string.h>
 
 static int called = 0;
 
