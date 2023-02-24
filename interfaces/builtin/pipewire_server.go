@@ -57,7 +57,7 @@ const pipewireServerBaseDeclarationSlots = `
 `
 
 const pipewireServerConnectedPlugAppArmor = `
-# Allow communicating with pulseaudio service
+# Allow communicating with pipewire service
 
 owner /{,var/}run/user/[0-9]*/ r,
 owner /{,var/}run/user/[0-9]*/pipewire-0 rwk,
