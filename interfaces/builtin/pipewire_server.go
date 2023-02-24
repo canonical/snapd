@@ -22,20 +22,26 @@ package builtin
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 )
 
-// The pipewire-server interface is the companion interface to the audio-record
-// interface. The design of this interface is based on the idea that the slot
-// implementation (eg pulseaudio) is expected to query snapd on if the
-// audio-record slot is connected or not and the audio service will mediate
-// recording (ie, the rules below allow connecting to the audio service, but do
-// not implement enforcement rules; it is up to the audio service to provide
-// enforcement). If other audio recording servers require different security
-// policy for record and playback (eg, a different socket path), then those
-// accesses will be added to this interface.
+// The pipewire-server interface is designed to allow a snap to get full
+// access to the pipewire socket. This is useful in these cases:
+//
+// * when snapping pipewire itself, to allow it to offer its socket
+// * when snapping xdg-desktop-portal, to allow it to offer pipewire connections through portals
+// * when snapping Gnome Shell, to allow it to share the screen
+//
+// this interface is NOT needed in any other cases, because for that cases the
+// current audio-playback, audio-record interfaces and the portals offered by
+// xdg-desktop-portal are enough.
+//
+// This interface only adds the bare minimum for pipewire over audio-playback and
+// audio-record interfaces, so both must be also set and plugged to have full access.
+// For example, this interface doesn't give access to .../pulse/native socket, because
+// it is already available in the audio-playback interface. It makes no sense to
+// duplicate everything here, because it just makes more complex to fix any bug.
 
 const pipewireServerSummary = `allows full access to the pipewire socket (don't needed for normal apps)`
 
@@ -59,47 +65,11 @@ owner /{,var/}run/user/[0-9]*/pipewire-0.lock rwk,
 owner /{,var/}run/user/[0-9]*/pulse/pid rwk,
 `
 
-const pipewireServerConnectedPlugSecComp = `
-shmctl
-`
-
 const pipewireServerPermanentSlotAppArmor = `
-# When running Pipewire in system mode it will switch to the at
-# build time configured user/group on startup.
-capability setuid,
-capability setgid,
-
-capability sys_nice,
-capability sys_resource,
-
-# For udev
-network netlink raw,
-/sys/devices/virtual/dmi/id/sys_vendor r,
-/sys/devices/virtual/dmi/id/bios_vendor r,
-/sys/**/sound/** r,
-
-
-# Shared memory based communication with clients
-
 owner /{,var/}run/user/[0-9]*/ r,
 owner /{,var/}run/user/[0-9]*/pipewire-0 rwk,
 owner /{,var/}run/user/[0-9]*/pipewire-0.lock rwk,
 owner /{,var/}run/user/[0-9]*/pulse/pid rwk,
-`
-
-const pipewireServerPermanentSlotSecComp = `
-# The following are needed for UNIX sockets
-personality
-setpriority
-bind
-listen
-accept
-accept4
-shmctl
-setgroups
-setgroups32
-# libudev
-socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 type pipewireServerInterface struct{}
@@ -129,16 +99,6 @@ func (iface *pipewireServerInterface) UDevPermanentSlot(spec *udev.Specification
 
 func (iface *pipewireServerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(pipewireServerPermanentSlotAppArmor)
-	return nil
-}
-
-func (iface *pipewireServerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(pipewireServerConnectedPlugSecComp)
-	return nil
-}
-
-func (iface *pipewireServerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(pipewireServerPermanentSlotSecComp)
 	return nil
 }
 
