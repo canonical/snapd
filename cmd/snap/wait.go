@@ -115,17 +115,35 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 			tMax = time.Time{}
 		}
 
+		maybeShowLog := func(t *client.Task) {
+			nowLog := lastLogStr(t.Log)
+			if lastLog[t.ID] != nowLog {
+				pb.Notify(nowLog)
+				lastLog[t.ID] = nowLog
+			}
+		}
+
+		// Tasks in "wait" state communicate the wait reason
+		// via the log mechanism. So make sure the log is
+		// visible even if the normal progress reporting
+		// has tasks in "Doing" state (like "check-refresh")
+		// that would supress displaying the log. This will
+		// ensure on a classic+modes system the user sees
+		// the messages: "Task set to wait until a manual system restart allows to continue"
+		for _, t := range chg.Tasks {
+			if t.Status == "Wait" {
+				maybeShowLog(t)
+			}
+		}
+
+		// progress reporting
 		for _, t := range chg.Tasks {
 			switch {
 			case t.Status != "Doing":
 				continue
 			case t.Progress.Total == 1:
 				pb.Spin(t.Summary)
-				nowLog := lastLogStr(t.Log)
-				if lastLog[t.ID] != nowLog {
-					pb.Notify(nowLog)
-					lastLog[t.ID] = nowLog
-				}
+				maybeShowLog(t)
 			case t.ID == lastID:
 				pb.Set(float64(t.Progress.Done))
 			default:
