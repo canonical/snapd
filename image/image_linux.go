@@ -689,13 +689,11 @@ func optionSnaps(opts *Options) []*seedwriter.OptionsSnap {
 	return optSnaps
 }
 
+// manifestFromLocalSnaps creates an initial seed manifest based on the locally
+// available snaps. It also performs initial verification against any rules given
+// to seedSetup against these.
 func manifestFromLocalSnaps(snaps localSnapRefs, opts *Options) (map[string]snap.Revision, error) {
-	// Build a map of snaps for the manifest file
 	seedManifest := make(map[string]snap.Revision)
-
-	// Check local snaps again, but now after InfoDerived has been called. InfoDerived
-	// fills out the snap revisions for the local snaps, and we need this to verify against
-	// expected revisions.
 	for sn := range snaps {
 		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
 		// available. Therefore the revision in the local snap must be exactly the revision specified
@@ -766,10 +764,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
-	// Build a map of snaps for the manifest file, but after
-	// InfoDerived has been called. InfoDerived fills out the snap
-	// revisions for the local snaps, and we need this to verify against
-	// expected revisions.
+	// Create the initial manifest, derived from the locally available snaps.
+	// Must be done after deriveInfoForLocalSnaps, as the snap info must have
+	// been derived if possible.
 	imageManifest, err := manifestFromLocalSnaps(localSnaps, opts)
 	if err != nil {
 		return err
