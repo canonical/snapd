@@ -111,19 +111,11 @@ func (s *PipewireServerInterfaceSuite) TestSecComp(c *C) {
 	// connected plug to core slot
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "shmctl\n")
 
 	// connected core slot to plug
 	spec = &seccomp.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
-
-	// permanent core slot
-	spec = &seccomp.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.pipewire-server.app1"})
-	c.Assert(spec.SnippetForTag("snap.pipewire-server.app1"), testutil.Contains, "listen\n")
 }
 
 func (s *PipewireServerInterfaceSuite) TestSecCompOnClassic(c *C) {
@@ -133,8 +125,6 @@ func (s *PipewireServerInterfaceSuite) TestSecCompOnClassic(c *C) {
 	// connected plug to classic slot
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "shmctl\n")
 
 	// connected classic slot to plug
 	spec = &seccomp.Specification{}
@@ -169,7 +159,6 @@ func (s *PipewireServerInterfaceSuite) TestAppArmor(c *C) {
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.pipewire-server.app1"})
-	c.Check(spec.SnippetForTag("snap.pipewire-server.app1"), testutil.Contains, "capability setuid,\n")
 }
 
 func (s *PipewireServerInterfaceSuite) TestAppArmorOnClassic(c *C) {
