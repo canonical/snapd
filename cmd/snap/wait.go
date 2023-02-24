@@ -127,7 +127,7 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 		// via the log mechanism. So make sure the log is
 		// visible even if the normal progress reporting
 		// has tasks in "Doing" state (like "check-refresh")
-		// that would supress displaying the log. This will
+		// that would suppress displaying the log. This will
 		// ensure on a classic+modes system the user sees
 		// the messages: "Task set to wait until a manual system restart allows to continue"
 		for _, t := range chg.Tasks {
