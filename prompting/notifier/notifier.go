@@ -36,6 +36,9 @@ type Request struct {
 	Pid uint32
 	// Label is the apparmor label on the process triggering the request.
 	Label string
+	// SubjectUID is the UID of the subject that triggered the prompt
+	SubjectUid uint32
+
 	// Path is the path of the file, as seen by the process triggering the request.
 	Path string
 	// Permission is the opaque permission that is being requested.
@@ -53,9 +56,10 @@ func newRequest(n *Notifier, msg *apparmor.MsgNotificationFile) *Request {
 	return &Request{
 		n: n,
 
-		Pid:   msg.Pid,
-		Label: msg.Label,
-		Path:  msg.Name,
+		Pid:        msg.Pid,
+		Label:      msg.Label,
+		Path:       msg.Name,
+		SubjectUid: msg.SUID,
 
 		Permission: perm,
 
@@ -84,6 +88,7 @@ func Register() (*Notifier, error) {
 		}
 		return nil, err
 	}
+
 	msg := apparmor.MsgNotificationFilter{ModeSet: apparmor.ModeSetUser}
 	data, err := msg.MarshalBinary()
 	if err != nil {
