@@ -77,7 +77,12 @@ var (
 //
 // If the kernel does not support the notification mechanism the error is ErrNotSupported.
 func Register() (*Notifier, error) {
-	notify, err := os.Open("/sys/kernel/security/apparmor/.notify")
+	path := "/sys/kernel/security/apparmor/.notify"
+	if override := os.Getenv("PROMPT_NOTIFY_PATH"); override != "" {
+		path = override
+	}
+
+	notify, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrNotifierNotSupported
@@ -94,19 +99,19 @@ func Register() (*Notifier, error) {
 	// TODO: check ioctl return size
 	if err != nil {
 		notify.Close()
-		return nil, err
+		return nil, fmt.Errorf("cannot notify ioctl %q: %v", path, err)
 	}
 
 	poll, err := epoll.Open()
 	if err != nil {
 		notify.Close()
-		return nil, err
+		return nil, fmt.Errorf("cannot open %q: %v", path, err)
 	}
 	// XXX: Do we need a notification for Writable, to send responses back?
 	if err := poll.Register(int(notify.Fd()), epoll.Readable); err != nil {
 		notify.Close()
 		poll.Close()
-		return nil, err
+		return nil, fmt.Errorf("cannot register poll on %q: %v", path, err)
 	}
 
 	notifier := &Notifier{
