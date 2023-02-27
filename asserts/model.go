@@ -405,13 +405,11 @@ func (mg ModelGrade) Code() uint32 {
 type ModelValidationSetMode string
 
 const (
-	ModelValidationSetModeMonitor        ModelValidationSetMode = "monitor"
 	ModelValidationSetModePreferEnforced ModelValidationSetMode = "prefer-enforce"
 	ModelValidationSetModeEnforced       ModelValidationSetMode = "enforce"
 )
 
 var validModelValidationSetModes = []string{
-	string(ModelValidationSetModeMonitor),
 	string(ModelValidationSetModePreferEnforced),
 	string(ModelValidationSetModeEnforced),
 }

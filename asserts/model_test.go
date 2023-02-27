@@ -1215,21 +1215,21 @@ func (mods *modelSuite) TestValidationSetsDecodeFAIL(c *C) {
     name: my-set
     sequence: 10
     mode: hello
-`, "assertion model: validation-set mode for model must be monitor|prefer-enforce|enforce, not \"hello\""},
+`, "assertion model: validation-set mode for model must be prefer-enforce|enforce, not \"hello\""},
 		// sequence number invalid
 		{`validation-sets:
   -
     account-id: developer1
     sequence: -1
     name: my-set
-    mode: monitor
+    mode: enforce
 `, "assertion model: invalid sequence number for validation set, sequence must be larger than 0"},
 		// duplicate validation-set
 		{`validation-sets:
   -
     account-id: developer1
     name: my-set
-    mode: monitor
+    mode: prefer-enforce
   -
     account-id: developer1
     name: my-set
@@ -1285,13 +1285,13 @@ func (mods *modelSuite) TestValidationSetsDecodeOK(c *C) {
   -
     account-id: developer1
     name: my-set
-    mode: monitor
+    mode: prefer-enforce
 `,
 			[]*asserts.ModelValidationSet{
 				{
 					AccountID: "developer1",
 					Name:      "my-set",
-					Mode:      asserts.ModelValidationSetModeMonitor,
+					Mode:      asserts.ModelValidationSetModePreferEnforced,
 				},
 			}},
 	}
