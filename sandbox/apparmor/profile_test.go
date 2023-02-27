@@ -377,6 +377,9 @@ func (s *appArmorSuite) TestSnapConfineDistroProfilePath(c *C) {
 }
 
 func (s *appArmorSuite) TestSetupSnapConfineSnippetsNoSnippets(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
 	restore := osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
 	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
