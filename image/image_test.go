@@ -276,6 +276,13 @@ version: 2.5029
 type: base
 `
 
+const arm64Snap = `
+name: arm64-snap
+version: 1.0
+type: app
+architectures: [arm64]
+`
+
 const devmodeSnap = `
 name: devmode-snap
 version: 1.0
@@ -4186,4 +4193,65 @@ func (s *imageSuite) TestLocalSnapRevisionMatchingStoreRevision(c *C) {
 			IgnoreValidation: false,
 		},
 	})
+}
+
+func (s *imageSuite) TestSetupSeedLocalSnapWithInvalidArchitecture(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	a64Snap := snaptest.MakeTestSnapWithFiles(c, arm64Snap, nil)
+
+	opts := &image.Options{
+		Snaps:      []string{a64Snap},
+		PrepareDir: filepath.Dir(rootdir),
+	}
+
+	err := image.SetupSeed(s.tsto, s.model, opts)
+	c.Assert(err, ErrorMatches, `snap "arm64-snap" supported architectures \(arm64\) are incompatible with the model architecture \(amd64\)`)
+}
+
+func (s *imageSuite) TestSetupSeedSnapInvalidArchitecture(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	s.makeSnap(c, "snapd", [][]string{snapdInfoFile}, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(20), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
+	s.makeSnap(c, "pc=20", nil, snap.R(22), "")
+	s.MakeAssertedSnap(c, arm64Snap, nil, snap.R(18), "canonical")
+
+	// replace model with a model that has an extra snap
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "arm64-snap",
+				"id":   s.AssertedSnapID("arm64-snap"),
+				"type": "app",
+			},
+		},
+	})
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	opts := &image.Options{
+		PrepareDir: filepath.Dir(rootdir),
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, ErrorMatches, `snap "arm64-snap" supported architectures \(arm64\) are incompatible with the model architecture \(amd64\)`)
 }

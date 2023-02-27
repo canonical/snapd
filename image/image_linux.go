@@ -392,6 +392,18 @@ func (s *imageSeeder) start(db *asserts.Database, optSnaps []*seedwriter.Options
 	return s.w.Start(db, newFetcher)
 }
 
+func (s *imageSeeder) validateSnapArchs(snaps []*seedwriter.SeedSnap) error {
+	for _, sn := range snaps {
+		for _, a := range sn.Info.Architectures {
+			if a != "all" && a != s.model.Architecture() {
+				return fmt.Errorf("snap %q supported architectures (%s) are incompatible with the model architecture (%s)",
+					sn.Info.SnapName(), strings.Join(sn.Info.Architectures, ", "), s.model.Architecture())
+			}
+		}
+	}
+	return nil
+}
+
 type localSnapRefs map[*seedwriter.SeedSnap][]*asserts.Ref
 
 func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.RefAssertsFetcher, db *asserts.Database) (localSnapRefs, error) {
@@ -420,6 +432,11 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.RefAssertsFetcher, db
 			return nil, err
 		}
 		snaps[sn] = aRefs
+	}
+
+	// derive info first before verifying the arch
+	if err := s.validateSnapArchs(localSnaps); err != nil {
+		return nil, err
 	}
 	return snaps, s.w.InfoDerived()
 }
@@ -827,6 +844,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	}
 
 	fetchAsserts := func(sn, sysSn, kernSn *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
+		if err := s.validateSnapArchs([]*seedwriter.SeedSnap{sn}); err != nil {
+			return nil, err
+		}
 		if !assertMaxFormatsSelected {
 			if err := selectAssertionMaxFormats(tsto, model, sysSn, kernSn); err != nil {
 				return nil, err
