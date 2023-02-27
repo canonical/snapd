@@ -229,16 +229,17 @@ func fromSystemOption(t *state.Task) (bool, error) {
 	return false, nil
 }
 
-// kernelCommandLineOption returns the value for the specified
-// option, first by looking at the task, and if not found, it looks at
-// the current configuration. One thing or the other could happen
-// depending on whether this is a task created when setting the option
-// or by gadget installation.
-func kernelCommandLineOption(tsk *state.Task, tr *config.Transaction,
-	param string) (string, error) {
+// kernelCommandLineAppendArgs returns extra arguments that we want to
+// append to the kernel command line, searching first by looking at
+// the task, and if not found, looking at the current configuration
+// options. One thing or the other could happen depending on whether
+// this is a task created when setting a kernel option or by gadget
+// installation.
+func kernelCommandLineAppendArgs(tsk *state.Task, tr *config.Transaction,
+	taskParam string) (string, error) {
 
 	var value string
-	err := tsk.Get(param, &value)
+	err := tsk.Get(taskParam, &value)
 	if err == nil {
 		return value, nil
 	}
@@ -246,7 +247,16 @@ func kernelCommandLineOption(tsk *state.Task, tr *config.Transaction,
 		return "", err
 	}
 
-	if err := tr.Get("core", param, &value); err != nil && !config.IsNoOption(err) {
+	var option string
+	switch taskParam {
+	case state.KernelCmdlineAppendTaskKey:
+		option = "system.kernel.cmdline-append"
+	case state.KernelDangerousCmdlineAppendTaskKey:
+		option = "system.kernel.dangerous-cmdline-append"
+	default:
+		return "", fmt.Errorf("internal error, unexpected task parameter %q", taskParam)
+	}
+	if err := tr.Get("core", option, &value); err != nil && !config.IsNoOption(err) {
 		return "", err
 	}
 
@@ -257,7 +267,7 @@ func buildAppendedKernelCommandLine(t *state.Task) (string, error) {
 	st := t.State()
 	tr := config.NewTransaction(st)
 	// Note that validation has already happened in configcore.
-	cmdlineAppend, err := kernelCommandLineOption(t, tr, state.KernelCmdlineAppendTaskKey)
+	cmdlineAppend, err := kernelCommandLineAppendArgs(t, tr, state.KernelCmdlineAppendTaskKey)
 	if err != nil {
 		return "", err
 	}
@@ -268,7 +278,7 @@ func buildAppendedKernelCommandLine(t *state.Task) (string, error) {
 		return "", err
 	}
 	if deviceCtx.Model().Grade() == asserts.ModelDangerous {
-		cmdlineAppendDanger, err := kernelCommandLineOption(t, tr,
+		cmdlineAppendDanger, err := kernelCommandLineAppendArgs(t, tr,
 			state.KernelDangerousCmdlineAppendTaskKey)
 		if err != nil {
 			return "", err

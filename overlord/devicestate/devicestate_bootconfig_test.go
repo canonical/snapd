@@ -142,9 +142,9 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, opts testBootCo
 
 	// Set options that influence the final kernel command line
 	tr := config.NewTransaction(s.state)
-	err := tr.Set("core", "cmdline-append", opts.cmdlineAppend)
+	err := tr.Set("core", "system.kernel.cmdline-append", opts.cmdlineAppend)
 	c.Assert(err, IsNil)
-	tr.Set("core", "dangerous-cmdline-append", opts.cmdlineAppendDanger)
+	tr.Set("core", "system.kernel.dangerous-cmdline-append", opts.cmdlineAppendDanger)
 	c.Assert(err, IsNil)
 	tr.Commit()
 
@@ -200,9 +200,9 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, opts tes
 
 	// Set options that influence the final kernel command line
 	tr := config.NewTransaction(s.state)
-	err := tr.Set("core", "cmdline-append", opts.cmdlineAppend)
+	err := tr.Set("core", "system.kernel.cmdline-append", opts.cmdlineAppend)
 	c.Assert(err, IsNil)
-	tr.Set("core", "dangerous-cmdline-append", opts.cmdlineAppendDanger)
+	tr.Set("core", "system.kernel.dangerous-cmdline-append", opts.cmdlineAppendDanger)
 	c.Assert(err, IsNil)
 	tr.Commit()
 
