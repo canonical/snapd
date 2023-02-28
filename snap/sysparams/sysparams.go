@@ -95,7 +95,7 @@ func Open(path string) (*SystemParams, error) {
 
 	params, err := parseSystemParams(string(data))
 	if err != nil {
-		return params, err
+		return nil, err
 	}
 	params.path = path
 	return params, nil
