@@ -1202,12 +1202,12 @@ func (mods *modelSuite) TestValidationSetsDecodeFAIL(c *C) {
 		{`validation-sets:
   -
     mode: prefer-enforce
-`, "assertion model: \"name\" header is mandatory"},
+`, "assertion model: \"name\" of validation-set is mandatory"},
 		// missing mode
 		{`validation-sets:
   -
     name: my-set
-`, "assertion model: \"mode\" header is mandatory"},
+`, "assertion model: \"mode\" of validation-set \"brand-id1/my-set\" is mandatory"},
 		// invalid value in mode
 		{`validation-sets:
   -
@@ -1215,15 +1215,23 @@ func (mods *modelSuite) TestValidationSetsDecodeFAIL(c *C) {
     name: my-set
     sequence: 10
     mode: hello
-`, "assertion model: validation-set mode for model must be prefer-enforce|enforce, not \"hello\""},
-		// sequence number invalid
+`, "assertion model: \"mode\" of validation-set \"brand-id1/my-set\" must be prefer-enforce|enforce, not \"hello\""},
+		// sequence number invalid (not an integer)
+		{`validation-sets:
+  -
+    account-id: developer1
+    sequence: foo
+    name: my-set
+    mode: enforce
+`, "assertion model: \"sequence\" of validation-set \"developer1/my-set\" is not an integer: foo"},
+		// sequence number invalid (below 0)
 		{`validation-sets:
   -
     account-id: developer1
     sequence: -1
     name: my-set
     mode: enforce
-`, "assertion model: invalid sequence number for validation set, sequence must be larger than 0"},
+`, "assertion model: \"sequence\" of validation-set \"developer1/my-set\" must be larger than 0"},
 		// duplicate validation-set
 		{`validation-sets:
   -

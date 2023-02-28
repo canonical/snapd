@@ -414,14 +414,22 @@ var validModelValidationSetModes = []string{
 	string(ModelValidationSetModeEnforced),
 }
 
+// ModelValidationSet represents a reference to a validation set assertion.
+// The structure also describes how the validation set will be applied
+// to the device, and whether the validation set should be pinned to
+// a specific sequence.
 type ModelValidationSet struct {
 	// AccountID is the account ID the validation set originates from.
-	// It is optional, and if not specified, the brand ID should be instead
-	// used.
+	// If this was not explicitly set in the stanza, this will instead
+	// be set to the brand ID.
 	AccountID string
-	Name      string
-	Sequence  int
-	Mode      ModelValidationSetMode
+	// Name is the name of the validation set from the account ID.
+	Name string
+	// Sequence, if non-zero, specifies that the validation set should be
+	// pinned at this sequence number.
+	Sequence int
+	// Mode is the enforcement mode the validation set should be applied with.
+	Mode ModelValidationSetMode
 }
 
 // Model holds a model assertion, which is a statement by a brand
@@ -588,7 +596,7 @@ func (mod *Model) SnapsWithoutEssential() []*ModelSnap {
 	return mod.allSnaps[mod.numEssentialSnaps:]
 }
 
-// ValidationSets returns all the validation-sets listed by the model
+// ValidationSets returns all the validation-sets listed by the model.
 func (mod *Model) ValidationSets() []*ModelValidationSet {
 	return mod.validationSets
 }
@@ -687,7 +695,7 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 }
 
 func checkModelValidationSetAccountID(headers map[string]interface{}, brandID string) (string, error) {
-	accountID, err := checkOptionalString(headers, "account-id")
+	accountID, err := checkOptionalStringWhat(headers, "account-id", "of validation-set")
 	if err != nil {
 		return "", err
 	}
@@ -702,8 +710,8 @@ func checkModelValidationSetAccountID(headers map[string]interface{}, brandID st
 // checkModelValidationSetSequence reads the optional 'sequence' member, if
 // not set, returns 0 as this means unpinned. Unfortunately we are not able
 // to reuse `checkSequence` as it operates inside different parameters.
-func checkModelValidationSetSequence(headers map[string]interface{}) (int, error) {
-	seq, err := checkIntWithDefault(headers, "sequence", 0)
+func checkModelValidationSetSequence(headers map[string]interface{}, what string) (int, error) {
+	seq, err := checkIntWithDefaultWhat(headers, "sequence", what, 0)
 	if err != nil {
 		return 0, err
 	}
@@ -711,19 +719,19 @@ func checkModelValidationSetSequence(headers map[string]interface{}) (int, error
 	// Assert that sequence number is not zero, as zero will be interpreted as not specified,
 	// which means that the validation-set is unpinned.
 	if seq < 0 {
-		return 0, fmt.Errorf("invalid sequence number for validation set, sequence must be larger than 0")
+		return 0, fmt.Errorf("\"sequence\" %s must be larger than 0", what)
 	}
 	return seq, nil
 }
 
-func checkModelValidationSetMode(headers map[string]interface{}) (ModelValidationSetMode, error) {
-	modeStr, err := checkNotEmptyString(headers, "mode")
+func checkModelValidationSetMode(headers map[string]interface{}, what string) (ModelValidationSetMode, error) {
+	modeStr, err := checkNotEmptyStringWhat(headers, "mode", what)
 	if err != nil {
 		return "", err
 	}
 
 	if modeStr != "" && !strutil.ListContains(validModelValidationSetModes, modeStr) {
-		return "", fmt.Errorf("validation-set mode for model must be %s, not %q", strings.Join(validModelValidationSetModes, "|"), modeStr)
+		return "", fmt.Errorf("\"mode\" %s must be %s, not %q", what, strings.Join(validModelValidationSetModes, "|"), modeStr)
 	}
 	return ModelValidationSetMode(modeStr), nil
 }
@@ -734,17 +742,18 @@ func checkModelValidationSet(headers map[string]interface{}, brandID string) (*M
 		return nil, err
 	}
 
-	seq, err := checkModelValidationSetSequence(headers)
+	name, err := checkStringMatchesWhat(headers, "name", "of validation-set", validValidationSetName)
 	if err != nil {
 		return nil, err
 	}
 
-	name, err := checkStringMatches(headers, "name", validValidationSetName)
+	what := fmt.Sprintf("of validation-set \"%s/%s\"", accountID, name)
+	seq, err := checkModelValidationSetSequence(headers, what)
 	if err != nil {
 		return nil, err
 	}
 
-	mode, err := checkModelValidationSetMode(headers)
+	mode, err := checkModelValidationSetMode(headers, what)
 	if err != nil {
 		return nil, err
 	}

@@ -107,7 +107,7 @@ func checkAssertType(assertType *AssertionType) error {
 }
 
 // use 'defl' default if missing
-func checkIntWithDefault(headers map[string]interface{}, name string, defl int) (int, error) {
+func checkIntWithDefaultWhat(headers map[string]interface{}, name, what string, defl int) (int, error) {
 	value, ok := headers[name]
 	if !ok {
 		return defl, nil
@@ -116,11 +116,15 @@ func checkIntWithDefault(headers map[string]interface{}, name string, defl int) 
 	if !ok {
 		return -1, fmt.Errorf("%q header is not an integer: %v", name, value)
 	}
-	m, err := atoi(s, "%q %s", name, "header")
+	m, err := atoi(s, "%q %s", name, what)
 	if err != nil {
 		return -1, err
 	}
 	return m, nil
+}
+
+func checkIntWithDefault(headers map[string]interface{}, name string, defl int) (int, error) {
+	return checkIntWithDefaultWhat(headers, name, "header", defl)
 }
 
 func checkInt(headers map[string]interface{}, name string) (int, error) {
