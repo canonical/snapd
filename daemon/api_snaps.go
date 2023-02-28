@@ -196,8 +196,9 @@ type SnapshotOptionMap map[string]*snap.SnapshotOptions
 // UnmarshalJSON implements interface for custom unmarshalling for shapshotOptionMap.
 //
 // With default marshalling, if a map key is present in JSON, a pointer to empty (value-less)
-// options object will be created. This unmarshaler sets such pointers to nil to avoid
-// downstream marshalling of empty options to JSON when specifying "omitempty".
+// SnapshotOptions object will be created. This unmarshaler sets such pointers to nil to avoid
+// downstream marshalling of a pointer to an empty SnapshotOptions object to JSON when
+// specifying "omitempty".
 func (optsMap *SnapshotOptionMap) UnmarshalJSON(data []byte) error {
 	auxMap := map[string]*snap.SnapshotOptions{}
 	if err := json.Unmarshal(data, &auxMap); err != nil {
@@ -232,7 +233,7 @@ type snapInstruction struct {
 	Transaction            client.TransactionType `json:"transaction"`
 	Snaps                  []string               `json:"snaps"`
 	Users                  []string               `json:"users"`
-	Options                SnapshotOptionMap      `json:"options"`
+	SnapshotOptions        SnapshotOptionMap      `json:"snapshot-options"`
 	ValidationSets         []string               `json:"validation-sets"`
 	QuotaGroupName         string                 `json:"quota-group"`
 	Time                   string                 `json:"time"`
@@ -287,13 +288,13 @@ func (inst *snapInstruction) holdLevel() snapstate.HoldLevel {
 }
 
 func (inst *snapInstruction) validateSnapshotOptions() error {
-	if inst.Options == nil {
+	if inst.SnapshotOptions == nil {
 		return nil
 	}
 	if inst.Action != "snapshot" {
 		return fmt.Errorf("options can only be specified for snapshot action")
 	}
-	for name, options := range inst.Options {
+	for name, options := range inst.SnapshotOptions {
 		if !strutil.ListContains(inst.Snaps, name) {
 			return fmt.Errorf("cannot use options for snap %q that is not listed in snaps", name)
 		}

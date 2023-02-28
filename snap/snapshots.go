@@ -37,11 +37,11 @@ var osOpen = os.Open
 // The initial source of these options is a file in the snap package.
 // In addition, options can be modified with dynamic requests via REST API.
 type SnapshotOptions struct {
-	// ExcludePaths is the list of file and directory patterns that need to be
+	// Exclude is the list of file and directory patterns that need to be
 	// excluded from a snapshot. At the moment the only supported globbing
 	// character is "*", which stands for any sequence of characters other than
 	// "/".
-	ExcludePaths []string `yaml:"exclude" json:"exclude,omitempty"`
+	Exclude []string `yaml:"exclude" json:"exclude,omitempty"`
 }
 
 const (
@@ -54,7 +54,7 @@ const (
 // with no values. The purpose is to determine if representing the structure
 // in JSON would provide more than just keys, braces, brackets.
 func (opts *SnapshotOptions) IsEmpty() bool {
-	return len(opts.ExcludePaths) == 0
+	return len(opts.Exclude) == 0
 }
 
 // Merge combines existing with additional options.
@@ -65,7 +65,7 @@ func (opts *SnapshotOptions) Merge(moreOptions *SnapshotOptions) error {
 	if err := moreOptions.Validate(); err != nil {
 		return err
 	}
-	opts.ExcludePaths = append(opts.ExcludePaths, moreOptions.ExcludePaths...)
+	opts.Exclude = append(opts.Exclude, moreOptions.Exclude...)
 
 	return nil
 }
@@ -80,7 +80,7 @@ func (opts *SnapshotOptions) Validate() error {
 		"$SNAP_DATA", "$SNAP_COMMON", "$SNAP_USER_DATA", "$SNAP_USER_COMMON",
 	}
 	const invalidChars = "[]{}?"
-	for _, excludePath := range opts.ExcludePaths {
+	for _, excludePath := range opts.Exclude {
 		firstComponent := strings.SplitN(excludePath, "/", 2)[0]
 		if !strutil.ListContains(validFirstComponents, firstComponent) {
 			return fmt.Errorf("snapshot exclude path must start with one of %q (got: %q)", validFirstComponents, excludePath)

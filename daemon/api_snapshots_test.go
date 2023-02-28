@@ -78,15 +78,15 @@ func (s *snapshotSuite) TestSnapshotManyOptionsComplete(c *check.C) {
 		c.Check(snaps, check.HasLen, 2)
 		c.Check(options, check.HasLen, 2)
 		c.Check(options, check.DeepEquals, map[string]*snap.SnapshotOptions{
-			"foo": &snap.SnapshotOptions{ExcludePaths: []string{"foo-path-1", "foo-path-2"}},
-			"bar": &snap.SnapshotOptions{ExcludePaths: []string{"bar-path-1", "bar-path-2"}},
+			"foo": {Exclude: []string{"foo-path-1", "foo-path-2"}},
+			"bar": {Exclude: []string{"bar-path-1", "bar-path-2"}},
 		})
 		t := s.NewTask("fake-snapshot-2", "Snapshot two")
 		return 1, snaps, state.NewTaskSet(t), nil
 	})()
 
 	inst := daemon.MustUnmarshalSnapInstruction(c, `{"action": "snapshot", "snaps": ["foo", "bar"],
-	"options": {"foo": {"exclude":["foo-path-1", "foo-path-2"]}, "bar":{"exclude":["bar-path-1", "bar-path-2"]}}}`)
+	"snapshot-options": {"foo": {"exclude":["foo-path-1", "foo-path-2"]}, "bar":{"exclude":["bar-path-1", "bar-path-2"]}}}`)
 
 	st := s.d.Overlord().State()
 	st.Lock()

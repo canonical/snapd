@@ -85,7 +85,7 @@ func (s *snapshotSuite) TestReadSnapshotYamlFromSnapFileHappy(c *C) {
 	c.Check(container.readFileInput, Equals, "meta/snapshots.yaml")
 	c.Check(err, IsNil)
 	c.Check(opts, DeepEquals, &snap.SnapshotOptions{
-		ExcludePaths: []string{"$SNAP_DATA/dir"},
+		Exclude: []string{"$SNAP_DATA/dir"},
 	})
 }
 
@@ -155,7 +155,7 @@ func (s *snapshotSuite) TestReadSnapshotYamlHappy(c *C) {
 
 	opts, err := snap.ReadSnapshotYaml(info)
 	c.Check(err, IsNil)
-	c.Check(opts.ExcludePaths, DeepEquals, []string{
+	c.Check(opts.Exclude, DeepEquals, []string{
 		"$SNAP_DATA/one",
 		"$SNAP_COMMON/two",
 		"$SNAP_USER_DATA/three*",
