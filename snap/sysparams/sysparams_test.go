@@ -104,7 +104,7 @@ func (s *sysParamsTestSuite) TestOpenExistingEmpty(c *C) {
 
 	ssp, err := sysparams.Open(sspPath)
 	c.Check(err, IsNil)
-	c.Check(ssp, NotNil)
+	c.Check(ssp.Homedirs, Equals, "")
 }
 
 func (s *sysParamsTestSuite) TestOpenExistingWithInvalidContent(c *C) {
@@ -113,8 +113,8 @@ func (s *sysParamsTestSuite) TestOpenExistingWithInvalidContent(c *C) {
 	c.Assert(ioutil.WriteFile(sspPath, []byte("xuifu93\n"), 0644), IsNil)
 
 	ssp, err := sysparams.Open(sspPath)
-	c.Check(err, ErrorMatches, `cannot parse invalid line: xuifu93`)
-	c.Check(ssp, NotNil)
+	c.Check(err, ErrorMatches, `cannot parse invalid line: "xuifu93"`)
+	c.Check(ssp, IsNil)
 }
 
 func (s *sysParamsTestSuite) TestOpenExistingWithComments(c *C) {
@@ -124,5 +124,29 @@ func (s *sysParamsTestSuite) TestOpenExistingWithComments(c *C) {
 
 	ssp, err := sysparams.Open(sspPath)
 	c.Check(err, IsNil)
-	c.Check(ssp, NotNil)
+	c.Check(ssp.Homedirs, Equals, "")
+}
+
+func (s *sysParamsTestSuite) TestOpenExistingWithDoubleEqual(c *C) {
+	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
+	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(sspPath, []byte("homedirs=my-path/foo/bar,foo=bar\n"), 0644), IsNil)
+
+	ssp, err := sysparams.Open(sspPath)
+	c.Check(err, IsNil)
+	c.Check(ssp.Homedirs, Equals, "my-path/foo/bar,foo=bar")
+}
+
+func (s *sysParamsTestSuite) TestOpenExistingWithDuplicateLine(c *C) {
+	contents := `
+homedirs=foo/bar
+homedirs=foo/baz
+`
+	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
+	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(sspPath, []byte(contents), 0644), IsNil)
+
+	ssp, err := sysparams.Open(sspPath)
+	c.Check(err, ErrorMatches, `cannot parse file, dublicate entry found: "homedirs"`)
+	c.Check(ssp, IsNil)
 }

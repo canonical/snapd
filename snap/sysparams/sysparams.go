@@ -46,6 +46,7 @@ type SystemParams struct {
 
 func parseSystemParams(contents string) (*SystemParams, error) {
 	params := &SystemParams{}
+	seen := make(map[string]bool)
 	scanner := bufio.NewScanner(strings.NewReader(contents))
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -55,18 +56,33 @@ func parseSystemParams(contents string) (*SystemParams, error) {
 			continue
 		}
 
-		if strings.HasPrefix(line, "homedirs=") {
-			params.Homedirs = strings.TrimPrefix(line, "homedirs=")
-		} else {
-			return params, fmt.Errorf("cannot parse invalid line: %s", line)
+		tokens := strings.SplitN(line, "=", 2)
+		if len(tokens) != 2 {
+			return nil, fmt.Errorf("cannot parse invalid line: %q", line)
 		}
+
+		// ensure that each configuration value only appears once
+		if ok := seen[tokens[0]]; ok {
+			return nil, fmt.Errorf("cannot parse file, dublicate entry found: %q", tokens[0])
+		}
+		seen[tokens[0]] = true
+
+		if tokens[0] == "homedirs" {
+			params.Homedirs = tokens[1]
+		} else {
+			return nil, fmt.Errorf("cannot parse invalid line: %q", line)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
 	}
 	return params, nil
 }
 
 // Open either opens the existing file at the given path, and parses
 // the file, or in case the file does not exist, it will initialize
-// and return a new SnapdSystemParams structure.
+// and return a new SystemParams structure.
 func Open(path string) (*SystemParams, error) {
 	if !osutil.FileExists(path) {
 		return &SystemParams{path: path}, nil
