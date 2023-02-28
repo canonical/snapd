@@ -1,0 +1,11 @@
+summary: |
+    Make sure processes do not hang after restarting snapd
+
+prepare: |
+    "${TESTSTOOLS}"/snaps-state install-local snap-wait-hook
+
+execute: |
+    snap run --hook snap-wait-hook wait &
+    systemctl restart snapd
+    sleep 2
+    ps -eo pid,command | NOMATCH 'sleep'
