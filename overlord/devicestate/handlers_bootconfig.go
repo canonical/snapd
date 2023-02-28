@@ -74,7 +74,8 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 	}
 
 	// TODO:UC20 update recovery boot config
-	updated, err := boot.UpdateManagedBootConfigs(devCtx, currentData.RootDir)
+	// TODO: set optional command line
+	updated, err := boot.UpdateManagedBootConfigs(devCtx, currentData.RootDir, "")
 	if err != nil {
 		return fmt.Errorf("cannot update boot config assets: %v", err)
 	}

@@ -37,9 +37,11 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -95,6 +97,14 @@ var (
 	validGUUID      = regexp.MustCompile("^(?i)[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$")
 )
 
+type KernelCmdline struct {
+	// TODO: add append and remove slices that will replace the cmdline*.txt
+	// files that can be included nowadays in the gadget.
+	// Allow is the list of allowed parameters for the system.kernel.cmdline-append
+	// system option
+	Allow []osutil.KernelArgument `yaml:"allow"`
+}
+
 type Info struct {
 	Volumes map[string]*Volume `yaml:"volumes,omitempty"`
 
@@ -102,6 +112,8 @@ type Info struct {
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
 
 	Connections []Connection `yaml:"connections"`
+
+	KernelCmdline KernelCmdline `yaml:"kernel-cmdline"`
 }
 
 // Volume defines the structure and content for the image to be written into a
@@ -394,7 +406,7 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 		// partitions we can't map to a device directly at first using the
 		// device symlinks that FindDeviceForStructure uses
 		dev := ""
-		for _, vs := range vol.LaidOutStructure {
+		for _, ls := range vol.LaidOutStructure {
 			// TODO: This code works for volumes that have at least one
 			// partition (i.e. not type: bare structure), but does not work for
 			// volumes which contain only type: bare structures with no other
@@ -406,12 +418,12 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 			// at the expected locations, but that is probably fragile and very
 			// non-performant.
 
-			if !vs.IsPartition() {
+			if !ls.IsPartition() {
 				// skip trying to find non-partitions on disk, it won't work
 				continue
 			}
 
-			structureDevice, err := FindDeviceForStructure(&vs)
+			structureDevice, err := FindDeviceForStructure(ls.VolumeStructure)
 			if err != nil && err != ErrDeviceNotFound {
 				return nil, err
 			}
@@ -835,6 +847,31 @@ func validateVolume(vol *Volume) error {
 		if err := validateVolumeStructure(&s, vol); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
+
+		if vol.Schema == schemaGPT {
+			// If the block size is 512, the First Usable LBA must be greater than or equal to
+			// 34 (allowing 1 block for the Protective MBR, 1 block for the Partition Table
+			// Header, and 32 blocks for the GPT Partition Entry Array); if the logical block
+			// size is 4096, the First Useable LBA must be greater than or equal to 6 (allowing
+			// 1 block for the Protective MBR, 1 block for the GPT Header, and 4
+			// blocks for the GPT Partition Entry Array)
+			// Since we are not able to know the block size when building gadget snap, so we
+			// are not able to easily know whether the structure defined in gadget.yaml will
+			// overlap GPT header or GPT partition table, thus we only return error if the
+			// structure overlap the interval [4096, 512*34), which is the intersection between
+			// the GPT data for 512 bytes block size, which occupies [512, 512*34) and the GPT
+			// for 4096 block size, which is [4096, 4096*6), and we print warning only if there
+			// is some data in the union - intersection of the described GPT segments, which
+			// might be fine but is suspicious.
+			start := *s.Offset
+			end := start + quantity.Offset(s.Size)
+			if start < 512*34 && end > 4096 {
+				return fmt.Errorf("invalid structure: GPT header or GPT partition table overlapped with structure %q\n", s.Name)
+			} else if start < 4096*6 && end > 512 {
+				logger.Noticef("WARNING: GPT header or GPT partition table might be overlapped with structure %q", s.Name)
+			}
+		}
+
 		structures[idx] = vol.Structure[idx]
 		if s.Name != "" {
 			if _, ok := knownStructures[s.Name]; ok {
@@ -1213,7 +1250,7 @@ func IsCompatible(current, new *Info) error {
 // flashed and managed separately at image build/flash time, while the system
 // volume with all the system-* roles on it can be manipulated during install
 // mode.
-func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
+func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model, encType secboot.EncryptionType) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
 	all = make(map[string]*LaidOutVolume)
 	// model should never be nil here
 	if model == nil {
@@ -1230,6 +1267,7 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (syste
 	opts := &LayoutOptions{
 		GadgetRootDir: gadgetRoot,
 		KernelRootDir: kernelRoot,
+		EncType:       encType,
 	}
 
 	// find the volume with the system-boot role on it, we already validated
@@ -1295,12 +1333,20 @@ var disallowedKernelArguments = []string{
 	"init",
 }
 
+var allowedSnapdKernelArguments = []string{
+	"snapd_system_disk",
+	"snapd.debug",
+}
+
 // isKernelArgumentAllowed checks whether the kernel command line argument is
 // allowed. Prohibits all arguments listed explicitly in
 // disallowedKernelArguments list and those prefixed with snapd, with exception
 // of snapd.debug. All other arguments are allowed.
 func isKernelArgumentAllowed(arg string) bool {
-	if strings.HasPrefix(arg, "snapd") && arg != "snapd.debug" {
+	if strutil.ListContains(allowedSnapdKernelArguments, arg) {
+		return true
+	}
+	if strings.HasPrefix(arg, "snapd") {
 		return false
 	}
 	if strutil.ListContains(disallowedKernelArguments, arg) {

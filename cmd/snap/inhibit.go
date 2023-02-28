@@ -99,7 +99,7 @@ var finishRefreshNotification = func(refreshInfo *client.FinishedSnapRefreshInfo
 	return nil
 }
 
-func tryNotifyRefreshViaSnapDesktopIntegrationFlow(snapName string) (bool, error) {
+var tryNotifyRefreshViaSnapDesktopIntegrationFlow = func(snapName string) (bool, error) {
 	// Check if Snapd-Desktop-Integration is available
 	conn, err := dbusutil.SessionBus()
 	if err != nil {

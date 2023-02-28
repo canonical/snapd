@@ -461,6 +461,14 @@ func MockFinishRefreshNotification(f func(refreshInfo *usersessionclient.Finishe
 	}
 }
 
+func MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(f func(snapName string) (bool, error)) (restore func()) {
+	old := tryNotifyRefreshViaSnapDesktopIntegrationFlow
+	tryNotifyRefreshViaSnapDesktopIntegrationFlow = f
+	return func() {
+		tryNotifyRefreshViaSnapDesktopIntegrationFlow = old
+	}
+}
+
 func MockAutostartSessionApps(f func(string) error) func() {
 	old := autostartSessionApps
 	autostartSessionApps = f

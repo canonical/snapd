@@ -718,7 +718,7 @@ func (m *DeviceManager) maybeRestoreAfterReset(device *auth.DeviceState) (*asser
 		"model":    device.Model,
 	})
 	if err != nil {
-		if asserts.IsNotFound(err) {
+		if errors.Is(err, &asserts.NotFoundError{}) {
 			// no serial assertion
 			return nil, nil
 		}

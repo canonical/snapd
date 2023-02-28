@@ -90,7 +90,7 @@ func (s *ubootTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	c.Assert(u, NotNil)
 
 	envFile := bootloader.UbootConfigFile(u)
-	env, err := ubootenv.Create(envFile, 4096)
+	env, err := ubootenv.Create(envFile, 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
 	c.Assert(err, IsNil)
 	env.Set("snap_ab", "b")
 	env.Set("snap_mode", "")
@@ -269,4 +269,49 @@ func (s *ubootTestSuite) TestUbootUC20OptsPlacement(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(env.Get("hello"), Equals, "there")
 	}
+}
+
+func (s *ubootTestSuite) TestUbootInstallBootConfigHeaderSizeFromGadget(c *C) {
+
+	opts := &bootloader.Options{Role: bootloader.RoleRecovery}
+	u := bootloader.NewUboot(s.rootdir, opts)
+
+	gadgetDir := c.MkDir()
+	confFile, err := os.Create(filepath.Join(gadgetDir, "uboot.conf"))
+	c.Assert(err, IsNil)
+	err = confFile.Close()
+	c.Assert(err, IsNil)
+
+	for _, variant := range []bool{true, false} {
+		env, err := ubootenv.Create(filepath.Join(gadgetDir, "boot.sel"), 4096, ubootenv.CreateOptions{HeaderFlagByte: variant})
+		c.Assert(err, IsNil)
+		err = env.Save()
+		c.Assert(err, IsNil)
+
+		err = u.InstallBootConfig(gadgetDir, opts)
+		c.Assert(err, IsNil)
+
+		env, err = ubootenv.Open(filepath.Join(s.rootdir, "/uboot/ubuntu/boot.sel"))
+		c.Assert(err, IsNil)
+		c.Assert(env.HeaderFlagByte(), Equals, variant)
+	}
+}
+
+func (s *ubootTestSuite) TestUbootInstallBootConfigHeaderSizeDefault(c *C) {
+
+	opts := &bootloader.Options{Role: bootloader.RoleRecovery}
+	u := bootloader.NewUboot(s.rootdir, opts)
+
+	gadgetDir := c.MkDir()
+	confFile, err := os.Create(filepath.Join(gadgetDir, "uboot.conf"))
+	c.Assert(err, IsNil)
+	err = confFile.Close()
+	c.Assert(err, IsNil)
+
+	err = u.InstallBootConfig(gadgetDir, opts)
+	c.Assert(err, IsNil)
+
+	env, err := ubootenv.Open(filepath.Join(s.rootdir, "/uboot/ubuntu/boot.sel"))
+	c.Assert(err, IsNil)
+	c.Assert(env.HeaderFlagByte(), Equals, true)
 }

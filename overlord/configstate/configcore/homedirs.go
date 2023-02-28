@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sysconfig"
 )
@@ -73,6 +74,30 @@ func init() {
 	supportedConfigurations["core.homedirs"] = true
 }
 
+func configureHomedirsInAppArmorAndReload(homedirs []string, opts *fsOnlyContext) error {
+	// important to note here that when a configure hook is invoked, handlers are invoked,
+	// so they are not *just* invoked by user-interaction, and we do not want to break those
+	// actions. So no-op on systems that do not support apparmor.
+	if apparmor.ProbedLevel() != apparmor.Full && apparmor.ProbedLevel() != apparmor.Partial {
+		return nil
+	}
+
+	if err := apparmorUpdateHomedirsTunable(homedirs); err != nil {
+		return err
+	}
+
+	// Only reload profiles if it's during runtime
+	if opts == nil {
+		// We must reload the apparmor profiles in order for our changes to become
+		// effective. In theory, all profiles are affected; in practice, we are a
+		// bit egoist and only care about snapd.
+		if err := apparmorReloadAllSnapProfiles(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
 	// if opts is not nil this is image build time
 	rootDir := dirs.GlobalRootDir
@@ -101,30 +126,23 @@ func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
 	if len(config) > 0 {
 		homedirs = strings.Split(config, ",")
 	}
-	if err := apparmorUpdateHomedirsTunable(homedirs); err != nil {
-		return err
-	}
-
-	// Only if run time
-	if opts == nil {
-		// We must reload the apparmor profiles in order for our changes to become
-		// effective. In theory, all profiles are affected; in practice, we are a
-		// bit egoist and only care about snapd.
-		if err := apparmorReloadAllSnapProfiles(); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return configureHomedirsInAppArmorAndReload(homedirs, opts)
 }
 
 func handleHomedirsConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
-	config, err := coreCfg(tr, "homedirs")
+	conf, err := coreCfg(tr, "homedirs")
 	if err != nil {
 		return err
 	}
+	var prevConfig string
+	if err := tr.GetPristine("core", "homedirs", &prevConfig); err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if conf == prevConfig {
+		return nil
+	}
 
-	if err := updateHomedirsConfig(config, opts); err != nil {
+	if err := updateHomedirsConfig(conf, opts); err != nil {
 		return err
 	}
 

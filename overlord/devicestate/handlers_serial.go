@@ -699,7 +699,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		"model":               device.Model,
 		"device-key-sha3-384": privKey.PublicKey().ID(),
 	})
-	if err != nil && !asserts.IsNotFound(err) {
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return err
 	}
 

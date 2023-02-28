@@ -358,6 +358,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		return nil, err
 	}
 
+	targetRevision := snapsup.Revision()
+	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
+
+	ts := state.NewTaskSet()
 	if snapst.IsInstalled() {
 		// consider also the current revision to set plugs-only hint
 		info, err := snapst.CurrentInfo()
@@ -371,6 +375,30 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			// softCheckNothingRunningForRefresh, this block must be located
 			// after the conflict check done above.
 			if err := softCheckNothingRunningForRefresh(st, snapst, snapsup, info); err != nil {
+				// snap is running; schedule its downloading before notifying to close
+				var busyErr *timedBusySnapError
+				if errors.As(err, &busyErr) && snapsup.IsAutoRefresh {
+					tasks, err := findTasksMatchingKindAndSnap(st, "pre-download-snap", snapsup.InstanceName(), snapsup.Revision())
+					if err != nil {
+						return nil, err
+					}
+
+					for _, task := range tasks {
+						switch task.Status() {
+						case state.DoStatus, state.DoneStatus, state.DoingStatus:
+							// there's already a task for this snap/revision combination
+							return nil, busyErr
+						}
+					}
+
+					preDownTask := st.NewTask("pre-download-snap", fmt.Sprintf(i18n.G("Pre-download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
+					preDownTask.Set("snap-setup", snapsup)
+					preDownTask.Set("refresh-info", busyErr.PendingSnapRefreshInfo())
+
+					ts.AddTask(preDownTask)
+					return ts, busyErr
+				}
+
 				return nil, err
 			}
 		}
@@ -381,14 +409,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 				return nil, err
 			}
 		}
-	}
-
-	ts := state.NewTaskSet()
-
-	targetRevision := snapsup.Revision()
-	revisionStr := ""
-	if snapsup.SideInfo != nil {
-		revisionStr = fmt.Sprintf(" (%s)", targetRevision)
 	}
 
 	// check if we already have the revision locally (alters tasks)
@@ -479,8 +499,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		addTask(gadgetUpdate)
 		prev = gadgetUpdate
 	}
+	// kernel command line from gadget is for core boot systems only
 	if isCoreBoot && snapsup.Type == snap.TypeGadget {
-		// kernel command line from gadget is for core boot systems only
+		// make sure no other active changes are changing the kernel command line
+		if err := CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
+			return nil, err
+		}
 		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(gadgetCmdline)
 		prev = gadgetCmdline
@@ -518,6 +542,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	prev = setupAliases
 
 	if isCoreBoot && snapsup.Type == snap.TypeSnapd {
+		// make sure no other active changes are changing the kernel command line
+		if err := CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
+			return nil, err
+		}
 		// only run for core devices and the snapd snap, run late enough
 		// so that the task is executed by the new snapd
 		bootConfigUpdate := st.NewTask("update-managed-boot-config", fmt.Sprintf(i18n.G("Update managed boot config assets from %q%s"), snapsup.InstanceName(), revisionStr))
@@ -663,6 +691,26 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	ts.AddTask(healthCheck)
 
 	return ts, nil
+}
+
+func findTasksMatchingKindAndSnap(st *state.State, kind string, snapName string, revision snap.Revision) ([]*state.Task, error) {
+	var tasks []*state.Task
+	for _, t := range st.Tasks() {
+		if t.Kind() != kind {
+			continue
+		}
+
+		snapsup, _, err := snapSetupAndState(t)
+		if err != nil {
+			return nil, err
+		}
+
+		if snapsup.InstanceName() == snapName && snapsup.Revision() == revision {
+			tasks = append(tasks, t)
+		}
+	}
+
+	return tasks, nil
 }
 
 // ConfigureSnap returns a set of tasks to configure snapName as done during installation/refresh.
@@ -1279,12 +1327,12 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 		return nil, flagsByInstanceName[name], stateByInstanceName[name]
 	}
 
-	_, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "")
+	_, updateTss, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "")
 	if err != nil {
 		return nil, err
 	}
 
-	return tasksets, nil
+	return updateTss.Refresh, nil
 }
 
 // InstallMany installs everything from the given list of names. When specifying
@@ -1418,7 +1466,11 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
 func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
-	return updateManyFiltered(ctx, st, names, revOpts, userID, nil, flags, "")
+	updated, tasksetGrp, err := updateManyFiltered(ctx, st, names, revOpts, userID, nil, flags, "")
+	if err != nil {
+		return nil, nil, err
+	}
+	return updated, tasksetGrp.Refresh, nil
 }
 
 // ResolveValidationSetsEnforcementError installs and updates snaps in order to
@@ -1589,7 +1641,7 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 	return nil
 }
 
-func updateManyFiltered(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
+func updateManyFiltered(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, *UpdateTaskSets, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1661,12 +1713,17 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 		return nil, nil, err
 	}
 
-	updated, tasksets, err := doUpdate(ctx, st, names, toUpdate, params, userID, flags, deviceCtx, fromChange)
+	updated, updateTss, err := doUpdate(ctx, st, names, toUpdate, params, userID, flags, deviceCtx, fromChange)
 	if err != nil {
 		return nil, nil, err
 	}
-	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
-	return updated, tasksets, nil
+
+	// if there are only pre-downloads, don't add a check-rerefresh task
+	if len(updateTss.Refresh) > 0 {
+		updateTss.Refresh = finalizeUpdate(st, updateTss.Refresh, len(updates) > 0, updated, userID, flags)
+	}
+
+	return updated, updateTss, nil
 }
 
 // filterHeldSnaps filters held snaps from being updated in a general refresh.
@@ -1690,12 +1747,23 @@ func filterHeldSnaps(st *state.State, updates []minimalInstallInfo, flags *Flags
 	return filteredUpdates, nil
 }
 
-func doUpdate(ctx context.Context, st *state.State, names []string, updates []minimalInstallInfo, params updateParamsFunc, userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, []*state.TaskSet, error) {
+// UpdateTaskSets distinguishes tasksets for refreshes and pre-downloads since an
+// auto-refresh can return both (even simultaneously).
+type UpdateTaskSets struct {
+	// PreDownload holds the pre-downloads tasksets created when there are busy
+	// snaps that can't be refreshed during an auto-refresh.
+	PreDownload []*state.TaskSet
+	// Refresh holds the refresh tasksets.
+	Refresh []*state.TaskSet
+}
+
+func doUpdate(ctx context.Context, st *state.State, names []string, updates []minimalInstallInfo, params updateParamsFunc, userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, *UpdateTaskSets, error) {
 	if globalFlags == nil {
 		globalFlags = &Flags{}
 	}
 
-	tasksets := make([]*state.TaskSet, 0, len(updates)+2) // 1 for auto-aliases, 1 for re-refresh
+	var installTasksets []*state.TaskSet
+	var preDlTasksets []*state.TaskSet
 
 	refreshAll := len(names) == 0
 	var nameSet map[string]bool
@@ -1724,7 +1792,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		if err != nil {
 			return nil, nil, err
 		}
-		tasksets = append(tasksets, pruningAutoAliasesTs)
+		installTasksets = append(installTasksets, pruningAutoAliasesTs)
 	}
 
 	// wait for the auto-alias prune tasks as needed
@@ -1773,6 +1841,13 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 
 		ts, err := doInstall(st, snapst, snapsup, 0, fromChange, inUseFor(deviceCtx))
 		if err != nil {
+			if errors.Is(err, &timedBusySnapError{}) && ts != nil {
+				// snap is busy and pre-download tasks were made for it
+				ts.JoinLane(st.NewLane())
+				preDlTasksets = append(preDlTasksets, ts)
+				continue
+			}
+
 			if refreshAll {
 				// doing "refresh all", just skip this snap
 				logger.Noticef("cannot refresh snap %q: %v", update.InstanceName(), err)
@@ -1841,7 +1916,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		}
 
 		scheduleUpdate(update.InstanceName(), ts)
-		tasksets = append(tasksets, ts)
+		installTasksets = append(installTasksets, ts)
 	}
 	// Kernel must wait for gadget because the gadget may define
 	// new "$kernel:refs". Sorting the other way is impossible
@@ -1870,7 +1945,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		if err != nil {
 			return nil, nil, err
 		}
-		tasksets = append(tasksets, addAutoAliasesTs)
+		installTasksets = append(installTasksets, addAutoAliasesTs)
 	}
 
 	updated := make([]string, 0, len(reportUpdated))
@@ -1878,7 +1953,11 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		updated = append(updated, name)
 	}
 
-	return updated, tasksets, nil
+	updateTss := &UpdateTaskSets{
+		Refresh:     installTasksets,
+		PreDownload: preDlTasksets,
+	}
+	return updated, updateTss, nil
 }
 
 func finalizeUpdate(st *state.State, tasksets []*state.TaskSet, hasUpdates bool, updated []string, userID int, globalFlags *Flags) []*state.TaskSet {
@@ -2272,10 +2351,13 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return opts, flags, &snapst
 	}
 
-	_, tts, err := doUpdate(context.TODO(), st, []string{name}, toUpdate, params, userID, &flags, deviceCtx, fromChange)
+	_, updateTss, err := doUpdate(context.TODO(), st, []string{name}, toUpdate, params, userID, &flags, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
+
+	// only auto-refreshes can generate pre-download tasks so we don't need to check them
+	tts := updateTss.Refresh
 
 	// see if we need to switch the channel or cohort, or toggle ignore-validation
 	switchChannel := snapst.TrackingChannel != opts.Channel
@@ -2387,7 +2469,7 @@ var RestoreValidationSetsTracking func(st *state.State) error
 // AutoRefresh is the wrapper that will do a refresh of all the installed
 // snaps on the system. In addition to that it will also refresh important
 // assertions.
-func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskSet, error) {
+func AutoRefresh(ctx context.Context, st *state.State) ([]string, *UpdateTaskSets, error) {
 	userID := 0
 
 	if AutoRefreshAssertions != nil {
@@ -2405,11 +2487,16 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 	}
 	if !gateAutoRefreshHook {
 		// old-style refresh (gate-auto-refresh-hook feature disabled)
-		return UpdateMany(ctx, st, nil, nil, userID, &Flags{IsAutoRefresh: true})
+		return updateManyFiltered(ctx, st, nil, nil, userID, nil, &Flags{IsAutoRefresh: true}, "")
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
-	return autoRefreshPhase1(ctx, st, "")
+	updated, tss, err := autoRefreshPhase1(ctx, st, "")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return updated, &UpdateTaskSets{Refresh: tss}, nil
 }
 
 // autoRefreshPhase1 creates gate-auto-refresh hooks and conditional-auto-refresh
@@ -2563,7 +2650,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 }
 
 // autoRefreshPhase2 creates tasks for refreshing snaps from updates.
-func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate, fromChange string) ([]*state.TaskSet, error) {
+func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate, fromChange string) (*UpdateTaskSets, error) {
 	flags := &Flags{IsAutoRefresh: true}
 	userID := 0
 
@@ -2581,13 +2668,17 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 		return nil, err
 	}
 
-	updated, tasksets, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, deviceCtx, fromChange)
+	updated, updateTss, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
 
-	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
-	return tasksets, nil
+	// only auto-refreshes can generate pre-download tasks so we don't need to check them
+	if len(updateTss.Refresh) > 0 {
+		updateTss.Refresh = finalizeUpdate(st, updateTss.Refresh, len(updates) > 0, updated, userID, flags)
+	}
+
+	return updateTss, nil
 }
 
 // checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites
@@ -2847,6 +2938,11 @@ func SwitchToNewGadget(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
+	// make sure no other active changes are changing the kernel command line
+	if err := CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
+		return nil, err
+	}
+
 	info, err := snapst.CurrentInfo()
 	if err != nil {
 		return nil, err
@@ -2891,6 +2987,12 @@ func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet) (*state.TaskSet, e
 	if snapSetupTask == nil {
 		return nil, fmt.Errorf("internal error: cannot identify task with snap-setup")
 	}
+
+	// make sure no other active changes are changing the kernel command line
+	if err := CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
+		return nil, err
+	}
+
 	gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapsup.Revision()))
 	gadgetUpdate.Set("snap-setup-task", snapSetupTask.ID())
 	// wait for the last task in existing set

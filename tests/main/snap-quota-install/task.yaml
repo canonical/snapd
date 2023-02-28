@@ -9,8 +9,6 @@ systems: [-ubuntu-core-*-arm-*]
 
 prepare: |
   snap pack "$TESTSLIB"/snaps/basic
-  snap set system experimental.quota-groups=true
-  tests.cleanup defer snap unset system experimental.quota-groups
 
 execute: |
   if os.query is-trusty || os.query is-amazon-linux || os.query is-centos 7 || os.query is-xenial || os.query is-core16; then

@@ -2904,8 +2904,6 @@ func (s *servicesTestSuite) TestServicesEnableState(c *C) {
 	        echo "unexpected op $*"
 	        exit 2
 	esac
-
-	exit 1
 	`)
 	defer r.Restore()
 
@@ -2959,8 +2957,6 @@ func (s *servicesTestSuite) TestServicesEnableStateFail(c *C) {
 	        echo "unexpected op $*"
 	        exit 2
 	esac
-
-	exit 1
 	`)
 	defer r.Restore()
 
@@ -3022,7 +3018,6 @@ func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServices(c *C) {
 	        echo "unexpected op $*"
 	        exit 2
 	esac
-	exit 2
 	`)
 	defer r.Restore()
 
