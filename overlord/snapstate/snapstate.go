@@ -385,7 +385,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 					for _, task := range tasks {
 						switch task.Status() {
-						case state.DoStatus, state.DoneStatus, state.DoingStatus:
+						case state.DoStatus, state.DoingStatus:
 							// there's already a task for this snap/revision combination
 							return nil, busyErr
 						}
