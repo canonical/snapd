@@ -101,7 +101,7 @@ func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUse
 		return createAllKnownSystemUsers(st, db, model, serial, sudoer)
 	}
 
-	username, expiration, opts, err := getUserDetailsFromAssertion(st, db, model, serial, email)
+	username, expiration, opts, err := getUserDetailsFromAssertion(db, model, serial, email)
 	if err != nil {
 		return nil, &UserError{Err: fmt.Errorf("cannot create user %q: %v", email, err)}
 	}
@@ -183,8 +183,11 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	email := userAssertion.Email()
 	// we need to use getUserDetailsFromAssertion as this verifies
 	// the assertion against the current brand/model/time
-	username, expiration, addUserOpts, err := getUserDetailsFromAssertion(state, assertDb, model, serial, email)
+	username, expiration, addUserOpts, err := getUserDetailsFromAssertion(assertDb, model, serial, email)
 	if err != nil {
+		if err == errSystemUserBoundToSerialButTooEarly {
+			state.Set("system-user-assertion", "pending")
+		}
 		logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
 		return nil, nil
 	}
@@ -223,7 +226,9 @@ var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.ROData
 	return createdUsers, nil
 }
 
-func getUserDetailsFromAssertion(st *state.State, assertDb asserts.RODatabase, modelAs *asserts.Model, serialAs *asserts.Serial, email string) (string, time.Time, *osutil.AddUserOptions, error) {
+var errSystemUserBoundToSerialButTooEarly = errors.New("bound to serial assertion but device not yet registered")
+
+func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.Model, serialAs *asserts.Serial, email string) (string, time.Time, *osutil.AddUserOptions, error) {
 	brandID := modelAs.BrandID()
 	series := modelAs.Series()
 	model := modelAs.Model()
@@ -252,8 +257,7 @@ func getUserDetailsFromAssertion(st *state.State, assertDb asserts.RODatabase, m
 	}
 	if len(su.Serials()) > 0 {
 		if serialAs == nil {
-			st.Set("system-user-assertion", "pending")
-			return "", time.Time{}, nil, fmt.Errorf("bound to serial assertion but device not yet registered")
+			return "", time.Time{}, nil, errSystemUserBoundToSerialButTooEarly
 		}
 		serial := serialAs.Serial()
 		if !strutil.ListContains(su.Serials(), serial) {
