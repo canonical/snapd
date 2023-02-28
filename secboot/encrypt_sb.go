@@ -70,8 +70,7 @@ func FormatEncryptedDevice(key keys.EncryptionKey, encType EncryptionType, label
 			MemoryKiB:       32,
 			ForceIterations: 4,
 		},
-		//TODO: enable once secboot PR is merged
-		//InlineCryptoEngine: useICE,
+		InlineCryptoEngine: useICE,
 	}
 	return sbInitializeLUKS2Container(node, label, key[:], opts)
 }

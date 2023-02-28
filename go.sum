@@ -62,6 +62,8 @@ github.com/snapcore/secboot v0.0.0-20220922155412-5d2b29ff0ee2 h1:sPC5tmNoJ6H8Pu
 github.com/snapcore/secboot v0.0.0-20220922155412-5d2b29ff0ee2/go.mod h1:72paVOkm4sJugXt+v9ItmnjXgO921D8xqsbH2OekouY=
 github.com/snapcore/secboot v0.0.0-20230119174011-57239c9f324a h1:MwEn6ADhO9DYtqRnat71TOYxcNxBVUeqfDCBtrYcu7Y=
 github.com/snapcore/secboot v0.0.0-20230119174011-57239c9f324a/go.mod h1:72paVOkm4sJugXt+v9ItmnjXgO921D8xqsbH2OekouY=
+github.com/snapcore/secboot v0.0.0-20230228104443-f41f07c101e1 h1:HANKyba/BJ8iWRlcrkWG1SQt2CY0jPnCj/zO3mcz/WM=
+github.com/snapcore/secboot v0.0.0-20230228104443-f41f07c101e1/go.mod h1:72paVOkm4sJugXt+v9ItmnjXgO921D8xqsbH2OekouY=
 github.com/snapcore/snapd v0.0.0-20201005140838-501d14ac146e/go.mod h1:3xrn7QDDKymcE5VO2rgWEQ5ZAUGb9htfwlXnoel6Io8=
 go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1 h1:A/5uWzF44DlIgdm/PQFwfMkW0JX+cIcQi/SwLAmZP5M=
 go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1/go.mod h1:SNgMg+EgDFwmvSmLRTNKC5fegJjB7v23qTQ0XLGUNHk=
