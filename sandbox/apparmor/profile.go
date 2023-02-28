@@ -296,8 +296,6 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 		return false, fmt.Errorf("cannot create snap-confine policy directory: %s", err)
 	}
 
-	// Location of the generated policy.
-	glob := "*"
 	policy := make(map[string]osutil.FileState)
 
 	// Check if NFS is mounted at or under $HOME. Because NFS is not
@@ -339,15 +337,16 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 	}
 
 	// Ensure that generated policy is what we computed above.
-	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, policy)
+	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, "*", policy)
 	if err != nil {
 		return false, fmt.Errorf("cannot synchronize snap-confine policy: %s", err)
 	}
 	return len(created) > 0 || len(removed) > 0, nil
 }
 
+// RemoveSnapConfineSnippets clears out any previously written apparmor snippets
+// for snap-confine
 func RemoveSnapConfineSnippets() error {
-	glob := "*"
-	_, _, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, nil)
+	_, _, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, "*", nil)
 	return err
 }
