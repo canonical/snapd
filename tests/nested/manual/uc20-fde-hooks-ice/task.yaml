@@ -1,4 +1,4 @@
-summary: Check that fde-setup with feature "inline-cryto-engin" works
+summary: Check that fde-setup with feature "inline-cryto-engine" works
 
 systems: [ubuntu-22.04-64]
 
@@ -47,6 +47,7 @@ prepare: |
 
   tests.nested build-image core
   tests.nested create-vm core
+
 execute: |
   echo "Check that we have an encrypted system"
   remote.exec "find /dev/mapper" | MATCH ubuntu-data
