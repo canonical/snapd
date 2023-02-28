@@ -600,3 +600,39 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
 }
+
+func (s *appArmorSuite) TestRemoveSnapConfineSnippets(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Create the snap-confine directory and put a few files.
+	err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755)
+	c.Assert(err, IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapConfineAppArmorDir, "cap-test"), []byte("foo"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapConfineAppArmorDir, "my-file"), []byte("foo"), 0644), IsNil)
+
+	err = apparmor.RemoveSnapConfineSnippets()
+	c.Check(err, IsNil)
+
+	// The files were removed
+	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 0)
+}
+
+func (s *appArmorSuite) TestRemoveSnapConfineSnippetsNoSnippets(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Create the snap-confine directory and let it do nothing.
+	err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755)
+	c.Assert(err, IsNil)
+
+	err = apparmor.RemoveSnapConfineSnippets()
+	c.Check(err, IsNil)
+
+	// Nothing happens
+	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 0)
+}
