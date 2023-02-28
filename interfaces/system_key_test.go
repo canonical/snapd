@@ -422,13 +422,11 @@ func (s *systemKeySuite) TestRemoveSystemKey(c *C) {
 	err := interfaces.WriteSystemKey()
 	c.Assert(err, IsNil)
 
-	_, err = os.Stat(dirs.SnapSystemKeyFile)
-	c.Assert(err, IsNil)
+	c.Check(dirs.SnapSystemKeyFile, testutil.FilePresent)
 
 	// remove the system key
 	err = interfaces.RemoveSystemKey()
 	c.Assert(err, IsNil)
 
-	_, err = os.Stat(dirs.SnapSystemKeyFile)
-	c.Check(os.IsNotExist(err), Equals, true)
+	c.Check(dirs.SnapSystemKeyFile, testutil.FileAbsent)
 }
