@@ -425,11 +425,10 @@ func (s *kernelSuite) TestConfigureKernelCmdlineConflict(c *C) {
 	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
 }
 
-func (s *kernelSuite) TestConfigureKernelCmdlineSignedGradeNotAllowed(c *C) {
+func (s *kernelSuite) testConfigureKernelCmdlineSignedGradeNotAllowed(c *C, cmdline string) {
 	s.mockModel("signed")
 	s.mockGadget(c)
 
-	cmdline := "forbidden=val"
 	s.state.Lock()
 
 	ts := s.state.NewTask("hook-task", "system hook task")
@@ -442,5 +441,14 @@ func (s *kernelSuite) TestConfigureKernelCmdlineSignedGradeNotAllowed(c *C) {
 	rt.Set("core", "system.kernel.cmdline-append", cmdline)
 
 	err := configcore.Run(coreDev, rt)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("%q is not an allowed kernel argument", cmdline))
+	c.Assert(err.Error(), Equals, fmt.Sprintf("%q is not allowed in the kernel command line by the gadget", cmdline))
+}
+
+func (s *kernelSuite) TestConfigureKernelCmdlineSignedGradeNotAllowed(c *C) {
+	for _, cmdline := range []string{
+		"forbidden=val",
+		`forbidden1 forbidden2=" with quotes "`,
+	} {
+		s.testConfigureKernelCmdlineSignedGradeNotAllowed(c, cmdline)
+	}
 }

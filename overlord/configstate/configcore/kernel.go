@@ -67,7 +67,11 @@ func validateCmdlineParamsAreAllowed(st *state.State, devCtx snapstate.DeviceCon
 	}
 	logger.Debugf("gadget data read from %s", gd.RootDir)
 
-	return gadget.CheckCmdlineAllowed(cmdline, gd.Info.KernelCmdline.Allow)
+	if _, forbidden := gadget.FilterKernelCmdline(cmdline, gd.Info.KernelCmdline.Allow); forbidden != "" {
+		return fmt.Errorf("%q is not allowed in the kernel command line by the gadget", forbidden)
+	}
+
+	return nil
 }
 
 func validateCmdlineAppend(c RunTransaction) error {
