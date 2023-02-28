@@ -148,9 +148,6 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		return nil, err
 	}
 
-	// optimistically forget the deviceSeed here
-	m.earlyDeviceSeed = nil
-
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
 

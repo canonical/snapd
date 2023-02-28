@@ -993,9 +993,9 @@ var processAutoImportAssertionsImpl = processAutoImportAssertions
 
 // ensureAutoImportAssertions makes sure that auto import assertions
 // get processed. assertion should be processed while seeding is in progress
-func (m *DeviceManager) ensureAutoImportAssertions() {
+func (m *DeviceManager) ensureAutoImportAssertions() error {
 	if release.OnClassic {
-		return
+		return nil
 	}
 
 	m.state.Lock()
@@ -1003,26 +1003,26 @@ func (m *DeviceManager) ensureAutoImportAssertions() {
 
 	if m.earlyDeviceSeed == nil {
 		// we have no seed cached yet, no point to check further
-		return
+		return nil
 	}
 
 	var seeded bool
+	if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
 	// if system is seeded, stop trying
-	err := m.state.Get("seeded", &seeded)
-	if err != nil || seeded {
-		return
+	if seeded {
+		return nil
 	}
 
 	// check if we have processed auto import as already
 	var asState string
-	err = m.state.Get("system-user-assertion", &asState)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		logger.Noticef("failed to get auto-import assert state")
-		return
+	if err := m.state.Get("system-user-assertion", &asState); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
 	}
 
 	if asState == "done" || asState == "pending" {
-		return
+		return nil
 	}
 
 	commitTo := func(batch *asserts.Batch) error {
@@ -1033,10 +1033,12 @@ func (m *DeviceManager) ensureAutoImportAssertions() {
 	// processing can alter state to "pending" if serial as is missing
 	// state should not be altered once processAutoImportAssertionsImpl is called
 	m.state.Set("system-user-assertion", "done")
-	err = processAutoImportAssertionsImpl(m.state, m.earlyDeviceSeed, db, commitTo)
+	err := processAutoImportAssertionsImpl(m.state, m.earlyDeviceSeed, db, commitTo)
 	if err != nil {
+		// best effort
 		logger.Noticef("cannot process auto import assertion: %v", err)
 	}
+	return nil
 }
 
 func (m *DeviceManager) ensureBootOk() error {
@@ -1705,7 +1707,14 @@ func (m *DeviceManager) Ensure() error {
 	}
 
 	if !m.preseed {
-		m.ensureAutoImportAssertions()
+		if err := m.ensureAutoImportAssertions(); err != nil {
+			errs = append(errs, err)
+		}
+
+		// code below should not need the early loaded device seed
+		// optimistically forget the earlyDeviceSeed here
+		// to free the corresponding memory usage
+		m.earlyDeviceSeed = nil
 
 		if err := m.ensureCloudInitRestricted(); err != nil {
 			errs = append(errs, err)

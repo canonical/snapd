@@ -2506,6 +2506,9 @@ volumes:
 	// reload device seed
 	_, _, err = devicestate.ReloadEarlyDeviceSeed(s.mgr, state.ErrNoState)
 	c.Assert(err, IsNil)
+
+	// not fully realistic but avoids more mocking
+	devicestate.SetBootOkRan(s.mgr, true)
 }
 
 func (s *deviceMgrSuite) TestHandleAutoImportAssertionClassic(c *C) {
@@ -2519,14 +2522,13 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionClassic(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.cacheDeviceCore20Seed(c)
-	s.seeding()
 
-	devicestate.EnsureAutoImportAssertions(s.mgr)
+	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Check(err, IsNil)
 
 	// ensure state has not been changed
 	var asState string
-	err := s.state.Get("system-user-assertion", &asState)
+	err = s.state.Get("system-user-assertion", &asState)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Assert(asState, Equals, "")
 }
@@ -2545,13 +2547,15 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhenDone(c *C) {
 	s.cacheDeviceCore20Seed(c)
 	s.seeding()
 	s.state.Unlock()
-	devicestate.EnsureAutoImportAssertions(s.mgr)
+
+	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Check(err, IsNil)
 
 	// check state has not changed
 	s.state.Lock()
 	defer s.state.Unlock()
 	var asState string
-	err := s.state.Get("system-user-assertion", &asState)
+	err = s.state.Get("system-user-assertion", &asState)
 	c.Assert(err, IsNil)
 	c.Assert(asState, Equals, "done")
 }
@@ -2571,13 +2575,14 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhenPending(c *C) {
 	s.seeding()
 	s.state.Unlock()
 
-	devicestate.EnsureAutoImportAssertions(s.mgr)
+	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Check(err, IsNil)
 
 	// check state has not changed
 	s.state.Lock()
 	defer s.state.Unlock()
 	var asState string
-	err := s.state.Get("system-user-assertion", &asState)
+	err = s.state.Get("system-user-assertion", &asState)
 	c.Assert(err, IsNil)
 	c.Assert(asState, Equals, "pending")
 }
@@ -2590,13 +2595,14 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionNoSeedCache(c *C) {
 
 	s.mockSystemMode(c, "run")
 
-	devicestate.EnsureAutoImportAssertions(s.mgr)
+	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Check(err, IsNil)
 
 	// ensure state has not been changed
 	s.state.Lock()
 	defer s.state.Unlock()
 	var asState string
-	err := s.state.Get("system-user-assertion", &asState)
+	err = s.state.Get("system-user-assertion", &asState)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Assert(asState, Equals, "")
 }
@@ -2611,25 +2617,26 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionFailed(c *C) {
 
 	s.state.Lock()
 	s.cacheDeviceCore20Seed(c)
-	s.seeding()
+	s.state.Set("seeded", nil)
 	s.state.Unlock()
 
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	devicestate.EnsureAutoImportAssertions(s.mgr)
+	err := s.mgr.Ensure()
+	c.Check(err, IsNil)
 
 	// ensure state has not been changed
 	s.state.Lock()
 	defer s.state.Unlock()
 	var asState string
-	err := s.state.Get("system-user-assertion", &asState)
+	err = s.state.Get("system-user-assertion", &asState)
 	c.Assert(err, IsNil)
 	c.Assert(asState, Equals, "done")
 	c.Assert(logbuf.String(), testutil.Contains, `failed to add user from system user assertions`)
 }
 
-func (s *deviceMgrSuite) TestHandleAutoImportAssertionMissingSerialAss(c *C) {
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionMissingSerialAssertion(c *C) {
 	a := devicestate.MockProcessAutoImportAssertion(func(state *state.State, seed seed.Seed, db asserts.RODatabase, commitTo func(batch *asserts.Batch) error) error {
 		state.Set("system-user-assertion", "pending")
 		return fmt.Errorf("bound to serial assertion but device not yet registered")
@@ -2640,44 +2647,22 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionMissingSerialAss(c *C) {
 
 	s.state.Lock()
 	s.cacheDeviceCore20Seed(c)
-	s.seeding()
+	s.state.Set("seeded", nil)
 	s.state.Unlock()
 
-	devicestate.EnsureAutoImportAssertions(s.mgr)
+	err := s.mgr.Ensure()
+	c.Check(err, IsNil)
 
 	// check state is set as pending
 	s.state.Lock()
 	defer s.state.Unlock()
 	var asState string
-	err := s.state.Get("system-user-assertion", &asState)
+	err = s.state.Get("system-user-assertion", &asState)
 	c.Assert(err, IsNil)
 	c.Assert(asState, Equals, "pending")
 }
 
-func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhileNoSeededState(c *C) {
-	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
-		return fmt.Errorf("failed to process auto import assertion")
-	})
-	defer a()
-
-	s.mockSystemMode(c, "run")
-
-	s.state.Lock()
-	s.cacheDeviceCore20Seed(c)
-	s.state.Unlock()
-
-	devicestate.EnsureAutoImportAssertions(s.mgr)
-
-	// ensure state has not been changed
-	s.state.Lock()
-	defer s.state.Unlock()
-	var asState string
-	err := s.state.Get("system-user-assertion", &asState)
-	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
-	c.Assert(asState, Equals, "")
-}
-
-func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhileNotSeeding(c *C) {
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionAlreadySeeded(c *C) {
 	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
 		return fmt.Errorf("failed to process auto import assertion")
 	})
@@ -2690,13 +2675,14 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhileNotSeeding(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Unlock()
 
-	devicestate.EnsureAutoImportAssertions(s.mgr)
+	err := s.mgr.Ensure()
+	c.Check(err, IsNil)
 
 	// ensure state has not been changed
 	s.state.Lock()
 	defer s.state.Unlock()
 	var asState string
-	err := s.state.Get("system-user-assertion", &asState)
+	err = s.state.Get("system-user-assertion", &asState)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Assert(asState, Equals, "")
 }
@@ -2707,15 +2693,17 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionHappy(c *C) {
 
 	s.state.Lock()
 	s.cacheDeviceCore20Seed(c)
-	s.seeding()
+	s.state.Set("seeded", nil)
 	s.state.Unlock()
-	devicestate.EnsureAutoImportAssertions(s.mgr)
+
+	err := s.mgr.Ensure()
+	c.Check(err, IsNil)
 
 	// check state is set as done
 	s.state.Lock()
 	defer s.state.Unlock()
 	var asState string
-	err := s.state.Get("system-user-assertion", &asState)
+	err = s.state.Get("system-user-assertion", &asState)
 	c.Assert(err, IsNil)
 	c.Assert(asState, Equals, "done")
 }
