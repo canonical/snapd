@@ -307,8 +307,8 @@ execute: |
         # snap whilst waiting for apparmor_parser to finish, so avoid this
         # by only touching some of the interfaces overall - there also
         # seems to be another smaller leak on Bionic etc too so only do
-        # half the interfaces on other systems
-        if os.query is-xenial && [ "$((RANDOM % 8))" != 0 ] || [ "$((RANDOM % 2))" != 0 ]; then
+        # one third of the interfaces on other systems
+        if os.query is-xenial && [ "$((RANDOM % 8))" != 0 ] || [ "$((RANDOM % 3))" != 0 ]; then
             echo "skipping plug: $plugcmd"
             continue
         fi
