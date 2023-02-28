@@ -27,12 +27,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-// Keys used to insert custom data by some tasks
-const (
-	KernelCmdlineAppendTaskKey          = "cmdline-append"
-	KernelDangerousCmdlineAppendTaskKey = "dangerous-cmdline-append"
-)
-
 type progress struct {
 	Label string `json:"label"`
 	Done  int    `json:"done"`

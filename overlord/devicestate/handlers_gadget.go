@@ -215,7 +215,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 // fromSystemOption tells us if t was created when setting a system
 // option for the kernel command line.
 func fromSystemOption(t *state.Task) (bool, error) {
-	for _, param := range []string{state.KernelCmdlineAppendTaskKey, state.KernelDangerousCmdlineAppendTaskKey} {
+	for _, param := range []string{"cmdline-append", "dangerous-cmdline-append"} {
 		var value string
 		err := t.Get(param, &value)
 		if err == nil {
@@ -249,9 +249,9 @@ func kernelCommandLineAppendArgs(tsk *state.Task, tr *config.Transaction,
 
 	var option string
 	switch taskParam {
-	case state.KernelCmdlineAppendTaskKey:
+	case "cmdline-append":
 		option = "system.kernel.cmdline-append"
-	case state.KernelDangerousCmdlineAppendTaskKey:
+	case "dangerous-cmdline-append":
 		option = "system.kernel.dangerous-cmdline-append"
 	default:
 		return "", fmt.Errorf("internal error, unexpected task parameter %q", taskParam)
@@ -267,7 +267,7 @@ func buildAppendedKernelCommandLine(t *state.Task) (string, error) {
 	st := t.State()
 	tr := config.NewTransaction(st)
 	// Note that validation has already happened in configcore.
-	cmdlineAppend, err := kernelCommandLineAppendArgs(t, tr, state.KernelCmdlineAppendTaskKey)
+	cmdlineAppend, err := kernelCommandLineAppendArgs(t, tr, "cmdline-append")
 	if err != nil {
 		return "", err
 	}
@@ -279,7 +279,7 @@ func buildAppendedKernelCommandLine(t *state.Task) (string, error) {
 	}
 	if deviceCtx.Model().Grade() == asserts.ModelDangerous {
 		cmdlineAppendDanger, err := kernelCommandLineAppendArgs(t, tr,
-			state.KernelDangerousCmdlineAppendTaskKey)
+			"dangerous-cmdline-append")
 		if err != nil {
 			return "", err
 		}
