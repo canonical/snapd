@@ -345,7 +345,7 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 }
 
 // RemoveSnapConfineSnippets clears out any previously written apparmor snippets
-// for snap-confine
+// for snap-confine.
 func RemoveSnapConfineSnippets() error {
 	_, _, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, "*", nil)
 	return err
