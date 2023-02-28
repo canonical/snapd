@@ -115,6 +115,14 @@ func init() {
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = filesystemOnlyApply
 }
 
+func isClassic(dev sysconfig.Device) bool {
+	if osutil.GetenvBool("SNAPD_BREAK_SYSTEM_BY_RUNNING_CORE_ONLY_CONFIG") {
+		return true
+	}
+
+	return dev.Classic()
+}
+
 // addFSOnlyHandler registers functions to validate and handle a subset of
 // system config options that do not require to manipulate state but only
 // the file system.
@@ -183,7 +191,7 @@ func filesystemOnlyRun(dev sysconfig.Device, cfg ConfGetter, ctx *fsOnlyContext)
 		if h.needsState() {
 			continue
 		}
-		if h.flags().coreOnlyConfig && dev.Classic() {
+		if h.flags().coreOnlyConfig && isClassic(dev) {
 			continue
 		}
 		if err := h.handle(dev, cfg, ctx); err != nil {

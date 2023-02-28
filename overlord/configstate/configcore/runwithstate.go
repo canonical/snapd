@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -174,7 +175,7 @@ func applyHandlers(dev sysconfig.Device, cfg RunTransaction, handlers []configHa
 	}
 
 	for _, h := range handlers {
-		if h.flags().coreOnlyConfig && dev.Classic() {
+		if h.flags().coreOnlyConfig && isClassic(dev) {
 			continue
 		}
 		if err := h.handle(dev, cfg, nil); err != nil {
