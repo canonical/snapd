@@ -49,15 +49,7 @@ type deviceMgrBootconfigSuite struct {
 
 var _ = Suite(&deviceMgrBootconfigSuite{})
 
-func (s *deviceMgrBootconfigSuite) SetUpTest(c *C) {
-	classic := false
-	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
-
-	s.managedbl = bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
-	bootloader.Force(s.managedbl)
-	s.managedbl.StaticCommandLine = "console=ttyS0 console=tty1 panic=-1"
-	s.managedbl.CandidateStaticCommandLine = "console=ttyS0 console=tty1 panic=-1 candidate"
-
+func (s *deviceMgrBootconfigSuite) mockGadget(c *C, yaml string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -76,8 +68,23 @@ func (s *deviceMgrBootconfigSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 
 	s.gadgetSnapInfo = snaptest.MockSnapWithFiles(c, pcGadgetSnapYaml, si, [][]string{
-		{"meta/gadget.yaml", gadgetYaml},
+		{"meta/gadget.yaml", yaml},
 	})
+}
+
+func (s *deviceMgrBootconfigSuite) SetUpTest(c *C) {
+	classic := false
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
+
+	s.managedbl = bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
+	bootloader.Force(s.managedbl)
+	s.managedbl.StaticCommandLine = "console=ttyS0 console=tty1 panic=-1"
+	s.managedbl.CandidateStaticCommandLine = "console=ttyS0 console=tty1 panic=-1 candidate"
+
+	s.mockGadget(c, gadgetYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
 
 	// minimal mocking to reach the mocked bootloader API call
 	modeenv := boot.Modeenv{
@@ -138,6 +145,17 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, opts testBootCo
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	// Override the gadget from SetupTest to add allowed arguments
+	yaml := gadgetYaml + `
+kernel-cmdline:
+  allow:
+    - par1=val
+    - par2
+    - append1=val
+    - append2
+`
+	s.mockGadget(c, yaml)
+
 	s.state.Lock()
 
 	// Set options that influence the final kernel command line
@@ -195,6 +213,17 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, opts testBootCo
 func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, opts testBootConfigUpdateOpts, errMatch string) {
 	restore := release.MockOnClassic(true)
 	defer restore()
+
+	// Override the gadget from SetupTest to add allowed arguments
+	yaml := gadgetYaml + `
+kernel-cmdline:
+  allow:
+    - par1=val
+    - par2
+    - append1=val
+    - append2
+`
+	s.mockGadget(c, yaml)
 
 	s.state.Lock()
 

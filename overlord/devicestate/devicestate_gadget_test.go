@@ -1153,9 +1153,13 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
 }
 
 type testGadgetCommandlineUpdateOpts struct {
-	updated             bool
-	isClassic           bool
-	cmdlineAppend       string
+	updated       bool
+	isClassic     bool
+	cmdlineAppend string
+	// This is the part of cmdlineAppend that is allowed by the gadget
+	allowedCmdline string
+	// and this is the not allowed part
+	notAllowedCmdline   string
 	cmdlineAppendDanger string
 }
 
@@ -1218,7 +1222,13 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		if logMatch != "" {
 			c.Check(log[0], Matches, fmt.Sprintf(".* %v", logMatch))
 			if argsAppended {
-				c.Assert(log, HasLen, 1)
+				if opts.notAllowedCmdline != "" && opts.allowedCmdline != "" {
+					// Part updated, part rejected
+					c.Assert(log, HasLen, 2)
+					c.Check(log[1], Matches, ".* Updated kernel command line")
+				} else {
+					c.Assert(log, HasLen, 1)
+				}
 			} else if opts.isClassic {
 				c.Assert(log, HasLen, 2)
 				c.Check(log[1], Matches, ".* Task set to wait until a manual system restart allows to continue")
@@ -1436,27 +1446,48 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetCommandlineWithNewAppendedArgs(c 
 
 	s.state.Unlock()
 
+	yaml := gadgetYaml + `
+kernel-cmdline:
+  allow:
+    - par1=val
+    - par2
+    - append1=val
+    - append2
+`
 	files := [][]string{
-		{"meta/gadget.yaml", gadgetYaml},
+		{"meta/gadget.yaml", yaml},
+	}
+	expLog := "Updated kernel command line"
+	if opts.notAllowedCmdline != "" {
+		expLog = fmt.Sprintf("%q is not allowed by the gadget and has been filtered out from the kernel command line", opts.notAllowedCmdline)
 	}
 	// The task comes from setting a system option so it is not a
 	// real gadget update and to/from files are the same.
-	s.testGadgetCommandlineUpdateRun(c, files, files, "",
-		"Updated kernel command line", opts)
+	s.testGadgetCommandlineUpdateRun(c, files, files, "", expLog, opts)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+
+	// gadget arguments are picked up for the candidate command line
+	oldCmdline := "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"
+	newCmdline := strutil.JoinNonEmpty([]string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-		// gadget arguments are picked up for the candidate command line
-		strutil.JoinNonEmpty([]string{"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1", opts.cmdlineAppend, opts.cmdlineAppendDanger}, " "),
-	})
-	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
+		opts.allowedCmdline, opts.cmdlineAppendDanger}, " ")
+	expCmdlines := []string{oldCmdline}
+	numSetBootVarsCalls := 0
+	// It might have not changed if all arguments are forbidden by the gadget
+	if newCmdline != oldCmdline {
+		expCmdlines = append(expCmdlines, newCmdline)
+		numSetBootVarsCalls = 1
+	}
+
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, expCmdlines)
+	c.Check(s.managedbl.SetBootVarsCalls, Equals, numSetBootVarsCalls)
 	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
 	c.Assert(err, IsNil)
 	// bootenv was cleared
 	c.Assert(vars, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": strutil.JoinNonEmpty([]string{opts.cmdlineAppend, opts.cmdlineAppendDanger}, " "),
+		"snapd_extra_cmdline_args": strutil.JoinNonEmpty([]string{opts.allowedCmdline, opts.cmdlineAppendDanger}, " "),
 	})
 }
 
@@ -1464,9 +1495,10 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewAppendedArgs(c 
 	var opts testGadgetCommandlineUpdateOpts
 	for _, isClassic := range []bool{false, true} {
 		opts = testGadgetCommandlineUpdateOpts{
-			updated:       true,
-			isClassic:     isClassic,
-			cmdlineAppend: "append1=val append2",
+			updated:        true,
+			isClassic:      isClassic,
+			cmdlineAppend:  "append1=val append2",
+			allowedCmdline: "append1=val append2",
 		}
 		s.testUpdateGadgetCommandlineWithNewAppendedArgs(c, opts)
 		opts = testGadgetCommandlineUpdateOpts{
@@ -1479,7 +1511,24 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewAppendedArgs(c 
 			updated:             true,
 			isClassic:           isClassic,
 			cmdlineAppend:       "append1=val append2",
+			allowedCmdline:      "append1=val append2",
 			cmdlineAppendDanger: "danger1=val danger2",
+		}
+		s.testUpdateGadgetCommandlineWithNewAppendedArgs(c, opts)
+		opts = testGadgetCommandlineUpdateOpts{
+			updated:           true,
+			isClassic:         isClassic,
+			cmdlineAppend:     "not.allowed=val append2",
+			allowedCmdline:    "append2",
+			notAllowedCmdline: "not.allowed=val",
+		}
+		s.testUpdateGadgetCommandlineWithNewAppendedArgs(c, opts)
+		opts = testGadgetCommandlineUpdateOpts{
+			updated:           true,
+			isClassic:         isClassic,
+			cmdlineAppend:     "not.allowed=val nope",
+			allowedCmdline:    "",
+			notAllowedCmdline: "not.allowed=val nope",
 		}
 		s.testUpdateGadgetCommandlineWithNewAppendedArgs(c, opts)
 	}

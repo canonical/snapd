@@ -263,13 +263,21 @@ func kernelCommandLineAppendArgs(tsk *state.Task, tr *config.Transaction,
 	return value, nil
 }
 
-func buildAppendedKernelCommandLine(t *state.Task) (string, error) {
+func buildAppendedKernelCommandLine(t *state.Task, gd *gadget.GadgetData) (string, error) {
 	st := t.State()
 	tr := config.NewTransaction(st)
-	// Note that validation has already happened in configcore.
-	cmdlineAppend, err := kernelCommandLineAppendArgs(t, tr, "cmdline-append")
+	rawCmdlineAppend, err := kernelCommandLineAppendArgs(t, tr, "cmdline-append")
 	if err != nil {
 		return "", err
+	}
+	// Validation against allow list has already happened in
+	// configcore, but the gadget might have changed, so we check
+	// again and filter any unallowed argument.
+	cmdlineAppend, forbidden := gadget.FilterKernelCmdline(rawCmdlineAppend, gd.Info.KernelCmdline.Allow)
+	if forbidden != "" {
+		warnMsg := fmt.Sprintf("%q is not allowed by the gadget and has been filtered out from the kernel command line", forbidden)
+		logger.Noticef(warnMsg)
+		t.Logf(warnMsg)
 	}
 
 	// Dangerous extra cmdline only considered for dangerous models
@@ -324,7 +332,7 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 		gadgetData = currentGadgetData
 	}
 
-	cmdlineAppend, err := buildAppendedKernelCommandLine(t)
+	cmdlineAppend, err := buildAppendedKernelCommandLine(t, gadgetData)
 	if err != nil {
 		return false, err
 	}

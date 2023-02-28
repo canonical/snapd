@@ -73,7 +73,7 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		return fmt.Errorf("internal error: no current gadget")
 	}
 
-	cmdlineAppend, err := buildAppendedKernelCommandLine(t)
+	cmdlineAppend, err := buildAppendedKernelCommandLine(t, currentData)
 	if err != nil {
 		return fmt.Errorf("cannot build extra kernel command line: %v", err)
 	}
