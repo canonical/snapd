@@ -478,6 +478,138 @@ func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
 	}
 }
 
+func (s *snapsSuite) TestPostSnapsOptionsUnmarshalNone(c *check.C) {
+	inst := daemon.MustUnmarshalSnapInstruction(c, `{"action": "snapshot", "snaps":["foo", "bar"]}`)
+
+	c.Check(inst.Action, check.Equals, "snapshot")
+	c.Check(inst.Snaps, check.DeepEquals, []string{"foo", "bar"})
+	c.Check(inst.Options, check.IsNil)
+}
+
+func (s *snapsSuite) TestPostSnapsOptionsUnmarshalEmpty(c *check.C) {
+	inst := daemon.MustUnmarshalSnapInstruction(c, `{"action": "snapshot", "snaps":["foo", "bar"],
+	"options":{}}`)
+
+	c.Check(inst.Action, check.Equals, "snapshot")
+	c.Check(inst.Snaps, check.DeepEquals, []string{"foo", "bar"})
+	c.Check(inst.Options, check.NotNil)
+	c.Check(inst.Options, check.HasLen, 0)
+}
+
+func (s *snapsSuite) TestPostSnapsOptionsUnmarshalNameEmpty(c *check.C) {
+	inst := daemon.MustUnmarshalSnapInstruction(c, `{"action": "snapshot", "snaps":["foo", "bar"],
+	"options":{"bar":{}}}`)
+
+	c.Check(inst.Action, check.Equals, "snapshot")
+	c.Check(inst.Snaps, check.DeepEquals, []string{"foo", "bar"})
+	c.Check(inst.Options, check.NotNil)
+	c.Check(inst.Options, check.HasLen, 0)
+}
+
+func (s *snapsSuite) TestPostSnapsOptionsUnmarshalExcludeEmpty(c *check.C) {
+	inst := daemon.MustUnmarshalSnapInstruction(c, `{"action": "snapshot", "snaps":["foo", "bar"],
+	"options":{"bar":{"exclude":[]}}}`)
+
+	c.Check(inst.Action, check.Equals, "snapshot")
+	c.Check(inst.Snaps, check.DeepEquals, []string{"foo", "bar"})
+	c.Check(inst.Options, check.NotNil)
+	c.Check(inst.Options, check.HasLen, 0)
+}
+
+func (s *snapsSuite) TestPostSnapsOptionsUnmarshalComplete(c *check.C) {
+	inst := daemon.MustUnmarshalSnapInstruction(c, `{"action": "snapshot", "snaps":["foo", "bar"],
+	"options":{"foo":{"exclude":["foo-path-1", "foo-path-2"]}, "bar":{"exclude":["bar-path-1", "bar-path-2"]}}}`)
+
+	c.Check(inst.Action, check.Equals, "snapshot")
+	c.Check(inst.Snaps, check.DeepEquals, []string{"foo", "bar"})
+	c.Check(inst.Options, check.NotNil)
+	c.Check(inst.Options, check.HasLen, 2)
+	c.Check(inst.Options, check.DeepEquals, daemon.SnapshotOptionMap{
+		"foo": &snap.SnapshotOptions{ExcludePaths: []string{"foo-path-1", "foo-path-2"}},
+		"bar": &snap.SnapshotOptions{ExcludePaths: []string{"bar-path-1", "bar-path-2"}},
+	})
+}
+
+func (s *snapsSuite) TestPostSnapsOptionsUnsupportedAction(c *check.C) {
+	s.daemon(c)
+	const expectedErr = "options can only be specified for snapshot action"
+
+	for _, action := range []string{"install", "refresh", "revert", "remove", "hold", "unhold",
+		"enable", "disable", "switch", "xyzzy"} {
+		holdParams := ""
+		if action == "hold" {
+			holdParams = `"time": "forever", "hold-level": "general",`
+		}
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "snaps":["foo"], %s "options": {}}`, action, holdParams))
+		req, err := http.NewRequest("POST", "/v2/snaps", buf)
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
+func (s *snapsSuite) TestPostSnapsOptionsSnapNotListed(c *check.C) {
+	s.daemon(c)
+	const notListedErr = `cannot use options for snap "xyzzy" that is not listed in snaps`
+
+	testMap := map[string]struct {
+		post                 string
+		expectNotListedError bool
+	}{
+		"not-listed":    {`{"action": "snapshot", "snaps":["foo", "bar"], "options": {"xyzzy": {"exclude":[""]}}}`, true},
+		"exclude-empty": {`{"action": "snapshot", "snaps":["foo", "bar"], "options": {"xyzzy": {"exclude":[]}}}`, false},
+		"name-empty":    {`{"action": "snapshot", "snaps":["foo", "bar"], "options": {"xyzzy": {}}}`, false},
+	}
+
+	for name, test := range testMap {
+		buf := strings.NewReader(fmt.Sprintf(test.post))
+		req, err := http.NewRequest("POST", "/v2/snaps", buf)
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400)
+		if test.expectNotListedError {
+			c.Check(rspe.Message, check.Equals, notListedErr, check.Commentf("test: %q", name))
+		} else {
+			c.Check(rspe.Message, check.Not(check.Equals), notListedErr, check.Commentf("test: %q", name))
+		}
+	}
+}
+
+func (s *snapsSuite) TestPostSnapsOptionsInvalid(c *check.C) {
+	s.daemon(c)
+	const invalidOptionsForSnapErr = `invalid options for snap "bar":`
+
+	testMap := map[string]struct {
+		post               string
+		expectInvalidError bool
+	}{
+		"invalid":       {`{"action": "snapshot", "snaps":["foo", "bar"], "options": {"bar": {"exclude":["../"]}}}`, true},
+		"exclude-empty": {`{"action": "snapshot", "snaps":["foo", "bar"], "options": {"bar": {"exclude":[]}}}`, false},
+		"name-empty":    {`{"action": "snapshot", "snaps":["foo", "bar"], "options": {"bar": {}}}`, false},
+	}
+
+	for name, test := range testMap {
+		buf := strings.NewReader(fmt.Sprintf(test.post))
+		req, err := http.NewRequest("POST", "/v2/snaps", buf)
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400)
+
+		if test.expectInvalidError {
+			c.Check(rspe.Message, testutil.Contains, invalidOptionsForSnapErr, check.Commentf("test: %q", name))
+		} else {
+			c.Check(rspe.Message, check.Not(testutil.Contains), invalidOptionsForSnapErr, check.Commentf("test: %q", name))
+		}
+	}
+}
+
 func (s *snapsSuite) TestPostSnapsOp(c *check.C) {
 	systemRestartImmediate := s.testPostSnapsOp(c, "", "application/json")
 	c.Check(systemRestartImmediate, check.Equals, false)
@@ -1592,6 +1724,22 @@ func (s *snapsSuite) TestPostSnapEnableDisableSwitchRevision(c *check.C) {
 		rspe := s.errorReq(c, req, nil)
 		c.Check(rspe.Status, check.Equals, 400)
 		c.Check(rspe.Message, testutil.Contains, "takes no revision")
+	}
+}
+
+func (s *snapsSuite) TestPostSnapOptionsUnsupportedAction(c *check.C) {
+	s.daemon(c)
+	const expectedErr = "options can only be specified for snapshot action"
+
+	for _, action := range []string{"install", "refresh", "revert", "enable", "disable", "switch", "xyzzy"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "options": {}}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/foo", buf)
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
 	}
 }
 
