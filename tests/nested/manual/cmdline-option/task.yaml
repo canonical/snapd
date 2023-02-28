@@ -153,16 +153,16 @@ execute: |
       # Check that no change has been created
       snap changes | NOMATCH 'Update kernel command line due to change in system configuration'
       # and that grubenv and modeenv have not changed
-      NOMATCH "$cmdlineOptDang" < /var/lib/snapd/modeenv
-      NOMATCH "$cmdlineOptDang" < /boot/grub/grubenv
+      remote.exec cat /var/lib/snapd/modeenv | NOMATCH "$cmdlineOptDang"
+      remote.exec cat /boot/grub/grubenv | NOMATCH "$cmdlineOptDang"
   fi
 
   # Set not allowed values
   cmdlineOpt="extra.val=nope"
   not remote.exec "sudo snap set system system.kernel.cmdline-append=\"$cmdlineOpt\""
-  snap changes | MATCH 'Error.*Change configuration of "core" snap'
-  NOMATCH "$cmdlineOpt" < /var/lib/snapd/modeenv
-  NOMATCH "$cmdlineOpt" < /boot/grub/grubenv
+  remote.exec snap changes | MATCH 'Error.*Change configuration of "core" snap'
+  remote.exec cat /var/lib/snapd/modeenv | NOMATCH "$cmdlineOpt"
+  remote.exec cat /boot/grub/grubenv | NOMATCH "$cmdlineOpt"
 
   # Set allowed values
   cmdlineOpt="extra.val=1 extra.flag foo=bar"
