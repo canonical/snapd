@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -1238,14 +1239,17 @@ func (s *linkSnapSuite) TestDoLinkSnapdRemovesAppArmorProfilesOnSnapdDowngrade(c
 	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
 	defer restore()
 
-	// pretend we have an installed snapd with a vendored apparmor
+	// pretend we have an installed snapd with a vendored apparmor that has
+	// a version greater than the one we are going to downgrade to
+	restore = snapdtool.MockVersion("2.58")
+	defer restore()
+	restore = apparmor.MockFeatures([]string{}, nil, []string{"snapd-internal"}, nil)
+	defer restore()
 	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		c.Check(name, Equals, "snapd")
 		info := &snap.Info{Version: "2.56", SideInfo: *si, SnapType: snap.TypeSnapd}
 		return info, nil
 	})
-	restore = apparmor.MockFeatures([]string{}, nil, []string{"snapd-internal"}, nil)
-	defer restore()
 
 	siSnapd := &snap.SideInfo{
 		RealName: "snapd",
