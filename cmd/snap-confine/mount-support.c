@@ -203,11 +203,30 @@ struct sc_mount_config {
 	const char *rootfs_dir;
 	// The struct is terminated with an entry with NULL path.
 	const struct sc_mount *mounts;
+	// Same as the structure above, but this is malloc-allocated.
+	struct sc_mount *dynamic_mounts;
 	sc_distro distro;
 	bool normal_mode;
 	const char *base_snap_name;
 	const char *snap_instance;
 };
+
+/**
+ * Ensures all required mount points have been created
+ */
+static void sc_create_mount_points(const char *scratch_dir,
+                                   const struct sc_mount *mounts)
+{
+	char dst[PATH_MAX] = { 0 };
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+	for (const struct sc_mount * mnt = mounts; mnt->path != NULL; mnt++) {
+		sc_must_snprintf(dst, sizeof(dst), "%s/%s", scratch_dir, mnt->path);
+		if (sc_nonfatal_mkpath(dst, 0755) < 0) {
+			die("cannot create mount point %s", dst);
+		}
+	}
+	(void)sc_set_effective_identity(old);
+}
 
 /**
  * Perform all the given bind mounts
@@ -535,6 +554,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// below serves as the foundation of the mount sandbox.
 	sc_do_mount("none", scratch_dir, NULL, MS_REC | MS_SLAVE, NULL);
 	sc_do_mounts(scratch_dir, config->mounts);
+	
+	// Dynamic mounts handle things like user-specified home directories. These
+	// can change between runs, so they are stored separately. As we don't know
+	// these in advance, make sure paths also exist in the scratch dir.
+	sc_create_mount_points(scratch_dir, config->dynamic_mounts);
+	sc_do_mounts(scratch_dir, config->dynamic_mounts);
 
 	if (config->normal_mode) {
 		// Since we mounted /etc from the host filesystem to the scratch directory,
@@ -878,6 +903,41 @@ static bool __attribute__((used))
 	return false;
 }
 
+static struct sc_mount *sc_init_homedir_mounts(const struct sc_invocation *inv)
+{
+	if (inv->homedirs == NULL) {
+		// Return empty array, but never NULL as functions rely
+		// on the mounts array to be non-NULL
+		return calloc(1, sizeof(struct sc_mount));
+	}
+
+	int num_homedirs = 0;
+	for (char **path = inv->homedirs; *path != NULL; path++) {
+		num_homedirs++;
+	}
+
+	// We add one element for the end-of-array indicator.
+	struct sc_mount *mounts = calloc(num_homedirs + 1, sizeof(struct sc_mount));
+	if (mounts == NULL) {
+		die("cannot allocate mount data for homedirs");
+	}
+
+	struct sc_mount *current_mount = mounts;
+	for (char **path = inv->homedirs; *path != NULL; path++) {
+		debug("Adding homedir: %s", *path);
+		current_mount->path = *path;
+		current_mount++;
+	}
+	return mounts;
+}
+
+static void sc_free_dynamic_mounts(struct sc_mount *mounts)
+{
+	/* We don't free the paths, since they are borrowed by the sc_invocation
+	 * structure */
+	free(mounts);
+}
+
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			  const sc_invocation * inv, const gid_t real_gid,
 			  const gid_t saved_gid)
@@ -920,12 +980,18 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		struct sc_mount_config normal_config = {
 			.rootfs_dir = inv->rootfs_dir,
 			.mounts = mounts,
+			// Homedir mounts are user-specified paths that snaps are allowed
+			// to access, which don't reside in the regular home path. They can change
+			// between runs, so we must dynamically handle them.
+			.dynamic_mounts = sc_create_homedir_mounts(inv),
 			.distro = distro,
 			.normal_mode = true,
 			.base_snap_name = inv->base_snap_name,
 			.snap_instance = inv->snap_instance,
 		};
 		sc_bootstrap_mount_namespace(&normal_config);
+		sc_free_dynamic_mounts(normal_config.dynamic_mounts);
+		normal_config.dynamic_mounts = NULL;
 	} else {
 		// In legacy mode we don't pivot to a base snap's rootfs and instead
 		// just arrange bi-directional mount propagation for two directories.
