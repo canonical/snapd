@@ -283,7 +283,7 @@ func FeaturesDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "features")
 }
 
-// SnapSystemParamsUnder returns the path to the system-params file under rootdir
+// SnapSystemParamsUnder returns the path to the system-params file under rootdir.
 func SnapSystemParamsUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "system-params")
 }
