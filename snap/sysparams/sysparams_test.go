@@ -57,9 +57,6 @@ func (s *sysParamsTestSuite) TestOpenNewEmpty(c *C) {
 	c.Assert(ssp, NotNil)
 	c.Check(sspPath, testutil.FileAbsent)
 
-	// Set homedirs
-	ssp.Homedirs = "my-path/foo/bar,foo=bar"
-
 	// Save the file
 	err = ssp.Write()
 	c.Check(err, IsNil)
@@ -68,7 +65,7 @@ func (s *sysParamsTestSuite) TestOpenNewEmpty(c *C) {
 	// has the correct permissions
 	f, err := ioutil.ReadFile(sspPath)
 	c.Assert(err, IsNil)
-	c.Assert(string(f), Equals, "homedirs=my-path/foo/bar,foo=bar\n")
+	c.Assert(string(f), Equals, "homedirs=\n")
 
 	stat, err := os.Stat(sspPath)
 	c.Assert(err, IsNil)
