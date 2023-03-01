@@ -104,23 +104,24 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 	return mbl, nil
 }
 
-// bootVarsForTrustedCommandLineFromGadget returns a set of boot variables that
-// carry the command line arguments requested by the gadget. This is only useful
+// bootVarsForTrustedCommandLineFromGadget returns a set of boot
+// variables that carry the command line arguments defined by the
+// gadget and some system options (cmdlineApped). This is only useful
 // if snapd is managing the boot config.
-func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath string) (map[string]string, error) {
+func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineAppend string) (map[string]string, error) {
 	extraOrFull, full, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath)
 	if err != nil {
-		if err == gadget.ErrNoKernelCommandline {
-			// nothing set by the gadget, but we could have had
-			// arguments before, so make sure those are cleared now
-			clear := map[string]string{
-				"snapd_extra_cmdline_args": "",
-				"snapd_full_cmdline_args":  "",
-			}
-			return clear, nil
+		if err != gadget.ErrNoKernelCommandline {
+			return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
 		}
-		return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
+		extraOrFull = ""
+		full = false
 	}
+	logger.Debugf("trusted command line: from gadget: %q, from options: %q",
+		extraOrFull, cmdlineAppend)
+
+	extraOrFull = strutil.JoinNonEmpty([]string{extraOrFull, cmdlineAppend}, " ")
+
 	// gadget has the kernel command line
 	args := map[string]string{
 		"snapd_extra_cmdline_args": "",
@@ -328,7 +329,7 @@ const (
 // by an update of boot config or the gadget snap. When needed, the modeenv is
 // updated with a candidate command line and the encryption keys are resealed.
 // This helper should be called right before updating the managed boot config.
-func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReason, gadgetSnapOrDir string) (updated bool, err error) {
+func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReason, gadgetSnapOrDir, cmdlineOpt string) (updated bool, err error) {
 	// TODO:UC20: consider updating a recovery system command line
 
 	m, err := loadModeenv()
@@ -355,6 +356,9 @@ func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReas
 	if err != nil {
 		return false, err
 	}
+	// Add part coming from options
+	candidateCmdline = strutil.JoinNonEmpty(
+		[]string{candidateCmdline, cmdlineOpt}, " ")
 	if cmdline == candidateCmdline {
 		// command line is the same or no actual change in modeenv
 		return false, nil

@@ -97,6 +97,14 @@ var (
 	validGUUID      = regexp.MustCompile("^(?i)[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$")
 )
 
+type KernelCmdline struct {
+	// TODO: add append and remove slices that will replace the cmdline*.txt
+	// files that can be included nowadays in the gadget.
+	// Allow is the list of allowed parameters for the system.kernel.cmdline-append
+	// system option
+	Allow []osutil.KernelArgument `yaml:"allow"`
+}
+
 type Info struct {
 	Volumes map[string]*Volume `yaml:"volumes,omitempty"`
 
@@ -104,6 +112,8 @@ type Info struct {
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
 
 	Connections []Connection `yaml:"connections"`
+
+	KernelCmdline KernelCmdline `yaml:"kernel-cmdline"`
 }
 
 // Volume defines the structure and content for the image to be written into a

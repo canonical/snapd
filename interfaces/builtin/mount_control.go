@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/utils"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -271,7 +272,18 @@ func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error
 	return nil
 }
 
-func validateWhatAttr(what string) error {
+func validateWhatAttr(mountInfo *MountInfo) error {
+	what := mountInfo.what
+
+	// with "functionfs" the "what" can essentially be anything, see
+	// https://www.kernel.org/doc/html/latest/usb/functionfs.html
+	if len(mountInfo.types) == 1 && mountInfo.types[0] == "functionfs" {
+		if err := apparmor_sandbox.ValidateNoAppArmorRegexp(what); err != nil {
+			return fmt.Errorf(`cannot use mount-control "what" attribute: %w`, err)
+		}
+		return nil
+	}
+
 	if !whatRegexp.MatchString(what) {
 		return fmt.Errorf(`mount-control "what" attribute is invalid: must start with / and not contain special characters`)
 	}
@@ -282,6 +294,16 @@ func validateWhatAttr(what string) error {
 
 	if _, err := utils.NewPathPattern(what); err != nil {
 		return fmt.Errorf(`mount-control "what" setting cannot be used: %v`, err)
+	}
+
+	// "what" must be set to "none" iff the type is "tmpfs"
+	isTmpfs := len(mountInfo.types) == 1 && mountInfo.types[0] == "tmpfs"
+	if mountInfo.what == "none" {
+		if !isTmpfs {
+			return errors.New(`mount-control "what" attribute can be "none" only with "tmpfs"`)
+		}
+	} else if isTmpfs {
+		return fmt.Errorf(`mount-control "what" attribute must be "none" with "tmpfs"; found %q instead`, mountInfo.what)
 	}
 
 	return nil
@@ -346,7 +368,7 @@ func optionIncompatibleWithFsType(options []string) string {
 }
 
 func validateMountInfo(mountInfo *MountInfo) error {
-	if err := validateWhatAttr(mountInfo.what); err != nil {
+	if err := validateWhatAttr(mountInfo); err != nil {
 		return err
 	}
 
@@ -366,16 +388,6 @@ func validateMountInfo(mountInfo *MountInfo) error {
 	fsExclusiveOption := optionIncompatibleWithFsType(mountInfo.options)
 	if fsExclusiveOption != "" && len(mountInfo.types) > 0 {
 		return fmt.Errorf(`mount-control option %q is incompatible with specifying filesystem type`, fsExclusiveOption)
-	}
-
-	// "what" must be set to "none" iff the type is "tmpfs"
-	isTmpfs := len(mountInfo.types) == 1 && mountInfo.types[0] == "tmpfs"
-	if mountInfo.what == "none" {
-		if !isTmpfs {
-			return errors.New(`mount-control "what" attribute can be "none" only with "tmpfs"`)
-		}
-	} else if isTmpfs {
-		return fmt.Errorf(`mount-control "what" attribute must be "none" with "tmpfs"; found %q instead`, mountInfo.what)
 	}
 
 	// Until we have a clear picture of how this should work, disallow creating
