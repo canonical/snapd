@@ -308,7 +308,7 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 		// keep a pointer to the customization object in opts as the Validation
 		// member might be defaulted if not set.
 		customizations: &opts.Customizations,
-		architecture:   determineSeedArchitecture(model, opts),
+		architecture:   determineImageArchitecture(model, opts),
 
 		hasModes: model.Grade() != asserts.ModelGradeUnset,
 		model:    model,
@@ -351,7 +351,7 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 	return s, nil
 }
 
-func determineSeedArchitecture(model *asserts.Model, opts *Options) string {
+func determineImageArchitecture(model *asserts.Model, opts *Options) string {
 	// let the architecture supplied in opts take precedence
 	if opts.Architecture != "" {
 		// in theory we could check that this does not differ from the one
