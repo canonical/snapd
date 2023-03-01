@@ -88,7 +88,7 @@ func (s *sysParamsTestSuite) TestUpdateWriteFailure(c *C) {
 	defer r()
 
 	err = ssp.Write()
-	c.Assert(err, ErrorMatches, "some write error")
+	c.Assert(err, ErrorMatches, "cannot write system-params: some write error")
 }
 
 func (s *sysParamsTestSuite) TestOpenExisting(c *C) {
@@ -118,7 +118,7 @@ func (s *sysParamsTestSuite) TestOpenExistingWithInvalidContent(c *C) {
 	c.Assert(ioutil.WriteFile(sspPath, []byte("xuifu93\n"), 0644), IsNil)
 
 	ssp, err := sysparams.Open(sspPath)
-	c.Check(err, ErrorMatches, `cannot parse invalid line: "xuifu93"`)
+	c.Check(err, ErrorMatches, `cannot parse system-params: invalid line: "xuifu93"`)
 	c.Check(ssp, IsNil)
 }
 
@@ -152,6 +152,6 @@ homedirs=foo/baz
 	c.Assert(ioutil.WriteFile(sspPath, []byte(contents), 0644), IsNil)
 
 	ssp, err := sysparams.Open(sspPath)
-	c.Check(err, ErrorMatches, `cannot parse file, dublicate entry found: "homedirs"`)
+	c.Check(err, ErrorMatches, `cannot parse system-params: duplicate entry found: "homedirs"`)
 	c.Check(ssp, IsNil)
 }

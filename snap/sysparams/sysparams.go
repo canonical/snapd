@@ -58,19 +58,19 @@ func parseSystemParams(contents string) (*SystemParams, error) {
 
 		tokens := strings.SplitN(line, "=", 2)
 		if len(tokens) != 2 {
-			return nil, fmt.Errorf("cannot parse invalid line: %q", line)
+			return nil, fmt.Errorf("invalid line: %q", line)
 		}
 
 		// ensure that each configuration value only appears once
 		if ok := seen[tokens[0]]; ok {
-			return nil, fmt.Errorf("cannot parse file, dublicate entry found: %q", tokens[0])
+			return nil, fmt.Errorf("duplicate entry found: %q", tokens[0])
 		}
 		seen[tokens[0]] = true
 
 		if tokens[0] == "homedirs" {
 			params.Homedirs = tokens[1]
 		} else {
-			return nil, fmt.Errorf("cannot parse invalid line: %q", line)
+			return nil, fmt.Errorf("invalid line: %q", line)
 		}
 	}
 
@@ -90,12 +90,12 @@ func Open(path string) (*SystemParams, error) {
 
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot read system-params: %v", err)
 	}
 
 	params, err := parseSystemParams(string(data))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot parse system-params: %v", err)
 	}
 	params.path = path
 	return params, nil
@@ -105,5 +105,8 @@ func Open(path string) (*SystemParams, error) {
 // SystemParams instance.
 func (ssp *SystemParams) Write() error {
 	contents := fmt.Sprintf("homedirs=%s\n", ssp.Homedirs)
-	return osutilAtomicWriteFile(ssp.path, []byte(contents), 0644, 0)
+	if err := osutilAtomicWriteFile(ssp.path, []byte(contents), 0644, 0); err != nil {
+		return fmt.Errorf("cannot write system-params: %v", err)
+	}
+	return nil
 }
