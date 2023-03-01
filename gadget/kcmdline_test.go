@@ -35,6 +35,7 @@ kernel-cmdline:
     - par2=val
     - par3=*
     - par-4=val_1-2
+    - par5="foo bar"
 `
 	tests := []struct {
 		cmdline   string
@@ -51,6 +52,8 @@ kernel-cmdline:
 		{"", "", ""},
 		{"par2=val par1 par3=.1.32", "par2=val par1 par3=.1.32", ""},
 		{"par_4=val_1-2", "par_4=val_1-2", ""},
+		{`par2="val"`, `par2="val"`, ""},
+		{`par5="foo bar"`, `par5="foo bar"`, ""},
 		// Not allowed
 		{"foo", "", "foo"},
 		{"par2=other", "", "par2=other"},

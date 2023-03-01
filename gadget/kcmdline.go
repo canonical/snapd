@@ -34,7 +34,7 @@ type kernelArgsSet map[kargKey]bool
 // wild card ('*') can be used in the allow list for the
 // values. Additionally, a string with the arguments that have been
 // filtered out is also returned.
-func FilterKernelCmdline(cmdline string, allowedSl []osutil.KernelArgument) (string, string) {
+func FilterKernelCmdline(cmdline string, allowedSl []osutil.KernelArgument) (argsAllowed, argsDenied string) {
 	// Set of allowed arguments
 	allowed := kernelArgsSet{}
 	wildcards := map[string]bool{}
@@ -70,5 +70,7 @@ func FilterKernelCmdline(cmdline string, allowedSl []osutil.KernelArgument) (str
 		}
 	}
 
-	return strutil.JoinNonEmpty(in, " "), strutil.JoinNonEmpty(out, " ")
+	argsAllowed = strutil.JoinNonEmpty(in, " ")
+	argsDenied = strutil.JoinNonEmpty(out, " ")
+	return argsAllowed, argsDenied
 }
