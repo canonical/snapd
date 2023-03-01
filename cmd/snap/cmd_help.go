@@ -257,17 +257,19 @@ var helpCategories = []helpCategory{
 		Description:     i18n.G("introspection and debugging of snapd"),
 		Commands:        []string{"version"},
 		AllOnlyCommands: []string{"debug"},
-	},
-	{
+	}, {
 		Label:           i18n.G("Development"),
 		Description:     i18n.G("developer-oriented features"),
 		Commands:        []string{"download", "pack", "run", "try"},
 		AllOnlyCommands: []string{"prepare-image"},
-	},
-	{
+	}, {
 		Label:       i18n.G("Quota Groups"),
 		Description: i18n.G("Manage quota groups for snaps"),
 		Commands:    []string{"set-quota", "remove-quota", "quotas", "quota"},
+	}, {
+		Label:       i18n.G("Validation Sets"),
+		Description: i18n.G("Manage validation sets"),
+		Commands:    []string{"validate"},
 	},
 }
 
