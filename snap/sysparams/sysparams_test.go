@@ -51,20 +51,28 @@ func (s *sysParamsTestSuite) TestOpenNewEmpty(c *C) {
 	// the file unless Update is called. And that an empty update
 	// provides empty members
 	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
+	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
 	ssp, err := sysparams.Open(sspPath)
 	c.Check(err, IsNil)
 	c.Assert(ssp, NotNil)
 	c.Check(sspPath, testutil.FileAbsent)
 
-	r := sysparams.MockOsutilAtomicWriteFile(func(filename string, data []byte, perm os.FileMode, flags osutil.AtomicWriteFlags) error {
-		c.Check(string(data), Equals, "homedirs=\n")
-		return nil
-	})
-	defer r()
+	// Set homedirs
+	ssp.Homedirs = "my-path/foo/bar,foo=bar"
 
 	// Save the file
 	err = ssp.Write()
 	c.Check(err, IsNil)
+
+	// Verify the contents of the file, and that the file
+	// has the correct permissions
+	f, err := ioutil.ReadFile(sspPath)
+	c.Assert(err, IsNil)
+	c.Assert(string(f), Equals, "homedirs=my-path/foo/bar,foo=bar\n")
+
+	stat, err := os.Stat(sspPath)
+	c.Assert(err, IsNil)
+	c.Check(stat.Mode(), Equals, os.FileMode(0644))
 }
 
 func (s *sysParamsTestSuite) TestUpdateWriteFailure(c *C) {

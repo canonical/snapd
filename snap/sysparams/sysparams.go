@@ -37,10 +37,10 @@ var (
 // aspects like the homedirs configuration that must be available
 // for other binaries, as snap-confine.
 type SystemParams struct {
-	// path stored to allow for updating the same path
+	// path stored to allow for updating the same path.
 	path string
 	// Homedirs is the comma-delimited list of user specified home
-	// directories that should be mounted
+	// directories that should be mounted.
 	Homedirs string
 }
 
