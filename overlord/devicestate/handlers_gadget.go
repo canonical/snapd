@@ -49,7 +49,8 @@ func makeRollbackDir(name string) (string, error) {
 	return rollbackDir, nil
 }
 
-func CurrentGadgetInfo(st *state.State, curDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
+// CurrentGadgetData returns the GadgetData for the currently active gadget.
+func CurrentGadgetData(st *state.State, curDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
 	currentInfo, err := snapstate.GadgetInfo(st, curDeviceCtx)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
@@ -66,7 +67,7 @@ func CurrentGadgetInfo(st *state.State, curDeviceCtx snapstate.DeviceContext) (*
 	return ci, nil
 }
 
-func pendingGadgetInfo(snapsup *snapstate.SnapSetup, pendingDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
+func pendingGadgetData(snapsup *snapstate.SnapSetup, pendingDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
 	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
@@ -117,7 +118,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 				snapsup.InstanceName(), expectedGadgetSnap)
 		}
 
-		updateData, err = pendingGadgetInfo(snapsup, remodelCtx)
+		updateData, err = pendingGadgetData(snapsup, remodelCtx)
 		if err != nil {
 			return err
 		}
@@ -130,7 +131,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 		// now calculate the "update" data, it's the same gadget but
 		// argumented from a different kernel
-		updateData, err = CurrentGadgetInfo(t.State(), groundDeviceCtx)
+		updateData, err = CurrentGadgetData(t.State(), groundDeviceCtx)
 		if err != nil {
 			return err
 		}
@@ -138,7 +139,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return fmt.Errorf("internal errror: doUpdateGadgetAssets called with snap type %v", snapsup.Type)
 	}
 
-	currentData, err := CurrentGadgetInfo(t.State(), groundDeviceCtx)
+	currentData, err := CurrentGadgetData(t.State(), groundDeviceCtx)
 	if err != nil {
 		return err
 	}
@@ -214,19 +215,14 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 // fromSystemOption tells us if t was created when setting a system
 // option for the kernel command line.
-func fromSystemOption(t *state.Task) (bool, error) {
+func fromSystemOption(t *state.Task) bool {
 	for _, param := range []string{"cmdline-append", "dangerous-cmdline-append"} {
-		var value string
-		err := t.Get(param, &value)
-		if err == nil {
-			return true, nil
-		}
-		if !errors.Is(err, state.ErrNoState) {
-			return false, err
+		if t.Has(param) {
+			return true
 		}
 	}
 
-	return false, nil
+	return false
 }
 
 // kernelCommandLineAppendArgs returns extra arguments that we want to
@@ -263,8 +259,7 @@ func kernelCommandLineAppendArgs(tsk *state.Task, tr *config.Transaction,
 	return value, nil
 }
 
-func buildAppendedKernelCommandLine(t *state.Task, gd *gadget.GadgetData) (string, error) {
-	st := t.State()
+func buildAppendedKernelCommandLine(t *state.Task, st *state.State, gd *gadget.GadgetData, deviceCtx snapstate.DeviceContext) (string, error) {
 	tr := config.NewTransaction(st)
 	rawCmdlineAppend, err := kernelCommandLineAppendArgs(t, tr, "cmdline-append")
 	if err != nil {
@@ -281,10 +276,6 @@ func buildAppendedKernelCommandLine(t *state.Task, gd *gadget.GadgetData) (strin
 	}
 
 	// Dangerous extra cmdline only considered for dangerous models
-	deviceCtx, err := DeviceCtx(st, nil, nil)
-	if err != nil {
-		return "", err
-	}
 	if deviceCtx.Model().Grade() == asserts.ModelDangerous {
 		cmdlineAppendDanger, err := kernelCommandLineAppendArgs(t, tr,
 			"dangerous-cmdline-append")
@@ -295,7 +286,7 @@ func buildAppendedKernelCommandLine(t *state.Task, gd *gadget.GadgetData) (strin
 			[]string{cmdlineAppend, cmdlineAppendDanger}, " ")
 	}
 
-	logger.Debugf("appended command line part is %q", cmdlineAppend)
+	logger.Debugf("appended kernel command line part is %q", cmdlineAppend)
 
 	return cmdlineAppend, nil
 }
@@ -317,7 +308,7 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 		if err != nil {
 			return false, err
 		}
-		gadgetData, err = pendingGadgetInfo(snapsup, devCtx)
+		gadgetData, err = pendingGadgetData(snapsup, devCtx)
 		if err != nil {
 			return false, err
 		}
@@ -325,14 +316,14 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 		// but when undoing or when the change comes from a
 		// system option (no setup task), we use the current
 		// gadget (should have been restored in the undo case)
-		currentGadgetData, err := CurrentGadgetInfo(st, devCtx)
+		currentGadgetData, err := CurrentGadgetData(st, devCtx)
 		if err != nil {
 			return false, err
 		}
 		gadgetData = currentGadgetData
 	}
 
-	cmdlineAppend, err := buildAppendedKernelCommandLine(t, gadgetData)
+	cmdlineAppend, err := buildAppendedKernelCommandLine(t, st, gadgetData, devCtx)
 	if err != nil {
 		return false, err
 	}
@@ -369,10 +360,7 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 
 	// Find out if the update has been triggered by setting a system
 	// option that modifies the kernel command line.
-	isSysOption, err := fromSystemOption(t)
-	if err != nil {
-		return err
-	}
+	isSysOption := fromSystemOption(t)
 
 	// We use the current gadget kernel command line if the change comes
 	// from setting a system option.
@@ -393,6 +381,7 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 
 	if isSysOption {
 		logger.Debugf("change comes from system option, we do not reboot")
+		t.SetStatus(state.DoneStatus)
 		return nil
 	}
 

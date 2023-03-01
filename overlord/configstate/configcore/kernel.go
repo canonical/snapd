@@ -61,7 +61,7 @@ func changedKernelConfigs(c RunTransaction) []string {
 }
 
 func validateCmdlineParamsAreAllowed(st *state.State, devCtx snapstate.DeviceContext, cmdline string) error {
-	gd, err := devicestate.CurrentGadgetInfo(st, devCtx)
+	gd, err := devicestate.CurrentGadgetData(st, devCtx)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func validateCmdlineAppend(c RunTransaction) error {
 			return err
 		}
 
-		logger.Debugf("validating %s=%q", opt, cmdAppend)
+		logger.Debugf("kernel option: validating %s=%q", opt, cmdAppend)
 		if opt == optionKernelCmdlineAppend {
 			// check against allowed values from gadget
 			if err := validateCmdlineParamsAreAllowed(c.State(), devCtx, cmdAppend); err != nil {
