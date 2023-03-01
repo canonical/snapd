@@ -46,7 +46,13 @@ type cmdValidate struct {
 
 var shortValidateHelp = i18n.G("List or apply validation sets")
 var longValidateHelp = i18n.G(`
-The validate command lists or applies validations sets
+The validate command lists or applies validation sets that state which snaps
+are required or permitted to be installed together, optionally constrained to
+fixed revisions.
+
+A validation set can either be in monitoring mode, in which case its constraints
+aren't enforced, or in enforcing mode, in which case snapd will not allow
+operations which would result in snaps breaking the validation set's constraints.
 `)
 
 func init() {
