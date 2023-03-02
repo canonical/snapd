@@ -481,7 +481,7 @@ func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
 	return localSnaps
 }
 
-func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts func(sn, sysSn, kSn *seedwriter.SeedSnap) ([]*asserts.Ref, error)) error {
+func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts func(sn, sysSn, kernSn *seedwriter.SeedSnap) ([]*asserts.Ref, error)) error {
 	curSnaps := localSnapsWithID(localSnaps)
 	for {
 		toDownload, err := s.w.SnapsToDownload()
@@ -710,7 +710,7 @@ func manifestFromLocalSnaps(snaps localSnapRefs, opts *Options) (map[string]snap
 	return seedManifest, nil
 }
 
-func selectAssertionMaxFormats(tsto *tooling.ToolingStore, model *asserts.Model, sysSn, kSn *seedwriter.SeedSnap) error {
+func selectAssertionMaxFormats(tsto *tooling.ToolingStore, model *asserts.Model, sysSn, kernSn *seedwriter.SeedSnap) error {
 	if sysSn == nil {
 		// nothing to do
 		return nil
@@ -723,9 +723,9 @@ func selectAssertionMaxFormats(tsto *tooling.ToolingStore, model *asserts.Model,
 	if err != nil {
 		return err
 	}
-	if model.Grade() != asserts.ModelGradeUnset && kSn != nil {
+	if model.Grade() != asserts.ModelGradeUnset && kernSn != nil {
 		// take also kernel into account
-		kf, err := snapfile.Open(kSn.Path)
+		kf, err := snapfile.Open(kernSn.Path)
 		if err != nil {
 			return err
 		}
@@ -826,9 +826,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return nil
 	}
 
-	fetchAsserts := func(sn, sysSn, kSn *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
+	fetchAsserts := func(sn, sysSn, kernSn *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
 		if !assertMaxFormatsSelected {
-			if err := selectAssertionMaxFormats(tsto, model, sysSn, kSn); err != nil {
+			if err := selectAssertionMaxFormats(tsto, model, sysSn, kernSn); err != nil {
 				return nil, err
 			}
 			assertMaxFormatsSelected = true
