@@ -49,6 +49,7 @@ kernel-cmdline:
 		{"par3", "par3", ""},
 		{"par3=", "par3", ""},
 		{`par3=""`, "par3", ""},
+		{`par3="foo bar"`, `par3="foo bar"`, ""},
 		{"", "", ""},
 		{"par2=val par1 par3=.1.32", "par2=val par1 par3=.1.32", ""},
 		{"par_4=val_1-2", "par_4=val_1-2", ""},

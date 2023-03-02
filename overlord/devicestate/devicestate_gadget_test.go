@@ -182,13 +182,12 @@ func (s *deviceMgrGadgetSuite) setupModelWithGadget(c *C, gadget string) {
 	})
 }
 
-func (s *deviceMgrGadgetSuite) setupUC20ModelWithGadget(c *C, gadget string) {
+func (s *deviceMgrGadgetSuite) setupUC20ModelWithGadget(c *C, gadget, grade string) {
 	s.makeModelAssertionInState(c, "canonical", "pc20-model", map[string]interface{}{
 		"display-name": "UC20 pc model",
 		"architecture": "amd64",
 		"base":         "core20",
-		// enough to have a grade set
-		"grade": "dangerous",
+		"grade":        grade,
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
@@ -271,7 +270,7 @@ func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C, modelGrade, gadgetYamlCon
 	} else if modelGrade == "" {
 		s.setupModelWithGadget(c, "foo-gadget")
 	} else {
-		s.setupUC20ModelWithGadget(c, "foo-gadget")
+		s.setupUC20ModelWithGadget(c, "foo-gadget", "dangerous")
 	}
 
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
@@ -1155,6 +1154,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
 type testGadgetCommandlineUpdateOpts struct {
 	updated       bool
 	isClassic     bool
+	grade         string
 	cmdlineAppend string
 	// This is the part of cmdlineAppend that is allowed by the gadget
 	allowedCmdline string
@@ -1259,7 +1259,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExistingArgs(c *C)
 	// arguments change
 	bootloader.Force(s.managedbl)
 	s.state.Lock()
-	s.setupUC20ModelWithGadget(c, "pc")
+	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
 	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
@@ -1283,6 +1283,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExistingArgs(c *C)
 	opts := testGadgetCommandlineUpdateOpts{
 		updated:   true,
 		isClassic: false,
+		grade:     "dangerous",
 	}
 	s.testGadgetCommandlineUpdateRun(c,
 		[][]string{
@@ -1339,6 +1340,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineClassicWithModesWithEx
 	opts := testGadgetCommandlineUpdateOpts{
 		updated:   true,
 		isClassic: true,
+		grade:     "dangerous",
 	}
 	s.testGadgetCommandlineUpdateRun(c,
 		[][]string{
@@ -1371,7 +1373,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewArgs(c *C) {
 	// no command line arguments prior to the gadget update
 	bootloader.Force(s.managedbl)
 	s.state.Lock()
-	s.setupUC20ModelWithGadget(c, "pc")
+	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
 	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
@@ -1394,6 +1396,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewArgs(c *C) {
 	opts := testGadgetCommandlineUpdateOpts{
 		updated:   true,
 		isClassic: false,
+		grade:     "dangerous",
 	}
 	s.testGadgetCommandlineUpdateRun(c,
 		[][]string{
@@ -1426,7 +1429,7 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetCommandlineWithNewAppendedArgs(c 
 	// no command line arguments prior to the gadget update
 	bootloader.Force(s.managedbl)
 	s.state.Lock()
-	s.setupUC20ModelWithGadget(c, "pc")
+	s.setupUC20ModelWithGadget(c, "pc", opts.grade)
 	s.mockModeenvForMode(c, "run")
 	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
@@ -1457,7 +1460,10 @@ kernel-cmdline:
 	files := [][]string{
 		{"meta/gadget.yaml", yaml},
 	}
-	expLog := "Updated kernel command line"
+	expLog := ""
+	if opts.updated {
+		expLog = "Updated kernel command line"
+	}
 	if opts.notAllowedCmdline != "" {
 		expLog = fmt.Sprintf("%q is not allowed by the gadget and has been filtered out from the kernel command line", opts.notAllowedCmdline)
 	}
@@ -1472,7 +1478,11 @@ kernel-cmdline:
 	oldCmdline := "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"
 	newCmdline := strutil.JoinNonEmpty([]string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-		opts.allowedCmdline, opts.cmdlineAppendDanger}, " ")
+		opts.allowedCmdline}, " ")
+	if opts.grade == "dangerous" {
+		newCmdline = strutil.JoinNonEmpty([]string{
+			newCmdline, opts.cmdlineAppendDanger}, " ")
+	}
 	expCmdlines := []string{oldCmdline}
 	numSetBootVarsCalls := 0
 	// It might have not changed if all arguments are forbidden by the gadget
@@ -1486,8 +1496,12 @@ kernel-cmdline:
 	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
 	c.Assert(err, IsNil)
 	// bootenv was cleared
+	extraArgs := opts.allowedCmdline
+	if opts.grade == "dangerous" {
+		extraArgs = strutil.JoinNonEmpty([]string{extraArgs, opts.cmdlineAppendDanger}, " ")
+	}
 	c.Assert(vars, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": strutil.JoinNonEmpty([]string{opts.allowedCmdline, opts.cmdlineAppendDanger}, " "),
+		"snapd_extra_cmdline_args": extraArgs,
 	})
 }
 
@@ -1497,6 +1511,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewAppendedArgs(c 
 		opts = testGadgetCommandlineUpdateOpts{
 			updated:        true,
 			isClassic:      isClassic,
+			grade:          "dangerous",
 			cmdlineAppend:  "append1=val append2",
 			allowedCmdline: "append1=val append2",
 		}
@@ -1504,12 +1519,14 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewAppendedArgs(c 
 		opts = testGadgetCommandlineUpdateOpts{
 			updated:             true,
 			isClassic:           isClassic,
+			grade:               "dangerous",
 			cmdlineAppendDanger: "danger1=val danger2",
 		}
 		s.testUpdateGadgetCommandlineWithNewAppendedArgs(c, opts)
 		opts = testGadgetCommandlineUpdateOpts{
 			updated:             true,
 			isClassic:           isClassic,
+			grade:               "dangerous",
 			cmdlineAppend:       "append1=val append2",
 			allowedCmdline:      "append1=val append2",
 			cmdlineAppendDanger: "danger1=val danger2",
@@ -1518,6 +1535,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewAppendedArgs(c 
 		opts = testGadgetCommandlineUpdateOpts{
 			updated:           true,
 			isClassic:         isClassic,
+			grade:             "dangerous",
 			cmdlineAppend:     "not.allowed=val append2",
 			allowedCmdline:    "append2",
 			notAllowedCmdline: "not.allowed=val",
@@ -1526,9 +1544,32 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewAppendedArgs(c 
 		opts = testGadgetCommandlineUpdateOpts{
 			updated:           true,
 			isClassic:         isClassic,
+			grade:             "dangerous",
 			cmdlineAppend:     "not.allowed=val nope",
 			allowedCmdline:    "",
 			notAllowedCmdline: "not.allowed=val nope",
+		}
+		s.testUpdateGadgetCommandlineWithNewAppendedArgs(c, opts)
+	}
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewAppendedArgsSigned(c *C) {
+	var opts testGadgetCommandlineUpdateOpts
+	for _, isClassic := range []bool{false, true} {
+		opts = testGadgetCommandlineUpdateOpts{
+			updated:             false,
+			isClassic:           isClassic,
+			grade:               "signed",
+			cmdlineAppendDanger: "danger1=val danger2",
+		}
+		s.testUpdateGadgetCommandlineWithNewAppendedArgs(c, opts)
+		opts = testGadgetCommandlineUpdateOpts{
+			updated:             true,
+			isClassic:           isClassic,
+			grade:               "signed",
+			cmdlineAppend:       "append1=val append2",
+			allowedCmdline:      "append1=val append2",
+			cmdlineAppendDanger: "danger1=val danger2",
 		}
 		s.testUpdateGadgetCommandlineWithNewAppendedArgs(c, opts)
 	}
@@ -1538,7 +1579,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineDroppedArgs(c *C) {
 	// no command line arguments prior to the gadget up
 	s.state.Lock()
 	bootloader.Force(s.managedbl)
-	s.setupUC20ModelWithGadget(c, "pc")
+	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
 	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
@@ -1561,6 +1602,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineDroppedArgs(c *C) {
 	opts := testGadgetCommandlineUpdateOpts{
 		updated:   true,
 		isClassic: false,
+		grade:     "dangerous",
 	}
 	s.testGadgetCommandlineUpdateRun(c,
 		[][]string{
@@ -1594,7 +1636,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineUnchanged(c *C) {
 	// no command line arguments prior to the gadget update
 	bootloader.Force(s.managedbl)
 	s.state.Lock()
-	s.setupUC20ModelWithGadget(c, "pc")
+	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
 	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
@@ -1622,6 +1664,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineUnchanged(c *C) {
 	opts := testGadgetCommandlineUpdateOpts{
 		updated:   false,
 		isClassic: false,
+		grade:     "dangerous",
 	}
 	s.testGadgetCommandlineUpdateRun(c, sameFiles, sameFiles, "", "", opts)
 
@@ -1646,6 +1689,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineNonUC20(c *C) {
 	opts := testGadgetCommandlineUpdateOpts{
 		updated:   false,
 		isClassic: false,
+		grade:     "dangerous",
 	}
 	s.testGadgetCommandlineUpdateRun(c,
 		[][]string{
@@ -1665,7 +1709,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 
 	bootloader.Force(s.managedbl)
 	s.state.Lock()
-	s.setupUC20ModelWithGadget(c, "pc")
+	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
 	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
@@ -1900,7 +1944,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateNoChangeNoRebootsUndo(
 
 	bootloader.Force(s.managedbl)
 	s.state.Lock()
-	s.setupUC20ModelWithGadget(c, "pc")
+	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
 	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
@@ -1974,7 +2018,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateNoChangeNoRebootsUndo(
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithFullArgs(c *C) {
 	bootloader.Force(s.managedbl)
 	s.state.Lock()
-	s.setupUC20ModelWithGadget(c, "pc")
+	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
 	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
@@ -1998,6 +2042,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithFullArgs(c *C) {
 	opts := testGadgetCommandlineUpdateOpts{
 		updated:   true,
 		isClassic: false,
+		grade:     "dangerous",
 	}
 	s.testGadgetCommandlineUpdateRun(c,
 		[][]string{

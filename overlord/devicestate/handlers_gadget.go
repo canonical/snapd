@@ -259,8 +259,8 @@ func kernelCommandLineAppendArgs(tsk *state.Task, tr *config.Transaction,
 	return value, nil
 }
 
-func buildAppendedKernelCommandLine(t *state.Task, st *state.State, gd *gadget.GadgetData, deviceCtx snapstate.DeviceContext) (string, error) {
-	tr := config.NewTransaction(st)
+func buildAppendedKernelCommandLine(t *state.Task, gd *gadget.GadgetData, deviceCtx snapstate.DeviceContext) (string, error) {
+	tr := config.NewTransaction(t.State())
 	rawCmdlineAppend, err := kernelCommandLineAppendArgs(t, tr, "cmdline-append")
 	if err != nil {
 		return "", err
@@ -323,7 +323,7 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 		gadgetData = currentGadgetData
 	}
 
-	cmdlineAppend, err := buildAppendedKernelCommandLine(t, st, gadgetData, devCtx)
+	cmdlineAppend, err := buildAppendedKernelCommandLine(t, gadgetData, devCtx)
 	if err != nil {
 		return false, err
 	}

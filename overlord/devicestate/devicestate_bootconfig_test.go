@@ -107,6 +107,20 @@ func (s *deviceMgrBootconfigSuite) setupUC20Model(c *C) *asserts.Model {
 	return s.makeModelAssertionInState(c, "canonical", "pc-model-20", mockCore20ModelHeaders)
 }
 
+func (s *deviceMgrBootconfigSuite) setupUC20ModelWithGrade(c *C, grade string) *asserts.Model {
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model-20",
+		Serial: "didididi",
+	})
+	headers := make(map[string]interface{})
+	for k, v := range mockCore20ModelHeaders {
+		headers[k] = v
+	}
+	headers["grade"] = grade
+	return s.makeModelAssertionInState(c, "canonical", "pc-model-20", headers)
+}
+
 func (s *deviceMgrBootconfigSuite) setupClassicWithModesModel(c *C) *asserts.Model {
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
@@ -376,9 +390,9 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateWithGadgetExtra(c *C) {
 	})
 }
 
-func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithAppend(c *C) {
+func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunWithAppend(c *C, grade string) {
 	s.state.Lock()
-	s.setupUC20Model(c)
+	s.setupUC20ModelWithGrade(c, grade)
 	s.state.Unlock()
 
 	s.managedbl.Updated = true
@@ -398,9 +412,17 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithAppend(c *C) {
 	})
 }
 
-func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithDangerousAppend(c *C) {
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithAppendModelDangerous(c *C) {
+	s.testBootConfigUpdateRunWithAppend(c, "dangerous")
+}
+
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithAppendModelSigned(c *C) {
+	s.testBootConfigUpdateRunWithAppend(c, "signed")
+}
+
+func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunWithDangerousAppend(c *C, grade string) {
 	s.state.Lock()
-	s.setupUC20Model(c)
+	s.setupUC20ModelWithGrade(c, grade)
 	s.state.Unlock()
 
 	s.managedbl.Updated = true
@@ -414,10 +436,57 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithDangerousAppend(c 
 
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
+	expected := "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate"
+	if grade == "dangerous" {
+		expected += " par1=val par2"
+	}
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate par1=val par2",
+		expected,
 	})
+}
+
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithDangerousAppendDangerousModel(c *C) {
+	s.testBootConfigUpdateRunWithDangerousAppend(c, "dangerous")
+}
+
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithDangerousAppendSignedModel(c *C) {
+	s.testBootConfigUpdateRunWithDangerousAppend(c, "signed")
+}
+
+func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunWithAppendBothOpts(c *C, grade string) {
+	s.state.Lock()
+	s.setupUC20ModelWithGrade(c, grade)
+	s.state.Unlock()
+
+	s.managedbl.Updated = true
+
+	opts := testBootConfigUpdateOpts{
+		updateAttempted:     true,
+		updateApplied:       true,
+		cmdlineAppend:       "par1=val par2",
+		cmdlineAppendDanger: "par3=val par4",
+	}
+	s.testBootConfigUpdateRun(c, opts, "")
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	expected := "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate par1=val par2"
+	if grade == "dangerous" {
+		expected += " par3=val par4"
+	}
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		expected,
+	})
+}
+
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithAppendBothOptsDangerousModel(c *C) {
+	s.testBootConfigUpdateRunWithAppendBothOpts(c, "dangerous")
+}
+
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithAppendBothOptsSignedModel(c *C) {
+	s.testBootConfigUpdateRunWithAppendBothOpts(c, "signed")
 }
 
 func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunButNotUpdated(c *C) {
