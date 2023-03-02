@@ -205,6 +205,6 @@ void sc_invocation_check_homedirs(sc_invocation *inv)
             continue;
         }
         inv->homedirs[current_index++] = sc_strdup(homedir);
-        homedir = strtok_r(NULL, ",", &buf_saveptr);
+        homedir = strtok_r(NULL, ",\n", &buf_saveptr);
     }
 }

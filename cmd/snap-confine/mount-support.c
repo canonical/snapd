@@ -903,7 +903,7 @@ static bool __attribute__((used))
 	return false;
 }
 
-static struct sc_mount *sc_create_homedir_mounts(const struct sc_invocation *inv)
+static struct sc_mount *sc_init_homedir_mounts(const struct sc_invocation *inv)
 {
 	if (inv->homedirs == NULL) {
 		// Return empty array, but never NULL as functions rely
@@ -983,7 +983,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			// Homedir mounts are user-specified paths that snaps are allowed
 			// to access, which don't reside in the regular home path. They can change
 			// between runs, so we must dynamically handle them.
-			.dynamic_mounts = sc_create_homedir_mounts(inv),
+			.dynamic_mounts = sc_init_homedir_mounts(inv),
 			.distro = distro,
 			.normal_mode = true,
 			.base_snap_name = inv->base_snap_name,
