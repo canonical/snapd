@@ -429,4 +429,9 @@ func (s *systemKeySuite) TestRemoveSystemKey(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(dirs.SnapSystemKeyFile, testutil.FileAbsent)
+
+	// also check that no error is returned when trying to remove system key
+	// when it does not exist in the first place
+	err = interfaces.RemoveSystemKey()
+	c.Assert(err, IsNil)
 }
