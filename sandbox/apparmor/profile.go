@@ -304,7 +304,7 @@ var SnapConfineDistroProfilePath = func() string {
 	return ""
 }
 
-var LoadHomedirs = func() ([]string, error) {
+var loadHomedirs = func() ([]string, error) {
 	ssp, err := sysparams.Open("")
 	if err != nil {
 		return nil, err
@@ -361,7 +361,7 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 		}
 	}
 
-	if homedirs, err := LoadHomedirs(); err != nil {
+	if homedirs, err := loadHomedirs(); err != nil {
 		logger.Noticef("cannot determine if any homedirs are set: %v", err)
 	} else if len(homedirs) > 0 {
 		policy["homedirs"] = &osutil.MemoryFileState{

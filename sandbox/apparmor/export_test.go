@@ -64,8 +64,8 @@ func MockSnapConfineDistroProfilePath(f func() string) func() {
 }
 
 func MockLoadHomedirs(f func() ([]string, error)) func() {
-	r := testutil.Backup(&LoadHomedirs)
-	LoadHomedirs = f
+	r := testutil.Backup(&loadHomedirs)
+	loadHomedirs = f
 	return r
 }
 
