@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -37,8 +38,9 @@ var (
 // aspects like the homedirs configuration that must be available
 // for other binaries, as snap-confine.
 type SystemParams struct {
-	// path stored to allow for updating the same path.
-	path string
+	// rootdir is stored to allow for updating the same
+	// system-params file.
+	rootdir string
 	// Homedirs is the comma-delimited list of user specified home
 	// directories that should be mounted.
 	Homedirs string
@@ -80,15 +82,23 @@ func parseSystemParams(contents string) (*SystemParams, error) {
 	return params, nil
 }
 
-// Open either opens the existing file at the given path, and parses
-// the file, or in case the file does not exist, it will initialize
-// and return a new SystemParams structure.
-func Open(path string) (*SystemParams, error) {
-	if !osutil.FileExists(path) {
-		return &SystemParams{path: path}, nil
+func sysparamsFile(rootdir string) string {
+	if rootdir == "" {
+		rootdir = dirs.GlobalRootDir
+	}
+	return dirs.SnapSystemParamsUnder(rootdir)
+}
+
+// Open either reads the existing file at <rootdir>/var/lib/snapd/system-params
+// or in case the file does not exist, it will initialize and return a
+// new SystemParams structure.
+func Open(rootdir string) (*SystemParams, error) {
+	sspFile := sysparamsFile(rootdir)
+	if !osutil.FileExists(sspFile) {
+		return &SystemParams{rootdir: rootdir}, nil
 	}
 
-	data, err := ioutil.ReadFile(path)
+	data, err := ioutil.ReadFile(sspFile)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read system-params: %v", err)
 	}
@@ -97,15 +107,16 @@ func Open(path string) (*SystemParams, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse system-params: %v", err)
 	}
-	params.path = path
+	params.rootdir = rootdir
 	return params, nil
 }
 
 // Write updates the system-params file with the values in the
 // SystemParams instance.
 func (ssp *SystemParams) Write() error {
+	sspFile := sysparamsFile(ssp.rootdir)
 	contents := fmt.Sprintf("homedirs=%s\n", ssp.Homedirs)
-	if err := osutilAtomicWriteFile(ssp.path, []byte(contents), 0644, 0); err != nil {
+	if err := osutilAtomicWriteFile(sspFile, []byte(contents), 0644, 0); err != nil {
 		return fmt.Errorf("cannot write system-params: %v", err)
 	}
 	return nil
