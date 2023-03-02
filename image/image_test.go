@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -3248,7 +3248,7 @@ func (s *imageSuite) makeUC20Model(extraHeaders map[string]interface{}) *asserts
 	return s.Brands.Model("my-brand", "my-model", headers)
 }
 
-func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
+func (s *imageSuite) testSetupSeedCore20Grub(c *C, kernelContent [][]string, expectedAssertMaxFormats map[string]int) {
 	bootloader.Force(nil)
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
@@ -3260,7 +3260,7 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 
 	s.makeSnap(c, "snapd", [][]string{snapdInfoFile}, snap.R(1), "")
 	s.makeSnap(c, "core20", nil, snap.R(20), "")
-	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
+	s.makeSnap(c, "pc-kernel=20", kernelContent, snap.R(1), "")
 	gadgetContent := [][]string{
 		{"grub-recovery.conf", "# recovery grub.cfg"},
 		{"grub.conf", "# boot grub.cfg"},
@@ -3349,8 +3349,6 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 	c.Check(seedGenv.Get("snapd_recovery_mode"), Equals, "install")
 	c.Check(seedGenv.Get("snapd_boot_flags"), Equals, "factory")
 
-	c.Check(s.stderr.String(), Equals, "")
-
 	systemGenv := grubenv.NewEnv(filepath.Join(systems[0], "grubenv"))
 	c.Assert(systemGenv.Load(), IsNil)
 	c.Check(systemGenv.Get("snapd_recovery_kernel"), Equals, "/snaps/pc-kernel_1.snap")
@@ -3387,10 +3385,6 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 		Channel:      stableChannel,
 		Flags:        store.SnapActionIgnoreValidation,
 	})
-	expectedAssertMaxFormats := map[string]int{
-		"snap-declaration": 5,
-		"system-user":      1,
-	}
 	declCount := 0
 	for _, req := range s.assertReqs {
 		if req.ref.Type == asserts.SnapDeclarationType {
@@ -3399,6 +3393,33 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 		}
 	}
 	c.Check(declCount, Equals, 5)
+}
+
+func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
+	expectedAssertMaxFormats := map[string]int{
+		"snap-declaration": 5,
+		"system-user":      1,
+	}
+	s.testSetupSeedCore20Grub(c, [][]string{{"snapd-info", `VERSION=2.55`}}, expectedAssertMaxFormats)
+	c.Check(s.stderr.String(), Equals, "")
+}
+
+func (s *imageSuite) TestSetupSeedCore20GrubMaxFormatsLCD(c *C) {
+	expectedAssertMaxFormats := map[string]int{
+		"snap-declaration": 4,
+		"system-user":      0,
+	}
+	s.testSetupSeedCore20Grub(c, [][]string{{"snapd-info", `VERSION=2.44`}}, expectedAssertMaxFormats)
+	c.Check(s.stderr.String(), Equals, "")
+}
+
+func (s *imageSuite) TestSetupSeedCore20GrubNoKernelMaxFormats(c *C) {
+	expectedAssertMaxFormats := map[string]int{
+		"snap-declaration": 5,
+		"system-user":      1,
+	}
+	s.testSetupSeedCore20Grub(c, nil, expectedAssertMaxFormats)
+	c.Check(s.stderr.String(), Equals, "WARNING: the kernel for the specified UC20+ model does not carry assertion max formats information, assuming possibly incorrectly the kernel revision can use the same formats as snapd\n")
 }
 
 func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
