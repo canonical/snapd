@@ -64,6 +64,10 @@ func init() {
 
 	// netplan.*
 	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, &flags{coreOnlyConfig: true})
+
+	// kernel.{,dangerous-}cmdline-append
+	// TODO we actually want this on classic with modes too
+	addWithStateHandler(validateCmdlineAppend, handleCmdlineAppend, coreOnly)
 }
 
 // RunTransaction is an interface describing how to access

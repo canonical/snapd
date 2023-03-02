@@ -336,7 +336,7 @@ func (p *piboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 	}
 
 	// TODO: what's a reasonable size for this file?
-	env, err := ubootenv.Create(p.envFile(), 4096)
+	env, err := ubootenv.Create(p.envFile(), 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
 	if err != nil {
 		return err
 	}

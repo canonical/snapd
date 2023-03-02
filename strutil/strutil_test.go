@@ -347,3 +347,18 @@ func (strutilSuite) TestWordWrapPadded(c *check.C) {
 		c.Check(buf.String(), check.Equals, t.output)
 	}
 }
+
+func (strutilSuite) TestJoinNonEmpty(c *check.C) {
+	for _, t := range []struct {
+		in  []string
+		out string
+	}{
+		{in: []string{}, out: ""},
+		{in: []string{"", "bar"}, out: "bar"},
+		{in: []string{"", "  ", "bar"}, out: "bar"},
+		{in: []string{"foo", "", "bar"}, out: "foo bar"},
+		{in: []string{" val ", "  ", " boo"}, out: "val boo"},
+	} {
+		c.Check(strutil.JoinNonEmpty(t.in, " "), check.Equals, t.out)
+	}
+}
