@@ -134,7 +134,6 @@ var (
 	SetupDiskSnap                                 = (*infoWriter).setupDiskSnap
 	SetupSnap                                     = (*infoWriter).setupSnap
 	MaybePrintServices                            = (*infoWriter).maybePrintServices
-	MaybePrintCategories                          = (*infoWriter).maybePrintCategories
 	MaybePrintCommands                            = (*infoWriter).maybePrintCommands
 	MaybePrintType                                = (*infoWriter).maybePrintType
 	PrintSummary                                  = (*infoWriter).printSummary
