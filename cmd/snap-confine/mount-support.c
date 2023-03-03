@@ -908,7 +908,11 @@ static struct sc_mount *sc_homedir_mounts(const struct sc_invocation *inv)
 	if (inv->homedirs == NULL) {
 		// Return empty array, but never NULL as functions rely
 		// on the mounts array to be non-NULL
-		return calloc(1, sizeof(struct sc_mount));
+		struct sc_mount *zero = calloc(1, sizeof(struct sc_mount));
+		if (zero == NULL) {
+			die("cannot allocate mount data for homedirs");
+		}
+		return zero;
 	}
 
 	int num_homedirs = 0;
@@ -922,19 +926,22 @@ static struct sc_mount *sc_homedir_mounts(const struct sc_invocation *inv)
 		die("cannot allocate mount data for homedirs");
 	}
 
-	struct sc_mount *current_mount = mounts;
-	for (char **path = inv->homedirs; *path != NULL; path++) {
-		debug("Adding homedir: %s", *path);
-		current_mount->path = *path;
-		current_mount++;
-	}
+    // Copy inv->homedirs to the mount structures
+    for (int i = 0; i < num_homedirs; i++) {
+        debug("Adding homedir: %s", inv->homedirs[i]);
+        mounts[i].path = sc_strdup(inv->homedirs[i]);
+    }
 	return mounts;
 }
 
 static void sc_free_dynamic_mounts(struct sc_mount *mounts)
 {
-	/* We don't free the paths, since they are borrowed by the sc_invocation
-	 * structure */
+	// Cleanup allocated resources by each of the mount
+	// structures. The array will be terminated by a single zeroed
+	// entry.
+	for (int i = 0; mounts[i].path != NULL; i++) {
+		free(mounts[i].path);
+	}
 	free(mounts);
 }
 
