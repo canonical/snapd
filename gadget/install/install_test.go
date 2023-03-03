@@ -313,6 +313,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			c.Error("unexpected call to secboot.FormatEncryptedDevice when encryption is off")
 			return fmt.Errorf("no encryption functions should be called")
 		}
+		c.Check(encType, Equals, secboot.EncryptionTypeLUKS)
 		secbootFormatEncryptedDeviceCall++
 		switch secbootFormatEncryptedDeviceCall {
 		case 1:
@@ -699,6 +700,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 			c.Error("unexpected call to secboot.FormatEncryptedDevice")
 			return fmt.Errorf("unexpected call")
 		}
+		c.Check(encType, Equals, secboot.EncryptionTypeLUKS)
 		secbootFormatEncryptedDeviceCall++
 		switch secbootFormatEncryptedDeviceCall {
 		case 1:
