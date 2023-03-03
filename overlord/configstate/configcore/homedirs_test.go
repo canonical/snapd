@@ -299,7 +299,7 @@ func (s *homedirsSuite) TestConfigureHomedirsNotOnCore(c *C) {
 			"homedirs": "/home/existingDir",
 		},
 	})
-	c.Check(err, ErrorMatches, `homedirs option is not supported for core`)
+	c.Check(err, ErrorMatches, `configuration of homedir locations on Ubuntu Core is currently unsupported. Please report a bug if you need it`)
 
 	// Verify config file doesn't exist
 	c.Check(dirs.SnapSystemParamsUnder(dirs.GlobalRootDir), testutil.FileAbsent)
