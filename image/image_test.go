@@ -276,11 +276,18 @@ version: 2.5029
 type: base
 `
 
-const arm64Snap = `
-name: arm64-snap
+const marchSnap = `
+name: march-snap
 version: 1.0
 type: app
-architectures: [arm64]
+architectures: [ppc64el, arm64]
+`
+
+const march2Snap = `
+name: march-snap
+version: 1.0
+type: app
+architectures: [ppc64el, arm64, amd64]
 `
 
 const devmodeSnap = `
@@ -4200,7 +4207,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapWithInvalidArchitecture(c *C) {
 	defer restore()
 
 	rootdir := filepath.Join(c.MkDir(), "image")
-	a64Snap := snaptest.MakeTestSnapWithFiles(c, arm64Snap, nil)
+	a64Snap := snaptest.MakeTestSnapWithFiles(c, marchSnap, nil)
 
 	opts := &image.Options{
 		Snaps:      []string{a64Snap},
@@ -4208,7 +4215,52 @@ func (s *imageSuite) TestSetupSeedLocalSnapWithInvalidArchitecture(c *C) {
 	}
 
 	err := image.SetupSeed(s.tsto, s.model, opts)
-	c.Assert(err, ErrorMatches, `snap "arm64-snap" supported architectures \(arm64\) are incompatible with the model architecture \(amd64\)`)
+	c.Assert(err, ErrorMatches, `snap "march-snap" supported architectures \(ppc64el, arm64\) are incompatible with the model architecture \(amd64\)`)
+}
+
+func (s *imageSuite) TestSetupSeedLocalSnapWithInvalidModelArchButArchOverriden(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	s.setupSnaps(c, map[string]string{
+		"core":      "canonical",
+		"pc":        "canonical",
+		"pc-kernel": "my-brand",
+	}, "")
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	a64Snap := snaptest.MakeTestSnapWithFiles(c, marchSnap, nil)
+
+	opts := &image.Options{
+		Snaps:        []string{a64Snap},
+		PrepareDir:   filepath.Dir(rootdir),
+		Architecture: "arm64",
+	}
+
+	err := image.SetupSeed(s.tsto, s.model, opts)
+	c.Assert(err, IsNil)
+}
+
+func (s *imageSuite) TestSetupSeedLocalSnapWithMultipleArchs(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	s.setupSnaps(c, map[string]string{
+		"core":      "canonical",
+		"pc":        "canonical",
+		"pc-kernel": "my-brand",
+	}, "")
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	a64Snap := snaptest.MakeTestSnapWithFiles(c, march2Snap, nil)
+
+	opts := &image.Options{
+		Snaps:      []string{a64Snap},
+		PrepareDir: filepath.Dir(rootdir),
+	}
+
+	err := image.SetupSeed(s.tsto, s.model, opts)
+	c.Assert(err, IsNil)
 }
 
 func (s *imageSuite) TestSetupSeedSnapInvalidArchitecture(c *C) {
@@ -4219,7 +4271,7 @@ func (s *imageSuite) TestSetupSeedSnapInvalidArchitecture(c *C) {
 	s.makeSnap(c, "core20", nil, snap.R(20), "")
 	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
 	s.makeSnap(c, "pc=20", nil, snap.R(22), "")
-	s.MakeAssertedSnap(c, arm64Snap, nil, snap.R(18), "canonical")
+	s.MakeAssertedSnap(c, marchSnap, nil, snap.R(18), "canonical")
 
 	// replace model with a model that has an extra snap
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
@@ -4240,8 +4292,8 @@ func (s *imageSuite) TestSetupSeedSnapInvalidArchitecture(c *C) {
 				"default-channel": "20",
 			},
 			map[string]interface{}{
-				"name": "arm64-snap",
-				"id":   s.AssertedSnapID("arm64-snap"),
+				"name": "march-snap",
+				"id":   s.AssertedSnapID("march-snap"),
 				"type": "app",
 			},
 		},
@@ -4253,5 +4305,5 @@ func (s *imageSuite) TestSetupSeedSnapInvalidArchitecture(c *C) {
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
-	c.Assert(err, ErrorMatches, `snap "arm64-snap" supported architectures \(arm64\) are incompatible with the model architecture \(amd64\)`)
+	c.Assert(err, ErrorMatches, `snap "march-snap" supported architectures \(ppc64el, arm64\) are incompatible with the model architecture \(amd64\)`)
 }
