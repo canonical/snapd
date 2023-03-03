@@ -940,7 +940,7 @@ static void sc_free_dynamic_mounts(struct sc_mount *mounts)
 	// structures. The array will be terminated by a single zeroed
 	// entry.
 	for (int i = 0; mounts[i].path != NULL; i++) {
-		free(mounts[i].path);
+		free((void*)mounts[i].path);
 	}
 	free(mounts);
 }
