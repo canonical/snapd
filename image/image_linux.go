@@ -409,16 +409,18 @@ func (s *imageSeeder) start(db *asserts.Database, optSnaps []*seedwriter.Options
 	return s.w.Start(db, newFetcher)
 }
 
+func (s *imageSeeder) snapSupportsImageArch(sn *seedwriter.SeedSnap) bool {
+	for _, a := range sn.Info.Architectures {
+		if a == "all" || a == s.architecture {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *imageSeeder) validateSnapArchs(snaps []*seedwriter.SeedSnap) error {
 	for _, sn := range snaps {
-		var supportsArch bool
-		for _, a := range sn.Info.Architectures {
-			if a == "all" || a == s.architecture {
-				supportsArch = true
-				break
-			}
-		}
-		if !supportsArch {
+		if !s.snapSupportsImageArch(sn) {
 			return fmt.Errorf("snap %q supported architectures (%s) are incompatible with the model architecture (%s)",
 				sn.Info.SnapName(), strings.Join(sn.Info.Architectures, ", "), s.architecture)
 		}
