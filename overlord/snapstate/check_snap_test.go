@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -423,6 +424,119 @@ version: 2
 	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, ErrorMatches, `cannot replace signed gadget snap with an unasserted one`)
+}
+
+func (s *checkSnapSuite) setupKernelGadgetSnaps(st *state.State) {
+	gadgetInfo := &snap.SideInfo{
+		RealName: "gadget",
+		Revision: snap.R(1),
+		SnapID:   "gadget-id",
+	}
+	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: string(snap.TypeGadget),
+		Active:   true,
+		Sequence: []*snap.SideInfo{gadgetInfo},
+		Current:  gadgetInfo.Revision,
+	})
+
+	kernelInfo := &snap.SideInfo{
+		RealName: "kernel",
+		Revision: snap.R(2),
+		SnapID:   "kernel-id",
+	}
+	snapstate.Set(st, "kernel", &snapstate.SnapState{
+		SnapType: string(snap.TypeKernel),
+		Active:   true,
+		Sequence: []*snap.SideInfo{kernelInfo},
+		Current:  kernelInfo.Revision,
+	})
+}
+
+func (s *checkSnapSuite) mockEssSnap(c *C, snapType string, snapId string) (restore func()) {
+	const snapYaml = `name: %[1]s
+type: %[1]s
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(snapYaml, snapType)))
+	info.SnapID = snapId
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, emptyContainer(c), nil
+	}
+
+	return snapstate.MockOpenSnapFile(openSnapFile)
+}
+
+func (s *checkSnapSuite) TestCheckUnassertedOrAssertedGadgetKernelSnapVsModelGrade(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	gradeUnsetDeviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: MakeModel(map[string]interface{}{
+			"kernel": "kernel",
+			"gadget": "gadget",
+		}),
+	}
+	c.Check(gradeUnsetDeviceCtx.DeviceModel.Grade(), Equals, asserts.ModelGradeUnset)
+	gradeSignedDeviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: MakeModel20("gadget", map[string]interface{}{
+			"base":  "core20",
+			"grade": "signed",
+		}),
+	}
+	c.Check(gradeSignedDeviceCtx.DeviceModel.Grade(), Equals, asserts.ModelSigned)
+	gradeDangerousDeviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: MakeModel20("gadget", map[string]interface{}{
+			"base":  "core20",
+			"grade": "dangerous",
+		}),
+	}
+	c.Check(gradeDangerousDeviceCtx.DeviceModel.Grade(), Equals, asserts.ModelDangerous)
+
+	tests := []struct {
+		deviceCtx snapstate.DeviceContext
+		essType   string
+		snapID    string
+		err       string
+	}{
+		{gradeUnsetDeviceCtx, "gadget", "gadget-id", ""},
+		{gradeUnsetDeviceCtx, "kernel", "kernel-id", ""},
+		{gradeSignedDeviceCtx, "gadget", "gadget-id", ""},
+		{gradeSignedDeviceCtx, "kernel", "kernel-id", ""},
+		{gradeDangerousDeviceCtx, "gadget", "gadget-id", ""},
+		{gradeDangerousDeviceCtx, "kernel", "kernel-id", ""},
+		{gradeUnsetDeviceCtx, "gadget", "", `cannot replace signed gadget snap with an unasserted one`},
+		{gradeUnsetDeviceCtx, "kernel", "", `cannot replace signed kernel snap with an unasserted one`},
+		{gradeSignedDeviceCtx, "gadget", "", `cannot replace signed gadget snap with an unasserted one`},
+		{gradeSignedDeviceCtx, "kernel", "", `cannot replace signed kernel snap with an unasserted one`},
+		// these combos  are now allowed
+		{gradeDangerousDeviceCtx, "gadget", "", ""},
+		{gradeDangerousDeviceCtx, "kernel", "", ""},
+	}
+
+	for _, t := range tests {
+		func() {
+			st := state.New(nil)
+			st.Lock()
+			defer st.Unlock()
+			s.setupKernelGadgetSnaps(st)
+
+			essRestore := s.mockEssSnap(c, t.essType, t.snapID)
+			defer essRestore()
+
+			st.Unlock()
+			err := snapstate.CheckSnap(st, "snap-path", t.essType, nil, nil, snapstate.Flags{}, t.deviceCtx)
+			st.Lock()
+			comm := Commentf("%s %s %s", t.deviceCtx.Model().Grade(), t.essType, t.snapID)
+			if t.err == "" {
+				c.Check(err, IsNil, comm)
+			} else {
+				c.Check(err, ErrorMatches, t.err, comm)
+			}
+		}()
+	}
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetAdditionProhibited(c *C) {

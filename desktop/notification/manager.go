@@ -20,12 +20,18 @@
 package notification
 
 import (
+	"context"
+	"time"
+
 	"github.com/godbus/dbus"
 )
 
 type NotificationManager interface {
 	SendNotification(id ID, msg *Message) error
 	CloseNotification(id ID) error
+	IdleDuration() time.Duration
+
+	HandleNotifications(ctx context.Context) error
 }
 
 func NewNotificationManager(conn *dbus.Conn, desktopID string) NotificationManager {

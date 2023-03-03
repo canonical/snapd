@@ -62,6 +62,9 @@ owner /{dev,run}/hugepages/{,**} rwk,
 /sys/kernel/mm/transparent_hugepage/khugepaged/defrag w,
 /sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_{none,swap} w,
 /sys/kernel/mm/transparent_hugepage/khugepaged/pages_to_scan w,
+
+# Allow mounting huge tables (for hypervisors like ACRN)
+mount options=ro /dev/hugepages,
 `
 
 func init() {

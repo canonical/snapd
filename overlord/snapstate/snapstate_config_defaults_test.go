@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
@@ -67,7 +68,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 		SnapType: "app",
 	})
 	_, err = snapstate.ConfigDefaults(s.state, deviceCtx, "local-snap")
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *snapmgrTestSuite) TestConfigDefaultsSmokeUC20(c *C) {
@@ -142,7 +143,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsNoGadget(c *C) {
 	makeInstalledMockCoreSnap(c)
 
 	_, err := snapstate.ConfigDefaults(s.state, deviceCtxNoGadget, "some-snap")
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *snapmgrTestSuite) TestConfigDefaultsSystemWithCore(c *C) {
@@ -271,7 +272,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasksNoUbuntuCore(c *C) {
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})

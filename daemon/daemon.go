@@ -28,7 +28,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strings"
 	"sync"
@@ -37,8 +36,8 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
 	"github.com/snapcore/snapd/osutil"
@@ -79,6 +78,8 @@ type Daemon struct {
 
 	// set to what kind of restart was requested if any
 	requestedRestart restart.RestartType
+	// reboot info needed to handle reboots
+	rebootInfo boot.RebootInfo
 	// set to remember that we need to exit the daemon in a way that
 	// prevents systemd from restarting it
 	restartSocket bool
@@ -253,8 +254,8 @@ func (d *Daemon) Init() error {
 // as readonlyOK.
 //
 // This is useful to report errors to the client when the daemon
-// cannot work because e.g. a sanity check failed or the system is out
-// of diskspace.
+// cannot work because e.g. a snapd squashfs precondition check failed
+// or the system is out of diskspace.
 //
 // When the system is fine again calling "DegradedMode(nil)" is enough
 // to put the daemon into full operation again.
@@ -387,14 +388,18 @@ func (d *Daemon) Start() error {
 }
 
 // HandleRestart implements overlord.RestartBehavior.
-func (d *Daemon) HandleRestart(t restart.RestartType) {
+func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInfo) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	scheduleFallback := func(a rebootAction) {
-		if err := reboot(a, rebootWaitTimeout); err != nil {
+	scheduleFallback := func(a boot.RebootAction) {
+		if err := reboot(a, rebootWaitTimeout, rebootInfo); err != nil {
 			logger.Noticef("%s", err)
 		}
+	}
+	d.rebootInfo = boot.RebootInfo{}
+	if rebootInfo != nil {
+		d.rebootInfo = *rebootInfo
 	}
 
 	// die when asked to restart (systemd should get us back up!) etc
@@ -407,13 +412,13 @@ func (d *Daemon) HandleRestart(t restart.RestartType) {
 		// in case we get stuck shutting down
 
 		// save the restart kind to write out a maintenance.json in a bit
-		scheduleFallback(rebootReboot)
+		scheduleFallback(boot.RebootReboot)
 		d.requestedRestart = t
 	case restart.RestartSystemHaltNow:
-		scheduleFallback(rebootHalt)
+		scheduleFallback(boot.RebootHalt)
 		d.requestedRestart = t
 	case restart.RestartSystemPoweroffNow:
-		scheduleFallback(rebootPoweroff)
+		scheduleFallback(boot.RebootPoweroff)
 		d.requestedRestart = t
 	case restart.RestartSocket:
 		// save the restart kind to write out a maintenance.json in a bit
@@ -462,7 +467,13 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	if d.expectedRebootDidNotHappen {
 		// make the reboot retry immediate
 		immediateReboot := true
-		return d.doReboot(sigCh, restart.RestartSystem, immediateReboot, rebootRetryWaitTimeout)
+		// TODO: we do not know the RebootInfo from the previous snapd
+		// instance. Passing nil for the moment, but maybe we should
+		// cache to disk and recover at this point. In any case, it is
+		// expected that the reboot will not be harmful even if
+		// RebootInfo is unknown, and that things will end up in a
+		// kernel refresh failure, that can be retried later.
+		return d.doReboot(sigCh, restart.RestartSystem, nil, immediateReboot, rebootRetryWaitTimeout)
 	}
 	if d.overlord == nil {
 		return fmt.Errorf("internal error: no Overlord")
@@ -486,6 +497,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		immediateShutdown = true
 	}
 	restartSocket := d.restartSocket
+	rebootInfo := d.rebootInfo
 	d.mu.Unlock()
 
 	// before not accepting any new client connections we need to write the
@@ -566,7 +578,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if needsFullShutdown {
-		return d.doReboot(sigCh, d.requestedRestart, immediateShutdown, rebootWaitTimeout)
+		return d.doReboot(sigCh, d.requestedRestart, &rebootInfo, immediateShutdown, rebootWaitTimeout)
 	}
 
 	if d.restartSocket {
@@ -583,7 +595,7 @@ func (d *Daemon) rebootDelay(immediate bool) (time.Duration, error) {
 	// see whether a reboot had already been scheduled
 	var rebootAt time.Time
 	err := d.state.Get("daemon-system-restart-at", &rebootAt)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return 0, err
 	}
 	rebootDelay := 1 * time.Minute
@@ -606,21 +618,21 @@ func (d *Daemon) rebootDelay(immediate bool) (time.Duration, error) {
 	return rebootDelay, nil
 }
 
-func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, immediate bool, waitTimeout time.Duration) error {
+func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, rbi *boot.RebootInfo, immediate bool, waitTimeout time.Duration) error {
 	rebootDelay, err := d.rebootDelay(immediate)
 	if err != nil {
 		return err
 	}
-	action := rebootReboot
+	action := boot.RebootReboot
 	switch rst {
 	case restart.RestartSystemHaltNow:
-		action = rebootHalt
+		action = boot.RebootHalt
 	case restart.RestartSystemPoweroffNow:
-		action = rebootPoweroff
+		action = boot.RebootPoweroff
 	}
 	// ask for shutdown and wait for it to happen.
 	// if we exit snapd will be restared by systemd
-	if err := reboot(action, rebootDelay); err != nil {
+	if err := reboot(action, rebootDelay, rbi); err != nil {
 		return err
 	}
 	// wait for reboot to happen
@@ -637,60 +649,7 @@ func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, immed
 	return fmt.Errorf("expected %s did not happen", action)
 }
 
-var (
-	shutdownMsg = i18n.G("reboot scheduled to update the system")
-	haltMsg     = i18n.G("system halt scheduled")
-	poweroffMsg = i18n.G("system poweroff scheduled")
-)
-
-type rebootAction int
-
-func (a rebootAction) String() string {
-	switch a {
-	case rebootReboot:
-		return "system reboot"
-	case rebootHalt:
-		return "system halt"
-	case rebootPoweroff:
-		return "system poweroff"
-	default:
-		panic(fmt.Sprintf("unknown reboot action %d", a))
-	}
-}
-
-const (
-	rebootReboot rebootAction = iota
-	rebootHalt
-	rebootPoweroff
-)
-
-func rebootImpl(action rebootAction, rebootDelay time.Duration) error {
-	if rebootDelay < 0 {
-		rebootDelay = 0
-	}
-	mins := int64(rebootDelay / time.Minute)
-	var arg, msg string
-	switch action {
-	case rebootReboot:
-		arg = "-r"
-		msg = shutdownMsg
-	case rebootHalt:
-		arg = "--halt"
-		msg = haltMsg
-	case rebootPoweroff:
-		arg = "--poweroff"
-		msg = poweroffMsg
-	default:
-		return fmt.Errorf("unknown reboot action: %v", action)
-	}
-	cmd := exec.Command("shutdown", arg, fmt.Sprintf("+%d", mins), msg)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return osutil.OutputErr(out, err)
-	}
-	return nil
-}
-
-var reboot = rebootImpl
+var reboot = boot.Reboot
 
 // Dying is a tomb-ish thing
 func (d *Daemon) Dying() <-chan struct{} {
@@ -714,7 +673,7 @@ var errExpectedReboot = errors.New("expected reboot did not happen")
 func (d *Daemon) RebootDidNotHappen(st *state.State) error {
 	var nTentative int
 	err := st.Get("daemon-system-restart-tentative", &nTentative)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	nTentative++

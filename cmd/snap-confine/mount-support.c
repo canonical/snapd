@@ -14,12 +14,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
 #include "mount-support.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>
@@ -48,12 +50,13 @@
 #include "mount-support-nvidia.h"
 
 #define MAX_BUF 1000
+#define SNAP_PRIVATE_TMP_ROOT_DIR "/tmp/snap-private-tmp"
 
 static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
 
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
-static void setup_private_mount(const char *snap_name)
+static void setup_private_tmp(const char *snap_instance)
 {
 	// Create a 0700 base directory. This is the "base" directory that is
 	// protected from other users. This directory name is NOT randomly
@@ -76,58 +79,80 @@ static void setup_private_mount(const char *snap_name)
 	// Because the directories are reused across invocations by distinct users
 	// and because the directories are trivially guessable, each invocation
 	// unconditionally chowns/chmods them to appropriate values.
-	char base_dir[MAX_BUF] = { 0 };
+	char base[MAX_BUF] = { 0 };
 	char tmp_dir[MAX_BUF] = { 0 };
+	int private_tmp_root_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	int base_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	int tmp_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	sc_must_snprintf(base_dir, sizeof(base_dir), "/tmp/snap.%s", snap_name);
-	sc_must_snprintf(tmp_dir, sizeof(tmp_dir), "%s/tmp", base_dir);
 
-	/* Switch to root group so that mkdir and open calls below create filesystem
-	 * elements that are not owned by the user calling into snap-confine. */
+	/* Switch to root group so that mkdir and open calls below create
+	 * filesystem elements that are not owned by the user calling into
+	 * snap-confine. */
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	// Create /tmp/snap.$SNAP_NAME/ 0700 root.root. Ignore EEXIST since we want
-	// to reuse and we will open with O_NOFOLLOW, below.
-	if (mkdir(base_dir, 0700) < 0 && errno != EEXIST) {
-		die("cannot create base directory %s", base_dir);
+
+	// /tmp/snap-private-tmp should have already been created by
+	// systemd-tmpfiles but we can try create it anyway since snapd may have
+	// just been installed in which case the tmpfiles conf would not have
+	// got executed yet
+	if (mkdir(SNAP_PRIVATE_TMP_ROOT_DIR, 0700) < 0 && errno != EEXIST) {
+		die("cannot create /tmp/snap-private-tmp");
 	}
-	base_dir_fd = open(base_dir,
-			   O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	private_tmp_root_fd = open(SNAP_PRIVATE_TMP_ROOT_DIR,
+				   O_RDONLY | O_DIRECTORY | O_CLOEXEC |
+				   O_NOFOLLOW);
+	if (private_tmp_root_fd < 0) {
+		die("cannot open %s", SNAP_PRIVATE_TMP_ROOT_DIR);
+	}
+	struct stat st;
+	if (fstat(private_tmp_root_fd, &st) < 0) {
+		die("cannot stat %s", SNAP_PRIVATE_TMP_ROOT_DIR);
+	}
+	if (st.st_uid != 0 || st.st_gid != 0 || st.st_mode != (S_IFDIR | 0700)) {
+		die("%s has unexpected ownership / permissions",
+		    SNAP_PRIVATE_TMP_ROOT_DIR);
+	}
+	// Create /tmp/snap-private-tmp/snap.$SNAP_INSTANCE_NAME/ 0700 root.root.
+	sc_must_snprintf(base, sizeof(base), "snap.%s", snap_instance);
+	if (mkdirat(private_tmp_root_fd, base, 0700) < 0 && errno != EEXIST) {
+		die("cannot create base directory: %s", base);
+	}
+	base_dir_fd =
+	    openat(private_tmp_root_fd, base,
+		   O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (base_dir_fd < 0) {
-		die("cannot open base directory %s", base_dir);
+		die("cannot open base directory: %s", base);
 	}
-	/* This seems redundant on first read but it has the non-obvious
-	 * property of changing existing directories  that have already existed
-	 * but had incorrect ownership or permission. This is possible due to
-	 * earlier bugs in snap-confine and due to the fact that some systems
-	 * use persistent /tmp directory and may not clean up leftover files
-	 * for arbitrarily long. This comment applies the following two pairs
-	 * of fchmod and fchown. */
-	if (fchmod(base_dir_fd, 0700) < 0) {
-		die("cannot chmod base directory %s to 0700", base_dir);
+	if (fstat(base_dir_fd, &st) < 0) {
+		die("cannot stat %s/%s", SNAP_PRIVATE_TMP_ROOT_DIR, base);
 	}
-	if (fchown(base_dir_fd, 0, 0) < 0) {
-		die("cannot chown base directory %s to root.root", base_dir);
+	if (st.st_uid != 0 || st.st_gid != 0 || st.st_mode != (S_IFDIR | 0700)) {
+		die("%s/%s has unexpected ownership / permissions",
+		    SNAP_PRIVATE_TMP_ROOT_DIR, base);
 	}
-	// Create /tmp/snap.$SNAP_NAME/tmp 01777 root.root Ignore EEXIST since we
+	// Create /tmp/$PRIVATE/snap.$SNAP_NAME/tmp 01777 root.root Ignore EEXIST since we
 	// want to reuse and we will open with O_NOFOLLOW, below.
 	if (mkdirat(base_dir_fd, "tmp", 01777) < 0 && errno != EEXIST) {
-		die("cannot create private tmp directory %s/tmp", base_dir);
+		die("cannot create private tmp directory %s/tmp", base);
 	}
 	(void)sc_set_effective_identity(old);
 	tmp_dir_fd = openat(base_dir_fd, "tmp",
 			    O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (tmp_dir_fd < 0) {
-		die("cannot open private tmp directory %s/tmp", base_dir);
+		die("cannot open private tmp directory %s/tmp", base);
 	}
-	if (fchmod(tmp_dir_fd, 01777) < 0) {
-		die("cannot chmod private tmp directory %s/tmp to 01777",
-		    base_dir);
+	if (fstat(tmp_dir_fd, &st) < 0) {
+		die("cannot stat %s/%s/tmp", SNAP_PRIVATE_TMP_ROOT_DIR, base);
 	}
-	if (fchown(tmp_dir_fd, 0, 0) < 0) {
-		die("cannot chown private tmp directory %s/tmp to root.root",
-		    base_dir);
+	if (st.st_uid != 0 || st.st_gid != 0 || st.st_mode != (S_IFDIR | 01777)) {
+		die("%s/%s/tmp has unexpected ownership / permissions",
+		    SNAP_PRIVATE_TMP_ROOT_DIR, base);
 	}
+	// use the path to the file-descriptor in proc as the source mount point
+	// as this is a symlink itself to the real directory at
+	// /tmp/snap-private-tmp/snap.$SNAP_INSTANCE/tmp but doing it this way
+	// helps avoid any potential race
+	sc_must_snprintf(tmp_dir, sizeof(tmp_dir),
+			 "/proc/self/fd/%d", tmp_dir_fd);
 	sc_do_mount(tmp_dir, "/tmp", NULL, MS_BIND, NULL);
 	sc_do_mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
 }
@@ -147,8 +172,8 @@ static void setup_private_pts(void)
 
 	struct stat st;
 
-	// Make sure /dev/pts/ptmx exists, otherwise we are in legacy mode
-	// which doesn't provide the isolation we require.
+	// Make sure /dev/pts/ptmx exists, otherwise the system doesn't provide the
+	// isolation we require.
 	if (stat("/dev/pts/ptmx", &st) != 0) {
 		die("cannot stat /dev/pts/ptmx");
 	}
@@ -181,7 +206,251 @@ struct sc_mount_config {
 	sc_distro distro;
 	bool normal_mode;
 	const char *base_snap_name;
+	const char *snap_instance;
 };
+
+/**
+ * Perform all the given bind mounts
+ *
+ * `mounts` is an array of sc_mount structures, each describing a bind mount
+ * operation to be performed. An element carrying a `path` field set to NULL
+ * marks the end of the list.
+ *
+ * Preconditions:
+ *
+ * - All the target directories must exist
+ * - All the source directories must exist, unless the mount is bi-directional
+ */
+static void sc_do_mounts(const char *scratch_dir,
+                         const struct sc_mount *mounts)
+{
+	char dst[PATH_MAX] = { 0 };
+	// Bind mount certain directories from the host filesystem to the scratch
+	// directory. By default mount events will propagate in both into and out
+	// of the peer group. This way the running application can alter any global
+	// state visible on the host and in other snaps. This can be restricted by
+	// disabling the "is_bidirectional" flag as can be seen below.
+	for (const struct sc_mount * mnt = mounts; mnt->path != NULL; mnt++) {
+
+		if (mnt->is_bidirectional) {
+			sc_identity old =
+			    sc_set_effective_identity(sc_root_group_identity());
+			if (mkdir(mnt->path, 0755) < 0 && errno != EEXIST) {
+				die("cannot create %s", mnt->path);
+			}
+			(void)sc_set_effective_identity(old);
+		}
+		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
+				 mnt->path);
+		if (mnt->is_optional) {
+			bool ok = sc_do_optional_mount(mnt->path, dst, NULL,
+						       MS_REC | MS_BIND, NULL);
+			if (!ok) {
+				// If we cannot mount it, just continue.
+				continue;
+			}
+		} else {
+			sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND,
+				    NULL);
+		}
+		if (!mnt->is_bidirectional) {
+			// Mount events will only propagate inwards to the namespace. This
+			// way the running application cannot alter any global state apart
+			// from that of its own snap.
+			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+		}
+		if (mnt->altpath == NULL) {
+			continue;
+		}
+		// An alternate path of mnt->path is provided at another location.
+		// It should behave exactly the same as the original.
+		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
+				 mnt->altpath);
+		struct stat stat_buf;
+		if (lstat(dst, &stat_buf) < 0) {
+			die("cannot lstat %s", dst);
+		}
+		if ((stat_buf.st_mode & S_IFMT) == S_IFLNK) {
+			die("cannot bind mount alternate path over a symlink: %s", dst);
+		}
+		sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL);
+		if (!mnt->is_bidirectional) {
+			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+		}
+	}
+}
+
+/**
+ * Create the /run/snapd/ns/snap.<snap-name>.fstab file.
+ *
+ * Initially, this will just contain the entry for the snap root filesystem (a
+ * tmpfs), so that snap-update-ns will know about it and won't try to unmount
+ * it.
+ */
+static void sc_initialize_ns_fstab(const char *snap_instance_name)
+{
+	FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
+	char info_path[PATH_MAX] = { 0 };
+	sc_must_snprintf(info_path, sizeof info_path,
+			 "/run/snapd/ns/snap.%s.fstab", snap_instance_name);
+	int fd = -1;
+	fd = open(info_path,
+		  O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0644);
+	if (fd < 0) {
+		die("cannot open %s", info_path);
+	}
+	if (fchown(fd, 0, 0) < 0) {
+		die("cannot chown %s to root.root", info_path);
+	}
+	// The stream now owns the file descriptor.
+	stream = fdopen(fd, "w");
+	if (stream == NULL) {
+		die("cannot get stream from file descriptor");
+	}
+	// We need to store an entry for the root directory, so that snap-update-ns
+	// will know that it's a tmpfs created by us. It's not going to remount it,
+	// so there's no need to be precise with the mount flags.
+	fprintf(stream, "tmpfs / tmpfs x-snapd.origin=rootfs 0 0\n");
+	if (ferror(stream) != 0) {
+		die("I/O error when writing to %s", info_path);
+	}
+	if (fflush(stream) == EOF) {
+		die("cannot flush %s", info_path);
+	}
+	debug("saved rootfs fstab entry to %s", info_path);
+}
+
+/**
+ * Create root mountpoints and symbolic links.
+ *
+ * Enumerate the root entries in the filesystem provided by the provided
+ * rootfs, and recreate all regular directories and symbolic links into the
+ * scratch_dir.
+ *
+ * The root_mounts parameter lists the mounts that are going to be performed
+ * later directly from the "/" directory of the system, so this function will
+ * not touch them.
+ */
+static void sc_replicate_base_rootfs(const char *scratch_dir,
+                                     const char *rootfs_dir,
+                                     const struct sc_mount *root_mounts)
+{
+	// First of all, fix the root filesystem:
+	// - remove write permissions for group and others
+	// - set the owner to root:root
+	if (chmod(scratch_dir, 0755) < 0) {
+		die("cannot change permissions on \"%s\"", scratch_dir);
+	}
+	if (chown(scratch_dir, 0, 0) < 0) {
+		die("cannot change ownership on \"%s\"", scratch_dir);
+	}
+
+	int rootfs_fd = -1;
+	// Note that the rootfs here is a path like /snap/<snap>/current, which is
+	// always a symbolic link. Therefore, we cannot use O_NOFOLLOW here.
+	rootfs_fd = open(rootfs_dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	if (rootfs_fd < 0) {
+		die("cannot open directory \"%s\"", rootfs_dir);
+	}
+
+	// rootfs_fd is now managed by fdopendir() and should not be used after
+	DIR *rootfs SC_CLEANUP(sc_cleanup_closedir) = fdopendir(rootfs_fd);
+	if (rootfs == NULL) {
+		die("cannot open directory \"%s\" from file descriptor", rootfs_dir);
+	}
+
+	// Will create folders/links as 0:0
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+
+	char full_path[PATH_MAX];
+	// After we construct each entry's full path, we'll need to obtain the
+	// entry's absolute path in the new rootfs, that is with the `scratch_dir`
+	// prefix removed (the path_in_rootfs variable below). We'll do this by
+	// computing the length of the `scratch_dir` prefix now and then using it
+	// as the offset in `full_path` where the '/' of the confined silesystem is
+	// located.
+	const size_t scratch_dir_length = strlen(scratch_dir);
+
+	while (true) {
+		errno = 0;
+		struct dirent *ent = readdir(rootfs);
+		if (ent == NULL) break;
+
+		if (sc_streq(ent->d_name, ".") || sc_streq(ent->d_name, "..")) {
+			continue;
+		}
+
+		sc_must_snprintf(full_path, sizeof(full_path), "%s/%s",
+		                 scratch_dir, ent->d_name);
+		if (ent->d_type == DT_DIR) {
+			if (mkdir(full_path, 0755) < 0) {
+				die("cannot create directory \"%s\"", full_path);
+			}
+
+			// If the directory is listed in root_mounts skip it,
+			// as it will be created and mounted in
+			// sc_bootstrap_mount_namespace() later.
+			bool skip_dir = false;
+			const char *path_in_rootfs = full_path + scratch_dir_length;
+			for (const struct sc_mount *mnt = root_mounts;
+			     mnt->path != NULL; mnt++) {
+				if (sc_streq(path_in_rootfs, mnt->path) ||
+				    sc_streq(path_in_rootfs, mnt->altpath)) {
+					skip_dir = true;
+					break;
+				}
+			}
+			if (skip_dir) {
+				continue;
+			}
+			// Also skip the /snap directory, as we'll mount it later
+			if (sc_streq(path_in_rootfs, "/snap")) {
+				continue;
+			}
+
+			char src_path[PATH_MAX];
+			sc_must_snprintf(src_path, sizeof(src_path), "%s/%s",
+					 rootfs_dir, ent->d_name);
+			sc_do_mount(src_path, full_path, NULL, MS_REC | MS_BIND, NULL);
+		} else if (ent->d_type == DT_LNK) {
+			char link_target[PATH_MAX + 1];
+			ssize_t len = readlinkat(rootfs_fd, ent->d_name,
+			                         link_target, sizeof(link_target) - 1);
+			if (len < 0) {
+				die("cannot read symbolic link \"%s/%s\"",
+				    rootfs_dir, ent->d_name);
+			}
+			// make sure the string is null terminated
+			link_target[len] = '\0';
+
+			// Both relative and absolute links will work out of the box, since
+			// we are going to do a pivot_root to scratch_dir.
+			if (symlink(link_target, full_path) < 0) {
+				die("cannot create symbolic link \"%s\"", full_path);
+			}
+		} else if (ent->d_type == DT_REG) {
+			// Create an empty file which can be used as a mount point
+			int fd = open(full_path, O_CREAT | O_TRUNC, 0644);
+			if (fd < 0) {
+				die("cannot create mount point for file \"%s\"", full_path);
+			}
+			close(fd);
+			char src_path[PATH_MAX];
+			sc_must_snprintf(src_path, sizeof(src_path), "%s/%s",
+					 rootfs_dir, ent->d_name);
+			sc_do_mount(src_path, full_path, NULL, MS_BIND, NULL);
+		} else {
+			die("unexpected directory entry \"%s\" of type %i encountered in \"%s\"",
+				ent->d_name, ent->d_type, rootfs_dir);
+		}
+	}
+
+	if (errno != 0) {
+		die("cannot read directory entry in \"%s\"", rootfs_dir);
+	}
+
+	(void)sc_set_effective_identity(old);
+}
 
 /**
  * Bootstrap mount namespace.
@@ -243,75 +512,30 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// mounted anywhere. When we construct recursive bind mounts below this
 	// guarantees that this directory will not be replicated anywhere.
 	sc_do_mount("none", scratch_dir, NULL, MS_UNBINDABLE, NULL);
-	// Recursively bind mount desired root filesystem directory over the
-	// scratch directory. This puts the initial content into the scratch space
-	// and serves as a foundation for all subsequent operations below.
-	//
-	// The mount is recursive because it can either be applied to the root
-	// filesystem of a core system (aka all-snap) or the core snap on a classic
-	// system. In the former case we need recursive bind mounts to accurately
-	// replicate the state of the root filesystem into the scratch directory.
-	sc_do_mount(config->rootfs_dir, scratch_dir, NULL, MS_REC | MS_BIND,
-		    NULL);
+	if (config->normal_mode) {
+		sc_initialize_ns_fstab(config->snap_instance);
+		// Create a tmpfs on scratch_dir; we'll them mount all the root
+		// directories of the base snap onto it.
+		sc_do_mount("none", scratch_dir, "tmpfs", 0, NULL);
+		sc_replicate_base_rootfs(scratch_dir, config->rootfs_dir, config->mounts);
+	} else {
+		// Recursively bind mount desired root filesystem directory over the
+		// scratch directory. This puts the initial content into the scratch
+		// space and serves as a foundation for all subsequent operations
+		// below.
+		//
+		// The mount is recursive because we need to accurately replicate the
+		// state of the root filesystem into the scratch directory.
+		sc_do_mount(config->rootfs_dir, scratch_dir, NULL, MS_REC | MS_BIND,
+		            NULL);
+	}
 	// Make the scratch directory recursively slave. Nothing done there will be
 	// shared with the initial mount namespace. This effectively detaches us,
 	// in one way, from the original namespace and coupled with pivot_root
 	// below serves as the foundation of the mount sandbox.
 	sc_do_mount("none", scratch_dir, NULL, MS_REC | MS_SLAVE, NULL);
-	// Bind mount certain directories from the host filesystem to the scratch
-	// directory. By default mount events will propagate in both into and out
-	// of the peer group. This way the running application can alter any global
-	// state visible on the host and in other snaps. This can be restricted by
-	// disabling the "is_bidirectional" flag as can be seen below.
-	for (const struct sc_mount * mnt = config->mounts; mnt->path != NULL;
-	     mnt++) {
+	sc_do_mounts(scratch_dir, config->mounts);
 
-		if (mnt->is_bidirectional) {
-			sc_identity old =
-			    sc_set_effective_identity(sc_root_group_identity());
-			if (mkdir(mnt->path, 0755) < 0 && errno != EEXIST) {
-				die("cannot create %s", mnt->path);
-			}
-			(void)sc_set_effective_identity(old);
-		}
-		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
-				 mnt->path);
-		if (mnt->is_optional) {
-			bool ok = sc_do_optional_mount(mnt->path, dst, NULL,
-						       MS_REC | MS_BIND, NULL);
-			if (!ok) {
-				// If we cannot mount it, just continue.
-				continue;
-			}
-		} else {
-			sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND,
-				    NULL);
-		}
-		if (!mnt->is_bidirectional) {
-			// Mount events will only propagate inwards to the namespace. This
-			// way the running application cannot alter any global state apart
-			// from that of its own snap.
-			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
-		}
-		if (mnt->altpath == NULL) {
-			continue;
-		}
-		// An alternate path of mnt->path is provided at another location.
-		// It should behave exactly the same as the original.
-		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
-				 mnt->altpath);
-		struct stat stat_buf;
-		if (lstat(dst, &stat_buf) < 0) {
-			die("cannot lstat %s", dst);
-		}
-		if ((stat_buf.st_mode & S_IFMT) == S_IFLNK) {
-			die("cannot bind mount alternate path over a symlink: %s", dst);
-		}
-		sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL);
-		if (!mnt->is_bidirectional) {
-			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
-		}
-	}
 	if (config->normal_mode) {
 		// Since we mounted /etc from the host filesystem to the scratch directory,
 		// we may need to put certain directories from the desired root filesystem
@@ -321,7 +545,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// Fixes the following bugs:
 		//  - https://bugs.launchpad.net/snap-confine/+bug/1580018
 		//  - https://bugzilla.opensuse.org/show_bug.cgi?id=1028568
-		const char *dirs_from_core[] = {
+		static const char *dirs_from_core[] = {
 			"/etc/alternatives", "/etc/nsswitch.conf",
 			// Some specific and privileged interfaces (e.g docker-support) give
 			// access to apparmor_parser from the base snap which at a minimum
@@ -459,28 +683,33 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC, NULL);
 		sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 	}
-	// Create the hostfs directory if one is missing. This directory is a part
-	// of packaging now so perhaps this code can be removed later.
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	if (mkdir(SC_HOSTFS_DIR, 0755) < 0) {
-		if (errno != EEXIST) {
-			die("cannot perform operation: mkdir %s", SC_HOSTFS_DIR);
-		}
-	}
-	(void)sc_set_effective_identity(old);
-	// Ensure that hostfs isgroup owned by root. We may have (now or earlier)
-	// created the directory as the user who first ran a snap on a given
-	// system and the group identity of that user is visilbe on disk.
+	// Ensure that hostfs exists and is group-owned by root. We may have (now
+	// or earlier) created the directory as the user who first ran a snap on a
+	// given system and the group identity of that user is visible on disk.
 	// This was LP:#1665004
 	struct stat sb;
 	if (stat(SC_HOSTFS_DIR, &sb) < 0) {
-		die("cannot stat %s", SC_HOSTFS_DIR);
-	}
-	if (sb.st_uid != 0 || sb.st_gid != 0) {
-		if (chown(SC_HOSTFS_DIR, 0, 0) < 0) {
-			die("cannot change user/group owner of %s to root",
-			    SC_HOSTFS_DIR);
+		if (errno == ENOENT) {
+			// Create the hostfs directory if one is missing. This directory is a part
+			// of packaging now so perhaps this code can be removed later.
+			// Note: we use 0000 as permissions here, to avoid the risk that
+			// the user manages to fiddle with the newly created directory
+			// before we have the chance to chown it to root:root. We are
+			// setting the usual 0755 permissions just after the chown below.
+			if (mkdir(SC_HOSTFS_DIR, 0000) < 0) {
+				die("cannot perform operation: mkdir %s", SC_HOSTFS_DIR);
+			}
+			if (chown(SC_HOSTFS_DIR, 0, 0) < 0) {
+				die("cannot set root ownership on %s directory", SC_HOSTFS_DIR);
+			}
+			if (chmod(SC_HOSTFS_DIR, 0755) < 0) {
+				die("cannot set 0755 permissions on %s directory", SC_HOSTFS_DIR);
+			}
+		} else {
+			die("cannot stat %s", SC_HOSTFS_DIR);
 		}
+	} else if (sb.st_uid != 0 || sb.st_gid != 0) {
+		die("%s is not owned by root", SC_HOSTFS_DIR);
 	}
 	// Make the upcoming "put_old" directory for pivot_root private so that
 	// mount events don't propagate to any peer group. In practice pivot root
@@ -494,7 +723,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// code changes the nvidia code assumes it has access to the existing
 	// pre-pivot filesystem.
 	if (config->distro == SC_DISTRO_CLASSIC) {
-		sc_mount_nvidia_driver(scratch_dir);
+		sc_mount_nvidia_driver(scratch_dir, config->base_snap_name);
 	}
 	// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 	//                    pivot_root
@@ -659,7 +888,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// Check which mode we should run in, normal or legacy.
 	if (inv->is_normal_mode) {
 		// In normal mode we use the base snap as / and set up several bind mounts.
-		const struct sc_mount mounts[] = {
+		static const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
 			{"/home"},	// to support /home/*/snap and home interface
@@ -694,12 +923,13 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			.distro = distro,
 			.normal_mode = true,
 			.base_snap_name = inv->base_snap_name,
+			.snap_instance = inv->snap_instance,
 		};
 		sc_bootstrap_mount_namespace(&normal_config);
 	} else {
-		// In legacy mode we don't pivot and instead just arrange bi-
-		// directional mount propagation for two directories.
-		const struct sc_mount mounts[] = {
+		// In legacy mode we don't pivot to a base snap's rootfs and instead
+		// just arrange bi-directional mount propagation for two directories.
+		static const struct sc_mount mounts[] = {
 			{"/media", true},
 			{"/run/netns", true},
 			{},
@@ -715,7 +945,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	}
 
 	// TODO: rename this and fold it into bootstrap
-	setup_private_mount(inv->snap_instance);
+	setup_private_tmp(inv->snap_instance);
 	// set up private /dev/pts
 	// TODO: fold this into bootstrap
 	setup_private_pts();

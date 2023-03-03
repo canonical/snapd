@@ -9,7 +9,7 @@ prepare: |
     snap install test-snapd-curl --edge
 
 execute: |
-    # first, sanity check that the snap has a default track
+    # first, precondition check that the snap has a default track
     snap run test-snapd-curl.curl -H "Snap-Device-Series: 16" "https://api.snapcraft.io/v2/snaps/info/$A_SNAP" > info
     test "$( snap run  jq -r '."default-track"' < info )" == "$A_TRACK"
 

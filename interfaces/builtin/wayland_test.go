@@ -108,6 +108,7 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.wayland.app1"})
 	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "owner /run/user/[0-9]*/snap.consumer/{mesa,mutter,sdl,wayland-cursor,weston,xwayland}-shared-* rw,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "owner /{dev,run}/shm/snap.consumer.wayland.mozilla.ipc.[0-9]* rw,")
 
 	// permanent core slot
 	spec = &apparmor.Specification{}

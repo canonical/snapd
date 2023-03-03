@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package naming_test
 
 import (
 	"fmt"
+	"regexp"
 
 	. "gopkg.in/check.v1"
 
@@ -367,5 +368,23 @@ func (s *ValidateSuite) TestValidQuotaGroup(c *C) {
 	for _, name := range invalidNames {
 		err := naming.ValidateQuotaGroup(name)
 		c.Assert(err, ErrorMatches, `invalid quota group name:.*`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateProvenance(c *C) {
+	c.Check(naming.ValidateProvenance("a"), IsNil)
+	c.Check(naming.ValidateProvenance("123A-abz-dd3Z9"), IsNil)
+
+	c.Check(naming.ValidateProvenance(""), ErrorMatches, `invalid provenance: must not be empty`)
+
+	invalid := []string{
+		"+",
+		"-",
+		"--",
+		"a--z",
+	}
+	for _, prov := range invalid {
+		err := naming.ValidateProvenance(prov)
+		c.Check(err, ErrorMatches, regexp.QuoteMeta(fmt.Sprintf("invalid provenance: %q", prov)))
 	}
 }

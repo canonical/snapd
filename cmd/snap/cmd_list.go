@@ -84,6 +84,14 @@ func fmtChannel(ch string) string {
 	return ch[:idx+1] + "…"
 }
 
+func fmtVersion(v string) string {
+	if v == "" {
+		// most likely a broken snap, leave a placeholder
+		return "-"
+	}
+	return v
+}
+
 func (x *cmdList) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -116,7 +124,7 @@ func (x *cmdList) Execute(args []string) error {
 		// doing it this way because otherwise it's a sea of %s\t%s\t%s
 		line := []string{
 			snap.Name,
-			snap.Version,
+			fmtVersion(snap.Version),
 			snap.Revision.String(),
 			fmtChannel(snap.TrackingChannel),
 			shortPublisher(esc, snap.Publisher),

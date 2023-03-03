@@ -22,9 +22,9 @@ package notification_test
 import (
 	"fmt"
 
+	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
-	"github.com/godbus/dbus"
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/testutil"
 )

@@ -20,6 +20,7 @@
 package userd_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -42,6 +43,7 @@ type launcherSuite struct {
 
 	launcher    *userd.Launcher
 	mockXdgOpen *testutil.MockCmd
+	mockXdgMime *testutil.MockCmd
 }
 
 var _ = Suite(&launcherSuite{})
@@ -53,6 +55,8 @@ func (s *launcherSuite) SetUpTest(c *C) {
 	s.launcher = &userd.Launcher{}
 	s.mockXdgOpen = testutil.MockCommand(c, "xdg-open", "")
 	s.AddCleanup(s.mockXdgOpen.Restore)
+	s.mockXdgMime = testutil.MockCommand(c, "xdg-mime", "")
+	s.AddCleanup(s.mockXdgMime.Restore)
 	s.AddCleanup(userd.MockSnapFromSender(func(*dbus.Conn, dbus.Sender) (string, error) {
 		return "some-snap", nil
 	}))
@@ -62,14 +66,23 @@ func (s *launcherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
 	for _, t := range []struct {
 		url        string
 		errMatcher string
+		scheme     string
 	}{
-		{"tel://049112233445566", "Supplied URL scheme \"tel\" is not allowed"},
-		{"aabbccdd0011", "Supplied URL scheme \"\" is not allowed"},
-		{"invälid:%url", dbus.ErrMsgInvalidArg.Error()},
+		{"tel://049112233445566", `Supplied URL scheme "tel" is not allowed`, "tel"},
+		{"aabbccdd0011", "cannot open URL without a scheme", ""},
+		{"invälid:%url", dbus.ErrMsgInvalidArg.Error(), ""},
 	} {
+		s.mockXdgMime.ForgetCalls()
 		err := s.launcher.OpenURL(t.url, ":some-dbus-sender")
 		c.Assert(err, ErrorMatches, t.errMatcher)
 		c.Assert(s.mockXdgOpen.Calls(), IsNil)
+		if t.scheme != "" {
+			c.Assert(s.mockXdgMime.Calls(), DeepEquals, [][]string{
+				{"xdg-mime", "query", "default", "x-scheme-handler/" + t.scheme},
+			})
+		} else {
+			c.Assert(s.mockXdgMime.Calls(), IsNil)
+		}
 	}
 }
 
@@ -82,6 +95,40 @@ func (s *launcherSuite) TestOpenURLWithAllowedSchemeHappy(c *C) {
 		})
 		s.mockXdgOpen.ForgetCalls()
 	}
+}
+
+func (s *launcherSuite) testOpenURLWithFallbackHappy(c *C, desktopFileName string) {
+	mockXdgMime := testutil.MockCommand(c, "xdg-mime", fmt.Sprintf(`echo "%s"`, desktopFileName))
+	defer mockXdgMime.Restore()
+	defer s.mockXdgOpen.ForgetCalls()
+	err := s.launcher.OpenURL("fallback-scheme://snapcraft.io", ":some-dbus-sender")
+	c.Assert(err, IsNil)
+	c.Assert(s.mockXdgOpen.Calls(), DeepEquals, [][]string{
+		{"xdg-open", "fallback-scheme://snapcraft.io"},
+	})
+	c.Assert(mockXdgMime.Calls(), DeepEquals, [][]string{
+		{"xdg-mime", "query", "default", "x-scheme-handler/fallback-scheme"},
+	})
+}
+
+func (s *launcherSuite) testOpenURLWithFallbackInvalidDesktopFile(c *C, desktopFileName string) {
+	mockXdgMime := testutil.MockCommand(c, "xdg-mime", fmt.Sprintf("echo %s", desktopFileName))
+	defer mockXdgMime.Restore()
+	err := s.launcher.OpenURL("fallback-scheme://snapcraft.io", ":some-dbus-sender")
+	c.Assert(err, ErrorMatches, `Supplied URL scheme "fallback-scheme" is not allowed`)
+	c.Assert(s.mockXdgOpen.Calls(), IsNil)
+	c.Assert(mockXdgMime.Calls(), DeepEquals, [][]string{
+		{"xdg-mime", "query", "default", "x-scheme-handler/fallback-scheme"},
+	})
+}
+
+func (s *launcherSuite) TestOpenURLWithFallback(c *C) {
+	s.testOpenURLWithFallbackHappy(c, "open-this-scheme.desktop")
+	s.testOpenURLWithFallbackHappy(c, "open.this.scheme.desktop")
+	s.testOpenURLWithFallbackHappy(c, "org._7_zip.Archiver.desktop")
+	s.testOpenURLWithFallbackInvalidDesktopFile(c, "1.2.3.4.desktop")
+	s.testOpenURLWithFallbackInvalidDesktopFile(c, "1org.foo.bar.desktop")
+	s.testOpenURLWithFallbackInvalidDesktopFile(c, "foo bar baz.desktop")
 }
 
 func (s *launcherSuite) TestOpenURLWithFailingXdgOpen(c *C) {

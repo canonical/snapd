@@ -20,6 +20,8 @@
 package main_test
 
 import (
+	"time"
+
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -94,6 +96,12 @@ func (notesSuite) TestNotesInCohort(c *check.C) {
 	}).String(), check.Equals, "in-cohort")
 }
 
+func (notesSuite) TestNotesHeld(c *check.C) {
+	c.Check((&snap.Notes{
+		Held: true,
+	}).String(), check.Equals, "held")
+}
+
 func (notesSuite) TestNotesNothing(c *check.C) {
 	c.Check((&snap.Notes{}).String(), check.Equals, "-")
 }
@@ -114,4 +122,18 @@ func (notesSuite) TestNotesFromLocal(c *check.C) {
 	c.Check(snap.NotesFromLocal(&client.Snap{CohortKey: ""}).InCohort, check.Equals, false)
 	c.Check(snap.NotesFromLocal(&client.Snap{CohortKey: "123"}).InCohort, check.Equals, true)
 	c.Check(snap.NotesFromLocal(&client.Snap{Health: &client.SnapHealth{Status: "blocked"}}).Health, check.Equals, "blocked")
+}
+
+func (notesSuite) TestHeldNoteFromLocal(c *check.C) {
+	now := time.Now()
+	restore := snap.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	future := now.Add(time.Second)
+	past := now.Add(-time.Second)
+	c.Check(snap.NotesFromLocal(&client.Snap{Hold: &future}).Held, check.Equals, true)
+	c.Check(snap.NotesFromLocal(&client.Snap{Hold: &past}).Held, check.Equals, false)
+	c.Check(snap.NotesFromLocal(&client.Snap{GatingHold: &future}).Held, check.Equals, false)
 }

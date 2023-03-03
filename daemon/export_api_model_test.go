@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -32,7 +33,14 @@ func MockDevicestateRemodel(mock func(*state.State, *asserts.Model) (*state.Chan
 	}
 }
 
+func MockDevicestateDeviceManagerUnregister(mock func(*devicestate.DeviceManager, *devicestate.UnregisterOptions) error) (restore func()) {
+	oldDevicestateDeviceManagerUnregister := devicestateDeviceManagerUnregister
+	devicestateDeviceManagerUnregister = mock
+	return func() {
+		devicestateDeviceManagerUnregister = oldDevicestateDeviceManagerUnregister
+	}
+}
+
 type (
-	PostModelData   = postModelData
-	ModelAssertJSON = modelAssertJSON
+	PostModelData = postModelData
 )

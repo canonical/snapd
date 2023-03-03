@@ -1,5 +1,7 @@
 summary: smoke test for the boot-state tool
 
+backends: [google, qemu]
+
 execute: |
     # Check help
     "$TESTSTOOLS"/boot-state | MATCH "usage: boot-state bootenv"
@@ -8,7 +10,7 @@ execute: |
 
     echo "Check the get-boot-path command"
     case "$SPREAD_SYSTEM" in
-        ubuntu-core-16-arm-*|ubuntu-core-18-arm-*|ubuntu-core-20-arm-*)
+        ubuntu-core-16-arm-*|ubuntu-core-18-arm-*|ubuntu-core-20-arm-*|ubuntu-core-22-arm-*)
             "$TESTSTOOLS"/boot-state boot-path | MATCH "/boot/uboot/"
             ;;
         fedora-*|opensuse-*|amazon-*|centos-*)
@@ -33,7 +35,7 @@ execute: |
             "$TESTSTOOLS"/boot-state bootenv show | MATCH 'snap_core=core.*.snap'
             "$TESTSTOOLS"/boot-state bootenv show | MATCH 'snap_kernel=.*-kernel_.*.snap'
             ;;
-        ubuntu-core-20-*)
+        ubuntu-core-20-*|ubuntu-core-22-*)
             # check kernel_status var is set in bootnev
             "$TESTSTOOLS"/boot-state bootenv show | MATCH 'kernel_status='
             ;;

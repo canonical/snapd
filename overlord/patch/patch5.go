@@ -39,7 +39,7 @@ func (log) Notify(status string) {
 }
 
 // patch5:
-//  - regenerate generated .service files
+//   - regenerate generated .service files
 func patch5(st *state.State) error {
 	log := log{}
 
@@ -71,7 +71,9 @@ func patch5(st *state.State) error {
 			return err
 		}
 
-		err = wrappers.AddSnapServices(info, nil, log)
+		err = wrappers.EnsureSnapServices(map[*snap.Info]*wrappers.SnapServiceOptions{
+			info: nil,
+		}, nil, nil, log)
 		if err != nil {
 			return err
 		}

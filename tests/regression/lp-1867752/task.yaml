@@ -13,7 +13,6 @@ prepare: |
     lxc exec bionic -- mkdir -p "$GOHOME"
     lxc file push --quiet "$GOHOME"/snapd_*.deb "bionic/$GOHOME/"
     lxc exec bionic -- apt install -y "$GOHOME"/snapd_*.deb
-    lxc exec bionic -- snap set core experimental.robust-mount-namespace-updates=true
 
 restore: |
     lxc stop --force bionic
@@ -22,7 +21,7 @@ restore: |
     "$TESTSTOOLS"/lxd-state undo-mount-changes
 
 debug: |
-    lxc exec bionic -- bash -c "SNAPD_DEBUG=1 /usr/lib/snapd/snap-update-ns maas"
+    lxc exec bionic -- bash -c "SNAPD_DEBUG=1 /usr/lib/snapd/snap-update-ns maas" || true
 
 execute: |
     # first command is done twice due to https://bugs.launchpad.net/snapd/+bug/1865503

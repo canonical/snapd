@@ -248,7 +248,7 @@ func (rc *initialRegistrationContext) FinishRegistration(serial *asserts.Serial)
 // registrationCtx returns a registrationContext appropriate for the task and its change.
 func (m *DeviceManager) registrationCtx(t *state.Task) (registrationContext, error) {
 	remodCtx, err := remodelCtxFromTask(t)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if regCtx, ok := remodCtx.(registrationContext); ok {
@@ -316,7 +316,7 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 	// slower full retries
 	var nTentatives int
 	err := t.Get("pre-poll-tentatives", &nTentatives)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", err
 	}
 	nTentatives++
@@ -335,11 +335,6 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 
 	resp, err := client.Do(req)
 	if err != nil {
-		if !httputil.ShouldRetryError(err) {
-			// a non temporary net error fully errors out and triggers a retry
-			// retries
-			return "", fmt.Errorf("cannot retrieve request-id for making a request for a serial: %v", err)
-		}
 		if httputil.NoNetwork(err) {
 			// If there is no network there is no need to count
 			// this as a tentatives attempt. If we do it this
@@ -357,6 +352,30 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 			// device
 			noNetworkRetryInterval := retryInterval / 2
 			return "", &state.Retry{After: noNetworkRetryInterval}
+		}
+		if httputil.IsCertExpiredOrNotValidYetError(err) {
+			// If the cert is expired/not-valid yet that
+			// most likely means that the devices has no
+			// ntp-synced time yet. We will retry for up
+			// to 2048s (timesyncd.conf(5) says the
+			// maximum poll time is 2048s which is
+			// 34min8s). With retry of 60s the below adds
+			// up to 37.5m.
+			switch {
+			case nTentatives <= 5:
+				return "", &state.Retry{After: retryInterval / 2}
+			case nTentatives <= 10:
+				return "", &state.Retry{After: retryInterval}
+			case nTentatives <= 15:
+				return "", &state.Retry{After: retryInterval * 2}
+			case nTentatives <= 20:
+				return "", &state.Retry{After: retryInterval * 4}
+			}
+		}
+		if !httputil.ShouldRetryError(err) {
+			// a non temporary net error fully errors out and triggers a retry
+			// retries
+			return "", fmt.Errorf("cannot retrieve request-id for making a request for a serial: %v", err)
 		}
 
 		return "", retryErr(t, nTentatives, "cannot retrieve request-id for making a request for a serial: %v", err)
@@ -484,7 +503,7 @@ var httputilNewHTTPClient = httputil.NewHTTPClient
 func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (serial *asserts.Serial, ancillaryBatch *asserts.Batch, err error) {
 	var serialSup serialSetup
 	err = t.Get("serial-setup", &serialSup)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, err
 	}
 
@@ -585,7 +604,7 @@ func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *h
 
 	st := t.State()
 	tr := config.NewTransaction(st)
-	if proxyStore, err := proxyStore(st, tr); err != nil && err != state.ErrNoState {
+	if proxyStore, err := proxyStore(st, tr); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	} else if proxyStore != nil {
 		proxyURL = proxyStore.URL()
@@ -666,7 +685,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 
 	// NB: the keyPair is fixed for now
 	privKey, err := m.keyPair()
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot find device key pair")
 	}
 	if err != nil {
@@ -680,7 +699,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		"model":               device.Model,
 		"device-key-sha3-384": privKey.PublicKey().ID(),
 	})
-	if err != nil && !asserts.IsNotFound(err) {
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return err
 	}
 

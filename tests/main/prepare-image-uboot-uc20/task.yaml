@@ -24,7 +24,7 @@ prepare: |
     chown -R test:test "$ROOT"
 
     # sign the model assertion
-    gendeveloper1model < "$TESTSLIB"/assertions/developer1-pi-20.model.json > "$ROOT/model.assertion"
+    gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-pi-20.model.json > "$ROOT/model.assertion"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/mvo5/goconfigparser"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 type bootAssetsMap map[string][]string
@@ -61,11 +63,14 @@ type Modeenv struct {
 	Base                string   `key:"base"`
 	TryBase             string   `key:"try_base"`
 	BaseStatus          string   `key:"base_status"`
-	CurrentKernels      []string `key:"current_kernels"`
+	// Gadget is the currently active gadget snap
+	Gadget         string   `key:"gadget"`
+	CurrentKernels []string `key:"current_kernels"`
 	// Model, BrandID, Grade, SignKeyID describe the properties of current
 	// device model.
 	Model          string `key:"model"`
 	BrandID        string `key:"model,secondary"`
+	Classic        bool   `key:"classic"`
 	Grade          string `key:"grade"`
 	ModelSignKeyID string `key:"model_sign_key_id"`
 	// TryModel, TryBrandID, TryGrade, TrySignKeyID describe the properties
@@ -152,8 +157,12 @@ func modeenvFile(rootdir string) string {
 }
 
 // ReadModeenv attempts to read the modeenv file at
-// <rootdir>/var/iib/snapd/modeenv.
+// <rootdir>/var/lib/snapd/modeenv.
 func ReadModeenv(rootdir string) (*Modeenv, error) {
+	if snapdenv.Preseeding() {
+		return nil, fmt.Errorf("internal error: modeenv cannot be read during preseeding")
+	}
+
 	modeenvPath := modeenvFile(rootdir)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
@@ -178,6 +187,7 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	}
 	unmarshalModeenvValueFromCfg(cfg, "base", &m.Base)
 	unmarshalModeenvValueFromCfg(cfg, "base_status", &m.BaseStatus)
+	unmarshalModeenvValueFromCfg(cfg, "gadget", &m.Gadget)
 	unmarshalModeenvValueFromCfg(cfg, "try_base", &m.TryBase)
 
 	// current_kernels is a comma-delimited list in a string
@@ -186,6 +196,7 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	unmarshalModeenvValueFromCfg(cfg, "model", &bm)
 	m.BrandID = bm.brandID
 	m.Model = bm.model
+	unmarshalModeenvValueFromCfg(cfg, "classic", &m.Classic)
 	// expect the caller to validate the grade
 	unmarshalModeenvValueFromCfg(cfg, "grade", &m.Grade)
 	unmarshalModeenvValueFromCfg(cfg, "model_sign_key_id", &m.ModelSignKeyID)
@@ -266,6 +277,10 @@ func (m *Modeenv) Write() error {
 
 // WriteTo outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
 func (m *Modeenv) WriteTo(rootdir string) error {
+	if snapdenv.Preseeding() {
+		return fmt.Errorf("internal error: modeenv cannot be written during preseeding")
+	}
+
 	modeenvPath := modeenvFile(rootdir)
 
 	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0755); err != nil {
@@ -283,6 +298,7 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	marshalModeenvEntryTo(buf, "base", m.Base)
 	marshalModeenvEntryTo(buf, "try_base", m.TryBase)
 	marshalModeenvEntryTo(buf, "base_status", m.BaseStatus)
+	marshalModeenvEntryTo(buf, "gadget", m.Gadget)
 	marshalModeenvEntryTo(buf, "current_kernels", strings.Join(m.CurrentKernels, ","))
 	if m.Model != "" || m.Grade != "" {
 		if m.Model == "" {
@@ -292,6 +308,9 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 			return fmt.Errorf("internal error: brand is unset")
 		}
 		marshalModeenvEntryTo(buf, "model", &modeenvModel{brandID: m.BrandID, model: m.Model})
+	}
+	if m.Classic {
+		marshalModeenvEntryTo(buf, "classic", true)
 	}
 	// TODO: complain when grade or key are unset
 	marshalModeenvEntryTo(buf, "grade", m.Grade)
@@ -333,16 +352,18 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 type modelForSealing struct {
 	brandID        string
 	model          string
+	classic        bool
 	grade          asserts.ModelGrade
 	modelSignKeyID string
 }
 
-// dummy to verify interface match
+// verify interface match
 var _ secboot.ModelForSealing = (*modelForSealing)(nil)
 
 func (m *modelForSealing) BrandID() string           { return m.brandID }
 func (m *modelForSealing) SignKeyID() string         { return m.modelSignKeyID }
 func (m *modelForSealing) Model() string             { return m.model }
+func (m *modelForSealing) Classic() bool             { return m.classic }
 func (m *modelForSealing) Grade() asserts.ModelGrade { return m.grade }
 func (m *modelForSealing) Series() string            { return release.Series }
 
@@ -359,6 +380,7 @@ func (m *Modeenv) ModelForSealing() secboot.ModelForSealing {
 	return &modelForSealing{
 		brandID:        m.BrandID,
 		model:          m.Model,
+		classic:        m.Classic,
 		grade:          asserts.ModelGrade(m.Grade),
 		modelSignKeyID: m.ModelSignKeyID,
 	}
@@ -371,6 +393,7 @@ func (m *Modeenv) TryModelForSealing() secboot.ModelForSealing {
 	return &modelForSealing{
 		brandID:        m.TryBrandID,
 		model:          m.TryModel,
+		classic:        m.Classic,
 		grade:          asserts.ModelGrade(m.TryGrade),
 		modelSignKeyID: m.TryModelSignKeyID,
 	}
@@ -420,6 +443,8 @@ func marshalModeenvEntryTo(out io.Writer, key string, what interface{}) error {
 			return nil
 		}
 		asString = asModeenvStringList(v)
+	case bool:
+		asString = strconv.FormatBool(v)
 	default:
 		if vm, ok := what.(modeenvValueMarshaller); ok {
 			marshalled, err := vm.MarshalModeenvValue()
@@ -446,7 +471,7 @@ func marshalModeenvEntryTo(out io.Writer, key string, what interface{}) error {
 }
 
 // unmarshalModeenvValueFromCfg unmarshals the value of the entry with
-// th given key to dest. If there's no such entry dest might be left
+// the given key to dest. If there's no such entry dest might be left
 // empty.
 func unmarshalModeenvValueFromCfg(cfg *goconfigparser.ConfigParser, key string, dest interface{}) error {
 	if dest == nil {
@@ -459,6 +484,16 @@ func unmarshalModeenvValueFromCfg(cfg *goconfigparser.ConfigParser, key string, 
 		*v = kv
 	case *[]string:
 		*v = splitModeenvStringList(kv)
+	case *bool:
+		if kv == "" {
+			*v = false
+			return nil
+		}
+		var err error
+		*v, err = strconv.ParseBool(kv)
+		if err != nil {
+			return fmt.Errorf("cannot parse modeenv value %q to bool: %v", kv, err)
+		}
 	default:
 		if vm, ok := v.(modeenvValueUnmarshaller); ok {
 			if err := vm.UnmarshalModeenvValue(kv); err != nil {

@@ -24,8 +24,10 @@
 // into the snap.
 //
 // Each fstab like file looks like a regular fstab entry:
-//   /src/dir /dst/dir none bind 0 0
-//   /src/dir /dst/dir none bind,rw 0 0
+//
+//	/src/dir /dst/dir none bind 0 0
+//	/src/dir /dst/dir none bind,rw 0 0
+//
 // but only bind mounts are supported
 package mount
 
@@ -65,6 +67,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 	spec.(*Specification).AddOvername(snapInfo)
 	spec.(*Specification).AddLayout(snapInfo)
+	spec.(*Specification).AddExtraLayouts(confinement.ExtraLayouts)
 	content := deriveContent(spec.(*Specification), snapInfo)
 	// synchronize the content with the filesystem
 	glob := fmt.Sprintf("snap.%s.*fstab", snapName)

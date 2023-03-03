@@ -127,11 +127,17 @@ dbus (send)
     interface="org.freedesktop.NetworkManager.Settings{,.Connection}"
     member="GetSettings"
     peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (send)
+    bus=system
+    path=/org/freedesktop
+    interface=org.freedesktop.DBus.ObjectManager
+    member="GetManagedObjects"
+    peer=(label=###SLOT_SECURITY_TAGS###),
 
 # receive signals for updated settings and properties
 dbus (receive)
     bus=system
-    path="/org/freedesktop/NetworkManager{,/{ActiveConnection,Devices}/*}"
+    path="/org/freedesktop/NetworkManager{,/**}"
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=###SLOT_SECURITY_TAGS###),
@@ -164,6 +170,12 @@ dbus (receive)
     path="/org/freedesktop/NetworkManager/Settings/*"
     interface="org.freedesktop.NetworkManager.Settings.Connection"
     member=PropertiesChanged
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive)
+    bus=system
+    path=/org/freedesktop
+    interface=org.freedesktop.DBus.ObjectManager
+    member="Interfaces{Added,Removed}"
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 

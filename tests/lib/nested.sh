@@ -6,29 +6,33 @@
 # shellcheck source=tests/lib/store.sh
 . "$TESTSLIB"/store.sh
 
-NESTED_WORK_DIR="${NESTED_WORK_DIR:-/tmp/work-dir}"
-NESTED_IMAGES_DIR="$NESTED_WORK_DIR/images"
-NESTED_RUNTIME_DIR="$NESTED_WORK_DIR/runtime"
-NESTED_ASSETS_DIR="$NESTED_WORK_DIR/assets"
-NESTED_LOGS_DIR="$NESTED_WORK_DIR/logs"
+: "${NESTED_WORK_DIR:=/tmp/work-dir}"
+: "${NESTED_IMAGES_DIR:=${NESTED_WORK_DIR}/images}"
+: "${NESTED_RUNTIME_DIR:=${NESTED_WORK_DIR}/runtime}"
+: "${NESTED_ASSETS_DIR:=${NESTED_WORK_DIR}/assets}"
+: "${NESTED_LOGS_DIR:=${NESTED_WORK_DIR}/logs}"
 
-NESTED_VM=nested-vm
-NESTED_SSH_PORT=8022
-NESTED_MON_PORT=8888
+: "${NESTED_VM:=nested-vm}"
+: "${NESTED_SSH_PORT:=8022}"
+: "${NESTED_MON_PORT:=8888}"
 
-NESTED_CUSTOM_MODEL="${NESTED_CUSTOM_MODEL:-}"
-NESTED_CUSTOM_AUTO_IMPORT_ASSERTION="${NESTED_CUSTOM_AUTO_IMPORT_ASSERTION:-}"
-NESTED_FAKESTORE_BLOB_DIR="${NESTED_FAKESTORE_BLOB_DIR:-$NESTED_WORK_DIR/fakestore/blobs}"
-NESTED_SIGN_SNAPS_FAKESTORE="${NESTED_SIGN_SNAPS_FAKESTORE:-false}"
-NESTED_FAKESTORE_SNAP_DECL_PC_GADGET="${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:-}"
-NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:-}"
+: "${NESTED_CUSTOM_MODEL:=}"
+: "${NESTED_CUSTOM_AUTO_IMPORT_ASSERTION:=}"
+: "${NESTED_FAKESTORE_BLOB_DIR:=${NESTED_WORK_DIR}/fakestore/blobs}"
+: "${NESTED_SIGN_SNAPS_FAKESTORE:=false}"
+: "${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:=}"
+: "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:=}"
+: "${NESTED_UBUNTU_IMAGE_PRESEED_KEY:=}"
+
+: "${NESTED_DISK_PHYSICAL_BLOCK_SIZE:=512}"
+: "${NESTED_DISK_LOGICAL_BLOCK_SIZE:=512}"
 
 nested_wait_for_ssh() {
     # TODO:UC20: the retry count should be lowered to something more reasonable.
     local retry=800
     local wait=1
 
-    until nested_exec "true"; do
+    until remote.exec "true"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for command 'true' to succeed. Aborting!"
@@ -42,7 +46,7 @@ nested_wait_for_no_ssh() {
     local retry=200
     local wait=1
 
-    while nested_exec "true"; do
+    while remote.exec "true"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for command 'true' to fail. Aborting!"
@@ -58,7 +62,7 @@ nested_wait_for_snap_command() {
     local retry=200
     local wait=1
 
-    while ! nested_exec "command -v snap"; do
+    while ! remote.exec "command -v snap"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for command 'command -v snap' to success. Aborting!"
@@ -84,35 +88,8 @@ nested_check_unit_stays_active() {
     done
 }
 
-nested_check_boot_errors() {
-    # Check if the service started and it is running without errors
-    if nested_is_core_20_system && ! nested_check_unit_stays_active "$NESTED_VM" 15 1; then
-        # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
-        # It is reproducible on an Intel machine without unrestricted mode support, the failure is most likely due to the guest entering an invalid state for Intel VT
-        # The workaround is to restart the vm and check that qemu doesn't go into this bad state again
-        if nested_status_vm | MATCH "cpu_asidx_from_attrs: Assertion.*failed"; then
-            return 1
-        fi
-    fi
-}
-
-nested_retry_start_with_boot_errors() {
-    local retry=3
-    while [ "$retry" -ge 0 ]; do
-        retry=$(( retry - 1 ))
-        if ! nested_check_boot_errors; then
-            nested_restart
-        else
-            return 0
-        fi
-    done
-
-    echo "VM failing to boot, aborting!"
-    return 1
-}
-
 nested_get_boot_id() {
-    nested_exec "cat /proc/sys/kernel/random/boot_id"
+    remote.exec "cat /proc/sys/kernel/random/boot_id"
 }
 
 nested_wait_for_reboot() {
@@ -138,18 +115,18 @@ nested_uc20_transition_to_system_mode() {
     local recovery_system="$1"
     local mode="$2"
 
-    if ! nested_is_core_20_system; then
-        echo "Transition can be done just on uc20 system, exiting..."
+    if ! nested_is_core_20_system && ! nested_is_core_22_system; then
+        echo "Transition can be done just on uc20 and uc22 systems, exiting..."
         exit 1
     fi
 
     local current_boot_id
     current_boot_id=$(nested_get_boot_id)
-    nested_exec "sudo snap reboot --$mode $recovery_system"
+    remote.exec "sudo snap reboot --$mode $recovery_system"
     nested_wait_for_reboot "$current_boot_id"
 
     # verify we are now in the requested mode
-    if ! nested_exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=$mode"; then
+    if ! remote.exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=$mode"; then
         return 1
     fi
 
@@ -158,17 +135,17 @@ nested_uc20_transition_to_system_mode() {
 }
 
 nested_prepare_ssh() {
-    nested_exec "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
-    nested_exec "echo test:ubuntu | sudo chpasswd"
-    nested_exec "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
+    remote.exec "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
+    remote.exec "echo test:ubuntu | sudo chpasswd"
+    remote.exec "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
     # Check we can connect with the new test user and make sudo
-    nested_exec_as test ubuntu "sudo true"
+    remote.exec --user test --pass ubuntu "sudo true"
 
-    nested_exec "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
-    nested_exec "echo external:ubuntu | sudo chpasswd"
-    nested_exec "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
+    remote.exec "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
+    remote.exec "echo external:ubuntu | sudo chpasswd"
+    remote.exec "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
     # Check we can connect with the new external user and make sudo
-    nested_exec_as external ubuntu "sudo true"
+    remote.exec --user external --pass ubuntu "sudo true"
 }
 
 
@@ -245,7 +222,9 @@ nested_create_assertions_disk() {
     # use custom assertion if set
     local AUTO_IMPORT_ASSERT
     if [ -n "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" ]; then
-        AUTO_IMPORT_ASSERT=$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION
+        VERSION="$(nested_get_version)"
+        # shellcheck disable=SC2001
+        AUTO_IMPORT_ASSERT="$(echo "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" | sed "s/{VERSION}/$VERSION/g")"
     else
         local per_model_auto
         per_model_auto="$(nested_model_authority).auto-import.assert"
@@ -275,73 +254,6 @@ nested_qemu_name() {
         exit 1
         ;;
     esac
-}
-
-# shellcheck disable=SC2120
-nested_get_google_image_url_for_vm() {
-    case "${1:-$SPREAD_SYSTEM}" in
-        ubuntu-16.04-64)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
-            ;;
-        ubuntu-18.04-64)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/bionic-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-20.04-64)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-21.04-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-21.10-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/impish-server-cloudimg-amd64.img"
-            ;;
-        *)
-            echo "unsupported system"
-            exit 1
-            ;;
-    esac
-}
-
-# shellcheck disable=SC2120
-nested_get_ubuntu_image_url_for_vm() {
-    case "${1:-$SPREAD_SYSTEM}" in
-        ubuntu-16.04-64*)
-            echo "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
-            ;;
-        ubuntu-18.04-64*)
-            echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-20.04-64*)
-            echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-21.04-64*)
-            echo "https://cloud-images.ubuntu.com/hirsute/current/hirsute-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-21.10-64*)
-            echo "https://cloud-images.ubuntu.com/impish/current/impish-server-cloudimg-amd64.img"
-            ;;
-        *)
-            echo "unsupported system"
-            exit 1
-            ;;
-        esac
-}
-
-# shellcheck disable=SC2120
-nested_get_image_url_for_vm() {
-    if [[ "$SPREAD_BACKEND" == google* ]]; then
-        nested_get_google_image_url_for_vm "$@"
-    else
-        nested_get_ubuntu_image_url_for_vm "$@"
-    fi
-}
-
-nested_get_cdimage_current_image_url() {
-    local VERSION=$1
-    local CHANNEL=$2
-    local ARCH=$3
-
-    echo "http://cdimage.ubuntu.com/ubuntu-core/$VERSION/$CHANNEL/current/ubuntu-core-$VERSION-$ARCH.img.xz"
 }
 
 nested_get_snap_rev_for_channel() {
@@ -384,6 +296,10 @@ nested_is_classic_system() {
     test "$NESTED_TYPE" = "classic"
 }
 
+nested_is_core_22_system() {
+    os.query is-jammy
+}
+
 nested_is_core_20_system() {
     os.query is-focal
 }
@@ -405,22 +321,22 @@ nested_refresh_to_new_core() {
     else
         echo "Refreshing the core/snapd snap"
         if nested_is_classic_nested_system; then
-            nested_exec "sudo snap refresh core --${NEW_CHANNEL}"
-            nested_exec "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
+            remote.exec "sudo snap refresh core --${NEW_CHANNEL}"
+            remote.exec "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
 
-        if nested_is_core_18_system || nested_is_core_20_system; then
-            nested_exec "sudo snap refresh snapd --${NEW_CHANNEL}"
-            nested_exec "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
+        if nested_is_core_18_system || nested_is_core_20_system || nested_is_core_22_system; then
+            remote.exec "sudo snap refresh snapd --${NEW_CHANNEL}"
+            remote.exec "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
-            CHANGE_ID=$(nested_exec "sudo snap refresh core --${NEW_CHANNEL} --no-wait")
+            CHANGE_ID=$(remote.exec "sudo snap refresh core --${NEW_CHANNEL} --no-wait")
             nested_wait_for_no_ssh
             nested_wait_for_ssh
             # wait for the refresh to be done before checking, if we check too
             # quickly then operations on the core snap like reverting, etc. may
             # fail because it will have refresh-snap change in progress
-            nested_exec "snap watch $CHANGE_ID"
-            nested_exec "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
+            remote.exec "snap watch $CHANGE_ID"
+            remote.exec "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
     fi
 }
@@ -436,7 +352,9 @@ nested_secboot_sign_file() {
     local FILE="$1"
     local KEY="$2"
     local CERT="$3"
-    sbattach --remove "$FILE"
+    while sbverify --list "$FILE" | grep "^signature [0-9]*$"; do
+        sbattach --remove "$FILE"
+    done
     sbsign --key "$KEY" --cert "$CERT" --output "$FILE" "$FILE"
 }
 
@@ -467,12 +385,16 @@ nested_get_image_name() {
     local TYPE="$1"
     local SOURCE="${NESTED_CORE_CHANNEL}"
     local NAME="${NESTED_IMAGE_ID:-generic}"
-    local VERSION="16"
+    local VERSION
 
-    if nested_is_core_20_system; then
-        VERSION="20"
-    elif nested_is_core_18_system; then
-        VERSION="18"
+    VERSION="$(nested_get_version)"
+    # Use task name to build the image in case the NESTED_IMAGE_ID is unset
+    # This scenario is valid on manual tests when it is required to set the NESTED_IMAGE_ID
+    if [ "$NAME" = "unset" ]; then
+        NAME="$(basename "$SPREAD_TASK")"
+        if [ -n "$SPREAD_VARIANT" ]; then
+            NAME="${NAME}_${SPREAD_VARIANT}"
+        fi
     fi
 
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
@@ -516,7 +438,7 @@ nested_download_image() {
     local IMAGE_URL=$1
     local IMAGE_NAME=$2
 
-    curl -L -o "${NESTED_IMAGES_DIR}/${IMAGE_NAME}" "$IMAGE_URL"
+    curl -C - -L -o "${NESTED_IMAGES_DIR}/${IMAGE_NAME}" "$IMAGE_URL"
 
     if [[ "$IMAGE_URL" == *.img.xz ]]; then
         mv "${NESTED_IMAGES_DIR}/${IMAGE_NAME}" "${NESTED_IMAGES_DIR}/${IMAGE_NAME}.xz"
@@ -529,10 +451,24 @@ nested_download_image() {
     fi
 }
 
+nested_get_version() {
+    if nested_is_core_16_system; then
+        echo "16"
+    elif nested_is_core_18_system; then
+        echo "18"
+    elif nested_is_core_20_system; then
+        echo "20"
+    elif nested_is_core_22_system; then
+        echo "22"
+    fi
+}
+
 nested_get_model() {
     # use custom model if defined
     if [ -n "$NESTED_CUSTOM_MODEL" ]; then
-        echo "$NESTED_CUSTOM_MODEL"
+        VERSION="$(nested_get_version)"
+        # shellcheck disable=SC2001
+        echo "$NESTED_CUSTOM_MODEL" | sed "s/{VERSION}/$VERSION/g"
         return
     fi
     case "$SPREAD_SYSTEM" in
@@ -544,6 +480,9 @@ nested_get_model() {
             ;;
         ubuntu-20.04-64)
             echo "$TESTSLIB/assertions/nested-20-amd64.model"
+            ;;
+        ubuntu-22.04-64)
+            echo "$TESTSLIB/assertions/nested-22-amd64.model"
             ;;
         *)
             echo "unsupported system"
@@ -569,6 +508,201 @@ nested_ensure_ubuntu_save() {
     fi
 }
 
+nested_prepare_snapd() {
+    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+        echo "Repacking snapd snap"
+        local snap_name output_name snap_id
+        if nested_is_core_16_system; then
+            snap_name="core"
+            output_name="core-from-snapd-deb.snap"
+            snap_id="99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
+        else
+            snap_name="snapd"
+            output_name="snapd-from-deb.snap"
+            snap_id="PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+        fi
+
+        if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
+            "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap "$snap_name" "$NESTED_ASSETS_DIR"
+        fi
+        cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
+
+        # sign the snapd snap with fakestore if requested
+        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
+        fi
+    fi
+}
+
+nested_prepare_kernel() {
+    # allow repacking the kernel
+    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
+        echo "Repacking kernel snap"
+        local kernel_snap output_name snap_id version
+        output_name="pc-kernel.snap"
+        snap_id="pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+        version="$(nested_get_version)"
+
+        if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
+            if nested_is_core_16_system || nested_is_core_18_system; then
+                kernel_snap=pc-kernel-new.snap
+                repack_kernel_snap "$kernel_snap"
+
+            elif nested_is_core_20_system || nested_is_core_22_system; then
+                snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+
+                # set the unix bump time if the NESTED_* var is set,
+                # otherwise leave it empty
+                local epochBumpTime
+                epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
+                if [ -n "$epochBumpTime" ]; then
+                    epochBumpTime="--epoch-bump-time=$epochBumpTime"
+                fi
+
+                uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
+                rm -f "$PWD/pc-kernel.snap"
+
+                # Prepare the pc kernel snap
+                kernel_snap=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
+                chmod 0600 "$kernel_snap"
+            fi
+            cp "$kernel_snap" "$NESTED_ASSETS_DIR/$output_name"
+        fi
+        cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
+
+        # sign the pc-kernel snap with fakestore if requested
+        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
+        fi
+    fi
+}
+
+nested_prepare_gadget() {
+    if [ "$NESTED_REPACK_GADGET_SNAP" = "true" ]; then
+        if nested_is_core_20_system || nested_is_core_22_system; then
+            # Prepare the pc gadget snap (unless provided by extra-snaps)
+            local snap_id version gadget_snap
+            version="$(nested_get_version)"
+            snap_id="UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+
+            existing_snap=$(find "$(nested_get_extra_snaps_path)" -name 'pc_*.snap')
+            if [ -n "$existing_snap" ]; then
+                echo "Using generated pc gadget snap $existing_snap"
+                if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                    make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
+                fi
+                return
+            fi
+
+            # XXX: deal with [ "$NESTED_ENABLE_SECURE_BOOT" != "true" ] && [ "$NESTED_ENABLE_TPM" != "true" ]
+            echo "Repacking pc snap"
+            # Get the snakeoil key and cert
+            local key_name snakeoil_key snakeoil_cert
+            key_name=$(nested_get_snakeoil_key)
+            snakeoil_key="$PWD/$key_name.key"
+            snakeoil_cert="$PWD/$key_name.pem"
+
+            snap download --basename=pc --channel="$version/edge" pc
+            unsquashfs -d pc-gadget pc.snap
+            nested_secboot_sign_gadget pc-gadget "$snakeoil_key" "$snakeoil_cert"
+            case "${NESTED_UBUNTU_SAVE:-}" in
+                add)
+                    # ensure that ubuntu-save is present
+                    nested_ensure_ubuntu_save pc-gadget --add
+                    touch ubuntu-save-added
+                    ;;
+                remove)
+                    # ensure that ubuntu-save is removed
+                    nested_ensure_ubuntu_save pc-gadget --remove
+                    touch ubuntu-save-removed
+                    ;;
+            esac
+
+            # also make logging persistent for easier debugging of
+            # test failures, otherwise we have no way to see what
+            # happened during a failed nested VM boot where we
+            # weren't able to login to a device
+            cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
+            local GADGET_EXTRA_CMDLINE=""
+            if [ "$NESTED_SNAPD_DEBUG_TO_SERIAL" = "true" ]; then
+                # add snapd debug and log to serial console for extra
+                # visibility what happens when a machine fails to boot
+                GADGET_EXTRA_CMDLINE="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
+            fi
+            if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
+                GADGET_EXTRA_CMDLINE="$GADGET_EXTRA_CMDLINE $NESTED_EXTRA_CMDLINE"
+            fi
+
+            if [ -n "$GADGET_EXTRA_CMDLINE" ]; then
+                echo "Configuring command line parameters in the gadget snap: \"console=ttyS0 $GADGET_EXTRA_CMDLINE\""
+                echo "$GADGET_EXTRA_CMDLINE" > pc-gadget/cmdline.extra
+            fi
+
+            # pack it
+            snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
+
+            gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
+            cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
+            rm -f "$PWD/pc.snap" "$snakeoil_key" "$snakeoil_cert"
+        fi
+        # sign the pc gadget snap with fakestore if requested
+        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+            # XXX: this is a bit of a hack, but some nested tests 
+            # need extra bits in their snap declaration, so inject
+            # that here, it could end up being empty in which case
+            # it is ignored
+            make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
+        fi
+    fi
+}
+
+nested_prepare_base() {
+    if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
+        if nested_is_core_16_system; then
+            echo "No base snap to prepare in core 16"
+            return
+        elif nested_is_core_18_system; then
+            snap_name="core18"
+            snap_id="CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
+        elif nested_is_core_20_system; then
+            snap_name="core20"
+            snap_id="DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
+        elif nested_is_core_22_system; then
+            snap_name="core22"
+            snap_id="amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
+        fi
+        output_name="${snap_name}.snap"
+
+        existing_snap=$(find "$(nested_get_extra_snaps_path)" -name "${snap_name}*.snap")
+        if [ -n "$existing_snap" ]; then
+            echo "Using generated base snap $existing_snap"
+            if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
+            fi
+            return
+        fi
+        
+        if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
+            echo "Repacking $snap_name snap"
+            snap download --channel="$CORE_CHANNEL" --basename="$snap_name" "$snap_name"
+            repack_core_snap_with_tweaks "${snap_name}.snap" "new-${snap_name}.snap"
+
+            cp "new-${snap_name}.snap" "$NESTED_ASSETS_DIR/$output_name"
+        fi
+        cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
+
+        # sign the base snap with fakestore if requested
+        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/${snap_name}.snap" "$snap_id"
+        fi
+    fi 
+}
+
 nested_create_core_vm() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
@@ -577,11 +711,13 @@ nested_create_core_vm() {
 
     local IMAGE_NAME
     IMAGE_NAME="$(nested_get_image_name core)"
-
     mkdir -p "$NESTED_IMAGES_DIR"
 
     if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" ]; then
         cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+        if [ ! "$NESTED_USE_CLOUD_INIT" = "true" ]; then
+            nested_create_assertions_disk
+        fi
         return
 
     elif [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
@@ -590,141 +726,28 @@ nested_create_core_vm() {
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
         else
             # create the ubuntu-core image
-            local UBUNTU_IMAGE=/snap/bin/ubuntu-image
-            local EXTRA_FUNDAMENTAL=""
-            local EXTRA_SNAPS=""
-            for mysnap in $(nested_get_extra_snaps); do
-                EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
-            done
+            local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+            if os.query is-xenial; then
+                # ubuntu-image on 16.04 needs to be installed from a snap
+                UBUNTU_IMAGE=/snap/bin/ubuntu-image
+            fi
 
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
-                if nested_is_core_16_system; then
-                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core "$NESTED_ASSETS_DIR"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/core-from-snapd-deb.snap"
-
-                elif nested_is_core_18_system; then
-                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
-
-                    snap download --channel="$CORE_CHANNEL" --basename=core18 core18
-                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
-
-                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
-
-                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core18.snap" "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
-                    fi
-
-                elif nested_is_core_20_system; then
-                    snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-
-                    # set the unix bump time if the NESTED_* var is set, 
-                    # otherwise leave it empty
-                    local epochBumpTime
-                    epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
-                    if [ -n "$epochBumpTime" ]; then
-                        epochBumpTime="--epoch-bump-time=$epochBumpTime"
-                    fi
-                    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                    rm -f "$PWD/pc-kernel.snap"
-
-                    # Prepare the pc kernel snap
-                    KERNEL_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
-
-                    chmod 0600 "$KERNEL_SNAP"
-                    EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
-
-                    # sign the pc-kernel snap with fakestore if requested
-                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
-                    fi
-
-                    # Prepare the pc gadget snap (unless provided by extra-snaps)
-                    local GADGET_SNAP
-                    GADGET_SNAP=""
-                    if [ -d "$(nested_get_extra_snaps_path)" ]; then
-                        GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
-                    fi
-                    # XXX: deal with [ "$NESTED_ENABLE_SECURE_BOOT" != "true" ] && [ "$NESTED_ENABLE_TPM" != "true" ]
-                    if [ -z "$GADGET_SNAP" ]; then
-                        # Get the snakeoil key and cert
-                        local KEY_NAME SNAKEOIL_KEY SNAKEOIL_CERT
-                        KEY_NAME=$(nested_get_snakeoil_key)
-                        SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-                        SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-
-                        snap download --basename=pc --channel="20/edge" pc
-                        unsquashfs -d pc-gadget pc.snap
-                        nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                        case "${NESTED_UBUNTU_SAVE:-}" in
-                            add)
-                                # ensure that ubuntu-save is present
-                                nested_ensure_ubuntu_save pc-gadget --add
-                                touch ubuntu-save-added
-                                ;;
-                            remove)
-                                # ensure that ubuntu-save is removed
-                                nested_ensure_ubuntu_save pc-gadget --remove
-                                touch ubuntu-save-removed
-                                ;;
-                        esac
-
-                        # also make logging persistent for easier debugging of
-                        # test failures, otherwise we have no way to see what
-                        # happened during a failed nested VM boot where we
-                        # weren't able to login to a device
-                        cat >> pc-gadget/meta/gadget.yaml << EOF
-defaults:
-  system:
-    journal:
-      persistent: true
-EOF
-                        snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
-
-                        GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
-                        rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
-                    fi
-                    # sign the pc gadget snap with fakestore if requested
-                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        # XXX: this is a bit of a hack, but some nested tests 
-                        # need extra bits in their snap declaration, so inject
-                        # that here, it could end up being empty in which case
-                        # it is ignored
-                        make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$GADGET_SNAP" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
-                    fi
-
-                    # repack the snapd snap
-                    snap download --channel="latest/edge" snapd
-                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
-
-                    # sign the snapd snap with fakestore if requested
-                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/snapd-from-deb.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
-                    fi
-
-                    # which channel?
-                    snap download --channel="$CORE_CHANNEL" --basename=core20 core20
-                    repack_core_snap_with_tweaks "core20.snap" "new-core20.snap"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
-
-                    # sign the snapd snap with fakestore if requested
-                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core20.snap" "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
-                    fi
-
-                else
-                    echo "unknown nested core system (host is $(lsb_release -cs) )"
-                    exit 1
-                fi
+                nested_prepare_snapd
+                nested_prepare_kernel
+                nested_prepare_gadget
+                nested_prepare_base
             fi
 
             # Invoke ubuntu image
             local NESTED_MODEL
             NESTED_MODEL="$(nested_get_model)"
             
+            local EXTRA_SNAPS=""
+            for mysnap in $(nested_get_extra_snaps); do
+                EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
+            done
+
             # only set SNAPPY_FORCE_SAS_URL because we don't need it defined 
             # anywhere else but here, where snap prepare-image as called by 
             # ubuntu-image will look for assertions for the snaps we provide
@@ -738,12 +761,32 @@ EOF
             else 
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
+
+            declare -a UBUNTU_IMAGE_PRESEED_ARGS
+            if [ -n "$NESTED_UBUNTU_IMAGE_PRESEED_KEY" ]; then
+                # shellcheck disable=SC2191
+                UBUNTU_IMAGE_PRESEED_ARGS+=(--preseed  --preseed-sign-key=\""$NESTED_UBUNTU_IMAGE_PRESEED_KEY"\")
+            fi
             # ubuntu-image creates sparse image files
-            "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
-                "$UBUNTU_IMAGE_CHANNEL_ARG" \
-                --output "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
-                "$EXTRA_FUNDAMENTAL" \
-                "$EXTRA_SNAPS"
+            # shellcheck disable=SC2086
+            "$UBUNTU_IMAGE" snap --image-size 10G --validation=enforce \
+               "$NESTED_MODEL" \
+                $UBUNTU_IMAGE_CHANNEL_ARG \
+                "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
+                --output-dir "$NESTED_IMAGES_DIR" \
+                --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" \
+                $EXTRA_SNAPS
+
+            # ubuntu-image dropped the --output parameter, so we have to rename
+            # the image ourselves, the images are named after volumes listed in
+            # gadget.yaml
+            find "$NESTED_IMAGES_DIR/" -maxdepth 1 -name '*.img' | while read -r imgname; do
+                if [ -e "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+                    echo "Image $IMAGE_NAME file already present"
+                    exit 1
+                fi
+                mv "$imgname" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+            done
             unset SNAPPY_FORCE_SAS_URL
             unset UBUNTU_IMAGE_SNAP_CMD
         fi
@@ -751,7 +794,7 @@ EOF
 
     # Configure the user for the vm
     if [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
-        if nested_is_core_20_system; then
+        if nested_is_core_20_system || nested_is_core_22_system; then
             nested_configure_cloud_init_on_core20_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
         else
             nested_configure_cloud_init_on_core_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
@@ -850,34 +893,43 @@ users:
 EOF
 }
 
-nested_add_file_to_vm() {
+nested_add_file_to_image() {
     local IMAGE=$1
     local FILE=$2
-    local devloop dev ubuntuSeedDev tmp
-    # mount the image and find the loop device /dev/loop that is created for it
-    kpartx -avs "$IMAGE"
-    devloop=$(losetup --list --noheadings | grep "$IMAGE" | awk '{print $1}')
-    dev=$(basename "$devloop")
-    
+    local devloop ubuntuSeedDev tmp
+    # Bind the image the a free loop device
+    devloop="$(retry -n 3 --wait 1 losetup -f --show -P --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" "${IMAGE}")"
+
     # we add cloud-init data to the 2nd partition, which is ubuntu-seed
-    ubuntuSeedDev="/dev/mapper/${dev}p2"
-    
-    # wait for the loop device to show up
-    retry -n 3 --wait 1 test -e "$ubuntuSeedDev"
+    ubuntuSeedDev="${devloop}p2"
+
+    # Wait for the partition to show up
+    retry -n 2 --wait 1 test -b "${ubuntuSeedDev}" || true
+
+    # losetup does not set the right block size on LOOP_CONFIGURE
+    # but with LOOP_SET_BLOCK_SIZE later. So the block size might have
+    # been wrong during the part scan. In this case we need to rescan
+    # manually.
+    if ! [ -b "${ubuntuSeedDev}" ]; then
+        partx -u "${devloop}"
+        # Wait for the partition to show up
+        retry -n 2 --wait 1 test -b "${ubuntuSeedDev}"
+    fi
+
     tmp=$(mktemp -d)
     mount "$ubuntuSeedDev" "$tmp"
     mkdir -p "$tmp/data/etc/cloud/cloud.cfg.d/"
     cp -f "$FILE" "$tmp/data/etc/cloud/cloud.cfg.d/"
     sync
     umount "$tmp"
-    kpartx -d "$IMAGE"
+    losetup -d "${devloop}"
 }
 
 nested_configure_cloud_init_on_core20_vm() {
     local IMAGE=$1
     nested_create_cloud_init_uc20_config "$NESTED_ASSETS_DIR/data.cfg"
 
-    nested_add_file_to_vm "$IMAGE" "$NESTED_ASSETS_DIR/data.cfg"
+    nested_add_file_to_image "$IMAGE" "$NESTED_ASSETS_DIR/data.cfg"
 }
 
 nested_save_serial_log() {
@@ -909,16 +961,16 @@ nested_print_serial_log() {
 }
 
 nested_force_stop_vm() {
-    systemctl stop nested-vm
+    systemctl stop "$NESTED_VM"
 }
 
 nested_force_start_vm() {
-    # if the nested-vm is using a swtpm, we need to wait until the file exists
+    # if the $NESTED_VM is using a swtpm, we need to wait until the file exists
     # because the file disappears temporarily after qemu exits
-    if systemctl show nested-vm -p ExecStart | grep -q swtpm-mvo; then
-        retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
+    if systemctl show "$NESTED_VM" -p ExecStart | grep -q test-snapd-swtpm; then
+        retry -n 10 --wait 1 test -S /var/snap/test-snapd-swtpm/current/swtpm-sock
     fi
-    systemctl start nested-vm
+    systemctl start "$NESTED_VM"
 }
 
 nested_start_core_vm_unit() {
@@ -934,6 +986,9 @@ nested_start_core_vm_unit() {
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
         PARAM_SMP="-smp 2"
+    elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
+        PARAM_MEM="${NESTED_PARAM_MEM:--m 8192}"
+        PARAM_SMP="-smp 4"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
         PARAM_SMP="-smp 1"
@@ -942,10 +997,13 @@ nested_start_core_vm_unit() {
         exit 1
     fi
 
+    PARAM_PHYS_BLOCK_SIZE="physical_block_size=${NESTED_DISK_PHYSICAL_BLOCK_SIZE}"
+    PARAM_LOGI_BLOCK_SIZE="logical_block_size=${NESTED_DISK_LOGICAL_BLOCK_SIZE}"
+
     local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CD PARAM_RANDOM PARAM_CPU PARAM_TRACE PARAM_LOG PARAM_SERIAL PARAM_RTC
     PARAM_DISPLAY="-nographic"
-    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
-    PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server,nowait"
+    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22,hostfwd=tcp::8023-:8023,hostfwd=tcp::9022-:9022"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server=on,wait=off"
     PARAM_USB="-usb"
     PARAM_CD="${NESTED_PARAM_CD:-}"
     PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
@@ -953,18 +1011,19 @@ nested_start_core_vm_unit() {
     PARAM_TRACE="-d cpu_reset"
     PARAM_LOG="-D $NESTED_LOGS_DIR/qemu.log"
     PARAM_RTC="${NESTED_PARAM_RTC:-}"
+    PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
 
     # Open port 7777 on the host so that failures in the nested VM (e.g. to
     # create users) can be debugged interactively via
     # "telnet localhost 7777". Also keeps the logs
     #
     # XXX: should serial just be logged to stdout so that we just need
-    #      to "journalctl -u nested-vm" to see what is going on ?
+    #      to "journalctl -u $NESTED_VM" to see what is going on ?
     if "$QEMU" -version | grep '2\.5'; then
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     else
-        PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
+        PARAM_SERIAL="-chardev socket,telnet=on,host=localhost,server=on,port=7777,wait=off,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
     fi
 
     # save logs from previous runs
@@ -980,7 +1039,7 @@ nested_start_core_vm_unit() {
     fi
 
     local PARAM_MACHINE
-    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+    if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
         PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         # check if we have nested kvm
@@ -1001,6 +1060,7 @@ nested_start_core_vm_unit() {
     PARAM_ASSERTIONS=""
     PARAM_BIOS=""
     PARAM_TPM=""
+    PARAM_REEXEC_ON_FAILURE=""
     if [ "$NESTED_USE_CLOUD_INIT" != "true" ]; then
         # TODO: fix using the old way of an ext4 formatted drive w/o partitions
         #       as this used to work but has since regressed
@@ -1012,12 +1072,19 @@ nested_start_core_vm_unit() {
         # storage to
         PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$NESTED_ASSETS_DIR/assertions.disk,cache=none,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
     fi
-    if nested_is_core_20_system; then
+    if nested_is_core_20_system || nested_is_core_22_system; then
         # use a bundle EFI bios by default
         PARAM_BIOS="-bios /usr/share/ovmf/OVMF.fd"
         local OVMF_CODE OVMF_VARS
         OVMF_CODE="secboot"
         OVMF_VARS="ms"
+
+        if nested_is_core_22_system; then
+            wget https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_CODE.secboot.fd
+            mv OVMF_CODE.secboot.fd /usr/share/OVMF/OVMF_CODE.secboot.fd
+            wget https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.snakeoil.fd
+            mv OVMF_VARS.snakeoil.fd /usr/share/OVMF/OVMF_VARS.snakeoil.fd
+        fi
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
         if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
             OVMF_VARS="snakeoil"
@@ -1026,28 +1093,39 @@ nested_start_core_vm_unit() {
         if [ "${NESTED_ENABLE_OVMF:-}" = "true" ]; then
             PARAM_BIOS="-bios /usr/share/OVMF/OVMF_CODE.fd"
         fi
-        
         if nested_is_secure_boot_enabled; then
             cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd"
-            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
+            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
             PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
         fi
 
         if nested_is_tpm_enabled; then
-            if snap list swtpm-mvo >/dev/null; then
-                # reset the tpm state
-                rm /var/snap/swtpm-mvo/current/tpm2-00.permall
-                snap restart swtpm-mvo > /dev/null
+            if snap list test-snapd-swtpm >/dev/null; then
+                if [ -z "$NESTED_TPM_NO_RESTART" ]; then
+                    # reset the tpm state
+                    snap stop test-snapd-swtpm > /dev/null
+                    rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall
+                    snap start test-snapd-swtpm > /dev/null
+                fi
             else
-                snap install swtpm-mvo --beta
+                snap install test-snapd-swtpm --edge
             fi
             # wait for the tpm sock file to exist
-            retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
-            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+            retry -n 10 --wait 1 test -S /var/snap/test-snapd-swtpm/current/swtpm-sock
+            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/test-snapd-swtpm/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
         fi
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
     else
-        PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw"
+        PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device ide-hd,drive=disk1"
+    fi
+    PARAM_IMAGE="$PARAM_IMAGE,${PARAM_PHYS_BLOCK_SIZE},${PARAM_LOGI_BLOCK_SIZE}"
+
+    if nested_is_core_20_system; then
+        # This is to deal with the following qemu error which occurs using q35 machines in focal
+        # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
+        # It is reproducible on an Intel machine without unrestricted mode support, the failure is most likely due to the guest entering an invalid state for Intel VT
+        # The workaround is to restart the vm and check that qemu doesn't go into this bad state again
+        PARAM_REEXEC_ON_FAILURE="[Service]\nRestart=on-failure\nRestartSec=5s"
     fi
 
     # ensure we have a log dir
@@ -1073,13 +1151,11 @@ nested_start_core_vm_unit() {
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \
         ${PARAM_USB} \
-        ${PARAM_CD} "
+        ${PARAM_CD}  \
+        ${PARAM_EXTRA} " "${PARAM_REEXEC_ON_FAILURE}"
 
-    # wait for the nested-vm service to appear active
+    # wait for the $NESTED_VM service to appear active
     wait_for_service "$NESTED_VM"
-
-    # make sure the service started and it is running
-    nested_retry_start_with_boot_errors
 
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
@@ -1094,7 +1170,7 @@ nested_start_core_vm_unit() {
         # where the snap command appears, then immediately disappears and then 
         # re-appears immediately after and so the next command fails
         attempts=0
-        until nested_exec "sudo snap wait system seed.loaded"; do
+        until remote.exec "sudo snap wait system seed.loaded"; do
             attempts=$(( attempts + 1))
             if [ "$attempts" = 3 ]; then
                 echo "failed to wait for snap wait command to return successfully"
@@ -1106,7 +1182,7 @@ nested_start_core_vm_unit() {
         nested_prepare_tools
         # Wait for cloud init to be done if the system is using cloud-init
         if [ "$NESTED_USE_CLOUD_INIT" = true ]; then
-            nested_exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
+            remote.exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
         fi
     fi
 }
@@ -1172,8 +1248,8 @@ nested_shutdown() {
     # written become empty all of a sudden, so doing a sync here in the VM, and
     # another one in the host when done probably helps to avoid that, and at
     # least can't hurt anything
-    nested_exec "sync"
-    nested_exec "sudo shutdown now" || true
+    remote.exec "sync"
+    remote.exec "sudo shutdown now" || true
     nested_wait_for_no_ssh
     nested_force_stop_vm
     wait_for_service "$NESTED_VM" inactive
@@ -1188,7 +1264,7 @@ nested_start() {
     nested_prepare_tools
 }
 
-nested_restart() {
+nested_force_restart_vm() {
     nested_force_stop_vm
     nested_force_start_vm
     wait_for_service "$NESTED_VM" active
@@ -1200,9 +1276,12 @@ nested_create_classic_vm() {
 
     mkdir -p "$NESTED_IMAGES_DIR"
     if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+        # shellcheck source=tests/lib/image.sh
+        . "$TESTSLIB"/image.sh
+
         # Get the cloud image
         local IMAGE_URL
-        IMAGE_URL="$(nested_get_image_url_for_vm)"
+        IMAGE_URL="$(get_image_url_for_vm)"
         wget -P "$NESTED_IMAGES_DIR" "$IMAGE_URL"
         nested_download_image "$IMAGE_URL" "$IMAGE_NAME"
 
@@ -1223,6 +1302,8 @@ nested_start_classic_vm() {
     if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] ; then
         cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$IMAGE_NAME"
     fi
+    # Give extra disk space for the image
+    qemu-img resize "$NESTED_IMAGES_DIR/$IMAGE_NAME" +2G
 
     # Now qemu parameters are defined
     local PARAM_SMP PARAM_MEM
@@ -1230,6 +1311,10 @@ nested_start_classic_vm() {
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
+        PARAM_SMP="-smp 2"
+    elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
+        PARAM_MEM="${NESTED_PARAM_MEM:--m 8192}"
+        PARAM_SMP="-smp 4"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
     else
@@ -1239,15 +1324,28 @@ nested_start_classic_vm() {
     local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CPU PARAM_CD PARAM_RANDOM PARAM_SNAPSHOT
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
-    PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server,nowait"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server=on,wait=off"
     PARAM_USB="-usb"
     PARAM_CPU=""
     PARAM_CD="${NESTED_PARAM_CD:-}"
     PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
-    PARAM_SNAPSHOT="-snapshot"
+    # TODO: can this be removed? we create a "pristine" copy above?
+    #PARAM_SNAPSHOT="-snapshot"
+    PARAM_SNAPSHOT=""
+    PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
+
+    # XXX: duplicated from nested core vm
+    # Set kvm attribute
+    local ATTR_KVM
+    ATTR_KVM=""
+    if nested_is_kvm_enabled; then
+        ATTR_KVM=",accel=kvm"
+        # CPU can be defined just when kvm is enabled
+        PARAM_CPU="-cpu host"
+    fi
 
     local PARAM_MACHINE PARAM_IMAGE PARAM_SEED PARAM_SERIAL PARAM_BIOS PARAM_TPM
-    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+    if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
         PARAM_MACHINE="-machine ubuntu,accel=kvm"
         PARAM_CPU="-cpu host"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
@@ -1272,12 +1370,12 @@ nested_start_classic_vm() {
     # "telnet localhost 7777". Also keeps the logs
     #
     # XXX: should serial just be logged to stdout so that we just need
-    #      to "journalctl -u nested-vm" to see what is going on ?
+    #      to "journalctl -u $NESTED_VM" to see what is going on ?
     if "$QEMU" -version | grep '2\.5'; then
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     else
-        PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
+        PARAM_SERIAL="-chardev socket,telnet=on,host=localhost,server=on,port=7777,wait=off,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
     fi
     PARAM_BIOS=""
     PARAM_TPM=""
@@ -1305,6 +1403,7 @@ nested_start_classic_vm() {
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \
         ${PARAM_USB} \
+        ${PARAM_EXTRA} \
         ${PARAM_CD} "
 
     nested_wait_for_ssh
@@ -1325,11 +1424,7 @@ nested_status_vm() {
     systemctl status "$NESTED_VM" || true
 }
 
-nested_exec() {
-    sshpass -p ubuntu ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$@"
-}
-
-nested_exec_as() {
+remote.exec_as() {
     local USER="$1"
     local PASSWD="$2"
     shift 2
@@ -1338,56 +1433,48 @@ nested_exec_as() {
 
 nested_prepare_tools() {
     TOOLS_PATH=/writable/test-tools
-    if ! nested_exec "test -d $TOOLS_PATH" &>/dev/null; then
-        nested_exec "sudo mkdir -p $TOOLS_PATH"
-        nested_exec "sudo chown user1:user1 $TOOLS_PATH"
+    if ! remote.exec "test -d $TOOLS_PATH" &>/dev/null; then
+        remote.exec "sudo mkdir -p $TOOLS_PATH"
+        remote.exec "sudo chown user1:user1 $TOOLS_PATH"
     fi
 
-    if ! nested_exec "test -e $TOOLS_PATH/retry" &>/dev/null; then
-        nested_copy "$TESTSTOOLS/retry"
-        nested_exec "mv retry $TOOLS_PATH/retry"
+    if ! remote.exec "test -e $TOOLS_PATH/retry" &>/dev/null; then
+        remote.push "$TESTSTOOLS/retry"
+        remote.exec "mv retry $TOOLS_PATH/retry"
     fi
 
-    if ! nested_exec "test -e $TOOLS_PATH/not" &>/dev/null; then
-        nested_copy "$TESTSTOOLS/not"
-        nested_exec "mv not $TOOLS_PATH/not"
+    if ! remote.exec "test -e $TOOLS_PATH/not" &>/dev/null; then
+        remote.push "$TESTSTOOLS/not"
+        remote.exec "mv not $TOOLS_PATH/not"
     fi
 
-    if ! nested_exec "test -e $TOOLS_PATH/MATCH" &>/dev/null; then
+    if ! remote.exec "test -e $TOOLS_PATH/MATCH" &>/dev/null; then
         . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > MATCH_FILE
         type MATCH | tail -n +2 >> MATCH_FILE
         echo 'MATCH "$@"' >> MATCH_FILE
         chmod +x MATCH_FILE
-        nested_copy "MATCH_FILE"
-        nested_exec "mv MATCH_FILE $TOOLS_PATH/MATCH"
+        remote.push "MATCH_FILE"
+        remote.exec "mv MATCH_FILE $TOOLS_PATH/MATCH"
         rm -f MATCH_FILE
     fi
 
-    if ! nested_exec "test -e $TOOLS_PATH/NOMATCH" &>/dev/null; then
+    if ! remote.exec "test -e $TOOLS_PATH/NOMATCH" &>/dev/null; then
         . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > NOMATCH_FILE
         type NOMATCH | tail -n +2 >> NOMATCH_FILE
         echo 'NOMATCH "$@"' >> NOMATCH_FILE
         chmod +x NOMATCH_FILE
-        nested_copy "NOMATCH_FILE"
-        nested_exec "mv NOMATCH_FILE $TOOLS_PATH/NOMATCH"
+        remote.push "NOMATCH_FILE"
+        remote.exec "mv NOMATCH_FILE $TOOLS_PATH/NOMATCH"
         rm -f NOMATCH_FILE
     fi
 
-    if ! nested_exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
+    if ! remote.exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
         # shellcheck disable=SC2016
-        REMOTE_PATH="$(nested_exec 'echo $PATH')"
-        nested_exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH | sudo tee -a /etc/environment"
+        REMOTE_PATH="$(remote.exec 'echo $PATH')"
+        remote.exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH | sudo tee -a /etc/environment"
     fi
-}
-
-nested_copy() {
-    sshpass -p ubuntu scp -P "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$@" user1@localhost:~
-}
-
-nested_copy_from_remote() {
-    sshpass -p ubuntu scp -P "$SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost:"$1" "$2"
 }
 
 nested_add_tty_chardev() {
@@ -1419,11 +1506,11 @@ nested_del_device() {
 
 nested_get_core_revision_for_channel() {
     local CHANNEL=$1
-    nested_exec "snap info core" | awk "/${CHANNEL}: / {print(\$4)}" | sed -e 's/(\(.*\))/\1/'
+    remote.exec "snap info core" | awk "/${CHANNEL}: / {print(\$4)}" | sed -e 's/(\(.*\))/\1/'
 }
 
 nested_get_core_revision_installed() {
-    nested_exec "snap info core" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
+    remote.exec "snap info core" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
 }
 
 nested_fetch_spread() {
@@ -1431,7 +1518,7 @@ nested_fetch_spread() {
         mkdir -p "$NESTED_WORK_DIR"
         curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
         # make sure spread really exists
-        test -x "$NESTED_WORK_DIR/spread"        
+        test -x "$NESTED_WORK_DIR/spread"
     fi
     echo "$NESTED_WORK_DIR/spread"
 }
@@ -1445,7 +1532,21 @@ nested_build_seed_cdrom() {
 
     local ORIG_DIR=$PWD
 
-    pushd "$SEED_DIR" || return 1 
+    pushd "$SEED_DIR" || return 1
     genisoimage -output "$ORIG_DIR/$SEED_NAME" -volid "$LABEL" -joliet -rock "$@"
-    popd || return 1 
+    popd || return 1
+}
+
+nested_wait_for_device_initialized_change() {
+    local retry=60
+    local wait=1
+
+    while ! remote.exec "snap changes" | MATCH "Done.*Initialize device"; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for device to be fully initialized. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
 }

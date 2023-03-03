@@ -40,7 +40,10 @@ const desktopLaunchConnectedPlugAppArmor = `
 
 # Access to the desktop and icon files installed by snaps
 /var/lib/snapd/desktop/applications/{,*} r,
-/var/lib/snapd/desktop/icons/{,*} r,
+/var/lib/snapd/desktop/icons/{,**} r,
+
+# Allow access to all snap metadata
+/snap/*/*/** r,
 
 #include <abstractions/dbus-session-strict>
 

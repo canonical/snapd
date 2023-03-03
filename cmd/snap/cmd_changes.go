@@ -200,7 +200,7 @@ const line = "..................................................................
 
 func warnMaintenance(cli *client.Client) error {
 	if maintErr := cli.Maintenance(); maintErr != nil {
-		msg, err := errorToCmdMessage("", maintErr, nil)
+		msg, err := errorToCmdMessage("", "", maintErr, nil)
 		if err != nil {
 			return err
 		}

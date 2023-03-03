@@ -52,7 +52,7 @@ func (s *networkSuite) SetUpTest(c *C) {
 
 func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
 	// disable ipv6
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"network.disable-ipv6": true,
@@ -67,7 +67,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
 	s.mockSysctl.ForgetCalls()
 
 	// enable it again
-	err = configcore.Run(coreDev, &mockConf{
+	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"network.disable-ipv6": false,
@@ -82,7 +82,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
 	s.mockSysctl.ForgetCalls()
 
 	// enable it yet again, this does not trigger another syscall
-	err = configcore.Run(coreDev, &mockConf{
+	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"network.disable-ipv6": false,
@@ -93,7 +93,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
 }
 
 func (s *networkSuite) TestConfigureNetworkIntegrationNoSetting(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{},
 	})

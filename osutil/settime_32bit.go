@@ -1,5 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
+//go:build (386 || arm) && linux
 // +build 386 arm
 // +build linux
 

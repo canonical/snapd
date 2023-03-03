@@ -1,8 +1,9 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
 // +build !nomanagers
 
 /*
- * Copyright (C) 2017-2018 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,7 +26,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
@@ -40,7 +40,7 @@ func init() {
 	supportedConfigurations["core.refresh.rate-limit"] = true
 }
 
-func reportOrIgnoreInvalidManageRefreshes(tr config.Conf, optName string) error {
+func reportOrIgnoreInvalidManageRefreshes(tr RunTransaction, optName string) error {
 	// check if the option is set as part of transaction changes; if not than
 	// it's already set in the config state and we shouldn't error out about it
 	// now. refreshScheduleManaged will do the right thing when refresh cannot
@@ -53,7 +53,7 @@ func reportOrIgnoreInvalidManageRefreshes(tr config.Conf, optName string) error 
 	return nil
 }
 
-func validateRefreshSchedule(tr config.Conf) error {
+func validateRefreshSchedule(tr RunTransaction) error {
 	refreshRetainStr, err := coreCfg(tr, "refresh.retain")
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func validateRefreshSchedule(tr config.Conf) error {
 	if err != nil {
 		return err
 	}
-	if refreshHoldStr != "" {
+	if refreshHoldStr != "" && refreshHoldStr != "forever" {
 		if _, err := time.Parse(time.RFC3339, refreshHoldStr); err != nil {
 			return fmt.Errorf("refresh.hold cannot be parsed: %v", err)
 		}
@@ -132,7 +132,7 @@ func validateRefreshSchedule(tr config.Conf) error {
 	return err
 }
 
-func validateRefreshRateLimit(tr config.Conf) error {
+func validateRefreshRateLimit(tr RunTransaction) error {
 	refreshRateLimit, err := coreCfg(tr, "refresh.rate-limit")
 	if err != nil {
 		return err

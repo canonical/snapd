@@ -16,7 +16,7 @@ systems: [-ubuntu-core-*]
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-appstream-metadata
 
-    # Set up some dummy Appstream metadata on the host system
+    # Set up some fake Appstream metadata on the host system
     mkdir -p /usr/share/metainfo
     echo "Appstream metainfo 1" > /usr/share/metainfo/test1.metainfo.xml
     mkdir -p /usr/share/appdata

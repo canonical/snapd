@@ -48,7 +48,7 @@ type isConnectedCommand struct {
 	AppArmorLabel string `long:"apparmor-label" description:"AppArmor label for a plausibly connected process"`
 }
 
-var shortIsConnectedHelp = i18n.G(`Return success if the given plug or slot is connected, and failure otherwise`)
+var shortIsConnectedHelp = i18n.G(`Return success if the given plug or slot is connected`)
 var longIsConnectedHelp = i18n.G(`
 The is-connected command returns success if the given plug or slot of the
 calling snap is connected, and failure otherwise.
@@ -152,7 +152,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 	// hooks). plug and slot names are unique within a snap, so there is no
 	// ambiguity when matching.
 	for refStr, connState := range conns {
-		if connState.Undesired || connState.HotplugGone {
+		if !connState.Active() {
 			continue
 		}
 		connRef, err := interfaces.ParseConnRef(refStr)

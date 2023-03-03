@@ -20,6 +20,7 @@
 package osutil_test
 
 import (
+	"io/ioutil"
 	"os"
 
 	. "gopkg.in/check.v1"
@@ -37,10 +38,18 @@ func (s *cpSuite) TestCpMulti(c *C) {
 }
 
 func (s *cpSuite) TestDoCpErr(c *C) {
-	f1, err := os.Open(s.f1)
+	c.Assert(ioutil.WriteFile(s.f2, nil, 0444), IsNil)
+
+	src, err := os.Open(s.f1)
 	c.Assert(err, IsNil)
-	st, err := f1.Stat()
+	defer src.Close()
+
+	roFd, err := os.Open(s.f2)
 	c.Assert(err, IsNil)
+	defer roFd.Close()
+
 	// force an error by asking it to write to a readonly stream
-	c.Check(osutil.DoCopyFile(f1, os.Stdin, st), NotNil)
+	st, err := src.Stat()
+	c.Assert(err, IsNil)
+	c.Check(osutil.DoCopyFile(src, roFd, st), NotNil)
 }

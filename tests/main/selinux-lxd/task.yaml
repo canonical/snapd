@@ -29,10 +29,8 @@ restore: |
     "$TESTSTOOLS"/lxd-state undo-mount-changes
 
 debug: |
-    if [ -e avc-after ]; then
-        echo "AVC log from the test"
-        cat avc-after
-    fi
+    echo "AVC log from the test"
+    cat avc-after || true
 
 execute: |
     snap install lxd --channel="$LXD_SNAP_CHANNEL"

@@ -33,7 +33,7 @@ import (
 
 func (s *SnapSuite) TestConnectHelp(c *C) {
 	msg := `Usage:
-  snap.test connect [connect-OPTIONS] [<snap>:<plug>] [<snap>:<slot>]
+  snap.test connect [connect-OPTIONS] <snap>:<plug> [<snap>:<slot>]
 
 The connect command connects a plug to a slot.
 It may be called in the following ways:

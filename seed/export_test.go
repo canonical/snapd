@@ -21,6 +21,7 @@ package seed
 
 import (
 	"github.com/snapcore/snapd/seed/internal"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type InternalSnap16 = internal.Snap16
@@ -28,3 +29,22 @@ type InternalSnap16 = internal.Snap16
 var (
 	LoadAssertions = loadAssertions
 )
+
+func MockOpen(f func(seedDir, label string) (Seed, error)) (restore func()) {
+	r := testutil.Backup(&open)
+	open = f
+	return r
+}
+
+type TestSeed20 struct {
+	*seed20
+	Jobs int
+}
+
+func NewTestSeed20(s Seed) *TestSeed20 {
+	return &TestSeed20{s.(*seed20), 0}
+}
+
+func (s *TestSeed20) SetParallelism(n int) {
+	s.Jobs = n
+}

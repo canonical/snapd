@@ -54,7 +54,7 @@ restore: |
 debug: |
     #shellcheck source=tests/lib/random.sh
     . "$TESTSLIB"/random.sh
-    debug_random
+    debug_random || true
 
 execute: |
     for i in *.exp; do

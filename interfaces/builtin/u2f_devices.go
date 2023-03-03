@@ -125,12 +125,17 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "SoloKeys",
 		VendorIDPattern:  "1209",
-		ProductIDPattern: "5070|50b0",
+		ProductIDPattern: "5070|50b0|beee",
 	},
 	{
 		Name:             "OnlyKey",
 		VendorIDPattern:  "1d50",
 		ProductIDPattern: "60fc",
+	},
+	{
+		Name:             "Thetis U2F BT Fido2 Key",
+		VendorIDPattern:  "1ea8",
+		ProductIDPattern: "fc25",
 	},
 	{
 		Name:             "MIRKey",
@@ -146,6 +151,21 @@ var u2fDevices = []u2fDevice{
 		Name:             "GoTrust Idem Key",
 		VendorIDPattern:  "32a3",
 		ProductIDPattern: "3201",
+	},
+	{
+		Name:             "Trezor",
+		VendorIDPattern:  "534c",
+		ProductIDPattern: "0001|0002",
+	},
+	{
+		Name:             "Trezor v2",
+		VendorIDPattern:  "1209",
+		ProductIDPattern: "53c0|53c1",
+	},
+	{
+		Name:             "U2F-TOKEN (Tomu et al.)",
+		VendorIDPattern:  "16d0",
+		ProductIDPattern: "0e90",
 	},
 }
 

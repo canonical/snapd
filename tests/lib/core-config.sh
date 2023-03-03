@@ -69,6 +69,7 @@ restore_pc_snap(){
     if systemctl status snap-pc-x1.mount ; then
        systemctl stop snap-pc-x1.mount
        rm -f /etc/systemd/system/snap-pc-x1.mount
+       rm -f /etc/systemd/system/snapd.mounts.target.wants/snap-pc-x1.mount
        rm -f /etc/systemd/system/multi-user.target.wants/snap-pc-x1.mount
        rm -f /var/lib/snapd/snaps/pc_x1.snap
        systemctl daemon-reload
@@ -82,6 +83,8 @@ get_test_model(){
         echo "${MODEL_NAME}-18.model"
     elif os.query is-core20; then
         echo "${MODEL_NAME}-20.model"
+    elif os.query is-core22; then
+        echo "${MODEL_NAME}-22.model"
     else
         echo "${MODEL_NAME}.model"
     fi
@@ -92,6 +95,8 @@ get_test_snap_suffix(){
         echo "-core18"
     elif os.query is-core20; then
         echo "-core20"
+    elif os.query is-core22; then
+        echo "-core22"
     fi
 }
 

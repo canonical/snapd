@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeout"
@@ -63,6 +64,8 @@ func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
 	c.Assert(info.Version, Equals, "1.0")
 	c.Assert(info.Type(), Equals, snap.TypeApp)
 	c.Assert(info.Epoch, DeepEquals, snap.E("0"))
+	c.Assert(info.SnapProvenance, Equals, "")
+	c.Check(info.Provenance(), Equals, naming.DefaultProvenance)
 }
 
 func (s *InfoSnapYamlTestSuite) TestSnapdTypeAddedByMagic(c *C) {
@@ -72,6 +75,15 @@ version: 1.0`))
 	c.Assert(info.InstanceName(), Equals, "snapd")
 	c.Assert(info.Version, Equals, "1.0")
 	c.Assert(info.Type(), Equals, snap.TypeSnapd)
+}
+
+func (s *InfoSnapYamlTestSuite) TestNonDefaultProvenance(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+provenance: delegated-prov
+version: 1.0`))
+	c.Assert(err, IsNil)
+	c.Check(info.Provenance(), Equals, "delegated-prov")
+	c.Check(info.SnapProvenance, Equals, "delegated-prov")
 }
 
 func (s *InfoSnapYamlTestSuite) TestFail(c *C) {

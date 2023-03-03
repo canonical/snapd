@@ -54,9 +54,6 @@ capability sys_admin,
 # files in /proc/bus/pci (eg, 'lspci -A linux-proc')
 @{PROC}/bus/pci/{,**} r,
 
-# DMI tables
-/sys/firmware/dmi/tables/DMI r,
-/sys/firmware/dmi/tables/smbios_entry_point r,
 
 # power information
 /sys/power/{,**} r,
@@ -78,11 +75,6 @@ network netlink raw,
 /{,usr/}bin/lscpu ixr,
 /{,usr/}bin/lsmem ixr,
 
-# lsmem
-/sys/devices/system/memory/block_size_bytes r,
-/sys/devices/system/memory/memory[0-9]*/removable r,
-/sys/devices/system/memory/memory[0-9]*/state r,
-/sys/devices/system/memory/memory[0-9]*/valid_zones r,
 
 # lsusb
 # Note: lsusb and its database have to be shipped in the snap if not on classic
@@ -99,6 +91,12 @@ network netlink raw,
 @{PROC}/device-tree/{,**} r,
 /sys/kernel/debug/usb/devices r,
 @{PROC}/sys/abi/{,*} r,
+
+# hwinfo --short
+@{PROC}/ioports r,
+@{PROC}/dma r,
+@{PROC}/tty/driver/serial r,
+@{PROC}/sys/dev/cdrom/info r,
 
 # status of hugepages and transparent_hugepage, but not the pages themselves
 /sys/kernel/mm/{hugepages,transparent_hugepage}/{,**} r,
@@ -137,10 +135,6 @@ network netlink raw,
 # determine if it is running in a chroot. Like above, this is best granted via
 # system-observe.
 #ptrace (read) peer=unconfined,
-
-# some devices use this information to set serial, etc. for Ubuntu Core devices
-/sys/devices/virtual/dmi/id/product_name r,
-/sys/devices/virtual/dmi/id/sys_vendor r,
 `
 
 const hardwareObserveConnectedPlugSecComp = `

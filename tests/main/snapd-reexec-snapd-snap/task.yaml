@@ -6,16 +6,30 @@ systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 restore: |
     umount /snap/snapd/current/usr/lib/snapd/info || true
 
+debug: |
+    echo 'experimental "snapd-snap" feature is enabled:'
+    snap get core experimental.snapd-snap || true
+
+    echo "snap changes"
+    snap changes || true
+
+    echo "list of installed snaps"
+    snap list || true
+
 execute: |
     if [ "${SNAP_REEXEC:-}" = "0" ]; then
         echo "skipping test when SNAP_REEXEC is disabled"
         exit 0
     fi
 
+    # Make sure that the snapd snap is not installed
+    snap info snapd | NOMATCH "^installed:"
+
     echo "Enable installing the snapd snap, this happens automatically"
     snap set core experimental.snapd-snap=true
-    # give the state time to create the change and then start watching
-    # it
+    echo "Ensure transition"
+    snap debug ensure-state-soon
+    # give the state time to create the change and then start watching it
     retry -n 30 snap watch --last=transition-to-snapd-snap
     snap list snapd
 

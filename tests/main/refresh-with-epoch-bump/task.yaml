@@ -11,10 +11,10 @@ prepare: |
     snap install test-snapd-epoch
 
 debug: |
-    snap info test-snapd-epoch
+    snap info test-snapd-epoch || true
     snap list test-snapd-epoch || true
-    snap tasks --last=install
-    snap tasks --last=refresh
+    snap tasks --last=install || true
+    snap tasks --last=refresh || true
 
 execute: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"

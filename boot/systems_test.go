@@ -51,7 +51,7 @@ func (s *baseSystemsSuite) SetUpTest(c *C) {
 type systemsSuite struct {
 	baseSystemsSuite
 
-	uc20dev boot.Device
+	uc20dev snap.Device
 
 	runKernelBf      bootloader.BootFile
 	recoveryKernelBf bootloader.BootFile
@@ -156,6 +156,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=1234 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=run static cmdline",
@@ -167,6 +168,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
@@ -278,6 +280,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=run static cmdline",
 			})
@@ -293,6 +296,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
@@ -991,6 +995,7 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
@@ -1389,6 +1394,8 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				fmt.Sprintf("snapd_recovery_mode=factory-reset snapd_recovery_system=%s static cmdline", systemLabel),
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s static cmdline", systemLabel),
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
@@ -1399,6 +1406,8 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				fmt.Sprintf("snapd_recovery_mode=factory-reset snapd_recovery_system=%s static cmdline", systemLabel),
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s static cmdline", systemLabel),
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
@@ -1413,6 +1422,7 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
@@ -1426,6 +1436,7 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return tc.resealRecoveryKeyDuringCleanupErr
@@ -1654,6 +1665,7 @@ func (s *systemsSuite) testDropRecoverySystem(c *C, systemLabel string, tc recov
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
@@ -1663,6 +1675,7 @@ func (s *systemsSuite) testDropRecoverySystem(c *C, systemLabel string, tc recov
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return tc.resealRecoveryKeyErr

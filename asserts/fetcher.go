@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,12 +20,14 @@
 package asserts
 
 import (
+	"errors"
 	"fmt"
 )
 
 type fetchProgress int
 
 const (
+	//nolint:deadcode
 	fetchNotSeen fetchProgress = iota
 	fetchRetrieved
 	fetchSaved
@@ -66,7 +68,7 @@ func (f *fetcher) chase(ref *Ref, a Assertion) error {
 	if err == nil {
 		return nil
 	}
-	if !IsNotFound(err) {
+	if !errors.Is(err, &NotFoundError{}) {
 		return err
 	}
 	u := ref.Unique()

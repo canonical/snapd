@@ -1,7 +1,7 @@
 summary: check that os-release is correct
 
 debug: |
-    cat /etc/lsb-release
+    cat /etc/lsb-release || true
 
 execute: |
     echo "Check the DISTRIB_RELEASE is correct in /etc/lsb-release file" 
@@ -11,6 +11,8 @@ execute: |
         MATCH "DISTRIB_RELEASE=18" < /etc/lsb-release
     elif os.query is-core20; then
         MATCH "DISTRIB_RELEASE=20" < /etc/lsb-release
+    elif os.query is-core22; then
+        MATCH "DISTRIB_RELEASE=22" < /etc/lsb-release
     else
         echo "Unknown Ubuntu Core system!"
         exit 1

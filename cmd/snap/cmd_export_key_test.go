@@ -32,7 +32,7 @@ import (
 func (s *SnapKeysSuite) TestExportKeyNonexistent(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"export-key", "nonexistent"})
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot find key named \"nonexistent\" in GPG keyring")
+	c.Check(err.Error(), Equals, "cannot export key named \"nonexistent\": cannot find key pair in GPG keyring")
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 }

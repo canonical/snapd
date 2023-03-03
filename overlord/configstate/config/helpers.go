@@ -22,6 +22,7 @@ package config
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -141,7 +142,7 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 func GetSnapConfig(st *state.State, snapName string) (*json.RawMessage, error) {
 	var config map[string]*json.RawMessage
 	err := st.Get("config", &config)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, nil
 	}
 	if err != nil {
@@ -160,7 +161,7 @@ func SetSnapConfig(st *state.State, snapName string, snapcfg *json.RawMessage) e
 	err := st.Get("config", &config)
 	// empty nil snapcfg should be an empty message, but deal with "null" as well.
 	isNil := snapcfg == nil || len(*snapcfg) == 0 || bytes.Compare(*snapcfg, []byte("null")) == 0
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		if isNil {
 			// bail out early
 			return nil
@@ -187,7 +188,7 @@ func SaveRevisionConfig(st *state.State, snapName string, rev snap.Revision) err
 
 	// Get current configuration of the snap from state
 	err := st.Get("config", &config)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
@@ -198,7 +199,7 @@ func SaveRevisionConfig(st *state.State, snapName string, rev snap.Revision) err
 	}
 
 	err = st.Get("revision-config", &revisionConfig)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		revisionConfig = make(map[string]map[string]*json.RawMessage)
 	} else if err != nil {
 		return err
@@ -221,14 +222,14 @@ func RestoreRevisionConfig(st *state.State, snapName string, rev snap.Revision) 
 	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
 
 	err := st.Get("revision-config", &revisionConfig)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("internal error: cannot unmarshal revision-config: %v", err)
 	}
 
 	err = st.Get("config", &config)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		config = make(map[string]*json.RawMessage)
 	} else if err != nil {
 		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
@@ -250,7 +251,7 @@ func RestoreRevisionConfig(st *state.State, snapName string, rev snap.Revision) 
 func DiscardRevisionConfig(st *state.State, snapName string, rev snap.Revision) error {
 	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
 	err := st.Get("revision-config", &revisionConfig)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("internal error: cannot unmarshal revision-config: %v", err)
@@ -273,7 +274,7 @@ func DeleteSnapConfig(st *state.State, snapName string) error {
 	var config map[string]map[string]*json.RawMessage // snap => key => value
 
 	err := st.Get("config", &config)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
@@ -285,21 +286,9 @@ func DeleteSnapConfig(st *state.State, snapName string) error {
 	return nil
 }
 
-// Conf is an interface describing both state and transaction.
-type Conf interface {
-	Get(snapName, key string, result interface{}) error
-	GetMaybe(snapName, key string, result interface{}) error
-	GetPristine(snapName, key string, result interface{}) error
+// ConfSetter is an interface for setting of config values.
+type ConfSetter interface {
 	Set(snapName, key string, value interface{}) error
-	Changes() []string
-	State() *state.State
-}
-
-// ConfGetter is an interface for reading of config values.
-type ConfGetter interface {
-	Get(snapName, key string, result interface{}) error
-	GetMaybe(snapName, key string, result interface{}) error
-	GetPristine(snapName, key string, result interface{}) error
 }
 
 // Patch sets values in cfg for the provided snap's configuration
@@ -307,7 +296,7 @@ type ConfGetter interface {
 // patch keys can be dotted as the key argument to Set.
 // The patch is applied according to the order of its keys sorted by depth,
 // with top keys sorted first.
-func Patch(cfg Conf, snapName string, patch map[string]interface{}) error {
+func Patch(cfg ConfSetter, snapName string, patch map[string]interface{}) error {
 	patchKeys := sortPatchKeysByDepth(patch)
 	for _, key := range patchKeys {
 		if err := cfg.Set(snapName, key, patch[key]); err != nil {

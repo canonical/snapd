@@ -23,6 +23,8 @@
 package internal
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -32,7 +34,7 @@ func Device(st *state.State) (*auth.DeviceState, error) {
 	var authStateData auth.AuthState
 
 	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return &auth.DeviceState{}, nil
 	} else if err != nil {
 		return nil, err
@@ -50,7 +52,7 @@ func SetDevice(st *state.State, device *auth.DeviceState) error {
 	var authStateData auth.AuthState
 
 	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		authStateData = auth.AuthState{}
 	} else if err != nil {
 		return err

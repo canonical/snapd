@@ -35,6 +35,8 @@ const logObserveConnectedPlugAppArmor = `
 
 /var/log/ r,
 /var/log/** r,
+# for accessing dmesg
+/dev/kmsg r,
 
 # for accessing journald and journalctl
 /run/log/journal/ r,

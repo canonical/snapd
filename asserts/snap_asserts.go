@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package asserts
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // SnapDeclaration holds a snap-declaration assertion, declaring a
@@ -38,12 +40,13 @@ import (
 // publisher and its other properties.
 type SnapDeclaration struct {
 	assertionBase
-	refreshControl []string
-	plugRules      map[string]*PlugRule
-	slotRules      map[string]*SlotRule
-	autoAliases    []string
-	aliases        map[string]string
-	timestamp      time.Time
+	refreshControl      []string
+	plugRules           map[string]*PlugRule
+	slotRules           map[string]*SlotRule
+	autoAliases         []string
+	aliases             map[string]string
+	revisionAuthorities []*RevisionAuthority
+	timestamp           time.Time
 }
 
 // Series returns the series for which the snap is being declared.
@@ -97,6 +100,21 @@ func (snapdcl *SnapDeclaration) Aliases() map[string]string {
 	return snapdcl.aliases
 }
 
+// RevisionAuthority return any revision authority entries matching the given
+// provenance.
+func (snapdcl *SnapDeclaration) RevisionAuthority(provenance string) []*RevisionAuthority {
+	res := make([]*RevisionAuthority, 0, 1)
+	for _, ra := range snapdcl.revisionAuthorities {
+		if strutil.ListContains(ra.Provenance, provenance) {
+			res = append(res, ra)
+		}
+	}
+	if len(res) == 0 {
+		return nil
+	}
+	return res
+}
+
 // Implement further consistency checks.
 func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(snapdcl.AuthorityID()) {
@@ -105,7 +123,7 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 	_, err := db.Find(AccountType, map[string]string{
 		"account-id": snapdcl.PublisherID(),
 	})
-	if IsNotFound(err) {
+	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("snap-declaration assertion for %q (id %q) does not have a matching account assertion for the publisher %q", snapdcl.SnapName(), snapdcl.SnapID(), snapdcl.PublisherID())
 	}
 	if err != nil {
@@ -115,7 +133,7 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*SnapDeclaration)(nil)
 
 // Prerequisites returns references to this snap-declaration's prerequisite assertions.
@@ -175,6 +193,9 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 		if rule.feature(nameConstraintsFeature) {
 			setFormatNum(4)
 		}
+		if rule.feature(altAttrMatcherFeature) {
+			setFormatNum(5)
+		}
 	})
 	if err != nil {
 		return 0, err
@@ -193,6 +214,9 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 		}
 		if rule.feature(nameConstraintsFeature) {
 			setFormatNum(4)
+		}
+		if rule.feature(altAttrMatcherFeature) {
+			setFormatNum(5)
 		}
 	})
 	if err != nil {
@@ -308,15 +332,117 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	var ras []*RevisionAuthority
+
+	ra, ok := assert.headers["revision-authority"]
+	if ok {
+		ramaps, ok := ra.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("revision-authority stanza must be a list of maps")
+		}
+		if len(ramaps) == 0 {
+			// there is no syntax producing this scenario but be robust
+			return nil, fmt.Errorf("revision-authority stanza cannot be empty")
+		}
+		ras = make([]*RevisionAuthority, 0, len(ramaps))
+		for _, ramap := range ramaps {
+			m, ok := ramap.(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("revision-authority stanza must be a list of maps")
+			}
+			accountID, err := checkStringMatchesWhat(m, "account-id", "in revision authority", validAccountID)
+			if err != nil {
+				return nil, err
+			}
+			prov, err := checkStringListInMap(m, "provenance", "provenance in revision authority", naming.ValidProvenance)
+			if err != nil {
+				return nil, err
+			}
+			if len(prov) == 0 {
+				return nil, fmt.Errorf("provenance in revision authority cannot be empty")
+			}
+			minRevision := 1
+			maxRevision := 0
+			if _, ok := m["min-revision"]; ok {
+				var err error
+				minRevision, err = checkSnapRevisionWhat(m, "min-revision", "in revision authority")
+				if err != nil {
+					return nil, err
+				}
+			}
+			if _, ok := m["max-revision"]; ok {
+				var err error
+				maxRevision, err = checkSnapRevisionWhat(m, "max-revision", "in revision authority")
+				if err != nil {
+					return nil, err
+				}
+			}
+			if maxRevision != 0 && maxRevision < minRevision {
+				return nil, fmt.Errorf("optional max-revision cannot be less than min-revision in revision-authority")
+			}
+			devscope, err := compileDeviceScopeConstraint(m, "revision-authority")
+			if err != nil {
+				return nil, err
+			}
+			ras = append(ras, &RevisionAuthority{
+				AccountID:   accountID,
+				Provenance:  prov,
+				MinRevision: minRevision,
+				MaxRevision: maxRevision,
+				DeviceScope: devscope,
+			})
+		}
+
+	}
+
 	return &SnapDeclaration{
-		assertionBase:  assert,
-		refreshControl: refControl,
-		plugRules:      plugRules,
-		slotRules:      slotRules,
-		autoAliases:    autoAliases,
-		aliases:        aliases,
-		timestamp:      timestamp,
+		assertionBase:       assert,
+		refreshControl:      refControl,
+		plugRules:           plugRules,
+		slotRules:           slotRules,
+		autoAliases:         autoAliases,
+		aliases:             aliases,
+		revisionAuthorities: ras,
+		timestamp:           timestamp,
 	}, nil
+}
+
+// RevisionAuthority holds information about an account that can sign revisions
+// for a given snap.
+type RevisionAuthority struct {
+	AccountID  string
+	Provenance []string
+
+	MinRevision int
+	MaxRevision int
+
+	DeviceScope *DeviceScopeConstraint
+}
+
+// Check tests whether rev matches the revision authority constraints.
+// Optional model and store must be provided to cross-check device-specific
+// constraints.
+func (ra *RevisionAuthority) Check(rev *SnapRevision, model *Model, store *Store) error {
+	if !strutil.ListContains(ra.Provenance, rev.Provenance()) {
+		return fmt.Errorf("provenance mismatch")
+	}
+	if rev.AuthorityID() != ra.AccountID {
+		return fmt.Errorf("authority-id mismatch")
+	}
+	revno := rev.SnapRevision()
+	if revno < ra.MinRevision {
+		return fmt.Errorf("snap revision %d is less than min-revision %d", revno, ra.MinRevision)
+	}
+	if ra.MaxRevision != 0 && revno > ra.MaxRevision {
+		return fmt.Errorf("snap revision %d is greater than max-revision %d", revno, ra.MaxRevision)
+	}
+	if ra.DeviceScope != nil && model != nil {
+		opts := DeviceScopeConstraintCheckOptions{UseFriendlyStores: true}
+		if err := ra.DeviceScope.Check(model, store, &opts); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // SnapFileSHA3_384 computes the SHA3-384 digest of the given snap file.
@@ -415,6 +541,12 @@ func (snaprev *SnapRevision) SnapSHA3_384() string {
 	return snaprev.HeaderString("snap-sha3-384")
 }
 
+// Provenance returns the optional provenance of the snap (defaults to
+// global-upload (naming.DefaultProvenance)).
+func (snaprev *SnapRevision) Provenance() string {
+	return snaprev.HeaderString("provenance")
+}
+
 // SnapID returns the snap id of the snap.
 func (snaprev *SnapRevision) SnapID() string {
 	return snaprev.HeaderString("snap-id")
@@ -443,34 +575,52 @@ func (snaprev *SnapRevision) Timestamp() time.Time {
 
 // Implement further consistency checks.
 func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
-	// TODO: expand this to consider other stores signing on their own
-	if !db.IsTrustedAccount(snaprev.AuthorityID()) {
+	otherProvenance := snaprev.Provenance() != naming.DefaultProvenance
+	if !otherProvenance && !db.IsTrustedAccount(snaprev.AuthorityID()) {
+		// delegating global-upload revisions is not allowed
 		return fmt.Errorf("snap-revision assertion for snap id %q is not signed by a store: %s", snaprev.SnapID(), snaprev.AuthorityID())
 	}
 	_, err := db.Find(AccountType, map[string]string{
 		"account-id": snaprev.DeveloperID(),
 	})
-	if IsNotFound(err) {
+	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("snap-revision assertion for snap id %q does not have a matching account assertion for the developer %q", snaprev.SnapID(), snaprev.DeveloperID())
 	}
 	if err != nil {
 		return err
 	}
-	_, err = db.Find(SnapDeclarationType, map[string]string{
+	a, err := db.Find(SnapDeclarationType, map[string]string{
 		// XXX: mediate getting current series through some context object? this gets the job done for now
 		"series":  release.Series,
 		"snap-id": snaprev.SnapID(),
 	})
-	if IsNotFound(err) {
+	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("snap-revision assertion for snap id %q does not have a matching snap-declaration assertion", snaprev.SnapID())
 	}
 	if err != nil {
 		return err
 	}
+	if otherProvenance {
+		decl := a.(*SnapDeclaration)
+		ras := decl.RevisionAuthority(snaprev.Provenance())
+		matchingRevAuthority := false
+		for _, ra := range ras {
+			// model==store==nil, we do not perform device-specific
+			// checks at this level, those are performed at
+			// higher-level guarding installing actual snaps
+			if err := ra.Check(snaprev, nil, nil); err == nil {
+				matchingRevAuthority = true
+				break
+			}
+		}
+		if !matchingRevAuthority {
+			return fmt.Errorf("snap-revision assertion with provenance %q for snap id %q is not signed by an authorized authority: %s", snaprev.Provenance(), snaprev.SnapID(), snaprev.AuthorityID())
+		}
+	}
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*SnapRevision)(nil)
 
 // Prerequisites returns references to this snap-revision's prerequisite assertions.
@@ -495,6 +645,11 @@ func checkSnapRevisionWhat(headers map[string]interface{}, name, what string) (s
 
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkStringMatches(assert.headers, "provenance", naming.ValidProvenance)
 	if err != nil {
 		return nil, err
 	}
@@ -579,7 +734,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 		"series":  validation.Series(),
 		"snap-id": validation.ApprovedSnapID(),
 	})
-	if IsNotFound(err) {
+	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion for approved-snap-id %q", validation.SnapID(), validation.ApprovedSnapID())
 	}
 	if err != nil {
@@ -589,7 +744,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 		"series":  validation.Series(),
 		"snap-id": validation.SnapID(),
 	})
-	if IsNotFound(err) {
+	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion", validation.SnapID())
 	}
 	if err != nil {
@@ -604,7 +759,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*Validation)(nil)
 
 // Prerequisites returns references to this validation's prerequisite assertions.
@@ -678,7 +833,7 @@ func (basedcl *BaseDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*BaseDeclaration)(nil)
 
 func assembleBaseDeclaration(assert assertionBase) (Assertion, error) {
@@ -822,7 +977,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 		"snap-id": snapdev.SnapID(),
 	})
 	if err != nil {
-		if IsNotFound(err) {
+		if errors.Is(err, &NotFoundError{}) {
 			return fmt.Errorf("snap-developer assertion for snap id %q does not have a matching snap-declaration assertion", snapdev.SnapID())
 		}
 		return err
@@ -831,7 +986,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 	// check there's an account for the publisher-id
 	_, err = db.Find(AccountType, map[string]string{"account-id": publisherID})
 	if err != nil {
-		if IsNotFound(err) {
+		if errors.Is(err, &NotFoundError{}) {
 			return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the publisher %q", snapdev.SnapID(), publisherID)
 		}
 		return err
@@ -844,7 +999,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 		}
 		_, err = db.Find(AccountType, map[string]string{"account-id": developerID})
 		if err != nil {
-			if IsNotFound(err) {
+			if errors.Is(err, &NotFoundError{}) {
 				return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the developer %q", snapdev.SnapID(), developerID)
 			}
 			return err
@@ -854,7 +1009,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*SnapDeveloper)(nil)
 
 // Prerequisites returns references to this snap-developer's prerequisite assertions.

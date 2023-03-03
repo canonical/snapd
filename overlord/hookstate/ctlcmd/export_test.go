@@ -22,11 +22,13 @@ package ctlcmd
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 const (
@@ -34,7 +36,32 @@ const (
 	ClassicSnapCode = classicSnapCode
 )
 
-var AttributesTask = attributesTask
+var (
+	AttributesTask = attributesTask
+
+	KmodCheckConnection = kmodCheckConnection
+	KmodMatchConnection = kmodMatchConnection
+)
+
+type KmodCommand = kmodCommand
+
+func MockKmodCheckConnection(f func(*hookstate.Context, string, []string) error) (restore func()) {
+	r := testutil.Backup(&kmodCheckConnection)
+	kmodCheckConnection = f
+	return r
+}
+
+func MockKmodLoadModule(f func(string, []string) error) (restore func()) {
+	r := testutil.Backup(&kmodLoadModule)
+	kmodLoadModule = f
+	return r
+}
+
+func MockKmodUnloadModule(f func(string) error) (restore func()) {
+	r := testutil.Backup(&kmodUnloadModule)
+	kmodUnloadModule = f
+	return r
+}
 
 func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *servicestate.Instruction, *servicestate.Flags, *hookstate.Context) ([]*state.TaskSet, error)) (restore func()) {
 	old := servicestateControl
@@ -65,6 +92,18 @@ func addMockCmd(name string, hidden bool) *MockCommand {
 
 func RemoveCommand(name string) {
 	delete(commands, name)
+}
+
+func FormatLongPublisher(snapInfo *snap.Info, storeAccountID string) string {
+	var mf modelCommandFormatter
+
+	mf.snapInfo = snapInfo
+	return mf.LongPublisher(storeAccountID)
+}
+
+func FindSerialAssertion(st *state.State, modelAssertion *asserts.Model) (*asserts.Serial, error) {
+	var mc modelCommand
+	return mc.findSerialAssertion(st, modelAssertion)
 }
 
 type MockCommand struct {

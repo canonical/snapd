@@ -17,7 +17,7 @@ while [ -n "$1" ]; do
         --quiet|--replace|--remove|--skip-read-cache)
             # Ignore
             ;;
-        -O)
+        -O|--config-file|--base|--policy-features)
             # Ignore, discard argument
             shift
             ;;

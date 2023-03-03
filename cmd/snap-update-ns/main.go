@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
@@ -78,6 +79,14 @@ func run() error {
 	if err := parseArgs(os.Args[1:]); err != nil {
 		return err
 	}
+
+	// Explicitly set the umask to 0 to prevent permission bits
+	// being masked out when creating files and directories.
+	//
+	// While snap-confine already does this for us, we inherit
+	// snapd's umask when it invokes us.
+	syscall.Umask(0)
+
 	var upCtx MountProfileUpdateContext
 	if opts.UserMounts {
 		upCtx = NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid())

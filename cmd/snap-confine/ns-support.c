@@ -287,20 +287,36 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 	if (mi == NULL) {
 		die("cannot parse mountinfo of the current process");
 	}
+	/* We are looking for a mount entry matching the device ID of the base
+	 * snap. We need to take these cases into account:
+	 * 1) In the typical case, this will be mounted on the "/" directory.
+	 * 2) If the root directory is a tmpfs, the base snap would be mounted
+	 *    under /usr.
+	 * 3) If the snap has a layout that adds directories or files directly
+	 *    under /usr, a writable mimic will be created: /usr will be a tmpfs,
+	 *    with all of the original directory entries inside of /usr being
+	 *    bind-mounted onto mount-points created into the tmpfs.
+	 * In light of the above, we do ignore all tmpfs entries and accept that
+	 * our base snap might be mounted under /, /usr, or anywhere under /usr.
+	 */
 	for (mie = sc_first_mountinfo_entry(mi); mie != NULL;
 	     mie = sc_next_mountinfo_entry(mie)) {
-		if (!sc_streq(mie->mount_dir, "/")) {
+		if (sc_streq(mie->fs_type, "tmpfs")) {
 			continue;
 		}
-		// NOTE: we want the initial rootfs just in case overmount
-		// was used to do something weird. The initial rootfs was
-		// set up by snap-confine and that is the one we want to
-		// measure.
-		debug("block device of the root filesystem is %d:%d",
-		      mie->dev_major, mie->dev_minor);
-		return base_snap_dev != makedev(mie->dev_major, mie->dev_minor);
+
+		if (base_snap_dev == makedev(mie->dev_major, mie->dev_minor) &&
+		    (sc_streq(mie->mount_dir, "/") ||
+		     sc_streq(mie->mount_dir, "/usr") ||
+		     sc_startswith(mie->mount_dir, "/usr/"))) {
+			debug("found base snap device %d:%d on %s",
+			      mie->dev_major, mie->dev_minor, mie->mount_dir);
+			return false;
+		}
 	}
-	die("cannot find mount entry of the root filesystem");
+	debug("base snap device %d:%d not found in existing mount ns",
+	      major(base_snap_dev), minor(base_snap_dev));
+	return true;
 }
 
 enum sc_discard_vote {

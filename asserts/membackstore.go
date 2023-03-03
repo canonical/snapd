@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -235,9 +235,23 @@ func (mbs *memoryBackstore) Get(assertType *AssertionType, key []string, maxForm
 	mbs.mu.RLock()
 	defer mbs.mu.RUnlock()
 
+	n := len(assertType.PrimaryKey)
+	if len(key) > n {
+		return nil, fmt.Errorf("internal error: Backstore.Get given a key longer than expected for %q: %v", assertType.Name, key)
+	}
+
 	internalKey := make([]string, 1+len(assertType.PrimaryKey))
 	internalKey[0] = assertType.Name
 	copy(internalKey[1:], key)
+	if len(key) < n {
+		for kopt := len(key); kopt < n; kopt++ {
+			defl := assertType.OptionalPrimaryKeyDefaults[assertType.PrimaryKey[kopt]]
+			if defl == "" {
+				return nil, fmt.Errorf("internal error: Backstore.Get given a key missing mandatory elements for %q: %v", assertType.Name, key)
+			}
+			internalKey[kopt+1] = defl
+		}
+	}
 
 	a, err := mbs.top.get(internalKey, maxFormat)
 	if err == errNotFound {

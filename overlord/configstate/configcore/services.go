@@ -20,11 +20,14 @@
 package configcore
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
-	"time"
+	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -41,11 +44,14 @@ var services = []struct{ configName, systemdName string }{
 	{"systemd-resolved", "systemd-resolved.service"},
 }
 
+const sshListenOpt = "service.ssh.listen-address"
+
 func init() {
 	for _, service := range services {
 		s := fmt.Sprintf("core.service.%s.disable", service.configName)
 		supportedConfigurations[s] = true
 	}
+	supportedConfigurations["core."+sshListenOpt] = true
 }
 
 type sysdLogger struct{}
@@ -67,12 +73,13 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 
 	sshCanary := filepath.Join(rootDir, "/etc/ssh/sshd_not_to_be_run")
 
+	units := []string{serviceName}
 	if disabled {
 		if err := ioutil.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
 			return err
 		}
 		if opts == nil {
-			return sysd.Stop(serviceName, 5*time.Minute)
+			return sysd.Stop(units)
 		}
 	} else {
 		err := os.Remove(sshCanary)
@@ -85,7 +92,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 		sysd.Unmask("sshd.service")
 		sysd.Unmask("ssh.service")
 		if opts == nil {
-			return sysd.Start(serviceName)
+			return sysd.Start(units)
 		}
 	}
 	return nil
@@ -158,9 +165,10 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		return switchDisableConsoleConfService(sysd, serviceName, disabled, opts)
 	}
 
+	units := []string{serviceName}
 	if opts == nil {
 		// ignore the service if not installed
-		status, err := sysd.Status(serviceName)
+		status, err := sysd.Status(units)
 		if err != nil {
 			return err
 		}
@@ -175,34 +183,40 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 
 	if disabled {
 		if opts == nil {
-			if err := sysd.Disable(serviceName); err != nil {
+			if err := sysd.DisableNoReload(units); err != nil {
 				return err
 			}
 		}
 		if err := sysd.Mask(serviceName); err != nil {
 			return err
 		}
+		// mask triggered a reload already
 		if opts == nil {
-			return sysd.Stop(serviceName, 5*time.Minute)
+			return sysd.Stop(units)
 		}
 	} else {
 		if err := sysd.Unmask(serviceName); err != nil {
 			return err
 		}
 		if opts == nil {
-			if err := sysd.Enable(serviceName); err != nil {
+			if err := sysd.EnableNoReload(units); err != nil {
+				return err
+			}
+			// enable does not trigger reloads, so issue one now
+			if err := sysd.DaemonReload(); err != nil {
 				return err
 			}
 		}
 		if opts == nil {
-			return sysd.Start(serviceName)
+			return sysd.Start(units)
 		}
 	}
 	return nil
 }
 
 // services that can be disabled
-func handleServiceDisableConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleServiceConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
+	// deal with service disable
 	for _, service := range services {
 		optionName := fmt.Sprintf("service.%s.disable", service.configName)
 		outputStr, err := coreCfg(tr, optionName)
@@ -223,6 +237,144 @@ func handleServiceDisableConfiguration(_ sysconfig.Device, tr config.ConfGetter,
 			if err := switchDisableService(service.systemdName, disabled, opts); err != nil {
 				return err
 			}
+		}
+	}
+	// configure ssh ports
+	if err := handleServiceConfigSSHListen(dev, tr, opts); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func parseOneSSHListenAddr(oneAddr string) (addrs []string, err error) {
+	// 1. check if it's something like "host:port", "[host]:port" etc
+	//    This will return an error if there is no port specified so
+	//    on error it's assume there is no port.
+	host, portStr, err := net.SplitHostPort(oneAddr)
+	if err != nil {
+		// for any error assume there is no port and continue
+		host = oneAddr
+	}
+	// 2. valid port (if needed)
+	if portStr != "" {
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			return nil, fmt.Errorf("port must be a number: %v", err)
+		}
+		if port > 65535 || port < 1 {
+			return nil, fmt.Errorf("port %v must be in the range 1-65535", port)
+		}
+	}
+	// 3. validate host
+	if host != "" {
+		if net.ParseIP(host) == nil && validateHostname(host) != nil {
+			return nil, fmt.Errorf("invalid hostname %q", host)
+		}
+	}
+
+	// at this point the oneAddr is validated but openssh will
+	// error when no host is given, so workaround here
+	if host == "" && portStr != "" {
+		return []string{
+			fmt.Sprintf("0.0.0.0:%v", portStr),
+			fmt.Sprintf("[::]:%v", portStr),
+		}, nil
+	}
+
+	// no special handling needed and a valid listen address
+	return []string{oneAddr}, nil
+}
+
+func parseSSHListenCfg(cfgStr string) ([]string, error) {
+	var listenAddrs []string
+	for _, hostAndPort := range strings.Split(cfgStr, ",") {
+		addrs, err := parseOneSSHListenAddr(hostAndPort)
+		if err != nil {
+			return nil, err
+		}
+		listenAddrs = append(listenAddrs, addrs...)
+	}
+	return listenAddrs, nil
+}
+
+func validateServiceConfiguration(tr ConfGetter) error {
+	// validate the ssh listen setting
+	output, err := coreCfg(tr, sshListenOpt)
+	if err != nil {
+		return err
+	}
+	if output == "" {
+		return nil
+	}
+	if _, err := parseSSHListenCfg(output); err != nil {
+		return fmt.Errorf("cannot validate ssh configuration: %v", err)
+	}
+
+	return nil
+}
+
+func handleServiceConfigSSHListen(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
+	// see if anything needs to happen
+	var pristineSSHListen, newSSHListen interface{}
+
+	if err := tr.GetPristine("core", sshListenOpt, &pristineSSHListen); err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if err := tr.Get("core", sshListenOpt, &newSSHListen); err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if pristineSSHListen == newSSHListen {
+		return nil
+	}
+
+	// ssh.port config has changed, write new config
+	root := dirs.GlobalRootDir
+	if opts != nil {
+		root = opts.RootDir
+	}
+
+	// Note: Only UC20+ supports using the "sshd_config.d"
+	// dir. Supporting older systems would be hard because we
+	// would have to merge somehow the UC16 and UC18 config in a
+	// fsOnlyContext
+	if !dev.HasModeenv() {
+		return fmt.Errorf("cannot set ssh listen address configuration on systems older than UC20")
+	}
+
+	name := "listen.conf"
+	dirContent := map[string]osutil.FileState{}
+	if newSSHListen != nil && newSSHListen != "" {
+		listenAddrs, err := parseSSHListenCfg(fmt.Sprintf("%v", newSSHListen))
+		if err != nil {
+			return fmt.Errorf("cannot set ssh configuration: %v", err)
+		}
+
+		var buf bytes.Buffer
+		for _, s := range listenAddrs {
+			if _, err := fmt.Fprintf(&buf, "ListenAddress %v\n", s); err != nil {
+				return fmt.Errorf("cannot create ssh option buffer: %v", err)
+			}
+		}
+
+		dirContent[name] = &osutil.MemoryFileState{
+			Content: buf.Bytes(),
+			Mode:    0600,
+		}
+	}
+	dir := filepath.Join(root, "/etc/ssh/sshd_config.d/")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	_, _, err := osutil.EnsureDirState(dir, name, dirContent)
+	if err != nil {
+		return err
+	}
+
+	if opts == nil {
+		sysd := systemd.New(systemd.SystemMode, &sysdLogger{})
+		if err := sysd.ReloadOrRestart([]string{"ssh.service"}); err != nil {
+			return err
 		}
 	}
 

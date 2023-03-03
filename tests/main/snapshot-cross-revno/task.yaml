@@ -21,7 +21,7 @@ execute: |
             echo 'hello revision $revno' > ~/snap/test-snapd-tools/current/canary.txt" "$u"
     done
 
-    # sanity check :)
+    # precondition check :)
     test "$revno" = "$( readlink ~/snap/test-snapd-tools/current )"
 
     # take a snapshot

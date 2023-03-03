@@ -21,25 +21,14 @@ package agent
 
 import (
 	"syscall"
-	"time"
 )
 
 var (
 	SessionInfoCmd                = sessionInfoCmd
 	ServiceControlCmd             = serviceControlCmd
 	PendingRefreshNotificationCmd = pendingRefreshNotificationCmd
+	FinishRefreshNotificationCmd  = finishRefreshNotificationCmd
 )
-
-func MockStopTimeouts(stop, kill time.Duration) (restore func()) {
-	oldStopTimeout := stopTimeout
-	stopTimeout = stop
-	oldKillWait := killWait
-	killWait = kill
-	return func() {
-		stopTimeout = oldStopTimeout
-		killWait = oldKillWait
-	}
-}
 
 func MockUcred(ucred *syscall.Ucred, err error) (restore func()) {
 	old := sysGetsockoptUcred

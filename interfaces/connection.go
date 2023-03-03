@@ -21,10 +21,10 @@ package interfaces
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -86,20 +86,11 @@ func lookupAttr(staticAttrs map[string]interface{}, dynamicAttrs map[string]inte
 func getAttribute(snapName string, ifaceName string, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string, val interface{}) error {
 	v, ok := lookupAttr(staticAttrs, dynamicAttrs, path)
 	if !ok {
-		return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
+		err := fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
+		return snap.AttributeNotFoundError{Err: err}
 	}
 
-	rt := reflect.TypeOf(val)
-	if rt.Kind() != reflect.Ptr || val == nil {
-		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", path, ifaceName)
-	}
-
-	if reflect.TypeOf(v) != rt.Elem() {
-		return fmt.Errorf("snap %q has interface %q with invalid value type %T for %q attribute: %T", snapName, ifaceName, v, path, val)
-	}
-	rv := reflect.ValueOf(val)
-	rv.Elem().Set(reflect.ValueOf(v))
-	return nil
+	return metautil.SetValueFromAttribute(snapName, ifaceName, path, v, val)
 }
 
 // NewConnectedSlot creates an object representing a connected slot.

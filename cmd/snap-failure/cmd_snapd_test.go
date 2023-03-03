@@ -265,6 +265,41 @@ func (r *failureSuite) TestCallPrevSnapdFromCore(c *C) {
 	})
 }
 
+func (r *failureSuite) TestCallPrevSnapdFromSnapdWhenNoCore(c *C) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	// only one entry in sequence
+	writeSeqFile(c, "snapd", snap.R(123), []*snap.SideInfo{
+		{Revision: snap.R(123)},
+	})
+
+	// validity
+	c.Assert(filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd"), testutil.FileAbsent)
+	// mock snapd in the core snap
+	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "current", "/usr/lib/snapd/snapd"),
+		`test "$SNAPD_REVERT_TO_REV" = "0"`)
+	defer snapdCmd.Restore()
+
+	systemctlCmd := testutil.MockCommand(c, "systemctl", "")
+	defer systemctlCmd.Restore()
+
+	os.Args = []string{"snap-failure", "snapd"}
+	err := failure.Run()
+	c.Check(err, IsNil)
+	c.Check(r.Stderr(), HasLen, 0)
+
+	c.Check(snapdCmd.Calls(), DeepEquals, [][]string{
+		{"snapd"},
+	})
+	c.Check(systemctlCmd.Calls(), DeepEquals, [][]string{
+		{"systemctl", "stop", "snapd.socket"},
+		{"systemctl", "is-failed", "snapd.socket", "snapd.service"},
+		{"systemctl", "reset-failed", "snapd.socket", "snapd.service"},
+		{"systemctl", "restart", "snapd.socket"},
+	})
+}
+
 func (r *failureSuite) TestCallPrevSnapdFail(c *C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()

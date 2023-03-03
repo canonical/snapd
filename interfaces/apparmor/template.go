@@ -60,11 +60,12 @@ package apparmor
 // The preamble and default accesses common to all bases go in templateCommon.
 // These rules include the aformentioned host file rules as well as non-file
 // rules (eg signal, dbus, unix, etc).
-//
 var templateCommon = `
 # vim:syntax=apparmor
 
 #include <tunables/global>
+
+###INCLUDE_IF_EXISTS_SNAP_TUNING###
 
 # snapd supports the concept of 'parallel installs' where snaps with the same
 # name are differentiated by '_<instance>' such that foo, foo_bar and foo_baz
@@ -99,7 +100,7 @@ var templateCommon = `
 
   # for python apps/services
   #include <abstractions/python>
-  /etc/python3.[0-9]/**                                r,
+  /etc/python3.[0-9]*/**                                r,
 
   # explicitly deny noisy denials to read-only filesystems (see LP: #1496895
   # for details)
@@ -163,6 +164,7 @@ var templateCommon = `
   /run/systemd/userdb/io.systemd.DynamicUser rw,        # systemd-exec users
   /run/systemd/userdb/io.systemd.Home rw,               # systemd-home dirs
   /run/systemd/userdb/io.systemd.NameServiceSwitch rw,  # UNIX/glibc NSS
+  /run/systemd/userdb/io.systemd.Machine rw,            # systemd-machined
 
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
 
@@ -189,10 +191,12 @@ var templateCommon = `
   /usr/lib/os-release k,
 
   # systemd native journal API (see sd_journal_print(4)). This should be in
-  # AppArmor's base abstraction, but until it is, include here.
-  /run/systemd/journal/socket w,
-  /run/systemd/journal/stdout rw, # 'r' shouldn't be needed, but journald
-                                  # doesn't leak anything so allow
+  # AppArmor's base abstraction, but until it is, include here. We include
+  # the base journal path as well as the journal namespace pattern path. Each
+  # journal namespace for quota groups will be prefixed with 'snap-'.
+  /run/systemd/journal{,.snap-*}/socket w,
+  /run/systemd/journal{,.snap-*}/stdout rw, # 'r' shouldn't be needed, but journald
+                                            # doesn't leak anything so allow
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
@@ -284,6 +288,7 @@ var templateCommon = `
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /sys/fs/cgroup/memory/{,user.slice/}memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
+  /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.stat r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.shares r,
@@ -335,6 +340,15 @@ var templateCommon = `
   # bind mount *not* used here (see 'parallel installs', above)
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/                  r,
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/**                mrkix,
+
+  # Experimental snap folder changes
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/                    r,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/**                  mrkix,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/common/**           wl,
+
+  owner @{HOME}/Snap/@{SNAP_INSTANCE_NAME}/                          r,
+  owner @{HOME}/Snap/@{SNAP_INSTANCE_NAME}/**                        mrkixwl,
 
   # Writable home area for this version.
   # bind mount *not* used here (see 'parallel installs', above)
@@ -405,7 +419,7 @@ var templateCommon = `
   signal (receive) peer=unconfined,
 
   # for 'udevadm trigger --verbose --dry-run --tag-match=snappy-assign'
-  /{,s}bin/udevadm ixr,
+  /{,usr/}{,s}bin/udevadm ixr,
   /etc/udev/udev.conf r,
   /{,var/}run/udev/tags/snappy-assign/ r,
   @{PROC}/cmdline r,
@@ -457,6 +471,8 @@ var templateCommon = `
   /run/lock/ r,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
+  
+  ###DEVMODE_SNAP_CONFINE###
 `
 
 var templateFooter = `
@@ -478,10 +494,10 @@ var defaultCoreRuntimeTemplateRules = `
   # for python apps/services
   /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
   # additional accesses needed for newer pythons in later bases
-  /usr/lib{,32,64}/python3.[0-9]/**.{pyc,so}           mr,
-  /usr/lib{,32,64}/python3.[0-9]/**.{egg,py,pth}       r,
-  /usr/lib{,32,64}/python3.[0-9]/{site,dist}-packages/ r,
-  /usr/lib{,32,64}/python3.[0-9]/lib-dynload/*.so      mr,
+  /usr/lib{,32,64}/python3.[0-9]*/**.{pyc,so}           mr,
+  /usr/lib{,32,64}/python3.[0-9]*/**.{egg,py,pth}       r,
+  /usr/lib{,32,64}/python3.[0-9]*/{site,dist}-packages/ r,
+  /usr/lib{,32,64}/python3.[0-9]*/lib-dynload/*.so      mr,
   /usr/include/python3.[0-9]*/pyconfig.h               r,
 
   # for perl apps/services
@@ -503,6 +519,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/base64 ixr,
   /{,usr/}bin/basename ixr,
   /{,usr/}bin/bunzip2 ixr,
+  /{,usr/}bin/busctl ixr,
   /{,usr/}bin/bzcat ixr,
   /{,usr/}bin/bzdiff ixr,
   /{,usr/}bin/bzgrep ixr,
@@ -547,7 +564,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/kill ixr,
   /{,usr/}bin/ldd ixr,
   /{usr/,}lib{,32,64}/ld{,32,64}-*.so ix,
-  /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so ix,
+  /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so* ix,
   /{,usr/}bin/less{,file,pipe} ixr,
   /{,usr/}bin/ln ixr,
   /{,usr/}bin/line ixr,
@@ -564,6 +581,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/mv ixr,
   /{,usr/}bin/nice ixr,
   /{,usr/}bin/nohup ixr,
+  /{,usr/}bin/numfmt ixr,
   /{,usr/}bin/od ixr,
   /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
   /{,usr/}bin/paste ixr,
@@ -609,7 +627,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/uptime ixr,
   /{,usr/}bin/vdir ixr,
   /{,usr/}bin/wc ixr,
-  /{,usr/}bin/which ixr,
+  /{,usr/}bin/which{,.debianutils} ixr,
   /{,usr/}bin/xargs ixr,
   /{,usr/}bin/xz ixr,
   /{,usr/}bin/yes ixr,
@@ -763,10 +781,10 @@ var defaultOtherBaseTemplate = templateCommon + defaultOtherBaseTemplateRules + 
 // to send signals to other users (even within the same snap). We want to
 // maintain this with our privilege dropping rules, so we omit 'capability
 // kill' since snaps can work within the system without 'capability kill':
-// - root parent can drop, spawn a child and later (dropped) parent can send a
-//   signal
-// - root parent can spawn a child that drops, then later temporarily drop
-//   (ie, seteuid/setegid), send the signal, then reraise
+//   - root parent can drop, spawn a child and later (dropped) parent can send a
+//     signal
+//   - root parent can spawn a child that drops, then later temporarily drop
+//     (ie, seteuid/setegid), send the signal, then reraise
 var privDropAndChownRules = `
   # allow setuid, setgid and chown for privilege dropping (mediation is done
   # via seccomp). Note: CAP_SETUID allows (and CAP_SETGID is the same, but
@@ -795,6 +813,15 @@ var privDropAndChownRules = `
   # processes that ultimately run as non-root will send signals to those
   # processes as the matching non-root user.
   #capability kill,
+`
+
+// coreSnippet contains apparmor rules specific only for
+// snaps on native core systems.
+var coreSnippet = `
+# Allow each snaps to access each their own folder on the
+# ubuntu-save partition, with write permissions.
+/var/lib/snapd/save/snap/@{SNAP_INSTANCE_NAME}/ rw,
+/var/lib/snapd/save/snap/@{SNAP_INSTANCE_NAME}/** mrwklix,
 `
 
 // classicTemplate contains apparmor template used for snaps with classic

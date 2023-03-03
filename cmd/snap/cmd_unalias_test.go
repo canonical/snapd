@@ -30,7 +30,7 @@ import (
 
 func (s *SnapSuite) TestUnaliasHelp(c *C) {
 	msg := `Usage:
-  snap.test unalias [unalias-OPTIONS] [<alias-or-snap>]
+  snap.test unalias [unalias-OPTIONS] <alias-or-snap>
 
 The unalias command removes a single alias if the provided argument is a manual
 alias, or disables all aliases of a snap, including manual ones, if the

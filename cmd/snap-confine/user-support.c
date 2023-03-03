@@ -38,7 +38,7 @@ void setup_user_data(void)
 
 	debug("creating user data directory: %s", user_data);
 	if (sc_nonfatal_mkpath(user_data, 0755) < 0) {
-		if (errno == EROFS && !sc_startswith(user_data, "/home/")) {
+		if ((errno == EROFS || errno == EACCES) && !sc_startswith(user_data, "/home/")) {
 			// clear errno or it will be displayed in die()
 			errno = 0;
 			die("Sorry, home directories outside of /home are not currently supported. \nSee https://forum.snapcraft.io/t/11209 for details.");

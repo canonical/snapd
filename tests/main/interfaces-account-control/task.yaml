@@ -4,11 +4,12 @@ details: |
     This test makes sure that a snap using the account-control interface
     can handle the user accounts properly.
 
-systems: [ubuntu-core-16-64, ubuntu-core-18-64]
+systems: [ubuntu-core-16-64, ubuntu-core-18-64, ubuntu-core-20-64]
 
 environment:
     TSNAP/ac: account-control-consumer
     TSNAP/accore18: account-control-consumer-core18
+    TSNAP/accore20: account-control-consumer-core20
 
 prepare: |
     echo "Given a snap declaring a plug on account-control is installed"
