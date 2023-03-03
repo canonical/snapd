@@ -51,7 +51,7 @@ const metadataKiBSize = 2048     // 2MB
 // is provided using the key argument.
 func FormatEncryptedDevice(key keys.EncryptionKey, encType EncryptionType, label, node string) error {
 	if !encType.IsLUKS() {
-		return fmt.Errorf("cannot use encryption type %q when formating device %q", encType, node)
+		return fmt.Errorf("internal error: FormatEncryptedDevice for %q expects a LUKS encryption type, not %q", node, encType)
 	}
 
 	useICE := encType == EncryptionTypeLUKSWithICE
