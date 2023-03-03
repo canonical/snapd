@@ -694,8 +694,8 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 	return nil, fmt.Errorf("%q header must be '*' or a list of account ids", name)
 }
 
-func checkModelValidationSetAccountID(headers map[string]interface{}, brandID string) (string, error) {
-	accountID, err := checkOptionalStringWhat(headers, "account-id", "of validation-set")
+func checkModelValidationSetAccountID(headers map[string]interface{}, what, brandID string) (string, error) {
+	accountID, err := checkOptionalStringWhat(headers, "account-id", what)
 	if err != nil {
 		return "", err
 	}
@@ -737,17 +737,18 @@ func checkModelValidationSetMode(headers map[string]interface{}, what string) (M
 }
 
 func checkModelValidationSet(headers map[string]interface{}, brandID string) (*ModelValidationSet, error) {
-	accountID, err := checkModelValidationSetAccountID(headers, brandID)
-	if err != nil {
-		return nil, err
-	}
-
 	name, err := checkStringMatchesWhat(headers, "name", "of validation-set", validValidationSetName)
 	if err != nil {
 		return nil, err
 	}
 
-	what := fmt.Sprintf("of validation-set \"%s/%s\"", accountID, name)
+	what := fmt.Sprintf("of validation-set %q", name)
+	accountID, err := checkModelValidationSetAccountID(headers, what, brandID)
+	if err != nil {
+		return nil, err
+	}
+
+	what = fmt.Sprintf("of validation-set \"%s/%s\"", accountID, name)
 	seq, err := checkModelValidationSetSequence(headers, what)
 	if err != nil {
 		return nil, err
@@ -777,13 +778,6 @@ func checkOptionalModelValidationSets(headers map[string]interface{}, brandID st
 		return nil, fmt.Errorf(`"validation-sets" must be a list of validation sets`)
 	}
 
-	valSetName := func(vs *ModelValidationSet) string {
-		if vs.AccountID != "" {
-			return fmt.Sprintf("%s/%s", vs.AccountID, vs.Name)
-		}
-		return vs.Name
-	}
-
 	vss := make([]*ModelValidationSet, len(entries))
 	seen := make(map[string]bool, len(entries))
 	for i, entry := range entries {
@@ -796,13 +790,13 @@ func checkOptionalModelValidationSets(headers map[string]interface{}, brandID st
 		if err != nil {
 			return nil, err
 		}
-		vsName := valSetName(vs)
-		if seen[vsName] {
-			return nil, fmt.Errorf("cannot add validation set %q twice", vsName)
+		vsKey := fmt.Sprintf("%s/%s", vs.AccountID, vs.Name)
+		if seen[vsKey] {
+			return nil, fmt.Errorf("cannot add validation set %q twice", vsKey)
 		}
 
 		vss[i] = vs
-		seen[vsName] = true
+		seen[vsKey] = true
 	}
 	return vss, nil
 }

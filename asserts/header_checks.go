@@ -114,7 +114,7 @@ func checkIntWithDefaultWhat(headers map[string]interface{}, name, what string, 
 	}
 	s, ok := value.(string)
 	if !ok {
-		return -1, fmt.Errorf("%q header is not an integer: %v", name, value)
+		return -1, fmt.Errorf("%q %s is not an integer: %v", name, what, value)
 	}
 	m, err := atoi(s, "%q %s", name, what)
 	if err != nil {

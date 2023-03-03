@@ -1192,17 +1192,32 @@ func (mods *modelSuite) TestClassicWithSnapsMinimalDecodeOK(c *C) {
 	}
 }
 
-func (mods *modelSuite) TestValidationSetsDecodeFAIL(c *C) {
+func (mods *modelSuite) TestValidationSetsDecodeInvalid(c *C) {
 	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
 	tests := []struct {
 		frag        string
 		expectedErr string
 	}{
+		// invalid format 1
+		{`validation-sets: 12395
+`, "assertion model: \"validation-sets\" must be a list of validation sets"},
+		// invalid format 2
+		{`validation-sets:
+  - test
+`, "assertion model: \"validation-sets\" must contain a list of validation sets"},
 		// missing name
 		{`validation-sets:
   -
     mode: prefer-enforce
 `, "assertion model: \"name\" of validation-set is mandatory"},
+		// account-id not a valid string
+		{`validation-sets:
+  -
+    account-id:
+      - 1
+    name: my-set
+    mode: enforce
+`, "assertion model: \"account-id\" of validation-set \"my-set\" must be a string"},
 		// missing mode
 		{`validation-sets:
   -
@@ -1248,7 +1263,7 @@ func (mods *modelSuite) TestValidationSetsDecodeFAIL(c *C) {
 	for _, t := range tests {
 		data := strings.Replace(encoded, "OTHER", t.frag, 1)
 		_, err := asserts.Decode([]byte(data))
-		c.Assert(err, ErrorMatches, t.expectedErr)
+		c.Check(err, ErrorMatches, t.expectedErr)
 	}
 }
 
