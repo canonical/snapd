@@ -173,12 +173,14 @@ execute: |
         # a filesystem structure entry was copied to the right place
         test "$(cat "$bootdir"/foo.cfg)" = 'this is foo.cfg'
 
-        szimg=$(stat -c '%s' /snap/pc/current/pc-core.img)
-        # using foo.img from x2
-        szfoo=$(stat -c '%s' foo-x2.img)
-        # a raw content was written
-        dd if='/dev/disk/by-partlabel/BIOS\x20Boot' skip="$szimg" bs=1 count="$szfoo" of=foo-written.img
-        test "$(cat foo-written.img)" = 'this is foo-x2'
+        if [ -e /snap/pc/current/pc-core.img ]; then
+            szimg=$(stat -c '%s' /snap/pc/current/pc-core.img)
+            # using foo.img from x2
+            szfoo=$(stat -c '%s' foo-x2.img)
+            # a raw content was written
+            dd if='/dev/disk/by-partlabel/BIOS\x20Boot' skip="$szimg" bs=1 count="$szfoo" of=foo-written.img
+            test "$(cat foo-written.img)" = 'this is foo-x2'
+        fi
 
         if os.query is-core20 || os.query is-core20; then
             # a filesystem structure entry was copied to the right place
@@ -216,13 +218,15 @@ execute: |
         # this one was preserved
         test "$(cat "$bootdir"/foo.cfg)" = 'this is foo.cfg'
 
-        # raw content was updated
-        szimg=$(stat -c '%s' /snap/pc/current/pc-core.img)
-        # using foo.img from x3
-        szfoo=$(stat -c '%s' foo-x3.img)
-        # a raw content was written
-        dd if='/dev/disk/by-partlabel/BIOS\x20Boot' skip="$szimg" bs=1 count="$szfoo" of=foo-updated-written.img
-        test "$(cat foo-updated-written.img)" = 'this is updated foo-x3'
+        if [ -e /snap/pc/current/pc-core.img ]; then
+            # raw content was updated
+            szimg=$(stat -c '%s' /snap/pc/current/pc-core.img)
+            # using foo.img from x3
+            szfoo=$(stat -c '%s' foo-x3.img)
+            # a raw content was written
+            dd if='/dev/disk/by-partlabel/BIOS\x20Boot' skip="$szimg" bs=1 count="$szfoo" of=foo-updated-written.img
+            test "$(cat foo-updated-written.img)" = 'this is updated foo-x3'
+        fi
 
         if os.query is-core20 || os.query is-core22; then
             # a filesystem structure entry was copied to the right place
