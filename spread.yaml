@@ -159,6 +159,7 @@ backends:
 
             - arch-linux-64:
                   workers: 6
+                  storage: 12G
             - amazon-linux-2-64:
                   workers: 6
                   storage: preserve-size
