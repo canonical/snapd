@@ -927,10 +927,10 @@ static struct sc_mount *sc_homedir_mounts(const struct sc_invocation *inv)
 	}
 
     // Copy inv->homedirs to the mount structures
-    for (int i = 0; i < num_homedirs; i++) {
-        debug("Adding homedir: %s", inv->homedirs[i]);
-        mounts[i].path = sc_strdup(inv->homedirs[i]);
-    }
+	for (int i = 0; i < num_homedirs; i++) {
+		debug("Adding homedir: %s", inv->homedirs[i]);
+		mounts[i].path = sc_strdup(inv->homedirs[i]);
+	}
 	return mounts;
 }
 

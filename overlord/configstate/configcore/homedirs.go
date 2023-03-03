@@ -80,7 +80,8 @@ func configureHomedirsInAppArmorAndReload(homedirs []string, opts *fsOnlyContext
 		return err
 	}
 
-	// Only reload profiles if it's during runtime
+	// Only update snap-confine apparmor snippets and reload profiles
+	// if it's during runtime
 	if opts == nil {
 		if _, err := apparmorSetupSnapConfineSnippets(); err != nil {
 			return err
