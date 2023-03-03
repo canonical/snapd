@@ -42,4 +42,4 @@ execute: |
 
     echo "and the user installed font is in the cache"
     # the cache could take few seconds to be generated
-    retry -n 10 --wait 1 sh -c "fc-cat /var/cache/fontconfig/* 2>/dev/null | MATCH "$NAME""
+    retry -n 10 --wait 1 sh -c "fc-cat /var/cache/fontconfig/* 2>/dev/null | MATCH \"$NAME\""
