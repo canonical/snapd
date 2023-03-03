@@ -128,7 +128,7 @@ func handleHomedirsConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOn
 		// There is no specific reason this can not be supported on core, but to
 		// remove this check, we need a spread test verifying this does indeed work
 		// on core as well.
-		return fmt.Errorf("homedirs option is not supported for core")
+		return fmt.Errorf("configuration of homedir locations on Ubuntu Core is currently unsupported. Please report a bug if you need it")
 	}
 
 	conf, err := coreCfg(tr, "homedirs")
