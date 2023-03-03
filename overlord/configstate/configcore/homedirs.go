@@ -124,13 +124,6 @@ func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
 }
 
 func handleHomedirsConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
-	if !dev.Classic() {
-		// There is no specific reason this can not be supported on core, but to
-		// remove this check, we need a spread test verifying this does indeed work
-		// on core as well.
-		return fmt.Errorf("configuration of homedir locations on Ubuntu Core is currently unsupported. Please report a bug if you need it")
-	}
-
 	conf, err := coreCfg(tr, "homedirs")
 	if err != nil {
 		return err
@@ -141,6 +134,15 @@ func handleHomedirsConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOn
 	}
 	if conf == prevConfig {
 		return nil
+	}
+
+	// XXX: Check after verifying no change is done to the actual option as the handler
+	// is still invoked.
+	if !dev.Classic() {
+		// There is no specific reason this can not be supported on core, but to
+		// remove this check, we need a spread test verifying this does indeed work
+		// on core as well.
+		return fmt.Errorf("configuration of homedir locations on Ubuntu Core is currently unsupported. Please report a bug if you need it")
 	}
 
 	if err := updateHomedirsConfig(conf, opts); err != nil {
