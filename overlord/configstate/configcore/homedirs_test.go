@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type homedirsSuite struct {
@@ -95,7 +96,7 @@ func (s *homedirsSuite) TestValidationUnhappy(c *C) {
 		// combine a valid path with an invalid one
 		{"/home/existingDir,/boot/invalid", `path "/boot/invalid/" uses reserved root directory "/boot/"`},
 	} {
-		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 			state: s.state,
 			changes: map[string]interface{}{
 				"homedirs": testData.homedirs,
@@ -113,7 +114,7 @@ func (s *homedirsSuite) TestConfigureUnchangedConfig(c *C) {
 	})
 	defer restore()
 
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "/home/existingDir",
@@ -134,7 +135,7 @@ func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
 	})
 	defer restore()
 
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir/one,/home/existingDir/two",
@@ -149,7 +150,7 @@ func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
 		return errors.New("reload error")
 	})
 	defer restore()
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
@@ -193,7 +194,7 @@ func (s *homedirsSuite) TestConfigureApparmorUnsupported(c *C) {
 		resetAA := apparmor.MockLevel(testData.level)
 		reloadProfilesCalled = false
 
-		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 			state: s.state,
 			changes: map[string]interface{}{
 				"homedirs": "/home/existingDir",
@@ -227,7 +228,7 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 	})
 	defer restore()
 
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
@@ -260,7 +261,7 @@ func (s *homedirsSuite) TestConfigureHomedirsEmptyHappy(c *C) {
 		return false, nil
 	})
 	defer restore()
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "",
@@ -268,4 +269,43 @@ func (s *homedirsSuite) TestConfigureHomedirsEmptyHappy(c *C) {
 	})
 	c.Check(err, IsNil)
 	c.Check(passedHomeDirs, HasLen, 0)
+}
+
+func (s *homedirsSuite) TestConfigureHomedirsNotOnCore(c *C) {
+	reloadProfilesCallCount := 0
+	restore := configcore.MockApparmorReloadAllSnapProfiles(func() error {
+		reloadProfilesCallCount++
+		return nil
+	})
+	defer restore()
+
+	var tunableHomedirs []string
+	restore = configcore.MockApparmorUpdateHomedirsTunable(func(paths []string) error {
+		tunableHomedirs = paths
+		return nil
+	})
+	defer restore()
+
+	var setupSnapConfineSnippetsCalls int
+	restore = configcore.MockApparmorSetupSnapConfineSnippets(func() (bool, error) {
+		setupSnapConfineSnippetsCalls++
+		return false, nil
+	})
+	defer restore()
+
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"homedirs": "/home/existingDir",
+		},
+	})
+	c.Check(err, ErrorMatches, `homedirs option is not supported for core`)
+
+	// Verify config file doesn't exist
+	c.Check(dirs.SnapSystemParamsUnder(dirs.GlobalRootDir), testutil.FileAbsent)
+
+	// And that nothing happened.
+	c.Check(tunableHomedirs, HasLen, 0)
+	c.Check(reloadProfilesCallCount, Equals, 0)
+	c.Check(setupSnapConfineSnippetsCalls, Equals, 0)
 }

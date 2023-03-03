@@ -123,7 +123,14 @@ func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
 	return configureHomedirsInAppArmorAndReload(homedirs, opts)
 }
 
-func handleHomedirsConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
+func handleHomedirsConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
+	if !dev.Classic() {
+		// There is no specific reason this can not be supported on core, but to
+		// remove this check, we need a spread test verifying this does indeed work
+		// on core as well.
+		return fmt.Errorf("homedirs option is not supported for core")
+	}
+
 	conf, err := coreCfg(tr, "homedirs")
 	if err != nil {
 		return err
