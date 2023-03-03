@@ -26,6 +26,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -399,6 +400,14 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsNoSnippets(c *C) {
 	c.Assert(files, HasLen, 0)
 }
 
+func (s *appArmorSuite) writeSystemParams(c *C, homedirs []string) {
+	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
+	conents := fmt.Sprintf("homedirs=%s\n", strings.Join(homedirs, ","))
+
+	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(sspPath, []byte(conents), 0644), IsNil)
+}
+
 func (s *appArmorSuite) TestSetupSnapConfineSnippetsHomedirs(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
@@ -407,8 +416,10 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsHomedirs(c *C) {
 	defer restore()
 	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
-	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return []string{"/mnt/foo", "/mnt/bar"}, nil })
-	defer restore()
+
+	// Setup the system-params which is read by loadHomedirs in SetupSnapConfineSnippets
+	// to verify it's correctly read and loaded.
+	s.writeSystemParams(c, []string{"/mnt/foo", "/mnt/bar"})
 
 	wasChanged, err := apparmor.SetupSnapConfineSnippets()
 	c.Check(err, IsNil)

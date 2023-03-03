@@ -220,7 +220,9 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 	})
 	defer restore()
 
+	var setupSnapConfineSnippetsCalls int
 	restore = configcore.MockApparmorSetupSnapConfineSnippets(func() (bool, error) {
+		setupSnapConfineSnippetsCalls++
 		return false, nil
 	})
 	defer restore()
@@ -243,6 +245,8 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 	c.Check(tunableHomedirs, DeepEquals, []string{"/home/existingDir"})
 	// ...and that profiles have been reloaded
 	c.Check(reloadProfilesCallCount, Equals, 1)
+	// and finally that snap-confine snippets was called
+	c.Check(setupSnapConfineSnippetsCalls, Equals, 1)
 }
 
 func (s *homedirsSuite) TestConfigureHomedirsEmptyHappy(c *C) {
