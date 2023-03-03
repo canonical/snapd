@@ -112,7 +112,13 @@ func (s *deviceMgrSerialSuite) mockServer(c *C, reqID string, bhv *devicestatete
 	bhv.SignSerial = s.signSerial
 	bhv.ExpectedCapabilities = "serial-stream"
 
-	return devicestatetest.MockDeviceService(c, bhv)
+	mockServer, extraCerts := devicestatetest.MockDeviceService(c, bhv)
+	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
+	err := os.MkdirAll(filepath.Dir(fname), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fname, extraCerts, 0644)
+	c.Assert(err, IsNil)
+	return mockServer
 }
 
 func (s *deviceMgrSerialSuite) findBecomeOperationalChange(skipIDs ...string) *state.Change {
