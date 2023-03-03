@@ -279,25 +279,46 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 		buf := json.RawMessage(`{"hello": "there"}`)
 		return &buf, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
+
+	expectedOptions := &snap.SnapshotOptions{}
+	var testName *string
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string,
+		options *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		c.Check(id, check.Equals, uint64(42))
 		c.Check(si, check.DeepEquals, &snapInfo)
 		c.Check(cfg, check.DeepEquals, map[string]interface{}{"hello": "there"})
 		c.Check(usernames, check.DeepEquals, []string{"a-user", "b-user"})
+		c.Check(options, check.DeepEquals, expectedOptions, check.Commentf("test: %q", *testName))
 		return nil, nil
 	})()
 
-	st := state.New(nil)
-	st.Lock()
-	task := st.NewTask("save-snapshot", "...")
-	task.Set("snapshot-setup", map[string]interface{}{
-		"set-id": 42,
-		"snap":   "a-snap",
-		"users":  []string{"a-user", "b-user"},
-	})
-	st.Unlock()
-	err := snapshotstate.DoSave(task, &tomb.Tomb{})
-	c.Assert(err, check.IsNil)
+	exclTypOptions := &snap.SnapshotOptions{Exclude: []string{"$SNAP_USER_DATA/exclude", "$SNAP_USER_COMMON/exclude", "$SNAP_DATA/exclude", "$SNAP_COMMON/exclude"}}
+	testMap := map[string]struct {
+		setupOptions    *snap.SnapshotOptions
+		expectedOptions *snap.SnapshotOptions
+	}{
+		"options-nil":     {nil, nil},
+		"exclude-nil":     {&snap.SnapshotOptions{}, &snap.SnapshotOptions{}},
+		"exclude-empty":   {&snap.SnapshotOptions{Exclude: []string{}}, &snap.SnapshotOptions{}},
+		"exclude-typical": {exclTypOptions, exclTypOptions},
+	}
+
+	for name, test := range testMap {
+		st := state.New(nil)
+		st.Lock()
+		task := st.NewTask("save-snapshot", "...")
+		task.Set("snapshot-setup", map[string]interface{}{
+			"set-id":  42,
+			"snap":    "a-snap",
+			"users":   []string{"a-user", "b-user"},
+			"options": test.setupOptions,
+		})
+		st.Unlock()
+		expectedOptions = test.expectedOptions
+		testName = &name
+		err := snapshotstate.DoSave(task, &tomb.Tomb{})
+		c.Assert(err, check.IsNil)
+	}
 }
 
 func (snapshotSuite) TestDoSaveGetsSnapDirOpts(c *check.C) {

@@ -63,10 +63,11 @@ var (
 	// Stop is used to ask Iter to stop iteration, without it being an error.
 	Stop = errors.New("stop iteration")
 
-	osOpen      = os.Open
-	dirNames    = (*os.File).Readdirnames
-	backendOpen = Open
-	timeNow     = time.Now
+	osOpen               = os.Open
+	dirNames             = (*os.File).Readdirnames
+	backendOpen          = Open
+	timeNow              = time.Now
+	snapReadSnapshotYaml = snap.ReadSnapshotYaml
 
 	usersForUsernames = usersForUsernamesImpl
 )
@@ -322,7 +323,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		// Note: Auto is no longer set in the Snapshot.
 	}
 
-	snapshotOptions, err := snap.ReadSnapshotYaml(si)
+	snapshotOptions, err := snapReadSnapshotYaml(si)
 	if err != nil {
 		return nil, err
 	}

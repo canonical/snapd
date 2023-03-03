@@ -62,8 +62,9 @@ var snapshotYamlHappyExpectedExclude = []string{
 	"$SNAP_USER_COMMON/fo*ur",
 }
 
-func (s *snapshotSuite) TestValidateErrors(c *C) {
+const snapshotJsonHappyExpectedExclude = `{"exclude":["$SNAP_DATA/one","$SNAP_COMMON/two","$SNAP_USER_DATA/three*","$SNAP_USER_COMMON/fo*ur"]}`
 
+func (s *snapshotSuite) TestValidateErrors(c *C) {
 	const mustStartWithError = "snapshot exclude path must start with one of.*"
 	const pathInvalidCharsError = "snapshot exclude path contains invalid characters.*"
 	const pathNotCleanError = "snapshot exclude path not clean.*"
@@ -90,12 +91,11 @@ func (s *snapshotSuite) TestValidateErrors(c *C) {
 }
 
 func (s *snapshotSuite) TestValidateHappy(c *C) {
-
 	testMap := map[string]struct {
 		snapshotOptions snap.SnapshotOptions
 	}{
-		"exclude-list-empty":   {snap.SnapshotOptions{Exclude: []string{}}},
-		"exclude-list-typical": {snap.SnapshotOptions{Exclude: snapshotYamlHappyExpectedExclude}},
+		"exclude-empty":   {snap.SnapshotOptions{Exclude: []string{}}},
+		"exclude-typical": {snap.SnapshotOptions{Exclude: snapshotYamlHappyExpectedExclude}},
 	}
 
 	for name, test := range testMap {
@@ -113,7 +113,7 @@ func (s *snapshotSuite) TestMergeError(c *C) {
 
 func (s *snapshotSuite) TestMergeHappy(c *C) {
 	snapshotOptions := snap.SnapshotOptions{Exclude: snapshotYamlHappyExpectedExclude}
-	snapshotOptionsDouble := snap.SnapshotOptions{
+	snapshotOptionsMerged := snap.SnapshotOptions{
 		Exclude: append(snapshotYamlHappyExpectedExclude, snapshotYamlHappyExpectedExclude...),
 	}
 
@@ -121,9 +121,10 @@ func (s *snapshotSuite) TestMergeHappy(c *C) {
 		moreOptions     *snap.SnapshotOptions
 		expectedOptions snap.SnapshotOptions
 	}{
-		"options-nil":          {nil, snapshotOptions},
-		"exclude-list-empty":   {&snap.SnapshotOptions{Exclude: []string{}}, snapshotOptions},
-		"exclude-list-typical": {&snap.SnapshotOptions{Exclude: snapshotYamlHappyExpectedExclude}, snapshotOptionsDouble},
+		"options-nil":     {nil, snapshotOptions},
+		"exclude-nil":     {&snap.SnapshotOptions{}, snapshotOptions},
+		"exclude-empty":   {&snap.SnapshotOptions{Exclude: []string{}}, snapshotOptions},
+		"exclude-typical": {&snap.SnapshotOptions{Exclude: snapshotYamlHappyExpectedExclude}, snapshotOptionsMerged},
 	}
 
 	for name, test := range testMap {
@@ -135,21 +136,38 @@ func (s *snapshotSuite) TestMergeHappy(c *C) {
 
 func (s *snapshotSuite) TestSnapshotOptionsMarshal(c *C) {
 	testMap := map[string]struct {
-		options        *snap.SnapshotOptions
-		expectedString string
+		options      *snap.SnapshotOptions
+		expectedJson string
 	}{
-		"options-nil":          {options: nil, expectedString: "null"},
-		"exclude-empty":        {options: &snap.SnapshotOptions{Exclude: []string{}}, expectedString: "{}"},
-		"exclude-nil":          {options: &snap.SnapshotOptions{}, expectedString: "{}"},
-		"exclude-empty-string": {options: &snap.SnapshotOptions{Exclude: []string{""}}, expectedString: `{"exclude":[""]}`},
-		"options-typical": {options: &snap.SnapshotOptions{Exclude: snapshotYamlHappyExpectedExclude},
-			expectedString: `{"exclude":["$SNAP_DATA/one","$SNAP_COMMON/two","$SNAP_USER_DATA/three*","$SNAP_USER_COMMON/fo*ur"]}`},
+		"options-nil":     {options: nil, expectedJson: "null"},
+		"exclude-empty":   {options: &snap.SnapshotOptions{Exclude: []string{}}, expectedJson: "{}"},
+		"exclude-nil":     {options: &snap.SnapshotOptions{}, expectedJson: "{}"},
+		"exclude-typical": {options: &snap.SnapshotOptions{Exclude: snapshotYamlHappyExpectedExclude}, expectedJson: snapshotJsonHappyExpectedExclude},
 	}
 
 	for name, test := range testMap {
 		bytes, err := json.Marshal(test.options)
 		c.Assert(err, IsNil)
-		c.Check(string(bytes), Equals, test.expectedString, Commentf("test: %q", name))
+		c.Check(string(bytes), Equals, test.expectedJson, Commentf("test: %q", name))
+	}
+}
+
+func (s *snapshotSuite) TestSnapshotOptionsUnmarshal(c *C) {
+	testMap := map[string]struct {
+		json            string
+		expectedOptions *snap.SnapshotOptions
+	}{
+		"options-nil":     {json: "null", expectedOptions: nil},
+		"exclude-empty":   {json: `{"exclude":[]}`, expectedOptions: &snap.SnapshotOptions{Exclude: []string{}}},
+		"exclude-nil":     {json: "{}", expectedOptions: &snap.SnapshotOptions{}},
+		"exclude-typical": {json: snapshotJsonHappyExpectedExclude, expectedOptions: &snap.SnapshotOptions{Exclude: snapshotYamlHappyExpectedExclude}},
+	}
+
+	for name, test := range testMap {
+		var options *snap.SnapshotOptions
+		err := json.Unmarshal([]byte(test.json), &options)
+		c.Assert(err, IsNil)
+		c.Check(options, DeepEquals, test.expectedOptions, Commentf("test: %q", name))
 	}
 }
 

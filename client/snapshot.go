@@ -104,6 +104,7 @@ func (sh *Snapshot) ContentHash() ([]byte, error) {
 	sh2.SetID = 0
 	sh2.Time = time.Time{}
 	sh2.Auto = false
+	sh2.Options = nil
 	h := sha256.New()
 	enc := json.NewEncoder(h)
 	if err := enc.Encode(&sh2); err != nil {

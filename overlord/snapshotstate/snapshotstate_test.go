@@ -530,7 +530,11 @@ func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	setID, saved, taskset, err := snapshotstate.Save(st, nil, nil, nil)
+	snapshotOptions := map[string]*snap.SnapshotOptions{
+		"a-snap": {Exclude: []string{"$SNAP_COMMON/exclude", "$SNAP_DATA/exclude"}},
+	}
+
+	setID, saved, taskset, err := snapshotstate.Save(st, nil, nil, snapshotOptions)
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.DeepEquals, []string{"a-snap", "c-snap"})
@@ -538,8 +542,24 @@ func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	c.Assert(tasks, check.HasLen, 2)
 	c.Check(tasks[0].Kind(), check.Equals, "save-snapshot")
 	c.Check(tasks[0].Summary(), check.Equals, `Save data of snap "a-snap" in snapshot set #1`)
+
+	var snapshot [2]map[string]interface{}
+	c.Assert(tasks[0].Get("snapshot-setup", &snapshot[0]), check.IsNil)
+	c.Check(snapshot[0], check.DeepEquals, map[string]interface{}{
+		"set-id":  1.,
+		"snap":    "a-snap",
+		"options": map[string]interface{}{"exclude": []interface{}{"$SNAP_COMMON/exclude", "$SNAP_DATA/exclude"}},
+		"current": "unset",
+	})
+
 	c.Check(tasks[1].Kind(), check.Equals, "save-snapshot")
 	c.Check(tasks[1].Summary(), check.Equals, `Save data of snap "c-snap" in snapshot set #1`)
+	c.Assert(tasks[1].Get("snapshot-setup", &snapshot[1]), check.IsNil)
+	c.Check(snapshot[1], check.DeepEquals, map[string]interface{}{
+		"set-id":  1.,
+		"snap":    "c-snap",
+		"current": "unset",
+	})
 }
 
 func (s snapshotSuite) TestSaveOneSnap(c *check.C) {
@@ -610,6 +630,11 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
+	snapshotOptions := map[string]*snap.SnapshotOptions{
+		"one-snap": {Exclude: []string{"$SNAP_COMMON/exclude-a-snap", "$SNAP_DATA/exclude-a-snap"}},
+		"tri-snap": {Exclude: []string{"$SNAP_COMMON/exclude-b-snap", "$SNAP_DATA/exclude-b-snap"}},
+	}
+
 	snapshots := make(map[string]*client.Snapshot, 3)
 	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
 		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
@@ -630,10 +655,11 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 			Version:  "v1",
 			Revision: sideInfo.Revision,
 			Epoch:    snap.E("0"),
+			Options:  snapshotOptions[name],
 		}
 	}
 
-	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"}, nil)
+	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"}, snapshotOptions)
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.DeepEquals, []string{"one-snap", "too-snap", "tri-snap"})

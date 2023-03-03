@@ -103,7 +103,7 @@ func (opts *SnapshotOptions) Validate() error {
 }
 
 // ReadSnapshotYaml reads the snapshot manifest file for the given snap.
-func ReadSnapshotYaml(si *Info) (*SnapshotOptions, error) {
+var ReadSnapshotYaml = func(si *Info) (*SnapshotOptions, error) {
 	file, err := osOpen(filepath.Join(si.MountDir(), snapshotManifestPath))
 	if os.IsNotExist(err) {
 		return &SnapshotOptions{}, nil

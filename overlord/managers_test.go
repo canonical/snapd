@@ -107,6 +107,7 @@ type automaticSnapshotCall struct {
 	InstanceName string
 	SnapConfig   map[string]interface{}
 	Usernames    []string
+	Options      *snap.SnapshotOptions
 }
 
 type baseMgrsSuite struct {
@@ -201,8 +202,9 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	})
 
 	s.automaticSnapshots = nil
-	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
-		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames})
+	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string,
+		options *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
+		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames, Options: options})
 		return nil, nil
 	})
 	s.AddCleanup(r)
@@ -762,7 +764,7 @@ apps:
 	c.Assert(osutil.FileExists(mup), Equals, false)
 
 	// automatic snapshot was created
-	c.Assert(s.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil}})
+	c.Assert(s.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil, nil}})
 }
 
 func (s *mgrsSuite) TestHappyRemoveWithQuotas(c *C) {

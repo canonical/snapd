@@ -72,7 +72,7 @@ func (s *snapshotSuite) TestSnapshotManyOptionsNone(c *check.C) {
 	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 
-func (s *snapshotSuite) TestSnapshotManyOptionsComplete(c *check.C) {
+func (s *snapshotSuite) TestSnapshotManyOptionsFull(c *check.C) {
 	defer daemon.MockSnapshotSave(func(s *state.State, snaps, users []string,
 		options map[string]*snap.SnapshotOptions) (uint64, []string, *state.TaskSet, error) {
 		c.Check(snaps, check.HasLen, 2)

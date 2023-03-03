@@ -720,7 +720,18 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
-	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"}, nil, nil)
+	statExcludes := []string{"$SNAP_USER_DATA/exclude", "$SNAP_USER_COMMON/exclude"}
+	dynExcludes := []string{"$SNAP_DATA/exclude", "$SNAP_COMMON/exclude"}
+	mergedExcludes := append(statExcludes, dynExcludes...)
+	statSnapshotOpts := &snap.SnapshotOptions{Exclude: statExcludes}
+	dynSnapshotOpts := &snap.SnapshotOptions{Exclude: dynExcludes}
+
+	defer backend.MockReadSnapshotYaml(func(si *snap.Info) (*snap.SnapshotOptions, error) {
+		c.Check(si, check.DeepEquals, info)
+		return statSnapshotOpts, nil
+	})()
+
+	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"}, dynSnapshotOpts, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
 	c.Check(shw.Snap, check.Equals, info.InstanceName())
@@ -730,8 +741,10 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	c.Check(shw.Revision, check.Equals, info.Revision)
 	c.Check(shw.Conf, check.DeepEquals, cfg)
 	c.Check(shw.Auto, check.Equals, false)
+	c.Check(shw.Options, check.DeepEquals, dynSnapshotOpts)
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
+	c.Check(statSnapshotOpts.Exclude, check.DeepEquals, mergedExcludes)
 
 	shs, err := backend.List(context.TODO(), 0, nil)
 	c.Assert(err, check.IsNil)
@@ -753,6 +766,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 		c.Check(sh.Conf, check.DeepEquals, cfg, comm)
 		c.Check(sh.SHA3_384, check.DeepEquals, shw.SHA3_384, comm)
 		c.Check(sh.Auto, check.Equals, false)
+		c.Check(sh.Options, check.DeepEquals, dynSnapshotOpts)
 	}
 	c.Check(shr.Name(), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(shr.Check(context.TODO(), nil), check.IsNil)
