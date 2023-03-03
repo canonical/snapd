@@ -149,7 +149,7 @@ void sc_check_rootfs_dir(sc_invocation *inv) {
 static char* read_homedirs_from_system_params(void)
 {
     FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
-    f = fopen("var/lib/snapd/system-params", "r");
+    f = fopen("/var/lib/snapd/system-params", "r");
     if (f == NULL) {
         return NULL;
     }
@@ -158,7 +158,7 @@ static char* read_homedirs_from_system_params(void)
     size_t line_size = 0;
     while (getline(&line, &line_size, f) != -1) {
         if (sc_startswith(line, "homedirs=")) {
-            return strdup(line + (sizeof("homedirs=") - 1));
+            return sc_strdup(line + (sizeof("homedirs=") - 1));
         }
     }
     return NULL;
@@ -197,11 +197,7 @@ void sc_invocation_check_homedirs(sc_invocation *inv)
     char *homedir = strtok_r(config_line, ",\n", &buf_saveptr);
     while (homedir != NULL) {
         if (homedir[0] == '\0') {
-            /* The typical case where we'd get an empty string is
-             * if the config file just contains
-             *
-             * homedirs=
-             */
+            // Deal with the case of an empty homedir line (e.g "homedirs=")
             continue;
         }
         inv->homedirs[current_index++] = sc_strdup(homedir);
