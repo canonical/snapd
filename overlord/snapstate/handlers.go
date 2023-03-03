@@ -897,6 +897,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 // asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
 // the user and then triggers an auto-refresh.
+// The caller should be holding the state lock.
 func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) error {
 	var monitoredSnaps map[string]bool
 	if cachedMonitored := st.Cached("monitored-snaps"); cachedMonitored != nil {
@@ -929,11 +930,13 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 		st.Lock()
 		defer st.Unlock()
 
+		monitoredSnaps, _ = st.Cached("monitored-snaps").(map[string]bool)
 		delete(monitoredSnaps, refreshInfo.InstanceName)
 		if len(monitoredSnaps) == 0 {
-			monitoredSnaps = nil
+			st.Cache("monitored-snaps", nil)
+		} else {
+			st.Cache("monitored-snaps", monitoredSnaps)
 		}
-		st.Cache("monitored-snaps", monitoredSnaps)
 		continueInhibitedAutoRefresh(st)
 	}()
 
