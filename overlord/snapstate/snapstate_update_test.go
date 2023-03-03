@@ -9388,7 +9388,6 @@ func (s *snapmgrTestSuite) TestPreDownloadTaskTriggersAutoRefreshIfSoftCheckOk(c
 
 func (s *snapmgrTestSuite) TestDownloadTaskMonitorsSnapStoppedAndNotifiesOnSoftCheckFail(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 	si := &snap.SideInfo{
 		RealName: "foo",
 		SnapID:   "foo-id",
@@ -9457,23 +9456,13 @@ func (s *snapmgrTestSuite) TestDownloadTaskMonitorsSnapStoppedAndNotifiesOnSoftC
 	s.state.Unlock()
 	monitorSignal <- "foo"
 
-	for i := 0; i < 5; i++ {
-		select {
-		case <-time.After(time.Second):
-			s.state.Lock()
-			finished := s.state.Cached("auto-refresh-continue-attempt")
-			if finished == nil || finished.(int) != 1 {
-				s.state.Unlock()
-				continue
-			}
+	waitForMonitoringEnd(s.state, c)
 
-			c.Assert(s.state.Cached("monitored-snaps"), IsNil)
-			c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 1)
-			return
-		}
-	}
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(s.state.Cached("monitored-snaps"), IsNil)
+	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 1)
 
-	c.Fatal("couldn't check monitoring goroutine ended properly")
 }
 
 func (s *snapmgrTestSuite) TestDownloadTaskMonitorsRepeated(c *C) {
@@ -9641,4 +9630,96 @@ func (s *snapmgrTestSuite) TestUnlinkMonitorSnapOnHardCheckFailure(c *C) {
 	monitored := s.state.Cached("monitored-snaps")
 	c.Assert(monitored, DeepEquals, map[string]bool{"some-snap": true})
 	close(monitorSignal)
+}
+
+func (s *snapmgrTestSuite) TestDeletedMonitoredMapIsCorrectlyDeleted(c *C) {
+	s.state.Lock()
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "foo-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: foo`, si)
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(2),
+		},
+		Flags: snapstate.Flags{IsAutoRefresh: true},
+	}
+
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+
+	})
+	defer restore()
+
+	var monitorSignal chan<- string
+	restore = snapstate.MockCgroupMonitorSnapEnded(func(name string, done chan<- string) error {
+		c.Check(name, Equals, "foo")
+		monitorSignal = done
+		return nil
+	})
+	defer restore()
+
+	preDlChg := s.state.NewChange("pre-download", "pre-download change")
+	preDlTask := s.state.NewTask("pre-download-snap", "pre-download task")
+
+	preDlTask.Set("snap-setup", snapsup)
+	preDlTask.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "foo"})
+	preDlChg.AddTask(preDlTask)
+
+	s.settle(c)
+	c.Assert(preDlChg.Status(), Equals, state.DoneStatus)
+
+	// unblock the monitoring routine which will delete the "monitored-snaps" map
+	s.state.Unlock()
+	monitorSignal <- "foo"
+	waitForMonitoringEnd(s.state, c)
+
+	s.state.Lock()
+	c.Assert(s.state.Cached("monitored-snaps"), IsNil)
+
+	// start a 2nd task that checks the state for the map of monitored snap
+	preDlChg = s.state.NewChange("pre-download", "pre-download change")
+	preDlTask = s.state.NewTask("pre-download-snap", "pre-download task")
+	preDlTask.Set("snap-setup", snapsup)
+	preDlTask.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "foo"})
+	preDlChg.AddTask(preDlTask)
+
+	s.settle(c)
+	c.Assert(preDlChg.Status(), Equals, state.DoneStatus)
+
+	s.state.Unlock()
+	monitorSignal <- "foo"
+	waitForMonitoringEnd(s.state, c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(s.state.Cached("monitored-snaps"), IsNil)
+	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 1)
+}
+
+func waitForMonitoringEnd(st *state.State, c *C) {
+	for i := 0; i < 5; i++ {
+		select {
+		case <-time.After(time.Second):
+			st.Lock()
+			finished := st.Cached("auto-refresh-continue-attempt")
+			if finished == nil {
+				st.Unlock()
+				continue
+			}
+
+			st.Unlock()
+			return
+		}
+	}
+
+	c.Fatal("couldn't check monitoring goroutine finished properly")
 }

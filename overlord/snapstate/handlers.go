@@ -929,11 +929,15 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 		st.Lock()
 		defer st.Unlock()
 
+		monitoredSnaps := st.Cached("monitored-snaps").(map[string]bool)
 		delete(monitoredSnaps, refreshInfo.InstanceName)
+
 		if len(monitoredSnaps) == 0 {
-			monitoredSnaps = nil
+			// use nil to delete entry but must be nil type (can't be map var set to nil)
+			st.Cache("monitored-snaps", nil)
+		} else {
+			st.Cache("monitored-snaps", monitoredSnaps)
 		}
-		st.Cache("monitored-snaps", monitoredSnaps)
 		continueInhibitedAutoRefresh(st)
 	}()
 
