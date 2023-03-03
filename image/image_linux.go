@@ -415,6 +415,7 @@ func (s *imageSeeder) validateSnapArchs(snaps []*seedwriter.SeedSnap) error {
 		for _, a := range sn.Info.Architectures {
 			if a == "all" || a == s.architecture {
 				supportsArch = true
+				break
 			}
 		}
 		if !supportsArch {

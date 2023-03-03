@@ -4219,6 +4219,8 @@ func (s *imageSuite) TestSetupSeedLocalSnapWithInvalidArchitecture(c *C) {
 }
 
 func (s *imageSuite) TestSetupSeedLocalSnapWithInvalidModelArchButArchOverriden(c *C) {
+	// Test that the local snap has a architecture that does not match the model, however
+	// that we can indeed override this with the image options.
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
@@ -4242,6 +4244,8 @@ func (s *imageSuite) TestSetupSeedLocalSnapWithInvalidModelArchButArchOverriden(
 }
 
 func (s *imageSuite) TestSetupSeedLocalSnapWithMultipleArchs(c *C) {
+	// Test that the architecture is correctly validated when there is a mix
+	// of architectures specified in the snap. (march2Snap)
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
@@ -4252,10 +4256,10 @@ func (s *imageSuite) TestSetupSeedLocalSnapWithMultipleArchs(c *C) {
 	}, "")
 
 	rootdir := filepath.Join(c.MkDir(), "image")
-	a64Snap := snaptest.MakeTestSnapWithFiles(c, march2Snap, nil)
+	sn := snaptest.MakeTestSnapWithFiles(c, march2Snap, nil)
 
 	opts := &image.Options{
-		Snaps:      []string{a64Snap},
+		Snaps:      []string{sn},
 		PrepareDir: filepath.Dir(rootdir),
 	}
 
