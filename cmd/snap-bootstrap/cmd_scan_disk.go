@@ -19,24 +19,24 @@
 
 package main
 
-//#cgo CFLAGS: -D_FILE_OFFSET_BITS=64
-//#cgo pkg-config: blkid
-//#cgo LDFLAGS:
-//
-//#include <stdlib.h>
-//#include <blkid.h>
-import "C"
-
 import (
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
-	"unsafe"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/bootloader/efi"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/blkid"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/kcmdline"
+)
+
+var (
+	efiReadVarString = efi.ReadVarString
+	osGetenv         = os.Getenv
 )
 
 func init() {
@@ -55,7 +55,7 @@ func init() {
 type cmdScanDisk struct{}
 
 func (c *cmdScanDisk) Execute([]string) error {
-	return scanDisk()
+	return ScanDisk(os.Stdout)
 }
 
 type Partition struct {
@@ -63,24 +63,8 @@ type Partition struct {
 	UUID string
 }
 
-func getProbeValue(probe C.blkid_probe, name string) (string, error) {
-	var value *C.char
-	var value_len C.size_t
-	entryname := C.CString(name)
-	defer C.free(unsafe.Pointer(entryname))
-	res := C.blkid_probe_lookup_value(probe, entryname, &value, &value_len)
-	if res < 0 {
-		return "", fmt.Errorf("Probe value was not found: %s", name)
-	}
-	if value_len > 0 {
-		return C.GoStringN(value, C.int(value_len-1)), nil
-	} else {
-		return "", fmt.Errorf("Probe value has unexpected size")
-	}
-}
-
-func isGpt(probe C.blkid_probe) bool {
-	pttype, err := getProbeValue(probe, "PTTYPE")
+func isGpt(probe blkid.AbstractBlkidProbe) bool {
+	pttype, err := probe.LookupValue("PTTYPE")
 	if err != nil {
 		return false
 	}
@@ -88,20 +72,17 @@ func isGpt(probe C.blkid_probe) bool {
 }
 
 func probePartitions(node string) ([]Partition, error) {
-	cnode := C.CString(node)
-	defer C.free(unsafe.Pointer(cnode))
-	probe, err := C.blkid_new_probe_from_filename(cnode)
-	if probe == nil {
+	probe, err := blkid.NewProbeFromFilename(node)
+	if err != nil {
 		return nil, err
 	}
-	defer C.blkid_free_probe(probe)
+	defer probe.Close()
 
-	C.blkid_probe_enable_partitions(probe, 1)
-	C.blkid_probe_set_partitions_flags(probe, C.BLKID_PARTS_ENTRY_DETAILS)
-	C.blkid_probe_enable_superblocks(probe, 1)
+	probe.EnablePartitions(true)
+	probe.SetPartitionsFlags(blkid.BLKID_PARTS_ENTRY_DETAILS)
+	probe.EnableSuperblocks(true)
 
-	res, err := C.blkid_do_safeprobe(probe)
-	if res < 0 {
+	if err := probe.DoSafeprobe(); err != nil {
 		return nil, err
 	}
 
@@ -109,17 +90,15 @@ func probePartitions(node string) ([]Partition, error) {
 		return nil, nil
 	}
 
-	partitions, err := C.blkid_probe_get_partitions(probe)
+	partitions, err := probe.GetPartitions()
 	if partitions == nil {
 		return nil, err
 	}
 
-	npartitions := C.blkid_partlist_numof_partitions(partitions)
 	ret := make([]Partition, 0)
-	for i := 0; i < int(npartitions); i++ {
-		partition := C.blkid_partlist_get_partition(partitions, C.int(i))
-		label := C.GoString(C.blkid_partition_get_name(partition))
-		uuid := C.GoString(C.blkid_partition_get_uuid(partition))
+	for _, partition := range partitions.GetPartitions() {
+		label := partition.GetName()
+		uuid := partition.GetUUID()
 		fmt.Fprintf(os.Stderr, "Found partition %s %s\n", label, uuid)
 		ret = append(ret, Partition{label, uuid})
 	}
@@ -139,10 +118,10 @@ func samePath(a, b string) (bool, error) {
 	return os.SameFile(aSt, bSt), nil
 }
 
-func scanDiskNode(node string) error {
+func scanDiskNode(output io.Writer, node string) error {
 	fmt.Fprintf(os.Stderr, "Scanning disk %s\n", node)
 	fallback := false
-	bootUUID, _, err := efi.ReadVarString("LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f")
+	bootUUID, _, err := efiReadVarString("LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "No efi var, falling back: %s\n", err)
 		fallback = true
@@ -170,9 +149,11 @@ func scanDiskNode(node string) error {
 				currentPath = node
 			} else {
 				expectedPath = value
-				currentPath = os.Getenv("DEVPATH")
+				currentPath = osGetenv("DEVPATH")
 			}
-			same, err := samePath(expectedPath, currentPath)
+
+			same, err := samePath(filepath.Join(dirs.GlobalRootDir, expectedPath),
+				filepath.Join(dirs.GlobalRootDir, currentPath))
 			if err != nil {
 				return fmt.Errorf("Cannot check snapd_system_disk kernel parameter: %s\n", err)
 			}
@@ -219,75 +200,72 @@ func scanDiskNode(node string) error {
 	}
 
 	if (!fallback && found) || (fallback && has_seed) {
-		fmt.Printf("UBUNTU_DISK=1\n")
+		fmt.Fprintf(output, "UBUNTU_DISK=1\n")
 		if has_seed {
 			fmt.Fprintf(os.Stderr, "Detected partition for seed: %s\n", seed_uuid)
-			fmt.Printf("UBUNTU_SEED_UUID=%s\n", seed_uuid)
+			fmt.Fprintf(output, "UBUNTU_SEED_UUID=%s\n", seed_uuid)
 		}
 		if has_boot {
 			fmt.Fprintf(os.Stderr, "Detected partition for boot: %s\n", boot_uuid)
-			fmt.Printf("UBUNTU_BOOT_UUID=%s\n", boot_uuid)
+			fmt.Fprintf(output, "UBUNTU_BOOT_UUID=%s\n", boot_uuid)
 		}
 		if has_data {
 			fmt.Fprintf(os.Stderr, "Detected partition for data: %s\n", data_uuid)
-			fmt.Printf("UBUNTU_DATA_UUID=%s\n", data_uuid)
+			fmt.Fprintf(output, "UBUNTU_DATA_UUID=%s\n", data_uuid)
 		}
 		if has_save {
 			fmt.Fprintf(os.Stderr, "Detected partition for save: %s\n", save_uuid)
-			fmt.Printf("UBUNTU_SAVE_UUID=%s\n", save_uuid)
+			fmt.Fprintf(output, "UBUNTU_SAVE_UUID=%s\n", save_uuid)
 		}
 	}
 
 	return nil
 }
 
-func checkPartitionUUID(suffix string, partUUID string) {
+func checkPartitionUUID(output io.Writer, suffix string, partUUID string) {
 	varname := fmt.Sprintf("UBUNTU_%s_UUID", suffix)
-	expectedUUID := os.Getenv(varname)
+	expectedUUID := osGetenv(varname)
 	if len(expectedUUID) > 0 && expectedUUID == partUUID {
 		fmt.Fprintf(os.Stderr, "Detected partition as %s\n", suffix)
-		fmt.Printf("UBUNTU_%s=1\n", suffix)
+		fmt.Fprintf(output, "UBUNTU_%s=1\n", suffix)
 	}
 }
 
-func scanPartitionNode(node string) error {
+func scanPartitionNode(output io.Writer, node string) error {
 	fmt.Fprintf(os.Stderr, "Scanning partition %s\n", node)
 
-	cnode := C.CString(node)
-	defer C.free(unsafe.Pointer(cnode))
-	probe, err := C.blkid_new_probe_from_filename(cnode)
-	if probe == nil {
-		return fmt.Errorf("Cannot create probe for partition %s: %s\n", node, err)
+	probe, err := blkid.NewProbeFromFilename(node)
+	if err != nil {
+		return err
 	}
-	defer C.blkid_free_probe(probe)
+	defer probe.Close()
 
-	C.blkid_probe_enable_partitions(probe, 1)
-	C.blkid_probe_set_partitions_flags(probe, C.BLKID_PARTS_ENTRY_DETAILS)
-	C.blkid_probe_enable_superblocks(probe, 1)
+	probe.EnablePartitions(true)
+	probe.SetPartitionsFlags(blkid.BLKID_PARTS_ENTRY_DETAILS)
+	probe.EnableSuperblocks(true)
 
-	res, err := C.blkid_do_safeprobe(probe)
-	if res < 0 {
+	if err := probe.DoSafeprobe(); err != nil {
 		return fmt.Errorf("Cannot probe partition %s: %s\n", node, err)
 	}
 
-	partUUID, err := getProbeValue(probe, "PART_ENTRY_UUID")
+	partUUID, err := probe.LookupValue("PART_ENTRY_UUID")
 	if err != nil {
 		return fmt.Errorf("Cannot get uuid for partition: %s\n", err)
 	}
 
 	for _, suffix := range []string{"SEED", "BOOT", "DATA", "SAVE"} {
-		checkPartitionUUID(suffix, partUUID)
+		checkPartitionUUID(output, suffix, partUUID)
 	}
 
 	return nil
 }
 
-func scanDisk() error {
-	devname := os.Getenv("DEVNAME")
-	if os.Getenv("DEVTYPE") == "disk" {
-		return scanDiskNode(devname)
-	} else if os.Getenv("DEVTYPE") == "partition" {
-		return scanPartitionNode(devname)
+func ScanDisk(output io.Writer) error {
+	devname := osGetenv("DEVNAME")
+	if osGetenv("DEVTYPE") == "disk" {
+		return scanDiskNode(output, devname)
+	} else if osGetenv("DEVTYPE") == "partition" {
+		return scanPartitionNode(output, devname)
 	} else {
 		return fmt.Errorf("Unknown type for block device %s\n", devname)
 	}
