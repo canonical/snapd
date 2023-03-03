@@ -26,15 +26,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snapdenv"
 )
 
@@ -64,7 +61,7 @@ const (
 	serialURLPath    = "/api/v1/snaps/auth/devices"
 )
 
-func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
+func MockDeviceService(c *C, bhv *DeviceServiceBehavior) (mockServer *httptest.Server, extraPemEncodedCerts []byte) {
 	expectedUserAgent := snapdenv.UserAgent()
 
 	// default URL paths
@@ -257,24 +254,14 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 			}
 		}
 	}))
-	// write custom test-server TLS certificates to
-	// dirs.SnapdStoreSSLCertsDir
-	err := os.MkdirAll(dirs.SnapdStoreSSLCertsDir, 0755)
-	c.Assert(err, IsNil)
-	for i, c1 := range server.TLS.Certificates {
-		fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, fmt.Sprintf("test-server-cert-%v.pem", i))
-		f, err := os.Create(fname)
-		c.Assert(err, IsNil)
-		defer f.Close()
-
-		// there should be just one custom TLS cert in the test-server
-		c.Assert(c1.Certificate, HasLen, 1)
+	pemEncodedCerts := bytes.NewBuffer(nil)
+	for _, c1 := range server.TLS.Certificates {
 		block := &pem.Block{
 			Type:  "CERTIFICATE",
 			Bytes: c1.Certificate[0],
 		}
-		err = pem.Encode(f, block)
+		err := pem.Encode(pemEncodedCerts, block)
 		c.Assert(err, IsNil)
 	}
-	return server
+	return server, pemEncodedCerts.Bytes()
 }
