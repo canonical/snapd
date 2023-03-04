@@ -25,7 +25,6 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -35,14 +34,10 @@ import (
 // fallback logic will revert to "os=v1" but on the filesystem snappy
 // still has the "active" version set to "v2" which is
 // misleading. This code will check what kernel/os booted and set
-// those versions active.To do this it creates a Change and kicks
+// those versions active. To do this it creates a Change and kicks
 // start it directly.
 func UpdateBootRevisions(st *state.State) error {
 	const errorPrefix = "cannot update revisions after boot changes: "
-
-	if release.OnClassic {
-		return nil
-	}
 
 	// nothing to check if there's no kernel
 	ok, err := HasSnapOfType(st, snap.TypeKernel)
@@ -59,17 +54,16 @@ func UpdateBootRevisions(st *state.State) error {
 		return err
 	}
 
-	kernel, err := boot.GetCurrentBoot(snap.TypeKernel, deviceCtx)
-	if err != nil {
-		return fmt.Errorf(errorPrefix+"%s", err)
-	}
-	base, err := boot.GetCurrentBoot(snap.TypeBase, deviceCtx)
-	if err != nil {
-		return fmt.Errorf(errorPrefix+"%s", err)
-	}
-
 	var tsAll []*state.TaskSet
-	for _, actual := range []snap.PlaceInfo{kernel, base} {
+	for _, typ := range []snap.Type{snap.TypeKernel, snap.TypeBase} {
+		if !boot.SnapTypeParticipatesInBoot(typ, deviceCtx) {
+			continue
+		}
+
+		actual, err := boot.GetCurrentBoot(typ, deviceCtx)
+		if err != nil {
+			return fmt.Errorf(errorPrefix+"%s", err)
+		}
 		info, err := CurrentInfo(st, actual.SnapName())
 		if err != nil {
 			logger.Noticef("cannot get info for %q: %s", actual.SnapName(), err)
@@ -78,7 +72,7 @@ func UpdateBootRevisions(st *state.State) error {
 		if actual.SnapRevision() != info.SideInfo.Revision {
 			// FIXME: check that there is no task
 			//        for this already in progress
-			ts, err := RevertToRevision(st, actual.SnapName(), actual.SnapRevision(), Flags{})
+			ts, err := RevertToRevision(st, actual.SnapName(), actual.SnapRevision(), Flags{}, "")
 			if err != nil {
 				return err
 			}

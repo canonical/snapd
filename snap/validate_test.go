@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -518,6 +518,8 @@ func (s *ValidateSuite) TestAppStopMode(c *C) {
 		{"sigusr1-all", true},
 		{"sigusr2", true},
 		{"sigusr2-all", true},
+		{"sigint", true},
+		{"sigint-all", true},
 		// bad
 		{"invalid-thing", false},
 	} {
@@ -537,26 +539,32 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 	// check services
 	for _, t := range []struct {
 		refreshMode string
-		ok          bool
+		daemon      string
+		errMsg      string
 	}{
 		// good
-		{"", true},
-		{"endure", true},
-		{"restart", true},
+		{"", "simple", ""},
+		{"endure", "simple", ""},
+		{"restart", "simple", ""},
+		{"ignore-running", "", ""},
 		// bad
-		{"invalid-thing", false},
+		{"invalid-thing", "simple", `"refresh-mode" field contains invalid value "invalid-thing"`},
+		{"endure", "", `"refresh-mode" for app "foo" can only have value "ignore-running"`},
+		{"restart", "", `"refresh-mode" for app "foo" can only have value "ignore-running"`},
+		{"ignore-running", "simple", `"refresh-mode" cannot be set to "ignore-running" for services`},
 	} {
-		err := ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, RefreshMode: t.refreshMode})
-		if t.ok {
+		var daemonScope DaemonScope
+		if t.daemon != "" {
+			daemonScope = SystemDaemon
+		}
+
+		err := ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: daemonScope, RefreshMode: t.refreshMode})
+		if t.errMsg == "" {
 			c.Check(err, IsNil)
 		} else {
-			c.Check(err, ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refreshMode))
+			c.Check(err, ErrorMatches, t.errMsg)
 		}
 	}
-
-	// non-services cannot have a refresh-mode
-	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", RefreshMode: "endure"})
-	c.Check(err, ErrorMatches, `"refresh-mode" cannot be used for "foo", only for services`)
 }
 
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {
@@ -664,6 +672,28 @@ apps:
 }
 
 // Validate
+
+func (s *ValidateSuite) TestDetectInvalidProvenance(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+provenance: "--"
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid provenance: .*`)
+}
+
+func (s *ValidateSuite) TestDetectExplicitDefaultProvenance(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+provenance: global-upload
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `provenance cannot be set to default \(global-upload\) explicitly`)
+}
 
 func (s *ValidateSuite) TestDetectIllegalYamlBinaries(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: foo
@@ -943,6 +973,10 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/sys" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/run", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/run" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/run/foo", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/run/foo" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/run/systemd", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/run/systemd" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/boot", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/boot" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lost+found", Type: "tmpfs"}, nil),
@@ -961,6 +995,21 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/lib/modules" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/tmp", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/tmp" in an off-limits area`)
+
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Bind: "$SNAP/dev/sda[0123]"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid mount source: "/snap/foo/unset/dev/sda\[0123\]" contains a reserved apparmor char.*`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Bind: "$SNAP/*"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid mount source: "/snap/foo/unset/\*" contains a reserved apparmor char.*`)
+
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", BindFile: "$SNAP/a\"quote"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid mount source: "/snap/foo/unset/a\\"quote" contains a reserved apparmor char.*`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", BindFile: "$SNAP/^invalid"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid mount source: "/snap/foo/unset/\^invalid" contains a reserved apparmor char.*`)
+
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Symlink: "$SNAP/{here,there}"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid symlink: "/snap/foo/unset/{here,there}" contains a reserved apparmor char.*`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Symlink: "$SNAP/**"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid symlink: "/snap/foo/unset/\*\*" contains a reserved apparmor char.*`)
 
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)
@@ -1246,6 +1295,7 @@ layout:
     symlink: $SNAP/existent-dir
 `
 
+	// TODO: merge with the block below
 	for _, testCase := range []struct {
 		str         string
 		topLevelDir string
@@ -1264,6 +1314,24 @@ layout:
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`layout %q defines a new top-level directory %q`, testCase.str, testCase.topLevelDir))
 	}
 
+	for _, testCase := range []struct {
+		str           string
+		expectedError string
+	}{
+		{"$SNAP/with\"quote", "invalid layout path: .* contains a reserved apparmor char.*"},
+		{"$SNAP/myDir[0123]", "invalid layout path: .* contains a reserved apparmor char.*"},
+		{"$SNAP/here{a,b}", "invalid layout path: .* contains a reserved apparmor char.*"},
+		{"$SNAP/anywhere*", "invalid layout path: .* contains a reserved apparmor char.*"},
+	} {
+		// Layout adding a new top-level directory
+		strk = NewScopedTracker()
+		yaml14 := fmt.Sprintf(yaml14Pattern, testCase.str)
+		info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml14), &SideInfo{Revision: R(42)}, strk)
+		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 1)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, testCase.expectedError, Commentf("path: %s", testCase.str))
+	}
 }
 
 func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {

@@ -33,7 +33,10 @@ import (
 func (r *repairSuite) TestShowRepairSingle(c *C) {
 	makeMockRepairState(c)
 
-	err := repair.ParseArgs([]string{"show", "canonical-1"})
+	// repair.ParseArgs() always appends to its internal slice:
+	// cmdShow.Positional.Repair. To workaround this we create a
+	// new cmdShow here
+	err := repair.NewCmdShow("canonical-1").Execute(nil)
 	c.Check(err, IsNil)
 	c.Check(r.Stdout(), Equals, `repair: canonical-1
 revision: 3

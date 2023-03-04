@@ -47,7 +47,7 @@ func (s *cacheSuite) SetUpTest(c *C) {
 
 	s.maxItems = 5
 	s.cm = store.NewCacheManager(c.MkDir(), s.maxItems)
-	// sanity
+	// validity
 	c.Check(s.cm.Count(), Equals, 0)
 }
 

@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
@@ -50,9 +51,9 @@ const appstreamMetadataConnectedPlugAppArmor = `
 /usr/share/appdata/{,**} r,
 
 # Allow access to AppStream collection metadata
-/usr/share/app-info/** r,
-/var/cache/app-info/** r,
-/var/lib/app-info/** r,
+/usr/share/{app-info,swcatalog}/** r,
+/var/cache/{app-info,swcatalog}/** r,
+/var/lib/{app-info,swcatalog}/** r,
 
 # Apt symlinks the DEP-11 metadata to files in /var/lib/apt/lists
 /var/lib/apt/lists/*.yml.gz r,
@@ -62,8 +63,11 @@ var appstreamMetadataDirs = []string{
 	"/usr/share/metainfo",
 	"/usr/share/appdata",
 	"/usr/share/app-info",
+	"/usr/share/swcatalog",
 	"/var/cache/app-info",
+	"/var/cache/swcatalog",
 	"/var/lib/app-info",
+	"/var/lib/swcatalog",
 	"/var/lib/apt/lists",
 }
 
@@ -93,14 +97,22 @@ func (iface *appstreamMetadataInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 func (iface *appstreamMetadataInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	for _, dir := range appstreamMetadataDirs {
 		dir = filepath.Join(dirs.GlobalRootDir, dir)
-		if !osutil.IsDirectory(dir) {
-			continue
+		if osutil.IsSymlink(dir) {
+			target, err := os.Readlink(dir)
+			if err == nil {
+				spec.AddMountEntry(osutil.MountEntry{
+					Name:    "/var/lib/snapd/hostfs" + dir,
+					Dir:     dirs.StripRootDir(dir),
+					Options: []string{osutil.XSnapdKindSymlink(), osutil.XSnapdSymlink(target)},
+				})
+			}
+		} else if osutil.IsDirectory(dir) {
+			spec.AddMountEntry(osutil.MountEntry{
+				Name:    "/var/lib/snapd/hostfs" + dir,
+				Dir:     dirs.StripRootDir(dir),
+				Options: []string{"bind", "ro"},
+			})
 		}
-		spec.AddMountEntry(osutil.MountEntry{
-			Name:    "/var/lib/snapd/hostfs" + dir,
-			Dir:     dirs.StripRootDir(dir),
-			Options: []string{"bind", "ro"},
-		})
 	}
 
 	return nil

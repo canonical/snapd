@@ -51,6 +51,8 @@ type Specification struct {
 // SetControlsDeviceCgroup marks a specification as needing to control
 // its own device cgroup which prevents generation of any udev tagging rules
 // for this snap name
+// TODO: this setting should also imply setting Delegates=true in the
+// ServicePermanentPlug somehow, perhaps just for the commonInterface
 func (spec *Specification) SetControlsDeviceCgroup() {
 	spec.controlsDeviceCgroup = true
 }

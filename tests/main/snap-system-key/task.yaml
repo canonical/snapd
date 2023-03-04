@@ -29,6 +29,8 @@ execute: |
     }
     restart_snapd() {
         stop_snapd
+        # to avoid hitting "start-limit-hit"
+        systemctl reset-failed snapd.service snapd.socket
         start_snapd
     }
 
@@ -40,7 +42,7 @@ execute: |
     restart_snapd
     buf2="$(stat /var/lib/snapd/system-key)"
     if [ "$buf" != "$buf2" ]; then
-        echo "system-key got rewriten: $buf != buf2, test broken"
+        echo "system-key got rewritten: $buf != buf2, test broken"
         exit 1
     fi
 
@@ -48,7 +50,7 @@ execute: |
     printf '{"version":1}' > /var/lib/snapd/system-key
     restart_snapd
     if grep '{"version":1}' /var/lib/snapd/system-key; then
-        echo "system-key *not* rewriten test broken"
+        echo "system-key *not* rewritten test broken"
         exit 1
     fi
 
@@ -67,12 +69,12 @@ execute: |
     echo "Change system-key, with running snapd"
     printf '{"version":1}' > /var/lib/snapd/system-key
     test-snapd-sh.sh -c 'echo good'
-    
+
     echo "Things work again after a restart of snapd"
     restart_snapd
     test-snapd-sh.sh -c 'echo good-again'
     if grep '{"version":1}' /var/lib/snapd/system-key; then
-        echo "system-key *not* rewriten test broken"
+        echo "system-key *not* rewritten test broken"
         exit 1
     fi
 

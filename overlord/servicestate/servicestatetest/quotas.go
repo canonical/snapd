@@ -22,7 +22,6 @@ package servicestatetest
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/quota"
@@ -34,7 +33,7 @@ func PatchQuotas(st *state.State, grps ...*quota.Group) (map[string]*quota.Group
 	return internal.PatchQuotas(st, grps...)
 }
 
-func MockQuotaInState(st *state.State, quotaName string, parentName string, snaps []string, memoryLimit quantity.Size) error {
+func MockQuotaInState(st *state.State, quotaName string, parentName string, snaps []string, resourceLimits quota.Resources) error {
 	allGrps, err := internal.AllQuotas(st)
 	if err != nil {
 		return nil
@@ -49,6 +48,6 @@ func MockQuotaInState(st *state.State, quotaName string, parentName string, snap
 		}
 	}
 
-	_, _, err = internal.CreateQuotaInState(st, quotaName, parentGrp, snaps, memoryLimit, allGrps)
+	_, _, err = internal.CreateQuotaInState(st, quotaName, parentGrp, snaps, resourceLimits, allGrps)
 	return err
 }

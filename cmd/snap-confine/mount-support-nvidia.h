@@ -43,6 +43,6 @@
  * /usr/lib directory on the classic filesystem. After the pivot_root() call
  * those symlinks rely on the /var/lib/snapd/hostfs directory as a "gateway".
  **/
-void sc_mount_nvidia_driver(const char *rootfs_dir);
+void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name);
 
 #endif

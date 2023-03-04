@@ -20,16 +20,25 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/tests/lib/fakestore/refresh"
 )
 
 type cmdMakeRefreshable struct {
-	TopDir string `long:"dir" description:"Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions"`
+	TopDir     string `long:"dir" description:"Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions"`
+	SnapBlob   string `long:"snap-blob" description:"File or directory with new snap revision contents"`
+	Positional struct {
+		SnapName string `description:"snap name" positional-arg-name:"snap-name"`
+	} `positional-args:"yes" required:"1"`
 }
 
 func (x *cmdMakeRefreshable) Execute(args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("unexpected additional arguments %v", args)
+	}
 	// setup fake new revisions of snaps for refresh
-	return refresh.MakeFakeRefreshForSnaps(args, x.TopDir)
+	return refresh.MakeFakeRefreshForSnaps(x.Positional.SnapName, x.TopDir, x.SnapBlob)
 }
 
 var shortMakeRefreshableHelp = "Makes new versions of the given snaps"

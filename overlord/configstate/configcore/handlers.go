@@ -79,6 +79,9 @@ func init() {
 	// system.power-key-action
 	addFSOnlyHandler(nil, handlePowerButtonConfiguration, coreOnly)
 
+	// system.disable-ctrl-alt-del
+	addFSOnlyHandler(nil, handleCtrlAltDelConfiguration, coreOnly)
+
 	// pi-config.*
 	addFSOnlyHandler(nil, handlePiConfiguration, coreOnly)
 
@@ -97,8 +100,18 @@ func init() {
 	// system.timezone
 	addFSOnlyHandler(validateTimezoneSettings, handleTimezoneConfiguration, coreOnly)
 
-	// system.hostname
-	addFSOnlyHandler(validateHostnameSettings, handleHostnameConfiguration, coreOnly)
+	// system.hostname - note that the validation is done via hostnamectl
+	// when applying so there is no validation handler, see LP:1952740
+	addFSOnlyHandler(nil, handleHostnameConfiguration, coreOnly)
+
+	// home directory configuration
+	addFSOnlyHandler(validateHomedirsConfiguration, handleHomedirsConfiguration, nil)
+
+	// tmpfs.size
+	addFSOnlyHandler(validateTmpfsSettings, handleTmpfsConfiguration, coreOnly)
+
+	// system.faillock
+	addFSOnlyHandler(validateFaillockSettings, handleFaillockConfiguration, coreOnly)
 
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = filesystemOnlyApply
 }

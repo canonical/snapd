@@ -51,8 +51,10 @@ const (
 	UserDaemons
 	// DbusActivation controls whether snaps daemons can be activated via D-Bus
 	DbusActivation
-	// HiddenSnapFolder moves ~/snap to ~/.snapdata.
-	HiddenSnapFolder
+	// HiddenSnapDataHomeDir controls if the snaps' data dir is ~/.snap/data instead of ~/snap
+	HiddenSnapDataHomeDir
+	// MoveSnapHomeDir controls whether snap user data under ~/snap (or ~/.snap/data) can be moved to ~/Snap.
+	MoveSnapHomeDir
 	// CheckDiskSpaceRemove controls free disk space check on remove whenever automatic snapshot needs to be created.
 	CheckDiskSpaceRemove
 	// CheckDiskSpaceInstall controls free disk space check on snap install.
@@ -94,7 +96,8 @@ var featureNames = map[SnapdFeature]string{
 	UserDaemons:    "user-daemons",
 	DbusActivation: "dbus-activation",
 
-	HiddenSnapFolder: "hidden-snap-folder",
+	HiddenSnapDataHomeDir: "hidden-snap-folder",
+	MoveSnapHomeDir:       "move-snap-home-dir",
 
 	CheckDiskSpaceInstall: "check-disk-space-install",
 	CheckDiskSpaceRefresh: "check-disk-space-refresh",
@@ -108,6 +111,7 @@ var featureNames = map[SnapdFeature]string{
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
 var featuresEnabledWhenUnset = map[SnapdFeature]bool{
 	Layouts:                       true,
+	RefreshAppAwareness:           true,
 	RobustMountNamespaceUpdates:   true,
 	ClassicPreservesXdgRuntimeDir: true,
 	DbusActivation:                true,
@@ -121,7 +125,8 @@ var featuresExported = map[SnapdFeature]bool{
 
 	ClassicPreservesXdgRuntimeDir: true,
 	RobustMountNamespaceUpdates:   true,
-	HiddenSnapFolder:              true,
+	HiddenSnapDataHomeDir:         true,
+	MoveSnapHomeDir:               true,
 }
 
 // String returns the name of a snapd feature.
@@ -176,6 +181,9 @@ func (f SnapdFeature) IsEnabled() bool {
 	if !f.IsExported() {
 		panic(fmt.Sprintf("cannot check if feature %q is enabled because that feature is not exported", f))
 	}
+
+	// TODO: this returns false on errors != ErrNotExist.
+	// Consider using os.Stat and handling other errors
 	return osutil.FileExists(f.ControlFile())
 }
 

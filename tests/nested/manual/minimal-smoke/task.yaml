@@ -1,6 +1,6 @@
 summary: execute smoke tests in a nested Ubuntu Core VM that meets the minimal requirements
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
     NESTED_ENABLE_SECURE_BOOT/secboot_disabled: false
@@ -20,12 +20,11 @@ execute: |
 
     if tests.nested is-nested uc20; then
         # TODO:UC20: this should written down in the official docs
-        if tests.nested is-enabled secboot; then
-            MINIMAL_MEM=512
-        else
-            MINIMAL_MEM=384
-        fi
+        MINIMAL_MEM=512
         NESTED_SPREAD_SYSTEM=ubuntu-core-20-64
+    elif tests.nested is-nested uc22; then
+        MINIMAL_MEM=512
+        NESTED_SPREAD_SYSTEM=ubuntu-core-22-64
     elif tests.nested is-nested uc18; then
         NESTED_SPREAD_SYSTEM=ubuntu-core-18-64
     elif tests.nested is-nested uc16; then

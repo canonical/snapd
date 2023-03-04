@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -51,6 +53,7 @@ type debugAction struct {
 
 		RecoverySystemLabel string `json:"recovery-system-label"`
 	} `json:"params"`
+	Snaps []string `json:"snaps"`
 }
 
 type connectivityStatus struct {
@@ -267,6 +270,65 @@ func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, a
 	return SyncResponse(responseData)
 }
 
+func getGadgetDiskMapping(st *state.State) Response {
+	deviceCtx, err := devicestate.DeviceCtx(st, nil, nil)
+	if err != nil {
+		return InternalError("cannot get device context: %v", err)
+	}
+	gadgetInfo, err := snapstate.GadgetInfo(st, deviceCtx)
+	if err != nil {
+		return InternalError("cannot get gadget info: %v", err)
+	}
+	gadgetDir := gadgetInfo.MountDir()
+
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return InternalError("cannot get kernel info: %v", err)
+	}
+	kernelDir := kernelInfo.MountDir()
+
+	mod := deviceCtx.Model()
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetDir, kernelDir, mod)
+	if err != nil {
+		return InternalError("cannot get all disk volume device traits: cannot layout volumes: %v", err)
+	}
+
+	// TODO: allow passing in encrypted options info here
+
+	// allow implicit system-data on pre-uc20 only
+	optsMap := map[string]*gadget.DiskVolumeValidationOptions{}
+	for vol := range allLaidOutVols {
+		optsMap[vol] = &gadget.DiskVolumeValidationOptions{
+			AllowImplicitSystemData: mod.Grade() == asserts.ModelGradeUnset,
+		}
+	}
+
+	res, err := gadget.AllDiskVolumeDeviceTraits(allLaidOutVols, optsMap)
+	if err != nil {
+		return InternalError("cannot get all disk volume device traits: %v", err)
+	}
+
+	return SyncResponse(res)
+}
+
+func getDisks(st *state.State) Response {
+
+	disks, err := disks.AllPhysicalDisks()
+	if err != nil {
+		return InternalError("cannot get all physical disks: %v", err)
+	}
+	vols := make([]*gadget.OnDiskVolume, 0, len(disks))
+	for _, d := range disks {
+		vol, err := gadget.OnDiskVolumeFromDisk(d)
+		if err != nil {
+			return InternalError("cannot get on disk volume for device %s: %v", d.KernelDeviceNode(), err)
+		}
+		vols = append(vols, vol)
+	}
+
+	return SyncResponse(vols)
+}
+
 func createRecovery(st *state.State, label string) Response {
 	if label == "" {
 		return BadRequest("cannot create a recovery system with no label")
@@ -307,6 +369,10 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return getChangeTimings(st, chgID, ensureTag, startupTag, all == "true")
 	case "seeding":
 		return getSeedingInfo(st)
+	case "gadget-disk-mapping":
+		return getGadgetDiskMapping(st)
+	case "disks":
+		return getDisks(st)
 	default:
 		return BadRequest("unknown debug aspect %q", aspect)
 	}
@@ -346,6 +412,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return getStacktraces()
 	case "create-recovery-system":
 		return createRecovery(st, a.Params.RecoverySystemLabel)
+	case "migrate-home":
+		return migrateHome(st, a.Snaps)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}

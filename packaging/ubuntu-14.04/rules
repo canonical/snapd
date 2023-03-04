@@ -112,10 +112,16 @@ override_dh_clean:
 	$(MAKE) -C data clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
+	# Switch back to stock seccomp bindings
+	rm -f cmd/snap-seccomp/old_seccomp.go
+	sed -i 's|"github.com/mvo5/libseccomp-golang"|"github.com/seccomp/libseccomp-golang"|' cmd/snap-seccomp/*.go
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
 	./mkversion.sh
+	# Switch to mvo5 fork of seccomp bindings that work with old libseccomp
+	sed -i 's|"github.com/seccomp/libseccomp-golang"|"github.com/mvo5/libseccomp-golang"|' cmd/snap-seccomp/*.go
+
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
@@ -175,6 +181,8 @@ override_dh_install:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
 	# snap-bootstrap is only useful on core (and we don't have a 14.04 core)
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snap-bootstrap
+	# snap-keymgr is not useful either
+	rm -f ${CURDIR}/debian/tmp/usr/bin/snap-fde-keymgr
 	# same goes for snap-recovery-chooser
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snap-recovery-chooser
 	# i18n stuff
@@ -186,6 +194,8 @@ override_dh_install:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 	# bootloader assets generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
+	# asserts/info
+	rm -f ${CURDIR}/debian/tmp/usr/bin/info
 	# docs generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 
@@ -207,7 +217,14 @@ override_dh_install:
 
 	# On Ubuntu and Debian we don't need to install the apparmor helper service.
 	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.apparmor.service
-	rm $(CURDIR)/debian/tmp/usr/lib/snapd/snapd-apparmor
+	rm $(CURDIR)/debian/tmp/usr/bin/snapd-apparmor
+
+	# Remove prompt services, not used on 14.04
+	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.aa-prompt-listener.service
+	rm $(CURDIR)/debian/snapd/usr/lib/systemd/user/snapd.aa-prompt-ui.service
+	rm $(CURDIR)/debian/snapd/usr/share/dbus-1/services/io.snapcraft.Prompt.service
+	rm $(CURDIR)/debian/tmp/usr/bin/snapd-aa-prompt-listener
+	rm $(CURDIR)/debian/tmp/usr/bin/snapd-aa-prompt-ui
 
 	dh_install
 

@@ -4,10 +4,9 @@ details: |
     This test checks support for shutting down the device at the end of install
     mode via the install-device hook
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
-    NESTED_IMAGE_ID: core20-install-device
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
     NESTED_ENABLE_TPM: true
     NESTED_ENABLE_SECURE_BOOT: true
@@ -22,7 +21,8 @@ prepare: |
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
     echo "Grab and prepare the gadget snap"
-    snap download --basename=pc --channel="20/edge" pc
+    VERSION="$(tests.nested show version)"
+    snap download --basename=pc --channel="$VERSION/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
     echo "Sign the shim binary"
@@ -87,10 +87,10 @@ execute: |
     # things here, so wait for those too
     tests.nested wait-for snap-command
     # Wait for snap seeding to be done
-    tests.nested exec "sudo snap wait system seed.loaded"
+    remote.exec "sudo snap wait system seed.loaded"
     # Wait for cloud init to be done
-    tests.nested exec "cloud-init status --wait"
+    remote.exec "cloud-init status --wait"
 
     echo "The device is using encrypted ubuntu-data and is in run mode now"
-    tests.nested exec test -L /dev/disk/by-label/ubuntu-data-enc
-    tests.nested exec cat /proc/cmdline | MATCH "snapd_recovery_mode=run"
+    remote.exec test -L /dev/disk/by-label/ubuntu-data-enc
+    remote.exec cat /proc/cmdline | MATCH "snapd_recovery_mode=run"

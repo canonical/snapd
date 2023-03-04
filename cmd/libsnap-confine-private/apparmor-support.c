@@ -20,6 +20,8 @@
 #endif
 
 #include "apparmor-support.h"
+#include "string-utils.h"
+#include "utils.h"
 
 #include <string.h>
 #include <errno.h>
@@ -53,18 +55,24 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 			debug
 			    ("apparmor is available on the system but has been disabled at boot");
 			break;
-		case ENOENT:
-			debug
-			    ("apparmor is available but the interface but the interface is not available");
-			break;
 		case EPERM:
 			// NOTE: fall-through
 		case EACCES:
 			debug
 			    ("insufficient permissions to determine if apparmor is enabled");
-			break;
+			// since snap-confine is setuid root this should
+			// never happen so likely someone is trying to
+			// manipulate our execution environment - fail hard
+
+			// fall-through
+		case ENOENT:
+		case ENOMEM:
 		default:
-			debug("apparmor is not enabled: %s", strerror(errno));
+			// this shouldn't happen under normal usage so it
+			// is possible someone is trying to manipulate our
+			// execution environment - fail hard
+			die("aa_is_enabled() failed unexpectedly (%s)",
+			    strerror(errno));
 			break;
 		}
 		apparmor->is_confined = false;
@@ -81,13 +89,13 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	}
 	debug("apparmor label on snap-confine is: %s", label);
 	debug("apparmor mode is: %s", mode);
-	// The label has a special value "unconfined" that is applied to all
-	// processes without a dedicated profile. If that label is used then the
-	// current process is not confined. All other labels imply confinement.
-	if (label != NULL && strcmp(label, SC_AA_UNCONFINED_STR) == 0) {
-		apparmor->is_confined = false;
-	} else {
+	// expect to be confined by a profile with the name of a valid
+	// snap-confine binary since if not we may be executed under a
+	// profile with more permissions than expected
+	if (label != NULL && sc_streq(mode, SC_AA_ENFORCE_STR) && sc_is_expected_path(label)) {
 		apparmor->is_confined = true;
+	} else {
+		apparmor->is_confined = false;
 	}
 	// There are several possible results for the confinement type (mode) that
 	// are checked for below.
@@ -116,8 +124,18 @@ sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile)
 	debug("requesting changing of apparmor profile on next exec to %s",
 	      profile);
 	if (aa_change_onexec(profile) < 0) {
+		/* Save errno because secure_getenv() can overwrite it */
+		int aa_change_onexec_errno = errno;
 		if (secure_getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL) {
-			die("cannot change profile for the next exec call");
+			errno = aa_change_onexec_errno;
+			if (errno == ENOENT) {
+				fprintf(stderr, "missing profile %s.\n"
+				        "Please make sure that the snapd.apparmor service is enabled and started\n",
+				        profile);
+				exit(1);
+			} else {
+				die("cannot change profile for the next exec call");
+			}
 		}
 	}
 #endif				// ifdef HAVE_APPARMOR

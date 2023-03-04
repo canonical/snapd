@@ -20,7 +20,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -29,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/release"
 )
 
 type cmdRecovery struct {
@@ -65,16 +63,15 @@ func notesForSystem(sys *client.System) string {
 }
 
 func (x *cmdRecovery) showKeys(w io.Writer) error {
-	if release.OnClassic {
-		return errors.New(`command "show-keys" is not available on classic systems`)
-	}
 	var srk *client.SystemRecoveryKeysResponse
 	err := x.client.SystemRecoveryKeys(&srk)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(w, "recovery:\t%s\n", srk.RecoveryKey)
-	fmt.Fprintf(w, "reinstall:\t%s\n", srk.ReinstallKey)
+	if srk.ReinstallKey != "" {
+		fmt.Fprintf(w, "reinstall:\t%s\n", srk.ReinstallKey)
+	}
 	return nil
 }
 

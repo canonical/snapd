@@ -118,6 +118,11 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromGadget(c *C) {
 		},
 		{name: "androidboot", gadgetFile: "androidboot.conf", sysFile: "/boot/androidboot/androidboot.env"},
 		{name: "lk", gadgetFile: "lk.conf", sysFile: "/boot/lk/snapbootsel.bin", opts: &bootloader.Options{PrepareImageTime: true}},
+		{
+			name:       "piboot",
+			gadgetFile: "piboot.conf",
+			sysFile:    "/boot/piboot/piboot.conf",
+		},
 	} {
 		mockGadgetDir := c.MkDir()
 		rootDir := c.MkDir()

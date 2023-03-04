@@ -24,7 +24,7 @@ execute: |
     test-snapd-sh.sh -c "mkdir -p \$SNAP_USER_DATA/foo && echo hello world > \$SNAP_USER_DATA/foo/bar"
 
     expected_label="unconfined_t"
-    if os.query is-centos-7; then
+    if os.query is-centos 7; then
         # on centos-7, the policy or systemd seems to lack the necessary transition
         # for the user service
         expected_label="unconfined_service_t"

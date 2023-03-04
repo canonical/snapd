@@ -55,7 +55,7 @@ restore: |
     teardown_fake_store "$BLOB_DIR"
 
 debug: |
-    jq .data.auth.device /var/lib/snapd/state.json
+    jq .data.auth.device /var/lib/snapd/state.json || true
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

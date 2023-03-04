@@ -60,7 +60,12 @@ mount options=(rw,nosuid,nodev) /dev/dm-[0-9]* -> /{,run/}media/**,
 /{,usr/}bin/umount ixr,
 
 # mount/umount (via libmount) track some mount info in these files
-/run/mount/utab* wrlk,
+/{,var/}run/mount/utab* wrlk,
+
+# Allow access to the file locking mechanism
+/{,var/}run/cryptsetup/ r,
+/{,var/}run/cryptsetup/* rwk,
+/{,var/}run/ r,
 `
 
 const dmCryptConnectedPlugSecComp = `

@@ -80,7 +80,7 @@ static void sdh_test_tear_down(sdh_test_fixture *fixture, gconstpointer user_dat
 }
 
 static struct mocks {
-    size_t cgorup_new_calls;
+    size_t cgroup_new_calls;
     void *new_ret;
     char *new_tag;
     int new_flags;
@@ -104,7 +104,7 @@ static void mocks_reset(void) {
 /* mocked in test */
 sc_device_cgroup *sc_device_cgroup_new(const char *security_tag, int flags) {
     g_debug("cgroup new called");
-    mocks.cgorup_new_calls++;
+    mocks.cgroup_new_calls++;
     mocks.new_tag = g_strdup(security_tag);
     mocks.new_flags = flags;
     return (sc_device_cgroup *)mocks.new_ret;
@@ -153,7 +153,7 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
 
     int ret = snap_device_helper_run(&inv_block);
     g_assert_cmpint(ret, ==, 0);
-    g_assert_cmpint(mocks.cgorup_new_calls, ==, 1);
+    g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
     if (g_strcmp0(td->action, "add") == 0 || g_strcmp0(td->action, "change") == 0) {
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
@@ -184,7 +184,7 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
     symlink_in_sysroot(fixture, "/sys/devices/foo/tty/ttyS0/subsystem", "../../../../class/other");
     ret = snap_device_helper_run(&inv_serial);
     g_assert_cmpint(ret, ==, 0);
-    g_assert_cmpint(mocks.cgorup_new_calls, ==, 1);
+    g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
     if (g_strcmp0(td->action, "add") == 0 || g_strcmp0(td->action, "change") == 0) {
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
@@ -271,9 +271,97 @@ static void test_sdh_action_nvme(sdh_test_fixture *fixture, gconstpointer test_d
         };
         int ret = snap_device_helper_run(&inv_block);
         g_assert_cmpint(ret, ==, 0);
-        g_assert_cmpint(mocks.cgorup_new_calls, ==, 1);
+        g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
+        g_assert_cmpint(mocks.device_major, ==, tcs[i].expected_maj);
+        g_assert_cmpint(mocks.device_minor, ==, tcs[i].expected_min);
+        g_assert_cmpint(mocks.device_type, ==, tcs[i].expected_type);
+        g_assert_cmpint(mocks.new_flags, !=, 0);
+        g_assert_cmpint(mocks.new_flags, ==, SC_DEVICE_CGROUP_FROM_EXISTING);
+    }
+}
+
+static void test_sdh_action_remove_fallback_devtype(sdh_test_fixture *fixture, gconstpointer test_data) {
+    /* check that fallback guessing of device type if applied during remove action */
+    mkdir_in_sysroot(fixture, "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/nvme0n1");
+    mkdir_in_sysroot(fixture, "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/nvme0n1p1");
+    mkdir_in_sysroot(fixture, "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/ng0n1");
+    mkdir_in_sysroot(fixture, "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/hwmon0");
+    mkdir_in_sysroot(fixture, "/sys/devices/foo/block/sda/sda4");
+    mkdir_in_sysroot(fixture, "/sys//devices/pnp0/00:04/tty/ttyS0");
+
+    struct {
+        const char *dev;
+        const char *majmin;
+        int expected_maj;
+        int expected_min;
+        int expected_type;
+    } tcs[] = {
+        /* these device paths match the fallback pattern of block devices */
+        {
+            .dev = "/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/nvme0n1",
+            .majmin = "259:0",
+            .expected_maj = 259,
+            .expected_min = 0,
+            .expected_type = S_IFBLK,
+        },
+        {
+            .dev = "/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/nvme0n1p1",
+            .majmin = "259:1",
+            .expected_maj = 259,
+            .expected_min = 1,
+            .expected_type = S_IFBLK,
+        },
+        {
+            .dev = "/devices/foo/block/sda/sda4",
+            .majmin = "8:0",
+            .expected_maj = 8,
+            .expected_min = 0,
+            .expected_type = S_IFBLK,
+        },
+        /* these are treated as char devices */
+        {
+            .dev = "/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0",
+            .majmin = "242:0",
+            .expected_maj = 242,
+            .expected_min = 0,
+            .expected_type = S_IFCHR,
+        },
+        {
+            .dev = "/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/hwmon0",
+            .majmin = "241:0",
+            .expected_maj = 241,
+            .expected_min = 0,
+            .expected_type = S_IFCHR,
+        },
+        {
+            .dev = "/devices/pnp0/00:04/tty/ttyS0",
+            .majmin = "4:64",
+            .expected_maj = 4,
+            .expected_min = 64,
+            .expected_type = S_IFCHR,
+        },
+    };
+
+    int bogus = 0;
+
+    for (size_t i = 0; i < sizeof(tcs) / sizeof(tcs[0]); i++) {
+        mocks_reset();
+        /* make cgroup_device_new return a non-NULL */
+        mocks.new_ret = &bogus;
+
+        struct sdh_invocation inv_block = {
+            .action = "remove",
+            .tagname = "snap_foo_bar",
+            .devpath = tcs[i].dev,
+            .majmin = tcs[i].majmin,
+        };
+        int ret = snap_device_helper_run(&inv_block);
+        g_assert_cmpint(ret, ==, 0);
+        g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
+        g_assert_cmpint(mocks.cgroup_allow_calls, ==, 0);
+        g_assert_cmpint(mocks.cgroup_deny_calls, ==, 1);
         g_assert_cmpint(mocks.device_major, ==, tcs[i].expected_maj);
         g_assert_cmpint(mocks.device_minor, ==, tcs[i].expected_min);
         g_assert_cmpint(mocks.device_type, ==, tcs[i].expected_type);
@@ -355,10 +443,16 @@ static void test_sdh_err_badaction(sdh_test_fixture *fixture, gconstpointer test
                 "ERROR: unknown action \"badaction\"\n");
 }
 
-static void test_sdh_err_nosymlink(sdh_test_fixture *fixture, gconstpointer test_data) {
+static void test_sdh_err_nosymlink_block(sdh_test_fixture *fixture, gconstpointer test_data) {
     // missing symlink
     run_sdh_die("add", "snap_foo_bar", "/devices/foo/block/sda/sda4", "8:4",
                 "cannot read symlink */sys//devices/foo/block/sda/sda4/subsystem*\n");
+}
+
+static void test_sdh_err_nosymlink_char(sdh_test_fixture *fixture, gconstpointer test_data) {
+    // missing symlink
+    run_sdh_die("add", "snap_foo_bar", "/devices/pnp0/00:04/tty/ttyS0", "4:64",
+                "cannot read symlink */sys//devices/pnp0/00:04/tty/ttyS0/subsystem*\n");
 }
 
 static void test_sdh_err_funtag1(sdh_test_fixture *fixture, gconstpointer test_data) {
@@ -427,6 +521,7 @@ static void __attribute__((constructor)) init(void) {
     _test_add("/snap-device-helper/add", &add_data, test_sdh_action);
     _test_add("/snap-device-helper/change", &change_data, test_sdh_action);
     _test_add("/snap-device-helper/remove", &remove_data, test_sdh_action);
+    _test_add("/snap-device-helper/remove_fallback", NULL, test_sdh_action_remove_fallback_devtype);
 
     _test_add("/snap-device-helper/err/no-appname", NULL, test_sdh_err_noappname);
     _test_add("/snap-device-helper/err/bad-appname", NULL, test_sdh_err_badappname);
@@ -436,7 +531,8 @@ static void __attribute__((constructor)) init(void) {
     _test_add("/snap-device-helper/err/wrong-devmajorminor_late1", NULL, test_sdh_err_wrongdevmajorminor_late1);
     _test_add("/snap-device-helper/err/wrong-devmajorminor_late2", NULL, test_sdh_err_wrongdevmajorminor_late2);
     _test_add("/snap-device-helper/err/bad-action", NULL, test_sdh_err_badaction);
-    _test_add("/snap-device-helper/err/no-symlink", NULL, test_sdh_err_nosymlink);
+    _test_add("/snap-device-helper/err/no-symlink-block", NULL, test_sdh_err_nosymlink_block);
+    _test_add("/snap-device-helper/err/no-symlink-char", NULL, test_sdh_err_nosymlink_char);
     _test_add("/snap-device-helper/err/funtag1", NULL, test_sdh_err_funtag1);
     _test_add("/snap-device-helper/err/funtag2", NULL, test_sdh_err_funtag2);
     _test_add("/snap-device-helper/err/funtag3", NULL, test_sdh_err_funtag3);

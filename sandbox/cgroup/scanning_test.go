@@ -224,3 +224,22 @@ func (s *scanningSuite) TestPidsOfSnapUnrelated(c *C) {
 		}, comment)
 	}
 }
+
+func (s *scanningSuite) TestContainerPidsAreIgnored(c *C) {
+	for _, ver := range []int{cgroup.V2, cgroup.V1} {
+		comment := Commentf("cgroup version %v", ver)
+		restore := cgroup.MockVersion(ver, nil)
+		defer restore()
+
+		s.writePids(c, "user.slice/user-1000.slice/user@1000.service/snap.foo.bar.scope", []int{1})
+		s.writePids(c, "system.slice/snap.foo.bar.service", []int{2})
+		s.writePids(c, "lxc.payload.my-container/system.slice/snap.foo.bar.service", []int{3})
+		s.writePids(c, "machine.slice/snap.foo.bar.service", []int{4})
+		s.writePids(c, "docker/snap.foo.bar.service", []int{5})
+
+		pids, err := cgroup.PidsOfSnap("foo")
+		c.Assert(err, IsNil, comment)
+		c.Check(pids, HasLen, 1, comment)
+		c.Check(pids["snap.foo.bar"], testutil.DeepUnsortedMatches, []int{1, 2}, comment)
+	}
+}

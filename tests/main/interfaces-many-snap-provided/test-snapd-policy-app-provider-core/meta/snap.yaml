@@ -32,6 +32,7 @@ slots:
   lxd: null
   maliit: null
   media-hub: null
+  microceph: null
   mir: null
   modem-manager: null
   network-manager: null
@@ -102,6 +103,9 @@ apps:
   media-hub:
     command: bin/run
     slots: [ media-hub ]
+  microceph:
+    command: bin/run
+    slots: [ microceph ]
   mir:
     command: bin/run
     slots: [ mir ]

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -62,12 +62,16 @@ type Snap struct {
 	TryMode          bool          `json:"trymode,omitempty"`
 	Apps             []AppInfo     `json:"apps,omitempty"`
 	Broken           string        `json:"broken,omitempty"`
-	Contact          string        `json:"contact"`
 	License          string        `json:"license,omitempty"`
 	CommonIDs        []string      `json:"common-ids,omitempty"`
 	MountedFrom      string        `json:"mounted-from,omitempty"`
 	CohortKey        string        `json:"cohort-key,omitempty"`
-	Website          string        `json:"website,omitempty"`
+
+	Links map[string][]string `json:"links,omitempy"`
+
+	// legacy fields before we had links
+	Contact string `json:"contact"`
+	Website string `json:"website,omitempty"`
 
 	Prices      map[string]float64    `json:"prices,omitempty"`
 	Screenshots []snap.ScreenshotInfo `json:"screenshots,omitempty"`
@@ -80,6 +84,11 @@ type Snap struct {
 	Tracks []string `json:"tracks,omitempty"`
 
 	Health *SnapHealth `json:"health,omitempty"`
+
+	// Hold is the time until which the snap's refreshes are held by the user.
+	Hold *time.Time `json:"hold,omitempty"`
+	// GatingHold is the time until which the snap's refreshes are held by a snap.
+	GatingHold *time.Time `json:"gating-hold,omitempty"`
 }
 
 type SnapHealth struct {

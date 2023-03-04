@@ -131,7 +131,7 @@ override_dh_clean:
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
-	GO_GENERATE_BUILDDIR=_build/src/$(DH_GOPKG) ./mkversion.sh
+	GO_GENERATE_BUILDDIR=_build/src/$(DH_GOPKG) GO111MODULE=off GOPATH=$$(pwd)/_build ./mkversion.sh
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
@@ -139,9 +139,10 @@ override_dh_auto_build:
 
 	# exclude certain parts that won't be used by debian
 	find _build/src/$(DH_GOPKG)/cmd/snap-bootstrap -name "*.go" | xargs rm -f
+	find _build/src/$(DH_GOPKG)/cmd/snap-fde-keymgr -name "*.go" | xargs rm -f
 	find _build/src/$(DH_GOPKG)/gadget/install -name "*.go" | grep -vE '(params\.go|install_dummy\.go)'| xargs rm -f
 	# XXX: once dh-golang understands go build tags this would not be needed
-	find _build/src/$(DH_GOPKG)/secboot/ -name "*.go" | grep -Ev '(encrypt\.go|secboot_dummy\.go|secboot\.go|encrypt_dummy\.go)' | xargs rm -f
+	find _build/src/$(DH_GOPKG)/secboot/ -name "*.go" | grep -E '(.*_sb(_test)?\.go|.*_tpm(_test)?\.go|secboot_hooks.go|keymgr/)' | xargs rm -f
 	# and build, we cannot use modules as packaging on Debian requires us to use
 	# dependencies from the distro, and this would require further updates to the
 	# go.mod file
@@ -218,6 +219,8 @@ override_dh_install-indep:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 	# bootloader assets generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
+	# asserts/info
+	rm -f ${CURDIR}/debian/tmp/usr/bin/info
 	# docs generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 
@@ -239,6 +242,8 @@ override_dh_install-arch:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 	# bootloader assets generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
+	# asserts/info
+	rm -f ${CURDIR}/debian/tmp/usr/bin/info
 	# docs generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 

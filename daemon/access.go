@@ -191,7 +191,7 @@ func requireThemeApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
 		return Forbidden("internal error: cannot get connections: %s", err)
 	}
 	for refStr, connState := range conns {
-		if connState.Undesired || connState.HotplugGone || connState.Interface != "snap-themes-control" {
+		if !connState.Active() || connState.Interface != "snap-themes-control" {
 			continue
 		}
 		connRef, err := interfaces.ParseConnRef(refStr)

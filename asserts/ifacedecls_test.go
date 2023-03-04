@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2017 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -118,43 +118,14 @@ func (s *attrConstraintsSuite) TestSimple(c *C) {
 	c.Check(err, ErrorMatches, `attribute "bar" has constraints but is unset`)
 }
 
-func (s *attrConstraintsSuite) TestSimpleAnchorsVsRegexpAlt(c *C) {
+func (s *attrConstraintsSuite) TestMissingCheck(c *C) {
 	m, err := asserts.ParseHeaders([]byte(`attrs:
-  bar: BAR|BAZ`))
+  foo: $MISSING`))
 	c.Assert(err, IsNil)
 
 	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
 	c.Assert(err, IsNil)
-
-	plug := attrerObject(map[string]interface{}{
-		"bar": "BAR",
-	})
-	err = cstrs.Check(plug, nil)
-	c.Check(err, IsNil)
-
-	plug = attrerObject(map[string]interface{}{
-		"bar": "BARR",
-	})
-	err = cstrs.Check(plug, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BARR" does not match \^\(BAR|BAZ\)\$`)
-
-	plug = attrerObject(map[string]interface{}{
-		"bar": "BBAZ",
-	})
-	err = cstrs.Check(plug, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BAZZ" does not match \^\(BAR|BAZ\)\$`)
-
-	plug = attrerObject(map[string]interface{}{
-		"bar": "BABAZ",
-	})
-	err = cstrs.Check(plug, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BABAZ" does not match \^\(BAR|BAZ\)\$`)
-
-	plug = attrerObject(map[string]interface{}{
-		"bar": "BARAZ",
-	})
-	err = cstrs.Check(plug, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BARAZ" does not match \^\(BAR|BAZ\)\$`)
+	c.Check(asserts.RuleFeature(cstrs, "dollar-attr-constraints"), Equals, true)
 }
 
 func (s *attrConstraintsSuite) TestNested(c *C) {
@@ -207,80 +178,68 @@ baz: BAZ
 	c.Check(err, ErrorMatches, `attribute "bar\.bar2" must be a scalar or list`)
 }
 
-func (s *attrConstraintsSuite) TestAlternative(c *C) {
+func (s *attrConstraintsSuite) TestAlternativeMatchingComplex(c *C) {
+	toMatch := attrs(`
+mnt: [{what: "/dev/x*", where: "/foo/*", options: ["rw", "nodev"]}, {what: "/bar/*", where: "/baz/*", options: ["rw", "bind"]}]
+`)
+
 	m, err := asserts.ParseHeaders([]byte(`attrs:
-  -
-    foo: FOO
-    bar: BAR
-  -
-    foo: FOO
-    bar: BAZ`))
-	c.Assert(err, IsNil)
-
-	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].([]interface{}))
-	c.Assert(err, IsNil)
-
-	plug := attrerObject(map[string]interface{}{
-		"foo": "FOO",
-		"bar": "BAR",
-		"baz": "BAZ",
-	})
-	err = cstrs.Check(plug, nil)
-	c.Check(err, IsNil)
-
-	plug = attrerObject(map[string]interface{}{
-		"foo": "FOO",
-		"bar": "BAZ",
-		"baz": "BAZ",
-	})
-	err = cstrs.Check(plug, nil)
-	c.Check(err, IsNil)
-
-	plug = attrerObject(map[string]interface{}{
-		"foo": "FOO",
-		"bar": "BARR",
-		"baz": "BAR",
-	})
-	err = cstrs.Check(plug, nil)
-	c.Check(err, ErrorMatches, `no alternative matches: attribute "bar" value "BARR" does not match \^\(BAR\)\$`)
-}
-
-func (s *attrConstraintsSuite) TestNestedAlternative(c *C) {
-	m, err := asserts.ParseHeaders([]byte(`attrs:
-  foo: FOO
-  bar:
-    bar1: BAR1
-    bar2:
-      - BAR2
-      - BAR22`))
+  mnt:
+    -
+      what: /(bar/|dev/x)\*
+      where: /(foo|baz)/\*
+      options: rw|bind|nodev`))
 	c.Assert(err, IsNil)
 
 	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
 	c.Assert(err, IsNil)
 
-	err = cstrs.Check(attrs(`
-foo: FOO
-bar:
-  bar1: BAR1
-  bar2: BAR2
-`), nil)
+	err = cstrs.Check(toMatch, nil)
 	c.Check(err, IsNil)
 
-	err = cstrs.Check(attrs(`
-foo: FOO
-bar:
-  bar1: BAR1
-  bar2: BAR22
-`), nil)
+	m, err = asserts.ParseHeaders([]byte(`attrs:
+  mnt:
+    -
+      what: /dev/x\*
+      where: /foo/\*
+      options:
+        - nodev
+        - rw
+    -
+      what: /bar/\*
+      where: /baz/\*
+      options:
+        - rw
+        - bind`))
+	c.Assert(err, IsNil)
+
+	cstrsExtensive, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	err = cstrsExtensive.Check(toMatch, nil)
 	c.Check(err, IsNil)
 
-	err = cstrs.Check(attrs(`
-foo: FOO
-bar:
-  bar1: BAR1
-  bar2: BAR3
-`), nil)
-	c.Check(err, ErrorMatches, `no alternative for attribute "bar\.bar2" matches: attribute "bar\.bar2" value "BAR3" does not match \^\(BAR2\)\$`)
+	// not matching case
+	m, err = asserts.ParseHeaders([]byte(`attrs:
+  mnt:
+    -
+      what: /dev/x\*
+      where: /foo/\*
+      options:
+        - rw
+    -
+      what: /bar/\*
+      where: /baz/\*
+      options:
+        - rw
+        - bind`))
+	c.Assert(err, IsNil)
+
+	cstrsExtensiveNoMatch, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	err = cstrsExtensiveNoMatch.Check(toMatch, nil)
+	c.Check(err, ErrorMatches, `no alternative for attribute "mnt\.0" matches: no alternative for attribute "mnt\.0.options\.1" matches:.*`)
 }
 
 func (s *attrConstraintsSuite) TestOtherScalars(c *C) {
@@ -297,13 +256,6 @@ foo: 1
 bar: true
 `), nil)
 	c.Check(err, IsNil)
-
-	plug := attrerObject(map[string]interface{}{
-		"foo": int64(1),
-		"bar": true,
-	})
-	err = cstrs.Check(plug, nil)
-	c.Check(err, IsNil)
 }
 
 func (s *attrConstraintsSuite) TestCompileErrors(c *C) {
@@ -311,16 +263,6 @@ func (s *attrConstraintsSuite) TestCompileErrors(c *C) {
 		"foo": "[",
 	})
 	c.Check(err, ErrorMatches, `cannot compile "foo" constraint "\[": error parsing regexp:.*`)
-
-	_, err = asserts.CompileAttributeConstraints(map[string]interface{}{
-		"foo": []interface{}{"foo", "["},
-	})
-	c.Check(err, ErrorMatches, `cannot compile "foo/alt#2/" constraint "\[": error parsing regexp:.*`)
-
-	_, err = asserts.CompileAttributeConstraints(map[string]interface{}{
-		"foo": []interface{}{"foo", []interface{}{"bar", "baz"}},
-	})
-	c.Check(err, ErrorMatches, `cannot nest alternative constraints directly at "foo/alt#2/"`)
 
 	_, err = asserts.CompileAttributeConstraints("FOO")
 	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value contraints`)
@@ -342,45 +284,6 @@ func (s *attrConstraintsSuite) TestCompileErrors(c *C) {
 		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": not a valid \$SLOT\(\)/\$PLUG\(\) constraint`, regexp.QuoteMeta(wrong)))
 
 	}
-}
-
-func (s *attrConstraintsSuite) TestMatchingListsSimple(c *C) {
-	m, err := asserts.ParseHeaders([]byte(`attrs:
-  foo: /foo/.*`))
-	c.Assert(err, IsNil)
-
-	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
-	c.Assert(err, IsNil)
-
-	err = cstrs.Check(attrs(`
-foo: ["/foo/x", "/foo/y"]
-`), nil)
-	c.Check(err, IsNil)
-
-	err = cstrs.Check(attrs(`
-foo: ["/foo/x", "/foo"]
-`), nil)
-	c.Check(err, ErrorMatches, `attribute "foo\.1" value "/foo" does not match \^\(/foo/\.\*\)\$`)
-}
-
-func (s *attrConstraintsSuite) TestMissingCheck(c *C) {
-	m, err := asserts.ParseHeaders([]byte(`attrs:
-  foo: $MISSING`))
-	c.Assert(err, IsNil)
-
-	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
-	c.Assert(err, IsNil)
-	c.Check(asserts.RuleFeature(cstrs, "dollar-attr-constraints"), Equals, true)
-
-	err = cstrs.Check(attrs(`
-bar: baz
-`), nil)
-	c.Check(err, IsNil)
-
-	err = cstrs.Check(attrs(`
-foo: ["x"]
-`), nil)
-	c.Check(err, ErrorMatches, `attribute "foo" is constrained to be missing but is set`)
 }
 
 type testEvalAttr struct {
@@ -453,30 +356,6 @@ foo: foo
 bar: bar.baz
 `), testEvalAttr{comp3})
 	c.Check(err, ErrorMatches, `attribute "foo" does not match \$SLOT\(foo\): foo != other-value`)
-}
-
-func (s *attrConstraintsSuite) TestMatchingListsMap(c *C) {
-	m, err := asserts.ParseHeaders([]byte(`attrs:
-  foo:
-    p: /foo/.*`))
-	c.Assert(err, IsNil)
-
-	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
-	c.Assert(err, IsNil)
-
-	err = cstrs.Check(attrs(`
-foo: [{p: "/foo/x"}, {p: "/foo/y"}]
-`), nil)
-	c.Check(err, IsNil)
-
-	err = cstrs.Check(attrs(`
-foo: [{p: "zzz"}, {p: "/foo/y"}]
-`), nil)
-	c.Check(err, ErrorMatches, `attribute "foo\.0\.p" value "zzz" does not match \^\(/foo/\.\*\)\$`)
-}
-
-func (s *attrConstraintsSuite) TestAlwaysMatchAttributeConstraints(c *C) {
-	c.Check(asserts.AlwaysMatchAttributes.Check(nil, nil), IsNil)
 }
 
 func (s *attrConstraintsSuite) TestNeverMatchAttributeConstraints(c *C) {
@@ -799,6 +678,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstalationConstraintsIDConstrai
 	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
 		"allow-installation": map[string]interface{}{
 			"plug-snap-type": []interface{}{"core", "kernel", "gadget", "app"},
+			"plug-snap-id":   []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -806,6 +686,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstalationConstraintsIDConstrai
 	c.Assert(rule.AllowInstallation, HasLen, 1)
 	cstrs := rule.AllowInstallation[0]
 	c.Check(cstrs.PlugSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
+	c.Check(cstrs.PlugSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsOnClassic(c *C) {
@@ -1643,6 +1524,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsIDConstra
 	rule, err := asserts.CompileSlotRule("iface", map[string]interface{}{
 		"allow-installation": map[string]interface{}{
 			"slot-snap-type": []interface{}{"core", "kernel", "gadget", "app"},
+			"slot-snap-id":   []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -1650,6 +1532,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsIDConstra
 	c.Assert(rule.AllowInstallation, HasLen, 1)
 	cstrs := rule.AllowInstallation[0]
 	c.Check(cstrs.SlotSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
+	c.Check(cstrs.SlotSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
 }
 
 func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsOnClassic(c *C) {
@@ -2262,6 +2145,7 @@ func (s *plugSlotRulesSuite) TestSlotRuleFeatures(c *C) {
 }
 
 func (s *plugSlotRulesSuite) TestValidOnStoreBrandModel(c *C) {
+	// more extensive testing is now done in deviceScopeConstraintSuite
 	tests := []struct {
 		constr string
 		value  string
@@ -2271,43 +2155,20 @@ func (s *plugSlotRulesSuite) TestValidOnStoreBrandModel(c *C) {
 		{"on-store", "foo", true},
 		{"on-store", "F_o-O88", true},
 		{"on-store", "foo!", false},
-		{"on-store", "foo.", false},
-		{"on-store", "foo/", false},
 		{"on-brand", "", false},
 		// custom set brands (length 2-28)
 		{"on-brand", "dwell", true},
 		{"on-brand", "Dwell", false},
 		{"on-brand", "dwell-88", true},
 		{"on-brand", "dwell_88", false},
-		{"on-brand", "dwell.88", false},
-		{"on-brand", "dwell:88", false},
-		{"on-brand", "dwell!88", false},
-		{"on-brand", "a", false},
-		{"on-brand", "ab", true},
 		{"on-brand", "0123456789012345678901234567", true},
 		// snappy id brands (fixed length 32)
 		{"on-brand", "01234567890123456789012345678", false},
-		{"on-brand", "012345678901234567890123456789", false},
-		{"on-brand", "0123456789012345678901234567890", false},
 		{"on-brand", "01234567890123456789012345678901", true},
-		{"on-brand", "abcdefghijklmnopqrstuvwxyz678901", true},
-		{"on-brand", "ABCDEFGHIJKLMNOPQRSTUVWCYZ678901", true},
-		{"on-brand", "ABCDEFGHIJKLMNOPQRSTUVWCYZ678901X", false},
-		{"on-brand", "ABCDEFGHIJKLMNOPQ!STUVWCYZ678901", false},
-		{"on-brand", "ABCDEFGHIJKLMNOPQ_STUVWCYZ678901", false},
-		{"on-brand", "ABCDEFGHIJKLMNOPQ-STUVWCYZ678901", false},
 		{"on-model", "", false},
-		{"on-model", "/", false},
 		{"on-model", "dwell/dwell1", true},
 		{"on-model", "dwell", false},
 		{"on-model", "dwell/", false},
-		{"on-model", "dwell//dwell1", false},
-		{"on-model", "dwell/-dwell1", false},
-		{"on-model", "dwell/dwell1-", false},
-		{"on-model", "dwell/dwell1-23", true},
-		{"on-model", "dwell/dwell1!", false},
-		{"on-model", "dwell/dwe_ll1", false},
-		{"on-model", "dwell/dwe.ll1", false},
 	}
 
 	check := func(constr, value string, valid bool) {

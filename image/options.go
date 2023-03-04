@@ -23,6 +23,23 @@ type Options struct {
 	ModelFile string
 	Classic   bool
 
+	// Preseed requests the image to be preseeded (only for UC20)
+	Preseed bool
+	// PreseedSignKey is the name of the key to use for signing preseed
+	// assertion (empty means the default key).
+	PreseedSignKey string
+
+	// AppArmor kernel features directory to bind-mount when preseeding.
+	// If empty then the features from /sys/kernel/security/apparmor will be used.
+	// (only for UC20)
+	AppArmorKernelFeaturesDir string
+
+	// SysfsOverlay is the optional sysfs overlay to be used for
+	// preseeding.
+	// Directories from /sys/class/* and /sys/devices/platform
+	// will be bind-mounted to the chroot when preseeding.
+	SysfsOverlay string
+
 	Channel string
 
 	// TODO: use OptionsSnap directly here?

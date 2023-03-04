@@ -21,12 +21,15 @@ package logger_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -41,11 +44,13 @@ func Test(t *testing.T) { TestingT(t) }
 var _ = Suite(&LogSuite{})
 
 type LogSuite struct {
+	testutil.BaseTest
 	logbuf        *bytes.Buffer
 	restoreLogger func()
 }
 
 func (s *LogSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	s.logbuf, s.restoreLogger = logger.MockLogger()
 }
 
@@ -145,4 +150,33 @@ func (s *LogSuite) TestIntegrationDebugFromKernelCmdline(c *C) {
 	c.Assert(err, IsNil)
 	l.Debug("xyzzy")
 	c.Check(buf.String(), testutil.Contains, `DEBUG: xyzzy`)
+}
+
+func (s *LogSuite) TestStartupTimestampMsg(c *C) {
+	os.Setenv("SNAPD_DEBUG", "1")
+	defer os.Unsetenv("SNAPD_DEBUG")
+
+	type msgTimestamp struct {
+		Stage string `json:"stage"`
+		Time  string `json:"time"`
+	}
+
+	now := time.Date(2022, time.May, 16, 10, 43, 12, 22312000, time.UTC)
+	logger.MockTimeNow(func() time.Time {
+		return now
+	})
+	logger.StartupStageTimestamp("foo to bar")
+	msg := strings.TrimSpace(s.logbuf.String())
+	c.Assert(msg, Matches, `.* DEBUG: -- snap startup \{"stage":"foo to bar", "time":"1652697792.022312"\}$`)
+
+	var m msgTimestamp
+	start := strings.LastIndex(msg, "{")
+	c.Assert(start, Not(Equals), -1)
+	stamp := msg[start:]
+	err := json.Unmarshal([]byte(stamp), &m)
+	c.Assert(err, IsNil)
+	c.Check(m, Equals, msgTimestamp{
+		Stage: "foo to bar",
+		Time:  "1652697792.022312",
+	})
 }

@@ -25,7 +25,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/kmod"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type kmodSuite struct {
@@ -44,8 +43,16 @@ func (s *kmodSuite) TearDownTest(c *C) {
 }
 
 func (s *kmodSuite) TestModprobeCall(c *C) {
-	cmd := testutil.MockCommand(c, "modprobe", "")
-	defer cmd.Restore()
+	type CallRecord struct {
+		module  string
+		options []string
+	}
+	var calls []CallRecord
+	restore := kmod.MockLoadModule(func(module string, options []string) error {
+		calls = append(calls, CallRecord{module, options})
+		return nil
+	})
+	defer restore()
 
 	b, ok := s.Backend.(*kmod.Backend)
 	c.Assert(ok, Equals, true)
@@ -53,15 +60,19 @@ func (s *kmodSuite) TestModprobeCall(c *C) {
 		"module1",
 		"module2",
 	})
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"modprobe", "--syslog", "module1"},
-		{"modprobe", "--syslog", "module2"},
+	c.Assert(calls, DeepEquals, []CallRecord{
+		{"module1", []string{}},
+		{"module2", []string{}},
 	})
 }
 
 func (s *kmodSuite) TestNoModprobeCallWhenPreseeding(c *C) {
-	cmd := testutil.MockCommand(c, "modprobe", "")
-	defer cmd.Restore()
+	loadModuleCalls := 0
+	restore := kmod.MockLoadModule(func(module string, options []string) error {
+		loadModuleCalls++
+		return nil
+	})
+	defer restore()
 
 	b := kmod.Backend{}
 	opts := &interfaces.SecurityBackendOptions{
@@ -70,5 +81,5 @@ func (s *kmodSuite) TestNoModprobeCallWhenPreseeding(c *C) {
 	c.Assert(b.Initialize(opts), IsNil)
 
 	b.LoadModules([]string{"module1"})
-	c.Assert(cmd.Calls(), HasLen, 0)
+	c.Assert(loadModuleCalls, Equals, 0)
 }

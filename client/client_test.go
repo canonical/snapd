@@ -629,6 +629,23 @@ func (cs *clientSuite) TestDebugGet(c *C) {
 	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"aspect": []string{"do-something"}, "foo": []string{"bar"}})
 }
 
+func (cs *clientSuite) TestDebugMigrateHome(c *C) {
+	cs.status = 202
+	cs.rsp = `{"type": "async", "status-code": 202, "change": "123"}`
+
+	snaps := []string{"foo", "bar"}
+	changeID, err := cs.cli.MigrateSnapHome(snaps)
+	c.Check(err, IsNil)
+	c.Check(changeID, Equals, "123")
+
+	c.Check(cs.reqs, HasLen, 1)
+	c.Check(cs.reqs[0].Method, Equals, "POST")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
+	data, err := ioutil.ReadAll(cs.reqs[0].Body)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, `{"action":"migrate-home","snaps":["foo","bar"]}`)
+}
+
 type integrationSuite struct{}
 
 var _ = Suite(&integrationSuite{})

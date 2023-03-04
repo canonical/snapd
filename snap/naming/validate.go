@@ -214,3 +214,20 @@ func ValidateQuotaGroup(grp string) error {
 
 	return nil
 }
+
+// ValidProvenance is a regular expression describing a valid provenance.
+var ValidProvenance = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
+
+// DefaultProvenance is the default value for provenance, i.e the provenance for snaps uplodaded through the global store pipeline.
+const DefaultProvenance = "global-upload"
+
+// ValidateProvenance checks fi the given string is valid non-empty provenance value.
+func ValidateProvenance(prov string) error {
+	if prov == "" {
+		return fmt.Errorf("invalid provenance: must not be empty")
+	}
+	if !ValidProvenance.MatchString(prov) {
+		return fmt.Errorf("invalid provenance: %q", prov)
+	}
+	return nil
+}

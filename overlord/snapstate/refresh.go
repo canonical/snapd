@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
@@ -92,17 +93,20 @@ var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app 
 //
 // The check is designed to run early in the refresh pipeline. Before
 // downloading or stopping services for the update, we can check that only
-// services are running, that is, that no non-service apps or hooks are
-// currently running.
+// services or snaps that explicitly allow refreshes are running, that is,
+// that no non-service apps or hooks are currently running.
 //
 // Since services are stopped during the update this provides a good early
 // precondition check. The check is also deliberately racy as existing snap
 // commands can fork new processes or existing processes can die. After the
 // soft check passes the user is free to start snap applications and block the
 // hard check.
+//
+// Apart from ignoring services, the check allows apps that want not to
+// block refresh to continue executing.
 func SoftNothingRunningRefreshCheck(info *snap.Info) error {
 	return genericRefreshCheck(info, func(app *snap.AppInfo) bool {
-		return app.IsService()
+		return app.IsService() || app.RefreshMode == "ignore-running"
 	})
 }
 
@@ -114,12 +118,14 @@ func SoftNothingRunningRefreshCheck(info *snap.Info) error {
 // externally (e.g. by using a new inhibition mechanism for snap run).
 //
 // The check fails if any process belonging to the snap, apart from services
-// that are enduring refresh, is still alive. If a snap is busy it cannot be
-// refreshed and the refresh process is aborted.
+// and snaps that explicitly allow refreshes, is still alive. If a snap is busy
+// it cannot be refreshed and the refresh process is aborted.
+//
+// Apart from ignoring services, the check allows apps that want not to
+// block refresh to continue executing.
 func HardNothingRunningRefreshCheck(info *snap.Info) error {
 	return genericRefreshCheck(info, func(app *snap.AppInfo) bool {
-		// TODO: use a constant instead of "endure"
-		return app.IsService() && app.RefreshMode == "endure"
+		return app.IsService() || app.RefreshMode == "ignore-running"
 	})
 }
 
@@ -156,18 +162,19 @@ func (err *BusySnapError) PendingSnapRefreshInfo() *userclient.PendingSnapRefres
 
 // Error formats an error string describing what is running.
 func (err *BusySnapError) Error() string {
+	pids := strutil.IntsToCommaSeparated(err.pids)
 	switch {
 	case len(err.busyAppNames) > 0 && len(err.busyHookNames) > 0:
-		return fmt.Sprintf("snap %q has running apps (%s) and hooks (%s)",
-			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "))
+		return fmt.Sprintf("snap %q has running apps (%s) and hooks (%s), pids: %s",
+			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "), pids)
 	case len(err.busyAppNames) > 0:
-		return fmt.Sprintf("snap %q has running apps (%s)",
-			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "))
+		return fmt.Sprintf("snap %q has running apps (%s), pids: %s",
+			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "), pids)
 	case len(err.busyHookNames) > 0:
-		return fmt.Sprintf("snap %q has running hooks (%s)",
-			err.SnapInfo.InstanceName(), strings.Join(err.busyHookNames, ", "))
+		return fmt.Sprintf("snap %q has running hooks (%s), pids: %s",
+			err.SnapInfo.InstanceName(), strings.Join(err.busyHookNames, ", "), pids)
 	default:
-		return fmt.Sprintf("snap %q has running apps or hooks", err.SnapInfo.InstanceName())
+		return fmt.Sprintf("snap %q has running apps or hooks, pids: %s", err.SnapInfo.InstanceName(), pids)
 	}
 }
 

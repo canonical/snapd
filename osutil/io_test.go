@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -234,6 +235,21 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancel(c *C) {
 	c.Check(osutil.FileExists(fn), Equals, true)
 	c.Check(aw.Cancel(), IsNil)
 	c.Check(osutil.FileExists(fn), Equals, false)
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicFileModTime(c *C) {
+	d := c.MkDir()
+	p := filepath.Join(d, "foo")
+
+	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
+	c.Assert(err, IsNil)
+	t := time.Date(2010, time.January, 1, 13, 0, 0, 0, time.UTC)
+	aw.SetModTime(t)
+	c.Assert(aw.Commit(), IsNil)
+
+	finfo, err := os.Stat(p)
+	c.Assert(err, IsNil)
+	c.Assert(finfo.ModTime().Equal(t), Equals, true)
 }
 
 func (ts *AtomicWriteTestSuite) TestAtomicFileCommitAs(c *C) {

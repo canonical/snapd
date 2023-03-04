@@ -74,7 +74,16 @@ func (gkms *gpgKeypairMgrSuite) TestGetPublicKeyLooksGood(c *C) {
 
 func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
 	got, err := gkms.keypairMgr.Get("ffffffffffffffff")
-	c.Check(err, ErrorMatches, `cannot find key "ffffffffffffffff" in GPG keyring`)
+	c.Check(err, ErrorMatches, `cannot find key pair in GPG keyring`)
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
+	c.Check(got, IsNil)
+}
+
+func (gkms *gpgKeypairMgrSuite) TestGetByNameNotFound(c *C) {
+	gpgKeypairMgr := gkms.keypairMgr.(*asserts.GPGKeypairManager)
+	got, err := gpgKeypairMgr.GetByName("missing")
+	c.Check(err, ErrorMatches, `cannot find key pair in GPG keyring`)
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 	c.Check(got, IsNil)
 }
 
@@ -337,4 +346,21 @@ func (gkms *gpgKeypairMgrSuite) TestList(c *C) {
 	c.Check(keys, HasLen, 1)
 	c.Check(keys[0].ID, Equals, assertstest.DevKeyID)
 	c.Check(keys[0].Name, Not(Equals), "")
+}
+
+func (gkms *gpgKeypairMgrSuite) TestDelete(c *C) {
+	defer asserts.GPGBatchYes()()
+
+	keyID := assertstest.DevKeyID
+	_, err := gkms.keypairMgr.Get(keyID)
+	c.Assert(err, IsNil)
+
+	err = gkms.keypairMgr.Delete(keyID)
+	c.Assert(err, IsNil)
+
+	err = gkms.keypairMgr.Delete(keyID)
+	c.Check(err, ErrorMatches, `cannot find key.*`)
+
+	_, err = gkms.keypairMgr.Get(keyID)
+	c.Check(err, ErrorMatches, `cannot find key.*`)
 }

@@ -1,9 +1,6 @@
 summary: Check remove command errors
 
 execute: |
-    #shellcheck source=tests/lib/names.sh
-    . "$TESTSLIB/names.sh"
-
     BASE_SNAP=core
     TARGET_SNAP=test-snapd-tools
     if os.query is-core18; then
@@ -15,7 +12,7 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local "$TARGET_SNAP"
 
     echo "Ensure the important snaps can not be removed"
-    for sn in $BASE_SNAP $kernel_name $gadget_name; do
+    for sn in $BASE_SNAP $(snaps.name kernel) $(snaps.name gadget); do
         if snap remove "$sn"; then
             echo "It should not be possible to remove $sn"
             exit 1

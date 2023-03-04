@@ -35,17 +35,14 @@
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
+#include "mount-support.h"
 
 #define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
 
-// note: if the parent dir changes to something other than
-// the current /var/lib/snapd/lib then sc_mkdir_and_mount_and_bind
-// and sc_mkdir_and_mount_and_bind need updating.
-#define SC_LIB "/var/lib/snapd/lib"
-#define SC_LIBGL_DIR   SC_LIB "/gl"
-#define SC_LIBGL32_DIR SC_LIB "/gl32"
-#define SC_VULKAN_DIR  SC_LIB "/vulkan"
-#define SC_GLVND_DIR  SC_LIB "/glvnd"
+#define SC_LIBGL_DIR   SC_EXTRA_LIB_DIR "/gl"
+#define SC_LIBGL32_DIR SC_EXTRA_LIB_DIR "/gl32"
+#define SC_VULKAN_DIR  SC_EXTRA_LIB_DIR "/vulkan"
+#define SC_GLVND_DIR  SC_EXTRA_LIB_DIR "/glvnd"
 
 #define SC_VULKAN_SOURCE_DIR "/usr/share/vulkan"
 #define SC_EGL_VENDOR_SOURCE_DIR "/usr/share/glvnd"
@@ -81,19 +78,10 @@ static const size_t egl_vendor_globs_len =
 // FIXME: this doesn't yet work with libGLX and libglvnd redirector
 // FIXME: this still doesn't work with the 361 driver
 static const char *nvidia_globs[] = {
-	"libEGL.so*",
 	"libEGL_nvidia.so*",
-	"libGL.so*",
-	"libOpenGL.so*",
-	"libGLESv1_CM.so*",
 	"libGLESv1_CM_nvidia.so*",
-	"libGLESv2.so*",
 	"libGLESv2_nvidia.so*",
-	"libGLX_indirect.so*",
 	"libGLX_nvidia.so*",
-	"libGLX.so*",
-	"libGLdispatch.so*",
-	"libGLU.so*",
 	"libXvMCNVIDIA.so*",
 	"libXvMCNVIDIA_dynamic.so*",
 	"libnvidia-cfg.so*",
@@ -161,6 +149,21 @@ static const char *nvidia_globs[] = {
 
 static const size_t nvidia_globs_len =
     sizeof nvidia_globs / sizeof *nvidia_globs;
+
+static const char *glvnd_globs[] = {
+	"libEGL.so*",
+	"libGL.so*",
+	"libOpenGL.so*",
+	"libGLESv1_CM.so*",
+	"libGLESv2.so*",
+	"libGLX_indirect.so*",
+	"libGLX.so*",
+	"libGLdispatch.so*",
+	"libGLU.so*",
+};
+
+static const size_t glvnd_globs_len =
+    sizeof glvnd_globs / sizeof *glvnd_globs;
 
 #endif				// defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
@@ -351,10 +354,10 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 //
 // In non GLVND cases we just copy across the exposed libGLs and NVIDIA
 // libraries from wherever we find, and clobbering is also harmless.
-static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
+static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir, const char **globs, size_t globs_len)
 {
 
-	const char *native_sources[] = {
+	static const char *native_sources[] = {
 		NATIVE_LIBDIR,
 		NATIVE_LIBDIR "/nvidia*",
 	};
@@ -363,7 +366,7 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 
 #if UINTPTR_MAX == 0xffffffffffffffff
 	// Alternative 32-bit support
-	const char *lib32_sources[] = {
+	static const char *lib32_sources[] = {
 		LIB32_DIR,
 		LIB32_DIR "/nvidia*",
 	};
@@ -374,14 +377,14 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 	// Primary arch
 	sc_mkdir_and_mount_and_glob_files(rootfs_dir,
 					  native_sources, native_sources_len,
-					  SC_LIBGL_DIR, nvidia_globs,
-					  nvidia_globs_len);
+					  SC_LIBGL_DIR, globs,
+					  globs_len);
 
 #if UINTPTR_MAX == 0xffffffffffffffff
 	// Alternative 32-bit support
 	sc_mkdir_and_mount_and_glob_files(rootfs_dir, lib32_sources,
 					  lib32_sources_len, SC_LIBGL32_DIR,
-					  nvidia_globs, nvidia_globs_len);
+					  globs, globs_len);
 #endif
 }
 
@@ -501,7 +504,7 @@ static int sc_mount_nvidia_is_driver_in_dir(const char *dir)
 	return 0;
 }
 
-static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
+static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char **globs, size_t globs_len)
 {
 	const char *native_libdir = NATIVE_LIBDIR "/" HOST_ARCH_TRIPLET;
 	const char *lib32_libdir = NATIVE_LIBDIR "/" HOST_ARCH32_TRIPLET;
@@ -519,8 +522,8 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 		sc_mkdir_and_mount_and_glob_files(rootfs_dir,
 						  native_sources,
 						  native_sources_len,
-						  SC_LIBGL_DIR, nvidia_globs,
-						  nvidia_globs_len);
+						  SC_LIBGL_DIR, globs,
+						  globs_len);
 
 		// Alternative 32-bit support
 		if ((strlen(HOST_ARCH32_TRIPLET) > 0) &&
@@ -536,8 +539,8 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 							  lib32_sources,
 							  lib32_sources_len,
 							  SC_LIBGL32_DIR,
-							  nvidia_globs,
-							  nvidia_globs_len);
+							  globs,
+							  globs_len);
 		}
 	} else {
 		// Attempt mount of both the native and 32-bit variants of the driver if they exist
@@ -576,7 +579,7 @@ static void sc_mount_egl(const char *rootfs_dir)
 					  egl_vendor_globs_len);
 }
 
-void sc_mount_nvidia_driver(const char *rootfs_dir)
+void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 {
 	/* If NVIDIA module isn't loaded, don't attempt to mount the drivers */
 	if (access(SC_NVIDIA_DRIVER_VERSION_FILE, F_OK) != 0) {
@@ -584,20 +587,46 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 	}
 
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	int res = mkdir(SC_LIB, 0755);
-	if (res != 0 && errno != EEXIST) {
-		die("cannot create " SC_LIB);
+	int res = sc_nonfatal_mkpath(SC_EXTRA_LIB_DIR, 0755);
+	if (res != 0) {
+		die("cannot create " SC_EXTRA_LIB_DIR);
 	}
-	if (res == 0 && (chown(SC_LIB, 0, 0) < 0)) {
+	if (res == 0 && (chown(SC_EXTRA_LIB_DIR, 0, 0) < 0)) {
 		// Adjust the ownership only if we created the directory.
-		die("cannot change ownership of " SC_LIB);
+		die("cannot change ownership of " SC_EXTRA_LIB_DIR);
 	}
 	(void)sc_set_effective_identity(old);
+
+#if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
+	/* We include the globs for the glvnd libraries for old snaps
+	 * based on core, Ubuntu 16.04 did not include glvnd itself.
+	 *
+	 * While there is no guarantee that the host system's glvnd
+	 * libGL will be compatible (as it is built with the host
+	 * system's glibc), the Mesa libGL included with the snap will
+	 * definitely not be compatible (as it expects to find the Mesa
+	 * implementation of the GLX extension)..
+	 */
+	const char **globs = nvidia_globs;
+	size_t globs_len = nvidia_globs_len;
+	const char **full_globs SC_CLEANUP(sc_cleanup_shallow_strv) = NULL;
+	if (sc_streq(base_snap_name, "core")) {
+		full_globs = malloc(sizeof nvidia_globs + sizeof glvnd_globs);
+		if (full_globs == NULL) {
+			die("cannot allocate globs array");
+		}
+		memcpy(full_globs, nvidia_globs, sizeof nvidia_globs);
+		memcpy(&full_globs[nvidia_globs_len], glvnd_globs, sizeof glvnd_globs);
+		globs = full_globs;
+		globs_len = nvidia_globs_len + glvnd_globs_len;
+	}
+#endif
+
 #ifdef NVIDIA_MULTIARCH
-	sc_mount_nvidia_driver_multiarch(rootfs_dir);
+	sc_mount_nvidia_driver_multiarch(rootfs_dir, globs, globs_len);
 #endif				// ifdef NVIDIA_MULTIARCH
 #ifdef NVIDIA_BIARCH
-	sc_mount_nvidia_driver_biarch(rootfs_dir);
+	sc_mount_nvidia_driver_biarch(rootfs_dir, globs, globs_len);
 #endif				// ifdef NVIDIA_BIARCH
 
 	// Common for both driver mechanisms

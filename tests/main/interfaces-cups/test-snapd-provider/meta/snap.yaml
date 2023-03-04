@@ -1,9 +1,0 @@
-name: test-snapd-provider
-version: 1
-architectures: [all]
-apps:
-  sh:
-    command: bin/sh
-    slots:
-    - cups-control
-    - cups

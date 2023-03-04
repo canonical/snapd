@@ -2,7 +2,12 @@ summary: Check that refreshing snapd in the worst case reboots if things go side
 
 # TODO: move this test to tests/regression/lp-1924805 ?
 
-systems: [ubuntu-core-18-*, ubuntu-core-20-*]
+systems:
+  - ubuntu-core-18-*
+  - ubuntu-core-20-*
+  # TODO: 2.49.2 does not work on UC22 because of ABI breakage and missing
+  # libgcc_s.so.1
+  # - ubuntu-core-22-*
 
 environment:
   # the test needs to start from 2.49.2 to reproduce the bug and demonstrate the

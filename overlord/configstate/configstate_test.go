@@ -148,7 +148,7 @@ func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 			c.Check(err, IsNil)
 			c.Check(patch, DeepEquals, test.patch)
 		} else {
-			c.Check(err, Equals, state.ErrNoState)
+			c.Check(err, testutil.ErrorIs, state.ErrNoState)
 			c.Check(patch, IsNil)
 		}
 		c.Check(useDefaults, Equals, test.useDefaults)

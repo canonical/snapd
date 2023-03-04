@@ -74,7 +74,7 @@ prepare: |
         if command -v apt && apt -v; then
             # meh trusty's apt doesn't support -y, so use apt-get
             apt-get autoremove -y lxd
-            if ! os.query is-debian-sid; then
+            if ! os.query is-debian sid; then
                 # no lxd-client on debian sid
                 apt-get autoremove -y lxd-client
             fi
@@ -120,12 +120,16 @@ prepare: |
         # on top of the repacked one, then snapd will just serve the correct
         # file over HTTP to snapcraft when it asks for it
 
-        CORE_SNAP_REV=$(snap list core | grep -v Name | awk '{print $3}')
-        CORE_SNAP="/var/lib/snapd/snaps/core_${CORE_SNAP_REV}.snap"
-        ORIG_CORE_SNAP=${CORE_SNAP}.orig
-        
-        mount --bind "$ORIG_CORE_SNAP" "$CORE_SNAP"
-        tests.cleanup defer umount "$CORE_SNAP"
+        # When the SRU validation tests are executed, the core snap is not repacked
+        # and the var MODIFY_CORE_SNAP_FOR_REEXEC is 0
+        if [ "$MODIFY_CORE_SNAP_FOR_REEXEC" = 1 ]; then
+            CORE_SNAP_REV=$(snap list core | grep -v Name | awk '{print $3}')
+            CORE_SNAP="/var/lib/snapd/snaps/core_${CORE_SNAP_REV}.snap"
+            ORIG_CORE_SNAP=${CORE_SNAP}.orig
+
+            mount --bind "$ORIG_CORE_SNAP" "$CORE_SNAP"
+            tests.cleanup defer umount "$CORE_SNAP"
+        fi
     fi
 
 execute: |
@@ -153,7 +157,7 @@ execute: |
 
     mv "$PROJECT_PATH/snapd_spread-test.snap" "$PWD/snapd_spread-test.snap"
 
-    # meh it doesn't work well to use quotas and "&&" in the arguments to sh -c
+    # meh it doesn't work well to use quotes and "&&" in the arguments to sh -c
     # with defer, so just put what we want to run in a script and execute that
     cat >> snapcraft-cleanup.sh <<EOF
     #!/bin/sh
@@ -163,18 +167,28 @@ execute: |
     chmod +x snapcraft-cleanup.sh
     tests.cleanup defer sh -c "$PWD/snapcraft-cleanup.sh"
 
+    echo "Unsquash the snapd snap"
+    unsquashfs snapd_spread-test.snap
+
     echo "Ensure we have the fc-cache binaries"
-    unsquashfs -ll snapd_spread-test.snap | MATCH bin/fc-cache-v6
-    unsquashfs -ll snapd_spread-test.snap | MATCH bin/fc-cache-v7
+    test -f squashfs-root/bin/fc-cache-v6
+    test -f squashfs-root/bin/fc-cache-v7
 
     echo "Ensure we have xdelta3"
-    unsquashfs -ll snapd_spread-test.snap | MATCH bin/xdelta3
+    test -f squashfs-root/usr/bin/xdelta3
 
     echo "Ensure we have mksquashfs (and the dependencies)"
-    unsquashfs -ll snapd_spread-test.snap | MATCH bin/mksquashfs
-    unsquashfs -ll snapd_spread-test.snap | MATCH liblzma.so.5
+    test -f squashfs-root/usr/bin/mksquashfs
+    find squashfs-root | MATCH liblzma.so.5
 
-    echo "Ensure we have ld.so.conf"
-    unsquashfs -ll snapd_spread-test.snap | MATCH etc/ld.so.conf
     echo "Ensure we have libc"
-    unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
+    find squashfs-root | MATCH libc.so
+    echo "Ensure we have ld.so.conf"
+    test -f squashfs-root/etc/ld.so.conf
+
+    echo "Ensure we have preseed.json"
+    test -f squashfs-root/usr/lib/snapd/preseed.json
+
+    echo "Check /usr/lib/snapd/info"
+    test -f squashfs-root/usr/lib/snapd/info
+    MATCH SNAPD_ASSERTS_FORMATS < squashfs-root/usr/lib/snapd/info

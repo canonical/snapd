@@ -132,6 +132,16 @@ func (s *refreshSuite) TestConfigureRefreshHoldHappy(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *refreshSuite) TestConfigureRefreshHoldForeverHappy(c *C) {
+	err := configcore.Run(classicDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.hold": "forever",
+		},
+	})
+	c.Assert(err, IsNil)
+}
+
 func (s *refreshSuite) TestConfigureRefreshHoldInvalid(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,

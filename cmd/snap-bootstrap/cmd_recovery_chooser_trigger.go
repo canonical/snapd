@@ -47,15 +47,17 @@ var (
 	triggerwatchWait = triggerwatch.Wait
 
 	// default trigger wait timeout
-	defaultTimeout = 10 * time.Second
+	defaultTimeout       = 10 * time.Second
+	defaultDeviceTimeout = 2 * time.Second
 
 	// default marker file location
 	defaultMarkerFile = "/run/snapd-recovery-chooser-triggered"
 )
 
 type cmdRecoveryChooserTrigger struct {
-	MarkerFile  string `long:"marker-file" value-name:"filename" description:"trigger marker file location"`
-	WaitTimeout string `long:"wait-timeout" value-name:"duration" description:"trigger wait timeout"`
+	MarkerFile    string `long:"marker-file" value-name:"filename" description:"trigger marker file location"`
+	WaitTimeout   string `long:"wait-timeout" value-name:"duration" description:"trigger wait timeout"`
+	DeviceTimeout string `long:"device-timeout" value-name:"duration" description:"timeout for devices to appear"`
 }
 
 func (c *cmdRecoveryChooserTrigger) Execute(args []string) error {
@@ -64,6 +66,7 @@ func (c *cmdRecoveryChooserTrigger) Execute(args []string) error {
 	// and also thinking if/how such a hook can be confined.
 
 	timeout := defaultTimeout
+	deviceTimeout := defaultDeviceTimeout
 	markerFile := defaultMarkerFile
 
 	if c.WaitTimeout != "" {
@@ -74,10 +77,19 @@ func (c *cmdRecoveryChooserTrigger) Execute(args []string) error {
 			timeout = userTimeout
 		}
 	}
+	if c.DeviceTimeout != "" {
+		userTimeout, err := time.ParseDuration(c.DeviceTimeout)
+		if err != nil {
+			logger.Noticef("cannot parse duration %q, using default", c.DeviceTimeout)
+		} else {
+			deviceTimeout = userTimeout
+		}
+	}
 	if c.MarkerFile != "" {
 		markerFile = c.MarkerFile
 	}
 	logger.Noticef("trigger wait timeout %v", timeout)
+	logger.Noticef("device timeout %v", deviceTimeout)
 	logger.Noticef("marker file %v", markerFile)
 
 	_, err := os.Stat(markerFile)
@@ -86,7 +98,7 @@ func (c *cmdRecoveryChooserTrigger) Execute(args []string) error {
 		return nil
 	}
 
-	err = triggerwatchWait(timeout)
+	err = triggerwatchWait(timeout, deviceTimeout)
 	if err != nil {
 		switch err {
 		case triggerwatch.ErrTriggerNotDetected:

@@ -155,7 +155,7 @@ type cmdFind struct {
 	Narrow     bool        `long:"narrow"`
 	Section    SectionName `long:"section" optional:"true" optional-value:"show-all-sections-please" default:"no-section-specified" default-mask:"-"`
 	Positional struct {
-		Query string
+		Query []string
 	} `positional-args:"yes"`
 	colorMixin
 }
@@ -183,8 +183,9 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	// LP: 1740605
-	if strings.TrimSpace(x.Positional.Query) == "" {
-		x.Positional.Query = ""
+	query := strings.Join(x.Positional.Query, " ")
+	if strings.TrimSpace(query) == "" {
+		query = ""
 	}
 
 	// section will be:
@@ -200,7 +201,7 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	// magic! `snap find` returns the featured snaps
-	showFeatured := (x.Positional.Query == "" && x.Section == "")
+	showFeatured := (query == "" && x.Section == "")
 	if showFeatured {
 		x.Section = "featured"
 	}
@@ -224,7 +225,7 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	opts := &client.FindOptions{
-		Query:   x.Positional.Query,
+		Query:   query,
 		Section: string(x.Section),
 		Private: x.Private,
 	}

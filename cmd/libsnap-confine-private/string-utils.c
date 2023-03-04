@@ -30,14 +30,7 @@ bool sc_streq(const char *a, const char *b)
 		return false;
 	}
 
-	size_t alen = strlen(a);
-	size_t blen = strlen(b);
-
-	if (alen != blen) {
-		return false;
-	}
-
-	return strncmp(a, b, alen) == 0;
+	return strcmp(a, b) == 0;
 }
 
 bool sc_endswith(const char *str, const char *suffix)
@@ -63,12 +56,6 @@ bool sc_startswith(const char *str, const char *prefix)
 	}
 
 	size_t xlen = strlen(prefix);
-	size_t slen = strlen(str);
-
-	if (slen < xlen) {
-		return false;
-	}
-
 	return strncmp(str, prefix, xlen) == 0;
 }
 

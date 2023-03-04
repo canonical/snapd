@@ -121,12 +121,9 @@ type patch4T struct{} // for namespacing of the helpers
 func (p4 patch4T) taskSnapSetup(task *state.Task) (*patch4SnapSetup, error) {
 	var snapsup patch4SnapSetup
 
-	switch err := p4.getMaybe(task, "snap-setup", &snapsup); err {
-	case state.ErrNoState:
-		// continue below
-	case nil:
+	if err := p4.getMaybe(task, "snap-setup", &snapsup); err == nil {
 		return &snapsup, nil
-	default:
+	} else if !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -182,7 +179,7 @@ func (p4 patch4T) get(task *state.Task, key string, value interface{}) error {
 // gget does the actual work of get and getMaybe
 func (patch4T) gget(task *state.Task, key string, passThroughMissing bool, value interface{}) error {
 	err := task.Get(key, value)
-	if err == nil || (passThroughMissing && err == state.ErrNoState) {
+	if err == nil || (passThroughMissing && errors.Is(err, state.ErrNoState)) {
 		return err
 	}
 	change := task.Change()
@@ -242,7 +239,7 @@ func (p4 patch4T) mangle(task *state.Task) error {
 	}
 
 	var hadCandidate bool
-	if err := p4.getMaybe(task, "had-candidate", &hadCandidate); err != nil && err != state.ErrNoState {
+	if err := p4.getMaybe(task, "had-candidate", &hadCandidate); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -263,19 +260,16 @@ func (p4 patch4T) mangle(task *state.Task) error {
 
 func (p4 patch4T) addRevertFlag(task *state.Task) error {
 	var snapsup patch4SnapSetup
-	err := p4.getMaybe(task, "snap-setup", &snapsup)
-	switch err {
-	case nil:
+	if err := p4.getMaybe(task, "snap-setup", &snapsup); err == nil {
 		snapsup.Flags |= patch4FlagRevert
-
 		// save it back
 		task.Set("snap-setup", &snapsup)
 		return nil
-	case state.ErrNoState:
-		return nil
-	default:
+	} else if !errors.Is(err, state.ErrNoState) {
 		return err
 	}
+
+	return nil
 }
 
 // patch4:

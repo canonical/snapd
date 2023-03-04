@@ -20,6 +20,7 @@
 package configstate
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -79,7 +80,7 @@ func (h *configureHandler) Before() error {
 
 	var patch map[string]interface{}
 	var useDefaults bool
-	if err := h.context.Get("use-defaults", &useDefaults); err != nil && err != state.ErrNoState {
+	if err := h.context.Get("use-defaults", &useDefaults); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -93,7 +94,7 @@ func (h *configureHandler) Before() error {
 		}
 
 		patch, err = snapstate.ConfigDefaults(st, deviceCtx, instanceName)
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		// core is handled internally and does not need a configure
@@ -109,7 +110,7 @@ func (h *configureHandler) Before() error {
 			}
 		}
 	} else {
-		if err := h.context.Get("patch", &patch); err != nil && err != state.ErrNoState {
+		if err := h.context.Get("patch", &patch); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 	}

@@ -202,14 +202,18 @@ func (u *unsquashfsStderrWriter) Err() error {
 func (s *Snap) Unpack(src, dstDir string) error {
 	usw := newUnsquashfsStderrWriter()
 
+	var output bytes.Buffer
 	cmd := exec.Command("unsquashfs", "-n", "-f", "-d", dstDir, s.path, src)
-	cmd.Stderr = usw
+	cmd.Stderr = io.MultiWriter(&output, usw)
 	if err := cmd.Run(); err != nil {
-		return err
+		return fmt.Errorf("cannot extract %q to %q: %v", src, dstDir, osutil.OutputErr(output.Bytes(), err))
 	}
+	// older versions of unsquashfs do not report errors via exit code,
+	// so we need this extra check.
 	if usw.Err() != nil {
 		return fmt.Errorf("cannot extract %q to %q: %v", src, dstDir, usw.Err())
 	}
+
 	return nil
 }
 

@@ -3,6 +3,8 @@ defaults:
      a: A
      b: B
    system:
+     refresh:
+       retain: 5
      service:
        ssh:
          disable: true

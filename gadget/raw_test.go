@@ -781,7 +781,7 @@ func (r *rawTestSuite) TestRawUpdaterContentBackupPath(c *C) {
 	pc.Index = 5
 	p = gadget.RawContentBackupPath(r.backup, ps, pc)
 	c.Assert(p, Equals, r.backup+"/struct-0-5")
-	ps.Index = 9
+	ps.YamlIndex = 9
 	p = gadget.RawContentBackupPath(r.backup, ps, pc)
 	c.Assert(p, Equals, r.backup+"/struct-9-5")
 }

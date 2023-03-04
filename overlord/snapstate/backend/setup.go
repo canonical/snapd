@@ -44,7 +44,7 @@ type SetupSnapOptions struct {
 }
 
 // SetupSnap does prepare and mount the snap for further processing.
-func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, dev boot.Device, setupOpts *SetupSnapOptions, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, err error) {
+func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, dev snap.Device, setupOpts *SetupSnapOptions, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, err error) {
 	if setupOpts == nil {
 		setupOpts = &SetupSnapOptions{}
 	}
@@ -111,7 +111,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 }
 
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.
-func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, dev boot.Device, meter progress.Meter) error {
+func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, dev snap.Device, meter progress.Meter) error {
 	mountDir := s.MountDir()
 
 	// this also ensures that the mount unit stops
@@ -163,7 +163,7 @@ func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 }
 
 // UndoSetupSnap undoes the work of SetupSnap using RemoveSnapFiles.
-func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, dev boot.Device, meter progress.Meter) error {
+func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, dev snap.Device, meter progress.Meter) error {
 	return b.RemoveSnapFiles(s, typ, installRecord, dev, meter)
 }
 

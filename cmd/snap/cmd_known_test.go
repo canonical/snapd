@@ -63,7 +63,7 @@ func (s *SnapSuite) TestKnownViaSnapd(c *check.C) {
 			c.Check(r.URL.Path, check.Equals, "/v2/assertions/model")
 			c.Check(r.URL.Query(), check.DeepEquals, expectedQuery)
 			w.Header().Set("X-Ubuntu-Assertions-Count", "1")
-			fmt.Fprintln(w, mockModelAssertion)
+			fmt.Fprint(w, mockModelAssertion)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -103,7 +103,7 @@ func (s *SnapSuite) TestKnownRemoteViaSnapd(c *check.C) {
 				"remote":   []string{"true"},
 			})
 			w.Header().Set("X-Ubuntu-Assertions-Count", "1")
-			fmt.Fprintln(w, mockModelAssertion)
+			fmt.Fprint(w, mockModelAssertion)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -133,12 +133,12 @@ func (s *SnapSuite) TestKnownRemoteDirect(c *check.C) {
 
 	n := 0
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Assert(r.URL.Path, check.Matches, ".*/assertions/.*") // sanity check request
+		c.Assert(r.URL.Path, check.Matches, ".*/assertions/.*") // basic check for request
 		switch n {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/assertions/model/16/canonical/pi99")
-			fmt.Fprintln(w, mockModelAssertion)
+			fmt.Fprint(w, mockModelAssertion)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -180,12 +180,12 @@ func (s *SnapSuite) TestKnownRemoteAutoFallback(c *check.C) {
 
 	n := 0
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Assert(r.URL.Path, check.Matches, ".*/assertions/.*") // sanity check request
+		c.Assert(r.URL.Path, check.Matches, ".*/assertions/.*") // basic check for request
 		switch n {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/assertions/model/16/canonical/pi99")
-			fmt.Fprintln(w, mockModelAssertion)
+			fmt.Fprint(w, mockModelAssertion)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}

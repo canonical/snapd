@@ -5,7 +5,7 @@ send "source /usr/share/bash-completion/bash_completion\n"
 next
 if {$::env(_COMPLETE_SH)} {
     # because this sources complete.sh, it won't be using the snippets
-    send "source $::env(SPREAD_PATH)/data/completion/complete.sh\n"
+    send "source $::env(SPREAD_PATH)/data/completion/bash/complete.sh\n"
     next
 }
 chat "$::env(CMD) \t\t" $::env(_OUT0)

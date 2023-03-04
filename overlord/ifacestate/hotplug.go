@@ -21,6 +21,7 @@ package ifacestate
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"strings"
 	"unicode"
@@ -133,7 +134,7 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 	}
 
 	gadget, err := snapstate.GadgetInfo(st, deviceCtx)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		logger.Noticef("internal error: cannot get gadget information: %v", err)
 	}
 

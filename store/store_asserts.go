@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -78,7 +78,7 @@ func (e *assertionSvcError) toError() error {
 func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
 	v := url.Values{}
 	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
-	u := s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(primaryKey...)), v)
+	u := s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(asserts.ReducePrimaryKey(assertType, primaryKey)...)), v)
 
 	var asrt asserts.Assertion
 

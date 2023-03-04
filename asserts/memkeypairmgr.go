@@ -57,3 +57,15 @@ func (mkm *memoryKeypairManager) Get(keyID string) (PrivateKey, error) {
 	}
 	return privKey, nil
 }
+
+func (mkm *memoryKeypairManager) Delete(keyID string) error {
+	mkm.mu.RLock()
+	defer mkm.mu.RUnlock()
+
+	_, ok := mkm.pairs[keyID]
+	if !ok {
+		return errKeypairNotFound
+	}
+	delete(mkm.pairs, keyID)
+	return nil
+}

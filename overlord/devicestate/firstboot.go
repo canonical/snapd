@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,11 +22,13 @@ package devicestate
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"sort"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -38,6 +40,8 @@ import (
 )
 
 var errNothingToDo = errors.New("nothing to do")
+
+var runtimeNumCPU = runtime.NumCPU
 
 func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 	if sn.Required {
@@ -94,9 +98,11 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	mode := "run"
 	sysLabel := ""
 	preseed := false
+	hasModeenv := false
 	if opts != nil {
 		if opts.Mode != "" {
 			mode = opts.Mode
+			hasModeenv = true
 		}
 		sysLabel = opts.Label
 		preseed = opts.Preseed
@@ -105,7 +111,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if seeded {
@@ -115,7 +121,8 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	var deviceSeed seed.Seed
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
-		deviceSeed, err = importAssertionsFromSeed(st, sysLabel)
+		isCoreBoot := hasModeenv || !release.OnClassic
+		deviceSeed, err = importAssertionsFromSeed(st, sysLabel, isCoreBoot)
 	})
 	if err != nil && err != errNothingToDo {
 		return nil, err
@@ -125,8 +132,14 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return trivialSeeding(st), nil
 	}
 
+	commitTo := func(batch *asserts.Batch) error {
+		return assertstate.AddBatch(st, batch, nil)
+	}
+	db := assertstate.DB(st)
+	processAutoImportAssertions(st, deviceSeed, db, commitTo)
+
 	timings.Run(tm, "load-verified-snap-metadata", "load verified snap metadata from seed", func(nested timings.Measurer) {
-		err = deviceSeed.LoadMeta(nested)
+		err = deviceSeed.LoadMeta(mode, nil, nested)
 	})
 	if release.OnClassic && err == seed.ErrNoMeta {
 		if preseed {
@@ -224,6 +237,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		configTss = chainTs(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
 	}
 
+	modelIsDangerous := model.Grade() == asserts.ModelDangerous
 	for _, seedSnap := range essentialSeedSnaps {
 		flags := snapstate.Flags{
 			SkipConfigure: true,
@@ -234,7 +248,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 			// XXX: eventually we may need to allow specific snaps to be devmode for
 			// non-dangerous models, we can do that here since that information will
 			// probably be in the model assertion which we have here
-			ApplySnapDevMode: model.Grade() == asserts.ModelDangerous,
+			ApplySnapDevMode: modelIsDangerous,
 		}
 
 		ts, info, err := installSeedSnap(st, seedSnap, flags)
@@ -272,7 +286,10 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 			// XXX: eventually we may need to allow specific snaps to be devmode for
 			// non-dangerous models, we can do that here since that information will
 			// probably be in the model assertion which we have here
-			ApplySnapDevMode: model.Grade() == asserts.ModelDangerous,
+			ApplySnapDevMode: modelIsDangerous,
+			// for non-dangerous models snaps need to opt-in explicitly
+			// Classic is simply ignored for non-classic snaps, so we do not need to check further
+			Classic: release.OnClassic && modelIsDangerous,
 		}
 
 		ts, info, err := installSeedSnap(st, seedSnap, flags)
@@ -324,7 +341,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	return tsAll, nil
 }
 
-func importAssertionsFromSeed(st *state.State, sysLabel string) (seed.Seed, error) {
+func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool) (seed.Seed, error) {
 	// TODO: use some kind of context fo Device/SetDevice?
 	device, err := internal.Device(st)
 	if err != nil {
@@ -334,8 +351,8 @@ func importAssertionsFromSeed(st *state.State, sysLabel string) (seed.Seed, erro
 	// collect and
 	// set device,model from the model assertion
 	deviceSeed, err := loadDeviceSeed(st, sysLabel)
-	if err == seed.ErrNoAssertions && release.OnClassic {
-		// on classic seeding is optional
+	if err == seed.ErrNoAssertions && !isCoreBoot {
+		// if classic boot seeding is optional
 		// set the fallback model
 		err := setClassicFallbackModel(st, device)
 		if err != nil {
@@ -349,6 +366,8 @@ func importAssertionsFromSeed(st *state.State, sysLabel string) (seed.Seed, erro
 	modelAssertion := deviceSeed.Model()
 
 	classicModel := modelAssertion.Classic()
+	// FIXME this will not be correct on classic with modes system when
+	// mode is not "run".
 	if release.OnClassic != classicModel {
 		var msg string
 		if classicModel {
@@ -367,11 +386,44 @@ func importAssertionsFromSeed(st *state.State, sysLabel string) (seed.Seed, erro
 	return deviceSeed, nil
 }
 
+// processAutoImportAssertions attempts to load the auto import assertions
+// and create all knows system users, if and only if the model grade is dangerous.
+// Processing of the auto-import assertion is opportunistic and should not fail
+func processAutoImportAssertions(st *state.State, deviceSeed seed.Seed, db asserts.RODatabase, commitTo func(batch *asserts.Batch) error) {
+	// only proceed for dangerous model
+	if deviceSeed.Model().Grade() != asserts.ModelDangerous {
+		return
+	}
+	seed20AssertionsLoader, ok := deviceSeed.(seed.AutoImportAssertionsLoaderSeed)
+	if !ok {
+		logger.Noticef("failed to auto-import assertions, invalid loader")
+		return
+	}
+	err := seed20AssertionsLoader.LoadAutoImportAssertions(commitTo)
+	if err != nil {
+		logger.Noticef("failed to auto-import assertions: %v", err)
+		return
+	}
+	// automatic user creation is meant to imply sudoers
+	const sudoer = true
+	_, err = createAllKnownSystemUsers(st, db, deviceSeed.Model(), nil, sudoer)
+	if err != nil {
+		logger.Noticef("failed to create known users: %v", err)
+	}
+}
+
 // loadDeviceSeed loads and caches the device seed based on sysLabel,
 // it is meant to be used before and during seeding.
 // It is an error to call it with different sysLabel values once one
 // seed has been loaded and cached.
-func loadDeviceSeed(st *state.State, sysLabel string) (deviceSeed seed.Seed, err error) {
+//
+// TODO consider making this into a method of DeviceManager to simplify caching
+// and unifying it partly with seedStart and earlyLoadDeviceSeed. Mocking will
+// be a bit more cumbersome as other things will need to move there as well,
+// but the baroque cache logic is not great either.
+// TODO the name of this doesn't make it very clear that it is committing
+// the assertions to the device database
+var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.Seed, err error) {
 	cached := st.Cached(loadedDeviceSeedKey{})
 	if cached != nil {
 		loaded := cached.(*loadedDeviceSeed)
@@ -393,6 +445,12 @@ func loadDeviceSeed(st *state.State, sysLabel string) (deviceSeed seed.Seed, err
 	deviceSeed, err = seed.Open(dirs.SnapSeedDir, sysLabel)
 	if err != nil {
 		return nil, err
+	}
+
+	if runtimeNumCPU() > 1 {
+		// XXX set parallelism experimentally to 2 as I/O
+		// itself becomes a bottleneck ultimately
+		deviceSeed.SetParallelism(2)
 	}
 
 	// collect and

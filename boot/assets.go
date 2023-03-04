@@ -34,9 +34,10 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -263,8 +264,8 @@ type TrustedAssetsInstallObserver struct {
 	trustedRecoveryAssets []string
 	trackedRecoveryAssets bootAssetsMap
 
-	dataEncryptionKey secboot.EncryptionKey
-	saveEncryptionKey secboot.EncryptionKey
+	dataEncryptionKey keys.EncryptionKey
+	saveEncryptionKey keys.EncryptionKey
 }
 
 // Observe observes the operation related to the content of a given gadget
@@ -339,7 +340,7 @@ func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() boo
 	return o.trackedRecoveryAssets
 }
 
-func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey secboot.EncryptionKey) {
+func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
 	o.dataEncryptionKey = key
 	o.saveEncryptionKey = saveKey
 }
@@ -356,11 +357,11 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model, gadgetDir string)
 	// trusted assets need tracking only when the system is using encryption
 	// for its data partitions
 	trackTrustedAssets := false
-	_, err := sealedKeysMethod(dirs.GlobalRootDir)
+	_, err := device.SealedKeysMethod(dirs.GlobalRootDir)
 	switch {
 	case err == nil:
 		trackTrustedAssets = true
-	case err == errNoSealedKeys:
+	case err == device.ErrNoSealedKeys:
 		// nothing to do
 	case err != nil:
 		// all other errors
@@ -611,7 +612,7 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 
 	// new assets are appended to the list
 	expectedOldHash := hashList[0]
-	// sanity check, make sure that the current file is what we expect
+	// validity check, make sure that the current file is what we expect
 	newlyAdded := false
 	ondiskHash, err := o.cache.fileHash(filepath.Join(root, relativeTarget))
 	if err != nil {

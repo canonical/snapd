@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -51,6 +51,9 @@ type ModelSnap struct {
 	PinnedTrack string
 	// Presence is one of: required|optional
 	Presence string
+	// Classic indicates that this classic snap is intentionally
+	// included in a classic model
+	Classic bool
 }
 
 // SnapName implements naming.SnapRef.
@@ -98,7 +101,7 @@ var (
 	defaultModes       = []string{"run"}
 )
 
-func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade) (*modelSnaps, error) {
+func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade, modelIsClassic bool) (*modelSnaps, error) {
 	const wrongHeaderType = `"snaps" header must be a list of maps`
 
 	entries, ok := extendedSnaps.([]interface{})
@@ -115,7 +118,7 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 		if !ok {
 			return nil, fmt.Errorf(wrongHeaderType)
 		}
-		modelSnap, err := checkModelSnap(snap, grade)
+		modelSnap, err := checkModelSnap(snap, grade, modelIsClassic)
 		if err != nil {
 			return nil, err
 		}
@@ -172,6 +175,10 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 		if len(modelSnap.Modes) == 0 {
 			modelSnap.Modes = defaultModes
 		}
+		if modelSnap.Classic && (len(modelSnap.Modes) != 1 || modelSnap.Modes[0] != "run") {
+			return nil, fmt.Errorf("classic snap %q not allowed outside of run mode: %v", modelSnap.Name, modelSnap.Modes)
+		}
+
 		if modelSnap.Presence == "" {
 			modelSnap.Presence = "required"
 		}
@@ -190,7 +197,7 @@ var (
 	validSnapPresences = []string{"required", "optional"}
 )
 
-func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, error) {
+func checkModelSnap(snap map[string]interface{}, grade ModelGrade, modelIsClassic bool) (*ModelSnap, error) {
 	name, err := checkNotEmptyStringWhat(snap, "name", "of snap")
 	if err != nil {
 		return nil, err
@@ -256,6 +263,17 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 		return nil, fmt.Errorf("presence of snap %q must be one of required|optional", name)
 	}
 
+	isClassic, err := checkOptionalBoolWhat(snap, "classic", what)
+	if err != nil {
+		return nil, err
+	}
+	if isClassic && !modelIsClassic {
+		return nil, fmt.Errorf("snap %q cannot be classic in non-classic model", name)
+	}
+	if isClassic && typ != "app" {
+		return nil, fmt.Errorf("snap %q cannot be classic with type %q instead of app", name, typ)
+	}
+
 	return &ModelSnap{
 		Name:           name,
 		SnapID:         snapID,
@@ -263,6 +281,7 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 		Modes:          modes, // can be empty
 		DefaultChannel: defaultChannel,
 		Presence:       presence, // can be empty
+		Classic:        isClassic,
 	}, nil
 }
 
@@ -369,6 +388,8 @@ var gradeToCode = map[ModelGrade]uint32{
 	ModelDangerous:  0x10000,
 	ModelSigned:     0x80000,
 	ModelSecured:    0x100000,
+	// reserved by secboot to measure classic models
+	// "ClassicModelGradeMask": 0x80000000
 }
 
 // Code returns a bit representation of the grade, for example for
@@ -434,6 +455,11 @@ func (mod *Model) Series() string {
 // Classic returns whether the model is a classic system.
 func (mod *Model) Classic() bool {
 	return mod.classic
+}
+
+// Distribution returns the linux distro specified in the model.
+func (mod *Model) Distribution() string {
+	return mod.HeaderString("distribution")
 }
 
 // Architecture returns the architecture the model is based on.
@@ -563,7 +589,7 @@ func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*Model)(nil)
 
 // limit model to only lowercase for now
@@ -633,9 +659,13 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 
 var (
 	modelMandatory           = []string{"architecture", "gadget", "kernel"}
-	extendedCoreMandatory    = []string{"architecture", "base"}
+	extendedMandatory        = []string{"architecture", "base"}
 	extendedSnapsConflicting = []string{"gadget", "kernel", "required-snaps"}
 	classicModelOptional     = []string{"architecture", "gadget"}
+
+	// The distribution header must be a valid ID according to
+	// https://www.freedesktop.org/software/systemd/man/os-release.html#ID=
+	validDistribution = regexp.MustCompile(`^[a-z0-9._-]*$`)
 )
 
 func assembleModel(assert assertionBase) (Assertion, error) {
@@ -657,10 +687,6 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	// Core 20 extended snaps header
 	extendedSnaps, extended := assert.headers["snaps"]
 	if extended {
-		if classic {
-			return nil, fmt.Errorf("cannot use extended snaps header for a classic model (yet)")
-		}
-
 		for _, conflicting := range extendedSnapsConflicting {
 			if _, ok := assert.headers[conflicting]; ok {
 				return nil, fmt.Errorf("cannot specify separate %q header once using the extended snaps header", conflicting)
@@ -675,19 +701,30 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		}
 	}
 
-	if classic {
+	if classic && !extended {
 		if _, ok := assert.headers["kernel"]; ok {
-			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
+			return nil, fmt.Errorf("cannot specify a kernel with a non-extended classic model")
 		}
 		if _, ok := assert.headers["base"]; ok {
-			return nil, fmt.Errorf("cannot specify a base with a classic model")
+			return nil, fmt.Errorf("cannot specify a base with a non-extended classic model")
 		}
+	}
+
+	// distribution mandatory for classic with extended snaps, not
+	// allowed otherwise.
+	if classic && extended {
+		_, err := checkStringMatches(assert.headers, "distribution", validDistribution)
+		if err != nil {
+			return nil, fmt.Errorf("%v, see distribution ID in os-release spec", err)
+		}
+	} else if _, ok := assert.headers["distribution"]; ok {
+		return nil, fmt.Errorf("cannot specify distribution for model unless it is classic and has an extended snaps header")
 	}
 
 	checker := checkNotEmptyString
 	toCheck := modelMandatory
 	if extended {
-		toCheck = extendedCoreMandatory
+		toCheck = extendedMandatory
 	} else if classic {
 		checker = checkOptionalString
 		toCheck = classicModelOptional
@@ -759,15 +796,23 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			return nil, fmt.Errorf(`secured grade model must not have storage-safety overridden, only "encrypted" is valid`)
 		}
 
-		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade)
+		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade, classic)
 		if err != nil {
 			return nil, err
 		}
-		if modSnaps.gadget == nil {
-			return nil, fmt.Errorf(`one "snaps" header entry must specify the model gadget`)
-		}
-		if modSnaps.kernel == nil {
-			return nil, fmt.Errorf(`one "snaps" header entry must specify the model kernel`)
+		hasKernel := modSnaps.kernel != nil
+		hasGadget := modSnaps.gadget != nil
+		if !classic {
+			if !hasGadget {
+				return nil, fmt.Errorf(`one "snaps" header entry must specify the model gadget`)
+			}
+			if !hasKernel {
+				return nil, fmt.Errorf(`one "snaps" header entry must specify the model kernel`)
+			}
+		} else {
+			if hasKernel && !hasGadget {
+				return nil, fmt.Errorf("cannot specify a kernel in an extended classic model without a model gadget")
+			}
 		}
 
 		if modSnaps.base == nil {

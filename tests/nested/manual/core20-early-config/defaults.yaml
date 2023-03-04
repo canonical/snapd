@@ -9,6 +9,21 @@ defaults:
       runtime-timeout: 13m
     system:
       power-key-action: ignore
+      ctrl-alt-del-action: none
       disable-backlight-service: true
       timezone: Europe/Malta
       hostname: foo
+      network:
+        netplan:
+          bridges:
+            br54:
+              dhcp4: true
+          # ensure that default behavor can be overridden
+          ethernets:
+            ens3:
+              dhcp4: false
+              addresses:
+                - 10.0.2.15/24
+              routes:
+                - to: default
+                  via: 10.0.2.2

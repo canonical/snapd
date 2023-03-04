@@ -77,6 +77,14 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 		cmd:  "snapd_recovery_mode=run snapd_recovery_system=1234",
 		mode: boot.ModeRun,
 	}, {
+		cmd:   "snapd_recovery_mode=recover snapd_recovery_system=1234",
+		label: "1234",
+		mode:  boot.ModeRecover,
+	}, {
+		cmd:   "snapd_recovery_mode=factory-reset snapd_recovery_system=1234",
+		label: "1234",
+		mode:  boot.ModeFactoryReset,
+	}, {
 		cmd: "option=1 other-option=\0123 none",
 		err: "cannot detect mode nor recovery system to use",
 	}, {
@@ -100,6 +108,9 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 		cmd:   "snapd_recovery_system=not-this-one snapd_recovery_mode=install snapd_recovery_system=1234",
 		mode:  "install",
 		label: "1234",
+	}, {
+		cmd:  "snapd_recovery_mode=cloudimg-rootfs",
+		mode: boot.ModeRunCVM,
 	}} {
 		c.Logf("tc: %q", tc)
 		s.mockProcCmdlineContent(c, tc.cmd)

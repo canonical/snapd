@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -50,6 +51,8 @@ var featureSet = map[string]bool{
 	// Support for "kernel-assets" in gadget.yaml. I.e. having volume
 	// content of the style $kernel:ref`
 	"kernel-assets": true,
+	// Support for "refresh-mode: ignore-running" in snap.yaml
+	"app-refresh-mode": true,
 }
 
 func checkAssumes(si *snap.Info) error {
@@ -313,7 +316,7 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Contain
 		return nil
 	}
 	core, err := coreInfo(st)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
 	if err != nil {
@@ -354,7 +357,6 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 		// not a relevant check
 		return nil
 	}
-
 	ok, err := HasSnapOfType(st, typ)
 	if err != nil {
 		return fmt.Errorf("cannot detect original %s snap: %v", kind, err)
@@ -366,7 +368,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 	}
 
 	currentSnap, err := infoForDeviceSnap(st, deviceCtx, whichName)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		// check if we are in the remodel case
 		if deviceCtx != nil && deviceCtx.ForRemodeling() {
 			if whichName(deviceCtx.Model()) == snapInfo.InstanceName() {
@@ -379,7 +381,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
 	}
 
-	if currentSnap.SnapID != "" && snapInfo.SnapID == "" {
+	if currentSnap.SnapID != "" && snapInfo.SnapID == "" && deviceCtx.Model().Grade() != asserts.ModelDangerous {
 		return fmt.Errorf("cannot replace signed %s snap with an unasserted one", kind)
 	}
 
@@ -447,7 +449,7 @@ func checkEpochs(_ *state.State, snapInfo, curInfo *snap.Info, _ snap.Container,
 }
 
 // check that the snap installed in the system (via snapst) can be
-// upgraded to info (i.e. that info's epoch can read sanpst's epoch)
+// upgraded to info (i.e. that info's epoch can read snapst's epoch)
 func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 	if snapst == nil {
 		// no snapst, no problem

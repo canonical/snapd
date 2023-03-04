@@ -13,7 +13,7 @@ execute: |
     echo "Then the snap is listed as installed with try in the notes"
     snap list | MATCH "^test-snapd-service-try .* try"
 
-    # Sanity check just to ensure the test and its input yaml are correct
+    # Precondition check just to ensure the test and its input yaml are correct
     echo "And it doesn't have a systemd service just yet"
     # Note: systemctl in yakkety doesn't report LoadState=not-found for unknown services
     # so need to grep all the services

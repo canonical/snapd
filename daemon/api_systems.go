@@ -24,7 +24,9 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/snap"
@@ -32,7 +34,7 @@ import (
 
 var systemsCmd = &Command{
 	Path:       "/v2/systems",
-	GET:        getSystems,
+	GET:        getAllSystems,
 	ReadAccess: authenticatedAccess{},
 	// this is awkward, we want the postSystemsAction function to be used
 	// when the label is empty too, but the router will not handle the request
@@ -44,7 +46,10 @@ var systemsCmd = &Command{
 }
 
 var systemsActionCmd = &Command{
-	Path:        "/v2/systems/{label}",
+	Path:       "/v2/systems/{label}",
+	GET:        getSystemDetails,
+	ReadAccess: rootAccess{},
+
 	POST:        postSystemsAction,
 	WriteAccess: rootAccess{},
 }
@@ -53,7 +58,7 @@ type systemsResponse struct {
 	Systems []client.System `json:"systems,omitempty"`
 }
 
-func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
+func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 	var rsp systemsResponse
 
 	seedSystems, err := c.d.overlord.DeviceManager().Systems()
@@ -99,9 +104,80 @@ func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(&rsp)
 }
 
+// wrapped for unit tests
+var deviceManagerSystemAndGadgetAndEncryptionInfo = func(dm *devicestate.DeviceManager, systemLabel string) (*devicestate.System, *gadget.Info, *devicestate.EncryptionSupportInfo, error) {
+	return dm.SystemAndGadgetAndEncryptionInfo(systemLabel)
+}
+
+func storageEncryption(encInfo *devicestate.EncryptionSupportInfo) *client.StorageEncryption {
+	if encInfo.Disabled {
+		return &client.StorageEncryption{
+			Support: client.StorageEncryptionSupportDisabled,
+		}
+	}
+	storageEnc := &client.StorageEncryption{
+		StorageSafety: string(encInfo.StorageSafety),
+		Type:          string(encInfo.Type),
+	}
+	required := (encInfo.StorageSafety == asserts.StorageSafetyEncrypted)
+	switch {
+	case encInfo.Available:
+		storageEnc.Support = client.StorageEncryptionSupportAvailable
+	case !encInfo.Available && required:
+		storageEnc.Support = client.StorageEncryptionSupportDefective
+		storageEnc.UnavailableReason = encInfo.UnavailableErr.Error()
+	case !encInfo.Available && !required:
+		storageEnc.Support = client.StorageEncryptionSupportUnavailable
+		storageEnc.UnavailableReason = encInfo.UnavailableWarning
+	}
+
+	return storageEnc
+}
+
+var (
+	devicestateInstallFinish                 = devicestate.InstallFinish
+	devicestateInstallSetupStorageEncryption = devicestate.InstallSetupStorageEncryption
+)
+
+func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
+	wantedSystemLabel := muxVars(r)["label"]
+
+	deviceMgr := c.d.overlord.DeviceManager()
+
+	sys, gadgetInfo, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, wantedSystemLabel)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	rsp := client.SystemDetails{
+		Current: sys.Current,
+		Label:   sys.Label,
+		Brand: snap.StoreAccount{
+			ID:          sys.Brand.AccountID(),
+			Username:    sys.Brand.Username(),
+			DisplayName: sys.Brand.DisplayName(),
+			Validation:  sys.Brand.Validation(),
+		},
+		// no body: we expect models to have empty bodies
+		Model:             sys.Model.Headers(),
+		Volumes:           gadgetInfo.Volumes,
+		StorageEncryption: storageEncryption(encryptionInfo),
+	}
+	for _, sa := range sys.Actions {
+		rsp.Actions = append(rsp.Actions, client.SystemAction{
+			Title: sa.Title,
+			Mode:  sa.Mode,
+		})
+	}
+
+	return SyncResponse(rsp)
+}
+
 type systemActionRequest struct {
 	Action string `json:"action"`
+
 	client.SystemAction
+	client.InstallSystemOptions
 }
 
 func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -120,6 +196,8 @@ func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Respon
 		return postSystemActionDo(c, systemLabel, &req)
 	case "reboot":
 		return postSystemActionReboot(c, systemLabel, &req)
+	case "install":
+		return postSystemActionInstall(c, systemLabel, &req)
 	default:
 		return BadRequest("unsupported action %q", req.Action)
 	}
@@ -167,4 +245,29 @@ func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest
 		return handleSystemActionErr(err, systemLabel)
 	}
 	return SyncResponse(nil)
+}
+
+func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRequest) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	switch req.Step {
+	case client.InstallStepSetupStorageEncryption:
+		chg, err := devicestateInstallSetupStorageEncryption(st, systemLabel, req.OnVolumes)
+		if err != nil {
+			return BadRequest("cannot setup storage encryption for install from %q: %v", systemLabel, err)
+		}
+		ensureStateSoon(st)
+		return AsyncResponse(nil, chg.ID())
+	case client.InstallStepFinish:
+		chg, err := devicestateInstallFinish(st, systemLabel, req.OnVolumes)
+		if err != nil {
+			return BadRequest("cannot finish install for %q: %v", systemLabel, err)
+		}
+		ensureStateSoon(st)
+		return AsyncResponse(nil, chg.ID())
+	default:
+		return BadRequest("unsupported install step %q", req.Step)
+	}
 }

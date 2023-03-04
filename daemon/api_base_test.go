@@ -294,6 +294,9 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 }
 
 func (s *apiBaseSuite) resetDaemon() {
+	if s.d != nil {
+		s.d.Overlord().Stop()
+	}
 	s.d = nil
 }
 
@@ -343,7 +346,12 @@ func (s *apiBaseSuite) asUserAuth(c *check.C, req *http.Request) {
 	if s.authUser == nil {
 		st := s.d.Overlord().State()
 		st.Lock()
-		u, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+		u, err := auth.NewUser(st, auth.NewUserParams{
+			Username:   "username",
+			Email:      "email@test.com",
+			Macaroon:   "macaroon",
+			Discharges: []string{"discharge"},
+		})
 		st.Unlock()
 		c.Assert(err, check.IsNil)
 		s.authUser = u
@@ -369,7 +377,7 @@ func (m *fakeSnapManager) Ensure() error {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ overlord.StateManager = (*fakeSnapManager)(nil)
 
 func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *daemon.Daemon {
@@ -625,7 +633,7 @@ func (s *apiBaseSuite) syncReq(c *check.C, req *http.Request, u *auth.UserState)
 
 func (s *apiBaseSuite) asyncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.RespJSON {
 	rsp := s.jsonReq(c, req, u)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync, check.Commentf("expected async resp: %#v", rsp))
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync, check.Commentf("expected async resp: %#v, result %v", rsp, rsp.Result))
 	return rsp
 }
 

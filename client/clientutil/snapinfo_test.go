@@ -72,8 +72,12 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 			EditedSummary:     "the-summary",
 			EditedDescription: "the-description",
 			Channel:           "latest/stable",
-			EditedContact:     "https://thingy.com",
-			Private:           true,
+			EditedLinks: map[string][]string{
+				"contact": {"https://thingy.com"},
+				"website": {"http://example.com/thingy"},
+			},
+			LegacyEditedContact: "https://thingy.com",
+			Private:             true,
 		},
 		Channels: map[string]*snap.ChannelSnapInfo{},
 		Tracks:   []string{},
@@ -84,7 +88,6 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
 		},
 		CommonIDs: []string{"org.thingy"},
-		Website:   "http://example.com/thingy",
 		StoreURL:  "https://snapcraft.io/thingy",
 		Broken:    "broken",
 	}
@@ -112,6 +115,8 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 		"TryMode",
 		"JailMode",
 		"MountedFrom",
+		"Hold",
+		"GatingHold",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {
@@ -146,7 +151,10 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 	c.Check(ci.Summary, Equals, "the-summary")
 	c.Check(ci.Description, Equals, "the-description")
 	c.Check(ci.Icon, Equals, si.Media.IconURL())
-	c.Check(ci.Website, Equals, si.Website)
+	c.Check(ci.Links, DeepEquals, si.Links())
+	c.Check(ci.Links, DeepEquals, si.EditedLinks)
+	c.Check(ci.Contact, Equals, si.Contact())
+	c.Check(ci.Website, Equals, si.Website())
 	c.Check(ci.StoreURL, Equals, si.StoreURL)
 	c.Check(ci.Developer, Equals, "thingyinc")
 	c.Check(ci.Publisher, DeepEquals, &si.Publisher)
@@ -181,7 +189,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsInactive(c *C) {
 		"svc": {Snap: si, Name: "svc", Daemon: "simple", DaemonScope: snap.SystemDaemon},
 		"app": {Snap: si, Name: "app", CommonID: "common.id"},
 	}
-	// sanity
+	// validity
 	c.Check(si.IsActive(), Equals, false)
 	// desktop file
 	df := si.Apps["app"].DesktopFile()

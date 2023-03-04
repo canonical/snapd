@@ -65,6 +65,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 	spec.(*Specification).AddOvername(snapInfo)
 	spec.(*Specification).AddLayout(snapInfo)
+	spec.(*Specification).AddExtraLayouts(confinement.ExtraLayouts)
 	content := deriveContent(spec.(*Specification), snapInfo)
 	// synchronize the content with the filesystem
 	glob := fmt.Sprintf("snap.%s.*fstab", snapName)

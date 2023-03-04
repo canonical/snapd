@@ -27,6 +27,14 @@ environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
 
 prepare: |
+    # We remove the shared-memory plug and interface in trusty because it fails with the
+    # following error since adding private /dev/shm support to shared-memory interface:
+    # shared-memory plug with "private: true" cannot be connected if "/dev/shm" is a symlink)
+    if os.query is-trusty; then
+        cp -r "$TESTSLIB/snaps/$CONSUMER_SNAP" .
+        sed -e '/shared-memory:/,+2d' -i $CONSUMER_SNAP/meta/snap.yaml
+    fi
+
     echo "Given a snap is installed"
     "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
 
@@ -59,7 +67,7 @@ execute: |
         # Debian 10 has bad performance disconnecting interfaces
         # and the test fails (kill-timeout) trying either to remove
         # interfaces or removing the snap
-        if os.query is-debian-10 && [ "$((RANDOM % 3))" != 0 ]; then
+        if os.query is-debian 10 && [ "$((RANDOM % 3))" != 0 ]; then
             echo "skipping plug: $plugcmd"
             continue
         fi
@@ -87,6 +95,12 @@ execute: |
             # the qualcomm-ipc-router interface is known not to work on xenial,
             # just check that it cannot be connected and move on
             snap connect "$plug_iface" "$slot_iface" 2>&1 | MATCH "cannot connect plug on system without qipcrtr socket support"
+            continue
+        fi
+
+        if [ "$plug_iface" = "$CONSUMER_SNAP:mount-control" ] && os.query is-trusty ; then
+            # systemd version is too old, skipping
+            snap connect "$plug_iface" "$slot_iface" 2>&1 | MATCH "systemd version 204 is too old \\(expected at least 209\\)"
             continue
         fi
 

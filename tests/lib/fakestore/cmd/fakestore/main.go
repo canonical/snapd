@@ -30,7 +30,7 @@ import (
 
 type Options struct{}
 
-var parser = flags.NewParser(&Options{}, flags.Default)
+var parser = flags.NewParser(&Options{}, flags.HelpFlag|flags.PassDoubleDash)
 
 func main() {
 	if err := logger.SimpleSetup(); err != nil {

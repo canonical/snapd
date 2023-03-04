@@ -90,8 +90,8 @@ void sc_close_mount_ns(struct sc_mount_ns *group);
  * use setns() with the obtained file descriptor.
  *
  * If the preserved mount namespace does not exist or exists but is stale and
- * was discarded and returns ESRCH. If the mount namespace was joined the
- * function returns zero.
+ * was discarded the function returns ESRCH. If the mount namespace was joined
+ * it returns zero.
  **/
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 			 *apparmor, const sc_invocation * inv,

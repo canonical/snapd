@@ -15,6 +15,7 @@
  *
  */
 #include <errno.h>
+#include <fnmatch.h>
 #include <libgen.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -143,7 +144,7 @@ static char *udev_to_security_tag(const char *udev_tag) {
 }
 
 /* sysroot can be mocked in tests */
-const char *sysroot = "/";
+static const char *sysroot = "/";
 
 int snap_device_helper_run(const struct sdh_invocation *inv) {
     const char *action = inv->action;
@@ -175,11 +176,26 @@ int snap_device_helper_run(const struct sdh_invocation *inv) {
     char fullsubsystem[PATH_MAX] = {0};
     sc_must_snprintf(sysdevsubsystem, sizeof(sysdevsubsystem), "%s/sys/%s/subsystem", sysroot, devpath);
     if (readlink(sysdevsubsystem, fullsubsystem, sizeof(fullsubsystem)) < 0) {
-        die("cannot read symlink %s", sysdevsubsystem);
-    }
-    char *subsystem = basename(fullsubsystem);
-    if (sc_streq(subsystem, "block")) {
-        devtype = S_IFBLK;
+        if (errno == ENOENT && sc_streq(action, "remove")) {
+            // on removal the devices are going away, so it is possible that the
+            // symlink is already gone, in which case try guessing the type like
+            // the old shell-based snap-device-helper did:
+            //
+            // > char devices are .../nvme/nvme* but block devices are
+            // > .../nvme/nvme*/nvme*n* and .../nvme/nvme*/nvme*n*p* so if have a
+            // > device that has nvme/nvme*/nvme*n* in it, treat it as a block
+            // > device
+            if ((fnmatch("*/block/*", devpath, 0) == 0) || (fnmatch("*/nvme/nvme*/nvme*n*", devpath, 0) == 0)) {
+                devtype = S_IFBLK;
+            }
+        } else {
+            die("cannot read symlink %s", sysdevsubsystem);
+        }
+    } else {
+        char *subsystem = basename(fullsubsystem);
+        if (sc_streq(subsystem, "block")) {
+            devtype = S_IFBLK;
+        }
     }
     sc_device_cgroup *cgroup = sc_device_cgroup_new(security_tag, SC_DEVICE_CGROUP_FROM_EXISTING);
     if (!cgroup) {
