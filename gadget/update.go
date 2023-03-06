@@ -375,8 +375,6 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 				}
 
 				switch encTypeParams.Method {
-				case EncryptionICE:
-					return false, "Inline Crypto Engine encrypted partitions currently unsupported"
 				case EncryptionLUKS:
 					// then this partition is expected to have been encrypted, the
 					// filesystem label on disk will need "-enc" appended
@@ -588,9 +586,6 @@ const (
 	// standard LUKS as it is used for automatic FDE using SecureBoot and TPM
 	// 2.0 in UC20+
 	EncryptionLUKS DiskEncryptionMethod = "LUKS"
-
-	// TODO:ICE: remove this
-	EncryptionICE DiskEncryptionMethod = "ICE"
 )
 
 // DiskVolumeValidationOptions is a set of options on how to validate a disk to

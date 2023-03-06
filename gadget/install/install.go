@@ -136,17 +136,8 @@ func maybeEncryptPartition(laidOut *gadget.LaidOutStructure, encryptionType secb
 			if err != nil {
 				return nil, nil, err
 			}
-
-			//TODO:ICE: device-setup hook support goes away
-		case secboot.EncryptionTypeDeviceSetupHook:
-			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device-setup-hook[%s]", laidOut.Role()),
-				fmt.Sprintf("Create encryption device for %s using device-setup-hook", laidOut.Role()),
-				func(timings.Measurer) {
-					dataPart, err = createEncryptedDeviceWithSetupHook(&laidOut.OnDiskStructure, encryptionKey, laidOut.Name())
-				})
-			if err != nil {
-				return nil, nil, err
-			}
+		default:
+			return nil, nil, fmt.Errorf("internal error: unknown encryption type: %v", encryptionType)
 		}
 
 		// update the encrypted device node, such that subsequent steps
@@ -289,11 +280,8 @@ func createEncryptionParams(encTyp secboot.EncryptionType) gadget.StructureEncry
 	switch encTyp {
 	case secboot.EncryptionTypeLUKS, secboot.EncryptionTypeLUKSWithICE:
 		return gadget.StructureEncryptionParameters{
+			// TODO:ICE: remove "Method" entirely, there is only LUKS
 			Method: gadget.EncryptionLUKS,
-		}
-	case secboot.EncryptionTypeDeviceSetupHook:
-		return gadget.StructureEncryptionParameters{
-			Method: gadget.EncryptionICE,
 		}
 	}
 	logger.Noticef("internal error: unknown encryption parameter %q", encTyp)

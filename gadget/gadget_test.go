@@ -3189,17 +3189,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, nil)
 	c.Assert(err, IsNil)
 
-	// unsupported encryption types
 	invalidEncOptions := &gadget.EnsureLayoutCompatibilityOptions{
-		AssumeCreatablePartitionsCreated: true,
-		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
-			"Writable": {Method: gadget.EncryptionICE},
-		},
-	}
-	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncOptions)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: Inline Crypto Engine encrypted partitions currently unsupported`)
-
-	invalidEncOptions = &gadget.EnsureLayoutCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
 		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
 			"Writable": {Method: "other"},

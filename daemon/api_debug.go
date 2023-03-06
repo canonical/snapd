@@ -301,14 +301,13 @@ func getGadgetDiskMapping(st *state.State) Response {
 		}
 		// no sealed keys, so no encryption
 	} else {
+		// TODO: is there a better way to find the encType
+		// than indirectly via the sealedKeyMethods? does not
+		// matter right now because there really is only one
+		// encryption type
 		switch sealingMethod {
 		case device.SealingMethodLegacyTPM, device.SealingMethodTPM:
 			encType = secboot.EncryptionTypeLUKS
-		case device.SealingMethodFDESetupHook:
-			// TODO:ICE: device setup hook support goes away
-			// XXX: this also seems to be broken already, this sealing
-			// method should not imply ICE
-			encType = secboot.EncryptionTypeDeviceSetupHook
 		default:
 			return InternalError("unknown sealing method: %s", sealingMethod)
 		}

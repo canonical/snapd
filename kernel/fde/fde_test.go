@@ -529,52 +529,6 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
 
-func (s *fdeSuite) TestDeviceSetupHappy(c *C) {
-	mockKey := []byte{1, 2, 3, 4}
-	mockDevice := "/dev/sda2"
-
-	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
-		c.Check(req, DeepEquals, &fde.SetupRequest{
-			Op:     "device-setup",
-			Key:    mockKey,
-			Device: mockDevice,
-		})
-		// empty reply: no error
-		mockJSON := `{}`
-		return []byte(mockJSON), nil
-	}
-
-	params := &fde.DeviceSetupParams{
-		Key:    mockKey,
-		Device: mockDevice,
-	}
-	err := fde.DeviceSetup(runSetupHook, params)
-	c.Assert(err, IsNil)
-}
-
-func (s *fdeSuite) TestDeviceSetupError(c *C) {
-	mockKey := []byte{1, 2, 3, 4}
-	mockDevice := "/dev/sda2"
-
-	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
-		c.Check(req, DeepEquals, &fde.SetupRequest{
-			Op:     "device-setup",
-			Key:    mockKey,
-			Device: mockDevice,
-		})
-		// empty reply: no error
-		mockJSON := `something failed badly`
-		return []byte(mockJSON), fmt.Errorf("exit status 1")
-	}
-
-	params := &fde.DeviceSetupParams{
-		Key:    mockKey,
-		Device: mockDevice,
-	}
-	err := fde.DeviceSetup(runSetupHook, params)
-	c.Check(err, ErrorMatches, "device setup failed with: something failed badly")
-}
-
 func (s *fdeSuite) TestDeviceUnlock(c *C) {
 	checkSystemdRunOrSkip(c)
 
