@@ -706,6 +706,10 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 	return &goff
 }
 
+func asSizePtr(sz quantity.Size) *quantity.Size {
+	return &sz
+}
+
 var (
 	classicMod = &gadgettest.ModelCharacteristics{
 		IsClassic: true,
@@ -744,6 +748,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
 				ID:         "0C",
+				MinSize:    asSizePtr(12345 + 88888),
 				Structure: []gadget.VolumeStructure{
 					{
 						VolumeName:  "volumename",
@@ -786,6 +791,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 				Name:       "frobinator-image",
 				Schema:     "mbr",
 				Bootloader: "u-boot",
+				MinSize:    asSizePtr((1 + 128 + 380) * quantity.SizeMiB),
 				Structure: []gadget.VolumeStructure{
 					{
 						VolumeName: "frobinator-image",
@@ -816,8 +822,9 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 				},
 			},
 			"u-boot-frobinator": {
-				Name:   "u-boot-frobinator",
-				Schema: "gpt",
+				Name:    "u-boot-frobinator",
+				Schema:  "gpt",
+				MinSize: asSizePtr(24576 + 623000),
 				Structure: []gadget.VolumeStructure{
 					{
 						VolumeName: "u-boot-frobinator",
@@ -928,6 +935,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
 				ID:         "0C",
+				MinSize:    asSizePtr(12345 + 88888),
 				Structure: []gadget.VolumeStructure{
 					{
 						VolumeName:  "bootloader",
@@ -2313,6 +2321,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileValid(c *C) {
 				Name:       "pc",
 				Bootloader: "grub",
 				Schema:     "gpt",
+				MinSize:    asSizePtr(0),
 			},
 		},
 	})

@@ -71,6 +71,10 @@ func (s *systemsSuite) SetUpTest(c *check.C) {
 	s.expectRootAccess()
 }
 
+func asSizePtr(sz quantity.Size) *quantity.Size {
+	return &sz
+}
+
 var pcGadgetUCYaml = `
 volumes:
   pc:
@@ -965,6 +969,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 				Name:       "pc",
 				Schema:     "gpt",
 				Bootloader: "grub",
+				MinSize:    asSizePtr((1 + 1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB),
 				Structure: []gadget.VolumeStructure{
 					{
 						Name:       "mbr",
