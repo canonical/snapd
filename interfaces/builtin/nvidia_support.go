@@ -19,23 +19,23 @@
 
 package builtin
 
-const nvidiaSupportSummary = `proprietary NVIDIA driver userspace system setup (apps should use 'opengl' interface)`
+const nvidiaDriversSupportSummary = `NVIDIA drivers userspace system setup support`
 
-const nvidiaSupportBaseDeclarationPlugs = `
-  nvidia-support:
+const nvidiaDriversSupportBaseDeclarationPlugs = `
+  nvidia-drivers-support:
     allow-installation: false
     deny-auto-connection: true
 `
 
-const nvidiaSupportBaseDeclarationSlots = `
-  nvidia-support:
+const nvidiaDriversSupportBaseDeclarationSlots = `
+  nvidia-drivers-support:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const nvidiaSupportConnectedPlugAppArmor = `
+const nvidiaDriversSupportConnectedPlugAppArmor = `
 # This is inverse of
 # https://forum.snapcraft.io/t/call-for-testing-chromium-62-0-3202-62/2569/46
 # As nvidia-assemble snap needs to create the static & dynamic MAJOR
@@ -54,7 +54,7 @@ allow capability mknod,
 @{PROC}/devices r,
 `
 
-const nvidiaSupportConnectedPlugSecComp = `
+const nvidiaDriversSupportConnectedPlugSecComp = `
 # This is inverse of
 # https://forum.snapcraft.io/t/call-for-testing-chromium-62-0-3202-62/2569/46
 # As nvidia-assemble snap needs to create the static & dynamic MAJOR
@@ -64,19 +64,19 @@ mknod - |S_IFCHR -
 mknodat - - |S_IFCHR -
 `
 
-type nvidiaSupportInterface struct {
+type nvidiaDriversSupportInterface struct {
 	commonInterface
 }
 
 func init() {
-	registerIface(&nvidiaSupportInterface{commonInterface: commonInterface{
-		name:                  "nvidia-support",
-		summary:               nvidiaSupportSummary,
+	registerIface(&nvidiaDriversSupportInterface{commonInterface: commonInterface{
+		name:                  "nvidia-drivers-support",
+		summary:               nvidiaDriversSupportSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		baseDeclarationPlugs:  nvidiaSupportBaseDeclarationPlugs,
-		baseDeclarationSlots:  nvidiaSupportBaseDeclarationSlots,
-		connectedPlugAppArmor: nvidiaSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  nvidiaSupportConnectedPlugSecComp,
+		baseDeclarationPlugs:  nvidiaDriversSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:  nvidiaDriversSupportBaseDeclarationSlots,
+		connectedPlugAppArmor: nvidiaDriversSupportConnectedPlugAppArmor,
+		connectedPlugSecComp:  nvidiaDriversSupportConnectedPlugSecComp,
 	}})
 }

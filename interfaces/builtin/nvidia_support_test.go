@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type NvidiaSupportSuite struct {
+type NvidiaDriversSupportSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -39,23 +39,23 @@ type NvidiaSupportSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&NvidiaSupportSuite{
-	iface: builtin.MustInterface("nvidia-support"),
+var _ = Suite(&NvidiaDriversSupportSuite{
+	iface: builtin.MustInterface("nvidia-drivers-support"),
 })
 
-const nvidiaSupportMockPlugSnapInfo = `name: other
+const nvidiaDriversSupportMockPlugSnapInfo = `name: other
 version: 1.0
 apps:
  app2:
   command: foo
-  plugs: [nvidia-support]
+  plugs: [nvidia-drivers-support]
 `
 
-func (s *NvidiaSupportSuite) SetUpTest(c *C) {
+func (s *NvidiaDriversSupportSuite) SetUpTest(c *C) {
 	s.slotInfo = &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "nvidia-support",
-		Interface: "nvidia-support",
+		Name:      "nvidia-drivers-support",
+		Interface: "nvidia-drivers-support",
 		Apps: map[string]*snap.AppInfo{
 			"app1": {
 				Snap: &snap.Info{
@@ -65,24 +65,24 @@ func (s *NvidiaSupportSuite) SetUpTest(c *C) {
 	}
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 
-	plugSnap := snaptest.MockInfo(c, nvidiaSupportMockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["nvidia-support"]
+	plugSnap := snaptest.MockInfo(c, nvidiaDriversSupportMockPlugSnapInfo, nil)
+	s.plugInfo = plugSnap.Plugs["nvidia-drivers-support"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
-func (s *NvidiaSupportSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "nvidia-support")
+func (s *NvidiaDriversSupportSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "nvidia-drivers-support")
 }
 
-func (s *NvidiaSupportSuite) TestSanitizeSlot(c *C) {
+func (s *NvidiaDriversSupportSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *NvidiaSupportSuite) TestSanitizePlug(c *C) {
+func (s *NvidiaDriversSupportSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *NvidiaSupportSuite) TestUsedSecuritySystems(c *C) {
+func (s *NvidiaDriversSupportSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
@@ -97,10 +97,10 @@ func (s *NvidiaSupportSuite) TestUsedSecuritySystems(c *C) {
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "mknodat - - |S_IFCHR -")
 }
 
-func (s *NvidiaSupportSuite) TestAutoConnect(c *C) {
+func (s *NvidiaDriversSupportSuite) TestAutoConnect(c *C) {
 	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
-func (s *NvidiaSupportSuite) TestInterfaces(c *C) {
+func (s *NvidiaDriversSupportSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
