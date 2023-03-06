@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -481,7 +481,7 @@ func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
 	return localSnaps
 }
 
-func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts func(sn, sysSn, kSn *seedwriter.SeedSnap) ([]*asserts.Ref, error)) error {
+func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts func(sn, sysSn, kernSn *seedwriter.SeedSnap) ([]*asserts.Ref, error)) error {
 	curSnaps := localSnapsWithID(localSnaps)
 	for {
 		toDownload, err := s.w.SnapsToDownload()
@@ -710,7 +710,7 @@ func manifestFromLocalSnaps(snaps localSnapRefs, opts *Options) (map[string]snap
 	return seedManifest, nil
 }
 
-func selectAssertionMaxFormats(tsto *tooling.ToolingStore, sysSn *seedwriter.SeedSnap) error {
+func selectAssertionMaxFormats(tsto *tooling.ToolingStore, model *asserts.Model, sysSn, kernSn *seedwriter.SeedSnap) error {
 	if sysSn == nil {
 		// nothing to do
 		return nil
@@ -719,11 +719,30 @@ func selectAssertionMaxFormats(tsto *tooling.ToolingStore, sysSn *seedwriter.See
 	if err != nil {
 		return err
 	}
-	// XXX take also kernel into account
-	// XXX warning logic
 	maxFormats, _, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
 	if err != nil {
 		return err
+	}
+	if model.Grade() != asserts.ModelGradeUnset && kernSn != nil {
+		// take also kernel into account
+		kf, err := snapfile.Open(kernSn.Path)
+		if err != nil {
+			return err
+		}
+		kMaxFormats, _, err := snap.SnapdAssertionMaxFormatsFromSnapFile(kf)
+		if err != nil {
+			return err
+		}
+		if kMaxFormats == nil {
+			fmt.Fprintf(Stderr, "WARNING: the kernel for the specified UC20+ model does not carry assertion max formats information, assuming possibly incorrectly the kernel revision can use the same formats as snapd\n")
+		} else {
+			for name, maxFormat := range maxFormats {
+				// pick the lowest format
+				if kMaxFormats[name] < maxFormat {
+					maxFormats[name] = kMaxFormats[name]
+				}
+			}
+		}
 	}
 	tsto.SetAssertionMaxFormats(maxFormats)
 	return nil
@@ -807,9 +826,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return nil
 	}
 
-	fetchAsserts := func(sn, sysSn, kSn *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
+	fetchAsserts := func(sn, sysSn, kernSn *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
 		if !assertMaxFormatsSelected {
-			if err := selectAssertionMaxFormats(tsto, sysSn); err != nil {
+			if err := selectAssertionMaxFormats(tsto, model, sysSn, kernSn); err != nil {
 				return nil, err
 			}
 			assertMaxFormatsSelected = true
