@@ -19,7 +19,7 @@
 
 package builtin
 
-const nvidiaSupportSummary = `allows creating static and dynamic NVIDIA chrdev`
+const nvidiaSupportSummary = `proprietary NVIDIA driver userspace system setup (apps should use 'opengl' interface)`
 
 const nvidiaSupportBaseDeclarationPlugs = `
   nvidia-support:
