@@ -183,6 +183,11 @@ type VolumeStructure struct {
 	Device string `yaml:"-" json:"device,omitempty"`
 }
 
+// IsRoleMBR tells us if v has MBR role or not.
+func (v *VolumeStructure) IsRoleMBR() bool {
+	return v.Role == schemaMBR
+}
+
 // HasFilesystem returns true if the structure is using a filesystem.
 func (vs *VolumeStructure) HasFilesystem() bool {
 	return vs.Filesystem != "none" && vs.Filesystem != ""
