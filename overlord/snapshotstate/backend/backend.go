@@ -327,8 +327,11 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	if err != nil {
 		return nil, err
 	}
-	if err := snapshotOptions.Merge(dynSnapshotOpts); err != nil {
-		return nil, err
+
+	if dynSnapshotOpts != nil {
+		if err := snapshotOptions.MergeDynamicExcludes(dynSnapshotOpts.Exclude); err != nil {
+			return nil, err
+		}
 	}
 
 	aw, err := osutil.NewAtomicFile(Filename(snapshot), 0600, 0, osutil.NoChown, osutil.NoChown)

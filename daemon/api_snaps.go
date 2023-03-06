@@ -195,10 +195,14 @@ type SnapshotOptionMap map[string]*snap.SnapshotOptions
 
 // UnmarshalJSON implements interface for custom unmarshalling for shapshotOptionMap.
 //
-// With default marshalling, if a map key is present in JSON, a pointer to empty (value-less)
-// SnapshotOptions object will be created. This unmarshaler sets such pointers to nil to avoid
-// downstream marshalling of a pointer to an empty SnapshotOptions object to JSON when
-// specifying "omitempty".
+// With default marshalling, some permutations of valid JSON definitions of snapshot-options e.g.
+//   - `"snapshot-options": { "snap1": {} }`
+//   - `"snapshot-options": { "snap1": {exclude: []} }`
+// which results in a pointer to SnapshotOptions object with a nil or zero length exclusion list
+// which in turn will be marshalled to JSON as `options: {}` when we rather want it omitted.
+//
+// This unmarshaler changes the default behaviour by only populating map entries for snapshot
+// options that contains usable content that we want to be marshalled downstream.
 func (optsMap *SnapshotOptionMap) UnmarshalJSON(data []byte) error {
 	auxMap := map[string]*snap.SnapshotOptions{}
 	if err := json.Unmarshal(data, &auxMap); err != nil {
@@ -207,7 +211,7 @@ func (optsMap *SnapshotOptionMap) UnmarshalJSON(data []byte) error {
 
 	optsMapObj := SnapshotOptionMap{}
 	for name, option := range auxMap {
-		if !option.IsEmpty() {
+		if !option.Unset() {
 			optsMapObj[name] = auxMap[name]
 		}
 	}
@@ -292,14 +296,14 @@ func (inst *snapInstruction) validateSnapshotOptions() error {
 		return nil
 	}
 	if inst.Action != "snapshot" {
-		return fmt.Errorf("options can only be specified for snapshot action")
+		return fmt.Errorf("snapshot-options can only be specified for snapshot action")
 	}
 	for name, options := range inst.SnapshotOptions {
 		if !strutil.ListContains(inst.Snaps, name) {
-			return fmt.Errorf("cannot use options for snap %q that is not listed in snaps", name)
+			return fmt.Errorf("cannot use snapshot-options for snap %q that is not listed in snaps", name)
 		}
 		if err := options.Validate(); err != nil {
-			return fmt.Errorf("invalid options for snap %q: %v", name, err)
+			return fmt.Errorf("invalid snapshot-options for snap %q: %v", name, err)
 		}
 	}
 

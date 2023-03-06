@@ -48,24 +48,20 @@ const (
 	snapshotManifestPath = "meta/snapshots.yaml"
 )
 
-// IsEmpty determines if SnapshotOptions structure is empty.
-//
-// For this function "empty" is defined as only containing empty containers
-// with no values. The purpose is to determine if representing the structure
-// in JSON would provide more than just keys, braces, brackets.
-func (opts *SnapshotOptions) IsEmpty() bool {
+// Unset determines if the SnapshotOptions object contains values worth
+// marshalling to metadata (not just keys, braces and brackets)
+func (opts *SnapshotOptions) Unset() bool {
 	return len(opts.Exclude) == 0
 }
 
-// Merge combines existing with additional options.
-func (opts *SnapshotOptions) Merge(moreOptions *SnapshotOptions) error {
-	if moreOptions == nil {
-		return nil
-	}
-	if err := moreOptions.Validate(); err != nil {
+// MergeDynamicExcludes combines dynamic excludes with existing excludes
+func (opts *SnapshotOptions) MergeDynamicExcludes(dynamicExcludes []string) error {
+	mergedExcludes := append(opts.Exclude, dynamicExcludes...)
+	dryRunOptions := SnapshotOptions{Exclude: mergedExcludes}
+	if err := dryRunOptions.Validate(); err != nil {
 		return err
 	}
-	opts.Exclude = append(opts.Exclude, moreOptions.Exclude...)
+	opts.Exclude = mergedExcludes
 
 	return nil
 }

@@ -103,33 +103,32 @@ func (s *snapshotSuite) TestValidateHappy(c *C) {
 	}
 }
 
-func (s *snapshotSuite) TestMergeError(c *C) {
+func (s *snapshotSuite) TestMergeDynamicExcludesError(c *C) {
 	snapshotOptions := snap.SnapshotOptions{Exclude: snapshotYamlHappyExpectedExclude}
-	moreOptions := snap.SnapshotOptions{Exclude: []string{"/home/ubuntu"}}
+	dynamicExcludes := []string{"/home/ubuntu"}
 	snapshotOptionsCopy := snapshotOptions
-	c.Check(snapshotOptions.Merge(&moreOptions), ErrorMatches, "snapshot exclude path must start with one of.*")
+	c.Check(snapshotOptions.MergeDynamicExcludes(dynamicExcludes), ErrorMatches, "snapshot exclude path must start with one of.*")
 	c.Check(snapshotOptions, DeepEquals, snapshotOptionsCopy)
 }
 
-func (s *snapshotSuite) TestMergeHappy(c *C) {
+func (s *snapshotSuite) TestMergeDynamicExcludesHappy(c *C) {
 	snapshotOptions := snap.SnapshotOptions{Exclude: snapshotYamlHappyExpectedExclude}
 	snapshotOptionsMerged := snap.SnapshotOptions{
 		Exclude: append(snapshotYamlHappyExpectedExclude, snapshotYamlHappyExpectedExclude...),
 	}
 
 	testMap := map[string]struct {
-		moreOptions     *snap.SnapshotOptions
+		dynamicExcludes []string
 		expectedOptions snap.SnapshotOptions
 	}{
-		"options-nil":     {nil, snapshotOptions},
-		"exclude-nil":     {&snap.SnapshotOptions{}, snapshotOptions},
-		"exclude-empty":   {&snap.SnapshotOptions{Exclude: []string{}}, snapshotOptions},
-		"exclude-typical": {&snap.SnapshotOptions{Exclude: snapshotYamlHappyExpectedExclude}, snapshotOptionsMerged},
+		"exclude-nil":     {nil, snapshotOptions},
+		"exclude-empty":   {[]string{}, snapshotOptions},
+		"exclude-typical": {snapshotYamlHappyExpectedExclude, snapshotOptionsMerged},
 	}
 
 	for name, test := range testMap {
 		snapshotOptionsCopy := snapshotOptions
-		c.Check(snapshotOptionsCopy.Merge(test.moreOptions), IsNil, Commentf("test: %q", name))
+		c.Check(snapshotOptionsCopy.MergeDynamicExcludes(test.dynamicExcludes), IsNil, Commentf("test: %q", name))
 		c.Check(snapshotOptionsCopy, DeepEquals, test.expectedOptions, Commentf("test: %q", name))
 	}
 }
@@ -149,6 +148,27 @@ func (s *snapshotSuite) TestSnapshotOptionsMarshal(c *C) {
 		bytes, err := json.Marshal(test.options)
 		c.Assert(err, IsNil)
 		c.Check(string(bytes), Equals, test.expectedJson, Commentf("test: %q", name))
+	}
+}
+
+func (s *snapshotSuite) TestUnset(c *C) {
+	testMap := map[string]struct {
+		options   *snap.SnapshotOptions
+		isUnset   bool
+		mustPanic bool
+	}{
+		"options-nil":     {options: nil, mustPanic: true},
+		"exclude-empty":   {options: &snap.SnapshotOptions{[]string{}}, isUnset: true},
+		"exclude-nil":     {options: &snap.SnapshotOptions{}, isUnset: true},
+		"exclude-typical": {options: &snap.SnapshotOptions{snapshotYamlHappyExpectedExclude}, isUnset: false},
+	}
+
+	for name, test := range testMap {
+		if test.mustPanic {
+			c.Check(func() { test.options.Unset() }, PanicMatches, "runtime error: invalid memory address or nil pointer dereference", Commentf("test: %q", name))
+		} else {
+			c.Check(test.options.Unset(), Equals, test.isUnset, Commentf("test: %q", name))
+		}
 	}
 }
 

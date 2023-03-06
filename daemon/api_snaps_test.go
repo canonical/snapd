@@ -532,7 +532,7 @@ func (s *snapsSuite) TestPostSnapsOptionsUnmarshalComplete(c *check.C) {
 
 func (s *snapsSuite) TestPostSnapsOptionsUnsupportedAction(c *check.C) {
 	s.daemon(c)
-	const expectedErr = "options can only be specified for snapshot action"
+	const expectedErr = "snapshot-options can only be specified for snapshot action"
 
 	for _, action := range []string{"install", "refresh", "revert", "remove", "hold", "unhold",
 		"enable", "disable", "switch", "xyzzy"} {
@@ -553,7 +553,7 @@ func (s *snapsSuite) TestPostSnapsOptionsUnsupportedAction(c *check.C) {
 
 func (s *snapsSuite) TestPostSnapsOptionsSnapNotListed(c *check.C) {
 	s.daemon(c)
-	const notListedErr = `cannot use options for snap "xyzzy" that is not listed in snaps`
+	const notListedErr = `cannot use snapshot-options for snap "xyzzy" that is not listed in snaps`
 
 	testMap := map[string]struct {
 		post                 string
@@ -582,7 +582,7 @@ func (s *snapsSuite) TestPostSnapsOptionsSnapNotListed(c *check.C) {
 
 func (s *snapsSuite) TestPostSnapsOptionsInvalid(c *check.C) {
 	s.daemon(c)
-	const invalidOptionsForSnapErr = `invalid options for snap "bar":`
+	const invalidOptionsForSnapErr = `invalid snapshot-options for snap "bar":`
 
 	testMap := map[string]struct {
 		post               string
@@ -1729,7 +1729,7 @@ func (s *snapsSuite) TestPostSnapEnableDisableSwitchRevision(c *check.C) {
 
 func (s *snapsSuite) TestPostSnapOptionsUnsupportedAction(c *check.C) {
 	s.daemon(c)
-	const expectedErr = "options can only be specified for snapshot action"
+	const expectedErr = "snapshot-options can only be specified for snapshot action"
 
 	for _, action := range []string{"install", "refresh", "revert", "enable", "disable", "switch", "xyzzy"} {
 		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "snapshot-options": {}}`, action))
