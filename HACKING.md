@@ -100,6 +100,18 @@ installed (since it will not get updates as it was installed dangerously), you
 can either use `snap revert snapd`, or you can refresh directly with 
 `snap refresh snapd --stable --amend`.
 
+A simpler way of building it without touching your system is by using the
+*local_build.py* script. Launching it with *./local_build.py init* the first
+time, it will use *multipass* to create a virtual machine with Ubuntu 16.04,
+install inside snapcraft from the 4.x channel, set the building environment
+to LXD, and launch a shell, where you can just execute *snapcraft* to build
+the snap. The next time, you only need to use the *init* parameter if you
+want to fully re-create the virtual machine; if not, just use *./local_build.py*
+to enter into it.
+
+At the beginning of the *local_build.py* script you can adjust things like
+how much memory, disk space or CPU cores to assign to the VM.
+
 #### Building for other architectures with snapcraft
 
 It is also sometimes useful to use snapcraft to build the snapd snap for
@@ -210,6 +222,15 @@ cd ~/snapd
 mkdir -p /tmp/build
 go build -o /tmp/build ./...
 ```
+
+You can also use the *launch* script to build and test the daemon.
+Just doing *./launch launch* will compile the code locally, stop the
+current daemon, and launch the daemon compiled. It will run in the
+current terminal until *Ctrl+C* is pressed. Then, the script will
+relaunch the system's snapd daemon and exit, thus ensuring that
+everything in the system will continue working as expected.
+
+If you only want to build but not launch it, just run *./launch build*.
 
 ### Building with cross-compilation (_example: ARM v7 target_)
 

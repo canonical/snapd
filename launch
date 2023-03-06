@@ -1,0 +1,31 @@
+#!/bin/bash
+
+build() {
+    mkdir -p build
+    go build -o build ./...
+}
+
+stop() {
+    sudo systemctl stop snapd.service snapd.socket
+}
+
+launch() {
+    sudo SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=3 ./build/snapd
+}
+
+start() {
+    sudo systemctl start snapd.service snapd.socket
+}
+
+if [[ $1 == "launch" ]]
+then
+    build
+    stop
+    launch
+    start
+fi
+
+if [[ $1 == "build" ]]
+then
+    build
+fi
