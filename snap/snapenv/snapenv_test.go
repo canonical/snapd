@@ -94,7 +94,8 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP_ARCH":          arch.DpkgArchitecture(),
 		"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 		"SNAP_REEXEC":        "",
-		"SNAP_UID":           fmt.Sprint(sys.Geteuid()),
+		"SNAP_UID":           fmt.Sprint(sys.Getuid()),
+		"SNAP_EUID":          fmt.Sprint(sys.Geteuid()),
 	})
 }
 
@@ -192,7 +193,8 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"HOME":               fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
 			"XDG_RUNTIME_DIR":    fmt.Sprintf("/run/user/%d/snap.snapname", sys.Geteuid()),
 			"SNAP_REAL_HOME":     usr.HomeDir,
-			"SNAP_UID":           fmt.Sprint(sys.Geteuid()),
+			"SNAP_UID":           fmt.Sprint(sys.Getuid()),
+			"SNAP_EUID":          fmt.Sprint(sys.Geteuid()),
 		})
 	}
 }
@@ -238,7 +240,8 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 			"HOME":             fmt.Sprintf("%s/snap/snapname_foo/42", usr.HomeDir),
 			"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.snapname_foo", sys.Geteuid()),
 			"SNAP_REAL_HOME":   usr.HomeDir,
-			"SNAP_UID":         fmt.Sprint(sys.Geteuid()),
+			"SNAP_UID":         fmt.Sprint(sys.Getuid()),
+			"SNAP_EUID":        fmt.Sprint(sys.Geteuid()),
 		})
 	}
 }

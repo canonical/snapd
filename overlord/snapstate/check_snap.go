@@ -53,7 +53,7 @@ var featureSet = map[string]bool{
 	"kernel-assets": true,
 	// Support for "refresh-mode: ignore-running" in snap.yaml
 	"app-refresh-mode": true,
-	// Support for "SNAP_UID" environment variable
+	// Support for "SNAP_UID" and "SNAP_EUID" environment variable
 	"snap-uid-envvar": true,
 }
 

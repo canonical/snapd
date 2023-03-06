@@ -96,7 +96,8 @@ func basicEnv(info *snap.Info) osutil.Environment {
 		// see https://github.com/snapcore/snapd/pull/2732#pullrequestreview-18827193
 		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 		"SNAP_REEXEC":       os.Getenv("SNAP_REEXEC"),
-		"SNAP_UID":          fmt.Sprint(sys.Geteuid()),
+		"SNAP_UID":          fmt.Sprint(sys.Getuid()),
+		"SNAP_EUID":         fmt.Sprint(sys.Geteuid()),
 	}
 
 	// Add the ubuntu-save specific environment variable if
