@@ -47,3 +47,4 @@ execute: |
         exit 1
     fi
     MATCH "Permission denied" < process-kill.error
+    kill -s 0 "$pid"
