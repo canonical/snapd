@@ -129,6 +129,9 @@ type Volume struct {
 	Structure []VolumeStructure `yaml:"structure" json:"structure"`
 	// Name is the name of the volume from the gadget.yaml
 	Name string `json:"-"`
+	// MinSize is the minimal size required by this volume, as implicitly
+	// defined by the size structures.
+	MinSize *quantity.Size `json:"-" yaml:"-"`
 }
 
 const GPTPartitionGUIDESP = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
@@ -679,6 +682,7 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		}
 	}
 
+	minVolSize := quantity.Size(0)
 	previousEnd := quantity.Offset(0)
 	for i := range vol.Structure {
 		// set the VolumeName for the structure from the volume itself
@@ -701,7 +705,12 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 			vol.Structure[i].Offset = &start
 		}
 		previousEnd = *vol.Structure[i].Offset + quantity.Offset(vol.Structure[i].Size)
+		if quantity.Size(previousEnd) > minVolSize {
+			minVolSize = quantity.Size(previousEnd)
+		}
 	}
+
+	vol.MinSize = &minVolSize
 
 	return nil
 }

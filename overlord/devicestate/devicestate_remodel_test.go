@@ -1513,6 +1513,7 @@ volumes:
 						Name:       "pc",
 						Bootloader: "grub",
 						Schema:     "gpt",
+						MinSize:    asSizePtr((1 + 10 + 1) * quantity.SizeMiB),
 						Structure: []gadget.VolumeStructure{{
 							VolumeName: "pc",
 							Name:       "foo",
@@ -1545,6 +1546,7 @@ volumes:
 						Name:       "pc",
 						Bootloader: "grub",
 						Schema:     "gpt",
+						MinSize:    asSizePtr((1 + 10 + 1) * quantity.SizeMiB),
 						Structure: []gadget.VolumeStructure{{
 							VolumeName: "pc",
 							Name:       "foo",
