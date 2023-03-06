@@ -136,7 +136,7 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 			if t.Status == "Wait" {
 				maybeShowLog(t)
 				waitCtrlcMsg.Do(func() {
-					fmt.Fprintf(Stdout, i18n.G("Warning: pressing ctrl-c will abort the running change\n"))
+					fmt.Fprintf(Stderr, i18n.G("WARNING: pressing ctrl-c will abort the running change.\n"))
 				})
 			}
 		}
