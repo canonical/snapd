@@ -558,8 +558,10 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// Dynamic mounts handle things like user-specified home directories. These
 	// can change between runs, so they are stored separately. As we don't know
 	// these in advance, make sure paths also exist in the scratch dir.
-	sc_create_mount_points(scratch_dir, config->dynamic_mounts);
-	sc_do_mounts(scratch_dir, config->dynamic_mounts);
+	if (config->dynamic_mounts != NULL) {
+		sc_create_mount_points(scratch_dir, config->dynamic_mounts);
+		sc_do_mounts(scratch_dir, config->dynamic_mounts);
+        }
 
 	if (config->normal_mode) {
 		// Since we mounted /etc from the host filesystem to the scratch directory,
@@ -1010,6 +1012,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		struct sc_mount_config legacy_config = {
 			.rootfs_dir = "/",
 			.mounts = mounts,
+                        // XXX: should we support Homedir mount in leacy mode?
 			.distro = distro,
 			.normal_mode = false,
 			.base_snap_name = inv->base_snap_name,
