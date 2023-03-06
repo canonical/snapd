@@ -269,6 +269,9 @@ apps:
   microceph:
     command: bin/run
     plugs: [ microceph ]
+  microovn:
+    command: bin/run
+    plugs: [ microovn ]
   microstack-support:
     command: bin/run
     plugs: [ microstack-support ]

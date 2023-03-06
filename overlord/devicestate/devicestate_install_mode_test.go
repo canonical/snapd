@@ -2151,6 +2151,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 		// valid and switches to "device-setup"
 		{`{"features":["device-setup"]}`, "", secboot.EncryptionTypeDeviceSetupHook},
 		{`{"features":["a","device-setup","b"]}`, "", secboot.EncryptionTypeDeviceSetupHook},
+		// valid and uses ice
+		{`{"features":["a","inline-crypto-engine","b"]}`, "", secboot.EncryptionTypeLUKSWithICE},
 	} {
 		hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 			ctx.Lock()

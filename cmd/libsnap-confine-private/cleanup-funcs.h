@@ -41,6 +41,17 @@
 void sc_cleanup_string(char **ptr);
 
 /**
+ * Free a dynamically allocated string vector.
+ *
+ * Both the vector itself and all the strings contained inside it will be
+ * freed. It's assumed that the strings have been allocated with malloc().
+ * This function is designed to be used with SC_CLEANUP() macro.
+ * The variable MUST be initialized for correct operation.
+ * The safe initialisation value is NULL.
+ */
+void sc_cleanup_deep_strv(char ***ptr);
+
+/**
  * Shallow free a dynamically allocated string vector.
  *
  * The strings in the vector will not be freed.

@@ -1603,7 +1603,6 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBump(c *C) {
 	}
 
 	// refresh
-
 	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)

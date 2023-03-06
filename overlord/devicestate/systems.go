@@ -429,7 +429,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 			bootWith.GadgetSnapOrDir = sn.Path
 		}
 	}
-	if err := boot.MakeRecoverySystemBootable(boot.InitramfsUbuntuSeedDir, recoverySystemDirInRootDir, bootWith); err != nil {
+	if err := boot.MakeRecoverySystemBootable(model, boot.InitramfsUbuntuSeedDir, recoverySystemDirInRootDir, bootWith); err != nil {
 		return recoverySystemDir, fmt.Errorf("cannot make candidate recovery system %q bootable: %v", label, err)
 	}
 	logger.Noticef("created recovery system %q", label)

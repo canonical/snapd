@@ -43,6 +43,8 @@ type (
 	Migration           = migration
 
 	ReRefreshSetup = reRefreshSetup
+
+	TooSoonError = tooSoonError
 )
 
 const (
@@ -459,5 +461,13 @@ func MockEnforceValidationSets(f func(*state.State, map[string]*asserts.Validati
 	EnforceValidationSets = f
 	return func() {
 		EnforceValidationSets = old
+	}
+}
+
+func MockCgroupMonitorSnapEnded(f func(string, chan<- string) error) func() {
+	old := cgroupMonitorSnapEnded
+	cgroupMonitorSnapEnded = f
+	return func() {
+		cgroupMonitorSnapEnded = old
 	}
 }
