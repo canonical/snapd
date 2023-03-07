@@ -1365,24 +1365,15 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	var partSrc string
 
 	if osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/dev/ubuntu/disk")) {
-		disk, err := disks.DiskFromDeviceName(filepath.Join(dirs.GlobalRootDir, "/dev/ubuntu/disk"))
+		disk, err := disks.DiskFromDeviceName("/dev/ubuntu/disk")
 		if err != nil {
 			return err
 		}
-		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
-		if err == nil {
-			partition, err := disk.FindMatchingPartitionWithPartUUID(partuuid)
-			if err != nil {
-				return err
-			}
-			partSrc = partition.KernelDeviceNode
-		} else {
-			partition, err := disk.FindMatchingPartitionWithFsLabel(fallbacklabel)
-			if err != nil {
-				return err
-			}
-			partSrc = partition.KernelDeviceNode
+		partition, err := disk.FindMatchingPartitionWithFsLabel(fallbacklabel)
+		if err != nil {
+			return err
 		}
+		partSrc = partition.KernelDeviceNode
 	} else {
 		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 		if err == nil {
