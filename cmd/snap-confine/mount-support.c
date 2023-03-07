@@ -219,7 +219,7 @@ static void sc_create_mount_points(const char *scratch_dir,
 {
 	char dst[PATH_MAX] = { 0 };
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	for (const struct sc_mount * mnt = mounts; mnt->path != NULL; mnt++) {
+	for (const struct sc_mount * mnt = mounts; mnt && mnt->path != NULL; mnt++) {
 		sc_must_snprintf(dst, sizeof(dst), "%s/%s", scratch_dir, mnt->path);
 		if (sc_nonfatal_mkpath(dst, 0755) < 0) {
 			die("cannot create mount point %s", dst);
@@ -249,7 +249,7 @@ static void sc_do_mounts(const char *scratch_dir,
 	// of the peer group. This way the running application can alter any global
 	// state visible on the host and in other snaps. This can be restricted by
 	// disabling the "is_bidirectional" flag as can be seen below.
-	for (const struct sc_mount * mnt = mounts; mnt->path != NULL; mnt++) {
+	for (const struct sc_mount * mnt = mounts; mnt && mnt->path != NULL; mnt++) {
 
 		if (mnt->is_bidirectional) {
 			sc_identity old =
@@ -558,10 +558,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// Dynamic mounts handle things like user-specified home directories. These
 	// can change between runs, so they are stored separately. As we don't know
 	// these in advance, make sure paths also exist in the scratch dir.
-	if (config->dynamic_mounts != NULL) {
-		sc_create_mount_points(scratch_dir, config->dynamic_mounts);
-		sc_do_mounts(scratch_dir, config->dynamic_mounts);
-        }
+	sc_create_mount_points(scratch_dir, config->dynamic_mounts);
+	sc_do_mounts(scratch_dir, config->dynamic_mounts);
 
 	if (config->normal_mode) {
 		// Since we mounted /etc from the host filesystem to the scratch directory,
@@ -908,13 +906,7 @@ static bool __attribute__((used))
 static struct sc_mount *sc_homedir_mounts(const struct sc_invocation *inv)
 {
 	if (inv->homedirs == NULL) {
-		// Return empty array, but never NULL as functions rely
-		// on the mounts array to be non-NULL
-		struct sc_mount *zero = calloc(1, sizeof(struct sc_mount));
-		if (zero == NULL) {
-			die("cannot allocate mount data for homedirs");
-		}
-		return zero;
+		return NULL;
 	}
 
 	int num_homedirs = 0;
@@ -938,6 +930,11 @@ static struct sc_mount *sc_homedir_mounts(const struct sc_invocation *inv)
 
 static void sc_free_dynamic_mounts(struct sc_mount *mounts)
 {
+	// This is in line with normal free semantics.
+	if (mounts == NULL) {
+		return;
+	}
+
 	// Cleanup allocated resources by each of the mount
 	// structures. The array will be terminated by a single zeroed
 	// entry.
@@ -1012,7 +1009,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		struct sc_mount_config legacy_config = {
 			.rootfs_dir = "/",
 			.mounts = mounts,
-                        // XXX: should we support Homedir mount in leacy mode?
+			// XXX: should we support Homedir mount in legacy mode?
 			.distro = distro,
 			.normal_mode = false,
 			.base_snap_name = inv->base_snap_name,
