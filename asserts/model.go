@@ -723,7 +723,7 @@ func checkModelValidationSetSequence(headers map[string]interface{}, what string
 
 	// If sequence is provided, only accept positive values above 0
 	if seq <= 0 {
-		return 0, fmt.Errorf("\"sequence\" %s must be larger than 0", what)
+		return 0, fmt.Errorf("\"sequence\" %s must be larger than 0 or left unspecified (meaning tracking latest)", what)
 	}
 	return seq, nil
 }

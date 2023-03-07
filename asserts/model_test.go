@@ -1246,7 +1246,7 @@ func (mods *modelSuite) TestValidationSetsDecodeInvalid(c *C) {
     sequence: -1
     name: my-set
     mode: enforce
-`, "assertion model: \"sequence\" of validation-set \"developer1/my-set\" must be larger than 0"},
+`, "assertion model: \"sequence\" of validation-set \"developer1/my-set\" must be larger than 0 or left unspecified \\(meaning tracking latest\\)"},
 		// sequence number invalid (0 is not allowed)
 		{`validation-sets:
   -
@@ -1254,7 +1254,7 @@ func (mods *modelSuite) TestValidationSetsDecodeInvalid(c *C) {
     sequence: 0
     name: my-set
     mode: enforce
-`, "assertion model: \"sequence\" of validation-set \"developer1/my-set\" must be larger than 0"},
+`, "assertion model: \"sequence\" of validation-set \"developer1/my-set\" must be larger than 0 or left unspecified \\(meaning tracking latest\\)"},
 		// duplicate validation-set
 		{`validation-sets:
   -
