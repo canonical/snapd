@@ -711,14 +711,18 @@ func checkModelValidationSetAccountID(headers map[string]interface{}, what, bran
 // not set, returns 0 as this means unpinned. Unfortunately we are not able
 // to reuse `checkSequence` as it operates inside different parameters.
 func checkModelValidationSetSequence(headers map[string]interface{}, what string) (int, error) {
-	seq, err := checkIntWithDefaultWhat(headers, "sequence", what, 0)
+	// Default to 0 when the sequence header is not present
+	if _, ok := headers["sequence"]; !ok {
+		return 0, nil
+	}
+
+	seq, err := checkIntWhat(headers, "sequence", what)
 	if err != nil {
 		return 0, err
 	}
 
-	// Assert that sequence number is not zero, as zero will be interpreted as not specified,
-	// which means that the validation-set is unpinned.
-	if seq < 0 {
+	// If sequence is provided, only accept positive values above 0
+	if seq <= 0 {
 		return 0, fmt.Errorf("\"sequence\" %s must be larger than 0", what)
 	}
 	return seq, nil

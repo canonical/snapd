@@ -1239,11 +1239,19 @@ func (mods *modelSuite) TestValidationSetsDecodeInvalid(c *C) {
     name: my-set
     mode: enforce
 `, "assertion model: \"sequence\" of validation-set \"developer1/my-set\" is not an integer: foo"},
-		// sequence number invalid (below 0)
+		// sequence number invalid (below)
 		{`validation-sets:
   -
     account-id: developer1
     sequence: -1
+    name: my-set
+    mode: enforce
+`, "assertion model: \"sequence\" of validation-set \"developer1/my-set\" must be larger than 0"},
+		// sequence number invalid (0 is not allowed)
+		{`validation-sets:
+  -
+    account-id: developer1
+    sequence: 0
     name: my-set
     mode: enforce
 `, "assertion model: \"sequence\" of validation-set \"developer1/my-set\" must be larger than 0"},
