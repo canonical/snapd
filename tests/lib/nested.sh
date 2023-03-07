@@ -343,8 +343,8 @@ nested_refresh_to_new_core() {
 
 nested_get_snakeoil_key() {
     local KEYNAME="PkKek-1-snakeoil"
-    wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.key
-    wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.pem
+    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.key
+    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.pem
     echo "$KEYNAME"
 }
 
@@ -1086,9 +1086,9 @@ nested_start_core_vm_unit() {
         OVMF_VARS="ms"
 
         if nested_is_core_22_system; then
-            wget https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_CODE.secboot.fd
+            wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_CODE.secboot.fd
             mv OVMF_CODE.secboot.fd /usr/share/OVMF/OVMF_CODE.secboot.fd
-            wget https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.snakeoil.fd
+            wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.snakeoil.fd
             mv OVMF_VARS.snakeoil.fd /usr/share/OVMF/OVMF_VARS.snakeoil.fd
         fi
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
@@ -1288,7 +1288,7 @@ nested_create_classic_vm() {
         # Get the cloud image
         local IMAGE_URL
         IMAGE_URL="$(get_image_url_for_vm)"
-        wget -P "$NESTED_IMAGES_DIR" "$IMAGE_URL"
+        wget -q -P "$NESTED_IMAGES_DIR" "$IMAGE_URL"
         nested_download_image "$IMAGE_URL" "$IMAGE_NAME"
 
         # Prepare the cloud-init configuration and configure image

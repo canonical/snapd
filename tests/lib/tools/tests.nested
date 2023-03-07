@@ -155,6 +155,7 @@ create_vm() {
     done
 
     "$action"
+    unset NESTED_PARAM_CD NESTED_PARAM_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
 }
 
 is_nested() {
