@@ -64,13 +64,6 @@ owner /{,var/}run/user/[0-9]*/pipewire-0.lock rwk,
 owner /{,var/}run/user/[0-9]*/pulse/pid rwk,
 `
 
-const pipewireServerPermanentSlotAppArmor = `
-owner /{,var/}run/user/[0-9]*/ r,
-owner /{,var/}run/user/[0-9]*/pipewire-0 rwk,
-owner /{,var/}run/user/[0-9]*/pipewire-0.lock rwk,
-owner /{,var/}run/user/[0-9]*/pulse/pid rwk,
-`
-
 type pipewireServerInterface struct{}
 
 func (iface *pipewireServerInterface) Name() string {
@@ -93,11 +86,6 @@ func (iface *pipewireServerInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 
 func (iface *pipewireServerInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	spec.TagDevice(`KERNEL=="timer"`)
-	return nil
-}
-
-func (iface *pipewireServerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(pipewireServerPermanentSlotAppArmor)
 	return nil
 }
 
