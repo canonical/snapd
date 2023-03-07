@@ -129,22 +129,23 @@ create_vm() {
             ;;
     esac
 
+    local NESTED_PARAM_CD NESTED_PARAM_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
     while [ $# -gt 0 ]; do
         case "$1" in
             --param-cdrom)
-                export NESTED_PARAM_CD="$2"
+                NESTED_PARAM_CD="$2"
                 shift 2
                 ;;
             --param-mem)
-                export NESTED_PARAM_MEM="$2"
+                NESTED_PARAM_MEM="$2"
                 shift 2
                 ;;
             --extra-param)
-                export NESTED_PARAM_EXTRA="$2"
+                NESTED_PARAM_EXTRA="$2"
                 shift 2
                 ;;
             --tpm-no-restart)
-                export NESTED_TPM_NO_RESTART=1
+                NESTED_TPM_NO_RESTART=1
                 shift
                 ;;
             *)
@@ -154,6 +155,7 @@ create_vm() {
         esac
     done
 
+    export NESTED_PARAM_CD NESTED_PARAM_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
     "$action"
     unset NESTED_PARAM_CD NESTED_PARAM_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
 }

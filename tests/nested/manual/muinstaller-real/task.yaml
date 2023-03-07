@@ -290,9 +290,7 @@ execute: |
 
   # nested vm needs to restart for fake-store
   nested_shutdown
-  export NESTED_TPM_NO_RESTART=1
-  nested_start_core_vm
-  unset NESTED_TPM_NO_RESTART
+  tests.nested create-vm core --tpm-no-restart
 
   # test gadget/kernel refresh
   refresh_rebooting_snap pc pc.snap.orig ./pc-gadget
