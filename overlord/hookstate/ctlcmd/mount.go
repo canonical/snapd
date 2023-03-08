@@ -187,7 +187,7 @@ func (m *mountCommand) createMountUnit(sysd systemd.Systemd) (string, error) {
 	if m.Persistent {
 		lifetime = systemd.Persistent
 	}
-	return sysd.AddMountUnitFileWithOptions(&systemd.MountUnitOptions{
+	return sysd.EnsureMountUnitFileWithOptions(&systemd.MountUnitOptions{
 		Lifetime: lifetime,
 		SnapName: snapName,
 		Revision: revision,

@@ -159,6 +159,7 @@ backends:
 
             - arch-linux-64:
                   workers: 6
+                  storage: 12G
             - amazon-linux-2-64:
                   workers: 6
                   storage: preserve-size
@@ -212,6 +213,8 @@ backends:
             - ubuntu-20.04-64:
                   workers: 6
             - ubuntu-22.04-64:
+                  workers: 6
+            - ubuntu-22.10-64:
                   workers: 6
 
     google-nested:
@@ -491,6 +494,9 @@ backends:
                   username: external
                   password: ubuntu
             - ubuntu-core-22-arm-32:
+                  username: external
+                  password: ubuntu
+            - ubuntu-core-24-64:
                   username: external
                   password: ubuntu
 
@@ -1100,7 +1106,6 @@ suites:
             tests.nested build-image classic
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-            tests.backup prepare
             tests.nested create-vm classic
         restore-each: |
             tests.nested vm remove
@@ -1156,7 +1161,6 @@ suites:
             tests.nested build-image core
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-            tests.backup prepare
             tests.nested create-vm core
         restore-each: |
             tests.nested vm remove

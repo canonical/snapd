@@ -114,6 +114,10 @@ type Config struct {
 
 	// Proxy returns the HTTP proxy to use when talking to the store
 	Proxy func(*http.Request) (*url.URL, error)
+
+	// AssertionMaxFormats if set provides a way to override
+	// the assertion max formats sent to the store as supported.
+	AssertionMaxFormats map[string]int
 }
 
 // setBaseURL updates the store API's base URL in the Config. Must not be used
@@ -417,6 +421,12 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 	store.SetCacheDownloads(cfg.CacheDownloads)
 
 	return store
+}
+
+// SetAssertionMaxFormats allows to change the assertion max formats to send
+// for a store already in use.
+func (s *Store) SetAssertionMaxFormats(maxFormats map[string]int) {
+	s.cfg.AssertionMaxFormats = maxFormats
 }
 
 // API endpoint paths

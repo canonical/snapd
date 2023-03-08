@@ -302,7 +302,7 @@ func (p *Pool) isPredefined(ref *Ref) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	if !IsNotFound(err) {
+	if !errors.Is(err, &NotFoundError{}) {
 		return false, err
 	}
 	return false, nil
@@ -316,7 +316,7 @@ func (p *Pool) isResolved(ref *Ref) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	if !IsNotFound(err) {
+	if !errors.Is(err, &NotFoundError{}) {
 		return false, err
 	}
 	return false, nil
@@ -324,7 +324,7 @@ func (p *Pool) isResolved(ref *Ref) (bool, error) {
 
 func (p *Pool) curRevision(ref *Ref) (int, error) {
 	a, err := ref.Resolve(p.groundDB.Find)
-	if err != nil && !IsNotFound(err) {
+	if err != nil && !errors.Is(err, &NotFoundError{}) {
 		return 0, err
 	}
 	if err == nil {
@@ -335,7 +335,7 @@ func (p *Pool) curRevision(ref *Ref) (int, error) {
 
 func (p *Pool) curSeqRevision(seq *AtSequence) (int, error) {
 	a, err := seq.Resolve(p.groundDB.Find)
-	if err != nil && !IsNotFound(err) {
+	if err != nil && !errors.Is(err, &NotFoundError{}) {
 		return 0, err
 	}
 	if err == nil {
@@ -957,7 +957,7 @@ func (p *Pool) CommitTo(db *Database) error {
 
 	retrieve := func(ref *Ref) (Assertion, error) {
 		a, err := p.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
-		if IsNotFound(err) {
+		if errors.Is(err, &NotFoundError{}) {
 			// fallback to pre-existing assertions
 			a, err = ref.Resolve(db.Find)
 		}

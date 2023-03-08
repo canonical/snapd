@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -135,6 +136,8 @@ func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
 		Active:   true,
 		SnapType: "app",
 	}
+
+	s.AddCleanup(osutil.MockMountInfo(""))
 }
 
 type expectedSystemctl struct {

@@ -242,19 +242,14 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		if opts.encrypted {
 			c.Check(encSetupData, NotNil)
 
-			// Make sure we "observe" grub from boot partition
-			mockRunBootStruct := &gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Role: gadget.SystemBoot,
-				},
-			}
 			writeChange := &gadget.ContentChange{
 				// file that contains the data of the installed file
 				After: filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/boot/grubx64.efi"),
 				// there is no original file in place
 				Before: "",
 			}
-			action, err := observer.Observe(gadget.ContentWrite, mockRunBootStruct,
+			// We "observe" grub from boot partition
+			action, err := observer.Observe(gadget.ContentWrite, gadget.SystemBoot,
 				filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/"),
 				"EFI/boot/grubx64.efi", writeChange)
 			c.Check(err, IsNil)
@@ -287,7 +282,10 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	// Insert encryption data when enabled
 	if opts.encrypted {
 		// Mock TPM and sealing
-		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
+		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+			c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
+			return nil
+		})
 		s.AddCleanup(restore)
 		restore = boot.MockSealKeyToModeenv(func(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
 			c.Check(model.Classic(), Equals, opts.isClassic)
@@ -434,7 +432,10 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 
 	// Simulate system with TPM
 	if hasTPM {
-		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
+		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+			c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
+			return nil
+		})
 		s.AddCleanup(restore)
 	}
 

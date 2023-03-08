@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -925,7 +926,7 @@ snaps:
 	defer rhk()
 
 	// ensure we have something that captures the core config
-	restore := configstate.MockConfigcoreRun(func(sysconfig.Device, config.Conf) error {
+	restore := configstate.MockConfigcoreRun(func(sysconfig.Device, configcore.RunTransaction) error {
 		configured = append(configured, "configcore")
 		return nil
 	})
@@ -2181,7 +2182,13 @@ func (s *firstBoot16Suite) mockServer(c *C, reqID string) *httptest.Server {
 		ExpectedCapabilities: "serial-stream",
 	}
 
-	return devicestatetest.MockDeviceService(c, bhv)
+	mockServer, extraCerts := devicestatetest.MockDeviceService(c, bhv)
+	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
+	err := os.MkdirAll(filepath.Dir(fname), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fname, extraCerts, 0644)
+	c.Assert(err, IsNil)
+	return mockServer
 }
 
 func (s *firstBoot16Suite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {

@@ -93,7 +93,9 @@ const (
 type ContentObserver interface {
 	// Observe is called to observe an pending or completed action, related
 	// to content being written, updated or being rolled back. In each of
-	// the scenarios, the target path is relative under the root.
+	// the scenarios, the target path is relative under the root. The role
+	// of the affected partition is needed as different assets are tracked
+	// depending on whether this is a boot or a seed partition.
 	//
 	// For a file write or update, the source path points to the content
 	// that will be written. When called during rollback, observe call
@@ -105,8 +107,7 @@ type ContentObserver interface {
 	// ContentWrite operation, returning ChangeIgnore indicates that the
 	// change shall be ignored. ChangeAbort is expected to be returned along
 	// with a non-nil error.
-	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
-		targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeAction, error)
+	Observe(op ContentOperation, partRole, targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeAction, error)
 }
 
 // ContentUpdateObserver allows for observing update (and potentially a
@@ -578,6 +579,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	return nil
 }
 
+// TODO:ICE: remove this as we only support LUKS (and ICE is a variant of LUKS now)
 type DiskEncryptionMethod string
 
 const (
@@ -586,8 +588,8 @@ const (
 	// standard LUKS as it is used for automatic FDE using SecureBoot and TPM
 	// 2.0 in UC20+
 	EncryptionLUKS DiskEncryptionMethod = "LUKS"
-	// ICE stands for Inline Crypto Engine, used on specific (usually embedded)
-	// devices
+
+	// TODO:ICE: remove this
 	EncryptionICE DiskEncryptionMethod = "ICE"
 )
 
@@ -823,7 +825,7 @@ func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, laidOutVols map[st
 		// here it is okay that we require there to be either a partition label
 		// or a filesystem label since we require there to be a system-boot role
 		// on this volume which by definition must have a filesystem
-		structureDevice, err := FindDeviceForStructure(&vs)
+		structureDevice, err := FindDeviceForStructure(vs.VolumeStructure)
 		if err == ErrDeviceNotFound {
 			continue
 		}

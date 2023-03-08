@@ -21,6 +21,7 @@ package osutil
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"strings"
@@ -202,6 +203,147 @@ func KernelCommandLineKeyValues(keys ...string) (map[string]string, error) {
 		}
 	}
 	return m, nil
+}
+
+// KernelArgument represents a parsed kernel argument.
+type KernelArgument struct {
+	Param  string
+	Value  string
+	Quoted bool
+}
+
+// UnmarshalYAML implements the Unmarshaler interface.
+func (ka *KernelArgument) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var arg string
+	if err := unmarshal(&arg); err != nil {
+		return errors.New("cannot unmarshal kernel argument")
+	}
+
+	parsed := ParseKernelCommandline(arg)
+	if len(parsed) != 1 {
+		return fmt.Errorf("%q is not a unique kernel argument", arg)
+	}
+	// To make parsing future proof in case we support full
+	// globbing in the future, do not allow unquoted globbing
+	// characters, except the currently only supported case ('*').
+	if !parsed[0].Quoted && parsed[0].Value != "*" &&
+		strings.ContainsAny(parsed[0].Value, `*?[]\{}`) {
+		return fmt.Errorf("%q contains globbing characters and is not quoted",
+			parsed[0].Value)
+	}
+	*ka = parsed[0]
+
+	return nil
+}
+
+// ParseKernelCommandline parses a kernel command line, returning a
+// slice with the arguments in the same order as in cmdline. Note that
+// kernel arguments can be repeated. We follow the same algorithm as in
+// linux kernel's function lib/cmdline.c:next_arg as far as possible.
+// TODO Replace KernelCommandLineSplit with this eventually
+func ParseKernelCommandline(cmdline string) (args []KernelArgument) {
+	cmdlineBy := []byte(cmdline)
+	args = []KernelArgument{}
+	start := firstNotSpace(cmdlineBy)
+	for start < len(cmdlineBy) {
+		argument, end := parseArgument(cmdlineBy[start:])
+		args = append(args, argument)
+		start += end
+		start += firstNotSpace(cmdlineBy[start:])
+	}
+
+	return args
+}
+
+// Does the same as isspace() in tools/include/nolibc/ctype.h from the
+// linux kernel
+func isSpace(b byte) bool {
+	switch b {
+	case ' ', '\t', '\n', '\v', '\f', '\r':
+		return true
+	}
+	return false
+}
+
+// Similar to skip_spaces() in lib/string_helpers.c from the linux kernel
+func firstNotSpace(args []byte) int {
+	var i int
+	var b byte
+	for i, b = range args {
+		if !isSpace(b) {
+			return i
+		}
+	}
+	return i + 1
+}
+
+// parseArgument parses a kernel argument that is known to start at
+// the beginning of args, returning a KernelArgument with the
+// parameter, the assigned value if any and information on whether
+// there was quoting or not, plus where the argument ends in args.
+//
+// This follows the same algorithm as the next_arg function from
+// lib/cmdline.c in the linux kernel, to make sure we handle the
+// arguments in exactly the same way.
+func parseArgument(args []byte) (argument KernelArgument, end int) {
+	var i, equals, startArg int
+	var argQuoted, inQuote bool
+	var param, val string
+	var quoted bool
+
+	if args[0] == '"' {
+		startArg++
+		argQuoted = true
+		inQuote = true
+	}
+
+	for i = startArg; i < len(args); i++ {
+		if isSpace(args[i]) && !inQuote {
+			break
+		}
+		if args[i] == '=' && equals == 0 {
+			equals = i
+		}
+		if args[i] == '"' {
+			inQuote = !inQuote
+		}
+	}
+
+	end = i
+	endParam := i
+	// subsVal tells us if we need to remove a '"' at the end of the value.
+	// subsParam tells us if we need to remove a '"' at the end of the parameter,
+	// which is needed only if the argument started with '"', but no value is set.
+	var subsVal, subsParam int
+	if argQuoted && end > startArg && args[end-1] == '"' {
+		quoted = true
+		if equals != 0 {
+			subsVal = 1
+		} else {
+			subsParam = 1
+		}
+	}
+	if equals != 0 {
+		endParam = equals
+		startVal := equals + 1
+		endVal := end
+		if startVal < end && args[startVal] == '"' {
+			quoted = true
+			startVal++
+			if args[end-1] == '"' {
+				subsVal = 1
+			}
+		}
+		val = string(args[startVal : endVal-subsVal])
+	}
+
+	param = string(args[startArg : endParam-subsParam])
+
+	// Hyphens (dashes) and underscores are equivalent in parameter names,
+	// so we standardize in "_".
+	param = strings.ReplaceAll(param, "-", "_")
+	argument = KernelArgument{Param: param, Value: val, Quoted: quoted}
+	return argument, end
 }
 
 // KernelCommandLine returns the command line reported by the running kernel.

@@ -22,6 +22,7 @@
 package configcore
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -79,7 +80,7 @@ func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 	return nil
 }
 
-func handleProxyConfiguration(tr config.Conf, opts *fsOnlyContext) error {
+func handleProxyConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 	config := map[string]string{}
 	// normal proxy settings
 	for _, key := range []string{"http", "https", "ftp"} {
@@ -103,7 +104,7 @@ func handleProxyConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	return nil
 }
 
-func validateProxyStore(tr config.Conf) error {
+func validateProxyStore(tr RunTransaction) error {
 	proxyStore, err := coreCfg(tr, "proxy.store")
 	if err != nil {
 		return err
@@ -118,7 +119,7 @@ func validateProxyStore(tr config.Conf) error {
 	defer st.Unlock()
 
 	store, err := assertstate.Store(st, proxyStore)
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return fmt.Errorf("cannot set proxy.store to %q without a matching store assertion", proxyStore)
 	}
 	if err == nil && store.URL() == nil {
@@ -127,7 +128,7 @@ func validateProxyStore(tr config.Conf) error {
 	return err
 }
 
-func handleProxyStore(tr config.Conf, opts *fsOnlyContext) error {
+func handleProxyStore(tr RunTransaction, opts *fsOnlyContext) error {
 	// is proxy.store being modififed?
 	proxyStoreInChanges := false
 	for _, name := range tr.Changes() {

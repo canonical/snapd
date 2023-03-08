@@ -215,7 +215,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 }
 
 // services that can be disabled
-func handleServiceConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleServiceConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	// deal with service disable
 	for _, service := range services {
 		optionName := fmt.Sprintf("service.%s.disable", service.configName)
@@ -298,7 +298,7 @@ func parseSSHListenCfg(cfgStr string) ([]string, error) {
 	return listenAddrs, nil
 }
 
-func validateServiceConfiguration(tr config.ConfGetter) error {
+func validateServiceConfiguration(tr ConfGetter) error {
 	// validate the ssh listen setting
 	output, err := coreCfg(tr, sshListenOpt)
 	if err != nil {
@@ -314,7 +314,7 @@ func validateServiceConfiguration(tr config.ConfGetter) error {
 	return nil
 }
 
-func handleServiceConfigSSHListen(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleServiceConfigSSHListen(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	// see if anything needs to happen
 	var pristineSSHListen, newSSHListen interface{}
 
@@ -373,7 +373,7 @@ func handleServiceConfigSSHListen(dev sysconfig.Device, tr config.ConfGetter, op
 
 	if opts == nil {
 		sysd := systemd.New(systemd.SystemMode, &sysdLogger{})
-		if err := sysd.ReloadOrRestart("ssh.service"); err != nil {
+		if err := sysd.ReloadOrRestart([]string{"ssh.service"}); err != nil {
 			return err
 		}
 	}

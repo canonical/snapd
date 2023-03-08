@@ -69,13 +69,13 @@ hooks:
 	s.state = state.New(nil)
 }
 
-func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
+func (s *refreshSuite) TestRefreshCheck(c *C) {
 	// Services are not blocking soft refresh check,
 	// they will be stopped before refresh.
 	s.pids = map[string][]int{
 		"snap.pkg.daemon": {100},
 	}
-	err := snapstate.SoftNothingRunningRefreshCheck(s.info)
+	err := snapstate.RefreshCheck(s.info)
 	c.Check(err, IsNil)
 
 	// Apps are blocking soft refresh check. They are not stopped by
@@ -85,14 +85,14 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 		"snap.pkg.daemon": {100},
 		"snap.pkg.app":    {101},
 	}
-	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
+	err = snapstate.RefreshCheck(s.info)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app), pids: 101`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101})
 
 	// Unless refresh-mode is set to "ignore-running"
 	s.info.Apps["app"].RefreshMode = "ignore-running"
-	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
+	err = snapstate.RefreshCheck(s.info)
 	c.Assert(err, IsNil)
 	s.info.Apps["app"].RefreshMode = ""
 
@@ -101,7 +101,7 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 	s.pids = map[string][]int{
 		"snap.pkg.hook.configure": {105},
 	}
-	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
+	err = snapstate.RefreshCheck(s.info)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `snap "pkg" has running hooks (configure), pids: 105`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105})
@@ -111,51 +111,10 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 		"snap.pkg.hook.configure": {105},
 		"snap.pkg.app":            {106},
 	}
-	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
+	err = snapstate.RefreshCheck(s.info)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app) and hooks (configure), pids: 105,106`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105, 106})
-}
-
-func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
-	// Services are ignored by hard refresh check.
-	s.pids = map[string][]int{
-		"snap.pkg.daemon": {100},
-	}
-	err := snapstate.HardNothingRunningRefreshCheck(s.info)
-	c.Assert(err, IsNil)
-
-	// When the service is supposed to endure refreshes it will not be
-	// stopped. As such such services cannot block refresh.
-	s.info.Apps["daemon"].RefreshMode = "endure"
-	err = snapstate.HardNothingRunningRefreshCheck(s.info)
-	c.Check(err, IsNil)
-	s.info.Apps["daemon"].RefreshMode = ""
-
-	// Applications are also blocking hard refresh check.
-	s.pids = map[string][]int{
-		"snap.pkg.app": {101},
-	}
-	err = snapstate.HardNothingRunningRefreshCheck(s.info)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app), pids: 101`)
-	c.Assert(err, FitsTypeOf, &snapstate.BusySnapError{})
-	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101})
-
-	// Unless refresh-mode is set to "ignore-running"
-	s.info.Apps["app"].RefreshMode = "ignore-running"
-	err = snapstate.HardNothingRunningRefreshCheck(s.info)
-	c.Assert(err, IsNil)
-	s.info.Apps["app"].RefreshMode = ""
-
-	// Hooks are equally blocking hard refresh check.
-	s.pids = map[string][]int{
-		"snap.pkg.hook.configure": {105},
-	}
-	err = snapstate.HardNothingRunningRefreshCheck(s.info)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "pkg" has running hooks (configure), pids: 105`)
-	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105})
 }
 
 func (s *refreshSuite) TestPendingSnapRefreshInfo(c *C) {
@@ -205,7 +164,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckAllowed(c *C) {
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
 	// Pretend that snaps can refresh normally.
-	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		return nil
 	})
 	defer restore()
@@ -228,7 +187,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
 	// Pretend that snaps cannot refresh.
-	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
 	})
 	defer restore()
@@ -252,7 +211,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
 	// Pretend that snaps can refresh normally.
-	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		return nil
 	})
 	defer restore()
@@ -281,7 +240,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
 	// Pretend that snaps cannot refresh.
-	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
 	})
 	defer restore()

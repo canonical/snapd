@@ -124,7 +124,7 @@ func (s *hostnameSuite) TestConfigureHostnameWithStateOnlyHostnamectlValidates(c
 	}
 
 	for _, hostname := range hostnames {
-		err := configcore.Run(coreDev, &mockConf{
+		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"system.hostname": hostname,
@@ -151,7 +151,7 @@ fi`
 	defer mockedHostnamectl.Restore()
 
 	hostname := "simulated-invalid-hostname"
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.hostname": hostname,
@@ -167,7 +167,7 @@ fi`
 func (s *hostnameSuite) TestConfigureHostnameIntegrationSameHostname(c *C) {
 	// and set new hostname to "bar" but the "s.mockedHostnamectl" is
 	// already returning "bar"
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			// hostname is already "bar"
@@ -192,7 +192,7 @@ fi`
 	defer mockedHostnamectl.Restore()
 
 	// and set new hostname to "bar"
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			// hostname is already "bar"

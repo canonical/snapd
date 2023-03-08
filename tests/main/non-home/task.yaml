@@ -20,7 +20,6 @@ restore: |
     tests.session -u test restore
     "$TESTSTOOLS"/user-state remove-with-group "$TUSER"
 
-
 execute: |
     echo "Install a snap"
     snap install test-snapd-sh

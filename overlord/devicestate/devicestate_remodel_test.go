@@ -1384,6 +1384,11 @@ func (s *deviceMgrRemodelSuite) mockTasksNopHandler(kinds ...string) {
 	}
 }
 
+func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
+	goff := offs
+	return &goff
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsUpdate(c *C) {
 	var currentGadgetYaml = `
 volumes:
@@ -1512,6 +1517,7 @@ volumes:
 							VolumeName: "pc",
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
+							Offset:     asOffsetPtr(gadget.NonMBRStartOffset),
 							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
@@ -1521,6 +1527,7 @@ volumes:
 							VolumeName: "pc",
 							Name:       "bare-one",
 							Type:       "bare",
+							Offset:     asOffsetPtr(gadget.NonMBRStartOffset + 10*quantity.OffsetMiB),
 							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "bare.img"},
@@ -1542,6 +1549,7 @@ volumes:
 							VolumeName: "pc",
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
+							Offset:     asOffsetPtr(gadget.NonMBRStartOffset),
 							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
@@ -1551,6 +1559,7 @@ volumes:
 							VolumeName: "pc",
 							Name:       "bare-one",
 							Type:       "bare",
+							Offset:     asOffsetPtr(gadget.NonMBRStartOffset + 10*quantity.OffsetMiB),
 							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "new-bare-content.img"},
