@@ -1155,9 +1155,6 @@ nested_start_core_vm_unit() {
         ${PARAM_CD}  \
         ${PARAM_EXTRA} " "${PARAM_REEXEC_ON_FAILURE}"
 
-    # wait for the $NESTED_VM service to appear active
-    wait_for_service "$NESTED_VM"
-
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
 
@@ -1253,14 +1250,14 @@ nested_shutdown() {
     remote.exec "sudo shutdown now" || true
     nested_wait_for_no_ssh
     nested_force_stop_vm
-    wait_for_service "$NESTED_VM" inactive
+    wait_for_service "$NESTED_VM" inactive 30
     sync
 }
 
 nested_start() {
     nested_save_serial_log
     nested_force_start_vm
-    wait_for_service "$NESTED_VM" active
+    wait_for_service "$NESTED_VM" active 30
     nested_wait_for_ssh
     nested_prepare_tools
 }
@@ -1268,7 +1265,7 @@ nested_start() {
 nested_force_restart_vm() {
     nested_force_stop_vm
     nested_force_start_vm
-    wait_for_service "$NESTED_VM" active
+    wait_for_service "$NESTED_VM" active 30
 }
 
 nested_create_classic_vm() {
