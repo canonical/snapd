@@ -39,6 +39,7 @@ typedef struct sc_invocation {
     char *base_snap_name;
     char *rootfs_dir;
     char **homedirs;
+    int  num_homedirs;
     bool is_normal_mode;
 } sc_invocation;
 
@@ -79,10 +80,10 @@ void sc_cleanup_invocation(sc_invocation *inv);
 void sc_check_rootfs_dir(sc_invocation *inv);
 
 /**
- * sc_invocation_check_homedirs() reads the homedirs configuration
+ * sc_invocation_init_homedirs() reads the homedirs configuration
  * file of snapd and fills the "homedirs" string vector in the
  * sc_invocation structure.
  */
-void sc_invocation_check_homedirs(sc_invocation *inv);
+void sc_invocation_init_homedirs(sc_invocation *inv);
 
 #endif
