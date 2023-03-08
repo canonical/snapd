@@ -836,6 +836,7 @@ var (
 		"docker":          nil,
 		"lxd":             nil,
 		"microceph":       nil,
+		"microovn":        nil,
 		"pkcs11":          nil,
 		"posix-mq":        nil,
 		"shared-memory":   nil,
@@ -897,6 +898,12 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"microceph\" slot rule of interface \"microceph\"")
 
+	// test microovn specially
+	ic = s.installSlotCand(c, "microovn", snap.TypeApp, ``)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"microovn\" slot rule of interface \"microovn\"")
+
 	// test shared-memory specially
 	ic = s.installSlotCand(c, "shared-memory", snap.TypeApp, ``)
 	err = ic.Check()
@@ -921,6 +928,26 @@ slots:
 `)
 	ic.SnapDeclaration = s.mockSnapDecl(c, "snapd", "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4", "canonical", "")
 	c.Assert(ic.Check(), IsNil)
+
+	ic = s.installSlotCand(c, "udisks2", snap.TypeApp, `name: udisks2
+version: 0
+type: app
+slots:
+  udisks2:
+`)
+	err = ic.Check()
+	c.Assert(err, IsNil)
+
+	ic = s.installSlotCand(c, "udisks2", snap.TypeApp, `name: udisks2
+version: 0
+type: app
+slots:
+  udisks2:
+    udev-file: some/file
+`)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"udisks2\" slot rule of interface \"udisks2\"")
 }
 
 func (s *baseDeclSuite) TestPlugInstallation(c *C) {
@@ -1003,6 +1030,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"lxd":                       true,
 		"maliit":                    true,
 		"microceph":                 true,
+		"microovn":                  true,
 		"mir":                       true,
 		"online-accounts-service":   true,
 		"posix-mq":                  true,

@@ -898,21 +898,20 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 // asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
 // the user and then triggers an auto-refresh.
 func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) error {
-	var monitoredSnaps map[string]bool
-	if cachedMonitored := st.Cached("monitored-snaps"); cachedMonitored != nil {
-		monitoredSnaps, _ = cachedMonitored.(map[string]bool)
-	} else {
-		monitoredSnaps = make(map[string]bool)
+	monitoredSnaps := snapMonitoring(st)
+	if monitoredSnaps == nil {
+		monitoredSnaps = make(map[string]chan<- bool)
 	}
 
 	// there's already a goroutine waiting for this snap to close so just notify
-	if monitoredSnaps[refreshInfo.InstanceName] {
+	if monitoredSnaps[refreshInfo.InstanceName] != nil {
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 		return nil
 	}
 
-	// monitor the snap until it closes
-	done := make(chan string)
+	// monitor the snap until it closes. Use buffered channel to prevent the sender
+	// from blocking if the receiver stops before reading from it
+	done := make(chan string, 1)
 	if err := cgroupMonitorSnapEnded(refreshInfo.InstanceName, done); err != nil {
 		return fmt.Errorf("cannot monitor for snap closure: %w", err)
 	}
@@ -920,21 +919,39 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 	// notify the user about the blocked refresh
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 
-	monitoredSnaps[refreshInfo.InstanceName] = true
+	abort := make(chan bool, 1)
+	monitoredSnaps[refreshInfo.InstanceName] = abort
 	st.Cache("monitored-snaps", monitoredSnaps)
 
-	// TODO: clear the monitoring related state and goroutines when an auto-refresh happens
 	go func() {
-		<-done
+		continueAutoRefresh := false
+		select {
+		case <-done:
+			continueAutoRefresh = true
+		case <-abort:
+		}
+
 		st.Lock()
 		defer st.Unlock()
 
-		delete(monitoredSnaps, refreshInfo.InstanceName)
-		if len(monitoredSnaps) == 0 {
-			monitoredSnaps = nil
+		monitoredSnaps := snapMonitoring(st)
+		if monitoredSnaps == nil {
+			// shouldn't happen except for programmer error
+			logger.Noticef("cannot find monitoring state for snap %q", refreshInfo.InstanceName)
+		} else {
+			delete(monitoredSnaps, refreshInfo.InstanceName)
+
+			if len(monitoredSnaps) == 0 {
+				// use nil to delete entry but must be nil type (can't be map var set to nil)
+				st.Cache("monitored-snaps", nil)
+			} else {
+				st.Cache("monitored-snaps", monitoredSnaps)
+			}
 		}
-		st.Cache("monitored-snaps", monitoredSnaps)
-		continueInhibitedAutoRefresh(st)
+
+		if continueAutoRefresh {
+			continueInhibitedAutoRefresh(st)
+		}
 	}()
 
 	return nil
@@ -945,6 +962,22 @@ func continueInhibitedAutoRefresh(st *state.State) {
 	// signal that there's an auto-refresh to be continued (for auto-refresh code)
 	st.Cache("auto-refresh-continue-attempt", 1)
 	st.EnsureBefore(0)
+}
+
+func snapMonitoring(st *state.State) map[string]chan<- bool {
+	if cachedMonitored := st.Cached("monitored-snaps"); cachedMonitored != nil {
+		if monitoredSnaps, ok := cachedMonitored.(map[string]chan<- bool); ok {
+			return monitoredSnaps
+		}
+	}
+
+	return nil
+}
+
+func abortMonitoring(st *state.State, snapName string) {
+	if monitored := snapMonitoring(st); monitored[snapName] != nil {
+		monitored[snapName] <- true
+	}
 }
 
 var (
@@ -2083,6 +2116,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			InjectAutoConnect(t, snapsup)
 		}
 	}
+
+	// abort any snap monitoring that may have started in a pre-download task
+	abortMonitoring(st, snapsup.InstanceName())
 
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, snapsup.InstanceName(), snapst)

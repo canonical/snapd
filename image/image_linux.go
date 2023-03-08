@@ -31,6 +31,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
@@ -282,6 +283,7 @@ type imageSeeder struct {
 	wideCohortKey  string
 	revisions      map[string]snap.Revision
 	customizations *Customizations
+	architecture   string
 
 	hasModes    bool
 	rootDir     string
@@ -306,6 +308,7 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 		// keep a pointer to the customization object in opts as the Validation
 		// member might be defaulted if not set.
 		customizations: &opts.Customizations,
+		architecture:   determineImageArchitecture(model, opts),
 
 		hasModes: model.Grade() != asserts.ModelGradeUnset,
 		model:    model,
@@ -346,6 +349,20 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 	}
 	s.w = w
 	return s, nil
+}
+
+func determineImageArchitecture(model *asserts.Model, opts *Options) string {
+	// let the architecture supplied in opts take precedence
+	if opts.Architecture != "" {
+		// in theory we could check that this does not differ from the one
+		// specified in the model, but this check is done somewhere else.
+		return opts.Architecture
+	} else if model.Architecture() != "" {
+		return model.Architecture()
+	} else {
+		// if none had anything set, use the host architecture
+		return arch.DpkgArchitecture()
+	}
 }
 
 func (s *imageSeeder) setModelessDirs() error {
@@ -392,6 +409,25 @@ func (s *imageSeeder) start(db *asserts.Database, optSnaps []*seedwriter.Options
 	return s.w.Start(db, newFetcher)
 }
 
+func (s *imageSeeder) snapSupportsImageArch(sn *seedwriter.SeedSnap) bool {
+	for _, a := range sn.Info.Architectures {
+		if a == "all" || a == s.architecture {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *imageSeeder) validateSnapArchs(snaps []*seedwriter.SeedSnap) error {
+	for _, sn := range snaps {
+		if !s.snapSupportsImageArch(sn) {
+			return fmt.Errorf("snap %q supported architectures (%s) are incompatible with the model architecture (%s)",
+				sn.Info.SnapName(), strings.Join(sn.Info.Architectures, ", "), s.architecture)
+		}
+	}
+	return nil
+}
+
 type localSnapRefs map[*seedwriter.SeedSnap][]*asserts.Ref
 
 func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.RefAssertsFetcher, db *asserts.Database) (localSnapRefs, error) {
@@ -421,6 +457,11 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.RefAssertsFetcher, db
 		}
 		snaps[sn] = aRefs
 	}
+
+	// derive info first before verifying the arch
+	if err := s.validateSnapArchs(localSnaps); err != nil {
+		return nil, err
+	}
 	return snaps, s.w.InfoDerived()
 }
 
@@ -438,6 +479,9 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 			fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), info.Revision)
 		}
 		if err := s.w.SetInfo(sn, info); err != nil {
+			return "", err
+		}
+		if err := s.validateSnapArchs([]*seedwriter.SeedSnap{sn}); err != nil {
 			return "", err
 		}
 		return sn.Path, nil

@@ -1358,6 +1358,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	encType := secboot.EncryptionTypeNone
+	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
 	if useEncryption {
 		encType = secboot.EncryptionTypeLUKS
 	}
@@ -1484,7 +1485,9 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return fmt.Errorf("encryption unavailable on this device: %v", whyStr)
 	}
 
-	encryptionSetupData, err := installEncryptPartitions(onVolumes, secboot.EncryptionTypeLUKS, sys.Model, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], perfTimings)
+	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
+	encType := secboot.EncryptionTypeLUKS
+	encryptionSetupData, err := installEncryptPartitions(onVolumes, encType, sys.Model, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], perfTimings)
 	if err != nil {
 		return err
 	}

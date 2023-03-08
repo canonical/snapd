@@ -46,7 +46,10 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/sysconfig"
 	. "gopkg.in/check.v1"
@@ -155,7 +158,7 @@ func (s *kernelSuite) mockEarlyConfig() {
 	s.AddCleanup(func() { devicestate.EarlyConfig = nil })
 }
 
-func (s *kernelSuite) mockModel(st *state.State, grade string) {
+func (s *kernelSuite) mockModel(grade string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -182,10 +185,45 @@ func (s *kernelSuite) mockModel(st *state.State, grade string) {
 
 	assertstatetest.AddMany(s.state, model)
 
-	devicestatetest.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  model.BrandID(),
 		Model:  model.Model(),
 		Serial: "serialserial",
+	})
+}
+
+const gadgetSnapYaml = `
+name: pc
+type: gadget
+`
+
+const gadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+kernel-cmdline:
+  allow:
+    - par=val
+    - param
+    - star=*
+`
+
+func (s *kernelSuite) mockGadget(c *C) {
+	pcSideInfo := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(1),
+		SnapID:   "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
+	}
+	files := [][]string{{"meta/gadget.yaml", gadgetYaml}}
+	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, pcSideInfo, files)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{pcSideInfo},
+		Current:  pcSideInfo.Revision,
+		Active:   true,
 	})
 }
 
@@ -195,7 +233,8 @@ type cmdlineOption struct {
 }
 
 func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOption, modelGrade string) {
-	s.mockModel(s.state, modelGrade)
+	s.mockModel(modelGrade)
+	s.mockGadget(c)
 	doHandlerCalls := 0
 	extraChange := true
 	expectedHandlerCalls := 1
@@ -330,7 +369,7 @@ func (s *kernelSuite) TestConfigureKernelCmdlineSignedGrade(c *C) {
 	s.testConfigureKernelCmdlineHappy(c,
 		[]cmdlineOption{{
 			name:    "system.kernel.cmdline-append",
-			cmdline: "par=val param"}},
+			cmdline: "par=val param star=val"}},
 		"signed")
 }
 
@@ -364,7 +403,7 @@ func (s *kernelSuite) TestConfigureKernelCmdlineSignedGradeDangCmdline(c *C) {
 }
 
 func (s *kernelSuite) TestConfigureKernelCmdlineConflict(c *C) {
-	s.mockModel(s.state, "dangerous")
+	s.mockModel("dangerous")
 
 	cmdline := "param1=val1"
 	s.state.Lock()
@@ -384,4 +423,32 @@ func (s *kernelSuite) TestConfigureKernelCmdlineConflict(c *C) {
 
 	err := configcore.Run(coreDev, rt)
 	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
+}
+
+func (s *kernelSuite) testConfigureKernelCmdlineSignedGradeNotAllowed(c *C, cmdline string) {
+	s.mockModel("signed")
+	s.mockGadget(c)
+
+	s.state.Lock()
+
+	ts := s.state.NewTask("hook-task", "system hook task")
+	chg := s.state.NewChange("system-option", "...")
+	chg.AddTask(ts)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), ts)
+
+	s.state.Unlock()
+
+	rt.Set("core", "system.kernel.cmdline-append", cmdline)
+
+	err := configcore.Run(coreDev, rt)
+	c.Assert(err.Error(), Equals, fmt.Sprintf("%q is not allowed in the kernel command line by the gadget", cmdline))
+}
+
+func (s *kernelSuite) TestConfigureKernelCmdlineSignedGradeNotAllowed(c *C) {
+	for _, cmdline := range []string{
+		"forbidden=val",
+		`forbidden1 forbidden2=" with quotes "`,
+	} {
+		s.testConfigureKernelCmdlineSignedGradeNotAllowed(c, cmdline)
+	}
 }
