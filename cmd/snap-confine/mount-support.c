@@ -905,25 +905,21 @@ static bool __attribute__((used))
 
 static struct sc_mount *sc_homedir_mounts(const struct sc_invocation *inv)
 {
-	if (inv->homedirs == NULL) {
+	if (inv->num_homedirs == 0) {
 		return NULL;
 	}
 
-	int num_homedirs = 0;
-	for (char **path = inv->homedirs; *path != NULL; path++) {
-		num_homedirs++;
-	}
-
 	// We add one element for the end-of-array indicator.
-	struct sc_mount *mounts = calloc(num_homedirs + 1, sizeof(struct sc_mount));
+	struct sc_mount *mounts = calloc(inv->num_homedirs + 1, sizeof(struct sc_mount));
 	if (mounts == NULL) {
 		die("cannot allocate mount data for homedirs");
 	}
 
-    // Copy inv->homedirs to the mount structures
-	for (int i = 0; i < num_homedirs; i++) {
+	// Copy inv->homedirs to the mount structures
+	for (int i = 0; i < inv->num_homedirs; i++) {
 		debug("Adding homedir: %s", inv->homedirs[i]);
 		mounts[i].path = sc_strdup(inv->homedirs[i]);
+		mounts[i].is_bidirectional = true;
 	}
 	return mounts;
 }

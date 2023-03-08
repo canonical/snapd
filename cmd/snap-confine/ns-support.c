@@ -309,15 +309,10 @@ static bool base_snap_device_changed(sc_mountinfo *mi, dev_t base_snap_dev)
 	return true;
 }
 
-static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs)
+static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs, int num_homedirs)
 {
-	if (homedirs == NULL) {
+	if (num_homedirs == 0) {
 		return true;
-	}
-
-	int num_homedirs = 0;
-	for (char **path = homedirs; *path != NULL; path++) {
-		num_homedirs++;
 	}
 
 	/* We know that the number of homedirs is not going to be huge, so let's
@@ -369,7 +364,7 @@ static bool should_discard_current_ns(const struct sc_invocation *inv,
 	// Another reason for becoming stale is if the homedirs configuration has
 	// changed: so this code will check that all homedirs are mounted in the
 	// namespace.
-	if (!homedirs_are_mounted(mi, inv->homedirs)) {
+	if (!homedirs_are_mounted(mi, inv->homedirs, inv->num_homedirs)) {
 		return true;
 	}
 

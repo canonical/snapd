@@ -164,7 +164,7 @@ static char* read_homedirs_from_system_params(void)
     return NULL;
 }
 
-void sc_invocation_check_homedirs(sc_invocation *inv)
+void sc_invocation_init_homedirs(sc_invocation *inv)
 {
     char *config_line SC_CLEANUP(sc_cleanup_string) = read_homedirs_from_system_params();
     if (config_line == NULL) {
@@ -203,4 +203,7 @@ void sc_invocation_check_homedirs(sc_invocation *inv)
         inv->homedirs[current_index++] = sc_strdup(homedir);
         homedir = strtok_r(NULL, ",\n", &buf_saveptr);
     }
+
+    // Store the actual amount of homedirs created
+    inv->num_homedirs = current_index;
 }
