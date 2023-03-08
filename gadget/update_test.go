@@ -858,7 +858,6 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 			ID:         laidOutVol.Volume.ID,
 			Structure:  make([]gadget.VolumeStructure, numStructures),
 			Name:       laidOutVol.Volume.Name,
-			MinSize:    asSizePtr((1 + 1 + 50) * quantity.SizeMiB),
 		}
 		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 
@@ -868,7 +867,6 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 			ID:         laidOutVol.Volume.ID,
 			Structure:  make([]gadget.VolumeStructure, numStructures),
 			Name:       laidOutVol.Volume.Name,
-			MinSize:    asSizePtr((1 + 1 + 50) * quantity.SizeMiB),
 		}
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
@@ -1032,7 +1030,6 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			ID:         laidOutVol.Volume.ID,
 			Structure:  make([]gadget.VolumeStructure, numStructures),
 			Name:       laidOutVol.Volume.Name,
-			MinSize:    asSizePtr(4096*2 + 1*quantity.SizeGiB),
 		}
 		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 
@@ -1042,7 +1039,6 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			ID:         laidOutVol.Volume.ID,
 			Structure:  make([]gadget.VolumeStructure, numStructures),
 			Name:       laidOutVol.Volume.Name,
-			MinSize:    asSizePtr(4096*2 + 1*quantity.SizeGiB),
 		}
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
@@ -1280,7 +1276,6 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			ID:         laidOutVol.Volume.ID,
 			Structure:  make([]gadget.VolumeStructure, numStructures),
 			Name:       laidOutVol.Volume.Name,
-			MinSize:    asSizePtr(4096*2 + 1*quantity.SizeGiB),
 		}
 		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 
@@ -1290,7 +1285,6 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			ID:         laidOutVol.Volume.ID,
 			Structure:  make([]gadget.VolumeStructure, numStructures),
 			Name:       laidOutVol.Volume.Name,
-			MinSize:    asSizePtr(4096*2 + 1*quantity.SizeGiB),
 		}
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
@@ -1544,7 +1538,6 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 			ID:         laidOutVol.Volume.ID,
 			Structure:  make([]gadget.VolumeStructure, numStructures),
 			Name:       laidOutVol.Volume.Name,
-			MinSize:    asSizePtr(4096*2 + 1*quantity.SizeGiB),
 		}
 		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 
@@ -1554,7 +1547,6 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 			ID:         laidOutVol.Volume.ID,
 			Structure:  make([]gadget.VolumeStructure, numStructures),
 			Name:       laidOutVol.Volume.Name,
-			MinSize:    asSizePtr(4096*2 + 1*quantity.SizeGiB),
 		}
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
@@ -2042,7 +2034,6 @@ volumes:
 			ID:         laidOutVol.Volume.ID,
 			Structure:  make([]gadget.VolumeStructure, numStructures),
 			Name:       laidOutVol.Volume.Name,
-			MinSize:    asSizePtr((1 + 1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB),
 		}
 		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 
@@ -2052,7 +2043,6 @@ volumes:
 			ID:         laidOutVol.Volume.ID,
 			Structure:  make([]gadget.VolumeStructure, numStructures),
 			Name:       laidOutVol.Volume.Name,
-			MinSize:    asSizePtr((1 + 1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB),
 		}
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
@@ -2344,7 +2334,6 @@ volumes:
 			ID:         laidOutVol.Volume.ID,
 			Structure:  make([]gadget.VolumeStructure, numStructures),
 			Name:       laidOutVol.Volume.Name,
-			MinSize:    asSizePtr((1 + 1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB),
 		}
 		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 
@@ -2354,7 +2343,6 @@ volumes:
 			ID:         laidOutVol.Volume.ID,
 			Structure:  make([]gadget.VolumeStructure, numStructures),
 			Name:       laidOutVol.Volume.Name,
-			MinSize:    asSizePtr((1 + 1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB),
 		}
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}

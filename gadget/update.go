@@ -493,9 +493,9 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskLayout *OnDiskVolume, o
 
 	// check size of volumes
 	lastUsableByte := quantity.Size(diskLayout.UsableSectorsEnd) * diskLayout.SectorSize
-	if *gadgetVolume.MinSize > lastUsableByte {
+	if gadgetVolume.MinSize() > lastUsableByte {
 		return fmt.Errorf("device %v (last usable byte at %s) is too small to fit the requested layout (%s)", diskLayout.Device,
-			lastUsableByte.IECString(), gadgetVolume.MinSize.IECString())
+			lastUsableByte.IECString(), gadgetVolume.MinSize().IECString())
 	}
 
 	// check that the sizes of all structures in the gadget are multiples of
