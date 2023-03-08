@@ -557,6 +557,30 @@ volumes:
         role: system-data
 `)
 
+var gadgetYamlUnorderedParts = []byte(`
+volumes:
+  myvol:
+    schema: gpt
+    bootloader: lk
+    structure:
+      - name: ubuntu-seed
+        filesystem: ext4
+        size: 500M
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-seed
+      - name: part3
+        offset: 800M
+        filesystem: ext4
+        size: 500M
+        role: system-data
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: part2
+        offset: 501M
+        filesystem: ext4
+        size: 299M
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+`)
+
 func TestRun(t *testing.T) { TestingT(t) }
 
 func mustParseGadgetSize(c *C, s string) quantity.Size {
@@ -3860,4 +3884,53 @@ kernel-cmdline:
 			c.Assert(gi.KernelCmdline.Allow, DeepEquals, allowed)
 		}
 	}
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlUnorderedParts(c *C) {
+	snapPath := snaptest.MakeTestSnapWithFiles(c, mockSnapYaml, [][]string{
+		{"meta/gadget.yaml", string(gadgetYamlUnorderedParts)},
+	})
+	snapf, err := snapfile.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	ginfo, err := gadget.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ginfo, DeepEquals, &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"myvol": {
+				Name:       "myvol",
+				Bootloader: "lk",
+				Schema:     "gpt",
+				MinSize:    asSizePtr(1300 * quantity.SizeMiB),
+				Structure: []gadget.VolumeStructure{
+					{
+						VolumeName: "myvol",
+						Name:       "ubuntu-seed",
+						Role:       "system-seed",
+						Offset:     asOffsetPtr(quantity.OffsetMiB),
+						Size:       500 * quantity.SizeMiB,
+						Type:       "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Filesystem: "ext4",
+					},
+					{
+						VolumeName: "myvol",
+						Name:       "part3",
+						Role:       "system-data",
+						Offset:     asOffsetPtr(800 * quantity.OffsetMiB),
+						Size:       500 * quantity.SizeMiB,
+						Type:       "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Filesystem: "ext4",
+					},
+					{
+						VolumeName: "myvol",
+						Name:       "part2",
+						Offset:     asOffsetPtr(501 * quantity.OffsetMiB),
+						Size:       299 * quantity.SizeMiB,
+						Type:       "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Filesystem: "ext4",
+					},
+				},
+			},
+		},
+	})
 }
