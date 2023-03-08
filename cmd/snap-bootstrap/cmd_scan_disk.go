@@ -60,6 +60,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/blkid"
 	"github.com/snapcore/snapd/dirs"
@@ -153,6 +154,7 @@ func samePath(a, b string) (bool, error) {
 func scanDiskNode(output io.Writer, node string) error {
 	fmt.Fprintf(os.Stderr, "Scanning disk %s\n", node)
 	fallback := false
+	var fallbackPartition string
 	bootUUID, _, err := efiReadVarString("LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "No efi var, falling back: %s\n", err)
@@ -164,6 +166,27 @@ func scanDiskNode(output io.Writer, node string) error {
 	partitions, err := probePartitions(node)
 	if err != nil {
 		return fmt.Errorf("Cannot get partitions: %s\n", err)
+	}
+
+	if fallback {
+		mode, _, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
+		if err != nil {
+			return err
+		}
+		switch mode {
+		case "recover":
+			fallbackPartition = "ubuntu-seed"
+		case "install":
+			fallbackPartition = "ubuntu-seed"
+		case "factory-reset":
+			fallbackPartition = "ubuntu-seed"
+		case "run":
+			fallbackPartition = "ubuntu-boot"
+		case "cloudimg-rootfs":
+			fallbackPartition = "ubuntu-boot"
+		default:
+			return fmt.Errorf("internal error: mode not handled")
+		}
 	}
 
 	if fallback {
@@ -196,13 +219,14 @@ func scanDiskNode(output io.Writer, node string) error {
 	}
 
 	found := false
-	has_seed := false
+	hasFallbackPartition := false
+	hasSeed := false
 	var seed_uuid string
-	has_boot := false
+	hasBoot := false
 	var boot_uuid string
-	has_data := false
+	hasData := false
 	var data_uuid string
-	has_save := false
+	hasSave := false
 	var save_uuid string
 	for _, part := range partitions {
 		if !fallback {
@@ -210,42 +234,45 @@ func scanDiskNode(output io.Writer, node string) error {
 				found = true
 			}
 		}
+		if fallback && part.Name == fallbackPartition {
+			hasFallbackPartition = true
+		}
 		if part.Name == "ubuntu-seed" {
-			has_seed = true
+			hasSeed = true
 			seed_uuid = part.UUID
 		} else if part.Name == "ubuntu-boot" {
-			has_boot = true
+			hasBoot = true
 			boot_uuid = part.UUID
 		} else if part.Name == "ubuntu-data-enc" {
-			has_data = true
+			hasData = true
 			data_uuid = part.UUID
 		} else if part.Name == "ubuntu-data" {
-			has_data = true
+			hasData = true
 			data_uuid = part.UUID
 		} else if part.Name == "ubuntu-save-enc" {
-			has_save = true
+			hasSave = true
 			save_uuid = part.UUID
 		} else if part.Name == "ubuntu-save" {
-			has_save = true
+			hasSave = true
 			save_uuid = part.UUID
 		}
 	}
 
-	if (!fallback && found) || (fallback && has_seed) {
+	if (!fallback && found && (hasSeed || hasBoot)) || (fallback && hasFallbackPartition) {
 		fmt.Fprintf(output, "UBUNTU_DISK=1\n")
-		if has_seed {
+		if hasSeed {
 			fmt.Fprintf(os.Stderr, "Detected partition for seed: %s\n", seed_uuid)
 			fmt.Fprintf(output, "UBUNTU_SEED_UUID=%s\n", seed_uuid)
 		}
-		if has_boot {
+		if hasBoot {
 			fmt.Fprintf(os.Stderr, "Detected partition for boot: %s\n", boot_uuid)
 			fmt.Fprintf(output, "UBUNTU_BOOT_UUID=%s\n", boot_uuid)
 		}
-		if has_data {
+		if hasData {
 			fmt.Fprintf(os.Stderr, "Detected partition for data: %s\n", data_uuid)
 			fmt.Fprintf(output, "UBUNTU_DATA_UUID=%s\n", data_uuid)
 		}
-		if has_save {
+		if hasSave {
 			fmt.Fprintf(os.Stderr, "Detected partition for save: %s\n", save_uuid)
 			fmt.Fprintf(output, "UBUNTU_SAVE_UUID=%s\n", save_uuid)
 		}

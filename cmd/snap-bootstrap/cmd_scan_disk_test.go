@@ -81,7 +81,7 @@ func (s *scanDiskSuite) SetUpTest(c *C) {
 	s.probeMap["/dev/foo"] = disk_probe
 
 	s.cmdlineFile = filepath.Join(c.MkDir(), "proc-cmdline")
-	err := ioutil.WriteFile(s.cmdlineFile, []byte(""), 0644)
+	err := ioutil.WriteFile(s.cmdlineFile, []byte("snapd_recovery_mode=run"), 0644)
 	c.Assert(err, IsNil)
 	cmdlineCleanup := osutil.MockProcCmdline(s.cmdlineFile)
 	s.AddCleanup(cmdlineCleanup)
@@ -177,7 +177,56 @@ func (s *scanDiskSuite) TestDetectBootDiskFallback(c *C) {
 	c.Assert(len(lines), Equals, 5)
 }
 
-func (s *scanDiskSuite) TestDetectBootDiskFallbackMissingSeed(c *C) {
+func (s *scanDiskSuite) TestDetectBootDiskFallbackInstall(c *C) {
+	s.setCmdLine(c, "snapd_recovery_mode=install snapd_recovery_system=20191118")
+	s.env["DEVNAME"] = "/dev/foo"
+	s.env["DEVTYPE"] = "disk"
+
+	disk_values := make(map[string]string)
+	disk_values["PTTYPE"] = "gpt"
+	disk_probe := blkid.BuildFakeProbe(disk_values)
+	disk_probe.AddPartition("ubuntu-seed", "6ae5a792-912e-43c9-ac92-e36723bbda12")
+	s.probeMap["/dev/foo"] = disk_probe
+	delete(s.probeMap, "/dev/foop2")
+	delete(s.probeMap, "/dev/foop3")
+	delete(s.probeMap, "/dev/foop4")
+
+	output := newBuffer()
+	err := main.ScanDisk(output.File())
+	c.Assert(err, IsNil)
+	lines := output.GetLines()
+
+	_, hasDisk := lines["UBUNTU_DISK=1"]
+	c.Assert(hasDisk, Equals, true)
+	_, hasSeed := lines["UBUNTU_SEED_UUID=6ae5a792-912e-43c9-ac92-e36723bbda12"]
+	c.Assert(hasSeed, Equals, true)
+	c.Assert(len(lines), Equals, 2)
+}
+
+func (s *scanDiskSuite) TestDetectBootDiskFallbackMissingBoot(c *C) {
+	s.env["DEVNAME"] = "/dev/foo"
+	s.env["DEVTYPE"] = "disk"
+
+	disk_values := make(map[string]string)
+	disk_values["PTTYPE"] = "gpt"
+	disk_probe := blkid.BuildFakeProbe(disk_values)
+	disk_probe.AddPartition("ubuntu-seed", "6ae5a792-912e-43c9-ac92-e36723bbda12")
+	disk_probe.AddPartition("ubuntu-data-enc", "c01a272d-fc72-40de-92fb-242c2da82533")
+	disk_probe.AddPartition("ubuntu-save-enc", "050ee326-ab58-4eb4-ba7d-13694b2d0c8a")
+	s.probeMap["/dev/foo"] = disk_probe
+	delete(s.probeMap, "/dev/foop2")
+
+	output := newBuffer()
+	err := main.ScanDisk(output.File())
+	c.Assert(err, IsNil)
+	lines := output.GetLines()
+
+	c.Assert(len(lines), Equals, 0)
+}
+
+func (s *scanDiskSuite) TestDetectBootDiskFallbackMissingSeedRecover(c *C) {
+	s.setCmdLine(c, "snapd_recovery_mode=recover")
+
 	s.env["DEVNAME"] = "/dev/foo"
 	s.env["DEVTYPE"] = "disk"
 
@@ -203,7 +252,7 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackKernelParam(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(devFoo), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(devFoo, []byte{}, 0644), IsNil)
 
-	s.setCmdLine(c, "snapd_system_disk=/dev/foo")
+	s.setCmdLine(c, "snapd_system_disk=/dev/foo snapd_recovery_mode=run")
 
 	s.env["DEVPATH"] = "/sys/devices/foo"
 	s.env["DEVNAME"] = "/dev/foo"
@@ -232,7 +281,7 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackKernelParamDevPath(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(devFoo), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(devFoo, []byte{}, 0644), IsNil)
 
-	s.setCmdLine(c, "snapd_system_disk=/sys/devices/foo")
+	s.setCmdLine(c, "snapd_system_disk=/sys/devices/foo snapd_recovery_mode=run")
 
 	s.env["DEVPATH"] = "/sys/devices/foo"
 	s.env["DEVNAME"] = "/dev/foo"
