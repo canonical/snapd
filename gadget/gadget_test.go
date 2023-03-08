@@ -730,10 +730,6 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 	return &goff
 }
 
-func asSizePtr(sz quantity.Size) *quantity.Size {
-	return &sz
-}
-
 var (
 	classicMod = &gadgettest.ModelCharacteristics{
 		IsClassic: true,
@@ -772,7 +768,6 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
 				ID:         "0C",
-				MinSize:    asSizePtr(12345 + 88888),
 				Structure: []gadget.VolumeStructure{
 					{
 						VolumeName:  "volumename",
@@ -815,7 +810,6 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 				Name:       "frobinator-image",
 				Schema:     "mbr",
 				Bootloader: "u-boot",
-				MinSize:    asSizePtr((1 + 128 + 380) * quantity.SizeMiB),
 				Structure: []gadget.VolumeStructure{
 					{
 						VolumeName: "frobinator-image",
@@ -846,9 +840,8 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 				},
 			},
 			"u-boot-frobinator": {
-				Name:    "u-boot-frobinator",
-				Schema:  "gpt",
-				MinSize: asSizePtr(24576 + 623000),
+				Name:   "u-boot-frobinator",
+				Schema: "gpt",
 				Structure: []gadget.VolumeStructure{
 					{
 						VolumeName: "u-boot-frobinator",
@@ -959,7 +952,6 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
 				ID:         "0C",
-				MinSize:    asSizePtr(12345 + 88888),
 				Structure: []gadget.VolumeStructure{
 					{
 						VolumeName:  "bootloader",
@@ -2345,7 +2337,6 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileValid(c *C) {
 				Name:       "pc",
 				Bootloader: "grub",
 				Schema:     "gpt",
-				MinSize:    asSizePtr(0),
 			},
 		},
 	})
@@ -2916,7 +2907,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibility(c *C) {
 	smallDeviceLayout.UsableSectorsEnd = uint64(100 * quantity.SizeMiB / 512)
 
 	// validity check
-	c.Check(*gadgetVolumeWithExtras.MinSize > quantity.Size(smallDeviceLayout.UsableSectorsEnd*uint64(smallDeviceLayout.SectorSize)), Equals, true)
+	c.Check(gadgetVolumeWithExtras.MinSize() > quantity.Size(smallDeviceLayout.UsableSectorsEnd*uint64(smallDeviceLayout.SectorSize)), Equals, true)
 	err = gadget.EnsureVolumeCompatibility(gadgetVolumeWithExtras, &smallDeviceLayout, nil)
 	c.Assert(err, ErrorMatches, `device /dev/node \(last usable byte at 100 MiB\) is too small to fit the requested layout \(1\.17 GiB\)`)
 }
@@ -3068,7 +3059,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 
 	// now we fail to find the /dev/node2 structure from the gadget on disk because the gadget says it must be bigger
 	err = gadget.EnsureVolumeCompatibility(gadgetVolumeWithExtras, &deviceLayout, nil)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: on disk size 1258291200 \(1.17 GiB\) is smaller than gadget size 10485760000000 \(9.54 TiB\)`)
+	c.Assert(err.Error(), Equals, `device /dev/node (last usable byte at 2.00 GiB) is too small to fit the requested layout (9.54 TiB)`)
 
 	// change the gadget size to be smaller than the on disk size and the role to be one that is not expanded
 	gadgetVolumeWithExtras.Structure[len(gadgetVolumeWithExtras.Structure)-1].Size = 1 * quantity.SizeMiB
@@ -3886,51 +3877,62 @@ kernel-cmdline:
 	}
 }
 
-func (s *gadgetYamlTestSuite) TestReadGadgetYamlUnorderedParts(c *C) {
-	snapPath := snaptest.MakeTestSnapWithFiles(c, mockSnapYaml, [][]string{
-		{"meta/gadget.yaml", string(gadgetYamlUnorderedParts)},
-	})
-	snapf, err := snapfile.Open(snapPath)
+func (s *gadgetYamlTestSuite) testVolumeMinSize(c *C, gadgetYaml []byte, volSizes map[string]quantity.Size) {
+	ginfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, nil)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfoFromSnapFile(snapf, nil)
-	c.Assert(err, IsNil)
-	c.Assert(ginfo, DeepEquals, &gadget.Info{
-		Volumes: map[string]*gadget.Volume{
-			"myvol": {
-				Name:       "myvol",
-				Bootloader: "lk",
-				Schema:     "gpt",
-				MinSize:    asSizePtr(1300 * quantity.SizeMiB),
-				Structure: []gadget.VolumeStructure{
-					{
-						VolumeName: "myvol",
-						Name:       "ubuntu-seed",
-						Role:       "system-seed",
-						Offset:     asOffsetPtr(quantity.OffsetMiB),
-						Size:       500 * quantity.SizeMiB,
-						Type:       "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-						Filesystem: "ext4",
-					},
-					{
-						VolumeName: "myvol",
-						Name:       "part3",
-						Role:       "system-data",
-						Offset:     asOffsetPtr(800 * quantity.OffsetMiB),
-						Size:       500 * quantity.SizeMiB,
-						Type:       "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-						Filesystem: "ext4",
-					},
-					{
-						VolumeName: "myvol",
-						Name:       "part2",
-						Offset:     asOffsetPtr(501 * quantity.OffsetMiB),
-						Size:       299 * quantity.SizeMiB,
-						Type:       "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-						Filesystem: "ext4",
-					},
-				},
+	c.Assert(len(ginfo.Volumes), Equals, len(volSizes))
+	for k, v := range ginfo.Volumes {
+		c.Logf("checking size of volume %s", k)
+		c.Check(v.MinSize(), Equals, quantity.Size(volSizes[k]))
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestVolumeMinSize(c *C) {
+	for _, tc := range []struct {
+		gadgetYaml []byte
+		volsSizes  map[string]quantity.Size
+	}{
+		{
+			gadgetYaml: gadgetYamlUnorderedParts,
+			volsSizes: map[string]quantity.Size{
+				"myvol": 1300 * quantity.SizeMiB,
 			},
 		},
-	})
+		{
+			gadgetYaml: mockMultiVolumeUC20GadgetYaml,
+			volsSizes: map[string]quantity.Size{
+				"frobinator-image":  (1 + 500 + 10 + 500 + 1024) * quantity.SizeMiB,
+				"u-boot-frobinator": 24576 + 623000,
+			},
+		},
+		{
+			gadgetYaml: mockMultiVolumeGadgetYaml,
+			volsSizes: map[string]quantity.Size{
+				"frobinator-image":  (1 + 128 + 380) * quantity.SizeMiB,
+				"u-boot-frobinator": 24576 + 623000,
+			},
+		},
+		{
+			gadgetYaml: mockVolumeUpdateGadgetYaml,
+			volsSizes: map[string]quantity.Size{
+				"bootloader": 12345 + 88888,
+			},
+		},
+		{
+			gadgetYaml: gadgetYamlPC,
+			volsSizes: map[string]quantity.Size{
+				"pc": (1 + 1 + 50) * quantity.SizeMiB,
+			},
+		},
+		{
+			gadgetYaml: gadgetYamlUC20PC,
+			volsSizes: map[string]quantity.Size{
+				"pc": (1 + 1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB,
+			},
+		},
+	} {
+		c.Logf("test min size for %s", tc.gadgetYaml)
+		s.testVolumeMinSize(c, tc.gadgetYaml, tc.volsSizes)
+	}
 }

@@ -143,10 +143,6 @@ volumes:
         size: 750M
 `
 
-func asSizePtr(sz quantity.Size) *quantity.Size {
-	return &sz
-}
-
 func (s *deviceMgrGadgetSuite) SetUpTest(c *C) {
 	classic := false
 	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
@@ -855,7 +851,6 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 					Name:       "pc",
 					Bootloader: "grub",
 					Schema:     "gpt",
-					MinSize:    asSizePtr(0),
 				},
 			},
 		},
@@ -893,7 +888,6 @@ volumes:
 					Bootloader: "grub",
 					Schema:     "gpt",
 					ID:         "123",
-					MinSize:    asSizePtr(0),
 				},
 			},
 		},
