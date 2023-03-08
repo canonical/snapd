@@ -50,13 +50,11 @@ dbus (send)
 dbus (send)
     bus=system
     path=/org/freedesktop/Accounts
-    interface=org.freedesktop.Accounts
-    peer=(label=unconfined),
+    interface=org.freedesktop.Accounts,
 dbus (send)
     bus=system
     path=/org/freedesktop/Accounts/User[0-9]*
-    interface=org.freedesktop.Accounts.User
-    peer=(label=unconfined),
+    interface=org.freedesktop.Accounts.User,
 # Read all properties from Accounts
 # do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
@@ -69,8 +67,7 @@ dbus (receive)
     bus=system
     path=/org/freedesktop/Accounts{,/User[0-9]*}
     interface=org.freedesktop.DBus.Properties
-    member=PropertiesChanged
-    peer=(label=unconfined),
+    member=PropertiesChanged,
 
 /{,usr/}sbin/chpasswd ixr,
 /{,usr/}sbin/user{add,del} ixr,
