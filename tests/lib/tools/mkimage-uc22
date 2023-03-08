@@ -63,6 +63,7 @@ get_assets() {
     cp $SNAPS "$CACHE"
 
     # get the snaps
+    local NAME
     for snap in pc-kernel pc; do        
         NAME="$(find_snap "$CACHE" "$snap")"
         if [ -z "$NAME" ]; then
@@ -96,16 +97,16 @@ get_assets() {
 
 # shellcheck disable=SC2317
 cleanup() {
+    local IMG MNT
     IMG="$(readlink -f "$1")"
     MNT="$(readlink -f "$2")"
 
-    sleep 1
-    sudo umount "$MNT"/* || true
-    sleep 1
-    sudo kpartx -d "$IMG" || true
+    retry -n 3 --wait 1 sh -c "umount \"$MNT\"/*"
+    retry -n 3 --wait 1 sh -c "kpartx -d \"$IMG\""
 }
 
 create_image() {
+    local IMG
     IMG="$(readlink -f "$1")"
 
     rm -f "$IMG"
@@ -209,6 +210,7 @@ EOF
     # clean classic-seed dir
     rm -rf ./classic-seed/
 
+    local EXTRA_SNAPS
     for mysnap in $(get_extra_snaps "$CACHE"); do
         EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
     done
@@ -383,9 +385,9 @@ cleanup() {
 
     sync
     sleep 1
-    sudo umount "$MNT"/* || true
+    umount "$MNT"/* || true
     sleep 1
-    sudo kpartx -d "$IMG" || true
+    kpartx -d "$IMG" || true
 }
 
 replace_images_files() {
