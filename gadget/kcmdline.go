@@ -23,15 +23,18 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type kargKey struct{ par, val string }
 type kernelArgsSet map[kargKey]bool
 
-// CheckCmdlineAllowed returns an error if an argument from cmdline is
-// not on a list of allowed kernel arguments. A wild card ('*') can be
-// used in the allow list for the values.
-func CheckCmdlineAllowed(cmdline string, allowedSl []osutil.KernelArgument) error {
+// FilterKernelCmdline returns a filtered command line, removing
+// arguments that are not on a list of allowed kernel arguments. A
+// wild card ('*') can be used in the allow list for the
+// values. Additionally, a string with the arguments that have been
+// filtered out is also returned.
+func FilterKernelCmdline(cmdline string, allowedSl []osutil.KernelArgument) (argsAllowed, argsDenied string) {
 	// Set of allowed arguments
 	allowed := kernelArgsSet{}
 	wildcards := map[string]bool{}
@@ -46,17 +49,28 @@ func CheckCmdlineAllowed(cmdline string, allowedSl []osutil.KernelArgument) erro
 
 	proposed := osutil.ParseKernelCommandline(cmdline)
 
+	buildArg := func(arg osutil.KernelArgument) string {
+		if arg.Value == "" {
+			return arg.Param
+		} else {
+			val := arg.Value
+			if arg.Quoted {
+				val = "\"" + arg.Value + "\""
+			}
+			return fmt.Sprintf("%s=%s", arg.Param, val)
+		}
+	}
+	in := []string{}
+	out := []string{}
 	for _, p := range proposed {
-		if allowed[kargKey{par: p.Param, val: p.Value}] {
-			continue
+		if allowed[kargKey{par: p.Param, val: p.Value}] || wildcards[p.Param] {
+			in = append(in, buildArg(p))
+		} else {
+			out = append(out, buildArg(p))
 		}
-		if wildcards[p.Param] {
-			continue
-		}
-
-		return fmt.Errorf("\"%s=%s\" is not an allowed kernel argument",
-			p.Param, p.Value)
 	}
 
-	return nil
+	argsAllowed = strutil.JoinNonEmpty(in, " ")
+	argsDenied = strutil.JoinNonEmpty(out, " ")
+	return argsAllowed, argsDenied
 }

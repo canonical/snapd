@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -99,7 +100,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		s.AddCleanup(s.mockCryptsetup.Restore)
 
 		calls := 0
-		restore := install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
+		restore := install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, encType secboot.EncryptionType, label, node string) error {
 			calls++
 			c.Assert(key, DeepEquals, s.mockedEncryptionKey)
 			c.Assert(label, Equals, "some-label-enc")
@@ -108,7 +109,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, s.mockedEncryptionKey, "some-label-enc", "some-label")
+		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, secboot.EncryptionTypeLUKS, s.mockedEncryptionKey, "some-label-enc", "some-label")
 		c.Assert(calls, Equals, 1)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)

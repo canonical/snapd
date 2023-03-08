@@ -12,11 +12,14 @@ environment:
   CACHE_D: ./cache
 
 prepare: |
-  # build gadget snap with gadget.yaml matching disk structure of the image
+  # FIXME: The gadget snap for classic is not yet available. So for
+  #        the moment, the test modifies the gadget for Ubuntu Core.
+  #        This should be removed when the classic snap is available.
   VERSION="$(tests.nested show version)"
   snap download --basename=pc --channel="$VERSION/edge" pc
   unsquashfs -d pc-gadget pc.snap
-  cp gadget.yaml pc-gadget/meta/
+  # gadget.yaml needs a different structure than for Ubuntu Core
+  python3 tweak-gadget.py pc-gadget/meta/gadget.yaml
   snap pack --filename=pc_x1.snap pc-gadget
 
   # create an image that looks like a classic image

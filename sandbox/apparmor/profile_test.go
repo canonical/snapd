@@ -26,6 +26,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -384,8 +385,10 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsNoSnippets(c *C) {
 	defer restore()
 	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
+	defer restore()
 
-	// No features, no NFS, no Overlay
+	// No features, no NFS, no Overlay, no homedirs
 	wasChanged, err := apparmor.SetupSnapConfineSnippets()
 	c.Check(err, IsNil)
 	c.Check(wasChanged, Equals, false)
@@ -397,6 +400,73 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsNoSnippets(c *C) {
 	c.Assert(files, HasLen, 0)
 }
 
+func (s *appArmorSuite) writeSystemParams(c *C, homedirs []string) {
+	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
+	conents := fmt.Sprintf("homedirs=%s\n", strings.Join(homedirs, ","))
+
+	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(sspPath, []byte(conents), 0644), IsNil)
+}
+
+func (s *appArmorSuite) TestSetupSnapConfineSnippetsHomedirs(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	restore := osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	// Setup the system-params which is read by loadHomedirs in SetupSnapConfineSnippets
+	// to verify it's correctly read and loaded.
+	s.writeSystemParams(c, []string{"/mnt/foo", "/mnt/bar"})
+
+	wasChanged, err := apparmor.SetupSnapConfineSnippets()
+	c.Check(err, IsNil)
+	c.Check(wasChanged, Equals, true)
+
+	// Homedirs was specified, so we expect an entry for each homedir in a
+	// snippet 'homedirs'
+	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 1)
+	c.Assert(files[0].Name(), Equals, "homedirs")
+	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
+	c.Assert(files[0].IsDir(), Equals, false)
+
+	c.Assert(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()),
+		testutil.FileContains, `"/mnt/foo/" -> "/tmp/snap.rootfs_*/mnt/foo/",`)
+	c.Assert(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()),
+		testutil.FileContains, `"/mnt/bar/" -> "/tmp/snap.rootfs_*/mnt/bar/",`)
+}
+
+func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyWithHomedirsLoadError(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	log, restore := logger.MockLogger()
+	defer restore()
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, fmt.Errorf("failed to load") })
+	defer restore()
+
+	wasChanged, err := apparmor.SetupSnapConfineSnippets()
+	c.Check(err, IsNil)
+	c.Check(wasChanged, Equals, false)
+
+	// Probing apparmor_parser capabilities failed, so nothing gets written
+	// to the snap-confine policy directory
+	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 0)
+
+	// But an error was logged
+	c.Assert(log.String(), testutil.Contains, "cannot determine if any homedirs are set: failed to load")
+}
+
 func (s *appArmorSuite) TestSetupSnapConfineSnippetsBPF(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
@@ -404,6 +474,8 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsBPF(c *C) {
 	restore := osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
 	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
 	defer restore()
 
 	// Pretend apparmor_parser supports bpf capability
@@ -437,6 +509,8 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyWithBPFProbeError(c *
 	defer restore()
 	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
+	defer restore()
 
 	// Probing for apparmor_parser features failed
 	restore = apparmor.MockFeatures(nil, nil, nil, fmt.Errorf("mock probe error"))
@@ -465,6 +539,8 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsOverlay(c *C) {
 	defer restore()
 	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
+	defer restore()
 
 	wasChanged, err := apparmor.SetupSnapConfineSnippets()
 	c.Check(err, IsNil)
@@ -492,6 +568,8 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsNFS(c *C) {
 	restore := osutil.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
 	defer restore()
 	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
 	defer restore()
 
 	wasChanged, err := apparmor.SetupSnapConfineSnippets()
@@ -526,6 +604,10 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 
 	// Make it appear as if overlay was not used.
 	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
+	// No homedirs
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
 	defer restore()
 
 	wasChanged, err := apparmor.SetupSnapConfineSnippets()
@@ -575,6 +657,10 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 
 	// Make it appear as if overlay was not used.
 	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
+	// No homedirs
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
 	defer restore()
 
 	// Create the snap-confine directory and put a file. Because the file name
