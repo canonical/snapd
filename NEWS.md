@@ -5,7 +5,7 @@
 * Support for arbitrary home dir locations via snap configuration
 * New nvidia-drivers-support interface
 * Support for udisks2 snap
-* Pre-download of snaps read for refresh and automatic refresh of the snap
+* Pre-download of snaps ready for refresh and automatic refresh of the snap
   when all apps are closed
 * New microovn interface
 * Support uboot with `CONFIG_SYS_REDUNDAND_ENV=n`
@@ -13,6 +13,6 @@
 * Update the fwupd interface to support fully confined fwupd
 * The memory,cpu,thread quota options are no longer experimental
 * Support debugging snap client requests via the `SNAPD_CLIENT_DEBUG_HTTP`
-  environemnt variable
+  environment variable
 * Support ssh listen-address via snap configuration
 * Support for quotas on single services
