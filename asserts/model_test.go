@@ -1204,7 +1204,7 @@ func (mods *modelSuite) TestValidationSetsDecodeInvalid(c *C) {
 		// invalid format 2
 		{`validation-sets:
   - test
-`, "assertion model: \"validation-sets\" must contain a list of validation sets"},
+`, "assertion model: entry in \"validation-sets\" is not a valid validation-set"},
 		// missing name
 		{`validation-sets:
   -

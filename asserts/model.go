@@ -707,10 +707,10 @@ func checkModelValidationSetAccountID(headers map[string]interface{}, what, bran
 	return accountID, nil
 }
 
-// checkModelValidationSetSequence reads the optional 'sequence' member, if
+// checkOptionalModelValidationSetSequence reads the optional 'sequence' member, if
 // not set, returns 0 as this means unpinned. Unfortunately we are not able
 // to reuse `checkSequence` as it operates inside different parameters.
-func checkModelValidationSetSequence(headers map[string]interface{}, what string) (int, error) {
+func checkOptionalModelValidationSetSequence(headers map[string]interface{}, what string) (int, error) {
 	// Default to 0 when the sequence header is not present
 	if _, ok := headers["sequence"]; !ok {
 		return 0, nil
@@ -753,7 +753,7 @@ func checkModelValidationSet(headers map[string]interface{}, brandID string) (*M
 	}
 
 	what = fmt.Sprintf("of validation-set \"%s/%s\"", accountID, name)
-	seq, err := checkModelValidationSetSequence(headers, what)
+	seq, err := checkOptionalModelValidationSetSequence(headers, what)
 	if err != nil {
 		return nil, err
 	}
@@ -787,7 +787,7 @@ func checkOptionalModelValidationSets(headers map[string]interface{}, brandID st
 	for i, entry := range entries {
 		data, ok := entry.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf(`"validation-sets" must contain a list of validation sets`)
+			return nil, fmt.Errorf(`entry in "validation-sets" is not a valid validation-set`)
 		}
 
 		vs, err := checkModelValidationSet(data, brandID)
