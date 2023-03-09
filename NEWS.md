@@ -1,12 +1,13 @@
 # New in snapd 2.59:
 
-* Extra kernel command line via snap configuration
+* Support setting extra kernel command line parameters via snap
+  configuration and under a gadget allow-list
 * Support for Full-Disk-Encryption using ICE
 * Support for arbitrary home dir locations via snap configuration
 * New nvidia-drivers-support interface
 * Support for udisks2 snap
-* Pre-download of snaps ready for refresh and automatic refresh of the snap
-  when all apps are closed
+* Pre-download of snaps ready for refresh and automatic refresh of the
+  snap when all apps are closed
 * New microovn interface
 * Support uboot with `CONFIG_SYS_REDUNDAND_ENV=n`
 * Make "snap-preseed --reset" re-exec when needed
