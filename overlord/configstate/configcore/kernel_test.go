@@ -158,12 +158,12 @@ func (s *kernelSuite) mockEarlyConfig() {
 	s.AddCleanup(func() { devicestate.EarlyConfig = nil })
 }
 
-func (s *kernelSuite) mockModel(grade string) {
+func (s *kernelSuite) mockModelWithModeenv(grade string, isClassic bool) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	// model setup
-	model := s.Brands.Model("my-brand", "pc", map[string]interface{}{
+	extras := map[string]interface{}{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        grade,
@@ -181,7 +181,12 @@ func (s *kernelSuite) mockModel(grade string) {
 				"default-channel": "20",
 			},
 		},
-	})
+	}
+	if isClassic {
+		extras["classic"] = "true"
+		extras["distribution"] = "ubuntu"
+	}
+	model := s.Brands.Model("my-brand", "pc", extras)
 
 	assertstatetest.AddMany(s.state, model)
 
@@ -232,8 +237,8 @@ type cmdlineOption struct {
 	cmdline string
 }
 
-func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOption, modelGrade string) {
-	s.mockModel(modelGrade)
+func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOption, modelGrade string, isClassic bool) {
+	s.mockModelWithModeenv(modelGrade, isClassic)
 	s.mockGadget(c)
 	doHandlerCalls := 0
 	extraChange := true
@@ -357,31 +362,44 @@ func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOpti
 	}
 }
 
-func (s *kernelSuite) TestConfigureKernelCmdlineDangGrade(c *C) {
+func (s *kernelSuite) TestConfigureKernelCmdlineDangerousGrade(c *C) {
+	const isClassic = false
 	s.testConfigureKernelCmdlineHappy(c,
 		[]cmdlineOption{{
 			name:    "system.kernel.cmdline-append",
 			cmdline: "par=val param"}},
-		"dangerous")
+		"dangerous", isClassic)
+}
+
+func (s *kernelSuite) TestConfigureKernelCmdlineDangerousGradeClassic(c *C) {
+	const isClassic = true
+	s.testConfigureKernelCmdlineHappy(c,
+		[]cmdlineOption{{
+			name:    "system.kernel.cmdline-append",
+			cmdline: "par=val param"}},
+		"dangerous", isClassic)
 }
 
 func (s *kernelSuite) TestConfigureKernelCmdlineSignedGrade(c *C) {
+	const isClassic = false
 	s.testConfigureKernelCmdlineHappy(c,
 		[]cmdlineOption{{
 			name:    "system.kernel.cmdline-append",
 			cmdline: "par=val param star=val"}},
-		"signed")
+		"signed", isClassic)
 }
 
-func (s *kernelSuite) TestConfigureKernelCmdlineDangGradeDangCmdline(c *C) {
+func (s *kernelSuite) TestConfigureKernelCmdlineDangerousGradeDangerousCmdline(c *C) {
+	const isClassic = false
 	s.testConfigureKernelCmdlineHappy(c,
 		[]cmdlineOption{{
 			name:    "system.kernel.dangerous-cmdline-append",
 			cmdline: "par=val param"}},
-		"dangerous")
+		"dangerous", isClassic)
 }
 
 func (s *kernelSuite) TestConfigureKernelCmdlineBothOptions(c *C) {
+	const isClassic = false
 	s.testConfigureKernelCmdlineHappy(c,
 		[]cmdlineOption{
 			{
@@ -391,19 +409,21 @@ func (s *kernelSuite) TestConfigureKernelCmdlineBothOptions(c *C) {
 				name:    "system.kernel.dangerous-cmdline-append",
 				cmdline: "dang_par=dang_val dang_param"},
 		},
-		"dangerous")
+		"dangerous", isClassic)
 }
 
-func (s *kernelSuite) TestConfigureKernelCmdlineSignedGradeDangCmdline(c *C) {
+func (s *kernelSuite) TestConfigureKernelCmdlineSignedGradeDangerousCmdline(c *C) {
+	const isClassic = false
 	s.testConfigureKernelCmdlineHappy(c,
 		[]cmdlineOption{{
 			name:    "system.kernel.dangerous-cmdline-append",
 			cmdline: "par=val param"}},
-		"signed")
+		"signed", isClassic)
 }
 
 func (s *kernelSuite) TestConfigureKernelCmdlineConflict(c *C) {
-	s.mockModel("dangerous")
+	isClassic := false
+	s.mockModelWithModeenv("dangerous", isClassic)
 
 	cmdline := "param1=val1"
 	s.state.Lock()
@@ -421,12 +441,13 @@ func (s *kernelSuite) TestConfigureKernelCmdlineConflict(c *C) {
 
 	rt.Set("core", "system.kernel.dangerous-cmdline-append", cmdline)
 
-	err := configcore.Run(coreDev, rt)
+	err := configcore.Run(core20Dev, rt)
 	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
 }
 
 func (s *kernelSuite) testConfigureKernelCmdlineSignedGradeNotAllowed(c *C, cmdline string) {
-	s.mockModel("signed")
+	isClassic := false
+	s.mockModelWithModeenv("signed", isClassic)
 	s.mockGadget(c)
 
 	s.state.Lock()
@@ -440,7 +461,7 @@ func (s *kernelSuite) testConfigureKernelCmdlineSignedGradeNotAllowed(c *C, cmdl
 
 	rt.Set("core", "system.kernel.cmdline-append", cmdline)
 
-	err := configcore.Run(coreDev, rt)
+	err := configcore.Run(core20Dev, rt)
 	c.Assert(err.Error(), Equals, fmt.Sprintf("%q is not allowed in the kernel command line by the gadget", cmdline))
 }
 

@@ -25,7 +25,7 @@ package spdx
 //
 // jq < json/licenses.json '.licenses | .[] | select(.isOsiApproved == true) | .licenseId' | sort | sed -e 's/$/,/'
 //
-//nolint:deadcode,unused
+//nolint:unused
 var osi = []string{
 	"0BSD",
 	"AAL",

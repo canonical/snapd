@@ -4,18 +4,7 @@ systems: [ubuntu-20*, ubuntu-22*]
 
 prepare: |
   echo "Install lxd"
-  snap install lxd
-
-  lxd waitready
-  lxd init --auto
-
-  echo "Setting up proxy for lxc"
-  if [ -n "${http_proxy:-}" ]; then
-      lxd.lxc config set core.proxy_http "$http_proxy"
-  fi
-  if [ -n "${https_proxy:-}" ]; then
-      lxd.lxc config set core.proxy_https "$http_proxy"
-  fi
+  "$TESTSTOOLS"/lxd-state prepare-snap
 
   # There isn't an official image for lunar yet, let's use the community one
   if os.query is-ubuntu 23.04; then
