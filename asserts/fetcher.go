@@ -27,7 +27,6 @@ import (
 type fetchProgress int
 
 const (
-	//nolint:deadcode
 	fetchNotSeen fetchProgress = iota
 	fetchRetrieved
 	fetchSaved
