@@ -114,7 +114,7 @@ The following labels are commonly used:
   but they're useful to test a PR  against certain operating system traits that
   might otherwise be missed.
 - `Skip spread`: instructs our CI system to not run any spread tests. Only unit
-  tests will be executed. Use this only when a PR changes code in the unit tests.
+  tests will be executed. Use this when a PR only changes code in the unit tests.
   Do not use this flag if any production code changes.
 
 ### Pull request updates
@@ -135,7 +135,7 @@ and submit any requested changes as additional commits. This helps reviewers to
 see exactly what has changed since the last review without requesting them to
 review all the changes.
 
-Two approvals are required for a PR to be merged. A PR can then be merged into the "main" branch.
+Two approvals are required for a PR to be merged. A PR can then be merged into the main branch.
 
 On merging, you can rework the branch history as you see fit. Consider
 squashing commits from the original PR with those made during the review
@@ -143,7 +143,7 @@ process, for example. A [force push][git-force] will be required if you do
 this.
 
 Start a [rebase][github-rebase] from the original parent commit of your first
-commit. Ensure you do not rebase on-top of the current "main" as this means
+commit. Ensure you do not rebase on top of the current main as this means
 changes from the _main_ branch will be shown in the GitHub UI as part of your
 changes, making the verification more confusing.
 
@@ -154,7 +154,7 @@ history.
 
 [1]: http://www.ubuntu.com/legal/contributors
 [pull-request]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request-from-a-fork
-[fork]: https://git-scm.com/docs/git-bisect
+[fork]: https://docs.github.com/en/get-started/quickstart/fork-a-repo#forking-a-repository
 [github-pr]: https://docs.github.com/en/github/collaborating-with-pull-requests
 [pr-gist]: https://gist.github.com/Chaser324/ce0505fbed06b947d962
 [linear-git]: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/about-protected-branches#require-linear-history
