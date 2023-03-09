@@ -135,7 +135,7 @@ and submit any requested changes as additional commits. This helps reviewers to
 see exactly what has changed since the last review without requesting them to
 review all the changes.
 
-Two approvals are required for a PR to be merged. A PR can then be merged into the "master" branch.
+Two approvals are required for a PR to be merged. A PR can then be merged into the "main" branch.
 
 On merging, you can rework the branch history as you see fit. Consider
 squashing commits from the original PR with those made during the review
@@ -143,12 +143,12 @@ process, for example. A [force push][git-force] will be required if you do
 this.
 
 Start a [rebase][github-rebase] from the original parent commit of your first
-commit. Ensure you do not  rebase on-top of the current "master" as this means
-changes from the _master_ branch will be shown in the GitHub UI as part of your
+commit. Ensure you do not  rebase on-top of the current "main" as this means
+changes from the _main_ branch will be shown in the GitHub UI as part of your
 changes, making the verification more confusing.
 
 Merging using GitHub's [Rebase and merge][github-rebase-merge] command will
-replay your commits on top of the current master. This ensures a linear git
+replay your commits on top of the current main. This ensures a linear git
 history.
 
 
