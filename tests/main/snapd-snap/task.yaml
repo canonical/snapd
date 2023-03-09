@@ -25,6 +25,8 @@ systems:
     # locale, see https://bugs.launchpad.net/snapcraft/+bug/1922140
     # a separate error occurs on centos 8, see https://bugs.launchpad.net/snapcraft/+bug/1922981
     - -centos-*
+    # ubuntu-14.04-64: is not supported to build on
+    - -ubuntu-14.04-64
     # ubuntu-18.04-32: i386 is not supported by lxd
     # TODO: enable i386 by using lxd 3.0, currently snapcraft is failing to get the
     #       lxd image when it is trying to build snapd

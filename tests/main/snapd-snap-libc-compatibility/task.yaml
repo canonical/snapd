@@ -65,11 +65,12 @@ execute: |
     echo "Unsquash the snapd snap"
     unsquashfs snapd_spread-test.snap
 
+    PLATFORM=$(uname -p)
     # We now check that the programs in the snap don't use any glibc symbols
     # which are absent from our libc version
-    echo "Get glibc simbols"
+    echo "Get glibc symbols"
     # shellcheck disable=SC2207
-    AVAILABLE_SYMBOLS=($(objdump -p /lib/x86_64-linux-gnu/libc*.so.6 \
+    AVAILABLE_SYMBOLS=($(objdump -p /lib/"$PLATFORM"-linux-gnu/libc*.so.6 \
         | grep -A 100 "Version definitions:" \
         | grep -e "^\s*GLIBC_[0-9]" \
         | sed 's/.* (\(GLIBC_[0-9.]*\)) .*/\1/'
