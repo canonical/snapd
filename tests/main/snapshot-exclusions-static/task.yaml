@@ -1,4 +1,4 @@
-summary: Check that the basic snapshots functionality is ok
+summary: Check the basic static snapshot data exclusion functionality
 
 environment:
     # tar invoked when creating snapshots triggers OOM
