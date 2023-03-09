@@ -37,7 +37,7 @@ Before merging any changes into the snapd codebase, we need to verify that the
 proposed functionality and code quality does not degrade the functionality and
 quality requirement we've set for the project.
 
-For each PR, we run checks in three different groups: static, unit and spread:
+For each PR, we run checks in three different groups: static, unit and spread.
 
 Static tests use several code analysis tools present in the GoLang ecosystem
 (go vet, go lint and go fmt) to make sure that the code always aligns with
@@ -90,7 +90,7 @@ The following labels are commonly used:
   documentation changes, either internally (to this repository) or externally.
 - `Needs documentation`: not to be confused with the above. This label needs to
   be added when a PR introduces new features which need to be documented for
-  our users, or if the PR changes the behaviour of an already documented
+  our users, or if the PR changes the behaviour of already documented
   features (though this should almost never happen).
   * Our user-facing documentation can be found here: https://snapcraft.io/docs
   * The PR description must explain any required documentation changes.
@@ -102,7 +102,7 @@ The following labels are commonly used:
   a [draft PR][github-draft] to avoid the risk of other reviewers wasting time
   on something that has not been agreed upon.
 - `Needs Samuele review`: Samuele (@pedronis) is our architect, and this label
-  will summon his attention. Do not use unless you want @pedronis to review
+  will summon his attention. Do not use it unless you want @pedronis to review
   your branch. If making big or deep changes, then ping Samuele in advance. The
   tag will then be added if necessary.
 - `Needs security review`: similar to above, but with a security focus. If your
@@ -122,7 +122,7 @@ The following labels are commonly used:
 Feel free to [rebase][github-rebase], rework commits, and [force
 push][git-force] to your branch while a PR is waiting for its first review.
 
-However, iff you are still making significant changes during this waiting
+However, if you are still making significant changes during this waiting
 phase, it's a good idea to keep the PR as a [draft][github-draft]. This stops
 reviewers from looking at code you may not be confident about. Set the PR as
 "Ready for review" when you do feel confident.
@@ -143,7 +143,7 @@ process, for example. A [force push][git-force] will be required if you do
 this.
 
 Start a [rebase][github-rebase] from the original parent commit of your first
-commit. Ensure you do not  rebase on-top of the current "main" as this means
+commit. Ensure you do not rebase on-top of the current "main" as this means
 changes from the _main_ branch will be shown in the GitHub UI as part of your
 changes, making the verification more confusing.
 
