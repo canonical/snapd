@@ -4,6 +4,9 @@ Hacking on `snapd` is fun and straightforward. The code is extensively unit
 tested and we use the [spread](https://github.com/snapcore/spread)
 integration test framework for the integration/system level tests.
 
+For non-technical details on contributing to the project, including how to
+approach a pull request, see [Contributing to snapd](./CONTRIBUTING.md).
+
 ## Setting up
 
 ### Supported Ubuntu distributions
@@ -33,7 +36,7 @@ directory.
     cd snapd
 
 This will allow you to build and test `snapd`. If you wish to contribute to
-the `snapd` project, please see the [Contributing section](#contributing).
+the `snapd` project, please see [Contributing to snapd](./CONTRIBUTING.md).
 
 > For more details about source-code structure of `snapd` please read about
 [Managing module source](https://go.dev/doc/modules/managing-source) in Go.
@@ -283,49 +286,6 @@ File Attributes
   Tag_CPU_arch: v7
   Tag_FP_arch: VFPv3-D16
 ```
-
-## Contributing
-
-Contributions are always welcome!
-
-Please make sure that you sign the Canonical contributor agreement [here](
-http://www.ubuntu.com/legal/contributors).
-
-Complete requirements can be found in [CONTRIBUTING.md](./CONTRIBUTING.md).
-
-### Guidelines for contributors
-
-There are few guidelines that contributors should follow:
-
-- Commit messages should be well structured.
-- Commit emails should not have non-ASCII characters.  
-- PR title should start with a prefix denoting the scope affected by the changes
-(e.g. `<feature name>`,`<package name>`) followed by a semicolon.    
-- Try to open several smaller PRs, rather than one large PR.
-- Try not to mix controversial and trivial changes together.  
-  (_Proposing trivial changes separately makes landing them easier and 
-  makes reviewing the controversial changes simpler_)
-- Try not to force push to PRs after they have gotten reviews.
-- Try to write tests to cover the contributed changes.
-- Write idiomatic Go (refer to [Effective Go](https://go.dev/doc/effective_go) etc).
-- Exported names should have documentation comments.
-- [CODING.md](CODING.md) contains a more extensive checklist of points
-  to take into account when coding or reviewing code for the project.
-
->If you need any help with any of these guidelines, please reach out to the team.
-
-### Creating Pull Requests
-
-Contributions are submitted through a 
-[Pull Request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request-from-a-fork) 
-created from a 
-[fork](https://docs.github.com/en/get-started/quickstart/fork-a-repo#forking-a-repository) 
-of the `snapd` repository (under your GitHub account).
-
->This complete process is outlined in details in the [GitHub documentation](
-https://docs.github.com/en/github/collaborating-with-pull-requests). 
-However, for a more concise and yet very informative version try 
-[this GitHub gist](https://gist.github.com/Chaser324/ce0505fbed06b947d962). 
 
 ## Testing
 
