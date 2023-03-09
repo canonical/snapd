@@ -79,7 +79,7 @@ like [git bisect][git-bisect] work intuitively.
 ### Labels
 
 We add [GitHub labels][github-labels] to a PR for both organisational purposes
-and to alter specific CI behaviour.
+and to alter specific CI behaviour. Only project maintainers can add labels.
 
 The following labels are commonly used:
 
