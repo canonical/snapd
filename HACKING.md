@@ -345,7 +345,7 @@ To run the various tests that we have to ensure a high quality source just run:
     ./run-checks
 
 This will check if the source format is consistent, that it builds, all tests
-work as expected and that "go vet" has nothing to complain.
+work as expected and that "go vet" has nothing to complain about.
 
 The source format follows the `gofmt -s` formating. Please run this on your 
 source files if `run-checks` complains about the format.
@@ -401,7 +401,7 @@ Assuming you are building on Ubuntu 18.04 LTS ([Bionic Beaver](https://releases.
     $ autopkgtest-buildvm-ubuntu-cloud -r <release-short-name>
     $ mv autopkgtest-<release-short-name>-amd64.img ubuntu-<release-version>-64.img  
 
-For the correct values of `<release-short-name>` and `<release-version>`, pleaser refer
+For the correct values of `<release-short-name>` and `<release-version>`, please refer
 to the official list of [Ubuntu releases](https://wiki.ubuntu.com/Releases). 
 
 > `<release-short-name>` is the first word in the release's full name, 
@@ -477,10 +477,11 @@ the testing one. Don't forget to roll back to the original, after you finish tes
 
 Nested tests are used to validate features that cannot be tested with the regular tests.
 
-The nested test suites work different from the other test suites in snapd. In this case each test runs in a new image
-which is created following the rules defined for the test.
+The nested test suites work differently from the other test suites in snapd. In
+this case each test runs in a new image which is created following the rules
+defined for the test.
 
-The nested tests are executed using [spread framework](#downloading-spread-framework). 
+The nested tests are executed using the [spread framework](#downloading-spread-framework). 
 See the following examples using the QEMU and Google backends.
 
 - _QEMU_: `spread qemu-nested:ubuntu-20.04-64:tests/nested/core20/tpm`  
@@ -506,7 +507,7 @@ Nested test suite is composed by the following 4 suites:
 - _manual_: tests on this suite create a non generic image with specific conditions
 
 The nested suites use some environment variables to configure the suite 
-and the tests inside it. The most important ones are described bellow:
+and the tests inside it. The most important ones are described below:
 
 - `NESTED_WORK_DIR`: path to the directory where all the nested assets and images are stored
 - `NESTED_TYPE`: use core for Ubuntu Core nested systems or classic instead.
