@@ -32,6 +32,8 @@ snap_suffix(){
         echo "-core20"
     elif os.query is-core22; then
         echo "-core22"
+    elif os.query is-core24; then
+        echo "-core24"
     fi
 }
 
