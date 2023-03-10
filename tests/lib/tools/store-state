@@ -43,16 +43,16 @@ init_fake_refreshes(){
 }
 
 make_snap_installable(){
-    ACK=true
-    EXTRA_DECL_JSON_FILE=""
+    local ack=true
+    local extra_decl_json_file=""
     while [ $# -gt 0 ]; do
         case "$1" in
             (--noack) 
-                ACK=false
+                ack=false
                 shift
                 ;;
             (--extra-decl-json)
-                EXTRA_DECL_JSON_FILE="$2"
+                extra_decl_json_file="$2"
                 shift 2
                 ;;
             (*)
@@ -70,10 +70,7 @@ make_snap_installable(){
             snap install remarshal
         fi
         if ! command -v jq; then
-            #shellcheck source=tests/lib/core-config.sh
-            . "$TESTSLIB"/core-config.sh
-
-            SUFFIX="$(get_test_snap_suffix)"
+            SUFFIX="$(snaps.name snap-suffix)"
             snap install "jq$SUFFIX"
         fi
 
@@ -91,10 +88,10 @@ make_snap_installable(){
 }
 EOF
 
-        if [ -n "$EXTRA_DECL_JSON_FILE" ]; then
+        if [ -n "$extra_decl_json_file" ]; then
             # then we need to combine the extra snap declaration json with the one
             # we just wrote
-            jq -s '.[0] * .[1]' <(cat /tmp/snap-decl.json) <(cat "$EXTRA_DECL_JSON_FILE") > /tmp/snap-decl.json.tmp
+            jq -s '.[0] * .[1]' <(cat /tmp/snap-decl.json) <(cat "$extra_decl_json_file") > /tmp/snap-decl.json.tmp
             mv /tmp/snap-decl.json.tmp /tmp/snap-decl.json
         fi
 
@@ -107,16 +104,17 @@ EOF
     fi
 
     # NOTE: snap id and snap name are derived from snap file name
-    SNAP_DECL_JSON_PARAM=""
-    SNAP_REV_JSON_PARAM=""
+    local snap_decl_json_param=""
+    local snap_rev_json_param=""
     if [ -n "$snap_id" ]; then
-        SNAP_DECL_JSON_PARAM="--snap-decl-json=/tmp/snap-decl.json"
-        SNAP_REV_JSON_PARAM="--snap-rev-json=/tmp/snap-rev.json"
+        snap_decl_json_param="--snap-decl-json=/tmp/snap-decl.json"
+        snap_rev_json_param="--snap-rev-json=/tmp/snap-rev.json"
     fi
-    p_decl=$(fakestore new-snap-declaration --dir "$dir" "$snap_path" "$SNAP_DECL_JSON_PARAM")
-    p_rev=$(fakestore new-snap-revision --dir "$dir" "$snap_path" "$SNAP_REV_JSON_PARAM")
+    local p_decl p_rev
+    p_decl=$(fakestore new-snap-declaration --dir "$dir" "$snap_path" "$snap_decl_json_param")
+    p_rev=$(fakestore new-snap-revision --dir "$dir" "$snap_path" "$snap_rev_json_param")
 
-    if [ "$ACK" = "true" ]; then
+    if [ "$ack" = "true" ]; then
         snap ack "$p_decl"
         snap ack "$p_rev"
     fi
@@ -142,21 +140,21 @@ setup_fake_store(){
     
     # When a controlled store service is up
     # Create fakestore at the given port
-    https_proxy=${https_proxy:-}
-    http_proxy=${http_proxy:-}
-    PORT="11028"
-    systemd-run --unit fakestore --setenv SNAPD_DEBUG=1 --setenv SNAPD_DEBUG_HTTP=7 --setenv SNAPPY_TESTING=1 --setenv SNAPPY_USE_STAGING_STORE="$SNAPPY_USE_STAGING_STORE" fakestore run --dir "$top_dir" --addr "localhost:$PORT" --https-proxy="${https_proxy}" --http-proxy="${http_proxy}" --assert-fallback
+    local https_proxy=${https_proxy:-}
+    local http_proxy=${http_proxy:-}
+    local port="11028"
+    systemd-run --unit fakestore --setenv SNAPD_DEBUG=1 --setenv SNAPD_DEBUG_HTTP=7 --setenv SNAPPY_TESTING=1 --setenv SNAPPY_USE_STAGING_STORE="$SNAPPY_USE_STAGING_STORE" fakestore run --dir "$top_dir" --addr "localhost:$port" --https-proxy="${https_proxy}" --http-proxy="${http_proxy}" --assert-fallback
 
     # Configure snapd to use the controlled store
-    _configure_store_backends "SNAPPY_FORCE_API_URL=http://localhost:$PORT" "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
+    _configure_store_backends "SNAPPY_FORCE_API_URL=http://localhost:$port" "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
 
     # Wait until fake store is ready
-    if "$TESTSTOOLS"/network-state wait-listen-port "$PORT"; then
+    if "$TESTSTOOLS"/network-state wait-listen-port "$port"; then
         return 0
     fi
 
     echo "store-state: fakestore service not started properly"
-    ss -ntlp | grep "127.0.0.1:$PORT" || true
+    ss -ntlp | grep "127.0.0.1:$port" || true
     "$TESTSTOOLS"/journal-state get-log -u fakestore || true
     systemctl status fakestore || true
     return 1
@@ -175,7 +173,7 @@ teardown_fake_store(){
     systemctl reset-failed fakestore || true
 
     if [ "$REMOTE_STORE" = "staging" ]; then
-        "$TESTSTOOLS"/store-state setup-staging-store
+        setup_staging_store
     else
         systemctl stop snapd.service snapd.socket
         rm -rf "$STORE_CONFIG" "$top_dir"
@@ -190,8 +188,8 @@ main() {
         exit 0
     fi
 
-    subcommand=$1
-    action=
+    local subcommand=$1
+    local action=
     while [ $# -gt 0 ]; do
         case "$1" in
             -h|--help)
