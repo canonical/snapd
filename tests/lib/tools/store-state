@@ -77,7 +77,7 @@ make_snap_installable(){
             snap install "jq$SUFFIX"
         fi
 
-        # unsquash the snap to get it's name
+        # unsquash the snap to get its name
         unsquashfs -d /tmp/snap-squashfs "$snap_path" meta/snap.yaml
         snap_name=$(yaml2json < /tmp/snap-squashfs/meta/snap.yaml | jq -r .name)
         rm -rf /tmp/snap-squashfs
