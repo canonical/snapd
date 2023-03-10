@@ -2182,7 +2182,13 @@ func (s *firstBoot16Suite) mockServer(c *C, reqID string) *httptest.Server {
 		ExpectedCapabilities: "serial-stream",
 	}
 
-	return devicestatetest.MockDeviceService(c, bhv)
+	mockServer, extraCerts := devicestatetest.MockDeviceService(c, bhv)
+	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
+	err := os.MkdirAll(filepath.Dir(fname), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fname, extraCerts, 0644)
+	c.Assert(err, IsNil)
+	return mockServer
 }
 
 func (s *firstBoot16Suite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {

@@ -127,16 +127,17 @@ func maybeEncryptPartition(laidOut *gadget.LaidOutStructure, encryptionType secb
 		logger.Noticef("encrypting partition device %v", laidOut.Node)
 		var dataPart encryptedDevice
 		switch encryptionType {
-		case secboot.EncryptionTypeLUKS:
-			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", laidOut.Role()),
-				fmt.Sprintf("Create encryption device for %s", laidOut.Role()),
+		case secboot.EncryptionTypeLUKS, secboot.EncryptionTypeLUKSWithICE:
+			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s] (%v)", laidOut.Role(), encryptionType),
+				fmt.Sprintf("Create encryption device for %s (%s)", laidOut.Role(), encryptionType),
 				func(timings.Measurer) {
-					dataPart, err = newEncryptedDeviceLUKS(&laidOut.OnDiskStructure, encryptionKey, laidOut.PartitionFSLabel, laidOut.Name())
+					dataPart, err = newEncryptedDeviceLUKS(&laidOut.OnDiskStructure, encryptionType, encryptionKey, laidOut.PartitionFSLabel, laidOut.Name())
 				})
 			if err != nil {
 				return nil, nil, err
 			}
 
+			//TODO:ICE: device-setup hook support goes away
 		case secboot.EncryptionTypeDeviceSetupHook:
 			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device-setup-hook[%s]", laidOut.Role()),
 				fmt.Sprintf("Create encryption device for %s using device-setup-hook", laidOut.Role()),
@@ -286,7 +287,7 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 
 func createEncryptionParams(encTyp secboot.EncryptionType) gadget.StructureEncryptionParameters {
 	switch encTyp {
-	case secboot.EncryptionTypeLUKS:
+	case secboot.EncryptionTypeLUKS, secboot.EncryptionTypeLUKSWithICE:
 		return gadget.StructureEncryptionParameters{
 			Method: gadget.EncryptionLUKS,
 		}
@@ -732,7 +733,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	if options.EncryptionType != secboot.EncryptionTypeNone {
 		var encryptionParam gadget.StructureEncryptionParameters
 		switch options.EncryptionType {
-		case secboot.EncryptionTypeLUKS:
+		case secboot.EncryptionTypeLUKS, secboot.EncryptionTypeLUKSWithICE:
 			encryptionParam = gadget.StructureEncryptionParameters{Method: gadget.EncryptionLUKS}
 		default:
 			// XXX what about ICE?

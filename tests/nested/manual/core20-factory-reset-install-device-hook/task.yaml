@@ -163,10 +163,10 @@ execute: |
     # add || true in case the SSH connection is broken while executing this
     # since this command causes an immediate reboot
     remote.exec "sudo snap reboot --factory-reset" || true
-    tests.nested wait-for reboot "${BOOT_ID}"
+    remote.wait-for reboot "${BOOT_ID}"
 
     # wait for the system to get setup and finish seeding
-    tests.nested wait-for snap-command
+    remote.wait-for snap-command
     retry -n 10 --wait 2 remote.exec "sudo snap wait system seed.loaded"
 
     # wait up to two minutes for serial registration

@@ -485,6 +485,7 @@ func UpdateHomedirsTunable(homedirs []string) error {
 			fmt.Fprintf(contents, `%s"%s"`, separator, dir)
 			separator = " "
 		}
+		contents.Write([]byte("\n"))
 	}
 	return osutilAtomicWrite(tunableFilePath, contents, 0644, 0)
 }

@@ -21,6 +21,7 @@ package devicestatetest
 
 import (
 	"bytes"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
@@ -60,7 +61,7 @@ const (
 	serialURLPath    = "/api/v1/snaps/auth/devices"
 )
 
-func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
+func MockDeviceService(c *C, bhv *DeviceServiceBehavior) (mockServer *httptest.Server, extraPemEncodedCerts []byte) {
 	expectedUserAgent := snapdenv.UserAgent()
 
 	// default URL paths
@@ -75,7 +76,8 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 
 	var mu sync.Mutex
 	count := 0
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// TODO: extract handler func
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// check.Assert here will produce harder to understand failure
 		// modes
 
@@ -252,4 +254,14 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 			}
 		}
 	}))
+	pemEncodedCerts := bytes.NewBuffer(nil)
+	for _, c1 := range server.TLS.Certificates {
+		block := &pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: c1.Certificate[0],
+		}
+		err := pem.Encode(pemEncodedCerts, block)
+		c.Assert(err, IsNil)
+	}
+	return server, pemEncodedCerts.Bytes()
 }

@@ -20,12 +20,7 @@ prepare: |
         apt autoremove -y lxd
     fi
     echo "Install lxd"
-    snap install lxd --channel="$LXD_SNAP_CHANNEL"
-
-    echo "Create a trivial container using the lxd snap"
-    snap set lxd waitready.timeout=240
-    lxd waitready
-    lxd init --auto
+    "$TESTSTOOLS"/lxd-state prepare-snap
 
     # There isn't an official image for lunar yet, let's use the community one
     if os.query is-ubuntu 23.04; then

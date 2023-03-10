@@ -63,11 +63,10 @@ func init() {
 	addWithStateHandler(validateAutomaticSnapshotsExpiration, nil, validateOnly)
 
 	// netplan.*
-	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, &flags{coreOnlyConfig: true})
+	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, coreOnly)
 
 	// kernel.{,dangerous-}cmdline-append
-	// TODO we actually want this on classic with modes too
-	addWithStateHandler(validateCmdlineAppend, handleCmdlineAppend, coreOnly)
+	addWithStateHandler(validateCmdlineAppend, handleCmdlineAppend, &flags{modeenvOnlyConfig: true})
 }
 
 // RunTransaction is an interface describing how to access
@@ -175,6 +174,9 @@ func applyHandlers(dev sysconfig.Device, cfg RunTransaction, handlers []configHa
 
 	for _, h := range handlers {
 		if h.flags().coreOnlyConfig && dev.Classic() {
+			continue
+		}
+		if h.flags().modeenvOnlyConfig && !dev.HasModeenv() {
 			continue
 		}
 		if err := h.handle(dev, cfg, nil); err != nil {

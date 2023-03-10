@@ -85,7 +85,7 @@ execute: |
 
     # the start-vm command just waits for SSH, it doesn't wait for the other 
     # things here, so wait for those too
-    tests.nested wait-for snap-command
+    remote.wait-for snap-command
     # Wait for snap seeding to be done
     remote.exec "sudo snap wait system seed.loaded"
     # Wait for cloud init to be done

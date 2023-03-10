@@ -3,10 +3,7 @@ summary: certain layout configuration prevents snapd from removing a snap
 systems: [ubuntu-18.04-64] # tight coupling with container guest
 
 prepare: |
-    snap install lxd --channel="$LXD_SNAP_CHANNEL"
-    snap set lxd waitready.timeout=240
-    lxd waitready
-    lxd init --auto
+    "$TESTSTOOLS"/lxd-state prepare-snap
     lxc launch --quiet "ubuntu:18.04" bionic
     lxc exec bionic -- apt autoremove --purge -y snapd ubuntu-core-launcher
     lxc exec bionic -- apt update

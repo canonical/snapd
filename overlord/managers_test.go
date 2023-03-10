@@ -6598,8 +6598,13 @@ func (s *mgrsSuiteCore) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 		SignSerial:       signSerial,
 	}
 
-	mockServer := devicestatetest.MockDeviceService(c, bhv)
+	mockServer, extraCerts := devicestatetest.MockDeviceService(c, bhv)
 	defer mockServer.Close()
+	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
+	err = os.MkdirAll(filepath.Dir(fname), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fname, extraCerts, 0644)
+	c.Assert(err, IsNil)
 
 	pDBhv := &devicestatetest.PrepareDeviceBehavior{
 		DeviceSvcURL: mockServer.URL + "/svc/",
@@ -6743,8 +6748,13 @@ func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
 		SignSerial:       signSerial,
 	}
 
-	mockDeviceService := devicestatetest.MockDeviceService(c, bhv)
+	mockDeviceService, extraCerts := devicestatetest.MockDeviceService(c, bhv)
 	defer mockDeviceService.Close()
+	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
+	err = os.MkdirAll(filepath.Dir(fname), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fname, extraCerts, 0644)
+	c.Assert(err, IsNil)
 
 	r := devicestatetest.MockGadget(c, st, "gadget", snap.R(2), nil)
 	defer r()

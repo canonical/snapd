@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/sysparams"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -265,6 +266,22 @@ func LoadedProfiles() ([]string, error) {
 	return profiles, nil
 }
 
+func snapConfineHomedirsSnippet(homedirs []string) string {
+	var builder strings.Builder
+	for _, homedir := range homedirs {
+		trimmedHomedir := strings.TrimRight(homedir, "/")
+		// We must give snap-confine permissions to create all components of
+		// each homedir, since it will need to create them as a mountpoint
+		for path := trimmedHomedir; path != "/"; path = filepath.Dir(path) {
+			builder.WriteString(fmt.Sprintf("\"%s/\" rw,\n", path))
+		}
+		bindPath := path.Join("/tmp", "snap.rootfs_*", trimmedHomedir)
+		builder.WriteString(fmt.Sprintf("mount options=(rw rbind) \"%s/\" -> \"%s/\",\n\n", trimmedHomedir, bindPath))
+	}
+
+	return builder.String()
+}
+
 // SnapConfineDistroProfilePath returns the path to the AppArmor profile of the
 // snap-confine binary shipped by the distribution package.
 // If such a profile is not found (for instance, because we are running Ubuntu
@@ -285,6 +302,14 @@ var SnapConfineDistroProfilePath = func() string {
 	}
 
 	return ""
+}
+
+var loadHomedirs = func() ([]string, error) {
+	ssp, err := sysparams.Open("")
+	if err != nil {
+		return nil, err
+	}
+	return strutil.CommaSeparatedList(ssp.Homedirs), nil
 }
 
 // SetupSnapConfineSnippets inspects the system and sets up local apparmor
@@ -332,6 +357,15 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 	} else if strutil.ListContains(features, "cap-bpf") {
 		policy["cap-bpf"] = &osutil.MemoryFileState{
 			Content: []byte(capabilityBPFSnippet),
+			Mode:    0644,
+		}
+	}
+
+	if homedirs, err := loadHomedirs(); err != nil {
+		logger.Noticef("cannot determine if any homedirs are set: %v", err)
+	} else if len(homedirs) > 0 {
+		policy["homedirs"] = &osutil.MemoryFileState{
+			Content: []byte(snapConfineHomedirsSnippet(homedirs)),
 			Mode:    0644,
 		}
 	}

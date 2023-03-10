@@ -31,7 +31,7 @@ prepare : |
   snap known validation-set | MATCH "name: hello-world"
 
 execute: |
-  snap validate --help | MATCH "The validate command lists or applies validations sets"
+  snap validate --help | MATCH "The validate command lists or applies validation sets"
   snap validate 2>&1 | MATCH "No validations are available"
 
   snap validate --monitor 2>&1 | MATCH "missing validation set argument"

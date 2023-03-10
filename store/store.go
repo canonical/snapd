@@ -563,7 +563,6 @@ var (
 type deviceAuthNeed int
 
 const (
-	//nolint:deadcode
 	deviceAuthPreferred deviceAuthNeed = iota
 	deviceAuthCustomStoreOnly
 )
