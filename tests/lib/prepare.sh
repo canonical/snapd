@@ -774,37 +774,33 @@ EOF
         cd repacked-kernel
         rm -rf firmware/*
 
-        # the code below drops the modules that are not loaded on the
-        # current host, this should work for most cases, since the image will be
-        # running on the same host
-        # TODO:UC20: enable when ready
+        # The code below drops the unnecessary modules that are not loaded on the
+        # current host, this works for most cases, since the image will be
+        # running on the same host, however some additional modules are required
 
-        # To avoid shellcheck unused code warning, we cannot use "exit 0" to disable
-        # the module drop code. To avoid commented out code, we use a flag instead.
-        # Strip off the check when this UC20 code is enabled.
-        uc20Ready=false
+        # Get list of loaded modules from current host
+        awk '{print $1}' < /proc/modules | sort > /tmp/mods
 
-        if [ "$uc20Ready" = "true" ]; then
-            # drop unnecessary modules
-            awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
-            #shellcheck disable=SC2044
-            for m in $(find modules/ -name '*.ko'); do
-                noko=$(basename "$m"); noko="${noko%.ko}"
-                if echo "$noko" | grep -f /tmp/mods -q ; then
-                    echo "keeping $m - $noko"
-                else
-                    rm -f "$m"
-                fi
-            done
-            #shellcheck disable=SC2010
-            kver=$(ls "config"-* | grep -Po 'config-\K.*')
+        # Add additional modules required by tests. Module brd provides /dev/ram*
+        # used to create ramdisks and the others are used by interfaces.
+        echo "brd br_netfilter bridge stp llc ip6table_filter iptable_filter ip_tables ip6_tables x_tables arp_tables veth ip_vs_rr ip_vs_sh ip_vs_wrr ip_vs nf_conntrack nf_defrag_ipv4 nf_defrag_ipv6 libcrc32c overlay xcbc arc4 libarc4 bfq md4 kvm vmac dm_snapshot dm_bufio dm_thin_pool dm_persistent_data dm_bio_prison iscsi_tcp libiscsi_tcp libiscsi scsi_transport_iscsi nbd pci_stub target_core_mod vhost vhost_net vhost_scsi vhost_vsock vmw_vsock_virtio_transport_common vhost_iotlb vsock tap rc-core cec drm_kms_helper drm_vram_helper nls_iso8859_1 bochs" | tr ' ' '\n' >> /tmp/mods
 
-            # depmod assumes that /lib/modules/$kver is under basepath
-            mkdir -p fake/lib
-            ln -s "$PWD/modules" fake/lib/modules
-            depmod -b "$PWD/fake" -A -v "$kver"
-            rm -rf fake
-        fi
+        #shellcheck disable=SC2044
+        for m in $(find modules/ -name '*.ko'); do
+            noko=$(basename "$m"); noko="${noko%.ko}"
+            if echo "$noko" | grep -f /tmp/mods -vq; then
+                rm -f "$m"
+            fi
+        done
+
+        #shellcheck disable=SC2010
+        kver=$(ls "config"-* | grep -Po 'config-\K.*')
+
+        # depmod assumes that /lib/modules/$kver is under basepath
+        mkdir -p fake/lib
+        ln -s "$PWD/modules" fake/lib/modules
+        depmod -b "$PWD/fake" -A -v "$kver"
+        rm -rf fake
     )
 
     # copy any extra files that tests may need for the kernel
