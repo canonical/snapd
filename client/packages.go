@@ -65,6 +65,7 @@ type Snap struct {
 	CommonIDs        []string      `json:"common-ids,omitempty"`
 	MountedFrom      string        `json:"mounted-from,omitempty"`
 	CohortKey        string        `json:"cohort-key,omitempty"`
+	PendingUpdate    bool          `json:"pending-update,omitempty"`
 
 	Links map[string][]string `json:"links,omitempy"`
 

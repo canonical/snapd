@@ -64,6 +64,7 @@ type Notes struct {
 	Health           string
 	Price            string
 	Held             bool
+	PendingUpdate    bool
 }
 
 func NotesFromChannelSnapInfo(ref *snap.ChannelSnapInfo) *Notes {
@@ -105,6 +106,7 @@ func NotesFromLocal(snp *client.Snap) *Notes {
 		InCohort:         snp.CohortKey != "",
 		Health:           health,
 		Held:             snp.Hold != nil && snp.Hold.After(timeNow()),
+		PendingUpdate:    snp.PendingUpdate,
 	}
 }
 
@@ -170,6 +172,9 @@ func (n *Notes) String() string {
 
 	if n.Held {
 		ns = append(ns, i18n.G("held"))
+	}
+	if n.PendingUpdate {
+		ns = append(ns, i18n.G("pending-update"))
 	}
 
 	if len(ns) == 0 {

@@ -267,7 +267,8 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                         },
                         "website": "http://example.com/funky",
                         "common-ids": ["org.funky.snap"],
-                        "store-url": "https://snapcraft.io/chatroom"
+                        "store-url": "https://snapcraft.io/chatroom",
+                        "pending-update": true
 		}
 	}`
 	pkg, _, err := cs.cli.Snap(pkgName)
@@ -317,8 +318,9 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		Links: map[string][]string{
 			"website": {"http://example.com/funky"},
 		},
-		Website:  "http://example.com/funky",
-		StoreURL: "https://snapcraft.io/chatroom",
+		Website:       "http://example.com/funky",
+		StoreURL:      "https://snapcraft.io/chatroom",
+		PendingUpdate: true,
 	})
 }
 

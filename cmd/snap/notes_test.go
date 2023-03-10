@@ -102,6 +102,12 @@ func (notesSuite) TestNotesHeld(c *check.C) {
 	}).String(), check.Equals, "held")
 }
 
+func (notesSuite) TestNotesPendingUpdate(c *check.C) {
+	c.Check((&snap.Notes{
+		PendingUpdate: true,
+	}).String(), check.Equals, "pending-update")
+}
+
 func (notesSuite) TestNotesNothing(c *check.C) {
 	c.Check((&snap.Notes{}).String(), check.Equals, "-")
 }

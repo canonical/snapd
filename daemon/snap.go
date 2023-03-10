@@ -240,6 +240,10 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 		result.GatingHold = &about.gatingHold
 	}
 
+	if snapst.RefreshInhibitedTime != nil {
+		result.PendingUpdate = true
+	}
+
 	return result
 }
 
