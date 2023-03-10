@@ -32,7 +32,7 @@ execute: |
   echo "Install new (unasserted) kernel and wait for reboot/change finishing"
   boot_id="$( tests.nested boot-id )"
   REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous new-pc-kernel.snap --no-wait)
-  tests.nested wait-for reboot "${boot_id}"
+  remote.wait-for reboot "${boot_id}"
   remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
   echo "Check that we are using the right kernel"
