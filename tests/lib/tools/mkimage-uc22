@@ -399,7 +399,8 @@ replace_images_files() {
     sudo mount /dev/mapper/"$loop_boot" "$MNT"/ubuntu-boot
 
     # copy kernel.efi with modified initramfs
-    local subpath=$(readlink "$MNT"/ubuntu-boot/EFI/ubuntu/kernel.efi)
+    local subpath
+    subpath=$(readlink "$MNT"/ubuntu-boot/EFI/ubuntu/kernel.efi)
     # TODO we should also repack kernel snap and replace the one in the rootfs too, and also re-sign
     cp -a "$CACHE"/snap-pc-kernel/kernel.efi "$MNT"/ubuntu-boot/EFI/ubuntu/"$subpath"
 
