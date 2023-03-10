@@ -40,12 +40,12 @@ get_extra_snaps() {
 }
 
 get_assets() {
-    CACHE="$1"
-    BASE_IMAGE_URL="$2"
-    BASE_IMAGE_PATH="$3"
+    local CACHE="$1"
+    local BASE_IMAGE_URL="$2"
+    local BASE_IMAGE_PATH="$3"
     shift 3
     # shellcheck disable=SC2124
-    SNAPS="$@"
+    local SNAPS="$@"
 
     if [ -d "$CACHE" ]; then
         echo "mkimage-uc22: using existing cache dir $CACHE"
@@ -110,6 +110,8 @@ create_image() {
     IMG="$(readlink -f "$1")"
 
     rm -f "$IMG"
+    # We need 6G to for the image as the partitions described below use 5,93G
+    # In total the image has 12453854 sectors (512B each)
     truncate --size=6G "$IMG"
     echo "Creating partition on $IMG"
     cat <<EOF | sfdisk -q "$IMG"
@@ -231,21 +233,22 @@ EOF
 }
 
 populate_image() {
-    IMG="$1"
-    CACHE="$2"
-    MNT="$3"
-    MODEL_ASSERTION="$4"
+    local IMG="$1"
+    local CACHE="$2"
+    local MNT="$3"
+    local MODEL_ASSERTION="$4"
     local KERNEL_SNAP
     KERNEL_SNAP="$(find_snap "$CACHE" pc-kernel)"
 
     mkdir -p "$MNT"
+    local loop loop_esp loop_boot loop_save loop_data
     loop=$(sudo kpartx -asv "$IMG" | head -n1 | cut -d' ' -f3)
     loop=${loop%p*}
-
     loop_esp="${loop}"p2
     loop_boot="${loop}"p3
     loop_save="${loop}"p4
     loop_data="${loop}"p5
+
     # XXX: on a real UC device this the ESP is "ubuntu-seed"
     sudo mkfs.fat -n ubuntu-seed /dev/mapper/"$loop_esp"
     sudo mkfs.ext4 -L ubuntu-boot -q /dev/mapper/"$loop_boot"
@@ -335,7 +338,7 @@ fi
 EOF
     sudo cp -a "$CACHE"/grub.cfg "$MNT"/ubuntu-boot/EFI/ubuntu/
     # This must be exactly 1024 bytes
-    GRUBENV="# GRUB Environment Block
+    local GRUBENV="# GRUB Environment Block
 #######################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################"
     printf "%s" "$GRUBENV" > "$CACHE"/grubenv
     sudo cp -a "$CACHE"/grubenv "$MNT"/ubuntu-boot/EFI/ubuntu/grubenv
@@ -353,17 +356,17 @@ EOF
 }
 
 replace_initramfs_bits() {
-    CACHE="$1"
-    SNAPD_BINPATH="$2"
+    local CACHE="$1"
+    local SNAPD_BINPATH="$2"
     # TODO is there code to share with uc20_build_initramfs_kernel_snap in prepare.sh?
-    KERNEL_EFI_ORIG="$CACHE"/snap-pc-kernel/kernel.efi
+    local KERNEL_EFI_ORIG="$CACHE"/snap-pc-kernel/kernel.efi
     if [ ! -d initrd ]; then
         objcopy -O binary -j .initrd "$KERNEL_EFI_ORIG" initrd.img
         unmkinitramfs initrd.img initrd
     fi
 
     # Retrieve efi stub from ppa so we can rebuild kernel.efi
-    sudo DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends ubuntu-dev-tools lz4 < /dev/null > /dev/null
+    DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends ubuntu-dev-tools lz4 < /dev/null > /dev/null
     pull-lp-debs -a amd64 -D ppa --ppa ppa:snappy-dev/image ubuntu-core-initramfs "jammy"
     dpkg --fsys-tarfile ubuntu-core-initramfs_*.deb |
         tar --wildcards -xf - './usr/lib/ubuntu-core-initramfs/efi/linux*.efi.stub'
@@ -379,23 +382,12 @@ replace_initramfs_bits() {
             "$KERNEL_EFI_ORIG"
 }
 
-cleanup() {
-    IMG="$(readlink -f "$1")"
-    MNT="$(readlink -f "$2")"
-
-    sync
-    sleep 1
-    umount "$MNT"/* || true
-    sleep 1
-    kpartx -d "$IMG" || true
-}
-
 replace_images_files() {
-    IMG="$1"
-    CACHE="$2"
-    MNT="$3"
-    SNAPD_DEB="$4"
-    SNAPD_BINPATH="$5"
+    local IMG="$1"
+    local CACHE="$2"
+    local MNT="$3"
+    local SNAPD_DEB="$4"
+    local SNAPD_BINPATH="$5"
 
     mkdir -p "$MNT"/ubuntu-boot "$MNT"/data
 
@@ -407,7 +399,7 @@ replace_images_files() {
     sudo mount /dev/mapper/"$loop_boot" "$MNT"/ubuntu-boot
 
     # copy kernel.efi with modified initramfs
-    subpath=$(readlink "$MNT"/ubuntu-boot/EFI/ubuntu/kernel.efi)
+    local subpath=$(readlink "$MNT"/ubuntu-boot/EFI/ubuntu/kernel.efi)
     # TODO we should also repack kernel snap and replace the one in the rootfs too, and also re-sign
     cp -a "$CACHE"/snap-pc-kernel/kernel.efi "$MNT"/ubuntu-boot/EFI/ubuntu/"$subpath"
 
@@ -418,7 +410,7 @@ replace_images_files() {
         SNAPD_DEB="$CACHE"/"$(find "$CACHE" -maxdepth 1 -name "snapd_*.deb" -printf "%f\n")"
     fi
     # replace snapd in data partition with the one passed as parameter
-    data_mnt="$loop"p5
+    local data_mnt="$loop"p5
     sudo mount /dev/mapper/"$data_mnt" "$MNT"/data
     sudo cp "$SNAPD_DEB" "$MNT"/data/snapd.deb
     sudo chroot "$MNT"/data apt install -qq -y --no-install-recommends ./snapd.deb < /dev/null > /dev/null
@@ -432,7 +424,7 @@ EOF
 }
 
 show_how_to_run_qemu() {
-    IMG="$1"
+    local IMG="$1"
 
     echo "mkimage-uc22: mage ready, run as: "
     echo kvm -m 1500 -snapshot \
@@ -447,17 +439,17 @@ show_how_to_run_qemu() {
 }
 
 main() {
-    BASE_DIR="$DEFAULT_BASE_DIR"
-    BOOT_IMG="$DEFAULT_BOOT_IMG"
-    CACHE_DIR="$DEFAULT_CACHE_DIR"
-    MNT_DIR="$DEFAULT_MNT_DIR"
-    SNAPD_BINPATH="$DEFAULT_SNAPD_BINPATH"
-    BASE_IMAGE_URL="$DEFAULT_BASE_IMAGE_URL"
+    local BASE_DIR="$DEFAULT_BASE_DIR"
+    local BOOT_IMG="$DEFAULT_BOOT_IMG"
+    local CACHE_DIR="$DEFAULT_CACHE_DIR"
+    local MNT_DIR="$DEFAULT_MNT_DIR"
+    local SNAPD_BINPATH="$DEFAULT_SNAPD_BINPATH"
+    local BASE_IMAGE_URL="$DEFAULT_BASE_IMAGE_URL"
     
-    SNAPD_DEB=""
-    BASE_IMAGE_PATH=""
-    MODEL_ASSERTION=""
-    SNAPS=""
+    local SNAPD_DEB=""
+    local BASE_IMAGE_PATH=""
+    local MODEL_ASSERTION=""
+    local SNAPS=""
     while [ $# -gt 0 ]; do
         case "$1" in
             -h|--help)
