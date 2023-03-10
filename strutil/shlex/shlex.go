@@ -84,7 +84,6 @@ const (
 
 // Classes of rune token
 const (
-	//nolint:deadcode
 	unknownRuneClass runeTokenClass = iota
 	spaceRuneClass
 	escapingQuoteRuneClass

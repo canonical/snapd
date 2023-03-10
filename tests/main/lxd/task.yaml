@@ -71,20 +71,7 @@ execute: |
     fi
 
     echo "Install lxd"
-    snap install lxd --channel="$LXD_SNAP_CHANNEL"
-
-    echo "Create a trivial container using the lxd snap"
-    snap set lxd waitready.timeout=240
-    lxd waitready
-    lxd init --auto
-
-    echo "Setting up proxy for lxc"
-    if [ -n "${http_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_http "$http_proxy"
-    fi
-    if [ -n "${https_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_https "$https_proxy"
-    fi
+    "$TESTSTOOLS"/lxd-state prepare-snap
 
     # The snapd package we build as part of the tests will only run on the
     # distro we build on. So we need to launch the right ubuntu version.
