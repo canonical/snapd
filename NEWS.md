@@ -17,3 +17,5 @@
   environment variable
 * Support ssh listen-address via snap configuration
 * Support for quotas on single services
+* prepare-image now takes into account snapd versions going into the image,
+  including in the kernel initrd, to fetch supported assertion formats
