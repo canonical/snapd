@@ -1466,7 +1466,11 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	return nil
 }
 
-var bootMarkFactoryResetComplete = boot.MarkFactoryResetComplete
+var (
+	bootMarkFactoryResetComplete = boot.MarkFactoryResetComplete
+	checkEncryptionType          = installHandler.CheckEncryptionType
+	rotateEncryptionKeys         = installHandler.RotateEncryptionKeys
+)
 
 func (m *DeviceManager) ensurePostFactoryReset() error {
 	m.state.Lock()
@@ -1519,7 +1523,7 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 	}
 
 	if encrypted {
-		if err := installHandler.RotateEncryptionKeys(); err != nil {
+		if err := rotateEncryptionKeys(); err != nil {
 			return fmt.Errorf("cannot transition encryption keys: %v", err)
 		}
 	}
@@ -2444,5 +2448,5 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		return "", err
 	}
 
-	return installHandler.CheckEncryptionType(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
+	return checkEncryptionType(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
 }
