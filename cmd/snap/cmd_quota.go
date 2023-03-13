@@ -113,8 +113,7 @@ An existing sub group cannot be moved from one parent to another.
 `)
 
 func init() {
-	// TODO: unhide the commands when non-experimental
-	cmd := addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp,
+	addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp,
 		func() flags.Commander { return &cmdSetQuota{} },
 		waitDescs.also(map[string]string{
 			"memory":             i18n.G("Memory quota"),
@@ -125,16 +124,9 @@ func init() {
 			"journal-rate-limit": i18n.G("Journal rate limit as <message count>/<message period>"),
 			"parent":             i18n.G("Parent quota group"),
 		}), nil)
-	cmd.hidden = true
-
-	cmd = addCommand("quota", shortQuotaHelp, longQuotaHelp, func() flags.Commander { return &cmdQuota{} }, nil, nil)
-	cmd.hidden = true
-
-	cmd = addCommand("quotas", shortQuotasHelp, longQuotasHelp, func() flags.Commander { return &cmdQuotas{} }, nil, nil)
-	cmd.hidden = true
-
-	cmd = addCommand("remove-quota", shortRemoveQuotaHelp, longRemoveQuotaHelp, func() flags.Commander { return &cmdRemoveQuota{} }, nil, nil)
-	cmd.hidden = true
+	addCommand("quota", shortQuotaHelp, longQuotaHelp, func() flags.Commander { return &cmdQuota{} }, nil, nil)
+	addCommand("quotas", shortQuotasHelp, longQuotasHelp, func() flags.Commander { return &cmdQuotas{} }, nil, nil)
+	addCommand("remove-quota", shortRemoveQuotaHelp, longRemoveQuotaHelp, func() flags.Commander { return &cmdRemoveQuota{} }, nil, nil)
 }
 
 type cmdSetQuota struct {

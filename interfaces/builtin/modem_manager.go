@@ -68,6 +68,8 @@ network netlink dgram,
 
 # For ioctl TIOCSSERIAL ASYNC_CLOSING_WAIT_NONE
 capability sys_admin,
+# used since MM 1.18
+capability net_admin,
 
 # For {mbim,qmi}-proxy
 unix (bind, listen) type=stream addr="@{mbim,qmi}-proxy",

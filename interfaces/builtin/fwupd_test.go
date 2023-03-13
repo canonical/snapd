@@ -20,6 +20,7 @@
 package builtin_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -233,6 +235,37 @@ func (s *FwupdInterfaceSuite) TestPermanentSlotDBus(c *C) {
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
 }
 
+func (s *FwupdInterfaceSuite) TestPermanentSlotUdevImplicit(c *C) {
+	spec := &udev.Specification{}
+	err := spec.AddPermanentSlot(s.iface, s.appSlotInfo)
+	c.Assert(err, IsNil)
+
+	snippets := spec.Snippets()
+	c.Assert(snippets, HasLen, 5+1)
+
+	c.Assert(snippets[0], Equals, `# fwupd
+KERNEL=="drm_dp_aux[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
+	c.Assert(snippets[1], Equals, `# fwupd
+KERNEL=="gpiochip[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
+	c.Assert(snippets[2], Equals, `# fwupd
+KERNEL=="mei[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
+	c.Assert(snippets[3], Equals, `# fwupd
+KERNEL=="nvme[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
+	c.Assert(snippets[4], Equals, `# fwupd
+KERNEL=="tpm[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
+
+	expected := fmt.Sprintf(`TAG=="snap_uefi-fw-tools_app2", RUN+="%v/snap-device-helper $env{ACTION} snap_uefi-fw-tools_app2 $devpath $major:$minor"`, dirs.DistroLibExecDir)
+	c.Assert(snippets[5], Equals, expected)
+
+	// The implicit slot found on classic systems does not generate any rules
+	spec = &udev.Specification{}
+	err = spec.AddPermanentSlot(s.iface, s.coreSlotInfo)
+	c.Assert(err, IsNil)
+
+	snippets = spec.Snippets()
+	c.Assert(snippets, HasLen, 0)
+}
+
 func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.appSlot)
@@ -243,4 +276,12 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 
 func (s *FwupdInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *FwupdInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, "allows operating as the fwupd service")
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "fwupd")
 }

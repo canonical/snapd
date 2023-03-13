@@ -38,7 +38,9 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -116,7 +118,7 @@ volumes:
       - name: u-boot
         type: bare
         size: 623000
-        offset: 0
+        offset: 24576
         content:
           - image: u-boot.imz
 `)
@@ -147,7 +149,7 @@ volumes:
       - name: u-boot
         type: bare
         size: 623000
-        offset: 0
+        offset: 24576
         content:
           - image: u-boot.imz
 `)
@@ -822,7 +824,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Name:       "u-boot",
 						Type:       "bare",
 						Size:       623000,
-						Offset:     asOffsetPtr(0),
+						Offset:     asOffsetPtr(24576),
 						Content: []gadget.VolumeContent{
 							{
 								Image: "u-boot.imz",
@@ -1292,6 +1294,50 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
 	}
 }
 
+func (s *gadgetYamlTestSuite) TestValidateVolumeSchemaNotOverlapWithGPT(c *C) {
+	for i, tc := range []struct {
+		s   string
+		sz  quantity.Size
+		o   quantity.Offset
+		err string
+	}{
+		// in sector 0 only
+		{"gpt", 511, 0, ""},
+		// might overlap with GPT header, print warning only
+		{"gpt", 511, 512, ""},
+		{"gpt", 4096, 0, ""},
+		// overlap GPT partition table
+		{"gpt", 16383, 1024, "invalid structure: GPT header or GPT partition table overlapped with structure \"name\"\n"},
+		{"gpt", 2048, 17407, "invalid structure: GPT header or GPT partition table overlapped with structure \"name\"\n"},
+		// might overlap with GPT partition table, print warning only
+		{"gpt", 2048, 17408, ""},
+	} {
+		loggerBuf, restore := logger.MockLogger()
+		defer restore()
+
+		c.Logf("tc: %v schema: %+v, size: %d, offset: %d", i, tc.s, tc.sz, tc.o)
+
+		err := gadget.ValidateVolume(&gadget.Volume{
+			Name: "name", Schema: tc.s,
+			Structure: []gadget.VolumeStructure{
+				{Name: "name", Type: "bare", Size: tc.sz, Offset: &tc.o},
+			},
+		})
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+
+			start := tc.o
+			end := start + quantity.Offset(tc.sz)
+			if start < 4096*34 && end > 512 {
+				c.Assert(loggerBuf.String(), testutil.Contains,
+					fmt.Sprintf("WARNING: GPT header or GPT partition table might be overlapped with structure \"name\""))
+			}
+		}
+	}
+}
+
 func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
 
 	for i, tc := range []struct {
@@ -1326,8 +1372,8 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
 	err := gadget.ValidateVolume(&gadget.Volume{
 		Name: "name",
 		Structure: []gadget.VolumeStructure{
-			{Name: "duplicate", Type: "bare", Size: 1024},
-			{Name: "duplicate", Type: "21686148-6449-6E6F-744E-656564454649", Size: 2048},
+			{Name: "duplicate", Type: "bare", Size: 1024, Offset: asOffsetPtr(24576)},
+			{Name: "duplicate", Type: "21686148-6449-6E6F-744E-656564454649", Size: 2048, Offset: asOffsetPtr(24576)},
 		},
 	})
 	c.Assert(err, ErrorMatches, `structure name "duplicate" is not unique`)
@@ -1370,8 +1416,8 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 	err := gadget.ValidateVolume(&gadget.Volume{
 		Name: "name",
 		Structure: []gadget.VolumeStructure{
-			{Type: "bare", Size: 1024},
-			{Type: "bogus", Size: 1024},
+			{Type: "bare", Size: 1024, Offset: asOffsetPtr(24576)},
+			{Type: "bogus", Size: 1024, Offset: asOffsetPtr(24576)},
 		},
 	})
 	c.Assert(err, ErrorMatches, `invalid structure #1: invalid type "bogus": invalid format`)
@@ -1379,8 +1425,8 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 	err = gadget.ValidateVolume(&gadget.Volume{
 		Name: "name",
 		Structure: []gadget.VolumeStructure{
-			{Type: "bare", Size: 1024},
-			{Type: "bogus", Size: 1024, Name: "foo"},
+			{Type: "bare", Size: 1024, Offset: asOffsetPtr(24576)},
+			{Type: "bogus", Size: 1024, Name: "foo", Offset: asOffsetPtr(24576)},
 		},
 	})
 	c.Assert(err, ErrorMatches, `invalid structure #1 \("foo"\): invalid type "bogus": invalid format`)
@@ -1388,7 +1434,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 	err = gadget.ValidateVolume(&gadget.Volume{
 		Name: "name",
 		Structure: []gadget.VolumeStructure{
-			{Type: "bare", Name: "foo", Size: 1024, Content: []gadget.VolumeContent{{UnresolvedSource: "foo"}}},
+			{Type: "bare", Name: "foo", Size: 1024, Offset: asOffsetPtr(24576), Content: []gadget.VolumeContent{{UnresolvedSource: "foo"}}},
 		},
 	})
 	c.Assert(err, ErrorMatches, `invalid structure #0 \("foo"\): invalid content #0: cannot use non-image content for bare file system`)
@@ -1603,7 +1649,7 @@ volumes:
           - image: pc-boot.img
       - name: other-name
         type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
+        size: 300
         offset: 200
         content:
           - image: pc-core.img
@@ -1623,13 +1669,13 @@ volumes:
     structure:
       - name: overlaps-with-foo
         type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
+        size: 300
         offset: 200
         content:
           - image: pc-core.img
       - name: foo
         type: DA,21686148-6449-6E6F-744E-656564454648
-        size: 1M
+        size: 200
         offset: 100
         filesystem: vfat
 `
@@ -1648,7 +1694,7 @@ volumes:
     structure:
       - name: other-name
         type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
+        size: 10
         offset: 500
         content:
           - image: pc-core.img
@@ -1674,7 +1720,7 @@ volumes:
     structure:
       - name: other-name
         type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
+        size: 10
         offset: 500
         content:
           - image: pc-core.img
@@ -2103,30 +2149,35 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 	err = ioutil.WriteFile(filepath.Join(s.dir, "u-boot.imz"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", uc20Mod)
+	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone)
 	c.Assert(err, IsNil)
 
 	c.Assert(all, HasLen, 2)
 	c.Assert(all["frobinator-image"], DeepEquals, systemLv)
-	zero := quantity.Offset(0)
 	c.Assert(all["u-boot-frobinator"].LaidOutStructure, DeepEquals, []gadget.LaidOutStructure{
 		{
+			OnDiskStructure: gadget.OnDiskStructure{
+				Name:        "u-boot",
+				Type:        "bare",
+				Size:        quantity.Size(623000),
+				StartOffset: 24576,
+			},
 			VolumeStructure: &gadget.VolumeStructure{
 				VolumeName: "u-boot-frobinator",
 				Name:       "u-boot",
-				Offset:     &zero,
+				Offset:     asOffsetPtr(24576),
 				Size:       quantity.Size(623000),
 				Type:       "bare",
 				Content: []gadget.VolumeContent{
 					{Image: "u-boot.imz"},
 				},
 			},
-			StartOffset: 0,
 			LaidOutContent: []gadget.LaidOutContent{
 				{
 					VolumeContent: &gadget.VolumeContent{
 						Image: "u-boot.imz",
 					},
+					StartOffset: 24576,
 				},
 			},
 		},
@@ -2145,7 +2196,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetHappy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", coreMod)
+	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", coreMod, secboot.EncryptionTypeNone)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"], DeepEquals, systemLv)
@@ -2164,7 +2215,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetNeedsModel(c *C) {
 
 	// need the model in order to lay out system volumes due to the verification
 	// and other metadata we use with the gadget
-	_, _, err = gadget.LaidOutVolumesFromGadget(s.dir, "", nil)
+	_, _, err = gadget.LaidOutVolumesFromGadget(s.dir, "", nil, secboot.EncryptionTypeNone)
 	c.Assert(err, ErrorMatches, "internal error: must have model to lay out system volumes from a gadget")
 }
 
@@ -2176,7 +2227,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetUC20Happy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", uc20Mod)
+	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"], DeepEquals, systemLv)
@@ -2586,6 +2637,7 @@ func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline strin
 		"debug", "panic", "panic=-1",
 		"snapd.debug=1", "snapd.debug",
 		"serial=ttyS0,9600n8",
+		"snapd_system_disk=somedisk",
 	}
 
 	for _, arg := range allowedArgs {
@@ -3713,7 +3765,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromClassicWithModesGadgetHappy(
 		c.Assert(err, IsNil)
 	}
 
-	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", classicWithModesMod)
+	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", classicWithModesMod, secboot.EncryptionTypeNone)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"], DeepEquals, systemLv)
@@ -3753,4 +3805,50 @@ func (s *gadgetYamlTestSuite) TestHasRoleUnhappy(c *C) {
 	c.Assert(err, IsNil)
 	_, err = gadget.HasRole(s.dir, []string{gadget.SystemData})
 	c.Check(err, ErrorMatches, `cannot minimally parse gadget metadata: yaml:.*`)
+}
+
+func appendAllowListToYaml(allow []string, templ string) string {
+	for _, arg := range allow {
+		templ += fmt.Sprintf("    - %s\n", arg)
+	}
+	return templ
+}
+
+func (s *gadgetYamlTestSuite) TestKernelCmdlineAllow(c *C) {
+	yamlTemplate := `
+volumes:
+  pc:
+    bootloader: grub
+kernel-cmdline:
+  allow:
+`
+
+	tests := []struct {
+		allowList []string
+		err       string
+	}{
+		{[]string{"foo=bar", "my-param.state=blah"}, ""},
+		{[]string{"foo="}, ""},
+		{[]string{"foo", "bar", `my-param.state="blah"`}, ""},
+		{[]string{"foo bar"}, `cannot parse gadget metadata: "foo bar" is not a unique kernel argument`},
+	}
+
+	for _, t := range tests {
+		c.Logf("allowList %v", t.allowList)
+		yaml := appendAllowListToYaml(t.allowList, yamlTemplate)
+		gi, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
+		if err != nil {
+			c.Assert(err, ErrorMatches, t.err)
+			c.Assert(gi, IsNil)
+		} else {
+			allowed := []osutil.KernelArgument{}
+			for _, arg := range t.allowList {
+				parsed := osutil.ParseKernelCommandline(arg)
+				c.Assert(len(parsed), Equals, 1)
+				allowed = append(allowed, parsed[0])
+			}
+
+			c.Assert(gi.KernelCmdline.Allow, DeepEquals, allowed)
+		}
+	}
 }

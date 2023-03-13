@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 )
 
@@ -171,6 +172,9 @@ func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
 	if err != nil {
 		return OnDiskStructure{}, fmt.Errorf("cannot decode filesystem label for partition %s: %v", p.KernelDeviceNode, err)
 	}
+
+	logger.Debugf("OnDiskStructureFromPartition: p.FilesystemType %q, p.FilesystemLabel %q",
+		p.FilesystemType, p.FilesystemLabel)
 
 	// TODO add ID in second part of the gadget refactoring?
 	return OnDiskStructure{

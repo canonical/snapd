@@ -509,7 +509,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	if len(toResolve) > 0 || len(toResolveSeq) > 0 {
-		assertMaxFormats = asserts.MaxSupportedFormats(1)
+		if s.cfg.AssertionMaxFormats == nil {
+			assertMaxFormats = asserts.MaxSupportedFormats(1)
+		} else {
+			assertMaxFormats = s.cfg.AssertionMaxFormats
+		}
 	}
 
 	// build input for the install/refresh endpoint

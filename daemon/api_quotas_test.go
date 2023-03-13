@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -56,9 +55,6 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	tr := config.NewTransaction(st)
-	tr.Set("core", "experimental.quota-groups", true)
-	tr.Commit()
 
 	r := systemd.MockSystemdVersion(248, nil)
 	s.AddCleanup(r)

@@ -78,6 +78,10 @@ func (s *toolingStore) Assertion(assertType *asserts.AssertionType, primaryKey [
 	return as, nil
 }
 
+func (s *toolingStore) SetAssertionMaxFormats(maxFormats map[string]int) {
+	panic("not implemented")
+}
+
 // list of test overlays
 var sysFsOverlaysGood = []string{"class/backlight", "class/bluetooth", "class/gpio", "class/leds", "class/ptp", "class/pwm", "class/rtc", "class/video4linux", "devices/platform", "devices/pci0000:00"}
 

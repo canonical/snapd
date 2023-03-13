@@ -145,6 +145,8 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
+	s.AddCleanup(osutil.MockMountInfo(""))
+
 	s.systemctlOutput = func(args ...string) []byte {
 		return []byte("ActiveState=inactive")
 	}
@@ -211,18 +213,21 @@ var (
 
 // applyCfgSuite tests configcore.Apply()
 type applyCfgSuite struct {
+	testutil.BaseTest
+
 	tmpDir string
 }
 
 var _ = Suite(&applyCfgSuite{})
 
 func (s *applyCfgSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	s.tmpDir = c.MkDir()
 	dirs.SetRootDir(s.tmpDir)
-}
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 
-func (s *applyCfgSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
+	s.AddCleanup(osutil.MockMountInfo(""))
 }
 
 func (s *applyCfgSuite) TestEmptyRootDir(c *C) {

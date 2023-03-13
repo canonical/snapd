@@ -21,8 +21,6 @@ systems:
 prepare: |
   snap install go-example-webserver jq remarshal hello-world
   snap install test-snapd-curl --edge --devmode
-  snap set system experimental.quota-groups=true
-  tests.cleanup defer snap unset system experimental.quota-groups
 
 execute: |
   echo "Create a group with a snap in it"

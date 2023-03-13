@@ -134,7 +134,7 @@ execute: |
   . "$TESTSLIB/nested.sh"
 
   # wait until device is initialized and has a serial
-  tests.nested wait-for device-initialized
+  remote.wait-for device-initialized
 
   setup_ramdisk() {
     local ASSERT="$1"

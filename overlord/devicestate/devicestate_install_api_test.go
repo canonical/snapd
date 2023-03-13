@@ -242,19 +242,14 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		if opts.encrypted {
 			c.Check(encSetupData, NotNil)
 
-			// Make sure we "observe" grub from boot partition
-			mockRunBootStruct := &gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Role: gadget.SystemBoot,
-				},
-			}
 			writeChange := &gadget.ContentChange{
 				// file that contains the data of the installed file
 				After: filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/boot/grubx64.efi"),
 				// there is no original file in place
 				Before: "",
 			}
-			action, err := observer.Observe(gadget.ContentWrite, mockRunBootStruct,
+			// We "observe" grub from boot partition
+			action, err := observer.Observe(gadget.ContentWrite, gadget.SystemBoot,
 				filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/"),
 				"EFI/boot/grubx64.efi", writeChange)
 			c.Check(err, IsNil)

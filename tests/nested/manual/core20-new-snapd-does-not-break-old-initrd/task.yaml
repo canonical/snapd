@@ -96,7 +96,7 @@ execute: |
 
   boot_id="$( tests.nested boot-id )"
   REMOTE_CHG_ID=$(remote.exec "sudo snap install --dangerous new-kernel.snap --no-wait")
-  tests.nested wait-for reboot "${boot_id}"
+  remote.wait-for reboot "${boot_id}"
   remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
   remote.exec "snap changes" | tail -n +2 | awk '{print $2}' | NOMATCH Error
