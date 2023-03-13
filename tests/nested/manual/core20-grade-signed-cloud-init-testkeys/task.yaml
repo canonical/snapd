@@ -153,7 +153,7 @@ execute: |
 
   echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
   tests.nested vm start
-  tests.nested wait-for reboot "${boot_id}"
+  remote.wait-for reboot "${boot_id}"
 
   echo "The cloud-init attacker user was not created"
   remote.exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user

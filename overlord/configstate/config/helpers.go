@@ -286,21 +286,9 @@ func DeleteSnapConfig(st *state.State, snapName string) error {
 	return nil
 }
 
-// Conf is an interface describing both state and transaction.
-type Conf interface {
-	Get(snapName, key string, result interface{}) error
-	GetMaybe(snapName, key string, result interface{}) error
-	GetPristine(snapName, key string, result interface{}) error
+// ConfSetter is an interface for setting of config values.
+type ConfSetter interface {
 	Set(snapName, key string, value interface{}) error
-	Changes() []string
-	State() *state.State
-}
-
-// ConfGetter is an interface for reading of config values.
-type ConfGetter interface {
-	Get(snapName, key string, result interface{}) error
-	GetMaybe(snapName, key string, result interface{}) error
-	GetPristine(snapName, key string, result interface{}) error
 }
 
 // Patch sets values in cfg for the provided snap's configuration
@@ -308,7 +296,7 @@ type ConfGetter interface {
 // patch keys can be dotted as the key argument to Set.
 // The patch is applied according to the order of its keys sorted by depth,
 // with top keys sorted first.
-func Patch(cfg Conf, snapName string, patch map[string]interface{}) error {
+func Patch(cfg ConfSetter, snapName string, patch map[string]interface{}) error {
 	patchKeys := sortPatchKeysByDepth(patch)
 	for _, key := range patchKeys {
 		if err := cfg.Set(snapName, key, patch[key]); err != nil {

@@ -66,16 +66,16 @@ func (iface *serialPortInterface) String() string {
 // Pattern to match allowed serial device nodes, path attributes will be
 // compared to this for validity when not using udev identification
 // Known device node patterns we need to support
-//  - ttyUSBX  (UART over USB devices)
-//  - ttyACMX  (ACM modem devices )
-//  - ttyXRUSBx  (Exar Corp. USB UART devices)
-//  - ttySX (UART serial ports)
-//  - ttyOX (UART serial ports on ARM)
-//  - ttymxcX (serial ports on i.mx6UL)
-//  - ttySCX (NXP SC16IS7xx serial devices)
-//  - ttyMSMX (Qualcomm msm7x serial devices)
-//  - ttyHSX (Qualcomm GENI based QTI serial cores)
-//  - ttyGSX (USB gadget serial devices)
+//   - ttyUSBX  (UART over USB devices)
+//   - ttyACMX  (ACM modem devices )
+//   - ttyXRUSBx  (Exar Corp. USB UART devices)
+//   - ttySX (UART serial ports)
+//   - ttyOX (UART serial ports on ARM)
+//   - ttymxcX (serial ports on i.mx6UL)
+//   - ttySCX (NXP SC16IS7xx serial devices)
+//   - ttyMSMX (Qualcomm msm7x serial devices)
+//   - ttyHSX (Qualcomm GENI based QTI serial cores)
+//   - ttyGSX (USB gadget serial devices)
 var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(mxc|USB|ACM|AMA|XRUSB|S|O|SC|MSM|HS|GS)[0-9]+$")
 
 // Pattern that is considered valid for the udev symlink to the serial device,

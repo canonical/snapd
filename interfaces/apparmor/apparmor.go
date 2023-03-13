@@ -20,9 +20,9 @@
 // Package apparmor contains primitives for working with apparmor.
 //
 // References:
-//  - http://wiki.apparmor.net/index.php/Kernel_interfaces
-//  - http://apparmor.wiki.kernel.org/
-//  - http://manpages.ubuntu.com/manpages/xenial/en/man7/apparmor.7.html
+//   - http://wiki.apparmor.net/index.php/Kernel_interfaces
+//   - http://apparmor.wiki.kernel.org/
+//   - http://manpages.ubuntu.com/manpages/xenial/en/man7/apparmor.7.html
 package apparmor
 
 import (

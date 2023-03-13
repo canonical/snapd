@@ -23,7 +23,7 @@ restore: |
         rm -f /etc/systemd/user/snapd.session-agent.service
         rm -f /etc/systemd/user/snapd.session-agent.socket
         rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
-        systemctl --user daemon-reload
+        systemctl --user daemon-reload || true
         rm -f /etc/dbus-1/session.d/snapd.session-services.conf
         rm -f /etc/dbus-1/system.d/snapd.system-services.conf
     fi
@@ -152,9 +152,16 @@ execute: |
         # the test's execution on uc16, but just be extra safe
         if os.query is-core16; then
             # now remove the snapd snap since we booted with the core snap
+            # we need first to unmount snapd snaps
+            for mntpnt in /snap/snapd/*; do
+              if mountpoint -q "${mntpnt}"; then
+                unit="$(systemd-escape --path "${mntpnt}").mount"
+                umount "${mntpnt}" || true
+                rm -f "/etc/systemd/system/${unit}"
+              fi
+            done
+            systemctl daemon-reload || true
             snap list
-            # this only succeeds because we reverted back to having the core 
-            # snap on UC16, and the snapd snap is in a broken state
             snap remove snapd
             # and we can still run the rsync snap after the reboot
             rsync --help

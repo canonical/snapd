@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -337,26 +338,29 @@ type bootStateUpdate interface {
 // target for rollback.
 //
 // The states that a boot goes through for UC16/18 are the following:
-// - By default snap_mode is "" in which case the bootloader loads
-//   two squashfs'es denoted by variables snap_core and snap_kernel.
-// - On a refresh of core/kernel snapd will set snap_mode=try and
-//   will also set snap_try_{core,kernel} to the core/kernel that
-//   will be tried next.
-// - On reboot the bootloader will inspect the snap_mode and if the
-//   mode is set to "try" it will set "snap_mode=trying" and then
-//   try to boot the snap_try_{core,kernel}".
-// - On a successful boot snapd resets snap_mode to "" and copies
-//   snap_try_{core,kernel} to snap_{core,kernel}. The snap_try_*
-//   values are cleared afterwards.
-// - On a failing boot the bootloader will see snap_mode=trying which
-//   means snapd did not start successfully. In this case the bootloader
-//   will set snap_mode="" and the system will boot with the known good
-//   values from snap_{core,kernel}
+//   - By default snap_mode is "" in which case the bootloader loads
+//     two squashfs'es denoted by variables snap_core and snap_kernel.
+//   - On a refresh of core/kernel snapd will set snap_mode=try and
+//     will also set snap_try_{core,kernel} to the core/kernel that
+//     will be tried next.
+//   - On reboot the bootloader will inspect the snap_mode and if the
+//     mode is set to "try" it will set "snap_mode=trying" and then
+//     try to boot the snap_try_{core,kernel}".
+//   - On a successful boot snapd resets snap_mode to "" and copies
+//     snap_try_{core,kernel} to snap_{core,kernel}. The snap_try_*
+//     values are cleared afterwards.
+//   - On a failing boot the bootloader will see snap_mode=trying which
+//     means snapd did not start successfully. In this case the bootloader
+//     will set snap_mode="" and the system will boot with the known good
+//     values from snap_{core,kernel}
 func MarkBootSuccessful(dev snap.Device) error {
 	const errPrefix = "cannot mark boot successful: %s"
 
 	var u bootStateUpdate
 	for _, t := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
+		if !SnapTypeParticipatesInBoot(t, dev) {
+			continue
+		}
 		s, err := bootStateFor(t, dev)
 		if err != nil {
 			return err
@@ -426,10 +430,12 @@ func SetRecoveryBootSystemAndMode(dev snap.Device, systemLabel, mode string) err
 	return bl.SetBootVars(m)
 }
 
-// UpdateManagedBootConfigs updates managed boot config assets if those are
-// present for the ubuntu-boot bootloader. Returns true when an update was
-// carried out.
-func UpdateManagedBootConfigs(dev snap.Device, gadgetSnapOrDir string) (updated bool, err error) {
+// UpdateManagedBootConfigs updates managed boot config assets if
+// those are present for the ubuntu-boot bootloader. To do this it
+// needs information from the model, the gadget we are updating to,
+// and any additional kernel command line arguments coming from system
+// options. Returns true when an update was carried out.
+func UpdateManagedBootConfigs(dev snap.Device, gadgetSnapOrDir, cmdlineAppend string) (updated bool, err error) {
 	if !dev.HasModeenv() {
 		// only UC20 devices use managed boot config
 		return false, nil
@@ -437,10 +443,10 @@ func UpdateManagedBootConfigs(dev snap.Device, gadgetSnapOrDir string) (updated 
 	if !dev.RunMode() {
 		return false, fmt.Errorf("internal error: boot config can only be updated in run mode")
 	}
-	return updateManagedBootConfigForBootloader(dev, ModeRun, gadgetSnapOrDir)
+	return updateManagedBootConfigForBootloader(dev, ModeRun, gadgetSnapOrDir, cmdlineAppend)
 }
 
-func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir string) (updated bool, err error) {
+func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir, cmdlineAppend string) (updated bool, err error) {
 	if mode != ModeRun {
 		return false, fmt.Errorf("internal error: updating boot config of recovery bootloader is not supported yet")
 	}
@@ -458,18 +464,20 @@ func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir
 		return false, err
 	}
 	// boot config update can lead to a change of kernel command line
-	_, err = observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir)
+	_, err = observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir, cmdlineAppend)
 	if err != nil {
 		return false, err
 	}
 	return tbl.UpdateBootConfig()
 }
 
-// UpdateCommandLineForGadgetComponent handles the update of a gadget that
-// contributes to the kernel command line of the run system. Returns true when a
-// change in command line has been observed and a reboot is needed. The reboot,
-// if needed, should be requested at the the earliest possible occasion.
-func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir string) (needsReboot bool, err error) {
+// UpdateCommandLineForGadgetComponent handles the update of a gadget
+// that contributes to the kernel command line of the run system
+// (appending any additional kernel command line arguments coming from
+// system options). Returns true when a change in command line has
+// been observed and a reboot is needed. The reboot, if needed, should
+// be requested at the the earliest possible occasion.
+func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdlineAppend string) (needsReboot bool, err error) {
 	if !dev.HasModeenv() {
 		// only UC20 devices are supported
 		return false, fmt.Errorf("internal error: command line component cannot be updated on pre-UC20 devices")
@@ -487,8 +495,9 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir string
 		}
 		return false, err
 	}
+
 	// gadget update can lead to a change of kernel command line
-	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonGadget, gadgetSnapOrDir)
+	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonGadget, gadgetSnapOrDir, cmdlineAppend)
 	if err != nil {
 		return false, err
 	}
@@ -497,10 +506,11 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir string
 	}
 	// update the bootloader environment, maybe clearing the relevant
 	// variables
-	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir)
+	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineAppend)
 	if err != nil {
 		return false, fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
 	}
+	logger.Debugf("updating boot vars: %v", cmdlineVars)
 	if err := tbl.SetBootVars(cmdlineVars); err != nil {
 		return false, fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
 	}

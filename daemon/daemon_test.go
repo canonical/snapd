@@ -95,7 +95,7 @@ func (s *daemonSuite) TearDownTest(c *check.C) {
 }
 
 // build a new daemon, with only a little of Init(), suitable for the tests
-func newTestDaemon(c *check.C) *Daemon {
+func (s *daemonSuite) newTestDaemon(c *check.C) *Daemon {
 	d, err := New()
 	c.Assert(err, check.IsNil)
 	d.addRoutes()
@@ -104,6 +104,10 @@ func newTestDaemon(c *check.C) *Daemon {
 	// needs doing after the call to devicestate.Manager (which
 	// happens in daemon.New via overlord.New)
 	snapstate.CanAutoRefresh = nil
+
+	if d.Overlord() != nil {
+		s.AddCleanup(snapstate.MockEnsuredMountsUpdated(d.Overlord().SnapManager(), true))
+	}
 
 	return d
 }
@@ -119,7 +123,7 @@ func (mck *mockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	st := d.Overlord().State()
 	st.Lock()
 	authUser, err := auth.NewUser(st, auth.NewUserParams{
@@ -177,7 +181,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 func (s *daemonSuite) TestCommandMethodDispatchRoot(c *check.C) {
 	fakeUserAgent := "some-agent-talking-to-snapd/1.0"
 
-	cmd := &Command{d: newTestDaemon(c)}
+	cmd := &Command{d: s.newTestDaemon(c)}
 	mck := &mockHandler{cmd: cmd}
 	rf := func(innerCmd *Command, req *http.Request, user *auth.UserState) Response {
 		c.Assert(cmd, check.Equals, innerCmd)
@@ -218,7 +222,7 @@ func (s *daemonSuite) TestCommandMethodDispatchRoot(c *check.C) {
 }
 
 func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 
 	cmd := &Command{d: d}
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
@@ -315,7 +319,7 @@ func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), check.IsNil)
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
 
 	s.markSeeded(d)
@@ -327,7 +331,7 @@ func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 }
 
 func (s *daemonSuite) TestFillsWarnings(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 
 	cmd := &Command{d: d}
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
@@ -371,7 +375,7 @@ func (f accessCheckFunc) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 }
 
 func (s *daemonSuite) TestReadAccess(c *check.C) {
-	cmd := &Command{d: newTestDaemon(c)}
+	cmd := &Command{d: s.newTestDaemon(c)}
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
@@ -401,7 +405,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestWriteAccess(c *check.C) {
-	cmd := &Command{d: newTestDaemon(c)}
+	cmd := &Command{d: s.newTestDaemon(c)}
 	cmd.PUT = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
@@ -442,7 +446,7 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	st := d.Overlord().State()
 	st.Lock()
 	authUser, err := auth.NewUser(st, auth.NewUserParams{
@@ -497,7 +501,7 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 }
 
 func (s *daemonSuite) TestPolkitAccessPath(c *check.C) {
-	cmd := &Command{d: newTestDaemon(c)}
+	cmd := &Command{d: s.newTestDaemon(c)}
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
@@ -535,7 +539,7 @@ func (s *daemonSuite) TestCommandAccessSane(c *check.C) {
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 
 	expected := make([]string, len(api))
 	for i, v := range api {
@@ -596,7 +600,7 @@ func (s *daemonSuite) markSeeded(d *Daemon) {
 }
 
 func (s *daemonSuite) TestStartStop(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
 	// and pretend we have snaps
@@ -659,7 +663,7 @@ version: 1`, si)
 }
 
 func (s *daemonSuite) TestRestartWiring(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
 
@@ -721,7 +725,7 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 }
 
 func (s *daemonSuite) TestGracefulStop(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 
 	responding := make(chan struct{})
 	doRespond := make(chan bool, 1)
@@ -819,7 +823,7 @@ version: 1`, si)
 }
 
 func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 
 	// mark as already seeded
 	s.markSeeded(d)
@@ -911,7 +915,7 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 }
 
 func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), doRestart func(*state.State, restart.RestartType, *boot.RebootInfo), restartKind restart.RestartType, wait time.Duration) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
 
@@ -1152,7 +1156,7 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	r := MockReboot(rebootCheck)
 	defer r()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
 	s.markSeeded(d)
 
@@ -1205,7 +1209,7 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	r := MockReboot(rebootCheck)
 	defer r()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
 	s.markSeeded(d)
 
@@ -1257,7 +1261,7 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	r := MockReboot(rebootCheck)
 	defer r()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	c.Check(d.overlord, check.IsNil)
 	c.Check(d.expectedRebootDidNotHappen, check.Equals, true)
 
@@ -1294,7 +1298,7 @@ func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	c.Assert(d.overlord, check.NotNil)
 
 	st := d.overlord.State()
@@ -1318,7 +1322,7 @@ func (s *daemonSuite) TestRestartExpectedRebootGiveUp(c *check.C) {
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	c.Assert(d.overlord, check.NotNil)
 
 	st := d.overlord.State()
@@ -1335,7 +1339,7 @@ func (s *daemonSuite) TestRestartIntoSocketModeNoNewChanges(c *check.C) {
 	restore := standby.MockStandbyWait(5 * time.Millisecond)
 	defer restore()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
 
 	// mark as already seeded, we also have no snaps so this will
@@ -1364,7 +1368,7 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	restore := standby.MockStandbyWait(5 * time.Millisecond)
 	defer restore()
 
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
 
 	// mark as already seeded, we also have no snaps so this will
@@ -1425,7 +1429,7 @@ func doTestReq(c *check.C, cmd *Command, mth string) *httptest.ResponseRecorder 
 }
 
 func (s *daemonSuite) TestDegradedModeReply(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.newTestDaemon(c)
 	cmd := &Command{d: d}
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)

@@ -51,16 +51,15 @@ type Grouping string
 // any Add or AddBatch AddUnresolved/AddToUpdate can also be used
 // again.
 //
-//                      V
-//                      |
-//        /-> AddUnresolved, AddToUpdate
-//        |             |
-//        |             V
-//        |------> ToResolve -> empty? done
-//        |             |
-//        |             V
-//        \ __________ Add
-//
+//	              V
+//	              |
+//	/-> AddUnresolved, AddToUpdate
+//	|             |
+//	|             V
+//	|------> ToResolve -> empty? done
+//	|             |
+//	|             V
+//	\ __________ Add
 //
 // If errors prevent from fulfilling assertions from a ToResolve,
 // AddError and AddGroupingError can be used to report the errors so
@@ -303,7 +302,7 @@ func (p *Pool) isPredefined(ref *Ref) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	if !IsNotFound(err) {
+	if !errors.Is(err, &NotFoundError{}) {
 		return false, err
 	}
 	return false, nil
@@ -317,7 +316,7 @@ func (p *Pool) isResolved(ref *Ref) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	if !IsNotFound(err) {
+	if !errors.Is(err, &NotFoundError{}) {
 		return false, err
 	}
 	return false, nil
@@ -325,7 +324,7 @@ func (p *Pool) isResolved(ref *Ref) (bool, error) {
 
 func (p *Pool) curRevision(ref *Ref) (int, error) {
 	a, err := ref.Resolve(p.groundDB.Find)
-	if err != nil && !IsNotFound(err) {
+	if err != nil && !errors.Is(err, &NotFoundError{}) {
 		return 0, err
 	}
 	if err == nil {
@@ -336,7 +335,7 @@ func (p *Pool) curRevision(ref *Ref) (int, error) {
 
 func (p *Pool) curSeqRevision(seq *AtSequence) (int, error) {
 	a, err := seq.Resolve(p.groundDB.Find)
-	if err != nil && !IsNotFound(err) {
+	if err != nil && !errors.Is(err, &NotFoundError{}) {
 		return 0, err
 	}
 	if err == nil {
@@ -739,11 +738,12 @@ var (
 
 // unresolvedBookkeeping processes any left over unresolved assertions
 // since the last ToResolve invocation and intervening calls to Add/AddBatch,
-//  * they were either marked as in error which will be propagated
-//    to all groups requiring them
-//  * simply unresolved, which will be propagated to groups requiring them
-//    as ErrUnresolved
-//  * unchanged (update case)
+//   - they were either marked as in error which will be propagated
+//     to all groups requiring them
+//   - simply unresolved, which will be propagated to groups requiring them
+//     as ErrUnresolved
+//   - unchanged (update case)
+//
 // unresolvedBookkeeping will also promote any recorded prerequisites
 // into actively unresolved, as long as not all the groups requiring them
 // are in error.
@@ -957,7 +957,7 @@ func (p *Pool) CommitTo(db *Database) error {
 
 	retrieve := func(ref *Ref) (Assertion, error) {
 		a, err := p.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
-		if IsNotFound(err) {
+		if errors.Is(err, &NotFoundError{}) {
 			// fallback to pre-existing assertions
 			a, err = ref.Resolve(db.Find)
 		}

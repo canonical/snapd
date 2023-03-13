@@ -13,7 +13,6 @@ prepare: |
     # and snapd won't be around to respond, much less remove any state since
     # the state should be removed by the test
     snap set system experimental.user-daemons=true
-    snap set system experimental.quota-groups=true
 
     # Install a number of snaps that contain various features that have
     # representation in the file system.

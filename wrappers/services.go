@@ -629,7 +629,7 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *sna
 	}
 
 	// note that the Preseeding option is not used here at all
-	for _, svc := range snapInfo.Services() {
+	for _, svc := range services {
 		// if an inclusion list is provided, then we want to make sure this service
 		// is included.
 		// TODO: add an AppInfo.FullName member
@@ -1833,7 +1833,7 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 		var err error
 		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %s", unit.Name), func(nested timings.Measurer) {
 			if flags != nil && flags.Reload {
-				err = sysd.ReloadOrRestart(unit.Name)
+				err = sysd.ReloadOrRestart([]string{unit.Name})
 			} else {
 				// note: stop followed by start, not just 'restart'
 				err = sysd.Restart([]string{unit.Name})

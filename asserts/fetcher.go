@@ -20,13 +20,13 @@
 package asserts
 
 import (
+	"errors"
 	"fmt"
 )
 
 type fetchProgress int
 
 const (
-	//nolint:deadcode
 	fetchNotSeen fetchProgress = iota
 	fetchRetrieved
 	fetchSaved
@@ -67,7 +67,7 @@ func (f *fetcher) chase(ref *Ref, a Assertion) error {
 	if err == nil {
 		return nil
 	}
-	if !IsNotFound(err) {
+	if !errors.Is(err, &NotFoundError{}) {
 		return err
 	}
 	u := ref.Unique()

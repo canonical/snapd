@@ -4,8 +4,8 @@ summary: system key mismatch is ignored on reboot/shutdown
 systems: [ubuntu-18.04-64]
 
 prepare: |
-    snap install lxd --channel="$LXD_SNAP_CHANNEL"
-    lxd init --auto
+    "$TESTSTOOLS"/lxd-state prepare-snap
+
     lxc launch ubuntu:18.04 bionic
     # Install snapd inside the container and then install the core snap so that
     # we get re-execution logic to applies as snapd in the store is more recent

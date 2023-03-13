@@ -48,14 +48,16 @@ execute: |
         # that defaults were applied early - that is checked further down.
         echo "Precondition check of the gadget defaults"
         remote.exec "sudo snap get system service.rsyslog.disable" | MATCH "true"
-        remote.exec "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
+        remote.exec "sudo snap get system watchdog.runtime-timeout" | MATCH "10m"
         remote.exec "sudo snap get system system.power-key-action" | MATCH "ignore"
         remote.exec "sudo snap get system system.ctrl-alt-del-action" | MATCH "none"
         remote.exec "sudo snap get system system.disable-backlight-service" | MATCH "true"
 
         remote.exec "test -L /etc/systemd/system/rsyslog.service"
         remote.exec "cat /etc/systemd/logind.conf.d/00-snap-core.conf" | MATCH "HandlePowerKey=ignore"
-        remote.exec "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=780"
+        remote.exec "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=600"
+        # ensure it was possible to set the timeout
+        remote.exec "sudo journalctl" | NOMATCH "Failed to set timeout to"
         remote.exec "test -L /etc/systemd/system/systemd-backlight@.service"
 
         echo "Test that defaults were applied early."
@@ -78,22 +80,17 @@ execute: |
         remote.exec "cat /etc/hostname" | MATCH "foo"
         remote.exec "hostname" | MATCH "foo"
 
-        # 2022-11-30: netplan test on ubuntu-22.04-64 disabled until
-        #  https://bugs.launchpad.net/netplan/+bug/1997467
-        # is fixed
-        if os.query is-focal; then
-          # netplan config defaults are applied
-          remote.exec "sudo cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
-          remote.exec "sudo netplan get bridges.br54.dhcp4" | MATCH true
-          remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH true
-          remote.exec "sudo netplan get ethernets.ens3.dhcp4" | MATCH false
-          # and updating netplan works
-          remote.exec "sudo snap set system system.network.netplan.network.bridges.br54.dhcp4=false"
-          remote.exec "sudo netplan get bridges.br54.dhcp4" | MATCH false
-          remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH false
-          # ensure the test can be repeated
-          remote.exec "sudo rm -f /etc/netplan/90-snapd-config.yaml"
-        fi
+        # netplan config defaults are applied
+        remote.exec "sudo cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
+        remote.exec "sudo netplan get bridges.br54.dhcp4" | MATCH true
+        remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH true
+        remote.exec "sudo netplan get ethernets.ens3.dhcp4" | MATCH false
+        # and updating netplan works
+        remote.exec "sudo snap set system system.network.netplan.network.bridges.br54.dhcp4=false"
+        remote.exec "sudo netplan get bridges.br54.dhcp4" | MATCH false
+        remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH false
+        # ensure the test can be repeated
+        remote.exec "sudo rm -f /etc/netplan/90-snapd-config.yaml"
 
         echo "Check the ssh port file is correct"
         remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress 0\.0\.0\.0:8023"
@@ -108,7 +105,7 @@ execute: |
     tests.nested transition "$recoverySystem" recover
 
     echo "Wait for the snap command to be available since recover mode needs to seed itself"
-    tests.nested wait-for snap-command
+    remote.wait-for snap-command
 
     echo "Wait for snap seeding to be done"
     remote.exec "sudo snap wait system seed.loaded"

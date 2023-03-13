@@ -699,16 +699,15 @@ type cacheObserver struct {
 	puts []string
 }
 
-func (co *cacheObserver) Get(cacheKey, targetPath string) error {
+func (co *cacheObserver) Get(cacheKey, targetPath string) bool {
 	co.gets = append(co.gets, fmt.Sprintf("%s:%s", cacheKey, targetPath))
-	if !co.inCache[cacheKey] {
-		return fmt.Errorf("cannot find %s in cache", cacheKey)
-	}
-	return nil
+	return co.inCache[cacheKey]
 }
+
 func (co *cacheObserver) GetPath(cacheKey string) string {
 	return ""
 }
+
 func (co *cacheObserver) Put(cacheKey, sourcePath string) error {
 	co.puts = append(co.puts, fmt.Sprintf("%s:%s", cacheKey, sourcePath))
 	return nil

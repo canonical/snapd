@@ -42,14 +42,6 @@ type mkfsParams struct {
 	SectorSize quantity.Size
 }
 
-// onDiskAndLaidoutStructure puts together the on disk and the laid
-// out for a disk structure.
-// TODO This is a temporary structure until we include StorageStructure in LaidOutStructure.
-type onDiskAndLaidoutStructure struct {
-	onDisk  *gadget.OnDiskStructure
-	laidOut *gadget.LaidOutStructure
-}
-
 // makeFilesystem creates a filesystem on the on-disk structure, according
 // to the filesystem type defined in the gadget. If sectorSize is specified,
 // that sector size is used when creating the filesystem, otherwise if it is

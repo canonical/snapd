@@ -14,23 +14,12 @@ restore: |
 
 execute: |
     echo "Install lxd"
-    snap install lxd
-
-    lxd waitready
-    lxd init --auto
+    "$TESTSTOOLS"/lxd-state prepare-snap
 
     # Define the core snap for the current system
     core_snap=core20
     if os.query is-ubuntu 23.04; then
         core_snap=core22
-    fi
-
-    echo "Setting up proxy for lxc"
-    if [ -n "${http_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_http "$http_proxy"
-    fi
-    if [ -n "${https_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_https "$http_proxy"
     fi
 
     # There isn't an official image for lunar yet, let's use the community one
@@ -70,7 +59,11 @@ execute: |
 
     echo "Precondition check that mount overrides were generated inside the container"
     lxd.lxc exec ubuntu -- find /var/run/systemd/generator/ -name container.conf | MATCH "/var/run/systemd/generator/snap-${core_snap}.*mount.d/container.conf"
-    lxd.lxc exec ubuntu -- test -f /var/run/systemd/generator/snap.mount
+
+    # On older LXD, we work around / with private propagation by
+    # creating a shared /snap mount point with snapd-generator (LP#1668659).
+    # The unit does not exist in newer LXD images where root is shared.
+    lxd.lxc exec ubuntu -- findmnt / -o PROPAGATION --noheadings | MATCH shared || lxd.lxc exec ubuntu -- test -f /var/run/systemd/generator/snap.mount
 
     echo "Precondition check that $core_snap snap is mounted correctly"
     # Make sure $core_snap is mounted and readable for a regular user

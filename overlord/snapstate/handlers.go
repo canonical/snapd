@@ -53,11 +53,13 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
+	userclient "github.com/snapcore/snapd/usersession/client"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -73,6 +75,8 @@ var EnsureSnapAbsentFromQuotaGroup = func(st *state.State, snap string) error {
 var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ snap.Type) error {
 	panic("internal error: snapstate.SecurityProfilesRemoveLate is unset")
 }
+
+var cgroupMonitorSnapEnded = cgroup.MonitorSnapEnded
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the task.
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
@@ -369,6 +373,13 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, deviceCtx, "")
 	if err != nil {
 		if conflErr, ok := err.(*ChangeConflictError); ok {
+			// If we aren't seeded, then it's to early to do any updates and we cannot
+			// handle this during seeding, so expect the ChangeConflictError in this scenario.
+			if conflErr.ChangeKind == "seed" {
+				t.Logf("cannot update %q during seeding, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), conflErr)
+				return nil, nil
+			}
+
 			// there's already an update for the same snap in this change,
 			// just skip this one
 			if conflErr.ChangeID == t.Change().ID() {
@@ -380,7 +391,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 
 		// don't propagate error to avoid failing the main install since the
 		// content provider is (for now) a soft dependency
-		t.Logf("failed to update %q, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), err)
+		t.Logf("cannot update %q, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), err)
 		return nil, nil
 	}
 
@@ -730,6 +741,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	if err := waitForPreDownload(t, snapsup); err != nil {
+		return err
+	}
+
 	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.MountFile()
 
@@ -768,6 +783,201 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st.Unlock()
 
 	return nil
+}
+
+func waitForPreDownload(task *state.Task, snapsup *SnapSetup) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tasks, err := findTasksMatchingKindAndSnap(st, "pre-download-snap", snapsup.InstanceName(), snapsup.Revision())
+	if err != nil {
+		return err
+	}
+
+	// if there is a pre-download task for the same snap, wait for it to finish
+	for _, preTask := range tasks {
+		if preTask.Status() != state.DoingStatus {
+			continue
+		}
+
+		var taskIDs []string
+		if err := preTask.Get("waiting-tasks", &taskIDs); err != nil && !errors.Is(err, &state.NoStateError{}) {
+			return err
+		}
+
+		if !strutil.ListContains(taskIDs, task.ID()) {
+			taskIDs = append(taskIDs, task.ID())
+			preTask.Set("waiting-tasks", taskIDs)
+		}
+
+		logger.Debugf("Download task %s will wait 1min for pre-download task %s", task.ID(), preTask.ID())
+		return &state.Retry{After: 2 * time.Minute}
+
+	}
+
+	return nil
+}
+
+func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, theStore, user, err := downloadSnapParams(st, t)
+	if err != nil {
+		return err
+	}
+
+	targetFn := snapsup.MountFile()
+	dlOpts := &store.DownloadOptions{
+		// pre-downloads are only triggered in auto-refreshes
+		IsAutoRefresh: true,
+		RateLimit:     autoRefreshRateLimited(st),
+	}
+
+	perfTimings := state.TimingsForTask(t)
+	st.Unlock()
+	timings.Run(perfTimings, "pre-download", fmt.Sprintf("pre-download snap %q", snapsup.SnapName()), func(timings.Measurer) {
+		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, nil, user, dlOpts)
+	})
+	st.Lock()
+	if err != nil {
+		return err
+	}
+	perfTimings.Save(st)
+
+	var waitingTasks []string
+	if err := t.Get("waiting-tasks", &waitingTasks); err != nil && !errors.Is(err, &state.NoStateError{}) {
+		return err
+	}
+
+	// there are download tasks waiting for this one so unblock them and we don't
+	// need to spawn a new change
+	if len(waitingTasks) > 0 {
+		for _, taskID := range waitingTasks {
+			st.Task(taskID).At(time.Time{})
+		}
+
+		st.EnsureBefore(0)
+		return nil
+	}
+
+	_, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	// TODO: in the future, do a hard check before starting an auto-refresh so there's
+	// no chance of the snap starting between changes and preventing it from going through
+	err = backend.WithSnapLock(info, func() error {
+		return refreshAppsCheck(info)
+	})
+	if err != nil {
+		if !errors.Is(err, &BusySnapError{}) {
+			return err
+		}
+
+		var refreshInfo *userclient.PendingSnapRefreshInfo
+		if err := t.Get("refresh-info", &refreshInfo); err != nil {
+			return err
+		}
+
+		return asyncRefreshOnSnapClose(m.state, refreshInfo)
+	}
+
+	continueInhibitedAutoRefresh(st)
+	return nil
+}
+
+// asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
+// the user and then triggers an auto-refresh.
+func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) error {
+	monitoredSnaps := snapMonitoring(st)
+	if monitoredSnaps == nil {
+		monitoredSnaps = make(map[string]chan<- bool)
+	}
+
+	// there's already a goroutine waiting for this snap to close so just notify
+	if monitoredSnaps[refreshInfo.InstanceName] != nil {
+		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+		return nil
+	}
+
+	// monitor the snap until it closes. Use buffered channel to prevent the sender
+	// from blocking if the receiver stops before reading from it
+	done := make(chan string, 1)
+	if err := cgroupMonitorSnapEnded(refreshInfo.InstanceName, done); err != nil {
+		return fmt.Errorf("cannot monitor for snap closure: %w", err)
+	}
+
+	// notify the user about the blocked refresh
+	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+
+	abort := make(chan bool, 1)
+	monitoredSnaps[refreshInfo.InstanceName] = abort
+	st.Cache("monitored-snaps", monitoredSnaps)
+
+	go func() {
+		continueAutoRefresh := false
+		select {
+		case <-done:
+			continueAutoRefresh = true
+		case <-abort:
+		}
+
+		st.Lock()
+		defer st.Unlock()
+
+		monitoredSnaps := snapMonitoring(st)
+		if monitoredSnaps == nil {
+			// shouldn't happen except for programmer error
+			logger.Noticef("cannot find monitoring state for snap %q", refreshInfo.InstanceName)
+		} else {
+			delete(monitoredSnaps, refreshInfo.InstanceName)
+
+			if len(monitoredSnaps) == 0 {
+				// use nil to delete entry but must be nil type (can't be map var set to nil)
+				st.Cache("monitored-snaps", nil)
+			} else {
+				st.Cache("monitored-snaps", monitoredSnaps)
+			}
+		}
+
+		if continueAutoRefresh {
+			continueInhibitedAutoRefresh(st)
+		}
+	}()
+
+	return nil
+}
+
+// continueInhibitedAutoRefresh triggers an auto-refresh so it can be continued
+func continueInhibitedAutoRefresh(st *state.State) {
+	// signal that there's an auto-refresh to be continued (for auto-refresh code)
+	st.Cache("auto-refresh-continue-attempt", 1)
+	st.EnsureBefore(0)
+}
+
+func snapMonitoring(st *state.State) map[string]chan<- bool {
+	if cachedMonitored := st.Cached("monitored-snaps"); cachedMonitored != nil {
+		if monitoredSnaps, ok := cachedMonitored.(map[string]chan<- bool); ok {
+			return monitoredSnaps
+		}
+	}
+
+	return nil
+}
+
+func abortMonitoring(st *state.State, snapName string) {
+	if monitored := snapMonitoring(st); monitored[snapName] != nil {
+		monitored[snapName] <- true
+	}
 }
 
 var (
@@ -1033,10 +1243,20 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
 		// below, completes.
 		// XXX: should we skip it if type is snap.TypeSnapd?
-		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, oldInfo)
+		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo)
 		if err != nil {
+			var busyErr *timedBusySnapError
+			if errors.As(err, &busyErr) {
+				// notify user to close the snap and trigger the auto-refresh once it's closed
+				refreshInfo := busyErr.PendingSnapRefreshInfo()
+				if err := asyncRefreshOnSnapClose(m.state, refreshInfo); err != nil {
+					return err
+				}
+			}
+
 			return err
 		}
+
 		defer lock.Close()
 	}
 
@@ -1763,6 +1983,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}()
 
+	if err := m.maybeDiscardNamespacesOnSnapdDowngrade(st, newInfo); err != nil {
+		return fmt.Errorf("cannot discard preserved namespaces: %v", err)
+	}
+
 	rebootInfo, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
@@ -1893,6 +2117,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}
 
+	// abort any snap monitoring that may have started in a pre-download task
+	abortMonitoring(st, snapsup.InstanceName())
+
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, snapsup.InstanceName(), snapst)
 
@@ -2005,6 +2232,37 @@ func daemonRestartReason(st *state.State, typ snap.Type) string {
 	}
 
 	return "Requested daemon restart (snapd snap)."
+}
+
+// maybeDiscardNamespacesOnSnapdDowngrade must be called when we are about to
+// activate a different snapd version. It checks whether we are performing a
+// downgrade to a snapd version that does not support the
+// "x-snapd.origin=rootfs" option (which we use when mounting a snap's "/" as a
+// tmpfs) and, if so, discards all preserved snap namespaces; failure to do so
+// would cause snap-update-ns to misbehave and destroy our namespace.
+// This method assumes that the State is locked.
+func (m *SnapManager) maybeDiscardNamespacesOnSnapdDowngrade(st *state.State, snapInfo *snap.Info) error {
+	if snapInfo.Type() != snap.TypeSnapd || snapInfo.Version == "" {
+		return nil
+	}
+
+	// Support for "x-snapd.origin=rootfs" was introduced in snapd 2.57
+	if compare, err := strutil.VersionCompare(snapInfo.Version, "2.57"); err == nil && compare < 0 {
+		logger.Noticef("Downgrading snapd to version %q, discarding preserved namespaces", snapInfo.Version)
+		allSnaps, err := All(st)
+		if err != nil {
+			return err
+		}
+		for _, snap := range allSnaps {
+			logger.Debugf("Discarding namespace for snap %q", snap.InstanceName())
+			if err := m.backend.DiscardSnapNamespace(snap.InstanceName()); err != nil {
+				// We don't propagate the error as we don't want to block the
+				// downgrade for this. Let's just log it down.
+				logger.Noticef("WARNING: discarding namespace of snap %q failed, snap might be unusable until next reboot", snap.InstanceName())
+			}
+		}
+	}
+	return nil
 }
 
 // maybeUndoRemodelBootChanges will check if an undo needs to update the
@@ -3664,19 +3922,28 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	updated, tasksets, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID())
+	updated, updateTss, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID())
 	if err != nil {
 		return err
 	}
 
+	var newTasks bool
 	if len(updated) == 0 {
 		t.Logf("No re-refreshes found.")
 	} else {
 		t.Logf("Found re-refresh for %s.", strutil.Quoted(updated))
 
-		for _, taskset := range tasksets {
+		for _, taskset := range updateTss.Refresh {
 			chg.AddAll(taskset)
+			newTasks = true
 		}
+	}
+
+	if createPreDownloadChange(st, updateTss) {
+		newTasks = true
+	}
+
+	if newTasks {
 		st.EnsureBefore(0)
 	}
 	t.SetStatus(state.DoneStatus)
@@ -3699,28 +3966,32 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		return nil
 	}
 
-	tss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
+	updateTss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
 	if err != nil {
 		return err
 	}
 
-	// update the map of refreshed snaps on the task, this affects
-	// conflict checks (we don't want to conflict on snaps that were held and
-	// won't be refreshed) -  see conditionalAutoRefreshAffectedSnaps().
-	newToUpdate := make(map[string]*refreshCandidate, len(snaps))
-	for _, candidate := range snaps {
-		newToUpdate[candidate.InstanceName()] = candidate
-	}
-	t.Set("snaps", newToUpdate)
+	createPreDownloadChange(st, updateTss)
 
-	// update original auto-refresh change
-	chg := t.Change()
-	for _, ts := range tss {
-		ts.WaitFor(t)
-		chg.AddAll(ts)
+	if updateTss.Refresh != nil {
+		// update the map of refreshed snaps on the task, this affects
+		// conflict checks (we don't want to conflict on snaps that were held and
+		// won't be refreshed) -  see conditionalAutoRefreshAffectedSnaps().
+		newToUpdate := make(map[string]*refreshCandidate, len(snaps))
+		for _, candidate := range snaps {
+			newToUpdate[candidate.InstanceName()] = candidate
+		}
+		t.Set("snaps", newToUpdate)
+
+		// update original auto-refresh change
+		chg := t.Change()
+		for _, ts := range updateTss.Refresh {
+			ts.WaitFor(t)
+			chg.AddAll(ts)
+		}
 	}
+
 	t.SetStatus(state.DoneStatus)
-
 	st.EnsureBefore(0)
 	return nil
 }

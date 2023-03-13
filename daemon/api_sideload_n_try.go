@@ -303,7 +303,7 @@ func readSideInfo(st *state.State, tempPath string, origPath string, flags sidel
 		switch {
 		case err == nil:
 			sideInfo = si
-		case asserts.IsNotFound(err):
+		case errors.Is(err, &asserts.NotFoundError{}):
 			// with devmode we try to find assertions but it's ok
 			// if they are not there (implies --dangerous)
 			if !flags.DevMode {

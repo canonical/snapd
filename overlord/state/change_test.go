@@ -543,16 +543,17 @@ func (cs *changeSuite) TestAbortKⁿ(c *C) {
 
 // Task wait order:
 //
-//             => t21 => t22
-//           /               \
+//	  => t21 => t22
+//	/               \
+//
 // t11 => t12                 => t41 => t42
-//           \               /
-//             => t31 => t32
+//
+//	\               /
+//	  => t31 => t32
 //
 // setup and result lines are <task>:<status>[:<lane>,...]
 //
 // "*" as task name means "all remaining".
-//
 var abortLanesTests = []struct {
 	setup  string
 	abort  []int
@@ -746,11 +747,9 @@ func (ts *taskRunnerSuite) TestAbortLanes(c *C) {
 	}
 }
 
-//
 // setup and result lines are <task>:<status>[:<lane>,...]
 // order is <task1>-><task2> (implies task2 waits for task 1)
 // "*" as task name means "all remaining".
-//
 var abortUnreadyLanesTests = []struct {
 	setup  string
 	order  string

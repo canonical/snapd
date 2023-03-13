@@ -696,16 +696,19 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 }
 
 // Short form:
-//   system-usernames:
-//     snap_daemon: shared  # 'scope' is 'shared'
-//     lxd: external        # currently unsupported
-//     foo: private         # currently unsupported
+//
+//	system-usernames:
+//	  snap_daemon: shared  # 'scope' is 'shared'
+//	  lxd: external        # currently unsupported
+//	  foo: private         # currently unsupported
+//
 // Attributes form:
-//   system-usernames:
-//     snap_daemon:
-//       scope: shared
-//       attrib1: ...
-//       attrib2: ...
+//
+//	system-usernames:
+//	  snap_daemon:
+//	    scope: shared
+//	    attrib1: ...
+//	    attrib2: ...
 func convertToUsernamesData(user string, data interface{}) (scope string, attrs map[string]interface{}, err error) {
 	switch data.(type) {
 	case string:

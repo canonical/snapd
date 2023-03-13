@@ -6,6 +6,7 @@
 debian_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
     . "$TESTSLIB/tools/tests.pkgs.apt.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -14,6 +15,7 @@ debian_name_package() {
 ubuntu_14_04_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
     . "$TESTSLIB/tools/tests.pkgs.apt.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -22,6 +24,7 @@ ubuntu_14_04_name_package() {
 fedora_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
     . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -30,6 +33,7 @@ fedora_name_package() {
 amazon_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
     . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -38,6 +42,7 @@ amazon_name_package() {
 opensuse_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.zypper.sh
     . "$TESTSLIB/tools/tests.pkgs.zypper.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -46,6 +51,7 @@ opensuse_name_package() {
 arch_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.pacman.sh
     . "$TESTSLIB/tools/tests.pkgs.pacman.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done

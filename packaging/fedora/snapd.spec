@@ -92,7 +92,6 @@
 %{!?_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
 %{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
 %{!?_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
-%{!?_tmpfilesdir: %global _tmpfilesdir %{_prefix}/lib/tmpfiles.d}
 
 # Fedora selinux-policy includes 'map' permission on a 'file' class. However,
 # Amazon Linux 2 does not have the updated policy containing the fix for
@@ -103,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.58
+Version:        2.58.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -233,6 +232,9 @@ the started snap applications.
 Summary:        SELinux module for snapd
 License:        GPLv2+
 BuildArch:      noarch
+BuildRequires:  selinux-policy
+BuildRequires:  selinux-policy-devel
+BuildRequires:  make
 %{?selinux_requires}
 
 %description selinux
@@ -550,7 +552,8 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
 # snap-exec, snap-update-ns, and snapctl need to be built statically
 (
 %if 0%{?rhel} >= 7
-    # since 1.12.1, the go-toolset module is built with FIPS compliance that
+    # since RH Developer tools 2018.4 (and later releases),
+    # the go-toolset module is built with FIPS compliance that
     # defaults to using libcrypto.so which gets loaded at runtime via dlopen(),
     # disable that functionality for statically built binaries
     BUILDTAGS="${BUILDTAGS} no_openssl"
@@ -695,9 +698,9 @@ popd
 pushd ./data
 %make_install BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
               SYSTEMDSYSTEMUNITDIR="%{_unitdir}" SYSTEMDUSERUNITDIR="%{_userunitdir}" \
+              TMPFILESDIR="%{_tmpfilesdir}" \
               SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
-              SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd" \
-              TMPFILESDIR="%{_tmpfilesdir}"
+              SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
 popd
 
 %if 0%{?rhel} == 7
@@ -827,7 +830,6 @@ popd
 %{_sysconfdir}/profile.d/snapd.sh
 %{_mandir}/man8/snapd-env-generator.8*
 %{_systemd_system_env_generator_dir}/snapd-env-generator
-%{_tmpfilesdir}/snapd.conf
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.autoimport.service
@@ -837,6 +839,7 @@ popd
 %{_unitdir}/snapd.mounts-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
+%{_tmpfilesdir}/snapd.conf
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.SessionAgent.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
@@ -993,6 +996,51 @@ fi
 
 
 %changelog
+* Tue Feb 21 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.58.3
+ - interfaces/screen-inhibit-control: Add support for xfce-power-
+   manager
+ - interfaces/network-manager: do not show ptrace read
+   denials
+ - interfaces: relax rules for mount-control `what` for functionfs
+ - cmd/snap-bootstrap: add support for snapd_system_disk
+ - interfaces/modem-manager: add net_admin capability
+ - interfaces/network-manager: add permission for OpenVPN
+ - httputil: fix checking x509 certification error on go 1.20
+ - i/b/fwupd: allow reading host os-release
+ - boot: on classic+modes `MarkBootSuccessfull` does not need a base
+ - boot: do not include `base=` in modeenv for classic+modes installs
+ - tests: add spread test that validates revert on boot for core does
+   not happen on classic+modes
+ - snapstate: only take boot participants into account in
+   UpdateBootRevisions
+ - snapstate: refactor UpdateBootRevisions() to make it easier to
+   check for boot.SnapTypeParticipatesInBoot()
+
+* Wed Jan 25 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.58.2
+ - bootloader: fix dirty build by hardcoding copyright year
+
+* Mon Jan 23 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.58.1
+ - secboot: detect lockout mode in CheckTPMKeySealingSupported
+ - cmd/snap-update-ns: prevent keeping unneeded mountpoints
+ - o/snapstate: do not infinitely retry when an update fails during
+   seeding
+ - interfaces/modem-manager: add permissions for NETLINK_ROUTE
+ - systemd/emulation.go: use `systemctl --root` to enable/disable
+ - snap: provide more error context in `NotSnapError`
+ - interfaces: add read access to /run for cryptsetup
+ - boot: avoid reboot loop if there is a bad try kernel
+ - devicestate: retry serial acquire on time based certificate
+   errors
+ - o/devicestate: run systemctl daemon-reload after install-device
+   hook
+ - cmd/snap,daemon: add 'held' to notes in 'snap list'
+ - o/snapshotstate: check snapshots are self-contained on import
+ - cmd/snap: show user+gating hold info in 'snap info'
+ - daemon: expose user and gating holds at /v2/snaps/{name}
+
 * Thu Dec 01 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.58
  - many: Use /tmp/snap-private-tmp for per-snap private tmps

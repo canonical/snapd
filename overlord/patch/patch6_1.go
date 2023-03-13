@@ -97,7 +97,7 @@ func processConns(conns map[string]connStatePatch6_1, infos map[string]*snap.Inf
 }
 
 // patch6_1:
-//  - add static plug and slot attributes to connections that miss them. Attributes are read from current snap info.
+//   - add static plug and slot attributes to connections that miss them. Attributes are read from current snap info.
 func patch6_1(st *state.State) error {
 	infos := make(map[string]*snap.Info)
 

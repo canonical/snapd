@@ -185,7 +185,6 @@ Sometimes it is helpful to modify the snap version in
 `./custom-core/meta/snap.yaml` before repacking with `snap pack` so it is easy
 to identify which snap file is which.
 
-
 ### Building natively
 
 To build the `snap` command line client:
@@ -310,8 +309,8 @@ There are few guidelines that contributors should follow:
 - Try to write tests to cover the contributed changes.
 - Write idiomatic Go (refer to [Effective Go](https://go.dev/doc/effective_go) etc).
 - Exported names should have documentation comments.
-- Error messages used in `fmt.Errorf` etc should start with lowercase and whenever
-  possible use the form "cannot ..." for consistency, for example avoid "failed to...".
+- [CODING.md](CODING.md) contains a more extensive checklist of points
+  to take into account when coding or reviewing code for the project.
 
 >If you need any help with any of these guidelines, please reach out to the team.
 
@@ -408,7 +407,6 @@ to the official list of [Ubuntu releases](https://wiki.ubuntu.com/Releases).
 > `<release-short-name>` is the first word in the release's full name, 
 e.g. for "Bionic Beaver" it is `bionic`.
 
-
 To build an Ubuntu 14.04 (Trusty Tahr) based VM, use:
 
     $ autopkgtest-buildvm-ubuntu-cloud -r trusty --post-command='sudo apt-get install -y --install-recommends linux-generic-lts-xenial && update-grub'
@@ -467,6 +465,9 @@ transfer it to the snappy system and then run:
 To debug interaction with the snap store, you can set `SNAPD_DEBUG_HTTP`.
 It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.
 
+Similarly, to debug the interaction between the `snap` command-line tool and the
+snapd REST API, you can set `SNAP_CLIENT_DEBUG_HTTP`. It is also a bitfield,
+with the same values and behaviour as `SNAPD_DEBUG_HTTP`.
 > In case you get some security profiles errors, when trying to install or refresh a snap, 
 maybe you need to replace system installed snap-seccomp with the one aligned to the snapd that 
 you are testing. To do this, simply backup `/usr/lib/snapd/snap-seccomp` and overwrite it with 

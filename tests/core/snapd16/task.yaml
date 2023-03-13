@@ -11,7 +11,7 @@ restore: |
     rm -f /etc/systemd/user/snapd.session-agent.service
     rm -f /etc/systemd/user/snapd.session-agent.socket
     rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
-    systemctl --user daemon-reload
+    systemctl --user daemon-reload || true
     rm -f /etc/dbus-1/session.d/snapd.session-services.conf
     rm -f /etc/dbus-1/system.d/snapd.system-services.conf
 
@@ -52,7 +52,8 @@ execute: |
         # we cannot restore in "restore:" because we need a reboot
         # right now to get a clean state again
         systemctl stop snapd.service snapd.socket snapd.autoimport.service snapd.snap-repair.service snapd.snap-repair.timer
-        umount "/snap/snapd/$(readlink /snap/snapd/current)"
+        umount "/snap/snapd/x2"
+        umount "/snap/snapd/x1"
 
         rm -f /etc/systemd/system/usr-lib-snapd.mount
         rm -f /etc/systemd/system/snap-snapd-*.mount
@@ -66,11 +67,16 @@ execute: |
         umount --lazy /usr/lib/snapd
         systemctl start snapd.service snapd.socket
         systemctl status snapd|MATCH " /usr/lib/snapd/snapd"
+        snap wait system seed.loaded
+
+        umount /snap/snapd/x2
+        rm /etc/systemd/system/snap-snapd-x2.mount
+        systemctl daemon-reload
+        snap list
+        snap remove snapd
 
         echo "And we reboot to get a clean system again"
         REBOOT
     fi
-    snap list
-    snap remove snapd
     # and we can still run the rsync snap after the reboot
     rsync --help

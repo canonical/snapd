@@ -46,6 +46,12 @@ func MockPreseedClassic(f func(dir string) error) (restore func()) {
 	return r
 }
 
+func MockPreseedClassicReset(f func(dir string) error) (restore func()) {
+	r := testutil.Backup(&preseedClassicReset)
+	preseedClassicReset = f
+	return r
+}
+
 func MockResetPreseededChroot(f func(dir string) error) (restore func()) {
 	r := testutil.Backup(&preseedResetPreseededChroot)
 	preseedResetPreseededChroot = f

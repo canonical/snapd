@@ -39,7 +39,7 @@ func init() {
 	supportedConfigurations["core.swap.size"] = true
 }
 
-func validateSystemSwapConfiguration(tr config.ConfGetter) error {
+func validateSystemSwapConfiguration(tr ConfGetter) error {
 	output, err := coreCfg(tr, "swap.size")
 	if err != nil {
 		return err
@@ -75,7 +75,7 @@ func parseAndValidateSwapSize(szString string) (quantity.Size, error) {
 	return sz, nil
 }
 
-func handlesystemSwapConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handlesystemSwapConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	var pristineSwapSize, newSwapSize string
 	if err := tr.GetPristine("core", "swap.size", &pristineSwapSize); err != nil && !config.IsNoOption(err) {
 		return err

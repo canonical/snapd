@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
+// +build !nomanagers
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -31,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -238,7 +241,7 @@ func (s *configcoreHijackSuite) SetUpTest(c *C) {
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
-	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ config.ConfGetter) error {
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ configcore.ConfGetter) error {
 		return nil
 	})
 	s.AddCleanup(r)
@@ -270,15 +273,25 @@ func (wm *witnessManager) Ensure() error {
 }
 
 func (s *configcoreHijackSuite) TestHijack(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts := configstate.Configure(s.state, "core", map[string]interface{}{
+		"witness": true,
+	}, 0)
+	c.Assert(len(ts.Tasks()), Equals, 1)
+	taskID := ts.Tasks()[0].ID()
+
 	configcoreRan := false
 	witnessCfg := false
-	witnessConfigcoreRun := func(dev sysconfig.Device, conf config.Conf) error {
+	witnessConfigcoreRun := func(dev sysconfig.Device, conf configcore.RunTransaction) error {
 		// called with no state lock!
 		conf.State().Lock()
 		defer conf.State().Unlock()
 		err := conf.Get("core", "witness", &witnessCfg)
 		c.Assert(err, IsNil)
 		configcoreRan = true
+		c.Assert(conf.Task().ID(), Equals, taskID)
 		return nil
 	}
 	r := configstate.MockConfigcoreRun(witnessConfigcoreRun)
@@ -288,13 +301,6 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 		state: s.state,
 	}
 	s.o.AddManager(witnessMgr)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	ts := configstate.Configure(s.state, "core", map[string]interface{}{
-		"witness": true,
-	}, 0)
 
 	chg := s.state.NewChange("configure-core", "configure core")
 	chg.AddAll(ts)
@@ -372,7 +378,7 @@ func (s *earlyConfigSuite) TestEarlyConfigSeeded(c *C) {
 }
 
 func (s *earlyConfigSuite) TestEarlyConfigSeededErr(c *C) {
-	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf config.ConfGetter) error {
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf configcore.ConfGetter) error {
 		return fmt.Errorf("bad bad")
 	})
 	defer r()
@@ -442,7 +448,7 @@ func (s *earlyConfigSuite) TestEarlyConfigFromGadget(c *C) {
 }
 
 func (s *earlyConfigSuite) TestEarlyConfigFromGadgetErr(c *C) {
-	defer configstate.MockConfigcoreEarly(func(sysconfig.Device, config.Conf, map[string]interface{}) error {
+	defer configstate.MockConfigcoreEarly(func(sysconfig.Device, configcore.RunTransaction, map[string]interface{}) error {
 		return fmt.Errorf("boom")
 	})()
 
@@ -455,6 +461,23 @@ func (s *earlyConfigSuite) TestEarlyConfigFromGadgetErr(c *C) {
 
 	err := configstate.EarlyConfig(s.state, preloadGadget)
 	c.Assert(err, ErrorMatches, "boom")
+}
+
+func (s *earlyConfigSuite) TestEarlyConfigNoHookTask(c *C) {
+	defer configstate.MockConfigcoreEarly(func(dev sysconfig.Device, cfg configcore.RunTransaction, vals map[string]interface{}) error {
+		c.Assert(cfg.Task(), IsNil)
+		return nil
+	})()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
+		return nil, &gadget.Info{}, nil
+	}
+
+	err := configstate.EarlyConfig(s.state, preloadGadget)
+	c.Assert(err, IsNil)
 }
 
 func (s *earlyConfigSuite) TestEarlyConfigPreloadGadgetErr(c *C) {

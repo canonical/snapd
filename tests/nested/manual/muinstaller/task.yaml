@@ -168,7 +168,7 @@ execute: |
   # TODO: this prevents "nested_prepare_ssh" inside nested_start_core_vm
   #       from running, we already have a user so this is not needed
   touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
-  nested_start_core_vm
+  tests.nested create-vm core
 
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
   remote.exec "snap changes" | MATCH "Done.* Initialize system state"

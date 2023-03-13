@@ -1191,3 +1191,151 @@ func (mods *modelSuite) TestClassicWithSnapsMinimalDecodeOK(c *C) {
 		c.Check(noEssential.Size(), Equals, len(snaps)-1)
 	}
 }
+
+func (mods *modelSuite) TestValidationSetsDecodeInvalid(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	tests := []struct {
+		frag        string
+		expectedErr string
+	}{
+		// invalid format 1
+		{`validation-sets: 12395
+`, "assertion model: \"validation-sets\" must be a list of validation sets"},
+		// invalid format 2
+		{`validation-sets:
+  - test
+`, "assertion model: entry in \"validation-sets\" is not a valid validation-set"},
+		// missing name
+		{`validation-sets:
+  -
+    mode: prefer-enforce
+`, "assertion model: \"name\" of validation-set is mandatory"},
+		// account-id not a valid string
+		{`validation-sets:
+  -
+    account-id:
+      - 1
+    name: my-set
+    mode: enforce
+`, "assertion model: \"account-id\" of validation-set \"my-set\" must be a string"},
+		// missing mode
+		{`validation-sets:
+  -
+    name: my-set
+`, "assertion model: \"mode\" of validation-set \"brand-id1/my-set\" is mandatory"},
+		// invalid value in mode
+		{`validation-sets:
+  -
+    account-id: developer1
+    name: my-set
+    sequence: 10
+    mode: hello
+`, "assertion model: \"mode\" of validation-set \"brand-id1/my-set\" must be prefer-enforce|enforce, not \"hello\""},
+		// sequence number invalid (not an integer)
+		{`validation-sets:
+  -
+    account-id: developer1
+    sequence: foo
+    name: my-set
+    mode: enforce
+`, "assertion model: \"sequence\" of validation-set \"developer1/my-set\" is not an integer: foo"},
+		// sequence number invalid (below)
+		{`validation-sets:
+  -
+    account-id: developer1
+    sequence: -1
+    name: my-set
+    mode: enforce
+`, "assertion model: \"sequence\" of validation-set \"developer1/my-set\" must be larger than 0 or left unspecified \\(meaning tracking latest\\)"},
+		// sequence number invalid (0 is not allowed)
+		{`validation-sets:
+  -
+    account-id: developer1
+    sequence: 0
+    name: my-set
+    mode: enforce
+`, "assertion model: \"sequence\" of validation-set \"developer1/my-set\" must be larger than 0 or left unspecified \\(meaning tracking latest\\)"},
+		// duplicate validation-set
+		{`validation-sets:
+  -
+    account-id: developer1
+    name: my-set
+    mode: prefer-enforce
+  -
+    account-id: developer1
+    name: my-set
+    mode: enforce
+`, "assertion model: cannot add validation set \"developer1/my-set\" twice"},
+	}
+
+	for _, t := range tests {
+		data := strings.Replace(encoded, "OTHER", t.frag, 1)
+		_, err := asserts.Decode([]byte(data))
+		c.Check(err, ErrorMatches, t.expectedErr)
+	}
+}
+
+func (mods *modelSuite) TestValidationSetsDecodeOK(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	tests := []struct {
+		frag     string
+		expected []*asserts.ModelValidationSet
+	}{
+		// brand validation-set, this should instead use the brand specified
+		// by the core20ModelExample, as account-id is not set
+		{`validation-sets:
+  -
+    name: my-set
+    mode: prefer-enforce
+`,
+			[]*asserts.ModelValidationSet{
+				{
+					AccountID: "brand-id1",
+					Name:      "my-set",
+					Mode:      asserts.ModelValidationSetModePreferEnforced,
+				},
+			}},
+		// pinned set
+		{`validation-sets:
+  -
+    account-id: developer1
+    name: my-set
+    sequence: 10
+    mode: enforce
+`,
+			[]*asserts.ModelValidationSet{
+				{
+					AccountID: "developer1",
+					Name:      "my-set",
+					Sequence:  10,
+					Mode:      asserts.ModelValidationSetModeEnforced,
+				},
+			}},
+		// unpinned set
+		{`validation-sets:
+  -
+    account-id: developer1
+    name: my-set
+    mode: prefer-enforce
+`,
+			[]*asserts.ModelValidationSet{
+				{
+					AccountID: "developer1",
+					Name:      "my-set",
+					Mode:      asserts.ModelValidationSetModePreferEnforced,
+				},
+			}},
+	}
+
+	for _, t := range tests {
+		data := strings.Replace(encoded, "OTHER", t.frag, 1)
+		a, err := asserts.Decode([]byte(data))
+		c.Assert(err, IsNil)
+		c.Check(a.Type(), Equals, asserts.ModelType)
+		model := a.(*asserts.Model)
+		c.Check(model.Architecture(), Equals, "amd64")
+		c.Check(model.Classic(), Equals, false)
+		c.Check(model.Base(), Equals, "core20")
+		c.Check(model.ValidationSets(), DeepEquals, t.expected)
+	}
+}

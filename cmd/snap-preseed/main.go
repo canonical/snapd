@@ -48,6 +48,7 @@ first-boot startup time`
 
 type options struct {
 	Reset               bool   `long:"reset"`
+	ResetChroot         bool   `long:"reset-chroot" hidden:"1"`
 	PreseedSignKey      string `long:"preseed-sign-key"`
 	AppArmorFeaturesDir string `long:"apparmor-features-dir"`
 	SysfsOverlay        string `long:"sysfs-overlay"`
@@ -61,6 +62,7 @@ var (
 
 	preseedCore20               = preseed.Core20
 	preseedClassic              = preseed.Classic
+	preseedClassicReset         = preseed.ClassicReset
 	preseedResetPreseededChroot = preseed.ResetPreseededChroot
 
 	opts options
@@ -93,34 +95,39 @@ func run(parser *flags.Parser, args []string) (err error) {
 	// for processing of seeds with gadget because of readInfo().
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
 
-	if osGetuid() != 0 {
-		return fmt.Errorf("must be run as root")
-	}
-
 	rest, err := parser.ParseArgs(args)
 	if err != nil {
 		return err
 	}
 
-	if len(rest) == 0 {
-		return fmt.Errorf("need chroot path as argument")
+	if osGetuid() != 0 {
+		return fmt.Errorf("must be run as root")
 	}
 
-	chrootDir, err := filepath.Abs(rest[0])
-	if err != nil {
-		return err
-	}
+	var chrootDir string
+	if opts.ResetChroot {
+		chrootDir = "/"
+	} else {
+		if len(rest) == 0 {
+			return fmt.Errorf("need chroot path as argument")
+		}
 
-	// safety check
-	if chrootDir == "/" {
-		return fmt.Errorf("cannot run snap-preseed against /")
-	}
+		chrootDir, err = filepath.Abs(rest[0])
+		if err != nil {
+			return err
+		}
 
-	if opts.Reset {
-		return preseedResetPreseededChroot(chrootDir)
+		// safety check
+		if chrootDir == "/" {
+			return fmt.Errorf("cannot run snap-preseed against /")
+		}
 	}
 
 	if probeCore20ImageDir(chrootDir) {
+		if opts.Reset || opts.ResetChroot {
+			return fmt.Errorf("cannot snap-preseed --reset for Ubuntu Core")
+		}
+
 		coreOpts := &preseed.CoreOptions{
 			PrepareImageDir:           chrootDir,
 			PreseedSignKey:            opts.PreseedSignKey,
@@ -128,6 +135,12 @@ func run(parser *flags.Parser, args []string) (err error) {
 			SysfsOverlay:              opts.SysfsOverlay,
 		}
 		return preseedCore20(coreOpts)
+	}
+	if opts.ResetChroot {
+		return preseedResetPreseededChroot(chrootDir)
+	}
+	if opts.Reset {
+		return preseedClassicReset(chrootDir)
 	}
 	return preseedClassic(chrootDir)
 }

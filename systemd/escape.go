@@ -29,10 +29,8 @@ import (
 const allowed = `:_.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
 
 // EscapeUnitNamePath works like systemd-escape --path
-// FIXME: we could use github.com/coreos/go-systemd/unit/escape.go
-//        and EscapePath from it.
-//
-//        But thats not in the archive and it won't work with go1.3
+// FIXME: we could use github.com/coreos/go-systemd/unit/escape.go and EscapePath
+// from it. But that's not in the archive and it won't work with go1.3
 func EscapeUnitNamePath(in string) string {
 	// "" is the same as "/" which is escaped to "-"
 	// the filepath.Clean will turn "" into "." and make this incorrect

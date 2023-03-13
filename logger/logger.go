@@ -102,7 +102,7 @@ func NoGuardDebugf(format string, v ...interface{}) {
 	logger.NoGuardDebug(msg)
 }
 
-// MockLogger replaces the exiting logger with a buffer and returns
+// MockLogger replaces the existing logger with a buffer and returns
 // the log buffer and a restore function.
 func MockLogger() (buf *bytes.Buffer, restore func()) {
 	buf = &bytes.Buffer{}

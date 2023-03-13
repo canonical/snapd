@@ -184,19 +184,23 @@ func EnsureCloudInitRestricted(m *DeviceManager) error {
 	return m.ensureCloudInitRestricted()
 }
 
-func ImportAssertionsFromSeed(m *DeviceManager, sysLabel string, isCoreBoot bool) (seed.Seed, error) {
-	return m.importAssertionsFromSeed(sysLabel, isCoreBoot)
+func ImportAssertionsFromSeed(m *DeviceManager, isCoreBoot bool) (seed.Seed, error) {
+	return m.importAssertionsFromSeed(isCoreBoot)
 }
 
-func PopulateStateFromSeedImpl(m *DeviceManager, opts *PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
-	return m.populateStateFromSeedImpl(opts, tm)
+func PopulateStateFromSeedImpl(m *DeviceManager, tm timings.Measurer) ([]*state.TaskSet, error) {
+	return m.populateStateFromSeedImpl(tm)
 }
 
-type PopulateStateFromSeedOptions = populateStateFromSeedOptions
-
-func MockPopulateStateFromSeed(m *DeviceManager, f func(*PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
+func MockPopulateStateFromSeed(m *DeviceManager, f func(seedLabel, seedMode string, tm timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
 	old := m.populateStateFromSeed
-	m.populateStateFromSeed = f
+	m.populateStateFromSeed = func(tm timings.Measurer) ([]*state.TaskSet, error) {
+		sLabel, sMode, err := m.seedLabelAndMode()
+		if err != nil {
+			panic(err)
+		}
+		return f(sLabel, sMode, tm)
+	}
 	return func() {
 		m.populateStateFromSeed = old
 	}
@@ -272,8 +276,7 @@ var (
 	CachedRemodelCtx  = cachedRemodelCtx
 
 	GadgetUpdateBlocked = gadgetUpdateBlocked
-	CurrentGadgetInfo   = currentGadgetInfo
-	PendingGadgetInfo   = pendingGadgetInfo
+	PendingGadgetInfo   = pendingGadgetData
 
 	CriticalTaskEdges = criticalTaskEdges
 
@@ -333,7 +336,7 @@ func MockBootEnsureNextBootToRunMode(f func(systemLabel string) error) (restore 
 	}
 }
 
-func MockSecbootCheckTPMKeySealingSupported(f func() error) (restore func()) {
+func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionMode) error) (restore func()) {
 	old := secbootCheckTPMKeySealingSupported
 	secbootCheckTPMKeySealingSupported = f
 	return func() {
@@ -439,12 +442,12 @@ func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]
 	return mgr.runFDESetupHook(req)
 }
 
-func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (secboot.EncryptionType, error) {
-	return mgr.checkEncryption(st, deviceCtx)
+func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext, mode secboot.TPMProvisionMode) (secboot.EncryptionType, error) {
+	return mgr.checkEncryption(st, deviceCtx, mode)
 }
 
-func DeviceManagerEncryptionSupportInfo(mgr *DeviceManager, model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
-	return mgr.encryptionSupportInfo(model, kernelInfo, gadgetInfo)
+func DeviceManagerEncryptionSupportInfo(mgr *DeviceManager, model *asserts.Model, mode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
+	return mgr.encryptionSupportInfo(model, mode, kernelInfo, gadgetInfo)
 }
 
 func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) (secboot.EncryptionType, error) {

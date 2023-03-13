@@ -89,19 +89,19 @@ func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change
 // handlers will be called, assuming the provided setup is in place.
 //
 // Setup options:
-//     <task>:was-<status>    - set task status before calling ensure (must be sensible)
-//     <task>:(do|undo)-block - block handler until task tomb dies
-//     <task>:(do|undo)-retry - return from handler with with state.Retry
-//     <task>:(do|undo)-error - return from handler with an error
-//     <task>:...:1,2         - one of the above, and add task to lanes 1 and 2
-//     chg:abort              - call abort on the change
+//
+//	<task>:was-<status>    - set task status before calling ensure (must be sensible)
+//	<task>:(do|undo)-block - block handler until task tomb dies
+//	<task>:(do|undo)-retry - return from handler with with state.Retry
+//	<task>:(do|undo)-error - return from handler with an error
+//	<task>:...:1,2         - one of the above, and add task to lanes 1 and 2
+//	chg:abort              - call abort on the change
 //
 // Task wait order: ( t11 | t12 ) => ( t21 ) => ( t31 | t32 )
 //
 // Task t12 has no undo.
 //
 // Final task statuses are tested based on the resulting events list.
-//
 var sequenceTests = []struct{ setup, result string }{{
 	setup:  "",
 	result: "t11:do t12:do t21:do t31:do t32:do",

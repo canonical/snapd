@@ -28,7 +28,7 @@ jobs:
 
     - name: Check built artifact
       run: |
-        unsquashfs snapd*.snap meta/snap.yaml usr/lib/snapd/info
+        unsquashfs snapd*.snap meta/snap.yaml usr/lib/snapd/
         if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
           echo "PR produces dirty snapd snap version"
           cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
@@ -36,6 +36,7 @@ jobs:
         elif cat squashfs-root/usr/lib/snapd/info | grep -q "VERSION=.*dirty.*"; then
           echo "PR produces dirty internal snapd info version"
           cat squashfs-root/usr/lib/snapd/info
+          cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
           exit 1
         fi
 
@@ -153,7 +154,7 @@ jobs:
       with:
         # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
         # to use the latest version
-        version: v1.50.1
+        version: v1.51.2
         working-directory: ./src/github.com/snapcore/snapd
         # show only new issues
         # use empty path prefix to make annotations work
@@ -382,8 +383,8 @@ jobs:
         - debian-10-64
         - debian-11-64
         - debian-sid-64
-        - fedora-35-64
         - fedora-36-64
+        - fedora-37-64
         - opensuse-15.3-64
         - opensuse-15.4-64
         - opensuse-tumbleweed-64

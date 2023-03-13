@@ -32,7 +32,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -57,12 +56,8 @@ func (s *quotaHandlersSuite) SetUpTest(c *C) {
 	// we don't need the EnsureSnapServices ensure loop to run by default
 	servicestate.MockEnsuredSnapServices(s.mgr, true)
 
-	// we enable quota-groups by default
 	s.state.Lock()
 	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.quota-groups", true)
-	tr.Commit()
 
 	// mock that we have a new enough version of systemd by default
 	systemdRestore := systemd.MockSystemdVersion(248, nil)

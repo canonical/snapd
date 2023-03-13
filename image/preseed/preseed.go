@@ -49,8 +49,7 @@ var (
 	Stderr io.Writer = os.Stderr
 )
 
-//  CoreOptions provides required and optional options for core
-// preseeding.
+// CoreOptions provides required and optional options for core preseeding.
 type CoreOptions struct {
 	// prepare image directory
 	PrepareImageDir string
@@ -79,8 +78,9 @@ type preseedCoreOptions struct {
 }
 
 type targetSnapdInfo struct {
-	path    string
-	version string
+	path        string
+	preseedPath string
+	version     string
 }
 
 var (

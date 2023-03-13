@@ -113,7 +113,7 @@ prepare: |
   cp prepare-device pc-gadget/meta/hooks/
 
   nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-  snap pack pc-gadget/ extra-snaps/
+  snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
   rm -rf pc-gadget/
 
   rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"

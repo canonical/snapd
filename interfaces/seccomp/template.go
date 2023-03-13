@@ -696,14 +696,19 @@ setresuid32 u:root u:root -1
 // Template for privilege drop and chown operations. This intentionally does
 // not support all combinations of users or obscure combinations (we can add
 // combinations as users dictate). Eg, these are supported:
-//   chown foo:foo
-//   chown foo
-//   chgrp foo
+//
+//	chown foo:foo
+//	chown foo
+//	chgrp foo
+//
 // but these are not:
-//   chown foo:bar
-//   chown bar:foo
+//
+//	chown foo:bar
+//	chown bar:foo
+//
 // For now, users who want 'foo:bar' can do:
-//   chown foo ; chgrp bar
+//
+//	chown foo ; chgrp bar
 var privDropAndChownSyscalls = `
 # allow setgid to ###GROUP###
 setgid g:###GROUP###

@@ -53,17 +53,6 @@ parts:
       sudo -E apt-get build-dep -y ./
       ./get-deps.sh --skip-unused-check
     override-build: |
-      # TODO: when something like "craftctl get-version" is ready, then we can
-      # use that, but until then, we have to re-run mkversion.sh to check if the
-      # version number was set as "dirty" from the override-pull step
-      if sh -x ./mkversion.sh --output-only | grep "dirty"; then
-        mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
-        ( 
-          echo "dirty git tree during build detected:"
-          git status
-          git diff
-        ) > $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/dirty-git-tree-info.txt
-      fi
       # unset the LD_FLAGS and LD_LIBRARY_PATH vars that snapcraft sets for us
       # as those will point to the $SNAPCRAFT_STAGE which on re-builds will 
       # contain things like libc and friends that confuse the debian package
@@ -83,6 +72,21 @@ parts:
       dpkg-deb -x $(pwd)/../snapd_*.deb $SNAPCRAFT_PART_INSTALL
       # not included in the deb as it's only used with UC20 preseeding.
       cp -a data/preseed.json $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
+      # Note that this check should run *after* dpkg-buildpackage was run
+      # as this will re-run "go generate" which may cause a dirty tree
+      #
+      # TODO: when something like "craftctl get-version" is ready, then we can
+      # use that, but until then, we have to re-run mkversion.sh to check if the
+      # version number was set as "dirty" from the override-pull step or during
+      # the build step
+      if sh -x ./mkversion.sh --output-only | grep "dirty"; then
+        mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
+        (
+          echo "dirty git tree during build detected:"
+          git status
+          git diff
+        ) > $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/dirty-git-tree-info.txt
+      fi
 
   # xdelta is used to enable delta downloads (even if the host does not have it)
   xdelta3:

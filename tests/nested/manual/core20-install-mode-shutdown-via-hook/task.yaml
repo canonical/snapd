@@ -62,7 +62,7 @@ execute: |
     NESTED_EXPECT_SHUTDOWN=1 nested_start_core_vm_unit "$IMAGE_FILE"
 
     echo "Wait for the VM to become inactive as it installs and shuts itself down"
-    wait_for_service "$NESTED_VM" inactive
+    wait_for_service "$NESTED_VM" inactive 180
 
     echo "Check that the partitions were created on the VM's disk"
     sfdisk --json "$IMAGE_FILE" | jq -r '.partitiontable.partitions | .[].name' > partitions.txt
@@ -85,7 +85,7 @@ execute: |
 
     # the start-vm command just waits for SSH, it doesn't wait for the other 
     # things here, so wait for those too
-    tests.nested wait-for snap-command
+    remote.wait-for snap-command
     # Wait for snap seeding to be done
     remote.exec "sudo snap wait system seed.loaded"
     # Wait for cloud init to be done

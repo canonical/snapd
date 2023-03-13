@@ -74,10 +74,20 @@ func (e *assertionSvcError) toError() error {
 	return fmt.Errorf("assertion service error: [%s] %q", e.Title, e.Detail)
 }
 
+func (s *Store) setMaxFormat(v url.Values, assertType *asserts.AssertionType) {
+	var maxFormat int
+	if s.cfg.AssertionMaxFormats == nil {
+		maxFormat = assertType.MaxSupportedFormat()
+	} else {
+		maxFormat = s.cfg.AssertionMaxFormats[assertType.Name]
+	}
+	v.Set("max-format", strconv.Itoa(maxFormat))
+}
+
 // Assertion retrieves the assertion for the given type and primary key.
 func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
 	v := url.Values{}
-	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
+	s.setMaxFormat(v, assertType)
 	u := s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(asserts.ReducePrimaryKey(assertType, primaryKey)...)), v)
 
 	var asrt asserts.Assertion
@@ -116,7 +126,7 @@ func (s *Store) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceK
 		return nil, fmt.Errorf("internal error: requested non sequence-forming assertion type %q", assertType.Name)
 	}
 	v := url.Values{}
-	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
+	s.setMaxFormat(v, assertType)
 
 	hasSequenceNumber := sequence > 0
 	if hasSequenceNumber {
