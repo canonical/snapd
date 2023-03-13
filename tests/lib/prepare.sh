@@ -6,6 +6,8 @@ set -eux
 . "$TESTSLIB/snaps.sh"
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
+# shellcheck source=tests/lib/quiet.sh
+. "$TESTSLIB/quiet.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
@@ -135,7 +137,7 @@ update_core_snap_for_classic_reexec() {
 
     # First of all, unmount the core
     core="$(readlink -f "$SNAP_MOUNT_DIR/core/current" || readlink -f "$SNAP_MOUNT_DIR/ubuntu-core/current")"
-    snap="$(mount | grep " $core" | awk '{print $1}')"
+    snap="$(mount | grep " $core" | head -n 1 | awk '{print $1}')"
     umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
@@ -596,7 +598,7 @@ uc20_build_corrupt_kernel_snap() {
 
 uc20_build_initramfs_kernel_snap() {
     # carries ubuntu-core-initframfs
-    add-apt-repository ppa:snappy-dev/image -y
+    quiet add-apt-repository ppa:snappy-dev/image -y
     # On focal, lvm2 does not reinstall properly after being removed.
     # So we need to clean up in case the VM has been re-used.
     if os.query is-focal; then
@@ -605,7 +607,7 @@ uc20_build_initramfs_kernel_snap() {
     # TODO: install the linux-firmware as the current version of
     # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
     # to build the initrd
-    apt install ubuntu-core-initramfs linux-firmware -y
+    quiet apt install ubuntu-core-initramfs linux-firmware -y
 
     local ORIG_SNAP="$1"
     local TARGET="$2"

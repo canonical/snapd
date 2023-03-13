@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.58.2
+Version:        2.58.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -996,6 +996,27 @@ fi
 
 
 %changelog
+* Tue Feb 21 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.58.3
+ - interfaces/screen-inhibit-control: Add support for xfce-power-
+   manager
+ - interfaces/network-manager: do not show ptrace read
+   denials
+ - interfaces: relax rules for mount-control `what` for functionfs
+ - cmd/snap-bootstrap: add support for snapd_system_disk
+ - interfaces/modem-manager: add net_admin capability
+ - interfaces/network-manager: add permission for OpenVPN
+ - httputil: fix checking x509 certification error on go 1.20
+ - i/b/fwupd: allow reading host os-release
+ - boot: on classic+modes `MarkBootSuccessfull` does not need a base
+ - boot: do not include `base=` in modeenv for classic+modes installs
+ - tests: add spread test that validates revert on boot for core does
+   not happen on classic+modes
+ - snapstate: only take boot participants into account in
+   UpdateBootRevisions
+ - snapstate: refactor UpdateBootRevisions() to make it easier to
+   check for boot.SnapTypeParticipatesInBoot()
+
 * Wed Jan 25 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.58.2
  - bootloader: fix dirty build by hardcoding copyright year

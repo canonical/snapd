@@ -20,9 +20,9 @@
 package configcore
 
 import (
-	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/snap/sysparams"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -38,8 +39,9 @@ var (
 	osutilEnsureFileState = osutil.EnsureFileState
 	osutilDirExists       = osutil.DirExists
 
-	apparmorUpdateHomedirsTunable = apparmor.UpdateHomedirsTunable
-	apparmorReloadAllSnapProfiles = apparmor.ReloadAllSnapProfiles
+	apparmorUpdateHomedirsTunable    = apparmor.UpdateHomedirsTunable
+	apparmorReloadAllSnapProfiles    = apparmor.ReloadAllSnapProfiles
+	apparmorSetupSnapConfineSnippets = apparmor.SetupSnapConfineSnippets
 )
 
 var (
@@ -58,14 +60,6 @@ var (
 		"/sbin/",
 		"/sys/",
 		"/tmp/",
-	}
-
-	// TODO: remove this once we mount the root FS of a snap as tmpfs and
-	// become able to create any mount points. But for the time being, let's
-	// allow only those locations that can be supported without creating a
-	// mimic of "/".
-	validPrefixes = []string{
-		"/home/",
 	}
 )
 
@@ -86,8 +80,13 @@ func configureHomedirsInAppArmorAndReload(homedirs []string, opts *fsOnlyContext
 		return err
 	}
 
-	// Only reload profiles if it's during runtime
+	// Only update snap-confine apparmor snippets and reload profiles
+	// if it's during runtime
 	if opts == nil {
+		if _, err := apparmorSetupSnapConfineSnippets(); err != nil {
+			return err
+		}
+
 		// We must reload the apparmor profiles in order for our changes to become
 		// effective. In theory, all profiles are affected; in practice, we are a
 		// bit egoist and only care about snapd.
@@ -104,21 +103,17 @@ func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
 	if opts != nil {
 		rootDir = opts.RootDir
 	}
-	snapStateDir := dirs.SnapdStateDir(rootDir)
-	if err := os.MkdirAll(snapStateDir, 0755); err != nil {
+	sspPath := dirs.SnapSystemParamsUnder(rootDir)
+	if err := os.MkdirAll(path.Dir(sspPath), 0755); err != nil {
 		return err
 	}
 
-	configPath := filepath.Join(snapStateDir, "system-params")
-	contents := fmt.Sprintf("homedirs=%s\n", config)
-	desiredState := &osutil.MemoryFileState{
-		Content: []byte(contents),
-		Mode:    0644,
+	ssp, err := sysparams.Open(rootDir)
+	if err != nil {
+		return err
 	}
-	if err := osutilEnsureFileState(configPath, desiredState); errors.Is(err, osutil.ErrSameState) {
-		// The state is unchanged, nothing to do
-		return nil
-	} else if err != nil {
+	ssp.Homedirs = config
+	if err := ssp.Write(); err != nil {
 		return err
 	}
 
@@ -129,7 +124,7 @@ func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
 	return configureHomedirsInAppArmorAndReload(homedirs, opts)
 }
 
-func handleHomedirsConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
+func handleHomedirsConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	conf, err := coreCfg(tr, "homedirs")
 	if err != nil {
 		return err
@@ -140,6 +135,15 @@ func handleHomedirsConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnly
 	}
 	if conf == prevConfig {
 		return nil
+	}
+
+	// XXX: Check after verifying no change is done to the actual option as the handler
+	// is still invoked.
+	if !dev.Classic() {
+		// There is no specific reason this can not be supported on core, but to
+		// remove this check, we need a spread test verifying this does indeed work
+		// on core as well.
+		return fmt.Errorf("configuration of homedir locations on Ubuntu Core is currently unsupported. Please report a bug if you need it")
 	}
 
 	if err := updateHomedirsConfig(conf, opts); err != nil {
@@ -180,19 +184,6 @@ func validateHomedirsConfiguration(tr ConfGetter) error {
 			if strings.HasPrefix(dir, prefix) {
 				return fmt.Errorf("path %q uses reserved root directory %q", dir, prefix)
 			}
-		}
-
-		// Temporary: see the comment on validPrefixes
-		isValid := false
-		for _, prefix := range validPrefixes {
-			if strings.HasPrefix(dir, prefix) {
-				isValid = true
-				break
-			}
-		}
-		if !isValid {
-			formattedList := strings.Join(validPrefixes, ", ")
-			return fmt.Errorf("path %q unsupported: must start with one of: %s", dir, formattedList)
 		}
 
 		exists, isDir, err := osutilDirExists(dir)

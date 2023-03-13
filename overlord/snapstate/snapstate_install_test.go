@@ -614,6 +614,38 @@ func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "install" change in progress`)
 }
 
+func (s *snapmgrTestSuite) TestGadgetInstallConflict(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tugc := s.state.NewTask("update-managed-boot-config", "update managed boot config")
+	chg := s.state.NewChange("snapd-update", "snapd update")
+	chg.AddTask(tugc)
+
+	_, err := snapstate.Install(context.Background(), s.state, "brand-gadget",
+		nil, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "boot config is being updated, no change in kernel commnd line is allowed meanwhile")
+}
+
+func (s *snapmgrTestSuite) TestInstallSnapdConflict(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tugc := s.state.NewTask("update-gadget-cmdline", "update gadget cmdline")
+	chg := s.state.NewChange("optional-kernel-cmdline", "optional kernel cmdline")
+	chg.AddTask(tugc)
+
+	_, err := snapstate.Install(context.Background(), s.state, "snapd",
+		nil, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
+}
+
 func (s *snapmgrTestSuite) TestInstallAliasConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

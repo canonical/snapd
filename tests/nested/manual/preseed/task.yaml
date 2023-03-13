@@ -14,10 +14,6 @@ prepare: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
 
-  # install the snapd deb from spread so we are using the same version to 
-  # validate the seed as well as call preseed, etc. 
-  dpkg -i "$SPREAD_PATH"/../snapd_*.deb
-
   # create a VM and mount a cloud image
   tests.nested build-image classic
   mkdir -p "$IMAGE_MOUNTPOINT"

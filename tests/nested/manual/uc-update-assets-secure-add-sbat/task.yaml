@@ -23,7 +23,7 @@ environment:
 prepare: |
   snap install yq
 
-  apt install -y git-buildpackage dpkg-dev quilt
+  tests.pkgs install git-buildpackage dpkg-dev quilt
   git clone https://git.launchpad.net/ubuntu/+source/shim -b applied/ubuntu/jammy
 
   # Download and build shim version without sbat support
@@ -57,12 +57,10 @@ prepare: |
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
   # Remove signatures on grub
-  while sbverify --list pc/grubx64.efi | grep "^signature [0-9]*$"; do
-    sbattach --remove pc/grubx64.efi
-  done
-  # Remove sbat on grub if it did exist
+  tests.nested secboot-remove-signature pc/grubx64.efi
+
+  # Remove sbat on grub if it did exist and Save that file
   objcopy --remove-section=.sbat pc/grubx64.efi || true
-  # Save that file
   cp pc/grubx64.efi grubx64.efi
 
   cp old-shimx64.efi pc/shim.efi.signed
@@ -140,7 +138,7 @@ prepare: |
   snap pack pc --filename=pc_2.snap
 
   remote.exec systemctl --wait is-system-running || true
-  tests.nested wait-for snap-command
+  remote.wait-for snap-command
   remote.exec "sudo snap wait system seed.loaded"
 
 execute: |
@@ -150,7 +148,7 @@ execute: |
   boot_id="$(tests.nested boot-id)"
 
   REMOTE_CHG_ID="$(remote.exec "sudo snap install --no-wait --dangerous pc_2.snap")"
-  tests.nested wait-for reboot "${boot_id}"
+  remote.wait-for reboot "${boot_id}"
   remote.exec sudo snap watch "$REMOTE_CHG_ID"
 
   remote.exec "sha256sum -c" <expected-after
