@@ -92,7 +92,7 @@ execute: |
         # shellcheck disable=SC2207
         SYMBOLS=($(objdump -p "squashfs-root/$program" \
             | grep -A 100 "required from libc.so" \
-            | tail -n +2 \
+            | tail -n +2 | sed "/\:$/d" \
             | while read -r _ _ _ SYMBOL
               do
                   if test -z "$SYMBOL"; then break; fi
