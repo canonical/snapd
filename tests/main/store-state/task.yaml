@@ -1,5 +1,8 @@
 summary: smoke test for the store-state tool
 
+# ubuntu-14.04: systemd-run not supported
+systems: [ubuntu-14.04-64]
+
 prepare: |
     echo "Ensure jq is installed"
     if ! command -v jq; then
