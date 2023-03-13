@@ -1,6 +1,6 @@
 summary: Check that try command works inside lxd container
 
-systems: [ubuntu-20*, ubuntu-22*]
+systems: [ubuntu-2*]
 
 prepare: |
   echo "Install lxd"
