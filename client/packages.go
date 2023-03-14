@@ -132,9 +132,10 @@ type FindOptions struct {
 
 	CommonID string
 
-	Section string
-	Private bool
-	Scope   string
+	Section  string
+	Category string
+	Private  bool
+	Scope    string
 
 	Refresh bool
 }
@@ -183,6 +184,17 @@ func (client *Client) Sections() ([]string, error) {
 	return sections, nil
 }
 
+// Categories returns the list of existing snap categories in the store
+func (client *Client) Categories() ([]string, error) {
+	var categories []string
+	_, err := client.doSync("GET", "/v2/categories", nil, nil, nil, &categories)
+	if err != nil {
+		fmt := "cannot get snap categories: %w"
+		return nil, xerrors.Errorf(fmt, err)
+	}
+	return categories, nil
+}
+
 // Find returns a list of snaps available for install from the
 // store for this system and that match the query
 func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
@@ -212,6 +224,9 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	}
 	if opts.Section != "" {
 		q.Set("section", opts.Section)
+	}
+	if opts.Category != "" {
+		q.Set("category", opts.Category)
 	}
 	if opts.Scope != "" {
 		q.Set("scope", opts.Scope)

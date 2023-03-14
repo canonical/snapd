@@ -148,6 +148,7 @@ const (
 	snapActionPath  = "/v2/snaps/refresh"
 	infoPathPattern = "/v2/snaps/info/.*"
 	cohortsPath     = "/v2/cohorts"
+	categoriesPath  = "/v2/snaps/categories"
 )
 
 // Build details path for a snap name.
@@ -2402,6 +2403,57 @@ func (s *storeTestSuite) TestSectionsQueryErrors(c *C) {
 
 	_, err := sto.Sections(s.ctx, s.user)
 	c.Assert(err, ErrorMatches, `cannot retrieve sections: got unexpected HTTP status code 500 via GET to.*`)
+}
+
+/*
+	acquired via:
+
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://api.snapcraft.io/v2/snaps/categories'
+*/
+const MockCategoriesJSON = `{
+    "categories": [
+        {
+            "name": "featured"
+        },
+        {
+            "name": "database"
+        }
+    ]
+}
+`
+
+func (s *storeTestSuite) TestCategoriesQuery(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", categoriesPath)
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
+		switch n {
+		case 0:
+			// All good.
+		default:
+			c.Fatalf("what? %d", n)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		io.WriteString(w, MockCategoriesJSON)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: serverURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	categories, err := sto.Categories(s.ctx, s.user)
+	c.Check(err, IsNil)
+	c.Check(categories, DeepEquals, []string{"featured", "database"})
+	c.Check(n, Equals, 1)
 }
 
 const mockNamesJSON = `

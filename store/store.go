@@ -347,6 +347,10 @@ type sectionResults struct {
 	} `json:"_embedded"`
 }
 
+type categoryResults struct {
+	Categories []struct{ Name string } `json:"categories"`
+}
+
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
 
@@ -448,6 +452,7 @@ const (
 	snapInfoEndpPath   = "v2/snaps/info"
 	cohortsEndpPath    = "v2/cohorts"
 	findEndpPath       = "v2/snaps/find"
+	categoriesEndpPath = "v2/snaps/categories"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
@@ -1252,6 +1257,37 @@ func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, e
 	}
 
 	return sectionNames, nil
+}
+
+// Sections retrieves the list of available store categories.
+func (s *Store) Categories(ctx context.Context, user *auth.UserState) ([]string, error) {
+	reqOptions := &requestOptions{
+		Method:         "GET",
+		URL:            s.endpointURL(categoriesEndpPath, nil),
+		Accept:         halJsonContentType,
+		DeviceAuthNeed: deviceAuthCustomStoreOnly,
+	}
+
+	var categoryData categoryResults
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &categoryData, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, respToError(resp, "retrieve categories")
+	}
+
+	if ct := resp.Header.Get("Content-Type"); ct != jsonContentType {
+		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to retrieve the categories via %q", ct, resp.Request.URL)
+	}
+
+	var categoryNames []string
+	for _, s := range categoryData.Categories {
+		categoryNames = append(categoryNames, s.Name)
+	}
+
+	return categoryNames, nil
 }
 
 // WriteCatalogs queries the "commands" endpoint and writes the
