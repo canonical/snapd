@@ -725,7 +725,10 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		// refresh is happening now and ignore the error
 		refreshInfo := busyErr.PendingSnapRefreshInfo()
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
-		busyErr = nil
+		// important to return "nil" type here instead of
+		// setting busyErr to nil as otherwise we return a nil
+		// interface which is not the nil type
+		return nil
 	}
 
 	return busyErr
