@@ -12,9 +12,7 @@ environment:
   NESTED_ENABLE_SECURE_BOOT: false
 
 restore: |
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+  "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
 
 debug: |
   remote.exec "snap connections --all" || true
@@ -25,11 +23,8 @@ debug: |
   remote.exec "sudo python3 -m json.tool /var/lib/snapd/state.json" || true
 
 execute: |
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-
-  setup_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
-  teardown_staging_store
+  "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+  "$TESTSTOOLS"/store-state teardown-staging-store
 
   cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
   cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
@@ -37,7 +32,7 @@ execute: |
   snap_id=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
   snap_path=$("$TESTSTOOLS"/snaps-state pack-local test-snapd-connections)
-  make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "${snap_path}" "${snap_id}"
+  "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "${snap_path}" "${snap_id}"
   mv "${snap_path}" "$(tests.nested get extra-snaps-path)"
 
   snap download --basename=pc --channel="20/edge" pc
