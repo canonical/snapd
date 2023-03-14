@@ -145,7 +145,6 @@ func (s *PipewireServerInterfaceSuite) TestAppArmor(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/ r,\n")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/pipewire-0 rwk,\n")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/pipewire-0.lock rwk,\n")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/pulse/pid rwk,\n")
@@ -169,7 +168,6 @@ func (s *PipewireServerInterfaceSuite) TestAppArmorOnClassic(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/ r,\n")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/pipewire-0 rwk,\n")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/pipewire-0.lock rwk,\n")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/user/[0-9]*/pulse/pid rwk,\n")
