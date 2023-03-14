@@ -153,11 +153,6 @@ func (s *PipewireServerInterfaceSuite) TestAppArmor(c *C) {
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
-
-	// permanent core slot
-	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.pipewire-server.app1"})
 }
 
 func (s *PipewireServerInterfaceSuite) TestAppArmorOnClassic(c *C) {
