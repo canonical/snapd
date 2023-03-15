@@ -54,7 +54,7 @@ var featureSet = map[string]bool{
 	// Support for "refresh-mode: ignore-running" in snap.yaml
 	"app-refresh-mode": true,
 	// Support for "SNAP_UID" and "SNAP_EUID" environment variable
-	"snap-uid-envvar": true,
+	"snap-uid-envvars": true,
 }
 
 func checkAssumes(si *snap.Info) error {
