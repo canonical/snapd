@@ -27,14 +27,10 @@ prepare: |
       exit
   fi
   snap install jq
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  setup_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
 restore: |
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  teardown_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
   rm -rf ./classic-root
 
 execute: |
@@ -95,7 +91,7 @@ execute: |
   cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
 
   # we don't need the fakestore anymore
-  teardown_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
   # build the fake-installer snap
   snap install snapcraft --candidate --classic
@@ -271,12 +267,9 @@ execute: |
   remote.exec "sudo apt install -y update-notifier-common"
 
   # setup fake store again and make it available inside the nested vm
-  setup_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
   export NESTED_FAKESTORE_BLOB_DIR="$STORE_DIR"
   export NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="$SNAPPY_FORCE_SAS_URL"
-
-  #shellcheck source=tests/lib/store.sh  
-  . "$TESTSLIB"/store.sh  
 
   # nested vm needs to restart for fake-store
   nested_shutdown
@@ -298,6 +291,7 @@ execute: |
   echo "modified" >> ./"core${version}"/etc/motd
   snap pack --filename="core${version}".snap ./"core${version}"
   fakestore make-refreshable --dir "$STORE_DIR" --snap-orig-blob "core${version}.snap.orig" --snap-blob "./core${version}" "core${version}"
+  
   remote.exec sudo snap refresh --amend --channel="edge" "core${version}"
   remote.exec snap list "core${version}" > "core${version}".before-boot
   boot_id=$(tests.nested boot-id)

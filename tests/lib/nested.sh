@@ -3,9 +3,6 @@
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
 
-# shellcheck source=tests/lib/store.sh
-. "$TESTSLIB"/store.sh
-
 : "${NESTED_WORK_DIR:=/tmp/work-dir}"
 : "${NESTED_IMAGES_DIR:=${NESTED_WORK_DIR}/images}"
 : "${NESTED_RUNTIME_DIR:=${NESTED_WORK_DIR}/runtime}"
@@ -534,7 +531,7 @@ nested_prepare_snapd() {
 
         # sign the snapd snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
+            "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
         fi
     fi
 }
@@ -577,7 +574,7 @@ nested_prepare_kernel() {
 
         # sign the pc-kernel snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
+            "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
         fi
     fi
 }
@@ -594,7 +591,7 @@ nested_prepare_gadget() {
             if [ -n "$existing_snap" ]; then
                 echo "Using generated pc gadget snap $existing_snap"
                 if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                    make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
+                    "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
                 fi
                 return
             fi
@@ -661,7 +658,7 @@ EOF
             # need extra bits in their snap declaration, so inject
             # that here, it could end up being empty in which case
             # it is ignored
-            make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
+            "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
         fi
     fi
 }
@@ -687,7 +684,7 @@ nested_prepare_base() {
         if [ -n "$existing_snap" ]; then
             echo "Using generated base snap $existing_snap"
             if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
+                "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
             fi
             return
         fi
@@ -704,7 +701,7 @@ nested_prepare_base() {
 
         # sign the base snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/${snap_name}.snap" "$snap_id"
+            "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/${snap_name}.snap" "$snap_id"
         fi
     fi 
 }

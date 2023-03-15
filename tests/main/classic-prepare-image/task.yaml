@@ -19,9 +19,7 @@ prepare: |
         exit
     fi
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    setup_fake_store "$STORE_DIR"
+    "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
     snap pack "$TESTSLIB/snaps/basic"
     snap pack "$TESTSLIB/snaps/classic-gadget"
@@ -53,9 +51,7 @@ restore: |
 
     rm -rf "$SEED_DIR"
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$STORE_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
     rm -rf "$ROOT"
 
 execute: |
