@@ -296,7 +296,7 @@ func validateWhatAttr(mountInfo *MountInfo) error {
 		return fmt.Errorf(`mount-control "what" setting cannot be used: %v`, err)
 	}
 
-	// "what" must be set to "none" iff the type is "tmpfs"
+	// "what" must be set to "none" if the type is "tmpfs"
 	isTmpfs := len(mountInfo.types) == 1 && mountInfo.types[0] == "tmpfs"
 	if mountInfo.what == "none" {
 		if !isTmpfs {
@@ -345,14 +345,20 @@ func validateMountTypes(types []string) error {
 	return nil
 }
 
-func validateMountOptions(options []string) error {
-	if len(options) == 0 {
+func validateMountOptions(mountInfo *MountInfo) error {
+	if len(mountInfo.options) == 0 {
 		return errors.New(`mount-control "options" cannot be empty`)
 	}
-	for _, o := range options {
-		if !strutil.ListContains(allowedMountOptions, o) {
-			return fmt.Errorf(`mount-control option unrecognized or forbidden: %q`, o)
+	if !(len(mountInfo.types) == 1 && mountInfo.types[0] == "functionfs") {
+		for _, o := range mountInfo.options {
+			if !strutil.ListContains(allowedMountOptions, o) {
+				return fmt.Errorf(`mount-control option unrecognized or forbidden: %q`, o)
+			}
 		}
+	}
+	fsExclusiveOption := optionIncompatibleWithFsType(mountInfo.options)
+	if fsExclusiveOption != "" && len(mountInfo.types) > 0 {
+		return fmt.Errorf(`mount-control option %q is incompatible with specifying filesystem type`, fsExclusiveOption)
 	}
 	return nil
 }
@@ -380,14 +386,8 @@ func validateMountInfo(mountInfo *MountInfo) error {
 		return err
 	}
 
-	if err := validateMountOptions(mountInfo.options); err != nil {
+	if err := validateMountOptions(mountInfo); err != nil {
 		return err
-	}
-
-	// Check if any options are incompatible with specifying a FS type
-	fsExclusiveOption := optionIncompatibleWithFsType(mountInfo.options)
-	if fsExclusiveOption != "" && len(mountInfo.types) > 0 {
-		return fmt.Errorf(`mount-control option %q is incompatible with specifying filesystem type`, fsExclusiveOption)
 	}
 
 	// Until we have a clear picture of how this should work, disallow creating

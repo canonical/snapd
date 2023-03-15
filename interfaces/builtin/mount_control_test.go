@@ -334,7 +334,7 @@ func (s *MountControlInterfaceSuite) TestFunctionfsValidates(c *C) {
     what: diag
     where: /dev/ffs-diag
     type: [functionfs]
-    options: [rw]
+    options: [rw, uid=2000, gid=2000, rmode=0550, fmode=0660, no_disconnect=1]
 `
 	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
 	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
