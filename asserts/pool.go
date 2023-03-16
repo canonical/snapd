@@ -890,7 +890,7 @@ func (p *Pool) AddToUpdate(toUpdate *Ref, group string) error {
 	add := func(a Assertion) error {
 		return p.addUnresolved(a.At(), gnum)
 	}
-	f := NewFetcher(p.groundDB, retrieve, add)
+	f := NewFetcher(p.groundDB, retrieve, nil, add)
 	if err := f.Fetch(toUpdate); err != nil {
 		return err
 	}
@@ -921,9 +921,11 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 		return err
 	}
 
-	u := *toUpdate
 	retrieve := func(ref *Ref) (Assertion, error) {
 		return ref.Resolve(p.groundDB.Find)
+	}
+	retrieveSeq := func(seq *AtSequence) (Assertion, error) {
+		return seq.Resolve(p.groundDB.Find)
 	}
 	add := func(a Assertion) error {
 		if !a.Type().SequenceForming() {
@@ -931,15 +933,12 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 		}
 		// sequence forming assertions are never predefined, so no check for it.
 		// final add corresponding to toUpdate itself.
+		u := *toUpdate
 		u.Revision = a.Revision()
 		return p.addUnresolvedSeq(&u, gnum)
 	}
-	f := NewFetcher(p.groundDB, retrieve, add)
-	ref := &Ref{
-		Type:       toUpdate.Type,
-		PrimaryKey: append(u.SequenceKey, fmt.Sprintf("%d", u.Sequence)),
-	}
-	if err := f.Fetch(ref); err != nil {
+	f := NewFetcher(p.groundDB, retrieve, retrieveSeq, add)
+	if err := f.FetchSequence(toUpdate); err != nil {
 		return err
 	}
 	return nil
@@ -984,7 +983,7 @@ NextGroup:
 			continue
 		}
 		// TODO: try to reuse fetcher
-		f := NewFetcher(db, retrieve, save)
+		f := NewFetcher(db, retrieve, nil, save)
 		for i := range gRec.resolved {
 			if err := f.Fetch(&gRec.resolved[i]); err != nil {
 				gRec.setErr(err)

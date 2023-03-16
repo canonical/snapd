@@ -112,7 +112,7 @@ func (b *Batch) AddStream(r io.Reader) ([]*Ref, error) {
 // Fetch adds to the batch by invoking fetching to drive an internal
 // Fetcher that was built with trustedDB and retrieve.
 func (b *Batch) Fetch(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), fetching func(Fetcher) error) error {
-	f := NewFetcher(trustedDB, retrieve, b.Add)
+	f := NewFetcher(trustedDB, retrieve, nil, b.Add)
 	return fetching(f)
 }
 
@@ -217,7 +217,7 @@ func (b *Batch) prereqSort(db *Database) error {
 		ordered = append(ordered, a)
 		return nil
 	}
-	f := NewFetcher(db, retrieve, save)
+	f := NewFetcher(db, retrieve, nil, save)
 
 	for _, a := range b.added {
 		if err := f.Fetch(a.Ref()); err != nil {

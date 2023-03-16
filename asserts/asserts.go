@@ -498,6 +498,15 @@ func (at *AtSequence) Resolve(find func(assertType *AssertionType, headers map[s
 	return find(at.Type, headers)
 }
 
+// ResolveLatest resolves the latest sequence for sequence forming assertion reference
+func (at *AtSequence) ResolveLatest(find func(assertType *AssertionType, sequenceHeaders map[string]string, after, maxFormat int) (SequenceMember, error)) (Assertion, error) {
+	headers, err := HeadersFromSequenceKey(at.Type, at.SequenceKey)
+	if err != nil {
+		return nil, fmt.Errorf("%q assertion reference sequence key %v is invalid: %v", at.Type.Name, at.SequenceKey, err)
+	}
+	return find(at.Type, headers, -1, at.Type.MaxSupportedFormat())
+}
+
 // Assertion represents an assertion through its general elements.
 type Assertion interface {
 	// Type returns the type of this assertion

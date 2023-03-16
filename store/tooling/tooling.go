@@ -373,7 +373,7 @@ func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asser
 		}
 		return save(a)
 	}
-	return asserts.NewFetcher(db, retrieve, save2)
+	return asserts.NewFetcher(db, retrieve, nil, save2)
 }
 
 // Find provides the snapsserts.Finder interface for snapasserts.DerviceSideInfo

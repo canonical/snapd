@@ -37,27 +37,43 @@ type Fetcher interface {
 	// Fetch retrieves the assertion indicated by ref then its prerequisites
 	// recursively, along the way saving prerequisites before dependent assertions.
 	Fetch(*Ref) error
+	// FetchSequence retrieves the assertion as indicated by its sequence reference.
+	FetchSequence(*AtSequence) error
 	// Save retrieves the prerequisites of the assertion recursively,
 	// along the way saving them, and finally saves the assertion.
 	Save(Assertion) error
 }
 
 type fetcher struct {
-	db       RODatabase
-	retrieve func(*Ref) (Assertion, error)
-	save     func(Assertion) error
+	db          RODatabase
+	retrieve    func(*Ref) (Assertion, error)
+	retrieveSeq func(*AtSequence) (Assertion, error)
+	save        func(Assertion) error
 
 	fetched map[string]fetchProgress
 }
 
-// NewFetcher creates a Fetcher which will use trustedDB to determine trusted assertions, will fetch assertions following prerequisites using retrieve, and then will pass them to save, saving prerequisites before dependent assertions.
-func NewFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), save func(Assertion) error) Fetcher {
+// NewFetcher creates a Fetcher which will use trustedDB to determine trusted assertions,
+// will fetch assertions following prerequisites using retrieve, and then will pass
+// them to save, saving prerequisites before dependent assertions.
+func NewFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), retrieveSeq func(*AtSequence) (Assertion, error), save func(Assertion) error) Fetcher {
 	return &fetcher{
-		db:       trustedDB,
-		retrieve: retrieve,
-		save:     save,
-		fetched:  make(map[string]fetchProgress),
+		db:          trustedDB,
+		retrieve:    retrieve,
+		retrieveSeq: retrieveSeq,
+		save:        save,
+		fetched:     make(map[string]fetchProgress),
 	}
+}
+
+func (f *fetcher) isFetched(ref *Ref) (bool, error) {
+	switch f.fetched[ref.Unique()] {
+	case fetchSaved:
+		return true, nil // nothing to do
+	case fetchRetrieved:
+		return false, fmt.Errorf("circular assertions are not expected: %s", ref)
+	}
+	return false, nil
 }
 
 func (f *fetcher) chase(ref *Ref, a Assertion) error {
@@ -70,12 +86,9 @@ func (f *fetcher) chase(ref *Ref, a Assertion) error {
 	if !errors.Is(err, &NotFoundError{}) {
 		return err
 	}
-	u := ref.Unique()
-	switch f.fetched[u] {
-	case fetchSaved:
-		return nil // nothing to do
-	case fetchRetrieved:
-		return fmt.Errorf("circular assertions are not expected: %s", ref)
+	if ok, err := f.isFetched(ref); err != nil || ok {
+		// if ok is true, then the assertion was fetched and err is nil
+		return err
 	}
 	if a == nil {
 		retrieved, err := f.retrieve(ref)
@@ -84,9 +97,10 @@ func (f *fetcher) chase(ref *Ref, a Assertion) error {
 		}
 		a = retrieved
 	}
+	u := ref.Unique()
 	f.fetched[u] = fetchRetrieved
-	for _, preref := range a.Prerequisites() {
-		if err := f.Fetch(preref); err != nil {
+	for _, prereq := range a.Prerequisites() {
+		if err := f.Fetch(prereq); err != nil {
 			return err
 		}
 	}
@@ -104,6 +118,44 @@ func (f *fetcher) chase(ref *Ref, a Assertion) error {
 // recursively, along the way saving prerequisites before dependent assertions.
 func (f *fetcher) Fetch(ref *Ref) error {
 	return f.chase(ref, nil)
+}
+
+func (f *fetcher) isSeqFetched(seq *AtSequence) (bool, error) {
+	u := seq.Unique()
+	switch f.fetched[u] {
+	case fetchSaved:
+		return true, nil // nothing to do
+	case fetchRetrieved:
+		return false, fmt.Errorf("circular assertions are not expected: %s", seq)
+	}
+	return false, nil
+}
+
+func (f *fetcher) fetchSequence(seq *AtSequence) error {
+	// sequence forming assertions are never predefined, so we don't check for it.
+	if ok, err := f.isSeqFetched(seq); err != nil || ok {
+		// if ok is true, then the assertion was fetched and err is nil
+		return err
+	}
+	retrieved, err := f.retrieveSeq(seq)
+	if err != nil {
+		return err
+	}
+	u := seq.Unique()
+	f.fetched[u] = fetchRetrieved
+	if err := f.fetchAccountKey(retrieved.SignKeyID()); err != nil {
+		return err
+	}
+	if err := f.save(retrieved); err != nil {
+		return err
+	}
+	f.fetched[u] = fetchSaved
+	return nil
+}
+
+// FetchSequence retrieves the assertion as indicated by its sequence reference.
+func (f *fetcher) FetchSequence(seq *AtSequence) error {
+	return f.fetchSequence(seq)
 }
 
 // fetchAccountKey behaves like Fetch for the account-key with the given key id.
