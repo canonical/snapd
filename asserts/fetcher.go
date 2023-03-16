@@ -99,8 +99,8 @@ func (f *fetcher) chase(ref *Ref, a Assertion) error {
 	}
 	u := ref.Unique()
 	f.fetched[u] = fetchRetrieved
-	for _, prereq := range a.Prerequisites() {
-		if err := f.Fetch(prereq); err != nil {
+	for _, preref := range a.Prerequisites() {
+		if err := f.Fetch(preref); err != nil {
 			return err
 		}
 	}
