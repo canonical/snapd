@@ -34,7 +34,7 @@ kernel-cmdline:
     - par1
     - par2=val
     - par3=*
-    - par-4=val_1-2
+    - par_4=val_1-2
     - par5="foo bar"
 `
 	tests := []struct {

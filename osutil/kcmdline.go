@@ -338,10 +338,6 @@ func parseArgument(args []byte) (argument KernelArgument, end int) {
 	}
 
 	param = string(args[startArg : endParam-subsParam])
-
-	// Hyphens (dashes) and underscores are equivalent in parameter names,
-	// so we standardize in "_".
-	param = strings.ReplaceAll(param, "-", "_")
 	argument = KernelArgument{Param: param, Value: val, Quoted: quoted}
 	return argument, end
 }
