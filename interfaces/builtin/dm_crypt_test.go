@@ -85,7 +85,7 @@ func (s *DmCryptInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/mapper/control")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/dm-[0-9]*")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/systemd/seats/*")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/cryptsetup/ r,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/cryptsetup/ rw,")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/cryptsetup/* rwk,")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,run/}media/{,**}")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "mount options=(ro,nosuid,nodev) /dev/dm-[0-9]*")
