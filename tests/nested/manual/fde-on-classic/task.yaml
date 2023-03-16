@@ -27,6 +27,7 @@ prepare: |
       - append.val=*
       - append.flag
       - other.val=foo
+      - some-value
   EOF
   snap pack --filename=pc_x1.snap pc-gadget
 
@@ -140,7 +141,7 @@ execute: |
   done
 
   # Test appending values to the kernel command line
-  append_kernel_cmdline system.kernel.cmdline-append "append.val=1 append.flag other.val=foo"
+  append_kernel_cmdline system.kernel.cmdline-append "append.val=1 append.flag other.val=foo some-value"
   append_kernel_cmdline system.kernel.cmdline-append ""
   append_kernel_cmdline system.kernel.dangerous-cmdline-append "dang.val=1 dang.flag"
   append_kernel_cmdline system.kernel.dangerous-cmdline-append ""
