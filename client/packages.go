@@ -132,10 +132,11 @@ type FindOptions struct {
 
 	CommonID string
 
-	Section  string
 	Category string
-	Private  bool
-	Scope    string
+	// Section is deprecated, use Category instead.
+	Section string
+	Private bool
+	Scope   string
 
 	Refresh bool
 }
@@ -174,6 +175,7 @@ func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
 }
 
 // Sections returns the list of existing snap sections in the store
+// This is deprecated, use Categroeis() instead.
 func (client *Client) Sections() ([]string, error) {
 	var sections []string
 	_, err := client.doSync("GET", "/v2/sections", nil, nil, nil, &sections)
@@ -222,11 +224,11 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	case opts.Private:
 		q.Set("select", "private")
 	}
-	if opts.Section != "" {
-		q.Set("section", opts.Section)
-	}
 	if opts.Category != "" {
 		q.Set("category", opts.Category)
+	}
+	if opts.Section != "" {
+		q.Set("section", opts.Section)
 	}
 	if opts.Scope != "" {
 		q.Set("scope", opts.Scope)
