@@ -68,6 +68,9 @@ type SeqFetcher interface {
 	FetchSequence(*AtSequence) error
 }
 
+// NewSeqFetcher creates a Fetcher which will use trustedDB to determine trusted
+// sequence forming assertions, and fetch assertions using retrieve, and then will pass
+// them to save. This is the sequence-forming variant of NewFetcher
 func NewSeqFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), retrieveSeq func(*AtSequence) (Assertion, error), save func(Assertion) error) SeqFetcher {
 	return &fetcher{
 		db:          trustedDB,
