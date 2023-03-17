@@ -17,9 +17,7 @@ prepare: |
     echo "Given a snap is installed"
     snap install "$SNAP_NAME"
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    setup_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
     # undo the setup through envvars
     systemctl stop snapd.service snapd.socket
     rm /etc/systemd/system/snapd.service.d/store.conf
@@ -38,7 +36,7 @@ prepare: |
     snap ack fake.store
 
     echo "And a new version of that snap put in the controlled store"
-    init_fake_refreshes "$BLOB_DIR" "$SNAP_NAME"
+    "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" "$SNAP_NAME"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -49,9 +47,7 @@ restore: |
 
     snap set core proxy.store=
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
