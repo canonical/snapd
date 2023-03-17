@@ -48,13 +48,15 @@ const (
 	snapshotManifestPath = "meta/snapshots.yaml"
 )
 
-// Unset determines if the SnapshotOptions object contains values worth
-// marshalling to metadata (not just keys, braces and brackets)
+// Unset determines if the SnapshotOptions object contains meaningful values.
+//
+// It can be used, for example, to determine if the SnapshotOptions object should be
+// serialized to metadata.
 func (opts *SnapshotOptions) Unset() bool {
 	return len(opts.Exclude) == 0
 }
 
-// MergeDynamicExcludes combines dynamic excludes with existing excludes
+// MergeDynamicExcludes combines dynamic excludes with existing excludes.
 func (opts *SnapshotOptions) MergeDynamicExcludes(dynamicExcludes []string) error {
 	mergedExcludes := append(opts.Exclude, dynamicExcludes...)
 	dryRunOptions := SnapshotOptions{Exclude: mergedExcludes}
@@ -99,7 +101,7 @@ func (opts *SnapshotOptions) Validate() error {
 }
 
 // ReadSnapshotYaml reads the snapshot manifest file for the given snap.
-var ReadSnapshotYaml = func(si *Info) (*SnapshotOptions, error) {
+func ReadSnapshotYaml(si *Info) (*SnapshotOptions, error) {
 	file, err := osOpen(filepath.Join(si.MountDir(), snapshotManifestPath))
 	if os.IsNotExist(err) {
 		return &SnapshotOptions{}, nil

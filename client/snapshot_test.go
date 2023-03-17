@@ -251,7 +251,7 @@ func (cs *clientSuite) TestClientSnapshotContentHash(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(h1, check.Not(check.DeepEquals), h3)
 
-	// sh4 is different because if the sha3_384 sums
+	// sh4 is different because of the sha3_384 sums
 	sums4 := map[string]string{"user/foo.tgz": "some other hash"}
 	sh4 := &client.Snapshot{SetID: 1, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums4}
 	// same except sha3_384 means different hash
@@ -259,7 +259,7 @@ func (cs *clientSuite) TestClientSnapshotContentHash(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(h4, check.Not(check.DeepEquals), h1)
 
-	// sh5 is the same, snapshot options ignored
+	// same except options means same hash
 	sh5 := &client.Snapshot{SetID: 1, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums, Options: &snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/exclude"}}}
 	h5, err := sh5.ContentHash()
 	c.Assert(err, check.IsNil)
@@ -274,8 +274,8 @@ func (cs *clientSuite) TestClientSnapshotSetContentHash(c *check.C) {
 		{SetID: 1, Snap: "snap3", Size: 3, SHA3_384: sums},
 		{SetID: 1, Snap: "snap4", Size: 4, SHA3_384: sums},
 	}}
-	// ss2 is the same ss1 but in a different order with different setID, and in one case with snapshot options
-	// (but that does not matter for the content hash)
+	// ss2 is the same ss1 but in a different order with different setID, and in the last case
+	// ss2 is the same as ss1 except for snapshot options
 	ss2 := client.SnapshotSet{Snapshots: []*client.Snapshot{
 		{SetID: 2, Snap: "snap3", Size: 3, SHA3_384: sums},
 		{SetID: 2, Snap: "snap2", Size: 2, SHA3_384: sums},

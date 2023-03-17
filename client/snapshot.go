@@ -78,7 +78,7 @@ type Snapshot struct {
 	// the sum of the archive sizes
 	Size int64 `json:"size,omitempty"`
 
-	// dynamic snapshot options (excludes snapshot options from snap metadata)
+	// dynamic snapshot options
 	Options *snap.SnapshotOptions `json:"options,omitempty"`
 
 	// if the snapshot failed to open this will be the reason why

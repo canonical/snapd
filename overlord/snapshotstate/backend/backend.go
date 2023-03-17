@@ -316,7 +316,9 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		Version:  si.Version,
 		Epoch:    si.Epoch,
 		Time:     timeNow(),
-		Options:  dynSnapshotOpts, // Pass only dynamic snapshot options here
+		// Pass only dynamic snapshot options here. Static options are tied to the snap version
+		// and should not be repeated in snapshot metadata on every save.
+		Options:  dynSnapshotOpts,
 		SHA3_384: make(map[string]string),
 		Size:     0,
 		Conf:     cfg,

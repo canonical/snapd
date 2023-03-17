@@ -190,58 +190,28 @@ func (ropt *snapRevisionOptions) validate() error {
 	return nil
 }
 
-// SnapshotOptionMap maps snap names to snapshot options.
-type SnapshotOptionMap map[string]*snap.SnapshotOptions
-
-// UnmarshalJSON implements interface for custom unmarshalling for shapshotOptionMap.
-//
-// With default marshalling, some permutations of valid JSON definitions of snapshot-options e.g.
-//   - `"snapshot-options": { "snap1": {} }`
-//   - `"snapshot-options": { "snap1": {exclude: []} }`
-// which results in a pointer to SnapshotOptions object with a nil or zero length exclusion list
-// which in turn will be marshalled to JSON as `options: {}` when we rather want it omitted.
-//
-// This unmarshaler changes the default behaviour by only populating map entries for snapshot
-// options that contains usable content that we want to be marshalled downstream.
-func (optsMap *SnapshotOptionMap) UnmarshalJSON(data []byte) error {
-	auxMap := map[string]*snap.SnapshotOptions{}
-	if err := json.Unmarshal(data, &auxMap); err != nil {
-		return err
-	}
-
-	optsMapObj := SnapshotOptionMap{}
-	for name, option := range auxMap {
-		if !option.Unset() {
-			optsMapObj[name] = auxMap[name]
-		}
-	}
-	*optsMap = optsMapObj
-
-	return nil
-}
-
 type snapInstruction struct {
 	progress.NullMeter
 
 	Action string `json:"action"`
 	Amend  bool   `json:"amend"`
 	snapRevisionOptions
-	DevMode                bool                   `json:"devmode"`
-	JailMode               bool                   `json:"jailmode"`
-	Classic                bool                   `json:"classic"`
-	IgnoreValidation       bool                   `json:"ignore-validation"`
-	IgnoreRunning          bool                   `json:"ignore-running"`
-	Unaliased              bool                   `json:"unaliased"`
-	Purge                  bool                   `json:"purge,omitempty"`
-	SystemRestartImmediate bool                   `json:"system-restart-immediate"`
-	Transaction            client.TransactionType `json:"transaction"`
-	Snaps                  []string               `json:"snaps"`
-	Users                  []string               `json:"users"`
-	SnapshotOptions        SnapshotOptionMap      `json:"snapshot-options"`
-	ValidationSets         []string               `json:"validation-sets"`
-	QuotaGroupName         string                 `json:"quota-group"`
-	Time                   string                 `json:"time"`
-	HoldLevel              string                 `json:"hold-level"`
+	DevMode                bool                             `json:"devmode"`
+	JailMode               bool                             `json:"jailmode"`
+	Classic                bool                             `json:"classic"`
+	IgnoreValidation       bool                             `json:"ignore-validation"`
+	IgnoreRunning          bool                             `json:"ignore-running"`
+	Unaliased              bool                             `json:"unaliased"`
+	Purge                  bool                             `json:"purge,omitempty"`
+	SystemRestartImmediate bool                             `json:"system-restart-immediate"`
+	Transaction            client.TransactionType           `json:"transaction"`
+	Snaps                  []string                         `json:"snaps"`
+	Users                  []string                         `json:"users"`
+	SnapshotOptions        map[string]*snap.SnapshotOptions `json:"snapshot-options"`
+	ValidationSets         []string                         `json:"validation-sets"`
+	QuotaGroupName         string                           `json:"quota-group"`
+	Time                   string                           `json:"time"`
+	HoldLevel              string                           `json:"hold-level"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -291,13 +261,35 @@ func (inst *snapInstruction) holdLevel() snapstate.HoldLevel {
 	}
 }
 
-func (inst *snapInstruction) validateSnapshotOptions() error {
+func cleanSnapshotOptions(snapshotOpts *map[string]*snap.SnapshotOptions) {
+	cleanSnapshotOpts := map[string]*snap.SnapshotOptions{}
+	for name, options := range *snapshotOpts {
+		if !options.Unset() {
+			cleanSnapshotOpts[name] = options
+		}
+	}
+
+	*snapshotOpts = cleanSnapshotOpts
+}
+
+// cleanAndValidateSnapshotOptions cleans and validates the snapshot options.
+//
+// With default marshalling, some permutations of valid JSON definitions of snapshot-options e.g.
+//   - `"snapshot-options": { "snap1": {} }`
+//   - `"snapshot-options": { "snap1": {exclude: []} }`
+//
+// results in a pointer to SnapshotOptions object with a nil or zero length exclusion list
+// which in turn will be marshalled to JSON as `options: {}` when we rather want it omitted.
+// The cleaning step ensures that we only populate map entries for snapshot options that contains
+// usable content that we want to be marshalled downstream.
+func (inst *snapInstruction) cleanAndValidateSnapshotOptions() error {
 	if inst.SnapshotOptions == nil {
 		return nil
 	}
 	if inst.Action != "snapshot" {
 		return fmt.Errorf("snapshot-options can only be specified for snapshot action")
 	}
+	cleanSnapshotOptions(&inst.SnapshotOptions)
 	for name, options := range inst.SnapshotOptions {
 		if !strutil.ListContains(inst.Snaps, name) {
 			return fmt.Errorf("cannot use snapshot-options for snap %q that is not listed in snaps", name)
@@ -367,7 +359,7 @@ func (inst *snapInstruction) validate() error {
 		}
 	}
 
-	if err := inst.validateSnapshotOptions(); err != nil {
+	if err := inst.cleanAndValidateSnapshotOptions(); err != nil {
 		return err
 	}
 
