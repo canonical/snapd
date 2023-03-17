@@ -46,16 +46,13 @@ prepare: |
       exit
   fi
 
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-
   # setup the fakestore, but don't use it for our snapd here on the host VM, so
   # tear down the staging_store immediately afterwards so that only the SAS is 
   # running and our snapd is not pointed at it, ubuntu-image is the only thing 
   # that actually needs to use the fakestore, and we will manually point it at
   # the fakestore below using NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL
-  setup_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
-  teardown_staging_store
+  "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+  "$TESTSTOOLS"/store-state teardown-staging-store
 
   echo "Expose the needed assertions through the fakestore"
   cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
@@ -110,9 +107,7 @@ restore: |
   # stop fake device svc
   systemctl stop fakedevicesvc
 
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+  "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
 
 debug: |
   systemctl status fakedevicesvc || true
