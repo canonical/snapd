@@ -6,8 +6,6 @@ set -eux
 . "$TESTSLIB/snaps.sh"
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
-# shellcheck source=tests/lib/quiet.sh
-. "$TESTSLIB/quiet.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
