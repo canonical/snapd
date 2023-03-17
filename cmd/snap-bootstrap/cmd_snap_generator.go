@@ -74,6 +74,28 @@ Options=ro,private
 `
 )
 
+func symlinkSysroot(target string) error {
+	if err := os.MkdirAll("/run/mnt", 0755); err != nil {
+		return err
+	}
+
+	if err := os.Symlink(target, "/run/mnt/sysroot"); err != nil {
+		if os.IsExist(err) {
+			foundTarget, errReadlink := os.Readlink("/run/mnt/sysroot")
+			if errReadlink != nil {
+				return errReadlink
+			}
+			if target != foundTarget {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func generateInitrdMount(runDir string, what string, where string) error {
 	unitName := fmt.Sprintf("%s.mount", systemd.EscapeUnitNamePath(where))
 	unitPath := filepath.Join(runDir, unitName)
@@ -169,35 +191,54 @@ func snapGeneratorRun(normalDir string, earlyDir string, lateDir string) error {
 		}
 	}
 
-	if err := os.MkdirAll("/run/mnt", 0755); err != nil {
-		return err
-	}
 	var target string
 	if isClassic {
 		target = "data"
 	} else {
 		target = "base"
 	}
+	if err := symlinkSysroot(target); err != nil {
+		return err
+	}
 
-	if err := os.Symlink(target, "/run/mnt/sysroot"); err != nil {
-		if os.IsExist(err) {
-			foundTarget, errReadlink := os.Readlink("/run/mnt/sysroot")
-			if errReadlink != nil {
-				return errReadlink
-			}
-			if target != foundTarget {
-				return err
-			}
-		} else {
+	return nil
+}
+
+func snapGeneratorInstall(recoverySystem string, normalDir string, earlyDir string, lateDir string) error {
+	isSeedMounted, err := osutil.IsMounted(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"))
+	if err != nil {
+		return err
+	}
+	if !isSeedMounted {
+		return nil
+	}
+
+	typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd, snap.TypeGadget}
+	_, essSnaps, err := readEssential(recoverySystem, typs)
+	if err != nil {
+		return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
+	}
+
+	systemSnaps := make(map[snap.Type]snap.PlaceInfo)
+
+	for _, essentialSnap := range essSnaps {
+		systemSnaps[essentialSnap.EssentialType] = essentialSnap.PlaceInfo()
+		dir := snapTypeToMountDir[essentialSnap.EssentialType]
+		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
+		if err := generateInitrdMount(normalDir, essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir)); err != nil {
 			return err
 		}
+	}
+
+	if err := symlinkSysroot("base"); err != nil {
+		return err
 	}
 
 	return nil
 }
 
 func snapGenerator(normalDir string, earlyDir string, lateDir string) error {
-	mode, _, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
+	mode, recoverySystem, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
 	if err != nil {
 		return err
 	}
@@ -207,6 +248,7 @@ func snapGenerator(normalDir string, earlyDir string, lateDir string) error {
 		return snapGeneratorRun(normalDir, earlyDir, lateDir)
 	case "recover":
 	case "install":
+		return snapGeneratorInstall(recoverySystem, normalDir, earlyDir, lateDir)
 	case "factory-reset":
 	case "cloudimg-rootfs":
 	default:

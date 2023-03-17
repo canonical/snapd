@@ -20,9 +20,12 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -52,5 +55,27 @@ var (
 )
 
 func measureModel() error {
-	return secbootMeasureSnapModelWhenPossible(getUnverifiedBootModel)
+	mode, recoverySystem, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
+	if err != nil {
+		return err
+	}
+
+	switch mode {
+	case "install", "recover", "factory-reset":
+		typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd, snap.TypeGadget}
+		model, _, err := readEssential(recoverySystem, typs)
+		if err != nil {
+			return err
+		}
+		return secbootMeasureSnapModelWhenPossible(func() (*asserts.Model, error) {
+			return model, nil
+		})
+	case "run":
+		return secbootMeasureSnapModelWhenPossible(getUnverifiedBootModel)
+	default:
+		// this should never be reached, ModeAndRecoverySystemFromKernelCommandLine
+		// will have returned a non-nill error above if there was another mode
+		// specified on the kernel command line for some reason
+		return fmt.Errorf("internal error: mode in measure-model not handled")
+	}
 }
