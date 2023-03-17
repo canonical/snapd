@@ -10,6 +10,7 @@ show_help() {
 	echo "    stray-dbus-daemon: at most one dbus-daemon is running"
 	echo "    leftover-defer-sh: defer.sh must not be left over by tests"
 	echo "    broken-snaps: snaps must not be left around that are in a broken state"
+	echo "    segmentation-violations: snapd must not have segmentation-violation errors in journal logs"
 }
 
 if [ $# -eq 0 ]; then
