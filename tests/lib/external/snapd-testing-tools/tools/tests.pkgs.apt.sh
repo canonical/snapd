@@ -29,34 +29,24 @@ remap_one() {
 }
 
 cmd_install() {
-    set -x
     apt-get update
     # shellcheck disable=SC2068
     apt-get install --yes $@
-    set +x
 }
 
 cmd_is_installed() {
-    set -x
     dpkg -S "$1" >/dev/null 2>&1
-    set +x
 }
 
 cmd_query() {
-    set -x
     apt-cache policy "$1"
-    set +x
 }
 
 cmd_list_installed() {
-    set -x
     apt list --installed | cut -d/ -f1 | sort
-    set +x
 }
 
 cmd_remove() {
-    set -x
     # shellcheck disable=SC2068
     apt-get remove --yes $@
-    set +x
 }
