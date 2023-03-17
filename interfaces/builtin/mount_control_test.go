@@ -233,6 +233,10 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			`mount-control option "bind" is incompatible with specifying filesystem type`,
 		},
 		{
+			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,bind]",
+			`mount-control option "bind" is incompatible with specifying filesystem type`,
+		},
+		{
 			"mount:\n  - what: /tmp/..\n    where: /media/*",
 			`mount-control "what" pattern is not clean:.*`,
 		},
@@ -263,6 +267,10 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 		{
 			"mount:\n  - what: a?\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw]",
 			`cannot use mount-control "what" attribute: "a\?" contains a reserved apparmor char from.*`,
+		},
+		{
+			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,uid=*]",
+			`cannot use mount-control "option" attribute: "uid=\*" contains a reserved apparmor char from.*`,
 		},
 	}
 
