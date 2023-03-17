@@ -855,7 +855,7 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 		return nil
 	}
 
-	f := asserts.NewFetcher(db, retrieve, nil, save)
+	f := asserts.NewFetcher(db, retrieve, save)
 
 	keyRef := &asserts.Ref{
 		Type:       asserts.AccountKeyType,

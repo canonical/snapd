@@ -37,8 +37,6 @@ type Fetcher interface {
 	// Fetch retrieves the assertion indicated by ref then its prerequisites
 	// recursively, along the way saving prerequisites before dependent assertions.
 	Fetch(*Ref) error
-	// FetchSequence retrieves the assertion as indicated by its sequence reference.
-	FetchSequence(*AtSequence) error
 	// Save retrieves the prerequisites of the assertion recursively,
 	// along the way saving them, and finally saves the assertion.
 	Save(Assertion) error
@@ -56,7 +54,21 @@ type fetcher struct {
 // NewFetcher creates a Fetcher which will use trustedDB to determine trusted assertions,
 // will fetch assertions following prerequisites using retrieve, and then will pass
 // them to save, saving prerequisites before dependent assertions.
-func NewFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), retrieveSeq func(*AtSequence) (Assertion, error), save func(Assertion) error) Fetcher {
+func NewFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), save func(Assertion) error) Fetcher {
+	return &fetcher{
+		db:       trustedDB,
+		retrieve: retrieve,
+		save:     save,
+		fetched:  make(map[string]fetchProgress),
+	}
+}
+
+type SeqFetcher interface {
+	// FetchSequence retrieves the assertion as indicated by its sequence reference.
+	FetchSequence(*AtSequence) error
+}
+
+func NewSeqFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), retrieveSeq func(*AtSequence) (Assertion, error), save func(Assertion) error) SeqFetcher {
 	return &fetcher{
 		db:          trustedDB,
 		retrieve:    retrieve,

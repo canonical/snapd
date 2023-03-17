@@ -119,7 +119,7 @@ func (s *writerSuite) SetUpTest(c *C) {
 			}
 			return save(a)
 		}
-		return asserts.NewFetcher(db, retrieve, nil, save2)
+		return asserts.NewFetcher(db, retrieve, save2)
 	}
 	s.rf = seedwriter.MakeRefAssertsFetcher(s.newFetcher)
 

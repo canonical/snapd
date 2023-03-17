@@ -890,7 +890,7 @@ func (p *Pool) AddToUpdate(toUpdate *Ref, group string) error {
 	add := func(a Assertion) error {
 		return p.addUnresolved(a.At(), gnum)
 	}
-	f := NewFetcher(p.groundDB, retrieve, nil, add)
+	f := NewFetcher(p.groundDB, retrieve, add)
 	if err := f.Fetch(toUpdate); err != nil {
 		return err
 	}
@@ -920,7 +920,6 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 	if err != nil {
 		return err
 	}
-
 	retrieve := func(ref *Ref) (Assertion, error) {
 		return ref.Resolve(p.groundDB.Find)
 	}
@@ -937,7 +936,7 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 		u.Revision = a.Revision()
 		return p.addUnresolvedSeq(&u, gnum)
 	}
-	f := NewFetcher(p.groundDB, retrieve, retrieveSeq, add)
+	f := NewSeqFetcher(p.groundDB, retrieve, retrieveSeq, add)
 	if err := f.FetchSequence(toUpdate); err != nil {
 		return err
 	}
@@ -983,7 +982,7 @@ NextGroup:
 			continue
 		}
 		// TODO: try to reuse fetcher
-		f := NewFetcher(db, retrieve, nil, save)
+		f := NewFetcher(db, retrieve, save)
 		for i := range gRec.resolved {
 			if err := f.Fetch(&gRec.resolved[i]); err != nil {
 				gRec.setErr(err)

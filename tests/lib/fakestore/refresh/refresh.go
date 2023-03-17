@@ -93,7 +93,7 @@ func MakeFakeRefreshForSnaps(snap, blobDir, snapBlob, snapOrigBlob string) error
 		return err
 	}
 
-	f := asserts.NewFetcher(db, retrieve, nil, save)
+	f := asserts.NewFetcher(db, retrieve, save)
 
 	if err := makeFakeRefreshForSnap(snap, blobDir, snapBlob, snapOrigBlob, db, f); err != nil {
 		return err

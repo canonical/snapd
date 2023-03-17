@@ -113,7 +113,7 @@ func (s *fetcherSuite) TestFetch(c *C) {
 		return ref.Resolve(s.storeSigning.Find)
 	}
 
-	f := asserts.NewFetcher(db, retrieve, nil, db.Add)
+	f := asserts.NewFetcher(db, retrieve, db.Add)
 
 	err = f.Fetch(ref)
 	c.Assert(err, IsNil)
@@ -143,7 +143,7 @@ func (s *fetcherSuite) TestSave(c *C) {
 		return ref.Resolve(s.storeSigning.Find)
 	}
 
-	f := asserts.NewFetcher(db, retrieve, nil, db.Add)
+	f := asserts.NewFetcher(db, retrieve, db.Add)
 
 	ref := &asserts.Ref{
 		Type:       asserts.SnapRevisionType,
@@ -205,7 +205,6 @@ func (s *fetcherSuite) TestFetchSequence(c *C) {
 		Sequence:    2,
 		Revision:    asserts.RevisionNotKnown,
 	}
-
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.storeSigning.Find)
 	}
@@ -223,7 +222,7 @@ func (s *fetcherSuite) TestFetchSequence(c *C) {
 		}
 	}
 
-	f := asserts.NewFetcher(db, retrieve, retrieveSeq, db.Add)
+	f := asserts.NewSeqFetcher(db, retrieve, retrieveSeq, db.Add)
 
 	err = f.FetchSequence(seq)
 	c.Assert(err, IsNil)

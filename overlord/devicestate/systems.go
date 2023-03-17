@@ -301,7 +301,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		fromDB := func(ref *asserts.Ref) (asserts.Assertion, error) {
 			return ref.Resolve(db.Find)
 		}
-		return asserts.NewFetcher(db, fromDB, nil, save)
+		return asserts.NewFetcher(db, fromDB, save)
 	}
 	f, err := w.Start(db, newFetcher)
 	if err != nil {
