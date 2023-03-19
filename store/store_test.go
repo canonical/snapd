@@ -2432,7 +2432,7 @@ func (s *storeTestSuite) TestCategoriesQuery(c *C) {
 		case 0:
 			// All good.
 		default:
-			c.Fatalf("what? %d", n)
+			c.Fatalf("unexpected request to %q", r.URL.Path)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
