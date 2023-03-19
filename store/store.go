@@ -1259,7 +1259,7 @@ func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, e
 	return sectionNames, nil
 }
 
-// Sections retrieves the list of available store categories.
+// Categories retrieves the list of available store categories.
 func (s *Store) Categories(ctx context.Context, user *auth.UserState) ([]string, error) {
 	reqOptions := &requestOptions{
 		Method:         "GET",
