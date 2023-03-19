@@ -175,7 +175,7 @@ func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
 }
 
 // Sections returns the list of existing snap sections in the store
-// This is deprecated, use Categroeis() instead.
+// This is deprecated, use Categories() instead.
 func (client *Client) Sections() ([]string, error) {
 	var sections []string
 	_, err := client.doSync("GET", "/v2/sections", nil, nil, nil, &sections)
