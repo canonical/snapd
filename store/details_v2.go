@@ -354,7 +354,6 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	// media
 	addMedia(info, d.Media)
 
-	// catgories
 	addCategories(info, d.Categories)
 
 	return info, nil
