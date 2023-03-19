@@ -191,8 +191,7 @@ func (client *Client) Categories() ([]string, error) {
 	var categories []string
 	_, err := client.doSync("GET", "/v2/categories", nil, nil, nil, &categories)
 	if err != nil {
-		fmt := "cannot get snap categories: %w"
-		return nil, xerrors.Errorf(fmt, err)
+		return nil, fmt.Errorf("cannot get snap categories: %w", err)
 	}
 	return categories, nil
 }
