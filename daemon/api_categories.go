@@ -20,7 +20,6 @@
 package daemon
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/snapcore/snapd/overlord/auth"
