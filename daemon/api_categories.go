@@ -36,7 +36,6 @@ var (
 )
 
 func getCategories(c *Command, r *http.Request, user *auth.UserState) Response {
-	// TODO: test this
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for categories")
