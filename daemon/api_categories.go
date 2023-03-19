@@ -44,8 +44,7 @@ func getCategories(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	theStore := storeFrom(c.d)
 
-	// TODO: use a per-request context
-	categories, err := theStore.Categories(context.TODO(), user)
+	categories, err := theStore.Categories(r.Context(), user)
 	switch err {
 	case nil:
 		// pass
