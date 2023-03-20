@@ -80,7 +80,7 @@ var (
 //
 // If the kernel does not support the notification mechanism the error is ErrNotSupported.
 func Register() (*Notifier, error) {
-	path := "/sys/kernel/security/apparmor/.notify"
+	path := apparmor.NotifyPath()
 	if override := os.Getenv("PROMPT_NOTIFY_PATH"); override != "" {
 		path = override
 	}

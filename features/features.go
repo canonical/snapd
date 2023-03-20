@@ -68,6 +68,8 @@ const (
 	//  * journal quotas are still experimental
 	// while guota groups creation and management and memory, cpu, quotas are no longer experimental.
 	QuotaGroups
+	// Prompting enables apparmor prompting.
+	AppArmorPrompting
 
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
@@ -107,7 +109,8 @@ var featureNames = map[SnapdFeature]string{
 
 	GateAutoRefreshHook: "gate-auto-refresh-hook",
 
-	QuotaGroups: "quota-groups",
+	QuotaGroups:       "quota-groups",
+	AppArmorPrompting: "apparmor-prompting",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
@@ -129,6 +132,8 @@ var featuresExported = map[SnapdFeature]bool{
 	RobustMountNamespaceUpdates:   true,
 	HiddenSnapDataHomeDir:         true,
 	MoveSnapHomeDir:               true,
+
+	AppArmorPrompting: true,
 }
 
 // String returns the name of a snapd feature.

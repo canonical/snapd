@@ -6,6 +6,8 @@ systems: [ubuntu-23.04-64]
 prepare: |
     # cannot use "tests.cleanup defer" here until no more reboot is needed
     apt update
+    # no need to cleanup, setup/teardown will remove extra pkgs
+    # automatically
     apt install -y software-properties-common
     apt-add-repository -y ppa:apparmor-dev/prompt-dev
     apt install -y --allow-downgrades apparmor=3.0.3-0ubuntu2+prompt3
@@ -13,6 +15,8 @@ prepare: |
     # the default lunar kernel.
     if [ ! -e /sys/kernel/security/apparmor/.notify ]; then
         uname -r > kernel-uname-r.txt
+        # no need to cleanup, setup/teardown will remove extra pkgs
+        # automatically
         apt install -y --allow-downgrades  linux-image-6.2.0-16-generic
         # TODO2: if the PPA kernel version is lower than the distro kernel
         # ensure that the newer distro kernel gets removed here
@@ -23,13 +27,6 @@ prepare: |
         fi
     fi
 
-    # create some test files
-    mkdir -p /root/.yes /root/.no
-    touch /root/test-file
-    touch /root/.yes/test-file
-    touch /root/.no/test-file
-    # the parser
-    apparmor_parser --replace test-prompt.apparmor
     # Run the flip-flop fake agent
     systemd-run --unit fake-agent.service \
         --property=StandardOutput=file:"$(pwd)/fake-agent.log" \
@@ -37,49 +34,42 @@ prepare: |
         "$(pwd)/fake-agent.py"
 
 restore: |
-    systemctl stop fake-agent.service
-    apparmor_parser --remove test-prompt.apparmor
-
-    apt-add-repository -r ppa:apparmor-dev/prompt-dev
-    apt autoremove -y software-properties-common
-    apt install -y apparmor
+    snap unset system experimental.apparmor-prompting
+    systemctl stop fake-agent.service || true
     # TODO: remove once aa-prompt is the default
     if [ -e /sys/kernel/security/apparmor/.notify ]; then
         apt install -y --allow-downgrades "linux-image-$(cat kernel-uname-r.txt)"
-
-        apt remove -y linux-image-6.2.0-16-generic
         if [ "$SPREAD_REBOOT" -eq 0 ]; then
             REBOOT
         fi
     fi
+    apt-add-repository -r ppa:apparmor-dev/prompt-dev
+    apt install -y apparmor
 
 debug: |
     cat fake-agent.log
-    systemctl status aa-listen.service
-    dmesg
     gdbus introspect --system --dest io.snapcraft.AppArmorPrompt --object-path /io/snapcraft/AppArmorPrompt || true
 
 execute: |
-    # TODO: actually test that $HOME prompts when the (not yet done)
-    # experimental option for homedirs is set
+    # enable prompting (TODO: this should trigger a profile rebuild)
+    snap set system experimental.apparmor-prompting=true
 
-    # There is no prompting on /root/
-    (aa-exec --profile=test-prompt ls /root/ > ls-root.txt) &
-    # XXX: use retry
-    sleep 0.1
-    MATCH 'test-file' < ls-root.txt
-    test "$(grep -E -c 'Prompt()' fake-agent.log)" -eq 0
+    # TODO: enabling prompting does not rebuild the home profile right
+    # now so this install needs to happen after the prompting option
+    # is set or otherwise old apparmor profiles are used
+    "$TESTSTOOLS"/snaps-state install-local home-consumer
 
-    # There is prompting on /root/.yes/
-    (aa-exec --profile=test-prompt ls /root/.yes/ > ls-root-yes.txt 2>&1 ) &
-    # XXX: use retry
-    sleep 0.1
+    # check that reading a file in home triggers a prompt
+    echo "ok" > "$HOME/test-file-1"
+    home-consumer.reader "$HOME/test-file-1" > output.txt
     test "$(grep -E -c 'Prompt()' fake-agent.log)" -eq 1
-    MATCH test-file < ls-root-yes.txt
+    MATCH "ok" < output.txt
 
-    # There is prompting on /root/.no/
-    (aa-exec --profile=test-prompt ls /root/.no/ > ls-root-no.txt 2>&1 ) &
-    # XXX: use retry
-    sleep 0.1
+    # The fake-prompt just flip-flops with yes/no so the second time should
+    # trigger a denial
+    echo "no" > "$HOME/test-file-2"
+    if home-consumer.reader "$HOME/test-file-2"; then
+        echo "expected apparmor denial"
+        exit 1
+    fi
     test "$(grep -E -c 'Prompt()' fake-agent.log)" -eq 2
-    MATCH denied < ls-root-no.txt
