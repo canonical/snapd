@@ -1339,3 +1339,41 @@ func (as *assertsSuite) TestAtSequenceResolve(c *C) {
 	c.Assert(a, NotNil)
 	c.Check(a.Type().Name, Equals, "test-only-seq")
 }
+
+func (as *assertsSuite) TestAtSequenceResolveLatestKeyError(c *C) {
+	atSeq := asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{"abc"},
+		Sequence:    1,
+	}
+	_, err := atSeq.ResolveLatest(nil)
+	c.Check(err, ErrorMatches, `"validation-set" assertion reference sequence key \[abc\] is invalid: sequence key has wrong length for "validation-set" assertion`)
+}
+
+func (as *assertsSuite) TestAtSequenceResolveLatest(c *C) {
+	atSeq := asserts.AtSequence{
+		Type:        asserts.TestOnlySeqType,
+		SequenceKey: []string{"foo"},
+		Sequence:    -1,
+	}
+	a, err := atSeq.ResolveLatest(func(atype *asserts.AssertionType, hdrs map[string]string, after, maxFormat int) (asserts.SequenceMember, error) {
+		c.Assert(atype, Equals, asserts.TestOnlySeqType)
+		c.Assert(hdrs, DeepEquals, map[string]string{
+			"n": "foo",
+		})
+		encoded := []byte("type: test-only-seq\n" +
+			"format: 1\n" +
+			"authority-id: auth-id2\n" +
+			"n: abc\n" +
+			"revision: 2\n" +
+			"sequence: 4\n" +
+			"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
+			"\n\n" +
+			"AXNpZw==")
+		a, err := asserts.Decode(encoded)
+		return a.(asserts.SequenceMember), err
+	})
+	c.Assert(err, IsNil)
+	c.Assert(a, NotNil)
+	c.Check(a.Type().Name, Equals, "test-only-seq")
+}
