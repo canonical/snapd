@@ -4,7 +4,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/snapcore/cerberus/epoll"
+	"github.com/snapcore/snapd/osutil/epoll"
 
 	. "gopkg.in/check.v1"
 )
