@@ -5,9 +5,6 @@ set -x
 # handle errors in general.
 set -e
 
-# shellcheck source=tests/lib/quiet.sh
-. "$TESTSLIB/quiet.sh"
-
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 

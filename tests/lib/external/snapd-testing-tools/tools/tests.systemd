@@ -3,7 +3,7 @@
 show_help() {
     echo "usage: tests.systemd create-and-start-unit <UNIT-NAME> <UNIT-COMMAND-LINE> <UNIT-OVERRIDE>"
     echo "       tests.systemd stop-and-remove-unit <UNIT-NAME>"
-    echo "       tests.systemd wait-for-service <UNIT-NAME> <UNIT-STATE>"
+    echo "       tests.systemd wait-for-service [--n attempts] [--wait seconds] [--state STATE] <UNIT-NAME>"
 }
 
 # Create and start a persistent systemd unit that survives reboots. Use as:
@@ -59,15 +59,43 @@ stop_and_remove_unit() {
 }
 
 wait_for_service() {
-    local service_name="$1"
-    local state="${2:-active}"
+     if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    local attempts=300
+    local wait=1
+    local state="active"
+    local service_name
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --wait)
+                wait="$2"
+                shift 2
+                ;;
+            --n)
+                attempts="$2"
+                shift 2
+                ;;
+            --state)
+                state="$2"
+                shift 2
+                ;;
+            *)
+                service_name=$1
+                break
+                ;;
+        esac
+    done
 
     if [ -z "$service_name" ]; then
         echo "tests.systemd: unit name cannot be empty"
         return 1
     fi
 
-    for i in $(seq 300); do
+    for i in $(seq "$attempts"); do
         if systemctl show -p ActiveState "$service_name" | grep -q "ActiveState=$state"; then
             return
         fi
@@ -75,7 +103,7 @@ wait_for_service() {
         if [ "$i" -gt 0 ] && [ $(( i % 60 )) = 0 ]; then
             systemctl status "$service_name" || true
         fi
-        sleep 1
+        sleep "$wait"
     done
 
     echo "tests.systemd: service $service_name did not become $state"
