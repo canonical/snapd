@@ -1,22 +1,35 @@
 summary: check that cerberus can process prompting
 
+# TODO: enable on more systems
+systems: [ubuntu-23.04-64]
+
 prepare: |
-    # install dbus policy
-    # TODO: make this nicer
-    cp -a ../../cmd/aa-listen/io.snapcraft.AppArmorPrompt.conf /etc/dbus-1/system.d
-    # some test files
+    # cannot use "tests.cleanup defer" here until no more reboot is needed
+    apt update
+    apt install -y software-properties-common
+    apt-add-repository -y ppa:apparmor-dev/prompt-dev
+    apt install -y --allow-downgrades apparmor=3.0.3-0ubuntu2+prompt3
+    # TODO: this is only needed for as long as prompting is not in
+    # the default lunar kernel.
+    if [ ! -e /sys/kernel/security/apparmor/.notify ]; then
+        uname -r > kernel-uname-r.txt
+        apt install -y --allow-downgrades  linux-image-6.2.0-16-generic
+        # TODO2: if the PPA kernel version is lower than the distro kernel
+        # ensure that the newer distro kernel gets removed here
+
+        # Reboot to use the remaining kernel.
+        if [ "$SPREAD_REBOOT" -eq 0 ]; then
+            REBOOT
+        fi
+    fi
+
+    # create some test files
     mkdir -p /root/.yes /root/.no
     touch /root/test-file
     touch /root/.yes/test-file
     touch /root/.no/test-file
     # the parser
     apparmor_parser --replace test-prompt.apparmor
-    # run the aa-listener
-    systemd-run --unit aa-listen.service \
-        --property=Environment=SNAPD_DEBUG=1 \
-        --property=StandardOutput=file:"$(pwd)/aa-listen.log" \
-        --property=StandardError=inherit \
-        "$(command -v aa-listen)"
     # Run the flip-flop fake agent
     systemd-run --unit fake-agent.service \
         --property=StandardOutput=file:"$(pwd)/fake-agent.log" \
@@ -24,19 +37,32 @@ prepare: |
         "$(pwd)/fake-agent.py"
 
 restore: |
-    systemctl stop aa-listen.service
     systemctl stop fake-agent.service
     apparmor_parser --remove test-prompt.apparmor
-    rm -f /etc/dbus-1/system.d/io.snapcraft.AppArmorPrompt.conf
+
+    apt-add-repository -r ppa:apparmor-dev/prompt-dev
+    apt autoremove -y software-properties-common
+    apt install -y apparmor
+    # TODO: remove once aa-prompt is the default
+    if [ -e /sys/kernel/security/apparmor/.notify ]; then
+        apt install -y --allow-downgrades "linux-image-$(cat kernel-uname-r.txt)"
+
+        apt remove -y linux-image-6.2.0-16-generic
+        if [ "$SPREAD_REBOOT" -eq 0 ]; then
+            REBOOT
+        fi
+    fi
 
 debug: |
-    cat aa-listen.log
     cat fake-agent.log
     systemctl status aa-listen.service
     dmesg
     gdbus introspect --system --dest io.snapcraft.AppArmorPrompt --object-path /io/snapcraft/AppArmorPrompt || true
 
 execute: |
+    # TODO: actually test that $HOME prompts when the (not yet done)
+    # experimental option for homedirs is set
+
     # There is no prompting on /root/
     (aa-exec --profile=test-prompt ls /root/ > ls-root.txt) &
     # XXX: use retry
