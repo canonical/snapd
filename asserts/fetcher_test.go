@@ -21,7 +21,6 @@ package asserts_test
 
 import (
 	"crypto"
-	"errors"
 	"fmt"
 	"time"
 
@@ -209,17 +208,7 @@ func (s *fetcherSuite) TestFetchSequence(c *C) {
 		return ref.Resolve(s.storeSigning.Find)
 	}
 	retrieveSeq := func(seq *asserts.AtSequence) (asserts.Assertion, error) {
-		if a, err := seq.Resolve(s.storeSigning.Find); err != nil {
-			// This may return an error if the sequence was not defined
-			// (i.e unknown sequence), in that case we must try to resolve the
-			// the newest sequence
-			if errors.Is(err, &asserts.NotFoundError{}) {
-				return seq.ResolveLatest(s.storeSigning.FindSequence)
-			}
-			return nil, err
-		} else {
-			return a, nil
-		}
+		return seq.Resolve(s.storeSigning.Find)
 	}
 
 	f := asserts.NewSeqFetcher(db, retrieve, retrieveSeq, db.Add)
@@ -233,10 +222,9 @@ func (s *fetcherSuite) TestFetchSequence(c *C) {
 	c.Check(vsa.(*asserts.ValidationSet).Name(), Equals, "base-set")
 	c.Check(vsa.(*asserts.ValidationSet).Sequence(), Equals, 2)
 
-	// Calling ResolveLatest works when a sequence number is not provided.
-	seq.Sequence = -1
-	vsa, err = seq.ResolveLatest(db.FindSequence)
-	c.Assert(err, IsNil)
-	c.Check(vsa.(*asserts.ValidationSet).Name(), Equals, "base-set")
-	c.Check(vsa.(*asserts.ValidationSet).Sequence(), Equals, 2)
+	// Calling resolve doesn't find the assertion when another sequence number
+	// is provided.
+	seq.Sequence = 4
+	_, err = seq.Resolve(db.Find)
+	c.Assert(err, ErrorMatches, `validation-set \(4; series:16 account-id:can0nical name:base-set\) not found`)
 }
