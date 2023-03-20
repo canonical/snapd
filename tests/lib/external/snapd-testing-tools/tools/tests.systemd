@@ -95,7 +95,7 @@ wait_for_service() {
         return 1
     fi
 
-    for i in $(seq $attempts); do
+    for i in $(seq "$attempts"); do
         if systemctl show -p ActiveState "$service_name" | grep -q "ActiveState=$state"; then
             return
         fi
