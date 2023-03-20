@@ -1,7 +1,7 @@
 package apparmor_test
 
 import (
-	"github.com/snapcore/cerberus/apparmor"
+	"github.com/snapcore/snapd/prompting/apparmor"
 
 	. "gopkg.in/check.v1"
 )
