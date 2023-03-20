@@ -106,7 +106,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, true)
 	check(features.AspectsConfiguration, true)
-	check(features.AppArmorPrompting, false)
+	check(features.AppArmorPrompting, true)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
@@ -169,9 +169,10 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")
 	c.Check(features.MoveSnapHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/move-snap-home-dir")
 	c.Check(features.RefreshAppAwarenessUX.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness-ux")
+	c.Check(features.AspectsConfiguration.ControlFile(), Equals, "/var/lib/snapd/features/aspects-configuration")
+	c.Check(features.AppArmorPrompting.ControlFile(), Equals, "/var/lib/snapd/features/apparmor-prompting")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)
-	c.Check(features.AspectsConfiguration.ControlFile(), Equals, "/var/lib/snapd/features/aspects-configuration")
 }
 
 func (*featureSuite) TestConfigOptionLayouts(c *C) {
