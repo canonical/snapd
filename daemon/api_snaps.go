@@ -261,15 +261,12 @@ func (inst *snapInstruction) holdLevel() snapstate.HoldLevel {
 	}
 }
 
-func cleanSnapshotOptions(snapshotOpts *map[string]*snap.SnapshotOptions) {
-	cleanSnapshotOpts := map[string]*snap.SnapshotOptions{}
-	for name, options := range *snapshotOpts {
-		if !options.Unset() {
-			cleanSnapshotOpts[name] = options
+func cleanSnapshotOptions(snapshotOpts map[string]*snap.SnapshotOptions) {
+	for name, options := range snapshotOpts {
+		if options.Unset() {
+			delete(snapshotOpts, name)
 		}
 	}
-
-	*snapshotOpts = cleanSnapshotOpts
 }
 
 // cleanAndValidateSnapshotOptions cleans and validates the snapshot options.
@@ -289,7 +286,7 @@ func (inst *snapInstruction) cleanAndValidateSnapshotOptions() error {
 	if inst.Action != "snapshot" {
 		return fmt.Errorf("snapshot-options can only be specified for snapshot action")
 	}
-	cleanSnapshotOptions(&inst.SnapshotOptions)
+	cleanSnapshotOptions(inst.SnapshotOptions)
 	for name, options := range inst.SnapshotOptions {
 		if !strutil.ListContains(inst.Snaps, name) {
 			return fmt.Errorf("cannot use snapshot-options for snap %q that is not listed in snaps", name)

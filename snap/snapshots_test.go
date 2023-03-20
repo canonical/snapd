@@ -132,22 +132,16 @@ func (s *snapshotSuite) TestMergeDynamicExcludesHappy(c *C) {
 
 func (s *snapshotSuite) TestUnset(c *C) {
 	testMap := map[string]struct {
-		options   *snap.SnapshotOptions
-		isUnset   bool
-		mustPanic bool
+		options *snap.SnapshotOptions
+		isUnset bool
 	}{
-		"options-nil":     {options: nil, mustPanic: true},
 		"exclude-empty":   {options: &snap.SnapshotOptions{[]string{}}, isUnset: true},
 		"exclude-nil":     {options: &snap.SnapshotOptions{}, isUnset: true},
 		"exclude-typical": {options: &snap.SnapshotOptions{snapshotHappyExpectedExclude}, isUnset: false},
 	}
 
 	for name, test := range testMap {
-		if test.mustPanic {
-			c.Check(func() { test.options.Unset() }, PanicMatches, "runtime error: invalid memory address or nil pointer dereference", Commentf("test: %q", name))
-		} else {
-			c.Check(test.options.Unset(), Equals, test.isUnset, Commentf("test: %q", name))
-		}
+		c.Check(test.options.Unset(), Equals, test.isUnset, Commentf("test: %q", name))
 	}
 }
 
