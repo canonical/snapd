@@ -445,17 +445,18 @@ jobs:
           echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
           echo "TEST_PREVIOUS_RESULTS_DIR=$TEST_PREVIOUS_RESULTS_DIR" >> $GITHUB_ENV
 
-          # Save the var with the failed tests file          
-          echo "FAILED_TESTS_FILE=$TEST_PREVIOUS_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
+          # Save the var with the failed tests file
+          echo "PREVIOUS_FAILED_TESTS_FILE=$TEST_PREVIOUS_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
+          echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
 
     - name: Check failed tests to run
       if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
       run: |
           # Save previous failed test results in FAILED_TESTS env var
           FAILED_TESTS=""
-          if [ -f "$FAILED_TESTS_FILE" ]; then
+          if [ -f "$PREVIOUS_FAILED_TESTS_FILE" ]; then
               echo "Failed tests file found"
-              FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
+              FAILED_TESTS="$(cat $PREVIOUS_FAILED_TESTS_FILE)"
               if [ -n "$FAILED_TESTS" ]; then
                   echo "Failed tests to run: $FAILED_TESTS"
                   echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
