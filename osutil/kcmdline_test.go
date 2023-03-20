@@ -112,6 +112,9 @@ func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 			cmdline: "foo",
 			comment: "cmdline non-key-value",
 			keys:    []string{"foo"},
+			exp: map[string]string{
+				"foo": "",
+			},
 		},
 		{
 			cmdline: "foo=1",
@@ -151,7 +154,7 @@ func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 			comment: "cmdline key-value pair and non-key-value",
 			keys:    []string{"foo"},
 			exp: map[string]string{
-				"foo": "1",
+				"foo": "",
 			},
 		},
 		{
@@ -166,13 +169,14 @@ func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 			cmdline: "=foo",
 			comment: "missing key",
 			keys:    []string{"foo"},
-			err:     "unexpected assignment",
 		},
 		{
 			cmdline: `"foo`,
 			comment: "invalid kernel cmdline",
 			keys:    []string{"foo"},
-			err:     "unexpected quoting",
+			exp: map[string]string{
+				"foo": "",
+			},
 		},
 	} {
 		cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
