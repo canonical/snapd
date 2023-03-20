@@ -81,13 +81,13 @@ func RequestBuffer() []byte {
 // described below. This type is only used for message marshaling and
 // unmarshaling. Application code should use MsgNotificationFilter instead.
 //
-// struct apparmor_notif_filter {
-//   struct apparmor_notif_common base;
-//   __u32 modeset;      /* which notification mode */
-//   __u32 ns;           /* offset into data, relative to start of the structure */
-//   __u32 filter;       /* offset into data, relative to start of the structure */
-//   __u8 data[];
-// } __attribute__((packed));
+//	struct apparmor_notif_filter {
+//	  struct apparmor_notif_common base;
+//	  __u32 modeset;      /* which notification mode */
+//	  __u32 ns;           /* offset into data, relative to start of the structure */
+//	  __u32 filter;       /* offset into data, relative to start of the structure */
+//	  __u8 data[];
+//	} __attribute__((packed));
 type msgNotificationFilter struct {
 	MsgHeader
 	ModeSet uint32
@@ -182,14 +182,14 @@ func (msg *MsgNotificationFilter) Validate() error {
 // This structure corresponds to the kernel type struct apparmor_notif
 // described below.
 //
-// struct apparmor_notif {
-//   struct apparmor_notif_common base;
-//   __u16 ntype;        /* notify type */
-//   __u8 signalled;
-//   __u8 reserved;
-//   __u64 id;           /* unique id, not globally unique*/
-//   __s32 error;        /* error if unchanged */
-// } __attribute__((packed));
+//	struct apparmor_notif {
+//	  struct apparmor_notif_common base;
+//	  __u16 ntype;        /* notify type */
+//	  __u8 signalled;
+//	  __u8 reserved;
+//	  __u64 id;           /* unique id, not globally unique*/
+//	  __s32 error;        /* error if unchanged */
+//	} __attribute__((packed));
 type MsgNotification struct {
 	MsgHeader
 	// NotificationType describes the kind of notification message used.
@@ -243,10 +243,10 @@ func (msg *MsgNotification) Validate() error {
 
 // MsgNotificationUpdate (TBD, document me)
 //
-// struct apparmor_notif_update {
-//   struct apparmor_notif base;
-//   __u16 ttl;          /* max keep alives left */
-// } __attribute__((packed));
+//	struct apparmor_notif_update {
+//	  struct apparmor_notif base;
+//	  __u16 ttl;          /* max keep alives left */
+//	} __attribute__((packed));
 type MsgNotificationUpdate struct {
 	MsgNotification
 	TTL uint16
@@ -257,12 +257,12 @@ type MsgNotificationUpdate struct {
 // This structure corresponds to the kernel type struct apparmor_notif
 // described below.
 //
-// struct apparmor_notif_resp {
-//   struct apparmor_notif base;
-//   __s32 error;        /* error if unchanged */
-//   __u32 allow;
-//   __u32 deny;
-// } __attribute__((packed));
+//	struct apparmor_notif_resp {
+//	  struct apparmor_notif base;
+//	  __s32 error;        /* error if unchanged */
+//	  __u32 allow;
+//	  __u32 deny;
+//	} __attribute__((packed));
 type MsgNotificationResponse struct {
 	MsgNotification
 	// XXX: The embedded MsgNotification also has an Error field, why?
@@ -303,15 +303,15 @@ func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
 
 // MsgNotificationOp (TBD, document me).
 //
-// struct apparmor_notif_op {
-//   struct apparmor_notif base;
-//   __u32 allow;
-//   __u32 deny;
-//   pid_t pid;          /* pid of task causing notification */
-//   __u32 label;        /* offset into data */
-//   __u16 class;
-//   __u16 op;
-// } __attribute__((packed));
+//	struct apparmor_notif_op {
+//	  struct apparmor_notif base;
+//	  __u32 allow;
+//	  __u32 deny;
+//	  pid_t pid;          /* pid of task causing notification */
+//	  __u32 label;        /* offset into data */
+//	  __u16 class;
+//	  __u16 op;
+//	} __attribute__((packed));
 type msgNotificationOp struct {
 	MsgNotification
 	Allow uint32
@@ -394,12 +394,12 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 
 // msgNotificationFile (TBD, document me).
 //
-// struct apparmor_notif_file {
-//   struct apparmor_notif_op base;
-//   uid_t suid, ouid;
-//   __u32 name;         /* offset into data */
-//   __u8 data[];
-// } __attribute__((packed));
+//	struct apparmor_notif_file {
+//	  struct apparmor_notif_op base;
+//	  uid_t suid, ouid;
+//	  __u32 name;         /* offset into data */
+//	  __u8 data[];
+//	} __attribute__((packed));
 type msgNotificationFile struct {
 	msgNotificationOp
 	SUID uint32
