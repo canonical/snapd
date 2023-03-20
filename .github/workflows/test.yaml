@@ -422,13 +422,19 @@ jobs:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
 
+    - name: Get previous attempt
+      id: get-previous-attempt
+      run: |
+        echo "previous_attempt=$(( ${{ github.run_attempt }} - 1 ))" >> $GITHUB_OUTPUT
+      shell: bash
+
     - name: Cache snapd test previous results
-      if: "${{ github.run_attempt != 1 }}"
+      if: "${{ steps.get-previous-attempt.outputs.previous_attempt > 0 }}"
       id: cache-snapd-test-previous-results
       uses: pat-s/always-upload-cache@v3.0.11
       with:
         path: "${{ github.workspace }}/.test-previous-results"
-        key: "${{ github.run_attempt - 1 }}-${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
+        key: "${{ steps.get-previous-attempt.outputs.previous_attempt }}-${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
 
     - name: Check cached test results
       id: cached-results
