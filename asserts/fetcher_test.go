@@ -211,7 +211,7 @@ func (s *fetcherSuite) TestFetchSequence(c *C) {
 		return seq.Resolve(s.storeSigning.Find)
 	}
 
-	f := asserts.NewSeqFetcher(db, retrieve, retrieveSeq, db.Add)
+	f := asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, db.Add)
 
 	err = f.FetchSequence(seq)
 	c.Assert(err, IsNil)

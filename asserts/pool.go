@@ -936,7 +936,7 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 		u.Revision = a.Revision()
 		return p.addUnresolvedSeq(&u, gnum)
 	}
-	f := NewSeqFetcher(p.groundDB, retrieve, retrieveSeq, add)
+	f := NewSequenceFormingFetcher(p.groundDB, retrieve, retrieveSeq, add)
 	if err := f.FetchSequence(toUpdate); err != nil {
 		return err
 	}
