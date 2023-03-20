@@ -423,7 +423,7 @@ jobs:
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
 
     - name: Cache snapd test previous results
-      if: "{{ github.run_attempt }} != 1"
+      if: "${{ github.run_attempt != 1 }}"
       id: cache-snapd-test-previous-results
       uses: pat-s/always-upload-cache@v3.0.11
       with:
