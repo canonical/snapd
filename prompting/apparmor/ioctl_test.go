@@ -6,7 +6,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/cerberus/apparmor"
+	"github.com/snapcore/snapd/prompting/apparmor"
 )
 
 type ioctlSuite struct{}
