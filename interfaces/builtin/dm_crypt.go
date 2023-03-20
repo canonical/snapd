@@ -41,8 +41,8 @@ const dmCryptBaseDeclarationPlugs = `
 // The type for this interface
 type dmCryptInterface struct{}
 
-// XXX: this should not hardcode mount points like /run/media/ but
-//      unless we have an interface like "mount-control" this is needed
+// XXX: this should not hardcode mount points like /run/media/ but unless we
+// have an interface like "mount-control" this is needed
 const dmCryptConnectedPlugAppArmor = `
 # Allow mapper access
 /dev/mapper/control rw,
@@ -65,6 +65,7 @@ mount options=(rw,nosuid,nodev) /dev/dm-[0-9]* -> /{,run/}media/**,
 # Allow access to the file locking mechanism
 /{,var/}run/cryptsetup/ r,
 /{,var/}run/cryptsetup/* rwk,
+/{,var/}run/ r,
 `
 
 const dmCryptConnectedPlugSecComp = `

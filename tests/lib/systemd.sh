@@ -15,7 +15,7 @@ systemd_create_and_start_unit() {
     systemctl daemon-reload
     systemctl enable "$1"
     systemctl start "$1"
-    wait_for_service "$1"
+    wait_for_service "$1" active 30
 }
 
 systemd_stop_and_remove_unit() {
@@ -29,7 +29,9 @@ systemd_stop_and_remove_unit() {
 wait_for_service() {
     local service_name="$1"
     local state="${2:-active}"
-    for i in $(seq 300); do
+    local attempts="${3:-60}"
+
+    for i in $(seq "$attempts"); do
         if systemctl show -p ActiveState "$service_name" | grep -q "ActiveState=$state"; then
             return
         fi

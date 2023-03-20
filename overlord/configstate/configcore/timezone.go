@@ -42,7 +42,7 @@ func init() {
 
 var validTimezone = regexp.MustCompile(`^[a-zA-Z0-9+_-]+(/[a-zA-Z0-9+_-]+)?(/[a-zA-Z0-9+_-]+)?$`).MatchString
 
-func validateTimezoneSettings(tr config.ConfGetter) error {
+func validateTimezoneSettings(tr ConfGetter) error {
 	timezone, err := coreCfg(tr, "system.timezone")
 	if err != nil {
 		return err
@@ -57,7 +57,7 @@ func validateTimezoneSettings(tr config.ConfGetter) error {
 	return nil
 }
 
-func handleTimezoneConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleTimezoneConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	timezone, err := coreCfg(tr, "system.timezone")
 	if err != nil {
 		return err

@@ -26,5 +26,5 @@ execute: |
   remote.push pc_2.snap
   boot_id="$(tests.nested boot-id)"
   remote.exec "sudo snap install --dangerous pc_2.snap"
-  tests.nested wait-for reboot "${boot_id}"
+  remote.wait-for reboot "${boot_id}"
   remote.exec "MATCH '.*some_useless_parameter.*' </proc/cmdline"

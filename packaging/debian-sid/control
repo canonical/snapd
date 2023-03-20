@@ -4,7 +4,8 @@ Priority: optional
 Maintainer: Michael Hudson-Doyle <mwhudson@debian.org>
 Uploaders: Steve Langasek <vorlon@debian.org>,
 	Zygmunt Krynicki <me@zygoon.pl>,
-	Luke Faraone <lfaraone@debian.org>
+	Luke Faraone <lfaraone@debian.org>,
+        Michael Vogt <mvo@debian.org>
 Build-Depends: autoconf,
                automake,
                autotools-dev,
@@ -56,18 +57,11 @@ Build-Depends: autoconf,
                tzdata,
                udev,
                xfslibs-dev
-Standards-Version: 3.9.8
+Standards-Version: 4.6.0
 Homepage: https://github.com/snapcore/snapd
 Vcs-Browser: https://salsa.debian.org/debian/snapd
 Vcs-Git: https://salsa.debian.org/debian/snapd.git
 XS-Go-Import-Path: github.com/snapcore/snapd
-
-Package: golang-github-ubuntu-core-snappy-dev
-Architecture: all
-Depends: golang-github-snapcore-snapd-dev, ${misc:Depends}
-Section: oldlibs
-Description: transitional dummy package
- This is a transitional dummy package. It can safely be removed.
 
 Package: golang-github-snapcore-snapd-dev
 Architecture: all

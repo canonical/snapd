@@ -21,6 +21,7 @@ package asserts_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"time"
 
@@ -407,7 +408,7 @@ func (s *batchSuite) TestPrecheckPartial(c *C) {
 		"series":  "16",
 		"snap-id": "foo-id",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (s *batchSuite) TestPrecheckHappy(c *C) {
@@ -449,7 +450,7 @@ func (s *batchSuite) TestPrecheckHappy(c *C) {
 		"series":  "16",
 		"snap-id": "foo-id",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	// commit (with precheck)
 	err = batch.CommitTo(s.db, &asserts.CommitOptions{Precheck: true})
@@ -503,7 +504,7 @@ func (s *batchSuite) TestFetch(c *C) {
 		"series":  "16",
 		"snap-id": "foo-id",
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	// commit
 	err = batch.CommitTo(s.db, nil)

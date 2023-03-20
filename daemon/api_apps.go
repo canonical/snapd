@@ -94,14 +94,15 @@ func (opts appInfoOptions) String() string {
 
 // appInfosFor returns a sorted list apps described by names.
 //
-// * If names is empty, returns all apps of the wanted kinds (which
-//   could be an empty list).
-// * An element of names can be a snap name, in which case all apps
-//   from the snap of the wanted kind are included in the result (and
-//   it's an error if the snap has no apps of the wanted kind).
-// * An element of names can instead be snap.app, in which case that app is
-//   included in the result (and it's an error if the snap and app don't
-//   both exist, or if the app is not a wanted kind)
+//   - If names is empty, returns all apps of the wanted kinds (which
+//     could be an empty list).
+//   - An element of names can be a snap name, in which case all apps
+//     from the snap of the wanted kind are included in the result (and
+//     it's an error if the snap has no apps of the wanted kind).
+//   - An element of names can instead be snap.app, in which case that app is
+//     included in the result (and it's an error if the snap and app don't
+//     both exist, or if the app is not a wanted kind)
+//
 // On error an appropriate *apiError is returned; a nil *apiError means
 // no error.
 //
@@ -169,8 +170,9 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 
 // this differs from snap.SplitSnapApp in the handling of the
 // snap-only case:
-//   snap.SplitSnapApp("foo") is ("foo", "foo"),
-//   splitAppName("foo") is ("foo", "").
+//
+//	snap.SplitSnapApp("foo") is ("foo", "foo"),
+//	splitAppName("foo") is ("foo", "").
 func splitAppName(s string) (snap, app string) {
 	if idx := strings.IndexByte(s, '.'); idx > -1 {
 		return s[:idx], s[idx+1:]

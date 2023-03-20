@@ -334,7 +334,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bopts := install.Options{
 		Mount: true,
 	}
-	encryptionType, err := m.checkEncryption(st, deviceCtx)
+	encryptionType, err := m.checkEncryption(st, deviceCtx, secboot.TPMProvisionFull)
 	if err != nil {
 		return err
 	}
@@ -587,6 +587,20 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		logger.Noticef("successfully preseeded the system")
 	} else {
 		logger.Noticef("preseed data not present, will do normal seeding")
+	}
+
+	// if the model has a gadget snap, and said gadget snap has an install-device hook
+	// call systemctl daemon-reload to account for any potential side-effects of that
+	// install-device hook
+	hasHook, err := m.hasInstallDeviceHook(model)
+	if err != nil {
+		return err
+	}
+	if hasHook {
+		sd := systemd.New(systemd.SystemMode, progress.Null)
+		if err := sd.DaemonReload(); err != nil {
+			return err
+		}
 	}
 
 	// ensure the next boot goes into run mode
@@ -879,7 +893,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	bopts := install.Options{
 		Mount: true,
 	}
-	encryptionType, err := m.checkEncryption(st, deviceCtx)
+	encryptionType, err := m.checkEncryption(st, deviceCtx, secboot.TPMPartialReprovision)
 	if err != nil {
 		return err
 	}
@@ -1060,7 +1074,7 @@ func restoreDeviceSerialFromSave(model *asserts.Model) error {
 		"brand-id": model.BrandID(),
 		"model":    model.Model(),
 	})
-	if (err != nil && asserts.IsNotFound(err)) || len(serials) == 0 {
+	if (err != nil && errors.Is(err, &asserts.NotFoundError{})) || len(serials) == 0 {
 		// there is no serial assertion in the old system that matches
 		// our model, it is still possible that the old system could
 		// have generated device keys and sent out a serial request, but
@@ -1343,9 +1357,14 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	encType := secboot.EncryptionTypeNone
+	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
+	if useEncryption {
+		encType = secboot.EncryptionTypeLUKS
+	}
 	// TODO for partial gadgets we should also use the data from onVolumes instead of
 	// using only what comes from gadget.yaml.
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model)
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, encType)
 	if err != nil {
 		return fmt.Errorf("on finish install: cannot layout volumes: %v", err)
 	}
@@ -1452,7 +1471,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return fmt.Errorf("reading gadget information: %v", err)
 	}
 
-	encryptInfo, err := m.encryptionSupportInfo(sys.Model, snapInfos[snap.TypeKernel], gadgetInfo)
+	encryptInfo, err := m.encryptionSupportInfo(sys.Model, secboot.TPMProvisionFull, snapInfos[snap.TypeKernel], gadgetInfo)
 	if err != nil {
 		return err
 	}
@@ -1466,7 +1485,9 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return fmt.Errorf("encryption unavailable on this device: %v", whyStr)
 	}
 
-	encryptionSetupData, err := installEncryptPartitions(onVolumes, secboot.EncryptionTypeLUKS, sys.Model, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], perfTimings)
+	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
+	encType := secboot.EncryptionTypeLUKS
+	encryptionSetupData, err := installEncryptPartitions(onVolumes, encType, sys.Model, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], perfTimings)
 	if err != nil {
 		return err
 	}

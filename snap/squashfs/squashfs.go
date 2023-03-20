@@ -299,9 +299,10 @@ func (sk skipper) Has(path string) bool {
 }
 
 // pre-4.5 unsquashfs writes a funny header like:
-//     "Parallel unsquashfs: Using 1 processor"
-//     "1 inodes (1 blocks) to write"
-//     ""   <-- empty line
+//
+//	"Parallel unsquashfs: Using 1 processor"
+//	"1 inodes (1 blocks) to write"
+//	""   <-- empty line
 var maybeHeaderRegex = regexp.MustCompile(`^(Parallel unsquashfs: Using .* processor.*|[0-9]+ inodes .* to write)$`)
 
 // Walk (part of snap.Container) is like filepath.Walk, without the ordering guarantee.

@@ -439,6 +439,15 @@ func (s appName) Complete(match string) []flags.Completion {
 
 type serviceName string
 
+func serviceNames(services []serviceName) []string {
+	names := make([]string, len(services))
+	for i, name := range services {
+		names[i] = string(name)
+	}
+
+	return names
+}
+
 func (s serviceName) Complete(match string) []flags.Completion {
 	cli := mkClient()
 	apps, err := cli.Apps(nil, client.AppOptions{Service: true})

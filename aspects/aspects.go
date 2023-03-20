@@ -56,6 +56,7 @@ func newAccessType(access string) (accessType, error) {
 	return readWrite, fmt.Errorf("expected 'access' to be one of %s but was %q", strutil.Quoted(accessTypeStrings), access)
 }
 
+// NotFoundError represents an error caused by a missing entity.
 type NotFoundError struct {
 	Message string
 }
@@ -136,6 +137,17 @@ func newAspect(dir *Directory, name string, aspectPatterns []map[string]string) 
 			return nil, errors.New(`access patterns must have a "name" field`)
 		}
 
+		// TODO: either
+		// * Validate that a path isn't a subset of another
+		//   (possibly somewhere else).  Otherwise, we can
+		//   write a user value in a subkey of a path (that
+		//   should be map).
+		// * Our schema should be able to provide
+		//   allowed/expected types given a path; these should
+		//   guide and take precedence resolving conflicts
+		//   between data in the data bags or written E.g
+		//   possibly return null or empty object if at a path
+		//   were the schema expects an object there is scalar?
 		path, ok := aspectPattern["path"]
 		if !ok || path == "" {
 			return nil, errors.New(`access patterns must have a "path" field`)
@@ -157,8 +169,8 @@ func newAspect(dir *Directory, name string, aspectPatterns []map[string]string) 
 }
 
 // validateNamePathPair checks that:
-//     * names and paths are composed of valid subkeys (see: validateAspectString)
-//     * all placeholders in a name are in the path and vice-versa
+//   - names and paths are composed of valid subkeys (see: validateAspectString)
+//   - all placeholders in a name are in the path and vice-versa
 func validateNamePathPair(name, path string) error {
 	if err := validateAspectDottedPath(name); err != nil {
 		return fmt.Errorf("invalid access name %q: %w", name, err)
@@ -190,10 +202,10 @@ var (
 )
 
 // validateAspectDottedPath validates that names/paths in an aspect definition are:
-//     * composed of non-empty, dot-separated subkeys with optional placeholders ("foo.{bar}")
-//     * non-placeholder subkeys are made up of lowercase alphanumeric ASCII characters,
-//			optionally with dashes between alphanumeric characters (e.g., "a-b-c")
-//     * placeholder subkeys are composed of non-placeholder subkeys wrapped in curly brackets
+//   - composed of non-empty, dot-separated subkeys with optional placeholders ("foo.{bar}")
+//   - non-placeholder subkeys are made up of lowercase alphanumeric ASCII characters,
+//     optionally with dashes between alphanumeric characters (e.g., "a-b-c")
+//   - placeholder subkeys are composed of non-placeholder subkeys wrapped in curly brackets
 func validateAspectDottedPath(path string) (err error) {
 	subkeys := strings.Split(path, ".")
 
@@ -505,9 +517,17 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 
 // Set takes a path to which the value will be written. The path can be dotted,
 // in which case, a nested JSON object is created for each sub-key found after a dot.
+// If the value is nil, the entry is deleted.
 func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-	_, err := set(subKeys, 0, s, value)
+
+	var err error
+	if value == nil {
+		_, err = unset(subKeys, 0, s)
+	} else {
+		_, err = set(subKeys, 0, s, value)
+	}
+
 	return err
 }
 
@@ -533,8 +553,8 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 		rawLevel = []byte("{}")
 	}
 
-	// TODO this will error ungraciously if there is not an object
-	// at this level, see the TODO in NewAspectDirectory
+	// TODO: this will error ungraciously if there isn't an object
+	// at this level (see the TODO in NewAspectDirectory)
 	var level map[string]json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
 		return nil, err
@@ -546,6 +566,47 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 	}
 
 	node[key] = rawLevel
+	return json.Marshal(node)
+}
+
+func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.RawMessage, error) {
+	key := subKeys[index]
+	if index == len(subKeys)-1 {
+		delete(node, key)
+		// if the parent node has no other entries, it can also be deleted
+		if len(node) == 0 {
+			return nil, nil
+		}
+
+		return json.Marshal(node)
+	}
+
+	rawLevel, ok := node[key]
+	if !ok {
+		// no such entry, nothing to unset
+		return json.Marshal(node)
+	}
+
+	var level map[string]json.RawMessage
+	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
+		return nil, err
+	}
+
+	rawLevel, err := unset(subKeys, index+1, level)
+	if err != nil {
+		return nil, err
+	}
+
+	if rawLevel == nil {
+		delete(node, key)
+
+		if len(node) == 0 {
+			return nil, nil
+		}
+	} else {
+		node[key] = rawLevel
+	}
+
 	return json.Marshal(node)
 }
 

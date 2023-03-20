@@ -66,7 +66,7 @@ type AtomicFile struct {
 // NewAtomicFile builds an AtomicFile backed by an *os.File that will have
 // the given filename, permissions and uid/gid when Committed.
 //
-//   It _might_ be implemented using O_TMPFILE (see open(2)).
+//	It _might_ be implemented using O_TMPFILE (see open(2)).
 //
 // Note that it won't follow symlinks and will replace existing symlinks with
 // the real file, unless the AtomicWriteFollow flag is specified.

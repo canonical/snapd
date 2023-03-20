@@ -147,6 +147,9 @@ const bluezConnectedSlotAppArmor = `
 dbus (receive, send)
     bus=system
     peer=(label=###PLUG_SECURITY_TAGS###),
+
+# Allow sharing file descriptors (via DBus)
+unix (send,receive) type="seqpacket" addr=none peer=(addr=none label=###PLUG_SECURITY_TAGS###),
 `
 
 const bluezConnectedPlugAppArmor = `
@@ -186,6 +189,9 @@ dbus (receive)
 
 # Allow access to bluetooth audio streams
 network bluetooth,
+
+# Allow use of shared (via DBus) file descriptors
+unix (send, receive) type="seqpacket" addr=none peer=(addr=none label=###SLOT_SECURITY_TAGS###),
 `
 
 const bluezPermanentSlotSecComp = `

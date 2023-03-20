@@ -39,13 +39,6 @@ var (
 	ErrNoUpdate = errors.New("nothing to update")
 )
 
-var (
-	// default positioning constraints that match ubuntu-image
-	DefaultConstraints = LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-	}
-)
-
 // GadgetData holds references to a gadget revision metadata and its data directory.
 type GadgetData struct {
 	// Info is the gadget metadata
@@ -100,7 +93,9 @@ const (
 type ContentObserver interface {
 	// Observe is called to observe an pending or completed action, related
 	// to content being written, updated or being rolled back. In each of
-	// the scenarios, the target path is relative under the root.
+	// the scenarios, the target path is relative under the root. The role
+	// of the affected partition is needed as different assets are tracked
+	// depending on whether this is a boot or a seed partition.
 	//
 	// For a file write or update, the source path points to the content
 	// that will be written. When called during rollback, observe call
@@ -112,8 +107,7 @@ type ContentObserver interface {
 	// ContentWrite operation, returning ChangeIgnore indicates that the
 	// change shall be ignored. ChangeAbort is expected to be returned along
 	// with a non-nil error.
-	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
-		targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeAction, error)
+	Observe(op ContentOperation, partRole, targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeAction, error)
 }
 
 // ContentUpdateObserver allows for observing update (and potentially a
@@ -292,9 +286,9 @@ func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, 
 
 	numPartsOnDisk := len(diskLayout.Structure)
 
-	return s.Filesystem == "ext4" &&
+	return s.PartitionFSType == "ext4" &&
 		(s.Type == "0FC63DAF-8483-4772-8E79-3D69D8477DE4" || s.Type == "83") &&
-		s.Label == "writable" &&
+		s.PartitionFSLabel == "writable" &&
 		// DiskIndex is 1-based
 		s.DiskIndex == numPartsOnDisk &&
 		numPartsInGadget+1 == numPartsOnDisk
@@ -368,7 +362,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		if opts.AssumeCreatablePartitionsCreated && IsCreatableAtInstall(gv) {
 			// only partitions that are creatable at install can be encrypted,
 			// check if this partition was encrypted
-			if encTypeParams, ok := opts.ExpectedStructureEncryption[gs.Name]; ok {
+			if encTypeParams, ok := opts.ExpectedStructureEncryption[gs.Name()]; ok {
 				if encTypeParams.Method == "" {
 					return false, "encrypted structure parameter missing required parameter \"method\""
 				}
@@ -386,12 +380,12 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 				case EncryptionLUKS:
 					// then this partition is expected to have been encrypted, the
 					// filesystem label on disk will need "-enc" appended
-					if ds.Label != gv.Name+"-enc" {
+					if ds.PartitionFSLabel != gv.Name+"-enc" {
 						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but is not named %[1]s-enc", gv.Name)
 					}
 
 					// the filesystem should also be "crypto_LUKS"
-					if ds.Filesystem != "crypto_LUKS" {
+					if ds.PartitionFSType != "crypto_LUKS" {
 						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but does not have an encrypted filesystem", gv.Name)
 					}
 
@@ -421,14 +415,14 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			// case we don't care about the filesystem at all because snapd does
 			// not touch it, unless a gadget asset update says to update that
 			// image file with a new binary image file.
-			if gv.Filesystem != "" && gv.Filesystem != ds.Filesystem {
+			if gv.Filesystem != "" && gv.Filesystem != ds.PartitionFSType {
 				// use more specific error message for structures that are
 				// not creatable at install when we are not being strict
 				if !IsCreatableAtInstall(gv) && !opts.AssumeCreatablePartitionsCreated {
-					return false, fmt.Sprintf("filesystems do not match (and the partition is not creatable at install): declared as %s, got %s", gv.Filesystem, ds.Filesystem)
+					return false, fmt.Sprintf("filesystems do not match (and the partition is not creatable at install): declared as %s, got %s", gv.Filesystem, ds.PartitionFSType)
 				}
 				// otherwise generic
-				return false, fmt.Sprintf("filesystems do not match: declared as %s, got %s", gv.Filesystem, ds.Filesystem)
+				return false, fmt.Sprintf("filesystems do not match: declared as %s, got %s", gv.Filesystem, ds.PartitionFSType)
 			}
 		}
 
@@ -509,7 +503,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	// the disk sector size (unless the structure is the MBR)
 	for _, ls := range gadgetLayout.LaidOutStructure {
 		if !IsRoleMBR(ls) {
-			if ls.Size%diskLayout.SectorSize != 0 {
+			if ls.VolumeStructure.Size%diskLayout.SectorSize != 0 {
 				return fmt.Errorf("gadget volume structure %v size is not a multiple of disk sector size %v",
 					ls, diskLayout.SectorSize)
 			}
@@ -572,7 +566,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	for gadgetLabel := range opts.ExpectedStructureEncryption {
 		found := false
 		for _, gs := range gadgetLayout.LaidOutStructure {
-			if gs.Name == gadgetLabel {
+			if gs.Name() == gadgetLabel {
 				found = true
 				break
 			}
@@ -585,6 +579,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	return nil
 }
 
+// TODO:ICE: remove this as we only support LUKS (and ICE is a variant of LUKS now)
 type DiskEncryptionMethod string
 
 const (
@@ -593,8 +588,8 @@ const (
 	// standard LUKS as it is used for automatic FDE using SecureBoot and TPM
 	// 2.0 in UC20+
 	EncryptionLUKS DiskEncryptionMethod = "LUKS"
-	// ICE stands for Inline Crypto Engine, used on specific (usually embedded)
-	// devices
+
+	// TODO:ICE: remove this
 	EncryptionICE DiskEncryptionMethod = "ICE"
 )
 
@@ -830,7 +825,7 @@ func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, laidOutVols map[st
 		// here it is okay that we require there to be either a partition label
 		// or a filesystem label since we require there to be a system-boot role
 		// on this volume which by definition must have a filesystem
-		structureDevice, err := FindDeviceForStructure(&vs)
+		structureDevice, err := FindDeviceForStructure(vs.VolumeStructure)
 		if err == ErrDeviceNotFound {
 			continue
 		}
@@ -1157,27 +1152,26 @@ func volumeStructureToLocationMapImpl(old GadgetData, mod Model, laidOutVols map
 // rollback directory. Should the apply step fail, the modified data is
 // recovered.
 //
-//
 // The rules for gadget/kernel updates with "$kernel:refs":
 //
-// 1. When installing a kernel with assets that have "update: true"
-//    there *must* be a matching entry in gadget.yaml. If not we risk
-//    bricking the system because the kernel tells us that it *needs*
-//    this file to boot but without gadget.yaml we would not put it
-//    anywhere.
-// 2. When installing a gadget with "$kernel:ref" content it is okay
-//    if this content cannot get resolved as long as there is no
-//    "edition" jump. This means adding new "$kernel:ref" without
-//    "edition" updates is always possible.
+//  1. When installing a kernel with assets that have "update: true"
+//     there *must* be a matching entry in gadget.yaml. If not we risk
+//     bricking the system because the kernel tells us that it *needs*
+//     this file to boot but without gadget.yaml we would not put it
+//     anywhere.
+//  2. When installing a gadget with "$kernel:ref" content it is okay
+//     if this content cannot get resolved as long as there is no
+//     "edition" jump. This means adding new "$kernel:ref" without
+//     "edition" updates is always possible.
 //
 // To add a new "$kernel:ref" to gadget/kernel:
-// a. Update gadget and gadget.yaml and add "$kernel:ref" but do not
-//    update edition (if edition update is needed, use epoch)
+// a. Update gadget and gadget.yaml and add "$kernel:ref" but do not update
+// edition (if edition update is needed, use epoch)
 // b. Update kernel and kernel.yaml with new assets.
-// c. snapd will refresh gadget (see rule 2) but refuse to take the
-//    new kernel (rule 1)
-// d. After step (c) is completed the kernel refresh will now also
-//    work (no more violation of rule 1)
+// c. snapd will refresh gadget (see rule 2) but refuse to take the	new
+// kernel (rule 1)
+// d. After step (c) is completed the kernel refresh will now also work (no more
+// violation of rule 1)
 func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
 	// if the volumes from the old and the new gadgets do not match, then fail -
 	// we don't support adding or removing volumes from the gadget.yaml
@@ -1257,12 +1251,12 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 
 		// layout old partially, without going deep into the layout of structure
 		// content
-		pOld, err := LayoutVolumePartially(oldVol, DefaultConstraints)
+		pOld, err := LayoutVolumePartially(oldVol)
 		if err != nil {
 			return fmt.Errorf("cannot lay out the old volume %s: %v", volName, err)
 		}
 
-		pNew, err := LayoutVolume(newVol, DefaultConstraints, opts)
+		pNew, err := LayoutVolume(newVol, opts)
 		if err != nil {
 			return fmt.Errorf("cannot lay out the new volume %s: %v", volName, err)
 		}
@@ -1347,7 +1341,7 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 			for _, update := range allUpdates {
 				if update.volume.Name != supportedVolume {
 					// TODO: or should we error here instead?
-					logger.Noticef("skipping update on non-supported volume %s to structure %s", update.volume.Name, update.to.Name)
+					logger.Noticef("skipping update on non-supported volume %s to structure %s", update.volume.Name, update.to.Name())
 				} else {
 					keepUpdates = append(keepUpdates, update)
 				}
@@ -1408,49 +1402,49 @@ func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
 func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
 	// legacy MBR could have been specified by setting type: mbr, with no
 	// role
-	return from.Type == schemaMBR && to.Role == schemaMBR
+	return from.Type() == schemaMBR && to.Role() == schemaMBR
 }
 
 func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema string) error {
-	if schema == schemaGPT && from.Name != to.Name {
+	if schema == schemaGPT && from.Name() != to.Name() {
 		// partition names are only effective when GPT is used
-		return fmt.Errorf("cannot change structure name from %q to %q", from.Name, to.Name)
+		return fmt.Errorf("cannot change structure name from %q to %q", from.Name(), to.Name())
 	}
-	if from.Size != to.Size {
-		return fmt.Errorf("cannot change structure size from %v to %v", from.Size, to.Size)
+	if from.VolumeStructure.Size != to.VolumeStructure.Size {
+		return fmt.Errorf("cannot change structure size from %v to %v", from.VolumeStructure.Size, to.VolumeStructure.Size)
 	}
-	if !isSameOffset(from.Offset, to.Offset) {
-		return fmt.Errorf("cannot change structure offset from %v to %v", from.Offset, to.Offset)
+	if !isSameOffset(from.VolumeStructure.Offset, to.VolumeStructure.Offset) {
+		return fmt.Errorf("cannot change structure offset from %v to %v", from.VolumeStructure.Offset, to.VolumeStructure.Offset)
 	}
 	if from.StartOffset != to.StartOffset {
 		return fmt.Errorf("cannot change structure start offset from %v to %v", from.StartOffset, to.StartOffset)
 	}
 	// TODO: should this limitation be lifted?
-	if !isSameRelativeOffset(from.OffsetWrite, to.OffsetWrite) {
-		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.OffsetWrite, to.OffsetWrite)
+	if !isSameRelativeOffset(from.VolumeStructure.OffsetWrite, to.VolumeStructure.OffsetWrite) {
+		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.VolumeStructure.OffsetWrite, to.VolumeStructure.OffsetWrite)
 	}
-	if from.Role != to.Role {
-		return fmt.Errorf("cannot change structure role from %q to %q", from.Role, to.Role)
+	if from.Role() != to.Role() {
+		return fmt.Errorf("cannot change structure role from %q to %q", from.Role(), to.Role())
 	}
-	if from.Type != to.Type {
+	if from.Type() != to.Type() {
 		if !isLegacyMBRTransition(from, to) {
-			return fmt.Errorf("cannot change structure type from %q to %q", from.Type, to.Type)
+			return fmt.Errorf("cannot change structure type from %q to %q", from.Type(), to.Type())
 		}
 	}
-	if from.ID != to.ID {
-		return fmt.Errorf("cannot change structure ID from %q to %q", from.ID, to.ID)
+	if from.VolumeStructure.ID != to.VolumeStructure.ID {
+		return fmt.Errorf("cannot change structure ID from %q to %q", from.VolumeStructure.ID, to.VolumeStructure.ID)
 	}
 	if to.HasFilesystem() {
 		if !from.HasFilesystem() {
 			return fmt.Errorf("cannot change a bare structure to filesystem one")
 		}
-		if from.Filesystem != to.Filesystem {
+		if from.Filesystem() != to.Filesystem() {
 			return fmt.Errorf("cannot change filesystem from %q to %q",
-				from.Filesystem, to.Filesystem)
+				from.Filesystem(), to.Filesystem())
 		}
-		if from.Label != to.Label {
+		if from.Label() != to.Label() {
 			return fmt.Errorf("cannot change filesystem label from %q to %q",
-				from.Label, to.Label)
+				from.Label(), to.Label())
 		}
 	} else {
 		if from.HasFilesystem() {
@@ -1481,13 +1475,13 @@ type updatePair struct {
 }
 
 func defaultPolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
-	return to.Update.Edition > from.Update.Edition, nil
+	return to.VolumeStructure.Update.Edition > from.VolumeStructure.Update.Edition, nil
 }
 
 // RemodelUpdatePolicy implements the update policy of a remodel scenario. The
 // policy selects all non-MBR structures for the update.
 func RemodelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
-	if from.Role == schemaMBR {
+	if from.Role() == schemaMBR {
 		return false, nil
 	}
 	return true, nil
@@ -1505,7 +1499,7 @@ func KernelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilter
 	// The policy function has to work on unresolved content, the
 	// returned filter will make sure that after resolving only the
 	// relevant $kernel:refs are updated.
-	for _, ct := range to.Content {
+	for _, ct := range to.VolumeStructure.Content {
 		if strings.HasPrefix(ct.UnresolvedSource, "$kernel:") {
 			return true, func(rn *ResolvedContent) bool {
 				return rn.KernelUpdate
@@ -1563,13 +1557,13 @@ type Updater interface {
 }
 
 func updateLocationForStructure(structureLocations map[string]map[int]StructureLocation, ps *LaidOutStructure) (loc StructureLocation, err error) {
-	loc, ok := structureLocations[ps.VolumeName][ps.YamlIndex]
+	loc, ok := structureLocations[ps.VolumeStructure.VolumeName][ps.YamlIndex]
 	if !ok {
-		return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.YamlIndex, ps.VolumeName)
+		return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.YamlIndex, ps.VolumeStructure.VolumeName)
 	}
 	if !ps.HasFilesystem() {
 		if loc.Device == "" {
-			return loc, fmt.Errorf("internal error: structure %d on volume %s should have had a device set but did not have one in an internal mapping", ps.YamlIndex, ps.VolumeName)
+			return loc, fmt.Errorf("internal error: structure %d on volume %s should have had a device set but did not have one in an internal mapping", ps.YamlIndex, ps.VolumeStructure.VolumeName)
 		}
 		return loc, nil
 	} else {
@@ -1581,7 +1575,7 @@ func updateLocationForStructure(structureLocations map[string]map[int]StructureL
 			// possibly mounting it, we could also mount it here instead and
 			// then proceed with the update, but we should also have a way to
 			// unmount it when we are done updating it
-			return loc, fmt.Errorf("structure %d on volume %s does not have a writable mountpoint in order to update the filesystem content", ps.YamlIndex, ps.VolumeName)
+			return loc, fmt.Errorf("structure %d on volume %s does not have a writable mountpoint in order to update the filesystem content", ps.YamlIndex, ps.VolumeStructure.VolumeName)
 		}
 		return loc, nil
 	}

@@ -148,6 +148,9 @@ unix (connect, receive, send)
      type=stream
      peer=(addr="@/home/*/.cache/ibus/dbus-*"),
 
+# when running with glib >= 2.75.0, ibus uses a regular socket
+owner @{HOME}/.cache/ibus/dbus-* rw,
+
 
 # mozc
 # allow communicating with mozc server
@@ -312,7 +315,7 @@ dbus (receive)
     bus=session
     path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
     interface=org.kde.StatusNotifierItem
-    member={Activate,ContextMenu,Scroll,SecondaryActivate,XAyatanaSecondaryActivate}
+    member={Activate,ContextMenu,Scroll,SecondaryActivate,ProvideXdgActivationToken,XAyatanaSecondaryActivate}
     peer=(label=unconfined),
 
 dbus (send)

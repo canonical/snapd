@@ -63,16 +63,13 @@ prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-
   # Setup the fake-store for ubuntu-image to use when creating our core image.
   # We immediately tear down the staging store, to make sure snapd is not pointed
   # towards this once we invoke ubuntu-image. 
   # We also need to point NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL towards the newly
   # setup fake-store to actually have it use it.
-  setup_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
-  teardown_staging_store
+  "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+  "$TESTSTOOLS"/store-state teardown-staging-store
 
   echo "Expose the needed assertions through the fakestore"
   cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
@@ -120,9 +117,7 @@ restore: |
 
   systemctl stop fakedevicesvc
 
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+  "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
 
 execute: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -134,7 +129,7 @@ execute: |
   . "$TESTSLIB/nested.sh"
 
   # wait until device is initialized and has a serial
-  tests.nested wait-for device-initialized
+  remote.wait-for device-initialized
 
   setup_ramdisk() {
     local ASSERT="$1"

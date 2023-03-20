@@ -516,6 +516,8 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	var path string
 
 	if isLocalSnap(nameOrPath) {
+		// don't log the request's body because the encoded snap is large.
+		x.client.SetMayLogBody(false)
 		path = nameOrPath
 		changeID, err = x.client.InstallPath(path, x.Name, opts)
 	} else {
@@ -569,6 +571,8 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	var err error
 
 	if isLocal {
+		// don't log the request's body because the encoded snap is large
+		x.client.SetMayLogBody(false)
 		changeID, err = x.client.InstallPathMany(names, opts)
 	} else {
 		if x.asksForMode() {

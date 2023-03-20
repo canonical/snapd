@@ -274,8 +274,27 @@ func (grp *Group) SliceFileName() string {
 	return buf.String()
 }
 
-// JournalNamespaceName returns the snap formatted name of the log namespace
+// JournalQuotaSet returns true if the group is subject to
+// a journal quota. This should only be used in cases where the caller
+// is interested in knowing if a quota group is affected by a journal
+// quota, and not in the case where the caller needs to know if the
+// group itself has a journal quota set. For service groups this depends
+// on their parent quota group.
+func (grp *Group) JournalQuotaSet() bool {
+	if grp.parentGroup != nil && len(grp.Services) > 0 {
+		return grp.parentGroup.JournalQuotaSet()
+	}
+	return grp.JournalLimit != nil
+}
+
+// JournalNamespaceName returns the snap formatted name of the log namespace,
+// corresponding to the namespace of the journal quota affecting this group. If
+// this group is a service group, this returns the journal namespace name for the
+// parent group instead.
 func (grp *Group) JournalNamespaceName() string {
+	if grp.parentGroup != nil && len(grp.Services) > 0 {
+		return grp.parentGroup.JournalNamespaceName()
+	}
 	return fmt.Sprintf("snap-%s", grp.Name)
 }
 
@@ -301,6 +320,21 @@ func (grp *Group) JournalServiceDropInDir() string {
 // file for the quota group.
 func (grp *Group) JournalServiceDropInFile() string {
 	return filepath.Join(grp.JournalServiceDropInDir(), "00-snap.conf")
+}
+
+// ServiceMap calculates a map of services to quota groups. If a group
+// contains service sub-groups, this will map each service in those sub-groups
+// to their sub-groups.
+// If a root group contains a snap foo and service subgroup bar, with service svc1
+// in bar, then this will return a map with entry foo.svc1=bar
+func (grp *Group) ServiceMap() map[string]*Group {
+	serviceMap := make(map[string]*Group)
+	for _, subgrp := range grp.subGroups {
+		for _, svc := range subgrp.Services {
+			serviceMap[svc] = subgrp
+		}
+	}
+	return serviceMap
 }
 
 // groupQuotaAllocations contains information about current quotas of a group
@@ -795,6 +829,12 @@ func (grp *Group) validate() error {
 				return fmt.Errorf("group has circular sub-group reference to itself")
 			}
 		}
+	}
+
+	// We don't support mixing services and the journal quota, the journal quota
+	// must be applied to the parent group, and services will inherit that one.
+	if len(grp.Services) > 0 && grp.JournalLimit != nil {
+		return fmt.Errorf("journal quota is not supported for individual services")
 	}
 	return nil
 }

@@ -3,7 +3,7 @@ summary: Test that snapd prompt services reexec into the snapd snap
 # Disable for Fedora, openSUSE and Arch as re-exec is not supported there yet
 # Disable on Ubuntu 14.04 and UC16 as this feature will not land there, and
 # there are limitations that render backporting hard.
-systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -ubuntu-14.04-*, -ubuntu-core-16-64]
+systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -ubuntu-14.04-*, -ubuntu-core-16-*64]
 
 execute: |
     if [ "${SNAP_REEXEC:-}" = "0" ]; then

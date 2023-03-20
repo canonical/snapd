@@ -80,7 +80,7 @@ func (s *reRefreshSuite) TestDoCheckReRefreshFailsWithoutReRefreshSetup(c *C) {
 }
 
 func (s *reRefreshSuite) TestDoCheckReRefreshFailsIfUpdateFails(c *C) {
-	defer snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, snapstate.UpdateFilter, *snapstate.Flags, string) ([]string, []*state.TaskSet, error) {
+	defer snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, snapstate.UpdateFilter, *snapstate.Flags, string) ([]string, *snapstate.UpdateTaskSets, error) {
 		return nil, nil, errors.New("bzzt")
 	})()
 
@@ -103,7 +103,7 @@ func (s *reRefreshSuite) TestDoCheckReRefreshFailsIfUpdateFails(c *C) {
 
 func (s *reRefreshSuite) TestDoCheckReRefreshNoReRefreshes(c *C) {
 	updaterCalled := false
-	defer snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, snapstate.UpdateFilter, *snapstate.Flags, string) ([]string, []*state.TaskSet, error) {
+	defer snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, snapstate.UpdateFilter, *snapstate.Flags, string) ([]string, *snapstate.UpdateTaskSets, error) {
 		updaterCalled = true
 		return nil, nil, nil
 	})()
@@ -128,7 +128,7 @@ func (s *reRefreshSuite) TestDoCheckReRefreshNoReRefreshes(c *C) {
 
 func (s *reRefreshSuite) TestDoCheckReRefreshPassesReRefreshSetupData(c *C) {
 	var chgID string
-	defer snapstate.MockReRefreshUpdateMany(func(_ context.Context, _ *state.State, snaps []string, _ []*snapstate.RevisionOptions, userID int, _ snapstate.UpdateFilter, flags *snapstate.Flags, changeID string) ([]string, []*state.TaskSet, error) {
+	defer snapstate.MockReRefreshUpdateMany(func(_ context.Context, _ *state.State, snaps []string, _ []*snapstate.RevisionOptions, userID int, _ snapstate.UpdateFilter, flags *snapstate.Flags, changeID string) ([]string, *snapstate.UpdateTaskSets, error) {
 		c.Check(changeID, Equals, chgID)
 		expected := []string{"won", "too", "tree"}
 		sort.Strings(expected)
@@ -165,7 +165,7 @@ func (s *reRefreshSuite) TestDoCheckReRefreshPassesReRefreshSetupData(c *C) {
 }
 
 func (s *reRefreshSuite) TestDoCheckReRefreshAddsNewTasks(c *C) {
-	defer snapstate.MockReRefreshUpdateMany(func(_ context.Context, st *state.State, snaps []string, _ []*snapstate.RevisionOptions, _ int, _ snapstate.UpdateFilter, _ *snapstate.Flags, _ string) ([]string, []*state.TaskSet, error) {
+	defer snapstate.MockReRefreshUpdateMany(func(_ context.Context, st *state.State, snaps []string, _ []*snapstate.RevisionOptions, _ int, _ snapstate.UpdateFilter, _ *snapstate.Flags, _ string) ([]string, *snapstate.UpdateTaskSets, error) {
 		expected := []string{"won", "too", "tree"}
 		sort.Strings(expected)
 		sort.Strings(snaps)
@@ -173,7 +173,8 @@ func (s *reRefreshSuite) TestDoCheckReRefreshAddsNewTasks(c *C) {
 
 		task := st.NewTask("witness", "...")
 
-		return []string{"won"}, []*state.TaskSet{state.NewTaskSet(task)}, nil
+		tasksetGrp := &snapstate.UpdateTaskSets{Refresh: []*state.TaskSet{state.NewTaskSet(task)}}
+		return []string{"won"}, tasksetGrp, nil
 	})()
 
 	s.state.Lock()

@@ -36,7 +36,7 @@ func addMountUnit(s *snap.Info, preseed bool, meter progress.Meter) error {
 	} else {
 		sysd = systemd.New(systemd.SystemMode, meter)
 	}
-	_, err := sysd.AddMountUnitFile(s.InstanceName(), s.Revision.String(), squashfsPath, whereDir, "squashfs")
+	_, err := sysd.EnsureMountUnitFile(s.InstanceName(), s.Revision.String(), squashfsPath, whereDir, "squashfs")
 	return err
 }
 

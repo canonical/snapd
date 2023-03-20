@@ -38,7 +38,9 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -116,7 +118,7 @@ volumes:
       - name: u-boot
         type: bare
         size: 623000
-        offset: 0
+        offset: 24576
         content:
           - image: u-boot.imz
 `)
@@ -147,7 +149,7 @@ volumes:
       - name: u-boot
         type: bare
         size: 623000
-        offset: 0
+        offset: 24576
         content:
           - image: u-boot.imz
 `)
@@ -790,6 +792,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Name:       "system-boot",
 						Role:       "system-boot",
 						Label:      "system-boot",
+						Offset:     asOffsetPtr(gadget.NonMBRStartOffset),
 						Size:       mustParseGadgetSize(c, "128M"),
 						Filesystem: "vfat",
 						Type:       "0C",
@@ -805,6 +808,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Role:       "system-data",
 						Name:       "writable",
 						Label:      "writable",
+						Offset:     asOffsetPtr(gadget.NonMBRStartOffset + quantity.Offset(mustParseGadgetSize(c, "128M"))),
 						Type:       "83",
 						Filesystem: "ext4",
 						Size:       mustParseGadgetSize(c, "380M"),
@@ -820,7 +824,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Name:       "u-boot",
 						Type:       "bare",
 						Size:       623000,
-						Offset:     asOffsetPtr(0),
+						Offset:     asOffsetPtr(24576),
 						Content: []gadget.VolumeContent{
 							{
 								Image: "u-boot.imz",
@@ -1281,11 +1285,55 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolume(&gadget.Volume{Name: "name", Schema: tc.s}, nil)
+		err := gadget.ValidateVolume(&gadget.Volume{Name: "name", Schema: tc.s})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
 			c.Check(err, IsNil)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestValidateVolumeSchemaNotOverlapWithGPT(c *C) {
+	for i, tc := range []struct {
+		s   string
+		sz  quantity.Size
+		o   quantity.Offset
+		err string
+	}{
+		// in sector 0 only
+		{"gpt", 511, 0, ""},
+		// might overlap with GPT header, print warning only
+		{"gpt", 511, 512, ""},
+		{"gpt", 4096, 0, ""},
+		// overlap GPT partition table
+		{"gpt", 16383, 1024, "invalid structure: GPT header or GPT partition table overlapped with structure \"name\"\n"},
+		{"gpt", 2048, 17407, "invalid structure: GPT header or GPT partition table overlapped with structure \"name\"\n"},
+		// might overlap with GPT partition table, print warning only
+		{"gpt", 2048, 17408, ""},
+	} {
+		loggerBuf, restore := logger.MockLogger()
+		defer restore()
+
+		c.Logf("tc: %v schema: %+v, size: %d, offset: %d", i, tc.s, tc.sz, tc.o)
+
+		err := gadget.ValidateVolume(&gadget.Volume{
+			Name: "name", Schema: tc.s,
+			Structure: []gadget.VolumeStructure{
+				{Name: "name", Type: "bare", Size: tc.sz, Offset: &tc.o},
+			},
+		})
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+
+			start := tc.o
+			end := start + quantity.Offset(tc.sz)
+			if start < 4096*34 && end > 512 {
+				c.Assert(loggerBuf.String(), testutil.Contains,
+					fmt.Sprintf("WARNING: GPT header or GPT partition table might be overlapped with structure \"name\""))
+			}
 		}
 	}
 }
@@ -1311,7 +1359,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolume(&gadget.Volume{Name: tc.s}, nil)
+		err := gadget.ValidateVolume(&gadget.Volume{Name: tc.s})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1324,97 +1372,71 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
 	err := gadget.ValidateVolume(&gadget.Volume{
 		Name: "name",
 		Structure: []gadget.VolumeStructure{
-			{Name: "duplicate", Type: "bare", Size: 1024},
-			{Name: "duplicate", Type: "21686148-6449-6E6F-744E-656564454649", Size: 2048},
+			{Name: "duplicate", Type: "bare", Size: 1024, Offset: asOffsetPtr(24576)},
+			{Name: "duplicate", Type: "21686148-6449-6E6F-744E-656564454649", Size: 2048, Offset: asOffsetPtr(24576)},
 		},
-	}, nil)
+	})
 	c.Assert(err, ErrorMatches, `structure name "duplicate" is not unique`)
 }
 
-func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
-	err := gadget.ValidateVolume(&gadget.Volume{
-		Name: "name",
-		Structure: []gadget.VolumeStructure{
-			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454123", Size: quantity.SizeMiB},
-			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454649", Size: quantity.SizeMiB},
-		},
-	}, nil)
-	c.Assert(err, ErrorMatches, `filesystem label "foo" is not unique`)
+func (s *gadgetYamlTestSuite) TestGadgetDuplicateFsLabel(c *C) {
+	yamlTemplate := `
+volumes:
+   minimal:
+     bootloader: grub
+     structure:
+       - name: data1
+         filesystem-label: %s
+         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+         size: 1G
+       - name: data2
+         filesystem-label: %s
+         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+         size: 1G
+`
 
-	// writable isn't special
-	for _, x := range []struct {
-		systemSeed bool
-		label      string
-		errMsg     string
+	tests := []struct {
+		dupLabel string
+		err      string
 	}{
-		{false, "writable", `filesystem label "writable" is not unique`},
-		{false, "ubuntu-data", `filesystem label "ubuntu-data" is not unique`},
-		{true, "writable", `filesystem label "writable" is not unique`},
-		{true, "ubuntu-data", `filesystem label "ubuntu-data" is not unique`},
-	} {
-
-		err = gadget.ValidateVolume(&gadget.Volume{
-			Name: "name",
-			Structure: []gadget.VolumeStructure{{
-				Name:  "data1",
-				Role:  gadget.SystemData,
-				Label: x.label,
-				Type:  "21686148-6449-6E6F-744E-656564454123",
-				Size:  quantity.SizeMiB,
-			}, {
-				Name:  "data2",
-				Role:  gadget.SystemData,
-				Label: x.label,
-				Type:  "21686148-6449-6E6F-744E-656564454649",
-				Size:  quantity.SizeMiB,
-			}},
-		}, nil)
-		c.Assert(err, ErrorMatches, x.errMsg)
+		{"foo", `invalid volume "minimal": filesystem label "foo" is not unique`},
+		{"writable", `invalid volume "minimal": filesystem label "writable" is not unique`},
+		{"ubuntu-data", `invalid volume "minimal": filesystem label "ubuntu-data" is not unique`},
+		{"system-boot", `invalid volume "minimal": filesystem label "system-boot" is not unique`},
 	}
 
-	// nor is system-boot
-	err = gadget.ValidateVolume(&gadget.Volume{
-		Name: "name",
-		Structure: []gadget.VolumeStructure{{
-			Name:  "boot1",
-			Label: "system-boot",
-			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Size:  quantity.SizeMiB,
-		}, {
-			Name:  "boot2",
-			Label: "system-boot",
-			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Size:  quantity.SizeMiB,
-		}},
-	}, nil)
-	c.Assert(err, ErrorMatches, `filesystem label "system-boot" is not unique`)
+	for _, t := range tests {
+		yaml := fmt.Sprintf(string(yamlTemplate), t.dupLabel, t.dupLabel)
+		_, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
+		c.Assert(err, ErrorMatches, t.err)
+	}
 }
 
 func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 	err := gadget.ValidateVolume(&gadget.Volume{
 		Name: "name",
 		Structure: []gadget.VolumeStructure{
-			{Type: "bare", Size: 1024},
-			{Type: "bogus", Size: 1024},
+			{Type: "bare", Size: 1024, Offset: asOffsetPtr(24576)},
+			{Type: "bogus", Size: 1024, Offset: asOffsetPtr(24576)},
 		},
-	}, nil)
+	})
 	c.Assert(err, ErrorMatches, `invalid structure #1: invalid type "bogus": invalid format`)
 
 	err = gadget.ValidateVolume(&gadget.Volume{
 		Name: "name",
 		Structure: []gadget.VolumeStructure{
-			{Type: "bare", Size: 1024},
-			{Type: "bogus", Size: 1024, Name: "foo"},
+			{Type: "bare", Size: 1024, Offset: asOffsetPtr(24576)},
+			{Type: "bogus", Size: 1024, Name: "foo", Offset: asOffsetPtr(24576)},
 		},
-	}, nil)
+	})
 	c.Assert(err, ErrorMatches, `invalid structure #1 \("foo"\): invalid type "bogus": invalid format`)
 
 	err = gadget.ValidateVolume(&gadget.Volume{
 		Name: "name",
 		Structure: []gadget.VolumeStructure{
-			{Type: "bare", Name: "foo", Size: 1024, Content: []gadget.VolumeContent{{UnresolvedSource: "foo"}}},
+			{Type: "bare", Name: "foo", Size: 1024, Offset: asOffsetPtr(24576), Content: []gadget.VolumeContent{{UnresolvedSource: "foo"}}},
 		},
-	}, nil)
+	})
 	c.Assert(err, ErrorMatches, `invalid structure #0 \("foo"\): invalid content #0: cannot use non-image content for bare file system`)
 }
 
@@ -1627,7 +1649,7 @@ volumes:
           - image: pc-boot.img
       - name: other-name
         type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
+        size: 300
         offset: 200
         content:
           - image: pc-core.img
@@ -1647,13 +1669,13 @@ volumes:
     structure:
       - name: overlaps-with-foo
         type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
+        size: 300
         offset: 200
         content:
           - image: pc-core.img
       - name: foo
         type: DA,21686148-6449-6E6F-744E-656564454648
-        size: 1M
+        size: 200
         offset: 100
         filesystem: vfat
 `
@@ -1672,7 +1694,7 @@ volumes:
     structure:
       - name: other-name
         type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
+        size: 10
         offset: 500
         content:
           - image: pc-core.img
@@ -1698,7 +1720,7 @@ volumes:
     structure:
       - name: other-name
         type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
+        size: 10
         offset: 500
         content:
           - image: pc-core.img
@@ -1712,7 +1734,7 @@ volumes:
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
-	c.Check(err, ErrorMatches, `invalid volume "pc": structure "mbr" has "mbr" role and must start at offset 0`)
+	c.Check(err, ErrorMatches, `invalid volume "pc": invalid structure #1 \("mbr"\): invalid role "mbr": mbr structure must start at offset 0`)
 }
 
 func (s *gadgetYamlTestSuite) TestReadInfoAndValidateConsistencyWithoutModelCharacteristics(c *C) {
@@ -1854,8 +1876,6 @@ volumes:
 		"pc":      gadgetYamlPC,
 	}
 
-	constr := gadget.LayoutConstraints{NonMBRStartOffset: 1 * quantity.OffsetMiB}
-
 	for volName, yaml := range tests {
 		giMeta, err := gadget.InfoFromGadgetYaml(yaml, nil)
 		c.Assert(err, IsNil)
@@ -1865,7 +1885,7 @@ volumes:
 
 		// also layout the volume and check that when laying out the MBR
 		// structure it retains the role of MBR, as validated by IsRoleMBR
-		ls, err := gadget.LayoutVolumePartially(giMeta.Volumes[volName], constr)
+		ls, err := gadget.LayoutVolumePartially(giMeta.Volumes[volName])
 		c.Assert(err, IsNil)
 		c.Check(gadget.IsRoleMBR(ls.LaidOutStructure[0]), Equals, true)
 	}
@@ -2129,30 +2149,35 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 	err = ioutil.WriteFile(filepath.Join(s.dir, "u-boot.imz"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", uc20Mod)
+	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone)
 	c.Assert(err, IsNil)
 
 	c.Assert(all, HasLen, 2)
 	c.Assert(all["frobinator-image"], DeepEquals, systemLv)
-	zero := quantity.Offset(0)
 	c.Assert(all["u-boot-frobinator"].LaidOutStructure, DeepEquals, []gadget.LaidOutStructure{
 		{
+			OnDiskStructure: gadget.OnDiskStructure{
+				Name:        "u-boot",
+				Type:        "bare",
+				Size:        quantity.Size(623000),
+				StartOffset: 24576,
+			},
 			VolumeStructure: &gadget.VolumeStructure{
 				VolumeName: "u-boot-frobinator",
 				Name:       "u-boot",
-				Offset:     &zero,
+				Offset:     asOffsetPtr(24576),
 				Size:       quantity.Size(623000),
 				Type:       "bare",
 				Content: []gadget.VolumeContent{
 					{Image: "u-boot.imz"},
 				},
 			},
-			StartOffset: 0,
 			LaidOutContent: []gadget.LaidOutContent{
 				{
 					VolumeContent: &gadget.VolumeContent{
 						Image: "u-boot.imz",
 					},
+					StartOffset: 24576,
 				},
 			},
 		},
@@ -2171,7 +2196,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetHappy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", coreMod)
+	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", coreMod, secboot.EncryptionTypeNone)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"], DeepEquals, systemLv)
@@ -2190,7 +2215,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetNeedsModel(c *C) {
 
 	// need the model in order to lay out system volumes due to the verification
 	// and other metadata we use with the gadget
-	_, _, err = gadget.LaidOutVolumesFromGadget(s.dir, "", nil)
+	_, _, err = gadget.LaidOutVolumesFromGadget(s.dir, "", nil, secboot.EncryptionTypeNone)
 	c.Assert(err, ErrorMatches, "internal error: must have model to lay out system volumes from a gadget")
 }
 
@@ -2202,7 +2227,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetUC20Happy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", uc20Mod)
+	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"], DeepEquals, systemLv)
@@ -2435,7 +2460,7 @@ volumes:
         size: 2M
         type: 00000000-0000-0000-0000-0000deadbeef
         filesystem: ext4
-        offset: 1M
+        offset: 2M
         filesystem-label: fs-legit
 `
 	var mockBadLabelYaml = baseYaml + `
@@ -2460,7 +2485,7 @@ volumes:
 		{mockYaml, ``},
 		{mockBadStructureTypeYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change structure type from "00000000-0000-0000-0000-0000deadbeef" to "00000000-0000-0000-0000-0000deadcafe"`},
 		{mockBadFsYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change filesystem from "ext4" to "vfat"`},
-		{mockBadOffsetYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change structure offset from unspecified to 1048576`},
+		{mockBadOffsetYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change structure offset from 1048576 to 2097152`},
 		{mockBadLabelYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change filesystem label from "fs-legit" to "fs-non-legit"`},
 		{mockGPTBadNameYaml, `incompatible layout change: incompatible structure #0 \("non-legit"\) change: cannot change structure name from "legit" to "non-legit"`},
 	} {
@@ -2612,6 +2637,7 @@ func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline strin
 		"debug", "panic", "panic=-1",
 		"snapd.debug=1", "snapd.debug",
 		"serial=ttyS0,9600n8",
+		"snapd_system_disk=somedisk",
 	}
 
 	for _, arg := range allowedArgs {
@@ -2732,7 +2758,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityMBRStructureAllowedMissingW
 
 	// ensure the first structure is the MBR in the YAML, but the first
 	// structure in the device layout is BIOS Boot
-	c.Assert(gadgetLayout.LaidOutStructure[0].Role, Equals, "mbr")
+	c.Assert(gadgetLayout.LaidOutStructure[0].Role(), Equals, "mbr")
 	c.Assert(mockDeviceLayout.Structure[0].Name, Equals, "BIOS Boot")
 
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout, nil)
@@ -2770,11 +2796,11 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityTypeBareStructureAllowedMis
 			// as existing on the disk - the code and test accounts for the MBR
 			// structure not being present in the OnDiskVolume
 			{
-				Node:        "/dev/node1",
-				Name:        "some-filesystem",
-				Size:        1 * quantity.SizeGiB,
-				Filesystem:  "ext4",
-				StartOffset: 1*quantity.OffsetMiB + 4096,
+				Node:            "/dev/node1",
+				Name:            "some-filesystem",
+				Size:            1 * quantity.SizeGiB,
+				PartitionFSType: "ext4",
+				StartOffset:     1*quantity.OffsetMiB + 4096,
 			},
 		},
 		ID:         "anything",
@@ -2793,7 +2819,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityTypeBareStructureAllowedMis
 
 	// ensure the first structure is barething in the YAML, but the first
 	// structure in the device layout is some-filesystem
-	c.Assert(gadgetLayout.LaidOutStructure[0].Type, Equals, "bare")
+	c.Assert(gadgetLayout.LaidOutStructure[0].Type(), Equals, "bare")
 	c.Assert(simpleDeviceLayout.Structure[0].Name, Equals, "some-filesystem")
 
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &simpleDeviceLayout, nil)
@@ -2841,11 +2867,11 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibility(c *C) {
 	deviceLayoutWithExtras := mockDeviceLayout
 	deviceLayoutWithExtras.Structure = append(deviceLayoutWithExtras.Structure,
 		gadget.OnDiskStructure{
-			Node:        "/dev/node2",
-			Name:        "Extra partition",
-			Size:        10 * quantity.SizeMiB,
-			Label:       "extra",
-			StartOffset: 2 * quantity.OffsetMiB,
+			Node:             "/dev/node2",
+			Name:             "Extra partition",
+			Size:             10 * quantity.SizeMiB,
+			PartitionFSLabel: "extra",
+			StartOffset:      2 * quantity.OffsetMiB,
 		},
 	)
 	// extra structure (should fail)
@@ -2918,12 +2944,12 @@ func (s *gadgetYamlTestSuite) TestMBRLayoutCompatibility(c *C) {
 		gadget.OnDiskStructure{
 			Node: "/dev/node2",
 			// name is ignored with MBR schema
-			Name:        "Extra partition",
-			Size:        1200 * quantity.SizeMiB,
-			Label:       "extra",
-			Filesystem:  "ext4",
-			Type:        "83",
-			StartOffset: 2 * quantity.OffsetMiB,
+			Name:             "Extra partition",
+			Size:             1200 * quantity.SizeMiB,
+			PartitionFSLabel: "extra",
+			PartitionFSType:  "ext4",
+			Type:             "83",
+			StartOffset:      2 * quantity.OffsetMiB,
 		},
 	)
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayoutWithExtras, nil)
@@ -2963,12 +2989,12 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 	// device matches gadget except for the filesystem type
 	deviceLayout.Structure = append(deviceLayout.Structure,
 		gadget.OnDiskStructure{
-			Node:        "/dev/node2",
-			Name:        "Writable",
-			Size:        1200 * quantity.SizeMiB,
-			Label:       "writable",
-			Filesystem:  "something_else",
-			StartOffset: 2 * quantity.OffsetMiB,
+			Node:             "/dev/node2",
+			Name:             "Writable",
+			Size:             1200 * quantity.SizeMiB,
+			PartitionFSLabel: "writable",
+			PartitionFSType:  "something_else",
+			StartOffset:      2 * quantity.OffsetMiB,
 		},
 	)
 
@@ -3039,12 +3065,12 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithUnspecifiedGadgetFilesy
 	// device matches, but it has a filesystem
 	deviceLayout.Structure = append(deviceLayout.Structure,
 		gadget.OnDiskStructure{
-			Node:        "/dev/node2",
-			Name:        "foobar",
-			Size:        1200 * quantity.SizeMiB,
-			Label:       "whatever",
-			Filesystem:  "something",
-			StartOffset: 2 * quantity.OffsetMiB,
+			Node:             "/dev/node2",
+			Name:             "foobar",
+			Size:             1200 * quantity.SizeMiB,
+			PartitionFSLabel: "whatever",
+			PartitionFSType:  "something",
+			StartOffset:      2 * quantity.OffsetMiB,
 		},
 	)
 
@@ -3089,12 +3115,12 @@ var mockEncDeviceLayout = gadget.OnDiskVolume{
 			StartOffset: 1 * quantity.OffsetMiB,
 		},
 		{
-			Node:        "/dev/node2",
-			Name:        "Writable",
-			Size:        1200 * quantity.SizeMiB,
-			Filesystem:  "crypto_LUKS",
-			Label:       "Writable-enc",
-			StartOffset: 2 * quantity.OffsetMiB,
+			Node:             "/dev/node2",
+			Name:             "Writable",
+			Size:             1200 * quantity.SizeMiB,
+			PartitionFSType:  "crypto_LUKS",
+			PartitionFSLabel: "Writable-enc",
+			StartOffset:      2 * quantity.OffsetMiB,
 		},
 	},
 	ID:         "anything",
@@ -3140,17 +3166,17 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions
 
 	// but if the name of the partition does not match "-enc" then it is not
 	// valid
-	deviceLayout.Structure[1].Label = "Writable"
+	deviceLayout.Structure[1].PartitionFSLabel = "Writable"
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, encOpts)
 	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: partition Writable is expected to be encrypted but is not named Writable-enc`)
 
 	// the filesystem must also be reported as crypto_LUKS
-	deviceLayout.Structure[1].Label = "Writable-enc"
-	deviceLayout.Structure[1].Filesystem = "ext4"
+	deviceLayout.Structure[1].PartitionFSLabel = "Writable-enc"
+	deviceLayout.Structure[1].PartitionFSType = "ext4"
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, encOpts)
 	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: partition Writable is expected to be encrypted but does not have an encrypted filesystem`)
 
-	deviceLayout.Structure[1].Filesystem = "crypto_LUKS"
+	deviceLayout.Structure[1].PartitionFSType = "crypto_LUKS"
 
 	// but without encrypted partition information and strict assumptions, they
 	// do not match due to differing filesystems
@@ -3370,10 +3396,10 @@ func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleU
 	deviceLayout.Structure[2].Size = oldSize
 
 	// if we make system-data not ext4 then it is not
-	deviceLayout.Structure[2].Filesystem = "zfs"
+	deviceLayout.Structure[2].PartitionFSType = "zfs"
 	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, false)
-	deviceLayout.Structure[2].Filesystem = "ext4"
+	deviceLayout.Structure[2].PartitionFSType = "ext4"
 
 	// if we make the partition type not "Linux filesystem data", then it is not
 	deviceLayout.Structure[2].Type = "foo"
@@ -3382,10 +3408,10 @@ func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleU
 	deviceLayout.Structure[2].Type = "0FC63DAF-8483-4772-8E79-3D69D8477DE4"
 
 	// if we make the Label not writable, then it is not
-	deviceLayout.Structure[2].Label = "foo"
+	deviceLayout.Structure[2].PartitionFSLabel = "foo"
 	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, false)
-	deviceLayout.Structure[2].Label = "writable"
+	deviceLayout.Structure[2].PartitionFSLabel = "writable"
 
 	// if we add another LaidOutStructure Partition to the YAML so that there is
 	// not exactly one extra partition on disk compated to the YAML, then it is
@@ -3739,7 +3765,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromClassicWithModesGadgetHappy(
 		c.Assert(err, IsNil)
 	}
 
-	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", classicWithModesMod)
+	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", classicWithModesMod, secboot.EncryptionTypeNone)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"], DeepEquals, systemLv)
@@ -3779,4 +3805,50 @@ func (s *gadgetYamlTestSuite) TestHasRoleUnhappy(c *C) {
 	c.Assert(err, IsNil)
 	_, err = gadget.HasRole(s.dir, []string{gadget.SystemData})
 	c.Check(err, ErrorMatches, `cannot minimally parse gadget metadata: yaml:.*`)
+}
+
+func appendAllowListToYaml(allow []string, templ string) string {
+	for _, arg := range allow {
+		templ += fmt.Sprintf("    - %s\n", arg)
+	}
+	return templ
+}
+
+func (s *gadgetYamlTestSuite) TestKernelCmdlineAllow(c *C) {
+	yamlTemplate := `
+volumes:
+  pc:
+    bootloader: grub
+kernel-cmdline:
+  allow:
+`
+
+	tests := []struct {
+		allowList []string
+		err       string
+	}{
+		{[]string{"foo=bar", "my-param.state=blah"}, ""},
+		{[]string{"foo="}, ""},
+		{[]string{"foo", "bar", `my-param.state="blah"`}, ""},
+		{[]string{"foo bar"}, `cannot parse gadget metadata: "foo bar" is not a unique kernel argument`},
+	}
+
+	for _, t := range tests {
+		c.Logf("allowList %v", t.allowList)
+		yaml := appendAllowListToYaml(t.allowList, yamlTemplate)
+		gi, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
+		if err != nil {
+			c.Assert(err, ErrorMatches, t.err)
+			c.Assert(gi, IsNil)
+		} else {
+			allowed := []osutil.KernelArgument{}
+			for _, arg := range t.allowList {
+				parsed := osutil.ParseKernelCommandline(arg)
+				c.Assert(len(parsed), Equals, 1)
+				allowed = append(allowed, parsed[0])
+			}
+
+			c.Assert(gi.KernelCmdline.Allow, DeepEquals, allowed)
+		}
+	}
 }

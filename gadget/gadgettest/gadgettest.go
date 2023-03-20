@@ -28,8 +28,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/secboot"
 )
 
 // LayoutMultiVolumeFromYaml returns all LaidOutVolumes for the given
@@ -42,7 +42,7 @@ func LayoutMultiVolumeFromYaml(newDir, kernelDir, gadgetYaml string, model gadge
 		return nil, err
 	}
 
-	_, allVolumes, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model)
+	_, allVolumes, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volumes: %v", err)
 	}
@@ -90,16 +90,13 @@ func MustLayOutSingleVolumeFromGadget(gadgetRoot, kernelRoot string, model gadge
 		return nil, fmt.Errorf("only single volumes supported in test helper")
 	}
 
-	constraints := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-	}
 	opts := &gadget.LayoutOptions{
 		GadgetRootDir: gadgetRoot,
 		KernelRootDir: kernelRoot,
 	}
 	for _, vol := range info.Volumes {
 		// we know info.Volumes map has size 1 so we can return here
-		return gadget.LayoutVolume(vol, constraints, opts)
+		return gadget.LayoutVolume(vol, opts)
 	}
 
 	// this is impossible to reach, we already checked that info.Volumes has a
@@ -155,7 +152,7 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	_, laidVols, err = gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model)
+	_, laidVols, err = gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -165,7 +162,10 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 		return nil, nil, nil, nil, err
 	}
 
-	// "Real" disk data that will be read
+	// "Real" disk data that will be read. Filesystem type and label are not
+	// filled as the filesystem is considered not created yet, which is
+	// expected by some tests (some option would have to be added to fill or
+	// not if this data is needed by some test in the future).
 	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
 	disk := &disks.MockDiskMapping{
 		Structure: []disks.Partition{

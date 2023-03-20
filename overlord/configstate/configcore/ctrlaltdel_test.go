@@ -100,7 +100,7 @@ func (s *ctrlaltdelSuite) SetUpTest(c *C) {
 
 // Only "none" or "reboot" are valid action states
 func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidAction(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"system.ctrl-alt-del-action": "xxx",
@@ -112,7 +112,7 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidAction(c *C) {
 // Only the status properties of a single matching unit (ctrl-alt-del.target) is expected
 func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidSystemctlReply(c *C) {
 	s.unit = unitStateMulti
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"system.ctrl-alt-del-action": "none",
@@ -124,7 +124,7 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidSystemctlReply(c *C) {
 // The ctrl-alt-del.target unit is expected to be installed in the filesystem
 func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidInstalledState(c *C) {
 	s.unit = unitStateUninstalled
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"system.ctrl-alt-del-action": "none",
@@ -136,7 +136,7 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidInstalledState(c *C) {
 // The ctrl-alt-del.target unit may not be in the enabled state
 func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidEnabledState(c *C) {
 	s.unit = unitStateEnabled
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"system.ctrl-alt-del-action": "none",
@@ -153,7 +153,7 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelValidDisabledState(c *C) {
 	for _, state := range []unitStates{unitStateDisabled, unitStateMaskedv1, unitStateMaskedv2} {
 		s.unit = state
 		for _, opt := range []string{"reboot", "none"} {
-			err := configcore.Run(coreDev, &mockConf{
+			err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 				state:   s.state,
 				changes: map[string]interface{}{"system.ctrl-alt-del-action": opt},
 			})

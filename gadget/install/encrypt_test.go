@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -49,11 +50,11 @@ type encryptSuite struct {
 var _ = Suite(&encryptSuite{})
 
 var mockDeviceStructure = gadget.OnDiskStructure{
-	Name:        "Test structure",
-	Label:       "some-label",
-	StartOffset: 0,
-	Size:        3 * quantity.SizeMiB,
-	Node:        "/dev/node1",
+	Name:             "Test structure",
+	PartitionFSLabel: "some-label",
+	StartOffset:      0,
+	Size:             3 * quantity.SizeMiB,
+	Node:             "/dev/node1",
 }
 
 func (s *encryptSuite) SetUpTest(c *C) {
@@ -99,7 +100,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		s.AddCleanup(s.mockCryptsetup.Restore)
 
 		calls := 0
-		restore := install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
+		restore := install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, encType secboot.EncryptionType, label, node string) error {
 			calls++
 			c.Assert(key, DeepEquals, s.mockedEncryptionKey)
 			c.Assert(label, Equals, "some-label-enc")
@@ -108,7 +109,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
+		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, secboot.EncryptionTypeLUKS, s.mockedEncryptionKey, "some-label-enc", "some-label")
 		c.Assert(calls, Equals, 1)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
@@ -129,11 +130,11 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 }
 
 var mockDeviceStructureForDeviceSetupHook = gadget.OnDiskStructure{
-	Name:        "ubuntu-data",
-	Label:       "ubuntu-data",
-	StartOffset: 0,
-	Size:        3 * quantity.SizeMiB,
-	Node:        "/dev/node1",
+	Name:             "ubuntu-data",
+	PartitionFSLabel: "ubuntu-data",
+	StartOffset:      0,
+	Size:             3 * quantity.SizeMiB,
+	Node:             "/dev/node1",
 }
 
 func (s *encryptSuite) TestCreateEncryptedDeviceWithSetupHook(c *C) {
@@ -200,11 +201,11 @@ func (s *encryptSuite) TestCreateEncryptedDeviceWithSetupHook(c *C) {
 
 func (s *encryptSuite) TestCreateEncryptedDeviceWithSetupHookPartitionNameCheck(c *C) {
 	mockDeviceStructureBadName := gadget.OnDiskStructure{
-		Name:        "ubuntu-data",
-		Label:       "ubuntu-data",
-		StartOffset: 0,
-		Size:        3 * quantity.SizeMiB,
-		Node:        "/dev/node1",
+		Name:             "ubuntu-data",
+		PartitionFSLabel: "ubuntu-data",
+		StartOffset:      0,
+		Size:             3 * quantity.SizeMiB,
+		Node:             "/dev/node1",
 	}
 	restore := install.MockBootRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
 		c.Error("unexpected call")

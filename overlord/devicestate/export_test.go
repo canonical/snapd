@@ -140,7 +140,7 @@ func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 
 func EarlyPreloadGadget(m *DeviceManager) (sysconfig.Device, *gadget.Info, error) {
 	// let things fully run again
-	m.seedTimings = nil
+	m.earlyDeviceSeed = nil
 	return m.earlyPreloadGadget()
 }
 
@@ -184,15 +184,25 @@ func EnsureCloudInitRestricted(m *DeviceManager) error {
 	return m.ensureCloudInitRestricted()
 }
 
-var PopulateStateFromSeedImpl = populateStateFromSeedImpl
+func ImportAssertionsFromSeed(m *DeviceManager, isCoreBoot bool) (seed.Seed, error) {
+	return m.importAssertionsFromSeed(isCoreBoot)
+}
 
-type PopulateStateFromSeedOptions = populateStateFromSeedOptions
+func PopulateStateFromSeedImpl(m *DeviceManager, tm timings.Measurer) ([]*state.TaskSet, error) {
+	return m.populateStateFromSeedImpl(tm)
+}
 
-func MockPopulateStateFromSeed(f func(*state.State, *PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
-	old := populateStateFromSeed
-	populateStateFromSeed = f
+func MockPopulateStateFromSeed(m *DeviceManager, f func(seedLabel, seedMode string, tm timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
+	old := m.populateStateFromSeed
+	m.populateStateFromSeed = func(tm timings.Measurer) ([]*state.TaskSet, error) {
+		sLabel, sMode, err := m.seedLabelAndMode()
+		if err != nil {
+			panic(err)
+		}
+		return f(sLabel, sMode, tm)
+	}
 	return func() {
-		populateStateFromSeed = old
+		m.populateStateFromSeed = old
 	}
 }
 
@@ -250,8 +260,6 @@ func RecordSeededSystem(m *DeviceManager, st *state.State, sys *seededSystem) er
 
 var (
 	LoadDeviceSeed               = loadDeviceSeed
-	UnloadDeviceSeed             = unloadDeviceSeed
-	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
 	CheckGadgetValid             = checkGadgetValid
 	CheckGadgetRemodelCompatible = checkGadgetRemodelCompatible
@@ -268,8 +276,7 @@ var (
 	CachedRemodelCtx  = cachedRemodelCtx
 
 	GadgetUpdateBlocked = gadgetUpdateBlocked
-	CurrentGadgetInfo   = currentGadgetInfo
-	PendingGadgetInfo   = pendingGadgetInfo
+	PendingGadgetInfo   = pendingGadgetData
 
 	CriticalTaskEdges = criticalTaskEdges
 
@@ -329,7 +336,7 @@ func MockBootEnsureNextBootToRunMode(f func(systemLabel string) error) (restore 
 	}
 }
 
-func MockSecbootCheckTPMKeySealingSupported(f func() error) (restore func()) {
+func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionMode) error) (restore func()) {
 	old := secbootCheckTPMKeySealingSupported
 	secbootCheckTPMKeySealingSupported = f
 	return func() {
@@ -435,12 +442,12 @@ func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]
 	return mgr.runFDESetupHook(req)
 }
 
-func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (secboot.EncryptionType, error) {
-	return mgr.checkEncryption(st, deviceCtx)
+func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext, mode secboot.TPMProvisionMode) (secboot.EncryptionType, error) {
+	return mgr.checkEncryption(st, deviceCtx, mode)
 }
 
-func DeviceManagerEncryptionSupportInfo(mgr *DeviceManager, model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
-	return mgr.encryptionSupportInfo(model, kernelInfo, gadgetInfo)
+func DeviceManagerEncryptionSupportInfo(mgr *DeviceManager, model *asserts.Model, mode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
+	return mgr.encryptionSupportInfo(model, mode, kernelInfo, gadgetInfo)
 }
 
 func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) (secboot.EncryptionType, error) {

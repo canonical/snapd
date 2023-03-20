@@ -103,7 +103,7 @@ func WriteSeedManifest(filePath string, revisions map[string]snap.Revision) erro
 	buf := bytes.NewBuffer(nil)
 	for _, key := range keys {
 		rev := revisions[key]
-		if rev.N == 0 {
+		if rev.Unset() {
 			return fmt.Errorf("revision must not be 0 for snap %q", key)
 		}
 		fmt.Fprintf(buf, "%s %s\n", key, rev)

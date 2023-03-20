@@ -231,3 +231,33 @@ func (s *SnapPrepareImageSuite) TestPrepareImagePreseed(c *C) {
 		AppArmorKernelFeaturesDir: "aafeatures-dir",
 	})
 }
+
+func (s *SnapPrepareImageSuite) TestPrepareImageWriteRevisions(c *C) {
+	var opts *image.Options
+	prep := func(o *image.Options) error {
+		opts = o
+		return nil
+	}
+	r := cmdsnap.MockImagePrepare(prep)
+	defer r()
+
+	rest, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "model", "prepare-dir", "--write-revisions"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+
+	c.Check(opts, DeepEquals, &image.Options{
+		ModelFile:        "model",
+		PrepareDir:       "prepare-dir",
+		SeedManifestPath: "./seed.manifest",
+	})
+
+	rest, err = cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "model", "prepare-dir", "--write-revisions=/tmp/seed.manifest"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+
+	c.Check(opts, DeepEquals, &image.Options{
+		ModelFile:        "model",
+		PrepareDir:       "prepare-dir",
+		SeedManifestPath: "/tmp/seed.manifest",
+	})
+}

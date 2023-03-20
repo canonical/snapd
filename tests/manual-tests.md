@@ -117,8 +117,7 @@
 
 7. Boot the image.
 
-8. Print the free space of the file system, replacing *{dev}* with the device that has the
-   *writable* partition:
+8. Print the free space of the file system, replacing *{dev}* with the device that has the *writable* partition:
 
         sudo parted -s {dev} unit % print free
 

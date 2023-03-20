@@ -841,6 +841,11 @@ func unpackVerifySnapshotImport(ctx context.Context, r io.Reader, realSetID uint
 			return nil, errors.New("unexpected directory in import file")
 		}
 
+		// files within the snapshot should never use parent elements
+		if strings.Contains(header.Name, "../") {
+			return nil, fmt.Errorf("invalid filename in import file")
+		}
+
 		if header.Name == "content.json" {
 			var ej contentJSON
 			dec := json.NewDecoder(tr)

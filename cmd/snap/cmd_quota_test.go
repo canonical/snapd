@@ -103,6 +103,7 @@ type fakeQuotaGroupPostHandlerOpts struct {
 	groupName     string
 	parentName    string
 	snaps         []string
+	services      []string
 	maxMemory     int64
 	maxThreads    int
 	cpuCount      int
@@ -131,6 +132,7 @@ type quotasEnsureBody struct {
 	GroupName   string                      `json:"group-name,omitempty"`
 	ParentName  string                      `json:"parent,omitempty"`
 	Snaps       []string                    `json:"snaps,omitempty"`
+	Services    []string                    `json:"services,omitempty"`
 	Constraints quotasEnsureBodyConstraints `json:"constraints,omitempty"`
 }
 
@@ -152,6 +154,7 @@ func (s *quotaSuite) makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPos
 				GroupName:   opts.groupName,
 				ParentName:  opts.parentName,
 				Snaps:       opts.snaps,
+				Services:    opts.services,
 				Constraints: quotasEnsureBodyConstraints{},
 			}
 			if opts.maxMemory != 0 {
@@ -286,13 +289,13 @@ func (s *quotaSuite) TestSetQuotaCpuHappy(c *check.C) {
 		cpuCount:      2,
 		cpuPercentage: 50,
 	}
-	const getJsonTemplate = `{
+	// this data is not tested against, but it should still be valid
+	const getJson = `{
 		"type": "sync",
 		"status-code": 200,
 		"result": {
 			"group-name":"foo",
-			"constraints": { "memory": %d },
-			"current": { "memory": 500 }
+			"constraints": { "cpu":{"count":2, "percentage":50} },
 		}
 	}`
 	routes := map[string]http.HandlerFunc{
@@ -300,13 +303,50 @@ func (s *quotaSuite) TestSetQuotaCpuHappy(c *check.C) {
 			c,
 			fakeHandlerOpts,
 		),
-		"/v2/quotas/foo": s.makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(getJsonTemplate, 1000)),
+		"/v2/quotas/foo": s.makeFakeGetQuotaGroupHandler(c, getJson),
 		"/v2/changes/42": makeChangesHandler(c),
 	}
 	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
 
 	// ensure that --cpu still works with cgroup version 1
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"set-quota", "--cpu=2x50%", "foo"})
+	c.Check(err, check.IsNil)
+	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
+	c.Check(s.quotaPostHandlerCalls, check.Equals, 1)
+}
+
+func (s *quotaSuite) TestSetQuotaSnapServices(c *check.C) {
+	const postJSON = `{"type": "async", "status-code": 202,"change":"42", "result": []}`
+	fakeHandlerOpts := fakeQuotaGroupPostHandlerOpts{
+		action:        "ensure",
+		body:          postJSON,
+		groupName:     "foo",
+		snaps:         []string{"my-snap"},
+		services:      []string{"snap.svc1", "snap.svc2"},
+		cpuCount:      2,
+		cpuPercentage: 50,
+	}
+	// this data is not tested against, but it should still be valid
+	const getJson = `{
+		"type": "sync",
+		"status-code": 200,
+		"result": {
+			"group-name":"foo",
+			"constraints": { "cpu":{"count":2, "percentage":50} },
+		}
+	}`
+	routes := map[string]http.HandlerFunc{
+		"/v2/quotas": s.makeFakeQuotaPostHandler(
+			c,
+			fakeHandlerOpts,
+		),
+		"/v2/quotas/foo": s.makeFakeGetQuotaGroupHandler(c, getJson),
+		"/v2/changes/42": makeChangesHandler(c),
+	}
+	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
+
+	// ensure we correctly parse the snap.service format and send it to the daemon.
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"set-quota", "--cpu=2x50%", "foo", "my-snap", "snap.svc1", "snap.svc2"})
 	c.Check(err, check.IsNil)
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
 	c.Check(s.quotaPostHandlerCalls, check.Equals, 1)
@@ -324,6 +364,7 @@ func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
 			"parent":"bar",
 			"subgroups":["subgrp1"],
 			"snaps":["snap-a","snap-b"],
+			"services":["snap-a.svc1", "snap-b.svc2"],
 			"constraints": { "memory": 1000 },
 			"current": { "memory": 900 }
 		}
@@ -347,6 +388,9 @@ subgroups:
 snaps:
   - snap-a
   - snap-b
+services:
+  - snap-a.svc1
+  - snap-b.svc2
 `[1:])
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
 	c.Check(s.quotaPostHandlerCalls, check.Equals, 0)

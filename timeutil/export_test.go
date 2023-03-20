@@ -19,17 +19,9 @@
 
 package timeutil
 
-import "time"
-
 var (
 	ParseClockSpan = parseClockSpan
 	ParseWeekSpan  = parseWeekSpan
 	HumanTimeSince = humanTimeSince
 	MonthNext      = monthNext
 )
-
-func MockTimeNow(f func() time.Time) (restorer func()) {
-	origTimeNow := timeNow
-	timeNow = f
-	return func() { timeNow = origTimeNow }
-}

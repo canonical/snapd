@@ -443,3 +443,126 @@ func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
 		c.Assert(err.Error(), Equals, `cannot define aspect "foo": `+tc.err, cmt)
 	}
 }
+
+func (s *aspectSuite) TestAspectUnsetTopLevelEntry(c *C) {
+	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+		"my-aspect": []map[string]string{
+			{"name": "foo", "path": "foo"},
+			{"name": "bar", "path": "bar"},
+		},
+	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	aspect := aspectDir.Aspect("my-aspect")
+	err = aspect.Set("foo", "fval")
+	c.Assert(err, IsNil)
+
+	err = aspect.Set("bar", "bval")
+	c.Assert(err, IsNil)
+
+	err = aspect.Set("foo", nil)
+	c.Assert(err, IsNil)
+
+	var value string
+	err = aspect.Get("foo", &value)
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+
+	err = aspect.Get("bar", &value)
+	c.Assert(err, IsNil)
+	c.Assert(value, Equals, "bval")
+}
+
+func (s *aspectSuite) TestAspectUnsetLeafWithSiblings(c *C) {
+	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+		"my-aspect": []map[string]string{
+			{"name": "bar", "path": "foo.bar"},
+			{"name": "baz", "path": "foo.baz"},
+		},
+	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	aspect := aspectDir.Aspect("my-aspect")
+	err = aspect.Set("bar", "barVal")
+	c.Assert(err, IsNil)
+
+	err = aspect.Set("baz", "bazVal")
+	c.Assert(err, IsNil)
+
+	err = aspect.Set("bar", nil)
+	c.Assert(err, IsNil)
+
+	var value string
+	err = aspect.Get("bar", &value)
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+
+	// doesn't affect the other leaf entry under "foo"
+	err = aspect.Get("baz", &value)
+	c.Assert(err, IsNil)
+	c.Assert(value, Equals, "bazVal")
+}
+
+func (s *aspectSuite) TestAspectUnsetWithNestedEntry(c *C) {
+	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+		"my-aspect": []map[string]string{
+			{"name": "foo", "path": "foo"},
+			{"name": "bar", "path": "foo.bar"},
+		},
+	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	aspect := aspectDir.Aspect("my-aspect")
+	err = aspect.Set("bar", "barVal")
+	c.Assert(err, IsNil)
+
+	err = aspect.Set("foo", nil)
+	c.Assert(err, IsNil)
+
+	var value interface{}
+	err = aspect.Get("foo", &value)
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+
+	err = aspect.Get("bar", &value)
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+}
+
+func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
+	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+		"my-aspect": []map[string]string{
+			{"name": "foo", "path": "foo"},
+			{"name": "bar", "path": "foo.bar"},
+		},
+	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	aspect := aspectDir.Aspect("my-aspect")
+	err = aspect.Set("bar", "val")
+	c.Assert(err, IsNil)
+
+	var value interface{}
+	err = aspect.Get("foo", &value)
+	c.Assert(err, IsNil)
+	c.Assert(value, Not(HasLen), 0)
+
+	err = aspect.Set("bar", nil)
+	c.Assert(err, IsNil)
+
+	err = aspect.Get("foo", &value)
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+}
+
+func (s *aspectSuite) TestAspectUnsetAlreadyUnsetEntry(c *C) {
+	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+		"my-aspect": []map[string]string{
+			{"name": "foo", "path": "foo"},
+			{"name": "bar", "path": "one.bar"},
+		},
+	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	aspect := aspectDir.Aspect("my-aspect")
+	err = aspect.Set("foo", nil)
+	c.Assert(err, IsNil)
+
+	err = aspect.Set("bar", nil)
+	c.Assert(err, IsNil)
+}

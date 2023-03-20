@@ -131,6 +131,19 @@ func (s *LogSuite) TestWithLoggerLock(c *C) {
 	c.Check(called, Equals, true)
 }
 
+func (s *LogSuite) TestNoGuardDebug(c *C) {
+	debugValue, ok := os.LookupEnv("SNAPD_DEBUG")
+	if ok {
+		defer func() {
+			os.Setenv("SNAPD_DEBUG", debugValue)
+		}()
+		os.Unsetenv("SNAPD_DEBUG")
+	}
+
+	logger.NoGuardDebugf("xyzzy")
+	c.Check(s.logbuf.String(), testutil.Contains, `DEBUG: xyzzy`)
+}
+
 func (s *LogSuite) TestIntegrationDebugFromKernelCmdline(c *C) {
 	// must enable actually checking the command line, because by default the
 	// logger package will skip checking for the kernel command line parameter

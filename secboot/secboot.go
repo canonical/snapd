@@ -204,7 +204,7 @@ func EncryptedPartitionName(name string) string {
 // MarkSuccessful marks the secure boot parts of the boot as
 // successful.
 //
-//This means that the dictionary attack (DA) lockout counter is reset.
+// This means that the dictionary attack (DA) lockout counter is reset.
 func MarkSuccessful() error {
 	sealingMethod, err := device.SealedKeysMethod(dirs.GlobalRootDir)
 	if err != nil && err != device.ErrNoSealedKeys {

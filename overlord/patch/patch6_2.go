@@ -105,8 +105,8 @@ func hasSnapdSnapID(snapst patch62SnapState) bool {
 }
 
 // patch6_2:
-//  - ensure snapd snaps in the snapstate have TypeSnapd for backward compatibility with old snapd snap releases.
-//  - ensure snapd snaps have TypeSnapd in pending install tasks.
+//   - ensure snapd snaps in the snapstate have TypeSnapd for backward compatibility with old snapd snap releases.
+//   - ensure snapd snaps have TypeSnapd in pending install tasks.
 func patch6_2(st *state.State) error {
 	var snaps map[string]*json.RawMessage
 	if err := st.Get("snaps", &snaps); err != nil && !errors.Is(err, state.ErrNoState) {

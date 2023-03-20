@@ -148,6 +148,7 @@ func (s *appsSuite) SetUpTest(c *check.C) {
 	// turn off ensuring snap services which will call systemctl automatically
 	r := servicestate.MockEnsuredSnapServices(s.d.Overlord().ServiceManager(), true)
 	s.AddCleanup(r)
+	s.AddCleanup(snapstate.MockEnsuredMountsUpdated(d.Overlord().SnapManager(), true))
 
 	s.infoA = s.mkInstalledInState(c, s.d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {svc1: {daemon: simple}, svc2: {daemon: simple, reload-command: x}}")
 	s.infoB = s.mkInstalledInState(c, s.d, "snap-b", "dev", "v1", snap.R(1), false, "apps: {svc3: {daemon: simple}, cmd1: {}}")

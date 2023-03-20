@@ -114,6 +114,10 @@ type Config struct {
 
 	// Proxy returns the HTTP proxy to use when talking to the store
 	Proxy func(*http.Request) (*url.URL, error)
+
+	// AssertionMaxFormats if set provides a way to override
+	// the assertion max formats sent to the store as supported.
+	AssertionMaxFormats map[string]int
 }
 
 // setBaseURL updates the store API's base URL in the Config. Must not be used
@@ -419,6 +423,12 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 	return store
 }
 
+// SetAssertionMaxFormats allows to change the assertion max formats to send
+// for a store already in use.
+func (s *Store) SetAssertionMaxFormats(maxFormats map[string]int) {
+	s.cfg.AssertionMaxFormats = maxFormats
+}
+
 // API endpoint paths
 const (
 	// see https://dashboard.snapcraft.io/docs/
@@ -553,7 +563,6 @@ var (
 type deviceAuthNeed int
 
 const (
-	//nolint:deadcode
 	deviceAuthPreferred deviceAuthNeed = iota
 	deviceAuthCustomStoreOnly
 )
@@ -832,26 +841,26 @@ func (s *Store) extractSuggestedCurrency(resp *http.Response) {
 
 // ordersResult encapsulates the order data sent to us from the software center agent.
 //
-// {
-//   "orders": [
-//     {
-//       "snap_id": "abcd1234efgh5678ijkl9012",
-//       "currency": "USD",
-//       "amount": "2.99",
-//       "state": "Complete",
-//       "refundable_until": null,
-//       "purchase_date": "2016-09-20T15:00:00+00:00"
-//     },
-//     {
-//       "snap_id": "abcd1234efgh5678ijkl9012",
-//       "currency": null,
-//       "amount": null,
-//       "state": "Complete",
-//       "refundable_until": null,
-//       "purchase_date": "2016-09-20T15:00:00+00:00"
-//     }
-//   ]
-// }
+//	{
+//	  "orders": [
+//	    {
+//	      "snap_id": "abcd1234efgh5678ijkl9012",
+//	      "currency": "USD",
+//	      "amount": "2.99",
+//	      "state": "Complete",
+//	      "refundable_until": null,
+//	      "purchase_date": "2016-09-20T15:00:00+00:00"
+//	    },
+//	    {
+//	      "snap_id": "abcd1234efgh5678ijkl9012",
+//	      "currency": null,
+//	      "amount": null,
+//	      "state": "Complete",
+//	      "refundable_until": null,
+//	      "purchase_date": "2016-09-20T15:00:00+00:00"
+//	    }
+//	  ]
+//	}
 type ordersResult struct {
 	Orders []*order `json:"orders"`
 }

@@ -64,6 +64,15 @@ dbus (send)
     member={Inhibit,UnInhibit,SimulateUserActivity}
     peer=(label=unconfined),
 
+# xfce4-power-manager -
+# https://github.com/xfce-mirror/xfce4-power-manager/blob/0b3ad06ad4f51eae1aea3cdc26f434d8b5ce763e/src/org.freedesktop.PowerManagement.Inhibit.xml
+dbus (send)
+    bus=session
+    path=/org/freedesktop/PowerManagement/Inhibit
+    interface=org.freedesktop.PowerManagement.Inhibit
+    member={Inhibit,UnInhibit}
+    peer=(label=unconfined),
+
 # API rule
 dbus (send)
     bus=session

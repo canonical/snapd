@@ -170,6 +170,8 @@ type fakeStore struct {
 	downloadError   map[string]error
 	state           *state.State
 	seenPrivacyKeys map[string]bool
+
+	downloadCallback func()
 }
 
 func (f *fakeStore) pokeStateLock() {
@@ -695,6 +697,10 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	if _, key := snap.SplitInstanceName(name); key != "" {
 		return fmt.Errorf("internal error: unsupported download with instance name %q", name)
 	}
+	if f.downloadCallback != nil {
+		f.downloadCallback()
+	}
+
 	var macaroon string
 	if user != nil {
 		macaroon = user.StoreMacaroon
@@ -711,8 +717,10 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	})
 	f.fakeBackend.appendOp(&fakeOp{op: "storesvc-download", name: name})
 
-	pb.SetTotal(float64(f.fakeTotalProgress))
-	pb.Set(float64(f.fakeCurrentProgress))
+	if pb != nil {
+		pb.SetTotal(float64(f.fakeTotalProgress))
+		pb.Set(float64(f.fakeCurrentProgress))
+	}
 
 	if e, ok := f.downloadError[name]; ok {
 		return e
@@ -830,8 +838,9 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 }
 
 // XXX: this is now something that is overridden by tests that need a
-//      different service setup so it should be configurable and part
-//      of the fakeSnappyBackend?
+//
+//	different service setup so it should be configurable and part
+//	of the fakeSnappyBackend?
 var servicesSnapYaml = `name: services-snap
 apps:
   svc1:

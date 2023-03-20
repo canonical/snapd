@@ -140,6 +140,9 @@ backends:
             - ubuntu-22.10-64:
                   storage: 12G
                   workers: 8
+            - ubuntu-23.04-64:
+                  storage: 12G
+                  workers: 6
 
             - debian-10-64:
                   workers: 6
@@ -149,13 +152,14 @@ backends:
                   storage: 12G
                   workers: 6
 
-            - fedora-35-64:
-                  workers: 6
             - fedora-36-64:
+                  workers: 6
+            - fedora-37-64:
                   workers: 6
 
             - arch-linux-64:
                   workers: 6
+                  storage: 12G
             - amazon-linux-2-64:
                   workers: 6
                   storage: preserve-size
@@ -210,6 +214,8 @@ backends:
                   workers: 6
             - ubuntu-22.04-64:
                   workers: 6
+            - ubuntu-22.10-64:
+                  workers: 6
 
     google-nested:
         type: google
@@ -233,7 +239,7 @@ backends:
                   workers: 8
             - ubuntu-22.04-64:
                   image: ubuntu-2204-64-virt-enabled
-                  storage: 20G
+                  storage: 25G
                   workers: 8
 
 
@@ -490,6 +496,9 @@ backends:
             - ubuntu-core-22-arm-32:
                   username: external
                   password: ubuntu
+            - ubuntu-core-24-64:
+                  username: external
+                  password: ubuntu
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
@@ -738,6 +747,12 @@ prepare: |
             fi
             ;;
     esac
+
+    # Make sure ssh service is restarted after it is killed by spread (pkill -o -HUP sshd)
+    # during the machine setup in google systems. For more details see lp:2011458
+    if [ "$SPREAD_BACKEND" = "google" ] && [[ "$SPREAD_SYSTEM" == ubuntu-2* ]] && ! systemctl is-active ssh; then
+        systemctl restart ssh
+    fi
 
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
@@ -1097,7 +1112,6 @@ suites:
             tests.nested build-image classic
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-            tests.backup prepare
             tests.nested create-vm classic
         restore-each: |
             tests.nested vm remove
@@ -1153,7 +1167,6 @@ suites:
             tests.nested build-image core
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-            tests.backup prepare
             tests.nested create-vm core
         restore-each: |
             tests.nested vm remove

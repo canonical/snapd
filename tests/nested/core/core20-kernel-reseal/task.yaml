@@ -7,7 +7,7 @@ prepare: |
   # snap-bootstrap that will not be able to unseal the keys and unlock the
   # encrypted volumes, instead use the kernel we repacked when building the UC20
   # image
-  KERNEL_SNAP="$(ls "$(tests.nested get assets-path)"/pc-kernel_*.snap)"
+  KERNEL_SNAP="$(ls "$(tests.nested get assets-path)"/pc-kernel*.snap)"
   unsquashfs -d pc-kernel "$KERNEL_SNAP"
   # ensure we really have the header we expect
   grep -q -a "This program cannot be run in DOS mode" pc-kernel/kernel.efi
@@ -32,7 +32,7 @@ execute: |
   echo "Install new (unasserted) kernel and wait for reboot/change finishing"
   boot_id="$( tests.nested boot-id )"
   REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous new-pc-kernel.snap --no-wait)
-  tests.nested wait-for reboot "${boot_id}"
+  remote.wait-for reboot "${boot_id}"
   remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
   echo "Check that we are using the right kernel"

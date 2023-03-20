@@ -31,7 +31,7 @@ build_ubuntu_image() {
             go build -tags 'withtestkeys' ./cmd/ubuntu-image
         )
         # make it available
-        cp -av /tmp/ubuntu-image/ubuntu-image "$GOHOME/bin"
+        mv /tmp/ubuntu-image/ubuntu-image "$GOHOME/bin"
     fi
 }
 
@@ -39,8 +39,10 @@ build_ubuntu_image() {
 get_ubuntu_image() {
     wget -c https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys.tar.gz
     tar xvzf ubuntu-image-withtestkeys.tar.gz
-    test -x ./ubuntu-image
-    cp -av ./ubuntu-image "$GOHOME/bin"
+    rm -f ubuntu-image-withtestkeys.tar.gz
+
+    test -x ubuntu-image
+    mv ubuntu-image "$GOHOME/bin"
 }
 
 # shellcheck disable=SC2120
@@ -66,6 +68,9 @@ get_google_image_url_for_vm() {
             ;;
         ubuntu-22.10-64*)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/kinetic-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-23.04-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/lunar-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -97,6 +102,9 @@ get_ubuntu_image_url_for_vm() {
             ;;
         ubuntu-22.10-64*)
             echo "https://cloud-images.ubuntu.com/kinetic/current/kinetic-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-23.04-64*)
+            echo "https://cloud-images.ubuntu.com/lunar/current/lunar-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"

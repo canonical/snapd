@@ -88,7 +88,6 @@ type connectOpts struct {
 }
 
 // Connect returns a set of tasks for connecting an interface.
-//
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
 	if err := snapstate.CheckChangeConflictMany(st, []string{plugSnap, slotSnap}, ""); err != nil {
 		return nil, err
@@ -486,7 +485,7 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info, deviceCtx snapstate.D
 	if modelAs.Store() != "" {
 		var err error
 		storeAs, err = assertstate.Store(st, modelAs.Store())
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return err
 		}
 	}

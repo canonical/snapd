@@ -77,7 +77,7 @@ func resetCompletionSymlinks(completersPath string) error {
 
 // ResetPreseededChroot removes all preseeding artifacts from preseedChroot
 // (classic Ubuntu only).
-func ResetPreseededChroot(preseedChroot string) error {
+var ResetPreseededChroot = func(preseedChroot string) error {
 	var err error
 	preseedChroot, err = filepath.Abs(preseedChroot)
 	if err != nil {
