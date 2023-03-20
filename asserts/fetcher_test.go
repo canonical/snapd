@@ -213,10 +213,14 @@ func (s *fetcherSuite) TestFetchSequence(c *C) {
 
 	f := asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, db.Add)
 
+	// Fetch the sequence, this will fetch the validation-set with sequence
+	// 2. After that we should be able to find the validation-set (sequence 2)
+	// in the DB.
 	err = f.FetchSequence(seq)
 	c.Assert(err, IsNil)
 
-	// Calling resolve works when a sequence number is provided.
+	// Calling resolve works when we provide the correct sequence number. This
+	// will then find the assertion we just fetched
 	vsa, err := seq.Resolve(db.Find)
 	c.Assert(err, IsNil)
 	c.Check(vsa.(*asserts.ValidationSet).Name(), Equals, "base-set")
@@ -224,6 +228,53 @@ func (s *fetcherSuite) TestFetchSequence(c *C) {
 
 	// Calling resolve doesn't find the assertion when another sequence number
 	// is provided.
+	seq.Sequence = 4
+	_, err = seq.Resolve(db.Find)
+	c.Assert(err, ErrorMatches, `validation-set \(4; series:16 account-id:can0nical name:base-set\) not found`)
+}
+
+func (s *fetcherSuite) TestFetchSequenceMultipleSequencesNotSupported(c *C) {
+	s.prereqValidationSetAssertion(c)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	seq := &asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{release.Series, "can0nical", "base-set"},
+		Sequence:    2,
+		Revision:    asserts.RevisionNotKnown,
+	}
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(s.storeSigning.Find)
+	}
+	retrieveSeq := func(seq *asserts.AtSequence) (asserts.Assertion, error) {
+		return seq.Resolve(s.storeSigning.Find)
+	}
+
+	f := asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, db.Add)
+	err = f.FetchSequence(seq)
+	c.Assert(err, IsNil)
+
+	// Fetch same validation-set, but with a different sequence. Currently the
+	// AtSequence.Unique() does not include the sequence number or revision, meaning
+	// that the first sequence we fetch is the one that will be put into the DB.
+	// XXX: This test is here to document the behavior. If we want it to spit an error
+	//      or support multiple sequences of an assertion, then changes are required.
+	seq.Sequence = 4
+	err = f.FetchSequence(seq)
+	c.Assert(err, IsNil)
+
+	// We fetcher 2 first, it will exist
+	vsa, err := seq.Resolve(db.Find)
+	c.Assert(err, IsNil)
+	c.Check(vsa.(*asserts.ValidationSet).Name(), Equals, "base-set")
+	c.Check(vsa.(*asserts.ValidationSet).Sequence(), Equals, 2)
+
+	// 4 will not exist, as 2 already was present.
 	seq.Sequence = 4
 	_, err = seq.Resolve(db.Find)
 	c.Assert(err, ErrorMatches, `validation-set \(4; series:16 account-id:can0nical name:base-set\) not found`)
