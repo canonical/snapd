@@ -422,15 +422,25 @@ jobs:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
 
+    - name: Cache snapd test previous results
+      if: "{{ github.run_attempt }} != 1"
+      id: cache-snapd-test-previous-results
+      uses: pat-s/always-upload-cache@v3.0.11
+      with:
+        path: "${{ github.workspace }}/.test-previous-results"
+        key: "${{ github.run_attempt - 1 }}-${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
+
     - name: Check cached test results
       id: cached-results
       run: |
           TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
-          mkdir -p "$TEST_RESULTS_DIR"
+          TEST_PREVIOUS_RESULTS_DIR="${{ github.workspace }}/.test-previous-results"
+          mkdir -p "$TEST_RESULTS_DIR" "$TEST_PREVIOUS_RESULTS_DIR"
           echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
+          echo "TEST_PREVIOUS_RESULTS_DIR=$TEST_PREVIOUS_RESULTS_DIR" >> $GITHUB_ENV
 
-          # Save the var with the failed tests file
-          echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
+          # Save the var with the failed tests file          
+          echo "FAILED_TESTS_FILE=$TEST_PREVIOUS_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
 
     - name: Check failed tests to run
       if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
