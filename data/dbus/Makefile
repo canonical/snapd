@@ -42,5 +42,9 @@ install:: snapd.system-services.conf
 	install -d -m 0755 ${DESTDIR}/${DBUSDIR}/system.d
 	install -m 0644 -t ${DESTDIR}/${DBUSDIR}/system.d $^
 
+install:: io.snapcraft.AppArmorPrompt.conf
+	install -d -m 0755 ${DESTDIR}/${DBUSDIR}/system.d
+	install -m 0644 -t ${DESTDIR}/${DBUSDIR}/system.d $^
+
 clean:
 	rm -f ${SERVICES_GENERATED}

@@ -1,0 +1,59 @@
+summary: check that cerberus can process prompting
+
+prepare: |
+    # install dbus policy
+    # TODO: make this nicer
+    cp -a ../../cmd/aa-listen/io.snapcraft.AppArmorPrompt.conf /etc/dbus-1/system.d
+    # some test files
+    mkdir -p /root/.yes /root/.no
+    touch /root/test-file
+    touch /root/.yes/test-file
+    touch /root/.no/test-file
+    # the parser
+    apparmor_parser --replace test-prompt.apparmor
+    # run the aa-listener
+    systemd-run --unit aa-listen.service \
+        --property=Environment=SNAPD_DEBUG=1 \
+        --property=StandardOutput=file:"$(pwd)/aa-listen.log" \
+        --property=StandardError=inherit \
+        "$(command -v aa-listen)"
+    # Run the flip-flop fake agent
+    systemd-run --unit fake-agent.service \
+        --property=StandardOutput=file:"$(pwd)/fake-agent.log" \
+        --property=StandardError=inherit \
+        "$(pwd)/fake-agent.py"
+
+restore: |
+    systemctl stop aa-listen.service
+    systemctl stop fake-agent.service
+    apparmor_parser --remove test-prompt.apparmor
+    rm -f /etc/dbus-1/system.d/io.snapcraft.AppArmorPrompt.conf
+
+debug: |
+    cat aa-listen.log
+    cat fake-agent.log
+    systemctl status aa-listen.service
+    dmesg
+    gdbus introspect --system --dest io.snapcraft.AppArmorPrompt --object-path /io/snapcraft/AppArmorPrompt || true
+
+execute: |
+    # There is no prompting on /root/
+    (aa-exec --profile=test-prompt ls /root/ > ls-root.txt) &
+    # XXX: use retry
+    sleep 0.1
+    MATCH 'test-file' < ls-root.txt
+    test "$(grep -E -c 'Prompt()' fake-agent.log)" -eq 0
+
+    # There is prompting on /root/.yes/
+    (aa-exec --profile=test-prompt ls /root/.yes/ > ls-root-yes.txt 2>&1 ) &
+    # XXX: use retry
+    sleep 0.1
+    test "$(grep -E -c 'Prompt()' fake-agent.log)" -eq 1
+    MATCH test-file < ls-root-yes.txt
+
+    # There is prompting on /root/.no/
+    (aa-exec --profile=test-prompt ls /root/.no/ > ls-root-no.txt 2>&1 ) &
+    # XXX: use retry
+    sleep 0.1
+    test "$(grep -E -c 'Prompt()' fake-agent.log)" -eq 2
+    MATCH denied < ls-root-no.txt

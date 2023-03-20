@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/snapcore/cerberus/apparmor"
-	"github.com/snapcore/cerberus/epoll"
+	"github.com/snapcore/snapd/osutil/epoll"
+	"github.com/snapcore/snapd/prompting/apparmor"
 )
 
 // Notifier contains low-level components for receiving notification requests

@@ -1,0 +1,11 @@
+#include <tunables/global>
+
+profile test-prompt (attach_disconnected) {
+    /etc/ld.so.cache r,
+    /{,usr/}lib/** rm,
+    /{,usr/}/bin/** ixrm,
+    / r,
+    /root/ r,
+    /root/[^.]** r,
+    prompt /root/[.]** r,
+}
