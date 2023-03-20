@@ -420,7 +420,7 @@ jobs:
       uses: pat-s/always-upload-cache@v3.0.11
       with:
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
+        key: "${{ github.run_attempt }}-${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
 
     - name: Get previous attempt
       id: get-previous-attempt
