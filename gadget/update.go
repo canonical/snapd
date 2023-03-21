@@ -579,6 +579,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	return nil
 }
 
+// TODO:ICE: remove this as we only support LUKS (and ICE is a variant of LUKS now)
 type DiskEncryptionMethod string
 
 const (
@@ -587,8 +588,8 @@ const (
 	// standard LUKS as it is used for automatic FDE using SecureBoot and TPM
 	// 2.0 in UC20+
 	EncryptionLUKS DiskEncryptionMethod = "LUKS"
-	// ICE stands for Inline Crypto Engine, used on specific (usually embedded)
-	// devices
+
+	// TODO:ICE: remove this
 	EncryptionICE DiskEncryptionMethod = "ICE"
 )
 

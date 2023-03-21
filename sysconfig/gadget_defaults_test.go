@@ -89,6 +89,9 @@ func (s *sysconfigSuite) TestConfigureTargetSystemNonUC20(c *C) {
 }
 
 func (s *sysconfigSuite) TestGadgetDefaults(c *C) {
+	restore := osutil.MockMountInfo("")
+	defer restore()
+
 	const gadgetDefaultsYaml = `
 defaults:
   system:
@@ -159,6 +162,9 @@ defaults:
 }
 
 func (s *sysconfigSuite) TestInstallModeEarlyDefaultsFromGadgetSeedSnap(c *C) {
+	restore := osutil.MockMountInfo("")
+	defer restore()
+
 	const gadgetDefaultsYaml = `
 defaults:
   system:

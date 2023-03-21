@@ -402,6 +402,36 @@ func (mg ModelGrade) Code() uint32 {
 	return code
 }
 
+type ModelValidationSetMode string
+
+const (
+	ModelValidationSetModePreferEnforced ModelValidationSetMode = "prefer-enforce"
+	ModelValidationSetModeEnforced       ModelValidationSetMode = "enforce"
+)
+
+var validModelValidationSetModes = []string{
+	string(ModelValidationSetModePreferEnforced),
+	string(ModelValidationSetModeEnforced),
+}
+
+// ModelValidationSet represents a reference to a validation set assertion.
+// The structure also describes how the validation set will be applied
+// to the device, and whether the validation set should be pinned to
+// a specific sequence.
+type ModelValidationSet struct {
+	// AccountID is the account ID the validation set originates from.
+	// If this was not explicitly set in the stanza, this will instead
+	// be set to the brand ID.
+	AccountID string
+	// Name is the name of the validation set from the account ID.
+	Name string
+	// Sequence, if non-zero, specifies that the validation set should be
+	// pinned at this sequence number.
+	Sequence int
+	// Mode is the enforcement mode the validation set should be applied with.
+	Mode ModelValidationSetMode
+}
+
 // Model holds a model assertion, which is a statement by a brand
 // about the properties of a device model.
 type Model struct {
@@ -421,6 +451,8 @@ type Model struct {
 	// snapRef
 	requiredWithEssentialSnaps []naming.SnapRef
 	numEssentialSnaps          int
+
+	validationSets []*ModelValidationSet
 
 	serialAuthority  []string
 	sysUserAuthority []string
@@ -564,6 +596,11 @@ func (mod *Model) SnapsWithoutEssential() []*ModelSnap {
 	return mod.allSnaps[mod.numEssentialSnaps:]
 }
 
+// ValidationSets returns all the validation-sets listed by the model.
+func (mod *Model) ValidationSets() []*ModelValidationSet {
+	return mod.validationSets
+}
+
 // SerialAuthority returns the authority ids that are accepted as
 // signers for serial assertions for this model. It always includes the
 // brand of the model.
@@ -655,6 +692,117 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 		}
 	}
 	return nil, fmt.Errorf("%q header must be '*' or a list of account ids", name)
+}
+
+func checkModelValidationSetAccountID(headers map[string]interface{}, what, brandID string) (string, error) {
+	accountID, err := checkOptionalStringWhat(headers, "account-id", what)
+	if err != nil {
+		return "", err
+	}
+
+	// default to brand ID if account ID is not provided
+	if accountID == "" {
+		return brandID, nil
+	}
+	return accountID, nil
+}
+
+// checkOptionalModelValidationSetSequence reads the optional 'sequence' member, if
+// not set, returns 0 as this means unpinned. Unfortunately we are not able
+// to reuse `checkSequence` as it operates inside different parameters.
+func checkOptionalModelValidationSetSequence(headers map[string]interface{}, what string) (int, error) {
+	// Default to 0 when the sequence header is not present
+	if _, ok := headers["sequence"]; !ok {
+		return 0, nil
+	}
+
+	seq, err := checkIntWhat(headers, "sequence", what)
+	if err != nil {
+		return 0, err
+	}
+
+	// If sequence is provided, only accept positive values above 0
+	if seq <= 0 {
+		return 0, fmt.Errorf("\"sequence\" %s must be larger than 0 or left unspecified (meaning tracking latest)", what)
+	}
+	return seq, nil
+}
+
+func checkModelValidationSetMode(headers map[string]interface{}, what string) (ModelValidationSetMode, error) {
+	modeStr, err := checkNotEmptyStringWhat(headers, "mode", what)
+	if err != nil {
+		return "", err
+	}
+
+	if modeStr != "" && !strutil.ListContains(validModelValidationSetModes, modeStr) {
+		return "", fmt.Errorf("\"mode\" %s must be %s, not %q", what, strings.Join(validModelValidationSetModes, "|"), modeStr)
+	}
+	return ModelValidationSetMode(modeStr), nil
+}
+
+func checkModelValidationSet(headers map[string]interface{}, brandID string) (*ModelValidationSet, error) {
+	name, err := checkStringMatchesWhat(headers, "name", "of validation-set", validValidationSetName)
+	if err != nil {
+		return nil, err
+	}
+
+	what := fmt.Sprintf("of validation-set %q", name)
+	accountID, err := checkModelValidationSetAccountID(headers, what, brandID)
+	if err != nil {
+		return nil, err
+	}
+
+	what = fmt.Sprintf("of validation-set \"%s/%s\"", accountID, name)
+	seq, err := checkOptionalModelValidationSetSequence(headers, what)
+	if err != nil {
+		return nil, err
+	}
+
+	mode, err := checkModelValidationSetMode(headers, what)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ModelValidationSet{
+		AccountID: accountID,
+		Name:      name,
+		Sequence:  seq,
+		Mode:      mode,
+	}, nil
+}
+
+func checkOptionalModelValidationSets(headers map[string]interface{}, brandID string) ([]*ModelValidationSet, error) {
+	valSets, ok := headers["validation-sets"]
+	if !ok {
+		return nil, nil
+	}
+
+	entries, ok := valSets.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf(`"validation-sets" must be a list of validation sets`)
+	}
+
+	vss := make([]*ModelValidationSet, len(entries))
+	seen := make(map[string]bool, len(entries))
+	for i, entry := range entries {
+		data, ok := entry.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf(`entry in "validation-sets" is not a valid validation-set`)
+		}
+
+		vs, err := checkModelValidationSet(data, brandID)
+		if err != nil {
+			return nil, err
+		}
+		vsKey := fmt.Sprintf("%s/%s", vs.AccountID, vs.Name)
+		if seen[vsKey] {
+			return nil, fmt.Errorf("cannot add validation set %q twice", vsKey)
+		}
+
+		vss[i] = vs
+		seen[vsKey] = true
+	}
+	return vss, nil
 }
 
 var (
@@ -876,6 +1024,11 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 
 	allSnaps, requiredWithEssentialSnaps, numEssentialSnaps := modSnaps.list()
 
+	valSets, err := checkOptionalModelValidationSets(assert.headers, brandID)
+	if err != nil {
+		return nil, err
+	}
+
 	// NB:
 	// * core is not supported at this time, it defaults to ubuntu-core
 	// in prepare-image until rename and/or introduction of the header.
@@ -895,6 +1048,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		allSnaps:                   allSnaps,
 		requiredWithEssentialSnaps: requiredWithEssentialSnaps,
 		numEssentialSnaps:          numEssentialSnaps,
+		validationSets:             valSets,
 		serialAuthority:            serialAuthority,
 		sysUserAuthority:           sysUserAuthority,
 		timestamp:                  timestamp,

@@ -611,7 +611,8 @@ func (s *fdeSuite) TestDeviceUnlockErr(c *C) {
 	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
 	mockDeviceUnlockHook := testutil.MockCommand(c, "fde-device-unlock", `
-echo  "output-only-used-for-errors" 1>&2
+echo "output-only-used-for-errors" 1>&2
+sleep .5
 exit 1
 `)
 	defer mockDeviceUnlockHook.Restore()

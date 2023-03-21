@@ -50,7 +50,7 @@ execute: |
   remote.push panicking-initramfs-kernel.snap
 
   echo "Wait for snapd to be available"
-  tests.nested wait-for snap-command
+  remote.wait-for snap-command
 
   echo "Wait for snapd to be seeded"
   remote.exec sudo snap wait system seed.loaded
@@ -76,7 +76,7 @@ execute: |
   # able to unseal the encryption key in that case ("cannot compute
   # load verification event").
   if [ "$PROBLEM_TYPE" != "empty" ] && [ "$PROBLEM_TYPE" != "zeros" ]; then
-      tests.nested wait-for reboot "${boot_id}"
+      remote.wait-for reboot "${boot_id}"
   fi
 
   # Wait for the change to finish - note it will exit with non-zero since the 

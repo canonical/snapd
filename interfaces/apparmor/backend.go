@@ -101,15 +101,6 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// possible because snapd must be able to install a new core and only at
 	// that moment generate it.
 
-	// Inspect the system and sets up local apparmor policy for snap-confine.
-	// Local policy is included by the system-wide policy. If the local policy
-	// has changed then the apparmor profile for snap-confine is reloaded.
-
-	// Create the local policy directory if it is not there.
-	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
-		return fmt.Errorf("cannot create snap-confine policy directory: %s", err)
-	}
-
 	// Check the /proc/self/exe symlink, this is needed below but we want to
 	// fail early if this fails for whatever reason.
 	exe, err := os.Readlink(procSelfExe)
@@ -117,56 +108,8 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		return fmt.Errorf("cannot read %s: %s", procSelfExe, err)
 	}
 
-	// Location of the generated policy.
-	glob := "*"
-	policy := make(map[string]osutil.FileState)
-
-	// Check if NFS is mounted at or under $HOME. Because NFS is not
-	// transparent to apparmor we must alter our profile to counter that and
-	// allow snap-confine to work.
-	if nfs, err := osutil.IsHomeUsingNFS(); err != nil {
-		logger.Noticef("cannot determine if NFS is in use: %v", err)
-	} else if nfs {
-		policy["nfs-support"] = &osutil.MemoryFileState{
-			Content: []byte(nfsSnippet),
-			Mode:    0644,
-		}
-		logger.Noticef("snapd enabled NFS support, additional implicit network permissions granted")
-	}
-
-	// Check if '/' is on overlayfs. If so, add the necessary rules for
-	// upperdir and allow snap-confine to work.
-	if overlayRoot, err := isRootWritableOverlay(); err != nil {
-		logger.Noticef("cannot determine if root filesystem on overlay: %v", err)
-	} else if overlayRoot != "" {
-		snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
-		policy["overlay-root"] = &osutil.MemoryFileState{
-			Content: []byte(snippet),
-			Mode:    0644,
-		}
-		logger.Noticef("snapd enabled root filesystem on overlay support, additional upperdir permissions granted")
-	}
-
-	// Check whether apparmor_parser supports bpf capability. Some older
-	// versions do not, hence the capability cannot be part of the default
-	// profile of snap-confine as loading it would fail.
-	if features, err := apparmor_sandbox.ParserFeatures(); err != nil {
-		logger.Noticef("cannot determine apparmor_parser features: %v", err)
-	} else if strutil.ListContains(features, "cap-bpf") {
-		policy["cap-bpf"] = &osutil.MemoryFileState{
-			Content: []byte(capabilityBPFSnippet),
-			Mode:    0644,
-		}
-	}
-
-	// Ensure that generated policy is what we computed above.
-	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, policy)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize snap-confine policy: %s", err)
-	}
-	if len(created) == 0 && len(removed) == 0 {
-		// If the generated policy didn't change, we're all done.
-		return nil
+	if _, err := apparmor_sandbox.SetupSnapConfineSnippets(); err != nil {
+		return err
 	}
 
 	// If snapd is executing from the core snap the it means it has
@@ -202,7 +145,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		// When we cannot reload the profile then let's remove the generated
 		// policy. Maybe we have caused the problem so it's better to let other
 		// things work.
-		osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, nil)
+		apparmor_sandbox.RemoveSnapConfineSnippets()
 		return fmt.Errorf("cannot reload snap-confine apparmor profile: %v", err)
 	}
 	return nil
@@ -666,7 +609,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string
 			return snapInfo.InstanceName()
 		case "###SNIPPETS###":
 			if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {
-				snippets += strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
+				snippets += strings.Replace(apparmor_sandbox.OverlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
 			}
 			return snippets
 		}
@@ -886,11 +829,11 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 				// allow access to SNAP_USER_* files.
 				tagSnippets = snippetForTag
 				if nfs, _ := osutil.IsHomeUsingNFS(); nfs {
-					tagSnippets += nfsSnippet
+					tagSnippets += apparmor_sandbox.NfsSnippet
 				}
 
 				if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {
-					snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
+					snippet := strings.Replace(apparmor_sandbox.OverlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
 					tagSnippets += snippet
 				}
 

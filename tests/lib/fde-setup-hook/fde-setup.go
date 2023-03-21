@@ -90,8 +90,10 @@ func runFdeSetup() error {
 	var fdeSetupResult []byte
 	switch js.Op {
 	case "features":
-		// no special features supported by this hook
 		fdeSetupResult = []byte(`{"features":[]}`)
+		if osutil.FileExists(filepath.Join(filepath.Dir(os.Args[0]), "enable-ice-support")) {
+			fdeSetupResult = []byte(`{"features":["inline-crypto-engine"]}`)
+		}
 	case "initial-setup":
 		// "seal" using a really bad crypto algorithm
 		res := fdeSetupResultJSON{

@@ -46,16 +46,13 @@ prepare: |
     tests.cleanup defer snap remove remarshal
     tests.cleanup defer snap remove jq
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-
     # Setup the fake-store for ubuntu-image to use when creating our core image.
     # We immediately tear down the staging store, to make sure snapd is not pointed
     # towards this once we invoke ubuntu-image. 
     # We also need to point NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL towards the newly
     # setup fake-store to actually have it use it.
-    setup_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
-    teardown_staging_store
+    "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-staging-store
 
     echo Expose the needed assertions through the fakestore
     cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
@@ -124,9 +121,7 @@ restore: |
     # stop fake device svc
     systemctl stop fakedevicesvc
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -163,10 +158,10 @@ execute: |
     # add || true in case the SSH connection is broken while executing this
     # since this command causes an immediate reboot
     remote.exec "sudo snap reboot --factory-reset" || true
-    tests.nested wait-for reboot "${BOOT_ID}"
+    remote.wait-for reboot "${BOOT_ID}"
 
     # wait for the system to get setup and finish seeding
-    tests.nested wait-for snap-command
+    remote.wait-for snap-command
     retry -n 10 --wait 2 remote.exec "sudo snap wait system seed.loaded"
 
     # wait up to two minutes for serial registration

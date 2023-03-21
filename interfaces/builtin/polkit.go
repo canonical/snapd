@@ -59,7 +59,7 @@ dbus (send)
     path="/org/freedesktop/PolicyKit1/Authority"
     interface="org.freedesktop.PolicyKit1.Authority"
     member="{,Cancel}CheckAuthorization"
-    peer=(name="org.freedesktop.PolicyKit1", label=unconfined),
+    peer=(label=unconfined),
 dbus (send)
     bus=system
     path="/org/freedesktop/PolicyKit1/Authority"
@@ -70,13 +70,13 @@ dbus (send)
     bus=system
     path="/org/freedesktop/PolicyKit1/Authority"
     interface="org.freedesktop.DBus.Properties"
-    peer=(name="org.freedesktop.PolicyKit1", label=unconfined),
+    peer=(label=unconfined),
 dbus (send)
     bus=system
     path="/org/freedesktop/PolicyKit1/Authority"
     interface="org.freedesktop.DBus.Introspectable"
     member="Introspect"
-    peer=(name="org.freedesktop.PolicyKit1", label=unconfined),
+    peer=(label=unconfined),
 `
 
 type polkitInterface struct {

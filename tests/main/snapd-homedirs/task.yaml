@@ -11,15 +11,23 @@ environment:
 
 prepare: |
     # Create a new user in a non-standard location
-    mkdir -p /home/users
-    useradd -b /home/users -m -U "$USERNAME"
+    mkdir -p /remote/users
+    useradd -b /remote/users -m -U "$USERNAME"
 
     # Install our test snap
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 restore: |
     userdel -f --remove "$USERNAME"
-    rm -rf /home/users
+    rm -rf /remote/users
+
+debug: |
+    # output custom snap-confine snippets
+    ls -l /var/lib/snapd/apparmor/snap-confine/
+    for f in /var/lib/snapd/apparmor/snap-confine/*; do
+        echo "$f"
+        cat "$f"
+    done
 
 execute: |
     echo "Invoke the test app without setting up homedir support"
@@ -27,18 +35,24 @@ execute: |
         echo "The command succeeded; this is unexpected where AppArmor is fully working"
         test "$(snap debug confinement)" = partial
     else
-        MATCH "cannot create user data directory: /home/users/$USERNAME/snap/test-snapd-sh/x1: Permission denied" < stderr.log
+        MATCH "Sorry, home directories outside of /home needs configuration" < stderr.log
     fi
     rm -f stderr.log
 
-    echo "Enable the home directories under /home/users"
-    snap set system homedirs=/home/users
+    echo "Enable the home directories under /remote/users"
+    snap set system homedirs=/remote/users
 
     echo "Verify that the system-params file has been created"
-    MATCH "^homedirs=/home/users$" < /var/lib/snapd/system-params
+    MATCH "^homedirs=/remote/users$" < /var/lib/snapd/system-params
 
     echo "And that the AppArmor tunable file is proper"
-    MATCH "^@{HOMEDIRS}\\+=\"/home/users\"$" < /etc/apparmor.d/tunables/home.d/snapd
+    MATCH "^@{HOMEDIRS}\\+=\"/remote/users\"$" < /etc/apparmor.d/tunables/home.d/snapd
 
     echo "Invoke the test app again (should now work)"
     sudo -u "$USERNAME" -i test-snapd-sh.cmd echo "Hello world" | MATCH "Hello world"
+
+    echo "Ensure that the namespace is reused"
+    # Invoke the same command once more, but this time with debugging enabled,
+    # to verify that the existing namespace is not discarded
+    sudo SNAPD_DEBUG=1 -u "$USERNAME" -i test-snapd-sh.cmd echo "Hello world" 2>&1 \
+        | MATCH "preserved mount is not stale, reusing"

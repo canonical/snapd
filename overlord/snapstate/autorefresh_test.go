@@ -1036,7 +1036,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	defer restore()
 
 	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
-	c.Assert(err, IsNil)
+	c.Assert(err == nil, Equals, true)
 	c.Check(notificationCount, Equals, 1)
 }
 
