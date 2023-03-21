@@ -1446,6 +1446,7 @@ nested_prepare_tools() {
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/MATCH" &>/dev/null; then
+        # shellcheck source=tests/lib/spread-funcs.sh
         . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > MATCH_FILE
         type MATCH | tail -n +2 >> MATCH_FILE
@@ -1457,6 +1458,7 @@ nested_prepare_tools() {
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/NOMATCH" &>/dev/null; then
+        # shellcheck source=tests/lib/spread-funcs.sh
         . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > NOMATCH_FILE
         type NOMATCH | tail -n +2 >> NOMATCH_FILE
