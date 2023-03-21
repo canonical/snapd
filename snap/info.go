@@ -1092,8 +1092,8 @@ type SystemUsernameInfo struct {
 }
 
 type CategoryInfo struct {
-	Featured bool   `json:"featured"`
 	Name     string `json:"name"`
+	Featured bool   `json:"featured"`
 }
 
 // File returns the path to the *.socket file
