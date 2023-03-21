@@ -2408,7 +2408,7 @@ func (s *storeTestSuite) TestSectionsQueryErrors(c *C) {
 /*
 	acquired via:
 
-curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://api.snapcraft.io/v2/snaps/categories'
+curl -s -H "accept: application/json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://api.snapcraft.io/v2/snaps/categories'
 */
 const MockCategoriesJSON = `{
     "categories": [
