@@ -1265,7 +1265,7 @@ func (s *Store) Categories(ctx context.Context, user *auth.UserState) ([]string,
 		Method:         "GET",
 		URL:            s.endpointURL(categoriesEndpPath, nil),
 		Accept:         jsonContentType,
-		DeviceAuthNeed: deviceAuthCustomStoreOnly,
+		APILevel:       apiV2Endps,
 	}
 
 	var categoryData categoryResults
