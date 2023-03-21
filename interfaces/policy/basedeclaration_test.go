@@ -1130,7 +1130,6 @@ func (s *baseDeclSuite) TestConnectionImplicitOnClassicOrAppSnap(c *C) {
 		"network-manager": true,
 		"ofono":           true,
 		"pulseaudio":      true,
-		"upower-observe":  true,
 	}
 
 	for _, iface := range all {
