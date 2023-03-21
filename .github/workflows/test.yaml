@@ -433,12 +433,10 @@ jobs:
           # Save test_results_dir to output
           echo "test_results_dir=$TEST_RESULTS_DIR" >> $GITHUB_OUTPUT
           echo "test_previous_results_dir=$TEST_PREVIOUS_RESULTS_DIR" >> $GITHUB_OUTPUT
-
       shell: bash
 
     - name: Restore snapd test previous results
       if: "${{ steps.prepare-test-results-env.outputs.previous_attempt > 0 }}"
-      id: cache-snapd-test-previous-results
       uses: actions/cache/restore@v3
       with:
         path: "${{ steps.prepare-test-results-env.outputs.test_previous_results_dir }}"
@@ -593,7 +591,6 @@ jobs:
 
     - name: Restore snapd test previous results
       if: "${{ steps.prepare-test-results-env.outputs.previous_attempt > 0 }}"
-      id: cache-snapd-test-previous-results
       uses: actions/cache/restore@v3
       with:
         path: "${{ steps.prepare-test-results-env.outputs.test_previous_results_dir }}"
