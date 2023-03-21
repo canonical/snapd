@@ -361,6 +361,7 @@ type Info struct {
 	// OriginalLinks is a map links keys to link lists
 	OriginalLinks map[string][]string
 
+	// Categories this snap is in.
 	Categories []CategoryInfo
 }
 

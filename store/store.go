@@ -347,8 +347,12 @@ type sectionResults struct {
 	} `json:"_embedded"`
 }
 
+type CategoryDetails struct {
+	Name string `json:"name"`
+}
+
 type categoryResults struct {
-	Categories []struct{ Name string } `json:"categories"`
+	Categories []CategoryDetails `json:"categories"`
 }
 
 // The default delta format if not configured.
@@ -1260,12 +1264,12 @@ func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, e
 }
 
 // Categories retrieves the list of available store categories.
-func (s *Store) Categories(ctx context.Context, user *auth.UserState) ([]string, error) {
+func (s *Store) Categories(ctx context.Context, user *auth.UserState) ([]CategoryDetails, error) {
 	reqOptions := &requestOptions{
-		Method:         "GET",
-		URL:            s.endpointURL(categoriesEndpPath, nil),
-		Accept:         jsonContentType,
-		APILevel:       apiV2Endps,
+		Method:   "GET",
+		URL:      s.endpointURL(categoriesEndpPath, nil),
+		Accept:   jsonContentType,
+		APILevel: apiV2Endps,
 	}
 
 	var categoryData categoryResults
@@ -1282,12 +1286,7 @@ func (s *Store) Categories(ctx context.Context, user *auth.UserState) ([]string,
 		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to retrieve the categories via %q", ct, resp.Request.URL)
 	}
 
-	var categoryNames []string
-	for _, s := range categoryData.Categories {
-		categoryNames = append(categoryNames, s.Name)
-	}
-
-	return categoryNames, nil
+	return categoryData.Categories, nil
 }
 
 // WriteCatalogs queries the "commands" endpoint and writes the

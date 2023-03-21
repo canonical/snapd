@@ -147,6 +147,11 @@ type ListOptions struct {
 	All bool
 }
 
+// Information about a category
+type Category struct {
+	Name string `json:"name"`
+}
+
 // List returns the list of all snaps installed on the system
 // with names in the given list; if the list is empty, all snaps.
 func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
@@ -187,8 +192,8 @@ func (client *Client) Sections() ([]string, error) {
 }
 
 // Categories returns the list of existing snap categories in the store
-func (client *Client) Categories() ([]string, error) {
-	var categories []string
+func (client *Client) Categories() ([]*Category, error) {
+	var categories []*Category
 	_, err := client.doSync("GET", "/v2/categories", nil, nil, nil, &categories)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get snap categories: %w", err)

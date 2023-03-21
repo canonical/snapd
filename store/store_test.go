@@ -2452,7 +2452,7 @@ func (s *storeTestSuite) TestCategoriesQuery(c *C) {
 
 	categories, err := sto.Categories(s.ctx, s.user)
 	c.Check(err, IsNil)
-	c.Check(categories, DeepEquals, []string{"featured", "database"})
+	c.Check(categories, DeepEquals, []store.CategoryDetails{{Name: "featured"}, {Name: "database"}})
 	c.Check(n, Equals, 1)
 }
 

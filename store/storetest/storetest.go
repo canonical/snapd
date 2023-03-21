@@ -87,7 +87,7 @@ func (Store) Sections(context.Context, *auth.UserState) ([]string, error) {
 	panic("Store.Sections not expected")
 }
 
-func (Store) Categories(context.Context, *auth.UserState) ([]string, error) {
+func (Store) Categories(context.Context, *auth.UserState) ([]store.CategoryDetails, error) {
 	panic("Store.Categories not expected")
 }
 
