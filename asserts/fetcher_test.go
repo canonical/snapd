@@ -268,7 +268,7 @@ func (s *fetcherSuite) TestFetchSequenceMultipleSequencesNotSupported(c *C) {
 	err = f.FetchSequence(seq)
 	c.Assert(err, IsNil)
 
-	// We fetcher 2 first, it will exist
+	// We fetch 2 first, it should exist.
 	seq.Sequence = 2
 	vsa, err := seq.Resolve(db.Find)
 	c.Assert(err, IsNil)

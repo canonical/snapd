@@ -63,11 +63,15 @@ func NewFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), sa
 	}
 }
 
+// SequenceFormingFetcher is a Fetcher with special support for fetching sequence-forming assertions through FetchSequence.
 type SequenceFormingFetcher interface {
 	// SequenceFormingFetcher must also implement the interface of the Fetcher.
 	Fetcher
 
-	// FetchSequence retrieves the assertion as indicated by its sequence reference.
+	// FetchSequence retrieves the assertion as indicated by its sequence reference. Retrieving multiple
+	// sequences of the same assertion is currently unsupported. The first sequence fetched through this
+	// will be the one passed to the save callback. Any subsequent sequences fetched will not have any
+	// effect and will be treated as if they've already been fetched.
 	FetchSequence(*AtSequence) error
 }
 
