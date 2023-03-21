@@ -27,8 +27,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/snapcore/snapd/strutil"
 	"gopkg.in/yaml.v2"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 var osOpen = os.Open
@@ -124,7 +125,6 @@ func ReadSnapshotYamlFromSnapFile(snapf Container) (*SnapshotOptions, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return readSnapshotYaml(bytes.NewBuffer(sy))
 }
 

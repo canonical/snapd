@@ -277,7 +277,7 @@ func cleanSnapshotOptions(snapshotOpts map[string]*snap.SnapshotOptions) {
 //
 // results in a pointer to SnapshotOptions object with a nil or zero length exclusion list
 // which in turn will be marshalled to JSON as `options: {}` when we rather want it omitted.
-// The cleaning step ensures that we only populate map entries for snapshot options that contains
+// The cleaning step ensures that we only populate map entries for snapshot options that contain
 // usable content that we want to be marshalled downstream.
 func (inst *snapInstruction) cleanAndValidateSnapshotOptions() error {
 	if inst.SnapshotOptions == nil {

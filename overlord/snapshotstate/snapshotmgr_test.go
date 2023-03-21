@@ -281,14 +281,13 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 	})()
 
 	expectedOptions := &snap.SnapshotOptions{}
-	var testName *string
 	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string,
 		options *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		c.Check(id, check.Equals, uint64(42))
 		c.Check(si, check.DeepEquals, &snapInfo)
 		c.Check(cfg, check.DeepEquals, map[string]interface{}{"hello": "there"})
 		c.Check(usernames, check.DeepEquals, []string{"a-user", "b-user"})
-		c.Check(options, check.DeepEquals, expectedOptions, check.Commentf("test: %q", *testName))
+		c.Check(options, check.DeepEquals, expectedOptions)
 		return nil, nil
 	})()
 
@@ -303,7 +302,7 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 		"exclude-typical": {exclTypOptions, exclTypOptions},
 	}
 
-	for name, test := range testMap {
+	for _, test := range testMap {
 		st := state.New(nil)
 		st.Lock()
 		task := st.NewTask("save-snapshot", "...")
@@ -315,7 +314,6 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 		})
 		st.Unlock()
 		expectedOptions = test.expectedOptions
-		testName = &name
 		err := snapshotstate.DoSave(task, &tomb.Tomb{})
 		c.Assert(err, check.IsNil)
 	}
