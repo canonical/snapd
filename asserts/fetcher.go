@@ -71,9 +71,9 @@ type SequenceFormingFetcher interface {
 	FetchSequence(*AtSequence) error
 }
 
-// NewSequenceFormingFetcher creates a SequenceFormingFetcher which will use trustedDB to
-// fetch sequence forming assertions using retrieveSeq, prerequisites assertions using retrieve,
-// and then will pass them to save, saving prerequisites before the depending assertions.
+// NewSequenceFormingFetcher creates a SequenceFormingFetcher which will use trustedDB to determine trusted assertions,
+// will fetch assertions following prerequisites using retrieve and sequence-forming assertions using retrieveSeq, and then will pass
+// them to save, saving prerequisites before dependent assertions.
 func NewSequenceFormingFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), retrieveSeq func(*AtSequence) (Assertion, error), save func(Assertion) error) SequenceFormingFetcher {
 	return &fetcher{
 		db:          trustedDB,

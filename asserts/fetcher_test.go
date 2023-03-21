@@ -269,6 +269,7 @@ func (s *fetcherSuite) TestFetchSequenceMultipleSequencesNotSupported(c *C) {
 	c.Assert(err, IsNil)
 
 	// We fetcher 2 first, it will exist
+	seq.Sequence = 2
 	vsa, err := seq.Resolve(db.Find)
 	c.Assert(err, IsNil)
 	c.Check(vsa.(*asserts.ValidationSet).Name(), Equals, "base-set")
