@@ -20,8 +20,15 @@ execute: |
 
     # check the wait-for-service works when unit is inactive
     tests.systemd create-and-start-unit my-test "/bin/sleep 5"
-    tests.systemd wait-for-service my-test active
-    tests.systemd wait-for-service my-test inactive
+    tests.systemd wait-for-service --state active my-test
+    tests.systemd wait-for-service --state inactive my-test
+    tests.systemd stop-and-remove-unit my-test
+    systemctl list-unit-files | NOMATCH my-test
+
+    # check the wait-for-service works when unit is inactive
+    tests.systemd create-and-start-unit my-test "/bin/sleep 10"
+    tests.systemd wait-for-service --state active my-test
+    not tests.systemd wait-for-service --state inactive --wait 1 --n 3 my-test
     tests.systemd stop-and-remove-unit my-test
     systemctl list-unit-files | NOMATCH my-test
 

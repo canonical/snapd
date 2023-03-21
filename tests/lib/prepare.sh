@@ -6,8 +6,6 @@ set -eux
 . "$TESTSLIB/snaps.sh"
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
-# shellcheck source=tests/lib/quiet.sh
-. "$TESTSLIB/quiet.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
@@ -332,13 +330,11 @@ prepare_classic() {
     setup_systemd_snapd_overrides
 
     if [ "$REMOTE_STORE" = staging ]; then
-        # shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB/store.sh"
         # reset seeding data that is likely tainted with production keys
         systemctl stop snapd.service snapd.socket
         rm -rf /var/lib/snapd/assertions/*
         rm -f /var/lib/snapd/state.json
-        setup_staging_store
+        "$TESTSTOOLS"/store-state setup-staging-store
     fi
 
     # Snapshot the state including core.

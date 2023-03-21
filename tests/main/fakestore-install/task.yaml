@@ -11,9 +11,7 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
   
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -27,12 +25,10 @@ execute: |
     # cannot be fetched from the fake store (important for core18).
     snap install core
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    setup_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
     snap_path=$("$TESTSTOOLS"/snaps-state pack-local basic)
-    make_snap_installable "$BLOB_DIR" "${snap_path}"
+    "$TESTSTOOLS"/store-state make-snap-installable "$BLOB_DIR" "${snap_path}"
 
     snap install basic
     snap info basic | MATCH "snap-id:[ ]+basic-id"
