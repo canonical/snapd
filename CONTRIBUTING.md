@@ -54,7 +54,7 @@ line) and from a more systemic approach (testing upgrades, for instance).
 
 Spread and unit tests are not strictly a requirement for a PR to be submitted,
 but we do strongly encourage contributors to include them. We rarely merge code
-without tests although we may occasionally write them ourselves on behalf to
+without tests although we may occasionally write them ourselves on behalf of
 a contributor.
 
 Unit tests help us understand expected behaviour, verified through the tests
