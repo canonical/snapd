@@ -415,30 +415,14 @@ jobs:
         # spread uses tags as delta reference
         fetch-depth: 0
 
-    - name: Restore snapd test results
-      id: cache-snapd-test-results
-      uses: actions/cache/restore@v3
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_attempt }}-${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
-
-    - name: Get previous attempt
-      id: get-previous-attempt
+    - name: Calc previous attempt
+      id: calc-previous-attempt
       run: |
-        echo "previous_attempt=$(( ${{ github.run_attempt }} - 1 ))" >> $GITHUB_OUTPUT
-      shell: bash
-
-    - name: Restore snapd test previous results
-      if: "${{ steps.get-previous-attempt.outputs.previous_attempt > 0 }}"
-      id: cache-snapd-test-previous-results
-      uses: actions/cache/restore@v3
-      with:
-        path: "${{ github.workspace }}/.test-previous-results"
-        key: "${{ steps.get-previous-attempt.outputs.previous_attempt }}-${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
-
-    - name: Check cached test results
-      id: cached-results
+          
+    - name: Prepare test results env and vars
+      id: prepare-test-results-env
       run: |
+          # Create test results directories and save vars
           TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
           TEST_PREVIOUS_RESULTS_DIR="${{ github.workspace }}/.test-previous-results"
           mkdir -p "$TEST_RESULTS_DIR" "$TEST_PREVIOUS_RESULTS_DIR"
@@ -448,6 +432,18 @@ jobs:
           # Save the var with the failed tests file
           echo "PREVIOUS_FAILED_TESTS_FILE=$TEST_PREVIOUS_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
           echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
+
+          # Calc the previous attempt id
+          echo "previous_attempt=$(( ${{ github.run_attempt }} - 1 ))" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Restore snapd test previous results
+      if: "${{ steps.prepare-test-results-env.outputs.previous_attempt > 0 }}"
+      id: cache-snapd-test-previous-results
+      uses: actions/cache/restore@v3
+      with:
+        path: "${{ github.workspace }}/.test-previous-results"
+        key: "${{ steps.prepare-test-results-env.outputs.previous_attempt }}-${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
 
     - name: Check failed tests to run
       if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
