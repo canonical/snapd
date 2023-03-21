@@ -186,7 +186,7 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	username, expiration, addUserOpts, err := getUserDetailsFromAssertion(assertDb, model, serial, email)
 	if err != nil {
 		if err == errSystemUserBoundToSerialButTooEarly {
-			state.Set("system-user-assertion", "pending")
+			// TODO retry later once we have acquired a device serial
 		}
 		logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
 		return nil, nil

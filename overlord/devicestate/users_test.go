@@ -39,7 +39,6 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -769,12 +768,6 @@ func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 	c.Check(userErr.Error(), check.Matches, `cannot create user "serial@bar.com": bound to serial assertion but device not yet registered`)
 	c.Check(s.errorIsInternal(userErr), check.Equals, false)
 	c.Assert(createdUsers, check.IsNil)
-
-	var asState string
-	s.state.Lock()
-	defer s.state.Unlock()
-	err = s.state.Get("system-user-assertion", &asState)
-	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *usersSuite) TestCreateAllKnownUsersFromAssertionNoSerial(c *check.C) {
@@ -803,12 +796,6 @@ func (s *usersSuite) TestCreateAllKnownUsersFromAssertionNoSerial(c *check.C) {
 	c.Assert(createdUsers, check.IsNil)
 
 	c.Check(logbuf.String(), check.Matches, `(?s).*ignoring system-user assertion for "serial@bar\.com": bound to serial assertion but device not yet registered.*`)
-	var asState string
-	s.state.Lock()
-	defer s.state.Unlock()
-	err = s.state.Get("system-user-assertion", &asState)
-	c.Assert(err, check.IsNil)
-	c.Check(asState, check.Equals, "pending")
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {

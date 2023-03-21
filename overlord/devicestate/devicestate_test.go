@@ -2560,33 +2560,6 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhenDone(c *C) {
 	c.Assert(asState, Equals, "done")
 }
 
-func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhenPending(c *C) {
-	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
-		panic("trying to process auto-import-assertion when create user is pending")
-	})
-	defer a()
-
-	s.mockSystemMode(c, "run")
-
-	// set as state as pending
-	s.state.Lock()
-	s.state.Set("system-user-assertion", "pending")
-	s.cacheDeviceCore20Seed(c)
-	s.seeding()
-	s.state.Unlock()
-
-	err := devicestate.EnsureAutoImportAssertions(s.mgr)
-	c.Check(err, IsNil)
-
-	// check state has not changed
-	s.state.Lock()
-	defer s.state.Unlock()
-	var asState string
-	err = s.state.Get("system-user-assertion", &asState)
-	c.Assert(err, IsNil)
-	c.Assert(asState, Equals, "pending")
-}
-
 func (s *deviceMgrSuite) TestHandleAutoImportAssertionNoSeedCache(c *C) {
 	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
 		panic("trying to process auto-import-assertion without cached system seed")
@@ -2634,32 +2607,6 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionFailed(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(asState, Equals, "done")
 	c.Assert(logbuf.String(), testutil.Contains, `failed to add user from system user assertions`)
-}
-
-func (s *deviceMgrSuite) TestHandleAutoImportAssertionMissingSerialAssertion(c *C) {
-	a := devicestate.MockProcessAutoImportAssertion(func(state *state.State, seed seed.Seed, db asserts.RODatabase, commitTo func(batch *asserts.Batch) error) error {
-		state.Set("system-user-assertion", "pending")
-		return fmt.Errorf("bound to serial assertion but device not yet registered")
-	})
-	defer a()
-
-	s.mockSystemMode(c, "run")
-
-	s.state.Lock()
-	s.cacheDeviceCore20Seed(c)
-	s.state.Set("seeded", nil)
-	s.state.Unlock()
-
-	err := s.mgr.Ensure()
-	c.Check(err, IsNil)
-
-	// check state is set as pending
-	s.state.Lock()
-	defer s.state.Unlock()
-	var asState string
-	err = s.state.Get("system-user-assertion", &asState)
-	c.Assert(err, IsNil)
-	c.Assert(asState, Equals, "pending")
 }
 
 func (s *deviceMgrSuite) TestHandleAutoImportAssertionAlreadySeeded(c *C) {

@@ -1015,13 +1015,13 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 		return nil
 	}
 
-	// check if we have processed auto import as already
+	// check if we have processed auto-import as already
 	var asState string
 	if err := m.state.Get("system-user-assertion", &asState); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
-	if asState == "done" || asState == "pending" {
+	if asState == "done" {
 		return nil
 	}
 
@@ -1030,7 +1030,6 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 	}
 	db := assertstate.DB(m.state)
 	// set auto-import-as as processed, even if it fails, it should not be re-run
-	// processing can alter state to "pending" if serial as is missing
 	// state should not be altered once processAutoImportAssertionsImpl is called
 	m.state.Set("system-user-assertion", "done")
 	err := processAutoImportAssertionsImpl(m.state, m.earlyDeviceSeed, db, commitTo)
