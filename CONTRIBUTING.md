@@ -21,8 +21,6 @@ Contributors can help us by observing the following guidelines:
 
 - Commit messages should be well structured.
 - Commit emails should not include non-ASCII characters.
-- PR titles should start with a prefix denoting the scope affected by the changes
-(e.g. `<feature name>`,`<package name>`) followed by a semicolon. 
 - Try to open several smaller PRs, rather than one large PR.
 - Try not to mix potentially controversial and trivial changes together.
   (Proposing trivial changes separately makes landing them easier and 
@@ -30,6 +28,9 @@ Contributors can help us by observing the following guidelines:
 - Try not to [force push][git-force] to a PR after it has received reviews. It is
   acceptable to force push when a PR is ready to merge, however.
 - Try to write tests to cover the contributed changes (see below)
+
+For further details on our coding conventions, including how to format a PR,
+see [CODING.md](CODING.md).
 
 ## Pull requests and tests
 
@@ -39,7 +40,7 @@ quality requirement we've set for the project.
 
 For each PR, we run checks in three different groups: static, unit and spread.
 
-Static tests use several code analysis tools present in the GoLang ecosystem
+Static tests use several code analysis tools present in the golang ecosystem
 (go vet, go lint and go fmt) to make sure that the code always aligns with
 the standards. They also check the markdown format of documentation files.
 
@@ -51,10 +52,14 @@ integrity of the product, exercising it as a whole, both from an end user
 standpoint (eg. all kinds of interactions with the snap tool from the command
 line) and from a more systemic approach (testing upgrades, for instance).
 
-We do not set the addition of spread and unit tests as a requirement for a PR
-to be merged. We do, however, encourage contributors to add them. This helps us
-understand expected behaviour, verified through the tests and review process,
-which ensures we're building on the solid base of a tested and working system.
+Spread and unit tests are not strictly a requirement for a PR to be submitted,
+but we do strongly encourage contributors to include them. We rarely merge code
+without tests although we may occasionally write them ourselves on behalf to
+a contributor.
+
+Unit tests help us understand expected behaviour, verified through the tests
+and review process, which ensures we're building on the solid base of a tested
+and working system.
 
 If any tests need to be added for a PR to be merged it will be denoted
 during the review process.
