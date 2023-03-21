@@ -1264,7 +1264,7 @@ func (s *Store) Categories(ctx context.Context, user *auth.UserState) ([]string,
 	reqOptions := &requestOptions{
 		Method:         "GET",
 		URL:            s.endpointURL(categoriesEndpPath, nil),
-		Accept:         halJsonContentType,
+		Accept:         jsonContentType,
 		DeviceAuthNeed: deviceAuthCustomStoreOnly,
 	}
 
