@@ -415,9 +415,9 @@ jobs:
         # spread uses tags as delta reference
         fetch-depth: 0
 
-    - name: Cache snapd test results
+    - name: Restore snapd test results
       id: cache-snapd-test-results
-      uses: pat-s/always-upload-cache@v3.0.11
+      uses: actions/cache/restore@v3
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_attempt }}-${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
@@ -428,10 +428,10 @@ jobs:
         echo "previous_attempt=$(( ${{ github.run_attempt }} - 1 ))" >> $GITHUB_OUTPUT
       shell: bash
 
-    - name: Cache snapd test previous results
+    - name: Restore snapd test previous results
       if: "${{ steps.get-previous-attempt.outputs.previous_attempt > 0 }}"
       id: cache-snapd-test-previous-results
-      uses: pat-s/always-upload-cache@v3.0.11
+      uses: actions/cache/restore@v3
       with:
         path: "${{ github.workspace }}/.test-previous-results"
         key: "${{ steps.get-previous-attempt.outputs.previous_attempt }}-${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
@@ -539,6 +539,13 @@ jobs:
               echo "No spread log found, saving empty list of failed tests"
               touch "$FAILED_TESTS_FILE"
           fi
+
+    - name: save cache
+      if: always()
+      uses: actions/cache/save@v3
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.run_attempt }}-${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
 
   spread-nested:
     needs: [unit-tests]
