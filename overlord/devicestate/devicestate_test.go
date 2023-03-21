@@ -2527,10 +2527,10 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionClassic(c *C) {
 	c.Check(err, IsNil)
 
 	// ensure state has not been changed
-	var asState string
-	err = s.state.Get("system-user-assertion", &asState)
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
-	c.Assert(asState, Equals, "")
+	c.Assert(autoImported, Equals, false)
 }
 
 func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhenDone(c *C) {
@@ -2543,7 +2543,7 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhenDone(c *C) {
 
 	// set state as processed
 	s.state.Lock()
-	s.state.Set("system-user-assertion", "done")
+	s.state.Set("asserts-early-auto-imported", true)
 	s.cacheDeviceCore20Seed(c)
 	s.seeding()
 	s.state.Unlock()
@@ -2554,10 +2554,10 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhenDone(c *C) {
 	// check state has not changed
 	s.state.Lock()
 	defer s.state.Unlock()
-	var asState string
-	err = s.state.Get("system-user-assertion", &asState)
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
 	c.Assert(err, IsNil)
-	c.Assert(asState, Equals, "done")
+	c.Assert(autoImported, Equals, true)
 }
 
 func (s *deviceMgrSuite) TestHandleAutoImportAssertionNoSeedCache(c *C) {
@@ -2574,10 +2574,10 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionNoSeedCache(c *C) {
 	// ensure state has not been changed
 	s.state.Lock()
 	defer s.state.Unlock()
-	var asState string
-	err = s.state.Get("system-user-assertion", &asState)
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
-	c.Assert(asState, Equals, "")
+	c.Assert(autoImported, Equals, false)
 }
 
 func (s *deviceMgrSuite) TestHandleAutoImportAssertionFailed(c *C) {
@@ -2602,10 +2602,10 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionFailed(c *C) {
 	// ensure state has not been changed
 	s.state.Lock()
 	defer s.state.Unlock()
-	var asState string
-	err = s.state.Get("system-user-assertion", &asState)
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
 	c.Assert(err, IsNil)
-	c.Assert(asState, Equals, "done")
+	c.Assert(autoImported, Equals, true)
 	c.Assert(logbuf.String(), testutil.Contains, `failed to add user from system user assertions`)
 }
 
@@ -2628,10 +2628,10 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionAlreadySeeded(c *C) {
 	// ensure state has not been changed
 	s.state.Lock()
 	defer s.state.Unlock()
-	var asState string
-	err = s.state.Get("system-user-assertion", &asState)
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
-	c.Assert(asState, Equals, "")
+	c.Assert(autoImported, Equals, false)
 }
 
 func (s *deviceMgrSuite) TestHandleAutoImportAssertionHappy(c *C) {
@@ -2649,8 +2649,8 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionHappy(c *C) {
 	// check state is set as done
 	s.state.Lock()
 	defer s.state.Unlock()
-	var asState string
-	err = s.state.Get("system-user-assertion", &asState)
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
 	c.Assert(err, IsNil)
-	c.Assert(asState, Equals, "done")
+	c.Assert(autoImported, Equals, true)
 }

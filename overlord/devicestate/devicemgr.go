@@ -1015,13 +1015,12 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 		return nil
 	}
 
-	// check if we have processed auto-import as already
-	var asState string
-	if err := m.state.Get("system-user-assertion", &asState); err != nil && !errors.Is(err, state.ErrNoState) {
+	// check if we have processed auto-import asssertions already
+	var autoImported bool
+	if err := m.state.Get("asserts-early-auto-imported", &autoImported); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-
-	if asState == "done" {
+	if autoImported {
 		return nil
 	}
 
@@ -1029,9 +1028,10 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 		return assertstate.AddBatch(m.state, batch, nil)
 	}
 	db := assertstate.DB(m.state)
-	// set auto-import-as as processed, even if it fails, it should not be re-run
-	// state should not be altered once processAutoImportAssertionsImpl is called
-	m.state.Set("system-user-assertion", "done")
+	// Set asserts-early-auto-imported as processed, even if it fails,
+	// it should not be re-run. State should not be altered once
+	// processAutoImportAssertionsImpl is called.
+	m.state.Set("asserts-early-auto-imported", true)
 	err := processAutoImportAssertionsImpl(m.state, m.earlyDeviceSeed, db, commitTo)
 	if err != nil {
 		// best effort
