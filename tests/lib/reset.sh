@@ -2,15 +2,13 @@
 
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
-# shellcheck source=tests/lib/systemd.sh
-. "$TESTSLIB/systemd.sh"
-
 
 reset_classic() {
     # Reload all service units as in some situations the unit might
     # have changed on the disk.
     systemctl daemon-reload
-    systemd_stop_units snapd.service snapd.socket
+    tests.systemd stop-and-remove-unit snapd.service
+    tests.systemd stop-and-remove-unit snapd.socket
 
     # none of the purge steps stop the user services, we need to do it
     # explicitly, at least for the root user

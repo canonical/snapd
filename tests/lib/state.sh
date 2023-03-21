@@ -5,9 +5,6 @@ SNAPD_STATE_FILE="$TESTSTMP/snapd-state/snapd-state.tar"
 RUNTIME_STATE_PATH="$TESTSTMP/runtime-state"
 SNAPD_ACTIVE_UNITS="$RUNTIME_STATE_PATH/snapd-active-units"
 
-# shellcheck source=tests/lib/systemd.sh
-. "$TESTSLIB/systemd.sh"
-
 
 delete_snapd_state() {
     rm -rf "$SNAPD_STATE_PATH"
@@ -79,7 +76,7 @@ save_snapd_state() {
     fi
 
     # Save the snapd active units
-    systemd_get_active_snapd_units > "$SNAPD_ACTIVE_UNITS"
+    systemctl list-units --plain --state=active | grep -Eo '^snapd\..*(socket|service|timer)' > "$SNAPD_ACTIVE_UNITS"
 }
 
 restore_snapd_state() {

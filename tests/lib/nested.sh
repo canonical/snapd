@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# shellcheck source=tests/lib/systemd.sh
-. "$TESTSLIB"/systemd.sh
-
 : "${NESTED_WORK_DIR:=/tmp/work-dir}"
 : "${NESTED_IMAGES_DIR:=${NESTED_WORK_DIR}/images}"
 : "${NESTED_RUNTIME_DIR:=${NESTED_WORK_DIR}/runtime}"
@@ -1136,7 +1133,7 @@ nested_start_core_vm_unit() {
     # make sure we start with clean log file
     echo > "${NESTED_LOGS_DIR}/serial.log"
     # Systemd unit is created, it is important to respect the qemu parameters order
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
+    tests.systemd create-and-start-unit "$NESTED_VM" "${QEMU} \
         ${PARAM_SMP} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
@@ -1387,7 +1384,7 @@ nested_start_classic_vm() {
 
     # Systemd unit is created, it is important to respect the qemu parameters 
     # order
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
+    tests.systemd create-and-start-unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
@@ -1413,7 +1410,7 @@ nested_start_classic_vm() {
 }
 
 nested_destroy_vm() {
-    systemd_stop_and_remove_unit "$NESTED_VM"
+    tests.systemd stop-and-remove-unit "$NESTED_VM"
 
     local CURRENT_IMAGE
     CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)" 
