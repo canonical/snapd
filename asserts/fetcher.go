@@ -32,6 +32,11 @@ const (
 	fetchSaved
 )
 
+// To allow us to mock prerequisites of an assertion for testing.
+var assertionPrereqs = func(a Assertion) []*Ref {
+	return a.Prerequisites()
+}
+
 // A Fetcher helps fetching assertions and their prerequisites.
 type Fetcher interface {
 	// Fetch retrieves the assertion indicated by ref then its prerequisites
@@ -68,8 +73,8 @@ type SequenceFormingFetcher interface {
 	// SequenceFormingFetcher must also implement the interface of the Fetcher.
 	Fetcher
 
-	// FetchSequence retrieves the assertion as indicated by its sequence reference. Retrieving multiple
-	// sequences of the same assertion is currently unsupported. The first sequence fetched through this
+	// FetchSequence retrieves the assertion as indicated the given sequence reference. Retrieving multiple
+	// sequence points of the same assertion is currently unsupported. The first sequence fetched through this
 	// will be the one passed to the save callback. Any subsequent sequences fetched will not have any
 	// effect and will be treated as if they've already been fetched.
 	FetchSequence(*AtSequence) error
@@ -100,7 +105,7 @@ func (f *fetcher) wasFetched(ref *Ref) (bool, error) {
 
 func (f *fetcher) fetchPrerequisitesAndSave(key string, a Assertion) error {
 	f.fetched[key] = fetchRetrieved
-	for _, preref := range a.Prerequisites() {
+	for _, preref := range assertionPrereqs(a) {
 		if err := f.Fetch(preref); err != nil {
 			return err
 		}
@@ -146,8 +151,7 @@ func (f *fetcher) Fetch(ref *Ref) error {
 }
 
 func (f *fetcher) wasSeqFetched(seq *AtSequence) (bool, error) {
-	u := seq.Unique()
-	switch f.fetched[u] {
+	switch f.fetched[seq.Unique()] {
 	case fetchSaved:
 		return true, nil // nothing to do
 	case fetchRetrieved:

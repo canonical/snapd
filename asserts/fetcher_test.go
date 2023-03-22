@@ -129,6 +129,36 @@ func (s *fetcherSuite) TestFetch(c *C) {
 	c.Check(snapDecl.(*asserts.SnapDeclaration).SnapName(), Equals, "foo")
 }
 
+func (s *fetcherSuite) TestFetchCircularReference(c *C) {
+	s.prereqSnapAssertions(c, 10)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	ref := &asserts.Ref{
+		Type:       asserts.SnapRevisionType,
+		PrimaryKey: []string{makeDigest(10)},
+	}
+
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(s.storeSigning.Find)
+	}
+
+	f := asserts.NewFetcher(db, retrieve, db.Add)
+
+	// Mock that we refer to ourself
+	r := asserts.MockAssertionPrereqs(func(a asserts.Assertion) []*asserts.Ref {
+		return []*asserts.Ref{ref}
+	})
+	defer r()
+
+	err = f.Fetch(ref)
+	c.Assert(err, ErrorMatches, `circular assertions are not expected: snap-revision \(tzGsQxT_xJGzbnJ_-25Bbj_8lBHY39c5uUuQWgDTGxAEd0NALdxVaSAD59Pou_Ko;\)`)
+}
+
 func (s *fetcherSuite) TestSave(c *C) {
 	s.prereqSnapAssertions(c, 10)
 
@@ -231,6 +261,45 @@ func (s *fetcherSuite) TestFetchSequence(c *C) {
 	seq.Sequence = 4
 	_, err = seq.Resolve(db.Find)
 	c.Assert(err, ErrorMatches, `validation-set \(4; series:16 account-id:can0nical name:base-set\) not found`)
+}
+
+func (s *fetcherSuite) TestFetchSequenceCircularReference(c *C) {
+	s.prereqValidationSetAssertion(c)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	seq := &asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{release.Series, "can0nical", "base-set"},
+		Sequence:    2,
+		Revision:    asserts.RevisionNotKnown,
+	}
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(s.storeSigning.Find)
+	}
+	retrieveSeq := func(seq *asserts.AtSequence) (asserts.Assertion, error) {
+		return seq.Resolve(s.storeSigning.Find)
+	}
+
+	f := asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, db.Add)
+
+	// Mock that we refer to ourself
+	r := asserts.MockAssertionPrereqs(func(a asserts.Assertion) []*asserts.Ref {
+		return []*asserts.Ref{
+			{
+				Type:       asserts.ValidationSetType,
+				PrimaryKey: []string{release.Series, "can0nical", "base-set", "2"},
+			},
+		}
+	})
+	defer r()
+
+	err = f.FetchSequence(seq)
+	c.Assert(err, ErrorMatches, `circular assertions are not expected: validation-set \(2; series:16 account-id:can0nical name:base-set\)`)
 }
 
 func (s *fetcherSuite) TestFetchSequenceMultipleSequencesNotSupported(c *C) {
