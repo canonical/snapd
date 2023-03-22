@@ -445,9 +445,9 @@ jobs:
       run: |
           # Save previous failed test results in FAILED_TESTS env var
           FAILED_TESTS=""
-          if [ -f "$PREVIOUS_FAILED_TESTS_FILE" ]; then
+          if [ -f "$FAILED_TESTS_FILE" ]; then
               echo "Failed tests file found"
-              FAILED_TESTS="$(cat $PREVIOUS_FAILED_TESTS_FILE)"
+              FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
               if [ -n "$FAILED_TESTS" ]; then
                   echo "Failed tests to run: $FAILED_TESTS"
                   echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
@@ -678,4 +678,3 @@ jobs:
       with:
         path: "${{ steps.prepare-test-results-env.outputs.test_results_dir }}"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
-
