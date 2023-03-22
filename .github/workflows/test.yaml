@@ -418,7 +418,7 @@ jobs:
     - name: Get previous cache
       uses: actions/cache/restore@v3
       with:
-        path: "${{ steps.prepare-test-results-env.outputs.test_results_dir }}"
+        path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
         restore-keys: |
           "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-"
@@ -432,9 +432,6 @@ jobs:
 
           # Save the var with the failed tests file
           echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/failed-tests" >> $GITHUB_ENV
-
-          # Save test_results_dir to output
-          echo "test_results_dir=$TEST_RESULTS_DIR" >> $GITHUB_OUTPUT
 
           # Make sure the test results dirs are created
           # This step has to be after the cache is restored
@@ -535,7 +532,7 @@ jobs:
       if: always()
       uses: actions/cache/save@v3
       with:
-        path: "${{ steps.prepare-test-results-env.outputs.test_results_dir }}"
+        path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
 
   spread-nested:
@@ -570,7 +567,7 @@ jobs:
     - name: Get previous cache
       uses: actions/cache/restore@v3
       with:
-        path: "${{ steps.prepare-test-results-env.outputs.test_results_dir }}"
+        path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
         restore-keys: |
           "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-"
@@ -584,9 +581,6 @@ jobs:
 
           # Save the var with the failed tests file
           echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/failed-tests" >> $GITHUB_ENV
-
-          # Save test_results_dir to output
-          echo "test_results_dir=$TEST_RESULTS_DIR" >> $GITHUB_OUTPUT
 
           # Make sure the test results dirs are created
           # This step has to be after the cache is restored
@@ -676,5 +670,5 @@ jobs:
       if: always()
       uses: actions/cache/save@v3
       with:
-        path: "${{ steps.prepare-test-results-env.outputs.test_results_dir }}"
+        path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
