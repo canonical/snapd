@@ -465,7 +465,7 @@ func (s *toolingSuite) Assertion(assertType *asserts.AssertionType, primaryKey [
 
 func (s *toolingSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
 	if sequence <= 0 {
-		panic("unexpected call to SeqFormingAssertion with unknown sequence")
+		panic("unexpected call to SeqFormingAssertion with unspecified sequence")
 	}
 
 	seq := &asserts.AtSequence{
