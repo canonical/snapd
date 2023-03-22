@@ -34,6 +34,7 @@ package main
 //#include <stdio.h>
 //#include <stdlib.h>
 //#include <string.h>
+//#include <sys/ioctl.h>
 //#include <sys/prctl.h>
 //#include <sys/quota.h>
 //#include <sys/resource.h>
@@ -181,6 +182,11 @@ package main
 // #endif
 // #ifndef PTRACE_SETFPXREGS
 // #define PTRACE_SETFPXREGS 19
+// #endif
+//
+// /* Define TIOCLINUX if needed */
+// #ifndef TIOCLINUX
+// #define TIOCLINUX 0x541C
 // #endif
 import "C"
 
@@ -381,6 +387,9 @@ var seccompResolver = map[string]uint64{
 	// man 4 tty_ioctl
 	"TIOCSTI": syscall.TIOCSTI,
 
+	// man 2 ioctl_console
+	"TIOCLINUX": C.TIOCLINUX,
+
 	// man 2 quotactl (with what Linux supports)
 	"Q_SYNC":      C.Q_SYNC,
 	"Q_QUOTAON":   C.Q_QUOTAON,
@@ -542,6 +551,8 @@ func readNumber(token string, syscallName string) (uint64, error) {
 	return uint64(uint32(value)), nil
 }
 
+var errnoOnExplicitDenial int16 = C.EACCES
+
 func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 	// ignore comments and empty lines
 	if strings.HasPrefix(line, "#") || line == "" {
@@ -554,8 +565,17 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 		return fmt.Errorf("too many arguments specified for syscall '%s' in line %q", tokens[0], line)
 	}
 
+	// allow the listed syscall but also support explicit denials as well by
+	// prefixing the line with a ~
+	action := seccomp.ActAllow
+
 	// fish out syscall
 	syscallName := tokens[0]
+	if strings.HasPrefix(syscallName, "~") {
+		action = seccomp.ActErrno.SetReturnCode(errnoOnExplicitDenial)
+		syscallName = syscallName[1:]
+	}
+
 	secSyscall, err := seccomp.GetSyscallFromName(syscallName)
 	if err != nil {
 		// FIXME: use structed error in libseccomp-golang when
@@ -638,8 +658,8 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 
 	// Default to adding a precise match if possible. Otherwise
 	// let seccomp figure out the architecture specifics.
-	if err = secFilter.AddRuleConditionalExact(secSyscall, seccomp.ActAllow, conds); err != nil {
-		err = secFilter.AddRuleConditional(secSyscall, seccomp.ActAllow, conds)
+	if err = secFilter.AddRuleConditionalExact(secSyscall, action, conds); err != nil {
+		err = secFilter.AddRuleConditional(secSyscall, action, conds)
 	}
 
 	return err
@@ -698,7 +718,7 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	return nil
 }
 
-var errnoOnDenial int16 = C.EPERM
+var errnoOnImplicitDenial int16 = C.EPERM
 
 func preprocess(content []byte) (unrestricted, complain bool) {
 	scanner := bufio.NewScanner(bytes.NewBuffer(content))
@@ -771,7 +791,7 @@ func compile(content []byte, out string) error {
 			unrestricted = true
 		}
 	default:
-		secFilter, err = seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(errnoOnDenial))
+		secFilter, err = seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(errnoOnImplicitDenial))
 	}
 	if err != nil {
 		return fmt.Errorf("cannot create seccomp filter: %s", err)
