@@ -31,6 +31,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -498,4 +499,56 @@ func (s *toolingSuite) TestSimpleCreds(c *C) {
 	c.Assert(creds.Authorize(r, nil, nil, nil), IsNil)
 	auth := r.Header.Get("Authorization")
 	c.Check(auth, Equals, `Auth-Scheme auth-value`)
+}
+
+func (s *toolingSuite) setupSequenceFormingAssertion(c *C) {
+	vs, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "base-set",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       "idididididididididididididididid",
+				"presence": "required",
+				"revision": "1",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(vs)
+	c.Check(err, IsNil)
+}
+
+func (s *toolingSuite) TestAssertionSequenceFormingFetcherSimple(c *C) {
+	s.setupSequenceFormingAssertion(c)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.StoreSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	// Add in prereqs
+	err = db.Add(s.StoreSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	var saveCalled int
+	sf := s.tsto.AssertionSequenceFormingFetcher(db, func(a asserts.Assertion) error {
+		saveCalled++
+		return nil
+	})
+	c.Check(sf, NotNil)
+
+	err = sf.FetchSequence(&asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{"16", "canonical", "base-set"},
+		Sequence:    1,
+	})
+	c.Check(err, IsNil)
+	c.Check(saveCalled, Equals, 1)
 }

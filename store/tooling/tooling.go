@@ -365,7 +365,28 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 
 // AssertionFetcher creates an asserts.Fetcher for assertions using dlOpts for authorization,
 // the fetcher will add assertions in the given database and after that also call save for each of them.
-func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.SequenceFormingFetcher {
+func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, nil)
+	}
+	save2 := func(a asserts.Assertion) error {
+		// for checking
+		err := db.Add(a)
+		if err != nil {
+			if _, ok := err.(*asserts.RevisionError); ok {
+				return nil
+			}
+			return fmt.Errorf("cannot add assertion %v: %v", a.Ref(), err)
+		}
+		return save(a)
+	}
+	return asserts.NewFetcher(db, retrieve, save2)
+}
+
+// AssertionSequenceFormingFetcher creates an asserts.SequenceFormingFetcher for
+// fetching assertions using dlOpts for authorization. The fetcher will then store
+// the fetched assertions in the given db and call save for each of them.
+func (tsto *ToolingStore) AssertionSequenceFormingFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.SequenceFormingFetcher {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, nil)
 	}
