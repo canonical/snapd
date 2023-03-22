@@ -6,6 +6,7 @@ systems: [-ubuntu-core-18-*, -ubuntu-core-2*]
 restore: |
     echo "Restoring iptables rules"
     iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
+    iptables -D OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
 
 debug: |
     echo "iptables rules:"
@@ -19,7 +20,10 @@ execute: |
     systemctl stop snapd.{socket,service}
 
     echo "Disabling DNS queries"
+    # DNS queries generally use port 53 through UDP protocol, but TCP could be used as well
     iptables -I OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
+    iptables -I OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp-port-unreachable
+
     if systemctl is-active systemd-resolved; then
         # before systemd 239, the tool was named systemd-resolve some systems do not support
         if command -v resolvectl; then
@@ -34,5 +38,4 @@ execute: |
     systemctl start snapd.{socket,service}
 
     OUT=$(snap find test 2>&1 || true)
-    iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
     echo "$OUT" | MATCH "error: unable to contact snap store"
