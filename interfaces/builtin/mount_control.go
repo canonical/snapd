@@ -97,14 +97,19 @@ var allowedMountOptions = []string{
 // options.
 var optionsWithoutFsType = []string{
 	"bind",
-	// Note: the following flags should also fall into this list, but we are
-	// not currently allowing them (and don't plan to):
-	// - "make-private"
-	// - "make-shared"
-	// - "make-slave"
-	// - "make-unbindable"
-	// - "move"
-	// - "remount"
+	// The following flags are only relevant to filesystem type "functionfs", in which case options
+	// are not validated against allowedMountOptions.
+	"rbind",
+	"move",
+	"remount",
+	"make-private",
+	"make-shared",
+	"make-slave",
+	"make-unbindable",
+	"make-rshared",
+	"make-rslave",
+	"make-rprivate",
+	"make-runbindable",
 }
 
 // List of filesystem types to allow if the plug declaration does not
