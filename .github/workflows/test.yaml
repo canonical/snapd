@@ -416,7 +416,7 @@ jobs:
         fetch-depth: 0
 
     - name: Get previous cache
-      uses: actions/restore@v3
+      uses: actions/cache/restore@v3
       with:
         path: "${{ steps.prepare-test-results-env.outputs.test_results_dir }}"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
@@ -568,7 +568,7 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Get previous cache
-      uses: actions/restore@v3
+      uses: actions/cache/restore@v3
       with:
         path: "${{ steps.prepare-test-results-env.outputs.test_results_dir }}"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
