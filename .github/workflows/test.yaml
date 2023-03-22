@@ -415,20 +415,14 @@ jobs:
         # spread uses tags as delta reference
         fetch-depth: 0
 
-    - name: Get snapd test previous results
-      if: "${{ steps.prepare-test-results-env.outputs.previous_attempt > 0 }}"
-      uses: actions/cache/restore@v3
-      with:
-        path: "${{ steps.prepare-test-results-env.outputs.test_previous_results_dir }}"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.prepare-test-results-env.outputs.previous_attempt }}"
-
     - name: Prepare test results env and vars
       id: prepare-test-results-env
       run: |
-          # Create test results directories
+          # Create test results directories and save vars
           TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
           TEST_PREVIOUS_RESULTS_DIR="${{ github.workspace }}/.test-previous-results"
-          mkdir -p "$TEST_RESULTS_DIR" "$TEST_PREVIOUS_RESULTS_DIR"
+          echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
+          echo "TEST_PREVIOUS_RESULTS_DIR=$TEST_PREVIOUS_RESULTS_DIR" >> $GITHUB_ENV
 
           # Save the var with the failed tests file
           echo "PREVIOUS_FAILED_TESTS_FILE=$TEST_PREVIOUS_RESULTS_DIR/failed-tests" >> $GITHUB_ENV
@@ -441,6 +435,19 @@ jobs:
           echo "test_results_dir=$TEST_RESULTS_DIR" >> $GITHUB_OUTPUT
           echo "test_previous_results_dir=$TEST_PREVIOUS_RESULTS_DIR" >> $GITHUB_OUTPUT
       shell: bash
+
+    - name: Get snapd test previous results
+      if: "${{ steps.prepare-test-results-env.outputs.previous_attempt > 0 }}"
+      uses: actions/cache/restore@v3
+      with:
+        path: "${{ steps.prepare-test-results-env.outputs.test_previous_results_dir }}"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.prepare-test-results-env.outputs.previous_attempt }}"
+
+    - name: Create results dir
+      run: |
+          # Make sure the test results dirs are created
+          # This step has to happen after the cache is restored
+          mkdir -p "$TEST_RESULTS_DIR" "$TEST_PREVIOUS_RESULTS_DIR"
 
     - name: Check failed tests to run
       if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
@@ -569,20 +576,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Get snapd test previous results
-      if: "${{ steps.prepare-test-results-env.outputs.previous_attempt > 0 }}"
-      uses: actions/cache/restore@v3
-      with:
-        path: "${{ steps.prepare-test-results-env.outputs.test_previous_results_dir }}"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.prepare-test-results-env.outputs.previous_attempt }}"
-
     - name: Prepare test results env and vars
       id: prepare-test-results-env
       run: |
           # Create test results directories and save vars
           TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
           TEST_PREVIOUS_RESULTS_DIR="${{ github.workspace }}/.test-previous-results"
-          mkdir -p "$TEST_RESULTS_DIR" "$TEST_PREVIOUS_RESULTS_DIR"
+          echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
+          echo "TEST_PREVIOUS_RESULTS_DIR=$TEST_PREVIOUS_RESULTS_DIR" >> $GITHUB_ENV
 
           # Save the var with the failed tests file
           echo "PREVIOUS_FAILED_TESTS_FILE=$TEST_PREVIOUS_RESULTS_DIR/failed-tests" >> $GITHUB_ENV
@@ -595,6 +596,19 @@ jobs:
           echo "test_results_dir=$TEST_RESULTS_DIR" >> $GITHUB_OUTPUT
           echo "test_previous_results_dir=$TEST_PREVIOUS_RESULTS_DIR" >> $GITHUB_OUTPUT
       shell: bash
+
+    - name: Get snapd test previous results
+      if: "${{ steps.prepare-test-results-env.outputs.previous_attempt > 0 }}"
+      uses: actions/cache/restore@v3
+      with:
+        path: "${{ steps.prepare-test-results-env.outputs.test_previous_results_dir }}"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.prepare-test-results-env.outputs.previous_attempt }}"
+
+    - name: Create results dir
+      run: |
+          # Make sure the test results dirs are created
+          # This step has to happen after the cache is restored
+          mkdir -p "$TEST_RESULTS_DIR" "$TEST_PREVIOUS_RESULTS_DIR"
 
     - name: Check failed tests to run
       if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
