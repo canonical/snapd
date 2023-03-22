@@ -726,7 +726,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		return nil, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
 
-	layoutCompatOps := &gadget.EnsureVolumeCompatibilityOptions{
+	layoutCompatOps := &gadget.VolumeCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
 		ExpectedStructureEncryption:      map[string]gadget.StructureEncryptionParameters{},
 	}
