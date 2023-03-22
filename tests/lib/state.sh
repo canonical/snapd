@@ -24,6 +24,10 @@ is_snapd_state_saved() {
     fi
 }
 
+get_active_snapd_units() {
+    systemctl list-units --plain --state=active | grep -Eo '^snapd\..*(socket|service|timer)' || true
+}
+
 save_snapd_state() {
     prepare_state
     if os.query is-core; then
@@ -76,7 +80,7 @@ save_snapd_state() {
     fi
 
     # Save the snapd active units
-    systemctl list-units --plain --state=active | grep -Eo '^snapd\..*(socket|service|timer)' > "$SNAPD_ACTIVE_UNITS"
+    get_active_snapd_units > "$SNAPD_ACTIVE_UNITS"
 }
 
 restore_snapd_state() {
