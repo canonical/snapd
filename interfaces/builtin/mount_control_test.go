@@ -233,6 +233,10 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			`mount-control option "bind" is incompatible with specifying filesystem type`,
 		},
 		{
+			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,bind]",
+			`mount-control option "bind" is incompatible with specifying filesystem type`,
+		},
+		{
 			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,make-private]",
 			`mount-control option "make-private" is incompatible with specifying filesystem type`,
 		},
