@@ -1249,14 +1249,14 @@ nested_shutdown() {
     remote.exec "sudo shutdown now" || true
     nested_wait_for_no_ssh
     nested_force_stop_vm
-    wait_for_service "$NESTED_VM" inactive 30
+    tests.systemd wait-for-service -n 30 --wait 1 --state inactive "$NESTED_VM"
     sync
 }
 
 nested_start() {
     nested_save_serial_log
     nested_force_start_vm
-    wait_for_service "$NESTED_VM" active 30
+    tests.systemd wait-for-service -n 30 --wait 1 --state active "$NESTED_VM"
     nested_wait_for_ssh
     nested_prepare_tools
 }
@@ -1264,7 +1264,7 @@ nested_start() {
 nested_force_restart_vm() {
     nested_force_stop_vm
     nested_force_start_vm
-    wait_for_service "$NESTED_VM" active 30
+    tests.systemd wait-for-service -n 30 --wait 1 --state active "$NESTED_VM"
 }
 
 nested_create_classic_vm() {
