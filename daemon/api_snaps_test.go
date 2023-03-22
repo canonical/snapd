@@ -503,16 +503,16 @@ func (s *snapsSuite) TestPostSnapsOptionsOtherErrors(c *check.C) {
 	s.daemon(c)
 	const notListedErr = `cannot use snapshot-options for snap "xyzzy" that is not listed in snaps`
 	const invalidOptionsForSnapErr = `invalid snapshot-options for snap "bar":`
+	const notInstalledErr = `snap "foo" is not installed`
 
 	testMap := map[string]struct {
 		post          string
-		expectError   bool
 		expectedError string
 	}{
-		"snap-not-listed-valid-options": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {"exclude":[""]}}}`, true, notListedErr},
-		"snap-not-listed-exclude-empty": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {"exclude":[]}}}`, false, notListedErr},
-		"snap-not-listed-options-empty": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {}}}`, false, notListedErr},
-		"invalid-options-for-snap":      {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"bar": {"exclude":["../"]}}}`, true, invalidOptionsForSnapErr},
+		"snap-not-listed-valid-options": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {"exclude":[""]}}}`, notListedErr},
+		"snap-not-listed-exclude-empty": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {"exclude":[]}}}`, ""},
+		"snap-not-listed-options-empty": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {}}}`, ""},
+		"invalid-options-for-snap":      {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"bar": {"exclude":["../"]}}}`, invalidOptionsForSnapErr},
 	}
 
 	for name, test := range testMap {
@@ -523,10 +523,11 @@ func (s *snapsSuite) TestPostSnapsOptionsOtherErrors(c *check.C) {
 
 		rspe := s.errorReq(c, req, nil)
 		c.Check(rspe.Status, check.Equals, 400)
-		if test.expectError {
+		if test.expectedError != "" {
 			c.Check(rspe.Message, testutil.Contains, test.expectedError, check.Commentf("test: %q", name))
 		} else {
-			c.Check(rspe.Message, check.Not(testutil.Contains), test.expectedError, check.Commentf("test: %q", name))
+			c.Check(rspe.Message, check.Not(testutil.Contains), notListedErr, check.Commentf("test: %q", name))
+			c.Check(rspe.Message, check.Equals, notInstalledErr, check.Commentf("test: %q", name))
 		}
 	}
 }
