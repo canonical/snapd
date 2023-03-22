@@ -464,6 +464,10 @@ func (s *toolingSuite) Assertion(assertType *asserts.AssertionType, primaryKey [
 }
 
 func (s *toolingSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+	if sequence <= 0 {
+		panic("unexpected call to SeqFormingAssertion with unknown sequence")
+	}
+
 	seq := &asserts.AtSequence{
 		Type:        assertType,
 		SequenceKey: sequenceKey,
@@ -544,11 +548,19 @@ func (s *toolingSuite) TestAssertionSequenceFormingFetcherSimple(c *C) {
 	})
 	c.Check(sf, NotNil)
 
-	err = sf.FetchSequence(&asserts.AtSequence{
+	seq := &asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{"16", "canonical", "base-set"},
 		Sequence:    1,
-	})
+	}
+
+	err = sf.FetchSequence(seq)
 	c.Check(err, IsNil)
 	c.Check(saveCalled, Equals, 1)
+
+	// Verify it was put into the database
+	vsa, err := seq.Resolve(db.Find)
+	c.Assert(err, IsNil)
+	c.Check(vsa.(*asserts.ValidationSet).Name(), Equals, "base-set")
+	c.Check(vsa.(*asserts.ValidationSet).Sequence(), Equals, 1)
 }

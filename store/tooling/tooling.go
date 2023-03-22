@@ -363,8 +363,8 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 	return downloadedSnaps, nil
 }
 
-// AssertionFetcher creates an asserts.Fetcher for assertions using dlOpts for authorization,
-// the fetcher will add assertions in the given database and after that also call save for each of them.
+// AssertionFetcher creates an asserts.Fetcher for assertions, the fetcher will
+// add assertions in the given database and after that also call save for each of them.
 func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, nil)
@@ -384,8 +384,8 @@ func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asser
 }
 
 // AssertionSequenceFormingFetcher creates an asserts.SequenceFormingFetcher for
-// fetching assertions using dlOpts for authorization. The fetcher will then store
-// the fetched assertions in the given db and call save for each of them.
+// fetching assertions. The fetcher will then store the fetched assertions in the
+// given db and call save for each of them.
 func (tsto *ToolingStore) AssertionSequenceFormingFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.SequenceFormingFetcher {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, nil)
