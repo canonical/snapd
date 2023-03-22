@@ -222,6 +222,12 @@ func (s *imageSuite) Assertion(assertType *asserts.AssertionType, primaryKey []s
 
 }
 
+// TODO: Implement this once we add support in writer for validation sets,
+// until then it should not be called.
+func (s *imageSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+	panic("not expected")
+}
+
 // TODO: use seedtest.SampleSnapYaml for some of these
 const packageGadget = `
 name: pc

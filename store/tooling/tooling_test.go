@@ -462,6 +462,16 @@ func (s *toolingSuite) Assertion(assertType *asserts.AssertionType, primaryKey [
 	return ref.Resolve(s.StoreSigning.Find)
 }
 
+func (s *toolingSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+	seq := &asserts.AtSequence{
+		Type:        assertType,
+		SequenceKey: sequenceKey,
+		Sequence:    sequence,
+		Revision:    asserts.RevisionNotKnown,
+	}
+	return seq.Resolve(s.StoreSigning.Find)
+}
+
 func (s *toolingSuite) TestUpdateUserAuth(c *C) {
 	u := auth.UserState{
 		StoreMacaroon:   "macaroon",
