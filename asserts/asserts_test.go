@@ -1340,23 +1340,23 @@ func (as *assertsSuite) TestAtSequenceResolve(c *C) {
 	c.Check(a.Type().Name, Equals, "test-only-seq")
 }
 
-func (as *assertsSuite) TestAtSequenceResolveLatestKeyError(c *C) {
+func (as *assertsSuite) TestAtSequenceResolveUnknownKeyError(c *C) {
 	atSeq := asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{"abc"},
 		Sequence:    1,
 	}
-	_, err := atSeq.ResolveLatest(nil)
+	_, err := atSeq.ResolveUnknown(nil)
 	c.Check(err, ErrorMatches, `"validation-set" assertion reference sequence key \[abc\] is invalid: sequence key has wrong length for "validation-set" assertion`)
 }
 
-func (as *assertsSuite) TestAtSequenceResolveLatest(c *C) {
+func (as *assertsSuite) TestAtSequenceResolveUnknown(c *C) {
 	atSeq := asserts.AtSequence{
 		Type:        asserts.TestOnlySeqType,
 		SequenceKey: []string{"foo"},
 		Sequence:    -1,
 	}
-	a, err := atSeq.ResolveLatest(func(atype *asserts.AssertionType, hdrs map[string]string, after, maxFormat int) (asserts.SequenceMember, error) {
+	a, err := atSeq.ResolveUnknown(func(atype *asserts.AssertionType, hdrs map[string]string, after, maxFormat int) (asserts.SequenceMember, error) {
 		c.Assert(atype, Equals, asserts.TestOnlySeqType)
 		c.Assert(hdrs, DeepEquals, map[string]string{
 			"n": "foo",

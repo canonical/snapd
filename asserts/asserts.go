@@ -498,8 +498,9 @@ func (at *AtSequence) Resolve(find func(assertType *AssertionType, headers map[s
 	return find(at.Type, headers)
 }
 
-// ResolveLatest resolves the latest sequence for sequence forming assertion reference
-func (at *AtSequence) ResolveLatest(find func(assertType *AssertionType, sequenceHeaders map[string]string, after, maxFormat int) (SequenceMember, error)) (Assertion, error) {
+// ResolveUnknown resolves the assertion at an unknown sequence point. This will return the highest
+// sequence point of the assertion.
+func (at *AtSequence) ResolveUnknown(find func(assertType *AssertionType, sequenceHeaders map[string]string, after, maxFormat int) (SequenceMember, error)) (Assertion, error) {
 	headers, err := HeadersFromSequenceKey(at.Type, at.SequenceKey)
 	if err != nil {
 		return nil, fmt.Errorf("%q assertion reference sequence key %v is invalid: %v", at.Type.Name, at.SequenceKey, err)
