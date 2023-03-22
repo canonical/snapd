@@ -438,7 +438,7 @@ jobs:
 
     - name: Get snapd test previous results
       if: "${{ steps.prepare-test-results-env.outputs.previous_attempt > 0 }}"
-      uses: actions/cache/restore@v3
+      uses: actions/cache@v3
       with:
         path: "${{ steps.prepare-test-results-env.outputs.previous_test_results_dir }}"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.prepare-test-results-env.outputs.previous_attempt }}"
@@ -605,7 +605,7 @@ jobs:
 
     - name: Get snapd test previous results
       if: "${{ steps.prepare-test-results-env.outputs.previous_attempt > 0 }}"
-      uses: actions/cache/restore@v3
+      uses: actions/cache@v3
       with:
         path: "${{ steps.prepare-test-results-env.outputs.previous_test_results_dir }}"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.prepare-test-results-env.outputs.previous_attempt }}"
