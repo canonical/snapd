@@ -438,13 +438,13 @@ jobs:
 
     - name: Get snapd test previous results
       if: "${{ steps.prepare-test-results-env.outputs.previous_attempt > 0 }}"
-      uses: actions/cache@v3
+      uses: pat-s/always-upload-cache@v3.0.11
       with:
         path: "${{ steps.prepare-test-results-env.outputs.previous_test_results_dir }}"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.prepare-test-results-env.outputs.previous_attempt }}"
 
     - name: Set current cache
-      uses: actions/cache@v3
+      uses: pat-s/always-upload-cache@v3.0.11
       with:
         path: "${{ steps.prepare-test-results-env.outputs.test_results_dir }}"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
@@ -546,13 +546,6 @@ jobs:
               touch "$FAILED_TESTS_FILE"
           fi
 
-    - name: save test results to cache
-      if: always()
-      uses: actions/cache/save@v3
-      with:
-        path: "${{ steps.prepare-test-results-env.outputs.test_results_dir }}"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
-
   spread-nested:
     needs: [unit-tests]
     # have spread jobs run on master on PRs only, but on both PRs and pushes to
@@ -605,13 +598,13 @@ jobs:
 
     - name: Get snapd test previous results
       if: "${{ steps.prepare-test-results-env.outputs.previous_attempt > 0 }}"
-      uses: actions/cache@v3
+      uses: pat-s/always-upload-cache@v3.0.11
       with:
         path: "${{ steps.prepare-test-results-env.outputs.previous_test_results_dir }}"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.prepare-test-results-env.outputs.previous_attempt }}"
 
     - name: Set current cache
-      uses: actions/cache@v3
+      uses: pat-s/always-upload-cache@v3.0.11
       with:
         path: "${{ steps.prepare-test-results-env.outputs.test_results_dir }}"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
@@ -701,11 +694,3 @@ jobs:
               echo "No spread log found, saving empty list of failed tests"
               touch "$FAILED_TESTS_FILE"
           fi
-
-    - name: save test results to cache
-      if: always()
-      uses: actions/cache/save@v3
-      with:
-        path: "${{ steps.prepare-test-results-env.outputs.test_results_dir }}"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
-
