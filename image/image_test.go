@@ -2207,6 +2207,12 @@ func (s *imageSuite) TestPrepareClassicModelNoModelAssertion(c *C) {
 		filepath.Join(seedsnapsdir, "core18_18.snap"),
 		filepath.Join(seedsnapsdir, "required-snap18_6.snap"),
 	})
+
+	// check assertions
+	seedassertsdir := filepath.Join(seeddir, "assertions")
+	l, err := ioutil.ReadDir(seedassertsdir)
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 9)
 }
 
 func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
