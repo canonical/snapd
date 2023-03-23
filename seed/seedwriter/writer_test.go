@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -62,8 +62,9 @@ type writerSuite struct {
 
 	aRefs map[string][]*asserts.Ref
 
-	expectedSysSnap  string
-	expectedKernSnap string
+	expectedSysSnap    string
+	expectedKernSnap   string
+	fetchAssertsCalled bool
 }
 
 var _ = Suite(&writerSuite{})
@@ -127,6 +128,7 @@ func (s *writerSuite) SetUpTest(c *C) {
 	// default expected system and kernel snaps
 	s.expectedSysSnap = "snapd"
 	s.expectedKernSnap = "pc-kernel"
+	s.fetchAssertsCalled = false
 }
 
 var snapYaml = seedtest.MergeSampleSnapYaml(seedtest.SampleSnapYaml, map[string]string{
@@ -188,9 +190,13 @@ func (s *writerSuite) makeLocalSnap(c *C, yamlKey string) (fname string) {
 
 func (s *writerSuite) fetchAsserts(c *C) seedwriter.AssertsFetchFunc {
 	return func(sn, sysSn, kSn *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
-		c.Assert(sysSn, NotNil, Commentf("unexpectedly no known system snap was detected"))
-		c.Check(sysSn.SnapName(), Equals, s.expectedSysSnap)
-		c.Check(sysSn.Path, Not(Equals), "")
+		s.fetchAssertsCalled = true
+		if sysSn == nil {
+			c.Assert(s.expectedSysSnap, Equals, "", Commentf("no system snap should be expected"))
+		} else {
+			c.Check(sysSn.SnapName(), Equals, s.expectedSysSnap)
+			c.Check(sysSn.Path, Not(Equals), "")
+		}
 		if kSn == nil {
 			c.Assert(s.expectedKernSnap, Equals, "", Commentf("no kernel should be expected"))
 		} else {
@@ -500,9 +506,14 @@ func (s *writerSuite) TestSnapsToDownloadDefaultChannel(c *C) {
 	}
 }
 
-func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap), fetchAsserts seedwriter.AssertsFetchFunc) (complete bool, w *seedwriter.Writer, err error) {
+func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap), fetchAsserts seedwriter.AssertsFetchFunc, optSnaps ...*seedwriter.OptionsSnap) (complete bool, w *seedwriter.Writer, err error) {
 	w, err = seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
+
+	if len(optSnaps) != 0 {
+		err := w.SetOptionsSnaps(optSnaps)
+		c.Assert(err, IsNil)
+	}
 
 	_, err = w.Start(s.db, s.newFetcher)
 	c.Assert(err, IsNil)
@@ -1615,6 +1626,282 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 
 	// check the files are in place
 	for i, name := range []string{"snapd", "core18", "classic-gadget18", "required18"} {
+		info := s.AssertedSnapInfo(name)
+
+		fn := info.Filename()
+		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
+		c.Check(p, testutil.FilePresent)
+
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
+			Name:    info.SnapName(),
+			SnapID:  info.SnapID,
+			Channel: "stable",
+			File:    fn,
+			Contact: info.Contact(),
+		})
+	}
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelNoSysSnap(c *C) {
+	// this is a degenerate case but has been historically supported,
+	// see image_test.go TestPrepareClassicModelNoModelAssertion
+	model := s.Brands.Model("my-brand", "my-min-model", map[string]interface{}{
+		"classic": "true",
+	})
+
+	s.makeSnap(c, "required18", "developerid")
+	s.makeSnap(c, "core18", "")
+
+	// no sys snap
+	s.expectedSysSnap = ""
+	// no kernel
+	s.expectedKernSnap = ""
+
+	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c), &seedwriter.OptionsSnap{Name: "required18"}, &seedwriter.OptionsSnap{Name: "core18"})
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, false)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 2)
+
+	s.fillDownloadedSnap(c, w, snaps[0])
+	s.fillDownloadedSnap(c, w, snaps[1])
+
+	complete, err = w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, false)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 0)
+
+	complete, err = w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	c.Check(s.fetchAssertsCalled, Equals, true)
+
+	_, err = w.BootSnaps()
+	c.Check(err, ErrorMatches, "no snaps participating in boot on classic")
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seedYaml.Snaps, HasLen, 2)
+
+	// check the files are in place
+	for i, name := range []string{"core18", "required18"} {
+		info := s.AssertedSnapInfo(name)
+
+		fn := info.Filename()
+		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
+		c.Check(p, testutil.FilePresent)
+
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
+			Name:    info.SnapName(),
+			SnapID:  info.SnapID,
+			Channel: "stable",
+			File:    fn,
+			Contact: info.Contact(),
+		})
+	}
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelCore(c *C) {
+	model := s.Brands.Model("my-brand", "my-min-model", map[string]interface{}{
+		"classic": "true",
+	})
+
+	s.makeSnap(c, "required", "developerid")
+	s.makeSnap(c, "core", "")
+
+	s.expectedSysSnap = "core"
+	// no kernel
+	s.expectedKernSnap = ""
+
+	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c), &seedwriter.OptionsSnap{Name: "core"}, &seedwriter.OptionsSnap{Name: "required"})
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, false)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 2)
+
+	s.fillDownloadedSnap(c, w, snaps[0])
+	s.fillDownloadedSnap(c, w, snaps[1])
+
+	complete, err = w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, false)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 0)
+
+	complete, err = w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	c.Check(s.fetchAssertsCalled, Equals, true)
+
+	_, err = w.BootSnaps()
+	c.Check(err, ErrorMatches, "no snaps participating in boot on classic")
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seedYaml.Snaps, HasLen, 2)
+
+	// check the files are in place
+	for i, name := range []string{"core", "required"} {
+		info := s.AssertedSnapInfo(name)
+
+		fn := info.Filename()
+		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
+		c.Check(p, testutil.FilePresent)
+
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
+			Name:    info.SnapName(),
+			SnapID:  info.SnapID,
+			Channel: "stable",
+			File:    fn,
+			Contact: info.Contact(),
+		})
+	}
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelSnapdFromOptionsWins(c *C) {
+	model := s.Brands.Model("my-brand", "my-min-model", map[string]interface{}{
+		"classic": "true",
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "required", "developerid")
+	s.makeSnap(c, "core", "")
+
+	s.expectedSysSnap = "snapd"
+	// no kernel
+	s.expectedKernSnap = ""
+
+	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c), &seedwriter.OptionsSnap{Name: "core"}, &seedwriter.OptionsSnap{Name: "required"}, &seedwriter.OptionsSnap{Name: "snapd"})
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, false)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 3)
+
+	s.fillDownloadedSnap(c, w, snaps[0])
+	s.fillDownloadedSnap(c, w, snaps[1])
+	s.fillDownloadedSnap(c, w, snaps[2])
+
+	complete, err = w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, false)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 0)
+
+	complete, err = w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	c.Check(s.fetchAssertsCalled, Equals, true)
+
+	_, err = w.BootSnaps()
+	c.Check(err, ErrorMatches, "no snaps participating in boot on classic")
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seedYaml.Snaps, HasLen, 3)
+
+	// check the files are in place
+	for i, name := range []string{"snapd", "core", "required"} {
+		info := s.AssertedSnapInfo(name)
+
+		fn := info.Filename()
+		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
+		c.Check(p, testutil.FilePresent)
+
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
+			Name:    info.SnapName(),
+			SnapID:  info.SnapID,
+			Channel: "stable",
+			File:    fn,
+			Contact: info.Contact(),
+		})
+	}
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelSnapdFromModelWins(c *C) {
+	model := s.Brands.Model("my-brand", "my-min-model", map[string]interface{}{
+		"classic":        "true",
+		"required-snaps": []interface{}{"core", "required", "snapd"},
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "required", "developerid")
+	s.makeSnap(c, "core", "")
+
+	s.expectedSysSnap = "snapd"
+	// no kernel
+	s.expectedKernSnap = ""
+
+	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, false)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 0)
+
+	complete, err = w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	c.Check(s.fetchAssertsCalled, Equals, true)
+
+	_, err = w.BootSnaps()
+	c.Check(err, ErrorMatches, "no snaps participating in boot on classic")
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seedYaml.Snaps, HasLen, 3)
+
+	// check the files are in place
+	for i, name := range []string{"snapd", "core", "required"} {
 		info := s.AssertedSnapInfo(name)
 
 		fn := info.Filename()

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2022 Canonical Ltd
+ * Copyright (C) 2019-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -221,7 +221,8 @@ type policy interface {
 	needsImplicitSnaps(availableByMode map[string]*naming.SnapSet) (bool, error)
 	implicitSnaps(availableByMode map[string]*naming.SnapSet) []*asserts.ModelSnap
 	implicitExtraSnaps(availableByMode map[string]*naming.SnapSet) []*OptionsSnap
-	isSystemSnapCandidate(*SeedSnap) bool
+	recordSnapNameUsage(snapName string)
+	isSystemSnapCandidate(sn *SeedSnap) bool
 	ignoreUndeterminedSystemSnap() bool
 }
 
@@ -796,6 +797,9 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 		if err != nil {
 			return nil, err
 		}
+
+		w.recordUsageWithThePolicy(modSnaps)
+
 		toDownload, err := w.modelSnapsToDownload(modSnaps)
 		if err != nil {
 			return nil, err
@@ -874,6 +878,21 @@ func (w *Writer) checkBase(info *snap.Info, modes []string) error {
 	}
 
 	return w.policy.checkBase(info, modes, w.availableByMode)
+}
+
+func (w *Writer) recordUsageWithThePolicy(modSnaps []*asserts.ModelSnap) {
+	for _, modSnap := range modSnaps {
+		w.policy.recordSnapNameUsage(modSnap.Name)
+	}
+
+	for _, optSnap := range w.optionsSnaps {
+		snapName := optSnap.Name
+		sn := w.localSnaps[optSnap]
+		if sn != nil {
+			snapName = sn.Info.SnapName()
+		}
+		w.policy.recordSnapNameUsage(snapName)
+	}
 }
 
 func isKernelSnap(sn *SeedSnap) bool {
@@ -955,8 +974,11 @@ func (w *Writer) ensureARefs(upToSnap *SeedSnap, fetchAsserts AssertsFetchFunc) 
 			if !w.policy.ignoreUndeterminedSystemSnap() {
 				return fmt.Errorf("internal error: unable to determine system snap after all the snaps were considered")
 			}
+			// proceed anyway, ignore case
+		} else {
+			// not known yet, cannot proceed
+			return nil
 		}
-		return nil
 	}
 
 	indexAfter, err := applyFromUpTo(w.consideredForAssertionsIndex, func(sn *SeedSnap) error {
