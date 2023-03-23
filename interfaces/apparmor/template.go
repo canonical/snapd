@@ -97,10 +97,10 @@ var templateCommon = `
   # in a format that is simpler to manage, because it doesn't require to
   # parse the text data inside a file, but just reading the contents of
   # a directory.
-  # Reading /proc/XXXX/maps is already allowed in the base template. Also,
-  # only the owner can read it, and the kernel limits access to it by
-  # requiring 'ptrace' enabled, so allowing to access /proc/XXXX/map_files
-  # can be considered secure too.
+  # Reading /proc/XXXX/maps is already allowed in the base template
+  # via <abstractions/base>. Also, only the owner can read it, and the
+  # kernel limits access to it by requiring 'ptrace' enabled, so allowing
+  # to access /proc/XXXX/map_files can be considered secure too.
   owner @{PROC}/@{pid}/map_files/ r,
 
   # While the base abstraction has rules for encryptfs encrypted home and
