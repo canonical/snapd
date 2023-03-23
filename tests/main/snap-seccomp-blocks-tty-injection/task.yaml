@@ -1,0 +1,24 @@
+summary: Ensure that the snap-seccomp blocks tty command injection
+
+prepare: |
+    echo "Install a helper snap (for seccomp confinement testing)"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "Compile and prepare the test programs"
+    # Because we use the snap data directory we don't need to clean it up
+    # manually as all snaps and their data are reset after each test.
+    # Build the test binary statically, as it will be running inside a base with
+    # potentially older glibc.
+    gcc -Wall -Wextra -Werror ./test-tioclinux.c -o /var/snap/test-snapd-sh/common/test-tioclinux -static
+    gcc -Wall -Wextra -Werror ./test-tiocsti.c   -o /var/snap/test-snapd-sh/common/test-tiocsti -static
+
+execute: |
+    # use /dev/tty1 as input so that we use a real virtual console which
+    # supports TIOCSTI / TIOCLINUX - but first make sure the snap can access it
+    # through AppArmor
+    sed -i 's|^}$|  /dev/tty1  rw,\n}|' /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.sh
+    apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.sh
+
+    snap run test-snapd-sh.sh -c '$SNAP_COMMON/test-tiocsti'   < /dev/tty1 2>&1 | MATCH 'normal TIOCSTI: -1 \(Operation not permitted\)'
+    snap run test-snapd-sh.sh -c '$SNAP_COMMON/test-tiocsti'   < /dev/tty1 2>&1 | MATCH 'high-bit-set TIOCSTI: -1 \(Operation not permitted\)'
+    snap run test-snapd-sh.sh -c '$SNAP_COMMON/test-tioclinux' < /dev/tty1 2>&1 | MATCH 'ioctl\(0, TIOCLINUX, ...\) failed: Permission denied'
