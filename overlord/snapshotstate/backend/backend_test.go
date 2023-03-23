@@ -726,7 +726,9 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	statSnapshotOpts := &snap.SnapshotOptions{Exclude: statExcludes}
 	dynSnapshotOpts := &snap.SnapshotOptions{Exclude: dynExcludes}
 
+	var readSnapshotYamlCalled int
 	defer backend.MockReadSnapshotYaml(func(si *snap.Info) (*snap.SnapshotOptions, error) {
+		readSnapshotYamlCalled++
 		c.Check(si, check.DeepEquals, info)
 		return statSnapshotOpts, nil
 	})()
@@ -745,6 +747,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
 	c.Check(statSnapshotOpts.Exclude, check.DeepEquals, mergedExcludes)
+	c.Check(readSnapshotYamlCalled, check.Equals, 1)
 
 	shs, err := backend.List(context.TODO(), 0, nil)
 	c.Assert(err, check.IsNil)

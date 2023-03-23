@@ -261,15 +261,7 @@ func (inst *snapInstruction) holdLevel() snapstate.HoldLevel {
 	}
 }
 
-func cleanSnapshotOptions(snapshotOpts map[string]*snap.SnapshotOptions) {
-	for name, options := range snapshotOpts {
-		if options.Unset() {
-			delete(snapshotOpts, name)
-		}
-	}
-}
-
-// cleanAndValidateSnapshotOptions cleans and validates the snapshot options.
+// cleanSnapshotOptions cleans the snapshot options.
 //
 // With default marshalling, some permutations of valid JSON definitions of snapshot-options e.g.
 //   - `"snapshot-options": { "snap1": {} }`
@@ -279,14 +271,21 @@ func cleanSnapshotOptions(snapshotOpts map[string]*snap.SnapshotOptions) {
 // which in turn will be marshalled to JSON as `options: {}` when we rather want it omitted.
 // The cleaning step ensures that we only populate map entries for snapshot options that contain
 // usable content that we want to be marshalled downstream.
-func (inst *snapInstruction) cleanAndValidateSnapshotOptions() error {
+func (inst *snapInstruction) cleanSnapshotOptions() {
+	for name, options := range inst.SnapshotOptions {
+		if options.Unset() {
+			delete(inst.SnapshotOptions, name)
+		}
+	}
+}
+
+func (inst *snapInstruction) validateSnapshotOptions() error {
 	if inst.SnapshotOptions == nil {
 		return nil
 	}
 	if inst.Action != "snapshot" {
 		return fmt.Errorf("snapshot-options can only be specified for snapshot action")
 	}
-	cleanSnapshotOptions(inst.SnapshotOptions)
 	for name, options := range inst.SnapshotOptions {
 		if !strutil.ListContains(inst.Snaps, name) {
 			return fmt.Errorf("cannot use snapshot-options for snap %q that is not listed in snaps", name)
@@ -356,8 +355,12 @@ func (inst *snapInstruction) validate() error {
 		}
 	}
 
-	if err := inst.cleanAndValidateSnapshotOptions(); err != nil {
+	if err := inst.validateSnapshotOptions(); err != nil {
 		return err
+	}
+
+	if inst.Action == "snapshot" {
+		inst.cleanSnapshotOptions()
 	}
 
 	return inst.snapRevisionOptions.validate()

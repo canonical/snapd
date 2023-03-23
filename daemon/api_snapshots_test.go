@@ -73,8 +73,10 @@ func (s *snapshotSuite) TestSnapshotManyOptionsNone(c *check.C) {
 }
 
 func (s *snapshotSuite) TestSnapshotManyOptionsFull(c *check.C) {
+	var snapshotSaveCalled int
 	defer daemon.MockSnapshotSave(func(s *state.State, snaps, users []string,
 		options map[string]*snap.SnapshotOptions) (uint64, []string, *state.TaskSet, error) {
+		snapshotSaveCalled++
 		c.Check(snaps, check.HasLen, 2)
 		c.Check(options, check.HasLen, 2)
 		c.Check(options, check.DeepEquals, map[string]*snap.SnapshotOptions{
@@ -95,6 +97,7 @@ func (s *snapshotSuite) TestSnapshotManyOptionsFull(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Snapshot snaps "foo", "bar"`)
 	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
+	c.Check(snapshotSaveCalled, check.Equals, 1)
 }
 
 func (s *snapshotSuite) TestSnapshotManyError(c *check.C) {

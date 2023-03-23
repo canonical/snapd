@@ -92,8 +92,7 @@ func (opts *SnapshotOptions) Validate() error {
 
 		// We could use a regexp to do this validation, but an explicit check
 		// is more readable and less error-prone
-		if strings.ContainsAny(excludePath, invalidChars) ||
-			strings.Contains(excludePath, "**") {
+		if strings.ContainsAny(excludePath, invalidChars) || strings.Contains(excludePath, "**") {
 			return fmt.Errorf("snapshot exclude path contains invalid characters: %q", excludePath)
 		}
 	}

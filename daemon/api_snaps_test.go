@@ -503,15 +503,14 @@ func (s *snapsSuite) TestPostSnapsOptionsOtherErrors(c *check.C) {
 	s.daemon(c)
 	const notListedErr = `cannot use snapshot-options for snap "xyzzy" that is not listed in snaps`
 	const invalidOptionsForSnapErr = `invalid snapshot-options for snap "bar":`
-	const notInstalledErr = `snap "foo" is not installed`
 
 	testMap := map[string]struct {
 		post          string
 		expectedError string
 	}{
 		"snap-not-listed-valid-options": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {"exclude":[""]}}}`, notListedErr},
-		"snap-not-listed-exclude-empty": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {"exclude":[]}}}`, ""},
-		"snap-not-listed-options-empty": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {}}}`, ""},
+		"snap-not-listed-exclude-empty": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {"exclude":[]}}}`, notListedErr},
+		"snap-not-listed-options-empty": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {}}}`, notListedErr},
 		"invalid-options-for-snap":      {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"bar": {"exclude":["../"]}}}`, invalidOptionsForSnapErr},
 	}
 
@@ -523,13 +522,36 @@ func (s *snapsSuite) TestPostSnapsOptionsOtherErrors(c *check.C) {
 
 		rspe := s.errorReq(c, req, nil)
 		c.Check(rspe.Status, check.Equals, 400)
-		if test.expectedError != "" {
-			c.Check(rspe.Message, testutil.Contains, test.expectedError, check.Commentf("test: %q", name))
-		} else {
-			c.Check(rspe.Message, check.Not(testutil.Contains), notListedErr, check.Commentf("test: %q", name))
-			c.Check(rspe.Message, check.Equals, notInstalledErr, check.Commentf("test: %q", name))
-		}
+		c.Check(rspe.Message, testutil.Contains, test.expectedError, check.Commentf("test: %q", name))
 	}
+}
+
+func (s *snapsSuite) TestPostSnapsOptionsClean(c *check.C) {
+	var snapshotSaveCalled int
+	defer daemon.MockSnapshotSave(func(s *state.State, snaps, users []string,
+		options map[string]*snap.SnapshotOptions) (uint64, []string, *state.TaskSet, error) {
+		snapshotSaveCalled++
+
+		c.Check(snaps, check.HasLen, 3)
+		c.Check(snaps, check.DeepEquals, []string{"foo", "bar", "baz"})
+		c.Check(options, check.HasLen, 1)
+		c.Check(options, check.DeepEquals, map[string]*snap.SnapshotOptions{
+			"foo": {Exclude: []string{"$SNAP_DATA/foo-path-1"}},
+		})
+		t := s.NewTask("fake-snapshot-2", "Snapshot two")
+		return 1, snaps, state.NewTaskSet(t), nil
+	})()
+
+	s.daemonWithOverlordMockAndStore()
+	buf := strings.NewReader(`{"action": "snapshot", "snaps": ["foo", "bar", "baz"],
+	"snapshot-options": {"foo": {"exclude":["$SNAP_DATA/foo-path-1"]}, "bar":{"exclude":[]}, "baz":{}}}}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := s.asyncReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 202)
+	c.Check(snapshotSaveCalled, check.Equals, 1)
 }
 
 func (s *snapsSuite) TestPostSnapsOp(c *check.C) {
