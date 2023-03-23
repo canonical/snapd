@@ -36,8 +36,8 @@ github.com/mvo5/goconfigparser v0.0.0-20200803085309-72e476556adb h1:1I/JqsB+Fff
 github.com/mvo5/goconfigparser v0.0.0-20200803085309-72e476556adb/go.mod h1:xmt4k1xLDl8Tdan+0S/jmMK2uSUBSzTc18+5GN5Vea8=
 github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb h1:+u5VeqU0Lm7ESN1mS0WONqKRScw7WpPYYtr3zmqEFQ0=
 github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb/go.mod h1:RduRpSkQHOCvZTbGgT/NJUGjFBFkYlVedimxssQ64ag=
-github.com/mvo5/secboot v0.0.0-20230322150747-be05cfb11b02 h1:zl7ihuO01+lJik8C9ovTdXPLtjPqnCTW+B0agvBVCQI=
-github.com/mvo5/secboot v0.0.0-20230322150747-be05cfb11b02/go.mod h1:HwwnP8X2E5jNQ+rXnd7J+HPCA7b8doUtFR6LAooUpsQ=
+github.com/mvo5/secboot v0.0.0-20230323100326-6c7289eea31f h1:BDHtDCv+eiBqSqyd3kxv+avXpbC0qxvKvBCY5H52crc=
+github.com/mvo5/secboot v0.0.0-20230323100326-6c7289eea31f/go.mod h1:HwwnP8X2E5jNQ+rXnd7J+HPCA7b8doUtFR6LAooUpsQ=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/rogpeppe/clock v0.0.0-20190514195947-2896927a307a h1:3QH7VyOaaiUHNrA9Se4YQIRkDTCw1EJls9xTUCaCeRM=
 github.com/rogpeppe/clock v0.0.0-20190514195947-2896927a307a/go.mod h1:4r5QyqhjIWCcK8DO4KMclc5Iknq5qVBAlbYYzAbUScQ=
