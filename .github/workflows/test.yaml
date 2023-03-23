@@ -415,13 +415,17 @@ jobs:
         # spread uses tags as delta reference
         fetch-depth: 0
 
+    - name: Get previous attempt
+      id: get-previous-attempt
+      run: |
+        echo "previous_attempt=$(( ${{ github.run_attempt }} - 1 ))" >> $GITHUB_OUTPUT
+      shell: bash
+
     - name: Get previous cache
-      uses: actions/cache/restore@v3
+      uses: actions/cache@v3
       with:
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
-        restore-keys: |
-          "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
 
     - name: Prepare test results env and vars
       id: prepare-test-results-env
