@@ -992,7 +992,7 @@ func (m *DeviceManager) ensureSeeded() error {
 var processAutoImportAssertionsImpl = processAutoImportAssertions
 
 // ensureAutoImportAssertions makes sure that auto import assertions
-// get processed. assertion should be processed while seeding is in progress
+// get processed. Assertion should be processed while seeding is in progress.
 func (m *DeviceManager) ensureAutoImportAssertions() error {
 	if release.OnClassic {
 		return nil
