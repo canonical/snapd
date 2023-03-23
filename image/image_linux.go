@@ -473,11 +473,10 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 		}
 		rev := s.revisions[sn.SnapName()]
-		if !rev.Unset() {
-			fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), rev)
-		} else {
-			fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), info.Revision)
+		if rev.Unset() {
+			rev = info.Revision
 		}
+		fmt.Fprintf(Stdout, "Fetching %s (%s)\n", sn.SnapName(), rev)
 		if err := s.w.SetInfo(sn, info); err != nil {
 			return "", err
 		}
