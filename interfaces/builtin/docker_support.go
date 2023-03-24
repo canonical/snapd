@@ -1022,10 +1022,12 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	}
 	// if apparmor supports userns mediation then add this too
 	if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
-		if features, err := apparmor_sandbox.ParserFeatures(); err == nil {
-			if strutil.ListContains(features, "userns") {
-				spec.AddSnippet(dockerSupportConnectedPlugAppArmorUserNS)
-			}
+		features, err := apparmor_sandbox.ParserFeatures()
+		if err != nil {
+			return err
+		}
+		if strutil.ListContains(features, "userns") {
+			spec.AddSnippet(dockerSupportConnectedPlugAppArmorUserNS)
 		}
 	}
 
