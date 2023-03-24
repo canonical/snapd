@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -66,32 +64,33 @@ func (iface *userNSInterface) Name() string {
 	return "userns"
 }
 
-func (iface *userNSInterface) checkUserNSAppArmorSupport() error {
+func (iface *userNSInterface) userNSAppArmorSupported() (bool, error) {
 	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Unsupported {
 		// AppArmor is not supported at all; no need to add rules
-		return nil
+		return false, nil
 	}
 
 	features, err := apparmor_sandbox.ParserFeatures()
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if !strutil.ListContains(features, "userns") {
-		return fmt.Errorf("AppArmor does not support userns mediation")
+		return false, nil
 	}
 
-	return nil
+	return true, nil
 }
 
 func (iface *userNSInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if err := iface.checkUserNSAppArmorSupport(); err == nil {
+	supported, err := iface.userNSAppArmorSupported()
+	if err != nil {
+		return err
+	}
+	if supported {
 		spec.AddSnippet(userNSConnectedPlugAppArmorSupported)
 	}
 
-	// ignore err since in the case the userns is not supported by AppArmor
-	// it will not be restricted so we still want the interface to appear
-	// connected
 	return nil
 }
 
