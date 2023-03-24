@@ -551,7 +551,10 @@ func readNumber(token string, syscallName string) (uint64, error) {
 	return uint64(uint32(value)), nil
 }
 
-var errnoOnExplicitDenial int16 = C.EACCES
+var (
+	errnoOnExplicitDenial int16 = C.EACCES
+	errnoOnImplicitDenial int16 = C.EPERM
+)
 
 func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 	// ignore comments and empty lines
@@ -717,8 +720,6 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 
 	return nil
 }
-
-var errnoOnImplicitDenial int16 = C.EPERM
 
 func preprocess(content []byte) (unrestricted, complain bool) {
 	scanner := bufio.NewScanner(bytes.NewBuffer(content))
