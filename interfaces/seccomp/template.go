@@ -217,6 +217,7 @@ ioprio_get
 
 ipc
 kill
+kcmp - - KCMP_FILE
 link
 linkat
 
