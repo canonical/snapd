@@ -192,7 +192,7 @@ func (s *DockerSupportInterfaceSuite) TestInterfaces(c *C) {
 
 func (s *DockerSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	// no features so should not support userns
-	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{}, nil)
+	restore := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer restore()
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
@@ -202,7 +202,7 @@ func (s *DockerSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(spec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), "userns,\n")
 
 	// test with apparmor userns support too
-	restore = apparmor_sandbox.MockFeatures([]string{}, nil, []string{"userns"}, nil)
+	restore = apparmor_sandbox.MockFeatures(nil, nil, []string{"userns"}, nil)
 	defer restore()
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)

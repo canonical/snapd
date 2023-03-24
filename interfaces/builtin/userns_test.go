@@ -83,14 +83,14 @@ func (s *UserNSInterfaceSuite) TestNoAppArmor(c *C) {
 
 func (s *UserNSInterfaceSuite) TestFeatureDetection(c *C) {
 	// Ensure that the interface does not fail if the userns feature is not present
-	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{}, nil)
+	restore := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer restore()
 	c.Check(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *UserNSInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{"userns"}, nil)
+	restore := apparmor_sandbox.MockFeatures(nil, nil, []string{"userns"}, nil)
 	defer restore()
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})

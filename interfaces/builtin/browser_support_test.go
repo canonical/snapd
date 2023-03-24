@@ -166,7 +166,7 @@ apps:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := interfaces.NewConnectedPlug(info.Plugs["browser-support"], nil, nil)
 
-	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{}, nil)
+	restore := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer restore()
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
@@ -201,7 +201,7 @@ apps:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := interfaces.NewConnectedPlug(info.Plugs["browser-support"], nil, nil)
 
-	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{"userns"}, nil)
+	restore := apparmor_sandbox.MockFeatures(nil, nil, []string{"userns"}, nil)
 	defer restore()
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)

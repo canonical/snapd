@@ -113,7 +113,7 @@ func (s *GreengrassSupportInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestAppArmorSpec(c *C) {
-	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{"userns"}, nil)
+	restore := apparmor_sandbox.MockFeatures(nil, nil, []string{"userns"}, nil)
 	defer restore()
 
 	for _, plug := range []*interfaces.ConnectedPlug{
@@ -131,7 +131,7 @@ func (s *GreengrassSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 
 func (s *GreengrassSupportInterfaceSuite) TestProcessModeAppArmorSpec(c *C) {
 	// no features so should not support userns
-	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{}, nil)
+	restore := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer restore()
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.processModePlug, s.slot), IsNil)
