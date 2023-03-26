@@ -29,6 +29,7 @@ type (
 	AccessChecker = accessChecker
 
 	OpenAccess                = openAccess
+	ObserveAccess             = observeAccess
 	AuthenticatedAccess       = authenticatedAccess
 	RootAccess                = rootAccess
 	SnapAccess                = snapAccess

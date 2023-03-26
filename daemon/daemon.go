@@ -69,6 +69,7 @@ type Daemon struct {
 	overlord        *overlord.Overlord
 	state           *state.State
 	snapdListener   net.Listener
+	snapdRoListener net.Listener // XXX: snapdObserveListener?
 	snapListener    net.Listener
 	connTracker     *connTracker
 	serve           *http.Server
@@ -233,6 +234,12 @@ func (d *Daemon) Init() error {
 	} else {
 		return fmt.Errorf("when trying to listen on %s: %v", dirs.SnapdSocket, err)
 	}
+	// The snapd readonly socket
+	if listener, err := netutil.GetListener(dirs.SnapdRoSocket, listenerMap); err == nil {
+		d.snapdRoListener = &ucrednetListener{Listener: listener}
+	} else {
+		return fmt.Errorf("when trying to listen on %s: %v", dirs.SnapdSocket, err)
+	}
 
 	if listener, err := netutil.GetListener(dirs.SnapSocket, listenerMap); err == nil {
 		// This listener may also be nil if that socket wasn't among
@@ -375,10 +382,17 @@ func (d *Daemon) Start() error {
 			})
 		}
 
+		// run the read-only socket
+		d.tomb.Go(func() error {
+			if err := d.serve.Serve(d.snapdRoListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
+				return err
+			}
+			return nil
+		})
+
 		if err := d.serve.Serve(d.snapdListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
 		}
-
 		return nil
 	})
 
@@ -508,6 +522,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	d.snapdListener.Close()
+	d.snapdRoListener.Close()
 	d.standbyOpinions.Stop()
 
 	if d.snapListener != nil {

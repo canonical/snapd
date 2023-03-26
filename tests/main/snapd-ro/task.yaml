@@ -1,0 +1,29 @@
+summary: Ensure the snapd read-only socket is really read-only
+
+execute: |
+  # ensure no install can happen via the snapd-ro socket
+  SOCKET=/run/snapd-ro.socket
+  curl -v --data '{"action":"install","name":"test-snapd-sh"}' \
+     --unix-socket "$SOCKET" \
+     http://localhost/v2/snaps/test-snapd-sh > output.txt
+  MATCH '"type":"error"' < output.txt
+  MATCH '"status-code":403' < output.txt
+  MATCH '"status":"Forbidden"' < output.txt
+
+  # but using the normal socket works fine
+  SOCKET=/run/snapd.socket
+  curl -v --data '{"action":"install","name":"test-snapd-sh"}' \
+     --unix-socket "$SOCKET" \
+     http://localhost/v2/snaps/test-snapd-sh > output.txt
+  MATCH '"type":"async"' < output.txt
+  MATCH '"status-code":202' < output.txt
+  MATCH '"status":"Accepted"' < output.txt
+
+  # access to the /v2/changes endpoint on snapd-ro is granted
+  SOCKET=/run/snapd-ro.socket
+  curl -v --unix-socket "$SOCKET" \
+     http://localhost/v2/changes?select=all > output.txt
+  MATCH '"status-code":200' < output.txt
+  MATCH '"status":"OK"' < output.txt
+  # TODO: add jq checks
+  

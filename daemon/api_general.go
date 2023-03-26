@@ -60,14 +60,14 @@ var (
 		Path:        "/v2/changes/{id}",
 		GET:         getChange,
 		POST:        abortChange,
-		ReadAccess:  openAccess{},
+		ReadAccess:  observeAccess{},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
 	stateChangesCmd = &Command{
 		Path:       "/v2/changes",
 		GET:        getChanges,
-		ReadAccess: openAccess{},
+		ReadAccess: observeAccess{},
 	}
 
 	warningsCmd = &Command{

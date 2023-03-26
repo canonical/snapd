@@ -561,6 +561,10 @@ func (s *apiBaseSuite) checkGetOnly(c *check.C, req *http.Request) {
 	c.Check(cmd.GET, check.NotNil)
 }
 
+func (s *apiBaseSuite) expectObserveAccess() {
+	s.expectedReadAccess = daemon.ObserveAccess{}
+}
+
 func (s *apiBaseSuite) expectOpenAccess() {
 	s.expectedReadAccess = daemon.OpenAccess{}
 }

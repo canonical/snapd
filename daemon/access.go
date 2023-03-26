@@ -84,8 +84,31 @@ func requireSnapdSocket(ucred *ucrednet) *apiError {
 	return nil
 }
 
-// openAccess allows requests without authentication, provided they
+// XXX: find a better name
+// observeAccess allows requests without authentication, provided they
 // have peer credentials and were not received on snapd-snap.socket
+type observeAccess struct{}
+
+func (ac observeAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	return requireAtLeastSnapdReadOnlySocket(ucred)
+}
+
+// requireSnapdRoSocket ensures the request was received via snapd{,-ro}.socket.
+func requireAtLeastSnapdReadOnlySocket(ucred *ucrednet) *apiError {
+	if ucred == nil {
+		return Forbidden("access denied")
+	}
+
+	if ucred.Socket != dirs.SnapdSocket && ucred.Socket != dirs.SnapdRoSocket {
+		return Forbidden("access denied")
+	}
+
+	return nil
+}
+
+// XXX: rename to something more descriptive
+// openAccess allows requests without authentication, provided they
+// have peer credentials and were received on snapd.socket
 type openAccess struct{}
 
 func (ac openAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {

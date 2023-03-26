@@ -622,12 +622,17 @@ version: 1`, si)
 	c.Assert(err, check.IsNil)
 	l2, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
+	l3, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
 	d.snapdListener = &witnessAcceptListener{Listener: l1, accept: snapdAccept}
 
+	snapdRoAccept := make(chan struct{})
+	d.snapdRoListener = &witnessAcceptListener{Listener: l2, accept: snapdRoAccept}
+
 	snapAccept := make(chan struct{})
-	d.snapListener = &witnessAcceptListener{Listener: l2, accept: snapAccept}
+	d.snapListener = &witnessAcceptListener{Listener: l3, accept: snapAccept}
 
 	c.Assert(d.Start(), check.IsNil)
 
@@ -643,6 +648,16 @@ version: 1`, si)
 		close(snapdDone)
 	}()
 
+	snapdRoDone := make(chan struct{})
+	go func() {
+		select {
+		case <-snapdRoAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd-ro accept was not called")
+		}
+		close(snapdRoDone)
+	}()
+
 	snapDone := make(chan struct{})
 	go func() {
 		select {
@@ -654,6 +669,7 @@ version: 1`, si)
 	}()
 
 	<-snapdDone
+	<-snapdRoDone
 	<-snapDone
 
 	err = d.Stop(nil)
@@ -672,6 +688,9 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 
 	snapdAccept := make(chan struct{})
 	d.snapdListener = &witnessAcceptListener{Listener: l, accept: snapdAccept}
+
+	snapdRoAccept := make(chan struct{})
+	d.snapdRoListener = &witnessAcceptListener{Listener: l, accept: snapdRoAccept}
 
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
@@ -757,12 +776,18 @@ version: 1`, si)
 	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
+	snapdRoL, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
 	snapL, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
 	snapdClosed := make(chan struct{})
 	d.snapdListener = &witnessAcceptListener{Listener: snapdL, accept: snapdAccept, closed: snapdClosed}
+
+	snapdRoAccept := make(chan struct{})
+	d.snapdRoListener = &witnessAcceptListener{Listener: snapdRoL, accept: snapdRoAccept}
 
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: snapL, accept: snapAccept}
@@ -779,6 +804,16 @@ version: 1`, si)
 		close(snapdAccepting)
 	}()
 
+	snapdRoAccepting := make(chan struct{})
+	go func() {
+		select {
+		case <-snapdRoAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd-ro accept was not called")
+		}
+		close(snapdRoAccepting)
+	}()
+
 	snapAccepting := make(chan struct{})
 	go func() {
 		select {
@@ -790,6 +825,7 @@ version: 1`, si)
 	}()
 
 	<-snapdAccepting
+	<-snapdRoAccepting
 	<-snapAccepting
 
 	alright := make(chan struct{})
@@ -852,12 +888,19 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
+	snapdRoL, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
 	snapL, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
 	snapdClosed := make(chan struct{})
 	d.snapdListener = &witnessAcceptListener{Listener: snapdL, accept: snapdAccept, closed: snapdClosed}
+
+	snapdRoAccept := make(chan struct{})
+	snapdRoClosed := make(chan struct{})
+	d.snapdRoListener = &witnessAcceptListener{Listener: snapdRoL, accept: snapdRoAccept, closed: snapdRoClosed}
 
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: snapL, accept: snapAccept}
@@ -928,6 +971,9 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 
 	snapdAccept := make(chan struct{})
 	d.snapdListener = &witnessAcceptListener{Listener: l, accept: snapdAccept}
+
+	snapdRoAccept := make(chan struct{})
+	d.snapdRoListener = &witnessAcceptListener{Listener: l, accept: snapdRoAccept}
 
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
@@ -1115,12 +1161,18 @@ func makeDaemonListeners(c *check.C, d *Daemon) {
 	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
+	snapdRoL, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
 	snapL, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
 	snapdClosed := make(chan struct{})
 	d.snapdListener = &witnessAcceptListener{Listener: snapdL, accept: snapdAccept, closed: snapdClosed}
+
+	snapdRoAccept := make(chan struct{})
+	d.snapdRoListener = &witnessAcceptListener{Listener: snapdRoL, accept: snapdRoAccept}
 
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: snapL, accept: snapAccept}
