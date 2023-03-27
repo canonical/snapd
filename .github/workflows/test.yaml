@@ -415,22 +415,31 @@ jobs:
         # spread uses tags as delta reference
         fetch-depth: 0
 
-    - name: Cache snapd test results
-      id: cache-snapd-test-results
-      uses: pat-s/always-upload-cache@v3.0.11
+    - name: Get previous attempt
+      id: get-previous-attempt
+      run: |
+        echo "previous_attempt=$(( ${{ github.run_attempt }} - 1 ))" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Get previous cache
+      uses: actions/cache@v3
       with:
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
 
-    - name: Check cached test results
-      id: cached-results
+    - name: Prepare test results env and vars
+      id: prepare-test-results-env
       run: |
+          # Create test results directories and save vars
           TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
-          mkdir -p "$TEST_RESULTS_DIR"
           echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
 
           # Save the var with the failed tests file
-          echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
+          echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/failed-tests" >> $GITHUB_ENV
+
+          # Make sure the test results dirs are created
+          # This step has to be after the cache is restored
+          mkdir -p "$TEST_RESULTS_DIR"        
 
     - name: Check failed tests to run
       if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
@@ -498,7 +507,7 @@ jobs:
             echo "No spread log found, skipping errors reporting"
         fi
 
-    - name: save spread results
+    - name: analyze spread test results
       if: always()
       run: |
           if [ -f spread.log ]; then
@@ -522,6 +531,13 @@ jobs:
               echo "No spread log found, saving empty list of failed tests"
               touch "$FAILED_TESTS_FILE"
           fi
+
+    - name: save spread test results to cache
+      if: always()
+      uses: actions/cache/save@v3
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
 
   spread-nested:
     needs: [unit-tests]
@@ -552,22 +568,27 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Cache snapd test results
-      id: cache-snapd-test-results
-      uses: pat-s/always-upload-cache@v3.0.11
+    - name: Get previous cache
+      uses: actions/cache/restore@v3
       with:
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
+        restore-keys: |
+          "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-"
 
-    - name: Check cached test results
-      id: cached-results
+    - name: Prepare test results env and vars
+      id: prepare-test-results-env
       run: |
+          # Create test results directories and save vars
           TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
-          mkdir -p "$TEST_RESULTS_DIR"
           echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
 
           # Save the var with the failed tests file
-          echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
+          echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/failed-tests" >> $GITHUB_ENV
+
+          # Make sure the test results dirs are created
+          # This step has to be after the cache is restored
+          mkdir -p "$TEST_RESULTS_DIR"
 
     - name: Check failed tests to run
       if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
@@ -629,7 +650,7 @@ jobs:
             echo "No spread log found, skipping errors reporting"
         fi
 
-    - name: save spread results
+    - name: analyze spread test results
       if: always()
       run: |
           if [ -f spread.log ]; then
@@ -648,3 +669,10 @@ jobs:
               echo "No spread log found, saving empty list of failed tests"
               touch "$FAILED_TESTS_FILE"
           fi
+
+    - name: save spread test results to cache
+      if: always()
+      uses: actions/cache/save@v3
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
