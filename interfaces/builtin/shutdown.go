@@ -21,6 +21,12 @@ package builtin
 
 const shutdownSummary = `allows shutting down or rebooting the system`
 
+const shutdownBaseDeclarationPlugs = `
+  shutdown:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
 const shutdownBaseDeclarationSlots = `
   shutdown:
     allow-installation:
@@ -68,6 +74,7 @@ func init() {
 		summary:               shutdownSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationPlugs:  shutdownBaseDeclarationPlugs,
 		baseDeclarationSlots:  shutdownBaseDeclarationSlots,
 		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
 	})
