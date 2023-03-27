@@ -185,9 +185,9 @@ var mockLaidoutStructureWritable = gadget.LaidOutStructure{
 		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
 		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
 		// yaml structure (the MBR) that does not appear on disk
-		Offset: asOffsetPtr(1260388352),
+		Offset:    asOffsetPtr(1260388352),
+		YamlIndex: 3,
 	},
-	YamlIndex: 3,
 }
 
 var mockLaidoutStructureSave = gadget.LaidOutStructure{
@@ -213,8 +213,8 @@ var mockLaidoutStructureSave = gadget.LaidOutStructure{
 		Role:       "system-save",
 		Filesystem: "ext4",
 		Offset:     asOffsetPtr(1260388352),
+		YamlIndex:  3,
 	},
-	YamlIndex: 3,
 }
 
 var mockLaidoutStructureWritableAfterSave = gadget.LaidOutStructure{
@@ -241,8 +241,8 @@ var mockLaidoutStructureWritableAfterSave = gadget.LaidOutStructure{
 		Label:      "ubuntu-data",
 		Filesystem: "ext4",
 		Offset:     asOffsetPtr(1394606080),
+		YamlIndex:  4,
 	},
-	YamlIndex: 4,
 }
 
 type uc20Model struct{}

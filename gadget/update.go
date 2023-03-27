@@ -1556,13 +1556,13 @@ type Updater interface {
 }
 
 func updateLocationForStructure(structureLocations map[string]map[int]StructureLocation, ps *LaidOutStructure) (loc StructureLocation, err error) {
-	loc, ok := structureLocations[ps.VolumeStructure.VolumeName][ps.YamlIndex]
+	loc, ok := structureLocations[ps.VolumeStructure.VolumeName][ps.VolumeStructure.YamlIndex]
 	if !ok {
-		return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.YamlIndex, ps.VolumeStructure.VolumeName)
+		return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.VolumeStructure.YamlIndex, ps.VolumeStructure.VolumeName)
 	}
 	if !ps.HasFilesystem() {
 		if loc.Device == "" {
-			return loc, fmt.Errorf("internal error: structure %d on volume %s should have had a device set but did not have one in an internal mapping", ps.YamlIndex, ps.VolumeStructure.VolumeName)
+			return loc, fmt.Errorf("internal error: structure %d on volume %s should have had a device set but did not have one in an internal mapping", ps.VolumeStructure.YamlIndex, ps.VolumeStructure.VolumeName)
 		}
 		return loc, nil
 	} else {
@@ -1574,7 +1574,7 @@ func updateLocationForStructure(structureLocations map[string]map[int]StructureL
 			// possibly mounting it, we could also mount it here instead and
 			// then proceed with the update, but we should also have a way to
 			// unmount it when we are done updating it
-			return loc, fmt.Errorf("structure %d on volume %s does not have a writable mountpoint in order to update the filesystem content", ps.YamlIndex, ps.VolumeStructure.VolumeName)
+			return loc, fmt.Errorf("structure %d on volume %s does not have a writable mountpoint in order to update the filesystem content", ps.VolumeStructure.YamlIndex, ps.VolumeStructure.VolumeName)
 		}
 		return loc, nil
 	}

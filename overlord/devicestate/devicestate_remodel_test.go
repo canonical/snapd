@@ -1523,6 +1523,7 @@ volumes:
 							Content: []gadget.VolumeContent{
 								{UnresolvedSource: "foo-content", Target: "/"},
 							},
+							YamlIndex: 0,
 						}, {
 							VolumeName: "pc",
 							Name:       "bare-one",
@@ -1532,6 +1533,7 @@ volumes:
 							Content: []gadget.VolumeContent{
 								{Image: "bare.img"},
 							},
+							YamlIndex: 1,
 						}},
 					},
 				},
@@ -1555,6 +1557,7 @@ volumes:
 							Content: []gadget.VolumeContent{
 								{UnresolvedSource: "new-foo-content", Target: "/"},
 							},
+							YamlIndex: 0,
 						}, {
 							VolumeName: "pc",
 							Name:       "bare-one",
@@ -1564,6 +1567,7 @@ volumes:
 							Content: []gadget.VolumeContent{
 								{Image: "new-bare-content.img"},
 							},
+							YamlIndex: 1,
 						}},
 					},
 				},
