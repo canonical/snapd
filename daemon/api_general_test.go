@@ -373,6 +373,8 @@ func (s *generalSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	setupChanges(st)
 	st.Unlock()
 
+	s.expectSnapdObserveAccess("/v2/changes")
+
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes", nil)
 	c.Assert(err, check.IsNil)
@@ -401,6 +403,8 @@ func (s *generalSuite) TestStateChangesInProgress(c *check.C) {
 	setupChanges(st)
 	st.Unlock()
 
+	s.expectSnapdObserveAccess("/v2/changes")
+
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?select=in-progress", nil)
 	c.Assert(err, check.IsNil)
@@ -428,6 +432,8 @@ func (s *generalSuite) TestStateChangesAll(c *check.C) {
 	st.Lock()
 	setupChanges(st)
 	st.Unlock()
+
+	s.expectSnapdObserveAccess("/v2/changes")
 
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?select=all", nil)
@@ -458,6 +464,8 @@ func (s *generalSuite) TestStateChangesReady(c *check.C) {
 	setupChanges(st)
 	st.Unlock()
 
+	s.expectSnapdObserveAccess("/v2/changes")
+
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?select=ready", nil)
 	c.Assert(err, check.IsNil)
@@ -485,6 +493,8 @@ func (s *generalSuite) TestStateChangesForSnapName(c *check.C) {
 	st.Lock()
 	setupChanges(st)
 	st.Unlock()
+
+	s.expectSnapdObserveAccess("/v2/changes")
 
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?for=funky-snap-name&select=all", nil)
@@ -521,6 +531,8 @@ func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
 
 	st.Unlock()
 
+	s.expectSnapdObserveAccess("/v2/changes")
+
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?for=lxd&select=all", nil)
 	c.Assert(err, check.IsNil)
@@ -551,6 +563,8 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	chg := st.Change(ids[0])
 	chg.Set("api-data", map[string]int{"n": 42})
 	st.Unlock()
+
+	s.expectSnapdObserveAccess("/v2/changes")
 
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes/"+ids[0], nil)
@@ -624,6 +638,8 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 
 	buf := bytes.NewBufferString(`{"action": "abort"}`)
 
+	s.expectSnapdObserveAccess("/v2/changes")
+
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/changes/"+ids[0], buf)
 	c.Assert(err, check.IsNil)
@@ -689,6 +705,8 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 	s.expectManageAccess()
 
 	buf := bytes.NewBufferString(`{"action": "abort"}`)
+
+	s.expectSnapdObserveAccess("/v2/changes")
 
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/changes/"+ids[0], buf)

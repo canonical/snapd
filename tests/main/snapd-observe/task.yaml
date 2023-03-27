@@ -1,0 +1,22 @@
+summary: Verify that the snapd observe API works
+
+prepare: |
+    snap install --edge jq
+
+execute: |
+    "$TESTSTOOLS"/snaps-state install-local api-client
+    echo "The snapd-observe plugs on the api-client snap are initially disconnected"
+    snap connections api-client | MATCH "snapd-observe +api-client:snapd-observe-v2-changes +- +-"
+    echo "Connect the snapd-observe plug"
+    snap connect api-client:snapd-observe-v2-changes
+
+    echo "The changes api can be accessed"
+    api-client --socket /run/snapd-snap.socket '/v2/changes?select=all' > response.txt
+    jq . < response.txt
+    # TODO: check a bit more
+
+    echo "The api no longer works when disconnected"
+    snap disconnect api-client:snapd-observe-v2-changes
+
+    not api-client --socket /run/snapd-snap.socket '/v2/changes?select=all' > response.txt
+    jq -r '."status-code"' < response.txt | MATCH '^403$'

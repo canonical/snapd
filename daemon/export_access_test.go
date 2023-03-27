@@ -29,6 +29,7 @@ type (
 	AccessChecker = accessChecker
 
 	OpenAccess                = openAccess
+	SnapdObserveOrOpenAccess  = snapdObserveOrOpenAccess
 	AuthenticatedAccess       = authenticatedAccess
 	RootAccess                = rootAccess
 	SnapAccess                = snapAccess
@@ -70,4 +71,8 @@ func MockRequireThemeApiAccess(new func(d *Daemon, ucred *ucrednet) *apiError) (
 	return func() {
 		requireThemeApiAccess = old
 	}
+}
+
+func NewSnapdObserveOrOpenAccess(subApi string) snapdObserveOrOpenAccess {
+	return snapdObserveOrOpenAccess{subApi: subApi}
 }

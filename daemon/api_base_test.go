@@ -565,6 +565,10 @@ func (s *apiBaseSuite) expectOpenAccess() {
 	s.expectedReadAccess = daemon.OpenAccess{}
 }
 
+func (s *apiBaseSuite) expectSnapdObserveAccess(subApi string) {
+	s.expectedReadAccess = daemon.NewSnapdObserveOrOpenAccess(subApi)
+}
+
 func (s *apiBaseSuite) expectRootAccess() {
 	s.expectedReadAccess = daemon.RootAccess{}
 	s.expectedWriteAccess = daemon.RootAccess{}
