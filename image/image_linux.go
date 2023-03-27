@@ -291,6 +291,7 @@ type imageSeeder struct {
 	seedDir     string
 	label       string
 	w           *seedwriter.Writer
+	f           seedwriter.SeedAssertionFetcher
 }
 
 func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) (*imageSeeder, error) {
@@ -399,14 +400,15 @@ func (s *imageSeeder) setModesDirs() error {
 	return nil
 }
 
-func (s *imageSeeder) start(db *asserts.Database, optSnaps []*seedwriter.OptionsSnap) (seedwriter.RefAssertsFetcher, error) {
+func (s *imageSeeder) start(db *asserts.Database, optSnaps []*seedwriter.OptionsSnap) error {
 	if err := s.w.SetOptionsSnaps(optSnaps); err != nil {
-		return nil, err
+		return err
 	}
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
 		return s.tsto.AssertionFetcher(db, save)
 	}
-	return s.w.Start(db, newFetcher)
+	s.f = seedwriter.MakeSeedAssertionFetcher(newFetcher)
+	return s.w.Start(db, s.f)
 }
 
 func (s *imageSeeder) snapSupportsImageArch(sn *seedwriter.SeedSnap) bool {
@@ -430,7 +432,7 @@ func (s *imageSeeder) validateSnapArchs(snaps []*seedwriter.SeedSnap) error {
 
 type localSnapRefs map[*seedwriter.SeedSnap][]*asserts.Ref
 
-func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.RefAssertsFetcher, db *asserts.Database) (localSnapRefs, error) {
+func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.SeedAssertionFetcher, db *asserts.Database) (localSnapRefs, error) {
 	localSnaps, err := s.w.LocalSnaps()
 	if err != nil {
 		return nil, err
@@ -524,7 +526,7 @@ func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
 	return localSnaps
 }
 
-func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts func(sn, sysSn, kernSn *seedwriter.SeedSnap) ([]*asserts.Ref, error)) error {
+func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts seedwriter.AssertsFetchFunc) error {
 	curSnaps := localSnapsWithID(localSnaps)
 	for {
 		toDownload, err := s.w.SnapsToDownload()
@@ -806,8 +808,8 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	if err != nil {
 		return err
 	}
-	f, err := s.start(db, optionSnaps(opts))
-	if err != nil {
+
+	if err := s.start(db, optionSnaps(opts)); err != nil {
 		return err
 	}
 
@@ -817,7 +819,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	// Fetch assertions tentatively into a temporary database
 	// and later either copy them or fetch more appropriate ones.
 	tmpDb := db.WithStackedBackstore(asserts.NewMemoryBackstore())
-	tmpFetcher := seedwriter.MakeRefAssertsFetcher(func(save func(asserts.Assertion) error) asserts.Fetcher {
+	tmpFetcher := seedwriter.MakeSeedAssertionFetcher(func(save func(asserts.Assertion) error) asserts.Fetcher {
 		return tsto.AssertionFetcher(tmpDb, save)
 	})
 
@@ -856,12 +858,12 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			}
 			if assertMaxFormats != nil && a.Format() > assertMaxFormats[aRef.Type.Name] {
 				// format was too new, re-fetch to replace
-				if err := f.Fetch(aRef); err != nil {
+				if err := s.f.Fetch(aRef); err != nil {
 					return err
 				}
 			} else {
 				// copy
-				if err := f.Save(a); err != nil {
+				if err := s.f.Save(a); err != nil {
 					return err
 				}
 			}
@@ -877,21 +879,21 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			assertMaxFormatsSelected = true
 			assertMaxFormats = tsto.AssertionMaxFormats()
 		}
-		prev := len(f.Refs())
+		prev := len(s.f.Refs())
 		if aRefs, ok := localSnaps[sn]; ok {
 			if err := copyOrRefetchIfFormatTooNewIntoDb(aRefs); err != nil {
 				return nil, err
 			}
 		} else {
 			// fetch snap assertions
-			if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, f, db); err != nil {
+			if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, s.f, db); err != nil {
 				return nil, err
 			}
 			if !sn.Info.Revision.Unset() {
 				imageManifest[sn.Info.SnapName()] = sn.Info.Revision
 			}
 		}
-		return f.Refs()[prev:], nil
+		return s.f.Refs()[prev:], nil
 	}
 
 	if err := s.downloadAllSnaps(localSnaps, fetchAsserts); err != nil {

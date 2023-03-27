@@ -349,3 +349,27 @@ func (s *fetcherSuite) TestFetchSequenceMultipleSequencesNotSupported(c *C) {
 	_, err = seq.Resolve(db.Find)
 	c.Assert(err, ErrorMatches, `validation-set \(4; series:16 account-id:can0nical name:base-set\) not found`)
 }
+
+func (s *fetcherSuite) TestFetcherNotCreatedUsingNewSequenceFormingFetcher(c *C) {
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(s.storeSigning.Find)
+	}
+
+	f := asserts.NewFetcher(db, retrieve, db.Add)
+	c.Assert(f, NotNil)
+
+	// Cast the fetcher to a SequenceFormingFetcher, which should succeed
+	// since the fetcher actually implements FetchSequence.
+	ff := f.(asserts.SequenceFormingFetcher)
+	c.Assert(ff, NotNil)
+
+	// Make sure this produces an error and not a crash
+	err = f.(asserts.SequenceFormingFetcher).FetchSequence(nil)
+	c.Check(err, ErrorMatches, `cannot fetch assertion sequence point, fetcher must be created using NewSequenceFormingFetcher`)
+}

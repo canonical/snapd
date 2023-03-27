@@ -175,6 +175,9 @@ func (f *fetcher) fetchSequence(seq *AtSequence) error {
 
 // FetchSequence retrieves the assertion as indicated by its sequence reference.
 func (f *fetcher) FetchSequence(seq *AtSequence) error {
+	if f.retrieveSeq == nil {
+		return fmt.Errorf("cannot fetch assertion sequence point, fetcher must be created using NewSequenceFormingFetcher")
+	}
 	return f.fetchSequence(seq)
 }
 

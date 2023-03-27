@@ -303,8 +303,9 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		}
 		return asserts.NewFetcher(db, fromDB, save)
 	}
-	f, err := w.Start(db, newFetcher)
-	if err != nil {
+
+	sf := seedwriter.MakeSeedAssertionFetcher(newFetcher)
+	if err := w.Start(db, sf); err != nil {
 		return "", err
 	}
 	// past this point the system directory is present
@@ -324,7 +325,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// we have in snap.Info, but getting it this way can be
 		// expensive as we need to compute the hash, try to find a
 		// better way
-		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, f, db)
+		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, sf, db)
 		if err != nil {
 			if !errors.Is(err, &asserts.NotFoundError{}) {
 				return recoverySystemDir, err
