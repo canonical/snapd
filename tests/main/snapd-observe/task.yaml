@@ -6,12 +6,23 @@ prepare: |
 execute: |
     "$TESTSTOOLS"/snaps-state install-local api-client
     echo "The snapd-observe plugs on the api-client snap are initially disconnected"
-    snap connections api-client | MATCH "snapd-observe +api-client:snapd-observe-v2-changes +- +-"
+    snap connections api-client | MATCH "snapd-observe +api-client:snapd-observe +- +-"
     echo "Connect the snapd-observe plug"
     snap connect api-client:snapd-observe-v2-changes
 
-    echo "The changes api can be accessed"
+    echo "The /v2/changes api can be accessed"
     api-client --socket /run/snapd-snap.socket '/v2/changes?select=all' > response.txt
+    jq . < response.txt
+    # TODO: check a bit more
+    # TODO2: access /v2/changes/<id>
+
+    echo "The /v2/snaps api can be accessed"
+    api-client --socket /run/snapd-snap.socket '/v2/snaps' > response.txt
+    jq . < response.txt
+    # TODO: check a bit more
+
+    echo "The /v2/snaps/<name> api can be accessed"
+    api-client --socket /run/snapd-snap.socket '/v2/snaps/jq' > response.txt
     jq . < response.txt
     # TODO: check a bit more
 

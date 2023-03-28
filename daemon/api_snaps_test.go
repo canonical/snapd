@@ -65,6 +65,7 @@ var _ = check.Suite(&snapsSuite{})
 func (s *snapsSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
+	s.expectSnapdObserveAccess()
 	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 }
 
@@ -1206,6 +1207,8 @@ func (s *snapsSuite) TestSnapInfoNoneFound(c *check.C) {
 func (s *snapsSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 	s.daemon(c)
 	s.err = errors.New("weird")
+
+	s.expectSnapdObserveAccess()
 
 	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)

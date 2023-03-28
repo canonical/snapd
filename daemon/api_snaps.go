@@ -51,7 +51,7 @@ var (
 		Path:        "/v2/snaps/{name}",
 		GET:         getSnapInfo,
 		POST:        postSnap,
-		ReadAccess:  openAccess{},
+		ReadAccess:  snapdObserveOrOpenAccess{},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
@@ -59,7 +59,7 @@ var (
 		Path:        "/v2/snaps",
 		GET:         getSnapsInfo,
 		POST:        postSnaps,
-		ReadAccess:  openAccess{},
+		ReadAccess:  snapdObserveOrOpenAccess{},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 )
