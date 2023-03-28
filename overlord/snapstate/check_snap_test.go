@@ -201,6 +201,8 @@ var assumesTests = []struct {
 	assumes: "[command-chain]",
 }, {
 	assumes: "[kernel-assets]",
+}, {
+	assumes: "[snap-uid-envvars]",
 },
 }
 
