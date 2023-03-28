@@ -2,9 +2,7 @@ summary: |
     Test that device initialisation and registration can be customized
     with the prepare-device gadget hook
 
-# TODO:UC20: enable for UC20, it assumes /var/lib/snapd/seed/assertions/model
-#            which we don't have currently
-systems: [ubuntu-core-1*]
+systems: [ubuntu-core-1*, ubuntu-core-20-*]
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
