@@ -32,7 +32,6 @@ import (
 // retrieval of assertions.
 // Optimally we would gather all retrieval logic here related to the fetching of
 // assertions during seeding.
-// TODO: See how much of the logic for fetching of assertions in image_linux and writer.go we can move here.
 type SeedAssertionFetcher interface {
 	Fetch(ref *asserts.Ref) error
 	FetchSequence(seq *asserts.AtSequence) error
