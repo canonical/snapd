@@ -3,7 +3,7 @@
 show_help() {
     echo "usage: tests.systemd create-and-start-unit <UNIT-NAME> <UNIT-COMMAND-LINE> <UNIT-OVERRIDE>"
     echo "       tests.systemd stop-and-remove-unit <UNIT-NAME>"
-    echo "       tests.systemd wait-for-service [--n attempts] [--wait seconds] [--state STATE] <UNIT-NAME>"
+    echo "       tests.systemd wait-for-service [-n|--attempts retries] [--wait seconds] [--state STATE] <UNIT-NAME>"
 }
 
 # Create and start a persistent systemd unit that survives reboots. Use as:
@@ -75,7 +75,7 @@ wait_for_service() {
                 wait="$2"
                 shift 2
                 ;;
-            --n)
+            -n|--attempts)
                 attempts="$2"
                 shift 2
                 ;;
