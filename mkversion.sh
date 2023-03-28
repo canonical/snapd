@@ -137,7 +137,7 @@ if [ "$GO111MODULE" = "off" ] ; then
 elif [ ! -d "$GO_GENERATE_BUILDDIR/vendor/github.com"  ] ; then
     MOD=--
 fi
-fmts=$(cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./asserts/info)
+fmts=$(cd "$GO_GENERATE_BUILDDIR" ; env -u CGO_CFLAGS -u CGO_LDFLAGS go run $MOD ./asserts/info)
 
 cat <<EOF > "$PKG_BUILDDIR/data/info"
 VERSION=$v

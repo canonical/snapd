@@ -24,7 +24,8 @@ jobs:
     - name: Build snapd snap
       uses: snapcore/action-build@v1
       with:
-        snapcraft-channel: 4.x/candidate
+        snapcraft-channel: 7.x/candidate
+        snapcraft-args: --build-for amd64
 
     - name: Check built artifact
       run: |

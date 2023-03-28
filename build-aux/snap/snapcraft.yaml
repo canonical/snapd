@@ -8,15 +8,31 @@ description: |
   cloud, servers, desktops and the internet of things.
 
   Start with 'snap list' to see installed snaps.
-adopt-info: snapd-deb
+adopt-info: snapd
 # build-base is needed here for snapcraft to build this snap as with "modern"
 # snapcraft
-build-base: core
+build-base: core22
 package-repositories:
   - type: apt
     ppa: snappy-dev/image
 grade: stable
 license: GPL-3.0
+confinement: classic
+architectures:
+ - build-on: amd64
+   build-for: i386
+ - build-on: amd64
+   build-for: amd64
+ - build-on: arm64
+   build-for: arm64
+ - build-on: armhf
+   build-for: armhf
+ - build-on: ppc64el
+   build-for: ppc64el
+ - build-on: riscv64
+   build-for: riscv64
+ - build-on: s390x
+   build-for: s390x
 
 # Note that this snap is unusual in that it has no "apps" section.
 #
@@ -29,173 +45,705 @@ license: GPL-3.0
 # See the comments from jdstrand in
 # https://forum.snapcraft.io/t/5547/10
 parts:
-  snapd-deb:
+  build-base:
+    plugin: nil
+    source: keyrings
+    build-packages:
+      - to i386:
+        - debootstrap
+        - fakeroot
+      - else:
+        - wget
+      - gawk
+    build-environment:
+      - RELEASE: "22.04.2"
+      - BASE: ubuntu-base-${RELEASE}-base-${CRAFT_TARGET_ARCH}.tar.gz
+      - DIR_URL: https://cdimage.ubuntu.com/ubuntu-base/releases/${RELEASE}/release
+      - URL: ${DIR_URL}/${BASE}
+      - SHA256: ${DIR_URL}/SHA256SUMS
+      - SIG: ${SHA256}.gpg
+      - DEPENDENCIES: >-
+          make
+          gcc
+          binutils
+          gawk
+          python3
+          python3-jinja2
+          meson
+          bison
+          flex
+          ninja-build
+          libc6-dev
+          gperf
+          autoconf
+          automake
+          gettext
+          libtool
+          pkg-config
+          libglib2.0-dev
+          g++
+          autopoint
+          git
+    override-pull: |
+      craftctl default
+      case "${CRAFT_TARGET_ARCH}" in
+        i386)
+        ;;
+        *)
+          wget "${SHA256}" "${SIG}" "${URL}"
+          gpg --no-default-keyring \
+              --keyring ./cd-image-keying.gpg \
+              --verify SHA256SUMS.gpg SHA256SUMS
+          awk -v "file=${BASE}" '$2=="*"file' SHA256SUMS | sha256sum -c
+        ;;
+      esac
+    override-build: |
+      mkdir -p "${CRAFT_PART_INSTALL}/build-base"
+      case "${CRAFT_TARGET_ARCH}" in
+        i386)
+          fakeroot debootstrap --arch=i386 --include "$(echo ${DEPENDENCIES} | sed 's/ /,/g')" bullseye "${CRAFT_PART_INSTALL}/build-base"
+          ;;
+        *)
+          tar -x --xattrs-include=* -f "${BASE}" -C "${CRAFT_PART_INSTALL}/build-base"
+          mkdir -p "${CRAFT_PART_INSTALL}/build-base/snap/snapd/current"
+          "${CRAFT_PROJECT_DIR}/build-aux/snap/local/mount-ns.sh" spawn "${CRAFT_PART_INSTALL}/build-base" -- bash <<EOF
+      set -eu
+      apt update
+      DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends ${DEPENDENCIES}
+      EOF
+        ;;
+      esac
+    override-stage: |
+      # Default stage patches files
+      rm -rf "${CRAFT_STAGE}/build-base"
+      cp -raT "${CRAFT_PART_INSTALL}/build-base" "${CRAFT_STAGE}/build-base"
+    override-prime: |
+      # Do nothing
+
+  linux-headers:
+    after:
+     - build-base
+    plugin: nil
+    build-packages:
+      - rsync
+    source-type: git
+    source:  https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/jammy
+    source-branch: master
+    source-depth: 1
+    override-build: |
+      make INSTALL_HDR_PATH="${CRAFT_PART_INSTALL}" headers_install
+    override-stage: |
+      mkdir -p "${CRAFT_STAGE}/build-base/snap/snapd/current"
+      cp -raT "${CRAFT_PART_INSTALL}" "${CRAFT_STAGE}/build-base/snap/snapd/current"
+    override-prime: |
+      # Do nothing
+
+  glibc:
+    plugin: nil
+    stage-packages:
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - linux-headers
+      - build-base
+    build-packages:
+      - attr
+    source-type: git
+    source:  https://git.launchpad.net/ubuntu/+source/glibc
+    source-branch: ubuntu/jammy
+    <<:
+      - &common-env
+        build-environment:
+          - to i386:
+              - SETARCH: setarch i686
+              - DYNAMIC_LINKER: ld-linux.so.2
+          - to amd64:
+              - DYNAMIC_LINKER: ld-linux-x86-64.so.2
+          - to s390x:
+              - DYNAMIC_LINKER: ld64.so.1
+          - to arm64:
+              - DYNAMIC_LINKER: ld-linux-aarch64.so.1
+          - to armhf:
+              - DYNAMIC_LINKER: ld-linux-armhf.so.3
+          - to riscv64:
+              - DYNAMIC_LINKER: ld-linux-riscv64-lp64d.so.1
+          - to ppc64el:
+              - DYNAMIC_LINKER: ld64.so.2
+          - PKG_CONFIG_PATH: /snap/snapd/current/lib/pkgconfig:/snap/snapd/current/share/pkgconfig
+          - IN_BUILD_BASE: '"${CRAFT_PROJECT_DIR}/build-aux/snap/local/mount-ns.sh" spawn "${CRAFT_STAGE}/build-base"  --bind . /build -- ${SETARCH-} bash'
+          - DEB_CFLAGS: $(DEB_HOST_ARCH=${SNAPCRAFT_TARGET_ARCH} dpkg-buildflags --get CFLAGS)
+          - DEB_CPPFLAGS: $(DEB_HOST_ARCH=${SNAPCRAFT_TARGET_ARCH} dpkg-buildflags --get CPPFLAGS)
+          - DEB_LDFLAGS: $(DEB_HOST_ARCH=${SNAPCRAFT_TARGET_ARCH} dpkg-buildflags --get LDFLAGS)
+          - CFLAGS: -isystem /snap/snapd/current/include ${DEB_CFLAGS}
+          - CPPFLAGS: -isystem /snap/snapd/current/include ${DEB_CPPFLAGS}
+          - LDFLAGS: -Wl,-I/snap/snapd/current/lib/${DYNAMIC_LINKER} -L/snap/snapd/current/lib -B/snap/snapd/current/lib/ ${DEB_LDFLAGS}
+      - &common-stage
+        override-stage: |
+            craftctl default
+            mkdir -p "${CRAFT_STAGE}/build-base/snap/snapd/current"
+            cp -raT "${CRAFT_PART_INSTALL}" "${CRAFT_STAGE}/build-base/snap/snapd/current"
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      mkdir build
+      cd build
+      ../configure --prefix=/snap/snapd/current --with-headers="/snap/snapd/current/include" --without-selinux CFLAGS="-g -O2" CPPFLAGS="" LDFLAGS=""
+      make -j$(nproc)
+      make -j1 DESTDIR="/build/tmp-inst" install
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" libc6 "${CRAFT_PART_INSTALL}"/lib/libc.so.* "${CRAFT_PART_INSTALL}"/lib/libm.so.* "${CRAFT_PART_INSTALL}"/lib/ld*.so.*
+    stage:
+      - lib/libc.so.*
+      - lib/libm.so.*
+      - lib/ld*.so.*
+
+  libcap:
+    plugin: nil
+    stage-packages:
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+    source-type: git
+    source:  https://git.launchpad.net/ubuntu/+source/libcap2
+    source-branch: applied/ubuntu/jammy
+    <<:
+      - *common-env
+      - *common-stage
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      make -j$(nproc) prefix="/snap/snapd/current" DYNAMIC=yes GOLANG=no lib=lib
+      make -j1 DESTDIR="/build/tmp-inst" install GOLANG=no prefix="/snap/snapd/current" lib=lib
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" libcap2 "${CRAFT_PART_INSTALL}"/lib/libcap.so.*
+    stage:
+      - lib/libcap.so.*
+
+  libinih:
+    plugin: nil
+    after:
+      - glibc
+    source-type: git
+    source:  https://git.launchpad.net/ubuntu/+source/libinih
+    source-branch: applied/ubuntu/jammy
+    <<:
+      - *common-env
+      - *common-stage
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      meson setup build --buildtype=debugoptimized --prefix=/snap/snapd/current -Dwith_INIReader=false --libdir=lib
+      cd build
+      ninja
+      DESTDIR="/build/tmp-inst" meson install
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+    stage:
+      - lib/lib*.so.*
+    override-prime: |
+      # We actually do not need those at runtime
+
+  util-linux:
+    plugin: nil
+    stage-packages:
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+    source-type: git
+    source:  https://git.launchpad.net/ubuntu/+source/util-linux
+    source-branch: applied/ubuntu/jammy
+    <<:
+      - *common-env
+      - *common-stage
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      ./configure --prefix=/snap/snapd/current
+      make -j$(nproc)
+      make -j1 DESTDIR="/build/tmp-inst" install
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" libuuid1 "${CRAFT_PART_INSTALL}"/lib/libuuid.so.*
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" libblkid1 "${CRAFT_PART_INSTALL}"/lib/libblkid.so.*
+    stage:
+      - lib/libuuid.so.*
+      - lib/libblkid.so.*
+    override-prime: |
+      # We actually do not need those at runtime
+
+  openssl:
+    plugin: nil
+    stage-packages:
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+    source-type: git
+    source:  https://git.launchpad.net/ubuntu/+source/openssl
+    source-branch: applied/ubuntu/jammy
+    <<:
+      - *common-env
+      - *common-stage
+    override-build: |
+      case "${CRAFT_TARGET_ARCH}" in
+        armhf)
+          OPENSSL_TARGET=linux-armv4
+          ;;
+      esac
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      ./Configure ${OPENSSL_TARGET-} --prefix=/snap/snapd/current --libdir=lib shared threads
+      make -j$(nproc)
+      make -j1 DESTDIR="/build/tmp-inst" install
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" libssl3 "${CRAFT_PART_INSTALL}"/lib/lib*.so.*
+    stage:
+      - lib/lib*.so.*
+    override-prime: |
+      # We actually do not need those at runtime
+
+  xfsprogs:
+    plugin: nil
+    stage-packages:
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+      - libinih
+      - util-linux
+      - systemd
+    source-type: git
+    source: https://git.launchpad.net/ubuntu/+source/xfsprogs
+    source-branch: applied/ubuntu/jammy
+    <<:
+      - *common-env
+      - *common-stage
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      cp install-sh install-sh.bak
+      AUTOHEADER=/bin/true autoreconf -fvi
+      mv install-sh.bak install-sh
+      ./configure --prefix=/snap/snapd/current
+      make -j$(nproc) V=1 default
+      make -j1 DESTDIR="/build/tmp-inst" install install-dev
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" xfsprogs "${CRAFT_PART_INSTALL}"/lib/lib*.so.*
+    stage:
+      - lib/lib*.so.*
+    override-prime: |
+      # We actually do not need those at runtime
+
+  libseccomp:
+    plugin: nil
+    stage-packages:
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+    source-type: git
+    source:  https://git.launchpad.net/ubuntu/+source/libseccomp
+    source-branch: applied/ubuntu/jammy
+    <<:
+      - *common-env
+      - *common-stage
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      ./configure --prefix=/snap/snapd/current
+      make -j$(nproc)
+      make -j1 DESTDIR="/build/tmp-inst" install
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" libseccomp2 "${CRAFT_PART_INSTALL}"/lib/libseccomp.so.*
+    stage:
+      - lib/libseccomp.so.*
+
+  apparmor:
+    plugin: nil
+    stage-packages:
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+    # FIXME: What was the reason for using this version?
+    # Can we just use ubuntu source instead?
+    source: https://launchpad.net/apparmor/3.0/3.0.7/+download/apparmor-3.0.7.tar.gz
+    #source-type: git
+    #source:  https://git.launchpad.net/ubuntu/+source/apparmor
+    #source-branch: applied/ubuntu/jammy
+    <<:
+      - *common-env
+      - *common-stage
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build/libraries/libapparmor
+      autoreconf -fvi
+      ./configure --prefix=/snap/snapd/current
+      make -j$(nproc)
+      make -j1 DESTDIR="/build/tmp-inst" install
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      # FIXME: enable if we use launchpad source
+      #"${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" libapparmor1 "${CRAFT_PART_INSTALL}"/lib/libapparmor.so.*
+    stage:
+      - lib/libapparmor.so.*
+
+  systemd:
+    plugin: nil
+    stage-packages:
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+      - libcap
+    source-type: git
+    source: https://git.launchpad.net/ubuntu/+source/systemd
+    source-branch: applied/ubuntu/jammy
+    <<:
+      - *common-env
+      - *common-stage
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      meson setup build --buildtype=debugoptimized --prefix=/snap/snapd/current -Drootprefix=/snap/snapd/current -Dsplit-usr=false --libdir=lib
+      cd build
+      ninja
+      DESTDIR="/build/tmp-inst" meson install
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" libudev1 "${CRAFT_PART_INSTALL}"/lib/libudev.so.*
+    stage:
+      - lib/libudev.so.*
+
+  go:
+    after:
+    - build-base
+    build-packages:
+      - curl
+      - golang
+    plugin: nil
+    build-environment:
+    - GOOS: linux
+    - GOROOT_FINAL: /usr/local/go
+    - to i386:
+        - GOARCH: 386
+    - to amd64:
+        - GOARCH: amd64
+    - to arm64:
+        - GOARCH: arm64
+    - to armhf:
+        - GOARCH: arm
+    - to riscv64:
+        - GOARCH: riscv64
+    - to ppc64el:
+        - GOARCH: ppc64le
+    - to s390x:
+        - GOARCH: s390x
+    source: https://go.dev/dl/go1.18.10.src.tar.gz
+    source-type: tar
+    source-checksum: sha256/9cedcca58845df0c9474ae00274c44a95c9dfaefb132fc59921c28c7c106f8e6
+    override-build: |
+      # Work around bootstrap.bash building outside of the build directory
+      rm -rf "${CRAFT_PART_BUILD}/../go-${GOOS}-${GOARCH}-bootstrap"
+      cd src
+      bash bootstrap.bash
+      mkdir -p "${CRAFT_PART_INSTALL}/build-base/usr/local/go"
+      cp -raT "${CRAFT_PART_BUILD}/../go-${GOOS}-${GOARCH}-bootstrap" "${CRAFT_PART_INSTALL}/build-base/usr/local/go"
+    override-prime: |
+      # We actually do not need those at runtime
+
+  snapd:
     plugin: nil
     source: .
-    build-snaps: [go/1.18/stable]
     # these packages are needed to call mkversion.sh in override-pull, all other
     # dependencies are installed using apt-get build-dep
     build-packages:
       - git
       - dpkg-dev
-    after: [apparmor]
+      - golang
+    after:
+      - go
+      - apparmor
+      - glibc
+      - libcap
+      - libseccomp
+      - xfsprogs
+      - systemd
     override-pull: |
-      snapcraftctl pull
+      craftctl default
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
-      snapcraftctl set-version "$(./mkversion.sh --output-only)"
-      # Ensure that ./debian/ packaging which we are about to use
-      # matches the current `build-base` release. I.e. ubuntu-16.04
-      # for build-base:core, etc.
-      ./generate-packaging-dir
-      # install build dependencies
-      export DEBIAN_FRONTEND=noninteractive
-      export DEBCONF_NONINTERACTIVE_SEEN=true
-      sudo -E apt-get build-dep -y ./
+      craftctl set version="$(./mkversion.sh --output-only)"
       ./get-deps.sh --skip-unused-check
+    <<: *common-env
     override-build: |
-      # unset the LD_FLAGS and LD_LIBRARY_PATH vars that snapcraft sets for us
-      # as those will point to the $SNAPCRAFT_STAGE which on re-builds will 
-      # contain things like libc and friends that confuse the debian package
-      # build system
-      # TODO: should we unset $PATH to not include $SNAPCRAFT_STAGE too?
-      unset LD_FLAGS
-      unset LD_LIBRARY_PATH
-      # if we are root, disable tests because a number of them fail when run as
-      # root
-      if [ "$(id -u)" = "0" ]; then
-        DEB_BUILD_OPTIONS=nocheck
-        export DEB_BUILD_OPTIONS
+      ./mkversion.sh
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      set -x
+      export PATH="/usr/local/go/bin:\${PATH}"
+      objdump -s -j.interp /usr/local/go/bin/go || true
+      ldd /usr/local/go/bin/go || true
+      command -v go || true
+      go version || true
+      cd /build/cmd
+      autoreconf -fvi
+      ./configure --prefix=/snap/snapd/current/usr --libexec=/snap/snapd/current/lib/snapd --without-unit-tests
+      make -j$(nproc)
+      make -j1 DESTDIR="/build/tmp-inst" install
+
+      cd /build
+      # Work-around for snapcraft not working with git worktrees
+      # We detect it with .git being a file rather than a directory
+      if [ -f .git ]; then
+        EXTRA_GO_FLAGS="-buildvcs=false"
       fi
-      # run the real build (but just build the binary package, and don't
-      # bother compressing it too much)
-      dpkg-buildpackage -b -Zgzip -zfast -uc -us
-      dpkg-deb -x $(pwd)/../snapd_*.deb $SNAPCRAFT_PART_INSTALL
-      # not included in the deb as it's only used with UC20 preseeding.
-      cp -a data/preseed.json $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
-      # Note that this check should run *after* dpkg-buildpackage was run
-      # as this will re-run "go generate" which may cause a dirty tree
-      #
-      # TODO: when something like "craftctl get-version" is ready, then we can
-      # use that, but until then, we have to re-run mkversion.sh to check if the
-      # version number was set as "dirty" from the override-pull step or during
-      # the build step
+
+      export CGO_CFLAGS="-I/snap/snapd/current/include"
+      export CGO_LDFLAGS="-Xlinker -I/snap/snapd/current/lib/${DYNAMIC_LINKER} -L/snap/snapd/current/lib -B/snap/snapd/current/lib/"
+      CMDS=(bin/snap
+            lib/snapd/snapd
+            lib/snapd/snap-failure
+            lib/snapd/snap-seccomp
+            lib/snapd/snap-update-ns
+            lib/snapd/snap-exec
+            lib/snapd/snapd-apparmor
+            lib/snapd/snapctl)
+      for cmd in "\${CMDS[@]}"; do
+        go build -mod=vendor \${EXTRA_GO_FLAGS-} -o "/build/tmp-inst/snap/snapd/current/usr/\${cmd}" "github.com/snapcore/snapd/cmd/\$(basename \${cmd})"
+      done
+
+      make -C data -j$(nproc) all
+      make -C data install DESTDIR=/build/tmp-inst/snap/snapd/current SYSTEMDSYSTEMUNITDIR="lib/systemd/system/"
+      EOF
+
+      cp -raT "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      install -Dm644 "${CRAFT_PART_BUILD}/tmp-inst/etc/apparmor.d/snap.snapd.current.lib.snapd.snap-confine" "${CRAFT_PART_INSTALL}/etc/apparmor.d/usr.lib.snapd.snap-confine.real"
+
+      install -Dm644 data/info "${CRAFT_PART_INSTALL}/usr/lib/snapd/info"
+      install -Dm644 data/preseed.json "${CRAFT_PART_INSTALL}/usr/lib/snapd/preseed.json"
+
       if sh -x ./mkversion.sh --output-only | grep "dirty"; then
-        mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
+        mkdir -p "${CRAFT_PART_INSTALL}/lib/snapd"
         (
           echo "dirty git tree during build detected:"
           git status
           git diff
-        ) > $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/dirty-git-tree-info.txt
+        ) > "${CRAFT_PART_INSTALL}/lib/snapd/dirty-git-tree-info.txt"
       fi
 
   # xdelta is used to enable delta downloads (even if the host does not have it)
   xdelta3:
     plugin: nil
     stage-packages:
-      - xdelta3
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+    source-type: git
+    source:  https://git.launchpad.net/ubuntu/+source/xdelta3
+    source-branch: applied/ubuntu/jammy
+    <<: *common-env
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      autoreconf -fvi
+      ./configure --prefix=/snap/snapd/current
+      make -j$(nproc)
+      make -j1 DESTDIR="/build/tmp-inst" install
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" xdelta3 "${CRAFT_PART_INSTALL}"/bin/*
     stage:
-      - usr/bin/*
-      - usr/lib/*
-      - lib/*
+      - bin/*
+
+  zlib:
+    plugin: nil
+    stage-packages:
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+    source-type: git
+    source:  https://git.launchpad.net/ubuntu/+source/zlib
+    source-branch: applied/ubuntu/jammy
+    <<:
+      - *common-env
+      - *common-stage
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      ./configure --prefix=/snap/snapd/current
+      make -j$(nproc)
+      make -j1 DESTDIR="/build/tmp-inst" install
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" zlib1g "${CRAFT_PART_INSTALL}"/lib/lib*.so.*
+    stage:
+      - lib/lib*.so.*
+
+  xz-utils:
+    plugin: nil
+    stage-packages:
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+    source-type: git
+    source:  https://git.launchpad.net/ubuntu/+source/xz-utils
+    source-branch: applied/ubuntu/jammy
+    <<:
+      - *common-env
+      - *common-stage
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      autoreconf -fvi
+      ./configure --prefix=/snap/snapd/current
+      make -j$(nproc)
+      make -j1 DESTDIR="/build/tmp-inst" install
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" liblzma5 "${CRAFT_PART_INSTALL}"/lib/lib*.so.*
+    stage:
+      - lib/lib*.so.*
+
+  lz4:
+    plugin: nil
+    stage-packages:
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+    source-type: git
+    source:  https://git.launchpad.net/ubuntu/+source/lz4
+    source-branch: applied/ubuntu/jammy
+    <<:
+      - *common-env
+      - *common-stage
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      make -j$(nproc) CFLAGS="\${CFLAGS}" LDFLAGS="\${LDFLAGS}"
+      make -j1 DESTDIR="/build/tmp-inst" PREFIX=/snap/snapd/current install
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" liblz4-1 "${CRAFT_PART_INSTALL}"/lib/lib*.so.*
+    stage:
+      - lib/lib*.so.*
+
+  libzstd:
+    plugin: nil
+    stage-packages:
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+    source-type: git
+    source:  https://git.launchpad.net/ubuntu/+source/libzstd
+    source-branch: applied/ubuntu/jammy
+    <<:
+      - *common-env
+      - *common-stage
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      make V=1 -C lib -j$(nproc) CFLAGS="\${CFLAGS} -fPIC" LDFLAGS="\${LDFLAGS} -shared -fvisibility=hidden" libzstd
+      make V=1 -C lib -j1 DESTDIR="/build/tmp-inst" PREFIX=/snap/snapd/current install-shared install-includes install-pc
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" libzstd1 "${CRAFT_PART_INSTALL}"/lib/lib*.so.*
+    stage:
+      - lib/lib*.so.*
+
+  lzo2:
+    plugin: nil
+    stage-packages:
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+    source-type: git
+    source:  https://git.launchpad.net/ubuntu/+source/lzo2
+    source-branch: applied/ubuntu/jammy
+    <<:
+      - *common-env
+      - *common-stage
+    override-build: |
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build
+      autoreconf -fvi
+      ./configure --prefix=/snap/snapd/current --enable-shared
+      make -j$(nproc)
+      make -j1 DESTDIR="/build/tmp-inst" install
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" liblzo2-2 "${CRAFT_PART_INSTALL}"/lib/lib*.so.*
+    stage:
+      - lib/lib*.so.*
+
   # squashfs-tools are used by `snap pack`
   squashfs-tools:
     plugin: nil
     stage-packages:
-      - squashfs-tools
-    stage:
-      - usr/bin/*
-      - usr/lib/*
-      - lib/*
-  # liblzma5 is part of core but the snapd snap needs to run even without core
-  liblzma5:
-    plugin: nil
-    stage-packages:
-      - liblzma5
-    stage:
-      - lib/*
-  # Needed by squashfs-tools and fc-cache
-  zlib:
-    plugin: nil
-    stage-packages:
-      - zlib1g
-    stage:
-      - lib/*
-  # libc6 is part of core but we need it in the snapd snap for
-  # CommandFromSystemSnap
-  libc6:
-    plugin: nil
-    stage-packages:
-      - libc6
-      - libc-bin
-      - libgcc1
-    stage:
-      - lib/*
-      - usr/lib/*
-      - lib64/*
-      - etc/ld.so.conf
-      - etc/ld.so.conf.d/*
-    override-stage: |
-      snapcraftctl stage
-      # fix symlinks of ld.so to be relative
-      if [ "$(readlink -f lib64/ld-linux-x86-64.so.2)" = "/lib/x86_64-linux-gnu/ld-2.23.so" ]; then
-          ln -f -s ../lib/x86_64-linux-gnu/ld-2.23.so lib64/ld-linux-x86-64.so.2
-      fi
-      if [ "$(readlink -f lib64/ld64.so.2)" = "/lib/powerpc64le-linux-gnu/ld-2.23.so" ]; then
-          ln -f -s ../lib/powerpc64le-linux-gnu/ld-2.23.so lib64/ld64.so.2
-      fi
-  # the version in Ubuntu 16.04 (cache v6)
-  fontconfig-xenial:
-    plugin: nil
-    build-packages: [python3-apt]
-    source: https://github.com/snapcore/fc-cache-static-builder.git
+      # This is to trigger manifest generation. Files will not end up in snap
+      - base-files
+    after:
+      - glibc
+      - zlib
+      - xz-utils
+      - lz4
+      - libzstd
+      - lzo2
+    source-type: git
+    source:  https://git.launchpad.net/ubuntu/+source/squashfs-tools
+    source-branch: applied/ubuntu/jammy
+    <<: *common-env
     override-build: |
-      ./build-from-security.py xenial
-      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
-      cp -a fc-cache-xenial $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v6
-    prime:
-      - bin/fc-cache-v6
-  # the version in Ubuntu 18.04 (cache v7)
-  fontconfig-bionic:
-    plugin: nil
-    build-packages: [python3-apt]
-    source: https://github.com/snapcore/fc-cache-static-builder.git
-    override-build: |
-      ./build-from-security.py bionic
-      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
-      cp -a fc-cache-bionic $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
-    prime:
-      - bin/fc-cache-v7
-  apparmor:
-    plugin: autotools
-    build-packages: [bison, flex, gettext, g++, pkg-config]
-    source: https://launchpad.net/apparmor/3.0/3.0.7/+download/apparmor-3.0.7.tar.gz
-    override-build: |
-      cd $SNAPCRAFT_PART_BUILD/libraries/libapparmor
-      ./autogen.sh
-      ./configure --prefix=/usr --disable-man-pages --disable-perl --disable-python --disable-ruby
-      make -j$(nproc)
-      # place libapparmor into staging area for use by snap-confine
-      make -C src install DESTDIR=$SNAPCRAFT_STAGE
-      cd $SNAPCRAFT_PART_BUILD/parser
-      # copy in a pregenerated list of network address families so that the
-      # parser gets built to support as many as possible even if glibc in
-      # the current build environment does not support them
-      # For some reason, some snapcraft version remove the "build-aux" folder
-      # and move the contents up when the data is uploaded; this conditional
-      # manages it.
-      if [ -d "$SNAPCRAFT_PROJECT_DIR/build-aux" ]; then
-        cp $SNAPCRAFT_PROJECT_DIR/build-aux/snap/local/apparmor/af_names.h .
-      else
-        cp $SNAPCRAFT_PROJECT_DIR/snap/local/apparmor/af_names.h .
-      fi
-      make -j$(nproc)
-      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
-      cp -a apparmor_parser $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
-      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor
-      cp -a parser.conf $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor/
-      cd $SNAPCRAFT_PART_BUILD/profiles
-      make -j$(nproc)
-      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d
-      cp -a apparmor.d/abi $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
-      cp -a apparmor.d/abstractions $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
-      cp -a apparmor.d/tunables $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
+      ${IN_BUILD_BASE} <<EOF
+      set -eu
+      cd /build/squashfs-tools
+      make -j$(nproc) EXTRA_CFLAGS="\${CFLAGS}" EXTRA_LDFLAGS="\${LDFLAGS}" LZMA_XZ_SUPPORT=1 XZ_SUPPORT=1 LZO_SUPPORT=1 LZ4_SUPPORT=1 ZSTD_SUPPORT=1 XATTR_SUPPORT=1 GZIP_SUPPORT=1
+      make -j1 INSTALL_DIR="/build/tmp-inst/snap/snapd/current/bin" install
+      EOF
+      rm -rf "${CRAFT_PART_INSTALL}"
+      mv -T "${CRAFT_PART_BUILD}/tmp-inst/snap/snapd/current" "${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/make-origin.sh" squashfs-tools "${CRAFT_PART_INSTALL}"/bin/*
+    stage:
+      - bin/*
