@@ -41,12 +41,12 @@ import (
 // diskWithSystemSeed will locate a disk that has the partition corresponding
 // to a structure with SystemSeed role of the specified gadget volume and return
 // the device node.
-func diskWithSystemSeed(lv *gadget.LaidOutVolume) (device string, err error) {
-	for _, vs := range lv.LaidOutStructure {
+func diskWithSystemSeed(gv *gadget.Volume) (device string, err error) {
+	for _, gs := range gv.Structure {
 		// XXX: this part of the finding maybe should be a
 		// method on gadget.*Volume
-		if vs.Role() == gadget.SystemSeed {
-			device, err = gadget.FindDeviceForStructure(vs.VolumeStructure)
+		if gs.Role == gadget.SystemSeed {
+			device, err = gadget.FindDeviceForStructure(&gs)
 			if err != nil {
 				return "", fmt.Errorf("cannot find device for role system-seed: %v", err)
 			}
@@ -239,7 +239,7 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 	// auto-detect device if no device is forced
 	// device forcing is used for (spread) testing only
 	if bootDevice == "" {
-		bootDevice, err = diskWithSystemSeed(laidOutBootVol)
+		bootDevice, err = diskWithSystemSeed(laidOutBootVol.Volume)
 		if err != nil {
 			return "", nil, nil, 0, fmt.Errorf("cannot find device to create partitions on: %v", err)
 		}
@@ -252,7 +252,7 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
-	if err := gadget.EnsureLayoutCompatibility(laidOutBootVol, diskLayout, nil); err != nil {
+	if err := gadget.EnsureVolumeCompatibility(laidOutBootVol.Volume, diskLayout, nil); err != nil {
 		return "", nil, nil, 0, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
 	}
 
@@ -715,7 +715,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	// auto-detect device if no device is forced
 	// device forcing is used for (spread) testing only
 	if bootDevice == "" {
-		bootDevice, err = diskWithSystemSeed(laidOutBootVol)
+		bootDevice, err = diskWithSystemSeed(laidOutBootVol.Volume)
 		if err != nil {
 			return nil, fmt.Errorf("cannot find device to create partitions on: %v", err)
 		}
@@ -726,7 +726,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		return nil, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
 
-	layoutCompatOps := &gadget.EnsureLayoutCompatibilityOptions{
+	layoutCompatOps := &gadget.EnsureVolumeCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
 		ExpectedStructureEncryption:      map[string]gadget.StructureEncryptionParameters{},
 	}
@@ -748,7 +748,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	}
 	// factory reset is done on a system that was once installed, so this
 	// should be always successful unless the partition table has changed
-	if err := gadget.EnsureLayoutCompatibility(laidOutBootVol, diskLayout, layoutCompatOps); err != nil {
+	if err := gadget.EnsureVolumeCompatibility(laidOutBootVol.Volume, diskLayout, layoutCompatOps); err != nil {
 		return nil, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
 	}
 

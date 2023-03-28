@@ -229,8 +229,10 @@ func (s *kcmdlineTestSuite) TestKernelParseCommandLine(c *C) {
 			{"foo", "bar", true}, {"foo", "bar", true}}},
 		{cmd: `foo=* baz=bar`, exp: []osutil.KernelArgument{
 			{"foo", "*", false}, {"baz", "bar", false}}},
+		{cmd: `foo-dev-mode`, exp: []osutil.KernelArgument{
+			{"foo-dev-mode", "", false}}},
 		{cmd: `foo_bar-tee=bar_aa-bb`, exp: []osutil.KernelArgument{
-			{"foo_bar_tee", "bar_aa-bb", false}}},
+			{"foo_bar-tee", "bar_aa-bb", false}}},
 		{cmd: `foo="1$2"`, exp: []osutil.KernelArgument{{"foo", "1$2", true}}},
 		{cmd: `foo=1$2`, exp: []osutil.KernelArgument{{"foo", "1$2", false}}},
 		{cmd: `foo= bar`, exp: []osutil.KernelArgument{{"foo", "", false}, {"bar", "", false}}},

@@ -222,6 +222,12 @@ func (s *imageSuite) Assertion(assertType *asserts.AssertionType, primaryKey []s
 
 }
 
+// TODO: Implement this once we add support in writer for validation sets,
+// until then it should not be called.
+func (s *imageSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+	panic("not expected")
+}
+
 // TODO: use seedtest.SampleSnapYaml for some of these
 const packageGadget = `
 name: pc
@@ -2207,6 +2213,12 @@ func (s *imageSuite) TestPrepareClassicModelNoModelAssertion(c *C) {
 		filepath.Join(seedsnapsdir, "core18_18.snap"),
 		filepath.Join(seedsnapsdir, "required-snap18_6.snap"),
 	})
+
+	// check assertions
+	seedassertsdir := filepath.Join(seeddir, "assertions")
+	l, err := ioutil.ReadDir(seedassertsdir)
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 9)
 }
 
 func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
@@ -4312,4 +4324,45 @@ func (s *imageSuite) TestSetupSeedSnapInvalidArchitecture(c *C) {
 
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, ErrorMatches, `snap "march-snap" supported architectures \(ppc64el, arm64\) are incompatible with the model architecture \(amd64\)`)
+}
+
+func (s *imageSuite) TestSetupSeedFetchText(c *C) {
+	bootloader.Force(nil)
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.makeUC20Model(nil)
+	prepareDir := c.MkDir()
+
+	// initialize a bunch of snaps for the model
+	s.makeSnap(c, "snapd", [][]string{snapdInfoFile}, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(1), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(2), "")
+	gadgetContent := [][]string{
+		{"uboot.conf", ""},
+		{"meta/gadget.yaml", pcUC20GadgetYaml},
+	}
+	s.makeSnap(c, "pc=20", gadgetContent, snap.R(10), "")
+	s.makeSnap(c, "required20", nil, snap.R(2), "other")
+
+	opts := &image.Options{
+		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags:  []string{"factory"},
+			Validation: "ignore",
+		},
+		// Make sure we also test the case of a specific revision
+		Revisions: map[string]snap.Revision{
+			"snapd": snap.R(133),
+		},
+	}
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+
+	// test that the fetching looks correct
+	c.Assert(s.stdout.String(), testutil.Contains, "Fetching snapd (133)")
+	c.Assert(s.stdout.String(), testutil.Contains, "Fetching core20 (1)")
+	c.Assert(s.stdout.String(), testutil.Contains, "Fetching pc-kernel (2)")
+	c.Assert(s.stdout.String(), testutil.Contains, "Fetching pc (10)")
+	c.Assert(s.stdout.String(), testutil.Contains, "Fetching required20 (2)")
 }

@@ -93,13 +93,6 @@ type LaidOutStructure struct {
 	ResolvedContent []ResolvedContent
 }
 
-// IsRoleMBR returns whether a structure's role is MBR or not.
-// meh this function is weirdly placed, not sure what to do w/o making schemaMBR
-// constant exported
-func IsRoleMBR(ls LaidOutStructure) bool {
-	return ls.Role() == schemaMBR
-}
-
 // These accessors return currently what comes in the gadget, but will use
 // OnDiskVolume data when the latter is made part of LaidOutStructure.
 
