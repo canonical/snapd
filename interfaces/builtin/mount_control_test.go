@@ -233,6 +233,14 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			`mount-control option "bind" is incompatible with specifying filesystem type`,
 		},
 		{
+			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,bind]",
+			`mount-control option "bind" is incompatible with specifying filesystem type`,
+		},
+		{
+			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,make-private]",
+			`mount-control option "make-private" is incompatible with specifying filesystem type`,
+		},
+		{
 			"mount:\n  - what: /tmp/..\n    where: /media/*",
 			`mount-control "what" pattern is not clean:.*`,
 		},
@@ -263,6 +271,10 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 		{
 			"mount:\n  - what: a?\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw]",
 			`cannot use mount-control "what" attribute: "a\?" contains a reserved apparmor char from.*`,
+		},
+		{
+			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,uid=*]",
+			`cannot use mount-control "option" attribute: "uid=\*" contains a reserved apparmor char from.*`,
 		},
 	}
 
@@ -334,7 +346,7 @@ func (s *MountControlInterfaceSuite) TestFunctionfsValidates(c *C) {
     what: diag
     where: /dev/ffs-diag
     type: [functionfs]
-    options: [rw]
+    options: [rw, uid=2000, gid=2000, rmode=0550, fmode=0660, no_disconnect=1]
 `
 	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
 	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
