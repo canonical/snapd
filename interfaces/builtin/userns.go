@@ -59,13 +59,6 @@ type userNSInterface struct {
 	commonInterface
 }
 
-func (iface *userNSInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              userNSSummary,
-		BaseDeclarationSlots: userNSBaseDeclarationSlots,
-	}
-}
-
 func (iface *userNSInterface) Name() string {
 	return "userns"
 }
@@ -106,6 +99,7 @@ func init() {
 		summary:              userNSSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
+		baseDeclarationPlugs: userNSBaseDeclarationPlugs,
 		baseDeclarationSlots: userNSBaseDeclarationSlots,
 		connectedPlugSecComp: userNSConnectedPlugSeccomp,
 	}})

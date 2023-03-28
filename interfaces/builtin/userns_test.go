@@ -114,7 +114,7 @@ func (s *UserNSInterfaceSuite) TestAutoConnect(c *C) {
 
 func (s *UserNSInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Check(si.ImplicitOnCore, Equals, false)
-	c.Check(si.ImplicitOnClassic, Equals, false)
+	c.Check(si.ImplicitOnCore, Equals, true)
+	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.Summary, Equals, `allows the ability to use user namespaces`)
 }
