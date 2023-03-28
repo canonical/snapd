@@ -8253,53 +8253,84 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	autoConnectBase := snapTasks["auto-connect@base"]
 	c.Assert(kernelTs, NotNil)
 	c.Assert(baseTs, NotNil)
-	c.Assert(kernelTs.MaybeEdge(snapstate.BeforeMaybeRebootEdge), Equals, snapTasks["setup-profiles@kernel"])
-	c.Assert(kernelTs.MaybeEdge(snapstate.MaybeRebootEdge), Equals, linkSnapKernel)
-	c.Assert(kernelTs.MaybeEdge(snapstate.MaybeRebootWaitEdge), Equals, autoConnectKernel)
-	c.Assert(kernelTs.MaybeEdge(snapstate.AfterMaybeRebootWaitEdge), Equals, snapTasks["set-auto-aliases@kernel"])
+	c.Check(kernelTs.MaybeEdge(snapstate.BeforeMaybeRebootEdge), Equals, snapTasks["setup-profiles@kernel"])
+	c.Check(kernelTs.MaybeEdge(snapstate.MaybeRebootEdge), Equals, linkSnapKernel)
+	c.Check(kernelTs.MaybeEdge(snapstate.MaybeRebootWaitEdge), Equals, autoConnectKernel)
+	c.Check(kernelTs.MaybeEdge(snapstate.AfterMaybeRebootWaitEdge), Equals, snapTasks["set-auto-aliases@kernel"])
 
-	c.Assert(baseTs.MaybeEdge(snapstate.BeforeMaybeRebootEdge), Equals, snapTasks["setup-profiles@base"])
-	c.Assert(baseTs.MaybeEdge(snapstate.MaybeRebootEdge), Equals, linkSnapBase)
-	c.Assert(baseTs.MaybeEdge(snapstate.MaybeRebootWaitEdge), Equals, autoConnectBase)
-	c.Assert(baseTs.MaybeEdge(snapstate.AfterMaybeRebootWaitEdge), Equals, snapTasks["set-auto-aliases@base"])
+	c.Check(baseTs.MaybeEdge(snapstate.BeforeMaybeRebootEdge), Equals, snapTasks["setup-profiles@base"])
+	c.Check(baseTs.MaybeEdge(snapstate.MaybeRebootEdge), Equals, linkSnapBase)
+	c.Check(baseTs.MaybeEdge(snapstate.MaybeRebootWaitEdge), Equals, autoConnectBase)
+	c.Check(baseTs.MaybeEdge(snapstate.AfterMaybeRebootWaitEdge), Equals, snapTasks["set-auto-aliases@base"])
 
-	c.Assert(linkSnapBase.WaitTasks(), DeepEquals, []*state.Task{
-		snapTasks["setup-profiles@base"], snapTasks["setup-profiles@kernel"],
+	taskIdentifiers := func(ts []*state.Task) []string {
+		var ids []string
+		for _, t := range ts {
+			snapsup, err := snapstate.TaskSnapSetup(t)
+			var snapType string
+			if err == nil {
+				snapType = string(snapsup.Type)
+			}
+			ids = append(ids, fmt.Sprintf("%s@%s", t.Kind(), snapType))
+		}
+		return ids
+	}
+
+	// Verify that the tasks before auto-connect don't depend on anything
+	// except for it's own previous tasks of base.
+	c.Check(taskIdentifiers(linkSnapBase.WaitTasks()), DeepEquals, []string{
+		"setup-profiles@base",
 	})
-	c.Assert(linkSnapKernel.WaitTasks(), DeepEquals, []*state.Task{
-		snapTasks["setup-profiles@kernel"], linkSnapBase,
+	c.Check(taskIdentifiers(autoConnectBase.WaitTasks()), DeepEquals, []string{
+		"link-snap@base",
 	})
-	c.Assert(autoConnectKernel.WaitTasks(), DeepEquals, []*state.Task{
-		snapTasks["link-snap@kernel"], autoConnectBase,
-	})
-	c.Assert(autoConnectBase.WaitTasks(), DeepEquals, []*state.Task{
-		snapTasks["link-snap@base"], snapTasks["link-snap@kernel"],
-	})
-	c.Assert(snapTasks["set-auto-aliases@kernel"].WaitTasks(), DeepEquals, []*state.Task{
-		autoConnectKernel,
-	})
-	c.Assert(snapTasks["set-auto-aliases@base"].WaitTasks(), DeepEquals, []*state.Task{
-		autoConnectBase, autoConnectKernel,
+	c.Check(taskIdentifiers(snapTasks["set-auto-aliases@base"].WaitTasks()), DeepEquals, []string{
+		"auto-connect@base",
 	})
 
-	var cannotReboot bool
-	// link-snap of base cannot issue a reboot
-	c.Assert(linkSnapBase.Get("cannot-reboot", &cannotReboot), IsNil)
-	c.Assert(cannotReboot, Equals, true)
-	// but the link-snap of the kernel can issue a reboot
-	c.Assert(linkSnapKernel.Get("cannot-reboot", &cannotReboot), testutil.ErrorIs, state.ErrNoState)
+	// Verify that the kernel tasks before auto-connect depend on all base
+	// tasks before auto-connect
+	c.Assert(linkSnapKernel.WaitTasks(), HasLen, 12)
+	c.Check(taskIdentifiers(linkSnapKernel.WaitTasks()), DeepEquals, []string{
+		"setup-profiles@kernel",
+		"link-snap@base",
+		"setup-profiles@base",
+		"copy-snap-data@base",
+		"unlink-current-snap@base",
+		"remove-aliases@base",
+		"stop-snap-services@base",
+		"run-hook@base",
+		"mount-snap@base",
+		"validate-snap@base",
+		"download-snap@base",
+		"prerequisites@base",
+	})
+
+	// Verify that the kernel tasks after auto-connect depends on all the base
+	// post auto-connect tasks
+	c.Check(taskIdentifiers(autoConnectKernel.WaitTasks()), DeepEquals, []string{
+		"link-snap@kernel",
+		"auto-connect@base",
+		"set-auto-aliases@base",
+		"setup-aliases@base",
+		"run-hook@base",
+		"start-snap-services@base",
+		"cleanup@base",
+		"run-hook@",
+	})
 
 	// have fake backend indicate a need to reboot for both snaps
 	s.fakeBackend.linkSnapMaybeReboot = true
 	s.fakeBackend.linkSnapRebootFor = map[string]bool{
-		"kernel": true,
 		"core18": true,
 	}
 
 	defer s.se.Stop()
 	s.settle(c)
 
-	c.Check(chg.Status(), Equals, state.DoneStatus)
+	// Ennsure that the change is now waiting for reboot
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
 	// a single system restart was requested
 	c.Check(restartRequested, DeepEquals, []restart.RestartType{
 		restart.RestartSystem,
@@ -8344,16 +8375,12 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 			ops = append(ops, fmt.Sprintf("%s-%s/%s", op.op, op.name, op.revno))
 		}
 	}
-	c.Assert(ops, HasLen, 8)
-	c.Assert(ops[0:2], testutil.DeepUnsortedMatches, []string{
-		"setup-profiles:Doing-kernel/11", "setup-profiles:Doing-core18/11",
+	c.Assert(ops, HasLen, 6)
+	c.Assert(ops[0:3], testutil.DeepUnsortedMatches, []string{
+		"setup-profiles:Doing-core18/11", "core18/11", "auto-connect:Doing-core18/11",
 	})
-	c.Assert(ops[2:6], DeepEquals, []string{
-		"core18/11", "kernel/11",
-		"auto-connect:Doing-core18/11", "auto-connect:Doing-kernel/11",
-	})
-	c.Assert(ops[6:], testutil.DeepUnsortedMatches, []string{
-		"cleanup-trash-core18", "cleanup-trash-kernel",
+	c.Assert(ops[3:6], DeepEquals, []string{
+		"setup-profiles:Doing-kernel/11", "kernel/11", "auto-connect:Doing-kernel/11",
 	})
 }
 
@@ -8455,10 +8482,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHa
 		snapTasks["link-snap@os"],
 	})
 	// kernel tasks have an implicit dependency on all "core" tasks
-	c.Assert(linkSnapKernel.WaitTasks(), DeepEquals, append([]*state.Task{
+	c.Check(linkSnapKernel.WaitTasks(), DeepEquals, append([]*state.Task{
 		snapTasks["setup-profiles@kernel"],
 	}, coreTs.Tasks()...))
-	c.Assert(autoConnectKernel.WaitTasks(), DeepEquals, append([]*state.Task{
+	c.Check(autoConnectKernel.WaitTasks(), DeepEquals, append([]*state.Task{
 		snapTasks["link-snap@kernel"],
 	}, coreTs.Tasks()...))
 	// have fake backend indicate a need to reboot for both snaps

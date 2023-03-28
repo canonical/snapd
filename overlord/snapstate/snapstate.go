@@ -862,41 +862,6 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	return nil
 }
 
-// FinishTaskWithRestart will finish a task that needs a restart, by
-// setting its status and requesting a restart.
-// It should usually be invoked returning its result immediately
-// from the caller.
-// It delegates the work to restart.FinishTaskWithRestart which can decide
-// to set the task to wait returning state.Wait.
-func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.RestartType, rebootInfo *boot.RebootInfo) error {
-	var rebootRequiredSnap string
-	// If system restart is requested, consider how the change the
-	// task belongs to is configured (system-restart-immediate) to
-	// choose whether request an immediate restart or not.
-	if rt == restart.RestartSystem {
-		snapsup, err := TaskSnapSetup(task)
-		if err != nil {
-			return fmt.Errorf("cannot get snap that triggered a reboot: %v", err)
-		}
-		rebootRequiredSnap = snapsup.InstanceName()
-
-		chg := task.Change()
-		var immediate bool
-		if chg != nil {
-			// ignore errors intentionally, to follow
-			// RequestRestart itself which does not
-			// return errors. If the state is corrupt
-			// something else will error
-			chg.Get("system-restart-immediate", &immediate)
-		}
-		if immediate {
-			rt = restart.RestartSystemNow
-		}
-	}
-
-	return restart.FinishTaskWithRestart(task, status, rt, rebootRequiredSnap, rebootInfo)
-}
-
 // IsErrAndNotWait returns true if err is not nil and neither state.Wait, it is
 // useful for code using FinishTaskWithRestart to not undo work in the presence
 // of a state.Wait return.
@@ -1641,6 +1606,86 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 	return nil
 }
 
+func tasksBefore(task *state.Task, ts *state.TaskSet) {
+	for _, t := range task.WaitTasks() {
+		ts.AddTask(t)
+		tasksBefore(t, ts)
+	}
+}
+
+// Returns tasks up to and not including the auto-connect task
+func preAutoConnectTasks(ts *state.TaskSet) *state.TaskSet {
+	if ts == nil {
+		return nil
+	}
+
+	linkSnap := ts.MaybeEdge(MaybeRebootEdge)
+	if linkSnap == nil {
+		return nil
+	}
+
+	preTS := state.NewTaskSet(linkSnap)
+	tasksBefore(linkSnap, preTS)
+	return preTS
+}
+
+func tasksAfter(task *state.Task, ts *state.TaskSet) {
+	for _, t := range task.HaltTasks() {
+		ts.AddTask(t)
+		tasksAfter(t, ts)
+	}
+}
+
+// Returns task from and including the auto-connect task
+func postAutoConnectTasks(ts *state.TaskSet) *state.TaskSet {
+	if ts == nil {
+		return nil
+	}
+
+	autoConnect := ts.MaybeEdge(MaybeRebootWaitEdge)
+	if autoConnect == nil {
+		return nil
+	}
+
+	postTS := state.NewTaskSet(autoConnect)
+	tasksAfter(autoConnect, postTS)
+	return postTS
+}
+
+func arrangeTaskSetsForSingleReboot(baseTS, gadgetTS, kernelTS *state.TaskSet) error {
+	// Allow base to run up-to-including link-snap (happens automatically)
+	// Allow gadget to run up-to-including link-snap afterwards
+	// Allow kernel to run up-to-including link-snap last
+
+	// Split their task-sets into pre auto-connect and post auto-connect
+	basePreRebootTs := preAutoConnectTasks(baseTS)
+	basePostRebootTS := postAutoConnectTasks(baseTS)
+	gadgetPreRebootTs := preAutoConnectTasks(gadgetTS)
+	gadgetPostRebootTS := postAutoConnectTasks(gadgetTS)
+	kernelPreRebootTs := preAutoConnectTasks(kernelTS)
+	kernelPostRebootTS := postAutoConnectTasks(kernelTS)
+
+	if basePostRebootTS != nil && gadgetPostRebootTS != nil {
+		gadgetPreRebootTs.WaitAll(basePreRebootTs)
+		gadgetPostRebootTS.WaitAll(basePostRebootTS)
+	}
+	if gadgetPostRebootTS != nil && kernelPostRebootTS != nil {
+		// Kernel must wait for gadget because the gadget may define
+		// new "$kernel:refs". Sorting the other way is impossible
+		// because a kernel with new kernel-assets would never refresh
+		// because the matching gadget could never get installed
+		// because the gadget always waits for the kernel and if the
+		// kernel aborts the wait tasks (the gadget) is put on "Hold".
+		kernelPreRebootTs.WaitAll(gadgetPreRebootTs)
+		kernelPostRebootTS.WaitAll(gadgetPostRebootTS)
+	} else if basePostRebootTS != nil && kernelPostRebootTS != nil {
+		// let kernel wait for base
+		kernelPreRebootTs.WaitAll(basePreRebootTs)
+		kernelPostRebootTS.WaitAll(basePostRebootTS)
+	}
+	return nil
+}
+
 func updateManyFiltered(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, *UpdateTaskSets, error) {
 	if flags == nil {
 		flags = &Flags{}
@@ -1877,7 +1922,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			if typ == snap.TypeBase {
 				waitPrereq(ts, "snapd")
 			}
-		} else {
+		} else if typ == snap.TypeApp {
 			// prereqs were processed already, wait for
 			// them as necessary for the other kind of
 			// snaps
@@ -1890,12 +1935,6 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			// case) are updated
 			waitPrereq(ts, defaultCoreSnapName)
 			waitPrereq(ts, "snapd")
-			if update.SnapBase() != "" {
-				// the kernel snap is ordered before the base,
-				// so its task will not have an implicit
-				// dependency on base update
-				waitPrereq(ts, update.SnapBase())
-			}
 		}
 		// keep track of kernel/gadget/base updates
 		switch typ {
@@ -1918,24 +1957,11 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		scheduleUpdate(update.InstanceName(), ts)
 		installTasksets = append(installTasksets, ts)
 	}
-	// Kernel must wait for gadget because the gadget may define
-	// new "$kernel:refs". Sorting the other way is impossible
-	// because a kernel with new kernel-assets would never refresh
-	// because the matching gadget could never get installed
-	// because the gadget always waits for the kernel and if the
-	// kernel aborts the wait tasks (the gadget) is put on "Hold".
-	if kernelTs != nil && gadgetTs != nil {
-		kernelTs.WaitAll(gadgetTs)
-	}
 
-	if deviceCtx.Model().Base() != "" && (gadgetTs == nil || enforcedSingleRebootForGadgetKernelBase) {
-		// reordering of kernel and base tasks is supported only on
+	if deviceCtx.Model().Base() != "" {
+		// reordering of kernel, gadget and base tasks is supported only on
 		// UC18+ devices
-		// this can only be done safely when the gadget is not a part of
-		// the same update, otherwise there will be a circular
-		// dependency, where gadget waits for base, kernel waits for
-		// gadget, but base waits for some of the kernel tasks
-		if err := rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs); err != nil {
+		if err := arrangeTaskSetsForSingleReboot(bootBaseTs, gadgetTs, kernelTs); err != nil {
 			return nil, nil, err
 		}
 	}

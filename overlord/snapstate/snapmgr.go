@@ -548,6 +548,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// misc
 	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
 	runner.AddHandler("migrate-snap-home", m.doMigrateSnapHome, m.undoMigrateSnapHome)
+	runner.AddHandler("reboot-tracker", m.doDecideOnReboot, nil)
 	// no undo for now since it's last task in valset auto-resolution change
 	runner.AddHandler("enforce-validation-sets", m.doEnforceValidationSets, nil)
 	runner.AddHandler("pre-download-snap", m.doPreDownloadSnap, nil)
