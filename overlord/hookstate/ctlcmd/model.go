@@ -20,6 +20,7 @@
 package ctlcmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -253,7 +254,7 @@ func (c *modelCommand) Execute([]string) error {
 	serialAssertion, err := c.findSerialAssertion(st, deviceCtx.Model())
 	// Ignore the error in case the serial assertion wasn't found. We will
 	// then use the model assertion instead.
-	if err != nil && !asserts.IsNotFound(err) {
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return err
 	}
 

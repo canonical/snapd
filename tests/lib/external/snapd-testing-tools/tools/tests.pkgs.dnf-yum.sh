@@ -27,45 +27,35 @@ remap_one() {
 }
 
 cmd_install() {
-    set -x
     # shellcheck disable=SC2068
     if [ "$(command -v dnf)" != "" ]; then
         dnf install -y $@
     else
         yum install -y $@
     fi
-    set +x
 }
 
 cmd_is_installed() {
-    set -x
     rpm -qi "$1" >/dev/null 2>&1
-    set +x
 }
 
 cmd_query() {
-    set -x
     if [ "$(command -v dnf)" != "" ]; then
         dnf info "$1"
     else
         yum info "$1"
     fi
-    set +x
 }
 
 cmd_list_installed() {
-    set -x
     rpm -qa | sort
-    set +x
 }
 
 cmd_remove() {
-    set -x
     # shellcheck disable=SC2068
     if [ "$(command -v dnf)" != "" ]; then
         dnf remove -y $@
     else
         yum remove -y $@
     fi
-    set +x
 }

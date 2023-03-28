@@ -269,6 +269,9 @@ apps:
   microceph:
     command: bin/run
     plugs: [ microceph ]
+  microovn:
+    command: bin/run
+    plugs: [ microovn ]
   microstack-support:
     command: bin/run
     plugs: [ microstack-support ]
@@ -323,6 +326,9 @@ apps:
   network-status:
     command: bin/run
     plugs: [ network-status ]
+  nvidia-drivers-support:
+    command: bin/run
+    plugs: [ nvidia-drivers-support ]
   ofono:
     command: bin/run
     plugs: [ ofono ]

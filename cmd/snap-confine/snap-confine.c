@@ -680,6 +680,12 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	inv->is_normal_mode = distro != SC_DISTRO_CORE16 ||
 	    !sc_streq(inv->orig_base_snap_name, "core");
 
+	/* Read the homedirs configuration: this information is needed both by our
+	 * namespace helper (in order to detect if the homedirs are mounted) and by
+	 * snap-confine itself to mount the homedirs.
+	 */
+	sc_invocation_init_homedirs(inv);
+
 	/* Stale mount namespace discarded or no mount namespace to
 	   join. We need to construct a new mount namespace ourselves.
 	   To capture it we will need a helper process so make one. */

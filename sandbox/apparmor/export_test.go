@@ -63,6 +63,12 @@ func MockSnapConfineDistroProfilePath(f func() string) func() {
 	return r
 }
 
+func MockLoadHomedirs(f func() ([]string, error)) func() {
+	r := testutil.Backup(&loadHomedirs)
+	loadHomedirs = f
+	return r
+}
+
 // MockProfilesPath mocks the file read by LoadedProfiles()
 func MockProfilesPath(t *testutil.BaseTest, profiles string) {
 	profilesPath = profiles

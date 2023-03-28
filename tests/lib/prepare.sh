@@ -135,7 +135,7 @@ update_core_snap_for_classic_reexec() {
 
     # First of all, unmount the core
     core="$(readlink -f "$SNAP_MOUNT_DIR/core/current" || readlink -f "$SNAP_MOUNT_DIR/ubuntu-core/current")"
-    snap="$(mount | grep " $core" | awk '{print $1}')"
+    snap="$(mount | grep " $core" | head -n 1 | awk '{print $1}')"
     umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
@@ -330,13 +330,11 @@ prepare_classic() {
     setup_systemd_snapd_overrides
 
     if [ "$REMOTE_STORE" = staging ]; then
-        # shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB/store.sh"
         # reset seeding data that is likely tainted with production keys
         systemctl stop snapd.service snapd.socket
         rm -rf /var/lib/snapd/assertions/*
         rm -f /var/lib/snapd/state.json
-        setup_staging_store
+        "$TESTSTOOLS"/store-state setup-staging-store
     fi
 
     # Snapshot the state including core.
@@ -596,7 +594,7 @@ uc20_build_corrupt_kernel_snap() {
 
 uc20_build_initramfs_kernel_snap() {
     # carries ubuntu-core-initframfs
-    add-apt-repository ppa:snappy-dev/image -y
+    quiet add-apt-repository ppa:snappy-dev/image -y
     # On focal, lvm2 does not reinstall properly after being removed.
     # So we need to clean up in case the VM has been re-used.
     if os.query is-focal; then
@@ -605,7 +603,7 @@ uc20_build_initramfs_kernel_snap() {
     # TODO: install the linux-firmware as the current version of
     # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
     # to build the initrd
-    apt install ubuntu-core-initramfs linux-firmware -y
+    quiet apt install ubuntu-core-initramfs linux-firmware -y
 
     local ORIG_SNAP="$1"
     local TARGET="$2"
@@ -739,28 +737,33 @@ EOF
         # current host, this should work for most cases, since the image will be
         # running on the same host
         # TODO:UC20: enable when ready
-        exit 0
 
-        # drop unnecessary modules
-        awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
-        #shellcheck disable=SC2044
-        for m in $(find modules/ -name '*.ko'); do
-            noko=$(basename "$m"); noko="${noko%.ko}"
-            if echo "$noko" | grep -f /tmp/mods -q ; then
-                echo "keeping $m - $noko"
-            else
-                rm -f "$m"
-            fi
-        done
+        # To avoid shellcheck unused code warning, we cannot use "exit 0" to disable
+        # the module drop code. To avoid commented out code, we use a flag instead.
+        # Strip off the check when this UC20 code is enabled.
+        uc20Ready=false
 
-        #shellcheck disable=SC2010
-        kver=$(ls "config"-* | grep -Po 'config-\K.*')
+        if [ "$uc20Ready" = "true" ]; then
+            # drop unnecessary modules
+            awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
+            #shellcheck disable=SC2044
+            for m in $(find modules/ -name '*.ko'); do
+                noko=$(basename "$m"); noko="${noko%.ko}"
+                if echo "$noko" | grep -f /tmp/mods -q ; then
+                    echo "keeping $m - $noko"
+                else
+                    rm -f "$m"
+                fi
+            done
+            #shellcheck disable=SC2010
+            kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
-        # depmod assumes that /lib/modules/$kver is under basepath
-        mkdir -p fake/lib
-        ln -s "$PWD/modules" fake/lib/modules
-        depmod -b "$PWD/fake" -A -v "$kver"
-        rm -rf fake
+            # depmod assumes that /lib/modules/$kver is under basepath
+            mkdir -p fake/lib
+            ln -s "$PWD/modules" fake/lib/modules
+            depmod -b "$PWD/fake" -A -v "$kver"
+            rm -rf fake
+        fi
     )
 
     # copy any extra files that tests may need for the kernel

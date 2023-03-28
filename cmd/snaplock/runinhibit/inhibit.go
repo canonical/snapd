@@ -54,6 +54,9 @@ const (
 	HintInhibitedGateRefresh Hint = "gate-refresh"
 	// HintInhibitedForRefresh represents inhibition of a "snap run" while a refresh change is being performed.
 	HintInhibitedForRefresh Hint = "refresh"
+	// HintInhibitedForPreDownload represents inhibition of a "snap run" while a
+	// pre-download is triggering a refresh.
+	HintInhibitedForPreDownload Hint = "pre-download"
 )
 
 // HintFile returns the full path of the run inhibition lock file for the given snap.

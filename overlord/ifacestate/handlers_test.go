@@ -144,6 +144,8 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
+	// journal quota is still experimental, so we must enable the experimental
+	// quota-groups option
 	tr := config.NewTransaction(s.st)
 	tr.Set("core", "experimental.quota-groups", true)
 	tr.Commit()

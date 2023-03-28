@@ -37,33 +37,23 @@ remap_one() {
 }
 
 cmd_install() {
-    set -x
     # shellcheck disable=SC2068
     pacman -S --noconfirm $@
-    set +x
 }
 
 cmd_is_installed() {
-    set -x
     pacman -Qi "$1" >/dev/null 2>&1
-    set +x
 }
 
 cmd_query() {
-    set -x
     pacman -Si "$1"
-    set +x
 }
 
 cmd_list_installed() {
-    set -x
     pacman -Qe | awk '{ print $1 }' | sort
-    set +x
 }
 
 cmd_remove() {
-    set -x
     # shellcheck disable=SC2068
     pacman -Rnsc --noconfirm $@
-    set +x
 }

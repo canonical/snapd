@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -69,10 +70,10 @@ func (ser *Serial) checkConsistency(db RODatabase, acck *AccountKey) error {
 			"brand-id": ser.BrandID(),
 			"model":    ser.Model(),
 		})
-		if err != nil && !IsNotFound(err) {
+		if err != nil && !errors.Is(err, &NotFoundError{}) {
 			return err
 		}
-		if IsNotFound(err) || !strutil.ListContains(a.(*Model).SerialAuthority(), ser.AuthorityID()) {
+		if errors.Is(err, &NotFoundError{}) || !strutil.ListContains(a.(*Model).SerialAuthority(), ser.AuthorityID()) {
 			return fmt.Errorf("serial with authority %q different from brand %q without model assertion with serial-authority set to to allow for them", ser.AuthorityID(), ser.BrandID())
 		}
 	}

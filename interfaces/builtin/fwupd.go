@@ -127,6 +127,8 @@ const fwupdPermanentSlotAppArmor = `
   /boot/efi/EFI/*/ rw,
   /boot/efi/EFI/*/fw/ rw,
   /boot/efi/EFI/*/fw/** rw,
+  /boot/efi/EFI/fwupd/ rw,
+  /boot/efi/EFI/fwupd/** rw,
 
   # Allow access from efivar library
   /sys/devices/{pci*,platform}/**/block/**/partition r,
@@ -136,6 +138,9 @@ const fwupdPermanentSlotAppArmor = `
   # Allow access UEFI firmware platform size
   /sys/firmware/efi/ r,
   /sys/firmware/efi/fw_platform_size r,
+
+  # os-release from host is needed for UEFI
+  /var/lib/snapd/hostfs/{etc,usr/lib}/os-release r,
 
   # DBus accesses
   #include <abstractions/dbus-strict>
@@ -216,6 +221,7 @@ const fwupdPermanentSlotAppArmorClassic = `
   # allow access to fwupd* and fw/ under any distro for classic systems
   /boot/efi/EFI/*/fwupd*.efi* rw,
   /boot/efi/EFI/*/fw/** rw,
+  /boot/efi/EFI/UpdateCapsule/** rw,
 `
 
 const fwupdConnectedPlugAppArmor = `

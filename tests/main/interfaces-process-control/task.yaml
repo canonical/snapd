@@ -40,11 +40,11 @@ execute: |
     echo "Then the snap is not able to kill an existing process"
     sleep 5m &
     pid=$!
+    tests.cleanup defer "kill $pid 2>/dev/null || true"
+
     if process-control-consumer.signal SIGTERM "$pid" 2> process-kill.error; then
         echo "Expected permission error accessing killing a process with disconnected plug"
         exit 1
     fi
-    grep -q "Permission denied" process-kill.error
+    MATCH "Permission denied" < process-kill.error
     kill -s 0 "$pid"
-    kill "$pid"
-    not kill -s 0 "$pid"

@@ -485,7 +485,7 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info, deviceCtx snapstate.D
 	if modelAs.Store() != "" {
 		var err error
 		storeAs, err = assertstate.Store(st, modelAs.Store())
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return err
 		}
 	}

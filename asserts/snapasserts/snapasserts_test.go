@@ -21,6 +21,7 @@ package snapasserts_test
 
 import (
 	"crypto"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -279,7 +280,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoNoSignatures(c *C) {
 
 	_, err = snapasserts.DeriveSideInfo(snapPath, nil, s.localDB)
 	// cannot find signatures with metadata for snap
-	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (s *snapassertsSuite) TestDeriveSideInfoSizeMismatch(c *C) {

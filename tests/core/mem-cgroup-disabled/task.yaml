@@ -53,9 +53,6 @@ execute: |
       # install a snap with a service
       "$TESTSTOOLS"/snaps-state install-local test-snapd-simple-service
 
-      # enable quota groups
-      snap set system experimental.quota-groups=true
-
       # put it in a quota group
       snap set-quota grp --memory=100MB test-snapd-simple-service
 

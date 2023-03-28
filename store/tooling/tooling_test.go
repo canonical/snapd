@@ -31,6 +31,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -56,6 +57,8 @@ type toolingSuite struct {
 	storeActionsBunchSizes []int
 	storeActions           []*store.SnapAction
 	curSnaps               [][]*store.CurrentSnap
+
+	assertMaxFormats map[string]int
 
 	tsto *tooling.ToolingStore
 
@@ -391,6 +394,21 @@ func (s *toolingSuite) TestDownloadSnap(c *C) {
 	c.Check(logbuf.String(), Matches, `.* DEBUG: Going to download snap "core" `+opts.String()+".\n")
 }
 
+func (s *toolingSuite) TestSetAssertionMaxFormats(c *C) {
+	c.Check(s.tsto.AssertionMaxFormats(), IsNil)
+
+	m := map[string]int{
+		"snap-declaration": 4,
+	}
+	s.tsto.SetAssertionMaxFormats(m)
+	c.Check(s.tsto.AssertionMaxFormats(), DeepEquals, m)
+	c.Check(s.assertMaxFormats, DeepEquals, m)
+
+	s.tsto.SetAssertionMaxFormats(nil)
+	c.Check(s.tsto.AssertionMaxFormats(), IsNil)
+	c.Check(s.assertMaxFormats, IsNil)
+}
+
 // interface for the store
 func (s *toolingSuite) SnapAction(_ context.Context, curSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, _ *auth.UserState, _ *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	if assertQuery != nil {
@@ -436,9 +454,27 @@ func (s *toolingSuite) Download(ctx context.Context, name, targetFn string, down
 	return osutil.CopyFile(s.AssertedSnap(name), targetFn, 0)
 }
 
+func (s *toolingSuite) SetAssertionMaxFormats(m map[string]int) {
+	s.assertMaxFormats = m
+}
+
 func (s *toolingSuite) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
 	ref := &asserts.Ref{Type: assertType, PrimaryKey: primaryKey}
 	return ref.Resolve(s.StoreSigning.Find)
+}
+
+func (s *toolingSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+	if sequence <= 0 {
+		panic("unexpected call to SeqFormingAssertion with unspecified sequence")
+	}
+
+	seq := &asserts.AtSequence{
+		Type:        assertType,
+		SequenceKey: sequenceKey,
+		Sequence:    sequence,
+		Revision:    asserts.RevisionNotKnown,
+	}
+	return seq.Resolve(s.StoreSigning.Find)
 }
 
 func (s *toolingSuite) TestUpdateUserAuth(c *C) {
@@ -467,4 +503,64 @@ func (s *toolingSuite) TestSimpleCreds(c *C) {
 	c.Assert(creds.Authorize(r, nil, nil, nil), IsNil)
 	auth := r.Header.Get("Authorization")
 	c.Check(auth, Equals, `Auth-Scheme auth-value`)
+}
+
+func (s *toolingSuite) setupSequenceFormingAssertion(c *C) {
+	vs, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "base-set",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       "idididididididididididididididid",
+				"presence": "required",
+				"revision": "1",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(vs)
+	c.Check(err, IsNil)
+}
+
+func (s *toolingSuite) TestAssertionSequenceFormingFetcherSimple(c *C) {
+	s.setupSequenceFormingAssertion(c)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.StoreSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	// Add in prereqs
+	err = db.Add(s.StoreSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	var saveCalled int
+	sf := s.tsto.AssertionSequenceFormingFetcher(db, func(a asserts.Assertion) error {
+		saveCalled++
+		return nil
+	})
+	c.Check(sf, NotNil)
+
+	seq := &asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{"16", "canonical", "base-set"},
+		Sequence:    1,
+	}
+
+	err = sf.FetchSequence(seq)
+	c.Check(err, IsNil)
+	c.Check(saveCalled, Equals, 1)
+
+	// Verify it was put into the database
+	vsa, err := seq.Resolve(db.Find)
+	c.Assert(err, IsNil)
+	c.Check(vsa.(*asserts.ValidationSet).Name(), Equals, "base-set")
+	c.Check(vsa.(*asserts.ValidationSet).Sequence(), Equals, 1)
 }

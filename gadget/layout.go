@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
+	"github.com/snapcore/snapd/secboot"
 )
 
 // LayoutOptions defines the options to layout a given volume.
@@ -44,6 +45,8 @@ type LayoutOptions struct {
 
 	GadgetRootDir string
 	KernelRootDir string
+
+	EncType secboot.EncryptionType
 }
 
 // NonMBRStartOffset is the minimum start offset of the first non-MBR structure
@@ -60,8 +63,6 @@ type LaidOutVolume struct {
 	// LaidOutStructure is a list of structures within the volume, sorted
 	// by their start offsets
 	LaidOutStructure []LaidOutStructure
-	// RootDir is the root directory for volume data
-	RootDir string
 }
 
 // PartiallyLaidOutVolume defines the layout of volume structures, but lacks the
@@ -73,13 +74,13 @@ type PartiallyLaidOutVolume struct {
 	LaidOutStructure []LaidOutStructure
 }
 
-// LaidOutStructure describes a VolumeStructure that has been placed within the
-// volume
+// LaidOutStructure describes a VolumeStructure coming from the gadget plus the
+// OnDiskStructure that describes how it would be applied to a given disk and
+// additional content used when writing/updating data in the structure.
 type LaidOutStructure struct {
+	OnDiskStructure
+	// VolumeStructure is the volume structure defined in gadget.yaml
 	VolumeStructure *VolumeStructure
-	// StartOffset defines the start offset of the structure within the
-	// enclosing volume
-	StartOffset quantity.Offset
 	// AbsoluteOffsetWrite is the resolved absolute position of offset-write
 	// for this structure element within the enclosing volume
 	AbsoluteOffsetWrite *quantity.Offset
@@ -90,13 +91,6 @@ type LaidOutStructure struct {
 	// ResolvedContent is a list of filesystem content that has all
 	// relative paths or references resolved
 	ResolvedContent []ResolvedContent
-}
-
-// IsRoleMBR returns whether a structure's role is MBR or not.
-// meh this function is weirdly placed, not sure what to do w/o making schemaMBR
-// constant exported
-func IsRoleMBR(ls LaidOutStructure) bool {
-	return ls.Role() == schemaMBR
 }
 
 // These accessors return currently what comes in the gadget, but will use
@@ -199,12 +193,20 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 	for idx := range volume.Structure {
 		ps := LaidOutStructure{
 			VolumeStructure: &volume.Structure[idx],
-			StartOffset:     *volume.Structure[idx].Offset,
 			YamlIndex:       idx,
 		}
 
 		if ps.Name() != "" {
 			byName[ps.Name()] = &ps
+		}
+		// Fill the parts of OnDiskStructure that do not depend on the disk
+		// or on whether we are encrypting or not.
+		// TODO Eventually fill everything here by passing all needed info
+		ps.OnDiskStructure = OnDiskStructure{
+			Name:        ps.VolumeStructure.Name,
+			Type:        ps.VolumeStructure.Type,
+			StartOffset: *volume.Structure[idx].Offset,
+			Size:        ps.VolumeStructure.Size,
 		}
 
 		structures[idx] = ps
@@ -242,6 +244,20 @@ func LayoutVolumePartially(volume *Volume) (*PartiallyLaidOutVolume, error) {
 		LaidOutStructure: structures,
 	}
 	return vol, nil
+}
+
+func setOnDiskLabelAndTypeInLaidOuts(los []LaidOutStructure, encType secboot.EncryptionType) {
+	for i := range los {
+		los[i].PartitionFSLabel = los[i].Label()
+		los[i].PartitionFSType = los[i].Filesystem()
+		if encType != secboot.EncryptionTypeNone {
+			switch los[i].Role() {
+			case SystemData, SystemSave:
+				los[i].PartitionFSLabel += "-enc"
+				los[i].PartitionFSType = "crypto_LUKS"
+			}
+		}
+	}
 }
 
 // LayoutVolume attempts to completely lay out the volume, that is the
@@ -284,6 +300,10 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 			farthestEnd = end
 		}
 
+		// Set appropriately label and type details
+		// TODO: set this in layoutVolumeStructures in the future.
+		setOnDiskLabelAndTypeInLaidOuts(structures, opts.EncType)
+
 		// Lay out raw content. This can be skipped when only partition
 		// creation is needed and is safe because each volume structure
 		// has a size so even without the structure content the layout
@@ -320,7 +340,6 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		Volume:           volume,
 		Size:             volumeSize,
 		LaidOutStructure: structures,
-		RootDir:          opts.GadgetRootDir,
 	}
 	return vol, nil
 }
