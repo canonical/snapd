@@ -91,6 +91,11 @@ func (s *fetcherSuite) TestAssertFetcher(c *C) {
 	c.Check(af.Refs()[0].Type, Equals, asserts.AccountKeyType)
 	c.Check(af.Refs()[1].String(), Equals, "model (my-model-2; series:16 brand-id:can0nical)")
 
+	// Using the default fetcher, which was not created using NewSequenceFormingFetcher,
+	// FetchSequence must return us an error.
+	err = af.FetchSequence(nil)
+	c.Check(err, ErrorMatches, `cannot fetch assertion sequence point, fetcher must be created using NewSequenceFormingFetcher`)
+
 	// Clear the Refs using ResetRefs
 	af.ResetRefs()
 	c.Check(af.Refs(), HasLen, 0)
