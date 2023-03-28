@@ -30,8 +30,6 @@ import (
 // for retrieving them at any point in time during seeding. It wraps around the
 // asserts.{SequenceFormingFetcher,Fetcher} interfaces to allow for flexible
 // retrieval of assertions.
-// Optimally we would gather all retrieval logic here related to the fetching of
-// assertions during seeding.
 type SeedAssertionFetcher interface {
 	Fetch(ref *asserts.Ref) error
 	FetchSequence(seq *asserts.AtSequence) error
