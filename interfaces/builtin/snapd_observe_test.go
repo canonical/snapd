@@ -57,13 +57,9 @@ version: 0
 apps:
  app:
     command: foo
-    plugs: [snapd-observe-v2-changes]
-plugs:
- snapd-observe-v2-changes:
-  interface: snapd-observe
-  api: /v2/changes
+    plugs: [snapd-observe]
 `
-	s.plug, s.plugInfo = MockConnectedPlug(c, appPlugYaml, nil, "snapd-observe-v2-changes")
+	s.plug, s.plugInfo = MockConnectedPlug(c, appPlugYaml, nil, "snapd-observe")
 }
 
 func (s *SnapdObserveInterfaceSuite) TestName(c *C) {

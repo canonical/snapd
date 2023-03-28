@@ -19,13 +19,6 @@
 
 package builtin
 
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
-)
-
 const snapdObserveSummary = `allows observing the snapd API`
 
 const snapdObserveBaseDeclarationPlugs = `
@@ -41,20 +34,6 @@ const snapdObserveBaseDeclarationSlots = `
         - core
     deny-auto-connection: true
 `
-
-var supportedApis = []string{"/v2/changes"}
-
-func (iface *snapdObserveInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	api, ok := plug.Attrs["api"].(string)
-	if !ok || len(api) == 0 {
-		return fmt.Errorf(`content plug must contain "api"`)
-	}
-	if !strutil.ListContains(supportedApis, api) {
-		return fmt.Errorf("cannot use api %q, only %q supported", api, supportedApis)
-	}
-
-	return nil
-}
 
 type snapdObserveInterface struct {
 	commonInterface

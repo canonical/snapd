@@ -60,14 +60,14 @@ var (
 		Path:        "/v2/changes/{id}",
 		GET:         getChange,
 		POST:        abortChange,
-		ReadAccess:  snapdObserveOrOpenAccess{subApi: "/v2/changes"},
+		ReadAccess:  snapdObserveOrOpenAccess{},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
 	stateChangesCmd = &Command{
 		Path:       "/v2/changes",
 		GET:        getChanges,
-		ReadAccess: snapdObserveOrOpenAccess{subApi: "/v2/changes"},
+		ReadAccess: snapdObserveOrOpenAccess{},
 	}
 
 	warningsCmd = &Command{

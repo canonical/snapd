@@ -160,8 +160,7 @@ var (
 	requireThemeApiAccess = requireThemeApiAccessImpl
 )
 
-// TODO: not ideal api yet
-func requireSnapdSocketOrConnectedIface(d *Daemon, ucred *ucrednet, ifaceName, ifaceAttr, ifaceAttrVal string) *apiError {
+func requireSnapdSocketOrConnectedIface(d *Daemon, ucred *ucrednet, ifaceName string) *apiError {
 	if ucred == nil {
 		return Forbidden("access denied")
 	}
@@ -199,37 +198,20 @@ func requireSnapdSocketOrConnectedIface(d *Daemon, ucred *ucrednet, ifaceName, i
 			return Forbidden("internal error: %s", err)
 		}
 		if connRef.PlugRef.Snap == snapName {
-			if ifaceAttr == "" && ifaceAttrVal == "" {
-				return nil
-			}
-			// there is a restriction
-			repo := d.overlord.InterfaceManager().Repository()
-			plugInfo := repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
-			if plugInfo == nil {
-				return Forbidden("internal error: %s", err)
-			}
-			var val string
-			if err := plugInfo.Attr(ifaceAttr, &val); err != nil {
-				return Forbidden("internal error: %s", err)
-			}
-			if ifaceAttrVal == val {
-				return nil
-			}
+			return nil
 		}
 	}
 	return Forbidden("access denied")
 }
 
-type snapdObserveOrOpenAccess struct {
-	subApi string
-}
+type snapdObserveOrOpenAccess struct{}
 
 func (ac snapdObserveOrOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	return requireSnapdSocketOrConnectedIface(d, ucred, "snapd-observe", "api", ac.subApi)
+	return requireSnapdSocketOrConnectedIface(d, ucred, "snapd-observe")
 }
 
 func requireThemeApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
-	return requireSnapdSocketOrConnectedIface(d, ucred, "snap-themes-control", "", "")
+	return requireSnapdSocketOrConnectedIface(d, ucred, "snap-themes-control")
 }
 
 // themesOpenAccess behaves like openAccess, but allows requests from

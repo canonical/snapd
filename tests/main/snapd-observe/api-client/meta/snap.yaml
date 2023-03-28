@@ -5,9 +5,5 @@ apps:
   api-client:
     command: bin/api-client.py
     plugs:
-      - snapd-observe-v2-changes
-plugs:
-  snapd-observe-v2-changes:
-    interface: snapd-observe
-    api: /v2/changes
+      - snapd-observe
 

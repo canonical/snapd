@@ -72,7 +72,3 @@ func MockRequireThemeApiAccess(new func(d *Daemon, ucred *ucrednet) *apiError) (
 		requireThemeApiAccess = old
 	}
 }
-
-func NewSnapdObserveOrOpenAccess(subApi string) snapdObserveOrOpenAccess {
-	return snapdObserveOrOpenAccess{subApi: subApi}
-}
