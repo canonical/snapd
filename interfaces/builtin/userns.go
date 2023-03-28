@@ -22,7 +22,6 @@ package builtin
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/seccomp"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -30,10 +29,17 @@ import (
 const userNSSummary = `allows the ability to use user namespaces`
 
 // This interface is super-privileged
-const userNSBaseDeclarationSlots = `
+const userNSBaseDeclarationPlugs = `
   userns:
     allow-installation: false
-    deny-connection: true
+    deny-auto-connection: true
+`
+
+const userNSBaseDeclarationSlots = `
+  userns:
+    allow-installation:
+      slot-snap-type:
+        - core
     deny-auto-connection: true
 `
 
@@ -94,11 +100,13 @@ func (iface *userNSInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *userNSInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(userNSConnectedPlugSeccomp)
-	return nil
-}
-
 func init() {
-	registerIface(&userNSInterface{})
+	registerIface(&userNSInterface{commonInterface: commonInterface{
+		name:                 "userns",
+		summary:              userNSSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationSlots: userNSBaseDeclarationSlots,
+		connectedPlugSecComp: userNSConnectedPlugSeccomp,
+	}})
 }
