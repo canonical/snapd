@@ -1410,7 +1410,7 @@ nested_start_classic_vm() {
 }
 
 nested_destroy_vm() {
-    tests.systemd stop-and-remove-unit "$NESTED_VM"
+    tests.systemd stop-unit --remove "$NESTED_VM"
 
     local CURRENT_IMAGE
     CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)" 

@@ -7,8 +7,7 @@ reset_classic() {
     # Reload all service units as in some situations the unit might
     # have changed on the disk.
     systemctl daemon-reload
-    tests.systemd stop-and-remove-unit snapd.service
-    tests.systemd stop-and-remove-unit snapd.socket
+    tests.systemd stop-unit snapd.service snapd.socket
 
     # none of the purge steps stop the user services, we need to do it
     # explicitly, at least for the root user
