@@ -58,7 +58,7 @@ func (s *manifestSuite) checkManifest(c *C, manifest *image.SeedManifest, rules 
 	c.Check(manifest, DeepEquals, expected)
 }
 
-func (s *manifestSuite) TestReadSeedManifestFullHAppy(c *C) {
+func (s *manifestSuite) TestReadSeedManifestFullHappy(c *C) {
 	// Include two entries that end on .snap as ubuntu-image
 	// once produced entries looking like this
 	manifestFile := s.writeSeedManifest(c, `# test line should not match
@@ -96,7 +96,12 @@ func (s *manifestSuite) TestReadSeedManifestParseFails(c *C) {
 		contents string
 		err      string
 	}{
-		{"my/invalid&name 33\n", `invalid snap name: "my/invalid&name"`},
+		{"my/validation/set 4\n", `cannot parse validation set "my/validation/set": expected a single account/name`},
+		{"my/validation/set=4\n", `cannot parse validation set "my/validation/set=4": expected a single account/name`},
+		{"&&asakwrjrew/awodoa 4\n", `cannot parse validation set "&&asakwrjrew/awodoa": invalid account ID "&&asakwrjrew"`},
+		{"&&asakwrjrew/awodoa asdaskod\n", `cannot parse validation set "&&asakwrjrew/awodoa": invalid account ID "&&asakwrjrew"`},
+		{"foo/set name\n", `invalid formatted validation-set sequence: "name"`},
+		{"core\n", `line is illegally formatted: "core"`},
 		{"core 0\n", `invalid snap revision: "0"`},
 		{"core\n", `line is illegally formatted: "core"`},
 		{" test\n", `line cannot start with any spaces: " test"`},
@@ -117,11 +122,14 @@ func (s *manifestSuite) TestReadSeedManifestNoFile(c *C) {
 	c.Check(err, ErrorMatches, `open noexists.manifest: no such file or directory`)
 }
 
-func (s *manifestSuite) testWriteSeedManifest(c *C, revisions map[string]snap.Revision) string {
+func (s *manifestSuite) testWriteSeedManifest(c *C, revisions map[string]snap.Revision, vss []*image.SeedManifestValidationSet) string {
 	manifestFile := filepath.Join(s.root, "seed.manifest")
-	manifest := image.SeedManifestFromSnapRevisions(revisions)
+	manifest := image.NewSeedManifest()
 	for sn, rev := range revisions {
-		manifest.SetAllowedSnapRevision(sn, rev.N)
+		manifest.MarkSnapRevisionUsed(sn, rev.N)
+	}
+	for _, vs := range vss {
+		manifest.MarkValidationSetUsed(vs.AccountID, vs.Name, vs.Sequence, vs.Pinned)
 	}
 	err := manifest.Write(manifestFile)
 	c.Assert(err, IsNil)
@@ -129,27 +137,47 @@ func (s *manifestSuite) testWriteSeedManifest(c *C, revisions map[string]snap.Re
 }
 
 func (s *manifestSuite) TestWriteSeedManifestNoFile(c *C) {
-	filePath := s.testWriteSeedManifest(c, map[string]snap.Revision{})
+	filePath := s.testWriteSeedManifest(c, nil, nil)
 	c.Check(osutil.FileExists(filePath), Equals, false)
 }
 
 func (s *manifestSuite) TestWriteSeedManifest(c *C) {
-	filePath := s.testWriteSeedManifest(c, map[string]snap.Revision{"core": snap.R(12), "test": snap.R(-4)})
+	filePath := s.testWriteSeedManifest(c,
+		map[string]snap.Revision{
+			"core": snap.R(12),
+			"test": snap.R(-4),
+		},
+		[]*image.SeedManifestValidationSet{
+			{
+				AccountID: "canonical",
+				Name:      "base-set",
+				Sequence:  4,
+				Pinned:    true,
+			},
+			{
+				AccountID: "canonical",
+				Name:      "opt-set",
+				Sequence:  1,
+			},
+		},
+	)
 	contents, err := ioutil.ReadFile(filePath)
 	c.Assert(err, IsNil)
-	c.Check(string(contents), Equals, `core 12
+	c.Check(string(contents), Equals, `canonical/base-set=4
+canonical/opt-set 1
+core 12
 test x4
 `)
 }
 
 func (s *manifestSuite) TestSeedManifestSetAllowedSnapRevisionInvalidRevision(c *C) {
-	manifest := &image.SeedManifest{}
+	manifest := image.NewSeedManifest()
 	err := manifest.SetAllowedSnapRevision("core", 0)
 	c.Assert(err, ErrorMatches, `cannot add a rule for a zero-value revision`)
 }
 
 func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedRuleHappy(c *C) {
-	manifest := &image.SeedManifest{}
+	manifest := image.NewSeedManifest()
 	err := manifest.SetAllowedSnapRevision("core", 14)
 	c.Assert(err, IsNil)
 	err = manifest.SetAllowedSnapRevision("pc", 1)
@@ -159,7 +187,7 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedRuleHappy(c *C) {
 }
 
 func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedNoRule(c *C) {
-	manifest := &image.SeedManifest{}
+	manifest := image.NewSeedManifest()
 	err := manifest.SetAllowedSnapRevision("core", 14)
 	c.Assert(err, IsNil)
 	err = manifest.SetAllowedSnapRevision("pc", 1)
@@ -169,9 +197,15 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedNoRule(c *C) {
 }
 
 func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedWrongRevision(c *C) {
-	manifest := &image.SeedManifest{}
+	manifest := image.NewSeedManifest()
 	err := manifest.SetAllowedSnapRevision("core", 14)
 	c.Assert(err, IsNil)
 	err = manifest.MarkSnapRevisionUsed("core", 1)
 	c.Assert(err, ErrorMatches, `revision does not match the value specified by revisions rules \(1 != 14\)`)
+}
+
+func (s *manifestSuite) TestSeedManifestMarkValidationSetUsedInvalidSequence(c *C) {
+	manifest := image.NewSeedManifest()
+	err := manifest.MarkValidationSetUsed("canonical", "base-set", 0, true)
+	c.Assert(err, ErrorMatches, `cannot mark validation-set used, sequence must be set`)
 }

@@ -741,10 +741,9 @@ func optionSnaps(opts *Options) []*seedwriter.OptionsSnap {
 	return optSnaps
 }
 
-// addLocalSnapsToManifest attempts adding the given local snaps as used in
-// the image manifest. If any of these goes against any rules setup by the manifest
-// this will return an error.
-func addLocalSnapsToManifest(manifest *SeedManifest, snaps localSnapRefs) error {
+// markLocalSnapRevisionsUsed attempts to mark the given local snaps used in the
+// seed manifest. When marking them used they will be validated against any rules.
+func markLocalSnapRevisionsUsed(manifest *SeedManifest, snaps localSnapRefs) error {
 	for sn := range snaps {
 		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
 		// available. Therefore the revision in the local snap must be exactly the revision specified
@@ -832,7 +831,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	// Create the initial manifest, derived from the locally available snaps.
 	// Must be done after deriveInfoForLocalSnaps, as the snap info must have
 	// been derived if possible.
-	if err := addLocalSnapsToManifest(s.manifest, localSnaps); err != nil {
+	if err := markLocalSnapRevisionsUsed(s.manifest, localSnaps); err != nil {
 		return err
 	}
 

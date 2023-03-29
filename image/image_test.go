@@ -3981,7 +3981,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 	// exact revisions will be used when the store action is invoked.
 	// The revisions provided to s.makeSnap won't matter, and they shouldn't.
 	// Instead the revision provided in the revisions map should be used instead.
-	s.makeSnap(c, "snapd", nil, snap.R(133), "")
+	s.makeSnap(c, "snapd", [][]string{snapdInfoFile}, snap.R(133), "")
 	s.makeSnap(c, "core20", nil, snap.R(58), "")
 	s.makeSnap(c, "pc-kernel=20", nil, snap.R(15), "")
 	gadgetContent := [][]string{
