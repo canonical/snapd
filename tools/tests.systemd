@@ -2,7 +2,7 @@
 
 show_help() {
     echo "usage: tests.systemd create-and-start-unit <UNIT-NAME> <UNIT-COMMAND-LINE> <UNIT-OVERRIDE>"
-    echo "       tests.systemd stop-and-remove-unit <UNIT-NAME>"
+    echo "       tests.systemd stop-units [--remove] <UNIT-NAME> ..."
     echo "       tests.systemd wait-for-service [-n|--attempts retries] [--wait seconds] [--state STATE] <UNIT-NAME>"
 }
 
@@ -42,24 +42,60 @@ create_and_start_unit() {
     wait_for_service "$name"
 }
 
-stop_and_remove_unit() {
-    local name=$1
+_stop_unit() {
+    local unit=$1
 
-    if [ -z "$name" ]; then
-        echo "tests.systemd: unit name cannot be empty"
+    if systemctl is-active "$unit"; then
+        retries=20
+        while systemctl status "$unit" | grep -q "Active: activating"; do
+            if [ $retries -eq 0 ]; then
+                echo "tests.systemd: unit $unit could not be stopped"
+                systemctl status "$unit"
+                exit 1
+            fi
+            retries=$(( retries - 1 ))
+            sleep 1
+        done
+
+        systemctl stop "$unit"
+    fi
+}
+
+stop_units() {
+    local remove=false
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --remove)
+                remove=true
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    if [ $# -eq 0 ]; then
+        echo "tests.systemd: at least a unit name is required"
         return 1
     fi
 
-    systemctl stop "$name" || true
-    systemctl disable "$name" || true
+    for unit in "$@"; do
+        _stop_unit "$unit"
+        if [ "$remove" = true ]; then
+            if systemctl is-enabled "$unit"; then
+                systemctl disable "$unit"
+            fi
+            rm -f "/etc/systemd/system/$unit.service"
+            rm -rf "/etc/systemd/system/$unit.service.d"
+        fi
+    done
 
-    rm -f "/etc/systemd/system/$name.service"
-    rm -rf "/etc/systemd/system/$name.service.d"
     systemctl daemon-reload
 }
 
 wait_for_service() {
-     if [ $# -eq 0 ]; then
+    if [ $# -eq 0 ]; then
         show_help
         exit 0
     fi
