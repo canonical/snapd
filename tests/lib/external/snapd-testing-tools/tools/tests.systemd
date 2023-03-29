@@ -2,7 +2,7 @@
 
 show_help() {
     echo "usage: tests.systemd create-and-start-unit <UNIT-NAME> <UNIT-COMMAND-LINE> <UNIT-OVERRIDE>"
-    echo "       tests.systemd stop-units [--remove] <UNIT-NAME> ..."
+    echo "       tests.systemd stop-unit [--remove] <UNIT-NAME> ..."
     echo "       tests.systemd wait-for-service [-n|--attempts retries] [--wait seconds] [--state STATE] <UNIT-NAME>"
 }
 
@@ -61,7 +61,7 @@ _stop_unit() {
     fi
 }
 
-stop_units() {
+stop_unit() {
     local remove=false
     while [ $# -gt 0 ]; do
         case "$1" in
