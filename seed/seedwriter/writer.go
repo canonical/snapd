@@ -452,12 +452,11 @@ func (w *Writer) fetchValidationSets(f SeedAssertionFetcher) error {
 	return nil
 }
 
-// Start starts the seed writing. It creates a RefAssertsFetcher using
-// newFetcher and uses it to fetch model related assertions. For convenience it
-// returns the fetcher possibly for use to fetch seed snap assertions, a task
-// that the writer delegates as well as snap downloading. The writer assumes
-// that the snap assertions will end up in the given db (writing assertion
-// database). When the system seed directory is already present,
+// Start starts the seed writing, and fetches the necessary model assertions using
+// the provided SeedAssertionFetcher (See MakeSeedAssertionFetcher). The provided
+// fetcher must support the FetchSequence in case the model refers to any validation
+// sets. The seed-writer assumes that the snap assertions will end up in the given db
+// (writing assertions database). When the system seed directory is already present,
 // SystemAlreadyExistsError is returned.
 func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 	if err := w.checkStep(startStep); err != nil {
