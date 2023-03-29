@@ -92,9 +92,41 @@ dbus (receive, send)
     member={Get,GetAll,PropertiesChanged}
     peer=(label=unconfined),
 
-# Allow agent to execute the setuid polkit-agent-helper-1 unconfined
-# TODO: determine whether this could run as a sub-profile
-/usr/{libexec,lib/policykit-1}/polkit-agent-helper-1 Uxr,
+# Allow agent to execute the setuid polkit-agent-helper-1 in a subprofile
+/usr/{libexec,lib/policykit-1}/polkit-agent-helper-1 Cxr -> polkit_agent_helper,
+
+profile polkit_agent_helper (attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+  /usr/{libexec,lib/policykit-1}/polkit-agent-helper-1 rm,
+
+  # polkit-agent-helper-1 performs PAM authentication, which includes
+  # pam-extrausers on Ubuntu Core.
+  #include <abstractions/nameservice>
+  #include <abstractions/authentication>
+  /var/lib/extrausers/shadow r,
+  /var/lib/extrausers/gshadow r,
+
+  # Capabilities required by various PAM modules
+  capability audit_write,
+  capability sys_nice,
+
+  # If the user cancels auth, the agent will send SIGTERM to the helper
+  signal (receive) set=(term) peer=snap.@{SNAP_INSTANCE_NAME}.*,
+
+  # polkit-agent-helper-1 reports directly to polkitd via D-Bus
+  #include <abstractions/dbus-strict>
+  dbus (send)
+      bus=system
+      path=/org/freedesktop/PolicyKit1/Authority
+      interface=org.freedesktop.DBus.Properties
+      peer=(label=unconfined),
+  dbus (send)
+      bus=system
+      path=/org/freedesktop/PolicyKit1/Authority
+      interface=org.freedesktop.PolicyKit1.Authority
+      member=AuthenticationAgentResponse2
+      peer=(label=unconfined),
+}
 `
 
 const polkitAgentConnectedPlugSecComp = `
