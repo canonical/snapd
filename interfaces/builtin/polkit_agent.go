@@ -93,11 +93,11 @@ dbus (receive, send)
     peer=(label=unconfined),
 
 # Allow agent to execute the setuid polkit-agent-helper-1 in a subprofile
-/usr/{libexec,lib/policykit-1}/polkit-agent-helper-1 Cxr -> polkit_agent_helper,
+/usr/libexec/polkit-agent-helper-1 Cxr -> polkit_agent_helper,
 
 profile polkit_agent_helper (attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
-  /usr/{libexec,lib/policykit-1}/polkit-agent-helper-1 rm,
+  /usr/libexec/polkit-agent-helper-1 rm,
 
   # polkit-agent-helper-1 performs PAM authentication, which includes
   # pam-extrausers on Ubuntu Core.
@@ -139,7 +139,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "polkit-agent",
 		summary:               polkitAgentSummary,
-		implicitOnCore:        osutil.FileExists("/usr/libexec/polkit-agent-helper-1") || osutil.FileExists("/usr/lib/policykit-1/polkit-agent-helper-1"),
+		implicitOnCore:        osutil.FileExists("/usr/libexec/polkit-agent-helper-1"),
 		baseDeclarationPlugs:  polkitAgentBaseDeclarationPlugs,
 		baseDeclarationSlots:  polkitAgentBaseDeclarationSlots,
 		connectedPlugAppArmor: polkitAgentConnectedPlugAppArmor,
