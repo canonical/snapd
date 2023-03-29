@@ -741,7 +741,18 @@ func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.Asse
 }
 
 func (s *Store) retrieveSequenceFormingAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, sequenceKey []string, sequence int) (asserts.Assertion, error) {
-	a, err := bs.SequenceMemberAfter(assertType, sequenceKey, sequence, assertType.MaxSupportedFormat())
+	if sequence > 0 {
+		hdrs, err := asserts.HeadersFromSequenceKey(assertType, sequenceKey)
+		if err != nil {
+			return nil, fmt.Errorf("%q assertion reference sequence key %v is invalid: %v", assertType.Name, sequenceKey, err)
+		}
+		return nil, &asserts.NotFoundError{
+			Type:    assertType,
+			Headers: hdrs,
+		}
+	}
+
+	a, err := bs.SequenceMemberAfter(assertType, sequenceKey, -1, assertType.MaxSupportedFormat())
 	if errors.Is(err, &asserts.NotFoundError{}) && s.assertFallback {
 		return s.fallback.SeqFormingAssertion(assertType, sequenceKey, sequence, nil)
 	}
@@ -779,25 +790,29 @@ func (s *Store) assertTypeAndKey(urlPath string) (*asserts.AssertionType, []stri
 }
 
 func (s *Store) retrieveAssertionWrapper(bs asserts.Backstore, assertType *asserts.AssertionType, keyParts []string, values url.Values) (asserts.Assertion, error) {
+
+	pk := keyParts
 	if assertType.SequenceForming() {
 		seq, err := s.sequenceFromQueryValues(values)
 		if err != nil {
 			return nil, err
 		}
 
-		// If the assertion type is sequence forming, then the primary key will be one
-		// key short, as the sequence is not a part of the url path. Still do a
-		// primary key check, but do it on a temporary key with the sequence added.
-		if !assertType.AcceptablePrimaryKey(append(keyParts, strconv.Itoa(seq))) {
-			return nil, fmt.Errorf("wrong primary key length: %v", keyParts)
+		// If no sequence key is present, then we use a special lookup to
+		// retreive the latest sequence of the sequence forming assertion.
+		if seq <= 0 {
+			return s.retrieveSequenceFormingAssertion(bs, assertType, keyParts, seq)
 		}
-		return s.retrieveSequenceFormingAssertion(bs, assertType, keyParts, seq)
-	} else {
-		if !assertType.AcceptablePrimaryKey(keyParts) {
-			return nil, fmt.Errorf("wrong primary key length: %v", keyParts)
-		}
-		return s.retrieveAssertion(bs, assertType, keyParts)
+
+		// Otherwise append the sequence to form the primary key and use
+		// the default retrieval.
+		pk = append(pk, strconv.Itoa(seq))
 	}
+
+	if !assertType.AcceptablePrimaryKey(pk) {
+		return nil, fmt.Errorf("wrong primary key length: %v", pk)
+	}
+	return s.retrieveAssertion(bs, assertType, pk)
 }
 
 func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -814,11 +829,6 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	as, err := s.retrieveAssertionWrapper(bs, typ, pk, req.URL.Query())
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
 	if errors.Is(err, &asserts.NotFoundError{}) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
