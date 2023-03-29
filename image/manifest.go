@@ -24,18 +24,13 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/snap"
-)
-
-var (
-	pinnedVSRegex = regexp.MustCompile("([^/])/([^=])=([0-9]+)")
 )
 
 // SeedManifestValidationSet represents a validation set as noted
@@ -125,28 +120,23 @@ func (sm *SeedManifest) ValidationSets() []*SeedManifestValidationSet {
 }
 
 func parsePinnedValidationSet(sm *SeedManifest, vs string) error {
-	tokens := pinnedVSRegex.FindStringSubmatch(vs)
-	log.Printf("pinned: %v", tokens)
-	if len(tokens) != 3 {
-		return fmt.Errorf("invalid formatted validation-set: %q", vs)
-	}
-	seq, err := strconv.Atoi(tokens[2])
+	acc, name, seq, err := snapasserts.ParseValidationSet(vs)
 	if err != nil {
-		return fmt.Errorf("invalid formatted validation-set sequence: %q", tokens[2])
+		return err
 	}
-	return sm.MarkValidationSetUsed(tokens[0], tokens[1], seq, true)
+	return sm.MarkValidationSetUsed(acc, name, seq, true)
 }
 
 func parseUnpinnedValidationSet(sm *SeedManifest, vs, seqStr string) error {
-	tokens := strings.Split(vs, "/")
-	if len(tokens) != 2 {
-		return fmt.Errorf("invalid formatted validation-set: %q", vs)
+	acc, name, _, err := snapasserts.ParseValidationSet(vs)
+	if err != nil {
+		return err
 	}
 	seq, err := strconv.Atoi(seqStr)
 	if err != nil {
-		return fmt.Errorf("invalid formatted validation-set sequence: %q", tokens[2])
+		return fmt.Errorf("invalid formatted validation-set sequence: %q", seqStr)
 	}
-	return sm.MarkValidationSetUsed(tokens[0], tokens[1], seq, false)
+	return sm.MarkValidationSetUsed(acc, name, seq, false)
 }
 
 func parseSnapRevision(sm *SeedManifest, sn, revStr string) error {
@@ -191,7 +181,7 @@ func ReadSeedManifest(manifestFile string) (*SeedManifest, error) {
 
 		tokens := strings.Fields(line)
 
-		if len(tokens) == 1 {
+		if len(tokens) == 1 && strings.Contains(tokens[0], "/") {
 			// Pinned validation-set: <account-id>/<name>=<sequence>
 			if err := parsePinnedValidationSet(sm, tokens[0]); err != nil {
 				return nil, err
