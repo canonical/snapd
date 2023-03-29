@@ -55,9 +55,8 @@ type writerSuite struct {
 
 	opts *seedwriter.Options
 
-	db         *asserts.Database
-	newFetcher seedwriter.NewFetcherFunc
-	rf         seedwriter.SeedAssertionFetcher
+	db *asserts.Database
+	rf seedwriter.SeedAssertionFetcher
 
 	devAcct *asserts.Account
 
@@ -73,6 +72,37 @@ var _ = Suite(&writerSuite{})
 var (
 	brandPrivKey, _ = assertstest.GenerateKey(752)
 )
+
+func (s *writerSuite) createFetcher(db *asserts.Database, c *C) seedwriter.SeedAssertionFetcher {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(s.StoreSigning.Find)
+	}
+	retrieveSeq := func(seq *asserts.AtSequence) (asserts.Assertion, error) {
+		if seq.Sequence <= 0 {
+			hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
+			if err != nil {
+				return nil, err
+			}
+			return s.StoreSigning.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
+		}
+		return seq.Resolve(s.StoreSigning.Find)
+	}
+	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
+		save2 := func(a asserts.Assertion) error {
+			// for checking
+			err := db.Add(a)
+			if err != nil {
+				if _, ok := err.(*asserts.RevisionError); ok {
+					return nil
+				}
+				return err
+			}
+			return save(a)
+		}
+		return asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, save2)
+	}
+	return seedwriter.MakeSeedAssertionFetcher(newFetcher)
+}
 
 func (s *writerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
@@ -105,25 +135,7 @@ func (s *writerSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 	s.db = db
-
-	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		return ref.Resolve(s.StoreSigning.Find)
-	}
-	s.newFetcher = func(save func(asserts.Assertion) error) asserts.Fetcher {
-		save2 := func(a asserts.Assertion) error {
-			// for checking
-			err := db.Add(a)
-			if err != nil {
-				if _, ok := err.(*asserts.RevisionError); ok {
-					return nil
-				}
-				return err
-			}
-			return save(a)
-		}
-		return asserts.NewFetcher(db, retrieve, save2)
-	}
-	s.rf = seedwriter.MakeSeedAssertionFetcher(s.newFetcher)
+	s.rf = s.createFetcher(db, c)
 
 	s.aRefs = make(map[string][]*asserts.Ref)
 	// default expected system and kernel snaps
@@ -3889,7 +3901,7 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedInvalid(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	tf, err := w.Start(s.db, s.newFetcher)
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -3897,7 +3909,7 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedInvalid(c *C) {
 	c.Assert(localSnaps, HasLen, 0)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
 		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
@@ -3992,7 +4004,7 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	tf, err := w.Start(s.db, s.newFetcher)
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -4000,7 +4012,7 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
 	c.Assert(localSnaps, HasLen, 0)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
 		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
@@ -4101,7 +4113,7 @@ func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	tf, err := w.Start(s.db, s.newFetcher)
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -4109,7 +4121,7 @@ func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
 	c.Assert(localSnaps, HasLen, 0)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
 		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)

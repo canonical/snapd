@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -1203,59 +1202,26 @@ func (w *Writer) Warnings() []string {
 	return w.warnings
 }
 
-func (w *Writer) findValidationSetAssert(validationSet *asserts.ModelValidationSet) (*asserts.ValidationSet, error) {
-	headers := map[string]string{
-		"series":     release.Series,
-		"account-id": validationSet.AccountID,
-		"name":       validationSet.Name,
-	}
-	if validationSet.Sequence > 0 {
-		headers["sequence"] = fmt.Sprintf("%d", validationSet.Sequence)
-		a, err := w.db.Find(asserts.ValidationSetType, headers)
+func (w *Writer) resolveValidationSetAssertion(seq *asserts.AtSequence) (asserts.Assertion, error) {
+	if seq.Sequence <= 0 {
+		hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
 		if err != nil {
 			return nil, err
 		}
-		return a.(*asserts.ValidationSet), nil
+		return w.db.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
 	}
-
-	a, err := w.db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
-	if err != nil {
-		return nil, err
-	}
-	return a.(*asserts.ValidationSet), nil
-}
-
-func (w *Writer) validationSetARefs() ([]*asserts.Ref, error) {
-	vss := w.model.ValidationSets()
-	var enforcedRefs []*asserts.Ref
-	for _, vs := range vss {
-		// find the correct assertion reference (take sequence into account)
-		a, err := w.findValidationSetAssert(vs)
-		if err != nil {
-			return nil, err
-		}
-		enforcedRefs = append(enforcedRefs, a.Ref())
-	}
-	return enforcedRefs, nil
+	return seq.Resolve(w.db.Find)
 }
 
 func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
-	vssARefs, err := w.validationSetARefs()
-	if err != nil {
-		return nil, err
-	}
-
 	valsets := snapasserts.NewValidationSets()
-	for _, aRef := range vssARefs {
-		a, err := aRef.Resolve(w.db.Find)
+	vss := w.model.ValidationSets()
+	for _, vs := range vss {
+		a, err := w.resolveValidationSetAssertion(vs.AtSequence())
 		if err != nil {
-			return nil, fmt.Errorf("internal error: lost saved assertion")
+			return nil, fmt.Errorf("internal error: cannot resolve validation-set: %v", err)
 		}
-		va, ok := a.(*asserts.ValidationSet)
-		if !ok {
-			return nil, fmt.Errorf("internal error: assertion was of invalid format")
-		}
-		valsets.Add(va)
+		valsets.Add(a.(*asserts.ValidationSet))
 	}
 	return valsets, nil
 }
