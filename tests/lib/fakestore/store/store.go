@@ -799,7 +799,7 @@ func (s *Store) retrieveAssertionWrapper(bs asserts.Backstore, assertType *asser
 		}
 
 		// If no sequence key is present, then we use a special lookup to
-		// retreive the latest sequence of the sequence forming assertion.
+		// retrieve the latest sequence of the sequence forming assertion.
 		if seq <= 0 {
 			return s.retrieveSequenceFormingAssertion(bs, assertType, keyParts, seq)
 		}
