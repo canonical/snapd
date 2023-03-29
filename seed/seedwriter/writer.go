@@ -443,31 +443,27 @@ func IsSytemDirectoryExistsError(err error) bool {
 	return ok
 }
 
-// Start starts the seed writing. It creates a RefAssertsFetcher using
-// newFetcher and uses it to fetch model related assertions. For convenience it
-// returns the fetcher possibly for use to fetch seed snap assertions, a task
-// that the writer delegates as well as snap downloading. The writer assumes
-// that the snap assertions will end up in the given db (writing assertion
+// Start starts the seed writing, and fetches the necessary model assertions using
+// the provided SeedAssertionFetcher (See MakeSeedAssertionFetcher). The seed-writer
+// assumes that the snap assertions will end up in the given db (writing assertion
 // database). When the system seed directory is already present,
 // SystemAlreadyExistsError is returned.
-func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAssertsFetcher, error) {
+func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 	if err := w.checkStep(startStep); err != nil {
-		return nil, err
+		return err
 	}
 	if db == nil {
-		return nil, fmt.Errorf("internal error: Writer *asserts.RODatabase is nil")
+		return fmt.Errorf("internal error: Writer *asserts.RODatabase is nil")
 	}
-	if newFetcher == nil {
-		return nil, fmt.Errorf("internal error: Writer newFetcherFunc is nil")
+	if f == nil {
+		return fmt.Errorf("internal error: Writer fetcher is nil")
 	}
 	w.db = db
-
-	f := MakeRefAssertsFetcher(newFetcher)
 
 	if err := f.Save(w.model); err != nil {
 		const msg = "cannot fetch and check prerequisites for the model assertion: %v"
 		if !w.opts.TestSkipCopyUnverifiedModel {
-			return nil, fmt.Errorf(msg, err)
+			return fmt.Errorf(msg, err)
 		}
 		// Some naive tests including ubuntu-image ones use
 		// unverified models
@@ -480,7 +476,7 @@ func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAss
 		err := snapasserts.FetchStore(f, w.model.Store())
 		if err != nil {
 			if nfe, ok := err.(*asserts.NotFoundError); !ok || nfe.Type != asserts.StoreType {
-				return nil, err
+				return err
 			}
 		}
 	}
@@ -488,10 +484,10 @@ func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAss
 	w.modelRefs = f.Refs()
 
 	if err := w.tree.mkFixedDirs(); err != nil {
-		return nil, err
+		return err
 	}
 
-	return f, nil
+	return nil
 }
 
 // LocalSnaps returns a list of seed snaps that are local.  The writer
@@ -921,7 +917,6 @@ func (w *Writer) considerForSnapdCarrying(sn *SeedSnap) {
 		return
 	}
 	w.noKernelSnap = true
-	return
 }
 
 // An AssertsFetchFunc should fetch appropriate assertions for the snap sn, it
