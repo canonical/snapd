@@ -78,6 +78,9 @@ func SeedManifestFromSnapRevisions(rules map[string]snap.Revision) *SeedManifest
 	return im
 }
 
+// SetAllowedSnapRevision adds a revision rule for the given snap name, meaning
+// that any snap marked used through MarkSnapRevisionUsed will be validated against
+// this rule.
 func (sm *SeedManifest) SetAllowedSnapRevision(snapName string, revision int) error {
 	if revision == 0 {
 		return fmt.Errorf("cannot add a rule for a zero-value revision")
@@ -86,6 +89,7 @@ func (sm *SeedManifest) SetAllowedSnapRevision(snapName string, revision int) er
 	return nil
 }
 
+// MarkValidationSetUsed tracks the used validation set in the manifest.
 func (sm *SeedManifest) MarkValidationSetUsed(accountID, name string, sequence int, pinned bool) error {
 	if sequence <= 0 {
 		return fmt.Errorf("cannot mark validation-set used, sequence must be set")
@@ -100,6 +104,8 @@ func (sm *SeedManifest) MarkValidationSetUsed(accountID, name string, sequence i
 	return nil
 }
 
+// MarkSnapRevisionUsed validates the revision of the given snap name against any
+// previously setup revision rules by SetAllowedSnapRevision.
 func (sm *SeedManifest) MarkSnapRevisionUsed(snapName string, revision int) error {
 	rev := snap.R(revision)
 	if rule, ok := sm.snapRevisions[snapName]; ok {
@@ -111,10 +117,13 @@ func (sm *SeedManifest) MarkSnapRevisionUsed(snapName string, revision int) erro
 	return nil
 }
 
+// AllowedRevision retrieves any specified revision rule for the snap
+// name.
 func (sm *SeedManifest) AllowedRevision(snapName string) snap.Revision {
 	return sm.snapRevisions[snapName]
 }
 
+// ValidationSets returns all tracked validation-sets.
 func (sm *SeedManifest) ValidationSets() []*SeedManifestValidationSet {
 	return sm.valsets
 }
@@ -206,7 +215,7 @@ func ReadSeedManifest(manifestFile string) (*SeedManifest, error) {
 }
 
 // Write generates the seed.manifest contents from the provided map of
-// snaps and their revisions, and stores them in the given file path
+// snaps and their revisions, and stores them in the given file path.
 func (sm *SeedManifest) Write(filePath string) error {
 	if len(sm.used) == 0 {
 		return nil
