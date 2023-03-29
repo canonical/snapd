@@ -231,7 +231,7 @@ main() {
 	unit_name="tests.session-$uuid.service"
 	tmp_dir="$TESTSTMP/tests.session-$uuid"
 	mkdir "$tmp_dir"
-	mkfifo -m 0666 "$tmp_dir/dbus-monitor.pipe" "$tmp_dir/ready.pipe" "$tmp_dir/result.pipe" "$tmp_dir/stdin.pipe" "$tmp_dir/stdout.pipe" "$tmp_dir/stderr.pipe"
+	mkfifo -m 0666 "$tmp_dir/dbus-monitor.pipe" "$tmp_dir/ready.pipe" "$tmp_dir/stdin.pipe" "$tmp_dir/stdout.pipe" "$tmp_dir/stderr.pipe"
 	trap 'rm -rf $tmp_dir' EXIT
 
 	# Run dbus-monitor waiting for systemd JobRemoved signal. Process the output
@@ -276,9 +276,6 @@ BEGIN {
 /string \".*\"/ {
 	if (found==1) {
 		print \"found result\";
-		print \$2 > \"$tmp_dir/result.pipe\";
-		fflush(\"\");
-		close(\"$tmp_dir/result.pipe\");
 		exit;
 	}
 }
@@ -338,7 +335,7 @@ BEGIN {
 		StartTransientUnit "ssa(sv)a(sa(sv))" \
 		"$unit_name" fail $(( 4 + $(test -n "$selinux_context_arg" && echo 1 || echo 0))) \
 			Description s "tests.session running $* as $user" \
-			Type s oneshot \
+			Type s simple \
 			Environment as 1 TERM=xterm-256color \
 			$selinux_context_arg \
 			ExecStart "a(sasb)" 1 \
@@ -349,27 +346,9 @@ BEGIN {
 	# of systemd, or perhaps even StandardInputFileDescriptor and pass a file
 	# descriptor to the FIFOs we open in the script above.
 
-	# Wait for the service to terminate. The trigger is a successful read
-	# from the result FIFO. In case we are signaled in one of the familiar
-	# ways, kill the started service with the same signal. The reading occurs
-	# in a loop as the signal will first interrupt the read process, which will
-	# fail and return nothing.
-	trap 'systemctl kill --signal=INT $unit_name' INT
-	trap 'systemctl kill --signal=TERM $unit_name' TERM
-	trap 'systemctl kill --signal=QUIT $unit_name' QUIT
-	result=""
-	for sig in INT TERM QUIT; do
-		result=$(cat "$tmp_dir/result.pipe" 2>/dev/null) && break
-		trap - "$sig"
-	done
-	trap - INT TERM QUIT
-
-	# Kill dbus-monitor that otherwise runs until it notices the pipe is no longer
-	# connected, which happens after a longer while. Redirect stderr to /dev/null
-	# to avoid upsetting tests which are sensitive to stderr, e.g. tests/main/document-portal-activation
+	wait $awk_pid
 	kill $dbus_monitor_pid 2>/dev/null || true
 	wait $dbus_monitor_pid 2>/dev/null || true
-	wait $awk_pid
 
 	wait "$cat_stdin_pid"
 	wait "$cat_stdout_pid"
@@ -377,15 +356,16 @@ BEGIN {
 
 	# Prevent accumulation of failed sessions.
 
-	if [ "$result" != '"done"' ]; then
-		systemctl reset-failed "$unit_name"
+	if systemctl cat "$unit_name" >/dev/null; then
+		if systemctl is-failed "$unit_name"; then
+			systemctl reset-failed "$unit_name"
+			exit 1
+		else
+			exit 0
+		fi
+	else
+		exit 0
 	fi
-
-	case "$result" in
-		'"done"') exit 0; ;;
-		'"failed"') exit 1; ;;
-		'"canceled"') exit 1; ;;
-	esac
 }
 
 main "$@"
