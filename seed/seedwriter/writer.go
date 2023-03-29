@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -443,9 +444,20 @@ func IsSytemDirectoryExistsError(err error) bool {
 	return ok
 }
 
-// Start starts the seed writing, and fetches the necessary model assertions using
-// the provided SeedAssertionFetcher (See MakeSeedAssertionFetcher). The seed-writer
-// assumes that the snap assertions will end up in the given db (writing assertion
+func (w *Writer) fetchValidationSets(f SeedAssertionFetcher) error {
+	for _, vs := range w.model.ValidationSets() {
+		if err := f.FetchSequence(vs.AtSequence()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Start starts the seed writing. It creates a RefAssertsFetcher using
+// newFetcher and uses it to fetch model related assertions. For convenience it
+// returns the fetcher possibly for use to fetch seed snap assertions, a task
+// that the writer delegates as well as snap downloading. The writer assumes
+// that the snap assertions will end up in the given db (writing assertion
 // database). When the system seed directory is already present,
 // SystemAlreadyExistsError is returned.
 func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
@@ -479,6 +491,11 @@ func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 				return err
 			}
 		}
+	}
+
+	// fetch model validation sets if any
+	if err := w.fetchValidationSets(f); err != nil {
+		return err
 	}
 
 	w.modelRefs = f.Refs()
@@ -1184,6 +1201,99 @@ func (w *Writer) snapDecl(sn *SeedSnap) (*asserts.SnapDeclaration, error) {
 // should be generated after Downloaded signaled complete.
 func (w *Writer) Warnings() []string {
 	return w.warnings
+}
+
+func (w *Writer) findValidationSetAssert(validationSet *asserts.ModelValidationSet) (*asserts.ValidationSet, error) {
+	headers := map[string]string{
+		"series":     release.Series,
+		"account-id": validationSet.AccountID,
+		"name":       validationSet.Name,
+	}
+	if validationSet.Sequence > 0 {
+		headers["sequence"] = fmt.Sprintf("%d", validationSet.Sequence)
+		a, err := w.db.Find(asserts.ValidationSetType, headers)
+		if err != nil {
+			return nil, err
+		}
+		return a.(*asserts.ValidationSet), nil
+	}
+
+	a, err := w.db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
+	if err != nil {
+		return nil, err
+	}
+	return a.(*asserts.ValidationSet), nil
+}
+
+func (w *Writer) validationSetARefs() ([]*asserts.Ref, error) {
+	vss := w.model.ValidationSets()
+	var enforcedRefs []*asserts.Ref
+	for _, vs := range vss {
+		// find the correct assertion reference (take sequence into account)
+		a, err := w.findValidationSetAssert(vs)
+		if err != nil {
+			return nil, err
+		}
+		enforcedRefs = append(enforcedRefs, a.Ref())
+	}
+	return enforcedRefs, nil
+}
+
+func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
+	vssARefs, err := w.validationSetARefs()
+	if err != nil {
+		return nil, err
+	}
+
+	valsets := snapasserts.NewValidationSets()
+	for _, aRef := range vssARefs {
+		a, err := aRef.Resolve(w.db.Find)
+		if err != nil {
+			return nil, fmt.Errorf("internal error: lost saved assertion")
+		}
+		va, ok := a.(*asserts.ValidationSet)
+		if !ok {
+			return nil, fmt.Errorf("internal error: assertion was of invalid format")
+		}
+		valsets.Add(va)
+	}
+	return valsets, nil
+}
+
+func (w *Writer) installedSnaps() []*snapasserts.InstalledSnap {
+	installedSnap := func(snap *SeedSnap) *snapasserts.InstalledSnap {
+		return snapasserts.NewInstalledSnap(snap.SnapName(), snap.ID(), snap.Info.Revision)
+	}
+
+	var installedSnaps []*snapasserts.InstalledSnap
+	for _, sn := range w.snapsFromModel {
+		installedSnaps = append(installedSnaps, installedSnap(sn))
+	}
+	for _, sn := range w.extraSnaps {
+		installedSnaps = append(installedSnaps, installedSnap(sn))
+	}
+	return installedSnaps
+}
+
+// CheckValidationSets validates all snaps that are to be seeded against any
+// specified validation set. Info for all seed snaps must have been derived prior
+// to this call.
+func (w *Writer) CheckValidationSets() error {
+	valsets, err := w.validationSets()
+	if err != nil {
+		return err
+	}
+
+	// Check for validation set conflicts first, then we check all
+	// the seeded snaps against them
+	if err := valsets.Conflict(); err != nil {
+		return err
+	}
+
+	// Make one aggregated list of snaps we are seeding, then check that
+	// against the validation sets
+	installedSnaps := w.installedSnaps()
+	return valsets.CheckInstalledSnaps(installedSnaps, nil)
 }
 
 // SeedSnaps checks seed snaps and copies local snaps into the seed using copySnap.

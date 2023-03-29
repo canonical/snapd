@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
@@ -3760,4 +3761,412 @@ func (s *writerSuite) TestDownloadedCore20CheckClassicSignedNoFlag(c *C) {
 func (s *writerSuite) TestDownloadedCore20CheckClassicSignedWithFlag(c *C) {
 	err := s.testDownloadedCore20CheckClassic(c, asserts.ModelSigned, true)
 	c.Check(err, IsNil)
+}
+
+func (s *writerSuite) setupValidationSets(c *C) {
+	valSetA, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "base-set",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       s.AssertedSnapID("pc-kernel"),
+				"presence": "required",
+				"revision": "7",
+			},
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       s.AssertedSnapID("pc"),
+				"presence": "required",
+				"revision": "7",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(valSetA)
+	c.Check(err, IsNil)
+
+	valSetB, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "base-set",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       s.AssertedSnapID("pc-kernel"),
+				"presence": "required",
+				"revision": "1",
+			},
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       s.AssertedSnapID("pc"),
+				"presence": "required",
+				"revision": "1",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(valSetB)
+	c.Check(err, IsNil)
+
+	valSetC, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "opt-set",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       "mysnapididididididididididididid",
+				"presence": "required",
+				"revision": "8",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(valSetC)
+	c.Check(err, IsNil)
+}
+
+func (s *writerSuite) TestValidateValidationSetsCore20EnforcedInvalid(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "base-set",
+				"sequence":   "1",
+				"mode":       "enforce",
+			},
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "opt-set",
+				"mode":       "prefer-enforce",
+			},
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	// setup a few validation set assertions in store
+	s.setupValidationSets(c)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	tf, err := w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 0)
+
+	for _, sn := range localSnaps {
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
+		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+		f, err := snapfile.Open(sn.Path)
+		c.Assert(err, IsNil)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
+		c.Assert(err, IsNil)
+		w.SetInfo(sn, info)
+	}
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	for _, sn := range snaps {
+		channel := "latest/stable"
+		switch sn.SnapName() {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+		c.Check(sn.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.CheckValidationSets()
+	c.Assert(err, NotNil)
+	valErr := err.(*snapasserts.ValidationSetsValidationError)
+	c.Check(valErr.MissingSnaps, DeepEquals, map[string]map[snap.Revision][]string{
+		"my-snap": {
+			snap.Revision{N: 8}: []string{"canonical/opt-set"},
+		},
+	})
+	c.Check(valErr.InvalidSnaps, HasLen, 0)
+	c.Check(valErr.WrongRevisionSnaps, DeepEquals, map[string]map[snap.Revision][]string{
+		"pc": {
+			snap.Revision{N: 7}: []string{"canonical/base-set"},
+		},
+		"pc-kernel": {
+			snap.Revision{N: 7}: []string{"canonical/base-set"},
+		},
+	})
+}
+
+func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "base-set",
+				// Enforce sequence 2 instead, which requires revision
+				// 1 of pc-kernel and pc
+				"sequence": "2",
+				"mode":     "enforce",
+			},
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	// setup a few validation set assertions in store
+	s.setupValidationSets(c)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	tf, err := w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 0)
+
+	for _, sn := range localSnaps {
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
+		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+		f, err := snapfile.Open(sn.Path)
+		c.Assert(err, IsNil)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
+		c.Assert(err, IsNil)
+		w.SetInfo(sn, info)
+	}
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	for _, sn := range snaps {
+		channel := "latest/stable"
+		switch sn.SnapName() {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+		c.Check(sn.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.CheckValidationSets()
+	c.Assert(err, IsNil)
+
+	err = w.SeedSnaps(func(name, src, dst string) error {
+		return osutil.CopyFile(src, dst, 0)
+	})
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
+	c.Check(systemDir, testutil.FilePresent)
+
+	// check snaps
+	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 4)
+
+	// check model-etc contains the validation set assertion
+	assertsDir := filepath.Join(systemDir, "assertions")
+	modelEtc := seedtest.ReadAssertions(c, filepath.Join(assertsDir, "model-etc"))
+	c.Check(modelEtc, HasLen, 4)
+	var vsFound bool
+	for _, a := range modelEtc {
+		if a.Type() == asserts.ValidationSetType {
+			vsFound = true
+			vsa := a.(*asserts.ValidationSet)
+			c.Check(vsa.AccountID(), Equals, "canonical")
+			c.Check(vsa.Name(), Equals, "base-set")
+			c.Check(vsa.Sequence(), Equals, 2)
+		}
+	}
+	c.Check(vsFound, Equals, true)
+}
+
+func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core18",
+		"gadget":       "pc=18",
+		"kernel":       "pc-kernel=18",
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "base-set",
+				// Enforce sequence 2, which requires revision
+				// 1 of pc-kernel and pc
+				"sequence": "2",
+				"mode":     "enforce",
+			},
+		},
+	})
+
+	// validity of the core18 model
+	c.Assert(model.Grade(), Equals, asserts.ModelGradeUnset)
+
+	// setup a few validation set assertions in store
+	s.setupValidationSets(c)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=18", "")
+	s.makeSnap(c, "pc=18", "")
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	tf, err := w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 0)
+
+	for _, sn := range localSnaps {
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
+		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+		f, err := snapfile.Open(sn.Path)
+		c.Assert(err, IsNil)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
+		c.Assert(err, IsNil)
+		w.SetInfo(sn, info)
+	}
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	for _, sn := range snaps {
+		channel := "stable"
+		switch sn.SnapName() {
+		case "pc", "pc-kernel":
+			channel = "18"
+		}
+		c.Check(sn.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.CheckValidationSets()
+	c.Assert(err, IsNil)
+
+	err = w.SeedSnaps(func(name, src, dst string) error {
+		return osutil.CopyFile(src, dst, 0)
+	})
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+	c.Assert(seedYaml.Snaps, HasLen, 4)
+
+	// check snaps
+	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 4)
+
+	// check assertions directory contains the validation set assertion
+	seedAssertsDir := filepath.Join(s.opts.SeedDir, "assertions")
+	p := filepath.Join(seedAssertsDir, fmt.Sprintf("16,canonical,%s,2.validation-set", "base-set"))
+	decl := seedtest.ReadAssertions(c, p)
+	c.Assert(decl, HasLen, 1)
+	c.Check(decl[0].Type(), Equals, asserts.ValidationSetType)
+	c.Check(decl[0].HeaderString("account-id"), Equals, "canonical")
+	c.Check(decl[0].HeaderString("name"), Equals, "base-set")
+	c.Check(decl[0].HeaderString("sequence"), Equals, "2")
 }
