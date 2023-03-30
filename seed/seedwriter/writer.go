@@ -1347,7 +1347,7 @@ func (w *Writer) WriteMeta() error {
 // query accessors
 
 func (w *Writer) checkSnapsAccessor() error {
-	if w.expectedStep < seedSnapsStep {
+	if !w.checkStepCompleted(downloadedStep) {
 		return fmt.Errorf("internal error: seedwriter.Writer cannot query seed snaps before Downloaded signaled complete")
 	}
 	return nil

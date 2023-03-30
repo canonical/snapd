@@ -4182,3 +4182,45 @@ func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
 	c.Check(decl[0].HeaderString("name"), Equals, "base-set")
 	c.Check(decl[0].HeaderString("sequence"), Equals, "2")
 }
+
+func (s *writerSuite) TestCheckValidateValidationSetsToEarly(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core18",
+		"gadget":       "pc=18",
+		"kernel":       "pc-kernel=18",
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "base-set",
+				// Enforce sequence 2, which requires revision
+				// 1 of pc-kernel and pc
+				"sequence": "2",
+				"mode":     "enforce",
+			},
+		},
+	})
+
+	// validity of the core18 model
+	c.Assert(model.Grade(), Equals, asserts.ModelGradeUnset)
+
+	// setup a few validation set assertions in store
+	s.setupValidationSets(c)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=18", "")
+	s.makeSnap(c, "pc=18", "")
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	// Perform the test after starting
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	err = w.CheckValidationSets()
+	c.Check(err, ErrorMatches, `internal error: seedwriter.Writer cannot check validation-sets before Downloaded signaled complete`)
+}
