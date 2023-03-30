@@ -131,6 +131,20 @@ type Volume struct {
 	Name string `json:"-"`
 }
 
+// MinSize returns the minimal size required by a volume, as implicitly
+// defined by the size structures.
+func (v *Volume) MinSize() quantity.Size {
+	endVol := quantity.Offset(0)
+	for _, s := range v.Structure {
+		structEnd := *s.Offset + quantity.Offset(s.Size)
+		if structEnd > endVol {
+			endVol = structEnd
+		}
+	}
+
+	return quantity.Size(endVol)
+}
+
 const GPTPartitionGUIDESP = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
 
 // VolumeStructure describes a single structure inside a volume. A structure can
@@ -178,6 +192,11 @@ type VolumeStructure struct {
 	// and just used as part of the POST /systems/<label> API that
 	// is used by an installer.
 	Device string `yaml:"-" json:"device,omitempty"`
+}
+
+// IsRoleMBR tells us if v has MBR role or not.
+func (v *VolumeStructure) IsRoleMBR() bool {
+	return v.Role == schemaMBR
 }
 
 // HasFilesystem returns true if the structure is using a filesystem.

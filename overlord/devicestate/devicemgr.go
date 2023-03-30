@@ -2388,9 +2388,13 @@ func (m *DeviceManager) checkFDEFeatures() (et secboot.EncryptionType, err error
 	if err != nil {
 		return et, err
 	}
-	if strutil.ListContains(features, "device-setup") {
+	switch {
+	case strutil.ListContains(features, "inline-crypto-engine"):
+		et = secboot.EncryptionTypeLUKSWithICE
+		// TODO:ICE: remove this
+	case strutil.ListContains(features, "device-setup"):
 		et = secboot.EncryptionTypeDeviceSetupHook
-	} else {
+	default:
 		et = secboot.EncryptionTypeLUKS
 	}
 

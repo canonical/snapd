@@ -17,9 +17,6 @@ prepare: |
         exit
     fi
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-
     # needed for test-snapd-tools_instance
     snap set system experimental.parallel-instances=true
 
@@ -29,17 +26,14 @@ prepare: |
     done
 
     echo "And the daemon is configured to point to the fake store"
-    setup_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
-
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     rm -rf "$BLOB_DIR"
 
     snap set system experimental.parallel-instances=null
@@ -54,11 +48,9 @@ execute: |
     snap refresh 2>&1 | MATCH "All snaps up to date."
 
     echo "When the store is configured to make them refreshable"
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    init_fake_refreshes "$BLOB_DIR" test-snapd-tools
+    "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" test-snapd-tools
     retry -n 4 --wait 0.5 test -e "$BLOB_DIR"/test-snapd-tools*fake1*.snap
-    init_fake_refreshes  "$BLOB_DIR" test-snapd-python-webserver
+    "$TESTSTOOLS"/store-state init-fake-refreshes  "$BLOB_DIR" test-snapd-python-webserver
     retry -n 4 --wait 0.5 test -e "$BLOB_DIR"/test-snapd-python-webserver*fake1*.snap
 
     echo "And a refresh is performed"

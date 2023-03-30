@@ -64,7 +64,7 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		return nil
 	}
 
-	currentData, err := currentGadgetInfo(st, devCtx)
+	currentData, err := CurrentGadgetData(st, devCtx)
 	if err != nil {
 		return fmt.Errorf("cannot obtain current gadget data: %v", err)
 	}
@@ -73,9 +73,13 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		return fmt.Errorf("internal error: no current gadget")
 	}
 
+	cmdlineAppend, err := buildAppendedKernelCommandLine(t, currentData, devCtx)
+	if err != nil {
+		return fmt.Errorf("cannot build appended kernel command line: %v", err)
+	}
+
 	// TODO:UC20 update recovery boot config
-	// TODO: set optional command line
-	updated, err := boot.UpdateManagedBootConfigs(devCtx, currentData.RootDir, "")
+	updated, err := boot.UpdateManagedBootConfigs(devCtx, currentData.RootDir, cmdlineAppend)
 	if err != nil {
 		return fmt.Errorf("cannot update boot config assets: %v", err)
 	}

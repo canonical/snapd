@@ -274,6 +274,8 @@ func (s *baseInitramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, ga
 func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
+	s.AddCleanup(osutil.MockMountInfo(""))
+
 	s.Stdout = bytes.NewBuffer(nil)
 
 	buf, restore := logger.MockLogger()

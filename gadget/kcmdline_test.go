@@ -34,39 +34,40 @@ kernel-cmdline:
     - par1
     - par2=val
     - par3=*
-    - par-4=val_1-2
+    - par_4=val_1-2
+    - par5="foo bar"
 `
 	tests := []struct {
-		cmdline string
-		err     string
+		cmdline   string
+		allowed   string
+		forbidden string
 	}{
 		// Allowed
-		{"par1", ""},
-		{"par2=val", ""},
-		{"par3=random_stuff", ""},
-		{"par3", ""},
-		{"par3=", ""},
-		{`par3=""`, ""},
-		{"", ""},
-		{"par2=val par1 par3=.1.32", ""},
-		{"par_4=val_1-2", ""},
+		{"par1", "par1", ""},
+		{"par2=val", "par2=val", ""},
+		{"par3=random_stuff", "par3=random_stuff", ""},
+		{"par3", "par3", ""},
+		{"par3=", "par3", ""},
+		{`par3=""`, "par3", ""},
+		{`par3="foo bar"`, `par3="foo bar"`, ""},
+		{"", "", ""},
+		{"par2=val par1 par3=.1.32", "par2=val par1 par3=.1.32", ""},
+		{"par_4=val_1-2", "par_4=val_1-2", ""},
+		{`par2="val"`, `par2="val"`, ""},
+		{`par5="foo bar"`, `par5="foo bar"`, ""},
 		// Not allowed
-		{"foo", `"foo=" is not an allowed kernel argument`},
-		{"par2=other", `"par2=other" is not an allowed kernel argument`},
-		{"par2=val par1 par3=.1.32 par2=other", `"par2=other" is not an allowed kernel argument`},
-		{"par-4=val_1_2", `"par_4=val_1_2" is not an allowed kernel argument`},
+		{"foo", "", "foo"},
+		{"par2=other", "", "par2=other"},
+		{"par2=val par1 par3=.1.32 par2=other", "par2=val par1 par3=.1.32", "par2=other"},
 	}
 
 	for i, t := range tests {
 		c.Logf("%v: cmdline %q", i, t.cmdline)
 		gi, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
 		c.Assert(err, IsNil)
-		err = gadget.CheckCmdlineAllowed(t.cmdline, gi.KernelCmdline.Allow)
-		if t.err == "" {
-			c.Assert(err, IsNil)
-		} else {
-			c.Assert(err, ErrorMatches, t.err)
-		}
+		allowed, forbidden := gadget.FilterKernelCmdline(t.cmdline, gi.KernelCmdline.Allow)
+		c.Check(allowed, Equals, t.allowed)
+		c.Check(forbidden, Equals, t.forbidden)
 	}
 }
 
@@ -80,25 +81,23 @@ kernel-cmdline:
     - par1="*"
 `
 	tests := []struct {
-		cmdline string
-		err     string
+		cmdline   string
+		allowed   string
+		forbidden string
 	}{
 		// Allowed
-		{"par1=*", ""},
-		{`par1="*"`, ""},
+		{"par1=*", "par1=*", ""},
+		{`par1="*"`, `par1="*"`, ""},
 		// Not allowed as only a literal '*' is allowed
-		{"par1=val", `\"par1=val\" is not an allowed kernel argument`},
+		{"par1=val", "", "par1=val"},
 	}
 
 	for i, t := range tests {
 		c.Logf("%v: cmdline %q", i, t.cmdline)
 		gi, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
 		c.Assert(err, IsNil)
-		err = gadget.CheckCmdlineAllowed(t.cmdline, gi.KernelCmdline.Allow)
-		if t.err == "" {
-			c.Assert(err, IsNil)
-		} else {
-			c.Assert(err, ErrorMatches, t.err)
-		}
+		allowed, forbidden := gadget.FilterKernelCmdline(t.cmdline, gi.KernelCmdline.Allow)
+		c.Check(allowed, Equals, t.allowed)
+		c.Check(forbidden, Equals, t.forbidden)
 	}
 }

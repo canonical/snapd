@@ -3846,7 +3846,7 @@ volumes:
 	// DiskTraitsFromDeviceAndValidate is more strict and requires all
 	// structures to exist and to match
 	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
-	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find gadget structure #1 \("ubuntu-data"\) on disk`)
+	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find gadget structure "ubuntu-data" on disk`)
 
 	// if we add a structure to the mock disk which is smaller than the ondisk
 	// layout, we still reject it because the on disk must be at least the size

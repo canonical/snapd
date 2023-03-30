@@ -159,6 +159,7 @@ backends:
 
             - arch-linux-64:
                   workers: 6
+                  storage: 12G
             - amazon-linux-2-64:
                   workers: 6
                   storage: preserve-size
@@ -746,6 +747,12 @@ prepare: |
             fi
             ;;
     esac
+
+    # Make sure ssh service is restarted after it is killed by spread (pkill -o -HUP sshd)
+    # during the machine setup in google systems. For more details see lp:2011458
+    if [ "$SPREAD_BACKEND" = "google" ] && [[ "$SPREAD_SYSTEM" == ubuntu-2* ]] && ! systemctl is-active ssh; then
+        systemctl restart ssh
+    fi
 
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)

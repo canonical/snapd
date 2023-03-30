@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2022 Canonical Ltd
+ * Copyright (C) 2019-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -221,7 +221,8 @@ type policy interface {
 	needsImplicitSnaps(availableByMode map[string]*naming.SnapSet) (bool, error)
 	implicitSnaps(availableByMode map[string]*naming.SnapSet) []*asserts.ModelSnap
 	implicitExtraSnaps(availableByMode map[string]*naming.SnapSet) []*OptionsSnap
-	isSystemSnapCandidate(*SeedSnap) bool
+	recordSnapNameUsage(snapName string)
+	isSystemSnapCandidate(sn *SeedSnap) bool
 	ignoreUndeterminedSystemSnap() bool
 }
 
@@ -442,31 +443,27 @@ func IsSytemDirectoryExistsError(err error) bool {
 	return ok
 }
 
-// Start starts the seed writing. It creates a RefAssertsFetcher using
-// newFetcher and uses it to fetch model related assertions. For convenience it
-// returns the fetcher possibly for use to fetch seed snap assertions, a task
-// that the writer delegates as well as snap downloading. The writer assumes
-// that the snap assertions will end up in the given db (writing assertion
+// Start starts the seed writing, and fetches the necessary model assertions using
+// the provided SeedAssertionFetcher (See MakeSeedAssertionFetcher). The seed-writer
+// assumes that the snap assertions will end up in the given db (writing assertion
 // database). When the system seed directory is already present,
 // SystemAlreadyExistsError is returned.
-func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAssertsFetcher, error) {
+func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 	if err := w.checkStep(startStep); err != nil {
-		return nil, err
+		return err
 	}
 	if db == nil {
-		return nil, fmt.Errorf("internal error: Writer *asserts.RODatabase is nil")
+		return fmt.Errorf("internal error: Writer *asserts.RODatabase is nil")
 	}
-	if newFetcher == nil {
-		return nil, fmt.Errorf("internal error: Writer newFetcherFunc is nil")
+	if f == nil {
+		return fmt.Errorf("internal error: Writer fetcher is nil")
 	}
 	w.db = db
-
-	f := MakeRefAssertsFetcher(newFetcher)
 
 	if err := f.Save(w.model); err != nil {
 		const msg = "cannot fetch and check prerequisites for the model assertion: %v"
 		if !w.opts.TestSkipCopyUnverifiedModel {
-			return nil, fmt.Errorf(msg, err)
+			return fmt.Errorf(msg, err)
 		}
 		// Some naive tests including ubuntu-image ones use
 		// unverified models
@@ -479,7 +476,7 @@ func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAss
 		err := snapasserts.FetchStore(f, w.model.Store())
 		if err != nil {
 			if nfe, ok := err.(*asserts.NotFoundError); !ok || nfe.Type != asserts.StoreType {
-				return nil, err
+				return err
 			}
 		}
 	}
@@ -487,10 +484,10 @@ func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAss
 	w.modelRefs = f.Refs()
 
 	if err := w.tree.mkFixedDirs(); err != nil {
-		return nil, err
+		return err
 	}
 
-	return f, nil
+	return nil
 }
 
 // LocalSnaps returns a list of seed snaps that are local.  The writer
@@ -796,6 +793,9 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 		if err != nil {
 			return nil, err
 		}
+
+		w.recordUsageWithThePolicy(modSnaps)
+
 		toDownload, err := w.modelSnapsToDownload(modSnaps)
 		if err != nil {
 			return nil, err
@@ -876,6 +876,21 @@ func (w *Writer) checkBase(info *snap.Info, modes []string) error {
 	return w.policy.checkBase(info, modes, w.availableByMode)
 }
 
+func (w *Writer) recordUsageWithThePolicy(modSnaps []*asserts.ModelSnap) {
+	for _, modSnap := range modSnaps {
+		w.policy.recordSnapNameUsage(modSnap.Name)
+	}
+
+	for _, optSnap := range w.optionsSnaps {
+		snapName := optSnap.Name
+		sn := w.localSnaps[optSnap]
+		if sn != nil {
+			snapName = sn.Info.SnapName()
+		}
+		w.policy.recordSnapNameUsage(snapName)
+	}
+}
+
 func isKernelSnap(sn *SeedSnap) bool {
 	return sn.modelSnap != nil && sn.modelSnap.SnapType == "kernel"
 }
@@ -902,7 +917,6 @@ func (w *Writer) considerForSnapdCarrying(sn *SeedSnap) {
 		return
 	}
 	w.noKernelSnap = true
-	return
 }
 
 // An AssertsFetchFunc should fetch appropriate assertions for the snap sn, it
@@ -955,8 +969,11 @@ func (w *Writer) ensureARefs(upToSnap *SeedSnap, fetchAsserts AssertsFetchFunc) 
 			if !w.policy.ignoreUndeterminedSystemSnap() {
 				return fmt.Errorf("internal error: unable to determine system snap after all the snaps were considered")
 			}
+			// proceed anyway, ignore case
+		} else {
+			// not known yet, cannot proceed
+			return nil
 		}
-		return nil
 	}
 
 	indexAfter, err := applyFromUpTo(w.consideredForAssertionsIndex, func(sn *SeedSnap) error {

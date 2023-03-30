@@ -41,6 +41,12 @@ func GetLoggerFlags() int {
 	return log.log.Flags()
 }
 
+func GetQuiet() bool {
+	log := GetLogger().(*Log)
+
+	return log.quiet
+}
+
 func ProcCmdlineMustMock(new bool) (restore func()) {
 	old := procCmdlineUseDefaultMockInTests
 	procCmdlineUseDefaultMockInTests = new

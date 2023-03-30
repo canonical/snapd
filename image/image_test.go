@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -101,7 +101,9 @@ func (s *imageSuite) SetUpTest(c *C) {
 	bootloader.Force(s.bootloader)
 
 	s.BaseTest.SetUpTest(c)
-	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
+	s.AddCleanup(osutil.MockMountInfo(""))
 
 	s.stdout = &bytes.Buffer{}
 	image.Stdout = s.stdout
@@ -220,6 +222,12 @@ func (s *imageSuite) Assertion(assertType *asserts.AssertionType, primaryKey []s
 
 }
 
+// TODO: Implement this once we add support in writer for validation sets,
+// until then it should not be called.
+func (s *imageSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+	panic("not expected")
+}
+
 // TODO: use seedtest.SampleSnapYaml for some of these
 const packageGadget = `
 name: pc
@@ -274,6 +282,20 @@ const otherBase = `
 name: other-base
 version: 2.5029
 type: base
+`
+
+const marchSnap = `
+name: march-snap
+version: 1.0
+type: app
+architectures: [ppc64el, arm64]
+`
+
+const march2Snap = `
+name: march-snap
+version: 1.0
+type: app
+architectures: [ppc64el, arm64, amd64]
 `
 
 const devmodeSnap = `
@@ -2191,6 +2213,12 @@ func (s *imageSuite) TestPrepareClassicModelNoModelAssertion(c *C) {
 		filepath.Join(seedsnapsdir, "core18_18.snap"),
 		filepath.Join(seedsnapsdir, "required-snap18_6.snap"),
 	})
+
+	// check assertions
+	seedassertsdir := filepath.Join(seeddir, "assertions")
+	l, err := ioutil.ReadDir(seedassertsdir)
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 9)
 }
 
 func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
@@ -3248,7 +3276,7 @@ func (s *imageSuite) makeUC20Model(extraHeaders map[string]interface{}) *asserts
 	return s.Brands.Model("my-brand", "my-model", headers)
 }
 
-func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
+func (s *imageSuite) testSetupSeedCore20Grub(c *C, kernelContent [][]string, expectedAssertMaxFormats map[string]int) {
 	bootloader.Force(nil)
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
@@ -3260,7 +3288,7 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 
 	s.makeSnap(c, "snapd", [][]string{snapdInfoFile}, snap.R(1), "")
 	s.makeSnap(c, "core20", nil, snap.R(20), "")
-	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
+	s.makeSnap(c, "pc-kernel=20", kernelContent, snap.R(1), "")
 	gadgetContent := [][]string{
 		{"grub-recovery.conf", "# recovery grub.cfg"},
 		{"grub.conf", "# boot grub.cfg"},
@@ -3349,8 +3377,6 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 	c.Check(seedGenv.Get("snapd_recovery_mode"), Equals, "install")
 	c.Check(seedGenv.Get("snapd_boot_flags"), Equals, "factory")
 
-	c.Check(s.stderr.String(), Equals, "")
-
 	systemGenv := grubenv.NewEnv(filepath.Join(systems[0], "grubenv"))
 	c.Assert(systemGenv.Load(), IsNil)
 	c.Check(systemGenv.Get("snapd_recovery_kernel"), Equals, "/snaps/pc-kernel_1.snap")
@@ -3387,10 +3413,6 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 		Channel:      stableChannel,
 		Flags:        store.SnapActionIgnoreValidation,
 	})
-	expectedAssertMaxFormats := map[string]int{
-		"snap-declaration": 5,
-		"system-user":      1,
-	}
 	declCount := 0
 	for _, req := range s.assertReqs {
 		if req.ref.Type == asserts.SnapDeclarationType {
@@ -3399,6 +3421,33 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 		}
 	}
 	c.Check(declCount, Equals, 5)
+}
+
+func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
+	expectedAssertMaxFormats := map[string]int{
+		"snap-declaration": 5,
+		"system-user":      1,
+	}
+	s.testSetupSeedCore20Grub(c, [][]string{{"snapd-info", `VERSION=2.55`}}, expectedAssertMaxFormats)
+	c.Check(s.stderr.String(), Equals, "")
+}
+
+func (s *imageSuite) TestSetupSeedCore20GrubMaxFormatsLCD(c *C) {
+	expectedAssertMaxFormats := map[string]int{
+		"snap-declaration": 4,
+		"system-user":      0,
+	}
+	s.testSetupSeedCore20Grub(c, [][]string{{"snapd-info", `VERSION=2.44`}}, expectedAssertMaxFormats)
+	c.Check(s.stderr.String(), Equals, "")
+}
+
+func (s *imageSuite) TestSetupSeedCore20GrubNoKernelMaxFormats(c *C) {
+	expectedAssertMaxFormats := map[string]int{
+		"snap-declaration": 5,
+		"system-user":      1,
+	}
+	s.testSetupSeedCore20Grub(c, nil, expectedAssertMaxFormats)
+	c.Check(s.stderr.String(), Equals, "WARNING: the kernel for the specified UC20+ model does not carry assertion max formats information, assuming possibly incorrectly the kernel revision can use the same formats as snapd\n")
 }
 
 func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
@@ -4165,4 +4214,155 @@ func (s *imageSuite) TestLocalSnapRevisionMatchingStoreRevision(c *C) {
 			IgnoreValidation: false,
 		},
 	})
+}
+
+func (s *imageSuite) TestSetupSeedLocalSnapWithInvalidArchitecture(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	a64Snap := snaptest.MakeTestSnapWithFiles(c, marchSnap, nil)
+
+	opts := &image.Options{
+		Snaps:      []string{a64Snap},
+		PrepareDir: filepath.Dir(rootdir),
+	}
+
+	err := image.SetupSeed(s.tsto, s.model, opts)
+	c.Assert(err, ErrorMatches, `snap "march-snap" supported architectures \(ppc64el, arm64\) are incompatible with the model architecture \(amd64\)`)
+}
+
+func (s *imageSuite) TestSetupSeedLocalSnapWithInvalidModelArchButArchOverriden(c *C) {
+	// Test that the local snap has a architecture that does not match the model, however
+	// that we can indeed override this with the image options.
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	s.setupSnaps(c, map[string]string{
+		"core":      "canonical",
+		"pc":        "canonical",
+		"pc-kernel": "my-brand",
+	}, "")
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	a64Snap := snaptest.MakeTestSnapWithFiles(c, marchSnap, nil)
+
+	opts := &image.Options{
+		Snaps:        []string{a64Snap},
+		PrepareDir:   filepath.Dir(rootdir),
+		Architecture: "arm64",
+	}
+
+	err := image.SetupSeed(s.tsto, s.model, opts)
+	c.Assert(err, IsNil)
+}
+
+func (s *imageSuite) TestSetupSeedLocalSnapWithMultipleArchs(c *C) {
+	// Test that the architecture is correctly validated when there is a mix
+	// of architectures specified in the snap. (march2Snap)
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	s.setupSnaps(c, map[string]string{
+		"core":      "canonical",
+		"pc":        "canonical",
+		"pc-kernel": "my-brand",
+	}, "")
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	sn := snaptest.MakeTestSnapWithFiles(c, march2Snap, nil)
+
+	opts := &image.Options{
+		Snaps:      []string{sn},
+		PrepareDir: filepath.Dir(rootdir),
+	}
+
+	err := image.SetupSeed(s.tsto, s.model, opts)
+	c.Assert(err, IsNil)
+}
+
+func (s *imageSuite) TestSetupSeedSnapInvalidArchitecture(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	s.makeSnap(c, "snapd", [][]string{snapdInfoFile}, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(20), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
+	s.makeSnap(c, "pc=20", nil, snap.R(22), "")
+	s.MakeAssertedSnap(c, marchSnap, nil, snap.R(18), "canonical")
+
+	// replace model with a model that has an extra snap
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "march-snap",
+				"id":   s.AssertedSnapID("march-snap"),
+				"type": "app",
+			},
+		},
+	})
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	opts := &image.Options{
+		PrepareDir: filepath.Dir(rootdir),
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, ErrorMatches, `snap "march-snap" supported architectures \(ppc64el, arm64\) are incompatible with the model architecture \(amd64\)`)
+}
+
+func (s *imageSuite) TestSetupSeedFetchText(c *C) {
+	bootloader.Force(nil)
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.makeUC20Model(nil)
+	prepareDir := c.MkDir()
+
+	// initialize a bunch of snaps for the model
+	s.makeSnap(c, "snapd", [][]string{snapdInfoFile}, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(1), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(2), "")
+	gadgetContent := [][]string{
+		{"uboot.conf", ""},
+		{"meta/gadget.yaml", pcUC20GadgetYaml},
+	}
+	s.makeSnap(c, "pc=20", gadgetContent, snap.R(10), "")
+	s.makeSnap(c, "required20", nil, snap.R(2), "other")
+
+	opts := &image.Options{
+		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags:  []string{"factory"},
+			Validation: "ignore",
+		},
+		// Make sure we also test the case of a specific revision
+		Revisions: map[string]snap.Revision{
+			"snapd": snap.R(133),
+		},
+	}
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+
+	// test that the fetching looks correct
+	c.Assert(s.stdout.String(), testutil.Contains, "Fetching snapd (133)")
+	c.Assert(s.stdout.String(), testutil.Contains, "Fetching core20 (1)")
+	c.Assert(s.stdout.String(), testutil.Contains, "Fetching pc-kernel (2)")
+	c.Assert(s.stdout.String(), testutil.Contains, "Fetching pc (10)")
+	c.Assert(s.stdout.String(), testutil.Contains, "Fetching required20 (2)")
 }

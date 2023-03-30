@@ -37,6 +37,9 @@ type flags struct {
 	// coreOnlyConfig tells Run/FilesystemOnlyApply to apply the config on core
 	// systems only.
 	coreOnlyConfig bool
+	// modeenvOnlyConfig is set if the option can be applied only
+	// to systems with core-like booting.
+	modeenvOnlyConfig bool
 	// validatedOnlyStateConfig tells that the config requires only validation,
 	// its options are applied dynamically elsewhere.
 	validatedOnlyStateConfig bool
@@ -184,6 +187,9 @@ func filesystemOnlyRun(dev sysconfig.Device, cfg ConfGetter, ctx *fsOnlyContext)
 			continue
 		}
 		if h.flags().coreOnlyConfig && dev.Classic() {
+			continue
+		}
+		if h.flags().modeenvOnlyConfig && !dev.HasModeenv() {
 			continue
 		}
 		if err := h.handle(dev, cfg, ctx); err != nil {

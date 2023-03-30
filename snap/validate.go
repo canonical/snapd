@@ -924,6 +924,7 @@ var layoutRejectionList = []string{
 	// snap applications to be integrated with the rest of the system and
 	// therefore snaps should not be allowed to replace it.
 	"/run",
+	"/var/run",
 	// The /tmp directory contains a private, per-snap, view of /tmp and
 	// there's no valid reason to allow snaps to replace it.
 	"/tmp",
@@ -939,9 +940,11 @@ var layoutRejectionList = []string{
 	// firmware. Therefore firmware must not be replaceable to prevent
 	// malicious firmware from attacking the host.
 	"/lib/firmware",
+	"/usr/lib/firmware",
 	// Similarly the kernel will load modules and the modules should not be
 	// something that snaps can tamper with.
 	"/lib/modules",
+	"/usr/lib/modules",
 
 	// Locations that store essential data:
 
