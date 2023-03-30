@@ -242,11 +242,11 @@ main() {
 	# NOTE: /dev/stdin is provided explicitly to trigger special behavior in bash,
 	# as otherwise background tasks are started with /dev/null for stdin.
 	cat </dev/stdin >"$tmp_dir/stdin.pipe" &
-	cat_stdin_pid=$!
+	#cat_stdin_pid=$!
 	cat <"$tmp_dir/stdout.pipe" >&1 &
-	cat_stdout_pid=$!
+	#cat_stdout_pid=$!
 	cat <"$tmp_dir/stderr.pipe" >&2 &
-	cat_stderr_pid=$!
+	#cat_stderr_pid=$!
 
 	(
 		echo "#!/bin/sh"
@@ -262,14 +262,14 @@ main() {
 	# We want to provide a SELinuxContext but systemd in older SELinux-using distributions
 	# does not recognize this attribute. See https://github.com/systemd/systemd/blob/master/NEWS#L6402
 	# The typical user context as reported by id -Z is: unconfined_u:unconfined_r:unconfined_t:s0
-	selinux_context_arg=
-	case $SPREAD_SYSTEM in
-		fedora-*|centos-*)
-			if [ "$(systemctl --version | head -n 1 | awk '{ print $2 }')" -gt 219 ]; then
-				selinux_context_arg="SELinuxContext s unconfined_u:unconfined_r:unconfined_t:s0"
-			fi
-			;;
-	esac
+	#selinux_context_arg=
+	#case $SPREAD_SYSTEM in
+    #	fedora-*|centos-*)
+	#		if [ "$(systemctl --version | head -n 1 | awk '{ print $2 }')" -gt 219 ]; then
+	#			selinux_context_arg="SELinuxContext s unconfined_u:unconfined_r:unconfined_t:s0"
+	#		fi
+	#		;;
+	#esac
 
 	systemd-run \
 		--description "tests.session running $* as $user" \
@@ -280,7 +280,7 @@ main() {
 		--property "StandardInput=file:$tmp_dir/stdin.pipe" \
 		--property "StandardOutput=file:$tmp_dir/stdout.pipe" \
 		--property "StandardError=file:$tmp_dir/stderr.pipe" \
-		"$(command -v runuser)" -l "$user" - -c "SNAPD_DEBUG=$SNAPD_DEBUG SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG $exec $tmp_dir/exec"
+		"$(command -v runuser)" -l "$user" - -c "SNAPD_DEBUG=$SNAPD_DEBUG SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG exec $tmp_dir/exec"
 
 	# Prevent accumulation of failed sessions.
 	if systemctl cat "$unit_name" &>/dev/null; then
