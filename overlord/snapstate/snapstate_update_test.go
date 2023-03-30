@@ -9828,3 +9828,83 @@ func (s *snapmgrTestSuite) TestRefreshNoRelatedMonitoring(c *C) {
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 }
+
+func (s *snapmgrTestSuite) TestMonitoringIsPersistedAndRestored(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: some-snap`, si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "some-snap",
+			Revision: snap.R(2),
+		},
+		Flags: snapstate.Flags{IsAutoRefresh: true},
+	}
+
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {})
+	defer restore()
+
+	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		c.Assert(info.InstanceName(), Equals, "some-snap")
+		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	var stopMonitor chan<- string
+	restore = snapstate.MockCgroupMonitorSnapEnded(func(name string, done chan<- string) error {
+		stopMonitor = done
+		c.Check(name, Equals, "some-snap")
+		return nil
+	})
+	defer restore()
+
+	preDlChg := s.state.NewChange("pre-download", "pre-download change")
+	preDlTask := s.state.NewTask("pre-download-snap", "pre-download task")
+
+	preDlTask.Set("snap-setup", snapsup)
+	preDlTask.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "some-snap"})
+	preDlChg.AddTask(preDlTask)
+
+	s.settle(c)
+
+	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
+	// check there's still a goroutine monitoring the snap
+	monitoring := s.state.Cached("monitored-snaps")
+	c.Assert(monitoring, FitsTypeOf, map[string]chan<- bool{})
+	c.Assert(monitoring.(map[string]chan<- bool)["some-snap"], NotNil)
+
+	var monitored []string
+	c.Assert(s.state.Get("monitored-snaps", &monitored), IsNil)
+	c.Assert(monitored, DeepEquals, []string{"some-snap"})
+
+	// simulate a restart by stopping the monitoring but removing its effects
+	stopMonitor <- "some-snap"
+	s.state.Unlock()
+	waitForMonitoringEnd(s.state, c)
+
+	s.state.Lock()
+	s.state.Cache("monitored-snaps", nil)
+	s.state.Cache("auto-refresh-continue-attempt", nil)
+	s.state.Set("monitored-snaps", monitored)
+	snapstate.SetRestoredMonitoring(s.snapmgr, false)
+	s.state.Unlock()
+
+	// the first Ensure sets up the monitoring again
+	c.Assert(s.snapmgr.Ensure(), IsNil)
+	stopMonitor <- "some-snap"
+	waitForMonitoringEnd(s.state, c)
+	s.state.Lock()
+
+	c.Assert(s.state.Cached("monitored-snaps"), IsNil)
+	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 1)
+}
