@@ -1240,10 +1240,24 @@ func (w *Writer) installedSnaps() []*snapasserts.InstalledSnap {
 	return installedSnaps
 }
 
+func (w *Writer) checkStepCompleted(step writerStep) bool {
+	// expectedStep is the next step it needs to perform. If that
+	// is higher (as they are int based values), then the step we
+	// are checking against has completed.
+	return w.expectedStep > step
+}
+
 // CheckValidationSets validates all snaps that are to be seeded against any
 // specified validation set. Info for all seed snaps must have been derived prior
 // to this call.
 func (w *Writer) CheckValidationSets() error {
+	// It makes no sense to check validation-sets before all required snaps
+	// have been resolved and downloaded. Ensure that this is not called before
+	// the Downloaded step has completed.
+	if !w.checkStepCompleted(downloadedStep) {
+		return fmt.Errorf("internal error: seedwriter.Writer cannot check validation-sets before Downloaded signaled complete")
+	}
+
 	valsets, err := w.validationSets()
 	if err != nil {
 		return err
