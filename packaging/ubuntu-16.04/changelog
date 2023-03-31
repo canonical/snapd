@@ -1,3 +1,9 @@
+snapd (2.60~prompt1) unstable; urgency=medium
+
+  * include prompting
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 31 Mar 2023 11:30:45 +0200
+
 snapd (2.59) xenial; urgency=medium
 
   * New upstream release, LP: #2009946
