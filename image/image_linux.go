@@ -828,7 +828,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
-	// Create the initial manifest, derived from the locally available snaps.
+	// Mark all local snaps in the manifest.
 	// Must be done after deriveInfoForLocalSnaps, as the snap info must have
 	// been derived if possible.
 	if err := markLocalSnapRevisionsUsed(s.manifest, localSnaps); err != nil {

@@ -50,19 +50,25 @@ func (s *manifestSuite) writeSeedManifest(c *C, contents string) string {
 	return manifestFile
 }
 
-func (s *manifestSuite) checkManifest(c *C, manifest *image.SeedManifest, rules, used map[string]snap.Revision, vss []*image.SeedManifestValidationSet) {
+func (s *manifestSuite) checkManifest(c *C, manifest *image.SeedManifest, allowed, used []image.SeedManifestEntry) {
 	expected := image.NewSeedManifest()
-	for sn, rev := range rules {
-		err := expected.SetAllowedSnapRevision(sn, rev.N)
-		c.Assert(err, IsNil)
+	for _, a := range allowed {
+		if sr, ok := a.(*image.SeedManifestSnapRevision); ok {
+			err := expected.SetAllowedSnapRevision(sr.SnapName, sr.Revision.N)
+			c.Assert(err, IsNil)
+		} else if vs, ok := a.(*image.SeedManifestValidationSet); ok {
+			err := expected.SetAllowedValidationSet(vs.AccountID, vs.Name, vs.Sequence, vs.Pinned)
+			c.Assert(err, IsNil)
+		}
 	}
-	for sn, rev := range used {
-		err := expected.MarkSnapRevisionUsed(sn, rev.N)
-		c.Assert(err, IsNil)
-	}
-	for _, vs := range vss {
-		err := expected.MarkValidationSetUsed(vs.AccountID, vs.Name, vs.Sequence, vs.Pinned)
-		c.Assert(err, IsNil)
+	for _, a := range used {
+		if sr, ok := a.(*image.SeedManifestSnapRevision); ok {
+			err := expected.MarkSnapRevisionUsed(sr.SnapName, sr.Revision.N)
+			c.Assert(err, IsNil)
+		} else if vs, ok := a.(*image.SeedManifestValidationSet); ok {
+			err := expected.MarkValidationSetUsed(vs.AccountID, vs.Name, vs.Sequence, vs.Pinned)
+			c.Assert(err, IsNil)
+		}
 	}
 	c.Check(manifest, DeepEquals, expected)
 }
@@ -80,24 +86,14 @@ one-snap x6
 `)
 	manifest, err := image.ReadSeedManifest(manifestFile)
 	c.Assert(err, IsNil)
-	s.checkManifest(c, manifest, map[string]snap.Revision{
-		"core22":   snap.R(275),
-		"pc":       snap.R(128),
-		"snapd":    snap.R(16681),
-		"one-snap": snap.R(-6),
-	}, nil, []*image.SeedManifestValidationSet{
-		{
-			AccountID: "canonical",
-			Name:      "base-set",
-			Sequence:  2,
-			Pinned:    true,
-		},
-		{
-			AccountID: "canonical",
-			Name:      "opt-set",
-			Sequence:  5,
-		},
-	})
+	s.checkManifest(c, manifest, []image.SeedManifestEntry{
+		&image.SeedManifestSnapRevision{SnapName: "core22", Revision: snap.R(275)},
+		&image.SeedManifestSnapRevision{SnapName: "pc", Revision: snap.R(128)},
+		&image.SeedManifestSnapRevision{SnapName: "snapd", Revision: snap.R(16681)},
+		&image.SeedManifestSnapRevision{SnapName: "one-snap", Revision: snap.R(-6)},
+		&image.SeedManifestValidationSet{AccountID: "canonical", Name: "base-set", Sequence: 2, Pinned: true},
+		&image.SeedManifestValidationSet{AccountID: "canonical", Name: "opt-set", Sequence: 5},
+	}, nil)
 }
 
 func (s *manifestSuite) TestReadSeedManifestParseFails(c *C) {
@@ -193,9 +189,9 @@ func (s *manifestSuite) TestSeedManifestSetAllowedSnapRevisionTwice(c *C) {
 	c.Assert(err, IsNil)
 	err = manifest.SetAllowedSnapRevision("core", 28)
 	c.Assert(err, IsNil)
-	s.checkManifest(c, manifest, map[string]snap.Revision{
-		"core": snap.R(14),
-	}, nil, nil)
+	s.checkManifest(c, manifest, []image.SeedManifestEntry{
+		&image.SeedManifestSnapRevision{SnapName: "core", Revision: snap.R(14)},
+	}, nil)
 }
 
 func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedRuleHappy(c *C) {
@@ -206,12 +202,12 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedRuleHappy(c *C) {
 	c.Assert(err, IsNil)
 	err = manifest.MarkSnapRevisionUsed("core", 14)
 	c.Assert(err, IsNil)
-	s.checkManifest(c, manifest, map[string]snap.Revision{
-		"core": snap.R(14),
-		"pc":   snap.R(1),
-	}, map[string]snap.Revision{
-		"core": snap.R(14),
-	}, nil)
+	s.checkManifest(c, manifest, []image.SeedManifestEntry{
+		&image.SeedManifestSnapRevision{SnapName: "core", Revision: snap.R(14)},
+		&image.SeedManifestSnapRevision{SnapName: "pc", Revision: snap.R(1)},
+	}, []image.SeedManifestEntry{
+		&image.SeedManifestSnapRevision{SnapName: "core", Revision: snap.R(14)},
+	})
 }
 
 func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedNoRule(c *C) {
@@ -222,12 +218,12 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedNoRule(c *C) {
 	c.Assert(err, IsNil)
 	err = manifest.MarkSnapRevisionUsed("my-snap", 1)
 	c.Assert(err, IsNil)
-	s.checkManifest(c, manifest, map[string]snap.Revision{
-		"core": snap.R(14),
-		"pc":   snap.R(1),
-	}, map[string]snap.Revision{
-		"my-snap": snap.R(1),
-	}, nil)
+	s.checkManifest(c, manifest, []image.SeedManifestEntry{
+		&image.SeedManifestSnapRevision{SnapName: "core", Revision: snap.R(14)},
+		&image.SeedManifestSnapRevision{SnapName: "pc", Revision: snap.R(1)},
+	}, []image.SeedManifestEntry{
+		&image.SeedManifestSnapRevision{SnapName: "my-snap", Revision: snap.R(1)},
+	})
 }
 
 func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedTwice(c *C) {
@@ -236,9 +232,9 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedTwice(c *C) {
 	c.Assert(err, IsNil)
 	err = manifest.MarkSnapRevisionUsed("my-snap", 5)
 	c.Assert(err, IsNil)
-	s.checkManifest(c, manifest, nil, map[string]snap.Revision{
-		"my-snap": snap.R(1),
-	}, nil)
+	s.checkManifest(c, manifest, nil, []image.SeedManifestEntry{
+		&image.SeedManifestSnapRevision{SnapName: "my-snap", Revision: snap.R(1)},
+	})
 }
 
 func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedWrongRevision(c *C) {
@@ -255,18 +251,23 @@ func (s *manifestSuite) TestSeedManifestMarkValidationSetUsed(c *C) {
 	c.Assert(err, IsNil)
 	err = manifest.MarkValidationSetUsed("canonical", "opt-set", 2, false)
 	c.Assert(err, IsNil)
-	s.checkManifest(c, manifest, nil, nil, []*image.SeedManifestValidationSet{
-		{
-			AccountID: "canonical",
-			Name:      "base-set",
-			Sequence:  4,
-			Pinned:    true,
-		},
-		{
-			AccountID: "canonical",
-			Name:      "opt-set",
-			Sequence:  2,
-		},
+	s.checkManifest(c, manifest, nil, []image.SeedManifestEntry{
+		&image.SeedManifestValidationSet{AccountID: "canonical", Name: "base-set", Sequence: 4, Pinned: true},
+		&image.SeedManifestValidationSet{AccountID: "canonical", Name: "opt-set", Sequence: 2},
+	})
+}
+
+func (s *manifestSuite) TestSeedManifestSetAllowedValidationSet(c *C) {
+	manifest := image.NewSeedManifest()
+	err := manifest.SetAllowedValidationSet("canonical", "base-set", 4, true)
+	c.Assert(err, IsNil)
+	err = manifest.SetAllowedValidationSet("canonical", "opt-set", 2, false)
+	c.Assert(err, IsNil)
+
+	// Check the allowed validation-sets returned
+	c.Check(manifest.ValidationSetsAllowed(), DeepEquals, []*image.SeedManifestValidationSet{
+		{AccountID: "canonical", Name: "base-set", Sequence: 4, Pinned: true},
+		{AccountID: "canonical", Name: "opt-set", Sequence: 2},
 	})
 }
 
@@ -276,18 +277,29 @@ func (s *manifestSuite) TestSeedManifestMarkValidationSetUsedTwice(c *C) {
 	c.Assert(err, IsNil)
 	err = manifest.MarkValidationSetUsed("canonical", "base-set", 5, false)
 	c.Assert(err, IsNil)
-	s.checkManifest(c, manifest, nil, nil, []*image.SeedManifestValidationSet{
-		{
-			AccountID: "canonical",
-			Name:      "base-set",
-			Sequence:  4,
-			Pinned:    true,
-		},
+	s.checkManifest(c, manifest, nil, []image.SeedManifestEntry{
+		&image.SeedManifestValidationSet{AccountID: "canonical", Name: "base-set", Sequence: 4, Pinned: true},
 	})
+}
+
+func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedWrongSequence(c *C) {
+	manifest := image.NewSeedManifest()
+	err := manifest.SetAllowedValidationSet("canonical", "base-set", 1, true)
+	c.Assert(err, IsNil)
+	err = manifest.MarkValidationSetUsed("canonical", "base-set", 4, true)
+	c.Assert(err, ErrorMatches, `sequence of "canonical/base-set" \(4\) does not match the allowed sequence \(1\)`)
+}
+
+func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedWrongPinned(c *C) {
+	manifest := image.NewSeedManifest()
+	err := manifest.SetAllowedValidationSet("canonical", "base-set", 1, true)
+	c.Assert(err, IsNil)
+	err = manifest.MarkValidationSetUsed("canonical", "base-set", 1, false)
+	c.Assert(err, ErrorMatches, `pinning of "canonical/base-set" \(false\) does not match the allowed pinning \(true\)`)
 }
 
 func (s *manifestSuite) TestSeedManifestMarkValidationSetUsedInvalidSequence(c *C) {
 	manifest := image.NewSeedManifest()
 	err := manifest.MarkValidationSetUsed("canonical", "base-set", 0, true)
-	c.Assert(err, ErrorMatches, `cannot mark validation-set used, sequence must be set`)
+	c.Assert(err, ErrorMatches, `cannot mark validation-set "canonical/base-set" used, sequence must be set`)
 }
