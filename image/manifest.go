@@ -90,7 +90,9 @@ func (s *SeedManifestValidationSet) Check(against SeedManifestEntry) error {
 	}
 
 	if s.Sequence != sr.Sequence {
-		return fmt.Errorf("sequence %d does not match the allowed sequence %d", sr.Sequence, s.Sequence)
+		return fmt.Errorf("sequence of %q (%d) does not match the allowed sequence (%d)", sr.Unique(), sr.Sequence, s.Sequence)
+	} else if s.Pinned != sr.Pinned {
+		return fmt.Errorf("pinning of %q (%t) does not match the allowed pinning (%t)", sr.Unique(), sr.Pinned, s.Pinned)
 	}
 	return nil
 }
@@ -205,7 +207,7 @@ func (sm *SeedManifest) MarkSnapRevisionUsed(snapName string, revision int) erro
 // be ignored.
 func (sm *SeedManifest) MarkValidationSetUsed(accountID, name string, sequence int, pinned bool) error {
 	if sequence <= 0 {
-		return fmt.Errorf("cannot mark validation-set used, sequence must be set")
+		return fmt.Errorf("cannot mark validation-set \"%s/%s\" used, sequence must be set", accountID, name)
 	}
 	return sm.addUsedOnce(&SeedManifestValidationSet{
 		AccountID: accountID,
@@ -226,16 +228,15 @@ func (sm *SeedManifest) AllowedSnapRevision(snapName string) snap.Revision {
 	return snap.Revision{}
 }
 
-// ValidationSets returns the allowed sequence for a validation set. If none
-// was specified, the value of -1 is returned.
-func (sm *SeedManifest) ValidationSetSequence(accountID, name string) int {
-	key := fmt.Sprintf("%s/%s", accountID, name)
-	if allowed, ok := sm.allowed[key]; ok {
-		if sr, ok := allowed.(*SeedManifestValidationSet); ok {
-			return sr.Sequence
+// ValidationSetsAllowed returns the validation sets specified as allowed.
+func (sm *SeedManifest) ValidationSetsAllowed() []*SeedManifestValidationSet {
+	var vss []*SeedManifestValidationSet
+	for _, s := range sm.allowed {
+		if vs, ok := s.(*SeedManifestValidationSet); ok {
+			vss = append(vss, vs)
 		}
 	}
-	return -1
+	return vss
 }
 
 func parsePinnedValidationSet(sm *SeedManifest, vs string) error {
@@ -243,7 +244,7 @@ func parsePinnedValidationSet(sm *SeedManifest, vs string) error {
 	if err != nil {
 		return err
 	}
-	return sm.MarkValidationSetUsed(acc, name, seq, true)
+	return sm.SetAllowedValidationSet(acc, name, seq, true)
 }
 
 func parseUnpinnedValidationSet(sm *SeedManifest, vs, seqStr string) error {
@@ -255,7 +256,7 @@ func parseUnpinnedValidationSet(sm *SeedManifest, vs, seqStr string) error {
 	if err != nil {
 		return fmt.Errorf("invalid formatted validation-set sequence: %q", seqStr)
 	}
-	return sm.MarkValidationSetUsed(acc, name, seq, false)
+	return sm.SetAllowedValidationSet(acc, name, seq, false)
 }
 
 func parseSnapRevision(sm *SeedManifest, sn, revStr string) error {
