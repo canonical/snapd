@@ -146,3 +146,12 @@ func MockFilepathGlob(new func(pattern string) (matches []string, err error)) (r
 func (se *SnapshotExport) ContentHash() []byte {
 	return se.contentHash
 }
+
+func MockReadSnapshotYaml(f func(si *snap.Info) (*snap.SnapshotOptions, error)) func() {
+	oldReadSnapshotYaml := snapReadSnapshotYaml
+	snapReadSnapshotYaml = f
+
+	return func() {
+		snapReadSnapshotYaml = oldReadSnapshotYaml
+	}
+}

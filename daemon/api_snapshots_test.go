@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 var _ = check.Suite(&snapshotSuite{})
@@ -51,14 +52,17 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 }
 
-func (s *snapshotSuite) TestSnapshotMany(c *check.C) {
-	defer daemon.MockSnapshotSave(func(s *state.State, snaps, users []string) (uint64, []string, *state.TaskSet, error) {
+func (s *snapshotSuite) TestSnapshotManyOptionsNone(c *check.C) {
+	defer daemon.MockSnapshotSave(func(s *state.State, snaps, users []string,
+		options map[string]*snap.SnapshotOptions) (uint64, []string, *state.TaskSet, error) {
 		c.Check(snaps, check.HasLen, 2)
+		c.Check(options, check.IsNil)
 		t := s.NewTask("fake-snapshot-2", "Snapshot two")
 		return 1, snaps, state.NewTaskSet(t), nil
 	})()
 
 	inst := daemon.MustUnmarshalSnapInstruction(c, `{"action": "snapshot", "snaps": ["foo", "bar"]}`)
+
 	st := s.d.Overlord().State()
 	st.Lock()
 	res, err := inst.DispatchForMany()(inst, st)
@@ -66,6 +70,51 @@ func (s *snapshotSuite) TestSnapshotMany(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Snapshot snaps "foo", "bar"`)
 	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
+}
+
+func (s *snapshotSuite) TestSnapshotManyOptionsFull(c *check.C) {
+	var snapshotSaveCalled int
+	defer daemon.MockSnapshotSave(func(s *state.State, snaps, users []string,
+		options map[string]*snap.SnapshotOptions) (uint64, []string, *state.TaskSet, error) {
+		snapshotSaveCalled++
+		c.Check(snaps, check.HasLen, 2)
+		c.Check(options, check.HasLen, 2)
+		c.Check(options, check.DeepEquals, map[string]*snap.SnapshotOptions{
+			"foo": {Exclude: []string{"foo-path-1", "foo-path-2"}},
+			"bar": {Exclude: []string{"bar-path-1", "bar-path-2"}},
+		})
+		t := s.NewTask("fake-snapshot-2", "Snapshot two")
+		return 1, snaps, state.NewTaskSet(t), nil
+	})()
+
+	inst := daemon.MustUnmarshalSnapInstruction(c, `{"action": "snapshot", "snaps": ["foo", "bar"],
+	"snapshot-options": {"foo": {"exclude":["foo-path-1", "foo-path-2"]}, "bar":{"exclude":["bar-path-1", "bar-path-2"]}}}`)
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	res, err := inst.DispatchForMany()(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(res.Summary, check.Equals, `Snapshot snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
+	c.Check(snapshotSaveCalled, check.Equals, 1)
+}
+
+func (s *snapshotSuite) TestSnapshotManyError(c *check.C) {
+	defer daemon.MockSnapshotSave(func(s *state.State, snaps, users []string,
+		options map[string]*snap.SnapshotOptions) (uint64, []string, *state.TaskSet, error) {
+		c.Check(snaps, check.HasLen, 2)
+		return 0, nil, nil, &snap.NotInstalledError{Snap: "foo"}
+	})()
+
+	inst := daemon.MustUnmarshalSnapInstruction(c, `{"action": "snapshot", "snaps": ["foo", "bar"]}`)
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	res, err := inst.DispatchForMany()(inst, st)
+	st.Unlock()
+	c.Check(res, check.IsNil)
+	c.Check(err, check.ErrorMatches, `snap "foo" is not installed`)
 }
 
 func (s *snapshotSuite) TestListSnapshots(c *check.C) {
@@ -304,7 +353,6 @@ func (s *snapshotSuite) TestChangeSnapshot(c *check.C) {
 		c.Check(apiData, check.DeepEquals, map[string]interface{}{
 			"snap-names": []interface{}{"foo"},
 		})
-
 	}
 }
 
