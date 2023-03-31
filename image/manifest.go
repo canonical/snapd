@@ -34,11 +34,19 @@ import (
 )
 
 type SeedManifestEntry interface {
+	// String should return a formatted string of the manifest
+	// entry as it should be written.
 	String() string
+	// Unique should return an identifier that can be used to track
+	// allowed/used entries.
 	Unique() string
+	// Check will be invoked to verify an used entry against a previously
+	// allowed one.
 	Check(against SeedManifestEntry) error
 }
 
+// SeedManifestSnapRevision represents a snap revision as noted
+// in the seed manifest.
 type SeedManifestSnapRevision struct {
 	SnapName string
 	Revision snap.Revision
