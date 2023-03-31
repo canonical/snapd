@@ -3911,13 +3911,13 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, rules map[str
 		{
 			Action:       "download",
 			InstanceName: "pc-kernel",
-			Revision:     seedManifest.AllowedRevision("pc-kernel"),
+			Revision:     seedManifest.AllowedSnapRevision("pc-kernel"),
 			Flags:        store.SnapActionIgnoreValidation,
 		},
 		{
 			Action:       "download",
 			InstanceName: "pc",
-			Revision:     seedManifest.AllowedRevision("pc"),
+			Revision:     seedManifest.AllowedSnapRevision("pc"),
 			Flags:        store.SnapActionIgnoreValidation,
 		},
 	})
@@ -3953,7 +3953,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapFails(c *C) {
 		"pc":        snap.R(1),
 		"core":      snap.R(5),
 	})
-	c.Check(err, ErrorMatches, `cannot use snap .*/snapsrc/core_16.04_all.snap for image: revision does not match the value specified by revisions rules \(x1 != 5\)`)
+	c.Check(err, ErrorMatches, `cannot use snap .*/snapsrc/core_16.04_all.snap for image: revision x1 does not match the allowed revision 5`)
 }
 
 func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapHappy(c *C) {

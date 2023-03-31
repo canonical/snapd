@@ -481,7 +481,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 		if sn == nil {
 			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 		}
-		rev := s.manifest.AllowedRevision(sn.SnapName())
+		rev := s.manifest.AllowedSnapRevision(sn.SnapName())
 		if rev.Unset() {
 			rev = info.Revision
 		}
@@ -499,7 +499,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 		byName[sn.SnapName()] = sn
 		snapToDownloadOptions[i].Snap = sn
 		snapToDownloadOptions[i].Channel = sn.Channel
-		snapToDownloadOptions[i].Revision = s.manifest.AllowedRevision(sn.SnapName())
+		snapToDownloadOptions[i].Revision = s.manifest.AllowedSnapRevision(sn.SnapName())
 		snapToDownloadOptions[i].CohortKey = s.wideCohortKey
 	}
 
