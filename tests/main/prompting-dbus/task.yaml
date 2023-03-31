@@ -18,6 +18,8 @@ prepare: |
         # no need to cleanup, setup/teardown will remove extra pkgs
         # automatically
         apt install -y --allow-downgrades  linux-image-6.2.0-16-generic
+        # ensure there is no newer kernel
+        apt remove -y linux-image-6.2.0-18-generic
         # TODO2: if the PPA kernel version is lower than the distro kernel
         # ensure that the newer distro kernel gets removed here
 
