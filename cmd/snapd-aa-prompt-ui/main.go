@@ -22,6 +22,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snapdtool"
@@ -34,8 +36,23 @@ func init() {
 	}
 }
 
+// selfExe is the path to a symlink pointing to the current executable
+var selfExe = "/proc/self/exe"
+
 func main() {
 	snapdtool.ExecInSnapdOrCoreSnap()
 	// This point is only reached if reexec did not happen
-	fmt.Fprintln(os.Stderr, "AA Prompt UI not implemented")
+	exe, err := os.Readlink(selfExe)
+	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v", err)
+		return
+	}
+	pyHelper := "snapd-aa-prompt-ui-gtk"
+	cmd := exec.Command(filepath.Dir(exe), pyHelper)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		logger.Noticef("cannot run %v: %v", cmd, err)
+		return
+	}
 }

@@ -528,6 +528,12 @@ endif
 ## snap-gdb-shim
 ##
 
+libexec_SCRIPTS += snapd-aa-prompt-ui/snapd-aa-prompt-ui-gtk
+
+##
+## snapd-aa-prompt-ui/snapd-aa-prompt-ux-gtk
+##
+
 libexec_PROGRAMS += snap-gdb-shim/snap-gdb-shim
 
 snap_gdb_shim_snap_gdb_shim_SOURCES = \

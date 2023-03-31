@@ -14,6 +14,8 @@ usr/bin/snap-preseed /usr/lib/snapd/
 usr/bin/snap-recovery-chooser /usr/lib/snapd/
 usr/bin/snap-fde-keymgr /usr/lib/snapd/
 usr/bin/snapd-apparmor /usr/lib/snapd/
+# XXX: this will go away once the desktop team takes this over
+usr/lib/snapd/snapd-aa-prompt-ui-gtk /usr/lib/snapd/
 
 # bash completion
 data/completion/bash/snap /usr/share/bash-completion/completions

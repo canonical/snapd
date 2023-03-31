@@ -1,0 +1,95 @@
+#!/usr/bin/python3
+
+import gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import GLib, Gtk
+
+import dbus
+import dbus.service
+import dbus.mainloop.glib
+
+dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+
+aa_prompt_iface = "io.snapcraft.AppArmorPrompt"
+aa_prompt_path = "/io/snapcraft/AppArmorPrompt"
+
+
+class PromptDialog(Gtk.Dialog):
+    RESPONSE_ALLOW = 22
+    RESPONSE_DENY = 23
+    RESPONSE_MORE_INFO = 24
+
+    def __init__(self, app, icon, path, operation):
+        super().__init__(title=f"Security notification")
+        # self.set_default_size(600, 400)
+        self.set_border_width(24)
+
+        outer_hbox = Gtk.Box(spacing=6)
+        img_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        app_image = Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.DIALOG)
+        img_vbox.pack_start(app_image, False, False, 6)
+        outer_hbox.pack_start(img_vbox, False, False, 6)
+        self.get_content_area().add(outer_hbox)
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        outer_hbox.pack_start(vbox, False, False, 6)
+
+        header_label = Gtk.Label()
+        header_label.set_markup(f"<b>{app} would like to access a folder</b>")
+        vbox.pack_start(header_label, False, False, 6)
+
+        details = Gtk.Label()
+        details.set_markup(f"{app} would like to access {path} for {operation}.")
+        vbox.pack_start(details, True, True, 6)
+
+        hbox = Gtk.Box(spacing=6)
+
+        self.add_button("Always allow", self.RESPONSE_ALLOW)
+        self.add_button("Deny", self.RESPONSE_DENY)
+        # TODO: add "more info"
+        self.show_all()
+
+
+AGENT_INTERFACE = "io.snapcraft.PromptAgent"
+class Agent(dbus.service.Object):
+    @dbus.service.method(AGENT_INTERFACE, in_signature="sa{ss}", out_signature="ba{ss}")
+    def Prompt(self, path, info):
+        print(f"Prompt() called with {path} {info}")
+        prompt_allow = False
+        extra_constraints = {}
+        # XXX: spec says we get the snap/app from info
+        app = info.get("label","no-label")
+        icon = info.get("icon", "no-icon")
+        operation = info.get("operation", "no-operation")
+        dialog = PromptDialog(app, icon, path, operation)
+        res = dialog.run()
+        if res == PromptDialog.RESPONSE_ALLOW:
+            prompt_allow = True
+        elif res == PromptDialog.RESPONSE_DENY:
+            prompt_allow = False
+        dialog.destroy()
+
+        # TODO: implement extra_constraints 
+        return prompt_allow, extra_constraints
+
+
+def main():
+    # create agent prompt
+    # XXX: do we need the path ?
+    buspath = "/io/snapcraft/PromptAgent"
+    bus = dbus.SystemBus()
+    agent = Agent(bus, buspath)
+    print(agent, dir(agent))
+    print(f"Agent ready on {agent._locations}")
+
+    # register to aa-listen
+    obj = bus.get_object(aa_prompt_iface, aa_prompt_path)
+    obj.RegisterAgent(buspath)
+    # TODO: detect when obj goes away from the bus and exit
+
+    loop = GLib.MainLoop()
+    loop.run()
+
+
+if __name__ == "__main__":
+    main()
