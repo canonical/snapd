@@ -31,6 +31,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
@@ -282,6 +283,7 @@ type imageSeeder struct {
 	wideCohortKey  string
 	revisions      map[string]snap.Revision
 	customizations *Customizations
+	architecture   string
 
 	hasModes    bool
 	rootDir     string
@@ -289,6 +291,7 @@ type imageSeeder struct {
 	seedDir     string
 	label       string
 	w           *seedwriter.Writer
+	f           seedwriter.SeedAssertionFetcher
 }
 
 func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) (*imageSeeder, error) {
@@ -306,6 +309,7 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 		// keep a pointer to the customization object in opts as the Validation
 		// member might be defaulted if not set.
 		customizations: &opts.Customizations,
+		architecture:   determineImageArchitecture(model, opts),
 
 		hasModes: model.Grade() != asserts.ModelGradeUnset,
 		model:    model,
@@ -348,6 +352,20 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 	return s, nil
 }
 
+func determineImageArchitecture(model *asserts.Model, opts *Options) string {
+	// let the architecture supplied in opts take precedence
+	if opts.Architecture != "" {
+		// in theory we could check that this does not differ from the one
+		// specified in the model, but this check is done somewhere else.
+		return opts.Architecture
+	} else if model.Architecture() != "" {
+		return model.Architecture()
+	} else {
+		// if none had anything set, use the host architecture
+		return arch.DpkgArchitecture()
+	}
+}
+
 func (s *imageSeeder) setModelessDirs() error {
 	if s.classic {
 		// Classic, PrepareDir is the root dir itself
@@ -382,19 +400,39 @@ func (s *imageSeeder) setModesDirs() error {
 	return nil
 }
 
-func (s *imageSeeder) start(db *asserts.Database, optSnaps []*seedwriter.OptionsSnap) (seedwriter.RefAssertsFetcher, error) {
+func (s *imageSeeder) start(db *asserts.Database, optSnaps []*seedwriter.OptionsSnap) error {
 	if err := s.w.SetOptionsSnaps(optSnaps); err != nil {
-		return nil, err
+		return err
 	}
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
 		return s.tsto.AssertionFetcher(db, save)
 	}
-	return s.w.Start(db, newFetcher)
+	s.f = seedwriter.MakeSeedAssertionFetcher(newFetcher)
+	return s.w.Start(db, s.f)
+}
+
+func (s *imageSeeder) snapSupportsImageArch(sn *seedwriter.SeedSnap) bool {
+	for _, a := range sn.Info.Architectures {
+		if a == "all" || a == s.architecture {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *imageSeeder) validateSnapArchs(snaps []*seedwriter.SeedSnap) error {
+	for _, sn := range snaps {
+		if !s.snapSupportsImageArch(sn) {
+			return fmt.Errorf("snap %q supported architectures (%s) are incompatible with the model architecture (%s)",
+				sn.Info.SnapName(), strings.Join(sn.Info.Architectures, ", "), s.architecture)
+		}
+	}
+	return nil
 }
 
 type localSnapRefs map[*seedwriter.SeedSnap][]*asserts.Ref
 
-func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.RefAssertsFetcher, db *asserts.Database) (localSnapRefs, error) {
+func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.SeedAssertionFetcher, db *asserts.Database) (localSnapRefs, error) {
 	localSnaps, err := s.w.LocalSnaps()
 	if err != nil {
 		return nil, err
@@ -421,6 +459,11 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.RefAssertsFetcher, db
 		}
 		snaps[sn] = aRefs
 	}
+
+	// derive info first before verifying the arch
+	if err := s.validateSnapArchs(localSnaps); err != nil {
+		return nil, err
+	}
 	return snaps, s.w.InfoDerived()
 }
 
@@ -432,12 +475,14 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 		}
 		rev := s.revisions[sn.SnapName()]
-		if !rev.Unset() {
-			fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), rev)
-		} else {
-			fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), info.Revision)
+		if rev.Unset() {
+			rev = info.Revision
 		}
+		fmt.Fprintf(Stdout, "Fetching %s (%s)\n", sn.SnapName(), rev)
 		if err := s.w.SetInfo(sn, info); err != nil {
+			return "", err
+		}
+		if err := s.validateSnapArchs([]*seedwriter.SeedSnap{sn}); err != nil {
 			return "", err
 		}
 		return sn.Path, nil
@@ -481,7 +526,7 @@ func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
 	return localSnaps
 }
 
-func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts func(sn, sysSn, kernSn *seedwriter.SeedSnap) ([]*asserts.Ref, error)) error {
+func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts seedwriter.AssertsFetchFunc) error {
 	curSnaps := localSnapsWithID(localSnaps)
 	for {
 		toDownload, err := s.w.SnapsToDownload()
@@ -763,8 +808,8 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	if err != nil {
 		return err
 	}
-	f, err := s.start(db, optionSnaps(opts))
-	if err != nil {
+
+	if err := s.start(db, optionSnaps(opts)); err != nil {
 		return err
 	}
 
@@ -774,7 +819,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	// Fetch assertions tentatively into a temporary database
 	// and later either copy them or fetch more appropriate ones.
 	tmpDb := db.WithStackedBackstore(asserts.NewMemoryBackstore())
-	tmpFetcher := seedwriter.MakeRefAssertsFetcher(func(save func(asserts.Assertion) error) asserts.Fetcher {
+	tmpFetcher := seedwriter.MakeSeedAssertionFetcher(func(save func(asserts.Assertion) error) asserts.Fetcher {
 		return tsto.AssertionFetcher(tmpDb, save)
 	})
 
@@ -813,12 +858,12 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			}
 			if assertMaxFormats != nil && a.Format() > assertMaxFormats[aRef.Type.Name] {
 				// format was too new, re-fetch to replace
-				if err := f.Fetch(aRef); err != nil {
+				if err := s.f.Fetch(aRef); err != nil {
 					return err
 				}
 			} else {
 				// copy
-				if err := f.Save(a); err != nil {
+				if err := s.f.Save(a); err != nil {
 					return err
 				}
 			}
@@ -834,21 +879,21 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			assertMaxFormatsSelected = true
 			assertMaxFormats = tsto.AssertionMaxFormats()
 		}
-		prev := len(f.Refs())
+		prev := len(s.f.Refs())
 		if aRefs, ok := localSnaps[sn]; ok {
 			if err := copyOrRefetchIfFormatTooNewIntoDb(aRefs); err != nil {
 				return nil, err
 			}
 		} else {
 			// fetch snap assertions
-			if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, f, db); err != nil {
+			if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, s.f, db); err != nil {
 				return nil, err
 			}
 			if !sn.Info.Revision.Unset() {
 				imageManifest[sn.Info.SnapName()] = sn.Info.Revision
 			}
 		}
-		return f.Refs()[prev:], nil
+		return s.f.Refs()[prev:], nil
 	}
 
 	if err := s.downloadAllSnaps(localSnaps, fetchAsserts); err != nil {

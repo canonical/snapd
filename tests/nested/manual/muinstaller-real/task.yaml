@@ -27,14 +27,10 @@ prepare: |
       exit
   fi
   snap install jq
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  setup_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
 restore: |
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  teardown_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
   rm -rf ./classic-root
 
 execute: |
@@ -42,10 +38,6 @@ execute: |
   . "$TESTSLIB/prepare.sh"
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB"/nested.sh
-
-  # install the snapd deb from spread so we are using the same version to 
-  # validate the seed as well as call preseed, etc. 
-  dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
   echo Expose the needed assertions through the fakestore
   cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
@@ -65,6 +57,7 @@ execute: |
   echo 'console=ttyS0 systemd.journald.forward_to_console=1' > pc-gadget/cmdline.extra
   # use the system-seed-null classic role
   sed -i 's/role: system-seed/role: system-seed-null/' pc-gadget/meta/gadget.yaml
+
   echo "Sign the shim binary"
   KEY_NAME=$(tests.nested download snakeoil-key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
@@ -98,31 +91,17 @@ execute: |
   cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
 
   # we don't need the fakestore anymore
-  teardown_fake_store "$STORE_DIR"
-
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
   # build the fake-installer snap
   snap install snapcraft --candidate --classic
-  snap install lxd --candidate
-  snap set lxd waitready.timeout=240
-  lxd waitready
-  lxd init --auto
-  echo "Setting up proxy for lxc"
-  if [ -n "${http_proxy:-}" ]; then
-    lxd.lxc config set core.proxy_http "$http_proxy"
-  fi
-  if [ -n "${https_proxy:-}" ]; then
-    lxd.lxc config set core.proxy_https "$http_proxy"
-  fi
+  "$TESTSTOOLS"/lxd-state prepare-snap
   (cd "$TESTSLIB"/muinstaller && snapcraft)
   MUINSTALLER_SNAP="$(find "$TESTSLIB"/muinstaller/ -maxdepth 1 -name '*.snap')"
   echo "found $MUINSTALLER_SNAP"
 
   # create new disk for the installer to work on and attach to VM
   truncate --size=4G fake-disk.img
-
-  NESTED_PARAM_EXTRA="-drive file=$(pwd)/fake-disk.img,if=virtio,snapshot=off"
-  export NESTED_PARAM_EXTRA
 
   # create a VM and mount a cloud image
   tests.nested build-image classic
@@ -134,7 +113,8 @@ execute: |
   #       from classic->core and use nested_start_core_vm (like below)
   #
   # start it so that cloud-init creates ssh keys and user
-  nested_start_classic_vm
+  NESTED_PARAM_EXTRA="-drive file=$(pwd)/fake-disk.img,if=virtio,snapshot=off"
+  tests.nested create-vm classic --extra-param "$NESTED_PARAM_EXTRA"
 
   # make sure classic image is bootable with snakeoil keys
   # TODO: move to nested_create_classic_image
@@ -173,7 +153,7 @@ execute: |
 
   # shutdown the classic vm to install with a core VM that supports
   # secboot/tpm
-  nested_shutdown
+  tests.nested vm stop
   sync
 
   # HACK: convert "classic" qcow2 to raw "core" image because we need
@@ -187,7 +167,7 @@ execute: |
   #       from running, we already have a user so this is not needed
   IMAGE_NAME="$(nested_get_image_name core)"
   touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
-  nested_start_core_vm
+  tests.nested create-vm core --extra-param "$NESTED_PARAM_EXTRA"
   
   # bind mount new seed
   remote.exec "sudo mount -o bind /var/lib/snapd/install-seed /var/lib/snapd/seed"
@@ -205,23 +185,18 @@ execute: |
   remote.exec "sudo sync"
 
   # boot into the just installed drive
-  nested_shutdown
+  tests.nested vm stop
   sync
 
   # HACK: rename to "core" image because we need to boot with OVMF
   # we really should fix this so that classic and core VMs are more similar
   mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-  unset NESTED_PARAM_EXTRA
 
   # remove cached image
   # TODO: find a more elegant way
   rm -f "$NESTED_IMAGES_DIR"/ubuntu-core-current.img
 
-  # and start again
-  # TODO: make this nicer
-  export NESTED_TPM_NO_RESTART=1
-  nested_start_core_vm
-  unset NESTED_TPM_NO_RESTART
+  tests.nested create-vm core --tpm-no-restart
   
   # things look fine
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
@@ -292,18 +267,13 @@ execute: |
   remote.exec "sudo apt install -y update-notifier-common"
 
   # setup fake store again and make it available inside the nested vm
-  setup_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
   export NESTED_FAKESTORE_BLOB_DIR="$STORE_DIR"
   export NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="$SNAPPY_FORCE_SAS_URL"
 
-  #shellcheck source=tests/lib/store.sh  
-  . "$TESTSLIB"/store.sh  
-
   # nested vm needs to restart for fake-store
   nested_shutdown
-  export NESTED_TPM_NO_RESTART=1
-  nested_start_core_vm
-  unset NESTED_TPM_NO_RESTART
+  tests.nested create-vm core --tpm-no-restart
 
   # test gadget/kernel refresh
   refresh_rebooting_snap pc pc.snap.orig ./pc-gadget
@@ -321,6 +291,7 @@ execute: |
   echo "modified" >> ./"core${version}"/etc/motd
   snap pack --filename="core${version}".snap ./"core${version}"
   fakestore make-refreshable --dir "$STORE_DIR" --snap-orig-blob "core${version}.snap.orig" --snap-blob "./core${version}" "core${version}"
+  
   remote.exec sudo snap refresh --amend --channel="edge" "core${version}"
   remote.exec snap list "core${version}" > "core${version}".before-boot
   boot_id=$(tests.nested boot-id)

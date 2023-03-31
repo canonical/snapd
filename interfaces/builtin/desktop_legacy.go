@@ -148,6 +148,9 @@ unix (connect, receive, send)
      type=stream
      peer=(addr="@/home/*/.cache/ibus/dbus-*"),
 
+# when running with glib >= 2.75.0, ibus uses a regular socket
+owner @{HOME}/.cache/ibus/dbus-* rw,
+
 
 # mozc
 # allow communicating with mozc server

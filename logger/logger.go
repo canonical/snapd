@@ -138,18 +138,25 @@ type Log struct {
 	log *log.Logger
 
 	debug bool
+	quiet bool
+}
+
+func (l *Log) debugEnabled() bool {
+	return l.debug || osutil.GetenvBool("SNAPD_DEBUG")
 }
 
 // Debug only prints if SNAPD_DEBUG is set
 func (l *Log) Debug(msg string) {
-	if l.debug || osutil.GetenvBool("SNAPD_DEBUG") {
+	if l.debugEnabled() {
 		l.NoGuardDebug(msg)
 	}
 }
 
-// Notice alerts the user about something, as well as putting it syslog
+// Notice alerts the user about something, as well as putting in syslog
 func (l *Log) Notice(msg string) {
-	l.log.Output(3, msg)
+	if !l.quiet || l.debugEnabled() {
+		l.log.Output(3, msg)
+	}
 }
 
 // NoGuardDebug always prints the message, w/o gating it based on environment
@@ -167,18 +174,39 @@ func New(w io.Writer, flag int) (Logger, error) {
 	return logger, nil
 }
 
-// SimpleSetup creates the default (console) logger
-func SimpleSetup() error {
+func buildFlags() int {
 	flags := log.Lshortfile
 	if term := os.Getenv("TERM"); term != "" {
 		// snapd is probably not running under systemd
 		flags = DefaultFlags
 	}
+	return flags
+}
+
+// SimpleSetup creates the default (console) logger
+func SimpleSetup() error {
+	flags := buildFlags()
 	l, err := New(os.Stderr, flags)
 	if err == nil {
 		SetLogger(l)
 	}
 	return err
+}
+
+// BootSetup creates a logger meant to be used when running from
+// initramfs, where we want to consider the quiet kernel option.
+func BootSetup() error {
+	flags := buildFlags()
+	m, _ := osutil.KernelCommandLineKeyValues("quiet")
+	_, quiet := m["quiet"]
+	logger := &Log{
+		log:   log.New(os.Stderr, "", flags),
+		debug: debugEnabledOnKernelCmdline(),
+		quiet: quiet,
+	}
+	SetLogger(logger)
+
+	return nil
 }
 
 // used to force testing of the kernel command line parsing

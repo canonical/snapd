@@ -90,6 +90,50 @@ func (s *LogSuite) TestDefault(c *C) {
 	c.Check(logger.GetLoggerFlags(), Equals, log.Lshortfile)
 }
 
+func (s *LogSuite) TestBootSetup(c *C) {
+	// env shenanigans
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	oldTerm, hadTerm := os.LookupEnv("TERM")
+	defer func() {
+		if hadTerm {
+			os.Setenv("TERM", oldTerm)
+		} else {
+			os.Unsetenv("TERM")
+		}
+	}()
+
+	if logger.GetLogger() != nil {
+		logger.SetLogger(nil)
+	}
+	c.Check(logger.GetLogger(), IsNil)
+
+	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
+	err := ioutil.WriteFile(cmdlineFile, []byte("mocked panic=-1"), 0644)
+	c.Assert(err, IsNil)
+	restore := osutil.MockProcCmdline(cmdlineFile)
+	defer restore()
+	os.Setenv("TERM", "dumb")
+	err = logger.BootSetup()
+	c.Assert(err, IsNil)
+	c.Check(logger.GetLogger(), NotNil)
+	c.Check(logger.GetLoggerFlags(), Equals, logger.DefaultFlags)
+	c.Check(logger.GetQuiet(), Equals, false)
+
+	cmdlineFile = filepath.Join(c.MkDir(), "cmdline")
+	err = ioutil.WriteFile(cmdlineFile, []byte("mocked panic=-1 quiet"), 0644)
+	c.Assert(err, IsNil)
+	restore = osutil.MockProcCmdline(cmdlineFile)
+	defer restore()
+	os.Unsetenv("TERM")
+	err = logger.BootSetup()
+	c.Assert(err, IsNil)
+	c.Check(logger.GetLogger(), NotNil)
+	c.Check(logger.GetLoggerFlags(), Equals, log.Lshortfile)
+	c.Check(logger.GetQuiet(), Equals, true)
+}
+
 func (s *LogSuite) TestNew(c *C) {
 	var buf bytes.Buffer
 	l, err := logger.New(&buf, logger.DefaultFlags)

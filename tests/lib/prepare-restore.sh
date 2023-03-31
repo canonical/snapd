@@ -5,9 +5,6 @@ set -x
 # handle errors in general.
 set -e
 
-# shellcheck source=tests/lib/quiet.sh
-. "$TESTSLIB/quiet.sh"
-
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
@@ -762,9 +759,7 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     if [ "$REMOTE_STORE" = staging ]; then
-        # shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB"/store.sh
-        teardown_staging_store
+        "$TESTSTOOLS"/store-state teardown-staging-store
     fi
 
     if os.query is-classic; then

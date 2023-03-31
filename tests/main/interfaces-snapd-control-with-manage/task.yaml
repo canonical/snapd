@@ -21,12 +21,10 @@ prepare: |
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    setup_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
     snap_path=$("$TESTSTOOLS"/snaps-state pack-local test-snapd-control-consumer)
-    make_snap_installable "$BLOB_DIR" "${snap_path}"
+    "$TESTSTOOLS"/store-state make-snap-installable "$BLOB_DIR" "${snap_path}"
     cat > snap-decl.json <<'EOF'
     {
       "format": "1",
@@ -50,9 +48,7 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
 debug: |
     jq .data.auth.device /var/lib/snapd/state.json || true

@@ -37,11 +37,11 @@ execute: |
   chg_id=$(remote.exec 'sudo snap install --dangerous --no-wait ./pc-kernel_badhook.snap')
 
   echo "Wait for reboot"
-  tests.nested wait-for reboot "$boot_id"
+  remote.wait-for reboot "$boot_id"
 
   boot_id="$(tests.nested boot-id)"
   echo "Wait for second reboot after post-refresh hook failure"
-  tests.nested wait-for reboot "$boot_id"
+  remote.wait-for reboot "$boot_id"
 
   boot_id="$(tests.nested boot-id)"
   # wait for change to finish with error
