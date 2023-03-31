@@ -48,7 +48,7 @@ func main() {
 		return
 	}
 	pyHelper := "snapd-aa-prompt-ui-gtk"
-	cmd := exec.Command(filepath.Dir(exe), pyHelper)
+	cmd := exec.Command(filepath.Join(filepath.Dir(exe), pyHelper))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

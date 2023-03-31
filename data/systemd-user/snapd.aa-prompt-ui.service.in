@@ -2,6 +2,5 @@
 Description=snapd UI prompt
 
 [Service]
-Type=dbus
-BusName=io.snapcraft.Prompt
-ExecStart=@bindir@/snapd-aa-prompt-ui
+Type=simple
+ExecStart=@libexecdir@/snapd/snapd-aa-prompt-ui
