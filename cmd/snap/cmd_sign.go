@@ -108,8 +108,9 @@ func (x *cmdSign) Execute(args []string) error {
 	}
 
 	outBuf := bytes.NewBuffer(nil)
+	enc := asserts.NewEncoder(outBuf)
 
-	_, err = outBuf.Write(encodedAssert)
+	err = enc.WriteEncoded(encodedAssert)
 	if err != nil {
 		return err
 	}
@@ -132,23 +133,12 @@ func (x *cmdSign) Execute(args []string) error {
 			return fmt.Errorf("internal error: impossible value %q for --chain=", x.Chain)
 		}
 
-		// separate asserts with blank line
-		_, err := outBuf.Write([]byte("\n"))
-		if err != nil {
-			return err
-		}
-
 		accountKey, err := mustKnowOneAssert(known, x.client, "account-key", map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})
 		if err != nil {
 			return err
 		}
-		_, err = outBuf.Write(asserts.Encode(accountKey))
-		if err != nil {
-			return err
-		}
 
-		// separate asserts with blank line
-		_, err = outBuf.Write([]byte("\n"))
+		err = enc.Encode(accountKey)
 		if err != nil {
 			return err
 		}
@@ -158,7 +148,7 @@ func (x *cmdSign) Execute(args []string) error {
 			return err
 		}
 
-		_, err = outBuf.Write(asserts.Encode(account))
+		err = enc.Encode(account)
 		if err != nil {
 			return err
 		}
