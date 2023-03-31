@@ -5,7 +5,7 @@ backends: [google]
 systems: [-ubuntu-14.04-64]
 
 restore: |
-    tests.systemd stop-unit my-test || true
+    tests.systemd stop-unit --remove my-test
 
 execute: |
     tests.systemd | MATCH 'usage: tests.systemd create-and-start-unit'
