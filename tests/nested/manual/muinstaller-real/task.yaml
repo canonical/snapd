@@ -153,7 +153,7 @@ execute: |
 
   # shutdown the classic vm to install with a core VM that supports
   # secboot/tpm
-  tests.nested vm stop
+  tests.nested vm remove
   sync
 
   # HACK: convert "classic" qcow2 to raw "core" image because we need
@@ -185,7 +185,7 @@ execute: |
   remote.exec "sudo sync"
 
   # boot into the just installed drive
-  tests.nested vm stop
+  tests.nested vm remove
   sync
 
   # HACK: rename to "core" image because we need to boot with OVMF
