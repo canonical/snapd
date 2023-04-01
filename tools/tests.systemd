@@ -25,15 +25,14 @@ create_and_start_unit() {
         return 1
     fi
     if [ -f "/etc/systemd/system/$name.service" ]; then
-        echo "tests.systemd: unit service file already exist"
-        return 1  
+        echo "tests.systemd: unit service file already exist, it is going to be overwritten"
     fi
 
     printf '[Unit]\nDescription=Support for test %s\n[Service]\nType=simple\nExecStart=%s\n[Install]\nWantedBy=multi-user.target\n' "$name" "$start_line" > "/etc/systemd/system/$name.service"
     if [ -n "$override" ]; then
         mkdir -p "/etc/systemd/system/$name.service.d"
         # shellcheck disable=SC2059
-        printf "$override" >> "/etc/systemd/system/$name.service.d/override.conf"
+        printf "$override" > "/etc/systemd/system/$name.service.d/override.conf"
     fi
 
     systemctl daemon-reload
