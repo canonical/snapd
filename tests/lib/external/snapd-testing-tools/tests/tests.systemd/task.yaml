@@ -49,7 +49,7 @@ execute: |
     tests.systemd create-and-start-unit 2>&1 | MATCH "tests.systemd: unit name cannot be empty"
     tests.systemd create-and-start-unit my-test  2>&1 | MATCH "tests.systemd: unit command line cannot be empty"
     tests.systemd create-and-start-unit my-test "/bin/sleep 5"
-    tests.systemd create-and-start-unit my-test "/bin/sleep 5" 2>&1 | MATCH "tests.systemd: unit service file already exist"
+    tests.systemd create-and-start-unit my-test "/bin/sleep 5" | MATCH "tests.systemd: unit service file already exist, it is going to be overwritten"
     tests.systemd stop-unit 2>&1 | MATCH "tests.systemd: at least a unit name is required"
     tests.systemd stop-unit --remove 2>&1 | MATCH "tests.systemd: at least a unit name is required"
     tests.systemd stop-unit --remove my-test
