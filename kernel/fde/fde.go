@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021  Canonical Ltd
+ * Copyright (C) 2021-2023  Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -40,16 +40,6 @@ func HasRevealKey() bool {
 	// XXX: should we record during initial sealing that the fde-setup
 	//      was used and only use fde-reveal-key in that case?
 	_, err := exec.LookPath("fde-reveal-key")
-	return err == nil
-}
-
-// HasDeviceUnlock returns true if the current system has a
-// "fde-device-unlock" binary (usually used in the initrd).
-//
-// This will be used by the initrd to determine if cryptsetup is
-// skipped and a hook needs to be used to unlock individual device.
-func HasDeviceUnlock() bool {
-	_, err := exec.LookPath("fde-device-unlock")
 	return err == nil
 }
 
@@ -159,10 +149,4 @@ func CheckFeatures(runSetupHook RunSetupHookFunc) ([]string, error) {
 		return nil, fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
 	}
 	return res.Features, nil
-}
-
-// EncryptedDeviceMapperName returns the name to use in device mapper for a
-// device that is encrypted using FDE hooks
-func EncryptedDeviceMapperName(name string) string {
-	return name + "-device-locked"
 }
