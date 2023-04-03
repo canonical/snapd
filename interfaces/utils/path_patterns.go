@@ -138,7 +138,8 @@ func createRegex(pattern string, glob GlobFlags) (string, error) {
 				itemCountInGroup[currentGroupLevel]++
 				regex += "|"
 			} else {
-				return "", fmt.Errorf("cannot use ',' outside of group or character class")
+				// treat commas outside of groups as literal commas
+				regex += ","
 			}
 		default:
 			// take literal character (with quoting if needed)

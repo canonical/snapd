@@ -57,6 +57,8 @@ func (s *pathPatternsSuite) TestRegexCreationHappy(c *C) {
 		{`/quoted/bracket/[ab\]c]`, d, `^/quoted/bracket/[ab\]c]$`},
 		{`{[,],}`, d, `^([,]|)$`},
 		{`/path/with/comma[,]`, d, `^/path/with/comma[,]$`},
+		{`/path/with/commas,\,,`, d, `^/path/with/commas,,,$`},
+		{`/path/with/comma,{and[,]group,with\,comma}`, d, `^/path/with/comma,(and[,]group|with,comma)$`},
 		{`/$pecial/c^aracters`, d, `^/\$pecial/c\^aracters$`},
 		{`/in/char/class[^$]`, d, `^/in/char/class[^$]$`},
 	}
@@ -86,7 +88,6 @@ func (s *pathPatternsSuite) TestRegexCreationUnhappy(c *C) {
 		{`/media\`, `expected character after '\\':.*`},
 		// 123456789012345678901234567890123456789012345678901, 51 of them
 		{`/{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{`, `maximum group depth exceeded:.*`},
-		{`/comma/not/in/group/a,b`, `cannot use ',' outside of group or character class`},
 	}
 
 	for _, testData := range data {
