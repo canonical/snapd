@@ -1990,9 +1990,10 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 		encryptionType, err := devicestate.DeviceManagerCheckEncryption(s.mgr, st, deviceCtx, secboot.TPMProvisionFull)
 		c.Assert(err, IsNil)
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
-		if !tc.hasTPM {
+		if !tc.hasTPM && !tc.hasFDESetupHook {
 			c.Check(logbuf.String(), Matches, ".*: not encrypting device storage as checking TPM gave: tpm says no\n")
 		}
+		logbuf.Reset()
 	}
 }
 
