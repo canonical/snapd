@@ -110,6 +110,9 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		expected = append(expected, "run-hook[post-refresh]")
 	} else {
 		expected = append(expected, "run-hook[install]")
+		if opts&(noConfigure|runCoreConfigure) == 0 {
+			expected = append(expected, "run-hook[default-configure]")
+		}
 	}
 	expected = append(expected, "start-snap-services")
 	for i := 0; i < discards; i++ {
@@ -1106,14 +1109,14 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "some-channel"`)
 
 	// check install-record present
-	mountTask := ta[len(ta)-11]
+	mountTask := ta[len(ta)-12]
 	c.Check(mountTask.Kind(), Equals, "mount-snap")
 	var installRecord backend.InstallRecord
 	c.Assert(mountTask.Get("install-record", &installRecord), IsNil)
 	c.Check(installRecord.TargetSnapExisted, Equals, false)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-8]
+	linkTask := ta[len(ta)-9]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (11) available to the system`)
 	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (11) services`)
@@ -1286,7 +1289,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap_instance" (11) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-8]
+	linkTask := ta[len(ta)-9]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap_instance" (11) available to the system`)
 	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap_instance" (11) services`)
@@ -1334,7 +1337,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	c.Assert(snapst.InstanceKey, Equals, "instance")
 
 	runHooks := tasksWithKind(ts, "run-hook")
-	c.Assert(taskKinds(runHooks), DeepEquals, []string{"run-hook[install]", "run-hook[configure]", "run-hook[check-health]"})
+	c.Assert(taskKinds(runHooks), DeepEquals, []string{"run-hook[install]", "run-hook[default-configure]", "run-hook[configure]", "run-hook[check-health]"})
 	for _, hookTask := range runHooks {
 		c.Assert(hookTask.Kind(), Equals, "run-hook")
 		var hooksup hookstate.HookSetup
@@ -1366,7 +1369,7 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 
-	mountTask := tasks[len(tasks)-11]
+	mountTask := tasks[len(tasks)-12]
 	c.Assert(mountTask.Kind(), Equals, "mount-snap")
 	var installRecord backend.InstallRecord
 	c.Assert(mountTask.Get("install-record", &installRecord), IsNil)
@@ -1634,7 +1637,7 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (666) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-8]
+	linkTask := ta[len(ta)-9]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (666) available to the system`)
 	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (666) services`)
@@ -1800,7 +1803,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (42) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-8]
+	linkTask := ta[len(ta)-9]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (42) available to the system`)
 	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (42) services`)
@@ -2593,8 +2596,8 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	if len(chg1.Tasks()) < len(chg2.Tasks()) {
 		chg1, chg2 = chg2, chg1
 	}
-	c.Assert(taskKinds(chg1.Tasks()), HasLen, 28)
-	c.Assert(taskKinds(chg2.Tasks()), HasLen, 14)
+	c.Assert(taskKinds(chg1.Tasks()), HasLen, 29)
+	c.Assert(taskKinds(chg2.Tasks()), HasLen, 15)
 
 	// FIXME: add helpers and do a DeepEquals here for the operations
 }
@@ -3369,7 +3372,7 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughUndoContextOptional(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 
-	mountTask := tasks[len(tasks)-11]
+	mountTask := tasks[len(tasks)-12]
 	c.Assert(mountTask.Kind(), Equals, "mount-snap")
 	var installRecord backend.InstallRecord
 	c.Assert(mountTask.Get("install-record", &installRecord), testutil.ErrorIs, state.ErrNoState)
@@ -3869,10 +3872,15 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 
 	c.Assert(taskKinds(runHooks), DeepEquals, []string{
 		"run-hook[install]",
+		"run-hook[default-configure]",
 		"run-hook[configure]",
 		"run-hook[check-health]",
 	})
+	// default-configure always uses defaults, not required to explicitly indicate this within the hook context data
 	err = runHooks[1].Get("hook-context", &m)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	err = runHooks[2].Get("hook-context", &m)
 	c.Assert(err, IsNil)
 	c.Assert(m, DeepEquals, map[string]interface{}{"use-defaults": true})
 }
