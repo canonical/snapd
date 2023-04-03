@@ -7984,6 +7984,7 @@ var nonReLinkKinds = []string{
 	"set-auto-aliases",
 	"setup-aliases",
 	"run-hook[install]",
+	"run-hook[default-configure]",
 	"start-snap-services",
 	"run-hook[configure]",
 	"run-hook[check-health]",
