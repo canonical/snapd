@@ -289,13 +289,7 @@ EOF
     # the re-exec setting may have changed in the service so we need
     # to ensure snapd is reloaded
     systemctl daemon-reload
-
-    # Leave some time for snapd to finish processing hooks
-    flush_changes
     systemctl restart snapd
-    # Snapd might need to run some hooks (prepare-device) which
-    # triggers `tests.invariant cgroup-scopes` false positives
-    flush_changes
 
     if [ ! -f /etc/systemd/system/snapd.service.d/local.conf ]; then
         echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
@@ -383,6 +377,7 @@ prepare_classic() {
         update_core_snap_for_classic_reexec
         systemctl start snapd.{service,socket}
 
+        prepare_memory_limit_override
         disable_refreshes
 
         # Check bootloader environment output in architectures different to s390x which uses zIPL
@@ -398,6 +393,7 @@ prepare_classic() {
         fi
 
         setup_experimental_features
+
         systemctl stop snapd.{service,socket}
         save_snapd_state
         systemctl start snapd.socket
