@@ -527,7 +527,8 @@ func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionZero(c *C) {
 	err := ioutil.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
 	c.Assert(err, IsNil)
 
-	// Setting sequence to zero or any value below zero will translate to 'latest' sequence.
+	// Setting sequence to zero or any value below zero will translate to -1 sequence, meaning
+	// unknown.
 	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=0`)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
