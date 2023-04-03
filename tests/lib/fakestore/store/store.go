@@ -740,21 +740,10 @@ func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.Asse
 	return a, err
 }
 
-func (s *Store) retrieveSequenceFormingAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, sequenceKey []string, sequence int) (asserts.Assertion, error) {
-	if sequence > 0 {
-		hdrs, err := asserts.HeadersFromSequenceKey(assertType, sequenceKey)
-		if err != nil {
-			return nil, fmt.Errorf("%q assertion reference sequence key %v is invalid: %v", assertType.Name, sequenceKey, err)
-		}
-		return nil, &asserts.NotFoundError{
-			Type:    assertType,
-			Headers: hdrs,
-		}
-	}
-
+func (s *Store) retrieveLatestSequenceFormingAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, sequenceKey []string) (asserts.Assertion, error) {
 	a, err := bs.SequenceMemberAfter(assertType, sequenceKey, -1, assertType.MaxSupportedFormat())
 	if errors.Is(err, &asserts.NotFoundError{}) && s.assertFallback {
-		return s.fallback.SeqFormingAssertion(assertType, sequenceKey, sequence, nil)
+		return s.fallback.SeqFormingAssertion(assertType, sequenceKey, -1, nil)
 	}
 	return a, err
 }
@@ -798,10 +787,10 @@ func (s *Store) retrieveAssertionWrapper(bs asserts.Backstore, assertType *asser
 			return nil, err
 		}
 
-		// If no sequence key is present, then we use a special lookup to
-		// retrieve the latest sequence of the sequence forming assertion.
+		// If no sequence value was provided, or when requesting the latest sequence
+		// point of an assertion, we use a different method of resolving the assertion.
 		if seq <= 0 {
-			return s.retrieveSequenceFormingAssertion(bs, assertType, keyParts, seq)
+			return s.retrieveLatestSequenceFormingAssertion(bs, assertType, keyParts)
 		}
 
 		// Otherwise append the sequence to form the primary key and use

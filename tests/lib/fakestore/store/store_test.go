@@ -523,6 +523,21 @@ func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionLatest(c *C) {
 	c.Check(string(body), Equals, exampleValidationSet)
 }
 
+func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionZero(c *C) {
+	err := ioutil.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
+	c.Assert(err, IsNil)
+
+	// Setting sequence to zero or any value below zero will translate to 'latest' sequence.
+	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=0`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Check(resp.StatusCode, Equals, 200)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, exampleValidationSet)
+}
+
 func (s *storeTestSuite) TestAssertionsEndpointSequenceInvalid(c *C) {
 	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=foo`)
 	c.Assert(err, IsNil)
