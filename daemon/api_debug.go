@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2021 Canonical Ltd
+ * Copyright (C) 2015-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -306,7 +306,9 @@ func getGadgetDiskMapping(st *state.State) Response {
 		// matter right now because there really is only one
 		// encryption type
 		switch sealingMethod {
-		case device.SealingMethodLegacyTPM, device.SealingMethodTPM:
+		case device.SealingMethodLegacyTPM, device.SealingMethodTPM, device.SealingMethodFDESetupHook:
+			// LUKS and LUKS-with-ICE are the same for what is
+			// required here
 			encType = secboot.EncryptionTypeLUKS
 		default:
 			return InternalError("unknown sealing method: %s", sealingMethod)
