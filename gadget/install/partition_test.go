@@ -177,6 +177,7 @@ var mockLaidoutStructureWritable = gadget.LaidOutStructure{
 	VolumeStructure: &gadget.VolumeStructure{
 		VolumeName: "pc",
 		Name:       "Writable",
+		MinSize:    1258291200,
 		Size:       1258291200,
 		Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 		Role:       "system-data",
@@ -208,6 +209,7 @@ var mockLaidoutStructureSave = gadget.LaidOutStructure{
 		VolumeName: "pc",
 		Name:       "Save",
 		Label:      "ubuntu-save",
+		MinSize:    128 * quantity.SizeMiB,
 		Size:       128 * quantity.SizeMiB,
 		Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 		Role:       "system-save",
@@ -235,6 +237,7 @@ var mockLaidoutStructureWritableAfterSave = gadget.LaidOutStructure{
 	VolumeStructure: &gadget.VolumeStructure{
 		VolumeName: "pc",
 		Name:       "Writable",
+		MinSize:    1200 * quantity.SizeMiB,
 		Size:       1200 * quantity.SizeMiB,
 		Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 		Role:       "system-data",

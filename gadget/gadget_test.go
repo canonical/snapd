@@ -296,6 +296,66 @@ volumes:
         size: 1G
 `)
 
+var gadgetYamlMinSizePC = []byte(`
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        update:
+          edition: 1
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        update:
+          edition: 2
+        content:
+          - image: pc-core.img
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+        update:
+          edition: 2
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        # whats the appropriate size?
+        size: 750M
+        update:
+          edition: 1
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        min-size: 16M
+        size: 32M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`)
+
 var gadgetYamlClassicWithModes = []byte(`
 volumes:
   pc:
@@ -776,6 +836,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 						Offset:      asOffsetPtr(12345),
 						OffsetWrite: mustParseGadgetRelativeOffset(c, "777"),
 						Size:        88888,
+						MinSize:     88888,
 						Type:        "0C",
 						Filesystem:  "vfat",
 						Content: []gadget.VolumeContent{
@@ -818,6 +879,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Label:      "system-boot",
 						Offset:     asOffsetPtr(gadget.NonMBRStartOffset),
 						Size:       mustParseGadgetSize(c, "128M"),
+						MinSize:    mustParseGadgetSize(c, "128M"),
 						Filesystem: "vfat",
 						Type:       "0C",
 						Content: []gadget.VolumeContent{
@@ -837,6 +899,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Type:       "83",
 						Filesystem: "ext4",
 						Size:       mustParseGadgetSize(c, "380M"),
+						MinSize:    mustParseGadgetSize(c, "380M"),
 						YamlIndex:  1,
 					},
 				},
@@ -850,6 +913,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Name:       "u-boot",
 						Type:       "bare",
 						Size:       623000,
+						MinSize:    623000,
 						Offset:     asOffsetPtr(24576),
 						Content: []gadget.VolumeContent{
 							{
@@ -962,6 +1026,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 						Offset:      asOffsetPtr(12345),
 						OffsetWrite: mustParseGadgetRelativeOffset(c, "777"),
 						Size:        88888,
+						MinSize:     88888,
 						Type:        "0C",
 						Filesystem:  "vfat",
 						Content: []gadget.VolumeContent{{
@@ -1346,7 +1411,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchemaNotOverlapWithGPT(c *C) {
 		err := gadget.ValidateVolume(&gadget.Volume{
 			Name: "name", Schema: tc.s,
 			Structure: []gadget.VolumeStructure{
-				{Name: "name", Type: "bare", Size: tc.sz, Offset: &tc.o},
+				{Name: "name", Type: "bare", MinSize: tc.sz, Size: tc.sz, Offset: &tc.o},
 			},
 		})
 		c.Check(err, IsNil)
@@ -1699,6 +1764,15 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
 	}, gv)
 	c.Check(err, IsNil)
+
+	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
+		Type:       "21686148-6449-6E6F-744E-656564454649",
+		Filesystem: "vfat",
+		MinSize:    mustParseGadgetSize(c, "10M"),
+		Size:       mustParseGadgetSize(c, "123M"),
+		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
+	}, gv)
+	c.Check(err, IsNil)
 }
 
 func (s *gadgetYamlTestSuite) TestValidateLayoutOverlapPreceding(c *C) {
@@ -1749,6 +1823,32 @@ volumes:
 
 	_, err = gadget.ReadInfo(s.dir, nil)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure "overlaps-with-foo" overlaps with the preceding structure "foo"`)
+}
+
+func (s *gadgetYamlTestSuite) TestValidateLayoutOverlapWithMinSize(c *C) {
+	overlappingGadgetYaml := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: p1
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 2M
+      - name: p2
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        min-size: 2M
+        size: 3M
+      - name: p3
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 3M
+`
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(overlappingGadgetYaml), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, nil)
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure "p3" overlaps with the preceding structure "p2"`)
 }
 
 func (s *gadgetYamlTestSuite) TestValidateCrossStructureMBRFixedOffset(c *C) {
@@ -2114,6 +2214,10 @@ volumes:
 		{"pc", "ubuntu-boot", gadgetYamlUC20PC, "ubuntu-boot"},
 		{"pc", "ubuntu-data", gadgetYamlUC20PC, "ubuntu-data"},
 		{"pc", "ubuntu-save", gadgetYamlUC20PC, "ubuntu-save"},
+		{"pc", "ubuntu-seed", gadgetYamlMinSizePC, "ubuntu-seed"},
+		{"pc", "ubuntu-boot", gadgetYamlMinSizePC, "ubuntu-boot"},
+		{"pc", "ubuntu-data", gadgetYamlMinSizePC, "ubuntu-data"},
+		{"pc", "ubuntu-save", gadgetYamlMinSizePC, "ubuntu-save"},
 	}
 
 	for _, t := range tests {
@@ -2232,6 +2336,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 				Name:       "u-boot",
 				Offset:     asOffsetPtr(24576),
 				Size:       quantity.Size(623000),
+				MinSize:    quantity.Size(623000),
 				Type:       "bare",
 				Content: []gadget.VolumeContent{
 					{Image: "u-boot.imz"},
@@ -2284,8 +2389,8 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetNeedsModel(c *C) {
 	c.Assert(err, ErrorMatches, "internal error: must have model to lay out system volumes from a gadget")
 }
 
-func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetUC20Happy(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlUC20PC, 0644)
+func (s *gadgetYamlTestSuite) testLaidOutVolumesFromGadgetUCHappy(c *C, gadgetYaml []byte) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYaml, 0644)
 	c.Assert(err, IsNil)
 	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
 		err = ioutil.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
@@ -2299,6 +2404,11 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetUC20Happy(c *C) {
 	c.Assert(systemLv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, ubuntu-seed, ubuntu-save, ubuntu-boot, and ubuntu-data
 	c.Assert(systemLv.LaidOutStructure, HasLen, 6)
+}
+
+func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetUCHappy(c *C) {
+	s.testLaidOutVolumesFromGadgetUCHappy(c, gadgetYamlUC20PC)
+	s.testLaidOutVolumesFromGadgetUCHappy(c, gadgetYamlMinSizePC)
 }
 
 func (s *gadgetYamlTestSuite) TestStructureBareFilesystem(c *C) {
@@ -3043,7 +3153,7 @@ func (s *gadgetYamlTestSuite) TestMBRLayoutCompatibility(c *C) {
 		},
 	)
 	err = gadget.EnsureVolumeCompatibility(gadgetVolumeWithExtras, &deviceLayoutWithExtras, nil)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node4 \(starting at 1260388352\) in gadget: start offsets do not match \(disk: 1260388352 \(1.17 GiB\) and gadget: 2097152 \(2 MiB\)\)`)
+	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/node4 (starting at 1260388352) in gadget: start offset not in the valid interval (disk: 1260388352 (1.17 GiB) and gadget: min: 2097152 (2 MiB): max: 2097152 (2 MiB))`)
 }
 
 func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C) {
@@ -3097,6 +3207,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 
 	// change the gadget size to be bigger than the on disk size
 	gadgetVolumeWithExtras.Structure[len(gadgetVolumeWithExtras.Structure)-1].Size = 10000000 * quantity.SizeMiB
+	gadgetVolumeWithExtras.Structure[len(gadgetVolumeWithExtras.Structure)-1].MinSize = 10000000 * quantity.SizeMiB
 
 	// now we fail to find the /dev/node2 structure from the gadget on disk because the gadget says it must be bigger
 	err = gadget.EnsureVolumeCompatibility(gadgetVolumeWithExtras, &deviceLayout, nil)
@@ -3104,11 +3215,12 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 
 	// change the gadget size to be smaller than the on disk size and the role to be one that is not expanded
 	gadgetVolumeWithExtras.Structure[len(gadgetVolumeWithExtras.Structure)-1].Size = 1 * quantity.SizeMiB
+	gadgetVolumeWithExtras.Structure[len(gadgetVolumeWithExtras.Structure)-1].MinSize = 1 * quantity.SizeMiB
 	gadgetVolumeWithExtras.Structure[len(gadgetVolumeWithExtras.Structure)-1].Role = gadget.SystemBoot
 
 	// now we fail because the gadget says it should be smaller and it can't be expanded
 	err = gadget.EnsureVolumeCompatibility(gadgetVolumeWithExtras, &deviceLayout, nil)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: on disk size 1258291200 \(1.17 GiB\) is larger than gadget size 1048576 \(1 MiB\) \(and the role should not be expanded\)`)
+	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/node2 (starting at 2097152) in gadget: on disk size 1258291200 (1.17 GiB) is larger than gadget size 1048576 (1 MiB) (and the role should not be expanded)`)
 
 	// but a smaller partition on disk for SystemData role is okay
 	gadgetVolumeWithExtras.Structure[len(gadgetVolumeWithExtras.Structure)-1].Role = gadget.SystemData
@@ -3801,7 +3913,7 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeStructureInternalFieldsNoJSON(
 	b, err := json.Marshal(volS)
 	c.Assert(err, IsNil)
 	// ensure the json looks json-ish
-	c.Check(string(b), Equals, `{"name":"pc","filesystem-label":"ubuntu-seed","offset":123,"offset-write":{"relative-to":"mbr","offset":92},"size":888,"type":"0C","role":"system-seed","id":"gpt-id","filesystem":"vfat","content":[{"source":"source","target":"some-target","image":"image","offset":12,"offset-write":{"relative-to":"mbr","offset":192},"size":321,"unpack":true}],"update":{"edition":2,"preserve":["foo"]}}`)
+	c.Check(string(b), Equals, `{"name":"pc","filesystem-label":"ubuntu-seed","offset":123,"offset-write":{"relative-to":"mbr","offset":92},"min-size":0,"size":888,"type":"0C","role":"system-seed","id":"gpt-id","filesystem":"vfat","content":[{"source":"source","target":"some-target","image":"image","offset":12,"offset-write":{"relative-to":"mbr","offset":192},"size":321,"unpack":true}],"update":{"edition":2,"preserve":["foo"]}}`)
 
 	// check that the new structure has no volumeName
 	var newVolS *gadget.VolumeStructure
@@ -3963,6 +4075,12 @@ func (s *gadgetYamlTestSuite) TestVolumeMinSize(c *C) {
 				"pc": (1 + 1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB,
 			},
 		},
+		{
+			gadgetYaml: gadgetYamlMinSizePC,
+			volsSizes: map[string]quantity.Size{
+				"pc": (1 + 1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB,
+			},
+		},
 	} {
 		c.Logf("test min size for %s", tc.gadgetYaml)
 		s.testVolumeMinSize(c, tc.gadgetYaml, tc.volsSizes)
@@ -4084,5 +4202,72 @@ volumes:
 			names = append(names, s.Name)
 		}
 		c.Check(names, DeepEquals, tc.orderedNames)
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
+	type validOffsetTc struct {
+		structIdx int
+		offset    quantity.Offset
+		isValid   bool
+	}
+	for _, tc := range []struct {
+		vss         []gadget.VolumeStructure
+		votcs       []validOffsetTc
+		description string
+	}{
+		{
+			vss: []gadget.VolumeStructure{
+				{Offset: asOffsetPtr(0), MinSize: 10, Size: 20},
+				{Offset: nil, MinSize: 10, Size: 20},
+				{Offset: nil, MinSize: 10, Size: 20},
+				{Offset: asOffsetPtr(50), MinSize: 100, Size: 100},
+			},
+			votcs: []validOffsetTc{
+				{structIdx: 0, offset: 0, isValid: true},
+				{structIdx: 0, offset: 5, isValid: false},
+				{structIdx: 1, offset: 0, isValid: false},
+				{structIdx: 1, offset: 10, isValid: true},
+				{structIdx: 1, offset: 15, isValid: true},
+				{structIdx: 1, offset: 20, isValid: true},
+				{structIdx: 1, offset: 21, isValid: false},
+				{structIdx: 1, offset: gadget.UnboundedStructureOffset, isValid: false},
+				{structIdx: 2, offset: 10, isValid: false},
+				{structIdx: 2, offset: 20, isValid: true},
+				{structIdx: 2, offset: 30, isValid: true},
+				{structIdx: 2, offset: 40, isValid: true},
+				{structIdx: 2, offset: 41, isValid: false},
+				{structIdx: 2, offset: gadget.UnboundedStructureOffset, isValid: false},
+				{structIdx: 3, offset: 49, isValid: false},
+				{structIdx: 3, offset: 50, isValid: true},
+				{structIdx: 3, offset: 51, isValid: false},
+			},
+			description: "test one",
+		},
+		{
+			vss: []gadget.VolumeStructure{
+				{Offset: asOffsetPtr(0), MinSize: 10, Size: 100},
+				{Offset: nil, MinSize: 10, Size: 10},
+				{Offset: asOffsetPtr(80), MinSize: 100, Size: 100},
+			},
+			votcs: []validOffsetTc{
+				{structIdx: 0, offset: 0, isValid: true},
+				{structIdx: 0, offset: 1, isValid: false},
+				{structIdx: 1, offset: 9, isValid: false},
+				{structIdx: 1, offset: 10, isValid: true},
+				{structIdx: 1, offset: 70, isValid: true},
+				{structIdx: 1, offset: 71, isValid: false},
+				{structIdx: 2, offset: 79, isValid: false},
+				{structIdx: 2, offset: 80, isValid: true},
+				{structIdx: 2, offset: 81, isValid: false},
+			},
+			description: "test two",
+		},
+	} {
+		for _, votc := range tc.votcs {
+			c.Logf("testing valid offset: %s (%+v)", tc.description, votc)
+			c.Check(gadget.IsValidStartOffset(votc.offset, tc.vss,
+				votc.structIdx), Equals, votc.isValid)
+		}
 	}
 }
