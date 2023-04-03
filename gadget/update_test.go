@@ -4127,7 +4127,7 @@ volumes:
 	defer restore()
 
 	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
-	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1052672\) in gadget: on disk size 4096 \(4 KiB\) is smaller than gadget size 1572864000 \(1.46 GiB\)`)
+	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1052672\) in gadget: on disk size 4096 \(4 KiB\) is smaller than gadget min size 1572864000 \(1.46 GiB\)`)
 
 	// same size is okay though
 	mockDisk.Structure[1].SizeInBytes = 1500 * 1024 * 1024
@@ -4212,7 +4212,7 @@ func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataR
 
 	// the volume cannot be found with no opts set
 	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", nil)
-	c.Assert(err, ErrorMatches, `volume pi is not compatible with disk /dev/mmcblk0: cannot find disk partition /dev/mmcblk0p2 \(starting at 269484032\) in gadget: start offsets do not match \(disk: 269484032 \(257 MiB\) and gadget: 1048576 \(1 MiB\)\)`)
+	c.Assert(err.Error(), Equals, `volume pi is not compatible with disk /dev/mmcblk0: cannot find disk partition /dev/mmcblk0p2 (starting at 269484032) in gadget: start offset not in the valid interval (disk: 269484032 (257 MiB) and gadget: min: 1048576 (1 MiB): max: 1048576 (1 MiB))`)
 
 	// with opts for pc then it can be found
 	opts := &gadget.DiskVolumeValidationOptions{
