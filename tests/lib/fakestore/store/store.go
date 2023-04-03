@@ -783,7 +783,6 @@ func (s *Store) assertTypeAndKey(urlPath string) (*asserts.AssertionType, []stri
 }
 
 func (s *Store) retrieveAssertionWrapper(bs asserts.Backstore, assertType *asserts.AssertionType, keyParts []string, values url.Values) (asserts.Assertion, error) {
-
 	pk := keyParts
 	if assertType.SequenceForming() {
 		seq, err := s.sequenceFromQueryValues(values)
