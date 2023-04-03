@@ -63,10 +63,11 @@ var (
 	// Stop is used to ask Iter to stop iteration, without it being an error.
 	Stop = errors.New("stop iteration")
 
-	osOpen      = os.Open
-	dirNames    = (*os.File).Readdirnames
-	backendOpen = Open
-	timeNow     = time.Now
+	osOpen               = os.Open
+	dirNames             = (*os.File).Readdirnames
+	backendOpen          = Open
+	timeNow              = time.Now
+	snapReadSnapshotYaml = snap.ReadSnapshotYaml
 
 	usersForUsernames = usersForUsernamesImpl
 )
@@ -258,7 +259,7 @@ func isSnapshotFilename(filePath string) (ok bool, setID uint64) {
 }
 
 // EstimateSnapshotSize calculates estimated size of the snapshot.
-func EstimateSnapshotSize(si *snap.Info, usernames []string, opts *dirs.SnapDirOptions) (uint64, error) {
+func EstimateSnapshotSize(si *snap.Info, usernames []string, dirOpts *dirs.SnapDirOptions) (uint64, error) {
 	var total uint64
 	calculateSize := func(path string, finfo os.FileInfo, err error) error {
 		if finfo.Mode().IsRegular() {
@@ -284,15 +285,15 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string, opts *dirs.SnapDirO
 		}
 	}
 
-	users, err := usersForUsernames(usernames, opts)
+	users, err := usersForUsernames(usernames, dirOpts)
 	if err != nil {
 		return 0, err
 	}
 	for _, usr := range users {
-		if err := visitDir(si.UserDataDir(usr.HomeDir, opts)); err != nil {
+		if err := visitDir(si.UserDataDir(usr.HomeDir, dirOpts)); err != nil {
 			return 0, err
 		}
-		if err := visitDir(si.UserCommonDataDir(usr.HomeDir, opts)); err != nil {
+		if err := visitDir(si.UserCommonDataDir(usr.HomeDir, dirOpts)); err != nil {
 			return 0, err
 		}
 	}
@@ -302,7 +303,7 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string, opts *dirs.SnapDirO
 }
 
 // Save a snapshot
-func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, opts *dirs.SnapDirOptions) (*client.Snapshot, error) {
+func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, dynSnapshotOpts *snap.SnapshotOptions, dirOpts *dirs.SnapDirOptions) (*client.Snapshot, error) {
 	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
 		return nil, err
 	}
@@ -315,15 +316,24 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		Version:  si.Version,
 		Epoch:    si.Epoch,
 		Time:     timeNow(),
+		// Pass only dynamic snapshot options here. Static options are tied to the snap version
+		// and should not be repeated in snapshot metadata on every save.
+		Options:  dynSnapshotOpts,
 		SHA3_384: make(map[string]string),
 		Size:     0,
 		Conf:     cfg,
 		// Note: Auto is no longer set in the Snapshot.
 	}
 
-	snapshotOptions, err := snap.ReadSnapshotYaml(si)
+	snapshotOptions, err := snapReadSnapshotYaml(si)
 	if err != nil {
 		return nil, err
+	}
+
+	if dynSnapshotOpts != nil {
+		if err := snapshotOptions.MergeDynamicExcludes(dynSnapshotOpts.Exclude); err != nil {
+			return nil, err
+		}
 	}
 
 	aw, err := osutil.NewAtomicFile(Filename(snapshot), 0600, 0, osutil.NoChown, osutil.NoChown)
@@ -337,19 +347,19 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	defer w.Close() // note this does not close the file descriptor (that's done by hand on the atomic writer, above)
 	savingUserData := false
 	baseDataDir := snap.BaseDataDir(si.InstanceName())
-	if err := addSnapDirToZip(ctx, snapshot, w, "root", archiveName, baseDataDir, savingUserData, snapshotOptions.ExcludePaths); err != nil {
+	if err := addSnapDirToZip(ctx, snapshot, w, "root", archiveName, baseDataDir, savingUserData, snapshotOptions.Exclude); err != nil {
 		return nil, err
 	}
 
-	users, err := usersForUsernames(usernames, opts)
+	users, err := usersForUsernames(usernames, dirOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	savingUserData = true
 	for _, usr := range users {
-		snapDataDir := filepath.Dir(si.UserDataDir(usr.HomeDir, opts))
-		if err := addSnapDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), snapDataDir, savingUserData, snapshotOptions.ExcludePaths); err != nil {
+		snapDataDir := filepath.Dir(si.UserDataDir(usr.HomeDir, dirOpts))
+		if err := addSnapDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), snapDataDir, savingUserData, snapshotOptions.Exclude); err != nil {
 			return nil, err
 		}
 	}
