@@ -214,7 +214,7 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededNoMatchingAllowed(
 	}, nil, nil)
 }
 
-func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedTwice(c *C) {
+func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededTwice(c *C) {
 	manifest := image.NewSeedManifest()
 	err := manifest.MarkSnapRevisionSeeded("my-snap", 1)
 	c.Assert(err, IsNil)
@@ -222,7 +222,7 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedTwice(c *C) {
 	c.Assert(err, ErrorMatches, `cannot mark "my-snap" \(5\) as seeded, it has already been marked seeded: "my-snap" \(1\)`)
 }
 
-func (s *manifestSuite) TestSeedManifestMarkSnapRevisionUsedWrongRevision(c *C) {
+func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededWrongRevision(c *C) {
 	manifest := image.NewSeedManifest()
 	err := manifest.SetAllowedSnapRevision("core", 14)
 	c.Assert(err, IsNil)
@@ -241,6 +241,19 @@ func (s *manifestSuite) TestSeedManifestSetAllowedValidationSet(c *C) {
 	c.Check(manifest.AllowedValidationSets(), DeepEquals, []*image.SeedManifestValidationSet{
 		{AccountID: "canonical", Name: "base-set", Sequence: 4, Pinned: true},
 		{AccountID: "canonical", Name: "opt-set", Sequence: 2},
+	})
+}
+
+func (s *manifestSuite) TestSeedManifestSetAllowedValidationSetTwice(c *C) {
+	manifest := image.NewSeedManifest()
+	err := manifest.SetAllowedValidationSet("canonical", "base-set", 4, true)
+	c.Assert(err, IsNil)
+	err = manifest.SetAllowedValidationSet("canonical", "base-set", 2, false)
+	c.Assert(err, IsNil)
+
+	// Check the allowed validation-sets returned
+	c.Check(manifest.AllowedValidationSets(), DeepEquals, []*image.SeedManifestValidationSet{
+		{AccountID: "canonical", Name: "base-set", Sequence: 4, Pinned: true},
 	})
 }
 
