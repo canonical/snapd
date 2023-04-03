@@ -643,6 +643,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 		VolumeName: "foo",
 		Name:       "first",
 		Offset:     asOffsetPtr(quantity.OffsetMiB),
+		MinSize:    5 * quantity.SizeMiB,
 		Size:       5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
@@ -653,6 +654,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 		VolumeName: "foo",
 		Name:       "second",
 		Offset:     asOffsetPtr((1 + 5) * quantity.OffsetMiB),
+		MinSize:    10 * quantity.SizeMiB,
 		Size:       10 * quantity.SizeMiB,
 		Filesystem: "ext4",
 		Content: []gadget.VolumeContent{
@@ -664,6 +666,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 		VolumeName: "foo",
 		Name:       "third",
 		Offset:     asOffsetPtr((1 + 5 + 10) * quantity.OffsetMiB),
+		MinSize:    5 * quantity.SizeMiB,
 		Size:       5 * quantity.SizeMiB,
 		Filesystem: "vfat",
 		Content: []gadget.VolumeContent{
@@ -3052,6 +3055,7 @@ func (u *updateTestSuite) policyDataSet(c *C) (oldData gadget.GadgetData, newDat
 		Name:       "no-partition",
 		Type:       "bare",
 		Offset:     asOffsetPtr((1 + 5 + 10 + 5) * quantity.OffsetMiB),
+		MinSize:    5 * quantity.SizeMiB,
 		Size:       5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
@@ -3061,6 +3065,7 @@ func (u *updateTestSuite) policyDataSet(c *C) (oldData gadget.GadgetData, newDat
 		VolumeName: "foo",
 		Name:       "mbr",
 		Role:       "mbr",
+		MinSize:    446,
 		Size:       446,
 		Offset:     asOffsetPtr(0),
 	}
@@ -3092,11 +3097,17 @@ func (u *updateTestSuite) policyDataSet(c *C) (oldData gadget.GadgetData, newDat
 	u.AddCleanup(r)
 
 	oldVol := oldData.Info.Volumes["foo"]
-	oldVol.Structure = append(oldVol.Structure, noPartitionStruct, mbrStruct)
+	oldStructs := oldVol.Structure
+	oldVol.Structure = []gadget.VolumeStructure{mbrStruct}
+	oldVol.Structure = append(oldVol.Structure, oldStructs...)
+	oldVol.Structure = append(oldVol.Structure, noPartitionStruct)
 	oldData.Info.Volumes["foo"] = oldVol
 
 	newVol := newData.Info.Volumes["foo"]
-	newVol.Structure = append(newVol.Structure, noPartitionStruct, mbrStruct)
+	newStructs := newVol.Structure
+	newVol.Structure = []gadget.VolumeStructure{mbrStruct}
+	newVol.Structure = append(newVol.Structure, newStructs...)
+	newVol.Structure = append(newVol.Structure, noPartitionStruct)
 	newData.Info.Volumes["foo"] = newVol
 
 	c.Assert(oldData.Info.Volumes["foo"].Structure, HasLen, 5)

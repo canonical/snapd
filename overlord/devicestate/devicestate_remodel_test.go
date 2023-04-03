@@ -1518,6 +1518,7 @@ volumes:
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
 							Offset:     asOffsetPtr(gadget.NonMBRStartOffset),
+							MinSize:    10 * quantity.SizeMiB,
 							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
@@ -1529,6 +1530,7 @@ volumes:
 							Name:       "bare-one",
 							Type:       "bare",
 							Offset:     asOffsetPtr(gadget.NonMBRStartOffset + 10*quantity.OffsetMiB),
+							MinSize:    quantity.SizeMiB,
 							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "bare.img"},
@@ -1552,6 +1554,7 @@ volumes:
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
 							Offset:     asOffsetPtr(gadget.NonMBRStartOffset),
+							MinSize:    10 * quantity.SizeMiB,
 							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
@@ -1563,6 +1566,7 @@ volumes:
 							Name:       "bare-one",
 							Type:       "bare",
 							Offset:     asOffsetPtr(gadget.NonMBRStartOffset + 10*quantity.OffsetMiB),
+							MinSize:    quantity.SizeMiB,
 							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "new-bare-content.img"},
