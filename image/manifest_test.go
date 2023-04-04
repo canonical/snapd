@@ -93,7 +93,7 @@ func (s *manifestSuite) TestReadSeedManifestParseFails(c *C) {
 		{"my/validation/set=4\n", `cannot parse validation set "my/validation/set=4": expected a single account/name`},
 		{"&&asakwrjrew/awodoa 4\n", `cannot parse validation set "&&asakwrjrew/awodoa": invalid account ID "&&asakwrjrew"`},
 		{"&&asakwrjrew/awodoa asdaskod\n", `cannot parse validation set "&&asakwrjrew/awodoa": invalid account ID "&&asakwrjrew"`},
-		{"foo/set name\n", `invalid formatted validation-set sequence: "name"`},
+		{"foo/set name\n", `invalid validation-set sequence: "name"`},
 		{"core\n", `line is illegally formatted: "core"`},
 		{"core 0\n", `invalid snap revision: "0"`},
 		{"core\n", `line is illegally formatted: "core"`},
@@ -159,13 +159,13 @@ test x4
 
 func (s *manifestSuite) TestSeedManifestSetAllowedSnapRevisionInvalidRevision(c *C) {
 	manifest := image.NewSeedManifest()
-	err := manifest.SetAllowedSnapRevision("core", 0)
-	c.Assert(err, ErrorMatches, `cannot add a rule for a zero-value revision`)
+	err := manifest.SetAllowedSnapRevision("core", snap.R(0))
+	c.Assert(err, ErrorMatches, `snap revision for "core" in manifest cannot be 0 \(unset\)`)
 }
 
 func (s *manifestSuite) TestSeedManifestSetAllowedSnapRevision(c *C) {
 	manifest := image.NewSeedManifest()
-	err := manifest.SetAllowedSnapRevision("core", 14)
+	err := manifest.SetAllowedSnapRevision("core", snap.R(14))
 	c.Assert(err, IsNil)
 
 	// Test that it's correctly returned
@@ -176,9 +176,9 @@ func (s *manifestSuite) TestSeedManifestSetAllowedSnapRevisionTwice(c *C) {
 	// Adding two different allowed revisions, in this case the second
 	// call will be a no-op.
 	manifest := image.NewSeedManifest()
-	err := manifest.SetAllowedSnapRevision("core", 14)
+	err := manifest.SetAllowedSnapRevision("core", snap.R(14))
 	c.Assert(err, IsNil)
-	err = manifest.SetAllowedSnapRevision("core", 28)
+	err = manifest.SetAllowedSnapRevision("core", snap.R(28))
 	c.Assert(err, IsNil)
 	s.checkManifest(c, manifest, map[string]*image.SeedManifestSnapRevision{
 		"core": {SnapName: "core", Revision: snap.R(14)},
@@ -187,11 +187,11 @@ func (s *manifestSuite) TestSeedManifestSetAllowedSnapRevisionTwice(c *C) {
 
 func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededWithAllowedHappy(c *C) {
 	manifest := image.NewSeedManifest()
-	err := manifest.SetAllowedSnapRevision("core", 14)
+	err := manifest.SetAllowedSnapRevision("core", snap.R(14))
 	c.Assert(err, IsNil)
-	err = manifest.SetAllowedSnapRevision("pc", 1)
+	err = manifest.SetAllowedSnapRevision("pc", snap.R(1))
 	c.Assert(err, IsNil)
-	err = manifest.MarkSnapRevisionSeeded("core", 14)
+	err = manifest.MarkSnapRevisionSeeded("core", snap.R(14))
 	c.Assert(err, IsNil)
 	s.checkManifest(c, manifest, map[string]*image.SeedManifestSnapRevision{
 		"core": {SnapName: "core", Revision: snap.R(14)},
@@ -203,9 +203,9 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededWithAllowedHappy(c
 
 func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededNoMatchingAllowed(c *C) {
 	manifest := image.NewSeedManifest()
-	err := manifest.SetAllowedSnapRevision("core", 14)
+	err := manifest.SetAllowedSnapRevision("core", snap.R(14))
 	c.Assert(err, IsNil)
-	err = manifest.MarkSnapRevisionSeeded("my-snap", 1)
+	err = manifest.MarkSnapRevisionSeeded("my-snap", snap.R(1))
 	c.Assert(err, IsNil)
 	s.checkManifest(c, manifest, map[string]*image.SeedManifestSnapRevision{
 		"core": {SnapName: "core", Revision: snap.R(14)},
@@ -216,18 +216,18 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededNoMatchingAllowed(
 
 func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededTwice(c *C) {
 	manifest := image.NewSeedManifest()
-	err := manifest.MarkSnapRevisionSeeded("my-snap", 1)
+	err := manifest.MarkSnapRevisionSeeded("my-snap", snap.R(1))
 	c.Assert(err, IsNil)
-	err = manifest.MarkSnapRevisionSeeded("my-snap", 5)
-	c.Assert(err, ErrorMatches, `cannot mark "my-snap" \(5\) as seeded, it has already been marked seeded: "my-snap" \(1\)`)
+	err = manifest.MarkSnapRevisionSeeded("my-snap", snap.R(5))
+	c.Assert(err, ErrorMatches, `cannot mark \"my-snap\" \(5\) as seeded, it has already been marked seeded for revision 1`)
 }
 
 func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededWrongRevision(c *C) {
 	manifest := image.NewSeedManifest()
-	err := manifest.SetAllowedSnapRevision("core", 14)
+	err := manifest.SetAllowedSnapRevision("core", snap.R(14))
 	c.Assert(err, IsNil)
-	err = manifest.MarkSnapRevisionSeeded("core", 1)
-	c.Assert(err, ErrorMatches, `revision 1 does not match the allowed revision 14`)
+	err = manifest.MarkSnapRevisionSeeded("core", snap.R(1))
+	c.Assert(err, ErrorMatches, `snap "core" revision 1 does not match the allowed revision 14`)
 }
 
 func (s *manifestSuite) TestSeedManifestSetAllowedValidationSet(c *C) {
@@ -327,9 +327,9 @@ func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededUsedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(data), Equals, "canonical/base-set=1\n")
 
-	err = manifest.MarkSnapRevisionSeeded("pc-kernel", 1)
+	err = manifest.MarkSnapRevisionSeeded("pc-kernel", snap.R(1))
 	c.Assert(err, IsNil)
-	err = manifest.MarkSnapRevisionSeeded("pc", 1)
+	err = manifest.MarkSnapRevisionSeeded("pc", snap.R(1))
 	c.Assert(err, IsNil)
 }
 

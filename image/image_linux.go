@@ -748,8 +748,8 @@ func markLocalSnapRevisionsUsed(manifest *SeedManifest, snaps localSnapRefs) err
 		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
 		// available. Therefore the revision in the local snap must be exactly the revision specified
 		// in the manifest.
-		if err := manifest.MarkSnapRevisionSeeded(sn.Info.SnapName(), sn.Info.Revision.N); err != nil {
-			return fmt.Errorf("cannot use snap %s for image: %s", sn.Path, err)
+		if err := manifest.MarkSnapRevisionSeeded(sn.Info.SnapName(), sn.Info.Revision); err != nil {
+			return fmt.Errorf("cannot record snap for manifest: %s", err)
 		}
 	}
 	return nil
@@ -889,8 +889,8 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 				return nil, err
 			}
 			if !sn.Info.Revision.Unset() {
-				if err := s.manifest.MarkSnapRevisionSeeded(sn.Info.SnapName(), sn.Info.Revision.N); err != nil {
-					return nil, err
+				if err := s.manifest.MarkSnapRevisionSeeded(sn.Info.SnapName(), sn.Info.Revision); err != nil {
+					return nil, fmt.Errorf("cannot record snap for manifest: %s", err)
 				}
 			}
 		}
