@@ -443,10 +443,20 @@ func IsSytemDirectoryExistsError(err error) bool {
 	return ok
 }
 
+func (w *Writer) fetchValidationSets(f SeedAssertionFetcher) error {
+	for _, vs := range w.model.ValidationSets() {
+		if err := f.FetchSequence(vs.AtSequence()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Start starts the seed writing, and fetches the necessary model assertions using
-// the provided SeedAssertionFetcher (See MakeSeedAssertionFetcher). The seed-writer
-// assumes that the snap assertions will end up in the given db (writing assertion
-// database). When the system seed directory is already present,
+// the provided SeedAssertionFetcher (See MakeSeedAssertionFetcher). The provided
+// fetcher must support the FetchSequence in case the model refers to any validation
+// sets. The seed-writer assumes that the snap assertions will end up in the given db
+// (writing assertions database). When the system seed directory is already present,
 // SystemAlreadyExistsError is returned.
 func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 	if err := w.checkStep(startStep); err != nil {
@@ -479,6 +489,11 @@ func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 				return err
 			}
 		}
+	}
+
+	// fetch model validation sets if any
+	if err := w.fetchValidationSets(f); err != nil {
+		return err
 	}
 
 	w.modelRefs = f.Refs()
@@ -1186,6 +1201,80 @@ func (w *Writer) Warnings() []string {
 	return w.warnings
 }
 
+func (w *Writer) resolveValidationSetAssertion(seq *asserts.AtSequence) (asserts.Assertion, error) {
+	if seq.Sequence <= 0 {
+		hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
+		if err != nil {
+			return nil, err
+		}
+		return w.db.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
+	}
+	return seq.Resolve(w.db.Find)
+}
+
+func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
+	valsets := snapasserts.NewValidationSets()
+	vss := w.model.ValidationSets()
+	for _, vs := range vss {
+		a, err := w.resolveValidationSetAssertion(vs.AtSequence())
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot resolve validation-set: %v", err)
+		}
+		valsets.Add(a.(*asserts.ValidationSet))
+	}
+	return valsets, nil
+}
+
+func (w *Writer) installedSnaps() []*snapasserts.InstalledSnap {
+	installedSnap := func(snap *SeedSnap) *snapasserts.InstalledSnap {
+		return snapasserts.NewInstalledSnap(snap.SnapName(), snap.ID(), snap.Info.Revision)
+	}
+
+	var installedSnaps []*snapasserts.InstalledSnap
+	for _, sn := range w.snapsFromModel {
+		installedSnaps = append(installedSnaps, installedSnap(sn))
+	}
+	for _, sn := range w.extraSnaps {
+		installedSnaps = append(installedSnaps, installedSnap(sn))
+	}
+	return installedSnaps
+}
+
+func (w *Writer) checkStepCompleted(step writerStep) bool {
+	// expectedStep is the next step it needs to perform. If that
+	// is higher (as they are int based values), then the step we
+	// are checking against has completed.
+	return w.expectedStep > step
+}
+
+// CheckValidationSets validates all snaps that are to be seeded against any
+// specified validation set. Info for all seed snaps must have been derived prior
+// to this call.
+func (w *Writer) CheckValidationSets() error {
+	// It makes no sense to check validation-sets before all required snaps
+	// have been resolved and downloaded. Ensure that this is not called before
+	// the Downloaded step has completed.
+	if !w.checkStepCompleted(downloadedStep) {
+		return fmt.Errorf("internal error: seedwriter.Writer cannot check validation-sets before Downloaded signaled complete")
+	}
+
+	valsets, err := w.validationSets()
+	if err != nil {
+		return err
+	}
+
+	// Check for validation set conflicts first, then we check all
+	// the seeded snaps against them
+	if err := valsets.Conflict(); err != nil {
+		return err
+	}
+
+	// Make one aggregated list of snaps we are seeding, then check that
+	// against the validation sets
+	installedSnaps := w.installedSnaps()
+	return valsets.CheckInstalledSnaps(installedSnaps, nil)
+}
+
 // SeedSnaps checks seed snaps and copies local snaps into the seed using copySnap.
 func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 	if err := w.checkStep(seedSnapsStep); err != nil {
@@ -1258,7 +1347,7 @@ func (w *Writer) WriteMeta() error {
 // query accessors
 
 func (w *Writer) checkSnapsAccessor() error {
-	if w.expectedStep < seedSnapsStep {
+	if !w.checkStepCompleted(downloadedStep) {
 		return fmt.Errorf("internal error: seedwriter.Writer cannot query seed snaps before Downloaded signaled complete")
 	}
 	return nil

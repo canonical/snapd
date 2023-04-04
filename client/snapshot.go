@@ -77,6 +77,10 @@ type Snapshot struct {
 	SHA3_384 map[string]string `json:"sha3-384"`
 	// the sum of the archive sizes
 	Size int64 `json:"size,omitempty"`
+
+	// dynamic snapshot options
+	Options *snap.SnapshotOptions `json:"options,omitempty"`
+
 	// if the snapshot failed to open this will be the reason why
 	Broken string `json:"broken,omitempty"`
 
@@ -100,6 +104,7 @@ func (sh *Snapshot) ContentHash() ([]byte, error) {
 	sh2.SetID = 0
 	sh2.Time = time.Time{}
 	sh2.Auto = false
+	sh2.Options = nil
 	h := sha256.New()
 	enc := json.NewEncoder(h)
 	if err := enc.Encode(&sh2); err != nil {
