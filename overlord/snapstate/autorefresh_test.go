@@ -1127,7 +1127,7 @@ func (s *autoRefreshTestSuite) TestAutoRefreshCreatesBothRefreshAndPreDownload(c
 
 func checkPreDownloadChange(c *C, chg *state.Change, name string, rev snap.Revision) {
 	c.Assert(chg.Kind(), Equals, "pre-download")
-	c.Assert(chg.Summary(), Equals, "Pre-download tasks for auto-refresh")
+	c.Assert(chg.Summary(), Equals, fmt.Sprintf(`Pre-download "%s" for auto-refresh`, name))
 	c.Assert(chg.Tasks(), HasLen, 1)
 	task := chg.Tasks()[0]
 	c.Assert(task.Kind(), Equals, "pre-download-snap")

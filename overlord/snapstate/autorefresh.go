@@ -595,7 +595,9 @@ func (m *autoRefresh) launchAutoRefresh(overrideDelay bool) error {
 		return err
 	}
 
-	createPreDownloadChange(m.state, updateTss)
+	if _, err := createPreDownloadChange(m.state, updateTss); err != nil {
+		return err
+	}
 
 	if len(updateTss.Refresh) == 0 {
 		return nil
@@ -620,15 +622,26 @@ func (m *autoRefresh) launchAutoRefresh(overrideDelay bool) error {
 
 // createPreDownloadChange creates a pre-download change if any relevant tasksets
 // exist in the UpdateTaskSets and returns whether or not a change was created.
-func createPreDownloadChange(st *state.State, updateTss *UpdateTaskSets) bool {
+func createPreDownloadChange(st *state.State, updateTss *UpdateTaskSets) (bool, error) {
 	if updateTss != nil && len(updateTss.PreDownload) > 0 {
-		preDlChg := st.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
+		var snapNames []string
+		for _, ts := range updateTss.PreDownload {
+			task := ts.Tasks()[0]
+			var snapsup *SnapSetup
+			if err := task.Get("snap-setup", &snapsup); err != nil {
+				return false, err
+			}
+			snapNames = append(snapNames, snapsup.InstanceName())
+		}
+
+		chgSummary := fmt.Sprintf(i18n.G("Pre-download %s for auto-refresh"), strutil.Quoted(snapNames))
+		preDlChg := st.NewChange("pre-download", chgSummary)
 		for _, ts := range updateTss.PreDownload {
 			preDlChg.AddAll(ts)
 		}
-		return true
+		return true, nil
 	}
-	return false
+	return false, nil
 }
 
 func autoRefreshInFlight(st *state.State) bool {
