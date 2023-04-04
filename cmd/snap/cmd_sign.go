@@ -46,7 +46,8 @@ type cmdSign struct {
 	} `positional-args:"yes"`
 
 	KeyName keyName `short:"k" default:"default"`
-	Chain   string  `long:"chain" optional:"true" optional-value:"remote" choice:"remote" choice:"direct" choice:"local"`
+	Chain   bool    `long:"chain"`
+	Direct  bool    `long:"direct"`
 }
 
 func init() {
@@ -56,7 +57,9 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"k": i18n.G("Name of the key to use, otherwise use the default key"),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"chain": i18n.G("Append the account and account-key assertions necessary to allow any device to validate the signed assertion"),
+		"chain": i18n.G("Append the account and account-key assertions necessary to allow any device to validate the signed assertion."),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"direct": i18n.G("Query the store directly, without attempting to go via snapd, for any assertions appended by --chain"),
 	}, []argDesc{{
 		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<filename>"),
@@ -115,22 +118,13 @@ func (x *cmdSign) Execute(args []string) error {
 		return err
 	}
 
-	if x.Chain != "" {
-		var known assertKnower
-
-		switch x.Chain {
-		case "remote":
-			known = knownRemoteWithFallback
-		case "direct":
+	// --direct implies --chain
+	if x.Chain || x.Direct {
+		known := knownRemoteWithFallback
+		if x.Direct {
 			known = func(_ *client.Client, assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
 				return downloadAssertion(assertTypeName, headers)
 			}
-		case "local":
-			known = func(cl *client.Client, assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
-				return cl.Known(assertTypeName, headers, nil)
-			}
-		default:
-			return fmt.Errorf("internal error: impossible value %q for --chain=", x.Chain)
 		}
 
 		accountKey, err := mustKnowOneAssert(known, x.client, "account-key", map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})

@@ -218,30 +218,6 @@ func (s *SnapKeysSuite) TestSignChainViaSnapd(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 	s.checkSignChainResults(c, asserts.SnapBuildType)
 	c.Assert(n, Equals, 2)
-
-	// then run specifying --chain=remote
-	n = 0
-	s.stdout.Reset()
-	s.stdin.Reset()
-	s.stdin.Write([]byte(statement))
-	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain=remote"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-	s.checkSignChainResults(c, asserts.SnapBuildType)
-	c.Assert(n, Equals, 2)
-
-	// then run specifying --chain=local
-	delete(expectedAccountKeyQuery, "remote")
-	delete(expectedAccountQuery, "remote")
-	n = 0
-	s.stdout.Reset()
-	s.stdin.Reset()
-	s.stdin.Write([]byte(statement))
-	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain=local"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-	s.checkSignChainResults(c, asserts.SnapBuildType)
-	c.Assert(n, Equals, 2)
 }
 
 func (s *SnapKeysSuite) TestSignChainDirect(c *C) {
@@ -275,8 +251,20 @@ func (s *SnapKeysSuite) TestSignChainDirect(c *C) {
 		n++
 	}))
 
+	// first run --chain --direct
 	s.stdin.Write([]byte(statement))
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain=direct"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain", "--direct"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	s.checkSignChainResults(c, asserts.SnapBuildType)
+	c.Assert(n, Equals, 2)
+
+	// then run just --direct, which should be equivalent
+	n = 0
+	s.stdout.Reset()
+	s.stdin.Reset()
+	s.stdin.Write([]byte(statement))
+	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--direct"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	s.checkSignChainResults(c, asserts.SnapBuildType)
@@ -320,7 +308,7 @@ func (s *SnapKeysSuite) TestSignChainRemoteAutoFallback(c *C) {
 	})
 
 	s.stdin.Write([]byte(statement))
-	rest, err := snap.Parser(cli).ParseArgs([]string{"sign", "--chain=remote"})
+	rest, err := snap.Parser(cli).ParseArgs([]string{"sign", "--chain"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	s.checkSignChainResults(c, asserts.SnapBuildType)
@@ -378,14 +366,5 @@ func (s *SnapKeysSuite) TestSignChainUnknownAccountOrKey(c *C) {
 	c.Assert(n, Equals, 3)
 	// if we fail in retrieving the account assertion, we should not write
 	// partial output
-	c.Assert(s.Stdout(), Equals, "")
-}
-
-func (s *SnapKeysSuite) TestSignChainUnknownValue(c *C) {
-
-	s.stdin.Write([]byte(statement))
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain=badvalue"})
-	c.Assert(err, ErrorMatches, "Invalid value `badvalue' for option `--chain'. Allowed values are: .*")
-	// if we fail we should not write partial output
 	c.Assert(s.Stdout(), Equals, "")
 }
