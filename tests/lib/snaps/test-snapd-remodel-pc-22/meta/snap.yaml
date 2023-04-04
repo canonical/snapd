@@ -1,0 +1,17 @@
+name: test-snapd-remodel-pc
+version: 22-0.1
+summary: PC gadget for test-snapd-remodel devices
+description: 'This gadget enables testing of pc devices with snapd brand store
+
+'
+architectures:
+- amd64
+base: core22
+confinement: strict
+grade: stable
+type: gadget
+
+hooks:
+  prepare-device:
+    environment:
+      MODEL_API_KEY: Ck5wN897kxLYKnFTB3APIZMpXjMqVYOicskfEBZNVBvUh3Fnt8aA
