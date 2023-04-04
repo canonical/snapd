@@ -28,6 +28,7 @@ import (
 
 	cmdsnap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -185,10 +186,10 @@ func (s *SnapPrepareImageSuite) TestReadSeedManifest(c *C) {
 	defer r()
 
 	var readManifestCalls int
-	r = cmdsnap.MockImageReadSeedManifest(func(manifestFile string) (*image.SeedManifest, error) {
+	r = cmdsnap.MockImageReadSeedManifest(func(manifestFile string) (*seedwriter.SeedManifest, error) {
 		readManifestCalls++
 		c.Check(manifestFile, Equals, "seed.manifest")
-		return image.NewSeedManifestForTest(map[string]*image.SeedManifestSnapRevision{"snapd": {SnapName: "snapd", Revision: snap.R(100)}}, nil, nil, nil), nil
+		return seedwriter.NewSeedManifestForTest(map[string]*seedwriter.SeedManifestSnapRevision{"snapd": {SnapName: "snapd", Revision: snap.R(100)}}, nil, nil, nil), nil
 	})
 	defer r()
 
@@ -200,7 +201,7 @@ func (s *SnapPrepareImageSuite) TestReadSeedManifest(c *C) {
 	c.Check(opts, DeepEquals, &image.Options{
 		ModelFile:    "model",
 		PrepareDir:   "prepare-dir",
-		SeedManifest: image.NewSeedManifestForTest(map[string]*image.SeedManifestSnapRevision{"snapd": {SnapName: "snapd", Revision: snap.R(100)}}, nil, nil, nil),
+		SeedManifest: seedwriter.NewSeedManifestForTest(map[string]*seedwriter.SeedManifestSnapRevision{"snapd": {SnapName: "snapd", Revision: snap.R(100)}}, nil, nil, nil),
 	})
 }
 

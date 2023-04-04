@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -3814,7 +3815,7 @@ func (s *imageSuite) TestSetupSeedCore20DelegatedSnapAssertionMaxFormatsAuthorit
 	c.Check(err, ErrorMatches, `cannot add assertion snap-revision \(.*; provenance:delegated-prov\): snap-revision assertion with provenance "delegated-prov" for snap id "required20ididididididididididid" is not signed by an authorized authority: my-brand`)
 }
 
-func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, rules map[string]*image.SeedManifestSnapRevision) error {
+func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, rules map[string]*seedwriter.SeedManifestSnapRevision) error {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
@@ -3827,7 +3828,7 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, rules map[str
 	coreFn := snaptest.MakeTestSnapWithFiles(c, packageCore, [][]string{{"local", ""}, snapdInfoFile})
 	requiredSnap1Fn := snaptest.MakeTestSnapWithFiles(c, requiredSnap1, [][]string{{"local", ""}})
 
-	seedManifest := image.NewSeedManifestForTest(rules, nil, nil, nil)
+	seedManifest := seedwriter.NewSeedManifestForTest(rules, nil, nil, nil)
 	opts := &image.Options{
 		Snaps: []string{
 			coreFn,
@@ -3932,7 +3933,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsWithCorrectLocalSnap(c *C) {
 	// 1. core.
 	// 2. required-snap.
 	// So lets provide a revision for one of them and it should then fail
-	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]*image.SeedManifestSnapRevision{
+	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]*seedwriter.SeedManifestSnapRevision{
 		"pc-kernel": {SnapName: "pc-kernel", Revision: snap.R(2)},
 		"pc":        {SnapName: "pc", Revision: snap.R(1)},
 		"core":      {SnapName: "core", Revision: snap.R(-1)},
@@ -3948,7 +3949,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapFails(c *C) {
 	// 1. core.
 	// 2. required-snap.
 	// So lets provide a revision for one of them and it should then fail
-	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]*image.SeedManifestSnapRevision{
+	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]*seedwriter.SeedManifestSnapRevision{
 		"pc-kernel": {SnapName: "pc-kernel", Revision: snap.R(2)},
 		"pc":        {SnapName: "pc", Revision: snap.R(1)},
 		"core":      {SnapName: "core", Revision: snap.R(5)},
@@ -3959,7 +3960,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapFails(c *C) {
 func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapHappy(c *C) {
 	// Make sure we can still provide specific revisions for snaps that are
 	// non-local.
-	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]*image.SeedManifestSnapRevision{
+	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]*seedwriter.SeedManifestSnapRevision{
 		"pc-kernel": {SnapName: "pc-kernel", Revision: snap.R(2)},
 		"pc":        {SnapName: "pc", Revision: snap.R(1)},
 	})
@@ -3997,7 +3998,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 			BootFlags:  []string{"factory"},
 			Validation: "ignore",
 		},
-		SeedManifest: image.NewSeedManifestForTest(map[string]*image.SeedManifestSnapRevision{
+		SeedManifest: seedwriter.NewSeedManifestForTest(map[string]*seedwriter.SeedManifestSnapRevision{
 			"snapd":      {SnapName: "snapd", Revision: snap.R(133)},
 			"core20":     {SnapName: "core20", Revision: snap.R(58)},
 			"pc-kernel":  {SnapName: "pc-kernel", Revision: snap.R(15)},
@@ -4121,7 +4122,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadWrongRevision(c *C) {
 			BootFlags:  []string{"factory"},
 			Validation: "ignore",
 		},
-		SeedManifest: image.NewSeedManifestForTest(map[string]*image.SeedManifestSnapRevision{
+		SeedManifest: seedwriter.NewSeedManifestForTest(map[string]*seedwriter.SeedManifestSnapRevision{
 			"required20": {SnapName: "required20", Revision: snap.R(15)},
 		}, nil, nil, nil),
 	}
@@ -4260,7 +4261,7 @@ func (s *imageSuite) TestLocalSnapRevisionMatchingStoreRevision(c *C) {
 		Customizations: image.Customizations{
 			Validation: "enforce",
 		},
-		SeedManifest: image.NewSeedManifestForTest(map[string]*image.SeedManifestSnapRevision{
+		SeedManifest: seedwriter.NewSeedManifestForTest(map[string]*seedwriter.SeedManifestSnapRevision{
 			"core": {SnapName: "core", Revision: snap.R(3)},
 		}, nil, nil, nil),
 	}
@@ -4509,7 +4510,7 @@ func (s *imageSuite) TestSetupSeedFetchText(c *C) {
 			Validation: "ignore",
 		},
 		// Make sure we also test the case of a specific revision
-		SeedManifest: image.NewSeedManifestForTest(map[string]*image.SeedManifestSnapRevision{
+		SeedManifest: seedwriter.NewSeedManifestForTest(map[string]*seedwriter.SeedManifestSnapRevision{
 			"snapd": {SnapName: "snapd", Revision: snap.R(133)},
 		}, nil, nil, nil),
 	}

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/tooling"
@@ -490,8 +491,8 @@ func ParseQuotaValues(maxMemory, cpuMax, cpuSet, threadsMax, journalSizeMax, jou
 	return quotas.parseQuotas()
 }
 
-func MockImageReadSeedManifest(f func(manifestFile string) (*image.SeedManifest, error)) (restore func()) {
-	restore = testutil.Backup(&imageReadSeedManifest)
-	imageReadSeedManifest = f
+func MockImageReadSeedManifest(f func(manifestFile string) (*seedwriter.SeedManifest, error)) (restore func()) {
+	restore = testutil.Backup(&seedReadSeedManifest)
+	seedReadSeedManifest = f
 	return restore
 }
