@@ -48,6 +48,103 @@ type snapshotSuite struct{}
 
 var _ = Suite(&snapshotSuite{})
 
+var snapshotHappyYaml = []byte(`exclude:
+  - $SNAP_DATA/one
+  - $SNAP_COMMON/two
+  - $SNAP_USER_DATA/three*
+  - $SNAP_USER_COMMON/fo*ur`)
+
+var snapshotHappyExpectedExclude = []string{
+	"$SNAP_DATA/one",
+	"$SNAP_COMMON/two",
+	"$SNAP_USER_DATA/three*",
+	"$SNAP_USER_COMMON/fo*ur",
+}
+
+func (s *snapshotSuite) TestValidateErrors(c *C) {
+	const mustStartWithError = "snapshot exclude path must start with one of.*"
+	const pathInvalidCharsError = "snapshot exclude path contains invalid characters.*"
+	const pathNotCleanError = "snapshot exclude path not clean.*"
+
+	testMap := map[string]struct {
+		snapshotOptions snap.SnapshotOptions
+		expectedError   string
+	}{
+		"must-start-with-1": {snap.SnapshotOptions{Exclude: []string{"/home/ubuntu"}}, mustStartWithError},
+		"must-start-with-2": {snap.SnapshotOptions{Exclude: []string{"$SNAP_COMMON_STUFF"}}, mustStartWithError},
+		"path-not-clean-1":  {snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/../../meh"}}, pathNotCleanError},
+		"path-not-clean-2":  {snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/"}}, pathNotCleanError},
+		"invalid-chars-1":   {snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/{one,two}"}}, pathInvalidCharsError},
+		"invalid-chars-2":   {snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/tree**"}}, pathInvalidCharsError},
+		"invalid-chars-3":   {snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/foo[12]"}}, pathInvalidCharsError},
+		"invalid-chars-4":   {snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/bar?"}}, pathInvalidCharsError},
+	}
+
+	for name, test := range testMap {
+		snapshotOptionsCopy := test.snapshotOptions
+		c.Check(test.snapshotOptions.Validate(), ErrorMatches, test.expectedError, Commentf("test: %q", name))
+		c.Check(test.snapshotOptions, DeepEquals, snapshotOptionsCopy)
+	}
+}
+
+func (s *snapshotSuite) TestValidateHappy(c *C) {
+	testMap := map[string]struct {
+		snapshotOptions snap.SnapshotOptions
+	}{
+		"exclude-empty":   {snap.SnapshotOptions{Exclude: []string{}}},
+		"exclude-typical": {snap.SnapshotOptions{Exclude: snapshotHappyExpectedExclude}},
+	}
+
+	for name, test := range testMap {
+		c.Check(test.snapshotOptions.Validate(), IsNil, Commentf("test: %q", name))
+	}
+}
+
+func (s *snapshotSuite) TestMergeDynamicExcludesError(c *C) {
+	snapshotOptions := snap.SnapshotOptions{Exclude: snapshotHappyExpectedExclude}
+	dynamicExcludes := []string{"/home/ubuntu"}
+	snapshotOptionsCopy := snapshotOptions
+	c.Check(snapshotOptions.MergeDynamicExcludes(dynamicExcludes), ErrorMatches, "snapshot exclude path must start with one of.*")
+	c.Check(snapshotOptions, DeepEquals, snapshotOptionsCopy)
+}
+
+func (s *snapshotSuite) TestMergeDynamicExcludesHappy(c *C) {
+	snapshotOptions := snap.SnapshotOptions{Exclude: snapshotHappyExpectedExclude}
+	snapshotOptionsMerged := snap.SnapshotOptions{
+		Exclude: append(snapshotHappyExpectedExclude, snapshotHappyExpectedExclude...),
+	}
+
+	testMap := map[string]struct {
+		dynamicExcludes []string
+		expectedOptions snap.SnapshotOptions
+	}{
+		"exclude-nil":     {nil, snapshotOptions},
+		"exclude-empty":   {[]string{}, snapshotOptions},
+		"exclude-typical": {snapshotHappyExpectedExclude, snapshotOptionsMerged},
+	}
+
+	for name, test := range testMap {
+		snapshotOptionsCopy := snapshotOptions
+		c.Check(snapshotOptionsCopy.MergeDynamicExcludes(test.dynamicExcludes), IsNil, Commentf("test: %q", name))
+		c.Check(snapshotOptionsCopy, DeepEquals, test.expectedOptions, Commentf("test: %q", name))
+	}
+}
+
+func (s *snapshotSuite) TestUnset(c *C) {
+	testMap := map[string]struct {
+		options *snap.SnapshotOptions
+		isUnset bool
+	}{
+		"exclude-empty":   {options: &snap.SnapshotOptions{[]string{}}, isUnset: true},
+		"exclude-nil":     {options: &snap.SnapshotOptions{}, isUnset: true},
+		"exclude-typical": {options: &snap.SnapshotOptions{snapshotHappyExpectedExclude}, isUnset: false},
+	}
+
+	for name, test := range testMap {
+		c.Check(test.options.Unset(), Equals, test.isUnset, Commentf("test: %q", name))
+	}
+}
+
 func (s *snapshotSuite) TestReadSnapshotYamlOpenFails(c *C) {
 	var returnedError error
 	defer snap.MockOsOpen(func(string) (*os.File, error) {
@@ -79,13 +176,13 @@ func (s *snapshotSuite) TestReadSnapshotYamlFromSnapFileFails(c *C) {
 
 func (s *snapshotSuite) TestReadSnapshotYamlFromSnapFileHappy(c *C) {
 	container := &FakeContainer{
-		readFileOutput: []byte("exclude:\n  - $SNAP_DATA/dir"),
+		readFileOutput: snapshotHappyYaml,
 	}
 	opts, err := snap.ReadSnapshotYamlFromSnapFile(container)
 	c.Check(container.readFileInput, Equals, "meta/snapshots.yaml")
 	c.Check(err, IsNil)
 	c.Check(opts, DeepEquals, &snap.SnapshotOptions{
-		ExcludePaths: []string{"$SNAP_DATA/dir"},
+		Exclude: snapshotHappyExpectedExclude,
 	})
 }
 
@@ -105,24 +202,6 @@ func (s *snapshotSuite) TestReadSnapshotYamlFailures(c *C) {
 		{
 			"exclude:\n  - /home/ubuntu", "snapshot exclude path must start with one of.*",
 		},
-		{
-			"exclude:\n  - $SNAP_COMMON_STUFF", "snapshot exclude path must start with one of.*",
-		},
-		{
-			"exclude:\n  - $SNAP_DATA/../../meh", "snapshot exclude path not clean.*",
-		},
-		{
-			"exclude:\n  - $SNAP_DATA/{one,two}", "snapshot exclude path contains invalid characters.*",
-		},
-		{
-			"exclude:\n  - $SNAP_DATA/tree**", "snapshot exclude path contains invalid characters.*",
-		},
-		{
-			"exclude:\n  - $SNAP_DATA/foo[12]", "snapshot exclude path contains invalid characters.*",
-		},
-		{
-			"exclude:\n  - $SNAP_DATA/bar?", "snapshot exclude path contains invalid characters.*",
-		},
 	} {
 		manifestFile := filepath.Join(c.MkDir(), "snapshots.yaml")
 		err := ioutil.WriteFile(manifestFile, []byte(testData.contents), 0644)
@@ -136,15 +215,9 @@ func (s *snapshotSuite) TestReadSnapshotYamlFailures(c *C) {
 	}
 }
 
-var snapshotYamlHappy = []byte(`exclude:
-  - $SNAP_DATA/one
-  - $SNAP_COMMON/two
-  - $SNAP_USER_DATA/three*
-  - $SNAP_USER_COMMON/fo*ur`)
-
 func (s *snapshotSuite) TestReadSnapshotYamlHappy(c *C) {
 	manifestFile := filepath.Join(c.MkDir(), "snapshots.yaml")
-	err := ioutil.WriteFile(manifestFile, []byte(snapshotYamlHappy), 0644)
+	err := ioutil.WriteFile(manifestFile, []byte(snapshotHappyYaml), 0644)
 	c.Assert(err, IsNil)
 
 	defer snap.MockOsOpen(func(path string) (*os.File, error) {
@@ -155,10 +228,7 @@ func (s *snapshotSuite) TestReadSnapshotYamlHappy(c *C) {
 
 	opts, err := snap.ReadSnapshotYaml(info)
 	c.Check(err, IsNil)
-	c.Check(opts.ExcludePaths, DeepEquals, []string{
-		"$SNAP_DATA/one",
-		"$SNAP_COMMON/two",
-		"$SNAP_USER_DATA/three*",
-		"$SNAP_USER_COMMON/fo*ur",
+	c.Check(opts, DeepEquals, &snap.SnapshotOptions{
+		Exclude: snapshotHappyExpectedExclude,
 	})
 }
