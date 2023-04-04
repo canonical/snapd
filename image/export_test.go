@@ -65,20 +65,3 @@ func MockSetupSeed(f func(tsto *tooling.ToolingStore, model *asserts.Model, opts
 	setupSeed = f
 	return r
 }
-
-func NewSeedManifestFromTest(revsAllowed, revsSeeded map[string]*SeedManifestSnapRevision, vsAllowed, vsSeeded map[string]*SeedManifestValidationSet) *SeedManifest {
-	sm := NewSeedManifest()
-	if revsAllowed != nil {
-		sm.revsAllowed = revsAllowed
-	}
-	if revsSeeded != nil {
-		sm.revsSeeded = revsSeeded
-	}
-	if vsAllowed != nil {
-		sm.vsAllowed = vsAllowed
-	}
-	if vsSeeded != nil {
-		sm.vsSeeded = vsSeeded
-	}
-	return sm
-}

@@ -3827,7 +3827,7 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, rules map[str
 	coreFn := snaptest.MakeTestSnapWithFiles(c, packageCore, [][]string{{"local", ""}, snapdInfoFile})
 	requiredSnap1Fn := snaptest.MakeTestSnapWithFiles(c, requiredSnap1, [][]string{{"local", ""}})
 
-	seedManifest := image.NewSeedManifestFromTest(rules, nil, nil, nil)
+	seedManifest := image.NewSeedManifestForTest(rules, nil, nil, nil)
 	opts := &image.Options{
 		Snaps: []string{
 			coreFn,
@@ -3997,7 +3997,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 			BootFlags:  []string{"factory"},
 			Validation: "ignore",
 		},
-		SeedManifest: image.NewSeedManifestFromTest(map[string]*image.SeedManifestSnapRevision{
+		SeedManifest: image.NewSeedManifestForTest(map[string]*image.SeedManifestSnapRevision{
 			"snapd":      {SnapName: "snapd", Revision: snap.R(133)},
 			"core20":     {SnapName: "core20", Revision: snap.R(58)},
 			"pc-kernel":  {SnapName: "pc-kernel", Revision: snap.R(15)},
@@ -4104,7 +4104,7 @@ func (s *imageSuite) TestLocalSnapRevisionMatchingStoreRevision(c *C) {
 		Customizations: image.Customizations{
 			Validation: "enforce",
 		},
-		SeedManifest: image.NewSeedManifestFromTest(map[string]*image.SeedManifestSnapRevision{
+		SeedManifest: image.NewSeedManifestForTest(map[string]*image.SeedManifestSnapRevision{
 			"core": {SnapName: "core", Revision: snap.R(3)},
 		}, nil, nil, nil),
 	}
@@ -4353,7 +4353,7 @@ func (s *imageSuite) TestSetupSeedFetchText(c *C) {
 			Validation: "ignore",
 		},
 		// Make sure we also test the case of a specific revision
-		SeedManifest: image.NewSeedManifestFromTest(map[string]*image.SeedManifestSnapRevision{
+		SeedManifest: image.NewSeedManifestForTest(map[string]*image.SeedManifestSnapRevision{
 			"snapd": {SnapName: "snapd", Revision: snap.R(133)},
 		}, nil, nil, nil),
 	}
