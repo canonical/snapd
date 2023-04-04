@@ -19,18 +19,6 @@
 
 package install
 
-import (
-	"github.com/snapcore/snapd/secboot"
-)
-
-func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionMode) error) (restore func()) {
-	old := secbootCheckTPMKeySealingSupported
-	secbootCheckTPMKeySealingSupported = f
-	return func() {
-		secbootCheckTPMKeySealingSupported = old
-	}
-}
-
 var (
 	CheckFDEFeatures = checkFDEFeatures
 )
