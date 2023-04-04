@@ -35,8 +35,8 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/lib/gl{,32}/ r,
 /var/lib/snapd/lib/gl{,32}/** rm,
 
-# libdrm data files (e.g. amdgpu.ids)
-/usr/share/libdrm/* r,
+# libdrm data files
+/usr/share/libdrm/amdgpu.ids r,
 
 # Bi-arch distribution nvidia support
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcuda*.so{,.*} rm,
