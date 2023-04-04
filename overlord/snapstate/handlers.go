@@ -3939,7 +3939,9 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		}
 	}
 
-	if createPreDownloadChange(st, updateTss) {
+	if created, err := createPreDownloadChange(st, updateTss); err != nil {
+		return err
+	} else if created {
 		newTasks = true
 	}
 
@@ -3971,7 +3973,9 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		return err
 	}
 
-	createPreDownloadChange(st, updateTss)
+	if _, err := createPreDownloadChange(st, updateTss); err != nil {
+		return err
+	}
 
 	if updateTss.Refresh != nil {
 		// update the map of refreshed snaps on the task, this affects

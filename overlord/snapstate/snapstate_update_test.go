@@ -9173,12 +9173,6 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestReRefreshCreatesPreDownloadChange(c *C) {
-	restore := snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, snapstate.UpdateFilter, *snapstate.Flags, string) ([]string, *snapstate.UpdateTaskSets, error) {
-		task := s.state.NewTask("test-pre-download", "test task")
-		ts := state.NewTaskSet(task)
-		return nil, &snapstate.UpdateTaskSets{PreDownload: []*state.TaskSet{ts}}, nil
-	})
-	defer restore()
 
 	s.o.TaskRunner().AddHandler("pre-download-snap", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
 
@@ -9213,6 +9207,13 @@ func (s *snapmgrTestSuite) TestReRefreshCreatesPreDownloadChange(c *C) {
 	})
 	chg.AddTask(rerefreshTask)
 
+	restore := snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, snapstate.UpdateFilter, *snapstate.Flags, string) ([]string, *snapstate.UpdateTaskSets, error) {
+		task := s.state.NewTask("test-pre-download", "test task")
+		task.Set("snap-setup", snapsup)
+		ts := state.NewTaskSet(task)
+		return nil, &snapstate.UpdateTaskSets{PreDownload: []*state.TaskSet{ts}}, nil
+	})
+	defer restore()
 	s.settle(c)
 
 	chgs := s.state.Changes()
@@ -9227,7 +9228,7 @@ func (s *snapmgrTestSuite) TestReRefreshCreatesPreDownloadChange(c *C) {
 	preDlChg := chgs[1]
 	c.Assert(preDlChg.Err(), IsNil)
 	c.Assert(preDlChg.Kind(), Equals, "pre-download")
-	c.Assert(preDlChg.Summary(), Equals, "Pre-download tasks for auto-refresh")
+	c.Assert(preDlChg.Summary(), Equals, "Pre-download \"some-snap\" for auto-refresh")
 	c.Assert(preDlChg.Tasks(), HasLen, 1)
 }
 
