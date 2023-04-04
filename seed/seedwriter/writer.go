@@ -46,6 +46,14 @@ type Options struct {
 	// TestSkipCopyUnverifiedModel is set to support naive tests
 	// using an unverified model, the resulting image is broken
 	TestSkipCopyUnverifiedModel bool
+
+	// Manifest is used to track snaps and validation sets that have
+	// been seeded. It can be pre-provided to provide specific revisions
+	// and validation-sets sequences.
+	Manifest *SeedManifest
+	// ManifestPath if set, specifies the file path where the
+	// seed.manifest file should be written.
+	ManifestPath string
 }
 
 // OptionsSnap represents an options-referred snap with its option values.
@@ -199,6 +207,8 @@ type Writer struct {
 	systemSnap                      *SeedSnap
 	kernelSnap                      *SeedSnap
 	noKernelSnap                    bool
+	manifest                        *SeedManifest
+	manifestPath                    string
 }
 
 type policy interface {
@@ -252,6 +262,8 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 
 		byNameOptSnaps:  naming.NewSnapSet(nil),
 		byRefLocalSnaps: naming.NewSnapSet(nil),
+		manifest:        initManifestFromOptions(opts),
+		manifestPath:    opts.ManifestPath,
 	}
 
 	var treeImpl tree
@@ -284,6 +296,13 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 	w.tree = treeImpl
 	w.policy = pol
 	return w, nil
+}
+
+func initManifestFromOptions(opts *Options) *SeedManifest {
+	if opts.Manifest == nil {
+		return NewSeedManifest()
+	}
+	return opts.Manifest
 }
 
 type writerStep int
@@ -629,6 +648,10 @@ func (w *Writer) SetRedirectChannel(sn *SeedSnap, redirectChannel string) error 
 	sn.Channel = redirectChannel
 	return nil
 
+}
+
+func (w *Writer) SeedManifest() *SeedManifest {
+	return w.manifest
 }
 
 // snapsToDownloadSet indicates which set of snaps SnapsToDownload should compute
@@ -1314,6 +1337,11 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 				// record final destination path
 				sn.Path = dst
 			}
+			if !info.Revision.Unset() {
+				if err := w.manifest.MarkSnapRevisionSeeded(sn.Info.SnapName(), sn.Info.Revision); err != nil {
+					return fmt.Errorf("cannot record snap for manifest: %s", err)
+				}
+			}
 		}
 		return nil
 	}
@@ -1332,6 +1360,12 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 func (w *Writer) WriteMeta() error {
 	if err := w.checkStep(writeMetaStep); err != nil {
 		return err
+	}
+
+	if w.manifestPath != "" {
+		if err := w.manifest.Write(w.manifestPath); err != nil {
+			return err
+		}
 	}
 
 	snapsFromModel := w.snapsFromModel

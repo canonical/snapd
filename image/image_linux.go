@@ -281,7 +281,6 @@ type imageSeeder struct {
 	classic        bool
 	prepareDir     string
 	wideCohortKey  string
-	manifest       *seedwriter.Manifest
 	customizations *Customizations
 	architecture   string
 
@@ -305,7 +304,6 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 		classic:       opts.Classic,
 		prepareDir:    opts.PrepareDir,
 		wideCohortKey: opts.WideCohortKey,
-		manifest:      initManifestFromOptions(opts),
 		// keep a pointer to the customization object in opts as the Validation
 		// member might be defaulted if not set.
 		customizations: &opts.Customizations,
@@ -341,6 +339,8 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 		SeedDir:        s.seedDir,
 		Label:          s.label,
 		DefaultChannel: opts.Channel,
+		Manifest:       opts.SeedManifest,
+		ManifestPath:   opts.SeedManifestPath,
 
 		TestSkipCopyUnverifiedModel: osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL"),
 	}
@@ -350,13 +350,6 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 	}
 	s.w = w
 	return s, nil
-}
-
-func initManifestFromOptions(opts *Options) *seedwriter.Manifest {
-	if opts.SeedManifest == nil {
-		return seedwriter.NewManifest()
-	}
-	return opts.SeedManifest
 }
 
 func determineImageArchitecture(model *asserts.Model, opts *Options) string {
@@ -481,7 +474,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 		if sn == nil {
 			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 		}
-		rev := s.manifest.AllowedSnapRevision(sn.SnapName())
+		rev := s.w.SeedManifest().AllowedSnapRevision(sn.SnapName())
 		if rev.Unset() {
 			rev = info.Revision
 		}
@@ -499,7 +492,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 		byName[sn.SnapName()] = sn
 		snapToDownloadOptions[i].Snap = sn
 		snapToDownloadOptions[i].Channel = sn.Channel
-		snapToDownloadOptions[i].Revision = s.manifest.AllowedSnapRevision(sn.SnapName())
+		snapToDownloadOptions[i].Revision = s.w.SeedManifest().AllowedSnapRevision(sn.SnapName())
 		snapToDownloadOptions[i].CohortKey = s.wideCohortKey
 	}
 
@@ -741,20 +734,6 @@ func optionSnaps(opts *Options) []*seedwriter.OptionsSnap {
 	return optSnaps
 }
 
-// markLocalSnapRevisionsUsed attempts to mark the given local snaps used in the
-// seed manifest. When marking them used they will be validated against any rules.
-func markLocalSnapRevisionsUsed(manifest *seedwriter.Manifest, snaps localSnapRefs) error {
-	for sn := range snaps {
-		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
-		// available. Therefore the revision in the local snap must be exactly the revision specified
-		// in the manifest.
-		if err := manifest.MarkSnapRevisionSeeded(sn.Info.SnapName(), sn.Info.Revision); err != nil {
-			return fmt.Errorf("cannot record snap for manifest: %s", err)
-		}
-	}
-	return nil
-}
-
 func selectAssertionMaxFormats(tsto *tooling.ToolingStore, model *asserts.Model, sysSn, kernSn *seedwriter.SeedSnap) error {
 	if sysSn == nil {
 		// nothing to do
@@ -828,13 +807,6 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
-	// Mark all local snaps in the manifest.
-	// Must be done after deriveInfoForLocalSnaps, as the snap info must have
-	// been derived if possible.
-	if err := markLocalSnapRevisionsUsed(s.manifest, localSnaps); err != nil {
-		return err
-	}
-
 	if opts.Customizations.Validation == "" {
 		if !opts.Classic {
 			fmt.Fprintf(Stderr, "WARNING: proceeding to download snaps ignoring validations, this default will change in the future. For now use --validation=enforce for validations to be taken into account, pass instead --validation=ignore to preserve current behavior going forward\n")
@@ -888,24 +860,12 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, s.f, db); err != nil {
 				return nil, err
 			}
-			if !sn.Info.Revision.Unset() {
-				if err := s.manifest.MarkSnapRevisionSeeded(sn.Info.SnapName(), sn.Info.Revision); err != nil {
-					return nil, fmt.Errorf("cannot record snap for manifest: %s", err)
-				}
-			}
 		}
 		return s.f.Refs()[prev:], nil
 	}
 
 	if err := s.downloadAllSnaps(localSnaps, fetchAsserts); err != nil {
 		return err
-	}
-
-	// last thing is to generate the image seed manifest file
-	if opts.SeedManifestPath != "" {
-		if err := s.manifest.Write(opts.SeedManifestPath); err != nil {
-			return err
-		}
 	}
 	return s.finish()
 }
