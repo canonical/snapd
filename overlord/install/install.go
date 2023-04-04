@@ -67,6 +67,15 @@ type EncryptionSupportInfo struct {
 
 var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 
+// MockSecbootCheckTPMKeySealingSupported mocks secboot.CheckTPMKeySealingSupported usage by the package for testing.
+func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionMode) error) (restore func()) {
+	old := secbootCheckTPMKeySealingSupported
+	secbootCheckTPMKeySealingSupported = f
+	return func() {
+		secbootCheckTPMKeySealingSupported = old
+	}
+}
+
 // GetEncryptionSupportInfo returns the encryption support information
 // for the given model, TPM provision mode, kernel and gadget information and
 // system hardware. It uses runSetupHook to invoke the kernel fde-setup hook if
