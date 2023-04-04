@@ -3953,7 +3953,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapFails(c *C) {
 		"pc":        {SnapName: "pc", Revision: snap.R(1)},
 		"core":      {SnapName: "core", Revision: snap.R(5)},
 	})
-	c.Check(err, ErrorMatches, `cannot record snap for manifest: snap "core" revision x1 does not match the allowed revision 5`)
+	c.Check(err, ErrorMatches, `cannot record snap for manifest: snap "core" \(x1\) does not match the allowed revision 5`)
 }
 
 func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapHappy(c *C) {

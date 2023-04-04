@@ -227,7 +227,7 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededWrongRevision(c *C
 	err := manifest.SetAllowedSnapRevision("core", snap.R(14))
 	c.Assert(err, IsNil)
 	err = manifest.MarkSnapRevisionSeeded("core", snap.R(1))
-	c.Assert(err, ErrorMatches, `snap "core" revision 1 does not match the allowed revision 14`)
+	c.Assert(err, ErrorMatches, `snap "core" \(1\) does not match the allowed revision 14`)
 }
 
 func (s *manifestSuite) TestSeedManifestSetAllowedValidationSet(c *C) {

@@ -186,7 +186,7 @@ func (sm *SeedManifest) MarkSnapRevisionSeeded(snapName string, revision snap.Re
 	if rev, ok := sm.revsAllowed[snapName]; ok {
 		// Allowed revision specified, it must match.
 		if rev.Revision != revision {
-			return fmt.Errorf("snap %q revision %s does not match the allowed revision %s",
+			return fmt.Errorf("snap %q (%s) does not match the allowed revision %s",
 				snapName, revision, rev.Revision)
 		}
 	}
