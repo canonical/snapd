@@ -56,7 +56,7 @@ func (s *manifestSuite) writeSeedManifest(c *C, contents string) string {
 }
 
 func (s *manifestSuite) checkManifest(c *C, manifest *image.SeedManifest, revsAllowed, revsSeeded map[string]*image.SeedManifestSnapRevision, vsAllowed, vsSeeded map[string]*image.SeedManifestValidationSet) {
-	expected := image.NewSeedManifestFromTest(revsAllowed, revsSeeded, vsAllowed, vsSeeded)
+	expected := image.NewSeedManifestForTest(revsAllowed, revsSeeded, vsAllowed, vsSeeded)
 	c.Check(manifest, DeepEquals, expected)
 }
 
@@ -117,7 +117,7 @@ func (s *manifestSuite) TestReadSeedManifestNoFile(c *C) {
 
 func (s *manifestSuite) testWriteSeedManifest(c *C, revisions map[string]*image.SeedManifestSnapRevision, vss map[string]*image.SeedManifestValidationSet) string {
 	manifestFile := filepath.Join(s.root, "seed.manifest")
-	manifest := image.NewSeedManifestFromTest(nil, revisions, nil, vss)
+	manifest := image.NewSeedManifestForTest(nil, revisions, nil, vss)
 	err := manifest.Write(manifestFile)
 	c.Assert(err, IsNil)
 	return manifestFile
@@ -263,7 +263,7 @@ func (s *manifestSuite) TestSeedManifestSetAllowedValidationSetInvalidSequence(c
 	c.Assert(err, ErrorMatches, `cannot add allowed validation set "canonical/base-set" for a unknown sequence`)
 }
 
-func (s *manifestSuite) setupValidationSets(c *C) *asserts.ValidationSet {
+func (s *manifestSuite) setupValidationSet(c *C) *asserts.ValidationSet {
 	vs, err := s.storeSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
@@ -294,7 +294,7 @@ func (s *manifestSuite) setupValidationSets(c *C) *asserts.ValidationSet {
 }
 
 func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededUsedHappy(c *C) {
-	vsa := s.setupValidationSets(c)
+	vsa := s.setupValidationSet(c)
 
 	manifest := image.NewSeedManifest()
 	err := manifest.MarkValidationSetSeeded(vsa, true)
@@ -333,8 +333,55 @@ func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededUsedHappy(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *manifestSuite) setupValidationSetWithNothingToTrack(c *C) *asserts.ValidationSet {
+	vs, err := s.storeSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "weird-set",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       "123456ididididididididididididid",
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       "mysnapididididididididididididid",
+				"presence": "invalid",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(vs)
+	c.Check(err, IsNil)
+	return vs.(*asserts.ValidationSet)
+}
+
+func (s *manifestSuite) TestSeedManifestMarkValidationSetWeirdCases(c *C) {
+	vsa := s.setupValidationSetWithNothingToTrack(c)
+
+	manifest := image.NewSeedManifest()
+	err := manifest.MarkValidationSetSeeded(vsa, true)
+	c.Assert(err, IsNil)
+
+	// Expect us to track the validation set, but do not expect us to
+	// track any snaps from it
+	s.checkManifest(c, manifest, nil, nil, nil, map[string]*image.SeedManifestValidationSet{
+		"canonical/weird-set": {
+			AccountID: "canonical",
+			Name:      "weird-set",
+			Sequence:  1,
+			Pinned:    true,
+		},
+	})
+}
+
 func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededUsedTwice(c *C) {
-	vsa := s.setupValidationSets(c)
+	vsa := s.setupValidationSet(c)
 
 	manifest := image.NewSeedManifest()
 	err := manifest.MarkValidationSetSeeded(vsa, true)
@@ -344,7 +391,7 @@ func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededUsedTwice(c *C) {
 }
 
 func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededWrongSequence(c *C) {
-	vsa := s.setupValidationSets(c)
+	vsa := s.setupValidationSet(c)
 
 	manifest := image.NewSeedManifest()
 	err := manifest.SetAllowedValidationSet("canonical", "base-set", 4, true)
@@ -354,7 +401,7 @@ func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededWrongSequence(c *
 }
 
 func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededWrongPinned(c *C) {
-	vsa := s.setupValidationSets(c)
+	vsa := s.setupValidationSet(c)
 
 	manifest := image.NewSeedManifest()
 	err := manifest.SetAllowedValidationSet("canonical", "base-set", 1, true)

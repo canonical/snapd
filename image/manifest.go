@@ -108,6 +108,24 @@ func NewSeedManifest() *SeedManifest {
 	}
 }
 
+// Have this here for use in unit tests.
+func NewSeedManifestForTest(revsAllowed, revsSeeded map[string]*SeedManifestSnapRevision, vsAllowed, vsSeeded map[string]*SeedManifestValidationSet) *SeedManifest {
+	sm := NewSeedManifest()
+	if revsAllowed != nil {
+		sm.revsAllowed = revsAllowed
+	}
+	if revsSeeded != nil {
+		sm.revsSeeded = revsSeeded
+	}
+	if vsAllowed != nil {
+		sm.vsAllowed = vsAllowed
+	}
+	if vsSeeded != nil {
+		sm.vsSeeded = vsSeeded
+	}
+	return sm
+}
+
 func (sm *SeedManifest) isControlledByValidationSet(snapName string) bool {
 	for _, vs := range sm.vsSeeded {
 		if vs.hasSnap(snapName) {
@@ -207,7 +225,11 @@ func (sm *SeedManifest) MarkValidationSetSeeded(vsa *asserts.ValidationSet, pinn
 	}
 
 	for _, sn := range vsa.Snaps() {
+		// Record only snaps that have a presence set, and a revision specified
 		if sn.Presence == asserts.PresenceInvalid {
+			continue
+		}
+		if sn.Revision <= 0 {
 			continue
 		}
 
@@ -241,6 +263,11 @@ func (sm *SeedManifest) AllowedValidationSets() []*SeedManifestValidationSet {
 	for _, vs := range sm.vsAllowed {
 		vss = append(vss, vs)
 	}
+
+	// Sort for test consistency
+	sort.Slice(vss, func(i, j int) bool {
+		return vss[i].Unique() < vss[j].Unique()
+	})
 	return vss
 }
 
