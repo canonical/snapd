@@ -757,11 +757,12 @@ func (s *Store) sequenceFromQueryValues(values url.Values) (int, error) {
 			if err != nil {
 				return -1, fmt.Errorf("cannot parse sequence %s: %v", val[0], err)
 			}
-			// XXX: Treat values 0 and below as error? Anyone know the official store
-			// behavior on this?
-			if seq > 0 {
-				return seq, nil
+
+			// Only positive integers and 'latest' are valid
+			if seq <= 0 {
+				return -1, fmt.Errorf("the requested sequence must be above 0")
 			}
+			return seq, nil
 		}
 	}
 	return -1, nil
