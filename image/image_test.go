@@ -4164,6 +4164,84 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadWrongRevision(c *C) {
 	})
 }
 
+func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadWrongRevision(c *C) {
+	bootloader.Force(nil)
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses core20
+	model := s.makeUC20Model(nil)
+	prepareDir := c.MkDir()
+
+	// Create a new core20 image with the following snaps:
+	// snapd, core20, pc-kernel, pc, required20
+	// We will use revisions for each of them to guarantee that
+	// exact revisions will be used when the store action is invoked.
+	// The revisions provided to s.makeSnap won't matter, and they shouldn't.
+	// Instead the revision provided in the revisions map should be used instead.
+	s.makeSnap(c, "snapd", [][]string{snapdInfoFile}, snap.R(133), "")
+	s.makeSnap(c, "core20", nil, snap.R(58), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(15), "")
+	gadgetContent := [][]string{
+		{"uboot.conf", ""},
+		{"meta/gadget.yaml", pcUC20GadgetYaml},
+	}
+	s.makeSnap(c, "pc=20", gadgetContent, snap.R(12), "")
+
+	// Create required20 with a revision of 100, that does not match
+	// the revision we want. We end up requesting revision 15, but end
+	// up with 100. This must error.
+	s.makeSnap(c, "required20", nil, snap.R(100), "other")
+
+	opts := &image.Options{
+		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags:  []string{"factory"},
+			Validation: "ignore",
+		},
+		SeedManifest: image.NewSeedManifestForTest(map[string]*image.SeedManifestSnapRevision{
+			"required20": {SnapName: "required20", Revision: snap.R(15)},
+		}, nil, nil, nil),
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, ErrorMatches, `cannot record snap for manifest: snap "required20" \(100\) does not match the allowed revision 15`)
+
+	// check the downloads, make sure that required20 was requested
+	// as revision 15
+	c.Check(s.storeActionsBunchSizes, DeepEquals, []int{5})
+	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "snapd",
+		Channel:      "latest/stable",
+		Flags:        store.SnapActionIgnoreValidation,
+	})
+	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc-kernel",
+		Channel:      "20",
+		Flags:        store.SnapActionIgnoreValidation,
+	})
+	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "core20",
+		Channel:      "latest/stable",
+		Flags:        store.SnapActionIgnoreValidation,
+	})
+	c.Check(s.storeActions[3], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc",
+		Channel:      "20",
+		Flags:        store.SnapActionIgnoreValidation,
+	})
+	c.Check(s.storeActions[4], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "required20",
+		Revision:     snap.R(15),
+		Flags:        store.SnapActionIgnoreValidation,
+	})
+}
+
 func (s *imageSuite) TestLocalSnapRevisionMatchingStoreRevision(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
