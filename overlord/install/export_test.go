@@ -19,6 +19,29 @@
 
 package install
 
+import (
+	"time"
+
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/sysconfig"
+)
+
 var (
 	CheckFDEFeatures = checkFDEFeatures
 )
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	old := timeNow
+	timeNow = f
+	return func() {
+		timeNow = old
+	}
+}
+
+func MockSysconfigConfigureTargetSystem(f func(mod *asserts.Model, opts *sysconfig.Options) error) (restore func()) {
+	old := sysconfigConfigureTargetSystem
+	sysconfigConfigureTargetSystem = f
+	return func() {
+		sysconfigConfigureTargetSystem = old
+	}
+}
