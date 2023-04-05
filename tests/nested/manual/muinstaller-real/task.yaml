@@ -185,16 +185,12 @@ execute: |
   remote.exec "sudo sync"
 
   # boot into the just installed drive
-  tests.nested vm stop
+  tests.nested vm remove
   sync
 
   # HACK: rename to "core" image because we need to boot with OVMF
   # we really should fix this so that classic and core VMs are more similar
   mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-
-  # remove cached image
-  # TODO: find a more elegant way
-  rm -f "$NESTED_IMAGES_DIR"/ubuntu-core-current.img
 
   tests.nested create-vm core --tpm-no-restart
   
@@ -272,7 +268,7 @@ execute: |
   export NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="$SNAPPY_FORCE_SAS_URL"
 
   # nested vm needs to restart for fake-store
-  nested_shutdown
+  tests.nested vm stop
   tests.nested create-vm core --tpm-no-restart
 
   # test gadget/kernel refresh
