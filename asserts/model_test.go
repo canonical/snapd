@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/naming"
 )
 
@@ -1190,6 +1191,37 @@ func (mods *modelSuite) TestClassicWithSnapsMinimalDecodeOK(c *C) {
 		}
 		c.Check(noEssential.Size(), Equals, len(snaps)-1)
 	}
+}
+
+func (mods *modelSuite) TestModelValidationSetAtSequence(c *C) {
+	mvs := &asserts.ModelValidationSet{
+		AccountID: "test",
+		Name:      "set",
+		Mode:      asserts.ModelValidationSetModeEnforced,
+	}
+	c.Check(mvs.AtSequence(), DeepEquals, &asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{release.Series, "test", "set"},
+		Sequence:    0,
+		Pinned:      false,
+		Revision:    asserts.RevisionNotKnown,
+	})
+}
+
+func (mods *modelSuite) TestModelValidationSetAtSequenceNoSequence(c *C) {
+	mvs := &asserts.ModelValidationSet{
+		AccountID: "test",
+		Name:      "set",
+		Sequence:  1,
+		Mode:      asserts.ModelValidationSetModeEnforced,
+	}
+	c.Check(mvs.AtSequence(), DeepEquals, &asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{release.Series, "test", "set"},
+		Sequence:    1,
+		Pinned:      true,
+		Revision:    asserts.RevisionNotKnown,
+	})
 }
 
 func (mods *modelSuite) TestValidationSetsDecodeInvalid(c *C) {
