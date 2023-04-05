@@ -978,6 +978,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 								Image: "pc-boot.img",
 							},
 						},
+						YamlIndex: 0,
 					},
 					{
 						Name:       "BIOS Boot",
@@ -994,6 +995,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 								Image: "pc-core.img",
 							},
 						},
+						YamlIndex: 1,
 					},
 					{
 						Name:       "ubuntu-seed",
@@ -1014,6 +1016,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 								Target:           "EFI/boot/bootx64.efi",
 							},
 						},
+						YamlIndex: 2,
 					},
 					{
 						Name:       "ubuntu-boot",
@@ -1024,6 +1027,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						Offset:     asOffsetPtr(1202 * quantity.OffsetMiB),
 						Size:       750 * quantity.SizeMiB,
 						Filesystem: "ext4",
+						YamlIndex:  3,
 					},
 					{
 						Name:       "ubuntu-save",
@@ -1034,6 +1038,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						Offset:     asOffsetPtr(1952 * quantity.OffsetMiB),
 						Size:       16 * quantity.SizeMiB,
 						Filesystem: "ext4",
+						YamlIndex:  4,
 					},
 					{
 						Name:       "ubuntu-data",
@@ -1044,6 +1049,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						Offset:     asOffsetPtr(1968 * quantity.OffsetMiB),
 						Size:       1 * quantity.SizeGiB,
 						Filesystem: "ext4",
+						YamlIndex:  5,
 					},
 				},
 			},

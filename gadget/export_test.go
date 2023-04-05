@@ -65,6 +65,7 @@ var (
 	OnDiskStructureIsLikelyImplicitSystemDataRole = onDiskStructureIsLikelyImplicitSystemDataRole
 
 	SearchForVolumeWithTraits = searchForVolumeWithTraits
+	OrderStructuresByOffset   = orderStructuresByOffset
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
