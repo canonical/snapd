@@ -14,9 +14,7 @@ debug: |
     done
 
 execute: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-    wait_for_service "multi-user.target"
+    tests.systemd wait-for-service -n 30 --state active multi-user.target
 
     case "$SPREAD_SYSTEM" in
         opensuse-tumbleweed-*)
