@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -154,6 +154,7 @@ pivot_root,
 /etc/apparmor.d/tunables/{,**} r,
 /etc/apparmor.d/abstractions/{,**} r,
 /etc/apparmor/parser.conf r,
+/etc/apparmor.d/abi/{,*} r,
 /etc/apparmor/subdomain.conf r,
 /sys/kernel/security/apparmor/.replace rw,
 /sys/kernel/security/apparmor/{,**} r,

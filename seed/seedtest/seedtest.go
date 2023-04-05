@@ -20,6 +20,7 @@
 package seedtest
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -286,6 +287,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 		}
 		return asserts.NewFetcher(db, retrieve, save2)
 	}
+	sf := seedwriter.MakeSeedAssertionFetcher(newFetcher)
 
 	opts := seedwriter.Options{
 		SeedDir: s.SeedDir,
@@ -297,15 +299,17 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	err = w.SetOptionsSnaps(optSnaps)
 	c.Assert(err, IsNil)
 
-	rf, err := w.Start(db, newFetcher)
+	err = w.Start(db, sf)
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
 	c.Assert(err, IsNil)
 
+	localARefs := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
+
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, rf, db)
-		if !asserts.IsNotFound(err) {
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, sf, db)
+		if !errors.Is(err, &asserts.NotFoundError{}) {
 			c.Assert(err, IsNil)
 		}
 		f, err := snapfile.Open(sn.Path)
@@ -313,11 +317,24 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
 		w.SetInfo(sn, info)
-		sn.ARefs = aRefs
+		if aRefs != nil {
+			localARefs[sn] = aRefs
+		}
 	}
 
 	err = w.InfoDerived()
 	c.Assert(err, IsNil)
+
+	fetchAsserts := func(sn, _, _ *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
+		if aRefs, ok := localARefs[sn]; ok {
+			return aRefs, nil
+		}
+		prev := len(sf.Refs())
+		if err = sf.Save(s.snapRevs[sn.SnapName()]); err != nil {
+			return nil, err
+		}
+		return sf.Refs()[prev:], nil
+	}
 
 	for {
 		snaps, err := w.SnapsToDownload()
@@ -331,11 +348,6 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 			err := w.SetInfo(sn, info)
 			c.Assert(err, IsNil)
 
-			prev := len(rf.Refs())
-			err = rf.Save(s.snapRevs[name])
-			c.Assert(err, IsNil)
-			sn.ARefs = rf.Refs()[prev:]
-
 			if _, err := os.Stat(sn.Path); err == nil {
 				// snap is already present
 				continue
@@ -345,7 +357,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 			c.Assert(err, IsNil)
 		}
 
-		complete, err := w.Downloaded()
+		complete, err := w.Downloaded(fetchAsserts)
 		c.Assert(err, IsNil)
 		if complete {
 			break

@@ -23,7 +23,7 @@ execute: |
     label_base=$(remote.exec "date '+%Y%m%d'")
 
     # wait until device is initialized and has a serial
-    tests.nested wait-for device-initialized
+    remote.wait-for device-initialized
 
     # Get the nested system version
     VERSION="$(tests.nested show version)"
@@ -31,7 +31,7 @@ execute: |
     echo "Refresh model assertion to revision 2"
     remote.push "$TESTSLIB/assertions/valid-for-testing-pc-revno-2-$VERSION.model"
     REMOTE_CHG_ID="$(remote.exec sudo snap remodel --no-wait "valid-for-testing-pc-revno-2-$VERSION.model")"
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
     echo "Verify the system is back in run mode"
@@ -66,7 +66,7 @@ execute: |
     echo "Refresh model assertion to revision 3"
     remote.push "$TESTSLIB/assertions/valid-for-testing-pc-revno-3-$VERSION.model"
     REMOTE_CHG_ID="$(remote.exec sudo snap remodel --no-wait "valid-for-testing-pc-revno-3-$VERSION.model")"
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
     echo "Verify the model"
@@ -90,7 +90,7 @@ execute: |
     echo "Switch to recover mode of new seed system"
     boot_id="$(tests.nested boot-id)"
     remote.exec sudo snap reboot --recover "${revno3_label}" | MATCH 'Reboot into ".*" "recover" mode'
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     # Verify we are in recover mode with the expected system label
     remote.exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=recover snapd_recovery_system=${revno3_label} "
 
@@ -99,10 +99,10 @@ execute: |
 
     boot_id="$(tests.nested boot-id)"
     echo "And back to run mode"
-    tests.nested wait-for snap-command
+    remote.wait-for snap-command
     remote.exec "sudo snap wait system seed.loaded"
     remote.exec sudo snap reboot --run | MATCH 'Reboot into "run" mode.'
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     remote.exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=run "
 
     echo "Verify all recovery systems are listed"

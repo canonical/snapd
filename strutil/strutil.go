@@ -355,3 +355,18 @@ func WordWrapPadded(out io.Writer, text []rune, pad string, termWidth int) error
 	}
 	return WordWrap(out, text, indent, indent, termWidth)
 }
+
+// JoinNonEmpty concatenates non-empty strings using sep as separator,
+// and trimming sep from beginning and end of the strings. This
+// overcomes a problem with strings.Join, which will introduce
+// separators for empty strings.
+func JoinNonEmpty(strs []string, sep string) string {
+	nonEmpty := make([]string, 0, len(strs))
+	for _, s := range strs {
+		s = strings.Trim(s, sep)
+		if s != "" {
+			nonEmpty = append(nonEmpty, s)
+		}
+	}
+	return strings.Join(nonEmpty, sep)
+}

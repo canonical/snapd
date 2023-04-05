@@ -302,7 +302,7 @@ func (p *Pool) isPredefined(ref *Ref) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	if !IsNotFound(err) {
+	if !errors.Is(err, &NotFoundError{}) {
 		return false, err
 	}
 	return false, nil
@@ -316,7 +316,7 @@ func (p *Pool) isResolved(ref *Ref) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	if !IsNotFound(err) {
+	if !errors.Is(err, &NotFoundError{}) {
 		return false, err
 	}
 	return false, nil
@@ -324,7 +324,7 @@ func (p *Pool) isResolved(ref *Ref) (bool, error) {
 
 func (p *Pool) curRevision(ref *Ref) (int, error) {
 	a, err := ref.Resolve(p.groundDB.Find)
-	if err != nil && !IsNotFound(err) {
+	if err != nil && !errors.Is(err, &NotFoundError{}) {
 		return 0, err
 	}
 	if err == nil {
@@ -335,7 +335,7 @@ func (p *Pool) curRevision(ref *Ref) (int, error) {
 
 func (p *Pool) curSeqRevision(seq *AtSequence) (int, error) {
 	a, err := seq.Resolve(p.groundDB.Find)
-	if err != nil && !IsNotFound(err) {
+	if err != nil && !errors.Is(err, &NotFoundError{}) {
 		return 0, err
 	}
 	if err == nil {
@@ -920,10 +920,11 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 	if err != nil {
 		return err
 	}
-
-	u := *toUpdate
 	retrieve := func(ref *Ref) (Assertion, error) {
 		return ref.Resolve(p.groundDB.Find)
+	}
+	retrieveSeq := func(seq *AtSequence) (Assertion, error) {
+		return seq.Resolve(p.groundDB.Find)
 	}
 	add := func(a Assertion) error {
 		if !a.Type().SequenceForming() {
@@ -931,15 +932,12 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 		}
 		// sequence forming assertions are never predefined, so no check for it.
 		// final add corresponding to toUpdate itself.
+		u := *toUpdate
 		u.Revision = a.Revision()
 		return p.addUnresolvedSeq(&u, gnum)
 	}
-	f := NewFetcher(p.groundDB, retrieve, add)
-	ref := &Ref{
-		Type:       toUpdate.Type,
-		PrimaryKey: append(u.SequenceKey, fmt.Sprintf("%d", u.Sequence)),
-	}
-	if err := f.Fetch(ref); err != nil {
+	f := NewSequenceFormingFetcher(p.groundDB, retrieve, retrieveSeq, add)
+	if err := f.FetchSequence(toUpdate); err != nil {
 		return err
 	}
 	return nil
@@ -957,7 +955,7 @@ func (p *Pool) CommitTo(db *Database) error {
 
 	retrieve := func(ref *Ref) (Assertion, error) {
 		a, err := p.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
-		if IsNotFound(err) {
+		if errors.Is(err, &NotFoundError{}) {
 			// fallback to pre-existing assertions
 			a, err = ref.Resolve(db.Find)
 		}

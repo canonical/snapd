@@ -5,9 +5,6 @@ set -x
 # handle errors in general.
 set -e
 
-# shellcheck source=tests/lib/quiet.sh
-. "$TESTSLIB/quiet.sh"
-
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
@@ -679,12 +676,11 @@ prepare_suite_each() {
     fi
 
     if [[ "$variant" = full ]]; then
-        # shellcheck source=tests/lib/prepare.sh
-        . "$TESTSLIB"/prepare.sh
         if os.query is-classic; then
+            # shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
             prepare_each_classic
         fi
-        prepare_memory_limit_override
     fi
 
     case "$SPREAD_SYSTEM" in
@@ -773,9 +769,7 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     if [ "$REMOTE_STORE" = staging ]; then
-        # shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB"/store.sh
-        teardown_staging_store
+        "$TESTSTOOLS"/store-state teardown-staging-store
     fi
 
     if os.query is-classic; then

@@ -66,7 +66,7 @@ execute: |
     # cloud-init when it is installed
 
     echo "Wait for done seeding"
-    tests.nested wait-for snap-command
+    remote.wait-for snap-command
     remote.exec "sudo snap wait system seed.loaded"
 
     echo "Prepare snapd snapto install with the fix"
@@ -134,7 +134,7 @@ execute: |
 
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
     tests.nested vm start
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
 
     # cloud-init should not actually run, since it was disabled, but in case the
     # test fails, for a better error, we will wait for cloud-init to report that

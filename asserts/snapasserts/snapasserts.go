@@ -21,6 +21,7 @@
 package snapasserts
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
@@ -129,7 +130,7 @@ func CrossCheckProvenance(instanceName string, snapRev *asserts.SnapRevision, sn
 		a, err := db.Find(asserts.StoreType, map[string]string{
 			"store": model.Store(),
 		})
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return "", err
 		}
 		if a != nil {
@@ -198,7 +199,7 @@ func DeriveSideInfoFromDigestAndSize(snapPath string, snapSHA3_384 string, snapS
 		"snap-sha3-384": snapSHA3_384,
 	}
 	a, err := db.Find(asserts.SnapRevisionType, headers)
-	if err != nil && !asserts.IsNotFound(err) {
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, err
 	}
 	if a == nil {

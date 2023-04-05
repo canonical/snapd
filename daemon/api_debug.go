@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2021 Canonical Ltd
+ * Copyright (C) 2015-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,13 +27,16 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -288,7 +291,31 @@ func getGadgetDiskMapping(st *state.State) Response {
 	kernelDir := kernelInfo.MountDir()
 
 	mod := deviceCtx.Model()
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetDir, kernelDir, mod)
+
+	// Find out if we are encrypted
+	encType := secboot.EncryptionTypeNone
+	sealingMethod, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+	if err != nil {
+		if err != device.ErrNoSealedKeys {
+			return InternalError("cannot find out crypto state: %v", err)
+		}
+		// no sealed keys, so no encryption
+	} else {
+		// TODO: is there a better way to find the encType
+		// than indirectly via the sealedKeyMethods? does not
+		// matter right now because there really is only one
+		// encryption type
+		switch sealingMethod {
+		case device.SealingMethodLegacyTPM, device.SealingMethodTPM, device.SealingMethodFDESetupHook:
+			// LUKS and LUKS-with-ICE are the same for what is
+			// required here
+			encType = secboot.EncryptionTypeLUKS
+		default:
+			return InternalError("unknown sealing method: %s", sealingMethod)
+		}
+	}
+
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetDir, kernelDir, mod, encType)
 	if err != nil {
 		return InternalError("cannot get all disk volume device traits: cannot layout volumes: %v", err)
 	}

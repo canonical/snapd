@@ -275,46 +275,46 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 		{
 			// explicitly declared start offset change
 			from: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1024},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
-				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 2048},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
-				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from [0-9]+ to [0-9]+",
 		}, {
 			// explicitly declared start offset in new structure
 			from: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1024},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
-				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 2048},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
-				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from unspecified to [0-9]+",
 		}, {
 			// explicitly declared start offset in old structure,
 			// missing from new
 			from: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1024},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
-				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 2048},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
-				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from [0-9]+ to unspecified",
 		}, {
 			// start offset changed due to layout
 			from: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1 * quantity.OffsetMiB},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-				StartOffset:     1 * quantity.OffsetMiB,
 			},
 			to: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 2 * quantity.OffsetMiB},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-				StartOffset:     2 * quantity.OffsetMiB,
 			},
 			err: "cannot change structure start offset from [0-9]+ to [0-9]+",
 		},
@@ -647,6 +647,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
+		YamlIndex: 0,
 	}
 	fsStruct := gadget.VolumeStructure{
 		VolumeName: "foo",
@@ -657,6 +658,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 		Content: []gadget.VolumeContent{
 			{UnresolvedSource: "/second-content", Target: "/"},
 		},
+		YamlIndex: 1,
 	}
 	lastStruct := gadget.VolumeStructure{
 		VolumeName: "foo",
@@ -667,6 +669,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 		Content: []gadget.VolumeContent{
 			{UnresolvedSource: "/third-content", Target: "/"},
 		},
+		YamlIndex: 2,
 	}
 	// start with identical data for new and old infos, they get updated by
 	// the caller as needed
@@ -734,8 +737,7 @@ type mockUpdateProcessObserver struct {
 	canceledErr       error
 }
 
-func (m *mockUpdateProcessObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+func (m *mockUpdateProcessObserver) Observe(op gadget.ContentOperation, partRole, targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	return gadget.ChangeAbort, errors.New("unexpected call")
 }
 
@@ -3179,23 +3181,23 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	defer restore()
 
 	psBare := &gadget.LaidOutStructure{
+		OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1 * quantity.OffsetMiB},
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "none",
 			Size:       10 * quantity.SizeMiB,
 		},
-		StartOffset: 1 * quantity.OffsetMiB,
 	}
 	updater, err := gadget.UpdaterForStructure(gadget.StructureLocation{}, psBare, gadgetRootDir, rollbackDir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updater, FitsTypeOf, &gadget.RawStructureUpdater{})
 
 	psFs := &gadget.LaidOutStructure{
+		OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1 * quantity.OffsetMiB},
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "ext4",
 			Size:       10 * quantity.SizeMiB,
 			Label:      "writable",
 		},
-		StartOffset: 1 * quantity.OffsetMiB,
 	}
 	updater, err = gadget.UpdaterForStructure(gadget.StructureLocation{}, psFs, gadgetRootDir, rollbackDir, nil)
 	c.Assert(err, IsNil)
@@ -3847,7 +3849,7 @@ volumes:
 	// DiskTraitsFromDeviceAndValidate is more strict and requires all
 	// structures to exist and to match
 	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
-	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find gadget structure #1 \("ubuntu-data"\) on disk`)
+	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find gadget structure "ubuntu-data" on disk`)
 
 	// if we add a structure to the mock disk which is smaller than the ondisk
 	// layout, we still reject it because the on disk must be at least the size

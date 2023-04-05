@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -156,6 +156,20 @@ func (pol *policy20) implicitExtraSnaps(map[string]*naming.SnapSet) []*OptionsSn
 	return nil
 }
 
+func (pol *policy20) recordSnapNameUsage(_ string) {}
+
+func (pol *policy20) isSystemSnapCandidate(sn *SeedSnap) bool {
+	if sn.modelSnap != nil {
+		return sn.modelSnap.SnapType == "snapd"
+	}
+	return false
+}
+
+func (pol *policy20) ignoreUndeterminedSystemSnap() bool {
+	// a system snap should always be known
+	return false
+}
+
 type tree20 struct {
 	grade asserts.ModelGrade
 	opts  *Options
@@ -300,7 +314,7 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 			refs := make(chan *asserts.Ref)
 			go func() {
 				for _, sn := range snaps {
-					for _, aRef := range sn.ARefs {
+					for _, aRef := range sn.aRefs {
 						if !pushRef(refs, aRef, stop) {
 							return
 						}

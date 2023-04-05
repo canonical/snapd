@@ -186,6 +186,40 @@ func (s *SnapOpSuite) TestWaitRebooting(c *check.C) {
 	c.Check(meter.Notices, testutil.Contains, "INFO: info")
 }
 
+func (s *SnapOpSuite) TestWaitStateShowsLog(c *check.C) {
+	meter := &progresstest.Meter{}
+	defer progress.MockMeter(meter)()
+	restore := snap.MockMaxGoneTime(time.Millisecond)
+	defer restore()
+
+	i := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch i {
+		case 0:
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {
+"ready": false,
+"status": "Doing",
+"tasks": [{"kind": "check-rerefresh", "summary": "...", "status": "Doing", "progress": {"done": 1, "total": 1}}, {"kind": "install", "summary": "...", "status": "Wait", "progress": {"done": 1, "total": 1}, "log": ["INFO: some info about the wait reason"]}]
+}}}`)
+		case 1:
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {
+"ready": true,
+"status": "Done"}}`)
+		}
+		i++
+	})
+
+	cli := snap.Client()
+	chg, err := snap.Wait(cli, "x")
+	c.Assert(err, check.IsNil)
+	c.Assert(chg.Ready, check.Equals, true)
+
+	// information from wait task is displayed
+	c.Check(meter.Notices, testutil.Contains, "INFO: some info about the wait reason")
+}
+
 func (s *SnapOpSuite) TestInstall(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")

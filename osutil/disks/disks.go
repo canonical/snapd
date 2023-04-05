@@ -206,6 +206,7 @@ var (
 	_ = error(PartitionNotFoundError{})
 )
 
+// TODO: simplify this away as now we have only LUKS?
 var deviceMapperBackResolvers = map[string]func(dmUUID, dmName []byte) (dev string, ok bool){}
 
 // RegisterDeviceMapperBackResolver takes a callback function which is used when
