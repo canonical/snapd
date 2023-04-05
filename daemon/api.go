@@ -81,6 +81,7 @@ var api = []*Command{
 	systemRecoveryKeysCmd,
 	quotaGroupsCmd,
 	quotaGroupInfoCmd,
+	aspectsCmd,
 }
 
 const (
