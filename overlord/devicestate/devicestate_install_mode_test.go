@@ -20,7 +20,6 @@
 package devicestate_test
 
 import (
-	"bytes"
 	"compress/gzip"
 	"crypto"
 	"fmt"
@@ -63,7 +62,6 @@ import (
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -72,8 +70,8 @@ import (
 type deviceMgrInstallModeSuite struct {
 	deviceMgrBaseSuite
 
-	ConfigureTargetSystemOptsPassed []*sysconfig.Options
-	ConfigureTargetSystemErr        error
+	prepareRunSystemDataGadgetDirs []string
+	prepareRunSystemDataErr        error
 
 	SystemctlDaemonReloadCalls int
 }
@@ -99,12 +97,12 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	// reload directory paths to match our mocked os-release
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
-	s.ConfigureTargetSystemOptsPassed = nil
-	s.ConfigureTargetSystemErr = nil
-	restore := devicestate.MockSysconfigConfigureTargetSystem(func(mod *asserts.Model, opts *sysconfig.Options) error {
+	s.prepareRunSystemDataGadgetDirs = nil
+	s.prepareRunSystemDataErr = nil
+	restore := devicestate.MockInstallLogicPrepareRunSystemData(func(mod *asserts.Model, gadgetDir string, _ timings.Measurer) error {
 		c.Check(mod, NotNil)
-		s.ConfigureTargetSystemOptsPassed = append(s.ConfigureTargetSystemOptsPassed, opts)
-		return s.ConfigureTargetSystemErr
+		s.prepareRunSystemDataGadgetDirs = append(s.prepareRunSystemDataGadgetDirs, gadgetDir)
+		return s.prepareRunSystemDataErr
 	})
 	s.AddCleanup(restore)
 
@@ -1597,7 +1595,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	return mockModel
 }
 
-func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
+func (s *deviceMgrInstallModeSuite) TestInstallModeRunsPrepareRunSystemData(c *C) {
 	s.mockInstallModeChange(c, "dangerous", "")
 
 	s.state.Lock()
@@ -1611,24 +1609,14 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 	c.Check(installSystem.Err(), IsNil)
 	c.Check(installSystem.Status(), Equals, state.DoneStatus)
 
-	// and sysconfig.ConfigureTargetSystem was run exactly once
-	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{
-			AllowCloudInit: true,
-			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
-		},
+	// and overlord/install.PrepareRunSystemData was run exactly once
+	c.Assert(s.prepareRunSystemDataGadgetDirs, DeepEquals, []string{
+		filepath.Join(dirs.SnapMountDir, "pc/1/"),
 	})
-
-	// and the special dirs in _writable_defaults were created
-	for _, dir := range []string{"/etc/udev/rules.d/", "/etc/modules-load.d/", "/etc/modprobe.d/"} {
-		fullDir := filepath.Join(sysconfig.WritableDefaultsDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), dir)
-		c.Assert(fullDir, testutil.FilePresent)
-	}
 }
 
-func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
-	s.ConfigureTargetSystemErr = fmt.Errorf("error from sysconfig.ConfigureTargetSystem")
+func (s *deviceMgrInstallModeSuite) TestInstallModeRunsPrepareRunSystemDataErr(c *C) {
+	s.prepareRunSystemDataErr = fmt.Errorf("error from overlord/install.PrepareRunSystemData")
 	s.mockInstallModeChange(c, "dangerous", "")
 
 	s.state.Lock()
@@ -1637,184 +1625,11 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 	// the install-system was run but errorred as specified in the above mock
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
-- Setup system for run mode \(error from sysconfig.ConfigureTargetSystem\)`)
-	// and sysconfig.ConfigureTargetSystem was run exactly once
-	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{
-			AllowCloudInit: true,
-			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
-		},
+- Setup system for run mode \(error from overlord/install\.PrepareRunSystemData\)`)
+	// and overlord/install.PrepareRunSystemData was run exactly once
+	c.Assert(s.prepareRunSystemDataGadgetDirs, DeepEquals, []string{
+		filepath.Join(dirs.SnapMountDir, "pc/1/"),
 	})
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(c *C) {
-	// pretend we have a cloud-init config on the seed partition
-	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	err := os.MkdirAll(cloudCfg, 0755)
-	c.Assert(err, IsNil)
-	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
-		c.Assert(err, IsNil)
-	}
-
-	s.mockInstallModeChange(c, "dangerous", "")
-
-	// and did tell sysconfig about the cloud-init files
-	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{
-			AllowCloudInit:  true,
-			CloudInitSrcDir: filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
-			TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
-		},
-	})
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitGadgetAndSeedConfigSigned(c *C) {
-	// pretend we have a cloud-init config on the seed partition
-	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	err := os.MkdirAll(cloudCfg, 0755)
-	c.Assert(err, IsNil)
-	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
-		c.Assert(err, IsNil)
-	}
-
-	// we also have gadget cloud init too
-	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc/1/")
-	err = os.MkdirAll(gadgetDir, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
-	c.Assert(err, IsNil)
-
-	s.mockInstallModeChange(c, "signed", "")
-
-	// sysconfig is told about both configs
-	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{
-			AllowCloudInit:  true,
-			TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
-			CloudInitSrcDir: cloudCfg,
-		},
-	})
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitBothGadgetAndUbuntuSeedDangerous(c *C) {
-	// pretend we have a cloud-init config on the seed partition
-	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	err := os.MkdirAll(cloudCfg, 0755)
-	c.Assert(err, IsNil)
-	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
-		c.Assert(err, IsNil)
-	}
-
-	// we also have gadget cloud init too
-	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc/1/")
-	err = os.MkdirAll(gadgetDir, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
-	c.Assert(err, IsNil)
-
-	s.mockInstallModeChange(c, "dangerous", "")
-
-	// and did tell sysconfig about the cloud-init files
-	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{
-			AllowCloudInit:  true,
-			CloudInitSrcDir: filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
-			TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
-		},
-	})
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallModeSignedNoUbuntuSeedCloudInit(c *C) {
-	// pretend we have no cloud-init config anywhere
-	s.mockInstallModeChange(c, "signed", "")
-
-	// we didn't pass any cloud-init src dir but still left cloud-init enabled
-	// if for example a CI-DATA USB drive was provided at runtime
-	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{
-			AllowCloudInit: true,
-			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
-		},
-	})
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredGadgetCloudConfCloudInit(c *C) {
-	// pretend we have a cloud.conf from the gadget
-	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc/1/")
-	err := os.MkdirAll(gadgetDir, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
-	c.Assert(err, IsNil)
-
-	err = s.doRunChangeTestWithEncryption(c, "secured", encTestCase{
-		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
-	})
-	c.Assert(err, IsNil)
-
-	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{
-			AllowCloudInit: true,
-			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
-		},
-	})
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredNoUbuntuSeedCloudInit(c *C) {
-	// pretend we have a cloud-init config on the seed partition with some files
-	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	err := os.MkdirAll(cloudCfg, 0755)
-	c.Assert(err, IsNil)
-	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
-		c.Assert(err, IsNil)
-	}
-
-	err = s.doRunChangeTestWithEncryption(c, "secured", encTestCase{
-		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
-	})
-	c.Assert(err, IsNil)
-
-	// we did tell sysconfig about the ubuntu-seed cloud config dir because it
-	// exists, but it is up to sysconfig to use the model to determine to ignore
-	// the files
-	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{
-			AllowCloudInit:  false,
-			TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
-			CloudInitSrcDir: cloudCfg,
-		},
-	})
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallModeWritesModel(c *C) {
-	// pretend we have a cloud-init config on the seed partition
-	model := s.mockInstallModeChange(c, "dangerous", "")
-
-	var buf bytes.Buffer
-	err := asserts.NewEncoder(&buf).Encode(model)
-	c.Assert(err, IsNil)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	installSystem := s.findInstallSystem()
-	c.Assert(installSystem, NotNil)
-
-	// and was run successfully
-	c.Check(installSystem.Err(), IsNil)
-	c.Check(installSystem.Status(), Equals, state.DoneStatus)
-
-	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileEquals, buf.String())
 }
 
 func (s *deviceMgrInstallModeSuite) testInstallGadgetNoSave(c *C, grade string) {
@@ -2061,67 +1876,6 @@ mock output of: snap debug timings --ensure=install-system
 		{"snap", "debug", "timings", "--ensure=seed"},
 		{"snap", "debug", "timings", "--ensure=install-system"},
 	})
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockHappy(c *C) {
-	now := time.Now()
-	restore := devicestate.MockTimeNow(func() time.Time { return now })
-	defer restore()
-
-	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
-	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
-	// a month old timestamp file
-	c.Assert(os.Chtimes(clockTsInSrc, now.AddDate(0, -1, 0), now.AddDate(0, -1, 0)), IsNil)
-
-	s.mockInstallModeChange(c, "dangerous", "")
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	installSystem := s.findInstallSystem()
-	c.Assert(installSystem, NotNil)
-
-	// installation was successful
-	c.Check(installSystem.Err(), IsNil)
-	c.Check(installSystem.Status(), Equals, state.DoneStatus)
-
-	clockTsInDst := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "/var/lib/systemd/timesync/clock")
-	fi, err := os.Stat(clockTsInDst)
-	c.Assert(err, IsNil)
-	c.Check(fi.ModTime().Round(time.Second), Equals, now.Round(time.Second))
-	c.Check(fi.Size(), Equals, int64(0))
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockErr(c *C) {
-	now := time.Now()
-	restore := devicestate.MockTimeNow(func() time.Time { return now })
-	defer restore()
-
-	if os.Geteuid() == 0 {
-		c.Skip("the test cannot be executed by the root user")
-	}
-
-	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
-	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
-
-	timesyncDirInDst := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "/var/lib/systemd/timesync/")
-	c.Assert(os.MkdirAll(timesyncDirInDst, 0755), IsNil)
-	c.Assert(os.Chmod(timesyncDirInDst, 0000), IsNil)
-	defer os.Chmod(timesyncDirInDst, 0755)
-
-	s.mockInstallModeChange(c, "dangerous", "")
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	installSystem := s.findInstallSystem()
-	c.Assert(installSystem, NotNil)
-
-	// install failed copying the timestamp
-	c.Check(installSystem.Err(), ErrorMatches, `(?s).*\(cannot seed timesyncd clock: cannot copy clock:.*Permission denied.*`)
-	c.Check(installSystem.Status(), Equals, state.ErrorStatus)
 }
 
 type resetTestCase struct {
@@ -2931,7 +2685,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 	c.Assert(s.SystemctlDaemonReloadCalls, Equals, 1)
 }
 
-func (s *deviceMgrInstallModeSuite) TestFactoryResetRunSysconfig(c *C) {
+func (s *deviceMgrInstallModeSuite) TestFactoryResetRunsPrepareRunSystemData(c *C) {
 	s.state.Lock()
 	model := s.makeMockInstallModel(c, "dangerous")
 	s.state.Unlock()
@@ -2949,58 +2703,11 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetRunSysconfig(c *C) {
 	c.Logf("logs:\n%v", logbuf.String())
 	c.Assert(err, IsNil)
 
-	// and sysconfig.ConfigureTargetSystem was run exactly once
-	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{
-			AllowCloudInit: true,
-			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
-		},
+	// and overlord/install.PrepareRunSystemData was run exactly once
+	c.Assert(s.prepareRunSystemDataGadgetDirs, DeepEquals, []string{
+		filepath.Join(dirs.SnapMountDir, "pc/1/"),
 	})
 
-	// and the special dirs in _writable_defaults were created
-	for _, dir := range []string{"/etc/udev/rules.d/", "/etc/modules-load.d/", "/etc/modprobe.d/"} {
-		fullDir := filepath.Join(sysconfig.WritableDefaultsDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), dir)
-		c.Assert(fullDir, testutil.FilePresent)
-	}
-}
-
-func (s *deviceMgrInstallModeSuite) TestFactoryResetWritesTimesyncdClock(c *C) {
-	now := time.Now()
-	restore := devicestate.MockTimeNow(func() time.Time { return now })
-	defer restore()
-
-	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
-	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
-	// a month old timestamp file
-	c.Assert(os.Chtimes(clockTsInSrc, now.AddDate(0, -1, 0), now.AddDate(0, -1, 0)), IsNil)
-
-	s.state.Lock()
-	model := s.makeMockInstallModel(c, "dangerous")
-	s.state.Unlock()
-
-	// pretend snap-bootstrap mounted ubuntu-save
-	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
-	c.Assert(err, IsNil)
-
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	err = s.doRunFactoryResetChange(c, model, resetTestCase{
-		tpm: false,
-	})
-	c.Logf("logs:\n%v", logbuf.String())
-	c.Assert(err, IsNil)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	clockTsInDst := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "/var/lib/systemd/timesync/clock")
-	fi, err := os.Stat(clockTsInDst)
-	c.Assert(err, IsNil)
-	c.Check(fi.ModTime().Round(time.Second), Equals, now.Round(time.Second))
-	c.Check(fi.Size(), Equals, int64(0))
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithUbuntuSaveSnapFoldersHappy(c *C) {
