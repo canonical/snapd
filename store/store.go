@@ -230,9 +230,11 @@ func endpointURL(base *url.URL, path string, query url.Values) *url.URL {
 
 // apiURL returns the system default base API URL.
 func apiURL() *url.URL {
-	s := "https://api.snapcraft.io/"
-	if snapdenv.UseStagingStore() {
-		s = "https://api.staging.snapcraft.io/"
+	if s := os.Getenv("SNAPPY_FORCE_API_URL"); s == "" {
+		s := "https://api.snapcraft.io/"
+		if snapdenv.UseStagingStore() {
+			s = "https://api.staging.snapcraft.io/"
+		}
 	}
 	u, _ := url.Parse(s)
 	return u
