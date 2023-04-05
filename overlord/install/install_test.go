@@ -20,18 +20,22 @@
 package install_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -39,10 +43,14 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/install"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 func TestInstall(t *testing.T) { TestingT(t) }
@@ -63,6 +71,11 @@ type installSuite struct {
 	testutil.BaseTest
 
 	*seedtest.TestingSeed20
+
+	perfTimings timings.Measurer
+
+	configureTargetSystemOptsPassed []*sysconfig.Options
+	configureTargetSystemErr        error
 }
 
 var _ = Suite(&installSuite{})
@@ -82,7 +95,21 @@ func (s *installSuite) SetUpTest(c *C) {
 	})
 	// needed by TestingSeed20.MakeSeed (to work with makeSnap)
 
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.SeedDir = c.MkDir()
+
+	s.perfTimings = timings.New(nil)
+
+	s.configureTargetSystemOptsPassed = nil
+	s.configureTargetSystemErr = nil
+	restore = install.MockSysconfigConfigureTargetSystem(func(mod *asserts.Model, opts *sysconfig.Options) error {
+		c.Check(mod, NotNil)
+		s.configureTargetSystemOptsPassed = append(s.configureTargetSystemOptsPassed, opts)
+		return s.configureTargetSystemErr
+	})
+	s.AddCleanup(restore)
 }
 
 func (s *installSuite) makeSnap(c *C, yamlKey, publisher string) {
@@ -773,4 +800,374 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsHook(c *C) {
 	_, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, runFDESetup)
 	c.Check(err, IsNil)
 	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as querying kernel fde-setup hook did not succeed:.*\n")
+}
+
+func (s *installSuite) mockBootloader(c *C, trustedAssets bool, managedAssets bool) {
+	bootloaderRootdir := c.MkDir()
+
+	if trustedAssets || managedAssets {
+		tab := bootloadertest.Mock("trusted", bootloaderRootdir).WithTrustedAssets()
+		if trustedAssets {
+			tab.TrustedAssetsList = []string{"trusted-asset"}
+		}
+		if managedAssets {
+			tab.ManagedAssetsList = []string{"managed-asset"}
+		}
+		bootloader.Force(tab)
+		s.AddCleanup(func() { bootloader.Force(nil) })
+
+		err := os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0644)
+		c.Assert(err, IsNil)
+	} else {
+		bl := bootloadertest.Mock("mock", bootloaderRootdir)
+		bootloader.Force(bl)
+	}
+
+	s.AddCleanup(func() { bootloader.Force(nil) })
+}
+
+func (s *installSuite) TestBuildInstallObserver(c *C) {
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(nil)
+
+	cases := []struct {
+		trustedAssets bool
+		managedAssets bool
+		useEncryption bool
+		observer      bool
+	}{
+		{trustedAssets: true, useEncryption: true, observer: true},
+		{trustedAssets: true, useEncryption: false, observer: false},
+		{trustedAssets: false, managedAssets: true, useEncryption: true, observer: true},
+		{trustedAssets: false, managedAssets: true, useEncryption: false, observer: true},
+		{trustedAssets: false, useEncryption: true, observer: true},
+		{trustedAssets: false, useEncryption: false, observer: false},
+	}
+
+	for _, tc := range cases {
+		s.mockBootloader(c, tc.trustedAssets, tc.managedAssets)
+
+		co, to, err := install.BuildInstallObserver(mockModel, gadgetDir, tc.useEncryption)
+		c.Assert(err, IsNil)
+		tcComm := Commentf("%#v", tc)
+		if tc.observer {
+			c.Check(co, NotNil, tcComm)
+			if tc.useEncryption {
+				c.Check(to == co, Equals, true, tcComm)
+			} else {
+				c.Check(to, IsNil, tcComm)
+			}
+		} else {
+			c.Check(co, testutil.IsInterfaceNil, tcComm)
+			c.Check(to, IsNil, tcComm)
+		}
+
+	}
+}
+
+var (
+	dataEncryptionKey = keys.EncryptionKey{'d', 'a', 't', 'a', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	saveKey           = keys.EncryptionKey{'s', 'a', 'v', 'e', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+)
+
+func (s *installSuite) TestPrepareEncryptedSystemData(c *C) {
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(nil)
+
+	trustedAssets := true
+	s.mockBootloader(c, trustedAssets, false)
+
+	useEncryption := true
+	_, to, err := install.BuildInstallObserver(mockModel, gadgetDir, useEncryption)
+	c.Assert(err, IsNil)
+	c.Assert(to, NotNil)
+
+	keyForRole := map[string]keys.EncryptionKey{
+		gadget.SystemData: dataEncryptionKey,
+		gadget.SystemSave: saveKey,
+	}
+	err = install.PrepareEncryptedSystemData(mockModel, keyForRole, to)
+	c.Assert(err, IsNil)
+
+	c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
+	marker, err := ioutil.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
+	c.Assert(err, IsNil)
+	c.Check(marker, HasLen, 32)
+	c.Check(filepath.Join(boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, marker)
+
+	// the assets cache was written to
+	l, err := ioutil.ReadDir(filepath.Join(dirs.SnapBootAssetsDir, "trusted"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 1)
+}
+
+func (s *installSuite) TestPrepareRunSystemDataWritesModel(c *C) {
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(nil)
+
+	err := install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	var buf bytes.Buffer
+	err = asserts.NewEncoder(&buf).Encode(mockModel)
+	c.Assert(err, IsNil)
+
+	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileEquals, buf.String())
+}
+
+func (s *installSuite) TestPrepareRunSystemDataRunsSysconfig(c *C) {
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(nil)
+
+	err := install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	// and sysconfig.ConfigureTargetSystem was run exactly once
+	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{
+			AllowCloudInit: true,
+			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
+			GadgetDir:      gadgetDir,
+		},
+	})
+
+	// and the special dirs in _writable_defaults were created
+	for _, dir := range []string{"/etc/udev/rules.d/", "/etc/modules-load.d/", "/etc/modprobe.d/"} {
+		fullDir := filepath.Join(sysconfig.WritableDefaultsDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), dir)
+		c.Assert(fullDir, testutil.FilePresent)
+	}
+}
+
+func (s *installSuite) TestPrepareRunSystemDataRunSysconfigErr(c *C) {
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(nil)
+
+	s.configureTargetSystemErr = fmt.Errorf("error from sysconfig.ConfigureTargetSystem")
+
+	err := install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
+	c.Check(err, ErrorMatches, `error from sysconfig.ConfigureTargetSystem`)
+	// and sysconfig.ConfigureTargetSystem was run exactly once
+	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{
+			AllowCloudInit: true,
+			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
+			GadgetDir:      gadgetDir,
+		},
+	})
+}
+
+func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitInDangerous(c *C) {
+	// pretend we have a cloud-init config on the seed partition
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
+	err := os.MkdirAll(cloudCfg, 0755)
+	c.Assert(err, IsNil)
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(nil)
+
+	err = install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	// and did tell sysconfig about the cloud-init files
+	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{
+			AllowCloudInit:  true,
+			CloudInitSrcDir: filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
+			TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
+			GadgetDir:       gadgetDir,
+		},
+	})
+}
+
+func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitGadgetAndSeedConfigSigned(c *C) {
+	// pretend we have a cloud-init config on the seed partition
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
+	err := os.MkdirAll(cloudCfg, 0755)
+	c.Assert(err, IsNil)
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(map[string]interface{}{
+		"grade": "signed",
+	})
+
+	// we also have gadget cloud init too
+	err = ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	// sysconfig is told about both configs
+	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{
+			AllowCloudInit:  true,
+			TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
+			GadgetDir:       gadgetDir,
+			CloudInitSrcDir: cloudCfg,
+		},
+	})
+}
+
+func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitBothGadgetAndUbuntuSeedDangerous(c *C) {
+	// pretend we have a cloud-init config on the seed partition
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
+	err := os.MkdirAll(cloudCfg, 0755)
+	c.Assert(err, IsNil)
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(nil)
+
+	// we also have gadget cloud init too
+	err = ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	// and did tell sysconfig about the cloud-init files
+	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{
+			AllowCloudInit:  true,
+			CloudInitSrcDir: filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
+			TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
+			GadgetDir:       gadgetDir,
+		},
+	})
+}
+
+func (s *installSuite) TestPrepareRunSystemDataSignedNoUbuntuSeedCloudInit(c *C) {
+	// pretend we have no cloud-init config anywhere
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(map[string]interface{}{
+		"grade": "signed",
+	})
+
+	err := install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	// we didn't pass any cloud-init src dir but still left cloud-init enabled
+	// if for example a CI-DATA USB drive was provided at runtime
+	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{
+			AllowCloudInit: true,
+			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
+			GadgetDir:      gadgetDir,
+		},
+	})
+}
+
+func (s *installSuite) TestPrepareRunSystemDataSecuredGadgetCloudConfCloudInit(c *C) {
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(map[string]interface{}{
+		"grade": "secured",
+	})
+
+	// pretend we have a cloud.conf from the gadget
+	err := ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{
+			AllowCloudInit: true,
+			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
+			GadgetDir:      gadgetDir,
+		},
+	})
+}
+
+func (s *installSuite) TestPrepareRunSystemDataSecuredNoUbuntuSeedCloudInit(c *C) {
+	// pretend we have a cloud-init config on the seed partition with some files
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
+	err := os.MkdirAll(cloudCfg, 0755)
+	c.Assert(err, IsNil)
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(map[string]interface{}{
+		"grade": "secured",
+	})
+
+	err = install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	// we did tell sysconfig about the ubuntu-seed cloud config dir because it
+	// exists, but it is up to sysconfig to use the model to determine to ignore
+	// the files
+	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{
+			AllowCloudInit:  false,
+			TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
+			GadgetDir:       gadgetDir,
+			CloudInitSrcDir: cloudCfg,
+		},
+	})
+}
+
+func (s *installSuite) TestPrepareRunSystemDataWritesTimesyncdClockHappy(c *C) {
+	now := time.Now()
+	restore := install.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
+	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
+	// a month old timestamp file
+	c.Assert(os.Chtimes(clockTsInSrc, now.AddDate(0, -1, 0), now.AddDate(0, -1, 0)), IsNil)
+
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(nil)
+
+	err := install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	clockTsInDst := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "/var/lib/systemd/timesync/clock")
+	fi, err := os.Stat(clockTsInDst)
+	c.Assert(err, IsNil)
+	c.Check(fi.ModTime().Round(time.Second), Equals, now.Round(time.Second))
+	c.Check(fi.Size(), Equals, int64(0))
+}
+
+func (s *installSuite) TestPrepareRunSystemDataWritesTimesyncdClockErr(c *C) {
+	now := time.Now()
+	restore := install.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be executed by the root user")
+	}
+
+	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
+	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
+
+	timesyncDirInDst := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "/var/lib/systemd/timesync/")
+	c.Assert(os.MkdirAll(timesyncDirInDst, 0755), IsNil)
+	c.Assert(os.Chmod(timesyncDirInDst, 0000), IsNil)
+	defer os.Chmod(timesyncDirInDst, 0755)
+
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(nil)
+
+	err := install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
+	c.Check(err, ErrorMatches, `cannot seed timesyncd clock: cannot copy clock:.*Permission denied.*`)
 }
