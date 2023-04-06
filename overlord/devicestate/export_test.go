@@ -285,12 +285,12 @@ var (
 	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
 
-	MaybeApplyPreseededData = maybeApplyPreseededData
+	ApplyPreseededData = applyPreseededData
 )
 
-func MockMaybeApplyPreseededData(f func(model *asserts.Model, ubuntuSeedDir, sysLabel, writableDir string) (bool, error)) (restore func()) {
-	r := testutil.Backup(&maybeApplyPreseededData)
-	maybeApplyPreseededData = f
+func MockApplyPreseededData(f func(deviceSeed seed.PreseedCapable, writableDir string) error) (restore func()) {
+	r := testutil.Backup(&applyPreseededData)
+	applyPreseededData = f
 	return r
 }
 
