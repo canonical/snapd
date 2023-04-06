@@ -59,7 +59,7 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 		{"3817b197e7abe71a952c1245e8bdf8d9 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", "3817b197e7abe71a952c1245e8bdf8d9 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", ""},
 		// 83-byte Go build ID
 		{"4e444571495f482d30796b5f57307065544e47692f594c61795f384b7a5258362d6a6f4272736e38302f773374475869496e433176527749797a457a4b532f3967324d4f76556f3130323644572d56326e6248 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", "4e444571495f482d30796b5f57307065544e47692f594c61795f384b7a5258362d6a6f4272736e38302f773374475869496e433176527749797a457a4b532f3967324d4f76556f3130323644572d56326e6248 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", ""},
-		// sanity
+		// validity
 		{"abcdef 0.0.0 abcd bpf-actlog", "abcdef 0.0.0 abcd bpf-actlog", ""},
 		{"abcdef 0.0.0 abcd -", "abcdef 0.0.0 abcd -", ""},
 
@@ -288,11 +288,11 @@ echo "%s"
 }
 
 func (s *compilerSuite) TestCompilerStderrErr(c *C) {
-	cmd := testutil.MockCommand(c, "snap-seccomp", fmt.Sprintf(`
+	cmd := testutil.MockCommand(c, "snap-seccomp", `
 echo "this goes to stderr" >&2
 # this goes to stdout
 echo "this goes to stdout"
-exit 1`))
+exit 1`)
 
 	_, err := seccomp.CompilerVersionInfo(fromCmd(c, cmd))
 	c.Assert(err, ErrorMatches, "this goes to stderr")

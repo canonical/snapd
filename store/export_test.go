@@ -195,11 +195,11 @@ func (sto *Store) DecorateOrders(snaps []*snap.Info, user *auth.UserState) error
 }
 
 func (sto *Store) SessionLock() {
-	sto.sessionMu.Lock()
+	sto.auth.(*deviceAuthorizer).sessionMu.Lock()
 }
 
 func (sto *Store) SessionUnlock() {
-	sto.sessionMu.Unlock()
+	sto.auth.(*deviceAuthorizer).sessionMu.Unlock()
 }
 
 func (sto *Store) FindFields() []string {

@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 )
@@ -165,7 +164,7 @@ func piConfigFile(dev sysconfig.Device, opts *fsOnlyContext) (string, error) {
 	return configPath, nil
 }
 
-func handlePiConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handlePiConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	configFile, err := piConfigFile(dev, opts)
 	if _, ok := err.(*piConfigNotSupportedError); ok {
 		logger.Noticef("ignoring pi-config settings: %v", err)

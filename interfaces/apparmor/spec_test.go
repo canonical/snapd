@@ -283,72 +283,72 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	s.spec.AddLayout(snapInfo)
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.vanguard.vanguard": {
-			"# Layout path: /etc/foo.conf\n/etc/foo.conf mrwklix,",
-			"# Layout path: /usr/foo\n/usr/foo{,/**} mrwklix,",
+			"# Layout path: /etc/foo.conf\n\"/etc/foo.conf\" mrwklix,",
+			"# Layout path: /usr/foo\n\"/usr/foo{,/**}\" mrwklix,",
 			"# Layout path: /var/cache/mylink\n# (no extra permissions required for symlink)",
-			"# Layout path: /var/tmp\n/var/tmp{,/**} mrwklix,",
+			"# Layout path: /var/tmp\n\"/var/tmp{,/**}\" mrwklix,",
 		},
 	})
 	updateNS := s.spec.UpdateNS()
 
 	profile0 := `  # Layout /etc/foo.conf: bind-file $SNAP/foo.conf
-  mount options=(bind, rw) /snap/vanguard/42/foo.conf -> /etc/foo.conf,
-  mount options=(rprivate) -> /etc/foo.conf,
-  umount /etc/foo.conf,
+  mount options=(bind, rw) "/snap/vanguard/42/foo.conf" -> "/etc/foo.conf",
+  mount options=(rprivate) -> "/etc/foo.conf",
+  umount "/etc/foo.conf",
   # Writable mimic /etc
   # .. permissions for traversing the prefix that is assumed to exist
-  / r,
+  "/" r,
   # .. variant with mimic at /etc/
   # Allow reading the mimic directory, it must exist in the first place.
-  /etc/ r,
+  "/etc/" r,
   # Allow setting the read-only directory aside via a bind mount.
-  /tmp/.snap/etc/ rw,
-  mount options=(rbind, rw) /etc/ -> /tmp/.snap/etc/,
+  "/tmp/.snap/etc/" rw,
+  mount options=(rbind, rw) "/etc/" -> "/tmp/.snap/etc/",
   # Allow mounting tmpfs over the read-only directory.
-  mount fstype=tmpfs options=(rw) tmpfs -> /etc/,
+  mount fstype=tmpfs options=(rw) tmpfs -> "/etc/",
   # Allow creating empty files and directories for bind mounting things
   # to reconstruct the now-writable parent directory.
-  /tmp/.snap/etc/*/ rw,
-  /etc/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/etc/*/ -> /etc/*/,
-  /tmp/.snap/etc/* rw,
-  /etc/* rw,
-  mount options=(bind, rw) /tmp/.snap/etc/* -> /etc/*,
+  "/tmp/.snap/etc/*/" rw,
+  "/etc/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/etc/*/" -> "/etc/*/",
+  "/tmp/.snap/etc/*" rw,
+  "/etc/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/etc/*" -> "/etc/*",
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
-  mount options=(rprivate) -> /tmp/.snap/etc/,
-  umount /tmp/.snap/etc/,
+  mount options=(rprivate) -> "/tmp/.snap/etc/",
+  umount "/tmp/.snap/etc/",
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
-  mount options=(rprivate) -> /etc/,
-  mount options=(rprivate) -> /etc/*,
-  mount options=(rprivate) -> /etc/*/,
-  umount /etc/,
-  umount /etc/*,
-  umount /etc/*/,
+  mount options=(rprivate) -> "/etc/",
+  mount options=(rprivate) -> "/etc/*",
+  mount options=(rprivate) -> "/etc/*/",
+  umount "/etc/",
+  umount "/etc/*",
+  umount "/etc/*/",
   # Writable mimic /snap/vanguard/42
-  /snap/ r,
-  /snap/vanguard/ r,
+  "/snap/" r,
+  "/snap/vanguard/" r,
   # .. variant with mimic at /snap/vanguard/42/
-  /snap/vanguard/42/ r,
-  /tmp/.snap/snap/vanguard/42/ rw,
-  mount options=(rbind, rw) /snap/vanguard/42/ -> /tmp/.snap/snap/vanguard/42/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/,
-  /tmp/.snap/snap/vanguard/42/*/ rw,
-  /snap/vanguard/42/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/*/ -> /snap/vanguard/42/*/,
-  /tmp/.snap/snap/vanguard/42/* rw,
-  /snap/vanguard/42/* rw,
-  mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/* -> /snap/vanguard/42/*,
-  mount options=(rprivate) -> /tmp/.snap/snap/vanguard/42/,
-  umount /tmp/.snap/snap/vanguard/42/,
-  mount options=(rprivate) -> /snap/vanguard/42/,
-  mount options=(rprivate) -> /snap/vanguard/42/*,
-  mount options=(rprivate) -> /snap/vanguard/42/*/,
-  umount /snap/vanguard/42/,
-  umount /snap/vanguard/42/*,
-  umount /snap/vanguard/42/*/,
+  "/snap/vanguard/42/" r,
+  "/tmp/.snap/snap/vanguard/42/" rw,
+  mount options=(rbind, rw) "/snap/vanguard/42/" -> "/tmp/.snap/snap/vanguard/42/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/snap/vanguard/42/",
+  "/tmp/.snap/snap/vanguard/42/*/" rw,
+  "/snap/vanguard/42/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/snap/vanguard/42/*/" -> "/snap/vanguard/42/*/",
+  "/tmp/.snap/snap/vanguard/42/*" rw,
+  "/snap/vanguard/42/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/snap/vanguard/42/*" -> "/snap/vanguard/42/*",
+  mount options=(rprivate) -> "/tmp/.snap/snap/vanguard/42/",
+  umount "/tmp/.snap/snap/vanguard/42/",
+  mount options=(rprivate) -> "/snap/vanguard/42/",
+  mount options=(rprivate) -> "/snap/vanguard/42/*",
+  mount options=(rprivate) -> "/snap/vanguard/42/*/",
+  umount "/snap/vanguard/42/",
+  umount "/snap/vanguard/42/*",
+  umount "/snap/vanguard/42/*/",
 `
 	// Find the slice that describes profile0 by looking for the first unique
 	// line of the next profile.
@@ -357,49 +357,49 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile0)
 
 	profile1 := `  # Layout /usr/foo: bind $SNAP/usr/foo
-  mount options=(rbind, rw) /snap/vanguard/42/usr/foo/ -> /usr/foo/,
-  mount options=(rprivate) -> /usr/foo/,
-  umount /usr/foo/,
+  mount options=(rbind, rw) "/snap/vanguard/42/usr/foo/" -> "/usr/foo/",
+  mount options=(rprivate) -> "/usr/foo/",
+  umount "/usr/foo/",
   # Writable mimic /usr
   # .. variant with mimic at /usr/
-  /usr/ r,
-  /tmp/.snap/usr/ rw,
-  mount options=(rbind, rw) /usr/ -> /tmp/.snap/usr/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /usr/,
-  /tmp/.snap/usr/*/ rw,
-  /usr/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/usr/*/ -> /usr/*/,
-  /tmp/.snap/usr/* rw,
-  /usr/* rw,
-  mount options=(bind, rw) /tmp/.snap/usr/* -> /usr/*,
-  mount options=(rprivate) -> /tmp/.snap/usr/,
-  umount /tmp/.snap/usr/,
-  mount options=(rprivate) -> /usr/,
-  mount options=(rprivate) -> /usr/*,
-  mount options=(rprivate) -> /usr/*/,
-  umount /usr/,
-  umount /usr/*,
-  umount /usr/*/,
+  "/usr/" r,
+  "/tmp/.snap/usr/" rw,
+  mount options=(rbind, rw) "/usr/" -> "/tmp/.snap/usr/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/usr/",
+  "/tmp/.snap/usr/*/" rw,
+  "/usr/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/usr/*/" -> "/usr/*/",
+  "/tmp/.snap/usr/*" rw,
+  "/usr/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/usr/*" -> "/usr/*",
+  mount options=(rprivate) -> "/tmp/.snap/usr/",
+  umount "/tmp/.snap/usr/",
+  mount options=(rprivate) -> "/usr/",
+  mount options=(rprivate) -> "/usr/*",
+  mount options=(rprivate) -> "/usr/*/",
+  umount "/usr/",
+  umount "/usr/*",
+  umount "/usr/*/",
   # Writable mimic /snap/vanguard/42/usr
   # .. variant with mimic at /snap/vanguard/42/usr/
-  /snap/vanguard/42/usr/ r,
-  /tmp/.snap/snap/vanguard/42/usr/ rw,
-  mount options=(rbind, rw) /snap/vanguard/42/usr/ -> /tmp/.snap/snap/vanguard/42/usr/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/usr/,
-  /tmp/.snap/snap/vanguard/42/usr/*/ rw,
-  /snap/vanguard/42/usr/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/usr/*/ -> /snap/vanguard/42/usr/*/,
-  /tmp/.snap/snap/vanguard/42/usr/* rw,
-  /snap/vanguard/42/usr/* rw,
-  mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/usr/* -> /snap/vanguard/42/usr/*,
-  mount options=(rprivate) -> /tmp/.snap/snap/vanguard/42/usr/,
-  umount /tmp/.snap/snap/vanguard/42/usr/,
-  mount options=(rprivate) -> /snap/vanguard/42/usr/,
-  mount options=(rprivate) -> /snap/vanguard/42/usr/*,
-  mount options=(rprivate) -> /snap/vanguard/42/usr/*/,
-  umount /snap/vanguard/42/usr/,
-  umount /snap/vanguard/42/usr/*,
-  umount /snap/vanguard/42/usr/*/,
+  "/snap/vanguard/42/usr/" r,
+  "/tmp/.snap/snap/vanguard/42/usr/" rw,
+  mount options=(rbind, rw) "/snap/vanguard/42/usr/" -> "/tmp/.snap/snap/vanguard/42/usr/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/snap/vanguard/42/usr/",
+  "/tmp/.snap/snap/vanguard/42/usr/*/" rw,
+  "/snap/vanguard/42/usr/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/snap/vanguard/42/usr/*/" -> "/snap/vanguard/42/usr/*/",
+  "/tmp/.snap/snap/vanguard/42/usr/*" rw,
+  "/snap/vanguard/42/usr/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/snap/vanguard/42/usr/*" -> "/snap/vanguard/42/usr/*",
+  mount options=(rprivate) -> "/tmp/.snap/snap/vanguard/42/usr/",
+  umount "/tmp/.snap/snap/vanguard/42/usr/",
+  mount options=(rprivate) -> "/snap/vanguard/42/usr/",
+  mount options=(rprivate) -> "/snap/vanguard/42/usr/*",
+  mount options=(rprivate) -> "/snap/vanguard/42/usr/*/",
+  umount "/snap/vanguard/42/usr/",
+  umount "/snap/vanguard/42/usr/*",
+  umount "/snap/vanguard/42/usr/*/",
 `
 	// Find the slice that describes profile1 by looking for the first unique
 	// line of the next profile.
@@ -408,46 +408,46 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile1)
 
 	profile2 := `  # Layout /var/cache/mylink: symlink $SNAP_DATA/link/target
-  /var/cache/mylink rw,
+  "/var/cache/mylink" rw,
   # Writable mimic /var/cache
   # .. variant with mimic at /var/
-  /var/ r,
-  /tmp/.snap/var/ rw,
-  mount options=(rbind, rw) /var/ -> /tmp/.snap/var/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /var/,
-  /tmp/.snap/var/*/ rw,
-  /var/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/var/*/ -> /var/*/,
-  /tmp/.snap/var/* rw,
-  /var/* rw,
-  mount options=(bind, rw) /tmp/.snap/var/* -> /var/*,
-  mount options=(rprivate) -> /tmp/.snap/var/,
-  umount /tmp/.snap/var/,
-  mount options=(rprivate) -> /var/,
-  mount options=(rprivate) -> /var/*,
-  mount options=(rprivate) -> /var/*/,
-  umount /var/,
-  umount /var/*,
-  umount /var/*/,
+  "/var/" r,
+  "/tmp/.snap/var/" rw,
+  mount options=(rbind, rw) "/var/" -> "/tmp/.snap/var/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/var/",
+  "/tmp/.snap/var/*/" rw,
+  "/var/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/var/*/" -> "/var/*/",
+  "/tmp/.snap/var/*" rw,
+  "/var/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/var/*" -> "/var/*",
+  mount options=(rprivate) -> "/tmp/.snap/var/",
+  umount "/tmp/.snap/var/",
+  mount options=(rprivate) -> "/var/",
+  mount options=(rprivate) -> "/var/*",
+  mount options=(rprivate) -> "/var/*/",
+  umount "/var/",
+  umount "/var/*",
+  umount "/var/*/",
   # .. variant with mimic at /var/cache/
-  /var/cache/ r,
-  /tmp/.snap/var/cache/ rw,
-  mount options=(rbind, rw) /var/cache/ -> /tmp/.snap/var/cache/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /var/cache/,
-  /tmp/.snap/var/cache/*/ rw,
-  /var/cache/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/var/cache/*/ -> /var/cache/*/,
-  /tmp/.snap/var/cache/* rw,
-  /var/cache/* rw,
-  mount options=(bind, rw) /tmp/.snap/var/cache/* -> /var/cache/*,
-  mount options=(rprivate) -> /tmp/.snap/var/cache/,
-  umount /tmp/.snap/var/cache/,
-  mount options=(rprivate) -> /var/cache/,
-  mount options=(rprivate) -> /var/cache/*,
-  mount options=(rprivate) -> /var/cache/*/,
-  umount /var/cache/,
-  umount /var/cache/*,
-  umount /var/cache/*/,
+  "/var/cache/" r,
+  "/tmp/.snap/var/cache/" rw,
+  mount options=(rbind, rw) "/var/cache/" -> "/tmp/.snap/var/cache/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/var/cache/",
+  "/tmp/.snap/var/cache/*/" rw,
+  "/var/cache/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/var/cache/*/" -> "/var/cache/*/",
+  "/tmp/.snap/var/cache/*" rw,
+  "/var/cache/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/var/cache/*" -> "/var/cache/*",
+  mount options=(rprivate) -> "/tmp/.snap/var/cache/",
+  umount "/tmp/.snap/var/cache/",
+  mount options=(rprivate) -> "/var/cache/",
+  mount options=(rprivate) -> "/var/cache/*",
+  mount options=(rprivate) -> "/var/cache/*/",
+  umount "/var/cache/",
+  umount "/var/cache/*",
+  umount "/var/cache/*/",
 `
 	// Find the slice that describes profile2 by looking for the first unique
 	// line of the next profile.
@@ -456,9 +456,9 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile2)
 
 	profile3 := `  # Layout /var/tmp: type tmpfs, mode: 01777
-  mount fstype=tmpfs tmpfs -> /var/tmp/,
-  mount options=(rprivate) -> /var/tmp/,
-  umount /var/tmp/,
+  mount fstype=tmpfs tmpfs -> "/var/tmp/",
+  mount options=(rprivate) -> "/var/tmp/",
+  umount "/var/tmp/",
   # Writable mimic /var
 `
 	// Find the slice that describes profile2 by looking till the end of the list.
@@ -504,6 +504,37 @@ func (s *specSuite) TestApparmorOvernameSnippets(c *C) {
   mount options=(rw rbind) /var/snap/some-snap_instance/ -> /var/snap/some-snap/,
 `
 	c.Assert(updateNS[0], Equals, profile)
+}
+
+func (s *specSuite) TestApparmorExtraLayouts(c *C) {
+	snapInfo := snaptest.MockInfo(c, snapTrivial, &snap.SideInfo{Revision: snap.R(42)})
+	snapInfo.InstanceKey = "instance"
+
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.some-snap_instace.app"})
+	defer restore()
+
+	extraLayouts := []snap.Layout{
+		{
+			Path: "/test",
+			Bind: "/usr/home/test",
+			Mode: 0755,
+		},
+	}
+
+	s.spec.AddExtraLayouts(snapInfo, extraLayouts)
+
+	updateNS := s.spec.UpdateNS()
+
+	// verify that updateNS does indeed add all the additional layout
+	// lines. This just so happens to be 10 in this case because of reverse
+	// traversal for the path /usr/home/test
+	c.Assert(updateNS, HasLen, 10)
+
+	// make sure the extra layout is added
+	c.Assert(updateNS[0], Equals, "  # Layout /test: bind /usr/home/test\n")
+	c.Assert(updateNS[1], Equals, "  mount options=(rbind, rw) \"/usr/home/test/\" -> \"/test/\",\n")
+	c.Assert(updateNS[2], Equals, "  mount options=(rprivate) -> \"/test/\",\n")
+	// lines 3..9 is the traversal of the prefix for /usr/home/test
 }
 
 func (s *specSuite) TestUsesPtraceTrace(c *C) {

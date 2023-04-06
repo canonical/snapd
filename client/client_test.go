@@ -35,10 +35,12 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -629,6 +631,23 @@ func (cs *clientSuite) TestDebugGet(c *C) {
 	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"aspect": []string{"do-something"}, "foo": []string{"bar"}})
 }
 
+func (cs *clientSuite) TestDebugMigrateHome(c *C) {
+	cs.status = 202
+	cs.rsp = `{"type": "async", "status-code": 202, "change": "123"}`
+
+	snaps := []string{"foo", "bar"}
+	changeID, err := cs.cli.MigrateSnapHome(snaps)
+	c.Check(err, IsNil)
+	c.Check(changeID, Equals, "123")
+
+	c.Check(cs.reqs, HasLen, 1)
+	c.Check(cs.reqs[0].Method, Equals, "POST")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
+	data, err := ioutil.ReadAll(cs.reqs[0].Body)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, `{"action":"migrate-home","snaps":["foo","bar"]}`)
+}
+
 type integrationSuite struct{}
 
 var _ = Suite(&integrationSuite{})
@@ -660,4 +679,38 @@ func (cs *clientSuite) TestClientSystemRecoveryKeys(c *C) {
 	c.Check(cs.reqs[0].Method, Equals, "GET")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/system-recovery-keys")
 	c.Check(key.RecoveryKey, Equals, "42")
+}
+
+func (cs *clientSuite) TestClientDebugEnvVar(c *check.C) {
+	buf, restore := logger.MockLogger()
+	defer restore()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `bar`)
+	}))
+	defer srv.Close()
+
+	debugValue, ok := os.LookupEnv("SNAP_CLIENT_DEBUG_HTTP")
+	defer func() {
+		if ok {
+			os.Setenv("SNAP_CLIENT_DEBUG_HTTP", debugValue)
+		} else {
+			os.Unsetenv("SNAP_CLIENT_DEBUG_HTTP")
+		}
+	}()
+
+	os.Setenv("SNAP_CLIENT_DEBUG_HTTP", "7")
+
+	cli := client.New(&client.Config{BaseURL: srv.URL})
+	c.Assert(cli, check.NotNil)
+	_, err := cli.Do("GET", "/", nil, strings.NewReader("foo"), nil, nil)
+	c.Assert(err, check.IsNil)
+
+	// check request
+	c.Assert(buf.String(), testutil.Contains, `logger.go:67: DEBUG: > "GET`)
+	// check response
+	c.Assert(buf.String(), testutil.Contains, `logger.go:74: DEBUG: < "HTTP/1.1 200 OK`)
+	// check bodies
+	c.Assert(buf.String(), testutil.Contains, "foo")
+	c.Assert(buf.String(), testutil.Contains, "bar")
 }

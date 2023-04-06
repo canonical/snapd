@@ -70,8 +70,13 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	glob := polkitPolicyName(snapName, "*")
 	content := deriveContent(spec.(*Specification), snapInfo)
 	dir := dirs.SnapPolkitPolicyDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for polkit policy files %q: %s", dir, err)
+
+	// If we do not have any content to write, there is no point
+	// ensuring the directory exists.
+	if content != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("cannot create directory for polkit policy files %q: %s", dir, err)
+		}
 	}
 	_, _, err = osutil.EnsureDirState(dir, glob, content)
 	if err != nil {

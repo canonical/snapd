@@ -57,6 +57,11 @@ debug: |
 
 
 execute: |
+    if not os.query is-pc-amd64; then
+        echo "The snap test-snapd-portal-client is just available for amd64"
+        exit
+    fi
+
     echo "Install the portals test client"
     snap install --edge test-snapd-portal-client
 

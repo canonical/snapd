@@ -16,18 +16,21 @@ prepare: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
 
-  IMGURL=$(tests.nested download image-url ubuntu-20.04-64)
-  wget --quiet "$IMGURL" -O cloudimg.img
+  # shellcheck source=tests/lib/image.sh
+  . "$TESTSLIB"/image.sh
+  wget --quiet "$(get_image_url_for_vm ubuntu-20.04-64)" -O cloudimg.img
 
   modprobe nbd
 
   # Run qemu-nbd as a service, so that it does not interact with ssh
   # stdin/stdout it would otherwise inherit from the spread session.
-  systemd-run --system --service-type=forking --unit=qemu-nbd-preseed.service "$(command -v qemu-nbd)" --fork -c /dev/nbd0 "$(pwd)/cloudimg.img"
+  # TODO: re-use tests/lib/preseed.sh:mount_ubuntu_image() here
+  systemd-run --system --service-type=forking --unit=qemu-nbd-preseed.service "$(command -v qemu-nbd)" -v --fork -c /dev/nbd0 "$(pwd)/cloudimg.img"
   # nbd0p1 may take a short while to become available
   if ! retry -n 30 --wait 1 test -e /dev/nbd0p1; then
         echo "ERROR: /dev/nbd0p1 did not show up"
         journalctl -u qemu-nbd-preseed.service
+        find /dev/ -name "nbd0*" -ls
         exit 1
   fi
   mkdir -p "$IMAGE_MOUNTPOINT"
@@ -101,7 +104,7 @@ execute: |
   lxc exec my-ubuntu -- "$GOHOME"/preseed-prepare.sh "$IMAGE_MOUNTPOINT"
   lxc exec my-ubuntu -- "$GOHOME"/snap-preseed "$IMAGE_MOUNTPOINT"
 
-  echo "Sanity check of mount units"
+  echo "Precondition check of mount units"
   # preseeded image is mounted on the host, so we can directly inspect
   # preseeding artifacts.
   MATCH "Type=squashfs$" < "$IMAGE_MOUNTPOINT"/etc/systemd/system/snap-lxd-*.mount
@@ -143,7 +146,7 @@ execute: |
     exit 1
   fi
 
-  echo "Sanity check that mount overrides were generated inside the container"
+  echo "Precondition check that mount overrides were generated inside the container"
   lxc exec my-ubuntu-preseeded -- find /var/run/systemd/generator/ -name container.conf > overrides.log
   MATCH "/var/run/systemd/generator/snap-core20.*mount.d/container.conf" < overrides.log
   MATCH "/var/run/systemd/generator/snap-snapd-.*mount.d/container.conf" < overrides.log

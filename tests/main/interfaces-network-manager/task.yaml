@@ -18,10 +18,19 @@ systems:
     - ubuntu-core-18-64
     - ubuntu-core-18-32
     - ubuntu-core-20-64
+    - ubuntu-core-22-64
 
 prepare: |
-    echo "Give a network-manager snap is installed"
-    snap install network-manager
+    echo "Given a network-manager snap is installed"
+    if os.query is-core16; then
+        snap install --channel=latest network-manager
+    elif os.query is-core18; then
+        snap install --channel=1.10 network-manager
+    else
+        snap install --channel=20 network-manager
+    fi
+
+    rm -f /etc/netplan/00-default-nm-renderer.yaml
 
 execute: |
     # using wait_for_service is not enough, systemd considers the service
@@ -34,7 +43,7 @@ execute: |
     done
 
     echo "The interface is connected by default"
-    snap interfaces -i network-manager | MATCH "network-manager:service .*network-manager:nmcli"
+    snap connections network-manager | MATCH "network-manager:nmcli *network-manager:service"
 
     echo "And allows to add a new connection"
     conn_name=nmtest

@@ -175,7 +175,6 @@ linters:
   enable:
     - govet
     - misspell
-    - deadcode
     - unused
     # gosimple may suggest patterns that work only with more recent Go versions
     # - gosimple
@@ -183,7 +182,8 @@ linters:
     # formatting is disabled until we move to Go 1.13
     # - gofmt
     - ineffassign
-    - gci
+    # disabling until https://github.com/daixiang0/gci/issues/54 is fixed
+    # - gci
     - testpackage
   # disable everything else
   disable-all: true

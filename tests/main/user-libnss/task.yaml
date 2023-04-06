@@ -41,7 +41,7 @@ execute: |
     CGO_ENABLED=1 go build -o findid-cgo ./findid.go
     CGO_ENABLED=0 go build -o findid-no-cgo ./findid.go
 
-    # sanity check
+    # precondition check
     getent passwd extratest
     getent group extratest
 

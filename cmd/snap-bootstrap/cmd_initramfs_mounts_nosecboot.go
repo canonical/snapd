@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build nosecboot
 // +build nosecboot
 
 /*
@@ -33,6 +34,9 @@ var (
 )
 
 func init() {
+	secbootProvisionForCVM = func(_ string) error {
+		return errNotImplemented
+	}
 	secbootMeasureSnapSystemEpochWhenPossible = func() error {
 		return errNotImplemented
 	}

@@ -21,6 +21,7 @@
 package storecontext
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -179,7 +180,7 @@ func (sc *storeContext) StoreID(fallback string) (string, error) {
 	defer sc.state.Unlock()
 
 	mod, err := sc.deviceBackend.Model()
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", err
 	}
 
@@ -199,7 +200,7 @@ func (sc *storeContext) DeviceSessionRequestParams(nonce string) (*DeviceSession
 	defer sc.state.Unlock()
 
 	params, err := sc.deviceSessionRequestParams(nonce)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, store.ErrNoSerial
 	}
 
@@ -235,7 +236,7 @@ func (sc *storeContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID stri
 	defer sc.state.Unlock()
 
 	sto, err := sc.proxyStoreer.ProxyStore()
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", nil, err
 	}
 

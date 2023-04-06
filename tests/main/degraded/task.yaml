@@ -28,9 +28,12 @@ execute: |
             # which are not part of the cloud kernel package
             systemctl reset-failed systemd-modules-load.service
             ;;
-        ubuntu-21.10-64)
-            # Some mount units failing which are installed in the prebuilt image 
-            systemctl reset-failed --type mount
+        centos-8-*)
+            # tries to load ipmi_si module which fails with ENODEV
+            systemctl reset-failed systemd-modules-load.service
+            # These transient units attempt to update the man page cache, but
+            # fail with the error "Warning! D-Bus connection terminated."
+            systemctl reset-failed 'run-*'
             ;;
     esac
 

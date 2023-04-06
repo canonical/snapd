@@ -159,7 +159,8 @@ func (s *extKeypairMgrSuite) TestGetByNameNotFound(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = kmgr.GetByName("missing")
-	c.Check(err, ErrorMatches, `cannot find external key:.*missing.*`)
+	c.Check(err, ErrorMatches, `cannot find external key pair: external keypair manager "keymgr" .* failed: .*`)
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 }
 
 func (s *extKeypairMgrSuite) TestGet(c *C) {
@@ -185,7 +186,8 @@ func (s *extKeypairMgrSuite) TestGet(c *C) {
 	})
 
 	_, err = kmgr.Get("unknown-id")
-	c.Check(err, ErrorMatches, `cannot find external key with id "unknown-id"`)
+	c.Check(err, ErrorMatches, `cannot find external key pair`)
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 }
 
 func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
@@ -300,11 +302,21 @@ func (s *extKeypairMgrSuite) TestListError(c *C) {
 	c.Check(err, ErrorMatches, `cannot get all external keypair manager key names:.*exit status 1.*`)
 }
 
-func (s *extKeypairMgrSuite) TestDeleteUnsupported(c *C) {
+func (s *extKeypairMgrSuite) TestDeleteByNameUnsupported(c *C) {
 	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
 	c.Assert(err, IsNil)
 
-	err = kmgr.Delete("key")
+	err = kmgr.DeleteByName("key")
+	c.Check(err, ErrorMatches, `no support to delete external keypair manager keys`)
+	c.Check(err, FitsTypeOf, &asserts.ExternalUnsupportedOpError{})
+
+}
+
+func (s *extKeypairMgrSuite) TestDelete(c *C) {
+	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
+	c.Assert(err, IsNil)
+
+	err = kmgr.Delete("key-id")
 	c.Check(err, ErrorMatches, `no support to delete external keypair manager keys`)
 	c.Check(err, FitsTypeOf, &asserts.ExternalUnsupportedOpError{})
 

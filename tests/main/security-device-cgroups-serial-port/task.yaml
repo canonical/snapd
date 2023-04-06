@@ -1,5 +1,9 @@
 summary: Ensure that the device cgroup works properly for serial-port.
 
+systems:
+  #TODO: bpftool is not available on core22 and tests.device-cgroup needs it for cgroups v2
+  - -ubuntu-core-22-*
+
 prepare: |
     # create serial devices if they don't exist
     if [ ! -e /dev/ttyS4 ]; then

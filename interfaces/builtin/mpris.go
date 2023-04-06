@@ -158,6 +158,14 @@ dbus (send)
     bus=session
     path=/org/mpris/MediaPlayer2
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# receive signals for updated properties
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/mpris/MediaPlayer2
+    member=PropertiesChanged
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 type mprisInterface struct{}

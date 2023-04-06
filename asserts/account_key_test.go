@@ -622,7 +622,7 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinWithUntilPu
 	}
 
 	for _, t := range tests {
-		c.Check(asserts.AccountKeyIsKeyValidAssumingCurTimeWithin(accKey, t.timePt, t.timePt), Equals, t.valid)
+		c.Check(asserts.IsValidAssumingCurTimeWithin(accKey, t.timePt, t.timePt), Equals, t.valid)
 	}
 }
 
@@ -657,7 +657,7 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinNoUntilPunc
 	}
 
 	for _, t := range tests {
-		c.Check(asserts.AccountKeyIsKeyValidAssumingCurTimeWithin(accKey, t.timePt, t.timePt), Equals, t.valid)
+		c.Check(asserts.IsValidAssumingCurTimeWithin(accKey, t.timePt, t.timePt), Equals, t.valid)
 	}
 }
 
@@ -711,7 +711,7 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinWithUntilIn
 	}
 
 	for _, t := range tests {
-		c.Check(asserts.AccountKeyIsKeyValidAssumingCurTimeWithin(accKey, t.earliest, t.latest), Equals, t.valid)
+		c.Check(asserts.IsValidAssumingCurTimeWithin(accKey, t.earliest, t.latest), Equals, t.valid)
 	}
 
 }
@@ -766,7 +766,7 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinNoUntilInte
 	}
 
 	for _, t := range tests {
-		c.Check(asserts.AccountKeyIsKeyValidAssumingCurTimeWithin(accKey, t.earliest, t.latest), Equals, t.valid)
+		c.Check(asserts.IsValidAssumingCurTimeWithin(accKey, t.earliest, t.latest), Equals, t.valid)
 	}
 
 }

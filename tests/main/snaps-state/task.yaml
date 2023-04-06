@@ -1,5 +1,7 @@
 summary: smoke test for the snaps-state tool
 
+backends: [google, qemu]
+
 prepare: |
     snap set system experimental.parallel-instances=true
 
@@ -121,6 +123,12 @@ execute: |
         rm -rf "$tmpdir"
         echo "$sum" | awk '{print $1}'
     }
+
+    # Skip test repack when the sru validation is being executed, in this
+    # scenario the deb package used comes from the sru and repack is not done
+    if [ "$SRU_VALIDATION" = 1 ]; then
+        exit 0
+    fi
 
     # Check the repack of the snapd deb into core and snapd snaps. This check is executed
     # on ubuntu/debian systems where the snapd_*.deb is generated while the system is prepared

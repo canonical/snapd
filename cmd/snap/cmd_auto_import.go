@@ -20,7 +20,6 @@
 package main
 
 import (
-	"bufio"
 	"crypto"
 	"encoding/base64"
 	"fmt"
@@ -46,54 +45,26 @@ import (
 
 const autoImportsName = "auto-import.assert"
 
-var mountInfoPath = "/proc/self/mountinfo"
-
 func autoImportCandidates() ([]string, error) {
 	var cands []string
 
-	// see https://www.kernel.org/doc/Documentation/filesystems/proc.txt,
-	// sec. 3.5
-	f, err := os.Open(mountInfoPath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
 	isTesting := snapdenv.Testing()
 
-	// TODO: re-write this to use osutil.LoadMountInfo instead of doing the
-	//       parsing ourselves
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		l := strings.Fields(scanner.Text())
-
-		// Per proc.txt:3.5, /proc/<pid>/mountinfo looks like
-		//
-		//  36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
-		//  (1)(2)(3)   (4)   (5)      (6)      (7)   (8) (9)   (10)         (11)
-		//
-		// and (7) has zero or more elements, find the "-" separator.
-		i := 6
-		for i < len(l) && l[i] != "-" {
-			i++
-		}
-		if i+2 >= len(l) {
-			continue
-		}
-
-		mountSrc := l[i+2]
-
+	mnts, err := osutil.LoadMountInfo()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse mountinfo: %v", err)
+	}
+	for _, mnt := range mnts {
 		// skip everything that is not a device (cgroups, debugfs etc)
-		if !strings.HasPrefix(mountSrc, "/dev/") {
+		if !strings.HasPrefix(mnt.MountSource, "/dev/") {
 			continue
 		}
 		// skip all loop devices (snaps)
-		if strings.HasPrefix(mountSrc, "/dev/loop") {
+		if strings.HasPrefix(mnt.MountSource, "/dev/loop") {
 			continue
 		}
 		// skip all ram disks (unless in tests)
-		if !isTesting && strings.HasPrefix(mountSrc, "/dev/ram") {
+		if !isTesting && strings.HasPrefix(mnt.MountSource, "/dev/ram") {
 			continue
 		}
 
@@ -102,7 +73,7 @@ func autoImportCandidates() ([]string, error) {
 		//       and determine what partitions to skip using the disks package?
 
 		// skip all initramfs mounted disks on uc20
-		mountPoint := l[4]
+		mountPoint := mnt.MountDir
 		if strings.HasPrefix(mountPoint, boot.InitramfsRunMntDir) {
 			continue
 		}
@@ -111,7 +82,14 @@ func autoImportCandidates() ([]string, error) {
 		// initramfs dirs on uc20, this can show up as
 		// /writable/system-data/var/lib/snapd/seed as well as
 		// /var/lib/snapd/seed
-		if strings.HasSuffix(mountPoint, dirs.SnapSeedDir) {
+		if strings.HasPrefix(mountPoint, dirs.SnapSeedDir) {
+			continue
+		}
+
+		// TODO: we should probably make this a formal dir in dirs.go, but it is
+		// not directly used since we just use SnapSeedDir instead
+		writableSystemDataDir := filepath.Join(dirs.GlobalRootDir, "writable", "system-data")
+		if strings.HasPrefix(mountPoint, dirs.SnapSeedDirUnder(writableSystemDataDir)) {
 			continue
 		}
 
@@ -121,7 +99,7 @@ func autoImportCandidates() ([]string, error) {
 		}
 	}
 
-	return cands, scanner.Err()
+	return cands, nil
 }
 
 func queueFile(src string) error {

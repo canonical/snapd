@@ -12,19 +12,16 @@ environment:
   NESTED_ENABLE_TPM/encrypted: "true"
   NESTED_ENABLE_SECURE_BOOT/encrypted: "true"
   NESTED_UBUNTU_SAVE/encrypted: "add"
-  NESTED_IMAGE_ID/encrypted: core20-encrypted
 
   # add ubuntu-save, but but no TPM or secure boot support
   NESTED_ENABLE_TPM/plainwithsave: "false"
   NESTED_ENABLE_SECURE_BOOT/plainwithsave: "false"
   NESTED_UBUNTU_SAVE/plainwithsave: "add"
-  NESTED_IMAGE_ID/plainwithsave: core20-plain-with-ubuntu-save
 
   # no ubuntu-save, no TPM, no secure boot
   NESTED_ENABLE_TPM/plain: "false"
   NESTED_ENABLE_SECURE_BOOT/plain: "false"
   NESTED_UBUNTU_SAVE/plain: "remove"
-  NESTED_IMAGE_ID/plain: core20-plain-no-ubuntu-save
 
 prepare: |
     # NESTED_ENABLE_TPM and NESTED_UBUNTU_SAVE are used by build-image
@@ -43,14 +40,14 @@ debug: |
 execute: |
     if [ "${NESTED_UBUNTU_SAVE:-}" != "add" ] && ! tests.nested is-enabled tpm; then
         echo "Check that ubuntu-save is not mounted"
-        tests.nested exec "! mountpoint /run/mnt/ubuntu-save"
-        tests.nested exec "! mountpoint /var/lib/snapd/save"
+        remote.exec "! mountpoint /run/mnt/ubuntu-save"
+        remote.exec "! mountpoint /var/lib/snapd/save"
     else
         echo "Check that ubuntu-save is mounted and has a reasonable amount of free space"
         #example df output:
         # Filesystem                                                   1B-blocks  Used Available Use% Mounted on
         # /dev/mapper/ubuntu-save-0bed13ef-f71f-418f-b046-b1ce32dd04a7   5079040 28672   4390912   1% /run/mnt/ubuntu-save
-        save_out="$(tests.nested exec "df -B1 /run/mnt/ubuntu-save | tail -1")"
+        save_out="$(remote.exec "df -B1 /run/mnt/ubuntu-save | tail -1")"
         if tests.nested is-enabled tpm; then
             # when encrypted, ubuntu-save is mounted from a dm device
             echo "$save_out" | MATCH '^/dev/mapper/ubuntu-save-[0-9a-z-]+\s+'
@@ -64,27 +61,27 @@ execute: |
         test "$save_size" -gt "$((6*1024*1024))"
 
         # leave a canary
-        tests.nested exec "sudo touch /run/mnt/ubuntu-save/canary"
+        remote.exec "sudo touch /run/mnt/ubuntu-save/canary"
 
-        tests.nested exec mountpoint /var/lib/snapd/save
+        remote.exec mountpoint /var/lib/snapd/save
         # we know that save is mounted using a systemd unit
-        tests.nested exec systemctl status var-lib-snapd-save.mount
+        remote.exec systemctl status var-lib-snapd-save.mount
         # and a canary exists
-        tests.nested exec "test -f /var/lib/snapd/save/canary"
+        remote.exec "test -f /var/lib/snapd/save/canary"
     fi
 
     echo "Transition to recovery mode and check again"
-    recovery_system=$(tests.nested exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
+    recovery_system=$(remote.exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
     tests.nested transition "$recovery_system" "recover"
 
     # happily running in recover mode
 
     if [ "${NESTED_UBUNTU_SAVE:-}" != "add" ] && ! tests.nested is-enabled tpm; then
         # no ubuntu-save
-        tests.nested exec "! mountpoint /run/mnt/ubuntu-save"
-        tests.nested exec "! mountpoint /var/lib/snapd/save"
+        remote.exec "! mountpoint /run/mnt/ubuntu-save"
+        remote.exec "! mountpoint /var/lib/snapd/save"
     else
-        recover_save_out="$(tests.nested exec "df -B1 /run/mnt/ubuntu-save | tail -1")"
+        recover_save_out="$(remote.exec "df -B1 /run/mnt/ubuntu-save | tail -1")"
         if tests.nested is-enabled tpm; then
             # when encrypted, ubuntu-save is mounted from a dm device
             echo "$recover_save_out" | MATCH '^/dev/mapper/ubuntu-save-[0-9a-z-]+\s+'
@@ -93,5 +90,5 @@ execute: |
             echo "$recover_save_out" | MATCH '^/dev/vda[0-9]\s+'
         fi
         # and a canary exists
-        tests.nested exec "test -f /run/mnt/ubuntu-save/canary"
+        remote.exec "test -f /run/mnt/ubuntu-save/canary"
     fi

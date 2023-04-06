@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 )
@@ -213,7 +214,7 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 	c.Assert(err, ErrorMatches, "model does not support the system-save role")
 }
 
-func (s *validateGadgetTestSuite) TestValidateConsistencyWithoutModelCharateristics(c *C) {
+func (s *validateGadgetTestSuite) TestValidateConsistencyWithoutModelCharacteristics(c *C) {
 	for i, tc := range []struct {
 		role  string
 		label string
@@ -265,7 +266,7 @@ volumes:
 	}
 }
 
-func (s *validateGadgetTestSuite) TestValidateConsistencyWithModelCharateristics(c *C) {
+func (s *validateGadgetTestSuite) TestValidateConsistencyWithModelCharacteristics(c *C) {
 	bloader := `
 volumes:
   pc:
@@ -274,37 +275,45 @@ volumes:
     structure:`
 
 	for i, tc := range []struct {
-		addSeed     bool
-		dataLabel   string
-		noData      bool
-		requireSeed bool
-		addSave     bool
-		saveLabel   string
-		err         string
+		addSeed   bool
+		addBoot   bool
+		isClassic bool
+		dataLabel string
+		noData    bool
+		hasModes  bool
+		addSave   bool
+		saveLabel string
+		err       string
 	}{
-		{addSeed: true, noData: true, requireSeed: true, err: "the system-seed role requires system-data to be defined"},
-		{addSeed: true, noData: true, requireSeed: false, err: "the system-seed role requires system-data to be defined"},
-		{addSeed: true, requireSeed: true},
+		{addSeed: true, noData: true, hasModes: true, err: "the system-seed role requires system-data to be defined"},
+		{addSeed: true, noData: true, hasModes: false, err: "the system-seed role requires system-data to be defined"},
+		{addSeed: true, hasModes: true},
 		{addSeed: true, err: `model does not support the system-seed role`},
-		{addSeed: true, dataLabel: "writable", requireSeed: true,
+		{addSeed: true, dataLabel: "writable", hasModes: true,
 			err: `system-data structure must have an implicit label or "ubuntu-data", not "writable"`},
 		{addSeed: true, dataLabel: "writable",
 			err: `model does not support the system-seed role`},
-		{addSeed: true, dataLabel: "ubuntu-data", requireSeed: true},
+		{addSeed: true, dataLabel: "ubuntu-data", hasModes: true},
 		{addSeed: true, dataLabel: "ubuntu-data",
 			err: `model does not support the system-seed role`},
-		{dataLabel: "writable", requireSeed: true,
+		{dataLabel: "writable", hasModes: true,
 			err: `model requires system-seed structure, but none was found`},
 		{dataLabel: "writable"},
-		{dataLabel: "ubuntu-data", requireSeed: true,
+		{dataLabel: "ubuntu-data", hasModes: true,
 			err: `model requires system-seed structure, but none was found`},
 		{dataLabel: "ubuntu-data", err: `system-data structure must have an implicit label or "writable", not "ubuntu-data"`},
-		{addSave: true, requireSeed: true, addSeed: true},
+		{addSave: true, hasModes: true, addSeed: true},
 		{addSave: true, err: `model does not support the system-save role`},
-		{addSeed: true, requireSeed: true, addSave: true, saveLabel: "foo",
+		{addSeed: true, hasModes: true, addSave: true, saveLabel: "foo",
 			err: `system-save structure must have an implicit label or "ubuntu-save", not "foo"`},
+		{isClassic: true, hasModes: true, addBoot: true},
+		{isClassic: true, hasModes: true, addBoot: true, addSave: true},
+		{isClassic: true, hasModes: true, addSeed: true, addBoot: true, addSave: true},
+		{isClassic: true, hasModes: true, addBoot: true, addSave: true, saveLabel: "ubuntu-save"},
+		{isClassic: true, hasModes: true, err: `system-boot and system-data roles are needed on classic`},
+		{isClassic: true, hasModes: true, addBoot: true, addSave: true, saveLabel: "random-label", err: `system-save structure must have an implicit label or "ubuntu-save", not "random-label"`},
 	} {
-		c.Logf("tc: %v %v %v %v", i, tc.addSeed, tc.dataLabel, tc.requireSeed)
+		c.Logf("tc: %v %v %v %v", i, tc.addSeed, tc.dataLabel, tc.hasModes)
 		b := &bytes.Buffer{}
 
 		fmt.Fprintf(b, bloader)
@@ -314,6 +323,13 @@ volumes:
         size: 10M
         type: 83
         role: system-seed`)
+		}
+		if tc.addBoot {
+			fmt.Fprintf(b, `
+      - name: Boot
+        size: 10M
+        type: 83
+        role: system-boot`)
 		}
 
 		if !tc.noData {
@@ -340,9 +356,9 @@ volumes:
 
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, b.Bytes())
 
-		mod := &modelCharateristics{
-			classic:    false,
-			systemSeed: tc.requireSeed,
+		mod := &gadgettest.ModelCharacteristics{
+			IsClassic: tc.isClassic,
+			HasModes:  tc.hasModes,
 		}
 		ginfo, err := gadget.ReadInfo(s.dir, mod)
 		c.Assert(err, IsNil)
@@ -357,8 +373,8 @@ volumes:
 	// test error with no volumes
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(bloader))
 
-	mod := &modelCharateristics{
-		systemSeed: true,
+	mod := &gadgettest.ModelCharacteristics{
+		HasModes: true,
 	}
 
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
@@ -441,7 +457,7 @@ volumes:
 
 func (s *validateGadgetTestSuite) TestValidateRoleDuplicated(c *C) {
 
-	for _, role := range []string{"system-seed", "system-data", "system-boot", "system-save"} {
+	for _, role := range []string{"system-seed", "system-seed-null", "system-data", "system-boot", "system-save"} {
 		gadgetYamlContent := fmt.Sprintf(`
 volumes:
   pc:
@@ -467,7 +483,7 @@ volumes:
 
 func (s *validateGadgetTestSuite) TestValidateSystemSeedRoleTwiceAcrossVolumes(c *C) {
 
-	for _, role := range []string{"system-seed", "system-data", "system-boot", "system-save"} {
+	for _, role := range []string{"system-seed", "system-seed-null", "system-data", "system-boot", "system-save"} {
 		gadgetYamlContent := fmt.Sprintf(`
 volumes:
   pc:
@@ -491,6 +507,31 @@ volumes:
 		err = gadget.Validate(ginfo, nil, nil)
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot have more than one partition with %s role across volumes`, role))
 	}
+}
+
+func (s *validateGadgetTestSuite) TestValidateSystemSeedAndSeedNullRolesAcrossVolumes(c *C) {
+	gadgetYamlContent := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        role: system-seed
+  other:
+    structure:
+      - name: bar
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        role: system-seed-null
+`
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
+
+	ginfo, err := gadget.ReadInfo(s.dir, nil)
+	c.Assert(err, IsNil)
+	err = gadget.Validate(ginfo, nil, nil)
+	c.Assert(err, ErrorMatches, "cannot have more than one partition with system-seed/system-seed-null role across volumes")
 }
 
 func (s *validateGadgetTestSuite) TestRuleValidateHybridGadget(c *C) {
@@ -533,8 +574,8 @@ func (s *validateGadgetTestSuite) TestRuleValidateHybridGadget(c *C) {
         size: 750M
 `)
 
-	mod := &modelCharateristics{
-		classic: false,
+	mod := &gadgettest.ModelCharacteristics{
+		IsClassic: false,
 	}
 	giMeta, err := gadget.InfoFromGadgetYaml(hybridyGadgetYaml, mod)
 	c.Assert(err, IsNil)
@@ -584,8 +625,8 @@ func (s *validateGadgetTestSuite) TestRuleValidateHybridGadgetBrokenDupRole(c *C
         size: 750M
 `)
 
-	mod := &modelCharateristics{
-		classic: false,
+	mod := &gadgettest.ModelCharacteristics{
+		IsClassic: false,
 	}
 	giMeta, err := gadget.InfoFromGadgetYaml(brokenGadgetYaml, mod)
 	c.Assert(err, IsNil)
@@ -716,7 +757,7 @@ var gadgetYamlContentWithSave = gadgetYamlContentNoSave + `
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportErr(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentNoSave))
 
-	mod := &modelCharateristics{systemSeed: true}
+	mod := &gadgettest.ModelCharacteristics{HasModes: true}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
@@ -727,7 +768,7 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportErr(c *C) {
 
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportHappy(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentWithSave))
-	mod := &modelCharateristics{systemSeed: true}
+	mod := &gadgettest.ModelCharacteristics{HasModes: true}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
@@ -739,18 +780,18 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportHappy(c *C) {
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportNoUC20(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlPC))
 
-	mod := &modelCharateristics{systemSeed: false}
+	mod := &gadgettest.ModelCharacteristics{HasModes: false}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
 		EncryptedData: true,
 	})
-	c.Assert(err, ErrorMatches, `internal error: cannot support encrypted data without requiring system-seed`)
+	c.Assert(err, ErrorMatches, `internal error: cannot support encrypted data in a system without modes`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportMultiVolumeHappy(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(mockMultiVolumeUC20GadgetYaml))
-	mod := &modelCharateristics{systemSeed: true}
+	mod := &gadgettest.ModelCharacteristics{HasModes: true}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
@@ -904,34 +945,44 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 	}
 
 	for _, tc := range []struct {
-		volumeContent []gadget.VolumeContent
-		kinfo         *kernel.Info
-		expectedErr   string
+		volumeContent  []gadget.VolumeContent
+		kinfo          *kernel.Info
+		consumed       bool
+		consumedErr    string
+		consumesOneErr string
 	}{
 		// happy case: trivial
-		{contentNoKernelRef, kInfoNoRefs, ""},
+		{contentNoKernelRef, kInfoNoRefs, false, "", ""},
 
 		// happy case: if kernel asset has "Update: false"
-		{contentNoKernelRef, kInfoOneRefButUpdateFlagFalse, ""},
+		{contentNoKernelRef, kInfoOneRefButUpdateFlagFalse, false, "", ""},
 
 		// unhappy case: kernel has one or more unresolved references in gadget
-		{contentNoKernelRef, kInfoOneRef, `gadget does not consume any of the kernel assets needing synced update "ref"`},
-		{contentNoKernelRef, kInfoTwoRefs, `gadget does not consume any of the kernel assets needing synced update "ref", "ref2"`},
+		{contentNoKernelRef, kInfoOneRef, false, "", "gadget does not consume any of the kernel assets needing synced update \"ref\""},
+		{contentNoKernelRef, kInfoTwoRefs, false, "", "gadget does not consume any of the kernel assets needing synced update \"ref\", \"ref2\""},
 
 		// unhappy case: gadget needs different asset than kernel provides
-		{contentOneKernelRef, kInfoOneRefDifferentName, `gadget does not consume any of the kernel assets needing synced update "ref-other"`},
+		{contentOneKernelRef, kInfoOneRefDifferentName, false, "", "gadget does not consume any of the kernel assets needing synced update \"ref-other\""},
 
 		// happy case: exactly one matching kernel ref
-		{contentOneKernelRef, kInfoOneRef, ""},
+		{contentOneKernelRef, kInfoOneRef, true, "", ""},
 		// happy case: one matching, one missing kernel ref, still considered fine
-		{contentTwoKernelRefs, kInfoTwoRefs, ""},
+		{contentTwoKernelRefs, kInfoTwoRefs, true, "", ""},
 	} {
 		lv.Structure[0].Content = tc.volumeContent
-		err := gadget.GadgetVolumeConsumesOneKernelUpdateAsset(lv.Volume, tc.kinfo)
-		if tc.expectedErr == "" {
+		consumed, err := gadget.GadgetVolumeKernelUpdateAssetsConsumed(lv.Volume, tc.kinfo)
+		if tc.consumedErr == "" {
+			c.Check(err, IsNil, Commentf("should not fail %v", tc.volumeContent))
+			c.Check(consumed, Equals, tc.consumed)
+		} else {
+			c.Check(err, ErrorMatches, tc.consumedErr, Commentf("should fail %v", tc.volumeContent))
+		}
+
+		err = gadget.GadgetVolumeConsumesOneKernelUpdateAsset(lv.Volume, tc.kinfo)
+		if tc.consumesOneErr == "" {
 			c.Check(err, IsNil, Commentf("should not fail %v", tc.volumeContent))
 		} else {
-			c.Check(err, ErrorMatches, tc.expectedErr, Commentf("should fail %v", tc.volumeContent))
+			c.Check(err, ErrorMatches, tc.consumesOneErr, Commentf("should fail %v", tc.volumeContent))
 		}
 	}
 }
@@ -1008,4 +1059,205 @@ assets:
 	c.Assert(err, IsNil)
 	err = gadget.ValidateContent(ginfo, s.dir, kernelUnpackDir)
 	c.Assert(err, ErrorMatches, `no asset from the kernel.yaml needing synced update is consumed by the gadget at "/.*"`)
+}
+
+func (s *validateGadgetTestSuite) TestValidateClassicWithModesGadget(c *C) {
+	gadgetYaml := `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: EFI System partition
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 99M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        offset: 1202M
+        size: 750M
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 4312776192
+`
+
+	mod := &gadgettest.ModelCharacteristics{
+		IsClassic: true,
+		HasModes:  true,
+	}
+	giMeta, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod)
+	c.Assert(err, IsNil)
+
+	err = gadget.Validate(giMeta, mod, nil)
+	c.Check(err, IsNil)
+}
+
+func (s *validateGadgetTestSuite) TestValidateSystemRoleSplitAcrossVolumesClassicOk(c *C) {
+	// This is allowed for classic with modes
+	const gadgetYaml = `
+volumes:
+  pc1:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        # whats the appropriate size?
+        size: 750M
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+  pc2:
+    structure:
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+
+	mod := &gadgettest.ModelCharacteristics{
+		IsClassic: true,
+		HasModes:  true,
+	}
+	giMeta, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod)
+	c.Assert(err, IsNil)
+
+	err = gadget.Validate(giMeta, mod, nil)
+	c.Check(err, IsNil)
+}
+
+func (s *validateGadgetTestSuite) TestValidateSystemRoleSplitAcrossVolumesClassicFail(c *C) {
+	// This is not allowed for classic with modes
+	const gadgetYaml = `
+volumes:
+  pc1:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        # whats the appropriate size?
+        size: 750M
+  pc2:
+    structure:
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+
+	mod := &gadgettest.ModelCharacteristics{
+		IsClassic: true,
+		HasModes:  true,
+	}
+	giMeta, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod)
+	c.Assert(err, IsNil)
+
+	err = gadget.Validate(giMeta, mod, nil)
+	c.Check(err, ErrorMatches, `system-boot and system-save are expected to share the same volume`)
+}
+
+func (s *validateGadgetTestSuite) TestValidateClassicWithModesNoEncryptHappy(c *C) {
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgettest.SingleVolumeClassicwithModesNoEncryptGadgetYaml))
+	mod := &gadgettest.ModelCharacteristics{HasModes: true, IsClassic: true}
+	ginfo, err := gadget.ReadInfo(s.dir, mod)
+	c.Assert(err, IsNil)
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, ErrorMatches, `gadget does not support encrypted data: required partition with system-save role is missing`)
+
+	// Now validate without model
+	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, ErrorMatches, `gadget does not support encrypted data: required partition with system-save role is missing`)
+
+	// Should be fine if no encryption
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{})
+	c.Assert(err, IsNil)
+
+	// Now validate without model
+	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{})
+	c.Assert(err, IsNil)
+}
+
+func (s *validateGadgetTestSuite) TestValidateClassicWithModesEncryptHappy(c *C) {
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgettest.SingleVolumeClassicwithModesEncryptGadgetYaml))
+	mod := &gadgettest.ModelCharacteristics{HasModes: true, IsClassic: true}
+	ginfo, err := gadget.ReadInfo(s.dir, mod)
+	c.Assert(err, IsNil)
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, IsNil)
+
+	// Now validate without model
+	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, IsNil)
+
+	// Should be fine if no encryption
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{})
+	c.Assert(err, IsNil)
+
+	// Now validate without model
+	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{})
+	c.Assert(err, IsNil)
 }

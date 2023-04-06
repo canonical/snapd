@@ -262,6 +262,9 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                             {"type": "screenshot", "url":"http://example.com/shot2.png"}
                         ],
                         "cohort-key": "some-long-cohort-key",
+                        "links": {
+                            "website": ["http://example.com/funky"]
+                        },
                         "website": "http://example.com/funky",
                         "common-ids": ["org.funky.snap"],
                         "store-url": "https://snapcraft.io/chatroom"
@@ -271,6 +274,10 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	c.Assert(cs.req.Method, check.Equals, "GET")
 	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName))
 	c.Assert(err, check.IsNil)
+
+	c.Assert(pkg.InstallDate.Equal(time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC)), check.Equals, true)
+	pkg.InstallDate = nil
+
 	c.Assert(pkg, check.DeepEquals, &client.Snap{
 		ID:            "funky-snap-id",
 		Summary:       "bla bla",
@@ -279,7 +286,6 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		DownloadSize:  6930947,
 		Icon:          "/v2/icons/chatroom.ogra/icon",
 		InstalledSize: 18976651,
-		InstallDate:   time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC),
 		License:       "GPL-3.0",
 		Name:          "chatroom",
 		Developer:     "ogra",
@@ -308,8 +314,11 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		},
 		CommonIDs: []string{"org.funky.snap"},
 		CohortKey: "some-long-cohort-key",
-		Website:   "http://example.com/funky",
-		StoreURL:  "https://snapcraft.io/chatroom",
+		Links: map[string][]string{
+			"website": {"http://example.com/funky"},
+		},
+		Website:  "http://example.com/funky",
+		StoreURL: "https://snapcraft.io/chatroom",
 	})
 }
 

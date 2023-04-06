@@ -83,6 +83,9 @@ dbus (send)
     peer=(label=unconfined),
 
 /sys/class/backlight/ r,
+
+# Allow changing backlight
+/sys/devices/**/**/drm/card[0-9]/card[0-9]*/*_backlight/brightness w,
 `
 
 type displayControlInterface struct {

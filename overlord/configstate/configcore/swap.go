@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/mvo5/goconfigparser"
 
@@ -40,7 +39,7 @@ func init() {
 	supportedConfigurations["core.swap.size"] = true
 }
 
-func validateSystemSwapConfiguration(tr config.ConfGetter) error {
+func validateSystemSwapConfiguration(tr ConfGetter) error {
 	output, err := coreCfg(tr, "swap.size")
 	if err != nil {
 		return err
@@ -76,7 +75,7 @@ func parseAndValidateSwapSize(szString string) (quantity.Size, error) {
 	return sz, nil
 }
 
-func handlesystemSwapConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handlesystemSwapConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	var pristineSwapSize, newSwapSize string
 	if err := tr.GetPristine("core", "swap.size", &pristineSwapSize); err != nil && !config.IsNoOption(err) {
 		return err
@@ -146,8 +145,7 @@ func handlesystemSwapConfiguration(_ sysconfig.Device, tr config.ConfGetter, opt
 		// restart the swap service
 		sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, &backlightSysdLogger{})
 
-		// TODO: what's an appropriate amount of time to wait here?
-		if err := sysd.Restart("swapfile.service", 60*time.Second); err != nil {
+		if err := sysd.Restart([]string{"swapfile.service"}); err != nil {
 			return err
 		}
 	}

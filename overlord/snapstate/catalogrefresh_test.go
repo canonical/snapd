@@ -282,7 +282,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
 
 	// and reset the next refresh time
 	snapstate.MockCatalogRefreshNextRefresh(cr7, time.Time{})
-	// sanity
+	// validity
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
 
 	err = cr7.Ensure()

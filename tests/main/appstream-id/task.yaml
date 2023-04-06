@@ -8,7 +8,7 @@ prepare: |
     snap install --edge jq
 
 debug: |
-    test -e response && cat response
+    cat response || true
 
 execute: |
     echo "Verify that search results contain common-ids"

@@ -119,7 +119,7 @@ func (r *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*Repair)(nil)
 
 func assembleRepair(assert assertionBase) (Assertion, error) {

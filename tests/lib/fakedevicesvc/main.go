@@ -69,7 +69,7 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/request-id":
 		w.WriteHeader(200)
-		io.WriteString(w, fmt.Sprintf(`{"request-id": "REQ-ID"}`))
+		io.WriteString(w, `{"request-id": "REQ-ID"}`)
 	case "/serial":
 		db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
 		if err != nil {

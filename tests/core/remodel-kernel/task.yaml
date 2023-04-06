@@ -16,7 +16,9 @@ prepare: |
     . "$TESTSLIB"/systemd.sh
 
     # Save the revision of the pc-kernel snap.
-    readlink /snap/pc-kernel/current > original-revision.txt
+    readlink /snap/"$OLD_KERNEL"/current > original-revision.txt
+    # Save the original tracking channel
+    snap info "$OLD_KERNEL" | awk '/^tracking:/ {print $2}' > original-channel.txt
 
     systemctl stop snapd.service snapd.socket
 
@@ -39,16 +41,16 @@ restore: |
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
 
-    # Wait for the final refresh to complete.
-    snap watch --last=refresh
+    # Wait for the final refresh to complete (if needed).
+    snap watch --last=refresh?
 
     # Remove all the revisions of pc-kernel that should not be there.
-    for revno_path in /snap/pc-kernel/*; do
+    for revno_path in /snap/"$OLD_KERNEL"/*; do
         revno="$(basename "$revno_path")"
         if [ "$revno" == current ] || [ "$revno" == "$(cat original-revision.txt)" ]; then
             continue;
         fi
-        snap remove pc-kernel --revision="$revno"
+        snap remove "$OLD_KERNEL" --revision="$revno"
     done
 
     systemctl stop snapd.service snapd.socket
@@ -95,7 +97,7 @@ execute: |
 
     # initial boot with the current model 
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        # sanity check
+        # precondition check
         snap list "$OLD_KERNEL"
 
         echo "We have the right model assertion"
@@ -149,6 +151,6 @@ execute: |
         snap remove --purge "$NEW_KERNEL"
 
         echo "Ensure we are back to the original kernel channel and kernel"
-        snap refresh --channel="$KERNEL_CHANNEL" "$OLD_KERNEL"
+        snap refresh --channel="$(cat original-channel.txt)" "$OLD_KERNEL"
         REBOOT
     fi

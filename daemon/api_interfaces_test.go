@@ -347,7 +347,7 @@ func (s *interfacesSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *interfacesSuite) testConnectFailureNoSnap(c *check.C, installedSnap string) {
-	// sanity, either consumer or producer needs to be enabled
+	// validity, either consumer or producer needs to be enabled
 	consumer := installedSnap == "consumer"
 	producer := installedSnap == "producer"
 	c.Assert(consumer || producer, check.Equals, true, check.Commentf("installed snap must be consumer or producer"))
@@ -612,7 +612,7 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *interfacesSuite) testDisconnectFailureNoSnap(c *check.C, installedSnap string) {
-	// sanity, either consumer or producer needs to be enabled
+	// validity, either consumer or producer needs to be enabled
 	consumer := installedSnap == "consumer"
 	producer := installedSnap == "producer"
 	c.Assert(consumer || producer, check.Equals, true, check.Commentf("installed snap must be consumer or producer"))

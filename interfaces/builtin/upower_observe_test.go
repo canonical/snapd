@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -111,8 +110,6 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 	}, nil, nil)
 
-	release.OnClassic = false
-
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
@@ -135,8 +132,6 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 	}, nil, nil)
 
-	release.OnClassic = false
-
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
@@ -157,8 +152,6 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c
 		Apps:      map[string]*snap.AppInfo{"app": app},
 	}, nil, nil)
 
-	release.OnClassic = false
-
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
@@ -167,7 +160,6 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c
 }
 
 func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabelOnClassic(c *C) {
-	release.OnClassic = true
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot)
 	c.Assert(err, IsNil)
@@ -180,7 +172,6 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabe
 }
 
 func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
-	release.OnClassic = false
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)

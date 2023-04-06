@@ -27,8 +27,11 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/image/preseed"
+
 	// for SanitizePlugsSlots
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -44,13 +47,23 @@ first-boot startup time`
 )
 
 type options struct {
-	Reset bool `long:"reset"`
+	Reset               bool   `long:"reset"`
+	ResetChroot         bool   `long:"reset-chroot" hidden:"1"`
+	PreseedSignKey      string `long:"preseed-sign-key"`
+	AppArmorFeaturesDir string `long:"apparmor-features-dir"`
+	SysfsOverlay        string `long:"sysfs-overlay"`
 }
 
 var (
-	osGetuid           = os.Getuid
-	Stdout   io.Writer = os.Stdout
-	Stderr   io.Writer = os.Stderr
+	osGetuid = os.Getuid
+	// unused currently, left in place for consistency for when it is needed
+	// Stdout   io.Writer = os.Stdout
+	Stderr io.Writer = os.Stderr
+
+	preseedCore20               = preseed.Core20
+	preseedClassic              = preseed.Classic
+	preseedClassicReset         = preseed.ClassicReset
+	preseedResetPreseededChroot = preseed.ResetPreseededChroot
 
 	opts options
 )
@@ -63,6 +76,12 @@ func Parser() *flags.Parser {
 	return parser
 }
 
+func probeCore20ImageDir(dir string) bool {
+	sysDir := filepath.Join(dir, "system-seed")
+	_, isDir, _ := osutil.DirExists(sysDir)
+	return isDir
+}
+
 func main() {
 	parser := Parser()
 	if err := run(parser, os.Args[1:]); err != nil {
@@ -71,49 +90,57 @@ func main() {
 	}
 }
 
-func run(parser *flags.Parser, args []string) error {
+func run(parser *flags.Parser, args []string) (err error) {
 	// real validation of plugs and slots; needs to be set
 	// for processing of seeds with gadget because of readInfo().
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
-
-	if osGetuid() != 0 {
-		return fmt.Errorf("must be run as root")
-	}
 
 	rest, err := parser.ParseArgs(args)
 	if err != nil {
 		return err
 	}
 
-	if len(rest) == 0 {
-		return fmt.Errorf("need chroot path as argument")
+	if osGetuid() != 0 {
+		return fmt.Errorf("must be run as root")
 	}
 
-	chrootDir, err := filepath.Abs(rest[0])
-	if err != nil {
-		return err
+	var chrootDir string
+	if opts.ResetChroot {
+		chrootDir = "/"
+	} else {
+		if len(rest) == 0 {
+			return fmt.Errorf("need chroot path as argument")
+		}
+
+		chrootDir, err = filepath.Abs(rest[0])
+		if err != nil {
+			return err
+		}
+
+		// safety check
+		if chrootDir == "/" {
+			return fmt.Errorf("cannot run snap-preseed against /")
+		}
 	}
 
-	// safety check
-	if chrootDir == "/" {
-		return fmt.Errorf("cannot run snap-preseed against /")
-	}
+	if probeCore20ImageDir(chrootDir) {
+		if opts.Reset || opts.ResetChroot {
+			return fmt.Errorf("cannot snap-preseed --reset for Ubuntu Core")
+		}
 
+		coreOpts := &preseed.CoreOptions{
+			PrepareImageDir:           chrootDir,
+			PreseedSignKey:            opts.PreseedSignKey,
+			AppArmorKernelFeaturesDir: opts.AppArmorFeaturesDir,
+			SysfsOverlay:              opts.SysfsOverlay,
+		}
+		return preseedCore20(coreOpts)
+	}
+	if opts.ResetChroot {
+		return preseedResetPreseededChroot(chrootDir)
+	}
 	if opts.Reset {
-		return resetPreseededChroot(chrootDir)
+		return preseedClassicReset(chrootDir)
 	}
-
-	if err := checkChroot(chrootDir); err != nil {
-		return err
-	}
-
-	targetSnapd, cleanup, err := prepareChroot(chrootDir)
-	if err != nil {
-		return err
-	}
-
-	// executing inside the chroot
-	err = runPreseedMode(chrootDir, targetSnapd)
-	cleanup()
-	return err
+	return preseedClassic(chrootDir)
 }

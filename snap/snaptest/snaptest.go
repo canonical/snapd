@@ -168,7 +168,7 @@ func MockInvalidInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 // directory with given content
 //
 // The caller is responsible for mocking root directory with dirs.SetRootDir()
-//and for altering the overlord state if required.
+// and for altering the overlord state if required.
 func MockSnapWithFiles(c *check.C, yamlText string, si *snap.SideInfo, files [][]string) *snap.Info {
 	info := MockSnap(c, yamlText, si)
 
@@ -195,7 +195,7 @@ func PopulateDir(dir string, files [][]string) {
 
 func AssertedSnapID(snapName string) string {
 	cleanedName := strings.Replace(snapName, "-", "", -1)
-	return (cleanedName + strings.Repeat("id", 16)[len(cleanedName):])
+	return cleanedName + strings.Repeat("id", 16)[len(cleanedName):]
 }
 
 // MakeTestSnapWithFiles makes a squashfs snap file with the given
@@ -238,7 +238,7 @@ func MakeTestSnapInfoWithFiles(c *check.C, snapYamlContent string, files [][]str
 
 }
 
-// MakeSnapFileWithDir makes a squashfs snap file and a directory under
+// MakeSnapFileAndDir makes a squashfs snap file and a directory under
 // /snaps/<snap>/<rev> with the given contents. It's a combined effect of
 // MakeTestSnapInfoWithFiles and MockSnapWithFiles.
 func MakeSnapFileAndDir(c *check.C, snapYamlContent string, files [][]string, si *snap.SideInfo) *snap.Info {

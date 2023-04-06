@@ -23,7 +23,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 
@@ -31,110 +30,8 @@ import (
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/image"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
-
-func (s *imageSuite) TestDownloadpOptionsString(c *check.C) {
-	tests := []struct {
-		opts image.DownloadSnapOptions
-		str  string
-	}{
-		{image.DownloadSnapOptions{LeavePartialOnError: true}, ""},
-		{image.DownloadSnapOptions{}, ""},
-		{image.DownloadSnapOptions{TargetDir: "/foo"}, `in "/foo"`},
-		{image.DownloadSnapOptions{Basename: "foo"}, `to "foo.snap"`},
-		{image.DownloadSnapOptions{Channel: "foo"}, `from channel "foo"`},
-		{image.DownloadSnapOptions{Revision: snap.R(42)}, `(42)`},
-		{image.DownloadSnapOptions{
-			CohortKey: "AbCdEfGhIjKlMnOpQrStUvWxYz",
-		}, `from cohort "…rStUvWxYz"`},
-		{image.DownloadSnapOptions{
-			TargetDir: "/foo",
-			Basename:  "bar",
-			Channel:   "baz",
-			Revision:  snap.R(13),
-			CohortKey: "MSBIc3dwOW9PemozYjRtdzhnY0MwMFh0eFduS0g5UWlDUSAxNTU1NDExNDE1IDBjYzJhNTc1ZjNjOTQ3ZDEwMWE1NTNjZWFkNmFmZDE3ZWJhYTYyNjM4ZWQ3ZGMzNjI5YmU4YjQ3NzAwMjdlMDk=",
-		}, `(13) from channel "baz" from cohort "…wMjdlMDk=" to "bar.snap" in "/foo"`}, // note this one is not 'valid' so it's ok if the string is a bit wonky
-
-	}
-
-	for _, t := range tests {
-		c.Check(t.opts.String(), check.Equals, t.str)
-	}
-}
-
-func (s *imageSuite) TestDownloadSnapOptionsValid(c *check.C) {
-	tests := []struct {
-		opts image.DownloadSnapOptions
-		err  error
-	}{
-		{image.DownloadSnapOptions{}, nil}, // might want to error if no targetdir
-		{image.DownloadSnapOptions{TargetDir: "foo"}, nil},
-		{image.DownloadSnapOptions{Channel: "foo"}, nil},
-		{image.DownloadSnapOptions{Revision: snap.R(42)}, nil},
-		{image.DownloadSnapOptions{
-			CohortKey: "AbCdEfGhIjKlMnOpQrStUvWxYz",
-		}, nil},
-		{image.DownloadSnapOptions{
-			Channel:  "foo",
-			Revision: snap.R(42),
-		}, nil},
-		{image.DownloadSnapOptions{
-			Channel:   "foo",
-			CohortKey: "bar",
-		}, nil},
-		{image.DownloadSnapOptions{
-			Revision:  snap.R(1),
-			CohortKey: "bar",
-		}, image.ErrRevisionAndCohort},
-		{image.DownloadSnapOptions{
-			Basename: "/foo",
-		}, image.ErrPathInBase},
-	}
-
-	for _, t := range tests {
-		t.opts.LeavePartialOnError = true
-		c.Check(t.opts.Validate(), check.Equals, t.err)
-		t.opts.LeavePartialOnError = false
-		c.Check(t.opts.Validate(), check.Equals, t.err)
-	}
-}
-
-func (s *imageSuite) TestDownloadSnap(c *check.C) {
-	// TODO: maybe expand on this (test coverage of DownloadSnap is really bad)
-
-	// env shenanigans
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	debug, hadDebug := os.LookupEnv("SNAPD_DEBUG")
-	os.Setenv("SNAPD_DEBUG", "1")
-	if hadDebug {
-		defer os.Setenv("SNAPD_DEBUG", debug)
-	} else {
-		defer os.Unsetenv("SNAPD_DEBUG")
-	}
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	s.setupSnaps(c, map[string]string{
-		"core": "canonical",
-	}, "")
-
-	dlDir := c.MkDir()
-	opts := image.DownloadSnapOptions{
-		TargetDir: dlDir,
-	}
-	dlSnap, err := s.tsto.DownloadSnap("core", opts)
-	c.Assert(err, check.IsNil)
-	c.Check(dlSnap.Path, check.Matches, filepath.Join(dlDir, `core_\d+.snap`))
-	c.Check(dlSnap.Info.SnapName(), check.Equals, "core")
-	c.Check(dlSnap.RedirectChannel, check.Equals, "")
-
-	c.Check(logbuf.String(), check.Matches, `.* DEBUG: Going to download snap "core" `+opts.String()+".\n")
-}
 
 var validGadgetYaml = `
 volumes:

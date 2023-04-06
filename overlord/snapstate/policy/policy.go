@@ -49,11 +49,11 @@ func For(typ snap.Type, model *asserts.Model) snapstate.Policy {
 	}
 }
 
-func ephemeral(dev boot.Device) bool {
+func ephemeral(dev snap.Device) bool {
 	return !dev.RunMode()
 }
 
-func inUse(name string, rev snap.Revision, typ snap.Type, dev boot.Device) error {
+func inUse(name string, rev snap.Revision, typ snap.Type, dev snap.Device) error {
 	check, err := boot.InUse(typ, dev)
 	if err != nil {
 		return err
@@ -66,7 +66,7 @@ func inUse(name string, rev snap.Revision, typ snap.Type, dev boot.Device) error
 
 type appPolicy struct{}
 
-func (appPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev boot.Device) error {
+func (appPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device) error {
 	if ephemeral(dev) {
 		return errEphemeralSnapsNotRemovalable
 	}

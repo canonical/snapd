@@ -31,6 +31,7 @@ import (
 	// be explicit about needing SHA512
 	_ "crypto/sha512"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -376,12 +377,12 @@ func (expk *extPGPPrivateKey) sign(content []byte) (*packet.Signature, error) {
 	badSig := fmt.Sprintf("bad %s produced signature: ", expk.from)
 
 	if sig.Hash != crypto.SHA512 {
-		return nil, fmt.Errorf(badSig + "expected SHA512 digest")
+		return nil, errors.New(badSig + "expected SHA512 digest")
 	}
 
 	err = expk.pubKey.verify(content, sig)
 	if err != nil {
-		return nil, fmt.Errorf(badSig+"it does not verify: %v", err)
+		return nil, fmt.Errorf("%sit does not verify: %v", badSig, err)
 	}
 
 	return sig, nil

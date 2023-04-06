@@ -129,6 +129,20 @@ func (w *manfixer) flush() {
 	io.Copy(Stdout, strings.NewReader(str))
 }
 
+func manExtend(out io.Writer) {
+	out.Write([]byte(`
+.SH NOTES
+.IP " 1. " 4
+Online documentation
+.RS 4
+\%https://docs.snapcraft.io
+.RE
+.SH BUGS
+.sp
+Please report all bugs with \fI\%https://bugs.launchpad.net/snapd/+filebug\fP
+`))
+}
+
 func (cmd cmdHelp) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -138,6 +152,7 @@ func (cmd cmdHelp) Execute(args []string) error {
 		// subcommand, but --man is hidden so no real need to check.
 		out := &manfixer{}
 		cmd.parser.WriteManPage(out)
+		manExtend(out)
 		out.flush()
 		return nil
 	}
@@ -242,12 +257,19 @@ var helpCategories = []helpCategory{
 		Description:     i18n.G("introspection and debugging of snapd"),
 		Commands:        []string{"version"},
 		AllOnlyCommands: []string{"debug"},
-	},
-	{
+	}, {
 		Label:           i18n.G("Development"),
 		Description:     i18n.G("developer-oriented features"),
 		Commands:        []string{"download", "pack", "run", "try"},
 		AllOnlyCommands: []string{"prepare-image"},
+	}, {
+		Label:       i18n.G("Quota Groups"),
+		Description: i18n.G("Manage quota groups for snaps"),
+		Commands:    []string{"set-quota", "remove-quota", "quotas", "quota"},
+	}, {
+		Label:       i18n.G("Validation Sets"),
+		Description: i18n.G("Manage validation sets"),
+		Commands:    []string{"validate"},
 	},
 }
 

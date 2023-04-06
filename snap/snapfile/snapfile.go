@@ -20,6 +20,10 @@
 package snapfile
 
 import (
+	"fmt"
+	"io"
+	"os"
+
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -45,6 +49,35 @@ var formatHandlers = []snapFormat{
 	},
 }
 
+// notSnapErrorDetails gathers some generic details about why the
+// snap/snapdir could not be opened (e.g. file not found or dir
+// empty).
+func notSnapErrorDetails(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if stat.IsDir() {
+		if _, err := f.Readdir(1); err == io.EOF {
+			return fmt.Errorf("directory %q is empty", path)
+		}
+		return fmt.Errorf("directory %q is invalid", path)
+	}
+	// Arbitrary value but big enough to show some header
+	// information (the squashfs header is type u32)
+	var header [5]byte
+	if _, err := f.Read(header[:]); err != nil {
+		return fmt.Errorf("cannot read %q: %v", path, err)
+	}
+	return fmt.Errorf("file %q is invalid (header %v)", path, header)
+}
+
 // Open opens a given snap file with the right backend.
 func Open(path string) (snap.Container, error) {
 	for _, h := range formatHandlers {
@@ -53,5 +86,5 @@ func Open(path string) (snap.Container, error) {
 		}
 	}
 
-	return nil, snap.NotSnapError{Path: path}
+	return nil, snap.NotSnapError{Path: path, Err: notSnapErrorDetails(path)}
 }

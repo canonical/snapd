@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
+// +build !nomanagers
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -30,12 +32,13 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/systemd/systemdtest"
@@ -149,7 +152,8 @@ func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"is-enabled", "snap.test-snap.foo.service"},
-		{"enable", "snap.test-snap.foo.service"},
+		{"--no-reload", "enable", "snap.test-snap.foo.service"},
+		{"daemon-reload"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)
@@ -161,6 +165,9 @@ func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 
 func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	r := systemd.MockSystemdVersion(248, nil)
+	defer r()
+
+	r = servicestate.EnsureQuotaUsability()
 	defer r()
 
 	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(1)}
@@ -186,12 +193,10 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 		return nil, nil
 	})
 	s.AddCleanup(systemctlRestorer)
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.quota-groups", true)
-	tr.Commit()
 
 	// make a new quota group with this snap in it
-	err := servicestatetest.MockQuotaInState(s.state, "foogroup", "", []string{"test-snap"}, quantity.SizeMiB)
+	err := servicestatetest.MockQuotaInState(s.state, "foogroup", "", []string{"test-snap"}, nil,
+		quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
@@ -207,7 +212,8 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"is-enabled", "snap.test-snap.foo.service"},
-		{"enable", "snap.test-snap.foo.service"},
+		{"--no-reload", "enable", "snap.test-snap.foo.service"},
+		{"daemon-reload"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)

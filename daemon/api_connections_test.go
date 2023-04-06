@@ -140,7 +140,7 @@ func (s *interfacesSuite) TestConnectionsNotFound(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "no state entry for key",
+			"message": `no state entry for key "snaps"`,
 			"kind":    "snap-not-found",
 			"value":   "not-found",
 		},

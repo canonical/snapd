@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -44,6 +44,18 @@ type Retry struct {
 
 func (r *Retry) Error() string {
 	return "task should be retried"
+}
+
+// Wait is returned from a handler to signal that the task cannot
+// proceed at the moment maybe because some manual action from the
+// user required at this point or because of errors. The task
+// will be set to WaitStatus.
+type Wait struct {
+	Reason string
+}
+
+func (r *Wait) Error() string {
+	return "task set to wait, manual action required"
 }
 
 type blockedFunc func(t *Task, running []*Task) bool
@@ -222,7 +234,7 @@ func (r *TaskRunner) run(t *Task) {
 		switch err.(type) {
 		case nil:
 			// we are ok
-		case *Retry:
+		case *Retry, *Wait:
 			// preserve
 		default:
 			if r.stopped {
@@ -235,12 +247,18 @@ func (r *TaskRunner) run(t *Task) {
 		switch x := err.(type) {
 		case *Retry:
 			// Handler asked to be called again later.
-			// TODO Allow postponing retries past the next Ensure.
 			if t.Status() == AbortStatus {
 				// Would work without it but might take two ensures.
 				r.tryUndo(t)
 			} else if x.After != 0 {
 				t.At(timeNow().Add(x.After))
+			}
+		case *Wait:
+			if t.Status() == AbortStatus {
+				// Would work without it but might take two ensures.
+				r.tryUndo(t)
+			} else {
+				t.SetStatus(WaitStatus)
 			}
 		case nil:
 			var next []*Task
@@ -399,6 +417,10 @@ ConsiderTasks:
 			if !t.IsClean() {
 				r.clean(t)
 			}
+			continue
+		}
+		if status == WaitStatus {
+			// nothing more to run
 			continue
 		}
 

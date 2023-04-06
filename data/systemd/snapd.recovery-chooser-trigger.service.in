@@ -1,6 +1,7 @@
 [Unit]
 Description=Wait for the Ubuntu Core chooser trigger
-Before=snapd.service
+Wants=getty-pre.target
+Before=getty-pre.target
 # don't run on classic or uc16/uc18
 ConditionKernelCommandLine=snapd_recovery_mode
 # only run when there are input devices

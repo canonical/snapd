@@ -205,6 +205,38 @@ func (e *evdevKeyboardInputDevice) Close() {
 
 type evdevInput struct{}
 
+func getCapabilityCode(Key string) (evdev.CapabilityCode, error) {
+	keyCode, ok := strToKey[Key]
+	if !ok {
+		return evdev.CapabilityCode{}, fmt.Errorf("cannot find a key matching the filter %q", Key)
+	}
+	return evdev.CapabilityCode{Code: keyCode, Name: Key}, nil
+}
+
+func matchDevice(cap evdev.CapabilityCode, dev *evdev.InputDevice) triggerDevice {
+	for _, cc := range dev.Capabilities[evKeyCapability] {
+		if cc == cap {
+			return &evdevKeyboardInputDevice{
+				dev:     dev,
+				keyCode: uint16(cap.Code),
+			}
+		}
+	}
+	return nil
+}
+
+func (e *evdevInput) Open(filter triggerEventFilter, node string) (triggerDevice, error) {
+	evdevDevice, err := evdev.Open(node)
+	if err != nil {
+		return nil, err
+	}
+	cap, err := getCapabilityCode(filter.Key)
+	if err != nil {
+		return nil, err
+	}
+	return matchDevice(cap, evdevDevice), nil
+}
+
 func (e *evdevInput) FindMatchingDevices(filter triggerEventFilter) ([]triggerDevice, error) {
 	devices, err := evdev.ListInputDevices()
 	if err != nil {
@@ -212,28 +244,15 @@ func (e *evdevInput) FindMatchingDevices(filter triggerEventFilter) ([]triggerDe
 	}
 
 	// NOTE: this supports so far only key input devices
-
-	kc, ok := strToKey[filter.Key]
-	if !ok {
-		return nil, fmt.Errorf("cannot find a key matching the filter %q", filter.Key)
+	cap, err := getCapabilityCode(filter.Key)
+	if err != nil {
+		return nil, err
 	}
-	cap := evdev.CapabilityCode{Code: kc, Name: filter.Key}
 
-	match := func(dev *evdev.InputDevice) triggerDevice {
-		for _, cc := range dev.Capabilities[evKeyCapability] {
-			if cc == cap {
-				return &evdevKeyboardInputDevice{
-					dev:     dev,
-					keyCode: uint16(cap.Code),
-				}
-			}
-		}
-		return nil
-	}
 	// collect all input devices that can emit the trigger key
 	var devs []triggerDevice
 	for _, dev := range devices {
-		idev := match(dev)
+		idev := matchDevice(cap, dev)
 		if idev != nil {
 			devs = append(devs, idev)
 		} else {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -49,7 +49,7 @@ func init() {
 		func() flags.Commander {
 			return &cmdBootvarsGet{}
 		}, map[string]string{
-			"uc20":     i18n.G("Whether to use uc20 boot vars or not"),
+			"uc20":     i18n.G("Whether to use UC20+ boot vars or not"),
 			"root-dir": i18n.G("Root directory to look for boot variables in"),
 		}, nil)
 
@@ -59,8 +59,8 @@ func init() {
 		func() flags.Commander {
 			return &cmdBootvarsSet{}
 		}, map[string]string{
-			"root-dir": i18n.G("Root directory to look for boot variables in (implies UC20)"),
-			"recovery": i18n.G("Manipulate the recovery bootloader (implies UC20)"),
+			"root-dir": i18n.G("Root directory to look for boot variables in (implies UC20+)"),
+			"recovery": i18n.G("Manipulate the recovery bootloader (implies UC20+)"),
 		}, nil)
 
 	if release.OnClassic {

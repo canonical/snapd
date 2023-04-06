@@ -31,9 +31,9 @@ import (
 // Labels are implemented as subsets of integers from 0
 // up to an excluded maximum, where the integers represent the groups.
 // Assumptions:
-//  - most labels are for one group or very few
-//  - a few labels are sparse with more groups in them
-//  - very few comprise the universe of all groups
+//   - most labels are for one group or very few
+//   - a few labels are sparse with more groups in them
+//   - very few comprise the universe of all groups
 type Groupings struct {
 	n               uint
 	maxGroup        uint16
@@ -80,10 +80,10 @@ func (g Grouping) Copy() Grouping {
 }
 
 // search locates group among the sorted Grouping elements, it returns:
-//  * true if found
-//  * false if not found
-//  * the index at which group should be inserted to keep the
-//    elements sorted if not found and the bit-set representation is not in use
+//   - true if found
+//   - false if not found
+//   - the index at which group should be inserted to keep the
+//     elements sorted if not found and the bit-set representation is not in use
 func (gr *Groupings) search(g *Grouping, group uint16) (found bool, j uint16) {
 	if g.size > gr.bitsetThreshold {
 		return bitsetContains(g, group), 0

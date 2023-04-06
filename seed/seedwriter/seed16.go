@@ -60,6 +60,11 @@ func (pol *policy16) checkSnapChannel(_ channel.Channel, whichSnap string) error
 	return nil
 }
 
+func (pol *policy16) checkClassicSnap(_ *SeedSnap) error {
+	// Core 16/18 have no constraints on classic snaps
+	return nil
+}
+
 func makeSystemSnap(snapName string) *asserts.ModelSnap {
 	return internal.MakeSystemSnap(snapName, "", []string{"run"})
 }
@@ -156,6 +161,25 @@ func (pol *policy16) implicitExtraSnaps(availableByMode map[string]*naming.SnapS
 	return nil
 }
 
+func (pol *policy16) isSystemSnapCandidate(sn *SeedSnap) bool {
+	if sn.modelSnap != nil {
+		sysSnap := pol.systemSnap()
+		if sysSnap != nil && sn.modelSnap.SnapType == sysSnap.SnapType {
+			return true
+		}
+		if sn.modelSnap.SnapType == "snapd" {
+			return true
+		}
+	}
+	return pol.model.Classic() && sn.SnapName() == "core"
+}
+
+func (pol *policy16) ignoreUndeterminedSystemSnap() bool {
+	// there are some corner cases where we possibly supported just using
+	// the deb for classic
+	return pol.model.Classic()
+}
+
 type tree16 struct {
 	opts *Options
 
@@ -188,7 +212,7 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 			if aRef.Type == asserts.ModelType {
 				afn = "model"
 			} else {
-				afn = fmt.Sprintf("%s.%s", strings.Join(aRef.PrimaryKey, ","), aRef.Type.Name)
+				afn = fmt.Sprintf("%s.%s", strings.Join(asserts.ReducePrimaryKey(aRef.Type, aRef.PrimaryKey), ","), aRef.Type.Name)
 			}
 			a, err := aRef.Resolve(db.Find)
 			if err != nil {
@@ -206,13 +230,13 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 	}
 
 	for _, sn := range snapsFromModel {
-		if err := writeByRefs(sn.ARefs); err != nil {
+		if err := writeByRefs(sn.aRefs); err != nil {
 			return err
 		}
 	}
 
 	for _, sn := range extraSnaps {
-		if err := writeByRefs(sn.ARefs); err != nil {
+		if err := writeByRefs(sn.aRefs); err != nil {
 			return err
 		}
 	}
@@ -246,7 +270,6 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 			File:    filepath.Base(sn.Path),
 			DevMode: info.NeedsDevMode(),
 			Classic: info.NeedsClassic(),
-			// TODO: set this only if the snap has no links?
 			Contact: info.Contact(),
 			// no assertions for this snap were put in the seed
 			Unasserted: unasserted,

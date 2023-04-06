@@ -41,10 +41,15 @@ const (
 	// ModeRecover is a mode in which the device boots into the recovery
 	// system.
 	ModeRecover = "recover"
+	// ModeFactoryReset is a mode in which the device performs a factory
+	// reset.
+	ModeFactoryReset = "factory-reset"
+	// ModeRunCVM is Azure CVM specific run mode fde + classic debs
+	ModeRunCVM = "cloudimg-rootfs"
 )
 
 var (
-	validModes = []string{ModeInstall, ModeRecover, ModeRun}
+	validModes = []string{ModeInstall, ModeRecover, ModeFactoryReset, ModeRun, ModeRunCVM}
 )
 
 // ModeAndRecoverySystemFromKernelCommandLine returns the current system mode
@@ -99,23 +104,24 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 	return mbl, nil
 }
 
-// bootVarsForTrustedCommandLineFromGadget returns a set of boot variables that
-// carry the command line arguments requested by the gadget. This is only useful
+// bootVarsForTrustedCommandLineFromGadget returns a set of boot
+// variables that carry the command line arguments defined by the
+// gadget and some system options (cmdlineApped). This is only useful
 // if snapd is managing the boot config.
-func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath string) (map[string]string, error) {
+func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineAppend string) (map[string]string, error) {
 	extraOrFull, full, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath)
 	if err != nil {
-		if err == gadget.ErrNoKernelCommandline {
-			// nothing set by the gadget, but we could have had
-			// arguments before, so make sure those are cleared now
-			clear := map[string]string{
-				"snapd_extra_cmdline_args": "",
-				"snapd_full_cmdline_args":  "",
-			}
-			return clear, nil
+		if err != gadget.ErrNoKernelCommandline {
+			return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
 		}
-		return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
+		extraOrFull = ""
+		full = false
 	}
+	logger.Debugf("trusted command line: from gadget: %q, from options: %q",
+		extraOrFull, cmdlineAppend)
+
+	extraOrFull = strutil.JoinNonEmpty([]string{extraOrFull, cmdlineAppend}, " ")
+
 	// gadget has the kernel command line
 	args := map[string]string{
 		"snapd_extra_cmdline_args": "",
@@ -135,7 +141,7 @@ const (
 )
 
 func composeCommandLine(currentOrCandidate int, mode, system, gadgetDirOrSnapPath string) (string, error) {
-	if mode != ModeRun && mode != ModeRecover {
+	if mode != ModeRun && mode != ModeRecover && mode != ModeFactoryReset {
 		return "", fmt.Errorf("internal error: unsupported command line mode %q", mode)
 	}
 	// get the run mode bootloader under the native run partition layout
@@ -147,7 +153,7 @@ func composeCommandLine(currentOrCandidate int, mode, system, gadgetDirOrSnapPat
 	components := bootloader.CommandLineComponents{
 		ModeArg: "snapd_recovery_mode=run",
 	}
-	if mode == ModeRecover {
+	if mode == ModeRecover || mode == ModeFactoryReset {
 		if system == "" {
 			return "", fmt.Errorf("internal error: system is unset")
 		}
@@ -155,8 +161,12 @@ func composeCommandLine(currentOrCandidate int, mode, system, gadgetDirOrSnapPat
 		opts.Role = bootloader.RoleRecovery
 		bootloaderRootDir = InitramfsUbuntuSeedDir
 		// recovery mode & system command line arguments
+		modeArg := "snapd_recovery_mode=recover"
+		if mode == ModeFactoryReset {
+			modeArg = "snapd_recovery_mode=factory-reset"
+		}
 		components = bootloader.CommandLineComponents{
-			ModeArg:   "snapd_recovery_mode=recover",
+			ModeArg:   modeArg,
 			SystemArg: fmt.Sprintf("snapd_recovery_system=%v", system),
 		}
 	}
@@ -319,7 +329,7 @@ const (
 // by an update of boot config or the gadget snap. When needed, the modeenv is
 // updated with a candidate command line and the encryption keys are resealed.
 // This helper should be called right before updating the managed boot config.
-func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReason, gadgetSnapOrDir string) (updated bool, err error) {
+func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReason, gadgetSnapOrDir, cmdlineOpt string) (updated bool, err error) {
 	// TODO:UC20: consider updating a recovery system command line
 
 	m, err := loadModeenv()
@@ -346,10 +356,14 @@ func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReas
 	if err != nil {
 		return false, err
 	}
+	// Add part coming from options
+	candidateCmdline = strutil.JoinNonEmpty(
+		[]string{candidateCmdline, cmdlineOpt}, " ")
 	if cmdline == candidateCmdline {
 		// command line is the same or no actual change in modeenv
 		return false, nil
 	}
+	logger.Debugf("kernel commandline changes from %q to %q", cmdline, candidateCmdline)
 	// actual change of the command line content
 	m.CurrentKernelCommandLines = bootCommandLines{cmdline, candidateCmdline}
 

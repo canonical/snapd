@@ -82,6 +82,7 @@ restore: |
        systemctl stop "$sysp"
        rm -f "/etc/systemd/system/$sysp"
        rm -f "/etc/systemd/system/multi-user.target.wants/$sysp"
+       rm -f "/etc/systemd/system/snapd.mounts.target.wants/$sysp"
        rm -f "/var/lib/snapd/snaps/${SNAP}"_*.snap
        rm -rf "/snap/$SNAP"
        systemctl daemon-reload

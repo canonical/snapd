@@ -1,0 +1,149 @@
+2022-05-18 17:49:24 Project content is packed for delivery (8.86MB).
+2022-05-18 17:49:24 Sequence of jobs produced with -seed=1652896164
+2022-05-18 17:49:24 If killed, discard servers with: spread -reuse-pid=9308 -discard
+2022-05-18 17:49:24 Allocating google-nested:ubuntu-16.04-64...
+2022-05-18 17:49:24 Allocating google-nested:ubuntu-16.04-64...
+2022-05-18 17:49:24 Allocating google-nested:ubuntu-16.04-64...
+2022-05-18 17:49:37 Waiting for google-nested:ubuntu-16.04-64 (may181749-432987) to boot at 104.196.14.127...
+2022-05-18 17:49:37 Waiting for google-nested:ubuntu-16.04-64 (may181749-433163) to boot at 35.237.37.145...
+2022-05-18 17:49:47 Waiting for google-nested:ubuntu-16.04-64 (may181749-433044) to boot at 34.148.64.110...
+2022-05-18 17:50:03 Allocated google-nested:ubuntu-16.04-64 (may181749-432987).
+2022-05-18 17:50:03 Connecting to google-nested:ubuntu-16.04-64 (may181749-432987)...
+2022-05-18 17:50:04 Connected to google-nested:ubuntu-16.04-64 (may181749-432987) at 104.196.14.127.
+2022-05-18 17:50:04 Sending project content to google-nested:ubuntu-16.04-64 (may181749-432987)...
+2022-05-18 17:50:06 Preparing google-nested:ubuntu-16.04-64 (may181749-432987)...
+2022-05-18 17:50:08 Allocated google-nested:ubuntu-16.04-64 (may181749-433163).
+2022-05-18 17:50:08 Connecting to google-nested:ubuntu-16.04-64 (may181749-433163)...
+2022-05-18 17:50:09 Connected to google-nested:ubuntu-16.04-64 (may181749-433163) at 35.237.37.145.
+2022-05-18 17:50:09 Sending project content to google-nested:ubuntu-16.04-64 (may181749-433163)...
+2022-05-18 17:50:11 Preparing google-nested:ubuntu-16.04-64 (may181749-433163)...
+2022-05-18 17:50:13 Allocated google-nested:ubuntu-16.04-64 (may181749-433044).
+2022-05-18 17:50:13 Connecting to google-nested:ubuntu-16.04-64 (may181749-433044)...
+2022-05-18 17:50:13 Connected to google-nested:ubuntu-16.04-64 (may181749-433044) at 34.148.64.110.
+2022-05-18 17:50:13 Sending project content to google-nested:ubuntu-16.04-64 (may181749-433044)...
+2022-05-18 17:50:15 Preparing google-nested:ubuntu-16.04-64 (may181749-433044)...
+2022-05-18 17:55:06 WARNING: may181749-432987 (google-nested:ubuntu-16.04-64) running late. Current output:
+-----
+(... 365 lines above ...)
++ restart_logind=
++ loginctl enable-linger test
++ loginctl disable-linger test
+Unpacking systemd (229-4ubuntu21.31) over (229-4ubuntu21.28) ...
+Processing triggers for dbus (1.10.6-1ubuntu3.6) ...
+Processing triggers for ureadahead (0.100.0-19.1) ...
+Processing triggers for man-db (2.7.5-1) ...
+Setting up systemd (229-4ubuntu21.31) ...
+addgroup: The group `systemd-journal' already exists as a system group. Exiting.
+[/usr/lib/tmpfiles.d/var.conf:14] Duplicate line for path "/var/log", ignoring.
+Setting up libpam-systemd:amd64 (229-4ubuntu21.31) ...
+-----
+.
+2022-05-18 18:00:06 WARNING: may181749-432987 (google-nested:ubuntu-16.04-64) running late. Current output:
+-----
+(... 1334 lines above ...)
+dpkg-gencontrol: warning: File::FcntlLock not available; using flock which is not NFS-safe
+dpkg-gencontrol: warning: File::FcntlLock not available; using flock which is not NFS-safe
+dpkg-gencontrol: warning: File::FcntlLock not available; using flock which is not NFS-safe
+dpkg-gencontrol: warning: File::FcntlLock not available; using flock which is not NFS-safe
+make[1]: Leaving directory '/home/gopath/src/github.com/snapcore/snapd'
+   dh_md5sums -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build
+   dh_builddeb -u-Zxz -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build
+dpkg-deb: building package 'golang-github-ubuntu-core-snappy-dev' in '../golang-github-ubuntu-core-snappy-dev_1337.2.55.5_all.deb'.
+dpkg-deb: building package 'golang-github-snapcore-snapd-dev' in '../golang-github-snapcore-snapd-dev_1337.2.55.5_all.deb'.
+dpkg-deb: building package 'snapd' in '../snapd_1337.2.55.5_amd64.deb'.
+-----
+.
+2022-05-18 18:00:11 WARNING: may181749-433163 (google-nested:ubuntu-16.04-64) running late. Current output:
+-----
+(... 1334 lines above ...)
+dpkg-gencontrol: warning: File::FcntlLock not available; using flock which is not NFS-safe
+dpkg-gencontrol: warning: File::FcntlLock not available; using flock which is not NFS-safe
+dpkg-gencontrol: warning: File::FcntlLock not available; using flock which is not NFS-safe
+dpkg-gencontrol: warning: File::FcntlLock not available; using flock which is not NFS-safe
+make[1]: Leaving directory '/home/gopath/src/github.com/snapcore/snapd'
+   dh_md5sums -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build
+   dh_builddeb -u-Zxz -O--buildsystem=golang -O--fail-missing -O--builddirectory=_build
+dpkg-deb: building package 'golang-github-ubuntu-core-snappy-dev' in '../golang-github-ubuntu-core-snappy-dev_1337.2.55.5_all.deb'.
+dpkg-deb: building package 'golang-github-snapcore-snapd-dev' in '../golang-github-snapcore-snapd-dev_1337.2.55.5_all.deb'.
+dpkg-deb: building package 'snapd' in '../snapd_1337.2.55.5_amd64.deb'.
+-----
+.
+2022-05-18 18:00:16 WARNING: may181749-433044 (google-nested:ubuntu-16.04-64) running late. Output unchanged.
+2022-05-18 18:01:03 Preparing google-nested:ubuntu-16.04-64:tests/nested/core/ (may181749-432987)...
+2022-05-18 18:01:17 Preparing google-nested:ubuntu-16.04-64:tests/nested/manual/ (may181749-433163)...
+2022-05-18 18:03:19 Preparing google-nested:ubuntu-16.04-64:tests/nested/manual/cloud-init-never-used-not-vuln:firstboot (may181749-433163)...
+2022-05-18 18:05:16 WARNING: may181749-433044 (google-nested:ubuntu-16.04-64) running late. Output unchanged.
+2022-05-18 18:06:03 WARNING: may181749-432987 (google-nested:ubuntu-16.04-64:tests/nested/core/) running late. Current output:
+-----
+(... 97 lines above ...)
+Parallel unsquashfs: Using 2 processors
+11398 inodes (13347 blocks) to write
+
+[===========================================================\] 13347/13347 100%
+
+created 8997 files
+created 1461 directories
+created 2312 symlinks
+created 79 devices
+created 0 fifos
+-----
+.
+2022-05-18 18:06:52 Executing google-nested:ubuntu-16.04-64:tests/nested/manual/cloud-init-never-used-not-vuln:firstboot (may181749-433163) (1/13)...
+2022-05-18 18:06:58 Preparing google-nested:ubuntu-16.04-64:tests/nested/core/image-build (may181749-432987)...
+2022-05-18 18:07:57 Restoring google-nested:ubuntu-16.04-64:tests/nested/manual/cloud-init-never-used-not-vuln:firstboot (may181749-433163)...
+2022-05-18 18:08:00 Preparing google-nested:ubuntu-16.04-64:tests/nested/manual/cloud-init-nocloud-not-vuln:firstboot (may181749-433163)...
+2022-05-18 18:08:40 Executing google-nested:ubuntu-16.04-64:tests/nested/core/image-build (may181749-432987) (2/13)...
+2022-05-18 18:09:34 Error preparing google-nested:ubuntu-16.04-64:tests/nested/manual/cloud-init-nocloud-not-vuln:firstboot (may181749-433163) : 
+-----
++ /home/gopath/src/github.com/snapcore/snapd/tests/lib/prepare-restore.sh --prepare-project-each
++ set -e
++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/quiet.sh
++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/pkgdb.sh
+++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/quiet.sh
++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/random.sh
++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/state.sh
+++ SNAPD_STATE_PATH=/var/tmp/snapd-tools/snapd-state
+++ SNAPD_STATE_FILE=/var/tmp/snapd-tools/snapd-state/snapd-state.tar
+++ RUNTIME_STATE_PATH=/var/tmp/snapd-tools/runtime-state
+++ SNAPD_ACTIVE_UNITS=/var/tmp/snapd-tools/runtime-state/snapd-active-units
+++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/systemd.sh
++ case "$1" in
++ prepare_project_each
++ dmesg -c
++ fixup_dev_random
++ mv /dev/random /dev/random.orig
++ mknod /dev/random c 1 9
++ kill_gpg_agent
++ pkill -9 -e gpg-agent
+2022-05-18 16:45:15 Failed tasks: 3
+    - google-nested:ubuntu-16.04-64:tests/nested/manual/cloud-init-never-used-not-vuln:refresh
+    - google-nested:ubuntu-16.04-64:tests/nested/manual/cloud-init-nocloud-not-vuln:firstboot
+    - google-nested:ubuntu-16.04-64:tests/nested/manual/devmode-snaps-can-run-other-snaps    
+
+May 18 18:50:05 may181749-433044 kernel: veth33879c75: renamed from physLGGOmx
+May 18 18:50:05 may181749-433044 libvirtd[21899]: Failed to open file '/sys/class/net/eth0/operstate': No such file or directory
+May 18 18:50:05 may181749-433044 libvirtd[21899]: unable to read: /sys/class/net/eth0/operstate: No such file or directory
+May 18 18:50:05 may181749-433044 kernel: device veth690dd0d2 left promiscuous mode
+May 18 18:50:05 may181749-433044 kernel: lxdbr0: port 1(veth690dd0d2) entered disabled state
+May 18 18:50:05 may181749-433044 audit[20780]: AVC apparmor="STATUS" operation="profile_remove" profile="unconfined" name="lxd-snapcraft-snapd_</var/snap/lxd/common/lxd>" pid=20780 comm="apparmor_parser"
+May 18 18:50:05 may181749-433044 kernel: audit: type=1400 audit(1652899805.951:102): apparmor="STATUS" operation="profile_remove" profile="unconfined" name="lxd-snapcraft-snapd_</var/snap/lxd/common/lxd>" pid=20780 comm="apparmor_parser"
+May 18 18:50:07 may181749-433044 ntpd[1698]: Deleting interface #8 lxdbr0, 10.253.239.1#123, interface stats: received=0, sent=0, dropped=0, active_time=851 secs
+May 18 18:50:07 may181749-433044 ntpd[1698]: Deleting interface #9 lxdbr0, fd42:9473:7f21:63ab::1#123, interface stats: received=0, sent=0, dropped=0, active_time=851 secs
+May 18 18:50:07 may181749-433044 ntpd[1698]: Deleting interface #10 lxdbr0, fe80::216:3eff:feec:f39f%5#123, interface stats: received=0, sent=0, dropped=0, active_time=851 secs
++ echo '# tasks executed on system'
+# tasks executed on system
++ echo ''
++ cat /var/tmp/snapd-tools/runtime-state/runs -
+google-nested:ubuntu-16.04-64:tests/nested/classic/hotplug google-nested:ubuntu-16.04-64:tests/nested/classic/snapshots-with-core-refresh-revert google-nested:ubuntu-16.04-64:tests/nested/manual/minimal-smoke:secboot_disabled google-nested:ubuntu-16.04-64:tests/nested/manual/minimal-smoke:secboot_enabled google-nested:ubuntu-16.04-64:tests/nested/manual/devmode-snaps-can-run-other-snaps
+-----
+.
+2022-05-18 16:45:15 Error restoring google:ubuntu-core-22-64:tests/main/ (may181431-047051) : EOF
+2022-05-18 16:45:15 Error debugging google:ubuntu-core-22-64:tests/main/ (may181431-047051) : EOF
+2022-05-18 16:45:15 Restoring google:ubuntu-core-22-64 (may181431-047051)...
+2022-05-18 16:45:15 Error restoring google:ubuntu-core-22-64 (may181431-047051) : EOF
+2022-05-18 16:45:15 Discarding google:ubuntu-core-22-64 (may181431-047051)...
+2022-05-18 16:45:15 Successful tasks: 7376
+2022-05-18 16:45:15 Aborted tasks: 3061
+2022-05-18 16:45:15 Failed tasks: 2
+    - google:ubuntu-20.04-64:tests/main/degraded
+    - google:ubuntu-core-22-64:tests/main/dbus-activation-session

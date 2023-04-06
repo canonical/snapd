@@ -21,6 +21,8 @@ package progress
 
 import (
 	"io"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -86,6 +88,14 @@ func MockTermWidth(f func() int) func() {
 	return func() {
 		termWidth = origTermWidth
 	}
+}
+
+func MockIsTerminal(isTerm bool) (restore func()) {
+	r := testutil.Backup(&isTerminal)
+	isTerminal = func() bool {
+		return isTerm
+	}
+	return r
 }
 
 func MockStdout(w io.Writer) func() {

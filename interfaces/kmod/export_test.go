@@ -19,6 +19,16 @@
 
 package kmod
 
+import (
+	"github.com/snapcore/snapd/testutil"
+)
+
+func MockLoadModule(f func(module string, options []string) error) (restore func()) {
+	r := testutil.Backup(&kmodLoadModule)
+	kmodLoadModule = f
+	return r
+}
+
 func (b *Backend) LoadModules(modules []string) {
 	b.loadModules(modules)
 }

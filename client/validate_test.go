@@ -78,13 +78,22 @@ func (cs *clientSuite) TestListValidationsSets(c *check.C) {
 	})
 }
 
-func (cs *clientSuite) TestApplyValidationSet(c *check.C) {
+func (cs *clientSuite) TestApplyValidationSetMonitor(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
-		"status-code": 200
+		"status-code": 200,
+		"result": {"account-id": "foo", "name": "bar", "mode": "monitor", "sequence": 3, "valid": true}
 	}`
 	opts := &client.ValidateApplyOptions{Mode: "monitor", Sequence: 3}
-	c.Assert(cs.cli.ApplyValidationSet("foo", "bar", opts), check.IsNil)
+	vs, err := cs.cli.ApplyValidationSet("foo", "bar", opts)
+	c.Assert(err, check.IsNil)
+	c.Check(vs, check.DeepEquals, &client.ValidationSetResult{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      "monitor",
+		Sequence:  3,
+		Valid:     true,
+	})
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
 	body, err := ioutil.ReadAll(cs.req.Body)
@@ -99,11 +108,41 @@ func (cs *clientSuite) TestApplyValidationSet(c *check.C) {
 	})
 }
 
+func (cs *clientSuite) TestApplyValidationSetEnforce(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"status-code": 200,
+        "result": {"account-id": "foo", "name": "bar", "mode": "enforce", "sequence": 3, "valid": true}
+	}`
+	opts := &client.ValidateApplyOptions{Mode: "enforce", Sequence: 3}
+	vs, err := cs.cli.ApplyValidationSet("foo", "bar", opts)
+	c.Assert(err, check.IsNil)
+	c.Check(vs, check.DeepEquals, &client.ValidationSetResult{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      "enforce",
+		Sequence:  3,
+		Valid:     true,
+	})
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var req map[string]interface{}
+	err = json.Unmarshal(body, &req)
+	c.Assert(err, check.IsNil)
+	c.Assert(req, check.DeepEquals, map[string]interface{}{
+		"action":   "apply",
+		"mode":     "enforce",
+		"sequence": float64(3),
+	})
+}
+
 func (cs *clientSuite) TestApplyValidationSetError(c *check.C) {
 	cs.status = 500
 	cs.rsp = errorResponseJSON
 	opts := &client.ValidateApplyOptions{Mode: "monitor"}
-	err := cs.cli.ApplyValidationSet("foo", "bar", opts)
+	_, err := cs.cli.ApplyValidationSet("foo", "bar", opts)
 	c.Assert(err, check.ErrorMatches, "cannot apply validation set: failed")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
@@ -111,9 +150,9 @@ func (cs *clientSuite) TestApplyValidationSetError(c *check.C) {
 
 func (cs *clientSuite) TestApplyValidationSetInvalidArgs(c *check.C) {
 	opts := &client.ValidateApplyOptions{}
-	err := cs.cli.ApplyValidationSet("", "bar", opts)
+	_, err := cs.cli.ApplyValidationSet("", "bar", opts)
 	c.Assert(err, check.ErrorMatches, `cannot apply validation set without account ID and name`)
-	err = cs.cli.ApplyValidationSet("", "bar", opts)
+	_, err = cs.cli.ApplyValidationSet("", "bar", opts)
 	c.Assert(err, check.ErrorMatches, `cannot apply validation set without account ID and name`)
 }
 

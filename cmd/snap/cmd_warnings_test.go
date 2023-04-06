@@ -222,7 +222,7 @@ func (s *warningSuite) TestListWithWarnings(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stdout(), check.Equals, `
 Name  Version  Rev    Tracking  Publisher  Notes
-               unset  -         -          disabled
+      -        unset  -         -          disabled
 `[1:])
 	c.Check(s.Stderr(), check.Equals, "WARNING: There are 2 new warnings. See 'snap warnings'.\n")
 

@@ -77,6 +77,14 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 		cmd:  "snapd_recovery_mode=run snapd_recovery_system=1234",
 		mode: boot.ModeRun,
 	}, {
+		cmd:   "snapd_recovery_mode=recover snapd_recovery_system=1234",
+		label: "1234",
+		mode:  boot.ModeRecover,
+	}, {
+		cmd:   "snapd_recovery_mode=factory-reset snapd_recovery_system=1234",
+		label: "1234",
+		mode:  boot.ModeFactoryReset,
+	}, {
 		cmd: "option=1 other-option=\0123 none",
 		err: "cannot detect mode nor recovery system to use",
 	}, {
@@ -100,6 +108,9 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 		cmd:   "snapd_recovery_system=not-this-one snapd_recovery_mode=install snapd_recovery_system=1234",
 		mode:  "install",
 		label: "1234",
+	}, {
+		cmd:  "snapd_recovery_mode=cloudimg-rootfs",
+		mode: boot.ModeRunCVM,
 	}} {
 		c.Logf("tc: %q", tc)
 		s.mockProcCmdlineContent(c, tc.cmd)
@@ -359,9 +370,10 @@ func (s *kernelCommandLineSuite) TestComposeRecoveryCommandLineWithGadget(c *C) 
 
 func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
 	for _, tc := range []struct {
-		errMsg       string
-		files        [][]string
-		expectedVars map[string]string
+		errMsg        string
+		files         [][]string
+		cmdlineAppend string
+		expectedVars  map[string]string
 	}{{
 		files: [][]string{
 			{"cmdline.extra", "foo bar baz"},
@@ -392,6 +404,30 @@ func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
 			"snapd_full_cmdline_args":  "full foo bar baz",
 		},
 	}, {
+		cmdlineAppend: "foo bar baz",
+		expectedVars: map[string]string{
+			"snapd_extra_cmdline_args": "foo bar baz",
+			"snapd_full_cmdline_args":  "",
+		},
+	}, {
+		files: [][]string{
+			{"cmdline.extra", "foo bar baz"},
+		},
+		cmdlineAppend: "x=y z",
+		expectedVars: map[string]string{
+			"snapd_extra_cmdline_args": "foo bar baz x=y z",
+			"snapd_full_cmdline_args":  "",
+		},
+	}, {
+		files: [][]string{
+			{"cmdline.full", "full foo bar baz"},
+		},
+		cmdlineAppend: "x=y z",
+		expectedVars: map[string]string{
+			"snapd_extra_cmdline_args": "",
+			"snapd_full_cmdline_args":  "full foo bar baz x=y z",
+		},
+	}, {
 		// with no arguments boot variables should be cleared
 		files: [][]string{},
 		expectedVars: map[string]string{
@@ -402,7 +438,7 @@ func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
 		sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, append([][]string{
 			{"meta/snap.yaml", gadgetSnapYaml},
 		}, tc.files...))
-		vars, err := boot.BootVarsForTrustedCommandLineFromGadget(sf)
+		vars, err := boot.BootVarsForTrustedCommandLineFromGadget(sf, tc.cmdlineAppend)
 		if tc.errMsg == "" {
 			c.Assert(err, IsNil)
 			c.Assert(vars, DeepEquals, tc.expectedVars)

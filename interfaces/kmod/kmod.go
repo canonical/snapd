@@ -20,7 +20,11 @@
 package kmod
 
 import (
-	"os/exec"
+	kmod_wrapper "github.com/snapcore/snapd/osutil/kmod"
+)
+
+var (
+	kmodLoadModule = kmod_wrapper.LoadModule
 )
 
 // loadModules loads given list of modules via modprobe.
@@ -34,6 +38,6 @@ func (b *Backend) loadModules(modules []string) {
 	}
 	for _, mod := range modules {
 		// ignore errors which are logged by loadModule() via syslog
-		_ = exec.Command("modprobe", "--syslog", mod).Run()
+		_ = kmodLoadModule(mod, []string{})
 	}
 }

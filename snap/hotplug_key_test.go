@@ -38,7 +38,7 @@ func (*hotplugKeySuite) TestShortString(c *C) {
 }
 
 func (*hotplugKeySuite) TestString(c *C) {
-	// simple sanity test
+	// simple validity test
 	keyStr := "abcdefghijklmnopqrstuvwxyz"
 	key := snap.HotplugKey(keyStr)
 	c.Check(fmt.Sprintf("%s", key), Equals, "abcdefghijklmnopqrstuvwxyz")

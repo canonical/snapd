@@ -16,7 +16,7 @@ prepare: |
   snap install --edge "--$FLAG" "$SNAP"
 
 execute: |
-  # sanity check
+  # precondition check
   snap list "$SNAP" | MATCH "$FLAG$"
   snap disable "$SNAP"
   snap enable "$SNAP"

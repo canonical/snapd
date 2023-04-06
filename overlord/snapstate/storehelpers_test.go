@@ -334,7 +334,7 @@ func (s *snapmgrTestSuite) TestInstallSizeWithOtherChangeAffectingSameSnaps(c *C
 	// snap3 and its base installed by another change, not counted here
 	c.Check(sz, Equals, uint64(snap1Size+someBaseSize))
 
-	// sanity
+	// validity
 	c.Check(currentSnapsCalled, Equals, 2)
 }
 
@@ -350,4 +350,136 @@ func (s *snapmgrTestSuite) TestInstallSizeErrorNoDownloadInfo(c *C) {
 
 	_, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{snapstate.InstallSnapInfo{Info: snap1}}, 0)
 	c.Assert(err, ErrorMatches, `internal error: download info missing.*`)
+}
+
+func (s *snapmgrTestSuite) TestInstallSizeWithPrereqNoStore(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(st, repo)
+
+	s.setupInstallSizeStore()
+
+	snap1 := snaptest.MockSnap(c, `name: some-snap
+version: 1.0
+epoch: 1
+base: core
+plugs:
+  myplug:
+    interface: content
+    content: mycontent
+    content-provider: some-snap2`, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	})
+	snap1.Size = snap1Size
+
+	snap2 := snaptest.MockSnap(c, `name: some-snap2
+version: 1.0
+epoch: 1
+base: core
+slots:
+  myslot:
+    interface: content
+    content: mycontent`, &snap.SideInfo{
+		RealName: "some-snap2",
+		Revision: snap.R(1),
+	})
+	snap2.Size = snap2Size
+
+	// core is already installed
+	s.mockCoreSnap(c)
+
+	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
+		snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap2}}, 0)
+	c.Assert(err, IsNil)
+	c.Check(sz, Equals, uint64(snap1Size+snap2Size))
+
+	// no call to the store is made
+	c.Assert(s.fakeStore.fakeBackend.ops, HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestInstallSizeWithPrereqAndCoreNoStore(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(st, repo)
+
+	s.setupInstallSizeStore()
+
+	snap1 := snaptest.MockSnap(c, `name: some-snap
+version: 1.0
+epoch: 1
+base: core
+plugs:
+  myplug:
+    interface: content
+    content: mycontent
+    content-provider: some-snap2`, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	})
+	snap1.Size = snap1Size
+
+	snap2 := snaptest.MockSnap(c, `name: some-snap2
+version: 1.0
+epoch: 1
+base: core
+slots:
+  myslot:
+    interface: content
+    content: mycontent`, &snap.SideInfo{
+		RealName: "some-snap2",
+		Revision: snap.R(1),
+	})
+	snap2.Size = snap2Size
+
+	core := snaptest.MockSnap(c, `name: core
+version: 1.0
+epoch: 1
+type: os`, &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	})
+	core.Size = someBaseSize
+
+	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
+		snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap2}, snapstate.InstallSnapInfo{Info: core}}, 0)
+	c.Assert(err, IsNil)
+	c.Check(sz, Equals, uint64(snap1Size+snap2Size+someBaseSize))
+
+	// no call to the store is made
+	c.Assert(s.fakeStore.fakeBackend.ops, HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestInstallSizeRemotePrereq(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(st, repo)
+
+	s.setupInstallSizeStore()
+
+	snap1 := snaptest.MockSnap(c, snapYamlWithContentPlug1, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	})
+	snap1.Size = snap1Size
+
+	s.mockCoreSnap(c)
+
+	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
+		snapstate.InstallSnapInfo{Info: snap1}}, 0)
+	c.Assert(err, IsNil)
+	c.Check(sz, Equals, uint64(snap1Size+snapContentSlotSize+someBaseSize))
+
+	// the prereq's size info is fetched from the store
+	op := s.fakeStore.fakeBackend.ops.MustFindOp(c, "storesvc-snap-action:action")
+	c.Assert(op.action.InstanceName, Equals, "snap-content-slot")
 }

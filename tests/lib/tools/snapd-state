@@ -75,6 +75,7 @@ _wait_autorefresh(){
     local RETRIES="$2"
     local CHECK_MESSAGE="$3"
 
+    CHANGE_ID="$LAST_CHANGE_ID"
     for _ in $(seq "$RETRIES"); do
       # get last 2 lines of snap changes (the last one is always empty), match
       # auto-refresh change; only proceed if the change has greater change id

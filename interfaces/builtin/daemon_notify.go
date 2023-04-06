@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 )
 
 const daemonNotifySummary = `allows sending daemon status changes to service manager`
@@ -64,7 +65,7 @@ func (iface *daemoNotifyInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 		// must be an absolute path or an abstract socket path
 		return fmt.Errorf("cannot use %q as notify socket path: not absolute", notifySocket)
 	}
-	if err := apparmor.ValidateNoAppArmorRegexp(notifySocket); err != nil {
+	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(notifySocket); err != nil {
 		return fmt.Errorf("cannot use %q as notify socket path: %s", notifySocket, err)
 	}
 

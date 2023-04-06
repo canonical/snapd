@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// sanity - uboot implements the required interfaces
+// uboot implements the required interfaces
 var (
 	_ Bootloader                             = (*uboot)(nil)
 	_ ExtractedRecoveryKernelImageBootloader = (*uboot)(nil)
@@ -87,6 +87,20 @@ func (u *uboot) dir() string {
 	return filepath.Join(u.rootdir, u.basedir)
 }
 
+func (u *uboot) useHeaderFlagByte(gadgetDir string) bool {
+	// if there is a "pattern" boot.sel in the gadget snap, we follow its
+	// lead. If opening it as a uboot env fails in any way we just go with
+	// the default.
+	gadgetEnv, err := ubootenv.OpenWithFlags(filepath.Join(gadgetDir, u.ubootEnvFileName), ubootenv.OpenBestEffort)
+	if err == nil {
+		return gadgetEnv.HeaderFlagByte()
+	}
+
+	// Otherwise we use the (historical) default and assume uboot is built with
+	// SYS_REDUNDAND_ENVIRONMENT=y
+	return true
+}
+
 func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 	gadgetFile := filepath.Join(gadgetDir, u.Name()+".conf")
 	// if the gadget file is empty, then we don't install anything
@@ -112,7 +126,7 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 		}
 
 		// TODO:UC20: what's a reasonable size for this file?
-		env, err := ubootenv.Create(u.envFile(), 4096)
+		env, err := ubootenv.Create(u.envFile(), 4096, ubootenv.CreateOptions{HeaderFlagByte: u.useHeaderFlagByte(gadgetDir)})
 		if err != nil {
 			return err
 		}
@@ -131,7 +145,7 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 	if blOpts != nil && blOpts.Role == RoleRecovery {
 		// not supported yet, this is traditional uboot.env from gadget
 		// TODO:UC20: support this use-case
-		return fmt.Errorf("non-empty uboot.env not supported on UC20 yet")
+		return fmt.Errorf("non-empty uboot.env not supported on UC20+ yet")
 	}
 
 	systemFile := u.envFile()

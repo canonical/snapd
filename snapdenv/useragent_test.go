@@ -24,7 +24,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type UASuite struct {
@@ -64,8 +66,22 @@ func (s *UASuite) TestUserAgent(c *C) {
 	c.Check(strings.Contains(ua, "devmode"), Equals, true)
 }
 
+func (s *UASuite) TestUserAgentWSL(c *C) {
+	defer testutil.Backup(&release.OnWSL)()
+
+	release.OnWSL = false
+	snapdenv.SetUserAgentFromVersion("10", nil)
+	ua := snapdenv.UserAgent()
+	c.Check(strings.Contains(ua, "wsl"), Equals, false)
+
+	release.OnWSL = true
+	snapdenv.SetUserAgentFromVersion("10", nil)
+	ua = snapdenv.UserAgent()
+	c.Check(strings.Contains(ua, "wsl"), Equals, true)
+}
+
 func (s *UASuite) TestStripUnsafeRunes(c *C) {
-	// Sanity check, strings like that are not modified
+	// Validity check, strings like that are not modified
 	for _, unchanged := range []string{
 		"abc-xyz-ABC-XYZ-0-9",
 		".", "-", "_",

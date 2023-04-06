@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -194,12 +195,9 @@ func MockEtcFstab(text string) (restore func()) {
 
 // MockUname mocks syscall.Uname as used by MachineName and KernelVersion
 func MockUname(f func(*syscall.Utsname) error) (restore func()) {
-	old := syscallUname
+	r := testutil.Backup(&syscallUname)
 	syscallUname = f
-
-	return func() {
-		syscallUname = old
-	}
+	return r
 }
 
 var (
@@ -240,26 +238,4 @@ func ParseRawExpandableEnv(entries []string) (ExpandableEnv, error) {
 		om.Set(key, value)
 	}
 	return ExpandableEnv{OrderedMap: om}, nil
-}
-
-// this is weird to use in a test, but it is so that we can test the actual
-// implementation of LoadMountInfo, which normally panics during tests if not
-// properly mocked
-func MountInfoMustMock(new bool) (restore func()) {
-	old := mountInfoMustMockInTests
-	mountInfoMustMockInTests = new
-	return func() {
-		mountInfoMustMockInTests = old
-	}
-}
-
-// this should not be used except to test the actual implementation logic of
-// LoadMountInfo, if you are trying to mock /proc/self/mountinfo in a test,
-// use MockMountInfo(), which is exported and the right way to do that.
-func MockProcSelfMountInfoLocation(new string) (restore func()) {
-	old := procSelfMountInfo
-	procSelfMountInfo = new
-	return func() {
-		procSelfMountInfo = old
-	}
 }

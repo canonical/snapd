@@ -1,0 +1,167 @@
+#!/bin/bash
+
+show_help() {
+    echo "usage: spread-manager set-manual [--project-path <PROJECT-PATH>] <TEST-PATH...>"
+    echo "       spread-manager unset-manual [--project-path <PROJECT-PATH>] <TEST-PATH...>"
+    echo "       spread-manager reset-manual [--project-path <PROJECT-PATH>] <TEST-PATH...>"
+    echo ""
+    echo "Tool used to help with functions that are not already implemented in spread"
+}
+
+_check_project_path() {
+    local project_path="$1"
+    if [ -z "$project_path" ]; then
+        echo "spread-manager: project path cannot be empty"
+        exit 1
+    fi
+    if [ ! -d "$project_path" ]; then
+        echo "spread-manager: project path \"$project_path\" has to be a directory"
+        exit 1
+    fi
+    if [ ! -f "$project_path/spread.yaml" ]; then
+        echo "spread-manager: project spread file \"$project_path/spread.yaml\" does not exist"
+        exit 1
+    fi
+}
+
+_check_test_paths() {
+    # shellcheck disable=SC2124
+    local test_paths="$@"
+    if [ -z "$test_paths" ]; then
+        echo "spread-manager: test path cannot be empty"
+        exit 1
+    fi
+    for task_path in $test_paths; do
+        _check_test_path "$task_path"
+    done
+}
+
+_check_test_path() {
+    local test_path="$1"
+    if [ -z "$test_path" ]; then
+        echo "spread-manager: test path cannot be empty"
+        exit 1
+    fi
+    if [ ! -d "$test_path" ]; then
+        echo "spread-manager: test path \"$test_path\" has to be a directory"
+        exit 1
+    fi
+    if [ ! -f "$test_path/task.yaml" ]; then
+        echo "spread-manager: test task \"$test_path/task.yaml\" does not exist"
+        exit 1
+    fi
+}
+
+_set_manual_value() {
+    local task_path=$1
+    local manual_value=$2
+
+    # Update the manual property
+    if grep -E "^manual:" "$task_path"; then
+        sed -i -e "s/^manual:.*/manual: $manual_value/g" "$task_path"
+    else
+        echo "manual: $manual_value" >> "$task_path"
+    fi
+}
+
+set_manual() {
+    local project_path="$1"
+    shift
+    # shellcheck disable=SC2124
+    local test_paths="$@"
+
+    _check_project_path "$project_path"
+    test_paths="$(echo "$test_paths" | tr ',' ' ')"
+    _check_test_paths "$test_paths"
+
+    for test_path in $test_paths; do
+        local task_path
+        task_path="$project_path/$test_path/task.yaml"
+
+        # Backup the task
+        cp "$task_path" "$task_path.back"
+        _set_manual_value "$task_path" true
+    done
+}
+
+unset_manual() {
+    local project_path="$1"
+    shift
+    # shellcheck disable=SC2124
+    local test_paths="$@"
+
+    _check_project_path "$project_path"
+    test_paths="$(echo "$test_paths" | tr ',' ' ')"
+    _check_test_paths "$test_paths"
+
+    for test_path in $test_paths; do
+        local task_path
+        task_path="$project_path/$test_path/task.yaml"
+
+        # Backup the task
+        cp "$task_path" "$task_path.back"
+        _set_manual_value "$task_path" false
+    done
+}
+
+reset_manual() {
+    local project_path="$1"
+    shift
+    # shellcheck disable=SC2124
+    local test_paths="$@"
+
+    _check_project_path "$project_path"
+    test_paths="$(echo "$test_paths" | tr ',' ' ')"
+    _check_test_paths "$test_paths"
+
+    for test_path in $test_paths; do
+        local task_path
+        task_path="$project_path/$test_path/task.yaml"
+
+        if [ -f "$task_path.back" ]; then
+            mv "$task_path.back" "$task_path"
+        else
+            echo "spread-manager: test task backup does not exist \"$task_path.back\""
+            exit 1
+        fi
+    done
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    local subcommand="$1"
+    local action=
+    if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+        show_help
+        exit 0
+    else
+        action=$(echo "$subcommand" | tr '-' '_')
+        shift
+    fi
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "spread-manager: no such command: $subcommand" >&2
+        show_help
+        exit 1
+    fi
+
+    local project_path
+    if [ $# -gt 0 ]; then
+        if [[ "$action" =~ .*_manual ]]; then
+            project_path="$(pwd)"
+            if [ "$1" == "--project-path" ]; then
+                project_path="$2"
+                shift 2
+            fi
+            "$action" "$project_path" "$@"
+        else
+            "$action" "$@"
+        fi
+    fi
+}
+
+main "$@"

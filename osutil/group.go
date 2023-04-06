@@ -35,6 +35,22 @@ var FindUid = findUid
 // automatically fallback to use "getent" if needed.
 var FindGid = findGid
 
+func MockFindUid(f func(string) (uint64, error)) (restore func()) {
+	old := FindUid
+	FindUid = f
+	return func() {
+		FindUid = old
+	}
+}
+
+func MockFindGid(f func(string) (uint64, error)) (restore func()) {
+	old := FindGid
+	FindGid = f
+	return func() {
+		FindGid = old
+	}
+}
+
 // getent returns the identifier of the given UNIX user or group name as
 // determined by the specified database
 func getent(database, name string) (uint64, error) {

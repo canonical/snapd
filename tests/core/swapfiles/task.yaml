@@ -5,10 +5,11 @@ execute: |
   snap set system swap.size=200M
 
   echo "Check that the swap file was setup"
-  retry -n 60 --wait 1 bash -c "cat /proc/swaps | MATCH '\s+file\s+204796'"
+  # use swapon as it rounds up the numbers nicely
+  retry -n 60 --wait 1 bash -c "swapon --show | MATCH '\s+file\s+200M\s'"
 
   echo "Unset the swap size"
   snap unset system swap.size
 
   echo "Check that there is no more swap now"
-  retry -n 60 --wait 1 bash -c "cat /proc/swaps | NOMATCH '\s+file\s+204796'"
+  retry -n 60 --wait 1 bash -c "cat /proc/swaps | NOMATCH '\s+file\s+'"

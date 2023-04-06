@@ -14,7 +14,7 @@ if [ ! -e VERSION ]; then
 	( cd .. && ./mkversion.sh )
 fi
 
-# Sanity check, are we in the right directory?
+# Precondition check, are we in the right directory?
 test -f configure.ac
 
 # Regenerate the build system
@@ -52,6 +52,9 @@ case "$ID" in
 		;;
 	solus)
 		extra_opts="--enable-nvidia-biarch"
+		;;
+	altlinux)
+		extra_opts="--libexecdir=/usr/lib/snapd --with-snap-mount-dir=/var/lib/snapd/snap --disable-apparmor --enable-selinux --enable-nvidia-biarch --with-32bit-libdir=/usr/lib"
 		;;
 esac
 

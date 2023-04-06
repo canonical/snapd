@@ -113,9 +113,18 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 	g3 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/snap.foo.user-app.1234-1234-1234.scope/cgroup.freeze")
 	// user service
 	g4 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/snap.foo.user-svc.service/cgroup.freeze")
-	canary := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.canary.svc.service/cgroup.freeze")
+	// service socket
+	canaryServiceSocket := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.daemon.socket/cgroup.freeze")
+	// user socket
+	canaryUserSocket := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/snap.foo.user-svc.socket/cgroup.freeze")
+	// other snap cgroup
+	canaryOther := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.canary.svc.service/cgroup.freeze")
 	// a subgroup of the group of a snap
 	canarySubgroup := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.svc.service/snap.foo.subgroup.scope/cgroup.freeze")
+	// mount
+	canaryMount := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap-foo-1234.mount/cgroup.freeze")
+	// slice
+	canarySlice := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.bar.slice/cgroup.freeze")
 
 	pid := os.Getpid()
 
@@ -131,13 +140,19 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 	// When the freezer cgroup filesystem doesn't exist we do nothing at all.
 	c.Assert(cgroup.FreezeSnapProcesses("foo"), IsNil)
 
-	for _, p := range []string{g1, g2, g3, g4, canary, canarySubgroup} {
+	for _, p := range []string{
+		g1, g2, g3, g4,
+		canaryOther, canarySubgroup, canaryUserSocket, canaryServiceSocket, canaryMount, canarySlice,
+	} {
 		_, err := os.Stat(p)
 		c.Assert(os.IsNotExist(err), Equals, true)
 	}
 
 	// prepare the stage
-	for _, p := range []string{g1, g2, g3, g4, canary, canarySubgroup} {
+	for _, p := range []string{
+		g1, g2, g3, g4,
+		canaryOther, canarySubgroup, canaryUserSocket, canaryServiceSocket, canaryMount, canarySlice,
+	} {
 		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
 		c.Assert(ioutil.WriteFile(p, []byte("0"), 0644), IsNil)
 	}
@@ -147,17 +162,23 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 		c.Check(p, testutil.FileEquals, "1")
 	}
 	// canaries have not been changed
-	c.Assert(canary, testutil.FileEquals, "0")
-	c.Assert(canarySubgroup, testutil.FileEquals, "0")
+	for _, p := range []string{
+		canaryOther, canarySubgroup, canaryUserSocket, canaryServiceSocket, canaryMount, canarySlice,
+	} {
+		c.Assert(p, testutil.FileEquals, "0")
+	}
 
 	// all groups are 'frozen', repeating the action does not break anything
 	c.Assert(cgroup.FreezeSnapProcesses("foo"), IsNil)
 	for _, p := range []string{g1, g2, g3, g4} {
 		c.Check(p, testutil.FileEquals, "1")
 	}
-	// canaries have not been changed
-	c.Assert(canary, testutil.FileEquals, "0")
-	c.Assert(canarySubgroup, testutil.FileEquals, "0")
+	// canaries still have not been changed
+	for _, p := range []string{
+		canaryOther, canarySubgroup, canaryUserSocket, canaryServiceSocket, canaryMount, canarySlice,
+	} {
+		c.Assert(p, testutil.FileEquals, "0")
+	}
 
 	// unfreeze some groups
 	for _, p := range []string{g2, g3} {
@@ -186,7 +207,6 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OwnGroup(c *C) {
 	// user service
 	g4 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/snap.foo.user-svc.service/cgroup.freeze")
 	canary := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.canary.svc.service/cgroup.freeze")
-	// a subgroup of the group of a snap
 
 	pid := os.Getpid()
 
@@ -229,34 +249,51 @@ func (s *freezerV2Suite) TestThawSnapProcessesV2(c *C) {
 	g3 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/snap.foo.user-app.1234-1234-1234.scope/cgroup.freeze")
 	// user service
 	g4 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/snap.foo.user-svc.service/cgroup.freeze")
-	canary := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.canary.svc.service/cgroup.freeze")
+	canaryOther := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.canary.svc.service/cgroup.freeze")
 	// a subgroup of the group of a snap
 	canarySubgroup := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.svc.service/snap.foo.subgroup.scope/cgroup.freeze")
+	// service socket
+	canaryServiceSocket := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.daemon.socket/cgroup.freeze")
+	// user socket
+	canaryUserSocket := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/snap.foo.user-svc.socket/cgroup.freeze")
+	// mount
+	canaryMount := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap-foo-1234.mount/cgroup.freeze")
+	// slice
+	canarySlice := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.bar.slice/cgroup.freeze")
 
 	// thawing when no groups exist does not break anything
 	c.Assert(cgroup.ThawSnapProcesses("foo"), IsNil)
 
-	for _, p := range []string{g1, g2, g3, g4, canary} {
+	for _, p := range []string{g1, g2, g3, g4, canaryOther, canaryUserSocket, canaryServiceSocket, canaryMount} {
 		_, err := os.Stat(p)
 		c.Assert(os.IsNotExist(err), Equals, true)
 	}
 
 	// prepare the stage
-	for _, p := range []string{g1, g2, g3, g4, canary, canarySubgroup} {
+	for _, p := range []string{
+		g1, g2, g3, g4,
+		canaryOther, canarySubgroup, canaryUserSocket, canaryServiceSocket, canaryMount, canarySlice,
+	} {
 		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-		// groups aren't frozen
-		c.Assert(ioutil.WriteFile(p, []byte("0"), 0644), IsNil)
+		// well known, but invalid status of canaries
+		c.Assert(ioutil.WriteFile(p, []byte("99"), 0644), IsNil)
 	}
 
 	c.Assert(cgroup.ThawSnapProcesses("foo"), IsNil)
 	for _, p := range []string{g1, g2, g3, g4} {
 		c.Check(p, testutil.FileEquals, "0")
 	}
-	// canaries are still unfrozen
-	c.Assert(canary, testutil.FileEquals, "0")
-	c.Assert(canarySubgroup, testutil.FileEquals, "0")
+	// canaries are still as they were
+	for _, p := range []string{
+		canaryOther, canarySubgroup, canaryUserSocket, canaryServiceSocket, canaryMount, canarySlice,
+	} {
+		c.Check(p, testutil.FileEquals, "99")
+	}
 
-	for _, p := range []string{g1, g2, g3, g4, canary, canarySubgroup} {
+	for _, p := range []string{
+		g1, g2, g3, g4,
+		canaryOther, canarySubgroup, canaryUserSocket, canaryServiceSocket, canaryMount, canarySlice,
+	} {
 		// make them appear frozen
 		c.Assert(ioutil.WriteFile(p, []byte("1"), 0644), IsNil)
 	}
@@ -264,8 +301,12 @@ func (s *freezerV2Suite) TestThawSnapProcessesV2(c *C) {
 	for _, p := range []string{g1, g2, g3, g4} {
 		c.Check(p, testutil.FileEquals, "0")
 	}
-	c.Assert(canary, testutil.FileEquals, "1")
-	c.Assert(canarySubgroup, testutil.FileEquals, "1")
+	// canaries are unchanged
+	for _, p := range []string{
+		canaryOther, canarySubgroup, canaryUserSocket, canaryServiceSocket, canaryMount, canarySlice,
+	} {
+		c.Check(p, testutil.FileEquals, "1")
+	}
 
 	// freeze only some the groups groups
 	for _, p := range []string{g2, g3} {

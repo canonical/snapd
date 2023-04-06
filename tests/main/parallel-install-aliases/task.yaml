@@ -43,7 +43,7 @@ execute: |
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias1)" = "aliases.cmd1"
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias2)" = "aliases_foo.cmd2"
 
-    # sanity check if apps can still be run
+    # precondition check if apps can still be run
     alias1|MATCH "ok command 1"
     alias2|MATCH "ok command 2"
 

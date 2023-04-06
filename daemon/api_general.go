@@ -22,6 +22,7 @@ package daemon
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os/exec"
 	"sort"
@@ -113,7 +114,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot get refresh schedule: %s", err)
 	}
 	users, err := auth.Users(st)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return InternalError("cannot get user auth data: %s", err)
 	}
 

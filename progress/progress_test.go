@@ -22,6 +22,7 @@ package progress_test
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -38,6 +39,24 @@ type ProgressTestSuite struct {
 
 var _ = Suite(&ProgressTestSuite{})
 
+func (ts *ProgressTestSuite) TestMakeProgressBar(c *C) {
+	defer progress.MockIsTerminal(false)()
+
+	m := progress.MakeProgressBar(nil)
+	c.Check(m, FitsTypeOf, progress.QuietMeter{})
+	m = progress.MakeProgressBar(os.Stdout)
+	c.Check(m, FitsTypeOf, progress.QuietMeter{})
+
+	progress.MockIsTerminal(true)
+	m = progress.MakeProgressBar(nil)
+	c.Check(m, FitsTypeOf, &progress.ANSIMeter{})
+	m = progress.MakeProgressBar(os.Stdout)
+	c.Check(m, FitsTypeOf, &progress.ANSIMeter{})
+	var buf bytes.Buffer
+	m = progress.MakeProgressBar(&buf)
+	c.Check(m, FitsTypeOf, progress.QuietMeter{})
+}
+
 func (ts *ProgressTestSuite) testNotify(c *C, t progress.Meter, desc, expected string) {
 	var buf bytes.Buffer
 	defer progress.MockStdout(&buf)()
@@ -51,6 +70,15 @@ func (ts *ProgressTestSuite) testNotify(c *C, t progress.Meter, desc, expected s
 
 func (ts *ProgressTestSuite) TestQuietNotify(c *C) {
 	ts.testNotify(c, &progress.QuietMeter{}, "quiet", "blah blah\n")
+}
+
+func (ts *ProgressTestSuite) TestOtherWriterQuietNotify(c *C) {
+	var buf bytes.Buffer
+
+	m := progress.MakeProgressBar(&buf)
+	ts.testNotify(c, m, "quiet", "")
+
+	c.Check(buf.String(), Equals, "blah blah\n")
 }
 
 func (ts *ProgressTestSuite) TestANSINotify(c *C) {

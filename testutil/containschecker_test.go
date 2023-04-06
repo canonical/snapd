@@ -267,6 +267,17 @@ func (*containsCheckerSuite) TestDeepUnsortedMatchesMapSuccess(c *check.C) {
 	c.Check(map2, DeepUnsortedMatches, map1)
 }
 
+func (*containsCheckerSuite) TestDeepUnsortedMatchesMapStructFail(c *check.C) {
+	map1 := map[string]example{
+		"a": {a: "a", b: map[string]int{"a": 2, "b": 1}},
+	}
+	map2 := map[string]example{
+		"a": {a: "a", b: map[string]int{"a": 1, "b": 2}},
+	}
+
+	testCheck(c, DeepUnsortedMatches, false, "maps don't match", map1, map2)
+}
+
 func (*containsCheckerSuite) TestDeepUnsortedMatchesMapUnmatchedKeyFailure(c *check.C) {
 	map1 := map[string]int{"a": 1, "c": 2}
 	map2 := map[string]int{"a": 1, "b": 2}
@@ -287,16 +298,12 @@ func (*containsCheckerSuite) TestDeepUnsortedMatchesDifferentTypeFailure(c *chec
 	testCheck(c, DeepUnsortedMatches, false, "containers are of different types: slice != array", []int{}, [1]int{})
 }
 
+func (*containsCheckerSuite) TestDeepUnsortedMatchesDifferentElementType(c *check.C) {
+	testCheck(c, DeepUnsortedMatches, false, "containers have different element types: int != string", []int{1}, []string{"a"})
+}
+
 func (*containsCheckerSuite) TestDeepUnsortedMatchesDifferentLengthFailure(c *check.C) {
 	testCheck(c, DeepUnsortedMatches, false, "containers have different lengths: 1 != 2", []int{1}, []int{1, 1})
-}
-
-func (*containsCheckerSuite) TestDeepUnsortedMatchesUnsupportedTypeFailure(c *check.C) {
-	testCheck(c, DeepUnsortedMatches, false, "'int' is not a supported type: must be slice, array, map or nil", 1, 2)
-}
-
-func (*containsCheckerSuite) TestDeepUnsortedMatchesUnsupportedPointerType(c *check.C) {
-	testCheck(c, DeepUnsortedMatches, false, "'ptr' is not a supported type: must be slice, array, map or nil", &[]string{"a", "b"}, &[]string{"b", "a"})
 }
 
 func (*containsCheckerSuite) TestDeepUnsortedMatchesNilArgFailure(c *check.C) {
@@ -305,4 +312,61 @@ func (*containsCheckerSuite) TestDeepUnsortedMatchesNilArgFailure(c *check.C) {
 
 func (*containsCheckerSuite) TestDeepUnsortedMatchesBothNilArgSuccess(c *check.C) {
 	c.Check(nil, DeepUnsortedMatches, nil)
+}
+
+func (*containsCheckerSuite) TestDeepUnsortedMatchesNonContainerValues(c *check.C) {
+	testCheck(c, DeepUnsortedMatches, false, "'string' is not a supported type: must be slice, array or map", "a", "a")
+	testCheck(c, DeepUnsortedMatches, false, "'int' is not a supported type: must be slice, array or map", 1, 2)
+	testCheck(c, DeepUnsortedMatches, false, "'bool' is not a supported type: must be slice, array or map", true, false)
+	testCheck(c, DeepUnsortedMatches, false, "'ptr' is not a supported type: must be slice, array or map", &[]string{"a", "b"}, &[]string{"a", "b"})
+	testCheck(c, DeepUnsortedMatches, false, "'func' is not a supported type: must be slice, array or map", func() {}, func() {})
+}
+
+func (*containsCheckerSuite) TestDeepUnsortedMatchesMapsOfSlices(c *check.C) {
+	map1 := map[string][]string{"a": {"foo", "bar"}, "b": {"foo", "bar"}}
+	map2 := map[string][]string{"a": {"bar", "foo"}, "b": {"bar", "foo"}}
+
+	c.Check(map1, DeepUnsortedMatches, map2)
+}
+
+func (*containsCheckerSuite) TestDeepUnsortedMatchesMapsDifferentKeyTypes(c *check.C) {
+	map1 := map[string][]string{"a": {"foo", "bar"}}
+	map2 := map[int][]string{1: {"bar", "foo"}}
+
+	testCheck(c, DeepUnsortedMatches, false, "maps have different key types: string != int", map1, map2)
+}
+
+func (*containsCheckerSuite) TestDeepUnsortedMatchesMapsDifferentValueTypes(c *check.C) {
+	map1 := map[string][]string{"a": {"foo", "bar"}}
+	map2 := map[string][2]string{"a": {"foo", "bar"}}
+
+	testCheck(c, DeepUnsortedMatches, false, "containers have different element types: []string != [2]string", map1, map2)
+}
+
+func (*containsCheckerSuite) TestDeepUnsortedMatchesMapsDifferentLengths(c *check.C) {
+	map1 := map[string][]string{"a": {"foo", "bar"}, "b": {"foo", "bar"}}
+	map2 := map[string][]string{"a": {"bar", "foo"}}
+
+	testCheck(c, DeepUnsortedMatches, false, "containers have different lengths: 2 != 1", map1, map2)
+}
+
+func (*containsCheckerSuite) TestDeepUnsortedMatchesMapsMissingKey(c *check.C) {
+	map1 := map[string][]string{"a": {"foo", "bar"}}
+	map2 := map[string][]string{"b": {"bar", "foo"}}
+
+	testCheck(c, DeepUnsortedMatches, false, "key \"a\" from one map is absent from the other map", map1, map2)
+}
+
+func (*containsCheckerSuite) TestDeepUnsortedMatchesNestedMaps(c *check.C) {
+	map1 := map[string]map[string][]string{"a": {"b": []string{"foo", "bar"}}}
+	map2 := map[string]map[string][]string{"a": {"b": []string{"bar", "foo"}}}
+	c.Check(map1, DeepUnsortedMatches, map2)
+
+	map1 = map[string]map[string][]string{"a": {"b": []string{"foo", "bar"}}}
+	map2 = map[string]map[string][]string{"a": {"c": []string{"bar", "foo"}}}
+	testCheck(c, DeepUnsortedMatches, false, "key \"b\" from one map is absent from the other map", map1, map2)
+
+	map1 = map[string]map[string][]string{"a": {"b": []string{"foo", "bar"}}, "c": {"b": []string{"foo"}}}
+	map2 = map[string]map[string][]string{"a": {"b": []string{"bar", "foo"}}, "c": {"b": []string{"bar"}}}
+	testCheck(c, DeepUnsortedMatches, false, "element [0]=foo was unmatched in the second container", map1, map2)
 }

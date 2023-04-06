@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
@@ -177,6 +178,7 @@ type essentialInfo struct {
 	Digest      string
 	Confinement string
 	Type        string
+	Base        string
 }
 
 var errInfo = errors.New("cannot get info")
@@ -204,7 +206,7 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 	}
 
 	snapRev, devAcct, err := findSnapRevision(snapDigest, bs)
-	if err != nil && !asserts.IsNotFound(err) {
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		http.Error(w, fmt.Sprintf("cannot get info for: %v: %v", fn, err), 400)
 		return nil, errInfo
 	}
@@ -234,6 +236,7 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 		Size:        size,
 		Confinement: string(info.Confinement),
 		Type:        string(info.Type()),
+		Base:        info.Base,
 	}, nil
 }
 
@@ -250,6 +253,7 @@ type detailsReplyJSON struct {
 	DownloadDigest  string   `json:"download_sha3_384"`
 	Confinement     string   `json:"confinement"`
 	Type            string   `json:"type"`
+	Base            string   `json:"base,omitempty"`
 }
 
 func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -271,7 +275,7 @@ func (s *Store) repairsEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	a, err := s.retrieveAssertion(bs, asserts.RepairType, brandAndRepairID)
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
 		w.Write([]byte(`{"status": 404}`))
@@ -379,6 +383,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		DownloadDigest:  hexify(essInfo.Digest),
 		Confinement:     essInfo.Confinement,
 		Type:            essInfo.Type,
+		Base:            essInfo.Base,
 	}
 
 	// use indent because this is a development tool, output
@@ -412,6 +417,7 @@ func (s *Store) collectSnaps() (map[string]string, error) {
 			return nil, err
 		}
 		snaps[info.SnapName()] = fn
+		logger.Debugf("found snap %q at %v", info.SnapName(), fn)
 	}
 
 	return snaps, err
@@ -488,7 +494,6 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 	// check if we have downloadable snap of the given SnapID
 	for _, pkg := range pkgs.CandidateSnaps {
-
 		name := snapIDtoName[pkg.SnapID]
 		if name == "" {
 			http.Error(w, fmt.Sprintf("unknown snap-id: %q", pkg.SnapID), 400)
@@ -517,6 +522,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				DownloadDigest:  hexify(essInfo.Digest),
 				Confinement:     essInfo.Confinement,
 				Type:            essInfo.Type,
+				Base:            essInfo.Base,
 			})
 		}
 	}
@@ -536,7 +542,9 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	bs := asserts.NewMemoryBackstore()
 
 	add := func(a asserts.Assertion) {
-		bs.Put(a.Type(), a)
+		if err := bs.Put(a.Type(), a); err != nil {
+			logger.Noticef("cannot add assertion %q: %v", a.Headers(), err)
+		}
 	}
 
 	for _, t := range sysdb.Trusted() {
@@ -578,6 +586,7 @@ type snapAction struct {
 	InstanceKey string `json:"instance-key"`
 	SnapID      string `json:"snap-id"`
 	Name        string `json:"name"`
+	Revision    int    `json:"revision,omitempty"`
 }
 
 type snapActionRequest struct {
@@ -600,6 +609,7 @@ type snapActionResultList struct {
 
 type detailsResultV2 struct {
 	Architectures []string `json:"architectures"`
+	Base          string   `json:"base,omitempty"`
 	SnapID        string   `json:"snap-id"`
 	Name          string   `json:"name"`
 	Publisher     struct {
@@ -698,8 +708,10 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 					Revision:      essInfo.Revision,
 					Confinement:   essInfo.Confinement,
 					Type:          essInfo.Type,
+					Base:          essInfo.Base,
 				},
 			}
+			logger.Debugf("requested snap %q revision %d", essInfo.Name, a.Revision)
 			res.Snap.Publisher.ID = essInfo.DeveloperID
 			res.Snap.Publisher.Username = essInfo.DevelName
 			res.Snap.Download.URL = fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn))
@@ -721,7 +733,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 
 func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, primaryKey []string) (asserts.Assertion, error) {
 	a, err := bs.Get(assertType, primaryKey, assertType.MaxSupportedFormat())
-	if asserts.IsNotFound(err) && s.assertFallback {
+	if errors.Is(err, &asserts.NotFoundError{}) && s.assertFallback {
 		return s.fallback.Assertion(assertType, primaryKey, nil)
 	}
 	return a, err
@@ -749,13 +761,14 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if len(typ.PrimaryKey) != len(comps)-1 {
+	pk := comps[1:]
+	if !typ.AcceptablePrimaryKey(pk) {
 		http.Error(w, fmt.Sprintf("wrong primary key length: %v", comps), 400)
 		return
 	}
 
-	a, err := s.retrieveAssertion(bs, typ, comps[1:])
-	if asserts.IsNotFound(err) {
+	a, err := s.retrieveAssertion(bs, typ, pk)
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
 		w.Write([]byte(`{"error-list":[{"code":"not-found","message":"not found"}]}`))

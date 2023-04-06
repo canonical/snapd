@@ -29,7 +29,7 @@ import (
 
 type cmdNewSnapDeclaration struct {
 	Positional struct {
-		Snap string
+		Snap string `description:"Snap file"`
 	} `positional-args:"yes"`
 
 	TopDir           string `long:"dir" description:"Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions"`
@@ -58,6 +58,12 @@ func (x *cmdNewSnapDeclaration) Execute(args []string) error {
 
 var shortNewSnapDeclarationHelp = "Make new snap declaration"
 
+var longNewSnapDeclarationHelp = `
+Generate snap declaration signed with test keys. By default
+the snap name and snap ID are derived from the file name.
+`
+
 func init() {
-	parser.AddCommand("new-snap-declaration", shortNewSnapDeclarationHelp, "", &cmdNewSnapDeclaration{})
+	parser.AddCommand("new-snap-declaration", shortNewSnapDeclarationHelp, longNewSnapDeclarationHelp,
+		&cmdNewSnapDeclaration{})
 }
