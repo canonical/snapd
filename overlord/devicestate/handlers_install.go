@@ -47,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/assertstate"
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -358,7 +357,7 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	}
 	model := deviceCtx.Model()
 
-	preseeded, err := maybeApplyPreseededData(st, boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, boot.InstallHostWritableDir(model))
+	preseeded, err := maybeApplyPreseededData(model, boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, boot.InstallHostWritableDir(model))
 	if err != nil {
 		logger.Noticef("failed to apply preseed data: %v", err)
 		return err
@@ -420,47 +419,6 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	restart.Request(st, rst, nil)
 
 	return nil
-}
-
-func readPreseedAssertion(st *state.State, model *asserts.Model, ubuntuSeedDir, sysLabel string) (*asserts.Preseed, error) {
-	f, err := os.Open(filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed"))
-	if err != nil {
-		return nil, fmt.Errorf("cannot read preseed assertion: %v", err)
-	}
-
-	// main seed assertions are loaded in the assertion db of install mode; add preseed assertion from
-	// systems/<label>/preseed file on top of it via a temporary db.
-	tmpDb := assertstate.TemporaryDB(st)
-	batch := asserts.NewBatch(nil)
-	_, err = batch.AddStream(f)
-	if err != nil {
-		return nil, err
-	}
-
-	var preseedAs *asserts.Preseed
-	err = batch.CommitToAndObserve(tmpDb, func(as asserts.Assertion) {
-		if as.Type() == asserts.PreseedType {
-			preseedAs = as.(*asserts.Preseed)
-		}
-	}, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	switch {
-	case preseedAs == nil:
-		return nil, fmt.Errorf("internal error: preseed assertion file is present but preseed assertion not found")
-	case preseedAs.SystemLabel() != sysLabel:
-		return nil, fmt.Errorf("preseed assertion system label %q doesn't match system label %q", preseedAs.SystemLabel(), sysLabel)
-	case preseedAs.Model() != model.Model():
-		return nil, fmt.Errorf("preseed assertion model %q doesn't match the model %q", preseedAs.Model(), model.Model())
-	case preseedAs.BrandID() != model.BrandID():
-		return nil, fmt.Errorf("preseed assertion brand %q doesn't match model brand %q", preseedAs.BrandID(), model.BrandID())
-	case preseedAs.Series() != model.Series():
-		return nil, fmt.Errorf("preseed assertion series %q doesn't match model series %q", preseedAs.Series(), model.Series())
-	}
-
-	return preseedAs, nil
 }
 
 var seedOpen = seed.Open
@@ -536,21 +494,32 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedSnap(name, path string, essT
 	return targetPath, sha3_384, uint64(size), nil
 }
 
-var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (preseeded bool, err error) {
-	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
-	if !osutil.FileExists(preseedArtifact) {
-		return false, nil
-	}
-
-	model, err := findModel(st)
-	if err != nil {
-		return false, fmt.Errorf("preseed error: cannot find model: %v", err)
-	}
-
-	preseedAs, err := readPreseedAssertion(st, model, ubuntuSeedDir, sysLabel)
+var maybeApplyPreseededData = func(model *asserts.Model, ubuntuSeedDir, sysLabel, writableDir string) (preseeded bool, err error) {
+	sysSeed, err := seedOpen(ubuntuSeedDir, sysLabel)
 	if err != nil {
 		return false, err
 	}
+	preseedSeed := sysSeed.(seed.PreseedCapable)
+
+	if !preseedSeed.HasArtifact("preseed.tgz") {
+		return false, nil
+	}
+
+	if err := preseedSeed.LoadAssertions(nil, nil); err != nil {
+		return false, err
+	}
+	_, sig := model.Signature()
+	_, seedModelSig := preseedSeed.Model().Signature()
+	if !bytes.Equal(sig, seedModelSig) {
+		return false, fmt.Errorf("system seed %q model does not match model in use", sysLabel)
+	}
+
+	preseedAs, err := preseedSeed.LoadPreseedAssertion()
+	if err != nil {
+		return false, err
+	}
+
+	preseedArtifact := preseedSeed.ArtifactPath("preseed.tgz")
 
 	// TODO: consider a writer that feeds the file to stdin of tar and calculates the digest at the same time.
 	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
@@ -574,22 +543,13 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 
 	logger.Noticef("copying snaps")
 
-	deviceSeed, err := seedOpen(ubuntuSeedDir, sysLabel)
-	if err != nil {
-		return false, err
-	}
-	tm := timings.New(nil)
-
-	if err := deviceSeed.LoadAssertions(nil, nil); err != nil {
-		return false, err
-	}
-
 	if err := os.MkdirAll(filepath.Join(writableDir, "var/lib/snapd/snaps"), 0755); err != nil {
 		return false, err
 	}
 
+	tm := timings.New(nil)
 	snapHandler := &preseedSnapHandler{writableDir: writableDir}
-	if err := deviceSeed.LoadMeta("run", snapHandler, tm); err != nil {
+	if err := preseedSeed.LoadMeta("run", snapHandler, tm); err != nil {
 		return false, err
 	}
 
@@ -613,8 +573,8 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 		return nil
 	}
 
-	esnaps := deviceSeed.EssentialSnaps()
-	msnaps, err := deviceSeed.ModeSnaps("run")
+	esnaps := preseedSeed.EssentialSnaps()
+	msnaps, err := preseedSeed.ModeSnaps("run")
 	if err != nil {
 		return false, err
 	}
