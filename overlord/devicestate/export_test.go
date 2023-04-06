@@ -288,7 +288,7 @@ var (
 	MaybeApplyPreseededData = maybeApplyPreseededData
 )
 
-func MockMaybeApplyPreseededData(f func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (bool, error)) (restore func()) {
+func MockMaybeApplyPreseededData(f func(model *asserts.Model, ubuntuSeedDir, sysLabel, writableDir string) (bool, error)) (restore func()) {
 	r := testutil.Backup(&maybeApplyPreseededData)
 	maybeApplyPreseededData = f
 	return r
