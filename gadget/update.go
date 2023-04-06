@@ -526,9 +526,11 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	// the disk sector size (unless the structure is the MBR)
 	for _, vs := range gadgetVolume.Structure {
 		if !vs.IsRoleMBR() {
-			if vs.Size%diskVolume.SectorSize != 0 {
-				return nil, fmt.Errorf("gadget volume structure %q size is not a multiple of disk sector size %v",
-					vs.Name, diskVolume.SectorSize)
+			for _, sz := range []quantity.Size{vs.MinSize, vs.Size} {
+				if sz%diskVolume.SectorSize != 0 {
+					return nil, fmt.Errorf("gadget volume structure %q size is not a multiple of disk sector size %v",
+						vs.Name, diskVolume.SectorSize)
+				}
 			}
 		}
 	}

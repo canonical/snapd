@@ -3021,11 +3021,17 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibility(c *C) {
 
 	// layout not compatible with a sector size that's not a factor of the
 	// structure sizes
-	mockDeviceLayout.SectorSize = 513
+	gadgetVolume.Structure[1].Size -= 1
 	_, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &mockDeviceLayout, nil)
-	c.Assert(err, ErrorMatches, `gadget volume structure "BIOS Boot" size is not a multiple of disk sector size 513`)
+	c.Assert(err, ErrorMatches, `gadget volume structure "BIOS Boot" size is not a multiple of disk sector size 4096`)
+	gadgetVolume.Structure[1].Size += 1
 
-	// reset for the rest of the test
+	gadgetVolume.Structure[1].MinSize -= 1
+	_, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &mockDeviceLayout, nil)
+	c.Assert(err, ErrorMatches, `gadget volume structure "BIOS Boot" size is not a multiple of disk sector size 4096`)
+	gadgetVolume.Structure[1].MinSize += 1
+
+	// set t0 512 for the rest of the test
 	mockDeviceLayout.SectorSize = 512
 
 	// missing structure (that's ok with default opts)
