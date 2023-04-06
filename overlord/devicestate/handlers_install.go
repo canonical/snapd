@@ -494,7 +494,7 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedSnap(name, path string, essT
 	return targetPath, sha3_384, uint64(size), nil
 }
 
-var maybeApplyPreseededData = func(model *asserts.Model, ubuntuSeedDir, sysLabel, writableDir string) (preseeded bool, err error) {
+func maybeApplyPreseededData(model *asserts.Model, ubuntuSeedDir, sysLabel, writableDir string) (preseeded bool, err error) {
 	sysSeed, err := seedOpen(ubuntuSeedDir, sysLabel)
 	if err != nil {
 		return false, err
@@ -514,9 +514,16 @@ var maybeApplyPreseededData = func(model *asserts.Model, ubuntuSeedDir, sysLabel
 		return false, fmt.Errorf("system seed %q model does not match model in use", sysLabel)
 	}
 
+	if err := applyPreseededData(preseedSeed, writableDir); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+var applyPreseededData = func(preseedSeed seed.PreseedCapable, writableDir string) error {
 	preseedAs, err := preseedSeed.LoadPreseedAssertion()
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	preseedArtifact := preseedSeed.ArtifactPath("preseed.tgz")
@@ -524,33 +531,33 @@ var maybeApplyPreseededData = func(model *asserts.Model, ubuntuSeedDir, sysLabel
 	// TODO: consider a writer that feeds the file to stdin of tar and calculates the digest at the same time.
 	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
 	if err != nil {
-		return false, fmt.Errorf("cannot calculate preseed artifact digest: %v", err)
+		return fmt.Errorf("cannot calculate preseed artifact digest: %v", err)
 	}
 
 	digest, err := base64.RawURLEncoding.DecodeString(preseedAs.ArtifactSHA3_384())
 	if err != nil {
-		return false, fmt.Errorf("cannot decode preseed artifact digest")
+		return fmt.Errorf("cannot decode preseed artifact digest")
 	}
 	if !bytes.Equal(sha3_384, digest) {
-		return false, fmt.Errorf("invalid preseed artifact digest")
+		return fmt.Errorf("invalid preseed artifact digest")
 	}
 
 	logger.Noticef("apply preseed data: %q, %q", writableDir, preseedArtifact)
 	cmd := exec.Command("tar", "--extract", "--preserve-permissions", "--preserve-order", "--gunzip", "--directory", writableDir, "-f", preseedArtifact)
 	if err := cmd.Run(); err != nil {
-		return false, err
+		return err
 	}
 
 	logger.Noticef("copying snaps")
 
 	if err := os.MkdirAll(filepath.Join(writableDir, "var/lib/snapd/snaps"), 0755); err != nil {
-		return false, err
+		return err
 	}
 
 	tm := timings.New(nil)
 	snapHandler := &preseedSnapHandler{writableDir: writableDir}
 	if err := preseedSeed.LoadMeta("run", snapHandler, tm); err != nil {
-		return false, err
+		return err
 	}
 
 	preseedSnaps := make(map[string]*asserts.PreseedSnap)
@@ -576,25 +583,25 @@ var maybeApplyPreseededData = func(model *asserts.Model, ubuntuSeedDir, sysLabel
 	esnaps := preseedSeed.EssentialSnaps()
 	msnaps, err := preseedSeed.ModeSnaps("run")
 	if err != nil {
-		return false, err
+		return err
 	}
 	if len(msnaps)+len(esnaps) != len(preseedSnaps) {
-		return false, fmt.Errorf("seed has %d snaps but %d snaps are required by preseed assertion", len(msnaps)+len(esnaps), len(preseedSnaps))
+		return fmt.Errorf("seed has %d snaps but %d snaps are required by preseed assertion", len(msnaps)+len(esnaps), len(preseedSnaps))
 	}
 
 	for _, esnap := range esnaps {
 		if err := checkSnap(esnap); err != nil {
-			return false, err
+			return err
 		}
 	}
 
 	for _, ssnap := range msnaps {
 		if err := checkSnap(ssnap); err != nil {
-			return false, err
+			return err
 		}
 	}
 
-	return true, nil
+	return nil
 }
 
 func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) error {
