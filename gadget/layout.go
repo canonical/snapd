@@ -555,7 +555,7 @@ func ShiftStructureTo(ps LaidOutStructure, offset quantity.Offset) LaidOutStruct
 	return newPs
 }
 
-func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
+func isLayoutCompatible(current, new *Volume) error {
 	if current.ID != new.ID {
 		return fmt.Errorf("incompatible ID change from %v to %v", current.ID, new.ID)
 	}
@@ -570,17 +570,15 @@ func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
 
 	// XXX: the code below asssumes both volumes have the same number of
 	// structures, this limitation may be lifted later
-	if len(current.LaidOutStructure) != len(new.LaidOutStructure) {
+	if len(current.Structure) != len(new.Structure) {
 		return fmt.Errorf("incompatible change in the number of structures from %v to %v",
-			len(current.LaidOutStructure), len(new.LaidOutStructure))
+			len(current.Structure), len(new.Structure))
 	}
 
 	// at the structure level we expect the volume to be identical
-	for i := range current.LaidOutStructure {
-		from := &current.LaidOutStructure[i]
-		to := &new.LaidOutStructure[i]
-		if err := canUpdateStructure(from, to, new.Schema); err != nil {
-			return fmt.Errorf("incompatible structure %v change: %v", to, err)
+	for i := range current.Structure {
+		if err := canUpdateStructure(current.Structure, i, new.Structure, i, new.Schema); err != nil {
+			return fmt.Errorf("incompatible structure #%d (%q) change: %v", new.Structure[i].YamlIndex, new.Structure[i].Name, err)
 		}
 	}
 	return nil

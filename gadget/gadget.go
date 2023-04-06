@@ -151,6 +151,16 @@ func (v *Volume) MinSize() quantity.Size {
 	return quantity.Size(endVol)
 }
 
+func (v *Volume) yamlIdxToStructureIdx(yamlIdx int) (int, error) {
+	for i := range v.Structure {
+		if v.Structure[i].YamlIndex == yamlIdx {
+			return i, nil
+		}
+	}
+
+	return -1, fmt.Errorf("structure with yaml index %d not found", yamlIdx)
+}
+
 const GPTPartitionGUIDESP = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
 
 // VolumeStructure describes a single structure inside a volume. A structure can
@@ -1448,18 +1458,7 @@ func IsCompatible(current, new *Info) error {
 		return fmt.Errorf("internal error: unset volume schemas: old: %q new: %q", currentVol.Schema, newVol.Schema)
 	}
 
-	// layout both volumes partially, without going deep into the layout of
-	// structure content, we only want to make sure that structures are
-	// comapatible
-	pCurrent, err := LayoutVolumePartially(currentVol)
-	if err != nil {
-		return fmt.Errorf("cannot lay out the current volume: %v", err)
-	}
-	pNew, err := LayoutVolumePartially(newVol)
-	if err != nil {
-		return fmt.Errorf("cannot lay out the new volume: %v", err)
-	}
-	if err := isLayoutCompatible(pCurrent, pNew); err != nil {
+	if err := isLayoutCompatible(currentVol, newVol); err != nil {
 		return fmt.Errorf("incompatible layout change: %v", err)
 	}
 	return nil

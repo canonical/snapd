@@ -1373,7 +1373,7 @@ volumes:
         type: 00000000-0000-0000-0000-0000deadbeef
 `
 
-	errMatch := `cannot remodel to an incompatible gadget: incompatible layout change: incompatible structure #0 \("foo"\) change: cannot change structure size from 10485760 to 20971520`
+	errMatch := `cannot remodel to an incompatible gadget: incompatible layout change: incompatible structure #0 \("foo"\) change: new valid structure size range \[20971520, 20971520\] is not compatible with current \(\[10485760, 10485760\]\)`
 	s.testCheckGadgetRemodelCompatibleWithYaml(c, compatibleTestMockOkGadget, mockBadGadgetYaml, errMatch)
 }
 

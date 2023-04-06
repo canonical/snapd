@@ -1306,7 +1306,15 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 
 		// can update old layout to new layout
 		for _, update := range updates {
-			if err := canUpdateStructure(update.from, update.to, pNew.Schema); err != nil {
+			fromIdx, err := oldVol.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
+			if err != nil {
+				return err
+			}
+			toIdx, err := oldVol.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
+			if err != nil {
+				return err
+			}
+			if err := canUpdateStructure(oldVol.Structure, fromIdx, newVol.Structure, toIdx, pNew.Schema); err != nil {
 				return fmt.Errorf("cannot update volume structure %v for volume %s: %v", update.to, volName, err)
 			}
 		}
@@ -1419,52 +1427,74 @@ func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
 	return false
 }
 
-func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
+func isLegacyMBRTransition(from *VolumeStructure, to *VolumeStructure) bool {
 	// legacy MBR could have been specified by setting type: mbr, with no
 	// role
-	return from.Type() == schemaMBR && to.Role() == schemaMBR
+	return from.Type == schemaMBR && to.Role == schemaMBR
 }
 
-func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema string) error {
-	if schema == schemaGPT && from.Name() != to.Name() {
+func arePossibleSizesCompatible(from *VolumeStructure, to *VolumeStructure) bool {
+	// Check if [from.MinSize,from.Size], the interval of sizes allowed in
+	// "from", intersects with [to.MinSize,to.Size] (the interval of sizes
+	// allowed in "to"). When both checks are true we know some overlap
+	// between the segments is happening (that this is right can be
+	// visualized by sliding a segment over the abscissa while the other is
+	// fixed, for a moving segment either smaller or bigger than the fixed
+	// one).
+	return from.Size >= to.MinSize && from.MinSize <= to.Size
+}
+
+func arePossibleOffsetsCompatible(vss1 []VolumeStructure, idx1 int, vss2 []VolumeStructure, idx2 int) bool {
+	// See comment in arePossibleSizesCompatible, this is the same check but
+	// for offsets instead of sizes.
+	return maxStructureOffset(vss1, idx1) >= minStructureOffset(vss2, idx2) &&
+		minStructureOffset(vss1, idx1) <= maxStructureOffset(vss2, idx2)
+}
+
+func canUpdateStructure(fromVss []VolumeStructure, fromIdx int, toVss []VolumeStructure, toIdx int, schema string) error {
+	from := &fromVss[fromIdx]
+	to := &toVss[toIdx]
+	if schema == schemaGPT && from.Name != to.Name {
 		// partition names are only effective when GPT is used
-		return fmt.Errorf("cannot change structure name from %q to %q", from.Name(), to.Name())
+		return fmt.Errorf("cannot change structure name from %q to %q",
+			from.Name, to.Name)
 	}
-	if from.VolumeStructure.Size != to.VolumeStructure.Size {
-		return fmt.Errorf("cannot change structure size from %v to %v", from.VolumeStructure.Size, to.VolumeStructure.Size)
+	if !arePossibleSizesCompatible(from, to) {
+		return fmt.Errorf("new valid structure size range [%v, %v] is not compatible with current ([%v, %v])",
+			to.MinSize, to.Size, from.MinSize, from.Size)
 	}
-	if !isSameOffset(from.VolumeStructure.Offset, to.VolumeStructure.Offset) {
-		return fmt.Errorf("cannot change structure offset from %v to %v", from.VolumeStructure.Offset, to.VolumeStructure.Offset)
-	}
-	if from.StartOffset != to.StartOffset {
-		return fmt.Errorf("cannot change structure start offset from %v to %v", from.StartOffset, to.StartOffset)
+	if !arePossibleOffsetsCompatible(fromVss, fromIdx, toVss, toIdx) {
+		return fmt.Errorf("new valid structure offset range [%v, %v] is not compatible with current ([%v, %v])",
+			minStructureOffset(toVss, toIdx), maxStructureOffset(toVss, toIdx), minStructureOffset(fromVss, fromIdx), maxStructureOffset(fromVss, fromIdx))
 	}
 	// TODO: should this limitation be lifted?
-	if !isSameRelativeOffset(from.VolumeStructure.OffsetWrite, to.VolumeStructure.OffsetWrite) {
-		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.VolumeStructure.OffsetWrite, to.VolumeStructure.OffsetWrite)
+	if !isSameRelativeOffset(from.OffsetWrite, to.OffsetWrite) {
+		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.OffsetWrite, to.OffsetWrite)
 	}
-	if from.Role() != to.Role() {
-		return fmt.Errorf("cannot change structure role from %q to %q", from.Role(), to.Role())
+	if from.Role != to.Role {
+		return fmt.Errorf("cannot change structure role from %q to %q",
+			from.Role, to.Role)
 	}
-	if from.Type() != to.Type() {
+	if from.Type != to.Type {
 		if !isLegacyMBRTransition(from, to) {
-			return fmt.Errorf("cannot change structure type from %q to %q", from.Type(), to.Type())
+			return fmt.Errorf("cannot change structure type from %q to %q",
+				from.Type, to.Type)
 		}
 	}
-	if from.VolumeStructure.ID != to.VolumeStructure.ID {
-		return fmt.Errorf("cannot change structure ID from %q to %q", from.VolumeStructure.ID, to.VolumeStructure.ID)
+	if from.ID != to.ID {
+		return fmt.Errorf("cannot change structure ID from %q to %q", from.ID, to.ID)
 	}
 	if to.HasFilesystem() {
 		if !from.HasFilesystem() {
 			return fmt.Errorf("cannot change a bare structure to filesystem one")
 		}
-		if from.Filesystem() != to.Filesystem() {
+		if from.Filesystem != to.Filesystem {
 			return fmt.Errorf("cannot change filesystem from %q to %q",
-				from.Filesystem(), to.Filesystem())
+				from.Filesystem, to.Filesystem)
 		}
-		if from.Label() != to.Label() {
+		if from.Label != to.Label {
 			return fmt.Errorf("cannot change filesystem label from %q to %q",
-				from.Label(), to.Label())
+				from.Label, to.Label)
 		}
 	} else {
 		if from.HasFilesystem() {

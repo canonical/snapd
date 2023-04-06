@@ -6551,7 +6551,7 @@ volumes:
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*cannot remodel to an incompatible gadget: .*cannot change structure size.*`)
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*cannot remodel to an incompatible gadget: .*new valid structure size range.*is not compatible with current.*`)
 }
 
 func (s *mgrsSuiteCore) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {

@@ -121,8 +121,8 @@ func (u *updateTestSuite) TestResolveVolumeSimple(c *C) {
 }
 
 type canUpdateTestCase struct {
-	from   gadget.LaidOutStructure
-	to     gadget.LaidOutStructure
+	from   gadget.VolumeStructure
+	to     gadget.VolumeStructure
 	schema string
 	err    string
 }
@@ -134,7 +134,9 @@ func (u *updateTestSuite) testCanUpdate(c *C, testCases []canUpdateTestCase) {
 		if schema == "" {
 			schema = "gpt"
 		}
-		err := gadget.CanUpdateStructure(&tc.from, &tc.to, schema)
+		fromVss := []gadget.VolumeStructure{tc.from}
+		toVss := []gadget.VolumeStructure{tc.to}
+		err := gadget.CanUpdateStructure(fromVss, 0, toVss, 0, schema)
 		if tc.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -148,22 +150,44 @@ func (u *updateTestSuite) TestCanUpdateSize(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			// size change
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1*quantity.SizeMiB + 1*quantity.SizeKiB},
-			},
-			err: "cannot change structure size from [0-9]+ to [0-9]+",
+			from: gadget.VolumeStructure{MinSize: quantity.SizeMiB, Size: quantity.SizeMiB},
+			to:   gadget.VolumeStructure{MinSize: quantity.SizeMiB + quantity.SizeKiB, Size: quantity.SizeMiB + quantity.SizeKiB},
+			err:  `new valid structure size range \[1049600, 1049600\] is not compatible with current \(\[1048576, 1048576\]\)`,
 		}, {
-			// size change
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-			},
-			err: "",
+			// no size change
+			from: gadget.VolumeStructure{MinSize: quantity.SizeMiB, Size: quantity.SizeMiB},
+			to:   gadget.VolumeStructure{MinSize: quantity.SizeMiB, Size: quantity.SizeMiB},
+			err:  "",
+		}, {
+			// range ok
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
+			to:   gadget.VolumeStructure{MinSize: 0, Size: 10},
+			err:  "",
+		}, {
+			// range ok
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
+			to:   gadget.VolumeStructure{MinSize: 0, Size: 15},
+			err:  "",
+		}, {
+			// range ok
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
+			to:   gadget.VolumeStructure{MinSize: 15, Size: 18},
+			err:  "",
+		}, {
+			// range ok
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
+			to:   gadget.VolumeStructure{MinSize: 15, Size: 25},
+			err:  "",
+		}, {
+			// range out
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
+			to:   gadget.VolumeStructure{MinSize: 1, Size: 9},
+			err:  `new valid structure size range \[1, 9\] is not compatible with current \(\[10, 20\]\)`,
+		}, {
+			// range out
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
+			to:   gadget.VolumeStructure{MinSize: 21, Size: 25},
+			err:  `new valid structure size range \[21, 25\] is not compatible with current \(\[10, 20\]\)`,
 		},
 	}
 
@@ -175,93 +199,61 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			// offset-write change
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
-				},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{Offset: 2048},
-				},
-			},
+			from: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{Offset: 1024}},
+			to: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{Offset: 2048}},
 			err: "cannot change structure offset-write from [0-9]+ to [0-9]+",
 		}, {
 			// offset-write, change in relative-to structure name
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
-				},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024},
-				},
-			},
+			from: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024}},
+			to: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024}},
 			err: `cannot change structure offset-write from foo\+[0-9]+ to bar\+[0-9]+`,
 		}, {
 			// offset-write, unspecified in old
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: nil,
-				},
+			from: gadget.VolumeStructure{
+				OffsetWrite: nil,
 			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024},
-				},
+			to: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024},
 			},
 			err: `cannot change structure offset-write from unspecified to bar\+[0-9]+`,
 		}, {
 			// offset-write, unspecified in new
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
-				},
+			from: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
 			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: nil,
-				},
+			to: gadget.VolumeStructure{
+				OffsetWrite: nil,
 			},
 			err: `cannot change structure offset-write from foo\+[0-9]+ to unspecified`,
 		}, {
 			// all ok, both nils
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: nil,
-				},
+			from: gadget.VolumeStructure{
+				OffsetWrite: nil,
 			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: nil,
-				},
+			to: gadget.VolumeStructure{
+				OffsetWrite: nil,
 			},
 			err: ``,
 		}, {
 			// all ok, both fully specified
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
-				},
+			from: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
 			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
-				},
+			to: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
 			},
 			err: ``,
 		}, {
 			// all ok, both fully specified
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
-				},
+			from: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
 			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
-				},
+			to: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
 			},
 			err: ``,
 		},
@@ -274,49 +266,25 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			// explicitly declared start offset change
-			from: gadget.LaidOutStructure{
-				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1024},
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
-			},
-			to: gadget.LaidOutStructure{
-				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 2048},
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
-			},
-			err: "cannot change structure offset from [0-9]+ to [0-9]+",
+			from: gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
+			to:   gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
+			err:  `new valid structure offset range \[2048, 2048\] is not compatible with current \(\[1024, 1024\]\)`,
 		}, {
 			// explicitly declared start offset in new structure
-			from: gadget.LaidOutStructure{
-				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1024},
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
-			},
-			to: gadget.LaidOutStructure{
-				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 2048},
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
-			},
-			err: "cannot change structure offset from unspecified to [0-9]+",
+			from: gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
+			to:   gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
+			err:  `new valid structure offset range \[2048, 2048\] is not compatible with current \(\[0, 0\]\)`,
 		}, {
 			// explicitly declared start offset in old structure,
 			// missing from new
-			from: gadget.LaidOutStructure{
-				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1024},
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
-			},
-			to: gadget.LaidOutStructure{
-				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 2048},
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
-			},
-			err: "cannot change structure offset from [0-9]+ to unspecified",
+			from: gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
+			to:   gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
+			err:  `new valid structure offset range \[0, 0\] is not compatible with current \(\[1024, 1024\]\)`,
 		}, {
 			// start offset changed due to layout
-			from: gadget.LaidOutStructure{
-				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1 * quantity.OffsetMiB},
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-			},
-			to: gadget.LaidOutStructure{
-				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 2 * quantity.OffsetMiB},
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-			},
-			err: "cannot change structure start offset from [0-9]+ to [0-9]+",
+			from: gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1 * quantity.OffsetMiB)},
+			to:   gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2 * quantity.OffsetMiB)},
+			err:  `new valid structure offset range \[2097152, 2097152\] is not compatible with current \(\[1048576, 1048576\]\)`,
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -327,49 +295,29 @@ func (u *updateTestSuite) TestCanUpdateRole(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			// new role
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: ""},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: "system-data"},
-			},
-			err: `cannot change structure role from "" to "system-data"`,
+			from: gadget.VolumeStructure{Role: ""},
+			to:   gadget.VolumeStructure{Role: "system-data"},
+			err:  `cannot change structure role from "" to "system-data"`,
 		}, {
 			// explicitly set tole
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: "mbr"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: "system-data"},
-			},
-			err: `cannot change structure role from "mbr" to "system-data"`,
+			from: gadget.VolumeStructure{Role: "mbr"},
+			to:   gadget.VolumeStructure{Role: "system-data"},
+			err:  `cannot change structure role from "mbr" to "system-data"`,
 		}, {
 			// implicit legacy role to proper explicit role
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
-			},
-			err: "",
+			from: gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
+			to:   gadget.VolumeStructure{Type: "bare", Role: "mbr"},
+			err:  "",
 		}, {
 			// but not in the opposite direction
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
-			},
-			err: `cannot change structure type from "bare" to "mbr"`,
+			from: gadget.VolumeStructure{Type: "bare", Role: "mbr"},
+			to:   gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
+			err:  `cannot change structure type from "bare" to "mbr"`,
 		}, {
 			// start offset changed due to layout
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: ""},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: ""},
-			},
-			err: "",
+			from: gadget.VolumeStructure{Role: ""},
+			to:   gadget.VolumeStructure{Role: ""},
+			err:  "",
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -380,77 +328,41 @@ func (u *updateTestSuite) TestCanUpdateType(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			// from hybrid type to GUID
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			err: `cannot change structure type from "0C,00000000-0000-0000-0000-dd00deadbeef" to "00000000-0000-0000-0000-dd00deadbeef"`,
+			from: gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
+			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			err:  `cannot change structure type from "0C,00000000-0000-0000-0000-dd00deadbeef" to "00000000-0000-0000-0000-dd00deadbeef"`,
 		}, {
 			// from MBR type to GUID (would be stopped at volume update checks)
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			err: `cannot change structure type from "0C" to "00000000-0000-0000-0000-dd00deadbeef"`,
+			from: gadget.VolumeStructure{Type: "0C"},
+			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			err:  `cannot change structure type from "0C" to "00000000-0000-0000-0000-dd00deadbeef"`,
 		}, {
 			// from one MBR type to another
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0A"},
-			},
-			err: `cannot change structure type from "0C" to "0A"`,
+			from: gadget.VolumeStructure{Type: "0C"},
+			to:   gadget.VolumeStructure{Type: "0A"},
+			err:  `cannot change structure type from "0C" to "0A"`,
 		}, {
 			// from one MBR type to another
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare"},
-			},
-			err: `cannot change structure type from "0C" to "bare"`,
+			from: gadget.VolumeStructure{Type: "0C"},
+			to:   gadget.VolumeStructure{Type: "bare"},
+			err:  `cannot change structure type from "0C" to "bare"`,
 		}, {
 			// from one GUID to another
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadcafe"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			err: `cannot change structure type from "00000000-0000-0000-0000-dd00deadcafe" to "00000000-0000-0000-0000-dd00deadbeef"`,
+			from: gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadcafe"},
+			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			err:  `cannot change structure type from "00000000-0000-0000-0000-dd00deadcafe" to "00000000-0000-0000-0000-dd00deadbeef"`,
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare"},
-			},
+			from: gadget.VolumeStructure{Type: "bare"},
+			to:   gadget.VolumeStructure{Type: "bare"},
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
-			},
+			from: gadget.VolumeStructure{Type: "0C"},
+			to:   gadget.VolumeStructure{Type: "0C"},
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
+			from: gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
-			},
+			from: gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
+			to:   gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -460,13 +372,9 @@ func (u *updateTestSuite) TestCanUpdateID(c *C) {
 
 	cases := []canUpdateTestCase{
 		{
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{ID: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{ID: "00000000-0000-0000-0000-dd00deadcafe"},
-			},
-			err: `cannot change structure ID from "00000000-0000-0000-0000-dd00deadbeef" to "00000000-0000-0000-0000-dd00deadcafe"`,
+			from: gadget.VolumeStructure{ID: "00000000-0000-0000-0000-dd00deadbeef", Offset: asOffsetPtr(0)},
+			to:   gadget.VolumeStructure{ID: "00000000-0000-0000-0000-dd00deadcafe", Offset: asOffsetPtr(0)},
+			err:  `cannot change structure ID from "00000000-0000-0000-0000-dd00deadbeef" to "00000000-0000-0000-0000-dd00deadcafe"`,
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -476,46 +384,26 @@ func (u *updateTestSuite) TestCanUpdateBareOrFilesystem(c *C) {
 
 	cases := []canUpdateTestCase{
 		{
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: ""},
-			},
-			err: `cannot change a filesystem structure to a bare one`,
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0)},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "", Offset: asOffsetPtr(0)},
+			err:  `cannot change a filesystem structure to a bare one`,
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: ""},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
-			},
-			err: `cannot change a bare structure to filesystem one`,
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "", Offset: asOffsetPtr(0)},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0)},
+			err:  `cannot change a bare structure to filesystem one`,
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "vfat"},
-			},
-			err: `cannot change filesystem from "ext4" to "vfat"`,
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0)},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "vfat", Offset: asOffsetPtr(0)},
+			err:  `cannot change filesystem from "ext4" to "vfat"`,
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "writable"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
-			},
-			err: `cannot change filesystem label from "writable" to ""`,
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "writable", Offset: asOffsetPtr(0)},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0)},
+			err:  `cannot change filesystem label from "writable" to ""`,
 		}, {
 			// all ok
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},
-			},
-			err: ``,
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch", Offset: asOffsetPtr(0)},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch", Offset: asOffsetPtr(0)},
+			err:  ``,
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -525,26 +413,50 @@ func (u *updateTestSuite) TestCanUpdateName(c *C) {
 
 	cases := []canUpdateTestCase{
 		{
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Name: "foo", Type: "0C"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Name: "mbr-ok", Type: "0C"},
-			},
+			from:   gadget.VolumeStructure{Name: "foo", Type: "0C"},
+			to:     gadget.VolumeStructure{Name: "mbr-ok", Type: "0C"},
 			err:    ``,
 			schema: "mbr",
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Name: "foo", Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Name: "gpt-unhappy", Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
+			from:   gadget.VolumeStructure{Name: "foo", Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			to:     gadget.VolumeStructure{Name: "gpt-unhappy", Type: "00000000-0000-0000-0000-dd00deadbeef"},
 			err:    `cannot change structure name from "foo" to "gpt-unhappy"`,
 			schema: "gpt",
 		},
 	}
 	u.testCanUpdate(c, cases)
+}
+
+func (u *updateTestSuite) TestCanUpdateOffsetRange(c *C) {
+	fromVss := []gadget.VolumeStructure{
+		{Offset: asOffsetPtr(0), MinSize: 10, Size: 20},
+		// Valid offset range for second structure is [10, 20]
+		{MinSize: 10, Size: 10},
+	}
+	toVss := []gadget.VolumeStructure{
+		{Offset: asOffsetPtr(0), MinSize: 10, Size: 10},
+		{MinSize: 10, Size: 10},
+	}
+
+	err := gadget.CanUpdateStructure(fromVss, 1, toVss, 1, "")
+	c.Check(err, IsNil)
+
+	toVss = []gadget.VolumeStructure{
+		{Offset: asOffsetPtr(0), MinSize: 15, Size: 21},
+		{MinSize: 10, Size: 10},
+	}
+
+	err = gadget.CanUpdateStructure(fromVss, 1, toVss, 1, "")
+	c.Check(err, IsNil)
+
+	toVss = []gadget.VolumeStructure{
+		{Offset: asOffsetPtr(0), MinSize: 21, Size: 30},
+		{MinSize: 10, Size: 10},
+	}
+
+	err = gadget.CanUpdateStructure(fromVss, 1, toVss, 1, "")
+	c.Check(err.Error(), Equals,
+		`new valid structure offset range [21, 30] is not compatible with current ([10, 20])`)
 }
 
 func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
@@ -2143,6 +2055,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 
 	// nofspart
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
+	newData.Info.Volumes["foo"].Structure[1].MinSize = quantity.SizeKiB
 	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeKiB
 
 	muo := &mockUpdateProcessObserver{}
@@ -2154,7 +2067,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 
 	// go go go
 	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("nofspart"\) for volume foo: cannot change structure size from 4096 to 1024`)
+	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("nofspart"\) for volume foo: new valid structure size range \[1024, 1024\] is not compatible with current \(\[4096, 4096\]\)`)
 
 	// now with overlap
 	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeMiB
