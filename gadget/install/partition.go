@@ -413,7 +413,7 @@ func wasCreatedDuringInstall(gv *gadget.Volume, s gadget.OnDiskStructure) bool {
 	// as such the on disk structure must exist in the exact same location as
 	// the role from the gadget, so only return true if the provided structure
 	// has the exact same StartOffset as one of those roles
-	for _, gs := range gv.Structure {
+	for i, gs := range gv.Structure {
 		// TODO: how to handle ubuntu-save here? maybe a higher level function
 		//       should decide whether to delete it or not?
 		switch gs.Role {
@@ -421,7 +421,7 @@ func wasCreatedDuringInstall(gv *gadget.Volume, s gadget.OnDiskStructure) bool {
 			// then it was created during install or is to be created during
 			// install, see if the offset matches the provided on disk structure
 			// has
-			if s.StartOffset == *gs.Offset {
+			if gadget.IsValidStartOffset(s.StartOffset, gv.Structure, i) {
 				return true
 			}
 		}
