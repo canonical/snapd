@@ -221,8 +221,12 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			`mount-control "where" setting cannot be used: missing closing bracket ']'.*`,
 		},
 		{
-			"mount:\n  - what: /\n    where: /media/*\n    options: [sync,invalid]",
+			"mount:\n  - what: /\n    where: /media/*\n    options: [nofail,gid=2000,invalid]",
 			`mount-control option unrecognized or forbidden: "invalid"`,
+		},
+		{
+			"mount:\n  - what: /\n    where: /media/*\n    type: [ext4]\n    options: [gid=2000]",
+			`mount-control option unrecognized or forbidden: "gid=2000"`,
 		},
 		{
 			"mount:\n  - what: /\n    where: /media/*\n    type: [ext4,debugfs]",
