@@ -360,6 +360,9 @@ type Info struct {
 
 	// OriginalLinks is a map links keys to link lists
 	OriginalLinks map[string][]string
+
+	// Categories this snap is in.
+	Categories []CategoryInfo
 }
 
 // StoreAccount holds information about a store account, for example of snap
@@ -1087,6 +1090,11 @@ type SystemUsernameInfo struct {
 	Name  string
 	Scope string
 	Attrs map[string]interface{}
+}
+
+type CategoryInfo struct {
+	Name     string `json:"name"`
+	Featured bool   `json:"featured"`
 }
 
 // File returns the path to the *.socket file

@@ -1964,8 +1964,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 		{false, "[]", true, secboot.EncryptionTypeLUKS},
 		{true, "[]", false, secboot.EncryptionTypeLUKS},
 		{true, "[]", true, secboot.EncryptionTypeLUKS},
-		// happy but device-setup hook
-		{true, `["device-setup"]`, true, secboot.EncryptionTypeDeviceSetupHook},
 	} {
 		hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 			ctx.Lock()
@@ -2148,9 +2146,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, secboot.EncryptionTypeNone},
 		{`{"features":1}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, secboot.EncryptionTypeNone},
 		{`{"features":"1"}`, `cannot parse hook output ".*": json: cannot unmarshal string into Go struct.*`, secboot.EncryptionTypeNone},
-		// valid and switches to "device-setup"
-		{`{"features":["device-setup"]}`, "", secboot.EncryptionTypeDeviceSetupHook},
-		{`{"features":["a","device-setup","b"]}`, "", secboot.EncryptionTypeDeviceSetupHook},
 		// valid and uses ice
 		{`{"features":["a","inline-crypto-engine","b"]}`, "", secboot.EncryptionTypeLUKSWithICE},
 	} {
@@ -3638,131 +3633,6 @@ func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 	for _, tc := range testCases {
 		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return tc.tpmErr })
 		defer restore()
-
-		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
-			"display-name":   "my model",
-			"architecture":   "amd64",
-			"base":           "core20",
-			"grade":          tc.grade,
-			"storage-safety": tc.storageSafety,
-			"snaps": []interface{}{
-				map[string]interface{}{
-					"name":            "pc-kernel",
-					"id":              pcKernelSnapID,
-					"type":            "kernel",
-					"default-channel": "20",
-				},
-				map[string]interface{}{
-					"name":            "pc",
-					"id":              pcSnapID,
-					"type":            "gadget",
-					"default-channel": "20",
-				}},
-		})
-		res, err := devicestate.DeviceManagerEncryptionSupportInfo(s.mgr, mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo)
-		c.Assert(err, IsNil)
-		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
-	}
-}
-
-func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoWithFdeHook(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
-	})
-	kernelInfo := makeInstalledMockKernelSnap(c, s.state, kernelYamlWithFdeSetup)
-	gadgetSnapInfo := s.makeMockInstalledPcGadget(c, "", "")
-	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
-	c.Assert(err, IsNil)
-
-	var testCases = []struct {
-		grade, storageSafety string
-		hookErr              error
-
-		expected devicestate.EncryptionSupportInfo
-	}{
-		{
-			"dangerous", "", nil,
-			devicestate.EncryptionSupportInfo{
-				Available: true, Disabled: false,
-				StorageSafety: asserts.StorageSafetyPreferEncrypted,
-				Type:          secboot.EncryptionTypeDeviceSetupHook,
-			},
-		}, {
-			"dangerous", "", fmt.Errorf("hook error"),
-			devicestate.EncryptionSupportInfo{
-				Available: false, Disabled: false,
-				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
-				Type:               secboot.EncryptionTypeNone,
-				UnavailableWarning: `not encrypting device storage as querying kernel fde-setup hook did not succeed: cannot run hook for "features": run hook "fde-setup": hook error`,
-			},
-		}, {
-			"dangerous", "encrypted", nil,
-			devicestate.EncryptionSupportInfo{
-				Available: true, Disabled: false,
-				StorageSafety: asserts.StorageSafetyEncrypted,
-				Type:          secboot.EncryptionTypeDeviceSetupHook,
-			},
-		}, {
-			"dangerous", "encrypted", fmt.Errorf("hook error"),
-			devicestate.EncryptionSupportInfo{
-				Available: false, Disabled: false,
-				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           secboot.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf(`cannot encrypt device storage as mandated by encrypted storage-safety model option: cannot run hook for "features": run hook "fde-setup": hook error`),
-			},
-		}, {
-			"signed", "", nil,
-			devicestate.EncryptionSupportInfo{
-				Available: true, Disabled: false,
-				StorageSafety: asserts.StorageSafetyPreferEncrypted,
-				Type:          secboot.EncryptionTypeDeviceSetupHook,
-			},
-		}, {
-			"signed", "", fmt.Errorf("hook error"),
-			devicestate.EncryptionSupportInfo{
-				Available: false, Disabled: false,
-				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
-				Type:               secboot.EncryptionTypeNone,
-				UnavailableWarning: `not encrypting device storage as querying kernel fde-setup hook did not succeed: cannot run hook for "features": run hook "fde-setup": hook error`,
-			},
-		}, {
-			"signed", "encrypted", fmt.Errorf("hook error"),
-			devicestate.EncryptionSupportInfo{
-				Available: false, Disabled: false,
-				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           secboot.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf(`cannot encrypt device storage as mandated by encrypted storage-safety model option: cannot run hook for "features": run hook "fde-setup": hook error`),
-			},
-		}, {
-			"secured", "", fmt.Errorf("hook error"),
-			devicestate.EncryptionSupportInfo{
-				Available: false, Disabled: false,
-				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           secboot.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf(`cannot encrypt device storage as mandated by model grade secured: cannot run hook for "features": run hook "fde-setup": hook error`),
-			},
-		}, {
-			"secured", "", nil,
-			devicestate.EncryptionSupportInfo{
-				Available: true, Disabled: false,
-				StorageSafety: asserts.StorageSafetyEncrypted,
-				Type:          secboot.EncryptionTypeDeviceSetupHook,
-			},
-		},
-	}
-	for _, tc := range testCases {
-		hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
-			ctx.Lock()
-			defer ctx.Unlock()
-			ctx.Set("fde-setup-result", []byte(`{"features":["device-setup"]}`))
-			return nil, tc.hookErr
-		}
-		rhk := hookstate.MockRunHook(hookInvoke)
-		defer rhk()
 
 		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
 			"display-name":   "my model",
