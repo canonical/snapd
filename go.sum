@@ -1,5 +1,3 @@
-github.com/alexkohler/nakedret v1.0.1 h1:cYUUKLoQ//kuZ3ww60tGjniwOOZW0cfnClt6SGX5qr0=
-github.com/alexkohler/nakedret v1.0.1/go.mod h1:FIP5ubTIqmK2D35Xct6bjnYc4O027gqCYLqXLQM4xuY=
 github.com/canonical/go-efilib v0.0.0-20210909101908-41435fa545d4 h1:rSWREoNHHbcIC1iQeKKraBlsDm7cmKg8eS+N48jMVKA=
 github.com/canonical/go-efilib v0.0.0-20210909101908-41435fa545d4/go.mod h1:9Sr9kd7IhQPYqaU5nut8Ky97/CtlhHDzQncQnrULgDM=
 github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 h1:F0bRDzPy/j2IX/iIWqCEA23S1nal+f7A+/vLyj6Ye+4=

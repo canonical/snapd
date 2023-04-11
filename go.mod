@@ -6,7 +6,6 @@ go 1.13
 replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066
 
 require (
-	github.com/alexkohler/nakedret v1.0.1 // indirect
 	github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 // indirect
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v0.0.0-20210827151749-f80ff5afff61

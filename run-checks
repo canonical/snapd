@@ -282,7 +282,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo "Checking for naked returns"
     if ! command -v nakedret >/dev/null; then
-        go get "github.com/alexkohler/nakedret@v1.0.1"
+        go get -u "github.com/alexkohler/nakedret@v1.0.1"
     fi
     got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
     if [ -n "$got" ]; then
