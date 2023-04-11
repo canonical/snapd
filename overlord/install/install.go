@@ -40,7 +40,7 @@ import (
 // EncryptionSupportInfo describes what encryption is available and needed
 // for the current device.
 type EncryptionSupportInfo struct {
-	// Disabled is set if to true encryption was forcefully
+	// Disabled is set to true if encryption was forcefully
 	// disabled (e.g. via the seed partition), if set the rest
 	// of the struct content is not relevant.
 	Disabled bool
