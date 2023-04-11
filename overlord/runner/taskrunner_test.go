@@ -17,7 +17,7 @@
  *
  */
 
-package state_test
+package runner_test
 
 import (
 	"errors"
@@ -32,6 +32,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -61,7 +62,7 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 	}
 }
 
-func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change) {
+func ensureChange(c *C, r *runner.TaskRunner, sb *stateBackend, chg *state.Change) {
 	for i := 0; i < 20; i++ {
 		sb.ensureBefore = time.Hour
 		r.Ensure()
@@ -150,11 +151,11 @@ func (ts *taskRunnerSuite) SetUpTest(c *C) {
 func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	ch := make(chan string, 256)
-	fn := func(label string) state.HandlerFunc {
+	fn := func(label string) runner.HandlerFunc {
 		return func(task *state.Task, tomb *tomb.Tomb) error {
 			st.Lock()
 			defer st.Unlock()
@@ -361,7 +362,7 @@ func (ts *taskRunnerSuite) TestAbortAcrossLanesDescendantTask(c *C) {
 
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	st.Lock()
@@ -466,7 +467,7 @@ func (ts *taskRunnerSuite) TestAbortAcrossLanesStriclyOrderedTasks(c *C) {
 
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	st.Lock()
@@ -551,7 +552,7 @@ func (ts *taskRunnerSuite) TestAbortAcrossLanesStriclyOrderedTasks(c *C) {
 func (ts *taskRunnerSuite) TestExternalAbort(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	ch := make(chan bool)
@@ -581,7 +582,7 @@ func (ts *taskRunnerSuite) TestExternalAbort(c *C) {
 func (ts *taskRunnerSuite) TestUndoSingleLane(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	r.AddHandler("noop", func(t *state.Task, tb *tomb.Tomb) error {
@@ -676,7 +677,7 @@ func (ts *taskRunnerSuite) TestUndoSingleLane(c *C) {
 func (ts *taskRunnerSuite) TestStopHandlerJustFinishing(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	ch := make(chan bool)
@@ -707,7 +708,7 @@ func (ts *taskRunnerSuite) TestStopHandlerJustFinishing(c *C) {
 func (ts *taskRunnerSuite) TestStopKinds(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	ch1 := make(chan bool)
@@ -752,7 +753,7 @@ func (ts *taskRunnerSuite) TestStopKinds(c *C) {
 func (ts *taskRunnerSuite) TestErrorsOnStopAreRetried(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	ch := make(chan bool)
@@ -782,7 +783,7 @@ func (ts *taskRunnerSuite) TestErrorsOnStopAreRetried(c *C) {
 func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	ch := make(chan bool)
@@ -812,7 +813,7 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 func (ts *taskRunnerSuite) TestTaskReturningWait(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	r.AddHandler("ask-for-wait", func(t *state.Task, tb *tomb.Tomb) error {
@@ -854,7 +855,7 @@ func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
 		ensureBeforeSeen: ensureBeforeTick,
 	}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	ch := make(chan bool)
@@ -924,14 +925,14 @@ func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
 	c.Check(t.AtTime().IsZero(), Equals, true)
 }
 
-func (ts *taskRunnerSuite) testTaskSerialization(c *C, setupBlocked func(r *state.TaskRunner)) {
+func (ts *taskRunnerSuite) testTaskSerialization(c *C, setupBlocked func(r *runner.TaskRunner)) {
 	ensureBeforeTick := make(chan bool, 1)
 	sb := &stateBackend{
 		ensureBefore:     time.Hour,
 		ensureBeforeSeen: ensureBeforeTick,
 	}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	ch1 := make(chan bool)
@@ -1003,7 +1004,7 @@ func (ts *taskRunnerSuite) testTaskSerialization(c *C, setupBlocked func(r *stat
 func (ts *taskRunnerSuite) TestTaskSerializationSetBlocked(c *C) {
 	// start first do1, and then do2 when nothing else is running
 	startedDo1 := false
-	ts.testTaskSerialization(c, func(r *state.TaskRunner) {
+	ts.testTaskSerialization(c, func(r *runner.TaskRunner) {
 		r.SetBlocked(func(t *state.Task, running []*state.Task) bool {
 			if t.Kind() == "do2" && (len(running) != 0 || !startedDo1) {
 				return true
@@ -1019,7 +1020,7 @@ func (ts *taskRunnerSuite) TestTaskSerializationSetBlocked(c *C) {
 func (ts *taskRunnerSuite) TestTaskSerializationAddBlocked(c *C) {
 	// start first do1, and then do2 when nothing else is running
 	startedDo1 := false
-	ts.testTaskSerialization(c, func(r *state.TaskRunner) {
+	ts.testTaskSerialization(c, func(r *runner.TaskRunner) {
 		r.AddBlocked(func(t *state.Task, running []*state.Task) bool {
 			if t.Kind() == "do2" && (len(running) != 0 || !startedDo1) {
 				return true
@@ -1038,7 +1039,7 @@ func (ts *taskRunnerSuite) TestTaskSerializationAddBlocked(c *C) {
 func (ts *taskRunnerSuite) TestPrematureChangeReady(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	ch := make(chan bool)
@@ -1083,7 +1084,7 @@ func (ts *taskRunnerSuite) TestPrematureChangeReady(c *C) {
 func (ts *taskRunnerSuite) TestOptionalHandler(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 
 	r.AddOptionalHandler(func(t *state.Task) bool { return true },
 		func(t *state.Task, tomb *tomb.Tomb) error {
@@ -1109,7 +1110,7 @@ func (ts *taskRunnerSuite) TestOptionalHandler(c *C) {
 func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 
 	var events []string
 
@@ -1189,7 +1190,7 @@ func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
 
 func (ts *taskRunnerSuite) TestKnownTaskKinds(c *C) {
 	st := state.New(nil)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	r.AddHandler("task-kind-1", func(t *state.Task, tb *tomb.Tomb) error { return nil }, nil)
 	r.AddHandler("task-kind-2", func(t *state.Task, tb *tomb.Tomb) error { return nil }, nil)
 
@@ -1201,7 +1202,7 @@ func (ts *taskRunnerSuite) TestKnownTaskKinds(c *C) {
 func (ts *taskRunnerSuite) TestCleanup(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 	defer r.Stop()
 
 	r.AddHandler("clean-it", func(t *state.Task, tb *tomb.Tomb) error { return nil }, nil)
@@ -1256,7 +1257,7 @@ func (ts *taskRunnerSuite) TestErrorCallbackCalledOnError(c *C) {
 
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 
 	var called bool
 	r.OnTaskError(func(err error) {
@@ -1290,7 +1291,7 @@ func (ts *taskRunnerSuite) TestErrorCallbackCalledOnError(c *C) {
 func (ts *taskRunnerSuite) TestErrorCallbackNotCalled(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
+	r := runner.NewTaskRunner(st)
 
 	var called bool
 	r.OnTaskError(func(err error) {

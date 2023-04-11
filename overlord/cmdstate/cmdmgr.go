@@ -27,6 +27,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -34,7 +35,7 @@ import (
 type CommandManager struct{}
 
 // Manager returns a new CommandManager.
-func Manager(st *state.State, runner *state.TaskRunner) *CommandManager {
+func Manager(st *state.State, runner *runner.TaskRunner) *CommandManager {
 	runner.AddHandler("exec-command", doExec, nil)
 	return &CommandManager{}
 }

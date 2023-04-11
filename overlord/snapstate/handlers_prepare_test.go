@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -38,7 +39,7 @@ type baseHandlerSuite struct {
 	testutil.BaseTest
 
 	state   *state.State
-	runner  *state.TaskRunner
+	runner  *runner.TaskRunner
 	se      *overlord.StateEngine
 	snapmgr *snapstate.SnapManager
 	rstmgr  *restart.RestartManager
@@ -53,7 +54,7 @@ func (s *baseHandlerSuite) SetUpTest(c *C) {
 
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)
-	s.runner = state.NewTaskRunner(s.state)
+	s.runner = runner.NewTaskRunner(s.state)
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state, s.runner)

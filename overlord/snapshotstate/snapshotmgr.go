@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -66,7 +67,7 @@ type SnapshotManager struct {
 }
 
 // Manager returns a new SnapshotManager
-func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
+func Manager(st *state.State, runner *runner.TaskRunner) *SnapshotManager {
 	delayedCrossMgrInit()
 
 	runner.AddHandler("save-snapshot", doSave, doForget)

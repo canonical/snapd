@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -769,7 +770,7 @@ func (s *preseedingUC20Suite) TestSysModeIsRunWhenPreseeding(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
 
-	runner := state.NewTaskRunner(s.state)
+	runner := runner.NewTaskRunner(s.state)
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, nil)
 	c.Assert(err, IsNil)
 	c.Check(devicestate.GetSystemMode(mgr), Equals, "run")

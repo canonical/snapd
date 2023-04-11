@@ -17,52 +17,28 @@
  *
  */
 
-package state
+package runner
 
 import (
+	"log"
 	"sync"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // HandlerFunc is the type of function for the handlers
-type HandlerFunc func(task *Task, tomb *tomb.Tomb) error
+type HandlerFunc func(task *state.Task, tomb *tomb.Tomb) error
 
-// Retry is returned from a handler to signal that is ok to rerun the
-// task at a later point. It's to be used also when a task goroutine
-// is asked to stop through its tomb. After can be used to indicate
-// how much to postpone the retry, 0 (the default) means at the next
-// ensure pass and is what should be used if stopped through its tomb.
-// Reason is an optional explanation of the conflict.
-type Retry struct {
-	After  time.Duration
-	Reason string
-}
-
-func (r *Retry) Error() string {
-	return "task should be retried"
-}
-
-// Wait is returned from a handler to signal that the task cannot
-// proceed at the moment maybe because some manual action from the
-// user required at this point or because of errors. The task
-// will be set to WaitStatus.
-type Wait struct {
-	Reason string
-}
-
-func (r *Wait) Error() string {
-	return "task set to wait, manual action required"
-}
-
-type blockedFunc func(t *Task, running []*Task) bool
+type blockedFunc func(t *state.Task, running []*state.Task) bool
 
 // TaskRunner controls the running of goroutines to execute known task kinds.
 type TaskRunner struct {
-	state *State
+	state *state.State
 
 	// locking
 	mu       sync.Mutex
@@ -86,12 +62,14 @@ type handlerPair struct {
 }
 
 type optionalHandler struct {
-	match func(t *Task) bool
+	match func(t *state.Task) bool
 	handlerPair
 }
 
+var timeNow = time.Now
+
 // NewTaskRunner creates a new TaskRunner
-func NewTaskRunner(s *State) *TaskRunner {
+func NewTaskRunner(s *state.State) *TaskRunner {
 	return &TaskRunner{
 		state:    s,
 		handlers: make(map[string]handlerPair),
@@ -116,11 +94,11 @@ func (r *TaskRunner) AddHandler(kind string, do, undo HandlerFunc) {
 
 // AddOptionalHandler register functions for doing and undoing tasks that match
 // the given predicate if no explicit handler was registered for the task kind.
-func (r *TaskRunner) AddOptionalHandler(match func(t *Task) bool, do, undo HandlerFunc) {
+func (r *TaskRunner) AddOptionalHandler(match func(t *state.Task) bool, do, undo HandlerFunc) {
 	r.optional = append(r.optional, optionalHandler{match, handlerPair{do, undo}})
 }
 
-func (r *TaskRunner) handlerPair(t *Task) handlerPair {
+func (r *TaskRunner) handlerPair(t *state.Task) handlerPair {
 	if handler, ok := r.handlers[t.Kind()]; ok {
 		return handler
 	}
@@ -163,7 +141,7 @@ func (r *TaskRunner) AddCleanup(kind string, cleanup HandlerFunc) {
 }
 
 // SetBlocked sets a predicate function to decide whether to block a task from running based on the current running tasks. It can be used to control task serialisation.
-func (r *TaskRunner) SetBlocked(pred func(t *Task, running []*Task) bool) {
+func (r *TaskRunner) SetBlocked(pred func(t *state.Task, running []*state.Task) bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -171,7 +149,7 @@ func (r *TaskRunner) SetBlocked(pred func(t *Task, running []*Task) bool) {
 }
 
 // AddBlocked adds a predicate function to decide whether to block a task from running based on the current running tasks. It can be used to control task serialisation. All added predicates are considered in turn until one returns true, or none.
-func (r *TaskRunner) AddBlocked(pred func(t *Task, running []*Task) bool) {
+func (r *TaskRunner) AddBlocked(pred func(t *state.Task, running []*state.Task) bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -179,23 +157,23 @@ func (r *TaskRunner) AddBlocked(pred func(t *Task, running []*Task) bool) {
 }
 
 // run must be called with the state lock in place
-func (r *TaskRunner) run(t *Task) {
+func (r *TaskRunner) run(t *state.Task) {
 	var handler HandlerFunc
 	var accuRuntime func(dur time.Duration)
 	switch t.Status() {
-	case DoStatus:
-		t.SetStatus(DoingStatus)
+	case state.DoStatus:
+		t.SetStatus(state.DoingStatus)
 		fallthrough
-	case DoingStatus:
+	case state.DoingStatus:
 		handler = r.handlerPair(t).do
-		accuRuntime = t.accumulateDoingTime
+		accuRuntime = t.AccumulateDoingTime
 
-	case UndoStatus:
-		t.SetStatus(UndoingStatus)
+	case state.UndoStatus:
+		t.SetStatus(state.UndoingStatus)
 		fallthrough
-	case UndoingStatus:
+	case state.UndoingStatus:
 		handler = r.handlerPair(t).undo
-		accuRuntime = t.accumulateUndoingTime
+		accuRuntime = t.AccumulateUndoingTime
 
 	default:
 		panic("internal error: attempted to run task in status " + t.Status().String())
@@ -234,48 +212,48 @@ func (r *TaskRunner) run(t *Task) {
 		switch err.(type) {
 		case nil:
 			// we are ok
-		case *Retry, *Wait:
+		case *state.Retry, *state.Wait:
 			// preserve
 		default:
 			if r.stopped {
 				// we are shutting down, errors might be due
 				// to cancellations, to be safe retry
-				err = &Retry{}
+				err = &state.Retry{}
 			}
 		}
 
 		switch x := err.(type) {
-		case *Retry:
+		case *state.Retry:
 			// Handler asked to be called again later.
-			if t.Status() == AbortStatus {
+			if t.Status() == state.AbortStatus {
 				// Would work without it but might take two ensures.
 				r.tryUndo(t)
 			} else if x.After != 0 {
 				t.At(timeNow().Add(x.After))
 			}
-		case *Wait:
-			if t.Status() == AbortStatus {
+		case *state.Wait:
+			if t.Status() == state.AbortStatus {
 				// Would work without it but might take two ensures.
 				r.tryUndo(t)
 			} else {
-				t.SetStatus(WaitStatus)
+				t.SetStatus(state.WaitStatus)
 			}
 		case nil:
-			var next []*Task
+			var next []*state.Task
 			switch t.Status() {
-			case DoingStatus:
-				t.SetStatus(DoneStatus)
+			case state.DoingStatus:
+				t.SetStatus(state.DoneStatus)
 				fallthrough
-			case DoneStatus:
+			case state.DoneStatus:
 				next = t.HaltTasks()
-			case AbortStatus:
+			case state.AbortStatus:
 				// It was actually Done if it got here.
-				t.SetStatus(UndoStatus)
+				t.SetStatus(state.UndoStatus)
 				r.state.EnsureBefore(0)
-			case UndoingStatus:
-				t.SetStatus(UndoneStatus)
+			case state.UndoingStatus:
+				t.SetStatus(state.UndoneStatus)
 				fallthrough
-			case UndoneStatus:
+			case state.UndoneStatus:
 				next = t.WaitTasks()
 			}
 			if len(next) > 0 {
@@ -283,7 +261,7 @@ func (r *TaskRunner) run(t *Task) {
 			}
 		default:
 			r.abortLanes(t.Change(), t.Lanes())
-			t.SetStatus(ErrorStatus)
+			t.SetStatus(state.ErrorStatus)
 			t.Errorf("%s", err)
 			// ensure the error is available in the global log too
 			logger.Noticef("[change %s %q task] failed: %v", t.Change().ID(), t.Summary(), err)
@@ -296,7 +274,7 @@ func (r *TaskRunner) run(t *Task) {
 	})
 }
 
-func (r *TaskRunner) clean(t *Task) {
+func (r *TaskRunner) clean(t *state.Task) {
 	if !t.Change().IsReady() {
 		// Whole Change is not ready so don't run cleanups yet.
 		return
@@ -330,12 +308,12 @@ func (r *TaskRunner) clean(t *Task) {
 	})
 }
 
-func (r *TaskRunner) abortLanes(chg *Change, lanes []int) {
+func (r *TaskRunner) abortLanes(chg *state.Change, lanes []int) {
 	chg.AbortLanes(lanes)
 	ensureScheduled := false
 	for _, t := range chg.Tasks() {
 		status := t.Status()
-		if status == AbortStatus {
+		if status == state.AbortStatus {
 			if tb, ok := r.tombs[t.ID()]; ok {
 				tb.Kill(nil)
 			}
@@ -348,16 +326,16 @@ func (r *TaskRunner) abortLanes(chg *Change, lanes []int) {
 }
 
 // tryUndo replaces the status of a knowingly aborted task.
-func (r *TaskRunner) tryUndo(t *Task) {
-	if t.Status() == AbortStatus && r.handlerPair(t).undo == nil {
+func (r *TaskRunner) tryUndo(t *state.Task) {
+	if t.Status() == state.AbortStatus && r.handlerPair(t).undo == nil {
 		// Cannot undo but it was stopped in flight.
 		// Hold so it doesn't look like it finished.
-		t.SetStatus(HoldStatus)
+		t.SetStatus(state.HoldStatus)
 		if len(t.WaitTasks()) > 0 {
 			r.state.EnsureBefore(0)
 		}
 	} else {
-		t.SetStatus(UndoStatus)
+		t.SetStatus(state.UndoStatus)
 		r.state.EnsureBefore(0)
 	}
 }
@@ -379,7 +357,7 @@ func (r *TaskRunner) Ensure() error {
 	defer r.state.Unlock()
 
 	r.someBlocked = false
-	running := make([]*Task, 0, len(r.tombs))
+	running := make([]*state.Task, 0, len(r.tombs))
 	for tid := range r.tombs {
 		t := r.state.Task(tid)
 		if t != nil {
@@ -399,7 +377,7 @@ ConsiderTasks:
 
 		tb := r.tombs[t.ID()]
 
-		if t.Status() == AbortStatus {
+		if t.Status() == state.AbortStatus {
 			if tb != nil {
 				tb.Kill(nil)
 				continue
@@ -419,7 +397,7 @@ ConsiderTasks:
 			}
 			continue
 		}
-		if status == WaitStatus {
+		if status == state.WaitStatus {
 			// nothing more to run
 			continue
 		}
@@ -429,11 +407,11 @@ ConsiderTasks:
 			continue
 		}
 
-		if status == UndoStatus && handlers.undo == nil {
+		if status == state.UndoStatus && handlers.undo == nil {
 			// Although this has no dependencies itself, it must have waited
 			// above too since follow up tasks may have handlers again.
 			// Cannot undo. Revert to done status.
-			t.SetStatus(DoneStatus)
+			t.SetStatus(state.DoneStatus)
 			if len(t.WaitTasks()) > 0 {
 				r.state.EnsureBefore(0)
 			}
@@ -459,9 +437,18 @@ ConsiderTasks:
 		}
 
 		logger.Debugf("Running task %s on %s: %s", t.ID(), t.Status(), t.Summary())
+		log.Printf("Running task %s on %s: %s", t.ID(), t.Status(), t.Summary())
 		r.run(t)
 
 		running = append(running, t)
+	}
+
+	if len(running) == 0 {
+		for _, chg := range r.state.Changes() {
+			if err := checkChangeNeedsReboot(chg); err != nil {
+				return err
+			}
+		}
 	}
 
 	// schedule next Ensure no later than the next task time
@@ -472,16 +459,23 @@ ConsiderTasks:
 	return nil
 }
 
+func checkChangeNeedsReboot(chg *state.Change) error {
+	if !chg.NeedsReboot() {
+		return nil
+	}
+	return restart.RequestRestartForChange(chg)
+}
+
 // mustWait returns whether task t must wait for other tasks to be done.
-func mustWait(t *Task) bool {
+func mustWait(t *state.Task) bool {
 	switch t.Status() {
-	case DoStatus:
+	case state.DoStatus:
 		for _, wt := range t.WaitTasks() {
-			if wt.Status() != DoneStatus {
+			if wt.Status() != state.DoneStatus {
 				return true
 			}
 		}
-	case UndoStatus:
+	case state.UndoStatus:
 		for _, ht := range t.HaltTasks() {
 			if !ht.Status().Ready() {
 				return true

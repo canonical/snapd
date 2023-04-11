@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -51,7 +52,7 @@ type ServiceManager struct {
 }
 
 // Manager returns a new service manager.
-func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
+func Manager(st *state.State, runner *runner.TaskRunner) *ServiceManager {
 	delayedCrossMgrInit()
 	m := &ServiceManager{
 		state: st,

@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -38,7 +39,7 @@ import (
 type AssertManager struct{}
 
 // Manager returns a new assertion manager.
-func Manager(s *state.State, runner *state.TaskRunner) (*AssertManager, error) {
+func Manager(s *state.State, runner *runner.TaskRunner) (*AssertManager, error) {
 	delayedCrossMgrInit()
 
 	runner.AddHandler("validate-snap", doValidateSnap, nil)

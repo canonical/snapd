@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -866,7 +867,7 @@ type sampleManager struct {
 	ensureCallback func()
 }
 
-func newSampleManager(runner *state.TaskRunner) *sampleManager {
+func newSampleManager(runner *runner.TaskRunner) *sampleManager {
 	sm := &sampleManager{}
 
 	runner.AddHandler("runMgr1", func(t *state.Task, _ *tomb.Tomb) error {

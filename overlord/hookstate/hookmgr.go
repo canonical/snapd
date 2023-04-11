@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/settings"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -60,7 +61,7 @@ type HookManager struct {
 	hijackMap map[hijackKey]hijackFunc
 
 	runningHooks int32
-	runner       *state.TaskRunner
+	runner       *runner.TaskRunner
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -93,7 +94,7 @@ type HookSetup struct {
 }
 
 // Manager returns a new HookManager.
-func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
+func Manager(s *state.State, runner *runner.TaskRunner) (*HookManager, error) {
 	// Make sure we only run 1 hook task for given snap at a time
 	runner.AddBlocked(func(thisTask *state.Task, running []*state.Task) bool {
 		// check if we're a hook task
