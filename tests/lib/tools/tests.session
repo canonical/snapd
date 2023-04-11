@@ -264,12 +264,14 @@ main() {
   		systemd-run \
 		--description "tests.session running $* as $user" \
 		--quiet \
-		--service-type oneshot \
+		--wait \
+		--service-type simple \
 		--setenv TERM=xterm-256color \
 		--property "StandardInput=file:$tmp_dir/stdin.pipe" \
 		--property "StandardOutput=file:$tmp_dir/stdout.pipe" \
 		--property "StandardError=file:$tmp_dir/stderr.pipe" \
-		"$(command -v runuser)" -l "$user" - -c "SNAPD_DEBUG=$SNAPD_DEBUG SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG exec $tmp_dir/exec"
+		--property "Environment=SNAPD_DEBUG=$SNAPD_DEBUG SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG" \
+		"$(command -v runuser)" -l "$user" - -c "exec $tmp_dir/exec"
 
 		# Prevent accumulation of failed sessions.
 		if systemctl cat "$unit_name" &>/dev/null; then
