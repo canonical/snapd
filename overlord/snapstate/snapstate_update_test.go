@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/runner"
 	userclient "github.com/snapcore/snapd/usersession/client"
 
 	// So it registers Configure.
@@ -9233,7 +9234,7 @@ func (s *snapmgrTestSuite) TestReRefreshCreatesPreDownloadChange(c *C) {
 
 func (s *snapmgrTestSuite) TestDownloadTaskWaitsForPreDownload(c *C) {
 	now := time.Now()
-	restore := state.MockTime(now)
+	restore := runner.MockTime(now)
 	defer restore()
 
 	var notified bool
@@ -9295,13 +9296,12 @@ func (s *snapmgrTestSuite) TestDownloadTaskWaitsForPreDownload(c *C) {
 					}
 
 					s.state.Lock()
-					defer s.state.Unlock()
-
 					// the download task registers itself w/ the pre-download and retries
-					c.Assert(atTime.Equal(now.Add(2*time.Minute)), Equals, true)
+					c.Check(atTime.Equal(now.Add(2*time.Minute)), Equals, true)
 					var taskIDs []string
-					c.Assert(preDlTask.Get("waiting-tasks", &taskIDs), IsNil)
-					c.Assert(taskIDs, DeepEquals, []string{dlTask.ID()})
+					c.Check(preDlTask.Get("waiting-tasks", &taskIDs), IsNil)
+					c.Check(taskIDs, DeepEquals, []string{dlTask.ID()})
+					s.state.Unlock()
 					return
 				}
 			}
