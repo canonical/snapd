@@ -62,7 +62,6 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 				{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB},
 			},
 		},
-		Size: 3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{{
 			OnDiskStructure: gadget.OnDiskStructure{
 				Size:        2 * quantity.SizeMiB,
@@ -105,7 +104,6 @@ volumes:
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   501 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -166,7 +164,6 @@ volumes:
 	}
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   502 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -226,7 +223,6 @@ volumes:
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   1101 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -294,7 +290,6 @@ volumes:
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   1300 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -361,7 +356,6 @@ volumes:
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   1200 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -447,7 +441,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   1200 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -629,7 +622,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -684,7 +676,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -736,7 +727,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -782,7 +772,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -829,7 +818,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   2 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// MBR
@@ -889,7 +877,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// mbr
@@ -1411,7 +1398,6 @@ func (p *layoutTestSuite) TestLayoutWithMinSize(c *C) {
 	// Check StartOffset and Size is well defined even if using min-size
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: &vol,
-		Size:   5 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
