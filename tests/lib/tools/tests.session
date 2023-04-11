@@ -234,7 +234,6 @@ main() {
 	mkfifo -m 0666 "$tmp_dir/result.pipe" "$tmp_dir/stdin.pipe" "$tmp_dir/stdout.pipe" "$tmp_dir/stderr.pipe"
 	trap 'rm -rf $tmp_dir' EXIT
 
-
 	# Use busctl to spawn a command. The command is wrapped in shell, runuser -l
 	# and redirects to capture output. Sadly busctl doesn't support passing file
 	# descriptors https://github.com/systemd/systemd/issues/14954 As a workaround
@@ -242,11 +241,11 @@ main() {
 	# NOTE: /dev/stdin is provided explicitly to trigger special behavior in bash,
 	# as otherwise background tasks are started with /dev/null for stdin.
 	cat </dev/stdin >"$tmp_dir/stdin.pipe" &
-	#cat_stdin_pid=$!
+	cat_stdin_pid=$!
 	cat <"$tmp_dir/stdout.pipe" >&1 &
-	#cat_stdout_pid=$!
+	cat_stdout_pid=$!
 	cat <"$tmp_dir/stderr.pipe" >&2 &
-	#cat_stderr_pid=$!
+	cat_stderr_pid=$!
 
 	(
 		echo "#!/bin/sh"
@@ -259,19 +258,10 @@ main() {
 	)>"$tmp_dir/exec"
 	chmod +x "$tmp_dir/exec"
 
-	# We want to provide a SELinuxContext but systemd in older SELinux-using distributions
-	# does not recognize this attribute. See https://github.com/systemd/systemd/blob/master/NEWS#L6402
-	# The typical user context as reported by id -Z is: unconfined_u:unconfined_r:unconfined_t:s0
-	#selinux_context_arg=
-	#case $SPREAD_SYSTEM in
-    #	fedora-*|centos-*)
-	#		if [ "$(systemctl --version | head -n 1 | awk '{ print $2 }')" -gt 219 ]; then
-	#			selinux_context_arg="SELinuxContext s unconfined_u:unconfined_r:unconfined_t:s0"
-	#		fi
-	#		;;
-	#esac
-
-	systemd-run \
+	# When systemd version is higher than 252 we use systemd-run to execute
+	# In other scenarios we use the older approach: bustctl with the dbus monitor
+	if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -gt 252 ]; then
+  		systemd-run \
 		--description "tests.session running $* as $user" \
 		--quiet \
 		--collect \
@@ -282,17 +272,143 @@ main() {
 		--property "StandardError=file:$tmp_dir/stderr.pipe" \
 		"$(command -v runuser)" -l "$user" - -c "SNAPD_DEBUG=$SNAPD_DEBUG SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG exec $tmp_dir/exec"
 
-	# Prevent accumulation of failed sessions.
-	if systemctl cat "$unit_name" &>/dev/null; then
-		if systemctl is-failed "$unit_name"; then
-			systemctl reset-failed "$unit_name"
-			exit 1
+		# Prevent accumulation of failed sessions.
+		if systemctl cat "$unit_name" &>/dev/null; then
+			if systemctl is-failed "$unit_name"; then
+				systemctl reset-failed "$unit_name"
+				exit 1
+			else
+				exit 0
+			fi
 		else
 			exit 0
 		fi
-	else
-		exit 0
+  	fi
+
+  	mkfifo -m 0666 "$tmp_dir/dbus-monitor.pipe" "$tmp_dir/ready.pipe"
+  	monitor_expr="type='signal', sender='org.freedesktop.systemd1', interface='org.freedesktop.systemd1.Manager', path='/org/freedesktop/systemd1', member='JobRemoved'"
+	stdbuf -oL dbus-monitor --system --monitor "$monitor_expr" > "$tmp_dir/dbus-monitor.pipe" 2>"$tmp_dir/dbus-monitor.stderr" &
+	dbus_monitor_pid=$!
+
+	awk_expr="
+BEGIN {
+	found=0;
+	ready=0;
+}
+# Once we get the NameAcquired message we are sure dbus-monitor is connected
+# and will receive JobRemoved once it is sent. The reason we are getting this
+# message despite the filter we establish above is that it is sent directly to
+# us, which bypasses DBus filter expressions.
+/member=NameAcquired/ {
+	if (!ready) {
+		ready=1;
+		print ready > \"$tmp_dir/ready.pipe\";
+		close(\"$tmp_dir/ready.pipe\");
+	}
+}
+# This part matches an argument to JobRemoved that contains the name of the
+# tests.session-xxx.service name we picked earlier. Once we see this we are sure
+# the job is gone.
+/   string \"$unit_name\"/ {
+	found=1;
+	print \"found service file\";
+	fflush();
+	next;
+}
+# This matches any string argument but only takes effect once we found our
+# JobRemoved message. The order of arguments to JobRemoved is such that the
+# immediate successor of the service name is the result word. This is
+# translated to a pass / fail exit code from tests.session. Scanning this part
+# terminates awk.
+/string \".*\"/ {
+	if (found==1) {
+		print \"found result\";
+		print \$2 > \"$tmp_dir/result.pipe\";
+		fflush(\"\");
+		close(\"$tmp_dir/result.pipe\");
+		exit;
+	}
+}
+"
+	awk -W interactive "$awk_expr" <"$tmp_dir/dbus-monitor.pipe" >"$tmp_dir/awk.log" 2>&1 &
+	awk_pid=$!
+
+	# Wait for dbus-monitor to start.
+	cat "$tmp_dir/ready.pipe" >/dev/null
+
+	# We want to provide a SELinuxContext but systemd in older SELinux-using distributions
+	# does not recognize this attribute. See https://github.com/systemd/systemd/blob/master/NEWS#L6402
+	# The typical user context as reported by id -Z is: unconfined_u:unconfined_r:unconfined_t:s0
+	selinux_context_arg=
+	case $SPREAD_SYSTEM in
+		fedora-*|centos-*)
+			if [ "$(systemctl --version | head -n 1 | awk '{ print $2 }')" -gt 219 ]; then
+				selinux_context_arg="SELinuxContext s unconfined_u:unconfined_r:unconfined_t:s0"
+			fi
+			;;
+	esac
+
+	# NOTE: This shellcheck directive is for the $selinux_context_arg expansion below.
+	# shellcheck disable=SC2086
+	busctl \
+		--allow-interactive-authorization=no --quiet \
+		--system \
+		-- \
+		call \
+		 org.freedesktop.systemd1 \
+		/org/freedesktop/systemd1 \
+		 org.freedesktop.systemd1.Manager \
+		StartTransientUnit "ssa(sv)a(sa(sv))" \
+		"$unit_name" fail $(( 4 + $(test -n "$selinux_context_arg" && echo 1 || echo 0))) \
+			Description s "tests.session running $* as $user" \
+			Type s oneshot \
+			Environment as 1 TERM=xterm-256color \
+			$selinux_context_arg \
+			ExecStart "a(sasb)" 1 \
+				"$(command -v runuser)" 6 "$(command -v runuser)" -l "$user" - -c "SNAPD_DEBUG=$SNAPD_DEBUG SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG exec $tmp_dir/exec <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
+		0
+	# This is done so that we can configure file redirects. Once Ubuntu 16.04 is no
+	# longer supported we can use Standard{Input,Output,Error}=file:path property
+	# of systemd, or perhaps even StandardInputFileDescriptor and pass a file
+	# descriptor to the FIFOs we open in the script above.
+
+	# Wait for the service to terminate. The trigger is a successful read
+	# from the result FIFO. In case we are signaled in one of the familiar
+	# ways, kill the started service with the same signal. The reading occurs
+	# in a loop as the signal will first interrupt the read process, which will
+	# fail and return nothing.
+	trap 'systemctl kill --signal=INT $unit_name' INT
+	trap 'systemctl kill --signal=TERM $unit_name' TERM
+	trap 'systemctl kill --signal=QUIT $unit_name' QUIT
+	result=""
+	for sig in INT TERM QUIT; do
+		result=$(cat "$tmp_dir/result.pipe" 2>/dev/null) && break
+		trap - "$sig"
+	done
+	trap - INT TERM QUIT
+
+	# Kill dbus-monitor that otherwise runs until it notices the pipe is no longer
+	# connected, which happens after a longer while. Redirect stderr to /dev/null
+	# to avoid upsetting tests which are sensitive to stderr, e.g. tests/main/document-portal-activation
+	kill $dbus_monitor_pid 2>/dev/null || true
+	wait $dbus_monitor_pid 2>/dev/null || true
+	wait $awk_pid
+
+	wait "$cat_stdin_pid"
+	wait "$cat_stdout_pid"
+	wait "$cat_stderr_pid"
+
+	# Prevent accumulation of failed sessions.
+
+	if [ "$result" != '"done"' ]; then
+		systemctl reset-failed "$unit_name"
 	fi
+
+	case "$result" in
+		'"done"') exit 0; ;;
+		'"failed"') exit 1; ;;
+		'"canceled"') exit 1; ;;
+	esac
 }
 
 main "$@"
