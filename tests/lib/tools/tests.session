@@ -264,7 +264,6 @@ main() {
   		systemd-run \
 		--description "tests.session running $* as $user" \
 		--quiet \
-		--collect \
 		--service-type oneshot \
 		--setenv TERM=xterm-256color \
 		--property "StandardInput=file:$tmp_dir/stdin.pipe" \
