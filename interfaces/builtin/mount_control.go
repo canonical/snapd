@@ -64,7 +64,7 @@ umount2
 // The reason why this list is not shared with osutil.MountOptsToCommonFlags or
 // other parts of the codebase is that this one only contains the options which
 // have been deemed safe and have been vetted by the security team.
-var allowedMountOptions = []string{
+var allowedKernelMountOptions = []string{
 	"async",
 	"atime",
 	"bind",
@@ -147,7 +147,7 @@ var allowedFilesystemSpecificMountOptions = map[string][]string{
 var optionsWithoutFsType = []string{
 	"bind",
 	// The following flags are only relevant to filesystem type "functionfs", in which case options
-	// are not validated against allowedMountOptions.
+	// are not validated against allowedKernelMountOptions.
 	"rbind",
 	"move",
 	"remount",
@@ -431,7 +431,7 @@ func validateMountOptions(mountInfo *MountInfo) error {
 		types = defaultFSTypes
 	}
 	for _, o := range mountInfo.options {
-		if strutil.ListContains(allowedMountOptions, o) {
+		if strutil.ListContains(allowedKernelMountOptions, o) {
 			continue
 		}
 		if strutil.ListContains(allowedUserspaceMountOptions, o) {
@@ -488,6 +488,16 @@ func validateMountInfo(mountInfo *MountInfo) error {
 	}
 
 	return nil
+}
+
+func filterKernelMountOptions(options []string) []string {
+	var filtered []string
+	for _, opt := range options {
+		if strutil.ListContains(allowedKernelMountOptions, opt) {
+			filtered = append(filtered, opt)
+		}
+	}
+	return filtered
 }
 
 func (iface *mountControlInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
@@ -570,7 +580,7 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 			typeRule = "fstype=(" + strings.Join(types, ",") + ")"
 		}
 
-		options := strings.Join(mountInfo.options, ",")
+		options := strings.Join(filterKernelMountOptions(mountInfo.options), ",")
 
 		emit("  mount %s options=(%s) \"%s\" -> \"%s{,/}\",\n", typeRule, options, source, target)
 		emit("  umount \"%s{,/}\",\n", target)
