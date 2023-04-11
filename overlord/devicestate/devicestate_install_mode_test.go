@@ -73,8 +73,6 @@ type deviceMgrInstallModeSuite struct {
 	prepareRunSystemDataErr        error
 
 	SystemctlDaemonReloadCalls int
-
-	restoreSeedOpen func()
 }
 
 var _ = Suite(&deviceMgrInstallModeSuite{})
@@ -129,10 +127,10 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	fakeJournalctl := testutil.MockCommand(c, "journalctl", "")
 	s.AddCleanup(fakeJournalctl.Restore)
 
-	s.restoreSeedOpen = devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
+	restore = devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
 		return &fakeSeed{}, nil
 	})
-	s.AddCleanup(s.restoreSeedOpen)
+	s.AddCleanup(restore)
 }
 
 const (
@@ -795,12 +793,8 @@ func (d *dumpDirContents) CheckCommentString() string {
 }
 
 func (s *deviceMgrInstallModeSuite) TestApplyPreseededData(c *C) {
-	st := s.state
-
 	mockTarCmd := testutil.MockCommand(c, "tar", "")
 	defer mockTarCmd.Restore()
-
-	s.restoreSeedOpen()
 
 	ubuntuSeedDir := dirs.SnapSeedDir
 	sysLabel := "20220401"
@@ -827,18 +821,6 @@ func (s *deviceMgrInstallModeSuite) TestApplyPreseededData(c *C) {
 	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755), IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
-
-	st.Lock()
-	defer st.Unlock()
-
-	/*XXX c.Assert(devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
-		// no serial in install mode
-	}), IsNil)
-
-	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
-	assertstatetest.AddMany(st, model)*/
 
 	snaps := []interface{}{
 		map[string]interface{}{"name": "snapd", "id": seed20.AssertedSnapID("snapd"), "revision": "1"},
@@ -898,12 +880,8 @@ func (s *deviceMgrInstallModeSuite) TestApplyPreseededData(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestApplyPreseededDataAssertionMissing(c *C) {
-	st := s.state
-
 	mockTarCmd := testutil.MockCommand(c, "tar", "")
 	defer mockTarCmd.Restore()
-
-	s.restoreSeedOpen()
 
 	ubuntuSeedDir := dirs.SnapSeedDir
 	sysLabel := "20220401"
@@ -931,9 +909,6 @@ func (s *deviceMgrInstallModeSuite) TestApplyPreseededDataAssertionMissing(c *C)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755), IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
 
-	st.Lock()
-	defer st.Unlock()
-
 	sysSeed, err := seed.Open(ubuntuSeedDir, sysLabel)
 	c.Assert(err, IsNil)
 	err = sysSeed.LoadAssertions(nil, nil)
@@ -953,8 +928,6 @@ func (s *deviceMgrInstallModeSuite) TestApplyPreseededDataAssertionMissing(c *C)
 }
 
 func (s *deviceMgrInstallModeSuite) TestApplyPreseededDataSnapMismatch(c *C) {
-	st := s.state
-
 	mockTarCmd := testutil.MockCommand(c, "tar", "")
 	defer mockTarCmd.Restore()
 
@@ -971,6 +944,7 @@ func (s *deviceMgrInstallModeSuite) TestApplyPreseededDataSnapMismatch(c *C) {
 	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
 	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
 
+	st := s.state
 	st.Lock()
 	defer st.Unlock()
 	model := s.makeMockInstallModel(c, "dangerous")
@@ -1041,8 +1015,6 @@ func (s *deviceMgrInstallModeSuite) TestApplyPreseededDataSnapMismatch(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestApplyPreseededDataWrongDigest(c *C) {
-	st := s.state
-
 	mockTarCmd := testutil.MockCommand(c, "tar", "")
 	defer mockTarCmd.Restore()
 
@@ -1057,6 +1029,7 @@ func (s *deviceMgrInstallModeSuite) TestApplyPreseededDataWrongDigest(c *C) {
 	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
 	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
 
+	st := s.state
 	st.Lock()
 	defer st.Unlock()
 	model := s.makeMockInstallModel(c, "dangerous")
