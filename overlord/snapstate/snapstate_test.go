@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/runner"
 	userclient "github.com/snapcore/snapd/usersession/client"
 
 	// So it registers Configure.
@@ -345,7 +346,7 @@ type ForeignTaskTracker interface {
 	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) error
 }
 
-func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker) {
+func AddForeignTaskHandlers(r *runner.TaskRunner, tracker ForeignTaskTracker) {
 	// Add fake handlers for tasks handled by interfaces manager
 	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
 		task.State().Lock()
@@ -359,30 +360,30 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 
 		return tracker.ForeignTask(kind, status, snapsup)
 	}
-	runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
-	runner.AddHandler("auto-connect", fakeHandler, fakeHandler)
-	runner.AddHandler("auto-disconnect", fakeHandler, nil)
-	runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
-	runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
-	runner.AddHandler("validate-snap", fakeHandler, nil)
-	runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
-	runner.AddHandler("transition-to-snapd-snap", fakeHandler, nil)
-	runner.AddHandler("update-gadget-assets", fakeHandler, nil)
-	runner.AddHandler("update-managed-boot-config", fakeHandler, nil)
+	r.AddHandler("setup-profiles", fakeHandler, fakeHandler)
+	r.AddHandler("auto-connect", fakeHandler, fakeHandler)
+	r.AddHandler("auto-disconnect", fakeHandler, nil)
+	r.AddHandler("remove-profiles", fakeHandler, fakeHandler)
+	r.AddHandler("discard-conns", fakeHandler, fakeHandler)
+	r.AddHandler("validate-snap", fakeHandler, nil)
+	r.AddHandler("transition-ubuntu-core", fakeHandler, nil)
+	r.AddHandler("transition-to-snapd-snap", fakeHandler, nil)
+	r.AddHandler("update-gadget-assets", fakeHandler, nil)
+	r.AddHandler("update-managed-boot-config", fakeHandler, nil)
 
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
 		return errors.New("error out")
 	}
-	runner.AddHandler("error-trigger", erroringHandler, nil)
+	r.AddHandler("error-trigger", erroringHandler, nil)
 
-	runner.AddHandler("save-snapshot", func(task *state.Task, _ *tomb.Tomb) error {
+	r.AddHandler("save-snapshot", func(task *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
-	runner.AddHandler("run-hook", func(task *state.Task, _ *tomb.Tomb) error {
+	r.AddHandler("run-hook", func(task *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
-	runner.AddHandler("configure-snapd", func(t *state.Task, _ *tomb.Tomb) error {
+	r.AddHandler("configure-snapd", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
 }

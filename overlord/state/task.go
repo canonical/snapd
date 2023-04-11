@@ -27,6 +27,33 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
+// Retry is returned from a handler to signal that is ok to rerun the
+// task at a later point. It's to be used also when a task goroutine
+// is asked to stop through its tomb. After can be used to indicate
+// how much to postpone the retry, 0 (the default) means at the next
+// ensure pass and is what should be used if stopped through its tomb.
+// Reason is an optional explanation of the conflict.
+type Retry struct {
+	After  time.Duration
+	Reason string
+}
+
+func (r *Retry) Error() string {
+	return "task should be retried"
+}
+
+// Wait is returned from a handler to signal that the task cannot
+// proceed at the moment maybe because some manual action from the
+// user required at this point or because of errors. The task
+// will be set to WaitStatus.
+type Wait struct {
+	Reason string
+}
+
+func (r *Wait) Error() string {
+	return "task set to wait, manual action required"
+}
+
 type progress struct {
 	Label string `json:"label"`
 	Done  int    `json:"done"`
@@ -298,12 +325,12 @@ func (t *Task) AtTime() time.Time {
 	return t.atTime
 }
 
-func (t *Task) accumulateDoingTime(duration time.Duration) {
+func (t *Task) AccumulateDoingTime(duration time.Duration) {
 	t.state.writing()
 	t.doingTime += duration
 }
 
-func (t *Task) accumulateUndoingTime(duration time.Duration) {
+func (t *Task) AccumulateUndoingTime(duration time.Duration) {
 	t.state.writing()
 	t.undoingTime += duration
 }

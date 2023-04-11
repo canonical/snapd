@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -132,7 +133,7 @@ type DeviceManager struct {
 }
 
 // Manager returns a new device manager.
-func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, newStore func(storecontext.DeviceBackend) snapstate.StoreService) (*DeviceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager, r *runner.TaskRunner, newStore func(storecontext.DeviceBackend) snapstate.StoreService) (*DeviceManager, error) {
 	delayedCrossMgrInit()
 
 	m := &DeviceManager{
@@ -178,42 +179,42 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	hookManager.Register(regexp.MustCompile("^prepare-device$"), newBasicHookStateHandler)
 	hookManager.Register(regexp.MustCompile("^install-device$"), newBasicHookStateHandler)
 
-	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
-	runner.AddHandler("request-serial", m.doRequestSerial, nil)
-	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
-	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
-	runner.AddHandler("setup-ubuntu-save", m.doSetupUbuntuSave, nil)
-	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
-	runner.AddHandler("factory-reset-run-system", m.doFactoryResetRunSystem, nil)
-	runner.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
-	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
-	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
+	r.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
+	r.AddHandler("request-serial", m.doRequestSerial, nil)
+	r.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
+	r.AddHandler("mark-seeded", m.doMarkSeeded, nil)
+	r.AddHandler("setup-ubuntu-save", m.doSetupUbuntuSave, nil)
+	r.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
+	r.AddHandler("factory-reset-run-system", m.doFactoryResetRunSystem, nil)
+	r.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
+	r.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
+	r.AddCleanup("prepare-remodeling", m.cleanupRemodel)
 	// this *must* always run last and finalizes a remodel
-	runner.AddHandler("set-model", m.doSetModel, nil)
-	runner.AddCleanup("set-model", m.cleanupRemodel)
+	r.AddHandler("set-model", m.doSetModel, nil)
+	r.AddCleanup("set-model", m.cleanupRemodel)
 	// There is no undo for successful gadget updates. The system is
 	// rebooted during update, if it boots up to the point where snapd runs
 	// we deem the new assets (be it bootloader or firmware) functional. The
 	// deployed boot assets must be backward compatible with reverted kernel
 	// or gadget snaps. There are no further changes to the boot assets,
 	// unless a new gadget update is deployed.
-	runner.AddHandler("update-gadget-assets", m.doUpdateGadgetAssets, nil)
+	r.AddHandler("update-gadget-assets", m.doUpdateGadgetAssets, nil)
 	// There is no undo handler for successful boot config update. The
 	// config assets are assumed to be always backwards compatible.
-	runner.AddHandler("update-managed-boot-config", m.doUpdateManagedBootConfig, nil)
+	r.AddHandler("update-managed-boot-config", m.doUpdateManagedBootConfig, nil)
 	// kernel command line updates from a gadget supplied file
-	runner.AddHandler("update-gadget-cmdline", m.doUpdateGadgetCommandLine, m.undoUpdateGadgetCommandLine)
+	r.AddHandler("update-gadget-cmdline", m.doUpdateGadgetCommandLine, m.undoUpdateGadgetCommandLine)
 	// recovery systems
-	runner.AddHandler("create-recovery-system", m.doCreateRecoverySystem, m.undoCreateRecoverySystem)
-	runner.AddHandler("finalize-recovery-system", m.doFinalizeTriedRecoverySystem, m.undoFinalizeTriedRecoverySystem)
-	runner.AddCleanup("finalize-recovery-system", m.cleanupRecoverySystem)
+	r.AddHandler("create-recovery-system", m.doCreateRecoverySystem, m.undoCreateRecoverySystem)
+	r.AddHandler("finalize-recovery-system", m.doFinalizeTriedRecoverySystem, m.undoFinalizeTriedRecoverySystem)
+	r.AddCleanup("finalize-recovery-system", m.cleanupRecoverySystem)
 
 	// used from the install API
 	// TODO: use better task names that are close to our usual pattern
-	runner.AddHandler("install-finish", m.doInstallFinish, nil)
-	runner.AddHandler("install-setup-storage-encryption", m.doInstallSetupStorageEncryption, nil)
+	r.AddHandler("install-finish", m.doInstallFinish, nil)
+	r.AddHandler("install-setup-storage-encryption", m.doInstallSetupStorageEncryption, nil)
 
-	runner.AddBlocked(gadgetUpdateBlocked)
+	r.AddBlocked(gadgetUpdateBlocked)
 
 	// wire FDE kernel hook support into boot
 	boot.HasFDESetupHook = m.hasFDESetupHook

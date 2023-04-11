@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -51,16 +52,16 @@ type ServiceManager struct {
 }
 
 // Manager returns a new service manager.
-func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
+func Manager(st *state.State, r *runner.TaskRunner) *ServiceManager {
 	delayedCrossMgrInit()
 	m := &ServiceManager{
 		state: st,
 	}
 	// TODO: undo handler
-	runner.AddHandler("service-control", m.doServiceControl, nil)
+	r.AddHandler("service-control", m.doServiceControl, nil)
 
 	// TODO: undo handler
-	runner.AddHandler("quota-control", m.doQuotaControl, nil)
+	r.AddHandler("quota-control", m.doQuotaControl, nil)
 	RegisterAffectedQuotasByKind("quota-control", affectedQuotasForQuotaControl)
 	snapstate.RegisterAffectedSnapsByKind("quota-control", affectedSnapsForQuotaControl)
 
@@ -68,7 +69,7 @@ func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
 	// so this task encapsulate taking care of calling quotaUpdate
 	// with the correct setup. This task also supports proper handling of
 	// failure during install and correctly removes the snap again.
-	runner.AddHandler("quota-add-snap", m.doQuotaAddSnap, m.undoQuotaAddSnap)
+	r.AddHandler("quota-add-snap", m.doQuotaAddSnap, m.undoQuotaAddSnap)
 	RegisterAffectedQuotasByKind("quota-add-snap", affectedQuotasForQuotaAddSnap)
 	// quota-add-snap uses snap-setup and because of this retrieving the snap
 	// that is being added is implicitly already supported by snapstate/conflict.go

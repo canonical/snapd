@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -66,14 +67,14 @@ type SnapshotManager struct {
 }
 
 // Manager returns a new SnapshotManager
-func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
+func Manager(st *state.State, r *runner.TaskRunner) *SnapshotManager {
 	delayedCrossMgrInit()
 
-	runner.AddHandler("save-snapshot", doSave, doForget)
-	runner.AddHandler("forget-snapshot", doForget, nil)
-	runner.AddHandler("check-snapshot", doCheck, nil)
-	runner.AddHandler("restore-snapshot", doRestore, undoRestore)
-	runner.AddHandler("cleanup-after-restore", doCleanupAfterRestore, nil)
+	r.AddHandler("save-snapshot", doSave, doForget)
+	r.AddHandler("forget-snapshot", doForget, nil)
+	r.AddHandler("check-snapshot", doCheck, nil)
+	r.AddHandler("restore-snapshot", doRestore, undoRestore)
+	r.AddHandler("cleanup-after-restore", doCleanupAfterRestore, nil)
 
 	manager := &SnapshotManager{
 		state: st,

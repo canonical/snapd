@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -46,7 +47,7 @@ func (s *cookiesSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
-	s.snapmgr, _ = Manager(s.st, state.NewTaskRunner(s.st))
+	s.snapmgr, _ = Manager(s.st, runner.NewTaskRunner(s.st))
 }
 
 func (s *cookiesSuite) TearDownTest(c *C) {

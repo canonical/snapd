@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -1222,7 +1223,7 @@ func (s *deviceMgrSuite) TestResetSession(c *C) {
 func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	st := state.New(nil)
 
-	runner1 := state.NewTaskRunner(st)
+	runner1 := runner.NewTaskRunner(st)
 	hookMgr1, err := hookstate.Manager(st, runner1)
 	c.Assert(err, IsNil)
 	mgr1, err := devicestate.Manager(st, hookMgr1, runner1, nil)
@@ -1244,7 +1245,7 @@ func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	})
 	st.Unlock()
 
-	runner2 := state.NewTaskRunner(st)
+	runner2 := runner.NewTaskRunner(st)
 	hookMgr2, err := hookstate.Manager(st, runner2)
 	c.Assert(err, IsNil)
 	mgr2, err := devicestate.Manager(st, hookMgr2, runner2, nil)
@@ -1303,7 +1304,7 @@ func (s *deviceMgrSuite) TestMarkSeededInConfig(c *C) {
 func (s *deviceMgrSuite) TestDevicemgrCanStandby(c *C) {
 	st := state.New(nil)
 
-	runner := state.NewTaskRunner(st)
+	runner := runner.NewTaskRunner(st)
 	hookMgr, err := hookstate.Manager(st, runner)
 	c.Assert(err, IsNil)
 	mgr, err := devicestate.Manager(st, hookMgr, runner, nil)
@@ -1899,7 +1900,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookErrorResult(c *C) {
 type startOfOperationTimeSuite struct {
 	state  *state.State
 	mgr    *devicestate.DeviceManager
-	runner *state.TaskRunner
+	runner *runner.TaskRunner
 }
 
 var _ = Suite(&startOfOperationTimeSuite{})
@@ -1909,7 +1910,7 @@ func (s *startOfOperationTimeSuite) SetUpTest(c *C) {
 	os.MkdirAll(dirs.SnapRunDir, 0755)
 
 	s.state = state.New(nil)
-	s.runner = state.NewTaskRunner(s.state)
+	s.runner = runner.NewTaskRunner(s.state)
 	s.mgr = nil
 }
 

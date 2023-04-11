@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
@@ -475,7 +476,7 @@ func Store(st *state.State, deviceCtx DeviceContext) StoreService {
 }
 
 // Manager returns a new snap manager.
-func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
+func Manager(st *state.State, r *runner.TaskRunner) (*SnapManager, error) {
 	preseed := snapdenv.Preseeding()
 	m := &SnapManager{
 		state:                st,
@@ -500,7 +501,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	}
 
 	// this handler does nothing
-	runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error {
+	r.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
 
@@ -508,52 +509,52 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	// TODO: no undo handler here, we may use the GC for this and just
 	// remove anything that is not referenced anymore
-	runner.AddHandler("prerequisites", m.doPrerequisites, nil)
-	runner.AddHandler("prepare-snap", m.doPrepareSnap, m.undoPrepareSnap)
-	runner.AddHandler("download-snap", m.doDownloadSnap, m.undoPrepareSnap)
-	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
-	runner.AddHandler("unlink-current-snap", m.doUnlinkCurrentSnap, m.undoUnlinkCurrentSnap)
-	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
-	runner.AddCleanup("copy-snap-data", m.cleanupCopySnapData)
-	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
-	runner.AddHandler("start-snap-services", m.startSnapServices, m.undoStartSnapServices)
-	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
-	runner.AddHandler("toggle-snap-flags", m.doToggleSnapFlags, nil)
-	runner.AddHandler("check-rerefresh", m.doCheckReRefresh, nil)
-	runner.AddHandler("conditional-auto-refresh", m.doConditionalAutoRefresh, nil)
+	r.AddHandler("prerequisites", m.doPrerequisites, nil)
+	r.AddHandler("prepare-snap", m.doPrepareSnap, m.undoPrepareSnap)
+	r.AddHandler("download-snap", m.doDownloadSnap, m.undoPrepareSnap)
+	r.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
+	r.AddHandler("unlink-current-snap", m.doUnlinkCurrentSnap, m.undoUnlinkCurrentSnap)
+	r.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
+	r.AddCleanup("copy-snap-data", m.cleanupCopySnapData)
+	r.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
+	r.AddHandler("start-snap-services", m.startSnapServices, m.undoStartSnapServices)
+	r.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
+	r.AddHandler("toggle-snap-flags", m.doToggleSnapFlags, nil)
+	r.AddHandler("check-rerefresh", m.doCheckReRefresh, nil)
+	r.AddHandler("conditional-auto-refresh", m.doConditionalAutoRefresh, nil)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
-	runner.AddHandler("cleanup", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	r.AddHandler("cleanup", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
 
 	// remove related
-	runner.AddHandler("stop-snap-services", m.stopSnapServices, m.undoStopSnapServices)
-	runner.AddHandler("unlink-snap", m.doUnlinkSnap, m.undoUnlinkSnap)
-	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
-	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
+	r.AddHandler("stop-snap-services", m.stopSnapServices, m.undoStopSnapServices)
+	r.AddHandler("unlink-snap", m.doUnlinkSnap, m.undoUnlinkSnap)
+	r.AddHandler("clear-snap", m.doClearSnapData, nil)
+	r.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
 	// alias related
 	// FIXME: drop the task entirely after a while
-	runner.AddHandler("clear-aliases", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
-	runner.AddHandler("set-auto-aliases", m.doSetAutoAliases, m.undoRefreshAliases)
-	runner.AddHandler("setup-aliases", m.doSetupAliases, m.doRemoveAliases)
-	runner.AddHandler("refresh-aliases", m.doRefreshAliases, m.undoRefreshAliases)
-	runner.AddHandler("prune-auto-aliases", m.doPruneAutoAliases, m.undoRefreshAliases)
-	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
-	runner.AddHandler("alias", m.doAlias, m.undoRefreshAliases)
-	runner.AddHandler("unalias", m.doUnalias, m.undoRefreshAliases)
-	runner.AddHandler("disable-aliases", m.doDisableAliases, m.undoRefreshAliases)
-	runner.AddHandler("prefer-aliases", m.doPreferAliases, m.undoRefreshAliases)
+	r.AddHandler("clear-aliases", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	r.AddHandler("set-auto-aliases", m.doSetAutoAliases, m.undoRefreshAliases)
+	r.AddHandler("setup-aliases", m.doSetupAliases, m.doRemoveAliases)
+	r.AddHandler("refresh-aliases", m.doRefreshAliases, m.undoRefreshAliases)
+	r.AddHandler("prune-auto-aliases", m.doPruneAutoAliases, m.undoRefreshAliases)
+	r.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
+	r.AddHandler("alias", m.doAlias, m.undoRefreshAliases)
+	r.AddHandler("unalias", m.doUnalias, m.undoRefreshAliases)
+	r.AddHandler("disable-aliases", m.doDisableAliases, m.undoRefreshAliases)
+	r.AddHandler("prefer-aliases", m.doPreferAliases, m.undoRefreshAliases)
 
 	// misc
-	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
-	runner.AddHandler("migrate-snap-home", m.doMigrateSnapHome, m.undoMigrateSnapHome)
+	r.AddHandler("switch-snap", m.doSwitchSnap, nil)
+	r.AddHandler("migrate-snap-home", m.doMigrateSnapHome, m.undoMigrateSnapHome)
 	// no undo for now since it's last task in valset auto-resolution change
-	runner.AddHandler("enforce-validation-sets", m.doEnforceValidationSets, nil)
-	runner.AddHandler("pre-download-snap", m.doPreDownloadSnap, nil)
+	r.AddHandler("enforce-validation-sets", m.doEnforceValidationSets, nil)
+	r.AddHandler("pre-download-snap", m.doPreDownloadSnap, nil)
 
 	// control serialisation
-	runner.AddBlocked(m.blockedTask)
+	r.AddBlocked(m.blockedTask)
 
 	RegisterAffectedSnapsByKind("conditional-auto-refresh", conditionalAutoRefreshAffectedSnaps)
 

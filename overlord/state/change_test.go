@@ -25,16 +25,37 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
 type changeSuite struct{}
 
 var _ = Suite(&changeSuite{})
+
+type stateBackend struct {
+	mu               sync.Mutex
+	ensureBefore     time.Duration
+	ensureBeforeSeen chan<- bool
+}
+
+func (b *stateBackend) Checkpoint([]byte) error { return nil }
+
+func (b *stateBackend) EnsureBefore(d time.Duration) {
+	b.mu.Lock()
+	if d < b.ensureBefore {
+		b.ensureBefore = d
+	}
+	b.mu.Unlock()
+	if b.ensureBeforeSeen != nil {
+		b.ensureBeforeSeen <- true
+	}
+}
 
 func (cs *changeSuite) TestNewChange(c *C) {
 	st := state.New(nil)
@@ -649,14 +670,14 @@ var abortLanesTests = []struct {
 	},
 }
 
-func (ts *taskRunnerSuite) TestAbortLanes(c *C) {
+func (ts *changeSuite) TestAbortLanes(c *C) {
 
 	names := strings.Fields("t11 t12 t21 t22 t31 t32 t41 t42")
 
 	for _, test := range abortLanesTests {
 		sb := &stateBackend{}
 		st := state.New(sb)
-		r := state.NewTaskRunner(st)
+		r := runner.NewTaskRunner(st)
 		defer r.Stop()
 
 		st.Lock()
@@ -858,14 +879,14 @@ var abortUnreadyLanesTests = []struct {
 	},
 }
 
-func (ts *taskRunnerSuite) TestAbortUnreadyLanes(c *C) {
+func (ts *changeSuite) TestAbortUnreadyLanes(c *C) {
 
 	names := strings.Fields("t11 t12 t21 t22 t31 t32 t41 t42")
 
 	for i, test := range abortUnreadyLanesTests {
 		sb := &stateBackend{}
 		st := state.New(sb)
-		r := state.NewTaskRunner(st)
+		r := runner.NewTaskRunner(st)
 		defer r.Stop()
 
 		st.Lock()
@@ -1055,13 +1076,13 @@ var cyclicDependencyTests = []struct {
 	},
 }
 
-func (ts *taskRunnerSuite) TestCheckTaskDependencies(c *C) {
+func (ts *changeSuite) TestCheckTaskDependencies(c *C) {
 
 	for i, test := range cyclicDependencyTests {
 		names := strings.Fields(test.setup)
 		sb := &stateBackend{}
 		st := state.New(sb)
-		r := state.NewTaskRunner(st)
+		r := runner.NewTaskRunner(st)
 		defer r.Stop()
 
 		st.Lock()

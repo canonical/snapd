@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -866,45 +867,45 @@ type sampleManager struct {
 	ensureCallback func()
 }
 
-func newSampleManager(runner *state.TaskRunner) *sampleManager {
+func newSampleManager(r *runner.TaskRunner) *sampleManager {
 	sm := &sampleManager{}
 
-	runner.AddHandler("runMgr1", func(t *state.Task, _ *tomb.Tomb) error {
+	r.AddHandler("runMgr1", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.Set("runMgr1Mark", 1)
 		return nil
 	}, nil)
-	runner.AddHandler("runMgr2", func(t *state.Task, _ *tomb.Tomb) error {
+	r.AddHandler("runMgr2", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.Set("runMgr2Mark", 1)
 		return nil
 	}, nil)
-	runner.AddHandler("runMgrEnsureBefore", func(t *state.Task, _ *tomb.Tomb) error {
+	r.AddHandler("runMgrEnsureBefore", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.EnsureBefore(20 * time.Millisecond)
 		return nil
 	}, nil)
-	runner.AddHandler("runMgrForever", func(t *state.Task, _ *tomb.Tomb) error {
+	r.AddHandler("runMgrForever", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.EnsureBefore(20 * time.Millisecond)
 		return &state.Retry{}
 	}, nil)
-	runner.AddHandler("runMgrWCleanup", func(t *state.Task, _ *tomb.Tomb) error {
+	r.AddHandler("runMgrWCleanup", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.Set("runMgrWCleanupMark", 1)
 		return nil
 	}, nil)
-	runner.AddCleanup("runMgrWCleanup", func(t *state.Task, _ *tomb.Tomb) error {
+	r.AddCleanup("runMgrWCleanup", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()

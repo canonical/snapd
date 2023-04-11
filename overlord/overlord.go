@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -100,7 +101,7 @@ type Overlord struct {
 	// managers
 	inited     bool
 	startedUp  bool
-	runner     *state.TaskRunner
+	runner     *runner.TaskRunner
 	restartMgr *restart.RestartManager
 	snapMgr    *snapstate.SnapManager
 	serviceMgr *servicestate.ServiceManager
@@ -133,7 +134,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	}
 
 	o.stateEng = NewStateEngine(s)
-	o.runner = state.NewTaskRunner(s)
+	o.runner = runner.NewTaskRunner(s)
 
 	// any unknown task should be ignored and succeed
 	matchAnyUnknownTask := func(_ *state.Task) bool {
@@ -619,7 +620,7 @@ func (o *Overlord) StateEngine() *StateEngine {
 
 // TaskRunner returns the shared task runner responsible for running
 // tasks for all managers under the overlord.
-func (o *Overlord) TaskRunner() *state.TaskRunner {
+func (o *Overlord) TaskRunner() *runner.TaskRunner {
 	return o.runner
 }
 
@@ -692,7 +693,7 @@ func MockWithState(s *state.State) *Overlord {
 		s = state.New(mockBackend{o: o})
 	}
 	o.stateEng = NewStateEngine(s)
-	o.runner = state.NewTaskRunner(s)
+	o.runner = runner.NewTaskRunner(s)
 
 	return o
 }

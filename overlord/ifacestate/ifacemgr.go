@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -68,7 +69,7 @@ type InterfaceManager struct {
 
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
-func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager, r *runner.TaskRunner, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
 	delayedCrossMgrInit()
 
 	// NOTE: hookManager is nil only when testing.
@@ -90,9 +91,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	}
 
 	taskKinds := map[string]bool{}
-	addHandler := func(kind string, do, undo state.HandlerFunc) {
+	addHandler := func(kind string, do, undo runner.HandlerFunc) {
 		taskKinds[kind] = true
-		runner.AddHandler(kind, do, undo)
+		r.AddHandler(kind, do, undo)
 	}
 
 	addHandler("connect", m.doConnect, m.undoConnect)
@@ -109,13 +110,13 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("hotplug-disconnect", m.doHotplugDisconnect, nil)
 
 	// don't block on hotplug-seq-wait task
-	runner.AddHandler("hotplug-seq-wait", m.doHotplugSeqWait, nil)
+	r.AddHandler("hotplug-seq-wait", m.doHotplugSeqWait, nil)
 
 	// helper for ubuntu-core -> core
 	addHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)
 
 	// interface tasks might touch more than the immediate task target snap, serialize them
-	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
+	r.AddBlocked(func(t *state.Task, running []*state.Task) bool {
 		if !taskKinds[t.Kind()] {
 			return false
 		}

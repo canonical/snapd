@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -46,7 +47,7 @@ func (snapshotSuite) TestManager(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
-	runner := state.NewTaskRunner(st)
+	runner := runner.NewTaskRunner(st)
 	mgr := snapshotstate.Manager(st, runner)
 	c.Assert(mgr, check.NotNil)
 	kinds := runner.KnownTaskKinds()
@@ -92,7 +93,7 @@ func (snapshotSuite) TestEnsureForgetsSnapshots(c *check.C) {
 	defer restore()
 
 	st := state.New(nil)
-	runner := state.NewTaskRunner(st)
+	runner := runner.NewTaskRunner(st)
 	mgr := snapshotstate.Manager(st, runner)
 	c.Assert(mgr, check.NotNil)
 
@@ -137,7 +138,7 @@ func (snapshotSuite) TestEnsureForgetsSnapshotsRunsRegularly(c *check.C) {
 	defer restoreOsRemove()
 
 	st := state.New(nil)
-	runner := state.NewTaskRunner(st)
+	runner := runner.NewTaskRunner(st)
 	mgr := snapshotstate.Manager(st, runner)
 	c.Assert(mgr, check.NotNil)
 
@@ -180,7 +181,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotOp st
 	defer restore()
 
 	st := state.New(nil)
-	runner := state.NewTaskRunner(st)
+	runner := runner.NewTaskRunner(st)
 	mgr := snapshotstate.Manager(st, runner)
 	c.Assert(mgr, check.NotNil)
 
@@ -896,7 +897,7 @@ func (snapshotSuite) TestManagerRunCleanupAbandondedImportsAtStartup(c *check.C)
 
 	o := overlord.Mock()
 	st := o.State()
-	mgr := snapshotstate.Manager(st, state.NewTaskRunner(st))
+	mgr := snapshotstate.Manager(st, runner.NewTaskRunner(st))
 	c.Assert(mgr, check.NotNil)
 	o.AddManager(mgr)
 	err := o.Settle(100 * time.Millisecond)
@@ -918,7 +919,7 @@ func (snapshotSuite) TestManagerRunCleanupAbandondedImportsAtStartupErrorLogged(
 
 	o := overlord.Mock()
 	st := o.State()
-	mgr := snapshotstate.Manager(st, state.NewTaskRunner(st))
+	mgr := snapshotstate.Manager(st, runner.NewTaskRunner(st))
 	c.Assert(mgr, check.NotNil)
 	o.AddManager(mgr)
 	err := o.Settle(100 * time.Millisecond)

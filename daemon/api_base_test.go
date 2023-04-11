@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
@@ -362,11 +363,11 @@ func (s *apiBaseSuite) asUserAuth(c *check.C, req *http.Request) {
 
 type fakeSnapManager struct{}
 
-func newFakeSnapManager(st *state.State, runner *state.TaskRunner) *fakeSnapManager {
-	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
+func newFakeSnapManager(st *state.State, r *runner.TaskRunner) *fakeSnapManager {
+	r.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
-	runner.AddHandler("fake-install-snap-error", func(t *state.Task, _ *tomb.Tomb) error {
+	r.AddHandler("fake-install-snap-error", func(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("fake-install-snap-error errored")
 	}, nil)
 

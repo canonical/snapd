@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -293,12 +294,12 @@ func (s *interfaceManagerSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-func addForeignTaskHandlers(runner *state.TaskRunner) {
+func addForeignTaskHandlers(r *runner.TaskRunner) {
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
 		return errors.New("error out")
 	}
-	runner.AddHandler("error-trigger", erroringHandler, nil)
+	r.AddHandler("error-trigger", erroringHandler, nil)
 }
 
 func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {

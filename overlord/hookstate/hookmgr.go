@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/settings"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -60,7 +61,7 @@ type HookManager struct {
 	hijackMap map[hijackKey]hijackFunc
 
 	runningHooks int32
-	runner       *state.TaskRunner
+	runner       *runner.TaskRunner
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -93,9 +94,9 @@ type HookSetup struct {
 }
 
 // Manager returns a new HookManager.
-func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
+func Manager(s *state.State, r *runner.TaskRunner) (*HookManager, error) {
 	// Make sure we only run 1 hook task for given snap at a time
-	runner.AddBlocked(func(thisTask *state.Task, running []*state.Task) bool {
+	r.AddBlocked(func(thisTask *state.Task, running []*state.Task) bool {
 		// check if we're a hook task
 		if thisTask.Kind() != "run-hook" {
 			return false
@@ -123,14 +124,14 @@ func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
 		repository: newRepository(),
 		contexts:   make(map[string]*Context),
 		hijackMap:  make(map[hijackKey]hijackFunc),
-		runner:     runner,
+		runner:     r,
 	}
 
-	runner.AddHandler("run-hook", manager.doRunHook, manager.undoRunHook)
+	r.AddHandler("run-hook", manager.doRunHook, manager.undoRunHook)
 	// Compatibility with snapd between 2.29 and 2.30 in edge only.
 	// We generated a configure-snapd task on core refreshes and
 	// for compatibility we need to handle those.
-	runner.AddHandler("configure-snapd", func(*state.Task, *tomb.Tomb) error {
+	r.AddHandler("configure-snapd", func(*state.Task, *tomb.Tomb) error {
 		return nil
 	}, nil)
 

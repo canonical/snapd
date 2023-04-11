@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/cmdstate"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -71,7 +72,7 @@ func (s *cmdSuite) SetUpTest(c *check.C) {
 	s.rootdir = d
 	s.state = state.New(nil)
 	s.se = overlord.NewStateEngine(s.state)
-	runner := state.NewTaskRunner(s.state)
+	runner := runner.NewTaskRunner(s.state)
 	s.manager = cmdstate.Manager(s.state, runner)
 	s.se.AddManager(s.manager)
 	s.se.AddManager(runner)
