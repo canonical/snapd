@@ -308,16 +308,6 @@ func notifyRebootRequiredClassic(rebootRequiredSnap string) error {
 	return nil
 }
 
-// MarkTaskForRestart sets certain properties on a task to mark it for restart.
-func MarkTaskForRestart(task *state.Task, snapName string, status state.Status) {
-	rm := restartManager(task.State(), "internal error: cannot request a restart before RestartManager initialization")
-	// store current boot id to be able to check later if we have rebooted or not
-	task.Set("wait-for-system-restart-from-boot-id", rm.bootID)
-	task.Set("set-status-on-restart", status)
-	task.SetStatus(state.WaitStatus)
-	setWaitForSystemRestart(task.Change())
-}
-
 // RestartIsPending checks if a restart is pending for a task using the restart manager.
 func RestartIsPending(task *state.Task) bool {
 	rm := restartManager(task.State(), "internal error: cannot request a restart before RestartManager initialization")
@@ -398,7 +388,6 @@ type RestartInfo struct {
 	SnapName    string
 	RestartType RestartType
 	RebootInfo  *boot.RebootInfo
-	Requested   bool
 }
 
 func newRestartInfo() *RestartInfo {
@@ -407,6 +396,12 @@ func newRestartInfo() *RestartInfo {
 
 func (rt *RestartInfo) needsReboot(chg *state.Change) bool {
 	return len(rt.Waiters) > 0
+}
+
+func (rt *RestartInfo) setParameters(snapName string, restartType RestartType, rebootInfo *boot.RebootInfo) {
+	rt.SnapName = snapName
+	rt.RestartType = restartType
+	rt.RebootInfo = rebootInfo
 }
 
 func (rt *RestartInfo) Reboot(st *state.State) {
@@ -420,6 +415,163 @@ func (rt *RestartInfo) Reboot(st *state.State) {
 		return
 	}
 	Request(st, rt.RestartType, rt.RebootInfo)
+}
+
+func (rt *RestartInfo) restoreWaiters() {
+	for _, w := range rt.Waiters {
+		w.SetStatus(state.DoneStatus)
+	}
+	rt.Waiters = nil
+}
+
+func (rt *RestartInfo) doUndoReboot(t *state.Task, status state.Status) error {
+	// Immediately, on the first undo, we clear all the waiters that previously
+	// has requested a reboot, that are now in WaitStatus. We put those back into
+	// their original requested state.
+	rt.restoreWaiters()
+	return rt.doReboot(t, status)
+}
+
+func (rt *RestartInfo) taskInSlice(t *state.Task, ts []*state.Task) bool {
+	for _, tt := range ts {
+		if tt == t {
+			return true
+		}
+	}
+	return false
+}
+
+// markTaskForRestart sets certain properties on a task to mark it for restart.
+func (rt *RestartInfo) markTaskForRestart(task *state.Task, snapName string, status state.Status) {
+	rm := restartManager(task.State(), "internal error: cannot request a restart before RestartManager initialization")
+	// store current boot id to be able to check later if we have rebooted or not
+	task.Set("wait-for-system-restart-from-boot-id", rm.bootID)
+	task.Set("set-status-on-restart", status)
+	task.SetStatus(state.WaitStatus)
+	setWaitForSystemRestart(task.Change())
+}
+
+func (rt *RestartInfo) doReboot(t *state.Task, status state.Status) error {
+	switch status {
+	case state.DoneStatus:
+		chg := t.Change()
+		// Mark all halts as in 'Wait' for reboot
+		laneTasks := chg.LaneTasks(t.Lanes()...)
+		for _, wt := range t.HaltTasks() {
+			if rt.taskInSlice(wt, laneTasks) {
+				rt.markTaskForRestart(wt, rt.SnapName, wt.Status())
+			}
+		}
+	case state.UndoneStatus:
+		// Mark all the wait tasks as in 'Wait' for reboot
+		for _, wt := range t.WaitTasks() {
+			rt.markTaskForRestart(wt, rt.SnapName, wt.Status())
+		}
+	case state.DoStatus:
+		rt.Waiters = append(rt.Waiters, t)
+		fallthrough
+	case state.UndoStatus:
+		rt.markTaskForRestart(t, rt.SnapName, status)
+		return &state.Wait{Reason: "Postponing reboot as long as there are tasks to run"}
+	}
+	t.SetStatus(status)
+	return nil
+}
+
+// TaskWaitForRestart can be used for tasks that need to wait for a pending
+// restart to occur. The task will then be restored to the provided status
+// after the reboot, and then re-run.
+func TaskWaitForRestart(t *state.Task) error {
+	// If a task requests a reboot, then we make that task wait for the
+	// current reboot task. We must support multiple tasks waiting for this
+	// task.
+	log.Printf("TaskWaitForRestart(task=%s)", t.Kind())
+
+	rt, err := changeRestartInfo(t.Change())
+	if err != nil {
+		return err
+	}
+	if rt == nil {
+		return nil
+	}
+
+	t.Logf("task %q pending reboot", t.Kind())
+
+	switch t.Status() {
+	case state.UndoingStatus:
+		return rt.doUndoReboot(t, state.UndoStatus)
+	case state.DoingStatus:
+		return rt.doReboot(t, state.DoStatus)
+	}
+	return nil
+}
+
+// FinishTaskWithRestart will finish a task that needs a restart, by
+// setting its status and requesting a restart.
+// It should usually be invoked returning its result immediately
+// from the caller.
+// It delegates the work to restart.FinishTaskWithRestart which can decide
+// to set the task to wait returning state.Wait.
+func RequestRestartForTask(t *state.Task, snapName string, status state.Status, restartType RestartType, rebootInfo *boot.RebootInfo) error {
+	// The reboot-tracker only handles direct system reboots
+	switch restartType {
+	case RestartSystem, RestartSystemNow, RestartSystemHaltNow, RestartSystemPoweroffNow:
+		break
+	default:
+		return FinishTaskWithRestart(t, status, restartType, snapName, rebootInfo)
+	}
+	t.Logf("reboot requested by snap %q", snapName)
+
+	rt, err := changeRestartInfo(t.Change())
+	if err != nil {
+		return err
+	}
+
+	// If system restart is requested, consider how the change the
+	// task belongs to is configured (system-restart-immediate) to
+	// choose whether request an immediate restart or not.
+	var immediate bool
+	chg := t.Change()
+	if chg != nil {
+		// ignore errors intentionally, to follow
+		// RequestRestart itself which does not
+		// return errors. If the state is corrupt
+		// something else will error
+		chg.Get("system-restart-immediate", &immediate)
+		if restartType == RestartSystem && immediate {
+			restartType = RestartSystemNow
+		}
+	}
+
+	// Update reboot params
+	rt.setParameters(snapName, restartType, rebootInfo)
+	chg.Set("reboot-tracker", rt)
+
+	// Either invoked with undone or done as the final status
+	switch status {
+	case state.UndoneStatus:
+		return rt.doUndoReboot(t, state.UndoneStatus)
+	case state.DoneStatus:
+		return rt.doReboot(t, state.DoneStatus)
+	}
+	return nil
+}
+
+func changeRestartInfo(chg *state.Change) (*RestartInfo, error) {
+	var rt RestartInfo
+	if chg == nil {
+		return nil, fmt.Errorf("no change for task")
+	}
+
+	if err := chg.Get("reboot-info", &rt); err != nil {
+		if errors.Is(err, &state.NoStateError{}) {
+			rt := newRestartInfo()
+			chg.Set("reboot-info", rt)
+			return rt, nil
+		}
+		return nil, err
+	}
+	return &rt, nil
 }
 
 func RequestRestartForChange(chg *state.Change) error {

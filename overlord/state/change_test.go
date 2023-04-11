@@ -1120,3 +1120,54 @@ func (ts *changeSuite) TestCheckTaskDependencies(c *C) {
 		}
 	}
 }
+
+func (cs *changeSuite) TestNeedsRebootMultiLane(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	lane1 := st.NewLane()
+	lane2 := st.NewLane()
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t3 := st.NewTask("task3", "...")
+	t4 := st.NewTask("task4", "...")
+	t5 := st.NewTask("task5", "...")
+	t6 := st.NewTask("task6", "...")
+
+	t2.WaitFor(t1)
+	t4.WaitFor(t2)
+
+	t5.WaitFor(t4)
+	t4.WaitFor(t3)
+
+	t6.WaitFor(t5)
+
+	// lane1: task1 => task2 => task4
+	// lane2: task3 => task4 => task5
+	t1.JoinLane(lane1)
+	t2.JoinLane(lane1)
+	t3.JoinLane(lane2)
+	t4.JoinLane(lane1)
+	t4.JoinLane(lane2)
+	t5.JoinLane(lane2)
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+	chg.AddTask(t4)
+	chg.AddTask(t5)
+	chg.AddTask(t6)
+
+	// No tasks are in wait status, no reboot so far
+	c.Check(chg.NeedsReboot(), Equals, false)
+
+	// Put task 3 into wait. Because there is only one
+	// direct descendant, the change should not need a reboot
+	t3.SetStatus(state.WaitStatus)
+	c.Check(chg.NeedsReboot(), Equals, false)
+
+}

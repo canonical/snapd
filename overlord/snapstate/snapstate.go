@@ -867,6 +867,23 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	return nil
 }
 
+// FinishTaskWithRestart will finish a task that needs a restart, by
+// setting its status and requesting a restart.
+// It should usually be invoked returning its result immediately
+// from the caller.
+// It delegates the work to restart.FinishTaskWithRestart which can decide
+// to set the task to wait returning state.Wait.
+func FinishTaskWithRestart(t *state.Task, status state.Status, restartType restart.RestartType, rebootInfo *boot.RebootInfo) error {
+	// If a task requests a reboot, then we make that task wait for the
+	// current reboot task. We must support multiple tasks waiting for this
+	// task.
+	snapsup, err := TaskSnapSetup(t)
+	if err != nil {
+		return fmt.Errorf("cannot get snap that requested a reboot: %v", err)
+	}
+	return restart.RequestRestartForTask(t, snapsup.InstanceName(), status, restartType, rebootInfo)
+}
+
 // IsErrAndNotWait returns true if err is not nil and neither state.Wait, it is
 // useful for code using FinishTaskWithRestart to not undo work in the presence
 // of a state.Wait return.

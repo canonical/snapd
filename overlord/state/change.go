@@ -398,17 +398,21 @@ func (c *Change) isTaskWaitingForReboot(t *Task) bool {
 }
 
 func (c *Change) NeedsReboot() bool {
+	var waiters int
 	for _, t := range c.Tasks() {
 		// All tasks in 'Do' must be able to be traced back
 		// to a task in 'Wait'. Otherwise the change does not need
 		// a reboot yet.
-		if t.Status() == DoStatus {
+		switch t.Status() {
+		case WaitStatus:
+			waiters++
+		case DoStatus:
 			if !c.isTaskWaitingForReboot(t) {
 				return false
 			}
 		}
 	}
-	return true
+	return waiters > 0
 }
 
 func (c *Change) taskCleanChanged() {

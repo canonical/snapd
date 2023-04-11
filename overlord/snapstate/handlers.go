@@ -3856,7 +3856,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	// is waiting to occur. We handle this here as this task is dynamically
 	// added.
 	if restart.RestartIsPending(t) {
-		return TaskWaitForRestart(t)
+		return restart.TaskWaitForRestart(t)
 	}
 
 	if !changeReadyUpToTask(t) {
