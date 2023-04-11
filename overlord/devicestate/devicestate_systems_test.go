@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -2367,7 +2368,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return fmt.Errorf("really no tpm") })
+	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return fmt.Errorf("really no tpm") })
 	defer restore()
 
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
@@ -2381,7 +2382,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 		},
 	})
 	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
-	c.Check(encInfo, DeepEquals, &devicestate.EncryptionSupportInfo{
+	c.Check(encInfo, DeepEquals, &install.EncryptionSupportInfo{
 		Available:          false,
 		StorageSafety:      asserts.StorageSafetyPreferEncrypted,
 		UnavailableWarning: "not encrypting device storage as checking TPM gave: really no tpm",

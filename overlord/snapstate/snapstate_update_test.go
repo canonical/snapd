@@ -9173,7 +9173,6 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestReRefreshCreatesPreDownloadChange(c *C) {
-
 	s.o.TaskRunner().AddHandler("pre-download-snap", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
 
 	s.state.Lock()
