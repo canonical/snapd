@@ -2126,17 +2126,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// Notify link snap participants about link changes.
 	notifyLinkParticipants(t, snapsup.InstanceName())
 
-	// Make sure if state commits and snapst is mutated we won't be rerun
-	finalStatus := state.DoneStatus
-
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd.
-	if rebootInfo.RebootRequired {
-		return m.finishTaskWithMaybeRestart(t, finalStatus, restartPossibility{info: newInfo, RebootInfo: rebootInfo})
-	} else {
-		t.SetStatus(finalStatus)
-		return nil
-	}
+	return m.finishTaskWithMaybeRestart(t, state.DoneStatus, restartPossibility{info: newInfo, RebootInfo: rebootInfo})
 }
 
 func setMigrationFlagsinState(snapst *SnapState, snapsup *SnapSetup) {
@@ -2189,7 +2181,6 @@ func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Sta
 	// If restartReason is empty, then the snap requesting the restart was not
 	// a boot participant and thus we don't need to do any sort of restarts as
 	// a result of updating this snap.
-
 	restartReason := daemonRestartReason(st, typ)
 	if restartReason == "" {
 		// no message -> no restart

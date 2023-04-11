@@ -8377,12 +8377,12 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 			ops = append(ops, fmt.Sprintf("%s-%s/%s", op.op, op.name, op.revno))
 		}
 	}
-	c.Assert(ops, HasLen, 6)
-	c.Assert(ops[0:3], testutil.DeepUnsortedMatches, []string{
-		"setup-profiles:Doing-core18/11", "core18/11", "auto-connect:Doing-core18/11",
+	c.Assert(ops, HasLen, 4)
+	c.Assert(ops[0:2], testutil.DeepUnsortedMatches, []string{
+		"setup-profiles:Doing-core18/11", "core18/11",
 	})
-	c.Assert(ops[3:6], DeepEquals, []string{
-		"setup-profiles:Doing-kernel/11", "kernel/11", "auto-connect:Doing-kernel/11",
+	c.Assert(ops[2:4], DeepEquals, []string{
+		"setup-profiles:Doing-kernel/11", "kernel/11",
 	})
 }
 

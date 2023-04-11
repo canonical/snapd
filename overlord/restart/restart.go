@@ -381,10 +381,15 @@ func ReplaceBootID(st *state.State, bootID string) {
 	rm.bootID = bootID
 }
 
+type RestartWaiter struct {
+	Task   *state.Task
+	Status state.Status
+}
+
 // XXX: How should we handle bootinfo and multiple requesters
 // when passing to restart package. Right now we just pass the last one.
 type RestartInfo struct {
-	Waiters     []*state.Task
+	Waiters     []*RestartWaiter
 	SnapName    string
 	RestartType RestartType
 	RebootInfo  *boot.RebootInfo
@@ -411,7 +416,6 @@ func (rt *RestartInfo) Reboot(st *state.State) {
 			logger.Noticef("cannot notify about pending reboot: %v", err)
 		}
 		logger.Debugf("Postponing restart until a manual system restart allows to continue")
-
 		return
 	}
 	Request(st, rt.RestartType, rt.RebootInfo)
@@ -419,7 +423,7 @@ func (rt *RestartInfo) Reboot(st *state.State) {
 
 func (rt *RestartInfo) restoreWaiters() {
 	for _, w := range rt.Waiters {
-		w.SetStatus(state.DoneStatus)
+		w.Task.SetStatus(w.Status)
 	}
 	rt.Waiters = nil
 }
@@ -454,21 +458,56 @@ func (rt *RestartInfo) markTaskForRestart(task *state.Task, snapName string, sta
 func (rt *RestartInfo) doReboot(t *state.Task, status state.Status) error {
 	switch status {
 	case state.DoneStatus:
+		// A bit of a edge-case scenario, if the task has no halt
+		// tasks (tasks waiting for this one), then we can put this
+		// task into WaitStatus. *BUT* if it does have halt tasks, we
+		// cannot do this as this would block execution of tasks that need
+		// this task as completed to run.
+		// To properly fix this we would need two wait statuses, a DoWait and
+		// a DoneWait, which could indicate whether we are waiting for a task
+		// to start executing, or a task has finished execution and is waiting
+		// restart.
+		if len(t.HaltTasks()) == 0 {
+			rt.Waiters = append(rt.Waiters, &RestartWaiter{
+				Task:   t,
+				Status: status,
+			})
+			rt.markTaskForRestart(t, rt.SnapName, status)
+			return nil
+		}
+
 		chg := t.Change()
-		// Mark all halts as in 'Wait' for reboot
 		laneTasks := chg.LaneTasks(t.Lanes()...)
 		for _, wt := range t.HaltTasks() {
+			if rt.taskInSlice(wt, laneTasks) {
+				originalStatus := wt.Status()
+				rt.markTaskForRestart(wt, rt.SnapName, originalStatus)
+				rt.Waiters = append(rt.Waiters, &RestartWaiter{
+					Task:   wt,
+					Status: originalStatus,
+				})
+			}
+		}
+	case state.UndoneStatus:
+		// Same goes for undoing, if there are no wait tasks, then
+		// put this into wait
+		if len(t.WaitTasks()) == 0 {
+			rt.markTaskForRestart(t, rt.SnapName, status)
+			return nil
+		}
+
+		chg := t.Change()
+		laneTasks := chg.LaneTasks(t.Lanes()...)
+		for _, wt := range t.WaitTasks() {
 			if rt.taskInSlice(wt, laneTasks) {
 				rt.markTaskForRestart(wt, rt.SnapName, wt.Status())
 			}
 		}
-	case state.UndoneStatus:
-		// Mark all the wait tasks as in 'Wait' for reboot
-		for _, wt := range t.WaitTasks() {
-			rt.markTaskForRestart(wt, rt.SnapName, wt.Status())
-		}
 	case state.DoStatus:
-		rt.Waiters = append(rt.Waiters, t)
+		rt.Waiters = append(rt.Waiters, &RestartWaiter{
+			Task:   t,
+			Status: t.Status(),
+		})
 		fallthrough
 	case state.UndoStatus:
 		rt.markTaskForRestart(t, rt.SnapName, status)
@@ -513,12 +552,15 @@ func TaskWaitForRestart(t *state.Task) error {
 // It delegates the work to restart.FinishTaskWithRestart which can decide
 // to set the task to wait returning state.Wait.
 func RequestRestartForTask(t *state.Task, snapName string, status state.Status, restartType RestartType, rebootInfo *boot.RebootInfo) error {
+	log.Printf("RequestRestartForTask(snapName=%s, restartType=%d)", snapName, restartType)
 	// The reboot-tracker only handles direct system reboots
 	switch restartType {
 	case RestartSystem, RestartSystemNow, RestartSystemHaltNow, RestartSystemPoweroffNow:
 		break
 	default:
-		return FinishTaskWithRestart(t, status, restartType, snapName, rebootInfo)
+		t.SetStatus(status)
+		Request(t.State(), restartType, rebootInfo)
+		return nil
 	}
 	t.Logf("reboot requested by snap %q", snapName)
 
@@ -543,18 +585,20 @@ func RequestRestartForTask(t *state.Task, snapName string, status state.Status, 
 		}
 	}
 
-	// Update reboot params
+	// Update restart params
 	rt.setParameters(snapName, restartType, rebootInfo)
-	chg.Set("reboot-tracker", rt)
 
 	// Either invoked with undone or done as the final status
 	switch status {
 	case state.UndoneStatus:
-		return rt.doUndoReboot(t, state.UndoneStatus)
+		err = rt.doUndoReboot(t, state.UndoneStatus)
 	case state.DoneStatus:
-		return rt.doReboot(t, state.DoneStatus)
+		err = rt.doReboot(t, state.DoneStatus)
 	}
-	return nil
+
+	// Store updated copy of restart-info
+	chg.Set("restart-info", rt)
+	return err
 }
 
 func changeRestartInfo(chg *state.Change) (*RestartInfo, error) {
@@ -563,10 +607,10 @@ func changeRestartInfo(chg *state.Change) (*RestartInfo, error) {
 		return nil, fmt.Errorf("no change for task")
 	}
 
-	if err := chg.Get("reboot-info", &rt); err != nil {
+	if err := chg.Get("restart-info", &rt); err != nil {
 		if errors.Is(err, &state.NoStateError{}) {
 			rt := newRestartInfo()
-			chg.Set("reboot-info", rt)
+			chg.Set("restart-info", rt)
 			return rt, nil
 		}
 		return nil, err
@@ -588,4 +632,15 @@ func RequestRestartForChange(chg *state.Change) error {
 
 	rt.Reboot(chg.State())
 	return nil
+}
+
+func RestartTypePendingForChange(chg *state.Change) (RestartType, error) {
+	var rt RestartInfo
+	if err := chg.Get("restart-info", &rt); err != nil {
+		if errors.Is(err, &state.NoStateError{}) {
+			return 0, fmt.Errorf("cannot retrieve restart information for change %s", chg.ID())
+		}
+		return 0, err
+	}
+	return rt.RestartType, nil
 }

@@ -1121,53 +1121,179 @@ func (ts *changeSuite) TestCheckTaskDependencies(c *C) {
 	}
 }
 
-func (cs *changeSuite) TestNeedsRebootMultiLane(c *C) {
+func (cs *changeSuite) TestNeedsRebootSingle(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
 	chg := st.NewChange("change", "...")
 
-	lane1 := st.NewLane()
-	lane2 := st.NewLane()
+	t1 := st.NewTask("task1", "...")
+
+	chg.AddTask(t1)
+	c.Check(chg.NeedsReboot(), Equals, false)
+
+	t1.SetStatus(state.WaitStatus)
+	c.Check(chg.NeedsReboot(), Equals, true)
+}
+
+func (cs *changeSuite) TestNeedsRebootTwoTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t2.WaitFor(t1)
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+
+	// task1 (do) => task2 (do) no reboot
+	c.Check(chg.NeedsReboot(), Equals, false)
+
+	// task1 (done) => task2 (do) no reboot
+	t1.SetStatus(state.DoneStatus)
+	c.Check(chg.NeedsReboot(), Equals, false)
+
+	// task1 (wait) => task2 (do) means need a reboot
+	t1.SetStatus(state.WaitStatus)
+	c.Check(chg.NeedsReboot(), Equals, true)
+
+	// task1 (done) => task2 (wait) means need a reboot
+	t1.SetStatus(state.DoneStatus)
+	t2.SetStatus(state.WaitStatus)
+	c.Check(chg.NeedsReboot(), Equals, true)
+}
+
+func (cs *changeSuite) TestNeedsRebootMultipleDependencies(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
 
 	t1 := st.NewTask("task1", "...")
 	t2 := st.NewTask("task2", "...")
 	t3 := st.NewTask("task3", "...")
-	t4 := st.NewTask("task4", "...")
-	t5 := st.NewTask("task5", "...")
-	t6 := st.NewTask("task6", "...")
+	t3.WaitFor(t1)
+	t3.WaitFor(t2)
 
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+
+	// task1 (do) + task2 (do) => task3 (do) no reboot
+	c.Check(chg.NeedsReboot(), Equals, false)
+
+	// task1 (done) + task2 (done) => task3 (do) no reboot
+	t1.SetStatus(state.DoneStatus)
+	t2.SetStatus(state.DoneStatus)
+	c.Check(chg.NeedsReboot(), Equals, false)
+
+	// task1 (done) + task2 (do) => task3 (do) no reboot
+	t1.SetStatus(state.DoneStatus)
+	t2.SetStatus(state.DoStatus)
+	c.Check(chg.NeedsReboot(), Equals, false)
+
+	// task1 (wait) + task2 (done) => task3 (do) means need a reboot
+	t1.SetStatus(state.WaitStatus)
+	t2.SetStatus(state.DoneStatus)
+	c.Check(chg.NeedsReboot(), Equals, true)
+
+	// task1 (wait) + task2 (wait) => task3 (do) means need a reboot
+	t1.SetStatus(state.WaitStatus)
+	t2.SetStatus(state.WaitStatus)
+	c.Check(chg.NeedsReboot(), Equals, true)
+
+	// task1 (done) + task2 (done) => task3 (wait) means need a reboot
+	t1.SetStatus(state.DoneStatus)
+	t2.SetStatus(state.DoneStatus)
+	t3.SetStatus(state.WaitStatus)
+	c.Check(chg.NeedsReboot(), Equals, true)
+}
+
+func (cs *changeSuite) TestNeedsRebootUndoTwoTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
 	t2.WaitFor(t1)
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+
+	// task1 (undo) => task2 (undo) no reboot
+	t1.SetStatus(state.UndoStatus)
+	t2.SetStatus(state.UndoStatus)
+	c.Check(chg.NeedsReboot(), Equals, false)
+
+	// task1 (undo) => task2 (undone) no reboot
+	t1.SetStatus(state.UndoStatus)
+	t2.SetStatus(state.UndoneStatus)
+	c.Check(chg.NeedsReboot(), Equals, false)
+
+	// task1 (undo) => task2 (wait) means need a reboot
+	t1.SetStatus(state.UndoStatus)
+	t2.SetStatus(state.WaitStatus)
+	c.Check(chg.NeedsReboot(), Equals, true)
+
+	// task1 (wait) => task2 (undone) means need a reboot
+	t1.SetStatus(state.WaitStatus)
+	t2.SetStatus(state.UndoneStatus)
+	c.Check(chg.NeedsReboot(), Equals, true)
+}
+
+func (cs *changeSuite) TestNeedsRebootUndoMultipleDependencies(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t3 := st.NewTask("task3", "...")
+	t4 := st.NewTask("task3", "...")
+	t3.WaitFor(t1)
+	t3.WaitFor(t2)
+	t4.WaitFor(t1)
 	t4.WaitFor(t2)
-
-	t5.WaitFor(t4)
-	t4.WaitFor(t3)
-
-	t6.WaitFor(t5)
-
-	// lane1: task1 => task2 => task4
-	// lane2: task3 => task4 => task5
-	t1.JoinLane(lane1)
-	t2.JoinLane(lane1)
-	t3.JoinLane(lane2)
-	t4.JoinLane(lane1)
-	t4.JoinLane(lane2)
-	t5.JoinLane(lane2)
 
 	chg.AddTask(t1)
 	chg.AddTask(t2)
 	chg.AddTask(t3)
 	chg.AddTask(t4)
-	chg.AddTask(t5)
-	chg.AddTask(t6)
 
-	// No tasks are in wait status, no reboot so far
+	// task1 (undo) + task2 (undo) => task3 (undo) no reboot
+	t1.SetStatus(state.UndoStatus)
+	t2.SetStatus(state.UndoStatus)
+	t3.SetStatus(state.UndoStatus)
 	c.Check(chg.NeedsReboot(), Equals, false)
 
-	// Put task 3 into wait. Because there is only one
-	// direct descendant, the change should not need a reboot
-	t3.SetStatus(state.WaitStatus)
+	// task1 (undo) + task2 (undo) => task3 (undone) no reboot
+	t1.SetStatus(state.UndoStatus)
+	t2.SetStatus(state.UndoStatus)
+	t3.SetStatus(state.UndoneStatus)
 	c.Check(chg.NeedsReboot(), Equals, false)
 
+	// task1 (wait) + task2 (wait) => task3 (undone) + task4 (undo) no reboot
+	t1.SetStatus(state.WaitStatus)
+	t2.SetStatus(state.WaitStatus)
+	t3.SetStatus(state.UndoneStatus)
+	t4.SetStatus(state.UndoStatus)
+	c.Check(chg.NeedsReboot(), Equals, false)
+
+	// task1 (wait) + task2 (wait) => task3 (undone) + task4 (undone) means need a reboot
+	t1.SetStatus(state.WaitStatus)
+	t2.SetStatus(state.WaitStatus)
+	t3.SetStatus(state.UndoneStatus)
+	t4.SetStatus(state.UndoneStatus)
+	c.Check(chg.NeedsReboot(), Equals, true)
 }

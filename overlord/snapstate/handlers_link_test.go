@@ -782,7 +782,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartDaemon})
-	c.Check(t.Log(), HasLen, 1)
+	c.Assert(t.Log(), HasLen, 1)
 	c.Check(t.Log()[0], Matches, `.*INFO Requested daemon restart\.`)
 }
 
@@ -849,18 +849,20 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBase(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 	})
-	s.state.NewChange("sample", "...").AddTask(t)
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
 
 	s.state.Unlock()
 	s.se.Ensure()
 	s.se.Wait()
 	s.state.Lock()
 
-	c.Check(t.Status(), Equals, state.DoneStatus)
-	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
-	c.Assert(t.Log(), HasLen, 2)
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	rt, err := restart.RestartTypePendingForChange(chg)
+	c.Assert(err, IsNil)
+	c.Check(rt, Equals, restart.RestartSystem)
+	c.Assert(t.Log(), HasLen, 1)
 	c.Check(t.Log()[0], Matches, `.*INFO reboot requested by snap "core18"`)
-	c.Check(t.Log()[1], Matches, `.*INFO Requested system restart.*`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *C) {
@@ -904,9 +906,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *
 
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, HasLen, 0)
-	c.Assert(t.Log(), HasLen, 2)
+	c.Assert(t.Log(), HasLen, 1)
 	c.Check(t.Log()[0], Matches, `.*INFO reboot requested by snap "kernel"`)
-	c.Check(t.Log()[1], Matches, `.*INFO Task set to wait until a manual system restart allows to continue`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmediate(c *C) {
@@ -943,11 +944,12 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmed
 	s.se.Wait()
 	s.state.Lock()
 
-	c.Check(t.Status(), Equals, state.DoneStatus)
-	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
-	c.Assert(t.Log(), HasLen, 2)
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	rt, err := restart.RestartTypePendingForChange(chg)
+	c.Assert(err, IsNil)
+	c.Check(rt, Equals, restart.RestartSystemNow)
+	c.Assert(t.Log(), HasLen, 1)
 	c.Check(t.Log()[0], Matches, `.*INFO reboot requested by snap "core18"`)
-	c.Check(t.Log()[1], Matches, `.*INFO Requested system restart.*`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
@@ -1445,9 +1447,7 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCoreBase(c *C) {
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(1))
-	c.Check(t.Status(), Equals, state.UndoneStatus)
-
-	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
+	c.Check(t.Status(), Equals, state.WaitStatus)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnapCoreClassic(c *C) {

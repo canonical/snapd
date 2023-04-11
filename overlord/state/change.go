@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 	"time"
@@ -387,10 +388,17 @@ func (c *Change) isTaskWaitingForReboot(t *Task) bool {
 		case WaitStatus:
 			return true
 		case DoStatus:
-			if !c.isTaskWaitingForReboot(wt) {
-				return false
+			if c.isTaskWaitingForReboot(wt) {
+				return true
 			}
-		default:
+		}
+	}
+	return false
+}
+
+func (c *Change) isTaskReadyToUndo(t *Task) bool {
+	for _, wt := range t.HaltTasks() {
+		if !wt.Status().Ready() {
 			return false
 		}
 	}
@@ -408,6 +416,13 @@ func (c *Change) NeedsReboot() bool {
 			waiters++
 		case DoStatus:
 			if !c.isTaskWaitingForReboot(t) {
+				log.Printf("%s not waiting for reboot", t.Kind())
+				return false
+			}
+		case UndoStatus:
+			// If something is in undo status, check if it can
+			// run, if it can, then we cannot reboot
+			if c.isTaskReadyToUndo(t) {
 				return false
 			}
 		}
