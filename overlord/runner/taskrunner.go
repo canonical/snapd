@@ -68,6 +68,11 @@ type optionalHandler struct {
 
 var timeNow = time.Now
 
+func MockTime(now time.Time) (restore func()) {
+	timeNow = func() time.Time { return now }
+	return func() { timeNow = time.Now }
+}
+
 // NewTaskRunner creates a new TaskRunner
 func NewTaskRunner(s *state.State) *TaskRunner {
 	return &TaskRunner{
