@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+set -x
+
 show_help() {
 	echo "usage: tests.session exec [-u USER] [-p PID_FILE] [--] <CMD>"
 	echo "       tests.session prepare | restore [-u USER | -u USER1,USER2,...]"
