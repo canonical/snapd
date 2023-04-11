@@ -140,12 +140,6 @@ func (p LaidOutStructure) String() string {
 	return fmtIndexAndName(p.VolumeStructure.YamlIndex, p.Name())
 }
 
-type byStartOffset []LaidOutStructure
-
-func (b byStartOffset) Len() int           { return len(b) }
-func (b byStartOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
-func (b byStartOffset) Less(i, j int) bool { return b[i].StartOffset < b[j].StartOffset }
-
 // LaidOutContent describes raw content that has been placed within the
 // encompassing structure and volume
 //
