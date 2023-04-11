@@ -137,6 +137,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 
 	revnoOpts, flags, snapst := params(update)
 	flags.IsAutoRefresh = globalFlags.IsAutoRefresh
+	flags.IsContinuedAutoRefresh = globalFlags.IsContinuedAutoRefresh
 
 	flags, err := earlyChecks(st, snapst, update, flags)
 	if err != nil {
@@ -2469,7 +2470,7 @@ var RestoreValidationSetsTracking func(st *state.State) error
 // AutoRefresh is the wrapper that will do a refresh of all the installed
 // snaps on the system. In addition to that it will also refresh important
 // assertions.
-func AutoRefresh(ctx context.Context, st *state.State) ([]string, *UpdateTaskSets, error) {
+func AutoRefresh(ctx context.Context, st *state.State, isContinuedAutoRefresh bool) ([]string, *UpdateTaskSets, error) {
 	userID := 0
 
 	if AutoRefreshAssertions != nil {
@@ -2487,7 +2488,7 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, *UpdateTaskSet
 	}
 	if !gateAutoRefreshHook {
 		// old-style refresh (gate-auto-refresh-hook feature disabled)
-		return updateManyFiltered(ctx, st, nil, nil, userID, nil, &Flags{IsAutoRefresh: true}, "")
+		return updateManyFiltered(ctx, st, nil, nil, userID, nil, &Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: isContinuedAutoRefresh}, "")
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.

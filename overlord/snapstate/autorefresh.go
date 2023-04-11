@@ -564,7 +564,7 @@ func (m *autoRefresh) launchAutoRefresh(overrideDelay bool) error {
 	}()
 
 	// NOTE: this will unlock and re-lock state for network ops
-	updated, updateTss, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
+	updated, updateTss, err := AutoRefresh(auth.EnsureContextTODO(), m.state, overrideDelay)
 
 	// TODO: we should have some way to lock just creating and starting changes,
 	//       as that would alleviate this race condition we are guarding against

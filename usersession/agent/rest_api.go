@@ -323,6 +323,8 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
+	// XXX: instead of closing the open notifications show a notification
+	// that just says that the snap is now ready to use?
 	if err := c.s.notificationMgr.CloseNotification(notification.ID(finishRefresh.InstanceName)); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
