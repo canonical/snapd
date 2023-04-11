@@ -5055,6 +5055,9 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC16(c *C) {
 		chg.AddAll(ts)
 	}
 
+	// Expected wait tasks are:
+	//
+
 	prereqTotal := len(tts[0].Tasks()) + len(tts[1].Tasks())
 	prereqs := map[string]bool{}
 	for i, task := range tts[2].Tasks() {

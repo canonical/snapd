@@ -72,6 +72,7 @@ const (
 	BeginEdge                        = state.TaskSetEdge("begin")
 	BeforeHooksEdge                  = state.TaskSetEdge("before-hooks")
 	HooksEdge                        = state.TaskSetEdge("hooks")
+	MaybeRebootUndoEdge              = state.TaskSetEdge("maybe-reboot-undo")
 	BeforeMaybeRebootEdge            = state.TaskSetEdge("before-maybe-reboot")
 	MaybeRebootEdge                  = state.TaskSetEdge("maybe-reboot")
 	MaybeRebootWaitEdge              = state.TaskSetEdge("maybe-reboot-wait")
@@ -471,6 +472,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = preRefreshHook
 	}
 
+	var unlink *state.Task
 	if snapst.IsInstalled() {
 		// unlink-current-snap (will stop services for copy-data)
 		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.InstanceName()))
@@ -482,7 +484,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		addTask(removeAliases)
 		prev = removeAliases
 
-		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapsup.InstanceName()))
+		unlink = st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapsup.InstanceName()))
 		addTask(unlink)
 		prev = unlink
 	}
@@ -647,6 +649,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	installSet := state.NewTaskSet(tasks...)
 	installSet.WaitAll(ts)
 	installSet.MarkEdge(prereq, BeginEdge)
+	if unlink != nil {
+		installSet.MarkEdge(unlink, MaybeRebootUndoEdge)
+	}
 	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
 	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge)
 	installSet.MarkEdge(linkSnap, MaybeRebootEdge)
@@ -1535,76 +1540,6 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 // it returns false, the snap is removed from the list of updates to
 // consider.
 type updateFilter func(*snap.Info, *SnapState) bool
-
-func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) error {
-	haveBase, haveKernel := bootBaseTs != nil, kernelTs != nil
-	if !haveBase && !haveKernel {
-		// neither base nor kernel update
-		return nil
-	}
-	if haveBase != haveKernel {
-		// have one but not the other
-		return nil
-	}
-
-	// both kernel and boot base are being updated, reorder link-snap and
-	// auto-connect tasks from both snaps such that we end up with the
-	// following ordering:
-	//
-	// tasks of base and kernel ->
-	//     link-snap(base) ->
-	//        link-snap(kernel)(r) ->
-	//            auto-connect(base) ->
-	//                auto-connect(kernel) ->
-	//                    remaining tasks of base and kernel
-	//
-	// where (r) denotes the task that can effectively request a reboot
-
-	beforeLinkSnapKernel := kernelTs.MaybeEdge(BeforeMaybeRebootEdge)
-	linkSnapKernel := kernelTs.MaybeEdge(MaybeRebootEdge)
-	autoConnectKernel := kernelTs.MaybeEdge(MaybeRebootWaitEdge)
-
-	if linkSnapKernel == nil || autoConnectKernel == nil || beforeLinkSnapKernel == nil {
-		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect or the preceding task for the kernel snap")
-	}
-	kernelLanes := linkSnapKernel.Lanes()
-
-	linkSnapBase := bootBaseTs.MaybeEdge(MaybeRebootEdge)
-	autoConnectBase := bootBaseTs.MaybeEdge(MaybeRebootWaitEdge)
-	afterAutoConnectBase := bootBaseTs.MaybeEdge(AfterMaybeRebootWaitEdge)
-	if linkSnapBase == nil || autoConnectBase == nil || afterAutoConnectBase == nil {
-		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect or the following task for the base snap")
-	}
-	baseLanes := linkSnapBase.Lanes()
-
-	for _, lane := range kernelLanes {
-		linkSnapBase.JoinLane(lane)
-		autoConnectBase.JoinLane(lane)
-	}
-	for _, lane := range baseLanes {
-		linkSnapKernel.JoinLane(lane)
-		autoConnectKernel.JoinLane(lane)
-	}
-	// make link-snap base wait for the last task directly preceding
-	// link-snap of the kernel
-	linkSnapBase.WaitFor(beforeLinkSnapKernel)
-	// order: link-snap-base -> link-snap-kernel
-	linkSnapKernel.WaitFor(linkSnapBase)
-	// order: link-snap-kernel -> auto-connect-base
-	autoConnectBase.WaitFor(linkSnapKernel)
-	// order: auto-connect-base -> auto-connect-kernel
-	autoConnectKernel.WaitFor(autoConnectBase)
-	// make the first task after auto-connect base wait for auto-connect
-	// kernel, this task already waits for auto-connect of base
-	afterAutoConnectBase.WaitFor(autoConnectKernel)
-
-	// cannot-reboot indicates that a task cannot invoke a reboot
-	linkSnapBase.Set("cannot-reboot", true)
-
-	// first auto connect will wait for reboot, but the restart pending flag
-	// will be cleared for the second one that runs
-	return nil
-}
 
 func tasksBefore(task *state.Task, ts *state.TaskSet) {
 	for _, t := range task.WaitTasks() {

@@ -162,6 +162,14 @@ func (m *RestartManager) StartUp() error {
 				continue
 			}
 
+			status := state.DoneStatus
+			if err := t.Get("set-status-on-restart", &status); err != nil {
+				// expect and allow that a status was not provided
+				if !errors.Is(err, &state.NoStateError{}) {
+					return err
+				}
+			}
+
 			logger.Debugf("system restart happened, mark as done task %q for change %s", t.Summary(), chg.ID())
 			t.SetStatus(state.DoneStatus)
 			t.Set("wait-for-system-restart-from-boot-id", nil)
@@ -297,6 +305,18 @@ func notifyRebootRequiredClassic(rebootRequiredSnap string) error {
 	}
 
 	return nil
+}
+
+func MarkTaskForRestart(task *state.Task, snapName string, status state.Status) {
+	rm := restartManager(task.State(), "internal error: cannot request a restart before RestartManager initialization")
+	// store current boot id to be able to check later if we have rebooted or not
+	task.Set("wait-for-system-restart-from-boot-id", rm.bootID)
+	task.Set("set-status-on-restart", status)
+}
+
+func RestartIsPending(task *state.Task) bool {
+	rm := restartManager(task.State(), "internal error: cannot request a restart before RestartManager initialization")
+	return rm.PendingForSystemRestart(task.Change())
 }
 
 // FinishTaskWithRestart will finish a task that needs a restart, by setting

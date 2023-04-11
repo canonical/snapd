@@ -80,6 +80,7 @@ type snapmgrBaseTest struct {
 	state   *state.State
 	se      *overlord.StateEngine
 	snapmgr *snapstate.SnapManager
+	rstmgr  *restart.RestartManager
 
 	fakeBackend *fakeSnappyBackend
 	fakeStore   *fakeStore
@@ -197,11 +198,17 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.snapmgr, err = snapstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 
+	s.state.Lock()
+	s.rstmgr, err = restart.Manager(s.state, "boot-id-1", nil)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
 	AddForeignTaskHandlers(s.o.TaskRunner(), s.fakeBackend)
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
 	s.o.AddManager(s.snapmgr)
+	s.o.AddManager(s.rstmgr)
 	s.o.AddManager(s.o.TaskRunner())
 	s.se = s.o.StateEngine()
 	c.Assert(s.o.StartUp(), IsNil)
