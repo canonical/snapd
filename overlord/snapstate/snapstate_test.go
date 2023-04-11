@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/runner"
 	userclient "github.com/snapcore/snapd/usersession/client"
 
 	// So it registers Configure.
@@ -352,7 +353,7 @@ type ForeignTaskTracker interface {
 	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) error
 }
 
-func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker) {
+func AddForeignTaskHandlers(runner *runner.TaskRunner, tracker ForeignTaskTracker) {
 	// Add fake handlers for tasks handled by interfaces manager
 	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
 		task.State().Lock()

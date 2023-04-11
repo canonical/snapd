@@ -25,6 +25,7 @@ package restart
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -307,13 +308,17 @@ func notifyRebootRequiredClassic(rebootRequiredSnap string) error {
 	return nil
 }
 
+// MarkTaskForRestart sets certain properties on a task to mark it for restart.
 func MarkTaskForRestart(task *state.Task, snapName string, status state.Status) {
 	rm := restartManager(task.State(), "internal error: cannot request a restart before RestartManager initialization")
 	// store current boot id to be able to check later if we have rebooted or not
 	task.Set("wait-for-system-restart-from-boot-id", rm.bootID)
 	task.Set("set-status-on-restart", status)
+	task.SetStatus(state.WaitStatus)
+	setWaitForSystemRestart(task.Change())
 }
 
+// RestartIsPending checks if a restart is pending for a task using the restart manager.
 func RestartIsPending(task *state.Task) bool {
 	rm := restartManager(task.State(), "internal error: cannot request a restart before RestartManager initialization")
 	return rm.PendingForSystemRestart(task.Change())
@@ -330,6 +335,8 @@ func RestartIsPending(task *state.Task) bool {
 // The restart manager itself will then make sure to set the the status as
 // requested later on system restart to allow progress again.
 func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType, snapName string, rebootInfo *boot.RebootInfo) error {
+	log.Printf("FinishTaskWithRestart(task=%s, status=%s, type=%d)",
+		task.Kind(), status, rt)
 	// if a system restart is requested on classic set the task to wait
 	// instead or just log the request if we are on the undo path
 	switch rt {
@@ -382,4 +389,51 @@ func MockPending(st *state.State, restarting RestartType) RestartType {
 func ReplaceBootID(st *state.State, bootID string) {
 	rm := restartManager(st, "internal error: cannot mock a restart request before RestartManager initialization")
 	rm.bootID = bootID
+}
+
+// XXX: How should we handle bootinfo and multiple requesters
+// when passing to restart package. Right now we just pass the last one.
+type RestartInfo struct {
+	Waiters     []*state.Task
+	SnapName    string
+	RestartType RestartType
+	RebootInfo  *boot.RebootInfo
+	Requested   bool
+}
+
+func newRestartInfo() *RestartInfo {
+	return &RestartInfo{}
+}
+
+func (rt *RestartInfo) needsReboot(chg *state.Change) bool {
+	return len(rt.Waiters) > 0
+}
+
+func (rt *RestartInfo) Reboot(st *state.State) {
+	if release.OnClassic {
+		// notify the system that a reboot is required
+		if err := notifyRebootRequiredClassic(rt.SnapName); err != nil {
+			logger.Noticef("cannot notify about pending reboot: %v", err)
+		}
+		logger.Debugf("Postponing restart until a manual system restart allows to continue")
+
+		return
+	}
+	Request(st, rt.RestartType, rt.RebootInfo)
+}
+
+func RequestRestartForChange(chg *state.Change) error {
+	var rt RestartInfo
+	if err := chg.Get("restart-info", &rt); err != nil {
+		if errors.Is(err, &state.NoStateError{}) {
+			return fmt.Errorf("change %s needs a reboot to continue but has no info set", chg.ID())
+		}
+		return err
+	}
+	if !rt.needsReboot(chg) {
+		return nil
+	}
+
+	rt.Reboot(chg.State())
+	return nil
 }

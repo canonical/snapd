@@ -1835,6 +1835,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			}
 			return nil, nil, err
 		}
+
 		// If transactional, use a single lane for all snaps, so when
 		// one fails the changes for all affected snaps will be
 		// undone. Otherwise, have different lanes per snap so failures
@@ -1870,6 +1871,9 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			// case) are updated
 			waitPrereq(ts, defaultCoreSnapName)
 			waitPrereq(ts, "snapd")
+			if update.SnapBase() != "" {
+				waitPrereq(ts, update.SnapBase())
+			}
 		}
 		// keep track of kernel/gadget/base updates
 		switch typ {

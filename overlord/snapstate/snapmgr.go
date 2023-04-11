@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/runner"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
@@ -475,7 +476,7 @@ func Store(st *state.State, deviceCtx DeviceContext) StoreService {
 }
 
 // Manager returns a new snap manager.
-func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
+func Manager(st *state.State, runner *runner.TaskRunner) (*SnapManager, error) {
 	preseed := snapdenv.Preseeding()
 	m := &SnapManager{
 		state:                st,

@@ -381,6 +381,36 @@ func (c *Change) IsReady() bool {
 	return false
 }
 
+func (c *Change) isTaskWaitingForReboot(t *Task) bool {
+	for _, wt := range t.WaitTasks() {
+		switch wt.Status() {
+		case WaitStatus:
+			return true
+		case DoStatus:
+			if !c.isTaskWaitingForReboot(wt) {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func (c *Change) NeedsReboot() bool {
+	for _, t := range c.Tasks() {
+		// All tasks in 'Do' must be able to be traced back
+		// to a task in 'Wait'. Otherwise the change does not need
+		// a reboot yet.
+		if t.Status() == DoStatus {
+			if !c.isTaskWaitingForReboot(t) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (c *Change) taskCleanChanged() {
 	if !c.IsReady() {
 		panic("internal error: attempted to set a task clean while change not ready")

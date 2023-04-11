@@ -29,8 +29,13 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+// XXX: How should we handle bootinfo and multiple requesters
+// when passing to restart package. Right now we just pass the last one.
 type rebootTracker struct {
-	Waiters []*state.Task
+	Waiters     []*state.Task
+	SnapName    string
+	RestartType restart.RestartType
+	RebootInfo  *boot.RebootInfo
 }
 
 func newRebootTracker() *rebootTracker {
@@ -58,7 +63,7 @@ func hasRunnableStatus(task *state.Task) bool {
 
 // canTaskRun determines whether or not a task is currently runnable. It is runnable if
 // it has the right Status and all its {wait,halt}-tasks are completed.
-func canTaskRun(task *state.Task) bool {
+func canTaskRun(task *state.Task, rebootTask *state.Task) bool {
 	log.Printf("canTaskRun(snap=%s, name=%s, state=%s)", taskSnapName(task), task.Kind(), task.Status())
 	if !hasRunnableStatus(task) {
 		return false
@@ -70,6 +75,10 @@ func canTaskRun(task *state.Task) bool {
 	switch task.Status() {
 	case state.DoStatus:
 		for _, t := range task.WaitTasks() {
+			if t == rebootTask {
+				continue
+			}
+
 			log.Printf("canTaskRun waiting-for=%s/%s [state=%s]", taskSnapName(t), t.Kind(), t.Status())
 			if t.Status() != state.DoneStatus {
 				return false
@@ -77,6 +86,10 @@ func canTaskRun(task *state.Task) bool {
 		}
 	case state.UndoStatus:
 		for _, t := range task.HaltTasks() {
+			if t == rebootTask {
+				continue
+			}
+
 			log.Printf("canTaskRun waiting-for=%s/%s [state=%s]", taskSnapName(t), t.Kind(), t.Status())
 			if t.Status().Ready() {
 				return false
@@ -91,12 +104,19 @@ func hasRunnableTasks(rebootTask *state.Task, ts []*state.Task) bool {
 		if t == rebootTask {
 			continue
 		}
-		if canTaskRun(t) {
+		if canTaskRun(t, rebootTask) {
 			log.Printf("hasRunnableTasks: %s is runnable", t.Kind())
 			return true
 		}
 	}
 	return false
+}
+
+func (rt *rebootTracker) setRebootParameters(snapName string, restartType restart.RestartType, rebootInfo *boot.RebootInfo) {
+
+	rt.SnapName = snapName
+	rt.RestartType = restartType
+	rt.RebootInfo = rebootInfo
 }
 
 func (rt *rebootTracker) restoreWaiters() {
@@ -106,37 +126,62 @@ func (rt *rebootTracker) restoreWaiters() {
 	rt.Waiters = nil
 }
 
-func (rt *rebootTracker) doUndoReboot(t *state.Task, snapName string, restartType restart.RestartType, rebootInfo *boot.RebootInfo) error {
+func (rt *rebootTracker) doUndoReboot(t *state.Task, status state.Status) error {
 	// Immediately, on the first undo, we clear all the waiters that previously
 	// has requested a reboot, that are now in WaitStatus. We put those back into
 	// their original requested state.
 	rt.restoreWaiters()
-
-	// Are there more tasks left to undo?
-	chg := t.Change()
-	if hasRunnableTasks(t, chg.Tasks()) {
-		log.Printf("doUndoReboot: Postponing reboot as long as there are tasks to run")
-		restart.MarkTaskForRestart(t, snapName, state.UndoneStatus)
-		return &state.Wait{Reason: "Postponing reboot as long as there are tasks to run"}
-	}
-	return restart.FinishTaskWithRestart(t, state.UndoneStatus, restartType, snapName, rebootInfo)
+	return rt.doReboot(t, status)
 }
 
-func (rt *rebootTracker) doReboot(t *state.Task, snapName string, restartType restart.RestartType, rebootInfo *boot.RebootInfo) error {
+func (rt *rebootTracker) taskInSlice(t *state.Task, ts []*state.Task) bool {
+	for _, tt := range ts {
+		if tt == t {
+			return true
+		}
+	}
+	return false
+}
+
+func (rt *rebootTracker) doReboot(t *state.Task, status state.Status) error {
 	// Are there any tasks left to run in the change? If there is, then
 	// let's not do the reboot
 	chg := t.Change()
 	if hasRunnableTasks(t, chg.Tasks()) {
 		log.Printf("doReboot: Postponing reboot as long as there are tasks to run")
-		restart.MarkTaskForRestart(t, snapName, state.DoneStatus)
-		rt.Waiters = append(rt.Waiters, t)
-		return &state.Wait{Reason: "Postponing reboot as long as there are tasks to run"}
+		switch status {
+		case state.DoneStatus:
+			// Mark all halts as in 'Wait' for reboot
+			laneTasks := chg.LaneTasks(t.Lanes()...)
+			for _, wt := range t.HaltTasks() {
+				if rt.taskInSlice(wt, laneTasks) {
+					restart.MarkTaskForRestart(wt, rt.SnapName, wt.Status())
+				}
+			}
+		case state.UndoneStatus:
+			// Mark all the wait tasks as in 'Wait' for reboot
+			for _, wt := range t.WaitTasks() {
+				restart.MarkTaskForRestart(wt, rt.SnapName, wt.Status())
+			}
+		case state.DoStatus:
+			rt.Waiters = append(rt.Waiters, t)
+			fallthrough
+		case state.UndoStatus:
+			restart.MarkTaskForRestart(t, rt.SnapName, status)
+			return &state.Wait{Reason: "Postponing reboot as long as there are tasks to run"}
+		}
+		t.SetStatus(status)
+		return nil
 	}
-	return restart.FinishTaskWithRestart(t, state.DoneStatus, restartType, snapName, rebootInfo)
+	return restart.FinishTaskWithRestart(t, status, rt.RestartType, rt.SnapName, rt.RebootInfo)
 }
 
 func changeRebootTracker(chg *state.Change) (*rebootTracker, error) {
 	var rt rebootTracker
+	if chg == nil {
+		return nil, fmt.Errorf("no change for task")
+	}
+
 	if err := chg.Get("reboot-tracker", &rt); err != nil {
 		if errors.Is(err, &state.NoStateError{}) {
 			rt := newRebootTracker()
@@ -146,6 +191,34 @@ func changeRebootTracker(chg *state.Change) (*rebootTracker, error) {
 		return nil, err
 	}
 	return &rt, nil
+}
+
+// TaskWaitForRestart can be used for tasks that need to wait for a pending
+// restart to occur. The task will then be restored to the provided status
+// after the reboot, and then re-run.
+func TaskWaitForRestart(t *state.Task) error {
+	// If a task requests a reboot, then we make that task wait for the
+	// current reboot task. We must support multiple tasks waiting for this
+	// task.
+	log.Printf("TaskWaitForRestart(task=%s)", t.Kind())
+
+	rt, err := changeRebootTracker(t.Change())
+	if err != nil {
+		return err
+	}
+	if rt == nil {
+		return nil
+	}
+
+	t.Logf("task %q pending reboot", t.Kind())
+
+	switch t.Status() {
+	case state.UndoingStatus:
+		return rt.doUndoReboot(t, state.UndoStatus)
+	case state.DoingStatus:
+		return rt.doReboot(t, state.DoStatus)
+	}
+	return nil
 }
 
 // FinishTaskWithRestart will finish a task that needs a restart, by
@@ -171,14 +244,12 @@ func FinishTaskWithRestart(t *state.Task, status state.Status, restartType resta
 	default:
 		return restart.FinishTaskWithRestart(t, status, restartType, snapsup.InstanceName(), rebootInfo)
 	}
+	t.Logf("reboot requested by snap %q", snapsup.InstanceName())
 
 	rt, err := changeRebootTracker(t.Change())
 	if err != nil {
 		return err
 	}
-
-	// Store only the first requesting snap for now
-	t.Logf("reboot requested by snap %q", snapsup.InstanceName())
 
 	// If system restart is requested, consider how the change the
 	// task belongs to is configured (system-restart-immediate) to
@@ -191,17 +262,21 @@ func FinishTaskWithRestart(t *state.Task, status state.Status, restartType resta
 		// return errors. If the state is corrupt
 		// something else will error
 		chg.Get("system-restart-immediate", &immediate)
+		if restartType == restart.RestartSystem && immediate {
+			restartType = restart.RestartSystemNow
+		}
 	}
-	if restartType == restart.RestartSystem && immediate {
-		restartType = restart.RestartSystemNow
-	}
+
+	// Update reboot params
+	rt.setRebootParameters(snapsup.InstanceName(), restartType, rebootInfo)
+	chg.Set("reboot-tracker", rt)
 
 	// Either invoked with undone or done as the final status
 	switch status {
 	case state.UndoneStatus:
-		return rt.doUndoReboot(t, snapsup.InstanceName(), restartType, rebootInfo)
+		return rt.doUndoReboot(t, state.UndoneStatus)
 	case state.DoneStatus:
-		return rt.doReboot(t, snapsup.InstanceName(), restartType, rebootInfo)
+		return rt.doReboot(t, state.DoneStatus)
 	}
 	return nil
 }

@@ -2131,22 +2131,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd.
-	var canReboot bool
 	if rebootInfo.RebootRequired {
-		var cannotReboot bool
-		// system reboot is required, but can this task request that?
-		if err := t.Get("cannot-reboot", &cannotReboot); err != nil && !errors.Is(err, state.ErrNoState) {
-			return err
-		}
-		if !cannotReboot {
-			// either the task was created before that variable was
-			// introduced or the task can request a reboot
-			canReboot = true
-		} else {
-			t.Logf("reboot postponed to later tasks")
-		}
-	}
-	if !rebootInfo.RebootRequired || canReboot {
 		return m.finishTaskWithMaybeRestart(t, finalStatus, restartPossibility{info: newInfo, RebootInfo: rebootInfo})
 	} else {
 		t.SetStatus(finalStatus)
@@ -3868,9 +3853,10 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 
 	// Is there a restart pending? Then wait for restart to happen
 	// before proceeding, otherwise we will be blocking any restart that
-	// is waiting to occur.
+	// is waiting to occur. We handle this here as this task is dynamically
+	// added.
 	if restart.RestartIsPending(t) {
-		return &state.Wait{Reason: "Postponing re-refresh while there is a reboot pending"}
+		return TaskWaitForRestart(t)
 	}
 
 	if !changeReadyUpToTask(t) {

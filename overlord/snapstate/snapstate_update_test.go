@@ -5055,9 +5055,6 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC16(c *C) {
 		chg.AddAll(ts)
 	}
 
-	// Expected wait tasks are:
-	//
-
 	prereqTotal := len(tts[0].Tasks()) + len(tts[1].Tasks())
 	prereqs := map[string]bool{}
 	for i, task := range tts[2].Tasks() {
@@ -8331,8 +8328,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 
-	// Ennsure that the change is now waiting for reboot
-	c.Check(chg.Status(), Equals, state.WaitStatus)
+	// Currently the Status() check returns a status based on an ordered
+	// list of statuses. This means if there are *any* tasks yet left in
+	// 'Do' state, then DoStatus is returned.
+	c.Check(chg.Status(), Equals, state.DoStatus)
 
 	// a single system restart was requested
 	c.Check(restartRequested, DeepEquals, []restart.RestartType{
@@ -8713,7 +8712,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 
-	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	// Currently the Status() check returns a status based on an ordered
+	// list of statuses. This means if there are *any* tasks yet left in
+	// 'Do' state, then DoStatus is returned.
+	c.Check(chg.Status(), Equals, state.DoStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*\(auto-connect-kernel mock error\)`)
 	c.Check(restartRequested, DeepEquals, []restart.RestartType{
 		// do path
