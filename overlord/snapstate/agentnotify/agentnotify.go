@@ -17,24 +17,28 @@
  *
  */
 
-package snapstate
+package agentnotify
 
 import (
 	"context"
 	"errors"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 // XXX: make this a separate package?
+func init() {
+	snapstate.AddLinkSnapParticipant(snapstate.LinkSnapParticipantFunc(notifyAgentOnLinkageChange))
+}
 
-func notifyAgentOnLinkageChange(st *state.State, snapsup *SnapSetup) error {
+func notifyAgentOnLinkageChange(st *state.State, snapsup *snapstate.SnapSetup) error {
 	instanceName := snapsup.InstanceName()
 
-	var snapst SnapState
-	if err := Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !snapst.IsInstalled() {
@@ -50,11 +54,14 @@ func notifyAgentOnLinkageChange(st *state.State, snapsup *SnapSetup) error {
 	return nil
 }
 
-func notifyUnlinkSnap(snapsup *SnapSetup) error {
+func notifyUnlinkSnap(snapsup *snapstate.SnapSetup) error {
+	// TODO: send notification that the refresh starts and
+	// pass the change-id too so that a future snapd-observe
+	// can be used to monitor the change
 	return nil
 }
 
-func notifyLinkSnap(snapsup *SnapSetup) error {
+func notifyLinkSnap(snapsup *snapstate.SnapSetup) error {
 	// Note that we only show a notification here if the refresh was
 	// triggered by a "continued-auto-refresh", i.e. when the user
 	// closed an application that had a auto-refresh ready.

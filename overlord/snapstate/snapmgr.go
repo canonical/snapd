@@ -557,7 +557,6 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	RegisterAffectedSnapsByKind("conditional-auto-refresh", conditionalAutoRefreshAffectedSnaps)
 
-	AddLinkSnapParticipant(LinkSnapParticipantFunc(notifyAgentOnLinkageChange))
 	return m, nil
 }
 
