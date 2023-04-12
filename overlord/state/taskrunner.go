@@ -28,6 +28,17 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
+// HookFunc is the type of function that can be registered as a hook.
+type HookFunc func()
+
+// HookEvent are types of different hooks that can be registered handlers for.
+type HookEvent int
+
+const (
+	// TaskExhaustionHook is executed when there are no more tasks to be run.
+	TaskExhaustionHook HookEvent = iota
+)
+
 // HandlerFunc is the type of function for the handlers
 type HandlerFunc func(task *Task, tomb *tomb.Tomb) error
 
@@ -79,6 +90,8 @@ type TaskRunner struct {
 	blocked     []blockedFunc
 	someBlocked bool
 
+	hooks map[HookEvent][]HookFunc
+
 	// optional callback executed on task errors
 	taskErrorCallback func(err error)
 
@@ -101,6 +114,7 @@ func NewTaskRunner(s *State) *TaskRunner {
 		state:    s,
 		handlers: make(map[string]handlerPair),
 		cleanups: make(map[string]HandlerFunc),
+		hooks:    make(map[HookEvent][]HookFunc),
 		tombs:    make(map[string]*tomb.Tomb),
 	}
 }
@@ -181,6 +195,14 @@ func (r *TaskRunner) AddBlocked(pred func(t *Task, running []*Task) bool) {
 	defer r.mu.Unlock()
 
 	r.blocked = append(r.blocked, pred)
+}
+
+// AddHook registers a hook function for the given hook event type.
+func (r *TaskRunner) AddHook(hook func(), evt HookEvent) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.hooks[evt] = append(r.hooks[evt], hook)
 }
 
 // run must be called with the state lock in place
@@ -477,6 +499,15 @@ ConsiderTasks:
 	// schedule next Ensure no later than the next task time
 	if !nextTaskTime.IsZero() {
 		r.state.EnsureBefore(nextTaskTime.Sub(ensureTime))
+	}
+
+	// run hooks registered for task exhaustion
+	if len(running) == 0 {
+		for _, hooks := range r.hooks {
+			for _, h := range hooks {
+				h()
+			}
+		}
 	}
 
 	return nil

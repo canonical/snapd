@@ -1328,3 +1328,36 @@ func (ts *taskRunnerSuite) TestErrorCallbackNotCalled(c *C) {
 	c.Check(t1.Status(), Equals, state.DoneStatus)
 	c.Check(called, Equals, false)
 }
+
+func (ts *taskRunnerSuite) TestTaskExhaustionHook(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+
+	r.AddHandler("foo", func(t *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}, nil)
+
+	var hookCalled bool
+	r.AddHook(func() {
+		hookCalled = true
+	}, state.TaskExhaustionHook)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+	st.Unlock()
+
+	// Mark tasks as done.
+	ensureChange(c, r, sb, chg)
+	r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(t1.Status(), Equals, state.DoneStatus)
+
+	// make sure that hook was called at the end of 'Ensure'
+	c.Check(hookCalled, Equals, false)
+}
