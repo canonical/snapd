@@ -2467,10 +2467,19 @@ var AddCurrentTrackingToValidationSetsStack func(st *state.State) error
 
 var RestoreValidationSetsTracking func(st *state.State) error
 
+// AutoRefreshOptions are the options that can be passed to AutoRefresh
+type AutoRefreshOptions struct {
+	IsContinuedAutoRefresh bool
+}
+
 // AutoRefresh is the wrapper that will do a refresh of all the installed
 // snaps on the system. In addition to that it will also refresh important
 // assertions.
-func AutoRefresh(ctx context.Context, st *state.State, isContinuedAutoRefresh bool) ([]string, *UpdateTaskSets, error) {
+func AutoRefresh(ctx context.Context, st *state.State, opts *AutoRefreshOptions) ([]string, *UpdateTaskSets, error) {
+	if opts == nil {
+		opts = &AutoRefreshOptions{}
+	}
+
 	userID := 0
 
 	if AutoRefreshAssertions != nil {
@@ -2488,7 +2497,7 @@ func AutoRefresh(ctx context.Context, st *state.State, isContinuedAutoRefresh bo
 	}
 	if !gateAutoRefreshHook {
 		// old-style refresh (gate-auto-refresh-hook feature disabled)
-		return updateManyFiltered(ctx, st, nil, nil, userID, nil, &Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: isContinuedAutoRefresh}, "")
+		return updateManyFiltered(ctx, st, nil, nil, userID, nil, &Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: opts.IsContinuedAutoRefresh}, "")
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.

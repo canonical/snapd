@@ -9609,7 +9609,7 @@ func (s *snapmgrTestSuite) TestUnlinkMonitorSnapOnHardCheckFailure(c *C) {
 	})
 	defer restore()
 
-	updated, tss, err := snapstate.AutoRefresh(context.Background(), s.state, false)
+	updated, tss, err := snapstate.AutoRefresh(context.Background(), s.state, nil)
 	c.Assert(err, IsNil)
 	c.Check(updated, DeepEquals, []string{"some-snap"})
 	c.Assert(tss, NotNil)
