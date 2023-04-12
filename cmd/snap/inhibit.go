@@ -133,6 +133,7 @@ func graphicalSessionFlow(snapName string, hint runinhibit.Hint) error {
 	if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited); err != nil {
 		return err
 	}
+
 	finishRefreshInfo := client.FinishedSnapRefreshInfo{InstanceName: snapName}
 	return finishRefreshNotification(&finishRefreshInfo)
 }
