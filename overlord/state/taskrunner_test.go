@@ -1341,7 +1341,7 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHook(c *C) {
 	var hookCalled bool
 	r.AddHook(func() {
 		hookCalled = true
-	}, state.TaskExhaustionHook)
+	}, state.TaskExhaustion)
 
 	st.Lock()
 	chg := st.NewChange("install", "...")

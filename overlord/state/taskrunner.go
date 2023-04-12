@@ -35,8 +35,8 @@ type HookFunc func()
 type HookEvent int
 
 const (
-	// TaskExhaustionHook is executed when there are no more tasks to be run.
-	TaskExhaustionHook HookEvent = iota
+	// TaskExhaustion is executed when there are no more tasks to be run.
+	TaskExhaustion HookEvent = iota
 )
 
 // HandlerFunc is the type of function for the handlers
@@ -501,15 +501,12 @@ ConsiderTasks:
 		r.state.EnsureBefore(nextTaskTime.Sub(ensureTime))
 	}
 
-	// run hooks registered for task exhaustion
+	// run hooks registered for task exhaustion for each change
 	if len(running) == 0 {
-		for _, hooks := range r.hooks {
-			for _, h := range hooks {
-				h()
-			}
+		for _, h := range r.hooks[TaskExhaustion] {
+			h()
 		}
 	}
-
 	return nil
 }
 
