@@ -21,27 +21,40 @@ package snapstate
 
 import (
 	"context"
+	"errors"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/state"
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
-// XXX: make this a separate package? and pass e.g. userclient.PendingRefreshInfo instead of snapsup?
+// XXX: make this a separate package?
 
-// UnlinkCurrentSnapStarted is called when the "unlink-current-snap" starts
-// running for real. This typcially means that a refresh is happening.
-func notifyUnlinkCurrentSnapStarted(snapsup *SnapSetup) error {
-	if snapsup.Flags.IsContinuedAutoRefresh {
-		// TODO: send notification that the refresh starts and
-		// pass the change-id too so that a future snapd-observe
-		// can be used to monitor the change
+func notifyAgentOnLinkageChange(st *state.State, snapsup *SnapSetup) error {
+	instanceName := snapsup.InstanceName()
+
+	var snapst SnapState
+	if err := Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !snapst.IsInstalled() {
+		// nothing to do
+		return nil
+	}
+
+	if snapst.Active {
+		return notifyLinkSnap(snapsup)
+	} else {
+		return notifyUnlinkSnap(snapsup)
 	}
 	return nil
 }
 
-// LinkSnapFinished is called when "link-snap" has finished. This means
-// the snap is ready to use.
-func notifyLinkSnapFinished(snapsup *SnapSetup) error {
+func notifyUnlinkSnap(snapsup *SnapSetup) error {
+	return nil
+}
+
+func notifyLinkSnap(snapsup *SnapSetup) error {
 	// Note that we only show a notification here if the refresh was
 	// triggered by a "continued-auto-refresh", i.e. when the user
 	// closed an application that had a auto-refresh ready.

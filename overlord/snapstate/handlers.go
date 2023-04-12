@@ -1260,10 +1260,6 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		defer lock.Close()
 	}
 
-	if err := notifyUnlinkCurrentSnapStarted(snapsup); err != nil {
-		logger.Noticef("unlink current snap notifier error: %v", err)
-	}
-
 	snapst.Active = false
 
 	// snapd current symlink on the refresh path can only replaced by a
@@ -2132,11 +2128,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	finalStatus := state.DoneStatus
-
-	// XXX: restart handling?
-	if err := notifyLinkSnapFinished(snapsup); err != nil {
-		logger.Noticef("unlink current snap notifier error: %v", err)
-	}
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd.
