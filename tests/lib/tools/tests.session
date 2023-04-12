@@ -262,6 +262,7 @@ main() {
 	# In other scenarios we use the older approach: bustctl with the dbus monitor
 	if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -gt 252 ]; then
   		systemd-run \
+  		--unit="$unit_name" \
 		--description "tests.session running $* as $user" \
 		--quiet \
 		--wait \
