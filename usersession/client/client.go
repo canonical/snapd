@@ -341,3 +341,12 @@ func (client *Client) FinishRefreshNotification(ctx context.Context, closeInfo *
 	_, err = client.doMany(ctx, "POST", "/v1/notifications/finish-refresh", nil, headers, reqBody)
 	return err
 }
+
+type BeginDeferredRefreshNotificationInfo struct {
+	AppName         string   `json:"app-name"`
+	InstanceName    string   `json:"instance-name"`
+	Revision        string   `json:"revision"`
+	ChangeId        string   `json:"change-id"`
+	TaskIDs         []string `json:"task-ids"`
+	AppDesktopEntry string   `json:"busy-app-desktop-entry,omitempty"`
+}

@@ -24,10 +24,12 @@ import (
 )
 
 var (
-	SessionInfoCmd                = sessionInfoCmd
-	ServiceControlCmd             = serviceControlCmd
-	PendingRefreshNotificationCmd = pendingRefreshNotificationCmd
-	FinishRefreshNotificationCmd  = finishRefreshNotificationCmd
+	SessionInfoCmd                        = sessionInfoCmd
+	ServiceControlCmd                     = serviceControlCmd
+	PendingRefreshNotificationCmd         = pendingRefreshNotificationCmd
+	FinishRefreshNotificationCmd          = finishRefreshNotificationCmd
+	NotifyRefreshToSnapDesktopIntegration = notifyRefreshToSnapDesktopIntegration
+	UpdateRefreshStatusDesktopIntegration = updateRefreshStatusDesktopIntegration
 )
 
 func MockUcred(ucred *syscall.Ucred, err error) (restore func()) {
