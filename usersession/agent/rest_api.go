@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/usersession/client"
@@ -375,7 +376,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
 	summary := fmt.Sprintf(i18n.G("Update available for %s."), refreshInfo.InstanceName)
 	var urgencyLevel notification.Urgency
-	var body, icon string
+	var body string
 	var hints []notification.Hint
 
 	if daysLeft := int(refreshInfo.TimeRemaining.Truncate(time.Hour).Hours() / 24); daysLeft > 0 {
@@ -398,28 +399,8 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		urgencyLevel = notification.CriticalUrgency
 	}
 	hints = append(hints, notification.WithUrgency(urgencyLevel))
-	// The notification is provided by snapd session agent.
-	hints = append(hints, notification.WithDesktopEntry("io.snapcraft.SessionAgent"))
-	// But if we have a desktop file of the busy application, use that apps's icon.
-	if refreshInfo.BusyAppDesktopEntry != "" {
-		parser := goconfigparser.New()
-		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, refreshInfo.BusyAppDesktopEntry+".desktop")
-		if err := parser.ReadFile(desktopFilePath); err == nil {
-			icon, _ = parser.Get("Desktop Entry", "Icon")
-		}
-	}
 
-	msg := &notification.Message{
-		AppName: refreshInfo.BusyAppName,
-		Title:   summary,
-		Icon:    icon,
-		Body:    body,
-		Hints:   hints,
-	}
-
-	// TODO: silently ignore error returned when the notification server does not exist.
-	// TODO: track returned notification ID and respond to actions, if supported.
-	if err := c.s.notificationMgr.SendNotification(notification.ID(refreshInfo.InstanceName), msg); err != nil {
+	if err := sendDesktopStandardNotification(c.s.notificationMgr, refreshInfo.BusyAppName, refreshInfo.InstanceName, summary, body, hints, refreshInfo.BusyAppDesktopEntry); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,
@@ -429,6 +410,35 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		})
 	}
 	return SyncResponse(nil)
+}
+
+func sendDesktopStandardNotification(notificationMgr notification.NotificationManager, appName string, instanceName string, summary string, body string, hints []notification.Hint, appDesktopEntry string) error {
+	var icon string
+
+	// The notification is provided by snapd session agent.
+	hints = append(hints, notification.WithDesktopEntry("io.snapcraft.SessionAgent"))
+	// But if we have a desktop file of the busy application, use that apps's icon.
+	if appDesktopEntry != "" {
+		parser := goconfigparser.New()
+		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, appDesktopEntry+".desktop")
+		if err := parser.ReadFile(desktopFilePath); err == nil {
+			icon, _ = parser.Get("Desktop Entry", "Icon")
+		}
+	}
+
+	msg := &notification.Message{
+		AppName: appName,
+		Title:   summary,
+		Icon:    icon,
+		Body:    body,
+		Hints:   hints,
+	}
+
+	if err := notificationMgr.SendNotification(notification.ID(instanceName), msg); err != nil {
+		logger.Noticef("unable to send a standard notification, %s, for app %s", summary, appName)
+		return err
+	}
+	return nil
 }
 
 func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
