@@ -29,13 +29,14 @@ import (
 )
 
 // HookFunc is the type of function that can be registered as a hook.
-type HookFunc func()
+type HookFunc func(chg *Change)
 
 // HookEvent are types of different hooks that can be registered handlers for.
 type HookEvent int
 
 const (
-	// TaskExhaustion is executed when there are no more tasks to be run.
+	// TaskExhaustion is executed when there are no more tasks to be run for
+	// a given change.
 	TaskExhaustion HookEvent = iota
 )
 
@@ -198,7 +199,7 @@ func (r *TaskRunner) AddBlocked(pred func(t *Task, running []*Task) bool) {
 }
 
 // AddHook registers a hook function for the given hook event type.
-func (r *TaskRunner) AddHook(hook func(), evt HookEvent) {
+func (r *TaskRunner) AddHook(hook HookFunc, evt HookEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -419,6 +420,7 @@ func (r *TaskRunner) Ensure() error {
 		}
 	}
 
+	changes := make(map[string]*Change)
 	ensureTime := timeNow()
 	nextTaskTime := time.Time{}
 ConsiderTasks:
@@ -494,6 +496,7 @@ ConsiderTasks:
 		r.run(t)
 
 		running = append(running, t)
+		changes[t.Change().ID()] = t.Change()
 	}
 
 	// schedule next Ensure no later than the next task time
@@ -502,9 +505,13 @@ ConsiderTasks:
 	}
 
 	// run hooks registered for task exhaustion for each change
-	if len(running) == 0 {
-		for _, h := range r.hooks[TaskExhaustion] {
-			h()
+	for _, chg := range r.state.changes {
+		// if there are no running tasks for this change, report
+		// task exhaustion for that change
+		if _, ok := changes[chg.ID()]; !ok {
+			for _, h := range r.hooks[TaskExhaustion] {
+				h(chg)
+			}
 		}
 	}
 	return nil

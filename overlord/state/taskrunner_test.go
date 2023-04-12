@@ -1339,8 +1339,10 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHook(c *C) {
 	}, nil)
 
 	var hookCalled bool
-	r.AddHook(func() {
+	var hookChange *state.Change
+	r.AddHook(func(chg *state.Change) {
 		hookCalled = true
+		hookChange = chg
 	}, state.TaskExhaustion)
 
 	st.Lock()
@@ -1351,6 +1353,10 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHook(c *C) {
 
 	// Mark tasks as done.
 	ensureChange(c, r, sb, chg)
+
+	// Ensure that 'ensure' is run one more time
+	// to report exhaustion
+	r.Ensure()
 	r.Stop()
 
 	st.Lock()
@@ -1359,5 +1365,6 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHook(c *C) {
 	c.Check(t1.Status(), Equals, state.DoneStatus)
 
 	// make sure that hook was called at the end of 'Ensure'
-	c.Check(hookCalled, Equals, false)
+	c.Check(hookCalled, Equals, true)
+	c.Check(hookChange, Equals, chg)
 }
