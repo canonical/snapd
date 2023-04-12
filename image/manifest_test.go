@@ -94,11 +94,11 @@ func (s *manifestSuite) TestReadSeedManifestParseFails(c *C) {
 		{"&&asakwrjrew/awodoa 4\n", `cannot parse validation set "&&asakwrjrew/awodoa": invalid account ID "&&asakwrjrew"`},
 		{"&&asakwrjrew/awodoa asdaskod\n", `cannot parse validation set "&&asakwrjrew/awodoa": invalid account ID "&&asakwrjrew"`},
 		{"foo/set name\n", `invalid validation-set sequence: "name"`},
-		{"core\n", `line is illegally formatted: "core"`},
+		{"core\n", `cannot parse line: "core"`},
 		{"core 0\n", `invalid snap revision: "0"`},
-		{"core\n", `line is illegally formatted: "core"`},
+		{"core\n", `cannot parse line: "core"`},
 		{" test\n", `line cannot start with any spaces: " test"`},
-		{"core 14 14\n", `line is illegally formatted: "core 14 14"`},
+		{"core 14 14\n", `cannot parse line: "core 14 14"`},
 	}
 
 	for _, t := range tests {

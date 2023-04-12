@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -108,8 +109,10 @@ func NewSeedManifest() *SeedManifest {
 	}
 }
 
-// Have this here for use in unit tests.
+// NewSeedManifestForTest is stricly for unit tests, do not use for non-test code.
 func NewSeedManifestForTest(revsAllowed, revsSeeded map[string]*SeedManifestSnapRevision, vsAllowed, vsSeeded map[string]*SeedManifestValidationSet) *SeedManifest {
+	osutil.MustBeTestBinary("NewSeedManifestForTest can only be used in unit tests")
+
 	sm := NewSeedManifest()
 	if revsAllowed != nil {
 		sm.revsAllowed = revsAllowed
@@ -251,7 +254,7 @@ func (sm *SeedManifest) MarkValidationSetSeeded(vsa *asserts.ValidationSet, pinn
 	return nil
 }
 
-// AllowedRevision retrieves any specified revision rule for the snap
+// AllowedSnapRevision retrieves any specified revision rule for the snap
 // name.
 func (sm *SeedManifest) AllowedSnapRevision(snapName string) snap.Revision {
 	// TODO: Check seeded validation-sets as well.
@@ -261,7 +264,7 @@ func (sm *SeedManifest) AllowedSnapRevision(snapName string) snap.Revision {
 	return snap.Revision{}
 }
 
-// ValidationSetsAllowed returns the validation sets specified as allowed.
+// AllowedValidationSets returns the validation sets specified as allowed.
 func (sm *SeedManifest) AllowedValidationSets() []*SeedManifestValidationSet {
 	var vss []*SeedManifestValidationSet
 	for _, vs := range sm.vsAllowed {
@@ -329,25 +332,24 @@ func ReadSeedManifest(manifestFile string) (*SeedManifest, error) {
 
 		tokens := strings.Fields(line)
 
-		if len(tokens) == 1 && strings.Contains(tokens[0], "/") {
+		switch {
+		case len(tokens) == 1 && strings.Contains(tokens[0], "/"):
 			// Pinned validation-set: <account-id>/<name>=<sequence>
 			if err := parsePinnedValidationSet(sm, tokens[0]); err != nil {
 				return nil, err
 			}
-		} else if len(tokens) == 2 {
-			if strings.Contains(tokens[0], "/") {
-				// Unpinned validation-set: <account-id>/<name> <sequence>
-				if err := parseUnpinnedValidationSet(sm, tokens[0], tokens[1]); err != nil {
-					return nil, err
-				}
-			} else {
-				// Snap revision: <snap> <revision>
-				if err := parseSnapRevision(sm, tokens[0], tokens[1]); err != nil {
-					return nil, err
-				}
+		case len(tokens) == 2 && strings.Contains(tokens[0], "/"):
+			// Unpinned validation-set: <account-id>/<name> <sequence>
+			if err := parseUnpinnedValidationSet(sm, tokens[0], tokens[1]); err != nil {
+				return nil, err
 			}
-		} else {
-			return nil, fmt.Errorf("line is illegally formatted: %q", line)
+		case len(tokens) == 2:
+			// Snap revision: <snap> <revision>
+			if err := parseSnapRevision(sm, tokens[0], tokens[1]); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("cannot parse line: %q", line)
 		}
 	}
 
