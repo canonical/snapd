@@ -8501,6 +8501,39 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHa
 	defer s.se.Stop()
 	s.settle(c)
 
+	// wait for a reboot request to appear
+	for len(restartRequested) == 0 {
+		s.settle(c)
+	}
+
+	// perform the reboot
+	rm, err := restart.Manager(s.state, "boot-id-1", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		restartRequested = append(restartRequested, t)
+	}))
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+	err = rm.StartUp()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	// wait for a second reboot request to appear
+	for len(restartRequested) == 1 {
+		s.settle(c)
+	}
+
+	// perform the reboot
+	rm, err = restart.Manager(s.state, "boot-id-2", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		restartRequested = append(restartRequested, t)
+	}))
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+	err = rm.StartUp()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	// let change finish
+	s.settle(c)
+
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	// when updating both kernel that uses core as base, and "core" we have two reboots
 	c.Check(restartRequested, DeepEquals, []restart.RestartType{
@@ -8711,25 +8744,53 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	}
 
 	defer s.se.Stop()
+
+	// wait for a reboot request to appear
+	for len(restartRequested) == 0 {
+		s.settle(c)
+	}
+
+	// perform the reboot
+	rm, err := restart.Manager(s.state, "boot-id-1", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		restartRequested = append(restartRequested, t)
+	}))
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+	err = rm.StartUp()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	// wait for a second reboot request to appear
+	for len(restartRequested) == 1 {
+		s.settle(c)
+	}
+
+	// perform the reboot
+	rm, err = restart.Manager(s.state, "boot-id-2", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		restartRequested = append(restartRequested, t)
+	}))
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+	err = rm.StartUp()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	// let change finish
 	s.settle(c)
 
-	// Currently the Status() check returns a status based on an ordered
-	// list of statuses. This means if there are *any* tasks yet left in
-	// 'Do' state, then DoStatus is returned.
-	c.Check(chg.Status(), Equals, state.DoStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*\(auto-connect-kernel mock error\)`)
 	c.Check(restartRequested, DeepEquals, []restart.RestartType{
 		// do path
 		restart.RestartSystem,
 		// undo
 		restart.RestartSystem,
-		restart.RestartSystem,
 	})
 	c.Check(errInjected, Equals, 1)
 
 	// ops come in semi random order, but we know that link and auto-connect
 	// operations will be done in a specific order,
-	ops := make([]string, 0, 7)
+	ops := make([]string, 0, 5)
 	for _, op := range s.fakeBackend.ops {
 		if op.op == "link-snap" {
 			split := strings.Split(op.path, "/")
@@ -8739,16 +8800,14 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 			ops = append(ops, fmt.Sprintf("%s-%s/%s", op.op, op.name, op.revno))
 		}
 	}
-	c.Assert(ops, HasLen, 7)
+	c.Assert(ops, HasLen, 5)
 	c.Assert(ops[0:5], DeepEquals, []string{
 		// link snaps
 		"core18/11", "kernel/11",
 		"auto-connect:Doing-core18/11",
-		"auto-connect:Doing-kernel/11", // fails
-		"auto-connect:Undoing-core18/11",
+		"auto-connect:Doing-kernel/11", // fails, only kernel will undo (different lanes)
+		"kernel/7",
 	})
-	// those run unordered
-	c.Assert(ops[5:], testutil.DeepUnsortedMatches, []string{"core18/7", "kernel/7"})
 }
 
 func failAfterLinkSnap(ol *overlord.Overlord, chg *state.Change) error {
@@ -8844,6 +8903,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseAndSnapdOrder(c *C) {
 	}
 
 	defer s.se.Stop()
+	s.settle(c)
+	s.restart(c, "boot-id-2")
 	s.settle(c)
 
 	c.Check(chg.IsReady(), Equals, true)

@@ -1617,11 +1617,11 @@ func arrangeTaskSetsForSingleReboot(baseTS, gadgetTS, kernelTS *state.TaskSet) e
 	kernelPreRebootTs := preAutoConnectTasks(kernelTS)
 	kernelPostRebootTS := postAutoConnectTasks(kernelTS)
 
-	if basePostRebootTS != nil && gadgetPostRebootTS != nil {
+	if baseTS != nil && gadgetTS != nil {
 		gadgetPreRebootTs.WaitAll(basePreRebootTs)
 		gadgetPostRebootTS.WaitAll(basePostRebootTS)
 	}
-	if gadgetPostRebootTS != nil && kernelPostRebootTS != nil {
+	if gadgetTS != nil && kernelTS != nil {
 		// Kernel must wait for gadget because the gadget may define
 		// new "$kernel:refs". Sorting the other way is impossible
 		// because a kernel with new kernel-assets would never refresh
@@ -1630,7 +1630,7 @@ func arrangeTaskSetsForSingleReboot(baseTS, gadgetTS, kernelTS *state.TaskSet) e
 		// kernel aborts the wait tasks (the gadget) is put on "Hold".
 		kernelPreRebootTs.WaitAll(gadgetPreRebootTs)
 		kernelPostRebootTS.WaitAll(gadgetPostRebootTS)
-	} else if basePostRebootTS != nil && kernelPostRebootTS != nil {
+	} else if baseTS != nil && kernelTS != nil {
 		// let kernel wait for base
 		kernelPreRebootTs.WaitAll(basePreRebootTs)
 		kernelPostRebootTS.WaitAll(basePostRebootTS)
@@ -1892,22 +1892,25 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 				waitPrereq(ts, update.SnapBase())
 			}
 		}
-		// keep track of kernel/gadget/base updates
+		// Keep track of kernel/gadget/base updates, and make sure
+		// they depend on the OS snap.
 		switch typ {
 		case snap.TypeKernel:
 			kernelTs = ts
+			waitPrereq(ts, defaultCoreSnapName)
 		case snap.TypeGadget:
 			gadgetTs = ts
+			waitPrereq(ts, defaultCoreSnapName)
 		case snap.TypeBase:
 			if update.InstanceName() == deviceCtx.Model().Base() {
 				// only the boot base is relevant for reboots
 				bootBaseTs = ts
 			}
 		case snap.TypeOS:
-			// nothing to do, we cannot set up a single reboot with
-			// "core" due to all tasks of other snaps impolitely
-			// waiting for all tasks of "core", what makes us end up
-			// with a task wait loop
+			// Currently we do not perform a single-reboot with the
+			// core snap. We could do this as by giving it the same
+			// treatment as base/gadget/kernel, but maybe extend this
+			// another time.
 		}
 
 		scheduleUpdate(update.InstanceName(), ts)

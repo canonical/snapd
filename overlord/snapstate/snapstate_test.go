@@ -110,6 +110,17 @@ func (s *snapmgrBaseTest) settle(c *C) {
 	}
 }
 
+func (s *snapmgrBaseTest) restart(c *C, newBootID string) {
+	rm, err := restart.Manager(s.state, newBootID, nil)
+	c.Assert(err, IsNil)
+	s.rstmgr = rm
+
+	s.state.Unlock()
+	err = rm.StartUp()
+	c.Assert(err, IsNil)
+	s.state.Lock()
+}
+
 func (s *snapmgrBaseTest) logTasks(c *C) {
 	for _, chg := range s.state.Changes() {
 		c.Logf("\nChange %q (%s):", chg.Summary(), chg.Status())

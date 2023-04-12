@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 	"time"
@@ -416,7 +415,6 @@ func (c *Change) NeedsReboot() bool {
 			waiters++
 		case DoStatus:
 			if !c.isTaskWaitingForReboot(t) {
-				log.Printf("%s not waiting for reboot", t.Kind())
 				return false
 			}
 		case UndoStatus:
