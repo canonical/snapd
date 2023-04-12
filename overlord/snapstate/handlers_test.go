@@ -37,12 +37,19 @@ import (
 
 type handlersSuite struct {
 	baseHandlerSuite
+	mockNBR func()
 }
 
 var _ = Suite(&handlersSuite{})
 
 func (s *handlersSuite) SetUpTest(c *C) {
 	s.baseHandlerSuite.SetUpTest(c)
+	// NotifyBeginRefresh must be mocked at the beginning of all the tests,
+	// and not de-mocked at the end of the tests because some
+	// tests launch a thread that remains until after the test itself,
+	// and calls asyncRefreshOnSnapClose() after the test has ended,
+	// which calls NotifyBeginRefresh() and makes the test fail.
+	s.mockNBR = snapstate.MockNotifyBeginRefresh()
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 	s.AddCleanup(osutil.MockMountInfo(""))

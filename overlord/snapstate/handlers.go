@@ -888,7 +888,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 			return err
 		}
 
-		return asyncRefreshOnSnapClose(m.state, refreshInfo)
+		return asyncRefreshOnSnapClose(m.state, refreshInfo, snapsup)
 	}
 
 	continueInhibitedAutoRefresh(st)
@@ -897,7 +897,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 // asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
 // the user and then triggers an auto-refresh.
-func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) error {
+func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo, snapsup *SnapSetup) error {
 	monitoredSnaps := snapMonitoring(st)
 	if monitoredSnaps == nil {
 		monitoredSnaps = make(map[string]chan<- bool)
@@ -950,6 +950,7 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 		}
 
 		if continueAutoRefresh {
+			go notifyBeginRefresh(st, snapsup.InstanceName(), snapsup.Revision(), refreshInfo.InstanceName, refreshInfo.BusyAppDesktopEntry)
 			continueInhibitedAutoRefresh(st)
 		}
 	}()
@@ -1249,7 +1250,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			if errors.As(err, &busyErr) {
 				// notify user to close the snap and trigger the auto-refresh once it's closed
 				refreshInfo := busyErr.PendingSnapRefreshInfo()
-				if err := asyncRefreshOnSnapClose(m.state, refreshInfo); err != nil {
+				if err := asyncRefreshOnSnapClose(m.state, refreshInfo, snapsup); err != nil {
 					return err
 				}
 			}
