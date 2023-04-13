@@ -312,12 +312,30 @@ func maxStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
 	return max
 }
 
-// IsValidStartOffset returns true if the input offset is valid for the structure at idx.
-func IsValidStartOffset(off quantity.Offset, vss []VolumeStructure, idx int) bool {
-	if minStructureOffset(vss, idx) <= off && off <= maxStructureOffset(vss, idx) {
-		return true
+type invalidOffset struct {
+	offset     quantity.Offset
+	lowerBound quantity.Offset
+	upperBound quantity.Offset
+}
+
+func (e *invalidOffset) Error() string {
+	maxDesc := "unbounded"
+	if e.upperBound != UnboundedStructureOffset {
+		maxDesc = fmt.Sprintf("%d (%s)", e.upperBound, e.upperBound.IECString())
 	}
-	return false
+	return fmt.Sprintf("offset %d (%s) is not in the valid gadget interval (min: %d (%s): max: %s)",
+		e.offset, e.offset.IECString(), e.lowerBound, e.lowerBound.IECString(), maxDesc)
+}
+
+// CheckValidStartOffset returns an error if the input offset is not valid for
+// the structure at idx, nil otherwise.
+func CheckValidStartOffset(off quantity.Offset, vss []VolumeStructure, idx int) error {
+	min := minStructureOffset(vss, idx)
+	max := maxStructureOffset(vss, idx)
+	if min <= off && off <= max {
+		return nil
+	}
+	return &invalidOffset{offset: off, lowerBound: min, upperBound: max}
 }
 
 // VolumeContent defines the contents of the structure. The content can be

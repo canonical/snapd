@@ -4125,7 +4125,7 @@ func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataR
 
 	// the volume cannot be found with no opts set
 	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", nil)
-	c.Assert(err.Error(), Equals, `volume pi is not compatible with disk /dev/mmcblk0: cannot find disk partition /dev/mmcblk0p2 (starting at 269484032) in gadget: start offset not in the valid interval (disk: 269484032 (257 MiB) and gadget: min: 1048576 (1 MiB): max: 1048576 (1 MiB))`)
+	c.Assert(err.Error(), Equals, `volume pi is not compatible with disk /dev/mmcblk0: cannot find disk partition /dev/mmcblk0p2 (starting at 269484032) in gadget: disk partition "" offset 269484032 (257 MiB) is not in the valid gadget interval (min: 1048576 (1 MiB): max: 1048576 (1 MiB))`)
 
 	// with opts for pc then it can be found
 	opts := &gadget.DiskVolumeValidationOptions{

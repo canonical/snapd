@@ -3159,7 +3159,7 @@ func (s *gadgetYamlTestSuite) TestMBRLayoutCompatibility(c *C) {
 		},
 	)
 	_, err = gadget.EnsureVolumeCompatibility(gadgetVolumeWithExtras, &deviceLayoutWithExtras, nil)
-	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/node4 (starting at 1260388352) in gadget: start offset not in the valid interval (disk: 1260388352 (1.17 GiB) and gadget: min: 2097152 (2 MiB): max: 2097152 (2 MiB))`)
+	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/node4 (starting at 1260388352) in gadget: disk partition "Extra extra partition" offset 1260388352 (1.17 GiB) is not in the valid gadget interval (min: 2097152 (2 MiB): max: 2097152 (2 MiB))`)
 }
 
 func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C) {
@@ -3569,7 +3569,7 @@ func (s *gadgetYamlTestSuite) TestCompatibilityWithMinSizePartitions(c *C) {
 	diskVol.Structure[1].Size = 98 * quantity.SizeMiB
 	diskVol.Structure[2].StartOffset = 101 * quantity.OffsetMiB
 	match, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
-	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/node3 (starting at 105906176) in gadget: start offset not in the valid interval (disk: 105906176 (101 MiB) and gadget: min: 10485760 (10 MiB): max: 104857600 (100 MiB))`)
+	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/node3 (starting at 105906176) in gadget: disk partition "ubuntu-data" offset 105906176 (101 MiB) is not in the valid gadget interval (min: 10485760 (10 MiB): max: 104857600 (100 MiB))`)
 	c.Assert(match, IsNil)
 
 	diskVol.Structure[1].Size = 6 * quantity.SizeMiB
@@ -4327,7 +4327,7 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 	type validOffsetTc struct {
 		structIdx int
 		offset    quantity.Offset
-		isValid   bool
+		err       *gadget.InvalidOffset
 	}
 	for _, tc := range []struct {
 		vss         []gadget.VolumeStructure
@@ -4342,23 +4342,23 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 				{Offset: asOffsetPtr(50), MinSize: 100, Size: 100},
 			},
 			votcs: []validOffsetTc{
-				{structIdx: 0, offset: 0, isValid: true},
-				{structIdx: 0, offset: 5, isValid: false},
-				{structIdx: 1, offset: 0, isValid: false},
-				{structIdx: 1, offset: 10, isValid: true},
-				{structIdx: 1, offset: 15, isValid: true},
-				{structIdx: 1, offset: 20, isValid: true},
-				{structIdx: 1, offset: 21, isValid: false},
-				{structIdx: 1, offset: gadget.UnboundedStructureOffset, isValid: false},
-				{structIdx: 2, offset: 10, isValid: false},
-				{structIdx: 2, offset: 20, isValid: true},
-				{structIdx: 2, offset: 30, isValid: true},
-				{structIdx: 2, offset: 40, isValid: true},
-				{structIdx: 2, offset: 41, isValid: false},
-				{structIdx: 2, offset: gadget.UnboundedStructureOffset, isValid: false},
-				{structIdx: 3, offset: 49, isValid: false},
-				{structIdx: 3, offset: 50, isValid: true},
-				{structIdx: 3, offset: 51, isValid: false},
+				{structIdx: 0, offset: 0, err: nil},
+				{structIdx: 0, offset: 5, err: gadget.CreateInvalidOffset(5, 0, 0)},
+				{structIdx: 1, offset: 0, err: gadget.CreateInvalidOffset(0, 10, 20)},
+				{structIdx: 1, offset: 10, err: nil},
+				{structIdx: 1, offset: 15, err: nil},
+				{structIdx: 1, offset: 20, err: nil},
+				{structIdx: 1, offset: 21, err: gadget.CreateInvalidOffset(21, 10, 20)},
+				{structIdx: 1, offset: gadget.UnboundedStructureOffset, err: gadget.CreateInvalidOffset(gadget.UnboundedStructureOffset, 10, 20)},
+				{structIdx: 2, offset: 10, err: gadget.CreateInvalidOffset(10, 20, 40)},
+				{structIdx: 2, offset: 20, err: nil},
+				{structIdx: 2, offset: 30, err: nil},
+				{structIdx: 2, offset: 40, err: nil},
+				{structIdx: 2, offset: 41, err: gadget.CreateInvalidOffset(41, 20, 40)},
+				{structIdx: 2, offset: gadget.UnboundedStructureOffset, err: gadget.CreateInvalidOffset(gadget.UnboundedStructureOffset, 20, 40)},
+				{structIdx: 3, offset: 49, err: gadget.CreateInvalidOffset(49, 50, 50)},
+				{structIdx: 3, offset: 50, err: nil},
+				{structIdx: 3, offset: 51, err: gadget.CreateInvalidOffset(51, 50, 50)},
 			},
 			description: "test one",
 		},
@@ -4369,15 +4369,15 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 				{Offset: asOffsetPtr(80), MinSize: 100, Size: 100},
 			},
 			votcs: []validOffsetTc{
-				{structIdx: 0, offset: 0, isValid: true},
-				{structIdx: 0, offset: 1, isValid: false},
-				{structIdx: 1, offset: 9, isValid: false},
-				{structIdx: 1, offset: 10, isValid: true},
-				{structIdx: 1, offset: 70, isValid: true},
-				{structIdx: 1, offset: 71, isValid: false},
-				{structIdx: 2, offset: 79, isValid: false},
-				{structIdx: 2, offset: 80, isValid: true},
-				{structIdx: 2, offset: 81, isValid: false},
+				{structIdx: 0, offset: 0, err: nil},
+				{structIdx: 0, offset: 1, err: gadget.CreateInvalidOffset(1, 0, 0)},
+				{structIdx: 1, offset: 9, err: gadget.CreateInvalidOffset(9, 10, 70)},
+				{structIdx: 1, offset: 10, err: nil},
+				{structIdx: 1, offset: 70, err: nil},
+				{structIdx: 1, offset: 71, err: gadget.CreateInvalidOffset(71, 10, 70)},
+				{structIdx: 2, offset: 79, err: gadget.CreateInvalidOffset(79, 80, 80)},
+				{structIdx: 2, offset: 80, err: nil},
+				{structIdx: 2, offset: 81, err: gadget.CreateInvalidOffset(81, 80, 80)},
 			},
 			description: "test two",
 		},
@@ -4392,18 +4392,23 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 				{Offset: asOffsetPtr(100), MinSize: 100, Size: 100},
 			},
 			votcs: []validOffsetTc{
-				{structIdx: 2, offset: 39, isValid: false},
-				{structIdx: 2, offset: 40, isValid: true},
-				{structIdx: 2, offset: 60, isValid: true},
-				{structIdx: 2, offset: 61, isValid: false},
+				{structIdx: 2, offset: 39, err: gadget.CreateInvalidOffset(39, 40, 60)},
+				{structIdx: 2, offset: 40, err: nil},
+				{structIdx: 2, offset: 60, err: nil},
+				{structIdx: 2, offset: 61, err: gadget.CreateInvalidOffset(61, 40, 60)},
 			},
 			description: "test three",
 		},
 	} {
 		for _, votc := range tc.votcs {
 			c.Logf("testing valid offset: %s (%+v)", tc.description, votc)
-			c.Check(gadget.IsValidStartOffset(votc.offset, tc.vss,
-				votc.structIdx), Equals, votc.isValid)
+			if votc.err == nil {
+				c.Check(gadget.CheckValidStartOffset(votc.offset, tc.vss,
+					votc.structIdx), IsNil)
+			} else {
+				c.Check(gadget.CheckValidStartOffset(votc.offset, tc.vss,
+					votc.structIdx), DeepEquals, votc.err)
+			}
 		}
 	}
 }
