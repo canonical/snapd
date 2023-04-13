@@ -29,7 +29,6 @@ import (
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
-// XXX: make this a separate package?
 func init() {
 	snapstate.AddLinkSnapParticipant(snapstate.LinkSnapParticipantFunc(notifyAgentOnLinkageChange))
 }
