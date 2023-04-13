@@ -96,7 +96,7 @@ func sliceContains(slice []string, element string) bool {
 	return false
 }
 
-// This function is called from the REST API. It receives the Change ID and the Task IDs
+// monitorChanges is called from the REST API. It receives the Change ID and the Task IDs
 // for a refresh operation, and monitors it using the snapd API.
 func monitorChanges(refreshInfo userclient.BeginDeferredRefreshNotificationInfo, notificationMgr notification.NotificationManager) {
 	// First, get a reference to the Change API
