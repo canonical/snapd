@@ -1,0 +1,47 @@
+summary: Ensure that refresh app-awareness notifications work
+
+details: |
+    Test that notification for continued auto-refreshes are delivered
+
+# Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
+systems: [-ubuntu-14.04-*]
+
+restore: |
+    snap unset system refresh.timer
+
+execute: |
+    # setup test snap and make sure an app keeps it busy
+    
+    # XXX: replace with a proper test snap
+    snap install wormhole
+    wormhole recieve 4273847392423434 &
+    PID=$!
+    snap switch --edge wormhole
+
+    # trigger auto-refresh
+    # XXX: do we need this?
+    snap unset system refresh.hold
+    snap set system refresh.timer=$(date -d "1 min" +%H:%M)
+    i=0
+    while [ $i -lt 12 ]; do
+        sleep 10
+        snap debug ensure-state-soon
+        if journalctl -u snapd | grep "notifying agents about pending refresh for snap wormhole"; then
+            break
+        fi
+        i=$((i+1))
+    done
+    journalctl -u snapd | MATCH "notifying agents about pending refresh for snap wormhole"
+
+    # exit wormhole, this should trigger the refresh right away
+    kill "$PID"
+
+    i=0
+    while [ $i -lt 12 ]; do
+        sleep 10
+        if journalctl -u snapd | grep "notifying user client about continued refresh for wormhole"; then
+            break
+        fi
+        i=$((i+1))
+    done
+    journalctl -u snapd | MATCH "notifying user client about continued refresh for wormhole"

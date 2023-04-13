@@ -668,6 +668,7 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 // This allows the, possibly slow, communication with each snapd session agent,
 // to be performed without holding the snap state lock.
 var asyncPendingRefreshNotification = func(context context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	logger.Debugf("notifying agents about pending refresh for snap %v", refreshInfo.InstanceName)
 	go func() {
 		if err := client.PendingRefreshNotification(context, refreshInfo); err != nil {
 			logger.Noticef("Cannot send notification about pending refresh: %v", err)
