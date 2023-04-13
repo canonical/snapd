@@ -66,7 +66,7 @@ func notifyRefreshToSnapDesktopIntegration(snapName string, desktopEntry string,
 	return nil
 }
 
-// This function interacts with snapd-desktop-integration daemon, to update the
+// updateRefreshStatusDesktopIntegration interacts with snapd-desktop-integration daemon, to update the
 // status of a progress dialog (setting the new percentage of progress)
 func updateRefreshStatusDesktopIntegration(snapName string, barText string, progress float64) error {
 	// Check if Snapd-Desktop-Integration is available
