@@ -1338,10 +1338,10 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHook(c *C) {
 		return nil
 	}, nil)
 
-	var hookCalled bool
+	var hookCalls int
 	var hookChange *state.Change
 	r.AddHook(func(chg *state.Change) {
-		hookCalled = true
+		hookCalls++
 		hookChange = chg
 	}, state.TaskExhaustion)
 
@@ -1357,6 +1357,10 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHook(c *C) {
 	// Ensure that 'ensure' is run one more time
 	// to report exhaustion
 	r.Ensure()
+
+	// Make sure we run 'ensure' once more, that we don't
+	// get a second exhaustion hook
+	r.Ensure()
 	r.Stop()
 
 	st.Lock()
@@ -1365,6 +1369,61 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHook(c *C) {
 	c.Check(t1.Status(), Equals, state.DoneStatus)
 
 	// make sure that hook was called at the end of 'Ensure'
-	c.Check(hookCalled, Equals, true)
+	c.Check(hookCalls, Equals, 1)
 	c.Check(hookChange, Equals, chg)
+}
+
+func (ts *taskRunnerSuite) TestTaskExhaustionHookResetsTracking(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+
+	r.AddHandler("foo", func(t *state.Task, tomb *tomb.Tomb) error {
+		return &state.Wait{Reason: "go into wait mode"}
+	}, nil)
+
+	var hookCalls int
+	r.AddHook(func(chg *state.Change) {
+		hookCalls++
+	}, state.TaskExhaustion)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+	st.Unlock()
+
+	// Run first iteration of our "foo" handler which puts
+	// it into WaitStatus.
+	r.Ensure()
+	r.Wait()
+
+	// Ensure that 'ensure' is run one more time
+	// to report exhaustion
+	r.Ensure()
+
+	// Reset the foo handler to instead finish
+	r.AddHandler("foo", func(t *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}, nil)
+
+	// Put t1 into Do again
+	st.Lock()
+	t1.SetStatus(state.DoStatus)
+	st.Unlock()
+
+	// Mark tasks as done.
+	ensureChange(c, r, sb, chg)
+
+	// Run again to ensure hook is called again
+	r.Ensure()
+	r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(t1.Status(), Equals, state.DoneStatus)
+
+	// make sure that hook was called twice
+	c.Check(hookCalls, Equals, 2)
 }

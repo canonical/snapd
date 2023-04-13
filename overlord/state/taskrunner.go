@@ -91,7 +91,8 @@ type TaskRunner struct {
 	blocked     []blockedFunc
 	someBlocked bool
 
-	hooks map[HookEvent][]HookFunc
+	hooks     map[HookEvent][]HookFunc
+	exhausted map[string]bool
 
 	// optional callback executed on task errors
 	taskErrorCallback func(err error)
@@ -112,11 +113,12 @@ type optionalHandler struct {
 // NewTaskRunner creates a new TaskRunner
 func NewTaskRunner(s *State) *TaskRunner {
 	return &TaskRunner{
-		state:    s,
-		handlers: make(map[string]handlerPair),
-		cleanups: make(map[string]HandlerFunc),
-		hooks:    make(map[HookEvent][]HookFunc),
-		tombs:    make(map[string]*tomb.Tomb),
+		state:     s,
+		handlers:  make(map[string]handlerPair),
+		cleanups:  make(map[string]HandlerFunc),
+		hooks:     make(map[HookEvent][]HookFunc),
+		exhausted: make(map[string]bool),
+		tombs:     make(map[string]*tomb.Tomb),
 	}
 }
 
@@ -420,7 +422,7 @@ func (r *TaskRunner) Ensure() error {
 		}
 	}
 
-	changes := make(map[string]*Change)
+	changes := make(map[string]bool)
 	ensureTime := timeNow()
 	nextTaskTime := time.Time{}
 ConsiderTasks:
@@ -496,7 +498,14 @@ ConsiderTasks:
 		r.run(t)
 
 		running = append(running, t)
-		changes[t.Change().ID()] = t.Change()
+
+		// Keep track of changes that have jobs ready to run.
+		chg := t.Change()
+		changes[chg.ID()] = true
+
+		// If a change had jobs ready to run, then reset the exhaustion
+		// status for that change.
+		r.exhausted[chg.ID()] = false
 	}
 
 	// schedule next Ensure no later than the next task time
@@ -504,11 +513,18 @@ ConsiderTasks:
 		r.state.EnsureBefore(nextTaskTime.Sub(ensureTime))
 	}
 
-	// run hooks registered for task exhaustion for each change
+	// run hooks registered for task exhaustion for each change in
+	// the state.
 	for _, chg := range r.state.changes {
 		// if there are no running tasks for this change, report
-		// task exhaustion for that change
-		if _, ok := changes[chg.ID()]; !ok {
+		// task exhaustion for that change.
+		if seen := changes[chg.ID()]; seen {
+			// have we already reported exhaustion for that change?
+			if reported := r.exhausted[chg.ID()]; reported {
+				continue
+			}
+			r.exhausted[chg.ID()] = true
+
 			for _, h := range r.hooks[TaskExhaustion] {
 				h(chg)
 			}
