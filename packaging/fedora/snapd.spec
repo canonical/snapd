@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.58.2
+Version:        2.59.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -996,6 +996,57 @@ fi
 
 
 %changelog
+* Tue Mar 28 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.1
+ - Add udev rules from steam-devices to steam-support interface
+ - Bugfixes for layout path checking, dm_crypt permissions,
+   mount-control interface parameter checking, kernel commandline
+   parsing, docker-support, refresh-app-awareness
+
+* Fri Mar 10 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59
+ - Support setting extra kernel command line parameters via snap
+   configuration and under a gadget allow-list
+ - Support for Full-Disk-Encryption using ICE
+ - Support for arbitrary home dir locations via snap configuration
+ - New nvidia-drivers-support interface
+ - Support for udisks2 snap
+ - Pre-download of snaps ready for refresh and automatic refresh of
+   the snap when all apps are closed
+ - New microovn interface
+ - Support uboot with `CONFIG_SYS_REDUNDAND_ENV=n`
+ - Make "snap-preseed --reset" re-exec when needed
+ - Update the fwupd interface to support fully confined fwupd
+ - The memory,cpu,thread quota options are no longer experimental
+ - Support debugging snap client requests via the
+   `SNAPD_CLIENT_DEBUG_HTTP` environment variable
+ - Support ssh listen-address via snap configuration
+ - Support for quotas on single services
+ - prepare-image now takes into account snapd versions going into
+   the image, including in the kernel initrd, to fetch supported
+   assertion formats
+
+* Tue Feb 21 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.58.3
+ - interfaces/screen-inhibit-control: Add support for xfce-power-
+   manager
+ - interfaces/network-manager: do not show ptrace read
+   denials
+ - interfaces: relax rules for mount-control `what` for functionfs
+ - cmd/snap-bootstrap: add support for snapd_system_disk
+ - interfaces/modem-manager: add net_admin capability
+ - interfaces/network-manager: add permission for OpenVPN
+ - httputil: fix checking x509 certification error on go 1.20
+ - i/b/fwupd: allow reading host os-release
+ - boot: on classic+modes `MarkBootSuccessfull` does not need a base
+ - boot: do not include `base=` in modeenv for classic+modes installs
+ - tests: add spread test that validates revert on boot for core does
+   not happen on classic+modes
+ - snapstate: only take boot participants into account in
+   UpdateBootRevisions
+ - snapstate: refactor UpdateBootRevisions() to make it easier to
+   check for boot.SnapTypeParticipatesInBoot()
+
 * Wed Jan 25 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.58.2
  - bootloader: fix dirty build by hardcoding copyright year

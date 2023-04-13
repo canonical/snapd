@@ -69,7 +69,7 @@ execute: |
             # don't manually reboot, wait for automatic snapd reboot
             ;;
     esac
-    tests.nested wait-for reboot "$INITIAL_BOOT_ID"
+    remote.wait-for reboot "$INITIAL_BOOT_ID"
     SECOND_BOOT_ID=$(tests.nested boot-id)
 
     echo "Check the new version of the snaps is correct after the system reboot"
@@ -100,7 +100,7 @@ execute: |
             # don't manually reboot, wait for automatic snapd reboot
             ;;
     esac
-    tests.nested wait-for reboot "$SECOND_BOOT_ID"
+    remote.wait-for reboot "$SECOND_BOOT_ID"
 
     echo "Check the version of the snaps after the revert is correct"
     remote.exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"

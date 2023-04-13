@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# shellcheck source=tests/lib/systemd.sh
-. "$TESTSLIB"/systemd.sh
-
-# shellcheck source=tests/lib/store.sh
-. "$TESTSLIB"/store.sh
-
 : "${NESTED_WORK_DIR:=/tmp/work-dir}"
 : "${NESTED_IMAGES_DIR:=${NESTED_WORK_DIR}/images}"
 : "${NESTED_RUNTIME_DIR:=${NESTED_WORK_DIR}/runtime}"
@@ -343,18 +337,23 @@ nested_refresh_to_new_core() {
 
 nested_get_snakeoil_key() {
     local KEYNAME="PkKek-1-snakeoil"
-    wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.key
-    wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.pem
+    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.key
+    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.pem
     echo "$KEYNAME"
+}
+
+nested_secboot_remove_signature() {
+    local FILE="$1"
+    while sbverify --list "$FILE" | grep "^signature [0-9]*$"; do
+        sbattach --remove "$FILE"
+    done
 }
 
 nested_secboot_sign_file() {
     local FILE="$1"
     local KEY="$2"
     local CERT="$3"
-    while sbverify --list "$FILE" | grep "^signature [0-9]*$"; do
-        sbattach --remove "$FILE"
-    done
+    nested_secboot_remove_signature "$FILE"
     sbsign --key "$KEY" --cert "$CERT" --output "$FILE" "$FILE"
 }
 
@@ -411,7 +410,7 @@ nested_is_generic_image() {
 }
 
 nested_get_extra_snaps_path() {
-    echo "${PWD}/extra-snaps"
+    echo "/tmp/extra-snaps"
 }
 
 nested_get_assets_path() {
@@ -529,7 +528,7 @@ nested_prepare_snapd() {
 
         # sign the snapd snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
+            "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
         fi
     fi
 }
@@ -559,20 +558,20 @@ nested_prepare_kernel() {
                     epochBumpTime="--epoch-bump-time=$epochBumpTime"
                 fi
 
-                uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                rm -f "$PWD/pc-kernel.snap"
+                uc20_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
+                rm -f "pc-kernel.snap" "pc-kernel.assert"
 
                 # Prepare the pc kernel snap
                 kernel_snap=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
                 chmod 0600 "$kernel_snap"
             fi
-            cp "$kernel_snap" "$NESTED_ASSETS_DIR/$output_name"
+            mv "$kernel_snap" "$NESTED_ASSETS_DIR/$output_name"
         fi
         cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
 
         # sign the pc-kernel snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
+            "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
         fi
     fi
 }
@@ -589,7 +588,7 @@ nested_prepare_gadget() {
             if [ -n "$existing_snap" ]; then
                 echo "Using generated pc gadget snap $existing_snap"
                 if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                    make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
+                    "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
                 fi
                 return
             fi
@@ -648,7 +647,7 @@ EOF
 
             gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
             cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
-            rm -f "$PWD/pc.snap" "$snakeoil_key" "$snakeoil_cert"
+            rm -f "pc.snap" "pc.assert" "$snakeoil_key" "$snakeoil_cert"
         fi
         # sign the pc gadget snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
@@ -656,7 +655,7 @@ EOF
             # need extra bits in their snap declaration, so inject
             # that here, it could end up being empty in which case
             # it is ignored
-            make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
+            "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
         fi
     fi
 }
@@ -682,7 +681,7 @@ nested_prepare_base() {
         if [ -n "$existing_snap" ]; then
             echo "Using generated base snap $existing_snap"
             if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
+                "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
             fi
             return
         fi
@@ -691,14 +690,15 @@ nested_prepare_base() {
             echo "Repacking $snap_name snap"
             snap download --channel="$CORE_CHANNEL" --basename="$snap_name" "$snap_name"
             repack_core_snap_with_tweaks "${snap_name}.snap" "new-${snap_name}.snap"
+            rm -f "$snap_name".snap "$snap_name".assert
 
-            cp "new-${snap_name}.snap" "$NESTED_ASSETS_DIR/$output_name"
+            mv "new-${snap_name}.snap" "$NESTED_ASSETS_DIR/$output_name"
         fi
         cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
 
         # sign the base snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/${snap_name}.snap" "$snap_id"
+            "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/${snap_name}.snap" "$snap_id"
         fi
     fi 
 }
@@ -1080,9 +1080,9 @@ nested_start_core_vm_unit() {
         OVMF_VARS="ms"
 
         if nested_is_core_22_system; then
-            wget https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_CODE.secboot.fd
+            wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_CODE.secboot.fd
             mv OVMF_CODE.secboot.fd /usr/share/OVMF/OVMF_CODE.secboot.fd
-            wget https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.snakeoil.fd
+            wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.snakeoil.fd
             mv OVMF_VARS.snakeoil.fd /usr/share/OVMF/OVMF_VARS.snakeoil.fd
         fi
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
@@ -1133,7 +1133,7 @@ nested_start_core_vm_unit() {
     # make sure we start with clean log file
     echo > "${NESTED_LOGS_DIR}/serial.log"
     # Systemd unit is created, it is important to respect the qemu parameters order
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
+    tests.systemd create-and-start-unit "$NESTED_VM" "${QEMU} \
         ${PARAM_SMP} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
@@ -1153,9 +1153,6 @@ nested_start_core_vm_unit() {
         ${PARAM_USB} \
         ${PARAM_CD}  \
         ${PARAM_EXTRA} " "${PARAM_REEXEC_ON_FAILURE}"
-
-    # wait for the $NESTED_VM service to appear active
-    wait_for_service "$NESTED_VM"
 
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
@@ -1252,14 +1249,14 @@ nested_shutdown() {
     remote.exec "sudo shutdown now" || true
     nested_wait_for_no_ssh
     nested_force_stop_vm
-    wait_for_service "$NESTED_VM" inactive
+    tests.systemd wait-for-service -n 30 --wait 1 --state inactive "$NESTED_VM"
     sync
 }
 
 nested_start() {
     nested_save_serial_log
     nested_force_start_vm
-    wait_for_service "$NESTED_VM" active
+    tests.systemd wait-for-service -n 30 --wait 1 --state active "$NESTED_VM"
     nested_wait_for_ssh
     nested_prepare_tools
 }
@@ -1267,7 +1264,7 @@ nested_start() {
 nested_force_restart_vm() {
     nested_force_stop_vm
     nested_force_start_vm
-    wait_for_service "$NESTED_VM" active
+    tests.systemd wait-for-service -n 30 --wait 1 --state active "$NESTED_VM"
 }
 
 nested_create_classic_vm() {
@@ -1282,7 +1279,7 @@ nested_create_classic_vm() {
         # Get the cloud image
         local IMAGE_URL
         IMAGE_URL="$(get_image_url_for_vm)"
-        wget -P "$NESTED_IMAGES_DIR" "$IMAGE_URL"
+        wget -q -P "$NESTED_IMAGES_DIR" "$IMAGE_URL"
         nested_download_image "$IMAGE_URL" "$IMAGE_NAME"
 
         # Prepare the cloud-init configuration and configure image
@@ -1387,7 +1384,7 @@ nested_start_classic_vm() {
 
     # Systemd unit is created, it is important to respect the qemu parameters 
     # order
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
+    tests.systemd create-and-start-unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
@@ -1413,7 +1410,7 @@ nested_start_classic_vm() {
 }
 
 nested_destroy_vm() {
-    systemd_stop_and_remove_unit "$NESTED_VM"
+    tests.systemd stop-unit --remove "$NESTED_VM"
 
     local CURRENT_IMAGE
     CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)" 
@@ -1449,6 +1446,7 @@ nested_prepare_tools() {
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/MATCH" &>/dev/null; then
+        # shellcheck source=tests/lib/spread-funcs.sh
         . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > MATCH_FILE
         type MATCH | tail -n +2 >> MATCH_FILE
@@ -1460,6 +1458,7 @@ nested_prepare_tools() {
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/NOMATCH" &>/dev/null; then
+        # shellcheck source=tests/lib/spread-funcs.sh
         . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > NOMATCH_FILE
         type NOMATCH | tail -n +2 >> NOMATCH_FILE

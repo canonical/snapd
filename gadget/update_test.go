@@ -647,6 +647,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
+		YamlIndex: 0,
 	}
 	fsStruct := gadget.VolumeStructure{
 		VolumeName: "foo",
@@ -657,6 +658,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 		Content: []gadget.VolumeContent{
 			{UnresolvedSource: "/second-content", Target: "/"},
 		},
+		YamlIndex: 1,
 	}
 	lastStruct := gadget.VolumeStructure{
 		VolumeName: "foo",
@@ -667,6 +669,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 		Content: []gadget.VolumeContent{
 			{UnresolvedSource: "/third-content", Target: "/"},
 		},
+		YamlIndex: 2,
 	}
 	// start with identical data for new and old infos, they get updated by
 	// the caller as needed
@@ -734,8 +737,7 @@ type mockUpdateProcessObserver struct {
 	canceledErr       error
 }
 
-func (m *mockUpdateProcessObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+func (m *mockUpdateProcessObserver) Observe(op gadget.ContentOperation, partRole, targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	return gadget.ChangeAbort, errors.New("unexpected call")
 }
 
@@ -3847,7 +3849,7 @@ volumes:
 	// DiskTraitsFromDeviceAndValidate is more strict and requires all
 	// structures to exist and to match
 	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
-	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find gadget structure #1 \("ubuntu-data"\) on disk`)
+	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find gadget structure "ubuntu-data" on disk`)
 
 	// if we add a structure to the mock disk which is smaller than the ondisk
 	// layout, we still reject it because the on disk must be at least the size

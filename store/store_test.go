@@ -148,6 +148,7 @@ const (
 	snapActionPath  = "/v2/snaps/refresh"
 	infoPathPattern = "/v2/snaps/info/.*"
 	cohortsPath     = "/v2/cohorts"
+	categoriesPath  = "/v2/snaps/categories"
 )
 
 // Build details path for a snap name.
@@ -1266,6 +1267,16 @@ const mockInfoJSON = `{
                 "width": null
             }
         ],
+        "categories": [
+            {
+                "featured": true,
+                "name": "featured"
+            },
+            {
+                "featured": false,
+                "name": "productivity"
+            }
+        ],
         "name": "hello-world",
         "prices": {"EUR": "0.99", "USD": "1.23"},
         "private": true,
@@ -1359,6 +1370,15 @@ func (s *storeTestSuite) TestInfo(c *C) {
 		}, {
 			Type: "video",
 			URL:  "https://vimeo.com/194577403",
+		},
+	})
+	c.Check(result.Categories, DeepEquals, []snap.CategoryInfo{
+		{
+			Featured: true,
+			Name:     "featured",
+		}, {
+			Featured: false,
+			Name:     "productivity",
 		},
 	})
 	c.Check(result.MustBuy, Equals, true)
@@ -2059,6 +2079,16 @@ const mockSearchJSON = `{
                         "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
                     }
                 ],
+                "categories": [
+                    {
+                        "featured": true,
+                        "name": "featured"
+                    },
+                    {
+                        "featured": false,
+                        "name": "productivity"
+                    }
+                ],
                 "origin": "canonical",
                 "package_name": "hello-world",
                 "prices": {"EUR": 2.99, "USD": 3.49},
@@ -2115,6 +2145,16 @@ const mockSearchJSONv2 = `
                   {
                     "type": "screenshot",
                     "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
+                  }
+                ],
+                "categories": [
+                  {
+                    "featured": true,
+                    "name": "featured"
+                  },
+                  {
+                    "featured": false,
+                    "name": "productivity"
                   }
                 ],
                 "prices": {"EUR": "2.99", "USD": "3.49"},
@@ -2363,6 +2403,57 @@ func (s *storeTestSuite) TestSectionsQueryErrors(c *C) {
 
 	_, err := sto.Sections(s.ctx, s.user)
 	c.Assert(err, ErrorMatches, `cannot retrieve sections: got unexpected HTTP status code 500 via GET to.*`)
+}
+
+/*
+	acquired via:
+
+curl -s -H "accept: application/json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://api.snapcraft.io/v2/snaps/categories'
+*/
+const MockCategoriesJSON = `{
+    "categories": [
+        {
+            "name": "featured"
+        },
+        {
+            "name": "database"
+        }
+    ]
+}
+`
+
+func (s *storeTestSuite) TestCategoriesQuery(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", categoriesPath)
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
+		switch n {
+		case 0:
+			// All good.
+		default:
+			c.Fatalf("unexpected request to %q", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		io.WriteString(w, MockCategoriesJSON)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: serverURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	categories, err := sto.Categories(s.ctx, s.user)
+	c.Check(err, IsNil)
+	c.Check(categories, DeepEquals, []store.CategoryDetails{{Name: "featured"}, {Name: "database"}})
+	c.Check(n, Equals, 1)
 }
 
 const mockNamesJSON = `
@@ -2638,6 +2729,15 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 		c.Check(snp.Website(), Equals, "https://ubuntu.com")
 		c.Check(snp.StoreURL, Equals, "https://snapcraft.io/hello-world")
 		c.Check(snp.CommonIDs, DeepEquals, []string{"aaa", "bbb"})
+		c.Check(snp.Categories, DeepEquals, []snap.CategoryInfo{
+			{
+				Featured: true,
+				Name:     "featured",
+			}, {
+				Featured: false,
+				Name:     "productivity",
+			},
+		})
 		c.Check(v2Hit, Equals, true)
 	}
 }
@@ -2658,7 +2758,7 @@ func (s *storeTestSuite) TestFindV2FindFields(c *C) {
 	findFields := sto.FindFields()
 	sort.Strings(findFields)
 	c.Assert(findFields, DeepEquals, []string{
-		"base", "channel", "common-ids", "confinement", "contact",
+		"base", "categories", "channel", "common-ids", "confinement", "contact",
 		"description", "download", "license", "links", "media", "prices", "private",
 		"publisher", "revision", "store-url", "summary", "title", "type",
 		"version", "website"})

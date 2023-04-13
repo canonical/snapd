@@ -67,8 +67,13 @@ capability chown,
 capability fsetid,
 
 # useradd writes the result in the log
+# faillog tracks failed events, lastlog maintain records of the last
+# time a user successfully logged in, tallylog maintains records of
+# failures.
 #include <abstractions/wutmp>
 /var/log/faillog rwk,
+/var/log/lastlog rwk,
+/var/log/tallylog rwk,
 `
 
 // Needed because useradd uses a netlink socket, {{group}} is used as a

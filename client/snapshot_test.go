@@ -245,19 +245,25 @@ func (cs *clientSuite) TestClientSnapshotContentHash(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(h1, check.DeepEquals, h2)
 
-	// sh3 is actually different
+	// sh3 is different because of snap name
 	sh3 := &client.Snapshot{SetID: 1, Time: now, Snap: "other-snap", Revision: revno, SHA3_384: sums}
 	h3, err := sh3.ContentHash()
 	c.Assert(err, check.IsNil)
 	c.Check(h1, check.Not(check.DeepEquals), h3)
 
-	// identical to sh1 except for sha3_384 sums
+	// sh4 is different because of the sha3_384 sums
 	sums4 := map[string]string{"user/foo.tgz": "some other hash"}
 	sh4 := &client.Snapshot{SetID: 1, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums4}
 	// same except sha3_384 means different hash
 	h4, err := sh4.ContentHash()
 	c.Assert(err, check.IsNil)
 	c.Check(h4, check.Not(check.DeepEquals), h1)
+
+	// same except options means same hash
+	sh5 := &client.Snapshot{SetID: 1, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums, Options: &snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/exclude"}}}
+	h5, err := sh5.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h5, check.DeepEquals, h1)
 }
 
 func (cs *clientSuite) TestClientSnapshotSetContentHash(c *check.C) {
@@ -266,13 +272,15 @@ func (cs *clientSuite) TestClientSnapshotSetContentHash(c *check.C) {
 		{SetID: 1, Snap: "snap2", Size: 2, SHA3_384: sums},
 		{SetID: 1, Snap: "snap1", Size: 1, SHA3_384: sums},
 		{SetID: 1, Snap: "snap3", Size: 3, SHA3_384: sums},
+		{SetID: 1, Snap: "snap4", Size: 4, SHA3_384: sums},
 	}}
-	// ss2 is the same ss1 but in a different order with different setID
-	// (but that does not matter for the content hash)
+	// ss2 is the same ss1 but in a different order with different setID, and in the last case
+	// ss2 is the same as ss1 except for snapshot options
 	ss2 := client.SnapshotSet{Snapshots: []*client.Snapshot{
 		{SetID: 2, Snap: "snap3", Size: 3, SHA3_384: sums},
 		{SetID: 2, Snap: "snap2", Size: 2, SHA3_384: sums},
 		{SetID: 2, Snap: "snap1", Size: 1, SHA3_384: sums},
+		{SetID: 2, Snap: "snap4", Size: 4, SHA3_384: sums, Options: &snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/exclude"}}},
 	}}
 
 	h1, err := ss1.ContentHash()

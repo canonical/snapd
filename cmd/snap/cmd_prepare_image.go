@@ -122,11 +122,11 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	}
 
 	if x.RevisionsFile != "" {
-		revisions, err := imageReadSeedManifest(x.RevisionsFile)
+		seedManifest, err := imageReadSeedManifest(x.RevisionsFile)
 		if err != nil {
 			return err
 		}
-		opts.Revisions = revisions
+		opts.SeedManifest = seedManifest
 	}
 
 	if x.Customize != "" {

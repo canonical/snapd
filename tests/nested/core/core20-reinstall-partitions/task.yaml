@@ -15,7 +15,7 @@ environment:
 execute: |
     echo "Wait for the system to be seeded first"
     remote.exec "sudo snap wait system seed.loaded"
-    tests.nested wait-for device-initialized
+    remote.wait-for device-initialized
 
     INITIAL_SERIAL=$(remote.exec snap model --serial | grep -Po 'serial:\s+\K.*')
 
@@ -25,13 +25,13 @@ execute: |
     # since this command causes an immediate reboot
     remote.exec "sudo snap reboot --install" || true
 
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
 
     # check that we are back in run mode
     remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
 
     # wait for the system to get setup and finish seeding
-    tests.nested wait-for snap-command
+    remote.wait-for snap-command
     remote.exec "sudo snap wait system seed.loaded"
 
     # wait up to two minutes for serial registration

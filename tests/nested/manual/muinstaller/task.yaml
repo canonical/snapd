@@ -29,9 +29,7 @@ prepare: |
   if [ -d /var/lib/snapd/seed ]; then
       mv /var/lib/snapd/seed /var/lib/snapd/seed.orig
   fi
-   #shellcheck source=tests/lib/store.sh
-   . "$TESTSLIB"/store.sh
-  setup_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
 
 restore: |
@@ -43,9 +41,7 @@ restore: |
   if [ -d /var/lib/snapd/seed.orig ]; then
       mv /var/lib/snapd/seed.orig /var/lib/snapd/seed
   fi
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  teardown_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
   rm -rf ./classic-root
 
 execute: |
@@ -168,7 +164,7 @@ execute: |
   # TODO: this prevents "nested_prepare_ssh" inside nested_start_core_vm
   #       from running, we already have a user so this is not needed
   touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
-  nested_start_core_vm
+  tests.nested create-vm core
 
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
   remote.exec "snap changes" | MATCH "Done.* Initialize system state"

@@ -12,11 +12,23 @@ environment:
   CACHE_D: ./cache
 
 prepare: |
-  # build gadget snap with gadget.yaml matching disk structure of the image
+  # FIXME: The gadget snap for classic is not yet available. So for
+  #        the moment, the test modifies the gadget for Ubuntu Core.
+  #        This should be removed when the classic snap is available.
   VERSION="$(tests.nested show version)"
   snap download --basename=pc --channel="$VERSION/edge" pc
   unsquashfs -d pc-gadget pc.snap
-  cp gadget.yaml pc-gadget/meta/
+  # gadget.yaml needs a different structure than for Ubuntu Core
+  python3 tweak-gadget.py pc-gadget/meta/gadget.yaml
+  # Append kernel-cmdline section
+  cat << 'EOF' >> pc-gadget/meta/gadget.yaml
+  kernel-cmdline:
+    allow:
+      - append.val=*
+      - append.flag
+      - other.val=foo
+      - some-value
+  EOF
   snap pack --filename=pc_x1.snap pc-gadget
 
   # create an image that looks like a classic image
@@ -86,9 +98,26 @@ execute: |
 
       if [ "$reboot_action" = "reboot" ]; then
           remote.exec sudo reboot || true
-          tests.nested wait-for reboot "$boot_id"
+          remote.wait-for reboot "$boot_id"
           remote.exec sudo snap watch "$REMOTE_CHG_ID"
       fi
+  }
+
+  # Sets a system option to append arguments to the kernel command line.
+  # $1: option
+  # $2: value
+  append_kernel_cmdline()
+  {
+      local option=$1
+      local value=$2
+
+      remote.exec "sudo snap set system $option=\"$value\""
+      boot_id="$(tests.nested boot-id)"
+      remote.exec snap changes | MATCH "Done .*Update kernel command line due to change in system configuration"
+      echo "Rebooting after setting $option=\"$value\""
+      remote.exec "sudo reboot" || true
+      tests.nested wait-for reboot "$boot_id"
+      remote.exec "sudo cat /proc/cmdline" | MATCH "$value"
   }
 
   current_kernel_file=$(remote.exec readlink /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi)
@@ -111,6 +140,18 @@ execute: |
       remote.exec sudo grep -q -a '"This program cannot be run in XXX mode"' "$f"
   done
 
+  # Test appending values to the kernel command line
+  append_kernel_cmdline system.kernel.cmdline-append "append.val=1 append.flag other.val=foo some-value"
+  append_kernel_cmdline system.kernel.cmdline-append ""
+  append_kernel_cmdline system.kernel.dangerous-cmdline-append "dang.val=1 dang.flag"
+  append_kernel_cmdline system.kernel.dangerous-cmdline-append ""
+
+  # Test append values, but do not reboot immediately and refresh kernel
+  optCmdline="dang.val=1 dang.flag"
+  remote.exec "sudo snap set system system.kernel.dangerous-cmdline-append=\"$optCmdline\""
+  refresh_rebooting_snap pc-kernel-new.snap pc-kernel reboot
+  remote.exec "sudo cat /proc/cmdline" | MATCH "$optCmdline"
+
   # Test that installing a different base and a reboot cause no reverts
   # (regression test for SNAPDENG-4975)
 
@@ -121,7 +162,7 @@ execute: |
   touch core22/empty-file
   snap pack --filename=core22-new.snap core22
   remote.push "core22-new.snap"
-  # install and validate its now a local version
+  # install and validate it is now a local version
   remote.exec sudo snap install --dangerous "core22-new.snap"
   remote.exec sudo snap list core22 | MATCH " x1 "
   # wait for reboot

@@ -79,6 +79,17 @@ slots:
   mount-control:
 `
 
+const mountControlYaml = `name: consumer
+version: 0
+plugs:
+ mntctl:
+  interface: mount-control
+  %s
+apps:
+ app:
+  plugs: [mntctl]
+`
+
 func (s *MountControlInterfaceSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -109,16 +120,6 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugOldSystemd(c *C) {
 }
 
 func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
-	var mountControlYaml = `name: consumer
-version: 0
-plugs:
- mntctl:
-  interface: mount-control
-  %s
-apps:
- app:
-  plugs: [mntctl]
-`
 	data := []struct {
 		plugYaml      string
 		expectedError string
@@ -232,6 +233,14 @@ apps:
 			`mount-control option "bind" is incompatible with specifying filesystem type`,
 		},
 		{
+			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,bind]",
+			`mount-control option "bind" is incompatible with specifying filesystem type`,
+		},
+		{
+			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,make-private]",
+			`mount-control option "make-private" is incompatible with specifying filesystem type`,
+		},
+		{
 			"mount:\n  - what: /tmp/..\n    where: /media/*",
 			`mount-control "what" pattern is not clean:.*`,
 		},
@@ -248,7 +257,7 @@ apps:
 			`mount-control "what" attribute can be "none" only with "tmpfs"`,
 		},
 		{
-			"mount:\n  - what: none\n    where: /media/*\n    options: [rw]\n    type: [tmpfs,ext4]",
+			"mount:\n  - what: /\n    where: /media/*\n    options: [rw]\n    type: [tmpfs,ext4]",
 			`mount-control filesystem type "tmpfs" cannot be listed with other types`,
 		},
 		{
@@ -258,6 +267,14 @@ apps:
 		{
 			"mount:\n  - what: /\n    where: $SNAP_DATA/foo\n    options: [ro]\n    persistent: true",
 			`mount-control "persistent" attribute cannot be used to mount onto \$SNAP_DATA`,
+		},
+		{
+			"mount:\n  - what: a?\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw]",
+			`cannot use mount-control "what" attribute: "a\?" contains a reserved apparmor char from.*`,
+		},
+		{
+			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,uid=*]",
+			`cannot use mount-control "option" attribute: "uid=\*" contains a reserved apparmor char from.*`,
 		},
 	}
 
@@ -320,4 +337,19 @@ func (s *MountControlInterfaceSuite) TestAutoConnect(c *C) {
 
 func (s *MountControlInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *MountControlInterfaceSuite) TestFunctionfsValidates(c *C) {
+	plugYaml := `
+  mount:
+  - persistent: true
+    what: diag
+    where: /dev/ffs-diag
+    type: [functionfs]
+    options: [rw, uid=2000, gid=2000, rmode=0550, fmode=0660, no_disconnect=1]
+`
+	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
+	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
+	err := interfaces.BeforeConnectPlug(s.iface, plug)
+	c.Check(err, IsNil)
 }

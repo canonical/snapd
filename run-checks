@@ -74,14 +74,15 @@ addtrap() {
 
 goinstall() {
     pkg="$1"
+    version="${2:-}"
     # go1.18+ will no longer build/install packages. Here "go install"
     # must be used but it will only fetch remote packages if the @latest
     # (or similar syntax is used). Instead of checking the version we
     # check if the "go install" help mentions this new feature.
     if go help install | grep -q @latest; then
-        go install "${pkg}"@latest
+        go install "${pkg}"@"${version:=latest}"
     else
-        go get -u "${pkg}"
+        go get -u "${pkg}"@"${version:=latest}"
     fi
 }
 
@@ -263,7 +264,8 @@ if [ "$STATIC" = 1 ]; then
         # FIXME: auter is only misspelled in the changelog so we should fix there
         # PROCES is used in the seccomp tests (PRIO_PROCES{,S,SS})
         # exportfs is used in the nfs-support test
-        MISSPELL_IGNORE="auther,PROCES,PROCESSS,proces,processs,exportfs"
+        # becuase because of misspell in upstream steam rules (PR#12657)
+        MISSPELL_IGNORE="auther,PROCES,PROCESSS,proces,processs,exportfs,becuase"
         git ls-files -z -- . ':!:./po' ':!:./vendor' ':!:./c-vendor' ':!:./cmd/libsnap-confine-private/bpf/vendor' |
             xargs -0 misspell -error -i "$MISSPELL_IGNORE"
     fi
@@ -281,7 +283,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo "Checking for naked returns"
     if ! command -v nakedret >/dev/null; then
-        goinstall github.com/alexkohler/nakedret
+        goinstall github.com/alexkohler/nakedret v1.0.1
     fi
     got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
     if [ -n "$got" ]; then

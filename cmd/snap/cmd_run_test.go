@@ -1900,26 +1900,31 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
 	defer restoreIsGraphicalSession()
 
 	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(snapName string) (bool, error) {
+		c.Check(snapName, check.Equals, "some-snap")
 		return false, nil
 	})
 	defer restoreTryNotifyRefresh()
 
-	var notification *usersessionclient.PendingSnapRefreshInfo
 	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
-		notification = refreshInfo
+		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.PendingSnapRefreshInfo{
+			InstanceName:  "some-snap",
+			TimeRemaining: 0,
+		})
 		return nil
 	})
 	defer restorePendingRefreshNotification()
 
-	var finishNotification *usersessionclient.FinishedSnapRefreshInfo
 	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
-		finishNotification = refreshInfo
+		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.FinishedSnapRefreshInfo{
+			InstanceName: "some-snap",
+		})
 		return nil
 	})
 	defer restoreFinishRefreshNotification()
 
 	var called int
 	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+		c.Check(snapName, check.Equals, "some-snap")
 		called++
 		if called < 2 {
 			return runinhibit.HintInhibitedForRefresh, nil
@@ -1931,15 +1936,7 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
 	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
 	c.Assert(snaprun.WaitWhileInhibited("some-snap"), check.IsNil)
 	c.Check(called, check.Equals, 2)
-
 	c.Check(s.Stdout(), check.Equals, "")
-	c.Check(notification, check.DeepEquals, &usersessionclient.PendingSnapRefreshInfo{
-		InstanceName:  "some-snap",
-		TimeRemaining: 0,
-	})
-	c.Check(finishNotification, check.DeepEquals, &usersessionclient.FinishedSnapRefreshInfo{
-		InstanceName: "some-snap",
-	})
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
@@ -1950,17 +1947,23 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
 	defer restoreIsGraphicalSession()
 
 	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(snapName string) (bool, error) {
+		c.Check(snapName, check.Equals, "some-snap")
 		return false, nil
 	})
 	defer restoreTryNotifyRefresh()
 
 	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
+		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.PendingSnapRefreshInfo{
+			InstanceName:  "some-snap",
+			TimeRemaining: 0,
+		})
 		return fmt.Errorf("boom")
 	})
 	defer restorePendingRefreshNotification()
 
 	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
 	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+		c.Check(snapName, check.Equals, "some-snap")
 		return runinhibit.HintInhibitedForRefresh, nil
 	})
 	defer restore()
@@ -1976,16 +1979,24 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowErrorOnFinish(c *ch
 	defer restoreIsGraphicalSession()
 
 	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(snapName string) (bool, error) {
+		c.Check(snapName, check.Equals, "some-snap")
 		return false, nil
 	})
 	defer restoreTryNotifyRefresh()
 
 	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
+		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.PendingSnapRefreshInfo{
+			InstanceName:  "some-snap",
+			TimeRemaining: 0,
+		})
 		return nil
 	})
 	defer restorePendingRefreshNotification()
 
 	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
+		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.FinishedSnapRefreshInfo{
+			InstanceName: "some-snap",
+		})
 		return fmt.Errorf("boom")
 	})
 	defer restoreFinishRefreshNotification()
@@ -1993,6 +2004,7 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowErrorOnFinish(c *ch
 	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
 	n := 0
 	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+		c.Check(snapName, check.Equals, "some-snap")
 		n++
 		if n == 1 {
 			return runinhibit.HintInhibitedForRefresh, nil

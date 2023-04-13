@@ -78,8 +78,9 @@ type preseedCoreOptions struct {
 }
 
 type targetSnapdInfo struct {
-	path    string
-	version string
+	path        string
+	preseedPath string
+	version     string
 }
 
 var (
@@ -199,7 +200,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) erro
 		return tsto.AssertionFetcher(adb, save)
 	}
 
-	f := seedwriter.MakeRefAssertsFetcher(newFetcher)
+	f := seedwriter.MakeSeedAssertionFetcher(newFetcher)
 	if err := f.Save(signedAssert); err != nil {
 		return fmt.Errorf("cannot fetch assertion: %v", err)
 	}

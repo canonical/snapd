@@ -23,9 +23,10 @@ execute: |
     fi
 
     echo "Ensure we re-exec by default"
-    snap list
-
-    "$TESTSTOOLS"/journal-state match-log "DEBUG: restarting into"
+    # It is not possible to check by using journal-state tools because the
+    # reexec "DEBUG: restarting into" line appears before the snapd state is
+    # saved, which is outside the scope of this test
+    /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into"
 
     echo "Ensure snap-confine from the core snap is run"
     test-snapd-sh.sh -c 'echo hello'

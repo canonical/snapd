@@ -56,18 +56,18 @@ execute: |
                              ./pc-kernel_badhook.snap \"$snapd_snap\"")
 
   echo "Wait for reboot"
-  tests.nested wait-for reboot "$boot_id"
+  remote.wait-for reboot "$boot_id"
 
   # For UC16 we get two reboots on install, as both core and kernel are being updated
   if [ "$VERSION" -eq 16 ]; then
       boot_id="$(tests.nested boot-id)"
       echo "Wait for second reboot for UC16"
-      tests.nested wait-for reboot "$boot_id"
+      remote.wait-for reboot "$boot_id"
   fi
 
   boot_id="$(tests.nested boot-id)"
   echo "Wait for reboot after post-refresh hook failure"
-  tests.nested wait-for reboot "$boot_id"
+  remote.wait-for reboot "$boot_id"
 
   boot_id="$(tests.nested boot-id)"
   # wait for change to finish with error

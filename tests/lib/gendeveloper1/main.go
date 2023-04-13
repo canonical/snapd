@@ -71,10 +71,10 @@ func main() {
 		log.Fatalf("failed to decode model headers data: %v", err)
 	}
 
-	assertName, _ := headers["type"]
+	headerType := headers["type"]
 	assertType := asserts.ModelType
-	if assertName == "system-user" {
-		assertType = asserts.SystemUserType
+	if assertTypeStr, ok := headerType.(string); ok {
+		assertType = asserts.Type(assertTypeStr)
 	}
 
 	clModel, err := devSigning.Sign(assertType, headers, nil, "")

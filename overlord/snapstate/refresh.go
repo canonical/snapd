@@ -140,6 +140,11 @@ func (err *BusySnapError) Error() string {
 	}
 }
 
+func (*BusySnapError) Is(err error) bool {
+	_, ok := err.(*BusySnapError)
+	return ok
+}
+
 // Pids returns the set of process identifiers that are running.
 //
 // Since this list is a snapshot it should be only acted upon if there is an

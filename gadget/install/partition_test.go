@@ -185,9 +185,9 @@ var mockLaidoutStructureWritable = gadget.LaidOutStructure{
 		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
 		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
 		// yaml structure (the MBR) that does not appear on disk
-		Offset: asOffsetPtr(1260388352),
+		Offset:    asOffsetPtr(1260388352),
+		YamlIndex: 3,
 	},
-	YamlIndex: 3,
 }
 
 var mockLaidoutStructureSave = gadget.LaidOutStructure{
@@ -213,8 +213,8 @@ var mockLaidoutStructureSave = gadget.LaidOutStructure{
 		Role:       "system-save",
 		Filesystem: "ext4",
 		Offset:     asOffsetPtr(1260388352),
+		YamlIndex:  3,
 	},
-	YamlIndex: 3,
 }
 
 var mockLaidoutStructureWritableAfterSave = gadget.LaidOutStructure{
@@ -241,8 +241,8 @@ var mockLaidoutStructureWritableAfterSave = gadget.LaidOutStructure{
 		Label:      "ubuntu-data",
 		Filesystem: "ext4",
 		Offset:     asOffsetPtr(1394606080),
+		YamlIndex:  4,
 	},
-	YamlIndex: 4,
 }
 
 type uc20Model struct{}
@@ -414,13 +414,13 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 
 	err := gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
+	gInfo, err := gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	err = install.RemoveCreatedPartitions(s.gadgetRoot, pv, dl)
+	err = install.RemoveCreatedPartitions(s.gadgetRoot, gInfo.Volumes["pc"], dl)
 	c.Assert(err, IsNil)
 }
 
@@ -494,10 +494,10 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 
 	err = gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
+	gInfo, err := gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil)
 	c.Assert(err, IsNil)
 
-	err = install.RemoveCreatedPartitions(s.gadgetRoot, pv, dl)
+	err = install.RemoveCreatedPartitions(s.gadgetRoot, gInfo.Volumes["pc"], dl)
 	c.Assert(err, IsNil)
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
@@ -618,10 +618,10 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 	err = ioutil.WriteFile(filepath.Join(s.gadgetRoot, "meta", "force-partition-table-reload-via-device-rescan"), nil, 0755)
 	c.Assert(err, IsNil)
 
-	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
+	gInfo, err := gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil)
 	c.Assert(err, IsNil)
 
-	err = install.RemoveCreatedPartitions(s.gadgetRoot, pv, dl)
+	err = install.RemoveCreatedPartitions(s.gadgetRoot, gInfo.Volumes["pc"], dl)
 	c.Assert(err, IsNil)
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
@@ -759,10 +759,10 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 
 	err = gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContentDifferentOrder)
 	c.Assert(err, IsNil)
-	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
+	gInfo, err := gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil)
 	c.Assert(err, IsNil)
 
-	err = install.RemoveCreatedPartitions(s.gadgetRoot, pv, dl)
+	err = install.RemoveCreatedPartitions(s.gadgetRoot, gInfo.Volumes["pc"], dl)
 	c.Assert(err, IsNil)
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
@@ -954,7 +954,7 @@ func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
 	c.Assert(err, IsNil)
 
-	list := install.CreatedDuringInstall(pv, dl)
+	list := install.CreatedDuringInstall(pv.Volume, dl)
 	// only save and writable should show up
 	c.Check(list, DeepEquals, []string{"/dev/node3", "/dev/node4"})
 }
@@ -1076,6 +1076,6 @@ func (s *partitionTestSuite) TestCreatedDuringInstallMBR(c *C) {
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
-	list := install.CreatedDuringInstall(pv, dl)
+	list := install.CreatedDuringInstall(pv.Volume, dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node3", "/dev/node4"})
 }

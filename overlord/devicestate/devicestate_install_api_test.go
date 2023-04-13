@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -242,19 +243,14 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		if opts.encrypted {
 			c.Check(encSetupData, NotNil)
 
-			// Make sure we "observe" grub from boot partition
-			mockRunBootStruct := &gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Role: gadget.SystemBoot,
-				},
-			}
 			writeChange := &gadget.ContentChange{
 				// file that contains the data of the installed file
 				After: filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/boot/grubx64.efi"),
 				// there is no original file in place
 				Before: "",
 			}
-			action, err := observer.Observe(gadget.ContentWrite, mockRunBootStruct,
+			// We "observe" grub from boot partition
+			action, err := observer.Observe(gadget.ContentWrite, gadget.SystemBoot,
 				filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/"),
 				"EFI/boot/grubx64.efi", writeChange)
 			c.Check(err, IsNil)
@@ -287,7 +283,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	// Insert encryption data when enabled
 	if opts.encrypted {
 		// Mock TPM and sealing
-		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		restore := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
 			c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
 			return nil
 		})
@@ -437,7 +433,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 
 	// Simulate system with TPM
 	if hasTPM {
-		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		restore := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
 			c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
 			return nil
 		})

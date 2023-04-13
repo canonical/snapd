@@ -62,8 +62,7 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 				{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB},
 			},
 		},
-		Size:    3 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Size: 3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{{
 			OnDiskStructure: gadget.OnDiskStructure{
 				Size:        2 * quantity.SizeMiB,
@@ -105,9 +104,8 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    501 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   501 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -116,7 +114,6 @@ volumes:
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[0],
-				YamlIndex:       0,
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -125,7 +122,6 @@ volumes:
 					StartOffset: 401 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[1],
-				YamlIndex:       1,
 			},
 		},
 	})
@@ -169,9 +165,8 @@ volumes:
 		dataFsType = "crypto_LUKS"
 	}
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    502 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   502 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -182,7 +177,6 @@ volumes:
 					PartitionFSLabel: saveFsLabel,
 				},
 				VolumeStructure: &vol.Structure[0],
-				YamlIndex:       0,
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -193,7 +187,6 @@ volumes:
 					PartitionFSLabel: dataFsLabel,
 				},
 				VolumeStructure: &vol.Structure[1],
-				YamlIndex:       1,
 			},
 		},
 	})
@@ -232,9 +225,8 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    1101 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   1101 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -243,7 +235,6 @@ volumes:
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[0],
-				YamlIndex:       0,
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -252,7 +243,6 @@ volumes:
 					StartOffset: 401 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[1],
-				YamlIndex:       1,
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -261,7 +251,6 @@ volumes:
 					StartOffset: 901 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[2],
-				YamlIndex:       2,
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -270,7 +259,6 @@ volumes:
 					StartOffset: 1001 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[3],
-				YamlIndex:       3,
 			},
 		},
 	})
@@ -305,9 +293,8 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    1300 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   1300 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -315,8 +302,7 @@ volumes:
 					Size:        100 * quantity.SizeMiB,
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
-				VolumeStructure: &vol.Structure[3],
-				YamlIndex:       3,
+				VolumeStructure: &vol.Structure[0],
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -325,7 +311,6 @@ volumes:
 					StartOffset: 200 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[1],
-				YamlIndex:       1,
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -333,8 +318,7 @@ volumes:
 					Size:        400 * quantity.SizeMiB,
 					StartOffset: 800 * quantity.OffsetMiB,
 				},
-				VolumeStructure: &vol.Structure[0],
-				YamlIndex:       0,
+				VolumeStructure: &vol.Structure[2],
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -342,8 +326,7 @@ volumes:
 					Size:        100 * quantity.SizeMiB,
 					StartOffset: 1200 * quantity.OffsetMiB,
 				},
-				VolumeStructure: &vol.Structure[2],
-				YamlIndex:       2,
+				VolumeStructure: &vol.Structure[3],
 			},
 		},
 	})
@@ -377,9 +360,8 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    1200 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   1200 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -387,8 +369,7 @@ volumes:
 					Size:        100 * quantity.SizeMiB,
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
-				VolumeStructure: &vol.Structure[3],
-				YamlIndex:       3,
+				VolumeStructure: &vol.Structure[0],
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -397,7 +378,6 @@ volumes:
 					StartOffset: 200 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[1],
-				YamlIndex:       1,
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -406,7 +386,6 @@ volumes:
 					StartOffset: 700 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[2],
-				YamlIndex:       2,
 			},
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -414,8 +393,7 @@ volumes:
 					Size:        400 * quantity.SizeMiB,
 					StartOffset: 800 * quantity.OffsetMiB,
 				},
-				VolumeStructure: &vol.Structure[0],
-				YamlIndex:       0,
+				VolumeStructure: &vol.Structure[3],
 			},
 		},
 	})
@@ -468,9 +446,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    1200 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   1200 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -651,9 +628,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    3 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -707,9 +683,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    3 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -760,9 +735,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    3 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -807,9 +781,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    3 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -855,9 +828,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    2 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   2 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// MBR
@@ -868,7 +840,6 @@ volumes:
 					StartOffset: 0,
 				},
 				VolumeStructure: &vol.Structure[0],
-				YamlIndex:       0,
 			}, {
 				OnDiskStructure: gadget.OnDiskStructure{
 					Name:        "other",
@@ -877,7 +848,6 @@ volumes:
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[1],
-				YamlIndex:       1,
 			},
 		},
 	})
@@ -918,9 +888,8 @@ volumes:
 	v, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:  vol,
-		Size:    3 * quantity.SizeMiB,
-		RootDir: p.dir,
+		Volume: vol,
+		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// mbr
@@ -931,7 +900,6 @@ volumes:
 					StartOffset: 0,
 				},
 				VolumeStructure: &vol.Structure[0],
-				YamlIndex:       0,
 			}, {
 				// foo
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -941,7 +909,6 @@ volumes:
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[1],
-				YamlIndex:       1,
 				// break for gofmt < 1.11
 				AbsoluteOffsetWrite: asOffsetPtr(92),
 				LaidOutContent: []gadget.LaidOutContent{
@@ -962,7 +929,6 @@ volumes:
 					StartOffset: 2 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[2],
-				YamlIndex:       2,
 				// break for gofmt < 1.11
 				AbsoluteOffsetWrite: asOffsetPtr(600),
 				LaidOutContent: []gadget.LaidOutContent{
@@ -1115,7 +1081,6 @@ volumes:
 					StartOffset: 800 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[0],
-				YamlIndex:       0,
 			},
 		},
 	})
@@ -1161,7 +1126,6 @@ volumes:
 			StartOffset: 1 * quantity.OffsetMiB,
 		},
 		VolumeStructure: &vol.Structure[0],
-		YamlIndex:       0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
@@ -1187,7 +1151,6 @@ volumes:
 			StartOffset: 0,
 		},
 		VolumeStructure: &vol.Structure[0],
-		YamlIndex:       0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
@@ -1213,7 +1176,6 @@ volumes:
 			StartOffset: 2 * quantity.OffsetMiB,
 		},
 		VolumeStructure: &vol.Structure[0],
-		YamlIndex:       0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],

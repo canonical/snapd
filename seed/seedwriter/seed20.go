@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -155,6 +155,8 @@ func (pol *policy20) implicitSnaps(map[string]*naming.SnapSet) []*asserts.ModelS
 func (pol *policy20) implicitExtraSnaps(map[string]*naming.SnapSet) []*OptionsSnap {
 	return nil
 }
+
+func (pol *policy20) recordSnapNameUsage(_ string) {}
 
 func (pol *policy20) isSystemSnapCandidate(sn *SeedSnap) bool {
 	if sn.modelSnap != nil {
