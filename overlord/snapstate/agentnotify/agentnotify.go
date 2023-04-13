@@ -59,15 +59,21 @@ func notifyLinkSnap(snapsup *snapstate.SnapSetup) error {
 	// closed an application that had a auto-refresh ready.
 	if snapsup.Flags.IsContinuedAutoRefresh {
 		logger.Debugf("notifying user client about continued refresh for %v", snapsup.InstanceName())
-		// XXX: run this as a go-routine?
-		refreshInfo := &userclient.FinishedSnapRefreshInfo{
-			InstanceName: snapsup.InstanceName(),
-		}
-		client := userclient.New()
-		if err := client.FinishRefreshNotification(context.TODO(), refreshInfo); err != nil {
-			logger.Noticef("cannot send finish refresh notification: %v", err)
-		}
+		sendClientFinishRefreshNotification(snapsup)
 	}
 
 	return nil
+}
+
+var sendClientFinishRefreshNotification = func(snapsup *snapstate.SnapSetup) {
+	refreshInfo := &userclient.FinishedSnapRefreshInfo{
+		InstanceName: snapsup.InstanceName(),
+	}
+	client := userclient.New()
+	// run in a go-routine to avoid potentially slow operation
+	go func() {
+		if err := client.FinishRefreshNotification(context.TODO(), refreshInfo); err != nil {
+			logger.Noticef("cannot send finish refresh notification: %v", err)
+		}
+	}()
 }
