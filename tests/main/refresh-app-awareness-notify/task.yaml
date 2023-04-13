@@ -12,26 +12,27 @@ restore: |
 execute: |
     # setup test snap and make sure an app keeps it busy
     
-    # XXX: replace with a proper test snap
-    snap install wormhole
-    wormhole recieve 4273847392423434 &
-    PID=$!
-    snap switch --edge wormhole
+    snap install test-snapd-sh
+    test-snapd-sh.sh -c 'exec sleep infinity' &
+    PID="$!"
+    # Note that this relies on having different revisions between
+    # test-snapd-sh stable and edge (but other tests require this too)
+    snap switch --edge test-snapd-sh
 
     # trigger auto-refresh
     # XXX: do we need this?
     snap unset system refresh.hold
-    snap set system refresh.timer=$(date -d "1 min" +%H:%M)
+    snap set system refresh.timer="$(date -d '1 min' +%H:%M)"
     i=0
     while [ $i -lt 12 ]; do
         sleep 10
         snap debug ensure-state-soon
-        if journalctl -u snapd | grep "notifying agents about pending refresh for snap wormhole"; then
+        if journalctl -u snapd | grep "notifying agents about pending refresh for snap test-snapd-sh"; then
             break
         fi
         i=$((i+1))
     done
-    journalctl -u snapd | MATCH "notifying agents about pending refresh for snap wormhole"
+    journalctl -u snapd | MATCH "notifying agents about pending refresh for snap test-snapd-sh"
 
     # exit wormhole, this should trigger the refresh right away
     kill "$PID"
@@ -39,9 +40,9 @@ execute: |
     i=0
     while [ $i -lt 12 ]; do
         sleep 10
-        if journalctl -u snapd | grep "notifying user client about continued refresh for wormhole"; then
+        if journalctl -u snapd | grep "notifying user client about continued refresh for test-snapd-sh"; then
             break
         fi
         i=$((i+1))
     done
-    journalctl -u snapd | MATCH "notifying user client about continued refresh for wormhole"
+    journalctl -u snapd | MATCH "notifying user client about continued refresh for test-snapd-sh"
