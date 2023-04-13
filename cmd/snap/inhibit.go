@@ -120,22 +120,26 @@ var tryNotifyRefreshViaSnapDesktopIntegrationFlow = func(snapName string) (bool,
 }
 
 func graphicalSessionFlow(snapName string, hint runinhibit.Hint) error {
-	refreshInfo := client.PendingSnapRefreshInfo{
-		InstanceName: snapName,
-		// Remaining time = 0 results in "Snap .. is refreshing now" message from
-		// usersession agent.
-		TimeRemaining: 0,
-	}
+	// TODO: review this code once we have a proper UX review
+	/*
+		refreshInfo := client.PendingSnapRefreshInfo{
+			InstanceName: snapName,
+			// Remaining time = 0 results in "Snap .. is refreshing now" message from
+			// usersession agent.
+			TimeRemaining: 0,
+		}
 
-	if err := pendingRefreshNotification(&refreshInfo); err != nil {
-		return err
-	}
-	if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited); err != nil {
-		return err
-	}
+		if err := pendingRefreshNotification(&refreshInfo); err != nil {
+			return err
+		}
+		if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited); err != nil {
+			return err
+		}
 
-	finishRefreshInfo := client.FinishedSnapRefreshInfo{InstanceName: snapName}
-	return finishRefreshNotification(&finishRefreshInfo)
+			finishRefreshInfo := client.FinishedSnapRefreshInfo{InstanceName: snapName}
+			return finishRefreshNotification(&finishRefreshInfo)
+	*/
+	return nil
 }
 
 func textFlow(snapName string, hint runinhibit.Hint) error {
