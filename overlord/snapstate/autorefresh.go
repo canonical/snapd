@@ -652,6 +652,17 @@ func (m *autoRefresh) launchAutoRefresh(overrideDelay bool) error {
 	chg.Set("snap-names", updated)
 	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
 	state.TagTimingsWithChange(perfTimings, chg)
+	if overrideDelay {
+		go func() {
+			clientT := userclient.New()
+			changeInfo := userclient.ChangeNotifyInfo{
+				ChangeId:   chg.ID(),
+				ChangeType: "delayed-auto-refresh",
+				ChangeKind: chg.Kind(),
+			}
+			clientT.ChangeNotification(context.TODO(), changeInfo)
+		}()
+	}
 
 	return nil
 }

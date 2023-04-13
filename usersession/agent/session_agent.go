@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/introspect"
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
@@ -42,14 +43,22 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
+type dbusInterface interface {
+	Interface() string
+	ObjectPath() dbus.ObjectPath
+	IntrospectionData() string
+}
+
 type SessionAgent struct {
 	Version         string
 	bus             *dbus.Conn
+	dbusIfaces      []dbusInterface
 	listener        net.Listener
 	serve           *http.Server
 	tomb            tomb.Tomb
 	router          *mux.Router
 	notificationMgr notification.NotificationManager
+	dbusServer      SnapChanges
 
 	idle        *idleTracker
 	IdleTimeout time.Duration
@@ -186,7 +195,20 @@ func (s *SessionAgent) Init() error {
 	// Set up notification manager
 	// Note that session bus may be nil, see the comment in tryConnectSessionBus.
 	if s.bus != nil {
+		s.dbusServer = SnapChanges{s.bus}
 		s.notificationMgr = notification.NewNotificationManager(s.bus, "io.snapcraft.SessionAgent")
+		s.dbusIfaces = []dbusInterface{
+			&s.dbusServer,
+		}
+		for _, iface := range s.dbusIfaces {
+			// export the interfaces at the godbus API level first to avoid
+			// the race between being able to handle a call to an interface
+			// at the object level and the actual well-known object name
+			// becoming available on the bus
+			xml := "<node>" + iface.IntrospectionData() + introspect.IntrospectDataString + "</node>"
+			s.bus.Export(iface, iface.ObjectPath(), iface.Interface())
+			s.bus.Export(introspect.Introspectable(xml), iface.ObjectPath(), "org.freedesktop.DBus.Introspectable")
+		}
 	}
 
 	agentSocket := fmt.Sprintf("%s/%d/snapd-session-agent.socket", dirs.XdgRuntimeDirBase, os.Getuid())

@@ -34,6 +34,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/godbus/dbus"
 	"github.com/snapcore/snapd/dirs"
 )
 
@@ -339,5 +340,24 @@ func (client *Client) FinishRefreshNotification(ctx context.Context, closeInfo *
 		return err
 	}
 	_, err = client.doMany(ctx, "POST", "/v1/notifications/finish-refresh", nil, headers, reqBody)
+	return err
+}
+
+// ChangeNotifyInfo holds information about a refresh notification
+type ChangeNotifyInfo struct {
+	ChangeId   string                  `json:"change-id"`
+	ChangeType string                  `json:"change-type"`
+	ChangeKind string                  `json:"change-kind"`
+	ExtraData  map[string]dbus.Variant `json:"extra-data"`
+}
+
+// ChangeNotification notifies that a new change has been added
+func (client *Client) ChangeNotification(ctx context.Context, changeInfo ChangeNotifyInfo) error {
+	headers := map[string]string{"Content-Type": "application/json"}
+	reqBody, err := json.Marshal(changeInfo)
+	if err != nil {
+		return err
+	}
+	_, err = client.doMany(ctx, "POST", "/v1/notifications/notify-change", nil, headers, reqBody)
 	return err
 }

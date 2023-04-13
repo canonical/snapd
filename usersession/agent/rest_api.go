@@ -44,6 +44,7 @@ var restApi = []*Command{
 	serviceControlCmd,
 	pendingRefreshNotificationCmd,
 	finishRefreshNotificationCmd,
+	triggerChangeNotification,
 }
 
 var (
@@ -70,6 +71,11 @@ var (
 	finishRefreshNotificationCmd = &Command{
 		Path: "/v1/notifications/finish-refresh",
 		POST: postRefreshFinishedNotification,
+	}
+
+	triggerChangeNotification = &Command{
+		Path: "/v1/notifications/notify-change",
+		POST: postNotifyChange,
 	}
 )
 
@@ -342,6 +348,40 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 			Status: 500,
 			Result: &errorResult{
 				Message: fmt.Sprintf("cannot send notification message: %v", err),
+			},
+		})
+	}
+	return SyncResponse(nil)
+}
+
+func postNotifyChange(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	var changeNotify client.ChangeNotifyInfo
+	if err := decoder.Decode(&changeNotify); err != nil {
+		return BadRequest("cannot decode request body into change notification info: %v", err)
+	}
+
+	// Note that since the connection is shared, we are not closing it.
+	if c.s.bus == nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "cannot connect to the session bus",
+			},
+		})
+	}
+	if err := c.s.dbusServer.EmitChange(changeNotify.ChangeId, changeNotify.ChangeType, changeNotify.ChangeKind, changeNotify.ExtraData); err != nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: fmt.Sprintf("cannot send close notification message: %v", err),
 			},
 		})
 	}

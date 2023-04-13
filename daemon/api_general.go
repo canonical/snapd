@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
@@ -324,12 +325,15 @@ type changeInfo struct {
 }
 
 type taskInfo struct {
-	ID       string           `json:"id"`
-	Kind     string           `json:"kind"`
-	Summary  string           `json:"summary"`
-	Status   string           `json:"status"`
-	Log      []string         `json:"log,omitempty"`
-	Progress taskInfoProgress `json:"progress"`
+	ID           string           `json:"id"`
+	Kind         string           `json:"kind"`
+	SnapName     string           `json:"snap-name,omitempty"`
+	InstanceName string           `json:"instance-name,omitempty"`
+	Revision     string           `json:"revision,omitempty"`
+	Summary      string           `json:"summary"`
+	Status       string           `json:"status"`
+	Log          []string         `json:"log,omitempty"`
+	Progress     taskInfoProgress `json:"progress"`
 
 	SpawnTime time.Time  `json:"spawn-time,omitempty"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
@@ -377,6 +381,12 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 				Total: total,
 			},
 			SpawnTime: t.SpawnTime(),
+		}
+		snapsup, err := snapstate.TaskSnapSetup(t)
+		if err == nil {
+			taskInfo.SnapName = snapsup.SnapName()
+			taskInfo.InstanceName = snapsup.InstanceName()
+			taskInfo.Revision = snapsup.Revision().String()
 		}
 		readyTime := t.ReadyTime()
 		if !readyTime.IsZero() {
