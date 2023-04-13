@@ -339,7 +339,56 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 	return nil
 }
 
-func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
+func (tr *tree20) writeAuxInfo(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
+	auxInfos := make(map[string]*internal.AuxInfo20)
+
+	addAuxInfos := func(seedSnaps []*SeedSnap) {
+		for _, sn := range seedSnaps {
+			if sn.Info.ID() != "" {
+				if len(sn.Info.Links()) != 0 || sn.Info.Private {
+					auxInfos[sn.Info.ID()] = &internal.AuxInfo20{
+						Private: sn.Info.Private,
+						Links:   sn.Info.Links(),
+						Contact: sn.Info.Contact(),
+					}
+				}
+			}
+		}
+	}
+
+	addAuxInfos(snapsFromModel)
+	addAuxInfos(extraSnaps)
+
+	if len(auxInfos) == 0 {
+		// nothing to do
+		return nil
+	}
+
+	if _, err := tr.ensureSystemSnapsDir(); err != nil {
+		return err
+	}
+
+	f, err := os.OpenFile(filepath.Join(tr.systemDir, "snaps", "aux-info.json"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	return enc.Encode(auxInfos)
+}
+
+func (tr *tree20) writeMetaOptions(metaOpts *internal.MetaOptions) error {
+	metaOptsPath := filepath.Join(tr.systemDir, "meta-opts.json")
+	f, err := os.OpenFile(metaOptsPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	return enc.Encode(metaOpts)
+}
+
+func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap, metaOpts *internal.MetaOptions) error {
 	var optionsSnaps []*internal.Snap20
 
 	for _, sn := range snapsFromModel {
@@ -391,42 +440,11 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 		}
 	}
 
-	auxInfos := make(map[string]*internal.AuxInfo20)
-
-	addAuxInfos := func(seedSnaps []*SeedSnap) {
-		for _, sn := range seedSnaps {
-			if sn.Info.ID() != "" {
-				if len(sn.Info.Links()) != 0 || sn.Info.Private {
-					auxInfos[sn.Info.ID()] = &internal.AuxInfo20{
-						Private: sn.Info.Private,
-						Links:   sn.Info.Links(),
-						Contact: sn.Info.Contact(),
-					}
-				}
-			}
-		}
-	}
-
-	addAuxInfos(snapsFromModel)
-	addAuxInfos(extraSnaps)
-
-	if len(auxInfos) == 0 {
-		// nothing to do
-		return nil
-	}
-
-	if _, err := tr.ensureSystemSnapsDir(); err != nil {
+	if err := tr.writeAuxInfo(snapsFromModel, extraSnaps); err != nil {
 		return err
 	}
 
-	f, err := os.OpenFile(filepath.Join(tr.systemDir, "snaps", "aux-info.json"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	enc := json.NewEncoder(f)
-
-	if err := enc.Encode(auxInfos); err != nil {
+	if err := tr.writeMetaOptions(metaOpts); err != nil {
 		return err
 	}
 

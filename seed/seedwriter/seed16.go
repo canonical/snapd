@@ -20,6 +20,7 @@
 package seedwriter
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -261,7 +262,18 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 	return nil
 }
 
-func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
+func (tr *tree16) writeMetaOptions(metaOpts *internal.MetaOptions) error {
+	metaOptsPath := filepath.Join(tr.opts.SeedDir, "meta-opts.json")
+	f, err := os.OpenFile(metaOptsPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	return enc.Encode(metaOpts)
+}
+
+func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap, metaOpts *internal.MetaOptions) error {
 	var seedYaml internal.Seed16
 
 	seedSnaps := make(seedSnapsByType, len(snapsFromModel)+len(extraSnaps))
@@ -296,6 +308,10 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	seedFn := filepath.Join(tr.opts.SeedDir, "seed.yaml")
 	if err := seedYaml.Write(seedFn); err != nil {
 		return fmt.Errorf("cannot write seed.yaml: %v", err)
+	}
+
+	if err := tr.writeMetaOptions(metaOpts); err != nil {
+		return fmt.Errorf("cannot write meta-opts.json: %v", err)
 	}
 
 	return nil

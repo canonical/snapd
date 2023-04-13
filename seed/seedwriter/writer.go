@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -257,7 +258,7 @@ type tree interface {
 
 	writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
 
-	writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
+	writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap, metaOpts *internal.MetaOptions) error
 }
 
 // New returns a Writer to write a seed for the given model and using
@@ -466,9 +467,23 @@ func IsSytemDirectoryExistsError(err error) bool {
 	return ok
 }
 
+func (w *Writer) overrideValidationSetOptions(seq *asserts.AtSequence) {
+	// if any restrictions has been set on a given validation
+	// set, then use that
+	for _, vs := range w.manifest.AllowedValidationSets() {
+		if vs.AccountID == seq.SequenceKey[1] && vs.Name == seq.SequenceKey[2] {
+			seq.Sequence = vs.Sequence
+			seq.Pinned = vs.Pinned
+			return
+		}
+	}
+}
+
 func (w *Writer) fetchValidationSets(f SeedAssertionFetcher) error {
 	for _, vs := range w.model.ValidationSets() {
-		if err := f.FetchSequence(vs.AtSequence()); err != nil {
+		atSeq := vs.AtSequence()
+		w.overrideValidationSetOptions(atSeq)
+		if err := f.FetchSequence(atSeq); err != nil {
 			return err
 		}
 	}
@@ -1240,15 +1255,30 @@ func (w *Writer) resolveValidationSetAssertion(seq *asserts.AtSequence) (asserts
 	return seq.Resolve(w.db.Find)
 }
 
-func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
-	valsets := snapasserts.NewValidationSets()
+func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.ValidationSet, error) {
+	vsasserts := make(map[*asserts.AtSequence]*asserts.ValidationSet)
 	vss := w.model.ValidationSets()
 	for _, vs := range vss {
-		a, err := w.resolveValidationSetAssertion(vs.AtSequence())
+		atSeq := vs.AtSequence()
+		w.overrideValidationSetOptions(atSeq)
+		a, err := w.resolveValidationSetAssertion(atSeq)
 		if err != nil {
 			return nil, fmt.Errorf("internal error: cannot resolve validation-set: %v", err)
 		}
-		valsets.Add(a.(*asserts.ValidationSet))
+		vsasserts[atSeq] = a.(*asserts.ValidationSet)
+	}
+	return vsasserts, nil
+}
+
+func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
+	vss, err := w.validationSetAsserts()
+	if err != nil {
+		return nil, err
+	}
+
+	valsets := snapasserts.NewValidationSets()
+	for _, vs := range vss {
+		valsets.Add(vs)
 	}
 	return valsets, nil
 }
@@ -1361,13 +1391,45 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 	return nil
 }
 
+func (w *Writer) markValidationSetsSeeded(vsm map[*asserts.AtSequence]*asserts.ValidationSet) error {
+	for seq, vs := range vsm {
+		w.manifest.MarkValidationSetSeeded(vs, seq.Pinned)
+	}
+	return nil
+}
+
+func (w *Writer) metaOptions(vsm map[*asserts.AtSequence]*asserts.ValidationSet) *internal.MetaOptions {
+	metaOpts := &internal.MetaOptions{}
+
+	// Fill in the validation set tracking options
+	for seq := range vsm {
+		if metaOpts.VsTrackingOpts == nil {
+			metaOpts.VsTrackingOpts = make(map[string]*internal.ValidationSetTrackingOptions)
+		}
+		metaOpts.VsTrackingOpts[seq.Unique()] = &internal.ValidationSetTrackingOptions{
+			Pinned: seq.Pinned,
+		}
+	}
+	return metaOpts
+}
+
 // WriteMeta writes seed metadata and assertions into the seed.
 func (w *Writer) WriteMeta() error {
 	if err := w.checkStep(writeMetaStep); err != nil {
 		return err
 	}
 
+	vsm, err := w.validationSetAsserts()
+	if err != nil {
+		return err
+	}
+
+	metaOpts := w.metaOptions(vsm)
 	if w.opts.ManifestPath != "" {
+		if err := w.markValidationSetsSeeded(vsm); err != nil {
+			return err
+		}
+
 		if err := w.manifest.Write(w.opts.ManifestPath); err != nil {
 			return err
 		}
@@ -1380,7 +1442,7 @@ func (w *Writer) WriteMeta() error {
 		return err
 	}
 
-	return w.tree.writeMeta(snapsFromModel, extraSnaps)
+	return w.tree.writeMeta(snapsFromModel, extraSnaps, metaOpts)
 }
 
 // query accessors
