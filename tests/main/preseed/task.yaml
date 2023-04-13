@@ -9,7 +9,6 @@ systems: [ubuntu-2*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
-  LXD_BASE_SNAP: core20
 
 prepare: |
   # shellcheck source=tests/lib/image.sh
@@ -39,6 +38,11 @@ restore: |
   umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
 
 execute: |
+  LXD_BASE_SNAP=core20
+  if os.query is-ubuntu-gt 22.04; then
+      LXD_BASE_SNAP=core22
+  fi
+
   echo "Checking missing chroot path arg error"
   /usr/lib/snapd/snap-preseed 2>&1 | MATCH "error: need chroot path as argument"
 
