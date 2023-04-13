@@ -621,5 +621,13 @@ func (s *restSuite) TestPostCloseRefreshNotification(c *C) {
 	closeInfo := &client.FinishedSnapRefreshInfo{InstanceName: "some-snap"}
 	s.testPostFinishRefreshNotificationBody(c, closeInfo)
 	notifications := s.notify.GetAll()
-	c.Assert(notifications, HasLen, 0)
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	// boring stuff is checked above
+	c.Check(n.Summary, Equals, `"some-snap" snap has been refreshed`)
+	c.Check(n.Body, Equals, "It is now available to launch")
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.LowUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
+	})
 }

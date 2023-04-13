@@ -324,14 +324,24 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
-	// XXX: instead of closing the open notifications show a notification
-	// that just says that the snap is now ready to use?
-	if err := c.s.notificationMgr.CloseNotification(notification.ID(finishRefresh.InstanceName)); err != nil {
+	summary := fmt.Sprintf(i18n.G("%q snap has been refreshed"), finishRefresh.InstanceName)
+	body := i18n.G("It is now available to launch")
+	hints := []notification.Hint{
+		notification.WithDesktopEntry("io.snapcraft.SessionAgent"),
+		notification.WithUrgency(notification.LowUrgency),
+	}
+
+	msg := &notification.Message{
+		Title: summary,
+		Body:  body,
+		Hints: hints,
+	}
+	if err := c.s.notificationMgr.SendNotification(notification.ID(finishRefresh.InstanceName), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,
 			Result: &errorResult{
-				Message: fmt.Sprintf("cannot send close notification message: %v", err),
+				Message: fmt.Sprintf("cannot send notification message: %v", err),
 			},
 		})
 	}
