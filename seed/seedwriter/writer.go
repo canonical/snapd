@@ -650,6 +650,7 @@ func (w *Writer) SetRedirectChannel(sn *SeedSnap, redirectChannel string) error 
 
 }
 
+// SeedManifest returns the manifest for the current seed.
 func (w *Writer) SeedManifest() *SeedManifest {
 	return w.manifest
 }
