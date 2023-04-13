@@ -43,6 +43,7 @@ var restApi = []*Command{
 	sessionInfoCmd,
 	serviceControlCmd,
 	pendingRefreshNotificationCmd,
+	finishRefreshNotificationCmd,
 }
 
 var (
