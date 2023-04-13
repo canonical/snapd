@@ -66,6 +66,8 @@ const blockDevicesConnectedPlugAppArmor = `
 /dev/i2o/hdd[a-x] rwk,                                     # I2O hard disk continued
 /dev/mmcblk[0-9]{,[0-9],[0-9][0-9]} rwk,                   # MMC (up to 1000 devices)
 /dev/vd[a-z] rwk,                                          # virtio
+/dev/loop[0-9]{,[0-9],[0-9][0-9]} rwk,                     # loopback (up to 1000 devices)
+/dev/loop-control rw,                                      # loopback control
 
 # Allow /dev/nvmeXnY namespace block devices. Please note this grants access to all
 # NVMe namespace block devices and that the numeric suffix on the character device
