@@ -73,7 +73,7 @@ build_deb(){
     fi
 
     unshare -n -- \
-            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
 }
@@ -358,7 +358,7 @@ prepare_project() {
         tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git .
 
         # and build a source package - this will be used during the sbuild test
-        dpkg-buildpackage -S --no-sign
+        dpkg-buildpackage -S -uc -us
     fi
 
     # so is ubuntu-14.04
