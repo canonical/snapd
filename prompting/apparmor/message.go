@@ -186,7 +186,7 @@ func (msg *MsgNotificationFilter) Validate() error {
 //	  struct apparmor_notif_common base;
 //	  __u16 ntype;        /* notify type */
 //	  __u8 signalled;
-//	  __u8 reserved;
+//	  __u8 flags;
 //	  __u64 id;           /* unique id, not globally unique*/
 //	  __s32 error;        /* error if unchanged */
 //	} __attribute__((packed));
@@ -197,8 +197,8 @@ type MsgNotification struct {
 	NotificationType NotificationType
 	// XXX: Signaled seems to be unused.
 	Signalled uint8
-	// XXX: Reserved seems to be unused.
-	Reserved uint8
+	// Set to 1 to NOT cache
+	Flags uint8
 	// ID is an opaque kernel identifier of the notification message. It must be
 	// repeated in the MsgNotificationResponse if one is sent back.
 	ID uint64
@@ -281,8 +281,8 @@ func ResponseForRequest(req *MsgNotification) MsgNotificationResponse {
 			// XXX: should Signalled be copied?
 			Signalled: req.Signalled,
 			// XXX: should Reserved be copied?
-			Reserved: req.Reserved,
-			ID:       req.ID,
+			Flags: req.Flags,
+			ID:    req.ID,
 			// XXX: should Error be copied?
 			Error: req.Error,
 		},
