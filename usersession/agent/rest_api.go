@@ -249,7 +249,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	var body, icon string
 	var hints []notification.Hint
 
-	plzClose := i18n.G("Close the app to avoid disruptions")
+	plzClose := i18n.G("Close the app to update now")
 	if daysLeft := int(refreshInfo.TimeRemaining.Truncate(time.Hour).Hours() / 24); daysLeft > 0 {
 		urgencyLevel = notification.LowUrgency
 		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
