@@ -325,7 +325,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 	}
 
 	summary := fmt.Sprintf(i18n.G("%q snap has been refreshed"), finishRefresh.InstanceName)
-	body := i18n.G("It is now available to launch")
+	body := i18n.G("Now available to launch")
 	hints := []notification.Hint{
 		notification.WithDesktopEntry("io.snapcraft.SessionAgent"),
 		notification.WithUrgency(notification.LowUrgency),
