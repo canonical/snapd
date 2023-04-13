@@ -50,7 +50,7 @@ type Options struct {
 	// Manifest is used to track snaps and validation sets that have
 	// been seeded. It can be pre-provided to provide specific revisions
 	// and validation-sets sequences.
-	Manifest *SeedManifest
+	Manifest *Manifest
 	// ManifestPath if set, specifies the file path where the
 	// seed.manifest file should be written.
 	ManifestPath string
@@ -207,7 +207,7 @@ type Writer struct {
 	systemSnap                      *SeedSnap
 	kernelSnap                      *SeedSnap
 	noKernelSnap                    bool
-	manifest                        *SeedManifest
+	manifest                        *Manifest
 	manifestPath                    string
 }
 
@@ -298,9 +298,9 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 	return w, nil
 }
 
-func initManifestFromOptions(opts *Options) *SeedManifest {
+func initManifestFromOptions(opts *Options) *Manifest {
 	if opts.Manifest == nil {
-		return NewSeedManifest()
+		return NewManifest()
 	}
 	return opts.Manifest
 }
@@ -650,8 +650,8 @@ func (w *Writer) SetRedirectChannel(sn *SeedSnap, redirectChannel string) error 
 
 }
 
-// SeedManifest returns the manifest for the current seed.
-func (w *Writer) SeedManifest() *SeedManifest {
+// Manifest returns the manifest for the current seed.
+func (w *Writer) Manifest() *Manifest {
 	return w.manifest
 }
 
