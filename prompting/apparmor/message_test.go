@@ -155,7 +155,7 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 	msg := apparmor.MsgNotification{
 		NotificationType: apparmor.Response,
 		Signalled:        1,
-		Reserved:         0,
+		Flags:            0,
 		ID:               0x1234,
 		Error:            0xFF,
 	}
@@ -238,7 +238,7 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 		MsgNotification: apparmor.MsgNotification{
 			NotificationType: 0x11,
 			Signalled:        0x22,
-			Reserved:         0x33,
+			Flags:            0x33,
 			ID:               0x44,
 			Error:            0x55,
 		},
