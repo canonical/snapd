@@ -482,7 +482,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationFewDays(c *C) {
 	n := notifications[0]
 	// boring stuff is checked above
 	c.Check(n.Summary, Equals, `Pending update of "pkg" snap`)
-	c.Check(n.Body, Equals, "Close the app to avoid disruptions (3 days left)")
+	c.Check(n.Body, Equals, "Close the app to update now (3 days left)")
 	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
 		"urgency":       dbus.MakeVariant(byte(notification.LowUrgency)),
 		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
@@ -500,7 +500,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationFewHours(c *C) {
 	n := notifications[0]
 	// boring stuff is checked above
 	c.Check(n.Summary, Equals, `Pending update of "pkg" snap`)
-	c.Check(n.Body, Equals, "Close the app to avoid disruptions (7 hours left)")
+	c.Check(n.Body, Equals, "Close the app to update now (7 hours left)")
 	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
 		"urgency":       dbus.MakeVariant(byte(notification.NormalUrgency)),
 		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
@@ -518,7 +518,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationFewMinutes(c *C) {
 	n := notifications[0]
 	// boring stuff is checked above
 	c.Check(n.Summary, Equals, `Pending update of "pkg" snap`)
-	c.Check(n.Body, Equals, "Close the app to avoid disruptions (15 minutes left)")
+	c.Check(n.Body, Equals, "Close the app to update now (15 minutes left)")
 	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
 		"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
 		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
