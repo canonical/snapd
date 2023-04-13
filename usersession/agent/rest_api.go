@@ -372,7 +372,7 @@ func postBeginDeferredRefreshNotification(c *Command, r *http.Request) Response 
 	})
 }
 
-// This function sends a standard desktop notification using the DBus API for notifications.
+// sendDesktopStandardNotification sends a standard desktop notification using the DBus API for notifications.
 func sendDesktopStandardNotification(notificationMgr notification.NotificationManager, refreshInfo userclient.BeginDeferredRefreshNotificationInfo, summary string, body string) {
 	var icon string
 	var hints []notification.Hint
