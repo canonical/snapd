@@ -155,9 +155,17 @@ func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]inte
 			err = iface.validateUDevValue(value)
 			if err == nil {
 				deviceName := value.(string)
-				// furthermore, the kernel name must match the name of one of
-				// the given devices
-				if !strutil.ListContains(devices, "/dev/"+deviceName) {
+				// furthermore, the kernel name must match the basename of one
+				// of the given devices
+				foundMatch := false
+				for _, devicePath := range devices {
+					deviceBasename := devicePath[strings.LastIndex(devicePath, "/")+1:]
+					if deviceName == deviceBasename {
+						foundMatch = true
+						break
+					}
+				}
+				if !foundMatch {
 					err = fmt.Errorf(`%q does not match a specified device`, deviceName)
 				}
 			}
