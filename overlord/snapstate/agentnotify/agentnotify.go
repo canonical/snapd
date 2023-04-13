@@ -51,7 +51,6 @@ func notifyAgentOnLinkageChange(st *state.State, snapsup *snapstate.SnapSetup) e
 	} else {
 		return notifyUnlinkSnap(snapsup)
 	}
-	return nil
 }
 
 func notifyUnlinkSnap(snapsup *snapstate.SnapSetup) error {
