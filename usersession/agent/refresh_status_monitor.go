@@ -37,15 +37,9 @@ import (
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
-// notifyRefreshToSnapDesktopIntegration interacts with snapd-desktop-integration daemon, to show or hide
-// a progress dialog.
-func notifyRefreshToSnapDesktopIntegration(snapName string, desktopEntry string, operation NotifyRefreshOperation) error {
-	// Check if Snapd-Desktop-Integration is available
-	conn, err := dbusutil.SessionBus()
-	if err != nil {
-		return fmt.Errorf("unable to connect dbus session: %v", err)
-	}
-	obj := conn.Object("io.snapcraft.SnapDesktopIntegration", "/io/snapcraft/SnapDesktopIntegration")
+// notifyRefreshExtraParams parses a desktop file and extract extra parameters
+// for a standard desktop notification
+func notifyRefreshExtraParams(desktopEntry string) map[string]dbus.Variant {
 	extraParams := make(map[string]dbus.Variant)
 	if desktopEntry != "" {
 		parser := goconfigparser.New()
@@ -55,6 +49,19 @@ func notifyRefreshToSnapDesktopIntegration(snapName string, desktopEntry string,
 			extraParams["icon_image"] = dbus.MakeVariant(icon)
 		}
 	}
+	return extraParams
+}
+
+// notifyRefreshToSnapDesktopIntegration interacts with snapd-desktop-integration daemon, to show or hide
+// a progress dialog.
+func notifyRefreshToSnapDesktopIntegration(snapName string, desktopEntry string, operation NotifyRefreshOperation) error {
+	// Check if Snapd-Desktop-Integration is available
+	conn, err := dbusutil.SessionBus()
+	if err != nil {
+		return fmt.Errorf("unable to connect dbus session: %v", err)
+	}
+	obj := conn.Object("io.snapcraft.SnapDesktopIntegration", "/io/snapcraft/SnapDesktopIntegration")
+	extraParams := notifyRefreshExtraParams(desktopEntry)
 	if operation == DestroyNotification {
 		err = obj.Call("io.snapcraft.SnapDesktopIntegration.ApplicationRefreshCompleted", 0, snapName, extraParams).Store()
 	} else {
