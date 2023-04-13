@@ -37,7 +37,7 @@ import (
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
-// This function interacts with snapd-desktop-integration daemon, to show or hide
+// notifyRefreshToSnapDesktopIntegration interacts with snapd-desktop-integration daemon, to show or hide
 // a progress dialog.
 func notifyRefreshToSnapDesktopIntegration(snapName string, desktopEntry string, operation NotifyRefreshOperation) error {
 	// Check if Snapd-Desktop-Integration is available
