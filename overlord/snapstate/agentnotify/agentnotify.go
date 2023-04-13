@@ -46,30 +46,10 @@ func notifyAgentOnLinkageChange(st *state.State, snapsup *snapstate.SnapSetup) e
 		return nil
 	}
 
+	// the only use-case right now is snaps going from inactive->active
+	// for continued-auto-refreshes
 	if snapst.Active {
 		return notifyLinkSnap(snapsup)
-	} else {
-		return notifyUnlinkSnap(snapsup)
-	}
-}
-
-func notifyUnlinkSnap(snapsup *snapstate.SnapSetup) error {
-	// Note that we only show a notification here if the refresh was
-	// triggered by a "continued-auto-refresh", i.e. when the user
-	// closed an application that had a auto-refresh ready.
-	if snapsup.Flags.IsContinuedAutoRefresh {
-		logger.Debugf("notifying user client about start of refresh for %v", snapsup.InstanceName())
-		// XXX: run this as a go-routine?
-		refreshInfo := &userclient.PendingSnapRefreshInfo{
-			InstanceName: snapsup.InstanceName(),
-			// Remaining time = 0 results in "Snap .. is refreshing now" message from
-			// usersession agent.
-			TimeRemaining: 0,
-		}
-		client := userclient.New()
-		if err := client.PendingRefreshNotification(context.TODO(), refreshInfo); err != nil {
-			logger.Noticef("cannot send pending refresh notification: %v", err)
-		}
 	}
 	return nil
 }
