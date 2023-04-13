@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -46,6 +47,7 @@ import (
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
@@ -200,29 +202,77 @@ func generateInitramfsMounts() (err error) {
 	return nil
 }
 
+func canInstallAndRunAtOnce(mst *initramfsMountsState) (bool, error) {
+	currentSeed, err := mst.LoadSeed(mst.recoverySystem)
+	if err != nil {
+		return false, err
+	}
+	preseedSeed, ok := currentSeed.(seed.PreseedCapable)
+	if !ok {
+		return false, nil
+	}
+
+	// TODO: relax this condition when "install and run" well tested
+	if !preseedSeed.HasArtifact("preseed.tgz") {
+		return false, nil
+	}
+
+	// If kernel has fde-setup hook, then we should also have fde-setup in initramfs
+	kernelPath := filepath.Join(boot.InitramfsRunMntDir, "kernel")
+	kernelHasFdeSetup := osutil.FileExists(filepath.Join(kernelPath, "meta", "hooks", "fde-setup"))
+	_, fdeSetupErr := exec.LookPath("fde-setup")
+	if kernelHasFdeSetup && fdeSetupErr != nil {
+		return false, nil
+	}
+
+	gadgetPath := filepath.Join(boot.InitramfsRunMntDir, "gadget")
+	if osutil.FileExists(filepath.Join(gadgetPath, "meta", "hooks", "install-device")) {
+		return false, nil
+	}
+
+	// TODO: when install in initrd is finished and it is tested
+	// without fde hook, turn the return into...
+	// return true, nil
+	return kernelHasFdeSetup, nil
+}
+
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with recover mode
-	model, snaps, err := generateMountsCommonInstallRecover(mst)
+	model, snaps, err := generateMountsCommonInstallRecoverStart(mst)
 	if err != nil {
 		return err
 	}
 
-	// 3. final step: write modeenv to tmpfs data dir and disable cloud-init in
-	//   install mode
-	modeEnv, err := mst.EphemeralModeenvForModel(model, snaps)
+	installAndRun, err := canInstallAndRunAtOnce(mst)
 	if err != nil {
 		return err
 	}
-	isRunMode := false
-	if err := modeEnv.WriteTo(boot.InitramfsWritableDir(model, isRunMode)); err != nil {
-		return err
-	}
 
-	// done, no output, no error indicates to initramfs we are done with
-	// mounting stuff
-	return nil
+	if installAndRun {
+		// TODO: implement install in initrd
+		return fmt.Errorf("install in initrd not implemented yet")
+	} else {
+		if err := generateMountsCommonInstallRecoverContinue(mst, model, snaps); err != nil {
+			return err
+		}
+
+		// 3. final step: write modeenv to tmpfs data dir and disable cloud-init in
+		//   install mode
+		modeEnv, err := mst.EphemeralModeenvForModel(model, snaps)
+		if err != nil {
+			return err
+		}
+		isRunMode := false
+		if err := modeEnv.WriteTo(boot.InitramfsWritableDir(model, isRunMode)); err != nil {
+			return err
+		}
+
+		// done, no output, no error indicates to initramfs we are done with
+		// mounting stuff
+		return nil
+	}
 }
 
 // copyNetworkConfig copies the network configuration to the target
@@ -1240,6 +1290,7 @@ func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 	if err != nil {
 		return err
 	}
+
 	// get the disk that we mounted the ubuntu-seed partition from as a
 	// reference point for future mounts
 	disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
@@ -1432,7 +1483,7 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	return doSystemdMount(partSrc, dir, opts)
 }
 
-func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]snap.PlaceInfo, err error) {
+func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
 	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed"); err != nil {
@@ -1477,10 +1528,10 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 	// 2.2. (auto) select recovery system and mount seed snaps
 	// TODO:UC20: do we need more cross checks here?
 
-	systemSnaps := make(map[snap.Type]snap.PlaceInfo)
+	systemSnaps := make(map[snap.Type]*seed.Snap)
 
 	for _, essentialSnap := range essSnaps {
-		systemSnaps[essentialSnap.EssentialType] = essentialSnap.PlaceInfo()
+		systemSnaps[essentialSnap.EssentialType] = essentialSnap
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
 		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
@@ -1488,6 +1539,10 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 		}
 	}
 
+	return model, systemSnaps, nil
+}
+
+func generateMountsCommonInstallRecoverContinue(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap) (err error) {
 	// TODO:UC20: after we have the kernel and base snaps mounted, we should do
 	//            the bind mounts from the kernel modules on top of the base
 	//            mount and delete the corresponding systemd units from the
@@ -1511,19 +1566,13 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 	}
 	err = doSystemdMount("tmpfs", boot.InitramfsDataDir, mntOpts)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	// finally get the gadget snap from the essential snaps and use it to
 	// configure the ephemeral system
 	// should only be one seed snap
-	gadgetPath := ""
-	for _, essentialSnap := range essSnaps {
-		if essentialSnap.EssentialType == snap.TypeGadget {
-			gadgetPath = essentialSnap.Path
-		}
-	}
-	gadgetSnap := squashfs.New(gadgetPath)
+	gadgetSnap := squashfs.New(sysSnaps[snap.TypeGadget].Path)
 
 	isRunMode := false
 	// we need to configure the ephemeral system with defaults and such using
@@ -1539,10 +1588,23 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 		GadgetSnap:     gadgetSnap,
 	}
 	if err := sysconfig.ConfigureTargetSystem(model, configOpts); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
+	model, snaps, err := generateMountsCommonInstallRecoverStart(mst)
+	if err != nil {
 		return nil, nil, err
 	}
 
-	return model, systemSnaps, nil
+	if err := generateMountsCommonInstallRecoverContinue(mst, model, snaps); err != nil {
+		return nil, nil, err
+	}
+
+	return model, snaps, nil
 }
 
 func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, err error) {
