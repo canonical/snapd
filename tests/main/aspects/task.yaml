@@ -1,0 +1,43 @@
+summary: Check the aspects API
+
+execute: |
+  # write a value
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XPOST -d '{"account": "system", "directory": "network", "aspect": "wifi-setup", "field": "ssid", "value": "canonical"}' -H 'Content-Type: application/json' > response.txt
+  jq -r '."status-code"' < response.txt | MATCH 200
+
+  # read the same value
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XGET -d '{"account": "system", "directory": "network", "aspect": "wifi-setup", "field": "ssid"}' -H 'Content-Type: application/json' > response.txt
+  jq -r '."status-code"' < response.txt | MATCH 200
+  jq -r '.result' < response.txt | MATCH "canonical"
+
+  # delete it
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XPOST -d '{"account": "system", "directory": "network", "aspect": "wifi-setup", "field": "ssid"}' -H 'Content-Type: application/json' > response.txt
+  jq -r '."status-code"' < response.txt | MATCH 200
+
+  # check it was deleted
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XGET -d '{"account": "system", "directory": "network", "aspect": "wifi-setup", "field": "ssid"}' -H 'Content-Type: application/json' > response.txt
+  jq -r '."status-code"' < response.txt | MATCH 404
+  jq -r '.result.message' < response.txt | MATCH 'cannot get "ssid": no value was found under "wifi"'
+
+  # write values using a placeholder access
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XPOST -d '{"account": "system", "directory": "network", "aspect": "wifi-setup", "field": "private.my-company", "value": "my-config"}' -H 'Content-Type: application/json' > response.txt
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XPOST -d '{"account": "system", "directory": "network", "aspect": "wifi-setup", "field": "private.your-company", "value": "your-config"}' -H 'Content-Type: application/json' > response.txt
+
+  # check first value
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XGET -d '{"account": "system", "directory": "network", "aspect": "wifi-setup", "field": "private.my-company"}' -H 'Content-Type: application/json' > response.txt
+  jq -r '."status-code"' < response.txt | MATCH 200
+  jq -r '.result' < response.txt | MATCH "my-config"
+
+  # delete it
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XPOST -d '{"account": "system", "directory": "network", "aspect": "wifi-setup", "field": "private.my-company"}' -H 'Content-Type: application/json' > response.txt
+  jq -r '."status-code"' < response.txt | MATCH 200
+
+  # check it was deleted
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XGET -d '{"account": "system", "directory": "network", "aspect": "wifi-setup", "field": "private.my-company"}' -H 'Content-Type: application/json' > response.txt
+  jq -r '."status-code"' < response.txt | MATCH 404
+  jq -r '.result.message' < response.txt | MATCH 'cannot get "private.my-company": no value was found under "wifi.my-company"'
+
+  # check second value remains
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XGET -d '{"account": "system", "directory": "network", "aspect": "wifi-setup", "field": "private.your-company"}' -H 'Content-Type: application/json' > response.txt
+  jq -r '."status-code"' < response.txt | MATCH 200
+  jq -r '.result' < response.txt | MATCH "your-config"
