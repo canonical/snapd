@@ -19,9 +19,12 @@
 
 package gadget
 
+import "github.com/snapcore/snapd/gadget/quantity"
+
 type (
 	MountedFilesystemUpdater = mountedFilesystemUpdater
 	RawStructureUpdater      = rawStructureUpdater
+	InvalidOffset            = invalidOffset
 )
 
 var (
@@ -83,4 +86,8 @@ func (m *MountedFilesystemWriter) WriteDirectory(volumeRoot, src, dst string, pr
 // to test handling of unknown keys when we un-marshal
 func (s *StructureEncryptionParameters) SetUnknownKeys(m map[string]string) {
 	s.unknownKeys = m
+}
+
+func CreateInvalidOffset(offset, lowerBound, upperBound quantity.Offset) *InvalidOffset {
+	return &invalidOffset{offset: offset, lowerBound: lowerBound, upperBound: upperBound}
 }
