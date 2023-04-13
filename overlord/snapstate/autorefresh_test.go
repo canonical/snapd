@@ -1167,6 +1167,8 @@ func (s *autoRefreshTestSuite) addRefreshableSnap(names ...string) {
 }
 
 func (s *autoRefreshTestSuite) TestPartiallyInhibitedAutoRefreshIsContinued(c *C) {
+	s.addRefreshableSnap("foo")
+
 	now := time.Now()
 	restore := snapstate.MockTimeNow(func() time.Time {
 		return now
@@ -1189,6 +1191,12 @@ func (s *autoRefreshTestSuite) TestPartiallyInhibitedAutoRefreshIsContinued(c *C
 	c.Assert(err, IsNil)
 	c.Check(lastRefresh.Equal(now), Equals, true)
 	c.Check(s.state.Cached("auto-refresh-continue-attempt"), IsNil)
+
+	// check that the "IsContinuedAutoRefresh" flag is set for a contiued
+	// refresh
+	chgs := s.state.Changes()
+	c.Assert(chgs, HasLen, 1)
+	checkIsContinuedAutoRefresh(c, chgs[0].Tasks(), true)
 }
 
 func (s *autoRefreshTestSuite) TestContinueAutorefreshOnlyFirstOverridesDelay(c *C) {
