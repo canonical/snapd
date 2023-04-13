@@ -1407,7 +1407,8 @@ func (w *Writer) metaOptions(vsm map[*asserts.AtSequence]*asserts.ValidationSet)
 			metaOpts.VsTrackingOpts = make(map[string]*internal.ValidationSetTrackingOptions)
 		}
 		metaOpts.VsTrackingOpts[seq.Unique()] = &internal.ValidationSetTrackingOptions{
-			Pinned: seq.Pinned,
+			Sequence: seq.Sequence,
+			Pinned:   seq.Pinned,
 		}
 	}
 	return metaOpts

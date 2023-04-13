@@ -21,16 +21,17 @@
 // internally by both seed and seed/seedwriter.
 package internal
 
-// ValidationSetTrackingOptions provides pinning that should be
-// applied for tracking.
+// ValidationSetTrackingOptions provides sequence and pinning
+// that should be applied for tracking.
 type ValidationSetTrackingOptions struct {
-	Pinned bool
+	Sequence int
+	Pinned   bool
 }
 
 // MetaOptions describes optional metadata that can carried
 // from seeding to install.
 type MetaOptions struct {
 	// VsTrackingOpts are the tracking options for seeded validation-sets.
-	// Key format is of "validation-set/account-id/name/sequence"
+	// Key format is of "validation-set/series/account-id/name"
 	VsTrackingOpts map[string]*ValidationSetTrackingOptions `json:"vs-tracking-opts,omitempty"`
 }

@@ -4058,6 +4058,21 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
 	c.Check(systemDir, testutil.FilePresent)
 
+	// verify that meta-opts was written
+	b, err := ioutil.ReadFile(filepath.Join(systemDir, "meta-opts.json"))
+	c.Assert(err, IsNil)
+	var metaOpts map[string]map[string]interface{}
+	err = json.Unmarshal(b, &metaOpts)
+	c.Assert(err, IsNil)
+	c.Check(metaOpts, DeepEquals, map[string]map[string]interface{}{
+		"vs-tracking-opts": {
+			"validation-set/16/canonical/base-set": map[string]interface{}{
+				"Pinned":   true,
+				"Sequence": 2.0, // json numbers...
+			},
+		},
+	})
+
 	// check snaps
 	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
@@ -4162,6 +4177,21 @@ func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
 
 	err = w.WriteMeta()
 	c.Assert(err, IsNil)
+
+	// verify that meta-opts was written
+	b, err := ioutil.ReadFile(filepath.Join(s.opts.SeedDir, "meta-opts.json"))
+	c.Assert(err, IsNil)
+	var metaOpts map[string]map[string]interface{}
+	err = json.Unmarshal(b, &metaOpts)
+	c.Assert(err, IsNil)
+	c.Check(metaOpts, DeepEquals, map[string]map[string]interface{}{
+		"vs-tracking-opts": {
+			"validation-set/16/canonical/base-set": map[string]interface{}{
+				"Pinned":   true,
+				"Sequence": 2.0, // json numbers...
+			},
+		},
+	})
 
 	// check seed
 	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
@@ -4393,4 +4423,135 @@ func (s *writerSuite) TestManifestPreProvidedFailsMarkSeeding(c *C) {
 		return osutil.CopyFile(src, dst, 0)
 	})
 	c.Assert(err, ErrorMatches, `cannot record snap for manifest: snap "core20" \(1\) does not match the allowed revision 20`)
+}
+
+func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "base-set",
+				// Use sequence 100 in the model, which we won't have in the database
+				// the goal here is to make sure we pre-provide a manifest that specifies
+				// the correct sequence 2, and it should be used and properly written.
+				"sequence": "100",
+				"mode":     "enforce",
+			},
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	// setup a few validation set assertions in store
+	s.setupValidationSets(c)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	// Set up the manifest we need
+	manifest := seedwriter.NewManifest()
+	manifest.SetAllowedValidationSet("canonical", "base-set", 2, true)
+	s.opts.Manifest = manifest
+	s.opts.ManifestPath = path.Join(s.opts.SeedDir, "seed.manifest")
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 0)
+
+	for _, sn := range localSnaps {
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+		f, err := snapfile.Open(sn.Path)
+		c.Assert(err, IsNil)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
+		c.Assert(err, IsNil)
+		w.SetInfo(sn, info)
+	}
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	for _, sn := range snaps {
+		channel := "latest/stable"
+		switch sn.SnapName() {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+		c.Check(sn.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.CheckValidationSets()
+	c.Assert(err, IsNil)
+
+	err = w.SeedSnaps(func(name, src, dst string) error {
+		return osutil.CopyFile(src, dst, 0)
+	})
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
+	c.Check(systemDir, testutil.FilePresent)
+
+	// verify that meta-opts was written with the sequence 2, even though
+	// the model specified that we should use sequence 100
+	b, err := ioutil.ReadFile(filepath.Join(systemDir, "meta-opts.json"))
+	c.Assert(err, IsNil)
+	var metaOpts map[string]map[string]interface{}
+	err = json.Unmarshal(b, &metaOpts)
+	c.Assert(err, IsNil)
+	c.Check(metaOpts, DeepEquals, map[string]map[string]interface{}{
+		"vs-tracking-opts": {
+			"validation-set/16/canonical/base-set": map[string]interface{}{
+				"Pinned":   true,
+				"Sequence": 2.0, // json numbers...
+			},
+		},
+	})
+
+	// verify that the manifest was correctly produced
+	m, err := ioutil.ReadFile(s.opts.ManifestPath)
+	c.Assert(err, IsNil)
+	c.Check(string(m), Equals, `canonical/base-set=2
+core20 1
+snapd 1
+`)
 }
