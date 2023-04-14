@@ -75,6 +75,7 @@ type Snap struct {
 	Prices      map[string]float64    `json:"prices,omitempty"`
 	Screenshots []snap.ScreenshotInfo `json:"screenshots,omitempty"`
 	Media       snap.MediaInfos       `json:"media,omitempty"`
+	Categories  []snap.CategoryInfo   `json:"categories,omitempty"`
 
 	// The flattended channel map with $track/$risk
 	Channels map[string]*snap.ChannelSnapInfo `json:"channels,omitempty"`
@@ -131,6 +132,8 @@ type FindOptions struct {
 
 	CommonID string
 
+	Category string
+	// Section is deprecated, use Category instead.
 	Section string
 	Private bool
 	Scope   string
@@ -142,6 +145,11 @@ var ErrNoSnapsInstalled = errors.New("no snaps installed")
 
 type ListOptions struct {
 	All bool
+}
+
+// Information about a category
+type Category struct {
+	Name string `json:"name"`
 }
 
 // List returns the list of all snaps installed on the system
@@ -172,6 +180,7 @@ func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
 }
 
 // Sections returns the list of existing snap sections in the store
+// This is deprecated, use Categories() instead.
 func (client *Client) Sections() ([]string, error) {
 	var sections []string
 	_, err := client.doSync("GET", "/v2/sections", nil, nil, nil, &sections)
@@ -180,6 +189,16 @@ func (client *Client) Sections() ([]string, error) {
 		return nil, xerrors.Errorf(fmt, err)
 	}
 	return sections, nil
+}
+
+// Categories returns the list of existing snap categories in the store
+func (client *Client) Categories() ([]*Category, error) {
+	var categories []*Category
+	_, err := client.doSync("GET", "/v2/categories", nil, nil, nil, &categories)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get snap categories: %w", err)
+	}
+	return categories, nil
 }
 
 // Find returns a list of snaps available for install from the
@@ -208,6 +227,9 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 		q.Set("select", "refresh")
 	case opts.Private:
 		q.Set("select", "private")
+	}
+	if opts.Category != "" {
+		q.Set("category", opts.Category)
 	}
 	if opts.Section != "" {
 		q.Set("section", opts.Section)

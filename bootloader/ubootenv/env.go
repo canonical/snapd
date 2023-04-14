@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -33,15 +34,12 @@ import (
 	"strings"
 )
 
-// FIXME: add config option for that so that the user can select if he/she
-// wants env with or without flags
-var headerSize = 5
-
 // Env contains the data of the uboot environment
 type Env struct {
-	fname string
-	size  int
-	data  map[string]string
+	fname          string
+	size           int
+	headerFlagByte bool
+	data           map[string]string
 }
 
 // little endian helpers
@@ -58,8 +56,23 @@ func writeUint32(u uint32) []byte {
 	return buf.Bytes()
 }
 
+const sizeOfUint32 = 4
+
+func calcHeaderSize(headerFlagByte bool) int {
+	if headerFlagByte {
+		// If uboot uses a header flag byte, header is 4 byte crc + flag byte
+		return sizeOfUint32 + 1
+	}
+	// otherwise, just a 4 byte crc
+	return sizeOfUint32
+}
+
+type CreateOptions struct {
+	HeaderFlagByte bool
+}
+
 // Create a new empty uboot env file with the given size
-func Create(fname string, size int) (*Env, error) {
+func Create(fname string, size int, opts CreateOptions) (*Env, error) {
 	f, err := os.Create(fname)
 	if err != nil {
 		return nil, err
@@ -67,9 +80,10 @@ func Create(fname string, size int) (*Env, error) {
 	defer f.Close()
 
 	env := &Env{
-		fname: fname,
-		size:  size,
-		data:  make(map[string]string),
+		fname:          fname,
+		size:           size,
+		headerFlagByte: opts.HeaderFlagByte,
+		data:           make(map[string]string),
 	}
 
 	return env, nil
@@ -101,16 +115,46 @@ func OpenWithFlags(fname string, flags OpenFlags) (*Env, error) {
 		return nil, err
 	}
 
-	if len(contentWithHeader) < headerSize {
-		return nil, fmt.Errorf("cannot open %q: smaller than expected header", fname)
+	// Most systems have SYS_REDUNDAND_ENVIRONMENT=y, so try that first
+	tryHeaderFlagByte := true
+	env, err := readEnv(contentWithHeader, flags, tryHeaderFlagByte)
+	// if there is a bad CRC, maybe we just assumed the wrong header size
+	if errors.Is(err, errBadCrc) {
+		tryHeaderFlagByte := false
+		env, err = readEnv(contentWithHeader, flags, tryHeaderFlagByte)
 	}
+	// if error was not one of the ones that might indicate we assumed the wrong
+	// header size, or there is still an error after checking both header sizes
+	// something is actually wrong
+	if err != nil {
+		return nil, fmt.Errorf("cannot open %q: %w", fname, err)
+	}
+
+	env.fname = fname
+	return env, nil
+}
+
+var errBadCrc = errors.New("bad CRC")
+
+func readEnv(contentWithHeader []byte, flags OpenFlags, headerFlagByte bool) (*Env, error) {
+
+	// The minimum valid env is 6 bytes (4 byte CRC + 2 null bytes for EOF)
+	// The maximum header length is 5 bytes (4 byte CRC, + )
+	// If we always make sure our env is 6 bytes long, we'll never run into
+	// trouble doing some sort of OOB slicing below, but also we will
+	// accept all legal envs
+	if len(contentWithHeader) < 6 {
+		return nil, errors.New("smaller than expected environment block")
+	}
+
+	headerSize := calcHeaderSize(headerFlagByte)
 
 	crc := readUint32(contentWithHeader)
 
 	payload := contentWithHeader[headerSize:]
 	actualCRC := crc32.ChecksumIEEE(payload)
 	if crc != actualCRC {
-		return nil, fmt.Errorf("cannot open %q: bad CRC %v != %v", fname, crc, actualCRC)
+		return nil, fmt.Errorf("%w %v != %v", errBadCrc, crc, actualCRC)
 	}
 
 	if eof := bytes.Index(payload, []byte{0, 0}); eof >= 0 {
@@ -123,9 +167,9 @@ func OpenWithFlags(fname string, flags OpenFlags) (*Env, error) {
 	}
 
 	env := &Env{
-		fname: fname,
-		size:  len(contentWithHeader),
-		data:  data,
+		size:           len(contentWithHeader),
+		headerFlagByte: headerFlagByte,
+		data:           data,
 	}
 
 	return env, nil
@@ -167,6 +211,10 @@ func (env *Env) Size() int {
 	return env.size
 }
 
+func (env *Env) HeaderFlagByte() bool {
+	return env.headerFlagByte
+}
+
 // Get the value of the environment variable
 func (env *Env) Get(name string) string {
 	return env.data[name]
@@ -205,6 +253,8 @@ func (env *Env) iterEnv(f func(key, value string)) {
 
 // Save will write out the environment data
 func (env *Env) Save() error {
+	headerSize := calcHeaderSize(env.headerFlagByte)
+
 	w := bytes.NewBuffer(nil)
 	// will panic if the buffer can't grow, all writes to
 	// the buffer will be ok because we sized it correctly

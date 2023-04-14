@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021  Canonical Ltd
+ * Copyright (C) 2021-2023  Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,15 +29,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
-
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 )
-
-// DeviceSetupHookPartitionOffset defines the free space that is reserved
-// at the start of a device-setup based partition for future use (like
-// to simulate LUKS keyslot like setup).
-const DeviceSetupHookPartitionOffset = uint64(1 * 1024 * 1024)
 
 // HasRevealKey return true if the current system has a "fde-reveal-key"
 // binary (usually used in the initrd).
@@ -48,16 +40,6 @@ func HasRevealKey() bool {
 	// XXX: should we record during initial sealing that the fde-setup
 	//      was used and only use fde-reveal-key in that case?
 	_, err := exec.LookPath("fde-reveal-key")
-	return err == nil
-}
-
-// HasDeviceUnlock returns true if the current system has a
-// "fde-device-unlock" binary (usually used in the initrd).
-//
-// This will be used by the initrd to determine if cryptsetup is
-// skipped and a hook needs to be used to unlock individual device.
-func HasDeviceUnlock() bool {
-	_, err := exec.LookPath("fde-device-unlock")
 	return err == nil
 }
 
@@ -104,10 +86,6 @@ type SetupRequest struct {
 
 	// Only used when called with "initial-setup"
 	KeyName string `json:"key-name,omitempty"`
-
-	// The part of the device kernel path for a "setup-device" call.
-	// Only used when called with "device-setup"
-	Device string `json:"device,omitempty"`
 
 	// Name of the partition
 	PartitionName string `json:"partition-name,omitempty"`
@@ -171,38 +149,4 @@ func CheckFeatures(runSetupHook RunSetupHookFunc) ([]string, error) {
 		return nil, fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
 	}
 	return res.Features, nil
-}
-
-// DeviceSetupParams contains the inputs for the fde-setup hook.
-// The encryption key and the device (partition) are passed in.
-type DeviceSetupParams struct {
-	Key           []byte
-	Device        string
-	PartitionName string
-}
-
-// DeviceSetup invokes the "device-setup" op running the fde-setup
-// hook via runSetupHook. This can be used to e.g. initialize
-// inline crypto hardware.
-func DeviceSetup(runSetupHook RunSetupHookFunc, params *DeviceSetupParams) error {
-	req := &SetupRequest{
-		Op:            "device-setup",
-		Key:           params.Key,
-		Device:        params.Device,
-		PartitionName: params.PartitionName,
-	}
-	logger.Debugf("running device-setup hook on %q with name %q", req.Device, req.PartitionName)
-
-	hookOutput, err := runSetupHook(req)
-	if err != nil {
-		return fmt.Errorf("device setup failed with: %v", osutil.OutputErr(hookOutput, err))
-	}
-
-	return nil
-}
-
-// EncryptedDeviceMapperName returns the name to use in device mapper for a
-// device that is encrypted using FDE hooks
-func EncryptedDeviceMapperName(name string) string {
-	return name + "-device-locked"
 }

@@ -3,25 +3,11 @@ summary: Regression test for https://bugs.launchpad.net/snapd/+bug/1815869
 systems: [ubuntu-18.04-64]
 
 prepare: |
-    # Ensure that we don't have LXD installed as a deb
-    apt autoremove -y lxd || :
-
     # Ensure that we have the freshly-built snapd deb available
     test "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l)" -ne 0
 
     # Install LXD snap and set it up.
-    snap install lxd --channel="$LXD_SNAP_CHANNEL"
-    snap set lxd waitready.timeout=240
-    lxd waitready
-    lxd init --auto
-
-    # Set proxy for LXD on the host.
-    if [ -n "${http_proxy:-}" ]; then
-        lxc config set core.proxy_http "$http_proxy"
-    fi
-    if [ -n "${https_proxy:-}" ]; then
-        lxc config set core.proxy_https "$http_proxy"
-    fi
+    "$TESTSTOOLS"/lxd-state prepare-snap
 
     # Launch a bionic container.
     lxc launch --quiet ubuntu:bionic mycontainer

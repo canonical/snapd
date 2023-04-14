@@ -58,6 +58,7 @@ var api = []*Command{
 	snapctlCmd,
 	usersCmd,
 	sectionsCmd,
+	categoriesCmd,
 	aliasesCmd,
 	appsCmd,
 	logsCmd,

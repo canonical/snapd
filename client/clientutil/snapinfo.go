@@ -85,6 +85,7 @@ func ClientSnapFromSnapInfo(snapInfo *snap.Info, decorator StatusDecorator) (*cl
 		Contact:     snapInfo.Contact(),
 		Website:     snapInfo.Website(),
 		StoreURL:    snapInfo.StoreURL,
+		Categories:  snapInfo.Categories,
 	}
 
 	return result, err

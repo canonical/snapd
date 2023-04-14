@@ -977,6 +977,12 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/run/foo" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/run/systemd", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/run/systemd" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var/run", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/var/run" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var/run/foo", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/var/run/foo" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var/run/systemd", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/var/run/systemd" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/boot", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/boot" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lost+found", Type: "tmpfs"}, nil),
@@ -993,6 +999,10 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/lib/firmware" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lib/modules", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/lib/modules" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/usr/lib/firmware", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/usr/lib/firmware" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/usr/lib/modules", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/usr/lib/modules" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/tmp", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/tmp" in an off-limits area`)
 

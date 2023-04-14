@@ -185,10 +185,10 @@ func (s *SnapPrepareImageSuite) TestReadSeedManifest(c *C) {
 	defer r()
 
 	var readManifestCalls int
-	r = cmdsnap.MockImageReadSeedManifest(func(manifestFile string) (map[string]snap.Revision, error) {
+	r = cmdsnap.MockImageReadSeedManifest(func(manifestFile string) (*image.SeedManifest, error) {
 		readManifestCalls++
 		c.Check(manifestFile, Equals, "seed.manifest")
-		return map[string]snap.Revision{"snapd": snap.R(100)}, nil
+		return image.NewSeedManifestForTest(map[string]*image.SeedManifestSnapRevision{"snapd": {SnapName: "snapd", Revision: snap.R(100)}}, nil, nil, nil), nil
 	})
 	defer r()
 
@@ -198,9 +198,9 @@ func (s *SnapPrepareImageSuite) TestReadSeedManifest(c *C) {
 
 	c.Check(readManifestCalls, Equals, 1)
 	c.Check(opts, DeepEquals, &image.Options{
-		ModelFile:  "model",
-		PrepareDir: "prepare-dir",
-		Revisions:  map[string]snap.Revision{"snapd": snap.R(100)},
+		ModelFile:    "model",
+		PrepareDir:   "prepare-dir",
+		SeedManifest: image.NewSeedManifestForTest(map[string]*image.SeedManifestSnapRevision{"snapd": {SnapName: "snapd", Revision: snap.R(100)}}, nil, nil, nil),
 	})
 }
 

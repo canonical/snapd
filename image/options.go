@@ -19,8 +19,6 @@
 
 package image
 
-import "github.com/snapcore/snapd/snap"
-
 type Options struct {
 	ModelFile string
 	Classic   bool
@@ -47,8 +45,12 @@ type Options struct {
 	// TODO: use OptionsSnap directly here?
 	Snaps        []string
 	SnapChannels map[string]string
-	Revisions    map[string]snap.Revision
 
+	// SeedManifest is a pre-provided seed manifest, to allow for
+	// creating reproducible seeds. If provided, the snap revisions and
+	// validation-sets specified in the seed manifest will be used to
+	// (re-)create the image seed.
+	SeedManifest *SeedManifest
 	// SeedManifestPath if set, specifies the file path where the
 	// seed.manifest file should be written.
 	SeedManifestPath string

@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -54,7 +55,7 @@ func newAssertsDB(signingPrivKey string) (*asserts.Database, error) {
 	return db, nil
 }
 
-func MakeFakeRefreshForSnaps(snap string, blobDir string, snapBlob string) error {
+func MakeFakeRefreshForSnaps(snap, blobDir, snapBlob, snapOrigBlob string) error {
 	db, err := newAssertsDB(systestkeys.TestStorePrivKey)
 	if err != nil {
 		return err
@@ -94,7 +95,7 @@ func MakeFakeRefreshForSnaps(snap string, blobDir string, snapBlob string) error
 
 	f := asserts.NewFetcher(db, retrieve, save)
 
-	if err := makeFakeRefreshForSnap(snap, blobDir, snapBlob, db, f); err != nil {
+	if err := makeFakeRefreshForSnap(snap, blobDir, snapBlob, snapOrigBlob, db, f); err != nil {
 		return err
 	}
 	return nil
@@ -111,7 +112,7 @@ func writeAssert(a asserts.Assertion, targetDir string) (string, error) {
 	return p, err
 }
 
-func makeFakeRefreshForSnap(snap, targetDir, snapBlob string, db *asserts.Database, f asserts.Fetcher) error {
+func makeFakeRefreshForSnap(snap, targetDir, snapBlob, snapOrigBlob string, db *asserts.Database, f asserts.Fetcher) error {
 	// make a fake update snap in /var/tmp (which is not a tempfs)
 	fakeUpdateDir, err := ioutil.TempDir("/var/tmp", "snap-build-")
 	if err != nil {
@@ -128,7 +129,7 @@ func makeFakeRefreshForSnap(snap, targetDir, snapBlob string, db *asserts.Databa
 	}
 	defer exec.Command("sudo", "rm", "-rf", fakeUpdateDir)
 
-	origInfo, err := getOrigInfo(snap)
+	origInfo, err := getOrigInfo(snap, snapOrigBlob)
 	if err != nil {
 		return err
 	}
@@ -189,7 +190,16 @@ type info struct {
 	size     uint64
 }
 
-func getOrigInfo(snapName string) (*info, error) {
+func getOrigInfo(snapName, snapOrigBlob string) (*info, error) {
+	if exists, isRegular, _ := osutil.RegularFileExists(snapOrigBlob); exists && isRegular {
+		origDigest, origSize, err := asserts.SnapFileSHA3_384(snapOrigBlob)
+		if err != nil {
+			return nil, err
+		}
+		// XXX: figre out revision?
+		return &info{revision: "x1", size: origSize, digest: origDigest}, nil
+	}
+
 	origRevision, err := currentRevision(snapName)
 	if err != nil {
 		return nil, err

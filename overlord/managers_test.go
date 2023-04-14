@@ -107,6 +107,7 @@ type automaticSnapshotCall struct {
 	InstanceName string
 	SnapConfig   map[string]interface{}
 	Usernames    []string
+	Options      *snap.SnapshotOptions
 }
 
 type baseMgrsSuite struct {
@@ -201,8 +202,9 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	})
 
 	s.automaticSnapshots = nil
-	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
-		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames})
+	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string,
+		options *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
+		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames, Options: options})
 		return nil, nil
 	})
 	s.AddCleanup(r)
@@ -762,7 +764,7 @@ apps:
 	c.Assert(osutil.FileExists(mup), Equals, false)
 
 	// automatic snapshot was created
-	c.Assert(s.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil}})
+	c.Assert(s.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil, nil}})
 }
 
 func (s *mgrsSuite) TestHappyRemoveWithQuotas(c *C) {
@@ -1603,7 +1605,6 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBump(c *C) {
 	}
 
 	// refresh
-
 	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
@@ -3958,14 +3959,10 @@ assumes: [something-that-is-not-provided]
 	// updateMany will just skip snaps with assumes but not error
 	affected, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
+	c.Check(tss, HasLen, 0)
 	c.Check(affected, HasLen, 0)
 	// the skipping is logged though
 	c.Check(s.logbuf.String(), testutil.Contains, `cannot update "some-snap": snap "some-snap" assumes unsupported features: something-that-is-not-provided (try`)
-	// XXX: should we really check for re-refreshes if there is nothing
-	// to update?
-	c.Check(tss, HasLen, 1)
-	c.Check(tss[0].Tasks(), HasLen, 1)
-	c.Check(tss[0].Tasks()[0].Kind(), Equals, "check-rerefresh")
 }
 
 type storeCtxSetupSuite struct {
@@ -6603,8 +6600,13 @@ func (s *mgrsSuiteCore) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 		SignSerial:       signSerial,
 	}
 
-	mockServer := devicestatetest.MockDeviceService(c, bhv)
+	mockServer, extraCerts := devicestatetest.MockDeviceService(c, bhv)
 	defer mockServer.Close()
+	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
+	err = os.MkdirAll(filepath.Dir(fname), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fname, extraCerts, 0644)
+	c.Assert(err, IsNil)
 
 	pDBhv := &devicestatetest.PrepareDeviceBehavior{
 		DeviceSvcURL: mockServer.URL + "/svc/",
@@ -6748,8 +6750,13 @@ func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
 		SignSerial:       signSerial,
 	}
 
-	mockDeviceService := devicestatetest.MockDeviceService(c, bhv)
+	mockDeviceService, extraCerts := devicestatetest.MockDeviceService(c, bhv)
 	defer mockDeviceService.Close()
+	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
+	err = os.MkdirAll(filepath.Dir(fname), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fname, extraCerts, 0644)
+	c.Assert(err, IsNil)
 
 	r := devicestatetest.MockGadget(c, st, "gadget", snap.R(2), nil)
 	defer r()

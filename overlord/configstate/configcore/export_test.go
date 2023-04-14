@@ -78,6 +78,12 @@ func MockApparmorUpdateHomedirsTunable(f func([]string) error) func() {
 	return r
 }
 
+func MockApparmorSetupSnapConfineSnippets(f func() (bool, error)) func() {
+	r := testutil.Backup(&apparmorSetupSnapConfineSnippets)
+	apparmorSetupSnapConfineSnippets = f
+	return r
+}
+
 func MockApparmorReloadAllSnapProfiles(f func() error) func() {
 	r := testutil.Backup(&apparmorReloadAllSnapProfiles)
 	apparmorReloadAllSnapProfiles = f

@@ -41,6 +41,10 @@ type (
 	ByType              = byType
 	DirMigrationOptions = dirMigrationOptions
 	Migration           = migration
+
+	ReRefreshSetup = reRefreshSetup
+
+	TooSoonError = tooSoonError
 )
 
 const (
@@ -240,7 +244,7 @@ var (
 
 type UpdateFilter = updateFilter
 
-func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, []*RevisionOptions, int, UpdateFilter, *Flags, string) ([]string, []*state.TaskSet, error)) (restore func()) {
+func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, []*RevisionOptions, int, UpdateFilter, *Flags, string) ([]string, *UpdateTaskSets, error)) (restore func()) {
 	old := reRefreshUpdateMany
 	reRefreshUpdateMany = f
 	return func() {
@@ -323,6 +327,7 @@ var (
 )
 
 type RefreshCandidate = refreshCandidate
+type TimedBusySnapError = timedBusySnapError
 
 func NewBusySnapError(info *snap.Info, pids []int, busyAppNames, busyHookNames []string) *BusySnapError {
 	return &BusySnapError{
@@ -457,4 +462,16 @@ func MockEnforceValidationSets(f func(*state.State, map[string]*asserts.Validati
 	return func() {
 		EnforceValidationSets = old
 	}
+}
+
+func MockCgroupMonitorSnapEnded(f func(string, chan<- string) error) func() {
+	old := cgroupMonitorSnapEnded
+	cgroupMonitorSnapEnded = f
+	return func() {
+		cgroupMonitorSnapEnded = old
+	}
+}
+
+func SetRestoredMonitoring(snapmgr *SnapManager, value bool) {
+	snapmgr.autoRefresh.restoredMonitoring = value
 }

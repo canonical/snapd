@@ -33,21 +33,8 @@ debug: |
     cat avc-after || true
 
 execute: |
-    snap install lxd --channel="$LXD_SNAP_CHANNEL"
+    "$TESTSTOOLS"/lxd-state prepare-snap
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
-
-    echo "Create a trivial container using the lxd snap"
-    snap set lxd waitready.timeout=240
-    lxd waitready
-    lxd init --auto
-
-    echo "Setting up proxy for lxc"
-    if [ -n "${http_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_http "$http_proxy"
-    fi
-    if [ -n "${https_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_https "$http_proxy"
-    fi
 
     lxd.lxc launch --quiet "ubuntu:18.04" my-ubuntu
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then

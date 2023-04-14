@@ -61,3 +61,9 @@ func MockNewToolingStoreFromModel(f func(model *asserts.Model, fallbackArchitect
 		newToolingStoreFromModel = old
 	}
 }
+
+func MockResetPreseededChroot(f func(preseedChroot string) error) (restore func()) {
+	r := testutil.Backup(&ResetPreseededChroot)
+	ResetPreseededChroot = f
+	return r
+}

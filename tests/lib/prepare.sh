@@ -135,7 +135,7 @@ update_core_snap_for_classic_reexec() {
 
     # First of all, unmount the core
     core="$(readlink -f "$SNAP_MOUNT_DIR/core/current" || readlink -f "$SNAP_MOUNT_DIR/ubuntu-core/current")"
-    snap="$(mount | grep " $core" | awk '{print $1}')"
+    snap="$(mount | grep " $core" | head -n 1 | awk '{print $1}')"
     umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
@@ -214,6 +214,12 @@ update_core_snap_for_classic_reexec() {
     done
 }
 
+flush_changes() {
+    # Leave some time for the tasks to show up in snap changes
+    sleep 1
+    retry -n 20 sh -c 'snap changes | grep -q Doing' || true
+}
+
 prepare_memory_limit_override() {
     # set up memory limits for snapd bu default unless explicit requested not to
     # or the system is known to be problematic
@@ -261,28 +267,55 @@ EOF
     # the service setting may have changed in the service so we need
     # to ensure snapd is reloaded
     systemctl daemon-reload
+
+    # Leave some time for snapd to finish processing hooks
+    flush_changes
     systemctl restart snapd
+    # Snapd might need to run some hooks (prepare-device) which
+    # triggers `tests.invariant cgroup-scopes` false positives
+    flush_changes
 }
 
-prepare_each_classic() {
-    mkdir -p /etc/systemd/system/snapd.service.d
-    if [ -z "${SNAP_REEXEC:-}" ]; then
-        rm -f /etc/systemd/system/snapd.service.d/reexec.conf
-    else
-        cat <<EOF > /etc/systemd/system/snapd.service.d/reexec.conf
+create_reexec_file(){
+    local reexec_file=$1
+    cat <<EOF > "$reexec_file"
 [Service]
 Environment=SNAP_REEXEC=$SNAP_REEXEC
 EOF
-    fi
-    # the re-exec setting may have changed in the service so we need
-    # to ensure snapd is reloaded
-    systemctl daemon-reload
-    systemctl restart snapd
+}
 
+prepare_reexec_override() {
+    local reexec_file=/etc/systemd/system/snapd.service.d/reexec.conf
+    local updated=false
+
+    # Just update reexec configuration when the SNAP_REEXEC var has been updated
+    # Otherwise it is used the configuration set during project preparation
+    mkdir -p /etc/systemd/system/snapd.service.d
+    if [ -z "${SNAP_REEXEC:-}" ] && [ -f "$reexec_file" ] ; then
+        rm -f "$reexec_file"
+        updated=true
+    elif [ -n "${SNAP_REEXEC:-}" ] && [ ! -f "$reexec_file" ]; then
+        create_reexec_file "$reexec_file"
+        updated=true
+    elif [ -n "${SNAP_REEXEC:-}" ] && NOMATCH "Environment=SNAP_REEXEC=$SNAP_REEXEC" < "$reexec_file"; then
+        create_reexec_file "$reexec_file"
+        updated=true
+    fi
+
+    if [ "$updated" = true ]; then
+        # the re-exec setting may have changed in the service so we need
+        # to ensure snapd is reloaded
+        systemctl daemon-reload
+        systemctl restart snapd
+    fi
+}
+
+prepare_each_classic() {
     if [ ! -f /etc/systemd/system/snapd.service.d/local.conf ]; then
         echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
         exit 1
     fi
+    prepare_reexec_override
 }
 
 prepare_classic() {
@@ -330,13 +363,11 @@ prepare_classic() {
     setup_systemd_snapd_overrides
 
     if [ "$REMOTE_STORE" = staging ]; then
-        # shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB/store.sh"
         # reset seeding data that is likely tainted with production keys
         systemctl stop snapd.service snapd.socket
         rm -rf /var/lib/snapd/assertions/*
         rm -f /var/lib/snapd/state.json
-        setup_staging_store
+        "$TESTSTOOLS"/store-state setup-staging-store
     fi
 
     # Snapshot the state including core.
@@ -367,6 +398,8 @@ prepare_classic() {
         update_core_snap_for_classic_reexec
         systemctl start snapd.{service,socket}
 
+        prepare_reexec_override
+        prepare_memory_limit_override
         disable_refreshes
 
         # Check bootloader environment output in architectures different to s390x which uses zIPL
@@ -382,6 +415,7 @@ prepare_classic() {
         fi
 
         setup_experimental_features
+
         systemctl stop snapd.{service,socket}
         save_snapd_state
         systemctl start snapd.socket
@@ -596,7 +630,7 @@ uc20_build_corrupt_kernel_snap() {
 
 uc20_build_initramfs_kernel_snap() {
     # carries ubuntu-core-initframfs
-    add-apt-repository ppa:snappy-dev/image -y
+    quiet add-apt-repository ppa:snappy-dev/image -y
     # On focal, lvm2 does not reinstall properly after being removed.
     # So we need to clean up in case the VM has been re-used.
     if os.query is-focal; then
@@ -605,7 +639,7 @@ uc20_build_initramfs_kernel_snap() {
     # TODO: install the linux-firmware as the current version of
     # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
     # to build the initrd
-    apt install ubuntu-core-initramfs linux-firmware -y
+    quiet apt install ubuntu-core-initramfs linux-firmware -y
 
     local ORIG_SNAP="$1"
     local TARGET="$2"
@@ -739,28 +773,33 @@ EOF
         # current host, this should work for most cases, since the image will be
         # running on the same host
         # TODO:UC20: enable when ready
-        exit 0
 
-        # drop unnecessary modules
-        awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
-        #shellcheck disable=SC2044
-        for m in $(find modules/ -name '*.ko'); do
-            noko=$(basename "$m"); noko="${noko%.ko}"
-            if echo "$noko" | grep -f /tmp/mods -q ; then
-                echo "keeping $m - $noko"
-            else
-                rm -f "$m"
-            fi
-        done
+        # To avoid shellcheck unused code warning, we cannot use "exit 0" to disable
+        # the module drop code. To avoid commented out code, we use a flag instead.
+        # Strip off the check when this UC20 code is enabled.
+        uc20Ready=false
 
-        #shellcheck disable=SC2010
-        kver=$(ls "config"-* | grep -Po 'config-\K.*')
+        if [ "$uc20Ready" = "true" ]; then
+            # drop unnecessary modules
+            awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
+            #shellcheck disable=SC2044
+            for m in $(find modules/ -name '*.ko'); do
+                noko=$(basename "$m"); noko="${noko%.ko}"
+                if echo "$noko" | grep -f /tmp/mods -q ; then
+                    echo "keeping $m - $noko"
+                else
+                    rm -f "$m"
+                fi
+            done
+            #shellcheck disable=SC2010
+            kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
-        # depmod assumes that /lib/modules/$kver is under basepath
-        mkdir -p fake/lib
-        ln -s "$PWD/modules" fake/lib/modules
-        depmod -b "$PWD/fake" -A -v "$kver"
-        rm -rf fake
+            # depmod assumes that /lib/modules/$kver is under basepath
+            mkdir -p fake/lib
+            ln -s "$PWD/modules" fake/lib/modules
+            depmod -b "$PWD/fake" -A -v "$kver"
+            rm -rf fake
+        fi
     )
 
     # copy any extra files that tests may need for the kernel
@@ -1395,10 +1434,10 @@ prepare_ubuntu_core() {
 
     # Snapshot the fresh state (including boot/bootenv)
     if ! is_snapd_state_saved; then
-
         # important to remove disabled snaps before calling save_snapd_state
         # or restore will break
         remove_disabled_snaps
+        prepare_memory_limit_override
         setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state

@@ -5,9 +5,6 @@ set -x
 # handle errors in general.
 set -e
 
-# shellcheck source=tests/lib/quiet.sh
-. "$TESTSLIB/quiet.sh"
-
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
@@ -76,7 +73,7 @@ build_deb(){
     fi
 
     unshare -n -- \
-            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
 }
@@ -361,7 +358,7 @@ prepare_project() {
         tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git .
 
         # and build a source package - this will be used during the sbuild test
-        dpkg-buildpackage -S --no-sign
+        dpkg-buildpackage -S -uc -us
     fi
 
     # so is ubuntu-14.04
@@ -668,12 +665,11 @@ prepare_suite_each() {
     fi
 
     if [[ "$variant" = full ]]; then
-        # shellcheck source=tests/lib/prepare.sh
-        . "$TESTSLIB"/prepare.sh
         if os.query is-classic; then
+            # shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
             prepare_each_classic
         fi
-        prepare_memory_limit_override
     fi
 
     case "$SPREAD_SYSTEM" in
@@ -762,9 +758,7 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     if [ "$REMOTE_STORE" = staging ]; then
-        # shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB"/store.sh
-        teardown_staging_store
+        "$TESTSTOOLS"/store-state teardown-staging-store
     fi
 
     if os.query is-classic; then

@@ -380,7 +380,7 @@ func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, sn
 
 // Save creates a taskset for taking snapshots of snaps' data.
 // Note that the state must be locked by the caller.
-func Save(st *state.State, instanceNames []string, users []string) (setID uint64, snapsSaved []string, ts *state.TaskSet, err error) {
+func Save(st *state.State, instanceNames []string, users []string, options map[string]*snap.SnapshotOptions) (setID uint64, snapsSaved []string, ts *state.TaskSet, err error) {
 	if len(instanceNames) == 0 {
 		instanceNames, err = allActiveSnapNames(st)
 		if err != nil {
@@ -414,11 +414,14 @@ func Save(st *state.State, instanceNames []string, users []string) (setID uint64
 	for _, name := range instanceNames {
 		desc := fmt.Sprintf("Save data of snap %q in snapshot set #%d", name, setID)
 		task := st.NewTask("save-snapshot", desc)
+
 		snapshot := snapshotSetup{
-			SetID: setID,
-			Snap:  name,
-			Users: users,
+			SetID:   setID,
+			Snap:    name,
+			Users:   users,
+			Options: options[name],
 		}
+
 		task.Set("snapshot-setup", &snapshot)
 		// Here, note that a snapshot set behaves as a unit: it either
 		// succeeds, or fails, as a whole; we don't use lanes, to have

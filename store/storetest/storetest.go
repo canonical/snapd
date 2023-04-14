@@ -87,6 +87,10 @@ func (Store) Sections(context.Context, *auth.UserState) ([]string, error) {
 	panic("Store.Sections not expected")
 }
 
+func (Store) Categories(context.Context, *auth.UserState) ([]store.CategoryDetails, error) {
+	panic("Store.Categories not expected")
+}
+
 func (Store) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
 	panic("Store.Assertion not expected")
 }

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts/internal"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // expose test-only things here
@@ -353,4 +354,12 @@ func (b *Batch) DoPrecheck(db *Database) error {
 
 func MakePoolGrouping(elems ...uint16) Grouping {
 	return Grouping(internal.Serialize(elems))
+}
+
+// fetcher tests
+
+func MockAssertionPrereqs(f func(a Assertion) []*Ref) func() {
+	r := testutil.Backup(&assertionPrereqs)
+	assertionPrereqs = f
+	return r
 }

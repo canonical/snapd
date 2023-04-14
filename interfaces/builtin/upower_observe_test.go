@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -216,6 +217,14 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.upowerd.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.upowerd.app"), testutil.Contains, `peer=(label="snap.upower.app"),`)
+}
+
+func (s *UPowerObserveInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Check(si.ImplicitOnCore, Equals, osutil.IsExecutable("/usr/libexec/upowerd"))
+	c.Check(si.ImplicitOnClassic, Equals, true)
+	c.Check(si.Summary, Equals, "allows operating as or reading from the UPower service")
+	c.Check(si.BaseDeclarationSlots, testutil.Contains, "upower-observe")
 }
 
 func (s *UPowerObserveInterfaceSuite) TestInterfaces(c *C) {

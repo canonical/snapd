@@ -46,11 +46,17 @@ type cmdValidate struct {
 
 var shortValidateHelp = i18n.G("List or apply validation sets")
 var longValidateHelp = i18n.G(`
-The validate command lists or applies validations sets
+The validate command lists or applies validation sets that state which snaps
+are required or permitted to be installed together, optionally constrained to
+fixed revisions.
+
+A validation set can either be in monitoring mode, in which case its constraints
+aren't enforced, or in enforcing mode, in which case snapd will not allow
+operations which would result in snaps breaking the validation set's constraints.
 `)
 
 func init() {
-	cmd := addCommand("validate", shortValidateHelp, longValidateHelp, func() flags.Commander { return &cmdValidate{} }, waitDescs.also(colorDescs.also(map[string]string{
+	addCommand("validate", shortValidateHelp, longValidateHelp, func() flags.Commander { return &cmdValidate{} }, waitDescs.also(colorDescs.also(map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"monitor": i18n.G("Monitor the given validations set"),
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -58,15 +64,13 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"forget": i18n.G("Forget the given validation set"),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"refresh": i18n.G("Refresh or remove snaps to satisfy enforced validation sets"),
+		"refresh": i18n.G("Refresh or install snaps to satisfy enforced validation sets"),
 	})), []argDesc{{
 		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<validation-set>"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Validation set with an optional pinned sequence point, i.e. account-id/name[=seq]"),
 	}})
-	// XXX: remove once api has landed
-	cmd.hidden = true
 }
 
 func fmtValid(res *client.ValidationSetResult) string {
