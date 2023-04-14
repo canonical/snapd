@@ -309,8 +309,12 @@ apps:
 			`custom-device "udev-tagging" invalid "kernel" tag: "bar" does not match a specified device`,
 		},
 		{
-			"devices: [/dev/subdir/foo]\n  udev-tagging:\n    - kernel: foo\n    - subsystem: 12",
+			"devices: [/dev/subdir/foo]\n  udev-tagging:\n    - kernel: foo\n      subsystem: 12",
 			`custom-device "udev-tagging" invalid "subsystem" tag: value "12" is not a string`,
+		},
+		{
+			"devices: [/dev/dir1/foo, /dev/dir2/foo]\n  udev-tagging:\n    - kernel: foo",
+			`custom-device "udev-tagging" invalid "kernel" tag: "foo" matches more than one specified device: \[/dev/dir1/foo /dev/dir2/foo\]`,
 		},
 		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - attributes: foo",
@@ -466,6 +470,27 @@ apps:
 					`ENV{env2}`: `"second|other"`,
 				},
 				{`KERNEL`: `"input/mice"`, `ATTR{wheel}`: `"true"`},
+				{`KERNEL`: `"js*"`},
+			},
+		},
+		{
+			`udev-tagging:
+   - kernel: mice
+     attributes:
+      wheel: "true"
+   - kernel: event[0-9]
+     subsystem: input
+     environment:
+      env1: first
+      env2: second|other`,
+			[]map[string]string{
+				{
+					`KERNEL`:    `"event[0-9]"`,
+					`SUBSYSTEM`: `"input"`,
+					`ENV{env1}`: `"first"`,
+					`ENV{env2}`: `"second|other"`,
+				},
+				{`KERNEL`: `"mice"`, `ATTR{wheel}`: `"true"`},
 				{`KERNEL`: `"js*"`},
 			},
 		},
