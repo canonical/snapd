@@ -605,6 +605,74 @@ func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifactError(c *C
 	c.Check(applyPreseedCalled, Equals, 1)
 }
 
+func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifactModelMismatch(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	var applyPreseedCalled int
+	restoreApplyPreseed := devicestate.MockApplyPreseededData(func(sysSeed seed.PreseedCapable, writableDir string) error {
+		applyPreseedCalled++
+		return fmt.Errorf("boom")
+	})
+	defer restoreApplyPreseed()
+
+	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+		[]byte("mode=install\nrecovery_system=20200105\n"), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcKernelAndGadget(c, "", "")
+	devicestate.SetSystemMode(s.mgr, "install")
+
+	mismatchedModel := s.brands.Model("canonical", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              pcKernelSnapID,
+				"type":            "kernel",
+				"default-channel": "20/edge",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              pcSnapID,
+				"type":            "gadget",
+				"default-channel": "20/edge",
+			}},
+	})
+	restore = devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
+		c.Check(seedDir, Equals, filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-seed"))
+		c.Check(label, Equals, "20200105")
+		return &fakeSeed{
+			model:           mismatchedModel,
+			preseedArtifact: true,
+		}, nil
+	})
+	defer restore()
+
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), ErrorMatches, "cannot perform the following tasks:\\n- Ensure next boot to run mode \\(system seed \"20200105\" model does not match model in use\\)")
+
+	c.Check(s.restartRequests, HasLen, 0)
+	c.Check(applyPreseedCalled, Equals, 0)
+}
+
 type fakeSeed struct {
 	sysDir          string
 	essentialSnaps  []*seed.Snap
