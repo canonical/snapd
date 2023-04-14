@@ -1,5 +1,6 @@
 [Unit]
 Description=snapd UI prompt
+After=gnome-session-initialized.target
 
 [Service]
 Type=simple
