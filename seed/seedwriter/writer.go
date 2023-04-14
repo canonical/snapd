@@ -49,7 +49,7 @@ type Options struct {
 
 	// Manifest is used to track snaps and validation sets that have
 	// been seeded. It can be pre-provided to provide specific revisions
-	// and validation-sets sequences.
+	// and validation-set sequences.
 	Manifest *Manifest
 	// ManifestPath if set, specifies the file path where the
 	// seed.manifest file should be written.
@@ -207,8 +207,11 @@ type Writer struct {
 	systemSnap                      *SeedSnap
 	kernelSnap                      *SeedSnap
 	noKernelSnap                    bool
-	manifest                        *Manifest
-	manifestPath                    string
+	// manifest is the manifest of the seed used to track
+	// seeded snaps and validation-sets. It may either be
+	// initialized from the one provided in options, or it
+	// may be initialized to a new copy.
+	manifest *Manifest
 }
 
 type policy interface {
@@ -262,8 +265,9 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 
 		byNameOptSnaps:  naming.NewSnapSet(nil),
 		byRefLocalSnaps: naming.NewSnapSet(nil),
-		manifest:        initManifestFromOptions(opts),
-		manifestPath:    opts.ManifestPath,
+		// Initialize our own copy if it's not provided
+		// by options.
+		manifest: initManifestFromOptions(opts),
 	}
 
 	var treeImpl tree
@@ -1363,8 +1367,8 @@ func (w *Writer) WriteMeta() error {
 		return err
 	}
 
-	if w.manifestPath != "" {
-		if err := w.manifest.Write(w.manifestPath); err != nil {
+	if w.opts.ManifestPath != "" {
+		if err := w.manifest.Write(w.opts.ManifestPath); err != nil {
 			return err
 		}
 	}
