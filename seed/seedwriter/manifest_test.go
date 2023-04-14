@@ -48,7 +48,7 @@ func (s *manifestSuite) SetUpTest(c *C) {
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 }
 
-func (s *manifestSuite) writeSeedManifest(c *C, contents string) string {
+func (s *manifestSuite) writeManifest(c *C, contents string) string {
 	manifestFile := filepath.Join(s.root, "seed.manifest")
 	err := ioutil.WriteFile(manifestFile, []byte(contents), 0644)
 	c.Assert(err, IsNil)
@@ -60,10 +60,10 @@ func (s *manifestSuite) checkManifest(c *C, manifest *seedwriter.Manifest, revsA
 	c.Check(manifest, DeepEquals, expected)
 }
 
-func (s *manifestSuite) TestReadSeedManifestFullHappy(c *C) {
+func (s *manifestSuite) TestReadManifestFullHappy(c *C) {
 	// Include two entries that end on .snap as ubuntu-image
 	// once produced entries looking like this
-	manifestFile := s.writeSeedManifest(c, `# test line should not match
+	manifestFile := s.writeManifest(c, `# test line should not match
 canonical/base-set=2
 canonical/opt-set 5
 core22 275
@@ -84,7 +84,7 @@ one-snap x6
 	}, nil)
 }
 
-func (s *manifestSuite) TestReadSeedManifestParseFails(c *C) {
+func (s *manifestSuite) TestReadManifestParseFails(c *C) {
 	tests := []struct {
 		contents string
 		err      string
@@ -102,20 +102,20 @@ func (s *manifestSuite) TestReadSeedManifestParseFails(c *C) {
 	}
 
 	for _, t := range tests {
-		manifestFile := s.writeSeedManifest(c, t.contents)
+		manifestFile := s.writeManifest(c, t.contents)
 		_, err := seedwriter.ReadManifest(manifestFile)
 		c.Check(err, ErrorMatches, t.err)
 	}
 }
 
-func (s *manifestSuite) TestReadSeedManifestNoFile(c *C) {
+func (s *manifestSuite) TestReadManifestNoFile(c *C) {
 	snapRevs, err := seedwriter.ReadManifest("noexists.manifest")
 	c.Assert(err, NotNil)
 	c.Check(snapRevs, IsNil)
 	c.Check(err, ErrorMatches, `open noexists.manifest: no such file or directory`)
 }
 
-func (s *manifestSuite) testWriteSeedManifest(c *C, revisions map[string]*seedwriter.ManifestSnapRevision, vss map[string]*seedwriter.ManifestValidationSet) string {
+func (s *manifestSuite) testWriteManifest(c *C, revisions map[string]*seedwriter.ManifestSnapRevision, vss map[string]*seedwriter.ManifestValidationSet) string {
 	manifestFile := filepath.Join(s.root, "seed.manifest")
 	manifest := seedwriter.NewManifestForTest(nil, revisions, nil, vss)
 	err := manifest.Write(manifestFile)
@@ -123,13 +123,13 @@ func (s *manifestSuite) testWriteSeedManifest(c *C, revisions map[string]*seedwr
 	return manifestFile
 }
 
-func (s *manifestSuite) TestWriteSeedManifestNoFile(c *C) {
-	filePath := s.testWriteSeedManifest(c, nil, nil)
+func (s *manifestSuite) TestWriteManifestNoFile(c *C) {
+	filePath := s.testWriteManifest(c, nil, nil)
 	c.Check(osutil.FileExists(filePath), Equals, false)
 }
 
-func (s *manifestSuite) TestWriteSeedManifest(c *C) {
-	filePath := s.testWriteSeedManifest(c,
+func (s *manifestSuite) TestWriteManifest(c *C) {
+	filePath := s.testWriteManifest(c,
 		map[string]*seedwriter.ManifestSnapRevision{
 			"core": {SnapName: "core", Revision: snap.R(12)},
 			"test": {SnapName: "test", Revision: snap.R(-4)},
@@ -157,13 +157,13 @@ test x4
 `)
 }
 
-func (s *manifestSuite) TestSeedManifestSetAllowedSnapRevisionInvalidRevision(c *C) {
+func (s *manifestSuite) TestManifestSetAllowedSnapRevisionInvalidRevision(c *C) {
 	manifest := seedwriter.NewManifest()
 	err := manifest.SetAllowedSnapRevision("core", snap.R(0))
 	c.Assert(err, ErrorMatches, `snap revision for "core" in manifest cannot be 0 \(unset\)`)
 }
 
-func (s *manifestSuite) TestSeedManifestSetAllowedSnapRevision(c *C) {
+func (s *manifestSuite) TestManifestSetAllowedSnapRevision(c *C) {
 	manifest := seedwriter.NewManifest()
 	err := manifest.SetAllowedSnapRevision("core", snap.R(14))
 	c.Assert(err, IsNil)
@@ -172,7 +172,7 @@ func (s *manifestSuite) TestSeedManifestSetAllowedSnapRevision(c *C) {
 	c.Check(manifest.AllowedSnapRevision("core"), DeepEquals, snap.R(14))
 }
 
-func (s *manifestSuite) TestSeedManifestSetAllowedSnapRevisionTwice(c *C) {
+func (s *manifestSuite) TestManifestSetAllowedSnapRevisionTwice(c *C) {
 	// Adding two different allowed revisions, in this case the second
 	// call will be a no-op.
 	manifest := seedwriter.NewManifest()
@@ -185,7 +185,7 @@ func (s *manifestSuite) TestSeedManifestSetAllowedSnapRevisionTwice(c *C) {
 	}, nil, nil, nil)
 }
 
-func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededWithAllowedHappy(c *C) {
+func (s *manifestSuite) TestManifestMarkSnapRevisionSeededWithAllowedHappy(c *C) {
 	manifest := seedwriter.NewManifest()
 	err := manifest.SetAllowedSnapRevision("core", snap.R(14))
 	c.Assert(err, IsNil)
@@ -201,7 +201,7 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededWithAllowedHappy(c
 	}, nil, nil)
 }
 
-func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededNoMatchingAllowed(c *C) {
+func (s *manifestSuite) TestManifestMarkSnapRevisionSeededNoMatchingAllowed(c *C) {
 	manifest := seedwriter.NewManifest()
 	err := manifest.SetAllowedSnapRevision("core", snap.R(14))
 	c.Assert(err, IsNil)
@@ -214,7 +214,7 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededNoMatchingAllowed(
 	}, nil, nil)
 }
 
-func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededTwice(c *C) {
+func (s *manifestSuite) TestManifestMarkSnapRevisionSeededTwice(c *C) {
 	manifest := seedwriter.NewManifest()
 	err := manifest.MarkSnapRevisionSeeded("my-snap", snap.R(1))
 	c.Assert(err, IsNil)
@@ -222,7 +222,7 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededTwice(c *C) {
 	c.Assert(err, ErrorMatches, `cannot mark \"my-snap\" \(5\) as seeded, it has already been marked seeded for revision 1`)
 }
 
-func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededWrongRevision(c *C) {
+func (s *manifestSuite) TestManifestMarkSnapRevisionSeededWrongRevision(c *C) {
 	manifest := seedwriter.NewManifest()
 	err := manifest.SetAllowedSnapRevision("core", snap.R(14))
 	c.Assert(err, IsNil)
@@ -230,7 +230,7 @@ func (s *manifestSuite) TestSeedManifestMarkSnapRevisionSeededWrongRevision(c *C
 	c.Assert(err, ErrorMatches, `snap "core" \(1\) does not match the allowed revision 14`)
 }
 
-func (s *manifestSuite) TestSeedManifestSetAllowedValidationSet(c *C) {
+func (s *manifestSuite) TestManifestSetAllowedValidationSet(c *C) {
 	manifest := seedwriter.NewManifest()
 	err := manifest.SetAllowedValidationSet("canonical", "base-set", 4, true)
 	c.Assert(err, IsNil)
@@ -244,7 +244,7 @@ func (s *manifestSuite) TestSeedManifestSetAllowedValidationSet(c *C) {
 	})
 }
 
-func (s *manifestSuite) TestSeedManifestSetAllowedValidationSetTwice(c *C) {
+func (s *manifestSuite) TestManifestSetAllowedValidationSetTwice(c *C) {
 	manifest := seedwriter.NewManifest()
 	err := manifest.SetAllowedValidationSet("canonical", "base-set", 4, true)
 	c.Assert(err, IsNil)
@@ -257,7 +257,7 @@ func (s *manifestSuite) TestSeedManifestSetAllowedValidationSetTwice(c *C) {
 	})
 }
 
-func (s *manifestSuite) TestSeedManifestSetAllowedValidationSetInvalidSequence(c *C) {
+func (s *manifestSuite) TestManifestSetAllowedValidationSetInvalidSequence(c *C) {
 	manifest := seedwriter.NewManifest()
 	err := manifest.SetAllowedValidationSet("canonical", "base-set", 0, true)
 	c.Assert(err, ErrorMatches, `cannot add allowed validation set "canonical/base-set" for a unknown sequence`)
@@ -293,7 +293,7 @@ func (s *manifestSuite) setupValidationSet(c *C) *asserts.ValidationSet {
 	return vs.(*asserts.ValidationSet)
 }
 
-func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededUsedHappy(c *C) {
+func (s *manifestSuite) TestManifestMarkValidationSetSeededUsedHappy(c *C) {
 	vsa := s.setupValidationSet(c)
 
 	manifest := seedwriter.NewManifest()
@@ -361,7 +361,7 @@ func (s *manifestSuite) setupValidationSetWithNothingToTrack(c *C) *asserts.Vali
 	return vs.(*asserts.ValidationSet)
 }
 
-func (s *manifestSuite) TestSeedManifestMarkValidationSetWeirdCases(c *C) {
+func (s *manifestSuite) TestManifestMarkValidationSetWeirdCases(c *C) {
 	vsa := s.setupValidationSetWithNothingToTrack(c)
 
 	manifest := seedwriter.NewManifest()
@@ -380,7 +380,7 @@ func (s *manifestSuite) TestSeedManifestMarkValidationSetWeirdCases(c *C) {
 	})
 }
 
-func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededUsedTwice(c *C) {
+func (s *manifestSuite) TestManifestMarkValidationSetSeededUsedTwice(c *C) {
 	vsa := s.setupValidationSet(c)
 
 	manifest := seedwriter.NewManifest()
@@ -390,7 +390,7 @@ func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededUsedTwice(c *C) {
 	c.Assert(err, ErrorMatches, `cannot mark validation set "canonical/base-set" as seeded, it has already been marked as such`)
 }
 
-func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededWrongSequence(c *C) {
+func (s *manifestSuite) TestManifestMarkValidationSetSeededWrongSequence(c *C) {
 	vsa := s.setupValidationSet(c)
 
 	manifest := seedwriter.NewManifest()
@@ -400,7 +400,7 @@ func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededWrongSequence(c *
 	c.Assert(err, ErrorMatches, `sequence of "canonical/base-set" \(1\) does not match the allowed sequence \(4\)`)
 }
 
-func (s *manifestSuite) TestSeedManifestMarkValidationSetSeededWrongPinned(c *C) {
+func (s *manifestSuite) TestManifestMarkValidationSetSeededWrongPinned(c *C) {
 	vsa := s.setupValidationSet(c)
 
 	manifest := seedwriter.NewManifest()
