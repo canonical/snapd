@@ -344,12 +344,10 @@ func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client
 	}
 }
 
-func MockSysconfigConfigureTargetSystem(f func(mod *asserts.Model, opts *sysconfig.Options) error) (restore func()) {
-	old := sysconfigConfigureTargetSystem
-	sysconfigConfigureTargetSystem = f
-	return func() {
-		sysconfigConfigureTargetSystem = old
-	}
+func MockInstallLogicPrepareRunSystemData(f func(mod *asserts.Model, gadgetDir string, _ timings.Measurer) error) (restore func()) {
+	r := testutil.Backup(&installLogicPrepareRunSystemData)
+	installLogicPrepareRunSystemData = f
+	return r
 }
 
 func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
