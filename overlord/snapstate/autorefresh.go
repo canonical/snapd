@@ -123,6 +123,8 @@ type autoRefresh struct {
 	nextRefresh         time.Time
 	lastRefreshAttempt  time.Time
 	managedDeniedLogged bool
+
+	restoredMonitoring bool
 }
 
 func newAutoRefresh(st *state.State) *autoRefresh {
@@ -270,6 +272,8 @@ func (m *autoRefresh) Ensure() (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	m.restoreMonitoring()
+
 	// see if it even makes sense to try to refresh
 	if CanAutoRefresh == nil {
 		return nil
@@ -405,6 +409,38 @@ func canContinueAutoRefresh(st *state.State) (int, bool) {
 	}
 
 	return 0, false
+}
+
+func (m *autoRefresh) restoreMonitoring() {
+	if m.restoredMonitoring {
+		return
+	}
+
+	var monitored []string
+	if err := m.state.Get("monitored-snaps", &monitored); err != nil && !errors.Is(err, state.ErrNoState) {
+		logger.Noticef("cannot restore monitoring: %v", err)
+		return
+	}
+
+	defer func() { m.restoredMonitoring = true }()
+	if len(monitored) == 0 {
+		return
+	}
+
+	monitoring := make(map[string]chan<- bool)
+	for _, snap := range monitored {
+		done := make(chan string, 1)
+		if err := cgroupMonitorSnapEnded(snap, done); err != nil {
+			logger.Noticef("cannot restore monitoring for snap %q closure: %v", snap, err)
+			continue
+		}
+
+		abort := make(chan bool, 1)
+		monitoring[snap] = abort
+
+		go continueRefreshOnSnapClose(m.state, snap, done, abort)
+	}
+	updateMonitoringState(m.state, monitoring)
 }
 
 // isRefreshHeld returns whether an auto-refresh is currently held back or not,

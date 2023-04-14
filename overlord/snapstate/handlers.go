@@ -921,40 +921,42 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 
 	abort := make(chan bool, 1)
 	monitoredSnaps[refreshInfo.InstanceName] = abort
-	st.Cache("monitored-snaps", monitoredSnaps)
+	updateMonitoringState(st, monitoredSnaps)
 
-	go func() {
-		continueAutoRefresh := false
-		select {
-		case <-done:
-			continueAutoRefresh = true
-		case <-abort:
-		}
-
-		st.Lock()
-		defer st.Unlock()
-
-		monitoredSnaps := snapMonitoring(st)
-		if monitoredSnaps == nil {
-			// shouldn't happen except for programmer error
-			logger.Noticef("cannot find monitoring state for snap %q", refreshInfo.InstanceName)
-		} else {
-			delete(monitoredSnaps, refreshInfo.InstanceName)
-
-			if len(monitoredSnaps) == 0 {
-				// use nil to delete entry but must be nil type (can't be map var set to nil)
-				st.Cache("monitored-snaps", nil)
-			} else {
-				st.Cache("monitored-snaps", monitoredSnaps)
-			}
-		}
-
-		if continueAutoRefresh {
-			continueInhibitedAutoRefresh(st)
-		}
-	}()
+	go continueRefreshOnSnapClose(st, refreshInfo.InstanceName, done, abort)
 
 	return nil
+}
+
+func continueRefreshOnSnapClose(st *state.State, instanceName string, done <-chan string, abort <-chan bool) {
+	continueAutoRefresh := false
+	select {
+	case <-done:
+		continueAutoRefresh = true
+	case <-abort:
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	monitoredSnaps := snapMonitoring(st)
+	if monitoredSnaps == nil {
+		// shouldn't happen except for programmer error
+		logger.Noticef("cannot find monitoring state for snap %q", instanceName)
+	} else {
+		delete(monitoredSnaps, instanceName)
+
+		if len(monitoredSnaps) == 0 {
+			// use nil to delete entry but must be nil type (can't be map var set to nil)
+			updateMonitoringState(st, nil)
+		} else {
+			updateMonitoringState(st, monitoredSnaps)
+		}
+	}
+
+	if continueAutoRefresh {
+		continueInhibitedAutoRefresh(st)
+	}
 }
 
 // continueInhibitedAutoRefresh triggers an auto-refresh so it can be continued
@@ -972,6 +974,22 @@ func snapMonitoring(st *state.State) map[string]chan<- bool {
 	}
 
 	return nil
+}
+
+func updateMonitoringState(st *state.State, monitored map[string]chan<- bool) {
+	if monitored == nil {
+		st.Cache("monitored-snaps", nil)
+		st.Set("monitored-snaps", nil)
+		return
+	}
+
+	var snaps []string
+	for snap := range monitored {
+		snaps = append(snaps, snap)
+	}
+
+	st.Cache("monitored-snaps", monitored)
+	st.Set("monitored-snaps", snaps)
 }
 
 func abortMonitoring(st *state.State, snapName string) {

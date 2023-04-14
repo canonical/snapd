@@ -6,10 +6,18 @@ systems: [-ubuntu-14.04-*]
 kill-timeout: 5m
 
 environment:
-  REFRESH_TYPE/close: "close"
-  REFRESH_TYPE/ignore: "ignore-running"
+  # trigger the auto-refresh continuation by closing the snap
+  VARIANT/close: "close"
+  # explicitly tell snapd to do the auto-refresh
+  VARIANT/ignore: "ignore-running"
+  # snapd restarts while the snap is being monitored but the auto-refresh is still triggered
+  VARIANT/restart: "restart"
+  # the snap closes in the middle of a restart
+  VARIANT/close_mid_restart: "close-mid-restart"
 
 prepare: |
+  # ensure no other refreshes interfere with the test
+  snap refresh
   snap install --devmode jq
   snap install test-snapd-sh
 
@@ -79,16 +87,14 @@ execute: |
     MATCH 'string "Close the app to update now \(.* days left\)"' < /home/test/notif.log
   fi
 
-  if [ "$REFRESH_TYPE" == "close" ]; then
-    CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
-
+  OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
+  if [ "$VARIANT" == "close" ]; then
     # stop the snap and check that an auto-refresh is triggered
     touch stamp
     wait "$APP_PID"
-    "$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "test-snapd-sh" "$CHANGE"
-  elif [ "$REFRESH_TYPE" == "ignore-running" ]; then
+    "$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "test-snapd-sh" "$OLD_CHANGE"
+  elif [ "$VARIANT" == "ignore-running" ]; then
     # refresh the snap while running
-    OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
     snap refresh --ignore-running test-snapd-sh
 
     # check the refresh was completed
@@ -106,6 +112,20 @@ execute: |
       echo "unexpected auto-refresh of test-snapd-sh"
       exit 1
     fi
+  elif [ "$VARIANT" == "restart" ]; then
+    systemctl stop snapd.{service,socket}
+    systemctl start snapd.{socket,service}
+
+    touch stamp
+    wait "$APP_PID"
+    "$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "test-snapd-sh" "$OLD_CHANGE"
+  elif [ "$VARIANT" == "close-mid-restart" ]; then
+    systemctl stop snapd.{service,socket}
+    touch stamp
+    wait "$APP_PID"
+    systemctl start snapd.{socket,service}
+
+    "$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "test-snapd-sh" "$OLD_CHANGE"
   else
     echo "unrecognized test variant"
     exit 1
