@@ -3828,7 +3828,7 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, rules map[str
 	coreFn := snaptest.MakeTestSnapWithFiles(c, packageCore, [][]string{{"local", ""}, snapdInfoFile})
 	requiredSnap1Fn := snaptest.MakeTestSnapWithFiles(c, requiredSnap1, [][]string{{"local", ""}})
 
-	seedManifest := seedwriter.NewManifestForTest(rules, nil, nil, nil)
+	seedManifest := seedwriter.MockManifest(rules, nil, nil, nil)
 	opts := &image.Options{
 		Snaps: []string{
 			coreFn,
@@ -3998,7 +3998,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 			BootFlags:  []string{"factory"},
 			Validation: "ignore",
 		},
-		SeedManifest: seedwriter.NewManifestForTest(map[string]*seedwriter.ManifestSnapRevision{
+		SeedManifest: seedwriter.MockManifest(map[string]*seedwriter.ManifestSnapRevision{
 			"snapd":      {SnapName: "snapd", Revision: snap.R(133)},
 			"core20":     {SnapName: "core20", Revision: snap.R(58)},
 			"pc-kernel":  {SnapName: "pc-kernel", Revision: snap.R(15)},
@@ -4122,7 +4122,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadWrongRevision(c *C) {
 			BootFlags:  []string{"factory"},
 			Validation: "ignore",
 		},
-		SeedManifest: seedwriter.NewManifestForTest(map[string]*seedwriter.ManifestSnapRevision{
+		SeedManifest: seedwriter.MockManifest(map[string]*seedwriter.ManifestSnapRevision{
 			"required20": {SnapName: "required20", Revision: snap.R(15)},
 		}, nil, nil, nil),
 	}
@@ -4183,7 +4183,7 @@ func (s *imageSuite) TestLocalSnapRevisionMatchingStoreRevision(c *C) {
 		Customizations: image.Customizations{
 			Validation: "enforce",
 		},
-		SeedManifest: seedwriter.NewManifestForTest(map[string]*seedwriter.ManifestSnapRevision{
+		SeedManifest: seedwriter.MockManifest(map[string]*seedwriter.ManifestSnapRevision{
 			"core": {SnapName: "core", Revision: snap.R(3)},
 		}, nil, nil, nil),
 	}
@@ -4432,7 +4432,7 @@ func (s *imageSuite) TestSetupSeedFetchText(c *C) {
 			Validation: "ignore",
 		},
 		// Make sure we also test the case of a specific revision
-		SeedManifest: seedwriter.NewManifestForTest(map[string]*seedwriter.ManifestSnapRevision{
+		SeedManifest: seedwriter.MockManifest(map[string]*seedwriter.ManifestSnapRevision{
 			"snapd": {SnapName: "snapd", Revision: snap.R(133)},
 		}, nil, nil, nil),
 	}

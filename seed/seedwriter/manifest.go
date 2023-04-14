@@ -109,9 +109,9 @@ func NewManifest() *Manifest {
 	}
 }
 
-// NewManifestForTest is stricly for unit tests, do not use for non-test code.
-func NewManifestForTest(revsAllowed, revsSeeded map[string]*ManifestSnapRevision, vsAllowed, vsSeeded map[string]*ManifestValidationSet) *Manifest {
-	osutil.MustBeTestBinary("NewManifestForTest can only be used in unit tests")
+// MockManifest is stricly for unit tests, do not use for non-test code.
+func MockManifest(revsAllowed, revsSeeded map[string]*ManifestSnapRevision, vsAllowed, vsSeeded map[string]*ManifestValidationSet) *Manifest {
+	osutil.MustBeTestBinary("MockManifest can only be used in unit tests")
 
 	sm := NewManifest()
 	if revsAllowed != nil {

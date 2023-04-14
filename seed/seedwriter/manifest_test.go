@@ -56,7 +56,7 @@ func (s *manifestSuite) writeManifest(c *C, contents string) string {
 }
 
 func (s *manifestSuite) checkManifest(c *C, manifest *seedwriter.Manifest, revsAllowed, revsSeeded map[string]*seedwriter.ManifestSnapRevision, vsAllowed, vsSeeded map[string]*seedwriter.ManifestValidationSet) {
-	expected := seedwriter.NewManifestForTest(revsAllowed, revsSeeded, vsAllowed, vsSeeded)
+	expected := seedwriter.MockManifest(revsAllowed, revsSeeded, vsAllowed, vsSeeded)
 	c.Check(manifest, DeepEquals, expected)
 }
 
@@ -117,7 +117,7 @@ func (s *manifestSuite) TestReadManifestNoFile(c *C) {
 
 func (s *manifestSuite) testWriteManifest(c *C, revisions map[string]*seedwriter.ManifestSnapRevision, vss map[string]*seedwriter.ManifestValidationSet) string {
 	manifestFile := filepath.Join(s.root, "seed.manifest")
-	manifest := seedwriter.NewManifestForTest(nil, revisions, nil, vss)
+	manifest := seedwriter.MockManifest(nil, revisions, nil, vss)
 	err := manifest.Write(manifestFile)
 	c.Assert(err, IsNil)
 	return manifestFile
