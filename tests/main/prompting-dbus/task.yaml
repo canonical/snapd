@@ -10,14 +10,14 @@ prepare: |
     # automatically
     apt install -y software-properties-common
     apt-add-repository -y ppa:apparmor-dev/prompt-dev
-    apt install -y --allow-downgrades apparmor=3.0.3-0ubuntu2+prompt3
+    apt install -y --allow-downgrades apparmor= 3.0.8-1ubuntu2+prompt48
     # TODO: this is only needed for as long as prompting is not in
     # the default lunar kernel.
     if [ ! -e /sys/kernel/security/apparmor/.notify ]; then
         uname -r > kernel-uname-r.txt
         # no need to cleanup, setup/teardown will remove extra pkgs
         # automatically
-        apt install -y --allow-downgrades  linux-image-6.2.0-16-generic
+        apt install -y --allow-downgrades  linux-image-6.2.0-20-generic
         # ensure there is no newer kernel
         apt remove -y linux-image-6.2.0-18-generic
         # TODO2: if the PPA kernel version is lower than the distro kernel
