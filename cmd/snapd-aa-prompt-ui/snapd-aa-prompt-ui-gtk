@@ -1,5 +1,8 @@
 #!/usr/bin/python3
 
+import subprocess
+import time
+
 import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk
@@ -73,13 +76,28 @@ class Agent(dbus.service.Object):
         return prompt_allow, extra_constraints
 
 
+# this is a workaround a the bug in 23.04 where
+#   After=gnome-session-initialized.target
+# is missing in the startup script.
+# XXX: how about kde, xfce etc?
+def wait_for_graphical_session_target():
+    ret = subprocess.call(
+        ["systemctl", "--user",
+         "is-active", "graphical-session.target"])
+    if ret != 0:
+        time.sleep(5)
+        subprocess.check_call(["systemctl", "--user",
+                               "restart", "snapd.aa-prompt-ui.service"])
+
+
 def main():
+    # workaround bug wt
+    wait_for_graphical_session_target()
     # create agent prompt
     # XXX: do we need the path ?
     buspath = "/io/snapcraft/PromptAgent"
     bus = dbus.SystemBus()
     agent = Agent(bus, buspath)
-    print(agent, dir(agent))
     print(f"Agent ready on {agent._locations}")
 
     # register to aa-listen
