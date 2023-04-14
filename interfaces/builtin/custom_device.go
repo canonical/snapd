@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -159,8 +160,7 @@ func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]inte
 				// of the given devices
 				foundMatch := false
 				for _, devicePath := range devices {
-					deviceBasename := devicePath[strings.LastIndex(devicePath, "/")+1:]
-					if deviceName == deviceBasename {
+					if deviceName == filepath.Base(devicePath) {
 						foundMatch = true
 						break
 					}
