@@ -2501,6 +2501,9 @@ func AutoRefresh(ctx context.Context, st *state.State, opts *AutoRefreshOptions)
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
+	// TODO2: pass "IsContinuedAutoRefresh" so that the SnapSetup of
+	//        gate-auto-refresh contains this field (required so that
+	//        the update-finisehd notifications work)
 	updated, tss, err := autoRefreshPhase1(ctx, st, "")
 	if err != nil {
 		return nil, nil, err
