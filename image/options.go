@@ -19,6 +19,8 @@
 
 package image
 
+import "github.com/snapcore/snapd/seed/seedwriter"
+
 type Options struct {
 	ModelFile string
 	Classic   bool
@@ -50,7 +52,7 @@ type Options struct {
 	// creating reproducible seeds. If provided, the snap revisions and
 	// validation-sets specified in the seed manifest will be used to
 	// (re-)create the image seed.
-	SeedManifest *SeedManifest
+	SeedManifest *seedwriter.SeedManifest
 	// SeedManifestPath if set, specifies the file path where the
 	// seed.manifest file should be written.
 	SeedManifestPath string

@@ -281,7 +281,7 @@ type imageSeeder struct {
 	classic        bool
 	prepareDir     string
 	wideCohortKey  string
-	manifest       *SeedManifest
+	manifest       *seedwriter.SeedManifest
 	customizations *Customizations
 	architecture   string
 
@@ -352,9 +352,9 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 	return s, nil
 }
 
-func initManifestFromOptions(opts *Options) *SeedManifest {
+func initManifestFromOptions(opts *Options) *seedwriter.SeedManifest {
 	if opts.SeedManifest == nil {
-		return NewSeedManifest()
+		return seedwriter.NewSeedManifest()
 	}
 	return opts.SeedManifest
 }
@@ -743,7 +743,7 @@ func optionSnaps(opts *Options) []*seedwriter.OptionsSnap {
 
 // markLocalSnapRevisionsUsed attempts to mark the given local snaps used in the
 // seed manifest. When marking them used they will be validated against any rules.
-func markLocalSnapRevisionsUsed(manifest *SeedManifest, snaps localSnapRefs) error {
+func markLocalSnapRevisionsUsed(manifest *seedwriter.SeedManifest, snaps localSnapRefs) error {
 	for sn := range snaps {
 		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
 		// available. Therefore the revision in the local snap must be exactly the revision specified

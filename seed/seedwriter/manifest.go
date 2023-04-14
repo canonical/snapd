@@ -17,7 +17,7 @@
  *
  */
 
-package image
+package seedwriter
 
 import (
 	"bufio"
