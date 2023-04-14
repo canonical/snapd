@@ -96,12 +96,12 @@ type Directory struct {
 }
 
 func (d *Directory) UnmarshalJSON(v []byte) error {
-	var val map[string]json.RawMessage
-	if err := json.Unmarshal(v, &val); err != nil {
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(v, &data); err != nil {
 		return err
 	}
 
-	name, ok := val["name"]
+	name, ok := data["name"]
 	if !ok {
 		return errors.New(`cannot unmarshal directory: "name" field was not found`)
 	}
@@ -110,7 +110,7 @@ func (d *Directory) UnmarshalJSON(v []byte) error {
 		return err
 	}
 
-	databag, ok := val["databag"]
+	databag, ok := data["databag"]
 	if !ok {
 		return errors.New(`cannot unmarshal directory: "databag" field was not found`)
 	}
@@ -122,7 +122,7 @@ func (d *Directory) UnmarshalJSON(v []byte) error {
 	d.DataBag = jsonDataBag
 	d.Schema = NewJSONSchema()
 
-	asps, ok := val["aspects"]
+	asps, ok := data["aspects"]
 	if !ok {
 		return errors.New(`cannot unmarshal directory: "aspects" field was not found`)
 	}
@@ -466,12 +466,12 @@ func (p accessPattern) isWriteable() bool {
 }
 
 func (p *accessPattern) UnmarshalJSON(v []byte) error {
-	var level map[string]json.RawMessage
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(v), &level); err != nil {
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(v, &data); err != nil {
 		return err
 	}
 
-	val, ok := level["name"]
+	val, ok := data["name"]
 	if !ok {
 		return fmt.Errorf(`cannot find accessPattern's "name" field`)
 	}
@@ -491,7 +491,7 @@ func (p *accessPattern) UnmarshalJSON(v []byte) error {
 	}
 	p.Name = matchers
 
-	val, ok = level["path"]
+	val, ok = data["path"]
 	if !ok {
 		return fmt.Errorf(`cannot find accessPattern's "path" field`)
 	}
@@ -511,7 +511,7 @@ func (p *accessPattern) UnmarshalJSON(v []byte) error {
 	}
 	p.Path = writers
 
-	val, ok = level["access"]
+	val, ok = data["access"]
 	if !ok {
 		return fmt.Errorf(`cannot find accessPattern's "access" field`)
 	}
