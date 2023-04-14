@@ -1,5 +1,12 @@
 summary: Check the aspects API
 
+# ubuntu-14.04-64's curl doesn't support --unix-socket
+systems: [-ubuntu-14.04-*]
+
+prepare: |
+  snap install test-snapd-curl --edge --devmode
+  snap install --edge jq
+
 execute: |
   # write a value
   curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XPOST -d '{"account": "system", "directory": "network", "aspect": "wifi-setup", "field": "ssid", "value": "canonical"}' -H 'Content-Type: application/json' > response.txt
