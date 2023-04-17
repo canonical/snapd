@@ -1893,8 +1893,6 @@ func (s *RunSuite) TestWaitWhileInhibitedTextFlow(c *check.C) {
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
-	c.Skip("re-enable once we have a proper UX review")
-
 	_, r := logger.MockLogger()
 	defer r()
 
@@ -1942,8 +1940,6 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
-	c.Skip("re-enable once we have a proper UX review")
-
 	_, r := logger.MockLogger()
 	defer r()
 
@@ -1976,8 +1972,6 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowErrorOnFinish(c *check.C) {
-	c.Skip("re-enable once we have a proper UX review")
-
 	_, r := logger.MockLogger()
 	defer r()
 

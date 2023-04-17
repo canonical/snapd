@@ -80,7 +80,9 @@ func inhibitMessage(snapName string, hint runinhibit.Hint) string {
 }
 
 var isGraphicalSession = func() bool {
-	return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
+	// TODO: uncomment once there is a proper UX review
+	//return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
+	return false
 }
 
 var pendingRefreshNotification = func(refreshInfo *client.PendingSnapRefreshInfo) error {
@@ -120,26 +122,22 @@ var tryNotifyRefreshViaSnapDesktopIntegrationFlow = func(snapName string) (bool,
 }
 
 func graphicalSessionFlow(snapName string, hint runinhibit.Hint) error {
-	// TODO: review this code once we have a proper UX review
-	/*
-		refreshInfo := client.PendingSnapRefreshInfo{
-			InstanceName: snapName,
-			// Remaining time = 0 results in "Snap .. is refreshing now" message from
-			// usersession agent.
-			TimeRemaining: 0,
-		}
+	refreshInfo := client.PendingSnapRefreshInfo{
+		InstanceName: snapName,
+		// Remaining time = 0 results in "Snap .. is refreshing now" message from
+		// usersession agent.
+		TimeRemaining: 0,
+	}
 
-		if err := pendingRefreshNotification(&refreshInfo); err != nil {
-			return err
-		}
-		if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited); err != nil {
-			return err
-		}
+	if err := pendingRefreshNotification(&refreshInfo); err != nil {
+		return err
+	}
+	if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited); err != nil {
+		return err
+	}
 
-			finishRefreshInfo := client.FinishedSnapRefreshInfo{InstanceName: snapName}
-			return finishRefreshNotification(&finishRefreshInfo)
-	*/
-	return nil
+	finishRefreshInfo := client.FinishedSnapRefreshInfo{InstanceName: snapName}
+	return finishRefreshNotification(&finishRefreshInfo)
 }
 
 func textFlow(snapName string, hint runinhibit.Hint) error {
