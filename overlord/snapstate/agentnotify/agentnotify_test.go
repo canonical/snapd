@@ -40,17 +40,16 @@ var _ = Suite(&agentNotifySuite{})
 
 func (s *agentNotifySuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
-
 }
 
 func (s *agentNotifySuite) TestNotifyAgentOnLinkChange(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	var i int
+	var callCount int
 	r := agentnotify.MockSendClientFinishRefreshNotification(func(snapsup *snapstate.SnapSetup) {
 		c.Check(snapsup.InstanceName(), Equals, "some-snap")
-		i++
+		callCount++
 	})
 	defer r()
 
@@ -64,7 +63,7 @@ func (s *agentNotifySuite) TestNotifyAgentOnLinkChange(c *C) {
 		{true, false, 0},
 		{true, true, 1},
 	} {
-		i = 0
+		callCount = 0
 		snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
 			Active: tc.active,
 			Sequence: []*snap.SideInfo{{
@@ -80,6 +79,6 @@ func (s *agentNotifySuite) TestNotifyAgentOnLinkChange(c *C) {
 		}
 		err := agentnotify.NotifyAgentOnLinkageChange(s.st, snapsup)
 		c.Assert(err, IsNil)
-		c.Check(i, Equals, tc.expectedCallCount)
+		c.Check(callCount, Equals, tc.expectedCallCount)
 	}
 }

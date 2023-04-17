@@ -1192,8 +1192,8 @@ func (s *autoRefreshTestSuite) TestPartiallyInhibitedAutoRefreshIsContinued(c *C
 	c.Check(lastRefresh.Equal(now), Equals, true)
 	c.Check(s.state.Cached("auto-refresh-continue-attempt"), IsNil)
 
-	// check that the "IsContinuedAutoRefresh" flag is set for a contiued
-	// refresh
+	// check that the "IsContinuedAutoRefresh" flag is set for a
+	// continued auto-refresh
 	chgs := s.state.Changes()
 	c.Assert(chgs, HasLen, 1)
 	checkIsContinuedAutoRefresh(c, chgs[0].Tasks(), true)
