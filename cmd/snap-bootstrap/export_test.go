@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -29,6 +30,7 @@ import (
 	gadgetInstall "github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -245,5 +247,21 @@ func MockBuildInstallObserver(f func(model *asserts.Model, gadgetDir string, use
 	installBuildInstallObserver = f
 	return func() {
 		installBuildInstallObserver = old
+	}
+}
+
+func MockChangeEncryptionKey(f func(device string, stage, transition bool, key keys.EncryptionKey) error) (restore func()) {
+	old := fdeKeymgrChangeEncryptionKey
+	fdeKeymgrChangeEncryptionKey = f
+	return func() {
+		fdeKeymgrChangeEncryptionKey = old
+	}
+}
+
+func MockOsStdin(r io.Reader) (restore func()) {
+	old := osStdin
+	osStdin = r
+	return func() {
+		osStdin = old
 	}
 }
