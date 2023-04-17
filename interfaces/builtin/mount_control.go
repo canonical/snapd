@@ -311,7 +311,7 @@ func validateWhatAttr(mountInfo *MountInfo) error {
 		return fmt.Errorf(`mount-control "what" pattern is not clean: %q`, what)
 	}
 
-	if _, err := utils.NewPathPattern(what); err != nil {
+	if _, err := utils.NewPathPattern(what, true); err != nil {
 		return fmt.Errorf(`mount-control "what" setting cannot be used: %v`, err)
 	}
 
@@ -337,7 +337,7 @@ func validateWhereAttr(where string) error {
 		return fmt.Errorf(`mount-control "where" pattern is not clean: %q`, where)
 	}
 
-	if _, err := utils.NewPathPattern(where); err != nil {
+	if _, err := utils.NewPathPattern(where, true); err != nil {
 		return fmt.Errorf(`mount-control "where" setting cannot be used: %v`, err)
 	}
 

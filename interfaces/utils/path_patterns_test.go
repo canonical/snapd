@@ -66,7 +66,7 @@ func (s *pathPatternsSuite) TestRegexCreationHappy(c *C) {
 	for _, testData := range data {
 		pattern := testData.pattern
 		expectedRegex := testData.expectedRegex
-		regex, err := utils.CreateRegex(pattern, testData.glob)
+		regex, err := utils.CreateRegex(pattern, testData.glob, true)
 		c.Assert(err, IsNil, Commentf("%s", pattern))
 		c.Assert(regex, Equals, expectedRegex, Commentf("%s", pattern))
 		// Also, make sure that the obtained regex is valid
@@ -88,12 +88,13 @@ func (s *pathPatternsSuite) TestRegexCreationUnhappy(c *C) {
 		{`/media\`, `expected character after '\\':.*`},
 		// 123456789012345678901234567890123456789012345678901, 51 of them
 		{`/{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{`, `maximum group depth exceeded:.*`},
+		{`/comma/not/in/group/a,b`, `cannot use ',' outside of group or character class`},
 	}
 
 	for _, testData := range data {
 		pattern := testData.pattern
 		expectedError := testData.expectedError
-		pathPattern, err := utils.NewPathPattern(pattern)
+		pathPattern, err := utils.NewPathPattern(pattern, false)
 		c.Assert(pathPattern, IsNil, Commentf("%s", pattern))
 		c.Assert(err, ErrorMatches, expectedError, Commentf("%s", pattern))
 	}
@@ -127,7 +128,7 @@ func (s *pathPatternsSuite) TestPatternMatches(c *C) {
 		pattern := testData.pattern
 		testPath := testData.testPath
 		expectedMatch := testData.expectedMatch
-		pathPattern, err := utils.NewPathPattern(pattern)
+		pathPattern, err := utils.NewPathPattern(pattern, false)
 		c.Assert(err, IsNil, Commentf("%s", pattern))
 		c.Assert(pathPattern.Matches(testPath), Equals, expectedMatch, Commentf("%s", pattern))
 	}
