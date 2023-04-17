@@ -56,6 +56,15 @@ type Options struct {
 	ManifestPath string
 }
 
+// initManifest returns either the manifest already provided by the
+// options, or if not provided, returns a newly initialized manifest.
+func (opts *Options) initManifest() *Manifest {
+	if opts.Manifest == nil {
+		return NewManifest()
+	}
+	return opts.Manifest
+}
+
 // OptionsSnap represents an options-referred snap with its option values.
 // E.g. a snap passed to ubuntu-image via --snap.
 // If Name is set the snap is from the store. If Path is set the snap
@@ -265,9 +274,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 
 		byNameOptSnaps:  naming.NewSnapSet(nil),
 		byRefLocalSnaps: naming.NewSnapSet(nil),
-		// Initialize our own copy if it's not provided
-		// by options.
-		manifest: initManifestFromOptions(opts),
+		manifest:        opts.initManifest(),
 	}
 
 	var treeImpl tree
@@ -300,13 +307,6 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 	w.tree = treeImpl
 	w.policy = pol
 	return w, nil
-}
-
-func initManifestFromOptions(opts *Options) *Manifest {
-	if opts.Manifest == nil {
-		return NewManifest()
-	}
-	return opts.Manifest
 }
 
 type writerStep int
