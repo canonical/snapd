@@ -1789,7 +1789,10 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 }
 
 type RestartServicesFlags struct {
+	// Reload set if we might need to reload the service definitions.
 	Reload bool
+	// AlsoEnabledNonActive set if we to restart also enabled but not running units
+	AlsoEnabledNonActive bool
 }
 
 // Restart or reload active services in `svcs`.
@@ -1805,6 +1808,9 @@ type RestartServicesFlags struct {
 // (introduce AppRef?)
 func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 	flags *RestartServicesFlags, inter Interacter, tm timings.Measurer) error {
+	if flags == nil {
+		flags = &RestartServicesFlags{}
+	}
 	sysd := systemd.New(systemd.SystemMode, inter)
 
 	unitNames := make([]string, 0, len(svcs))
@@ -1824,15 +1830,21 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 	for _, unit := range unitStatuses {
 		// If the unit was explicitly mentioned in the command line, restart it
 		// even if it is disabled; otherwise, we only restart units which are
-		// currently running. Reference:
+		// currently enabled or running. Reference:
 		// https://forum.snapcraft.io/t/command-line-interface-to-manipulate-services/262/47
 		if !unit.Active && !strutil.ListContains(explicitServices, unit.Name) {
-			continue
+			if !flags.AlsoEnabledNonActive {
+				logger.Noticef("not restarting inactive unit %s", unit.Name)
+				continue
+			} else if !unit.Enabled {
+				logger.Noticef("not restarting disabled and inactive unit %s", unit.Name)
+				continue
+			}
 		}
 
 		var err error
 		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %s", unit.Name), func(nested timings.Measurer) {
-			if flags != nil && flags.Reload {
+			if flags.Reload {
 				err = sysd.ReloadOrRestart([]string{unit.Name})
 			} else {
 				// note: stop followed by start, not just 'restart'
