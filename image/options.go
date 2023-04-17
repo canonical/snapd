@@ -52,7 +52,7 @@ type Options struct {
 	// creating reproducible seeds. If provided, the snap revisions and
 	// validation-sets specified in the seed manifest will be used to
 	// (re-)create the image seed.
-	SeedManifest *seedwriter.SeedManifest
+	SeedManifest *seedwriter.Manifest
 	// SeedManifestPath if set, specifies the file path where the
 	// seed.manifest file should be written.
 	SeedManifestPath string

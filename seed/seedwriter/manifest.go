@@ -36,22 +36,22 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// SeedManifestSnapRevision represents a snap revision as noted
+// ManifestSnapRevision represents a snap revision as noted
 // in the seed manifest.
-type SeedManifestSnapRevision struct {
+type ManifestSnapRevision struct {
 	SnapName string
 	Revision snap.Revision
 }
 
-func (s *SeedManifestSnapRevision) String() string {
+func (s *ManifestSnapRevision) String() string {
 	return fmt.Sprintf("%s %s", s.SnapName, s.Revision)
 }
 
-// SeedManifestValidationSet represents a validation set as noted
+// ManifestValidationSet represents a validation set as noted
 // in the seed manifest. A validation set can optionally be pinned,
 // but the sequence will always be set to the sequence that was used
 // during the image build.
-type SeedManifestValidationSet struct {
+type ManifestValidationSet struct {
 	AccountID string
 	Name      string
 	Sequence  int
@@ -59,8 +59,8 @@ type SeedManifestValidationSet struct {
 	Snaps     []string
 }
 
-func newSeedManifestValidationSet(vsa *asserts.ValidationSet, pinned bool) *SeedManifestValidationSet {
-	vs := &SeedManifestValidationSet{
+func newManifestValidationSet(vsa *asserts.ValidationSet, pinned bool) *ManifestValidationSet {
+	vs := &ManifestValidationSet{
 		AccountID: vsa.AccountID(),
 		Name:      vsa.Name(),
 		Sequence:  vsa.Sequence(),
@@ -69,7 +69,7 @@ func newSeedManifestValidationSet(vsa *asserts.ValidationSet, pinned bool) *Seed
 	return vs
 }
 
-func (s *SeedManifestValidationSet) String() string {
+func (s *ManifestValidationSet) String() string {
 	if s.Pinned {
 		return fmt.Sprintf("%s/%s=%d", s.AccountID, s.Name, s.Sequence)
 	} else {
@@ -77,11 +77,11 @@ func (s *SeedManifestValidationSet) String() string {
 	}
 }
 
-func (s *SeedManifestValidationSet) Unique() string {
+func (s *ManifestValidationSet) Unique() string {
 	return fmt.Sprintf("%s/%s", s.AccountID, s.Name)
 }
 
-func (vs *SeedManifestValidationSet) hasSnap(snapName string) bool {
+func (vs *ManifestValidationSet) hasSnap(snapName string) bool {
 	return strutil.ListContains(vs.Snaps, snapName)
 }
 
@@ -93,27 +93,27 @@ func (vs *SeedManifestValidationSet) hasSnap(snapName string) bool {
 // <account-id>/<name>=<sequence>
 // <account-id>/<name> <sequence>
 // <snap-name> <snap-revision>
-type SeedManifest struct {
-	revsAllowed map[string]*SeedManifestSnapRevision
-	revsSeeded  map[string]*SeedManifestSnapRevision
-	vsAllowed   map[string]*SeedManifestValidationSet
-	vsSeeded    map[string]*SeedManifestValidationSet
+type Manifest struct {
+	revsAllowed map[string]*ManifestSnapRevision
+	revsSeeded  map[string]*ManifestSnapRevision
+	vsAllowed   map[string]*ManifestValidationSet
+	vsSeeded    map[string]*ManifestValidationSet
 }
 
-func NewSeedManifest() *SeedManifest {
-	return &SeedManifest{
-		revsAllowed: make(map[string]*SeedManifestSnapRevision),
-		revsSeeded:  make(map[string]*SeedManifestSnapRevision),
-		vsAllowed:   make(map[string]*SeedManifestValidationSet),
-		vsSeeded:    make(map[string]*SeedManifestValidationSet),
+func NewManifest() *Manifest {
+	return &Manifest{
+		revsAllowed: make(map[string]*ManifestSnapRevision),
+		revsSeeded:  make(map[string]*ManifestSnapRevision),
+		vsAllowed:   make(map[string]*ManifestValidationSet),
+		vsSeeded:    make(map[string]*ManifestValidationSet),
 	}
 }
 
-// NewSeedManifestForTest is stricly for unit tests, do not use for non-test code.
-func NewSeedManifestForTest(revsAllowed, revsSeeded map[string]*SeedManifestSnapRevision, vsAllowed, vsSeeded map[string]*SeedManifestValidationSet) *SeedManifest {
-	osutil.MustBeTestBinary("NewSeedManifestForTest can only be used in unit tests")
+// MockManifest is stricly for unit tests, do not use for non-test code.
+func MockManifest(revsAllowed, revsSeeded map[string]*ManifestSnapRevision, vsAllowed, vsSeeded map[string]*ManifestValidationSet) *Manifest {
+	osutil.MustBeTestBinary("MockManifest can only be used in unit tests")
 
-	sm := NewSeedManifest()
+	sm := NewManifest()
 	if revsAllowed != nil {
 		sm.revsAllowed = revsAllowed
 	}
@@ -129,7 +129,7 @@ func NewSeedManifestForTest(revsAllowed, revsSeeded map[string]*SeedManifestSnap
 	return sm
 }
 
-func (sm *SeedManifest) isControlledByValidationSet(snapName string) bool {
+func (sm *Manifest) isControlledByValidationSet(snapName string) bool {
 	for _, vs := range sm.vsSeeded {
 		if vs.hasSnap(snapName) {
 			return true
@@ -142,7 +142,7 @@ func (sm *SeedManifest) isControlledByValidationSet(snapName string) bool {
 // that any snap marked used through MarkSnapRevisionUsed will be validated against
 // this rule. The manifest will only allow one revision per snap, meaning that any
 // subsequent calls to this will be ignored.
-func (sm *SeedManifest) SetAllowedSnapRevision(snapName string, revision snap.Revision) error {
+func (sm *Manifest) SetAllowedSnapRevision(snapName string, revision snap.Revision) error {
 	// Values that are higher than 0 indicate the revision comes from the store, and values
 	// lower than 0 indicate the snap was sourced locally. We allow both in the seed.manifest as
 	// long as the user can provide us with the correct snaps. The only number we won't accept is
@@ -152,7 +152,7 @@ func (sm *SeedManifest) SetAllowedSnapRevision(snapName string, revision snap.Re
 	}
 
 	if _, ok := sm.revsAllowed[snapName]; !ok {
-		sm.revsAllowed[snapName] = &SeedManifestSnapRevision{
+		sm.revsAllowed[snapName] = &ManifestSnapRevision{
 			SnapName: snapName,
 			Revision: revision,
 		}
@@ -164,13 +164,13 @@ func (sm *SeedManifest) SetAllowedSnapRevision(snapName string, revision snap.Re
 // that any validation set marked for use through MarkValidationSetUsed must match the
 // given parameters. The manifest will only allow one sequence per validation set,
 // meaning that any subsequent calls to this will be ignored.
-func (sm *SeedManifest) SetAllowedValidationSet(accountID, name string, sequence int, pinned bool) error {
+func (sm *Manifest) SetAllowedValidationSet(accountID, name string, sequence int, pinned bool) error {
 	if sequence <= 0 {
 		return fmt.Errorf("cannot add allowed validation set %q for a unknown sequence",
 			fmt.Sprintf("%s/%s", accountID, name))
 	}
 
-	vs := &SeedManifestValidationSet{
+	vs := &ManifestValidationSet{
 		AccountID: accountID,
 		Name:      name,
 		Sequence:  sequence,
@@ -185,7 +185,7 @@ func (sm *SeedManifest) SetAllowedValidationSet(accountID, name string, sequence
 // MarkSnapRevisionSeeded attempts to mark a snap-revision as seeded in the manifest.
 // The seeded revision will be validated against any previously allowed revisions set. It
 // will also be validated against any revisions set in previously seeded validation sets.
-func (sm *SeedManifest) MarkSnapRevisionSeeded(snapName string, revision snap.Revision) error {
+func (sm *Manifest) MarkSnapRevisionSeeded(snapName string, revision snap.Revision) error {
 	if rev, ok := sm.revsAllowed[snapName]; ok {
 		// Allowed revision specified, it must match.
 		if rev.Revision != revision {
@@ -200,7 +200,7 @@ func (sm *SeedManifest) MarkSnapRevisionSeeded(snapName string, revision snap.Re
 			snapName, revision, rev.Revision)
 	}
 
-	sm.revsSeeded[snapName] = &SeedManifestSnapRevision{
+	sm.revsSeeded[snapName] = &ManifestSnapRevision{
 		SnapName: snapName,
 		Revision: revision,
 	}
@@ -212,8 +212,8 @@ func (sm *SeedManifest) MarkSnapRevisionSeeded(snapName string, revision snap.Re
 // validation set.
 // This relies on validation-set assertions being marked here the moment they are fetched by
 // the seedwriter, which should be done before the first call to MarkSnapRevisionSeeded.
-func (sm *SeedManifest) MarkValidationSetSeeded(vsa *asserts.ValidationSet, pinned bool) error {
-	vs := newSeedManifestValidationSet(vsa, pinned)
+func (sm *Manifest) MarkValidationSetSeeded(vsa *asserts.ValidationSet, pinned bool) error {
+	vs := newManifestValidationSet(vsa, pinned)
 	if _, ok := sm.vsSeeded[vs.Unique()]; ok {
 		return fmt.Errorf("cannot mark validation set %q as seeded, it has already been marked as such",
 			vs.Unique())
@@ -256,7 +256,7 @@ func (sm *SeedManifest) MarkValidationSetSeeded(vsa *asserts.ValidationSet, pinn
 
 // AllowedSnapRevision retrieves any specified revision rule for the snap
 // name.
-func (sm *SeedManifest) AllowedSnapRevision(snapName string) snap.Revision {
+func (sm *Manifest) AllowedSnapRevision(snapName string) snap.Revision {
 	// TODO: Check seeded validation-sets as well.
 	if rev, ok := sm.revsAllowed[snapName]; ok {
 		return rev.Revision
@@ -265,8 +265,8 @@ func (sm *SeedManifest) AllowedSnapRevision(snapName string) snap.Revision {
 }
 
 // AllowedValidationSets returns the validation sets specified as allowed.
-func (sm *SeedManifest) AllowedValidationSets() []*SeedManifestValidationSet {
-	var vss []*SeedManifestValidationSet
+func (sm *Manifest) AllowedValidationSets() []*ManifestValidationSet {
+	var vss []*ManifestValidationSet
 	for _, vs := range sm.vsAllowed {
 		vss = append(vss, vs)
 	}
@@ -278,7 +278,7 @@ func (sm *SeedManifest) AllowedValidationSets() []*SeedManifestValidationSet {
 	return vss
 }
 
-func parsePinnedValidationSet(sm *SeedManifest, vs string) error {
+func parsePinnedValidationSet(sm *Manifest, vs string) error {
 	acc, name, seq, err := snapasserts.ParseValidationSet(vs)
 	if err != nil {
 		return err
@@ -286,7 +286,7 @@ func parsePinnedValidationSet(sm *SeedManifest, vs string) error {
 	return sm.SetAllowedValidationSet(acc, name, seq, true)
 }
 
-func parseUnpinnedValidationSet(sm *SeedManifest, vs, seqStr string) error {
+func parseUnpinnedValidationSet(sm *Manifest, vs, seqStr string) error {
 	acc, name, _, err := snapasserts.ParseValidationSet(vs)
 	if err != nil {
 		return err
@@ -298,7 +298,7 @@ func parseUnpinnedValidationSet(sm *SeedManifest, vs, seqStr string) error {
 	return sm.SetAllowedValidationSet(acc, name, seq, false)
 }
 
-func parseSnapRevision(sm *SeedManifest, sn, revStr string) error {
+func parseSnapRevision(sm *Manifest, sn, revStr string) error {
 	if err := snap.ValidateName(sn); err != nil {
 		return err
 	}
@@ -310,16 +310,16 @@ func parseSnapRevision(sm *SeedManifest, sn, revStr string) error {
 	return sm.SetAllowedSnapRevision(sn, rev)
 }
 
-// ReadSeedManifest reads a seed.manifest previously generated by SeedManifest.Write
-// and returns a new SeedManifest structure reflecting the contents.
-func ReadSeedManifest(manifestFile string) (*SeedManifest, error) {
+// ReadManifest reads a seed.manifest previously generated by Manifest.Write
+// and returns a new Manifest structure reflecting the contents.
+func ReadManifest(manifestFile string) (*Manifest, error) {
 	f, err := os.Open(manifestFile)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	sm := NewSeedManifest()
+	sm := NewManifest()
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -361,7 +361,7 @@ func ReadSeedManifest(manifestFile string) (*SeedManifest, error) {
 
 // Write generates the seed.manifest contents from the provided map of
 // snaps and their revisions, and stores them in the given file path.
-func (sm *SeedManifest) Write(filePath string) error {
+func (sm *Manifest) Write(filePath string) error {
 	if len(sm.revsSeeded) == 0 && len(sm.vsSeeded) == 0 {
 		return nil
 	}
