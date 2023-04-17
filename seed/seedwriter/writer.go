@@ -56,9 +56,9 @@ type Options struct {
 	ManifestPath string
 }
 
-// initManifest returns either the manifest already provided by the
+// manifest returns either the manifest already provided by the
 // options, or if not provided, returns a newly initialized manifest.
-func (opts *Options) initManifest() *Manifest {
+func (opts *Options) manifest() *Manifest {
 	if opts.Manifest == nil {
 		return NewManifest()
 	}
@@ -274,7 +274,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 
 		byNameOptSnaps:  naming.NewSnapSet(nil),
 		byRefLocalSnaps: naming.NewSnapSet(nil),
-		manifest:        opts.initManifest(),
+		manifest:        opts.manifest(),
 	}
 
 	var treeImpl tree
