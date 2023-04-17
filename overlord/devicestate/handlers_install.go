@@ -22,8 +22,6 @@ package devicestate
 import (
 	"bytes"
 	"compress/gzip"
-	"crypto"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,7 +33,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -44,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -646,7 +642,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		return err
 	}
 
-	if err := restoreDeviceFromSave(model); err != nil {
+	if err := installLogic.RestoreDeviceFromSave(model); err != nil {
 		return fmt.Errorf("cannot restore data from save: %v", err)
 	}
 
@@ -677,152 +673,10 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 
 	// leave a marker that factory reset was performed
 	factoryResetMarker := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir(model)), "factory-reset")
-	if err := writeFactoryResetMarker(factoryResetMarker, useEncryption); err != nil {
+	if err := installLogic.WriteFactoryResetMarker(factoryResetMarker, useEncryption); err != nil {
 		return fmt.Errorf("cannot write the marker file: %v", err)
 	}
 	return nil
-}
-
-func restoreDeviceFromSave(model *asserts.Model) error {
-	// we could also look at factory-reset-bootstrap.json left by
-	// snap-bootstrap, but the mount was already verified during boot
-	mounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
-	if err != nil {
-		return fmt.Errorf("cannot determine ubuntu-save mount state: %v", err)
-	}
-	if !mounted {
-		logger.Noticef("not restoring from save, ubuntu-save not mounted")
-		return nil
-	}
-	// TODO anything else we want to restore?
-	return restoreDeviceSerialFromSave(model)
-}
-
-func restoreDeviceSerialFromSave(model *asserts.Model) error {
-	fromDevice := filepath.Join(boot.InstallHostDeviceSaveDir)
-	logger.Debugf("looking for serial assertion and device key under %v", fromDevice)
-	fromDB, err := sysdb.OpenAt(fromDevice)
-	if err != nil {
-		return err
-	}
-	// key pair manager always uses ubuntu-save whenever it's available
-	kp, err := asserts.OpenFSKeypairManager(fromDevice)
-	if err != nil {
-		return err
-	}
-	// there should be a serial assertion for the current model
-	serials, err := fromDB.FindMany(asserts.SerialType, map[string]string{
-		"brand-id": model.BrandID(),
-		"model":    model.Model(),
-	})
-	if (err != nil && errors.Is(err, &asserts.NotFoundError{})) || len(serials) == 0 {
-		// there is no serial assertion in the old system that matches
-		// our model, it is still possible that the old system could
-		// have generated device keys and sent out a serial request, but
-		// for simplicity we ignore this scenario and a new set of keys
-		// will be generated after booting into the run system
-		logger.Debugf("no serial assertion for %v/%v", model.BrandID(), model.Model())
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	logger.Noticef("found %v serial assertions for %v/%v", len(serials), model.BrandID(), model.Model())
-
-	var serialAs *asserts.Serial
-	for _, serial := range serials {
-		maybeCurrentSerialAs := serial.(*asserts.Serial)
-		// serial assertion is signed with the device key, its ID is in the
-		// header
-		deviceKeyID := maybeCurrentSerialAs.DeviceKey().ID()
-		logger.Debugf("serial assertion device key ID: %v", deviceKeyID)
-
-		// there can be multiple serial assertions, as the device could
-		// have exercised the registration a number of times, but each
-		// time it unregisters, the old key is removed and a new one is
-		// generated
-		_, err = kp.Get(deviceKeyID)
-		if err != nil {
-			if asserts.IsKeyNotFound(err) {
-				logger.Debugf("no key with ID %v", deviceKeyID)
-				continue
-			}
-			return fmt.Errorf("cannot obtain device key: %v", err)
-		} else {
-			serialAs = maybeCurrentSerialAs
-			break
-		}
-	}
-
-	if serialAs == nil {
-		// no serial assertion that matches the model, brand and is
-		// signed with a device key that is present in the filesystem
-		logger.Debugf("no valid serial assertions")
-		return nil
-	}
-
-	logger.Debugf("found a serial assertion for %v/%v, with serial %v",
-		model.BrandID(), model.Model(), serialAs.Serial())
-
-	toDB, err := sysdb.OpenAt(filepath.Join(boot.InstallHostWritableDir(model), "var/lib/snapd/assertions"))
-	if err != nil {
-		return err
-	}
-
-	logger.Debugf("importing serial and model assertions")
-	b := asserts.NewBatch(nil)
-	err = b.Fetch(toDB,
-		func(ref *asserts.Ref) (asserts.Assertion, error) { return ref.Resolve(fromDB.Find) },
-		func(f asserts.Fetcher) error {
-			if err := f.Save(model); err != nil {
-				return err
-			}
-			return f.Save(serialAs)
-		})
-	if err != nil {
-		return fmt.Errorf("cannot fetch assertions: %v", err)
-	}
-	if err := b.CommitTo(toDB, nil); err != nil {
-		return fmt.Errorf("cannot commit assertions: %v", err)
-	}
-	return nil
-}
-
-type factoryResetMarker struct {
-	FallbackSaveKeyHash string `json:"fallback-save-key-sha3-384,omitempty"`
-}
-
-func fileDigest(p string) (string, error) {
-	digest, _, err := osutil.FileDigest(p, crypto.SHA3_384)
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(digest), nil
-}
-
-func writeFactoryResetMarker(marker string, hasEncryption bool) error {
-	keyDigest := ""
-	if hasEncryption {
-		d, err := fileDigest(device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
-		if err != nil {
-			return err
-		}
-		keyDigest = d
-	}
-	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode(factoryResetMarker{
-		FallbackSaveKeyHash: keyDigest,
-	})
-	if err != nil {
-		return err
-	}
-
-	if hasEncryption {
-		logger.Noticef("writing factory-reset marker at %v with key digest %q", marker, keyDigest)
-	} else {
-		logger.Noticef("writing factory-reset marker at %v", marker)
-	}
-	return osutil.AtomicWriteFile(marker, buf.Bytes(), 0644, 0)
 }
 
 func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
@@ -831,13 +685,13 @@ func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
 		return err
 	}
 	defer f.Close()
-	var frm factoryResetMarker
+	var frm installLogic.FactoryResetMarker
 	if err := json.NewDecoder(f).Decode(&frm); err != nil {
 		return err
 	}
 	if hasEncryption {
 		saveFallbackKeyFactory := device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
-		d, err := fileDigest(saveFallbackKeyFactory)
+		d, err := installLogic.FileDigest(saveFallbackKeyFactory)
 		if err != nil {
 			// possible that there was unexpected reboot
 			// before, after the key was moved, but before
@@ -849,7 +703,7 @@ func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
 				return err
 			}
 			saveFallbackKeyFactory := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
-			d, err = fileDigest(saveFallbackKeyFactory)
+			d, err = installLogic.FileDigest(saveFallbackKeyFactory)
 			if err != nil {
 				return err
 			}
