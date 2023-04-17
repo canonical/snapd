@@ -261,6 +261,8 @@ main() {
 	# When systemd version is higher than 252 we use systemd-run to execute
 	# In other scenarios we use the older approach: bustctl with the dbus monitor
 	if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -gt 252 ]; then
+		# It is needed to have '|| true' to make sure in case systemd-run fails,
+		# the command systemctl reset-failed is called
   		systemd-run \
   		--unit="$unit_name" \
 		--description "tests.session running $* as $user" \
@@ -272,7 +274,7 @@ main() {
 		--property "StandardOutput=file:$tmp_dir/stdout.pipe" \
 		--property "StandardError=file:$tmp_dir/stderr.pipe" \
 		--property "Environment=SNAPD_DEBUG=$SNAPD_DEBUG SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG" \
-		"$(command -v runuser)" -l "$user" - -c "exec $tmp_dir/exec"
+		"$(command -v runuser)" -l "$user" - -c "exec $tmp_dir/exec" || true
 
 		# Prevent accumulation of failed sessions.
 		if systemctl cat "$unit_name" &>/dev/null; then
