@@ -12,6 +12,7 @@ import (
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/prompting/notifier"
+	"github.com/snapcore/snapd/prompting/storage"
 	"github.com/snapcore/snapd/snapdtool"
 )
 
@@ -66,6 +67,8 @@ type PromptNotifierDbus struct {
 
 	// agent for uid
 	agents map[uint32]agentAddr
+
+	decisions *storage.PromptsDB
 }
 
 func NewPromptNotifierDbus() (*PromptNotifierDbus, error) {
@@ -75,8 +78,9 @@ func NewPromptNotifierDbus() (*PromptNotifierDbus, error) {
 	}
 
 	dbusNotifier := &PromptNotifierDbus{
-		notifier: notifier,
-		agents:   make(map[uint32]agentAddr),
+		notifier:  notifier,
+		agents:    make(map[uint32]agentAddr),
+		decisions: storage.New(),
 	}
 	if err := dbusNotifier.setupDbus(); err != nil {
 		return nil, err
@@ -106,6 +110,12 @@ func (p *PromptNotifierDbus) setupDbus() error {
 }
 
 func (p *PromptNotifierDbus) handleReq(req *notifier.Request) {
+	// we have some stored allow/deny decisions already
+	if yesNo, err := p.decisions.Get(req); err == nil {
+		req.YesNo <- yesNo
+		return
+	}
+
 	uid := req.SubjectUid
 	agent, ok := p.agents[uid]
 	if !ok {
@@ -129,6 +139,9 @@ func (p *PromptNotifierDbus) handleReq(req *notifier.Request) {
 		return
 	}
 	logger.Debugf("got result: %v (%v)", resAllowed, resExtra)
+	if err := p.decisions.Set(req, resAllowed, resExtra); err != nil {
+		logger.Noticef("cannot store prompt decision: %v", err)
+	}
 	req.YesNo <- resAllowed
 }
 

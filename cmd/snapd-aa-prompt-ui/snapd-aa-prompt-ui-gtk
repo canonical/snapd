@@ -63,12 +63,13 @@ class Agent(dbus.service.Object):
         # XXX: spec says we get the snap/app from info
         app = info.get("label","no-label")
         icon = info.get("icon", "no-icon")
-        operation = info.get("operation", "no-operation")
+        operation = info.get("operation", "unknown operation")
         dialog = PromptDialog(app, icon, path, operation)
         res = dialog.run()
         if res == PromptDialog.RESPONSE_ALLOW:
             prompt_allow = True
         elif res == PromptDialog.RESPONSE_DENY:
+            extra_constraints["always-prompt"] = "yes"
             prompt_allow = False
         dialog.destroy()
 
