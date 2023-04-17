@@ -535,7 +535,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	// kernel command line from gadget is for core boot systems only
 	if isCoreBoot && snapsup.Type == snap.TypeGadget {
 		// make sure no other active changes are changing the kernel command line
-		if err := CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
+		if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {
 			return nil, err
 		}
 		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
@@ -576,7 +576,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	if isCoreBoot && snapsup.Type == snap.TypeSnapd {
 		// make sure no other active changes are changing the kernel command line
-		if err := CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
+		if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {
 			return nil, err
 		}
 		// only run for core devices and the snapd snap, run late enough
@@ -2854,7 +2854,8 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 
 // LinkNewBaseOrKernel creates a new task set with prepare/link-snap, and
 // additionally update-gadget-assets for the kernel snap, tasks for a remodel.
-func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
+// TODO Should we check conflicts as in SwitchToNewGadget? Missing spread test?
+func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if errors.Is(err, state.ErrNoState) {
@@ -2963,10 +2964,10 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	return ts, nil
 }
 
-// LinkNewBaseOrKernel creates a new task set with
+// SwitchToNewGadget creates a new task set with
 // prepare/update-gadget-assets/update-gadget-cmdline tasks for the gadget snap,
 // for remodel.
-func SwitchToNewGadget(st *state.State, name string) (*state.TaskSet, error) {
+func SwitchToNewGadget(st *state.State, name string, fromChange string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if errors.Is(err, state.ErrNoState) {
@@ -2976,12 +2977,12 @@ func SwitchToNewGadget(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	if err := CheckChangeConflict(st, name, nil); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, name, nil, fromChange); err != nil {
 		return nil, err
 	}
 
 	// make sure no other active changes are changing the kernel command line
-	if err := CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
+	if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {
 		return nil, err
 	}
 
@@ -3020,7 +3021,7 @@ func SwitchToNewGadget(st *state.State, name string) (*state.TaskSet, error) {
 
 // AddGadgetAssetsTasks creates the same tasks as SwitchToNewGadget but adds
 // them to the provided task set.
-func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet) (*state.TaskSet, error) {
+func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet, fromChange string) (*state.TaskSet, error) {
 	allTasks := ts.Tasks()
 	snapSetupTask, snapsup, err := findSnapSetupTask(allTasks)
 	if err != nil {
@@ -3031,7 +3032,7 @@ func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet) (*state.TaskSet, e
 	}
 
 	// make sure no other active changes are changing the kernel command line
-	if err := CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
+	if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {
 		return nil, err
 	}
 
