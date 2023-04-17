@@ -8001,7 +8001,7 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
 	defer s.state.Unlock()
 	s.addSnapsForRemodel(c)
 
-	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel")
+	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel", "")
 	c.Assert(err, IsNil)
 	tasks := ts.Tasks()
 	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, 0, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
@@ -8019,7 +8019,7 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
 	c.Assert(tLink.Summary(), Equals, `Make snap "some-kernel" (2) available to the system during remodel`)
 	c.Assert(tLink.WaitTasks(), DeepEquals, []*state.Task{tUpdateGadgetAssets})
 
-	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-base")
+	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-base", "")
 	c.Assert(err, IsNil)
 	tasks = ts.Tasks()
 	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
@@ -8050,11 +8050,11 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelBadType(c *C) {
 		Current:  si.Revision,
 		SnapType: "app",
 	})
-	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-snap")
+	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-snap", "")
 	c.Assert(err, ErrorMatches, `internal error: cannot link type app`)
 	c.Assert(ts, IsNil)
 
-	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-gadget")
+	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-gadget", "")
 	c.Assert(err, ErrorMatches, `internal error: cannot link type gadget`)
 	c.Assert(ts, IsNil)
 }
@@ -8142,7 +8142,7 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadget(c *C) {
 	defer s.state.Unlock()
 	s.addSnapsForRemodel(c)
 
-	ts, err := snapstate.SwitchToNewGadget(s.state, "some-gadget")
+	ts, err := snapstate.SwitchToNewGadget(s.state, "some-gadget", "")
 	c.Assert(err, IsNil)
 	tasks := ts.Tasks()
 	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeGadget, 0, 0, []string{"prepare-snap"}, kindsToSet(append(nonReLinkKinds, "link-snap"))))
@@ -8159,6 +8159,23 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadget(c *C) {
 	c.Assert(tUpdateGadgetCmdline.Kind(), Equals, "update-gadget-cmdline")
 	c.Assert(tUpdateGadgetCmdline.Summary(), Equals, `Update kernel command line from gadget "some-gadget" (3) for remodel`)
 	c.Assert(tUpdateGadgetCmdline.WaitTasks(), DeepEquals, []*state.Task{tUpdateGadgetAssets})
+}
+
+func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetNoRemodelConflict(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.addSnapsForRemodel(c)
+
+	tugc := s.state.NewTask("update-managed-boot-config", "update managed boot config")
+	chg := s.state.NewChange("remodel", "remodel")
+	chg.AddTask(tugc)
+
+	_, err := snapstate.SwitchToNewGadget(s.state, "some-gadget", chg.ID())
+	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetBadType(c *C) {
@@ -8178,13 +8195,13 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetBadType(c *C) {
 		Current:  si.Revision,
 		SnapType: "app",
 	})
-	ts, err := snapstate.SwitchToNewGadget(s.state, "some-snap")
+	ts, err := snapstate.SwitchToNewGadget(s.state, "some-snap", "")
 	c.Assert(err, ErrorMatches, `internal error: cannot link type app`)
 	c.Assert(ts, IsNil)
-	ts, err = snapstate.SwitchToNewGadget(s.state, "some-kernel")
+	ts, err = snapstate.SwitchToNewGadget(s.state, "some-kernel", "")
 	c.Assert(err, ErrorMatches, `internal error: cannot link type kernel`)
 	c.Assert(ts, IsNil)
-	ts, err = snapstate.SwitchToNewGadget(s.state, "some-base")
+	ts, err = snapstate.SwitchToNewGadget(s.state, "some-base", "")
 	c.Assert(err, ErrorMatches, `internal error: cannot link type base`)
 	c.Assert(ts, IsNil)
 }
@@ -8210,7 +8227,7 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetConflict(c *C) {
 		Current:  si.Revision,
 		SnapType: "app",
 	})
-	ts, err := snapstate.SwitchToNewGadget(s.state, "some-snap")
+	ts, err := snapstate.SwitchToNewGadget(s.state, "some-snap", "")
 	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
 	c.Assert(ts, IsNil)
 }
@@ -8236,7 +8253,7 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetConflictExclusiveKind(c *C)
 		Current:  si.Revision,
 		SnapType: "app",
 	})
-	ts, err := snapstate.SwitchToNewGadget(s.state, "some-snap")
+	ts, err := snapstate.SwitchToNewGadget(s.state, "some-snap", "")
 	c.Assert(err, ErrorMatches, "transition to snapd snap in progress, no other changes allowed until this is done")
 	c.Assert(ts, IsNil)
 }
@@ -8259,7 +8276,7 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	testTask := s.state.NewTask("test-task", "test task")
 	ts := state.NewTaskSet(tPrepare, testTask)
 
-	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts)
+	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts, "")
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
@@ -8287,7 +8304,7 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 
 	// but bails when there is no task with snap setup
 	ts = state.NewTaskSet()
-	tsNew, err = snapstate.AddGadgetAssetsTasks(s.state, ts)
+	tsNew, err = snapstate.AddGadgetAssetsTasks(s.state, ts, "")
 	c.Assert(err, ErrorMatches, `internal error: cannot identify task with snap-setup`)
 	c.Assert(tsNew, IsNil)
 }
@@ -8314,9 +8331,35 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasksConflict(c *C) {
 	chg := s.state.NewChange("optional-kernel-cmdline", "optional kernel cmdline")
 	chg.AddTask(tugc)
 
-	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts)
+	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts, "")
 	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
 	c.Assert(tsNew, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetNoRemodelConflict(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-gadget", Revision: snap.R(3)}
+	tPrepare := s.state.NewTask("prepare-snap", "test task")
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     "gadget",
+	}
+	tPrepare.Set("snap-setup", snapsup)
+
+	tugc := s.state.NewTask("update-managed-boot-config", "update managed boot config")
+	chg := s.state.NewChange("remodel", "remodel")
+	ts := state.NewTaskSet(tPrepare, tugc)
+	chg.AddTask(tugc)
+
+	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts, chg.ID())
+	c.Assert(err, IsNil)
+	c.Assert(tsNew, NotNil)
 }
 
 func (s *snapmgrTestSuite) TestMigrateHome(c *C) {
