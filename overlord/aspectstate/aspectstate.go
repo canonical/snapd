@@ -31,22 +31,23 @@ func Set(st *state.State, account, directory, aspect, field, value string) error
 	st.Lock()
 	defer st.Unlock()
 
-	if err := aspecttest.MaybeMockAspect(st); err != nil {
-		return err
-	}
-
-	var asps map[string]map[string]*aspects.Directory
-	if err := st.Get("aspects", &asps); err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return notFound("no aspects were found")
+	databag, err := getDatabag(st, account, directory, aspect)
+	if err != nil {
+		if !errors.Is(err, state.ErrNoState) && !errors.Is(err, &aspects.NotFoundError{}) {
+			return err
 		}
 
+		databag = aspects.NewJSONDataBag()
+	}
+
+	accPatterns, err := aspecttest.MockAspect(account, directory)
+	if err != nil {
 		return err
 	}
 
-	aspectDir, ok := asps[account][directory]
-	if !ok {
-		return notFound("%s's aspect directory %q was not found", account, directory)
+	aspectDir, err := aspects.NewAspectDirectory(directory, accPatterns, databag, aspects.NewJSONSchema())
+	if err != nil {
+		return err
 	}
 
 	asp := aspectDir.Aspect(aspect)
@@ -64,7 +65,10 @@ func Set(st *state.State, account, directory, aspect, field, value string) error
 		return err
 	}
 
-	st.Set("aspects", asps)
+	if err := updateDatabags(st, account, directory, aspect, databag); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -72,22 +76,23 @@ func Get(st *state.State, account, directory, aspect, field string) (string, err
 	st.Lock()
 	defer st.Unlock()
 
-	if err := aspecttest.MaybeMockAspect(st); err != nil {
-		return "", err
-	}
-
-	var asps map[string]map[string]*aspects.Directory
-	if err := st.Get("aspects", &asps); err != nil {
+	databag, err := getDatabag(st, account, directory, aspect)
+	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			return "", notFound("no aspects were found")
+			return "", notFound("aspect %s/%s/%s was not found", account, directory, aspect)
 		}
 
 		return "", err
 	}
 
-	aspectDir, ok := asps[account][directory]
-	if !ok {
-		return "", notFound("aspect %s/%s/%s was not found", account, directory, aspect)
+	accPatterns, err := aspecttest.MockAspect(account, directory)
+	if err != nil {
+		return "", err
+	}
+
+	aspectDir, err := aspects.NewAspectDirectory(directory, accPatterns, databag, aspects.NewJSONSchema())
+	if err != nil {
+		return "", err
 	}
 
 	asp := aspectDir.Aspect(aspect)
@@ -101,6 +106,31 @@ func Get(st *state.State, account, directory, aspect, field string) (string, err
 	}
 
 	return value, nil
+}
+
+func updateDatabags(st *state.State, account, directory, aspect string, databag *aspects.JSONDataBag) error {
+	var databags map[string]map[string]map[string]*aspects.JSONDataBag
+	if err := st.Get("databags", &databags); err != nil {
+		if !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+
+		databags = map[string]map[string]map[string]*aspects.JSONDataBag{
+			account: {directory: {}},
+		}
+	}
+
+	databags[account][directory][aspect] = databag
+	st.Set("databags", databags)
+	return nil
+}
+
+func getDatabag(st *state.State, account, directory, aspect string) (*aspects.JSONDataBag, error) {
+	var databags map[string]map[string]map[string]*aspects.JSONDataBag
+	if err := st.Get("databags", &databags); err != nil {
+		return nil, err
+	}
+	return databags[account][directory][aspect], nil
 }
 
 func notFound(msg string, v ...interface{}) *aspects.NotFoundError {

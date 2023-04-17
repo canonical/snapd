@@ -19,24 +19,20 @@
 package aspecttest
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/snapcore/snapd/aspects"
-	"github.com/snapcore/snapd/overlord/state"
 )
 
-// MaybeMockAspect creates a basic aspect, if no aspects exist in the state.
-// This is only a helper for testing the ongoing work.
-func MaybeMockAspect(st *state.State) error {
-	var test map[string]map[string]*aspects.Directory
-	if err := st.Get("aspects", &test); err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	} else if err == nil {
-		// already mocked the assertion; nothing to do
-		return nil
+// MockAspect returns some mocked aspect access patterns for the "system:network"
+// account and directory combination. This will eventually be replaced by proper
+// aspect assertions.
+func MockAspect(account, directory string) (map[string]interface{}, error) {
+	if account != "system" || directory != "network" {
+		return nil, &aspects.NotFoundError{Message: fmt.Sprintf("aspect assertions for %s:%s not found", account, directory)}
 	}
 
-	aspectDir, err := aspects.NewAspectDirectory("network", map[string]interface{}{
+	return map[string]interface{}{
 		"wifi-setup": []map[string]string{
 			{"name": "ssids", "path": "wifi.ssids"},
 			{"name": "ssid", "path": "wifi.ssid", "access": "read-write"},
@@ -44,16 +40,5 @@ func MaybeMockAspect(st *state.State) error {
 			{"name": "status", "path": "wifi.status", "access": "read"},
 			{"name": "private.{placeholder}", "path": "wifi.{placeholder}"},
 		},
-	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	if err != nil {
-		return err
-	}
-
-	st.Set("aspects", map[string]map[string]*aspects.Directory{
-		"system": {
-			"network": aspectDir,
-		},
-	})
-
-	return nil
+	}, nil
 }

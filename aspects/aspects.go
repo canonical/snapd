@@ -89,10 +89,10 @@ type Schema interface {
 
 // Directory holds a series of related aspects.
 type Directory struct {
-	Name    string  `json:"name"`
-	DataBag DataBag `json:"databag"`
+	Name    string
+	DataBag DataBag
 	Schema  Schema
-	Aspects map[string]*Aspect `json:"aspects"`
+	Aspects map[string]*Aspect
 }
 
 func (d *Directory) UnmarshalJSON(v []byte) error {
@@ -582,17 +582,17 @@ type JSONDataBag map[string]json.RawMessage
 
 // NewJSONDataBag returns a DataBag implementation that stores data in JSON.
 // The top-level of the JSON structure is always a map.
-func NewJSONDataBag() JSONDataBag {
+func NewJSONDataBag() *JSONDataBag {
 	storage := make(map[string]json.RawMessage)
-	return storage
+	return (*JSONDataBag)(&storage)
 }
 
 // Get takes a path and a pointer to a variable into which the value referenced
 // by the path is written. The path can be dotted. For each dot a JSON object
 // is expected to exist (e.g., "a.b" is mapped to {"a": {"b": <value>}}).
-func (s JSONDataBag) Get(path string, value interface{}) error {
+func (s *JSONDataBag) Get(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-	return get(subKeys, 0, s, value)
+	return get(subKeys, 0, *s, value)
 }
 
 func get(subKeys []string, index int, node map[string]json.RawMessage, result interface{}) error {
@@ -631,14 +631,14 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 // Set takes a path to which the value will be written. The path can be dotted,
 // in which case, a nested JSON object is created for each sub-key found after a dot.
 // If the value is nil, the entry is deleted.
-func (s JSONDataBag) Set(path string, value interface{}) error {
+func (s *JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
 
 	var err error
 	if value == nil {
-		_, err = unset(subKeys, 0, s)
+		_, err = unset(subKeys, 0, *s)
 	} else {
-		_, err = set(subKeys, 0, s, value)
+		_, err = set(subKeys, 0, *s, value)
 	}
 
 	return err
@@ -724,22 +724,20 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 }
 
 // Data returns all of the bag's data encoded in JSON.
-func (s JSONDataBag) Data() ([]byte, error) {
+func (s *JSONDataBag) Data() ([]byte, error) {
 	return json.Marshal(s)
 }
 
-func (s JSONDataBag) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]json.RawMessage(s))
+func (s *JSONDataBag) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]json.RawMessage(*s))
 }
 
-func (s JSONDataBag) UnmarshalJSON(v []byte) error {
+func (s *JSONDataBag) UnmarshalJSON(v []byte) error {
 	var val map[string]json.RawMessage
 	if err := json.Unmarshal(v, &val); err != nil {
 		return err
 	}
-	for k, v := range val {
-		s[k] = v
-	}
+	*s = val
 	return nil
 }
 
