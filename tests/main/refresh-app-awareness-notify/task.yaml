@@ -19,27 +19,12 @@ execute: |
 
     # trigger auto-refresh
     snap unset system refresh.hold
-    snap set system refresh.timer="$(date -d '1 min' +%H:%M)"
-    i=0
-    while [ $i -lt 12 ]; do
-        sleep 10
-        snap debug ensure-state-soon
-        if journalctl -u snapd | grep "notifying agents about pending refresh for snap test-snapd-sh"; then
-            break
-        fi
-        i=$((i+1))
-    done
-    journalctl -u snapd | MATCH "notifying agents about pending refresh for snap test-snapd-sh"
+    systemctl stop snapd.{service,socket}
+    "$TESTSTOOLS"/snapd-state force-autorefresh
+    systemctl start snapd.{socket,service}
+    retry -n 12 --wait 10 sh -c 'journalctl -u snapd | MATCH "notifying agents about pending refresh for snap test-snapd-sh"'
 
-    # exit wormhole, this should trigger the refresh right away
+    # exit test-snap, this should trigger the refresh right away
     kill "$PID"
 
-    i=0
-    while [ $i -lt 12 ]; do
-        sleep 10
-        if journalctl -u snapd | grep "notifying user client about continued refresh for test-snapd-sh"; then
-            break
-        fi
-        i=$((i+1))
-    done
-    journalctl -u snapd | MATCH "notifying user client about continued refresh for test-snapd-sh"
+    retry -n 12 --wait 10 sh -c 'journalctl -u snapd | MATCH "notifying user client about continued refresh for test-snapd-sh"'
