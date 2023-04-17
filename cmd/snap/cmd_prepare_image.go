@@ -111,7 +111,7 @@ For preparing classic images it supports a --classic mode`),
 }
 
 var imagePrepare = image.Prepare
-var seedReadSeedManifest = seedwriter.ReadSeedManifest
+var seedwriterReadManifest = seedwriter.ReadManifest
 
 func (x *cmdPrepareImage) Execute(args []string) error {
 	opts := &image.Options{
@@ -123,7 +123,7 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	}
 
 	if x.RevisionsFile != "" {
-		seedManifest, err := seedReadSeedManifest(x.RevisionsFile)
+		seedManifest, err := seedwriterReadManifest(x.RevisionsFile)
 		if err != nil {
 			return err
 		}
