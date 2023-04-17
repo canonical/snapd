@@ -40,6 +40,7 @@ import (
 var (
 	sbInitializeLUKS2Container       = sb.InitializeLUKS2Container
 	sbAddRecoveryKeyToLUKS2Container = sb.AddRecoveryKeyToLUKS2Container
+	FdeKeyManagerBinary              = "snap-fde-keymgr"
 )
 
 const keyslotsAreaKiBSize = 2560 // 2.5MB
@@ -82,7 +83,7 @@ func AddRecoveryKey(key keys.EncryptionKey, rkey keys.RecoveryKey, node string) 
 }
 
 func runSnapFDEKeymgr(args []string, stdin io.Reader) error {
-	toolPath, err := snapdtool.InternalToolPath("snap-fde-keymgr")
+	toolPath, err := snapdtool.InternalToolPath(FdeKeyManagerBinary)
 	if err != nil {
 		return fmt.Errorf("cannot find keymgr tool: %v", err)
 	}
