@@ -438,7 +438,7 @@ func (m *autoRefresh) restoreMonitoring() {
 		abort := make(chan bool, 1)
 		monitoring[snap] = abort
 
-		go continueRefreshOnSnapClose(m.state, snap, done, abort)
+		go continueRefreshOnSnapClose(m.state, snap, "", done, abort)
 	}
 	updateMonitoringState(m.state, monitoring)
 }

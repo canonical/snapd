@@ -29,11 +29,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/godbus/dbus"
 	"github.com/mvo5/goconfigparser"
 
+	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/usersession/client"
 )
@@ -44,6 +47,7 @@ var restApi = []*Command{
 	serviceControlCmd,
 	pendingRefreshNotificationCmd,
 	finishRefreshNotificationCmd,
+	triggerBeginDelayedNotification,
 }
 
 var (
@@ -70,6 +74,11 @@ var (
 	finishRefreshNotificationCmd = &Command{
 		Path: "/v1/notifications/finish-refresh",
 		POST: postRefreshFinishedNotification,
+	}
+
+	triggerBeginDelayedNotification = &Command{
+		Path: "/v1/notifications/begin-delayed-refresh",
+		POST: postNotifyDelayedRefresh,
 	}
 )
 
@@ -336,12 +345,91 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		Body:  body,
 		Hints: hints,
 	}
+
+	// close the snapd-desktop-integration notification
+	tryNotifyRefreshViaSnapDesktopIntegrationFlow(finishRefresh.InstanceName, "", false)
+
 	if err := c.s.notificationMgr.SendNotification(notification.ID(finishRefresh.InstanceName), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,
 			Result: &errorResult{
 				Message: fmt.Sprintf("cannot send notification message: %v", err),
+			},
+		})
+	}
+	return SyncResponse(nil)
+}
+
+var tryNotifyRefreshViaSnapDesktopIntegrationFlow = func(snapName string, icon string, create bool) error {
+	// Check if Snapd-Desktop-Integration is available
+	conn, err := dbusutil.SessionBus()
+	if err != nil {
+		logger.Noticef("unable to connect dbus session: %v", err)
+		return err
+	}
+	obj := conn.Object("io.snapcraft.SnapDesktopIntegration", "/io/snapcraft/SnapDesktopIntegration")
+	extraParams := make(map[string]dbus.Variant)
+	if icon != "" {
+		extraParams["icon_image"] = dbus.MakeVariant(icon)
+	}
+	if create {
+		err = obj.Call("io.snapcraft.SnapDesktopIntegration.ApplicationIsBeingRefreshed", 0, snapName, "", extraParams).Store()
+	} else {
+		err = obj.Call("io.snapcraft.SnapDesktopIntegration.ApplicationRefreshCompleted", 0, snapName, extraParams).Store()
+	}
+	if err != nil {
+		logger.Noticef("unable to successfully call io.snapcraft.SnapDesktopIntegration: %v", err)
+		return err
+	}
+	return nil
+}
+
+func postNotifyDelayedRefresh(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	var delayedRefreshNotify client.DelayedRefreshNotifyInfo
+	if err := decoder.Decode(&delayedRefreshNotify); err != nil {
+		return BadRequest("cannot decode request body into delayed refresh notification info: %v", err)
+	}
+
+	if err := tryNotifyRefreshViaSnapDesktopIntegrationFlow(delayedRefreshNotify.SnapName, delayedRefreshNotify.Icon, true); err == nil {
+		return SyncResponse(nil)
+	}
+	// Notification through snapd-desktop-integration failed; use a standard notification
+
+	// Note that since the connection is shared, we are not closing it.
+	if c.s.bus == nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "cannot connect to the session bus",
+			},
+		})
+	}
+
+	hints := []notification.Hint{
+		notification.WithDesktopEntry("io.snapcraft.SessionAgent"),
+		notification.WithUrgency(notification.LowUrgency),
+	}
+
+	msg := &notification.Message{
+		Title: fmt.Sprintf(i18n.G("Refreshing %q to the latest version."), delayedRefreshNotify.SnapName),
+		Body:  i18n.G("Please wait."),
+		Hints: hints,
+	}
+
+	if err := c.s.notificationMgr.SendNotification(notification.ID(delayedRefreshNotify.SnapName), msg); err != nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: fmt.Sprintf("cannot send notification for a started delayed refresh: %v", err),
 			},
 		})
 	}

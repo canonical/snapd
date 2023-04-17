@@ -341,3 +341,20 @@ func (client *Client) FinishRefreshNotification(ctx context.Context, closeInfo *
 	_, err = client.doMany(ctx, "POST", "/v1/notifications/finish-refresh", nil, headers, reqBody)
 	return err
 }
+
+// DelayedRefreshNotifyInfo holds information about a refresh notification
+type DelayedRefreshNotifyInfo struct {
+	SnapName string `json:"snap-name"`
+	Icon     string `json:"icon,omitempty"`
+}
+
+// ChangeNotification notifies that a new change has been added
+func (client *Client) DelayedRefreshNotification(ctx context.Context, delayedRefreshInfo DelayedRefreshNotifyInfo) error {
+	headers := map[string]string{"Content-Type": "application/json"}
+	reqBody, err := json.Marshal(delayedRefreshInfo)
+	if err != nil {
+		return err
+	}
+	_, err = client.doMany(ctx, "POST", "/v1/notifications/begin-delayed-refresh", nil, headers, reqBody)
+	return err
+}
