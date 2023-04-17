@@ -50,22 +50,10 @@ execute: |
     echo "It's stopped"
     _wait_for_service "test-snapd-service.test-snapd-service" " inactive"
 
-    echo "And then attempt restart"
-    snap set test-snapd-service service-option-source=foo command=restart
-
-    echo "It's still not running, since restart ignores stopped units"
-    _wait_for_service "test-snapd-service.test-snapd-service" " inactive"
-
-    echo "So we start it again"
-    snap set test-snapd-service command=start
-
-    echo "It's running"
-    _wait_for_service "test-snapd-service.test-snapd-service" " active"
-
     echo "And then restart"
     snap set test-snapd-service service-option-source=foo command=restart
 
-    echo "It's still running"
+    echo "It's running"
     _wait_for_service "test-snapd-service.test-snapd-service" " active"
 
     echo "And restart command was executed as part of configure hook change"
