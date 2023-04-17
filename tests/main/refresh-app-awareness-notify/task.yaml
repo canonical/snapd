@@ -6,12 +6,19 @@ details: |
 # Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
 systems: [-ubuntu-14.04-*]
 
+prepare: |
+    # ensure no other refreshes interfere with the test
+    snap refresh
+    # jq is required by "$TESTSTOOLS"/snapd-state force-autorefresh
+    snap install --devmode jq
+    snap install test-snapd-sh
+
 restore: |
-    snap unset system refresh.timer
+    snap remove --purge jq || true
+    snap remove --purge test-snapd-sh || true
 
 execute: |
-    # setup test snap and make sure an app keeps it busy
-    snap install test-snapd-sh
+    # make sure an app keeps the test snap busy
     test-snapd-sh.sh -c 'exec sleep infinity' &
     PID="$!"
     # Note that test-snapd-sh has different revisions in stable and edge
@@ -22,9 +29,9 @@ execute: |
     systemctl stop snapd.{service,socket}
     "$TESTSTOOLS"/snapd-state force-autorefresh
     systemctl start snapd.{socket,service}
-    retry -n 12 --wait 10 sh -c 'journalctl -u snapd | MATCH "notifying agents about pending refresh for snap \"test-snapd-sh\""'
+    retry -n 60 sh -c 'journalctl -u snapd | MATCH "notifying agents about pending refresh for snap \"test-snapd-sh\""'
 
     # exit test-snap, this should trigger the refresh right away
     kill "$PID"
 
-    retry -n 12 --wait 10 sh -c 'journalctl -u snapd | MATCH "notifying user client about continued refresh for \"test-snapd-sh\""'
+    retry -n 60 sh -c 'journalctl -u snapd | MATCH "notifying user client about continued refresh for \"test-snapd-sh\""'
