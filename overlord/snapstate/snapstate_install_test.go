@@ -324,6 +324,54 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
+func (s *snapmgrTestSuite) TestInstallWithDeviceContextNoRemodelConflict(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	tugc := s.state.NewTask("update-managed-boot-config", "update managed boot config")
+	chg := s.state.NewChange("remodel", "remodel")
+	chg.AddTask(tugc)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "brand-gadget", opts, 0, snapstate.Flags{}, deviceCtx, chg.ID())
+	c.Assert(err, IsNil)
+	verifyInstallTasks(c, snap.TypeGadget, 0, 0, ts)
+
+	ts, err = snapstate.InstallWithDeviceContext(context.Background(), s.state, "snapd", opts, 0, snapstate.Flags{}, deviceCtx, chg.ID())
+	c.Assert(err, IsNil)
+	verifyInstallTasks(c, snap.TypeSnapd, noConfigure, 0, ts)
+}
+
+func (s *snapmgrTestSuite) TestInstallWithDeviceContextRemodelConflict(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	tugc := s.state.NewTask("update-managed-boot-config", "update managed boot config")
+	chg := s.state.NewChange("remodel", "remodel")
+	chg.AddTask(tugc)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "brand-gadget", opts, 0, snapstate.Flags{}, deviceCtx, "")
+	c.Assert(err.Error(), Equals, "remodeling in progress, no other changes allowed until this is done")
+	c.Assert(ts, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestInstallHookNotRunForInstalledSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

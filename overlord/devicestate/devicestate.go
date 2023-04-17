@@ -519,7 +519,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 						// gadget snaps may need gadget
 						// related tasks such as assets
 						// update or command line update
-						ts, err = snapstate.AddGadgetAssetsTasks(st, ts)
+						ts, err = snapstate.AddGadgetAssetsTasks(st, ts, fromChange)
 						if err != nil {
 							return nil, err
 						}
@@ -529,7 +529,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 			}
 		}
 	}
-	return addExistingSnapTasks(st, ms.newSnap)
+	return addExistingSnapTasks(st, ms.newSnap, fromChange)
 }
 
 // collect all prerequisites of a given snap from its task set
