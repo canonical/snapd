@@ -5,15 +5,23 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/prompting/notifier"
 	"github.com/snapcore/snapd/prompting/storage"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
-type storageSuite struct{}
+type storageSuite struct {
+	tmpdir string
+}
 
 var _ = Suite(&storageSuite{})
+
+func (s *storageSuite) SetUpTest(c *C) {
+	s.tmpdir = c.MkDir()
+	dirs.SetRootDir(s.tmpdir)
+}
 
 func (s *storageSuite) TestSimple(c *C) {
 	st := storage.New()
@@ -52,5 +60,23 @@ func (s *storageSuite) TestSimple(c *C) {
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
 	c.Check(allowed, Equals, true)
+}
 
+func (s *storageSuite) TestLoadSave(c *C) {
+	st := storage.New()
+
+	req := &notifier.Request{
+		Label:      "snap.lxd.lxd",
+		SubjectUid: 1000,
+		Path:       "/home/test/foo",
+	}
+	allow := true
+	err := st.Set(req, allow, nil)
+	c.Assert(err, IsNil)
+
+	// st2 will read DB from the previous storage
+	st2 := storage.New()
+	allowed, err := st2.Get(req)
+	c.Assert(err, IsNil)
+	c.Check(allowed, Equals, true)
 }
