@@ -95,48 +95,6 @@ type Directory struct {
 	Aspects map[string]*Aspect
 }
 
-func (d *Directory) UnmarshalJSON(v []byte) error {
-	var data map[string]json.RawMessage
-	if err := json.Unmarshal(v, &data); err != nil {
-		return err
-	}
-
-	name, ok := data["name"]
-	if !ok {
-		return errors.New(`cannot unmarshal directory: "name" field was not found`)
-	}
-
-	if err := json.Unmarshal(name, &d.Name); err != nil {
-		return err
-	}
-
-	databag, ok := data["databag"]
-	if !ok {
-		return errors.New(`cannot unmarshal directory: "databag" field was not found`)
-	}
-
-	jsonDataBag := NewJSONDataBag()
-	if err := json.Unmarshal(databag, &jsonDataBag); err != nil {
-		return err
-	}
-	d.DataBag = jsonDataBag
-	d.Schema = NewJSONSchema()
-
-	asps, ok := data["aspects"]
-	if !ok {
-		return errors.New(`cannot unmarshal directory: "aspects" field was not found`)
-	}
-
-	if err := json.Unmarshal(asps, &d.Aspects); err != nil {
-		return err
-	}
-
-	for _, asp := range d.Aspects {
-		asp.directory = d
-	}
-	return nil
-}
-
 // NewAspectDirectory returns a new aspect directory for the following aspects
 // and access patterns.
 func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag DataBag, schema Schema) (*Directory, error) {
@@ -465,64 +423,6 @@ func (p accessPattern) isWriteable() bool {
 	return p.Access == readWrite || p.Access == write
 }
 
-func (p *accessPattern) UnmarshalJSON(v []byte) error {
-	var data map[string]json.RawMessage
-	if err := json.Unmarshal(v, &data); err != nil {
-		return err
-	}
-
-	val, ok := data["name"]
-	if !ok {
-		return fmt.Errorf(`cannot find accessPattern's "name" field`)
-	}
-
-	var nameParts []string
-	if err := json.Unmarshal(val, &nameParts); err != nil {
-		return err
-	}
-
-	var matchers []nameMatcher
-	for _, namePart := range nameParts {
-		if isPlaceholder(namePart) {
-			matchers = append(matchers, placeholder(namePart[1:len(namePart)-1]))
-		} else {
-			matchers = append(matchers, literal(namePart))
-		}
-	}
-	p.Name = matchers
-
-	val, ok = data["path"]
-	if !ok {
-		return fmt.Errorf(`cannot find accessPattern's "path" field`)
-	}
-
-	var pathParts []string
-	if err := json.Unmarshal(val, &pathParts); err != nil {
-		return err
-	}
-
-	var writers []pathWriter
-	for _, pathPart := range pathParts {
-		if isPlaceholder(pathPart) {
-			writers = append(writers, placeholder(pathPart[1:len(pathPart)-1]))
-		} else {
-			writers = append(writers, literal(pathPart))
-		}
-	}
-	p.Path = writers
-
-	val, ok = data["access"]
-	if !ok {
-		return fmt.Errorf(`cannot find accessPattern's "access" field`)
-	}
-
-	if err := json.Unmarshal(val, &p.Access); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // pattern is an individual subkey of a dot-separated name or path pattern. It
 // can be a literal value of a placeholder delineated by curly brackets.
 type nameMatcher interface {
@@ -582,17 +482,17 @@ type JSONDataBag map[string]json.RawMessage
 
 // NewJSONDataBag returns a DataBag implementation that stores data in JSON.
 // The top-level of the JSON structure is always a map.
-func NewJSONDataBag() *JSONDataBag {
+func NewJSONDataBag() JSONDataBag {
 	storage := make(map[string]json.RawMessage)
-	return (*JSONDataBag)(&storage)
+	return storage
 }
 
 // Get takes a path and a pointer to a variable into which the value referenced
 // by the path is written. The path can be dotted. For each dot a JSON object
 // is expected to exist (e.g., "a.b" is mapped to {"a": {"b": <value>}}).
-func (s *JSONDataBag) Get(path string, value interface{}) error {
+func (s JSONDataBag) Get(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-	return get(subKeys, 0, *s, value)
+	return get(subKeys, 0, s, value)
 }
 
 func get(subKeys []string, index int, node map[string]json.RawMessage, result interface{}) error {
@@ -631,14 +531,14 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 // Set takes a path to which the value will be written. The path can be dotted,
 // in which case, a nested JSON object is created for each sub-key found after a dot.
 // If the value is nil, the entry is deleted.
-func (s *JSONDataBag) Set(path string, value interface{}) error {
+func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
 
 	var err error
 	if value == nil {
-		_, err = unset(subKeys, 0, *s)
+		_, err = unset(subKeys, 0, s)
 	} else {
-		_, err = set(subKeys, 0, *s, value)
+		_, err = set(subKeys, 0, s, value)
 	}
 
 	return err
@@ -724,21 +624,8 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 }
 
 // Data returns all of the bag's data encoded in JSON.
-func (s *JSONDataBag) Data() ([]byte, error) {
+func (s JSONDataBag) Data() ([]byte, error) {
 	return json.Marshal(s)
-}
-
-func (s *JSONDataBag) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]json.RawMessage(*s))
-}
-
-func (s *JSONDataBag) UnmarshalJSON(v []byte) error {
-	var val map[string]json.RawMessage
-	if err := json.Unmarshal(v, &val); err != nil {
-		return err
-	}
-	*s = val
-	return nil
 }
 
 // JSONSchema is the Schema implementation corresponding to JSONDataBag and it's
@@ -746,12 +633,12 @@ func (s *JSONDataBag) UnmarshalJSON(v []byte) error {
 type JSONSchema struct{}
 
 // NewJSONSchema returns a Schema able to validate a JSONDataBag's data.
-func NewJSONSchema() *JSONSchema {
-	return &JSONSchema{}
+func NewJSONSchema() JSONSchema {
+	return JSONSchema{}
 }
 
 // Validate validates that the specified data can be encoded into JSON.
-func (s *JSONSchema) Validate(jsonData []byte) error {
+func (s JSONSchema) Validate(jsonData []byte) error {
 	// the top-level is always an object
 	var data map[string]json.RawMessage
 	return json.Unmarshal(jsonData, &data)
