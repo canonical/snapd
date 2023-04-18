@@ -22,6 +22,7 @@ package dmverity_test
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -57,8 +58,8 @@ func (s *VerityTestSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-func (s *VerityTestSuite) TestGetRootHashFromOutput(c *C) {
-	const testinput = `
+func (vs *VerityTestSuite) makeValidVeritySetupOutput() string {
+	return `
 VERITY header information for my-snap-name_0.1_all.snap.veritynosb
 UUID:
 Hash type:       	1
@@ -70,7 +71,11 @@ Hash algorithm:  	sha256
 Salt:            	595c3d19c4d8d56727332eba16ef6900faeb4fde0c6625fefcd178b8dfdff48a
 Root hash:      	cf9a379613c0dc10301fe3eba4665c38b849b7aad311471faa4d2392ee4ede49
 Hash device size: 	4096 [bytes]
-`
+	`
+}
+
+func (s *VerityTestSuite) TestGetRootHashFromOutput(c *C) {
+	testinput := s.makeValidVeritySetupOutput()
 	testroothash := "cf9a379613c0dc10301fe3eba4665c38b849b7aad311471faa4d2392ee4ede49"
 
 	roothash, err := dmverity.GetRootHashFromOutput([]byte(testinput))
@@ -78,22 +83,21 @@ Hash device size: 	4096 [bytes]
 	c.Check(roothash, Equals, testroothash)
 }
 
-func (s *VerityTestSuite) TestGetRootHashFromOutputNoRootHash(c *C) {
-	const testinput = `
-VERITY header information for my-snap-name_0.1_all.snap.veritynosb
-UUID:
-Hash type:       	1
-Data blocks:     	7
-Data block size: 	4096
-Hash blocks:     	1
-Hash block size: 	4096
-Hash algorithm:  	sha256
-Salt:            	595c3d19c4d8d56727332eba16ef6900faeb4fde0c6625fefcd178b8dfdff48a
-Hash device size: 	4096 [bytes]
-`
+func (s *VerityTestSuite) TestGetRootHashFromOutputInvalid(c *C) {
+	validVeritySetupOutput := s.makeValidVeritySetupOutput()
 
-	_, err := dmverity.GetRootHashFromOutput([]byte(testinput))
-	c.Check(err, ErrorMatches, `empty root hash`)
+	rootHashLine := "Root hash:      	cf9a379613c0dc10301fe3eba4665c38b849b7aad311471faa4d2392ee4ede49"
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{rootHashLine, "", "internal error: unexpected root hash length"},
+		{rootHashLine, "Root hash      	", "internal error: unexpected veritysetup output format"},
+		{"Hash algorithm:  	sha256", "Hash algorithm:  	sha25", "internal error: unexpected hash algorithm"},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(validVeritySetupOutput, test.original, test.invalid, 1)
+		_, err := dmverity.GetRootHashFromOutput([]byte(invalid))
+		c.Check(err, ErrorMatches, test.expectedErr)
+	}
 }
 
 func (s *VerityTestSuite) TestFormatSuccess(c *C) {

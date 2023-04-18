@@ -41,13 +41,32 @@ type Info struct {
 	RootHash string `json:"root-hash"`
 }
 
+func getVal(line string) (string, error) {
+	parts := strings.SplitN(line, ":", 2)
+	if len(parts) != 2 {
+		return "", fmt.Errorf("internal error: unexpected veritysetup output format")
+	}
+	return strings.TrimSpace(parts[1]), nil
+}
+
 func getRootHashFromOutput(output []byte) (rootHash string, err error) {
 	scanner := bufio.NewScanner(bytes.NewBuffer(output))
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "Root hash") {
-			val := strings.SplitN(line, ":", 2)[1]
-			rootHash = strings.TrimSpace(val)
+			rootHash, err = getVal(line)
+			if err != nil {
+				return "", err
+			}
+		}
+		if strings.HasPrefix(line, "Hash algorithm") {
+			hashAlgo, err := getVal(line)
+			if err != nil {
+				return "", err
+			}
+			if hashAlgo != "sha256" {
+				return "", fmt.Errorf("internal error: unexpected hash algorithm")
+			}
 		}
 	}
 
@@ -55,8 +74,8 @@ func getRootHashFromOutput(output []byte) (rootHash string, err error) {
 		return "", err
 	}
 
-	if len(rootHash) == 0 {
-		return "", fmt.Errorf("empty root hash")
+	if len(rootHash) != 64 {
+		return "", fmt.Errorf("internal error: unexpected root hash length")
 	}
 
 	return rootHash, nil
