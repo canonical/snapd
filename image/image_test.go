@@ -4470,6 +4470,14 @@ func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
 	err = image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
+	// ensure that the assertion fetcher was called
+	c.Check(s.seqReqs, DeepEquals, []seqReq{
+		{
+			key:      []string{"16", "canonical", "base-set"},
+			sequence: 0,
+		},
+	})
+
 	// ensure download actions were invoked with the validation-sets
 	// described in the model.
 	c.Check(s.storeActionsBunchSizes, DeepEquals, []int{3})
