@@ -102,6 +102,43 @@ func (s *pathPatternsSuite) TestRegexCreationUnhappy(c *C) {
 	}
 }
 
+func (s *pathPatternsSuite) TestCommasInRegex(c *C) {
+	data := []struct {
+		pattern        string
+		allowCommas    bool
+		shouldError    bool
+		expectedString string
+	}{
+		{`/dev/sd{a,b,c}`, false, false, `^/dev/sd(a|b|c)$`},
+		{`/dev/sd{a,b,c}`, true, false, `^/dev/sd(a|b|c)$`},
+		{`/dev/dma_heap/qcom,qseecom`, false, true, `cannot use ',' outside of group or character class`},
+		{`/dev/dma_heap/qcom,qseecom`, true, false, `^/dev/dma_heap/qcom,qseecom$`},
+		{`/path/with/comma[,]`, false, false, `^/path/with/comma[,]$`},
+		{`/path/with/comma[,]`, true, false, `^/path/with/comma[,]$`},
+		{`/path/with/commas,\,,`, false, true, `cannot use ',' outside of group or character class`},
+		{`/path/with/commas,\,,`, true, false, `^/path/with/commas,,,$`},
+		{`/path/with/comma,{and[,]group,with\,comma}`, false, true, `cannot use ',' outside of group or character class`},
+		{`/path/with/comma,{and[,]group,with\,comma}`, true, false, `^/path/with/comma,(and[,]group|with,comma)$`},
+		{`/path/with/empty{}group`, false, true, `invalid number of items between {}:.*`},
+		{`/path/with/empty{}group`, true, true, `invalid number of items between {}:.*`},
+	}
+
+	for _, testData := range data {
+		pattern := testData.pattern
+		allowCommas := testData.allowCommas
+		shouldError := testData.shouldError
+		expectedString := testData.expectedString
+		regex, err := utils.CreateRegex(pattern, utils.GlobDefault, allowCommas)
+		if shouldError {
+			c.Assert(regex, Equals, "", Commentf("%s", pattern))
+			c.Assert(err, ErrorMatches, expectedString, Commentf("%s", pattern))
+		} else {
+			c.Assert(regex, Equals, expectedString, Commentf("%s", pattern))
+			c.Assert(err, IsNil, Commentf("%s", pattern))
+		}
+	}
+}
+
 func (s *pathPatternsSuite) TestPatternMatches(c *C) {
 	data := []struct {
 		pattern       string
@@ -132,6 +169,39 @@ func (s *pathPatternsSuite) TestPatternMatches(c *C) {
 		expectedMatch := testData.expectedMatch
 		const allowCommas = false
 		pathPattern, err := utils.NewPathPattern(pattern, allowCommas)
+		c.Assert(err, IsNil, Commentf("%s", pattern))
+		c.Assert(pathPattern.Matches(testPath), Equals, expectedMatch, Commentf("%s", pattern))
+	}
+}
+
+func (s *pathPatternsSuite) TestPatternWithCommasMatches(c *C) {
+	data := []struct {
+		pattern       string
+		testPath      string
+		expectedMatch bool
+	}{
+		{`/dev/dma_heap/qcom,qseecom`, `/dev/dma_heap/qcom,qseecom`, true},
+		{`/dev/dma_heap/qcom,[,]qseecom`, `/dev/dma_heap/qcom,qseecom`, false},
+		{`/dev/dma_heap/qcom,[,]qseecom`, `/dev/dma_heap/qcom,,qseecom`, true},
+		{`/dev/dma_heap/qcom,{,[,]}qseecom`, `/dev/dma_heap/qcom,qseecom`, true},
+		{`/dev/dma_heap/qcom,{,[,]}qseecom`, `/dev/dma_heap/qcom,,qseecom`, true},
+		{`/dev/dma_heap/qcom,{\,,}qseecom`, `/dev/dma_heap/qcom,qseecom`, true},
+		{`/dev/dma_heap/qcom,{\,,}qseecom`, `/dev/dma_heap/qcom,,qseecom`, true},
+		{`/dev/dma_heap/qcom,{\,,[,]}qseecom`, `/dev/dma_heap/qcom,,,qseecom`, false},
+	}
+
+	const commaError = `cannot use ',' outside of group or character class`
+
+	for _, testData := range data {
+		pattern := testData.pattern
+		testPath := testData.testPath
+		expectedMatch := testData.expectedMatch
+		const allowCommasFalse = false
+		pathPattern, err := utils.NewPathPattern(pattern, allowCommasFalse)
+		c.Assert(pathPattern, IsNil, Commentf("%s", pattern))
+		c.Assert(err, ErrorMatches, commaError, Commentf("%s", pattern))
+		const allowCommasTrue = true
+		pathPattern, err = utils.NewPathPattern(pattern, allowCommasTrue)
 		c.Assert(err, IsNil, Commentf("%s", pattern))
 		c.Assert(pathPattern.Matches(testPath), Equals, expectedMatch, Commentf("%s", pattern))
 	}
