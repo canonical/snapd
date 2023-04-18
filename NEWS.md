@@ -1,3 +1,6 @@
+# New in snapd 2.59.2:
+* Notify users when a user triggered auto refresh finished
+
 # New in snapd 2.59.1:
 
 * Add udev rules from steam-devices to steam-support interface
