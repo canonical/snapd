@@ -27,6 +27,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
@@ -73,6 +75,7 @@ type imageSuite struct {
 	storeActions           []*store.SnapAction
 	curSnaps               [][]*store.CurrentSnap
 	assertReqs             []assertReq
+	seqReqs                []seqReq
 
 	assertMaxFormats map[string]int
 
@@ -88,6 +91,11 @@ type imageSuite struct {
 type assertReq struct {
 	ref        asserts.Ref
 	maxFormats map[string]int
+}
+
+type seqReq struct {
+	key      []string
+	sequence int
 }
 
 var _ = Suite(&imageSuite{})
@@ -220,13 +228,22 @@ func (s *imageSuite) Assertion(assertType *asserts.AssertionType, primaryKey []s
 		}
 		return s.StoreSigning.FindMaxFormat(assertType, h, s.assertMaxFormats[assertType.Name])
 	}
-
 }
 
-// TODO: Implement this once we add support in writer for validation sets,
-// until then it should not be called.
 func (s *imageSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
-	panic("not expected")
+	headers, err := asserts.HeadersFromSequenceKey(assertType, sequenceKey)
+	if err != nil {
+		return nil, err
+	}
+	s.seqReqs = append(s.seqReqs, seqReq{
+		key:      sequenceKey,
+		sequence: sequence,
+	})
+	if sequence > 0 {
+		headers["sequence"] = strconv.Itoa(sequence)
+		return s.StoreSigning.Find(assertType, headers)
+	}
+	return s.StoreSigning.FindSequence(assertType, headers, -1, assertType.MaxSupportedFormat())
 }
 
 // TODO: use seedtest.SampleSnapYaml for some of these
@@ -4292,6 +4309,188 @@ func (s *imageSuite) TestLocalSnapRevisionMatchingStoreRevision(c *C) {
 			TrackingChannel:  "stable",
 			Epoch:            snap.E("0"),
 			IgnoreValidation: false,
+		},
+	})
+}
+
+func (s *imageSuite) setupValidationSets(c *C) *asserts.ValidationSet {
+	vs, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "base-set",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       s.AssertedSnapID("pc-kernel"),
+				"presence": "required",
+				"revision": "1",
+			},
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       s.AssertedSnapID("pc"),
+				"presence": "required",
+				"revision": "1",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(vs)
+	c.Check(err, IsNil)
+	return vs.(*asserts.ValidationSet)
+}
+
+func (s *imageSuite) TestDownloadSnapsModelValidationSets(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses validation-sets
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my display name",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "base-set",
+				"mode":       "enforce",
+			},
+		},
+	})
+
+	// setup validation-sets
+	vsa := s.setupValidationSets(c)
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	s.setupSnaps(c, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "my-brand",
+	}, "")
+
+	opts := &image.Options{
+		Snaps: []string{
+			s.AssertedSnap("core"),
+		},
+		PrepareDir: filepath.Dir(rootdir),
+		Customizations: image.Customizations{
+			Validation: "enforce",
+		},
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+
+	// ensure download actions were invoked with the validation-sets
+	// described in the model.
+	c.Check(s.storeActionsBunchSizes, DeepEquals, []int{3})
+	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc-kernel",
+		Channel:      stableChannel,
+		Flags:        store.SnapActionEnforceValidation,
+		ValidationSets: []snapasserts.ValidationSetKey{
+			snapasserts.NewValidationSetKey(vsa),
+		},
+	})
+	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc",
+		Channel:      stableChannel,
+		Flags:        store.SnapActionEnforceValidation,
+		ValidationSets: []snapasserts.ValidationSetKey{
+			snapasserts.NewValidationSetKey(vsa),
+		},
+	})
+	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "required-snap1",
+		Channel:      stableChannel,
+		Flags:        store.SnapActionEnforceValidation,
+		ValidationSets: []snapasserts.ValidationSetKey{
+			snapasserts.NewValidationSetKey(vsa),
+		},
+	})
+}
+
+func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses validation-sets
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my display name",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
+	})
+
+	// setup validation-sets
+	vsa := s.setupValidationSets(c)
+
+	rootDir := c.MkDir()
+	imageDir := filepath.Join(rootDir, "image")
+	s.setupSnaps(c, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "my-brand",
+	}, "")
+
+	// write a seed.manifest we will provide to image
+	manifestFile := filepath.Join(rootDir, "seed.manifest")
+	err := ioutil.WriteFile(manifestFile, []byte("canonical/base-set=1"), 0644)
+	c.Assert(err, IsNil)
+
+	manifest, err := seedwriter.ReadManifest(manifestFile)
+	c.Assert(err, IsNil)
+	c.Assert(manifest.AllowedValidationSets(), HasLen, 1)
+
+	opts := &image.Options{
+		Snaps: []string{
+			s.AssertedSnap("core"),
+		},
+		PrepareDir: filepath.Dir(imageDir),
+		Customizations: image.Customizations{
+			Validation: "enforce",
+		},
+		SeedManifest: manifest,
+	}
+
+	err = image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+
+	// ensure download actions were invoked with the validation-sets
+	// described in the model.
+	c.Check(s.storeActionsBunchSizes, DeepEquals, []int{3})
+	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc-kernel",
+		Channel:      stableChannel,
+		Flags:        store.SnapActionEnforceValidation,
+		ValidationSets: []snapasserts.ValidationSetKey{
+			snapasserts.NewValidationSetKey(vsa),
+		},
+	})
+	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc",
+		Channel:      stableChannel,
+		Flags:        store.SnapActionEnforceValidation,
+		ValidationSets: []snapasserts.ValidationSetKey{
+			snapasserts.NewValidationSetKey(vsa),
+		},
+	})
+	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "required-snap1",
+		Channel:      stableChannel,
+		Flags:        store.SnapActionEnforceValidation,
+		ValidationSets: []snapasserts.ValidationSetKey{
+			snapasserts.NewValidationSetKey(vsa),
 		},
 	})
 }

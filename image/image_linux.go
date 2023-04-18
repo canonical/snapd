@@ -27,12 +27,14 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -405,7 +407,7 @@ func (s *imageSeeder) start(db *asserts.Database, optSnaps []*seedwriter.Options
 		return err
 	}
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
-		return s.tsto.AssertionFetcher(db, save)
+		return s.tsto.AssertionSequenceFormingFetcher(db, save)
 	}
 	s.f = seedwriter.MakeSeedAssertionFetcher(newFetcher)
 	return s.w.Start(db, s.f)
@@ -467,6 +469,16 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.SeedAssertionFetcher,
 	return snaps, s.w.InfoDerived()
 }
 
+func (s *imageSeeder) validationSetKeysFromManifest() []snapasserts.ValidationSetKey {
+	var vsKeys []snapasserts.ValidationSetKey
+	for _, vs := range s.w.Manifest().AllowedValidationSets() {
+		// a ValidationSetKey is the primary key of validation-sets
+		pk := []string{release.Series, vs.AccountID, vs.Name, strconv.Itoa(vs.Sequence)}
+		vsKeys = append(vsKeys, snapasserts.ValidationSetKey(strings.Join(pk, "/")))
+	}
+	return vsKeys
+}
+
 func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
 	byName := make(map[string]*seedwriter.SeedSnap, len(snapsToDownload))
 	beforeDownload := func(info *snap.Info) (string, error) {
@@ -503,6 +515,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 	downloadedSnaps, err = s.tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
 		BeforeDownloadFunc: beforeDownload,
 		EnforceValidation:  s.customizations.Validation == "enforce",
+		ValidationSets:     s.validationSetKeysFromManifest(),
 	})
 	if err != nil {
 		return nil, err
