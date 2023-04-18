@@ -496,8 +496,14 @@ func (w *Writer) finalValidationSetAtSequence(vsm *asserts.ModelValidationSet) (
 		return nil, fmt.Errorf("cannot use sequence %d of %q: model requires sequence %d",
 			vs.Sequence, vs.Unique(), vsm.Sequence)
 	}
+
+	// If the model does not have a sequence set, then we don't allow
+	// pinning through the manifest.
+	if vsm.Sequence <= 0 && vs.Pinned {
+		return nil, fmt.Errorf("pinning of %q is not allowed by the model", vs.Unique())
+	}
+
 	atSeq.Sequence = vs.Sequence
-	atSeq.Pinned = vs.Pinned
 	return atSeq, nil
 }
 

@@ -4395,7 +4395,7 @@ func (s *writerSuite) TestManifestPreProvidedFailsMarkSeeding(c *C) {
 	c.Assert(err, ErrorMatches, `cannot record snap for manifest: snap "core20" \(1\) does not match the allowed revision 20`)
 }
 
-func (s *writerSuite) TestManifestPreProvidedSequenceNotMatchingModelPinned(c *C) {
+func (s *writerSuite) TestManifestPreProvidedSequenceNotMatchingModelSequence(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -4434,6 +4434,46 @@ func (s *writerSuite) TestManifestPreProvidedSequenceNotMatchingModelPinned(c *C
 
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, ErrorMatches, `cannot use sequence 1 of "canonical/base-set": model requires sequence 2`)
+}
+
+func (s *writerSuite) TestManifestPreProvidedSequenceNotMatchingModelPinned(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "base-set",
+				"mode":       "enforce",
+			},
+		},
+	})
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	s.opts.Manifest = seedwriter.NewManifest()
+	s.opts.Manifest.SetAllowedValidationSet("canonical", "base-set", 1, true)
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, ErrorMatches, `pinning of "canonical/base-set" is not allowed by the model`)
 }
 
 func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
@@ -4481,7 +4521,7 @@ func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
 	// Set up the manifest we need, and specifically ask for sequence
 	// 1 of the base-set, to avoid getting the newest.
 	manifest := seedwriter.NewManifest()
-	manifest.SetAllowedValidationSet("canonical", "base-set", 1, true)
+	manifest.SetAllowedValidationSet("canonical", "base-set", 1, false)
 	s.opts.Manifest = manifest
 	s.opts.ManifestPath = path.Join(s.opts.SeedDir, "seed.manifest")
 
