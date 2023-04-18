@@ -12,6 +12,8 @@ github.com/canonical/go-tpm2 v0.0.0-20210827151749-f80ff5afff61 h1:DsyeCtFXqOduk
 github.com/canonical/go-tpm2 v0.0.0-20210827151749-f80ff5afff61/go.mod h1:vG41hdbBjV4+/fkubTT1ENBBqSkLwLr7mCeW9Y6kpZY=
 github.com/canonical/tcglog-parser v0.0.0-20210824131805-69fa1e9f0ad2 h1:CbwVq64ruNLx/S3XA0LO6QMsw6Vc2inK+RcS6D2c4Ns=
 github.com/canonical/tcglog-parser v0.0.0-20210824131805-69fa1e9f0ad2/go.mod h1:QoW2apR2tBl6T/4czdND/EHjL1Ia9cCmQnIj9Xe0Kt8=
+github.com/chrisccoulson/secboot v0.0.0-20230417141123-0af360340a89 h1:8rLG/cZyYJAMYzisZC1dOp3FGN21NtTqO9aexFsu1K8=
+github.com/chrisccoulson/secboot v0.0.0-20230417141123-0af360340a89/go.mod h1:vKHFQz9D8LnyQDu+/IO7AUPQGsWUx1fcviAtwvEZyuo=
 github.com/coreos/go-systemd v0.0.0-20180511133405-39ca1b05acc7 h1:u9SHYsPQNyt5tgDm3YN7+9dYrpK96E5wFilTFWIDZOM=
 github.com/coreos/go-systemd v0.0.0-20180511133405-39ca1b05acc7/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
 github.com/frankban/quicktest v1.2.2 h1:xfmOhhoH5fGPgbEAlhLpJH9p0z/0Qizio9osmvn9IUY=

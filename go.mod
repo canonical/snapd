@@ -4,6 +4,7 @@ go 1.13
 
 // maze.io/x/crypto/afis imported by github.com/snapcore/secboot/tpm2
 replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066
+replace github.com/snapcore/secboot => github.com/chrisccoulson/secboot v0.0.0-20230417141123-0af360340a89
 
 require (
 	github.com/alexkohler/nakedret v1.0.1 // indirect
