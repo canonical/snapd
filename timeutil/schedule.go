@@ -33,6 +33,16 @@ import (
 // Match 0:00-24:00, where 24:00 means the later end of the day.
 var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9])$|^24:00$`)
 
+var schedulePrng *randutil.PseudoRand
+
+func init() {
+	// Action scheduling can impact server load so we need to use a seed
+	// that is not only based on time and PID, but contains
+	// additional variance introduced by device specific details such
+	// as hostname and MAC.
+	schedulePrng = randutil.NewPseudoRand(randutil.SeedDatePidHostMac())
+}
+
 // Clock represents a hour:minute time within a day.
 type Clock struct {
 	Hour   int
@@ -521,12 +531,8 @@ func randDur(a, b time.Time) time.Duration {
 		dur -= 5 * time.Minute
 	}
 
-	if dur <= 0 {
-		// avoid panic'ing (even if things are probably messed up)
-		return 0
-	}
-
-	return randutil.RandomDuration(dur)
+	// Negative duration returns time.Duration(0)
+	return schedulePrng.RandomDuration(dur)
 }
 
 var (

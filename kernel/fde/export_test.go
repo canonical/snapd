@@ -21,7 +21,13 @@ package fde
 
 import (
 	"time"
+
+	"github.com/snapcore/snapd/randutil"
 )
+
+func RevealPrng() *randutil.PseudoRand {
+	return revealPrng
+}
 
 func MockFdeInitramfsHelperCommandExtra(args []string) (restore func()) {
 	oldFdeRevealKeyCommandExtra := fdeInitramfsHelperCommandExtra

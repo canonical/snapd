@@ -28,6 +28,13 @@ import (
 	"github.com/snapcore/snapd/randutil"
 )
 
+var revealPrng *randutil.PseudoRand
+
+func init() {
+	// Use simple time and PID based seeding.
+	revealPrng = randutil.NewPseudoRand(randutil.SeedDatePid())
+}
+
 // RevealKeyRequest carries the operation parameters to the fde-reavel-key
 // helper that receives them serialized over stdin.
 type RevealKeyRequest struct {
@@ -107,7 +114,7 @@ func Reveal(params *RevealParams) (payload []byte, err error) {
 		SealedKey: params.SealedKey,
 		Handle:    handle,
 		// deprecated but needed for v1 hooks
-		KeyName: "deprecated-" + randutil.RandomString(12),
+		KeyName: "deprecated-" + revealPrng.RandomString(12),
 	}
 	output, err := runFDERevealKey(req)
 	if err != nil {

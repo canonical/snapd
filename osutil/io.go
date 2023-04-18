@@ -46,6 +46,13 @@ const (
 // all unit tests in genreal.
 var snapdUnsafeIO bool = IsTestBinary() && GetenvBool("SNAPD_UNSAFE_IO", true)
 
+var atomicFilePrng *randutil.PseudoRand
+
+func init() {
+	// Use simple time and PID based seeding.
+	atomicFilePrng = randutil.NewPseudoRand(randutil.SeedDatePid())
+}
+
 // An AtomicFile is similar to an os.File but it has an additional
 // Commit() method that does whatever needs to be done so the
 // modification is "atomic": an AtomicFile will do its best to leave
@@ -96,7 +103,7 @@ func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, ui
 	// aa-enforce. Tools from this package enumerate all profiles by loading
 	// parsing any file found in /etc/apparmor.d/, skipping only very specific
 	// suffixes, such as the one we selected below.
-	tmp := filename + "." + randutil.RandomString(12) + "~"
+	tmp := filename + "." + atomicFilePrng.RandomString(12) + "~"
 
 	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm)
 	if err != nil {
@@ -330,7 +337,7 @@ const maxSymlinkTries = 10
 // linkPath.
 func AtomicSymlink(target, linkPath string) error {
 	for tries := 0; tries < maxSymlinkTries; tries++ {
-		tmp := linkPath + "." + randutil.RandomString(12) + "~"
+		tmp := linkPath + "." + atomicFilePrng.RandomString(12) + "~"
 		if err := os.Symlink(target, tmp); err != nil {
 			if os.IsExist(err) {
 				continue

@@ -118,7 +118,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 	c.Check(err, IsNil)
 
 	// next now has a delta (next refresh is not before t0 + delta)
-	c.Check(snapstate.NextCatalogRefresh(cr7).Before(t0.Add(snapstate.CatalogRefreshDelayWithDelta)), Equals, false)
+	c.Check(snapstate.NextCatalogRefresh(cr7).Before(t0.Add(snapstate.CatalogRefreshDelayWithDelta())), Equals, false)
 
 	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
 
@@ -150,7 +150,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshTooMany(c *C) {
 	c.Check(err, IsNil) // !!
 
 	// next now has a delta (next refresh is not before t0 + delta)
-	c.Check(snapstate.NextCatalogRefresh(cr7).Before(t0.Add(snapstate.CatalogRefreshDelayWithDelta)), Equals, false)
+	c.Check(snapstate.NextCatalogRefresh(cr7).Before(t0.Add(snapstate.CatalogRefreshDelayWithDelta())), Equals, false)
 
 	// it tried one endpoint and bailed at the first 429
 	c.Check(s.store.ops, HasLen, 1)
@@ -189,7 +189,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshNewEnough(c *C) {
 	// next is no longer zero,
 	c.Check(next.IsZero(), Equals, false)
 	// but has a delta WRT the timestamp
-	c.Check(next.Equal(t0.Add(snapstate.CatalogRefreshDelayWithDelta)), Equals, true)
+	c.Check(next.Equal(t0.Add(snapstate.CatalogRefreshDelayWithDelta())), Equals, true)
 }
 
 func (s *catalogRefreshTestSuite) TestCatalogRefreshTooNew(c *C) {

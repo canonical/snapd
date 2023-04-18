@@ -57,6 +57,16 @@ type Interacter interface {
 // wait this time between TERM and KILL
 var killWait = 5 * time.Second
 
+var schedulePrng *randutil.PseudoRand
+
+func init() {
+	// Action scheduling can impact server load so we need to use a seed
+	// that is not only based on time and PID, but contains
+	// additional variance introduced by device specific details such
+	// as hostname and MAC.
+	schedulePrng = randutil.NewPseudoRand(randutil.SeedDatePidHostMac())
+}
+
 func serviceStopTimeout(app *snap.AppInfo) time.Duration {
 	tout := app.StopTimeout
 	if tout == 0 {
@@ -1760,7 +1770,7 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 						// directly one after another
 						length -= 5 * time.Minute
 					}
-					when = when.Add(randutil.RandomDuration(length))
+					when = when.Add(schedulePrng.RandomDuration(length))
 				}
 				if when.Hour == 24 {
 					// 24:00 for us means the other end of

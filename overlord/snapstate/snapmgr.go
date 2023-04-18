@@ -51,11 +51,24 @@ import (
 )
 
 var (
-	snapdTransitionDelayWithRandomess = 3*time.Hour + randutil.RandomDuration(4*time.Hour)
+	ssPrng                            *randutil.PseudoRand
+	snapdTransitionDelayWithRandomess time.Duration
+
+	// overridden in the tests
+	errtrackerReport = errtracker.Report
 )
 
-// overridden in the tests
-var errtrackerReport = errtracker.Report
+func init() {
+	// Snapstate operations can impact server load so we need to use a seed
+	// that is not only based on time and PID, but contains
+	// additional variance introduced by device specific details such
+	// as hostname and MAC.
+	ssPrng = randutil.NewPseudoRand(randutil.SeedDatePidHostMac())
+
+	initAfterPrng()
+
+	snapdTransitionDelayWithRandomess = 3*time.Hour + ssPrng.RandomDuration(4*time.Hour)
+}
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
@@ -593,7 +606,7 @@ func genRefreshRequestSalt(st *state.State) error {
 		return nil
 	}
 
-	refreshPrivacyKey = randutil.RandomString(16)
+	refreshPrivacyKey = ssPrng.RandomString(16)
 	st.Set("refresh-privacy-key", refreshPrivacyKey)
 
 	return nil

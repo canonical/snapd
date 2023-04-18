@@ -1368,7 +1368,7 @@ func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revisi
 		return nil, err
 	}
 
-	return &backend.UndoInfo{Created: []string{randutil.RandomString(10)}}, nil
+	return &backend.UndoInfo{Created: []string{randutil.NewPseudoRand(randutil.SeedDatePid()).RandomString(10)}}, nil
 }
 
 func (f *fakeSnappyBackend) UndoInitExposedSnapHome(snapName string, undoInfo *backend.UndoInfo) error {
