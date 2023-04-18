@@ -566,6 +566,19 @@ func checkIsAutoRefresh(c *C, tasks []*state.Task, expected bool) {
 	c.Fatalf("cannot find download-snap task in %v", tasks)
 }
 
+func checkIsContinuedAutoRefresh(c *C, tasks []*state.Task, expected bool) {
+	for _, t := range tasks {
+		if t.Kind() == "download-snap" {
+			var snapsup snapstate.SnapSetup
+			err := t.Get("snap-setup", &snapsup)
+			c.Assert(err, IsNil)
+			c.Check(snapsup.IsContinuedAutoRefresh, Equals, expected)
+			return
+		}
+	}
+	c.Fatalf("cannot find download-snap task in %v", tasks)
+}
+
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
 	snapst := &snapstate.SnapState{Sequence: []*snap.SideInfo{
 		{Revision: snap.R(7)},
@@ -4032,6 +4045,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	s.verifyRefreshLast(c)
 
 	checkIsAutoRefresh(c, chg.Tasks(), true)
+	checkIsContinuedAutoRefresh(c, chg.Tasks(), false)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesImmediateWithUpdate(c *C) {
