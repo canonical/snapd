@@ -76,7 +76,8 @@ func (iface *customDeviceInterface) validateFilePath(path string, attrName strin
 		return fmt.Errorf(`custom-device %q path is not clean: %q`, attrName, path)
 	}
 
-	if _, err := utils.NewPathPattern(path, true); err != nil {
+	const allowCommas = true
+	if _, err := utils.NewPathPattern(path, allowCommas); err != nil {
 		return fmt.Errorf(`custom-device %q path cannot be used: %v`, attrName, err)
 	}
 

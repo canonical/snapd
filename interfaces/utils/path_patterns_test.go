@@ -66,7 +66,8 @@ func (s *pathPatternsSuite) TestRegexCreationHappy(c *C) {
 	for _, testData := range data {
 		pattern := testData.pattern
 		expectedRegex := testData.expectedRegex
-		regex, err := utils.CreateRegex(pattern, testData.glob, true)
+		const allowCommas = true
+		regex, err := utils.CreateRegex(pattern, testData.glob, allowCommas)
 		c.Assert(err, IsNil, Commentf("%s", pattern))
 		c.Assert(regex, Equals, expectedRegex, Commentf("%s", pattern))
 		// Also, make sure that the obtained regex is valid
@@ -94,7 +95,8 @@ func (s *pathPatternsSuite) TestRegexCreationUnhappy(c *C) {
 	for _, testData := range data {
 		pattern := testData.pattern
 		expectedError := testData.expectedError
-		pathPattern, err := utils.NewPathPattern(pattern, false)
+		const allowCommas = false
+		pathPattern, err := utils.NewPathPattern(pattern, allowCommas)
 		c.Assert(pathPattern, IsNil, Commentf("%s", pattern))
 		c.Assert(err, ErrorMatches, expectedError, Commentf("%s", pattern))
 	}
@@ -128,7 +130,8 @@ func (s *pathPatternsSuite) TestPatternMatches(c *C) {
 		pattern := testData.pattern
 		testPath := testData.testPath
 		expectedMatch := testData.expectedMatch
-		pathPattern, err := utils.NewPathPattern(pattern, false)
+		const allowCommas = false
+		pathPattern, err := utils.NewPathPattern(pattern, allowCommas)
 		c.Assert(err, IsNil, Commentf("%s", pattern))
 		c.Assert(pathPattern.Matches(testPath), Equals, expectedMatch, Commentf("%s", pattern))
 	}
