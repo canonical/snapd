@@ -1,3 +1,10 @@
+snapd (2.59.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Notify the user when a user triggered auto refresh finished
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 18 Apr 2023 15:39:27 +0200
+
 snapd (2.59.1~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #2009946
