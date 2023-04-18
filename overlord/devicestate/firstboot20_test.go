@@ -1114,3 +1114,87 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKe
 
 	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous, switchToSigned, `snap "classic-installer" requires classic confinement`)
 }
+
+func (s *firstBoot20Suite) writeToSeedModelEtc(c *C, as []asserts.Assertion) {
+	f, err := os.OpenFile(filepath.Join(s.SeedDir, "model-etc"), os.O_APPEND|os.O_WRONLY, 0644)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	enc := asserts.NewEncoder(f)
+	for _, a := range as {
+		enc.Encode(a)
+	}
+}
+
+func (s *firstBoot20Suite) setupTestValidationSets(c *C) {
+	vsa, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "base-set",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       s.AssertedSnapID("pc-kernel"),
+				"presence": "required",
+				"revision": "1",
+			},
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       s.AssertedSnapID("pc"),
+				"presence": "required",
+				"revision": "1",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	vsb, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "opt-set",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       "mysnapididididididididididididid",
+				"presence": "required",
+				"revision": "8",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.writeToSeedModelEtc(c, []asserts.Assertion{vsa, vsb})
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTracking(c *C) {
+	// Write some validation-set assertions to the seed
+	s.setupTestValidationSets(c)
+
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+	}
+
+	sysLabel := m.RecoverySystem
+	kernelAndGadget := true
+	s.setupCore20LikeSeed(c, sysLabel, "signed", kernelAndGadget, "", extraSnaps...)
+
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// run the firstboot code
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
+	c.Assert(err, IsNil)
+
+	tsEnd := tsAll[len(tsAll)-1]
+	c.Assert(tsEnd.Tasks, HasLen, 2)
+	c.Check(tsEnd.Tasks()[0].Kind(), Equals, "enforce-validation-sets")
+}
