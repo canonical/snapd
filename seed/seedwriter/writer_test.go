@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"testing"
 	"time"
@@ -4223,4 +4224,173 @@ func (s *writerSuite) TestCheckValidateValidationSetsToEarly(c *C) {
 
 	err = w.CheckValidationSets()
 	c.Check(err, ErrorMatches, `internal error: seedwriter.Writer cannot check validation-sets before Downloaded signaled complete`)
+}
+
+func (s *writerSuite) TestManifestCorrectlyProduced(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	})
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.opts.Label = "20191122"
+	s.opts.ManifestPath = path.Join(s.opts.SeedDir, "seed.manifest")
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 0)
+
+	for _, sn := range localSnaps {
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+		f, err := snapfile.Open(sn.Path)
+		c.Assert(err, IsNil)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
+		c.Assert(err, IsNil)
+		w.SetInfo(sn, info)
+	}
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	for _, sn := range snaps {
+		channel := "latest/stable"
+		switch sn.SnapName() {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+		c.Check(sn.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.SeedSnaps(func(name, src, dst string) error {
+		return osutil.CopyFile(src, dst, 0)
+	})
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	b, err := ioutil.ReadFile(path.Join(s.opts.SeedDir, "seed.manifest"))
+	c.Assert(err, IsNil)
+	c.Check(string(b), Equals, `core20 1
+pc 1
+pc-kernel 1
+snapd 1
+`)
+}
+
+func (s *writerSuite) TestManifestPreProvidedFailsMarkSeeding(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	})
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.opts.Manifest = seedwriter.MockManifest(map[string]*seedwriter.ManifestSnapRevision{
+		"core20": {
+			SnapName: "core20",
+			Revision: snap.R(20),
+		},
+	}, nil, nil, nil)
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 0)
+
+	for _, sn := range localSnaps {
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+		f, err := snapfile.Open(sn.Path)
+		c.Assert(err, IsNil)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
+		c.Assert(err, IsNil)
+		w.SetInfo(sn, info)
+	}
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	for _, sn := range snaps {
+		channel := "latest/stable"
+		switch sn.SnapName() {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+		c.Check(sn.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.SeedSnaps(func(name, src, dst string) error {
+		return osutil.CopyFile(src, dst, 0)
+	})
+	c.Assert(err, ErrorMatches, `cannot record snap for manifest: snap "core20" \(1\) does not match the allowed revision 20`)
 }

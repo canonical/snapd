@@ -87,22 +87,22 @@ type Schema interface {
 	Validate(data []byte) error
 }
 
-// Directory holds a series of related aspects.
-type Directory struct {
+// Bundle holds a series of related aspects.
+type Bundle struct {
 	Name    string
 	DataBag DataBag
 	Schema  Schema
 	Aspects map[string]*Aspect
 }
 
-// NewAspectDirectory returns a new aspect directory for the following aspects
+// NewAspectBundle returns a new aspect bundle for the following aspects
 // and access patterns.
-func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag DataBag, schema Schema) (*Directory, error) {
+func NewAspectBundle(name string, aspects map[string]interface{}, dataBag DataBag, schema Schema) (*Bundle, error) {
 	if len(aspects) == 0 {
-		return nil, errors.New(`cannot define aspects directory: no aspects`)
+		return nil, errors.New(`cannot define aspects bundle: no aspects`)
 	}
 
-	aspectDir := &Directory{
+	aspectBundle := &Bundle{
 		Name:    name,
 		DataBag: dataBag,
 		Schema:  schema,
@@ -117,22 +117,22 @@ func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag Dat
 			return nil, fmt.Errorf("cannot define aspect %q: no access patterns found", name)
 		}
 
-		aspect, err := newAspect(aspectDir, name, aspectPatterns)
+		aspect, err := newAspect(aspectBundle, name, aspectPatterns)
 		if err != nil {
 			return nil, fmt.Errorf("cannot define aspect %q: %w", name, err)
 		}
 
-		aspectDir.Aspects[name] = aspect
+		aspectBundle.Aspects[name] = aspect
 	}
 
-	return aspectDir, nil
+	return aspectBundle, nil
 }
 
-func newAspect(dir *Directory, name string, aspectPatterns []map[string]string) (*Aspect, error) {
+func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) (*Aspect, error) {
 	aspect := &Aspect{
 		Name:           name,
 		AccessPatterns: make([]*accessPattern, 0, len(aspectPatterns)),
-		directory:      dir,
+		bundle:         bundle,
 	}
 
 	for _, aspectPattern := range aspectPatterns {
@@ -245,16 +245,16 @@ func getPlaceholders(aspectStr string) map[string]bool {
 	return placeholders
 }
 
-// Aspect returns an aspect from the aspect directory.
-func (d *Directory) Aspect(aspect string) *Aspect {
+// Aspect returns an aspect from the aspect bundle.
+func (d *Bundle) Aspect(aspect string) *Aspect {
 	return d.Aspects[aspect]
 }
 
-// Aspect is a group of access patterns under a directory.
+// Aspect is a group of access patterns under a bundle.
 type Aspect struct {
 	Name           string           `json:"name"`
 	AccessPatterns []*accessPattern `json:"access-patterns"`
-	directory      *Directory
+	bundle         *Bundle
 }
 
 // Set sets the named aspect to a specified value.
@@ -275,16 +275,16 @@ func (a *Aspect) Set(name string, value interface{}) error {
 			return fmt.Errorf("cannot set %q: path is not writeable", name)
 		}
 
-		if err := a.directory.DataBag.Set(path, value); err != nil {
+		if err := a.bundle.DataBag.Set(path, value); err != nil {
 			return err
 		}
 
-		data, err := a.directory.DataBag.Data()
+		data, err := a.bundle.DataBag.Data()
 		if err != nil {
 			return err
 		}
 
-		return a.directory.Schema.Validate(data)
+		return a.bundle.Schema.Validate(data)
 	}
 
 	return &NotFoundError{fmt.Sprintf("cannot set %q: name not found", name)}
@@ -309,7 +309,7 @@ func (a *Aspect) Get(name string, value interface{}) error {
 			return fmt.Errorf("cannot get %q: path is not readable", name)
 		}
 
-		if err := a.directory.DataBag.Get(path, value); err != nil {
+		if err := a.bundle.DataBag.Get(path, value); err != nil {
 			if errors.Is(err, &NotFoundError{}) {
 				return &NotFoundError{fmt.Sprintf("cannot get %q: %v", name, err)}
 			}
@@ -517,7 +517,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 	// decode the next map level
 	var level map[string]json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
-		// TODO: see TODO in NewAspectDirectory
+		// TODO: see TODO in NewAspectBundle
 		if uErr, ok := err.(*json.UnmarshalTypeError); ok {
 			pathPrefix := strings.Join(subKeys[:index+1], ".")
 			return fmt.Errorf("cannot read path prefix %q: prefix maps to %s", pathPrefix, uErr.Value)
@@ -567,7 +567,7 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 	}
 
 	// TODO: this will error ungraciously if there isn't an object
-	// at this level (see the TODO in NewAspectDirectory)
+	// at this level (see the TODO in NewAspectBundle)
 	var level map[string]json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
 		return nil, err

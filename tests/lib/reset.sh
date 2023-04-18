@@ -50,7 +50,7 @@ reset_classic() {
         ls -lR "$SNAP_MOUNT_DIR"/ /var/snap/
         exit 1
     fi
-    rm -rf /tmp/snap-private-tmp
+    rm -rf /tmp/snap-private-tmp/*
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)

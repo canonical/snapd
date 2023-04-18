@@ -600,7 +600,7 @@ func (m *autoRefresh) launchAutoRefresh(overrideDelay bool) error {
 	}()
 
 	// NOTE: this will unlock and re-lock state for network ops
-	updated, updateTss, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
+	updated, updateTss, err := AutoRefresh(auth.EnsureContextTODO(), m.state, &AutoRefreshOptions{IsContinuedAutoRefresh: overrideDelay})
 
 	// TODO: we should have some way to lock just creating and starting changes,
 	//       as that would alleviate this race condition we are guarding against
@@ -704,6 +704,7 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 // This allows the, possibly slow, communication with each snapd session agent,
 // to be performed without holding the snap state lock.
 var asyncPendingRefreshNotification = func(context context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	logger.Debugf("notifying agents about pending refresh for snap %q", refreshInfo.InstanceName)
 	go func() {
 		if err := client.PendingRefreshNotification(context, refreshInfo); err != nil {
 			logger.Noticef("Cannot send notification about pending refresh: %v", err)

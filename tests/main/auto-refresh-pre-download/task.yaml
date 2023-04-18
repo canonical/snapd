@@ -84,7 +84,7 @@ execute: |
 
     # check that the pre-download notified the user to close the snap
     MATCH 'string "Pending update of "test-snapd-sh" snap"' < /home/test/notif.log
-    MATCH 'string "Close the app to avoid disruptions \(.* days left\)"' < /home/test/notif.log
+    MATCH 'string "Close the app to update now \(.* days left\)"' < /home/test/notif.log
   fi
 
   OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
