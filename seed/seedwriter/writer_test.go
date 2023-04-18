@@ -4418,11 +4418,8 @@ func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
 			map[string]interface{}{
 				"account-id": "canonical",
 				"name":       "base-set",
-				// Use sequence 100 in the model, which we won't have in the database
-				// the goal here is to make sure we pre-provide a manifest that specifies
-				// the correct sequence 2, and it should be used and properly written.
-				"sequence": "100",
-				"mode":     "enforce",
+				"sequence":   "2",
+				"mode":       "enforce",
 			},
 		},
 	})
