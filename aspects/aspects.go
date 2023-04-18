@@ -56,10 +56,6 @@ func newAccessType(access string) (accessType, error) {
 	return readWrite, fmt.Errorf("expected 'access' to be one of %s but was %q", strutil.Quoted(accessTypeStrings), access)
 }
 
-func (a accessType) String() string {
-	return accessTypeStrings[a]
-}
-
 // NotFoundError represents an error caused by a missing entity.
 type NotFoundError struct {
 	Message string
@@ -90,9 +86,9 @@ type Schema interface {
 // Bundle holds a series of related aspects.
 type Bundle struct {
 	Name    string
-	DataBag DataBag
-	Schema  Schema
-	Aspects map[string]*Aspect
+	dataBag DataBag
+	schema  Schema
+	aspects map[string]*Aspect
 }
 
 // NewAspectBundle returns a new aspect bundle for the following aspects
@@ -104,9 +100,9 @@ func NewAspectBundle(name string, aspects map[string]interface{}, dataBag DataBa
 
 	aspectBundle := &Bundle{
 		Name:    name,
-		DataBag: dataBag,
-		Schema:  schema,
-		Aspects: make(map[string]*Aspect, len(aspects)),
+		dataBag: dataBag,
+		schema:  schema,
+		aspects: make(map[string]*Aspect, len(aspects)),
 	}
 
 	for name, v := range aspects {
@@ -122,7 +118,7 @@ func NewAspectBundle(name string, aspects map[string]interface{}, dataBag DataBa
 			return nil, fmt.Errorf("cannot define aspect %q: %w", name, err)
 		}
 
-		aspectBundle.Aspects[name] = aspect
+		aspectBundle.aspects[name] = aspect
 	}
 
 	return aspectBundle, nil
@@ -131,7 +127,7 @@ func NewAspectBundle(name string, aspects map[string]interface{}, dataBag DataBa
 func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) (*Aspect, error) {
 	aspect := &Aspect{
 		Name:           name,
-		AccessPatterns: make([]*accessPattern, 0, len(aspectPatterns)),
+		accessPatterns: make([]*accessPattern, 0, len(aspectPatterns)),
 		bundle:         bundle,
 	}
 
@@ -166,7 +162,7 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) 
 			return nil, err
 		}
 
-		aspect.AccessPatterns = append(aspect.AccessPatterns, accPattern)
+		aspect.accessPatterns = append(aspect.accessPatterns, accPattern)
 	}
 
 	return aspect, nil
@@ -247,20 +243,20 @@ func getPlaceholders(aspectStr string) map[string]bool {
 
 // Aspect returns an aspect from the aspect bundle.
 func (d *Bundle) Aspect(aspect string) *Aspect {
-	return d.Aspects[aspect]
+	return d.aspects[aspect]
 }
 
 // Aspect is a group of access patterns under a bundle.
 type Aspect struct {
-	Name           string           `json:"name"`
-	AccessPatterns []*accessPattern `json:"access-patterns"`
+	Name           string
+	accessPatterns []*accessPattern
 	bundle         *Bundle
 }
 
 // Set sets the named aspect to a specified value.
 func (a *Aspect) Set(name string, value interface{}) error {
 	nameSubkeys := strings.Split(name, ".")
-	for _, accessPatt := range a.AccessPatterns {
+	for _, accessPatt := range a.accessPatterns {
 		placeholders, ok := accessPatt.match(nameSubkeys)
 		if !ok {
 			continue
@@ -275,16 +271,16 @@ func (a *Aspect) Set(name string, value interface{}) error {
 			return fmt.Errorf("cannot set %q: path is not writeable", name)
 		}
 
-		if err := a.bundle.DataBag.Set(path, value); err != nil {
+		if err := a.bundle.dataBag.Set(path, value); err != nil {
 			return err
 		}
 
-		data, err := a.bundle.DataBag.Data()
+		data, err := a.bundle.dataBag.Data()
 		if err != nil {
 			return err
 		}
 
-		return a.bundle.Schema.Validate(data)
+		return a.bundle.schema.Validate(data)
 	}
 
 	return &NotFoundError{fmt.Sprintf("cannot set %q: name not found", name)}
@@ -294,7 +290,7 @@ func (a *Aspect) Set(name string, value interface{}) error {
 // or the corresponding value can't be found, a NotFoundError is returned.
 func (a *Aspect) Get(name string, value interface{}) error {
 	subkeys := strings.Split(name, ".")
-	for _, accessPatt := range a.AccessPatterns {
+	for _, accessPatt := range a.accessPatterns {
 		placeholders, ok := accessPatt.match(subkeys)
 		if !ok {
 			continue
@@ -309,7 +305,7 @@ func (a *Aspect) Get(name string, value interface{}) error {
 			return fmt.Errorf("cannot get %q: path is not readable", name)
 		}
 
-		if err := a.bundle.DataBag.Get(path, value); err != nil {
+		if err := a.bundle.dataBag.Get(path, value); err != nil {
 			if errors.Is(err, &NotFoundError{}) {
 				return &NotFoundError{fmt.Sprintf("cannot get %q: %v", name, err)}
 			}
@@ -355,9 +351,9 @@ func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 	}
 
 	return &accessPattern{
-		Name:   nameMatchers,
-		Path:   pathWriters,
-		Access: accType,
+		name:   nameMatchers,
+		path:   pathWriters,
+		access: accType,
 	}, nil
 }
 
@@ -369,9 +365,9 @@ func isPlaceholder(part string) bool {
 // to match an input name and map it into a corresponding path, potentially with
 // placeholders filled in.
 type accessPattern struct {
-	Name   []nameMatcher `json:"name"`
-	Path   []pathWriter  `json:"path"`
-	Access accessType    `json:"access"`
+	name   []nameMatcher
+	path   []pathWriter
+	access accessType
 }
 
 // match takes a list of subkeys and returns true if those subkeys match the pattern's
@@ -380,13 +376,13 @@ type accessPattern struct {
 // and nameSubkeys=["a", "b", "c"], then it returns true and the map will contain
 // {"foo": "a", "bar": "c"}.
 func (p *accessPattern) match(nameSubkeys []string) (map[string]string, bool) {
-	if len(p.Name) != len(nameSubkeys) {
+	if len(p.name) != len(nameSubkeys) {
 		return nil, false
 	}
 
 	placeholders := make(map[string]string)
 	for i, subkey := range nameSubkeys {
-		if !p.Name[i].match(subkey, placeholders) {
+		if !p.name[i].match(subkey, placeholders) {
 			return nil, false
 		}
 	}
@@ -399,7 +395,7 @@ func (p *accessPattern) match(nameSubkeys []string) (map[string]string, bool) {
 func (p *accessPattern) getPath(placeholders map[string]string) (string, error) {
 	sb := &strings.Builder{}
 
-	for _, subkey := range p.Path {
+	for _, subkey := range p.path {
 		if sb.Len() > 0 {
 			if _, err := sb.WriteRune('.'); err != nil {
 				return "", err
@@ -416,11 +412,11 @@ func (p *accessPattern) getPath(placeholders map[string]string) (string, error) 
 }
 
 func (p accessPattern) isReadable() bool {
-	return p.Access == readWrite || p.Access == read
+	return p.access == readWrite || p.access == read
 }
 
 func (p accessPattern) isWriteable() bool {
-	return p.Access == readWrite || p.Access == write
+	return p.access == readWrite || p.access == write
 }
 
 // pattern is an individual subkey of a dot-separated name or path pattern. It
@@ -456,11 +452,6 @@ func (p placeholder) write(sb *strings.Builder, placeholders map[string]string) 
 
 	_, err := sb.WriteString(subkey)
 	return err
-}
-
-func (p placeholder) MarshalJSON() ([]byte, error) {
-	// wrap the placeholder in curly brackets so we know what it is when unmarshaling
-	return []byte(fmt.Sprintf(`"{%s}"`, p)), nil
 }
 
 // literal is a non-placeholder name/path subkey.
