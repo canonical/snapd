@@ -466,26 +466,25 @@ func IsSytemDirectoryExistsError(err error) bool {
 	return ok
 }
 
-// refreshValidationSetOptions if any restrictions have been set in
-// in the manifest, then we use the sequence and pinning status from
+// correctedValidationSetAtSequence returns the corrected AtSequence for an
+// validation set. If any restrictions have been set in
+// in the manifest, then we must use the sequence and pinning status from
 // that instead of whats set in the model.
-func (w *Writer) refreshValidationSetOptions(seq *asserts.AtSequence) {
+func (w *Writer) correctedValidationSetAtSequence(vsm *asserts.ModelValidationSet) *asserts.AtSequence {
+	atSeq := vsm.AtSequence()
 	for _, vs := range w.manifest.AllowedValidationSets() {
-		if vs.AccountID == seq.SequenceKey[1] && vs.Name == seq.SequenceKey[2] {
-			seq.Sequence = vs.Sequence
-			seq.Pinned = vs.Pinned
-			return
+		if vs.AccountID == vsm.AccountID && vs.Name == vsm.Name {
+			atSeq.Sequence = vs.Sequence
+			atSeq.Pinned = vs.Pinned
+			break
 		}
 	}
+	return atSeq
 }
 
 func (w *Writer) fetchValidationSets(f SeedAssertionFetcher) error {
 	for _, vs := range w.model.ValidationSets() {
-		atSeq := vs.AtSequence()
-
-		// If any different options is provided in the manifest for
-		// this validation-set, then use those instead.
-		w.refreshValidationSetOptions(atSeq)
+		atSeq := w.correctedValidationSetAtSequence(vs)
 		if err := f.FetchSequence(atSeq); err != nil {
 			return err
 		}
@@ -1262,11 +1261,7 @@ func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.Valida
 	vsasserts := make(map[*asserts.AtSequence]*asserts.ValidationSet)
 	vss := w.model.ValidationSets()
 	for _, vs := range vss {
-		atSeq := vs.AtSequence()
-
-		// If any different options is provided in the manifest for
-		// this validation-set, then use those instead.
-		w.refreshValidationSetOptions(atSeq)
+		atSeq := w.correctedValidationSetAtSequence(vs)
 		a, err := w.resolveValidationSetAssertion(atSeq)
 		if err != nil {
 			return nil, fmt.Errorf("internal error: cannot resolve validation-set: %v", err)
