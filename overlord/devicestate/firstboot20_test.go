@@ -98,9 +98,17 @@ func (s *firstBoot20Suite) snapYaml(snp string) string {
 	return s.extraSnapYaml[snp]
 }
 
-func (s *firstBoot20Suite) setupCore20LikeSeed(c *C, sysLabel string, modelGrade asserts.ModelGrade, kernelAndGadget bool, extraGadgetYaml string, extraSnaps ...string) *asserts.Model {
+type core20SeedOptions struct {
+	sysLabel        string
+	modelGrade      asserts.ModelGrade
+	kernelAndGadget bool
+	extraGadgetYaml string
+	valsets         []string
+}
+
+func (s *firstBoot20Suite) setupCore20LikeSeed(c *C, opts *core20SeedOptions, extraSnaps ...string) *asserts.Model {
 	var gadgetYaml string
-	if kernelAndGadget {
+	if opts.kernelAndGadget {
 		gadgetYaml = `
 volumes:
     volume-id:
@@ -120,7 +128,7 @@ volumes:
           size: 2G
 `
 
-		gadgetYaml += extraGadgetYaml
+		gadgetYaml += opts.extraGadgetYaml
 	}
 
 	makeSnap := func(yamlKey string) {
@@ -136,7 +144,7 @@ volumes:
 
 	makeSnap("snapd")
 	makeSnap("core20")
-	if kernelAndGadget {
+	if opts.kernelAndGadget {
 		makeSnap("pc-kernel=20")
 		makeSnap("pc=20")
 	}
@@ -148,7 +156,7 @@ volumes:
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"grade":        string(modelGrade),
+		"grade":        string(opts.modelGrade),
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
@@ -178,7 +186,7 @@ volumes:
 	if release.OnClassic {
 		model["classic"] = "true"
 		model["distribution"] = "ubuntu"
-		if !kernelAndGadget {
+		if !opts.kernelAndGadget {
 			snaps := model["snaps"].([]interface{})
 			reducedSnaps := []interface{}{}
 			for _, s := range snaps {
@@ -191,7 +199,7 @@ volumes:
 			model["snaps"] = reducedSnaps
 		}
 	} else {
-		c.Assert(kernelAndGadget, Equals, true)
+		c.Assert(opts.kernelAndGadget, Equals, true)
 	}
 
 	for _, sn := range extraSnaps {
@@ -208,7 +216,18 @@ volumes:
 		model["snaps"] = append(model["snaps"].([]interface{}), snapEntry)
 	}
 
-	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, nil)
+	for _, vs := range opts.valsets {
+		keys := strings.Split(vs, "/")
+		vsEntry := map[string]interface{}{
+			"account-id": keys[0],
+			"name":       keys[1],
+			"sequence":   keys[2],
+			"mode":       "enforce",
+		}
+		model["validation-sets"] = append(model["validation-sets"].([]interface{}), vsEntry)
+	}
+
+	return s.MakeSeed(c, opts.sysLabel, "my-brand", "my-model", model, nil)
 }
 
 func splitSnapNameWithChannel(sn string) (name, channel string) {
@@ -278,9 +297,12 @@ func (s *firstBoot20Suite) earlySetup(c *C, m *boot.Modeenv, modelGrade asserts.
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	sysLabel := m.RecoverySystem
-	kernelAndGadget := true
-	model = s.setupCore20LikeSeed(c, sysLabel, modelGrade, kernelAndGadget, extraGadgetYaml, extraSnaps...)
+	model = s.setupCore20LikeSeed(c, &core20SeedOptions{
+		sysLabel:        m.RecoverySystem,
+		modelGrade:      modelGrade,
+		kernelAndGadget: true,
+		extraGadgetYaml: extraGadgetYaml,
+	}, extraSnaps...)
 	// validity check that our returned model has the expected grade
 	c.Assert(model.Grade(), Equals, modelGrade)
 
@@ -778,9 +800,11 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	sysLabel := m.RecoverySystem
-	kernelAndGadget := false
-	model := s.setupCore20LikeSeed(c, sysLabel, modelGrade, kernelAndGadget, "")
+	model := s.setupCore20LikeSeed(c, &core20SeedOptions{
+		sysLabel:        m.RecoverySystem,
+		modelGrade:      modelGrade,
+		kernelAndGadget: false,
+	})
 	// validity check that our returned model has the expected grade
 	c.Assert(model.Grade(), Equals, modelGrade)
 
@@ -942,8 +966,11 @@ apps:
 `
 
 	sysLabel := m.RecoverySystem
-	kernelAndGadget := false
-	model := s.setupCore20LikeSeed(c, sysLabel, modelGrade, kernelAndGadget, "", "classic-installer")
+	model := s.setupCore20LikeSeed(c, &core20SeedOptions{
+		sysLabel:        sysLabel,
+		modelGrade:      modelGrade,
+		kernelAndGadget: false,
+	}, "classic-installer")
 	// validity check that our returned model has the expected grade
 	c.Assert(model.Grade(), Equals, modelGrade)
 
@@ -1182,9 +1209,12 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTracking(c *C)
 		Base:           "core20_1.snap",
 	}
 
-	sysLabel := m.RecoverySystem
-	kernelAndGadget := true
-	s.setupCore20LikeSeed(c, sysLabel, "signed", kernelAndGadget, "", extraSnaps...)
+	s.setupCore20LikeSeed(c, &core20SeedOptions{
+		sysLabel:        m.RecoverySystem,
+		modelGrade:      "signed",
+		kernelAndGadget: true,
+		valsets:         []string{"canonical/base-set/1", "canonical/opt-set/2"},
+	})
 
 	st := s.overlord.State()
 	st.Lock()
