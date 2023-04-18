@@ -4394,3 +4394,123 @@ func (s *writerSuite) TestManifestPreProvidedFailsMarkSeeding(c *C) {
 	})
 	c.Assert(err, ErrorMatches, `cannot record snap for manifest: snap "core20" \(1\) does not match the allowed revision 20`)
 }
+
+func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "base-set",
+				// Use sequence 100 in the model, which we won't have in the database
+				// the goal here is to make sure we pre-provide a manifest that specifies
+				// the correct sequence 2, and it should be used and properly written.
+				"sequence": "100",
+				"mode":     "enforce",
+			},
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	// setup a few validation set assertions in store
+	s.setupValidationSets(c)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+
+	// The first sequence of base-set requires revision 7 of
+	// the snaps
+	s.MakeAssertedSnap(c, snapYaml["pc-kernel=20"], snapFiles["pc-kernel=20"], snap.R(7), "canonical", s.StoreSigning.Database)
+	s.MakeAssertedSnap(c, snapYaml["pc=20"], snapFiles["pc=20"], snap.R(7), "canonical", s.StoreSigning.Database)
+
+	// Set up the manifest we need, and specifically ask for sequence
+	// 1 of the base-set, to avoid getting the newest.
+	manifest := seedwriter.NewManifest()
+	manifest.SetAllowedValidationSet("canonical", "base-set", 1, true)
+	s.opts.Manifest = manifest
+	s.opts.ManifestPath = path.Join(s.opts.SeedDir, "seed.manifest")
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 0)
+
+	for _, sn := range localSnaps {
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+		f, err := snapfile.Open(sn.Path)
+		c.Assert(err, IsNil)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
+		c.Assert(err, IsNil)
+		w.SetInfo(sn, info)
+	}
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	for _, sn := range snaps {
+		channel := "latest/stable"
+		switch sn.SnapName() {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+		c.Check(sn.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.CheckValidationSets()
+	c.Assert(err, IsNil)
+
+	err = w.SeedSnaps(func(name, src, dst string) error {
+		return osutil.CopyFile(src, dst, 0)
+	})
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
+	c.Check(systemDir, testutil.FilePresent)
+
+	// check that model-etc contains the correct validation-set assert
+	seedAssertsDir := filepath.Join(systemDir, "assertions")
+	c.Check(filepath.Join(seedAssertsDir, "model-etc"), testutil.FileContains, `type: validation-set
+authority-id: canonical
+series: 16
+account-id: canonical
+name: base-set
+sequence: 1`)
+}

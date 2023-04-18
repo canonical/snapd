@@ -466,9 +466,27 @@ func IsSytemDirectoryExistsError(err error) bool {
 	return ok
 }
 
+// refreshValidationSetOptions if any restrictions have been set in
+// in the manifest, then we use the sequence and pinning status from
+// that instead of whats set in the model.
+func (w *Writer) refreshValidationSetOptions(seq *asserts.AtSequence) {
+	for _, vs := range w.manifest.AllowedValidationSets() {
+		if vs.AccountID == seq.SequenceKey[1] && vs.Name == seq.SequenceKey[2] {
+			seq.Sequence = vs.Sequence
+			seq.Pinned = vs.Pinned
+			return
+		}
+	}
+}
+
 func (w *Writer) fetchValidationSets(f SeedAssertionFetcher) error {
 	for _, vs := range w.model.ValidationSets() {
-		if err := f.FetchSequence(vs.AtSequence()); err != nil {
+		atSeq := vs.AtSequence()
+
+		// If any different options is provided in the manifest for
+		// this validation-set, then use those instead.
+		w.refreshValidationSetOptions(atSeq)
+		if err := f.FetchSequence(atSeq); err != nil {
 			return err
 		}
 	}
@@ -1240,15 +1258,33 @@ func (w *Writer) resolveValidationSetAssertion(seq *asserts.AtSequence) (asserts
 	return seq.Resolve(w.db.Find)
 }
 
-func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
-	valsets := snapasserts.NewValidationSets()
+func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.ValidationSet, error) {
+	vsasserts := make(map[*asserts.AtSequence]*asserts.ValidationSet)
 	vss := w.model.ValidationSets()
 	for _, vs := range vss {
-		a, err := w.resolveValidationSetAssertion(vs.AtSequence())
+		atSeq := vs.AtSequence()
+
+		// If any different options is provided in the manifest for
+		// this validation-set, then use those instead.
+		w.refreshValidationSetOptions(atSeq)
+		a, err := w.resolveValidationSetAssertion(atSeq)
 		if err != nil {
 			return nil, fmt.Errorf("internal error: cannot resolve validation-set: %v", err)
 		}
-		valsets.Add(a.(*asserts.ValidationSet))
+		vsasserts[atSeq] = a.(*asserts.ValidationSet)
+	}
+	return vsasserts, nil
+}
+
+func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
+	vss, err := w.validationSetAsserts()
+	if err != nil {
+		return nil, err
+	}
+
+	valsets := snapasserts.NewValidationSets()
+	for _, vs := range vss {
+		valsets.Add(vs)
 	}
 	return valsets, nil
 }
