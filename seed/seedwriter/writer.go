@@ -466,28 +466,38 @@ func IsSytemDirectoryExistsError(err error) bool {
 	return ok
 }
 
-// finalValidationSetAtSequence returns the final AtSequence for an
-// validation set. If any restrictions have been set in
-// in the manifest, then we must use the sequence and pinning status from
-// that instead of whats set in the model.
-func (w *Writer) finalValidationSetAtSequence(vsm *asserts.ModelValidationSet) (*asserts.AtSequence, error) {
-	atSeq := vsm.AtSequence()
+func (w *Writer) validationSetFromManifest(vsm *asserts.ModelValidationSet) *ManifestValidationSet {
 	for _, vs := range w.manifest.AllowedValidationSets() {
 		if vs.AccountID == vsm.AccountID && vs.Name == vsm.Name {
-			// If the model has the validation-set pinned, this can't be
-			// changed by the manifest.
-			if vsm.Sequence > 0 {
-				// It's pinned by the model, then the sequence must match
-				if vs.Sequence != vsm.Sequence {
-					return nil, fmt.Errorf("cannot use sequence %d of %q: model requires sequence %d",
-						vs.Sequence, vs.Unique(), vsm.Sequence)
-				}
-			}
-			atSeq.Sequence = vs.Sequence
-			atSeq.Pinned = vs.Pinned
-			break
+			return vs
 		}
 	}
+	return nil
+}
+
+// finalValidationSetAtSequence returns the final AtSequence for an
+// validation set. If any restrictions have been set in the manifest
+// then we must use the sequence and pinning status from that instead
+// of whats set in the model.
+func (w *Writer) finalValidationSetAtSequence(vsm *asserts.ModelValidationSet) (*asserts.AtSequence, error) {
+	atSeq := vsm.AtSequence()
+
+	// Check the manifest for a matching entry, to handle any restrictions that
+	// might have been setup.
+	vs := w.validationSetFromManifest(vsm)
+	if vs == nil {
+		return atSeq, nil
+	}
+
+	// If the model has the validation-set pinned, this can't be
+	// changed by the manifest.
+	if vsm.Sequence > 0 && vs.Sequence != vsm.Sequence {
+		// It's pinned by the model, then the sequence must match
+		return nil, fmt.Errorf("cannot use sequence %d of %q: model requires sequence %d",
+			vs.Sequence, vs.Unique(), vsm.Sequence)
+	}
+	atSeq.Sequence = vs.Sequence
+	atSeq.Pinned = vs.Pinned
 	return atSeq, nil
 }
 
@@ -1270,7 +1280,7 @@ func (w *Writer) resolveValidationSetAssertion(seq *asserts.AtSequence) (asserts
 }
 
 func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.ValidationSet, error) {
-	vsasserts := make(map[*asserts.AtSequence]*asserts.ValidationSet)
+	vsAsserts := make(map[*asserts.AtSequence]*asserts.ValidationSet)
 	vss := w.model.ValidationSets()
 	for _, vs := range vss {
 		atSeq, err := w.finalValidationSetAtSequence(vs)
@@ -1281,9 +1291,9 @@ func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.Valida
 		if err != nil {
 			return nil, fmt.Errorf("internal error: cannot resolve validation-set: %v", err)
 		}
-		vsasserts[atSeq] = a.(*asserts.ValidationSet)
+		vsAsserts[atSeq] = a.(*asserts.ValidationSet)
 	}
-	return vsasserts, nil
+	return vsAsserts, nil
 }
 
 func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
