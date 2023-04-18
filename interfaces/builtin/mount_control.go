@@ -446,10 +446,9 @@ func validateMountOptions(mountInfo *MountInfo) error {
 				break
 			}
 		}
-		if foundAllowed {
-			continue
+		if !foundAllowed {
+			return fmt.Errorf(`mount-control option unrecognized or forbidden: %q`, o)
 		}
-		return fmt.Errorf(`mount-control option unrecognized or forbidden: %q`, o)
 	}
 	return nil
 }
