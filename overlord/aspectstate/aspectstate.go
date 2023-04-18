@@ -27,11 +27,11 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-func Set(st *state.State, account, directory, aspect, field, value string) error {
+func Set(st *state.State, account, bundle, aspect, field, value string) error {
 	st.Lock()
 	defer st.Unlock()
 
-	databag, err := getDatabag(st, account, directory, aspect)
+	databag, err := getDatabag(st, account, bundle, aspect)
 	if err != nil {
 		if !errors.Is(err, state.ErrNoState) && !errors.Is(err, &aspects.NotFoundError{}) {
 			return err
@@ -40,17 +40,17 @@ func Set(st *state.State, account, directory, aspect, field, value string) error
 		databag = aspects.NewJSONDataBag()
 	}
 
-	accPatterns, err := aspecttest.MockAspect(account, directory)
+	accPatterns, err := aspecttest.MockAspect(account, bundle)
 	if err != nil {
 		return err
 	}
 
-	aspectDir, err := aspects.NewAspectDirectory(directory, accPatterns, databag, aspects.NewJSONSchema())
+	aspectBundle, err := aspects.NewAspectBundle(bundle, accPatterns, databag, aspects.NewJSONSchema())
 	if err != nil {
 		return err
 	}
 
-	asp := aspectDir.Aspect(aspect)
+	asp := aspectBundle.Aspect(aspect)
 	if asp == nil {
 		return notFound("aspect %q was not found", aspect)
 	}
@@ -65,39 +65,39 @@ func Set(st *state.State, account, directory, aspect, field, value string) error
 		return err
 	}
 
-	if err := updateDatabags(st, account, directory, aspect, databag); err != nil {
+	if err := updateDatabags(st, account, bundle, aspect, databag); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func Get(st *state.State, account, directory, aspect, field string) (string, error) {
+func Get(st *state.State, account, bundle, aspect, field string) (string, error) {
 	st.Lock()
 	defer st.Unlock()
 
-	databag, err := getDatabag(st, account, directory, aspect)
+	databag, err := getDatabag(st, account, bundle, aspect)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			return "", notFound("aspect %s/%s/%s was not found", account, directory, aspect)
+			return "", notFound("aspect %s/%s/%s was not found", account, bundle, aspect)
 		}
 
 		return "", err
 	}
 
-	accPatterns, err := aspecttest.MockAspect(account, directory)
+	accPatterns, err := aspecttest.MockAspect(account, bundle)
 	if err != nil {
 		return "", err
 	}
 
-	aspectDir, err := aspects.NewAspectDirectory(directory, accPatterns, databag, aspects.NewJSONSchema())
+	aspectBundle, err := aspects.NewAspectBundle(bundle, accPatterns, databag, aspects.NewJSONSchema())
 	if err != nil {
 		return "", err
 	}
 
-	asp := aspectDir.Aspect(aspect)
+	asp := aspectBundle.Aspect(aspect)
 	if asp == nil {
-		return "", notFound("aspect %s/%s/%s was not found", account, directory, aspect)
+		return "", notFound("aspect %s/%s/%s was not found", account, bundle, aspect)
 	}
 
 	var value string
@@ -108,7 +108,7 @@ func Get(st *state.State, account, directory, aspect, field string) (string, err
 	return value, nil
 }
 
-func updateDatabags(st *state.State, account, directory, aspect string, databag aspects.JSONDataBag) error {
+func updateDatabags(st *state.State, account, bundle, aspect string, databag aspects.JSONDataBag) error {
 	var databags map[string]map[string]map[string]aspects.JSONDataBag
 	if err := st.Get("aspect-databags", &databags); err != nil {
 		if !errors.Is(err, state.ErrNoState) {
@@ -116,21 +116,21 @@ func updateDatabags(st *state.State, account, directory, aspect string, databag 
 		}
 
 		databags = map[string]map[string]map[string]aspects.JSONDataBag{
-			account: {directory: {}},
+			account: {bundle: {}},
 		}
 	}
 
-	databags[account][directory][aspect] = databag
+	databags[account][bundle][aspect] = databag
 	st.Set("aspect-databags", databags)
 	return nil
 }
 
-func getDatabag(st *state.State, account, directory, aspect string) (aspects.JSONDataBag, error) {
+func getDatabag(st *state.State, account, bundle, aspect string) (aspects.JSONDataBag, error) {
 	var databags map[string]map[string]map[string]aspects.JSONDataBag
 	if err := st.Get("aspect-databags", &databags); err != nil {
 		return nil, err
 	}
-	return databags[account][directory][aspect], nil
+	return databags[account][bundle][aspect], nil
 }
 
 func notFound(msg string, v ...interface{}) *aspects.NotFoundError {
