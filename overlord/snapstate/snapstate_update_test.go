@@ -9285,25 +9285,23 @@ func (s *snapmgrTestSuite) TestDownloadTaskWaitsForPreDownload(c *C) {
 			c.Assert(s.o.TaskRunner().Ensure(), IsNil)
 
 			for i := 0; i < 5; i++ {
-				select {
-				case <-time.After(time.Second):
-					s.state.Lock()
-					atTime := dlTask.AtTime()
-					s.state.Unlock()
-					if atTime.IsZero() {
-						continue
-					}
-
-					s.state.Lock()
-					defer s.state.Unlock()
-
-					// the download task registers itself w/ the pre-download and retries
-					c.Assert(atTime.Equal(now.Add(2*time.Minute)), Equals, true)
-					var taskIDs []string
-					c.Assert(preDlTask.Get("waiting-tasks", &taskIDs), IsNil)
-					c.Assert(taskIDs, DeepEquals, []string{dlTask.ID()})
-					return
+				<-time.After(time.Second)
+				s.state.Lock()
+				atTime := dlTask.AtTime()
+				s.state.Unlock()
+				if atTime.IsZero() {
+					continue
 				}
+
+				s.state.Lock()
+				defer s.state.Unlock()
+
+				// the download task registers itself w/ the pre-download and retries
+				c.Assert(atTime.Equal(now.Add(2*time.Minute)), Equals, true)
+				var taskIDs []string
+				c.Assert(preDlTask.Get("waiting-tasks", &taskIDs), IsNil)
+				c.Assert(taskIDs, DeepEquals, []string{dlTask.ID()})
+				return
 			}
 
 			c.Fatal("download task hasn't run")
@@ -9708,18 +9706,16 @@ func (s *snapmgrTestSuite) TestDeletedMonitoredMapIsCorrectlyDeleted(c *C) {
 
 func waitForMonitoringEnd(st *state.State, c *C) {
 	for i := 0; i < 5; i++ {
-		select {
-		case <-time.After(time.Second):
-			st.Lock()
-			finished := st.Cached("auto-refresh-continue-attempt")
-			if finished == nil {
-				st.Unlock()
-				continue
-			}
-
+		<-time.After(time.Second)
+		st.Lock()
+		finished := st.Cached("auto-refresh-continue-attempt")
+		if finished == nil {
 			st.Unlock()
-			return
+			continue
 		}
+
+		st.Unlock()
+		return
 	}
 
 	c.Fatal("couldn't check monitoring goroutine finished properly")
