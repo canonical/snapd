@@ -1301,7 +1301,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// undo migration if appropriate
 	if snapsup.Flags.Revert {
@@ -1435,7 +1435,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
@@ -1822,14 +1822,14 @@ func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string
 type LinkSnapParticipant interface {
 	// SnapLinkageChanged is called when a snap is linked or unlinked.
 	// The error is only logged and does not stop the task it is used from.
-	SnapLinkageChanged(st *state.State, instanceName string) error
+	SnapLinkageChanged(st *state.State, snapsup *SnapSetup) error
 }
 
 // LinkSnapParticipantFunc is an adapter from function to LinkSnapParticipant.
-type LinkSnapParticipantFunc func(st *state.State, instanceName string) error
+type LinkSnapParticipantFunc func(st *state.State, snapsup *SnapSetup) error
 
-func (f LinkSnapParticipantFunc) SnapLinkageChanged(st *state.State, instanceName string) error {
-	return f(st, instanceName)
+func (f LinkSnapParticipantFunc) SnapLinkageChanged(st *state.State, snapsup *SnapSetup) error {
+	return f(st, snapsup)
 }
 
 var linkSnapParticipants []LinkSnapParticipant
@@ -1848,10 +1848,10 @@ func MockLinkSnapParticipants(ps []LinkSnapParticipant) (restore func()) {
 	}
 }
 
-func notifyLinkParticipants(t *state.Task, instanceName string) {
+func notifyLinkParticipants(t *state.Task, snapsup *SnapSetup) {
 	st := t.State()
 	for _, p := range linkSnapParticipants {
-		if err := p.SnapLinkageChanged(st, instanceName); err != nil {
+		if err := p.SnapLinkageChanged(st, snapsup); err != nil {
 			t.Errorf("%v", err)
 		}
 	}
@@ -2027,7 +2027,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		if backendErr != nil {
 			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", snapsup.InstanceName(), backendErr)
 		}
-		notifyLinkParticipants(t, snapsup.InstanceName())
+		notifyLinkParticipants(t, snapsup)
 	}()
 	if err != nil {
 		return err
@@ -2142,7 +2142,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	finalStatus := state.DoneStatus
@@ -2555,7 +2555,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// Finish task: set status, possibly restart
 
@@ -2978,7 +2978,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	return err
 }
@@ -3044,7 +3044,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// if we just linked back a core snap, request a restart
 	// so that we switch executing its snapd.
