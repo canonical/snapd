@@ -110,7 +110,7 @@ func Get(st *state.State, account, directory, aspect, field string) (string, err
 
 func updateDatabags(st *state.State, account, directory, aspect string, databag aspects.JSONDataBag) error {
 	var databags map[string]map[string]map[string]aspects.JSONDataBag
-	if err := st.Get("databags", &databags); err != nil {
+	if err := st.Get("aspect-databags", &databags); err != nil {
 		if !errors.Is(err, state.ErrNoState) {
 			return err
 		}
@@ -121,13 +121,13 @@ func updateDatabags(st *state.State, account, directory, aspect string, databag 
 	}
 
 	databags[account][directory][aspect] = databag
-	st.Set("databags", databags)
+	st.Set("aspect-databags", databags)
 	return nil
 }
 
 func getDatabag(st *state.State, account, directory, aspect string) (aspects.JSONDataBag, error) {
 	var databags map[string]map[string]map[string]aspects.JSONDataBag
-	if err := st.Get("databags", &databags); err != nil {
+	if err := st.Get("aspect-databags", &databags); err != nil {
 		return nil, err
 	}
 	return databags[account][directory][aspect], nil
