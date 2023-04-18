@@ -4395,7 +4395,7 @@ func (s *writerSuite) TestManifestPreProvidedFailsMarkSeeding(c *C) {
 	c.Assert(err, ErrorMatches, `cannot record snap for manifest: snap "core20" \(1\) does not match the allowed revision 20`)
 }
 
-func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
+func (s *writerSuite) TestManifestPreProvidedSequenceNotMatchingModelPinned(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -4419,6 +4419,46 @@ func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
 				"account-id": "canonical",
 				"name":       "base-set",
 				"sequence":   "2",
+				"mode":       "enforce",
+			},
+		},
+	})
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	s.opts.Manifest = seedwriter.NewManifest()
+	s.opts.Manifest.SetAllowedValidationSet("canonical", "base-set", 1, true)
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, ErrorMatches, `cannot use sequence 1 of "canonical/base-set": model requires sequence 2`)
+}
+
+func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "base-set",
 				"mode":       "enforce",
 			},
 		},

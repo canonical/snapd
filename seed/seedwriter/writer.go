@@ -466,25 +466,37 @@ func IsSytemDirectoryExistsError(err error) bool {
 	return ok
 }
 
-// correctedValidationSetAtSequence returns the corrected AtSequence for an
+// finalValidationSetAtSequence returns the final AtSequence for an
 // validation set. If any restrictions have been set in
 // in the manifest, then we must use the sequence and pinning status from
 // that instead of whats set in the model.
-func (w *Writer) correctedValidationSetAtSequence(vsm *asserts.ModelValidationSet) *asserts.AtSequence {
+func (w *Writer) finalValidationSetAtSequence(vsm *asserts.ModelValidationSet) (*asserts.AtSequence, error) {
 	atSeq := vsm.AtSequence()
 	for _, vs := range w.manifest.AllowedValidationSets() {
 		if vs.AccountID == vsm.AccountID && vs.Name == vsm.Name {
+			// If the model has the validation-set pinned, this can't be
+			// changed by the manifest.
+			if vsm.Sequence > 0 {
+				// It's pinned by the model, then the sequence must match
+				if vs.Sequence != vsm.Sequence {
+					return nil, fmt.Errorf("cannot use sequence %d of %q: model requires sequence %d",
+						vs.Sequence, vs.Unique(), vsm.Sequence)
+				}
+			}
 			atSeq.Sequence = vs.Sequence
 			atSeq.Pinned = vs.Pinned
 			break
 		}
 	}
-	return atSeq
+	return atSeq, nil
 }
 
 func (w *Writer) fetchValidationSets(f SeedAssertionFetcher) error {
 	for _, vs := range w.model.ValidationSets() {
-		atSeq := w.correctedValidationSetAtSequence(vs)
+		atSeq, err := w.finalValidationSetAtSequence(vs)
+		if err != nil {
+			return err
+		}
 		if err := f.FetchSequence(atSeq); err != nil {
 			return err
 		}
@@ -1261,7 +1273,10 @@ func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.Valida
 	vsasserts := make(map[*asserts.AtSequence]*asserts.ValidationSet)
 	vss := w.model.ValidationSets()
 	for _, vs := range vss {
-		atSeq := w.correctedValidationSetAtSequence(vs)
+		atSeq, err := w.finalValidationSetAtSequence(vs)
+		if err != nil {
+			return nil, fmt.Errorf("internal error: %v", err)
+		}
 		a, err := w.resolveValidationSetAssertion(atSeq)
 		if err != nil {
 			return nil, fmt.Errorf("internal error: cannot resolve validation-set: %v", err)
