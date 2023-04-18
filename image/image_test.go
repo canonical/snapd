@@ -4428,6 +4428,13 @@ func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
 		"required-snaps": []interface{}{"required-snap1"},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "base-set",
+				"mode":       "enforce",
+			},
+		},
 	})
 
 	// setup validation-sets

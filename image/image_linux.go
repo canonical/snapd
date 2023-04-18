@@ -27,7 +27,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -469,17 +468,21 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.SeedAssertionFetcher,
 	return snaps, s.w.InfoDerived()
 }
 
-func (s *imageSeeder) validationSetKeysFromManifest() []snapasserts.ValidationSetKey {
-	var vsKeys []snapasserts.ValidationSetKey
-	for _, vs := range s.w.Manifest().AllowedValidationSets() {
-		// a ValidationSetKey is the primary key of validation-sets
-		pk := []string{release.Series, vs.AccountID, vs.Name, strconv.Itoa(vs.Sequence)}
-		vsKeys = append(vsKeys, snapasserts.ValidationSetKey(strings.Join(pk, "/")))
+func (s *imageSeeder) validationSetKeys(db *asserts.Database) ([]snapasserts.ValidationSetKey, error) {
+	vsas, err := db.FindMany(asserts.ValidationSetType, nil)
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
+		return nil, err
 	}
-	return vsKeys
+
+	var vsKeys []snapasserts.ValidationSetKey
+	for _, a := range vsas {
+		vsa := a.(*asserts.ValidationSet)
+		vsKeys = append(vsKeys, snapasserts.NewValidationSetKey(vsa))
+	}
+	return vsKeys, nil
 }
 
-func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
+func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap, vsKeys []snapasserts.ValidationSetKey) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
 	byName := make(map[string]*seedwriter.SeedSnap, len(snapsToDownload))
 	beforeDownload := func(info *snap.Info) (string, error) {
 		sn := byName[info.SnapName()]
@@ -515,7 +518,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 	downloadedSnaps, err = s.tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
 		BeforeDownloadFunc: beforeDownload,
 		EnforceValidation:  s.customizations.Validation == "enforce",
-		ValidationSets:     s.validationSetKeysFromManifest(),
+		ValidationSets:     vsKeys,
 	})
 	if err != nil {
 		return nil, err
@@ -539,7 +542,7 @@ func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
 	return localSnaps
 }
 
-func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts seedwriter.AssertsFetchFunc) error {
+func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts seedwriter.AssertsFetchFunc, vsKeys []snapasserts.ValidationSetKey) error {
 	curSnaps := localSnapsWithID(localSnaps)
 	for {
 		toDownload, err := s.w.SnapsToDownload()
@@ -547,7 +550,7 @@ func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts se
 			return err
 		}
 
-		downloadedSnaps, err := s.downloadSnaps(toDownload, curSnaps)
+		downloadedSnaps, err := s.downloadSnaps(toDownload, curSnaps, vsKeys)
 		if err != nil {
 			return err
 		}
@@ -877,7 +880,14 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return s.f.Refs()[prev:], nil
 	}
 
-	if err := s.downloadAllSnaps(localSnaps, fetchAsserts); err != nil {
+	// Get validation set keys from database, it will contain all
+	// resolved validation-sets needed for the seeded snaps (if any).
+	vsKeys, err := s.validationSetKeys(db)
+	if err != nil {
+		return err
+	}
+
+	if err := s.downloadAllSnaps(localSnaps, fetchAsserts, vsKeys); err != nil {
 		return err
 	}
 	return s.finish()
