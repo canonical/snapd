@@ -45,6 +45,14 @@ const desktopLaunchConnectedPlugAppArmor = `
 # Allow access to all snap metadata
 /snap/*/*/** r,
 
+# Allow access to snap app executables
+/snap/bin/* ixr,
+
+# Snap apps are symlinks to the "snap" command, which may be symlinked
+# to the snapd snap.
+/usr/bin/snap ixr,
+/snap/snapd/*/usr/bin/snap ixr,
+
 #include <abstractions/dbus-session-strict>
 
 dbus (send)
