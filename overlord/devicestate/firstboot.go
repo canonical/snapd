@@ -386,9 +386,11 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	// mark-seeded waits for the taskset of last snap, and
 	// for all the tasks in the endTs as well.
-	markSeeded.WaitAll(ts)
 	markSeeded.WaitAll(endTs)
 	endTs.AddTask(markSeeded)
+
+	// the last task-set waits for the taskset of the last snap
+	endTs.WaitAll(ts)
 	tsAll = append(tsAll, endTs)
 
 	return tsAll, nil

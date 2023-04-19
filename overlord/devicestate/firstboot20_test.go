@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -47,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -224,7 +226,11 @@ volumes:
 			"sequence":   keys[2],
 			"mode":       "enforce",
 		}
-		model["validation-sets"] = append(model["validation-sets"].([]interface{}), vsEntry)
+		if _, ok := model["validation-sets"]; !ok {
+			model["validation-sets"] = []interface{}{vsEntry}
+		} else {
+			model["validation-sets"] = append(model["validation-sets"].([]interface{}), vsEntry)
+		}
 	}
 
 	return s.MakeSeed(c, opts.sysLabel, "my-brand", "my-model", model, nil)
@@ -1142,16 +1148,6 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKe
 	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous, switchToSigned, `snap "classic-installer" requires classic confinement`)
 }
 
-func (s *firstBoot20Suite) writeToSeedModelEtc(c *C, as []asserts.Assertion) {
-	f, err := os.OpenFile(filepath.Join(s.SeedDir, "model-etc"), os.O_APPEND|os.O_WRONLY, 0644)
-	c.Assert(err, IsNil)
-	defer f.Close()
-	enc := asserts.NewEncoder(f)
-	for _, a := range as {
-		enc.Encode(a)
-	}
-}
-
 func (s *firstBoot20Suite) setupTestValidationSets(c *C) {
 	vsa, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
@@ -1177,6 +1173,8 @@ func (s *firstBoot20Suite) setupTestValidationSets(c *C) {
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(vsa)
+	c.Assert(err, IsNil)
 
 	vsb, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
@@ -1188,43 +1186,112 @@ func (s *firstBoot20Suite) setupTestValidationSets(c *C) {
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":     "my-snap",
-				"id":       "mysnapididididididididididididid",
+				"id":       s.AssertedSnapID("my-snap"),
 				"presence": "required",
-				"revision": "8",
+				"revision": "1",
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	s.writeToSeedModelEtc(c, []asserts.Assertion{vsa, vsb})
+	err = s.StoreSigning.Add(vsb)
+	c.Assert(err, IsNil)
 }
 
-func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTracking(c *C) {
-	// Write some validation-set assertions to the seed
+type mockedStore struct {
+	storetest.Store
+	db asserts.RODatabase
+}
+
+func (s *mockedStore) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+	hdrs, err := asserts.HeadersFromPrimaryKey(assertType, primaryKey)
+	if err != nil {
+		return nil, err
+	}
+	return s.db.Find(assertType, hdrs)
+}
+
+func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C, valSets []string) *state.Change {
 	s.setupTestValidationSets(c)
 
 	m := boot.Modeenv{
-		Mode:           "run",
+		Mode:           "install",
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
 	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
 
-	s.setupCore20LikeSeed(c, &core20SeedOptions{
+	model := s.setupCore20LikeSeed(c, &core20SeedOptions{
 		sysLabel:        m.RecoverySystem,
 		modelGrade:      "signed",
 		kernelAndGadget: true,
-		valsets:         []string{"canonical/base-set/1", "canonical/opt-set/2"},
+		valsets:         valSets,
 	})
+	// validity check that our returned model has the expected grade
+	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
+
+	s.startOverlord(c)
 
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
+	snapstate.ReplaceStore(st, &mockedStore{
+		db: s.StoreSigning.Database,
+	})
 
 	// run the firstboot code
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
 	tsEnd := tsAll[len(tsAll)-1]
-	c.Assert(tsEnd.Tasks, HasLen, 2)
+	c.Assert(tsEnd.Tasks(), HasLen, 2)
 	c.Check(tsEnd.Tasks()[0].Kind(), Equals, "enforce-validation-sets")
+
+	// now run the change and check the result
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	c.Assert(chg.Err(), IsNil)
+
+	// avoid device reg
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
+
+	// run change until it wants to restart
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// at this point the system is "restarting", pretend the restart has
+	// happened
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	restart.MockPending(st, restart.RestartUnset)
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	return chg
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(c *C) {
+	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, []string{"canonical/base-set/1"})
+
+	s.overlord.State().Lock()
+	defer s.overlord.State().Unlock()
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s", chg.Err()))
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsMissingSnap(c *C) {
+	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, []string{"canonical/base-set/1", "canonical/opt-set/2"})
+
+	s.overlord.State().Lock()
+	defer s.overlord.State().Unlock()
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err().Error(), testutil.Contains, "my-snap (required at revision 1 by sets canonical/opt-set))")
 }

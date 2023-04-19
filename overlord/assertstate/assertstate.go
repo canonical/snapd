@@ -880,7 +880,7 @@ func TryEnforcedValidationSets(st *state.State, validationSets []string, userID 
 // of validation set keys to validation sets, pinned sequence numbers (if any),
 // installed snaps and ignored snaps. It fetches any pre-requisites necessary.
 func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.ValidationSet, pinnedSeqs map[string]int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool, userID int) error {
-	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	deviceCtx, err := snapstate.DeviceCtxFromState(st, nil)
 	if err != nil {
 		return err
 	}
