@@ -489,6 +489,7 @@ func validateMountInfo(mountInfo *MountInfo) error {
 	return nil
 }
 
+// Create a new list containing only the kernel options from the given options
 func filterKernelMountOptions(options []string) []string {
 	var filtered []string
 	for _, opt := range options {
@@ -579,6 +580,7 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 			typeRule = "fstype=(" + strings.Join(types, ",") + ")"
 		}
 
+		// only pass the kernel mount options on to apparmor
 		options := strings.Join(filterKernelMountOptions(mountInfo.options), ",")
 
 		emit("  mount %s options=(%s) \"%s\" -> \"%s{,/}\",\n", typeRule, options, source, target)
