@@ -139,7 +139,7 @@ func createRegex(pattern string, glob GlobFlags, allowCommas bool) (string, erro
 				regex += "|"
 			} else if allowCommas {
 				// treat commas outside of groups as literal commas
-				regex += regexp.QuoteMeta(",")
+				regex += ","
 			} else {
 				return "", fmt.Errorf("cannot use ',' outside of group or character class")
 			}
