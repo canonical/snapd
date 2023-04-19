@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
@@ -182,3 +183,33 @@ func MockWaitFile(f func(string, time.Duration, int) error) (restore func()) {
 }
 
 var WaitFile = waitFile
+
+func MockGetenv(env map[string]string) func() {
+	oldOsGetenv := osGetenv
+	osGetenv = func(name string) string {
+		value, ok := env[name]
+		if !ok {
+			return ""
+		}
+		return value
+	}
+	return func() {
+		osGetenv = oldOsGetenv
+	}
+}
+
+func MockEfiVars(efiVariables map[string]string) func() {
+	newReadVarString := func(name string) (string, efi.VariableAttr, error) {
+		value, ok := efiVariables[name]
+		if !ok {
+			return "", 0, fmt.Errorf("Variable not found")
+		}
+		return value, 0, nil
+	}
+	oldEfiReadVarString := efiReadVarString
+	efiReadVarString = newReadVarString
+
+	return func() {
+		efiReadVarString = oldEfiReadVarString
+	}
+}
