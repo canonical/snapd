@@ -83,8 +83,6 @@ var (
 	}
 
 	secbootProvisionForCVM                       func(initramfsUbuntuSeedDir string) error
-	secbootMeasureSnapSystemEpochWhenPossible    func() error
-	secbootMeasureSnapModelWhenPossible          func(findModel func() (*asserts.Model, error)) error
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
 	secbootUnlockEncryptedVolumeUsingKey         func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)
 
@@ -1362,24 +1360,37 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 // kernel came from cannot be determined, then it will fallback to mounting via
 // the specified disk label.
 func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
-	partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 	var partSrc string
-	if err == nil {
-		// TODO: the by-partuuid is only available on gpt disks, on mbr we need
-		//       to use by-uuid or by-id
-		partSrc = filepath.Join("/dev/disk/by-partuuid", partuuid)
-	} else {
-		partSrc, err = getNonUEFISystemDisk(fallbacklabel)
+
+	if osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/dev/ubuntu/disk")) {
+		disk, err := disks.DiskFromDeviceName("/dev/ubuntu/disk")
 		if err != nil {
 			return err
 		}
-	}
+		partition, err := disk.FindMatchingPartitionWithFsLabel(fallbacklabel)
+		if err != nil {
+			return err
+		}
+		partSrc = partition.KernelDeviceNode
+	} else {
+		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
+		if err == nil {
+			// TODO: the by-partuuid is only available on gpt disks, on mbr we need
+			//       to use by-uuid or by-id
+			partSrc = filepath.Join("/dev/disk/by-partuuid", partuuid)
+		} else {
+			partSrc, err = getNonUEFISystemDisk(fallbacklabel)
+			if err != nil {
+				return err
+			}
+		}
 
-	// The partition uuid is read from the EFI variables. At this point
-	// the kernel may not have initialized the storage HW yet so poll
-	// here.
-	if err := waitForDevice(partSrc); err != nil {
-		return err
+		// The partition uuid is read from the EFI variables. At this point
+		// the kernel may not have initialized the storage HW yet so poll
+		// here.
+		if err := waitForDevice(partSrc); err != nil {
+			return err
+		}
 	}
 
 	opts := &systemdMountOptions{

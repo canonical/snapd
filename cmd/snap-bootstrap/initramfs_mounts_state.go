@@ -52,15 +52,9 @@ type initramfsMountsState struct {
 
 var errRunModeNoImpliedRecoverySystem = errors.New("internal error: no implied recovery system in run mode")
 
-// ReadEssential returns the model and verified essential
-// snaps from the recoverySystem. If recoverySystem is "" the
-// implied one will be used (only for modes other than run).
-func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialTypes []snap.Type) (*asserts.Model, []*seed.Snap, error) {
+func readEssential(recoverySystem string, essentialTypes []snap.Type) (*asserts.Model, []*seed.Snap, error) {
 	if recoverySystem == "" {
-		if mst.mode == "run" {
-			return nil, nil, errRunModeNoImpliedRecoverySystem
-		}
-		recoverySystem = mst.recoverySystem
+		return nil, nil, errRunModeNoImpliedRecoverySystem
 	}
 
 	perf := timings.New(nil)
@@ -97,6 +91,19 @@ func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialT
 	return model, snaps, nil
 }
 
+// ReadEssential returns the model and verified essential
+// snaps from the recoverySystem. If recoverySystem is "" the
+// implied one will be used (only for modes other than run).
+func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialTypes []snap.Type) (*asserts.Model, []*seed.Snap, error) {
+	if recoverySystem == "" {
+		if mst.mode != "run" {
+			recoverySystem = mst.recoverySystem
+		}
+	}
+
+	return readEssential(recoverySystem, essentialTypes)
+}
+
 // SetVerifiedBootModel sets the "verifiedModel" field. It should only
 // be called after the model is verified. Either via a successful unlock
 // of the encrypted data or after validating the seed in install/recover
@@ -105,16 +112,7 @@ func (mst *initramfsMountsState) SetVerifiedBootModel(m gadget.Model) {
 	mst.verifiedModel = m
 }
 
-// UnverifiedBootModel returns the unverified model from the
-// boot partition for run mode. The current and only use case
-// is measuring the model for run mode. Otherwise no decisions
-// should be based on an unverified model. Note that the model
-// is verified at the time the key auth policy is computed.
-func (mst *initramfsMountsState) UnverifiedBootModel() (*asserts.Model, error) {
-	if mst.mode != "run" {
-		return nil, fmt.Errorf("internal error: unverified boot model access is for limited run mode use")
-	}
-
+func getUnverifiedBootModel() (*asserts.Model, error) {
 	mf, err := os.Open(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read model assertion: %v", err)
@@ -128,6 +126,19 @@ func (mst *initramfsMountsState) UnverifiedBootModel() (*asserts.Model, error) {
 		return nil, fmt.Errorf("unexpected assertion: %q", ma.Type().Name)
 	}
 	return ma.(*asserts.Model), nil
+}
+
+// UnverifiedBootModel returns the unverified model from the
+// boot partition for run mode. The current and only use case
+// is measuring the model for run mode. Otherwise no decisions
+// should be based on an unverified model. Note that the model
+// is verified at the time the key auth policy is computed.
+func (mst *initramfsMountsState) UnverifiedBootModel() (*asserts.Model, error) {
+	if mst.mode != "run" {
+		return nil, fmt.Errorf("internal error: unverified boot model access is for limited run mode use")
+	}
+
+	return getUnverifiedBootModel()
 }
 
 // EphemeralModeenvForModel generates a modeenv given the model and the snaps for the

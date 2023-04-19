@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
 
@@ -40,7 +41,15 @@ such as initramfs.
 )
 
 func main() {
-	err := run(os.Args[1:])
+	var args []string
+
+	if filepath.Base(os.Args[0]) == "snap-generator" {
+		args = append([]string{"snap-generator"}, os.Args[1:]...)
+	} else {
+		args = os.Args[1:]
+	}
+
+	err := run(args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
