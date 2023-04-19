@@ -94,7 +94,29 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP_ARCH":          arch.DpkgArchitecture(),
 		"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 		"SNAP_REEXEC":        "",
+		"SNAP_UID":           fmt.Sprint(sys.Getuid()),
+		"SNAP_EUID":          fmt.Sprint(sys.Geteuid()),
 	})
+}
+
+func (ts *HTestSuite) TestSaveDataEnvironmentNotPresent(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	ts.AddCleanup(func() { dirs.SetRootDir("") })
+
+	// The snap environment should now not include SNAP_SAVE_DATA, as the path
+	// does not exist.
+	env := basicEnv(mockSnapInfo)
+	c.Assert(env["SNAP_SAVE_DATA"], Equals, "")
+}
+
+func (ts *HTestSuite) TestSaveDataEnvironmentPresent(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	ts.AddCleanup(func() { dirs.SetRootDir("") })
+	c.Assert(os.MkdirAll(snap.CommonDataSaveDir(mockSnapInfo.InstanceName()), 0755), IsNil)
+
+	// The snap environment should now include SNAP_SAVE_DATA with the above path.
+	env := basicEnv(mockSnapInfo)
+	c.Assert(env["SNAP_SAVE_DATA"], Equals, snap.CommonDataSaveDir(mockSnapInfo.InstanceName()))
 }
 
 func (ts *HTestSuite) TestUser(c *C) {
@@ -171,6 +193,8 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"HOME":               fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
 			"XDG_RUNTIME_DIR":    fmt.Sprintf("/run/user/%d/snap.snapname", sys.Geteuid()),
 			"SNAP_REAL_HOME":     usr.HomeDir,
+			"SNAP_UID":           fmt.Sprint(sys.Getuid()),
+			"SNAP_EUID":          fmt.Sprint(sys.Geteuid()),
 		})
 	}
 }
@@ -216,6 +240,8 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 			"HOME":             fmt.Sprintf("%s/snap/snapname_foo/42", usr.HomeDir),
 			"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.snapname_foo", sys.Geteuid()),
 			"SNAP_REAL_HOME":   usr.HomeDir,
+			"SNAP_UID":         fmt.Sprint(sys.Getuid()),
+			"SNAP_EUID":        fmt.Sprint(sys.Geteuid()),
 		})
 	}
 }

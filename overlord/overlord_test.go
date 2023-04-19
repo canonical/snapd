@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -40,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -116,6 +115,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 
 	c.Check(o.StateEngine(), NotNil)
 	c.Check(o.TaskRunner(), NotNil)
+	c.Check(o.RestartManager(), NotNil)
 	c.Check(o.SnapManager(), NotNil)
 	c.Check(o.ServiceManager(), NotNil)
 	c.Check(o.AssertManager(), NotNil)
@@ -175,6 +175,7 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
+	c.Check(o.RestartManager(), NotNil)
 
 	state := o.State()
 	c.Assert(err, IsNil)
@@ -309,12 +310,7 @@ func (wm *witnessManager) Ensure() error {
 func markSeeded(o *overlord.Overlord) {
 	st := o.State()
 	st.Lock()
-	st.Set("seeded", true)
-	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand:  "canonical",
-		Model:  "pc",
-		Serial: "serialserial",
-	})
+	devicestatetest.MarkInitialized(st)
 	st.Unlock()
 }
 
@@ -675,7 +671,7 @@ func (ovs *overlordSuite) TestOverlordStartUpSetsStartOfOperation(c *C) {
 
 	// validity check, not set
 	var opTime time.Time
-	c.Assert(st.Get("start-of-operation-time", &opTime), Equals, state.ErrNoState)
+	c.Assert(st.Get("start-of-operation-time", &opTime), testutil.ErrorIs, state.ErrNoState)
 	st.Unlock()
 
 	c.Assert(o.StartUp(), IsNil)
@@ -843,7 +839,7 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 	defer st.Unlock()
 
 	var opTime time.Time
-	c.Assert(st.Get("start-of-operation-time", &opTime), Equals, state.ErrNoState)
+	c.Assert(st.Get("start-of-operation-time", &opTime), testutil.ErrorIs, state.ErrNoState)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 }
 

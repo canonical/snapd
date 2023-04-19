@@ -102,6 +102,11 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 		desktopFile = filepath.Base(app.DesktopFile)
 	}
 
+	var commonID string
+	if app != nil {
+		commonID = app.CommonID
+	}
+
 	// Determine whether the snap has access to the network status
 	// TODO: use direct API for asking about interface being connected if
 	// that becomes available
@@ -131,6 +136,9 @@ AppName={{.App.Name}}
 {{- if .DesktopFile}}
 DesktopFile={{.DesktopFile}}
 {{- end}}
+{{- if .CommonID}}
+CommonID={{.CommonID}}
+{{- end}}
 HasNetworkStatus={{.HasNetworkStatus}}
 `
 	t := template.Must(template.New("portal-info").Parse(portalInfoTemplate))
@@ -138,11 +146,13 @@ HasNetworkStatus={{.HasNetworkStatus}}
 		Snap             *client.Snap
 		App              *client.AppInfo
 		DesktopFile      string
+		CommonID         string
 		HasNetworkStatus bool
 	}{
 		Snap:             snap,
 		App:              app,
 		DesktopFile:      desktopFile,
+		CommonID:         commonID,
 		HasNetworkStatus: hasNetworkStatus,
 	}
 	if err := t.Execute(Stdout, data); err != nil {

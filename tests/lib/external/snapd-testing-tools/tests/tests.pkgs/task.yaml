@@ -1,5 +1,7 @@
 summary: Smoke test for tests.pkgs tool
 
+backends: [google]
+
 execute: |
     if os.query is-core; then
         tests.pkgs -h 2>&1 | MATCH 'tests.pkgs: Ubuntu Core is not supported'
@@ -11,6 +13,8 @@ execute: |
     tests.pkgs | MATCH 'usage: tests.pkgs {install,remove} \[PACKAGE...\]'
     tests.pkgs -h | MATCH 'usage: tests.pkgs {install,remove} \[PACKAGE...\]'
     tests.pkgs --help | MATCH 'usage: tests.pkgs {install,remove} \[PACKAGE...\]'
+
+    # Update the packages db
 
     # Check the test pkg is not installed
     not tests.pkgs is-installed test-snapd-pkg-1

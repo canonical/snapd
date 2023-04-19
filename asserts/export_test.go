@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts/internal"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // expose test-only things here
@@ -69,6 +70,10 @@ func BootstrapAccountForTest(authorityID string) *Account {
 }
 
 func MakeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, since time.Time, validYears int) *AccountKey {
+	return MakeAccountKeyForTestWithUntil(authorityID, openPGPPubKey, since, since.AddDate(validYears, 0, 0), validYears)
+}
+
+func MakeAccountKeyForTestWithUntil(authorityID string, openPGPPubKey PublicKey, since, until time.Time, validYears int) *AccountKey {
 	return &AccountKey{
 		assertionBase: assertionBase{
 			headers: map[string]interface{}{
@@ -80,7 +85,7 @@ func MakeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, since ti
 		},
 		sinceUntil: sinceUntil{
 			since: since.UTC(),
-			until: since.UTC().AddDate(validYears, 0, 0),
+			until: until.UTC(),
 		},
 		pubKey: openPGPPubKey,
 	}
@@ -349,4 +354,12 @@ func (b *Batch) DoPrecheck(db *Database) error {
 
 func MakePoolGrouping(elems ...uint16) Grouping {
 	return Grouping(internal.Serialize(elems))
+}
+
+// fetcher tests
+
+func MockAssertionPrereqs(f func(a Assertion) []*Ref) func() {
+	r := testutil.Backup(&assertionPrereqs)
+	assertionPrereqs = f
+	return r
 }

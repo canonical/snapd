@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/utils"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -96,32 +97,24 @@ var allowedMountOptions = []string{
 // options.
 var optionsWithoutFsType = []string{
 	"bind",
-	// Note: the following flags should also fall into this list, but we are
-	// not currently allowing them (and don't plan to):
-	// - "make-private"
-	// - "make-shared"
-	// - "make-slave"
-	// - "make-unbindable"
-	// - "move"
-	// - "remount"
+	// The following flags are only relevant to filesystem type "functionfs", in which case options
+	// are not validated against allowedMountOptions.
+	"rbind",
+	"move",
+	"remount",
+	"make-private",
+	"make-shared",
+	"make-slave",
+	"make-unbindable",
+	"make-rshared",
+	"make-rslave",
+	"make-rprivate",
+	"make-runbindable",
 }
 
-// List of allowed filesystem types. This can be extended, keeping in mind that
-// the filesystems in the following list were considered either dangerous or
-// not relevant for this interface:
-//   bpf
-//   cgroup
-//   cgroup2
-//   debugfs
-//   devpts
-//   ecryptfs
-//   hugetlbfs
-//   overlayfs
-//   proc
-//   securityfs
-//   sysfs
-//   tracefs
-var allowedFSTypes = []string{
+// List of filesystem types to allow if the plug declaration does not
+// explicitly specify a filesystem type.
+var defaultFSTypes = []string{
 	"aufs",
 	"autofs",
 	"btrfs",
@@ -145,6 +138,23 @@ var allowedFSTypes = []string{
 	"xfs",
 }
 
+// The filesystems in the following list were considered either dangerous or
+// not relevant for this interface:
+var disallowedFSTypes = []string{
+	"bpf",
+	"cgroup",
+	"cgroup2",
+	"debugfs",
+	"devpts",
+	"ecryptfs",
+	"hugetlbfs",
+	"overlayfs",
+	"proc",
+	"securityfs",
+	"sysfs",
+	"tracefs",
+}
+
 // mountControlInterface allows creating transient and persistent mounts
 type mountControlInterface struct {
 	commonInterface
@@ -153,9 +163,13 @@ type mountControlInterface struct {
 // The "what" and "where" attributes end up in the AppArmor profile, surrounded
 // by double quotes; to ensure that a malicious snap cannot inject arbitrary
 // rules by specifying something like
-//   where: $SNAP_DATA/foo", /** rw, #
+//
+//	where: $SNAP_DATA/foo", /** rw, #
+//
 // which would generate a profile line like:
-//   mount options=() "$SNAP_DATA/foo", /** rw, #"
+//
+//	mount options=() "$SNAP_DATA/foo", /** rw, #"
+//
 // (which would grant read-write access to the whole filesystem), it's enough
 // to exclude the `"` character: without it, whatever is written in the
 // attribute will not be able to escape being treated like a pattern.
@@ -180,7 +194,8 @@ var (
 
 // Excluding spaces and other characters which might allow constructing a
 // malicious string like
-//   auto) options=() /malicious/content /var/lib/snapd/hostfs/...,\n mount fstype=(
+//
+//	auto) options=() /malicious/content /var/lib/snapd/hostfs/...,\n mount fstype=(
 var typeRegexp = regexp.MustCompile(`^[a-z0-9]+$`)
 
 type MountInfo struct {
@@ -189,6 +204,14 @@ type MountInfo struct {
 	persistent bool
 	types      []string
 	options    []string
+}
+
+func (mi *MountInfo) isType(typ string) bool {
+	return len(mi.types) == 1 && mi.types[0] == typ
+}
+
+func (mi *MountInfo) hasType() bool {
+	return len(mi.types) > 0
 }
 
 func parseStringList(mountEntry map[string]interface{}, fieldName string) ([]string, error) {
@@ -262,7 +285,24 @@ func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error
 	return nil
 }
 
-func validateWhatAttr(what string) error {
+func validateNoAppArmorRegexpWithError(errPrefix string, strList ...string) error {
+	for _, str := range strList {
+		if err := apparmor_sandbox.ValidateNoAppArmorRegexp(str); err != nil {
+			return fmt.Errorf(errPrefix+`: %w`, err)
+		}
+	}
+	return nil
+}
+
+func validateWhatAttr(mountInfo *MountInfo) error {
+	what := mountInfo.what
+
+	// with "functionfs" the "what" can essentially be anything, see
+	// https://www.kernel.org/doc/html/latest/usb/functionfs.html
+	if mountInfo.isType("functionfs") {
+		return validateNoAppArmorRegexpWithError(`cannot use mount-control "what" attribute`, what)
+	}
+
 	if !whatRegexp.MatchString(what) {
 		return fmt.Errorf(`mount-control "what" attribute is invalid: must start with / and not contain special characters`)
 	}
@@ -273,6 +313,16 @@ func validateWhatAttr(what string) error {
 
 	if _, err := utils.NewPathPattern(what); err != nil {
 		return fmt.Errorf(`mount-control "what" setting cannot be used: %v`, err)
+	}
+
+	// "what" must be set to "none" iff the type is "tmpfs"
+	isTmpfs := mountInfo.isType("tmpfs")
+	if mountInfo.what == "none" {
+		if !isTmpfs {
+			return errors.New(`mount-control "what" attribute can be "none" only with "tmpfs"`)
+		}
+	} else if isTmpfs {
+		return fmt.Errorf(`mount-control "what" attribute must be "none" with "tmpfs"; found %q instead`, mountInfo.what)
 	}
 
 	return nil
@@ -300,7 +350,7 @@ func validateMountTypes(types []string) error {
 		if !typeRegexp.MatchString(t) {
 			return fmt.Errorf(`mount-control filesystem type invalid: %q`, t)
 		}
-		if !strutil.ListContains(allowedFSTypes, t) {
+		if strutil.ListContains(disallowedFSTypes, t) {
 			return fmt.Errorf(`mount-control forbidden filesystem type: %q`, t)
 		}
 		if t == "tmpfs" {
@@ -314,14 +364,25 @@ func validateMountTypes(types []string) error {
 	return nil
 }
 
-func validateMountOptions(options []string) error {
-	if len(options) == 0 {
+func validateMountOptions(mountInfo *MountInfo) error {
+	if len(mountInfo.options) == 0 {
 		return errors.New(`mount-control "options" cannot be empty`)
 	}
-	for _, o := range options {
-		if !strutil.ListContains(allowedMountOptions, o) {
-			return fmt.Errorf(`mount-control option unrecognized or forbidden: %q`, o)
+	// With "functionfs" none of the valid "options" can be harmful so no need to check against allowedMountOptions
+	if mountInfo.isType("functionfs") {
+		if err := validateNoAppArmorRegexpWithError(`cannot use mount-control "option" attribute`, mountInfo.options...); err != nil {
+			return err
 		}
+	} else {
+		for _, o := range mountInfo.options {
+			if !strutil.ListContains(allowedMountOptions, o) {
+				return fmt.Errorf(`mount-control option unrecognized or forbidden: %q`, o)
+			}
+		}
+	}
+	fsExclusiveOption := optionIncompatibleWithFsType(mountInfo.options)
+	if fsExclusiveOption != "" && mountInfo.hasType() {
+		return fmt.Errorf(`mount-control option %q is incompatible with specifying filesystem type`, fsExclusiveOption)
 	}
 	return nil
 }
@@ -337,7 +398,7 @@ func optionIncompatibleWithFsType(options []string) string {
 }
 
 func validateMountInfo(mountInfo *MountInfo) error {
-	if err := validateWhatAttr(mountInfo.what); err != nil {
+	if err := validateWhatAttr(mountInfo); err != nil {
 		return err
 	}
 
@@ -349,24 +410,8 @@ func validateMountInfo(mountInfo *MountInfo) error {
 		return err
 	}
 
-	if err := validateMountOptions(mountInfo.options); err != nil {
+	if err := validateMountOptions(mountInfo); err != nil {
 		return err
-	}
-
-	// Check if any options are incompatible with specifying a FS type
-	fsExclusiveOption := optionIncompatibleWithFsType(mountInfo.options)
-	if fsExclusiveOption != "" && len(mountInfo.types) > 0 {
-		return fmt.Errorf(`mount-control option %q is incompatible with specifying filesystem type`, fsExclusiveOption)
-	}
-
-	// "what" must be set to "none" iff the type is "tmpfs"
-	isTmpfs := len(mountInfo.types) == 1 && mountInfo.types[0] == "tmpfs"
-	if mountInfo.what == "none" {
-		if !isTmpfs {
-			return errors.New(`mount-control "what" attribute can be "none" only with "tmpfs"`)
-		}
-	} else if isTmpfs {
-		return fmt.Errorf(`mount-control "what" attribute must be "none" with "tmpfs"; found %q instead`, mountInfo.what)
 	}
 
 	// Until we have a clear picture of how this should work, disallow creating
@@ -450,18 +495,18 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 			typeRule = ""
 		} else {
 			var types []string
-			if len(mountInfo.types) > 0 {
+			if mountInfo.hasType() {
 				types = mountInfo.types
 			} else {
-				types = allowedFSTypes
+				types = defaultFSTypes
 			}
 			typeRule = "fstype=(" + strings.Join(types, ",") + ")"
 		}
 
 		options := strings.Join(mountInfo.options, ",")
 
-		emit("  mount %s options=(%s) \"%s\" -> \"%s\",\n", typeRule, options, source, target)
-		emit("  umount \"%s\",\n", target)
+		emit("  mount %s options=(%s) \"%s\" -> \"%s{,/}\",\n", typeRule, options, source, target)
+		emit("  umount \"%s{,/}\",\n", target)
 		return nil
 	})
 

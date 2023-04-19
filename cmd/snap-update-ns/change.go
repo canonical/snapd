@@ -465,6 +465,18 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				logger.Debugf("cannot remove a mount point on read-only filesystem %q", path)
 				return nil
 			}
+			if err == syscall.EBUSY {
+				// It's still unclear how this can happen. For the time being
+				// let the operation succeed and log the event.
+				logger.Noticef("cannot remove mount point, got EBUSY: %q", path)
+				if isMount, err := osutil.IsMounted(path); isMount {
+					mounts, _ := osutil.LoadMountInfo()
+					logger.Noticef("%q is still a mount point:\n%s", path, mounts)
+				} else if err != nil {
+					logger.Noticef("cannot read mountinfo: %v", err)
+				}
+				return nil
+			}
 			// If we were removing a directory but it was not empty then just
 			// ignore the error. This is the equivalent of the non-empty file
 			// check we do above. See rmdir(2) for explanation why we accept
@@ -479,6 +491,29 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 		return nil
 	}
 	return fmt.Errorf("cannot process mount change: unknown action: %q", c.Action)
+}
+
+// Using dir is not enough to identify the mount entry, because when
+// using layouts some directories could be used as mount points more
+// than once. This can happen when, say, we have a layout for /dir/sd1
+// and another one for /dir/sd2/sd3, being the case that /dir/sd1 and
+// /dir/sd2/sd3 do not exist (but their parent dirs do exist) -
+// /dir/sd2 will be one of the bind mounted directories of the tmpfs
+// that is created in /dir to have a layout on /dir/sd1, while at the
+// same time a tmpfs will be mounted in /dir/sd2 so we can have a
+// layout in /dir/sd2/sd3. So /dir/sd2 is used twice with different
+// filesystem types (none and tmpfs). As we make sure that mimics are
+// created only once per directory, we should only have one entry per
+// dir+fstype, being fstype either none or tmpfs.
+//
+// TODO Ideally we should have only one mount per mountpoint, but we
+// perform mounts as we create the changes in Change.Perform which
+// makes it difficult to create the full list of changes and then
+// clean-up repeated mountpoints. In any case using this is still
+// needed to handle mount namespaces created by older snapd versions.
+type mountEntryId struct {
+	dir    string
+	fsType string
 }
 
 // neededChanges is the real implementation of NeededChanges
@@ -499,13 +534,20 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		desired[i].Dir = filepath.Clean(desired[i].Dir)
 	}
 
+	// Make yet another copy of the current entries, to retain their original
+	// order (the "current" variable is going to be sorted soon); just using
+	// currentProfile.Entries is not reliable because it didn't undergo the
+	// cleanup of the Dir paths.
+	unsortedCurrent := make([]osutil.MountEntry, len(current))
+	copy(unsortedCurrent, current)
+
 	dumpMountEntries := func(entries []osutil.MountEntry, pfx string) {
 		logger.Debugf(pfx)
 		for _, en := range entries {
 			logger.Debugf("- %v", en)
 		}
 	}
-	dumpMountEntries(desired, "desired mount entries")
+	dumpMountEntries(current, "current mount entries")
 	// Sort only the desired lists by directory name with implicit trailing
 	// slash and the mount kind.
 	// Note that the current profile is a log of what was applied and should
@@ -520,7 +562,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	}
 
 	// Indexed by mount point path.
-	reuse := make(map[string]bool)
+	reuse := make(map[mountEntryId]bool)
 	// Indexed by entry ID
 	desiredIDs := make(map[string]bool)
 	var skipDir string
@@ -543,6 +585,14 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		}
 		skipDir = "" // reset skip prefix as it no longer applies
 
+		mountId := mountEntryId{dir, current[i].Type}
+		if current[i].XSnapdOrigin() == "rootfs" {
+			// This is the rootfs setup by snap-confine, we should not touch it
+			logger.Debugf("reusing rootfs")
+			reuse[mountId] = true
+			continue
+		}
+
 		// Reuse synthetic entries if their needed-by entry is desired.
 		// Synthetic entries cannot exist on their own and always couple to a
 		// non-synthetic entry.
@@ -561,14 +611,14 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		// fact was lost.
 		if current[i].XSnapdSynthetic() && desiredIDs[current[i].XSnapdNeededBy()] {
 			logger.Debugf("reusing synthetic entry %q", current[i])
-			reuse[dir] = true
+			reuse[mountId] = true
 			continue
 		}
 
 		// Reuse entries that are desired and identical in the current profile.
 		if entry, ok := desiredMap[dir]; ok && current[i].Equal(entry) {
 			logger.Debugf("reusing unchanged entry %q", current[i])
-			reuse[dir] = true
+			reuse[mountId] = true
 			continue
 		}
 
@@ -582,9 +632,9 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	var changes []*Change
 
 	// Unmount entries not reused in reverse to handle children before their parent.
-	unmountOrder := currentProfile.Entries
+	unmountOrder := unsortedCurrent
 	for i := len(unmountOrder) - 1; i >= 0; i-- {
-		if reuse[unmountOrder[i].Dir] {
+		if reuse[mountEntryId{unmountOrder[i].Dir, unmountOrder[i].Type}] {
 			changes = append(changes, &Change{Action: Keep, Entry: unmountOrder[i]})
 		} else {
 			var entry osutil.MountEntry = unmountOrder[i]
@@ -601,7 +651,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 
 	var desiredNotReused []osutil.MountEntry
 	for _, entry := range desired {
-		if !reuse[entry.Dir] {
+		if !reuse[mountEntryId{entry.Dir, entry.Type}] {
 			desiredNotReused = append(desiredNotReused, entry)
 		}
 	}

@@ -165,7 +165,7 @@ func (s *timingsSuite) TestSaveNoTimings(c *C) {
 	timing.Save(s.st)
 
 	var stateTimings []interface{}
-	c.Assert(s.st.Get("timings", &stateTimings), Equals, state.ErrNoState)
+	c.Assert(s.st.Get("timings", &stateTimings), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *timingsSuite) TestDuration(c *C) {
@@ -227,7 +227,7 @@ func (s *timingsSuite) testDurationThreshold(c *C, threshold time.Duration, expe
 
 	var stateTimings []interface{}
 	if expected == nil {
-		c.Assert(s.st.Get("timings", &stateTimings), Equals, state.ErrNoState)
+		c.Assert(s.st.Get("timings", &stateTimings), testutil.ErrorIs, state.ErrNoState)
 		c.Assert(stateTimings, IsNil)
 		return
 	}

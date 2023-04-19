@@ -31,6 +31,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type typeFlags int
@@ -46,7 +47,6 @@ var MetaHeaders = [...]string{
 	"type",
 	"format",
 	"authority-id",
-	// XXX authority-delegation: "signatory-id",
 	"revision",
 	"body-length",
 	"sign-key-sha3-384",
@@ -123,22 +123,21 @@ func (at *AssertionType) AcceptablePrimaryKey(key []string) bool {
 
 // Understood assertion types.
 var (
-	AccountType             = &AssertionType{"account", []string{"account-id"}, nil, assembleAccount, 0}
-	AccountKeyType          = &AssertionType{"account-key", []string{"public-key-sha3-384"}, nil, assembleAccountKey, 0}
-	RepairType              = &AssertionType{"repair", []string{"brand-id", "repair-id"}, nil, assembleRepair, sequenceForming}
-	ModelType               = &AssertionType{"model", []string{"series", "brand-id", "model"}, nil, assembleModel, 0}
-	SerialType              = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, nil, assembleSerial, 0}
-	BaseDeclarationType     = &AssertionType{"base-declaration", []string{"series"}, nil, assembleBaseDeclaration, 0}
-	SnapDeclarationType     = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, nil, assembleSnapDeclaration, 0}
-	SnapBuildType           = &AssertionType{"snap-build", []string{"snap-sha3-384"}, nil, assembleSnapBuild, 0}
-	SnapRevisionType        = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, nil, assembleSnapRevision, 0}
-	SnapDeveloperType       = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, nil, assembleSnapDeveloper, 0}
-	SystemUserType          = &AssertionType{"system-user", []string{"brand-id", "email"}, nil, assembleSystemUser, 0}
-	ValidationType          = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, nil, assembleValidation, 0}
-	ValidationSetType       = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, nil, assembleValidationSet, sequenceForming}
-	StoreType               = &AssertionType{"store", []string{"store"}, nil, assembleStore, 0}
-	AuthorityDelegationType = &AssertionType{"authority-delegation", []string{"account-id", "delegate-id"}, nil, assembleAuthorityDelegation, 0}
-	PreseedType             = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, nil, assemblePreseed, 0}
+	AccountType         = &AssertionType{"account", []string{"account-id"}, nil, assembleAccount, 0}
+	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, nil, assembleAccountKey, 0}
+	RepairType          = &AssertionType{"repair", []string{"brand-id", "repair-id"}, nil, assembleRepair, sequenceForming}
+	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, nil, assembleModel, 0}
+	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, nil, assembleSerial, 0}
+	BaseDeclarationType = &AssertionType{"base-declaration", []string{"series"}, nil, assembleBaseDeclaration, 0}
+	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, nil, assembleSnapDeclaration, 0}
+	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-sha3-384"}, nil, assembleSnapBuild, 0}
+	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapRevision, 0}
+	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, nil, assembleSnapDeveloper, 0}
+	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, nil, assembleSystemUser, 0}
+	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, nil, assembleValidation, 0}
+	ValidationSetType   = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, nil, assembleValidationSet, sequenceForming}
+	StoreType           = &AssertionType{"store", []string{"store"}, nil, assembleStore, 0}
+	PreseedType         = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, nil, assemblePreseed, 0}
 
 // ...
 )
@@ -202,11 +201,8 @@ func init() {
 	maxSupportedFormat[SnapDeclarationType.Name] = 5
 
 	// 1: support to limit to device serials
-	maxSupportedFormat[SystemUserType.Name] = 1
-
-	// done here to untangle initialization loop via Type()
-	// XXX authority-delegation disabled
-	// typeRegistry[AuthorityDelegationType.Name] = AuthorityDelegationType
+	// 2: support for user-presence constraint
+	maxSupportedFormat[SystemUserType.Name] = 2
 
 	for _, at := range typeRegistry {
 		at.validate()
@@ -514,12 +510,9 @@ type Assertion interface {
 	SupportedFormat() bool
 	// Revision returns the revision of this assertion
 	Revision() int
-	// AuthorityID returns the authority ultimately responsible
-	// for this assertion
+	// AuthorityID returns the authority responsible for this
+	// assertion
 	AuthorityID() string
-	// SignatoryID returns the account that signed this assertion, it will
-	// differ from AuthorityID in the case of signing authority delegation
-	SignatoryID() string
 
 	// Header retrieves the header with name
 	Header(name string) interface{}
@@ -608,20 +601,9 @@ func (ab *assertionBase) Revision() int {
 	return ab.revision
 }
 
-// AuthorityID returns the authority-id a.k.a the authority ultimately responsible for the assertion.
+// AuthorityID returns the authority-id a.k.a the authority responsible for the assertion.
 func (ab *assertionBase) AuthorityID() string {
 	return ab.HeaderString("authority-id")
-}
-
-// SignatoryID returns the account that signed this assertion, it will
-// differ from AuthorityID in the case of signing authority delegation.
-func (ab *assertionBase) SignatoryID() string {
-	// XXX authority-delegation: disabled, remove this
-	/*signID := ab.HeaderString("signatory-id")
-	if signID != "" {
-		return signID
-	}*/
-	return ab.AuthorityID()
 }
 
 // Header returns the value of an header by name.
@@ -683,26 +665,26 @@ var _ Assertion = (*assertionBase)(nil)
 //
 // The expected serialisation format looks like:
 //
-//   HEADER ("\n\n" BODY?)? "\n\n" SIGNATURE
+//	HEADER ("\n\n" BODY?)? "\n\n" SIGNATURE
 //
 // where:
 //
-//    HEADER is a set of header entries separated by "\n"
-//    BODY can be arbitrary text,
-//    SIGNATURE is the signature
+//	HEADER is a set of header entries separated by "\n"
+//	BODY can be arbitrary text,
+//	SIGNATURE is the signature
 //
 // Both BODY and HEADER must be UTF8.
 //
 // A header entry for a single line value (no '\n' in it) looks like:
 //
-//   NAME ": " SIMPLEVALUE
+//	NAME ": " SIMPLEVALUE
 //
 // The format supports multiline text values (with '\n's in them) and
 // lists or maps, possibly nested, with string scalars in them.
 //
 // For those a header entry looks like:
 //
-//   NAME ":\n" MULTI(baseindent)
+//	NAME ":\n" MULTI(baseindent)
 //
 // where MULTI can be
 //
@@ -710,11 +692,11 @@ var _ Assertion = (*assertionBase)(nil)
 //
 // * entries of a list each of the form:
 //
-//     " "*baseindent "  -"  ( " " SIMPLEVALUE | "\n" MULTI )
+//	" "*baseindent "  -"  ( " " SIMPLEVALUE | "\n" MULTI )
 //
 // * entries of map each of the form:
 //
-//     " "*baseindent "  " NAME ":"  ( " " SIMPLEVALUE | "\n" MULTI )
+//	" "*baseindent "  " NAME ":"  ( " " SIMPLEVALUE | "\n" MULTI )
 //
 // baseindent starts at 0 and then grows with nesting matching the
 // previous level introduction (e.g. the " "*baseindent " -" bit)
@@ -722,8 +704,8 @@ var _ Assertion = (*assertionBase)(nil)
 //
 // In general the following headers are mandatory:
 //
-//   type
-//   authority-id (except for on the wire/self-signed assertions like serial-request)
+//	type
+//	authority-id (except for on the wire/self-signed assertions like serial-request)
 //
 // Further for a given assertion type all the primary key headers
 // must be non empty and must not contain '/'.
@@ -731,12 +713,11 @@ var _ Assertion = (*assertionBase)(nil)
 // The following headers expect string representing integer values and
 // if omitted otherwise are assumed to be 0:
 //
-//   revision (a positive int)
-//   body-length (expected to be equal to the length of BODY)
-//   format (a positive int for the format iteration of the type used)
+//	revision (a positive int)
+//	body-length (expected to be equal to the length of BODY)
+//	format (a positive int for the format iteration of the type used)
 //
 // Times are expected to be in the RFC3339 format: "2006-01-02T15:04:05Z07:00".
-//
 func Decode(serializedAssertion []byte) (Assertion, error) {
 	// copy to get an independent backstorage that can't be mutated later
 	assertionSnapshot := make([]byte, len(serializedAssertion))
@@ -989,25 +970,16 @@ func Assemble(headers map[string]interface{}, body, content, signature []byte) (
 	return assemble(headers, body, content, signature)
 }
 
-func checkAuthority(_ *AssertionType, headers map[string]interface{}) (hasSignatoryID bool, err error) {
+func checkAuthority(_ *AssertionType, headers map[string]interface{}) error {
 	if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
-		return false, err
+		return err
 	}
-	_, hasSignatoryID = headers["signatory-id"]
-	if hasSignatoryID {
-		if _, err := checkNotEmptyString(headers, "signatory-id"); err != nil {
-			return false, err
-		}
-	}
-	return hasSignatoryID, nil
+	return nil
 }
 
 func checkNoAuthority(assertType *AssertionType, headers map[string]interface{}) error {
 	if _, ok := headers["authority-id"]; ok {
 		return fmt.Errorf("%q assertion cannot have authority-id set", assertType.Name)
-	}
-	if _, ok := headers["signatory-id"]; ok {
-		return fmt.Errorf("%q assertion cannot have signatory-id set", assertType.Name)
 	}
 	return nil
 }
@@ -1040,7 +1012,7 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 	}
 
 	if assertType.flags&noAuthority == 0 {
-		if _, err := checkAuthority(assertType, headers); err != nil {
+		if err := checkAuthority(assertType, headers); err != nil {
 			return nil, fmt.Errorf("assertion: %v", err)
 		}
 	} else {
@@ -1119,10 +1091,8 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	finalHeaders["body-length"] = strconv.Itoa(bodyLength)
 	finalHeaders["sign-key-sha3-384"] = privKey.PublicKey().ID()
 
-	var hasSignatoryID bool
 	if withAuthority {
-		hasSignatoryID, err = checkAuthority(assertType, finalHeaders)
-		if err != nil {
+		if err = checkAuthority(assertType, finalHeaders); err != nil {
 			return nil, err
 		}
 	} else {
@@ -1165,9 +1135,6 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 
 	if withAuthority {
 		writeHeader(buf, finalHeaders, "authority-id")
-		if hasSignatoryID && finalHeaders["authority-id"] != finalHeaders["signatory-id"] {
-			writeHeader(buf, finalHeaders, "signatory-id")
-		}
 	}
 
 	if revision > 0 {
@@ -1179,7 +1146,6 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		"type":              true,
 		"format":            true,
 		"authority-id":      true,
-		"signatory-id":      true,
 		"revision":          true,
 		"body-length":       true,
 		"sign-key-sha3-384": true,

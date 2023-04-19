@@ -248,7 +248,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceedUnlocksRunin
 	defer st.Unlock()
 
 	// pretend that snap-a is initially held by itself.
-	_, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-a")
+	_, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "snap-a", 0, "snap-a")
 	c.Assert(err, IsNil)
 	// validity
 	checkIsHeld(c, st, "snap-a", "snap-a")
@@ -299,7 +299,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceed(c *C) {
 	defer st.Unlock()
 
 	// pretend that snap-b is initially held by snap-a.
-	_, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-b")
+	_, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "snap-a", 0, "snap-b")
 	c.Assert(err, IsNil)
 	// validity
 	checkIsHeld(c, st, "snap-b", "snap-a")

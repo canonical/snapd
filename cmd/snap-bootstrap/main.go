@@ -39,13 +39,6 @@ such as initramfs.
 	commandBuilders []func(*flags.Parser)
 )
 
-func init() {
-	err := logger.SimpleSetup()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
-	}
-}
-
 func main() {
 	err := run(os.Args[1:])
 	if err != nil {
@@ -58,7 +51,7 @@ func run(args []string) error {
 	if os.Getuid() != 0 {
 		return fmt.Errorf("please run as root")
 	}
-	logger.SimpleSetup()
+	logger.BootSetup()
 	return parseArgs(args)
 }
 
@@ -66,6 +59,9 @@ func parseArgs(args []string) error {
 	p := parser()
 
 	_, err := p.ParseArgs(args)
+	if err != nil {
+		logger.Noticef("execution error: %v", err)
+	}
 	return err
 }
 

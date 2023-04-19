@@ -43,7 +43,7 @@ type Store struct{}
 // ensure we conform
 var _ snapstate.StoreService = Store{}
 
-func (Store) EnsureDeviceSession() (*auth.DeviceState, error) {
+func (Store) EnsureDeviceSession() error {
 	panic("Store.EnsureDeviceSession not expected")
 }
 
@@ -85,6 +85,10 @@ func (Store) ReadyToBuy(*auth.UserState) error {
 
 func (Store) Sections(context.Context, *auth.UserState) ([]string, error) {
 	panic("Store.Sections not expected")
+}
+
+func (Store) Categories(context.Context, *auth.UserState) ([]store.CategoryDetails, error) {
+	panic("Store.Categories not expected")
 }
 
 func (Store) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {

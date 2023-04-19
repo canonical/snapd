@@ -559,7 +559,7 @@ func (matr bootimgMatrixGeneric) initializeBootPartitions(bootPartLabels []strin
 // any kind).
 func (matr bootimgMatrixGeneric) dropBootPartValue(bootPartValue string) error {
 	for x := range matr {
-		if "" != cToGoString(matr[x][MATRIX_ROW_PARTITION][:]) {
+		if cToGoString(matr[x][MATRIX_ROW_PARTITION][:]) != "" {
 			if bootPartValue == cToGoString(matr[x][MATRIX_ROW_VALUE][:]) {
 				// clear the string by setting the first element to 0 or NUL
 				matr[x][MATRIX_ROW_VALUE][0] = 0

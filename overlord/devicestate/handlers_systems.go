@@ -21,6 +21,7 @@ package devicestate
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -50,7 +51,7 @@ func taskRecoverySystemSetup(t *state.Task) (*recoverySystemSetup, error) {
 	if err == nil {
 		return &setup, nil
 	}
-	if err != state.ErrNoState {
+	if !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	// find the task which holds the data
@@ -272,11 +273,8 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	}
 
 	// this task is done, further processing happens in finalize
-	t.SetStatus(state.DoneStatus)
-
 	logger.Noticef("restarting into candidate system %q", label)
-	restart.Request(m.state, restart.RestartSystemNow, nil)
-	return nil
+	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystemNow, nil)
 }
 
 func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) error {

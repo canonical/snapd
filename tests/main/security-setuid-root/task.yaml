@@ -26,7 +26,7 @@ debug: |
     ls -ld "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-confine" || true
     ls -ld "$SNAP_MOUNT_DIR/ubuntu-core/current/usr/lib/snapd/snap-confine" || true
     ls -ld /usr/lib/snapd/snap-confine || true
-    snap list
+    snap list || true
 
 execute: |
     # NOTE: This has to run as the test user because the protection is only

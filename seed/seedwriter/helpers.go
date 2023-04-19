@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,44 +26,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
-
-// A RefAssertsFetcher is a Fetcher that can at any point return
-// references to the fetched assertions.
-type RefAssertsFetcher interface {
-	asserts.Fetcher
-	Refs() []*asserts.Ref
-	ResetRefs()
-}
-
-type refRecFetcher struct {
-	asserts.Fetcher
-	refs []*asserts.Ref
-}
-
-func (rrf *refRecFetcher) Refs() []*asserts.Ref {
-	return rrf.refs
-}
-
-func (rrf *refRecFetcher) ResetRefs() {
-	rrf.refs = nil
-}
-
-// A NewFetcherFunc can build a Fetcher saving to an (implicit)
-// database and also calling the given additional save function.
-type NewFetcherFunc func(save func(asserts.Assertion) error) asserts.Fetcher
-
-// MakeRefAssertsFetcher makes a RefAssertsFetcher using newFetcher which can
-// build a base Fetcher with an additional save function.
-func MakeRefAssertsFetcher(newFetcher NewFetcherFunc) RefAssertsFetcher {
-	var rrf refRecFetcher
-	save := func(a asserts.Assertion) error {
-		rrf.refs = append(rrf.refs, a.Ref())
-		return nil
-	}
-	rrf.Fetcher = newFetcher(save)
-	return &rrf
-}
 
 func whichModelSnap(modSnap *asserts.ModelSnap, model *asserts.Model) string {
 	switch modSnap.SnapType {
@@ -136,36 +100,33 @@ func (s seedSnapsByType) Less(i, j int) bool {
 	return s[i].Info.Type().SortsBefore(s[j].Info.Type())
 }
 
-// finderFromFetcher exposes an assertion Finder interface out of a Fetcher.
-type finderFromFetcher struct {
-	f  asserts.Fetcher
-	db asserts.RODatabase
-}
-
-func (fnd *finderFromFetcher) Find(assertionType *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error) {
-	pk, err := asserts.PrimaryKeyFromHeaders(assertionType, headers)
-	if err != nil {
-		return nil, err
-	}
-	ref := &asserts.Ref{
-		Type:       assertionType,
-		PrimaryKey: pk,
-	}
-	if err := fnd.f.Fetch(ref); err != nil {
-		return nil, err
-	}
-	return fnd.db.Find(assertionType, headers)
-}
-
 // DeriveSideInfo tries to construct a SideInfo for the given snap
 // using its digest to fetch the relevant snap assertions. It will
 // fail with an asserts.NotFoundError if it cannot find them.
-func DeriveSideInfo(snapPath string, rf RefAssertsFetcher, db asserts.RODatabase) (*snap.SideInfo, []*asserts.Ref, error) {
-	fnd := &finderFromFetcher{f: rf, db: db}
-	prev := len(rf.Refs())
-	si, err := snapasserts.DeriveSideInfo(snapPath, fnd)
+// model is used to cross check that the found snap-revision is applicable
+// on the device.
+func DeriveSideInfo(snapPath string, model *asserts.Model, sf SeedAssertionFetcher, db asserts.RODatabase) (*snap.SideInfo, []*asserts.Ref, error) {
+	digest, size, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
 		return nil, nil, err
 	}
-	return si, rf.Refs()[prev:], nil
+	// XXX assume that the input to the writer is trusted or the whole
+	// build is isolated
+	snapf, err := snapfile.Open(snapPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	prev := len(sf.Refs())
+	if err := snapasserts.FetchSnapAssertions(sf, digest, info.Provenance()); err != nil {
+		return nil, nil, err
+	}
+	si, err := snapasserts.DeriveSideInfoFromDigestAndSize(snapPath, digest, size, model, db)
+	if err != nil {
+		return nil, nil, err
+	}
+	return si, sf.Refs()[prev:], nil
 }

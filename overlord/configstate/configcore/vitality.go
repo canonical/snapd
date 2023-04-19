@@ -22,6 +22,7 @@
 package configcore
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -43,7 +44,7 @@ func init() {
 	supportedConfigurations["core."+vitalityOpt] = true
 }
 
-func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
+func handleVitalityConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 	var pristineVitalityStr, newVitalityStr string
 
 	if err := tr.GetPristine("core", vitalityOpt, &pristineVitalityStr); err != nil && !config.IsNoOption(err) {
@@ -86,7 +87,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		err := snapstate.Get(st, instanceName, &snapst)
 		// not installed, vitality-score will be applied when the snap
 		// gets installed
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			continue
 		}
 		if err != nil {
@@ -126,7 +127,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		}
 
 		// get the options for this snap service
-		snapSvcOpts, err := servicestate.SnapServiceOptions(st, instanceName, grps)
+		snapSvcOpts, err := servicestate.SnapServiceOptions(st, info, grps)
 		if err != nil {
 			return err
 		}
@@ -176,7 +177,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	return nil
 }
 
-func validateVitalitySettings(tr config.Conf) error {
+func validateVitalitySettings(tr RunTransaction) error {
 	option, err := coreCfg(tr, vitalityOpt)
 	if err != nil {
 		return err

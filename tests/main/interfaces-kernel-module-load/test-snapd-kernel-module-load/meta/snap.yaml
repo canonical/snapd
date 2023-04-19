@@ -2,6 +2,11 @@ name: test-snapd-kernel-module-load
 summary: A no-strings-attached, no-fuss shell for writing tests
 version: 1.0
 
+apps:
+    cmd:
+        command: bin/cmd
+        plugs: [kernel-module-load]
+
 plugs:
     kernel-module-load:
         interface: kernel-module-load
@@ -15,3 +20,14 @@ plugs:
               load: denied
             - name: arc4
               load: on-boot
+            - name: xcbc
+              load: dynamic
+            - name: md4
+              load: dynamic
+              # The module does not support any options, really, but we still
+              # want to test that the module configuration files gets written
+              options: something=ok
+            - name: vmac
+              load: dynamic
+              # Like the above, no options are supported. But let's test "*"
+              options: "*"

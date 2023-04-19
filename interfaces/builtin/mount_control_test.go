@@ -65,6 +65,7 @@ plugs:
     options: [ro]
   - what: /dev/sda[0-1]
     where: $SNAP_COMMON/{foo,other,**}
+    type: [mycustomfs]
     options: [sync]
 apps:
  app:
@@ -76,6 +77,17 @@ version: 0
 type: os
 slots:
   mount-control:
+`
+
+const mountControlYaml = `name: consumer
+version: 0
+plugs:
+ mntctl:
+  interface: mount-control
+  %s
+apps:
+ app:
+  plugs: [mntctl]
 `
 
 func (s *MountControlInterfaceSuite) SetUpTest(c *C) {
@@ -108,16 +120,6 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugOldSystemd(c *C) {
 }
 
 func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
-	var mountControlYaml = `name: consumer
-version: 0
-plugs:
- mntctl:
-  interface: mount-control
-  %s
-apps:
- app:
-  plugs: [mntctl]
-`
 	data := []struct {
 		plugYaml      string
 		expectedError string
@@ -231,6 +233,14 @@ apps:
 			`mount-control option "bind" is incompatible with specifying filesystem type`,
 		},
 		{
+			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,bind]",
+			`mount-control option "bind" is incompatible with specifying filesystem type`,
+		},
+		{
+			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,make-private]",
+			`mount-control option "make-private" is incompatible with specifying filesystem type`,
+		},
+		{
 			"mount:\n  - what: /tmp/..\n    where: /media/*",
 			`mount-control "what" pattern is not clean:.*`,
 		},
@@ -247,7 +257,7 @@ apps:
 			`mount-control "what" attribute can be "none" only with "tmpfs"`,
 		},
 		{
-			"mount:\n  - what: none\n    where: /media/*\n    options: [rw]\n    type: [tmpfs,ext4]",
+			"mount:\n  - what: /\n    where: /media/*\n    options: [rw]\n    type: [tmpfs,ext4]",
 			`mount-control filesystem type "tmpfs" cannot be listed with other types`,
 		},
 		{
@@ -257,6 +267,14 @@ apps:
 		{
 			"mount:\n  - what: /\n    where: $SNAP_DATA/foo\n    options: [ro]\n    persistent: true",
 			`mount-control "persistent" attribute cannot be used to mount onto \$SNAP_DATA`,
+		},
+		{
+			"mount:\n  - what: a?\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw]",
+			`cannot use mount-control "what" attribute: "a\?" contains a reserved apparmor char from.*`,
+		},
+		{
+			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,uid=*]",
+			`cannot use mount-control "option" attribute: "uid=\*" contains a reserved apparmor char from.*`,
 		},
 	}
 
@@ -284,23 +302,25 @@ func (s *MountControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `capability sys_admin,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/{,usr/}bin/mount ixr,`)
 
-	expectedMountLine1 := `mount fstype=(ext2,ext3,ext4) options=(rw,sync) "/dev/sd*" -> "/media/**",`
+	expectedMountLine1 := `mount fstype=(ext2,ext3,ext4) options=(rw,sync) "/dev/sd*" -> "/media/**{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine1)
 
-	expectedMountLine2 := `mount  options=(bind) "/usr/**" -> "/var/snap/consumer/common/**",`
+	expectedMountLine2 := `mount  options=(bind) "/usr/**" -> "/var/snap/consumer/common/**{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine2)
 
 	expectedMountLine3 := `mount fstype=(` +
 		`aufs,autofs,btrfs,ext2,ext3,ext4,hfs,iso9660,jfs,msdos,ntfs,ramfs,` +
 		`reiserfs,squashfs,tmpfs,ubifs,udf,ufs,vfat,zfs,xfs` +
-		`) options=(ro) "/dev/sda{0,1}" -> "/var/snap/consumer/common/**",`
+		`) options=(ro) "/dev/sda{0,1}" -> "/var/snap/consumer/common/**{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine3)
+	expectedUmountLine3 := `umount "/var/snap/consumer/common/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine3)
 
-	expectedMountLine4 := `mount fstype=(` +
-		`aufs,autofs,btrfs,ext2,ext3,ext4,hfs,iso9660,jfs,msdos,ntfs,ramfs,` +
-		`reiserfs,squashfs,tmpfs,ubifs,udf,ufs,vfat,zfs,xfs` +
-		`) options=(sync) "/dev/sda[0-1]" -> "/var/snap/consumer/common/{foo,other,**}",`
+	expectedMountLine4 := `mount fstype=(mycustomfs) options=(sync) ` +
+		`"/dev/sda[0-1]" -> "/var/snap/consumer/common/{foo,other,**}{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine4)
+	expectedUmountLine4 := `umount "/var/snap/consumer/common/{foo,other,**}{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine4)
 }
 
 func (s *MountControlInterfaceSuite) TestStaticInfo(c *C) {
@@ -317,4 +337,19 @@ func (s *MountControlInterfaceSuite) TestAutoConnect(c *C) {
 
 func (s *MountControlInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *MountControlInterfaceSuite) TestFunctionfsValidates(c *C) {
+	plugYaml := `
+  mount:
+  - persistent: true
+    what: diag
+    where: /dev/ffs-diag
+    type: [functionfs]
+    options: [rw, uid=2000, gid=2000, rmode=0550, fmode=0660, no_disconnect=1]
+`
+	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
+	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
+	err := interfaces.BeforeConnectPlug(s.iface, plug)
+	c.Check(err, IsNil)
 }

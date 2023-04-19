@@ -123,6 +123,31 @@ func (s *servicestateQuotasSuite) TestQuotas(c *C) {
 	_, err = internal.PatchQuotas(st, otherGrp2, otherGrp)
 	// either group can get checked first
 	c.Assert(err, ErrorMatches, `cannot update quotas "other-group", "other-group2": group "other-group2?" is invalid: quota group must have at least one resource limit set`)
+
+	// test that patching quotas with invalid nesting causes an error
+	nestGrp1 := &quota.Group{
+		Name:        "nest-root",
+		MemoryLimit: quantity.SizeGiB,
+		SubGroups:   []string{"nest-sub1"},
+		Snaps:       []string{"foo"},
+	}
+
+	nestGrp2 := &quota.Group{
+		Name:        "nest-sub1",
+		ParentGroup: "nest-root",
+		SubGroups:   []string{"nest-sub2"},
+		MemoryLimit: quantity.SizeGiB / 2,
+		Services:    []string{"foo.bar"},
+	}
+
+	nestGrp3 := &quota.Group{
+		Name:        "nest-sub2",
+		ParentGroup: "nest-sub1",
+		MemoryLimit: quantity.SizeGiB / 4,
+	}
+
+	_, err = internal.PatchQuotas(st, nestGrp1, nestGrp2, nestGrp3)
+	c.Assert(err, ErrorMatches, `cannot update quota "nest-root": group "nest-sub2" is invalid: only one level of sub-groups are allowed for groups with snaps`)
 }
 
 func (s *servicestateQuotasSuite) TestCreateQuotaInState(c *C) {
@@ -135,7 +160,7 @@ func (s *servicestateQuotasSuite) TestCreateQuotaInState(c *C) {
 		Name:        "foogroup",
 		MemoryLimit: quantity.SizeGiB,
 	}
-	grp1, newGrps, err := internal.CreateQuotaInState(st, "foogroup", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(), nil)
+	grp1, newGrps, err := internal.CreateQuotaInState(st, "foogroup", nil, nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(), nil)
 	c.Assert(err, IsNil)
 	c.Check(grp1, DeepEquals, grp)
 	c.Check(newGrps, DeepEquals, map[string]*quota.Group{
@@ -156,12 +181,13 @@ func (s *servicestateQuotasSuite) TestCreateQuotaInState(c *C) {
 		ParentGroup: "foogroup",
 		Snaps:       []string{"snap1", "snap2"},
 	}
-	grp3, newGrps, err := internal.CreateQuotaInState(st, "group-2", grp1, []string{"snap1", "snap2"}, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(), nil)
+	grp3, newGrps, err := internal.CreateQuotaInState(st, "group-2", grp1, []string{"snap1", "snap2"}, []string{"snap1.svc1", "snap2.svc2"}, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(), nil)
 	c.Assert(err, IsNil)
 	c.Check(grp3.Name, Equals, grp2.Name)
 	c.Check(grp3.MemoryLimit, Equals, grp2.MemoryLimit)
 	c.Check(grp3.ParentGroup, Equals, grp2.ParentGroup)
 	c.Check(grp3.Snaps, DeepEquals, grp2.Snaps)
+	c.Check(grp3.Services, DeepEquals, []string{"snap1.svc1", "snap2.svc2"})
 	c.Check(newGrps, HasLen, 2)
 	c.Check(newGrps["foogroup"].SubGroups, DeepEquals, []string{"group-2"})
 

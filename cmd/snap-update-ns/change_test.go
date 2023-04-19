@@ -114,6 +114,33 @@ func (s *changeSuite) TestNeededChangesTrivialUnmount(c *C) {
 	})
 }
 
+// When the rootfs was setup by snap-confine, don't touch it
+func (s *changeSuite) TestNeededChangesKeepRootfs(c *C) {
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Dir: "/", Options: []string{"x-snapd.origin=rootfs"}},
+	}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Entry: current.Entries[0], Action: update.Keep},
+		{Entry: desired.Entries[0], Action: update.Mount},
+	})
+}
+
+// When the rootfs was *not* setup by snap-confine, it's umounted
+func (s *changeSuite) TestNeededChangesUmountRootfs(c *C) {
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		// Like the test above, but without "x-snapd.origin=rootfs"
+		{Dir: "/"},
+	}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Entry: current.Entries[0], Action: update.Unmount},
+		{Entry: desired.Entries[0], Action: update.Mount},
+	})
+}
+
 // When umounting we unmount children before parents.
 func (s *changeSuite) TestNeededChangesUnmountOrder(c *C) {
 	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
@@ -488,6 +515,32 @@ func (s *changeSuite) TestNeededChangesParallelInstancesInsideMount(c *C) {
 		{Entry: osutil.MountEntry{Dir: "/foo/bar/zed"}, Action: update.Unmount},
 		{Entry: osutil.MountEntry{Dir: "/foo/bar", Name: "/foo/bar_bar", Options: []string{osutil.XSnapdOriginOvername()}}, Action: update.Keep},
 		{Entry: osutil.MountEntry{Dir: "/foo/bar/baz"}, Action: update.Mount},
+	})
+}
+
+func (s *changeSuite) TestNeededChangesRepeatedDir(c *C) {
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Name: "tmpfs", Dir: "/foo/mytmp", Type: "tmpfs", Options: []string{osutil.XSnapdOriginLayout()}},
+	}}
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Name: "/foo/bar", Dir: "/foo/bar", Type: "none",
+			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/foo/mytmp")}},
+		{Name: "tmpfs", Dir: "/foo/mytmp", Type: "tmpfs", Options: []string{osutil.XSnapdOriginLayout()}},
+		{Name: "tmpfs", Dir: "/foo/bar", Type: "tmpfs",
+			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/foo/bar/two")}},
+	}}
+	changes := update.NeededChanges(current, desired)
+
+	// Make sure that we unmount the one that is needed by an entry
+	// not desired anymore (even though it is in the same mountpoint
+	// as the one needed by /foo/mytmp).
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo/bar", Type: "tmpfs",
+			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/foo/bar/two"), osutil.XSnapdDetach()}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo/mytmp", Type: "tmpfs",
+			Options: []string{osutil.XSnapdOriginLayout()}}, Action: update.Keep},
+		{Entry: osutil.MountEntry{Name: "/foo/bar", Dir: "/foo/bar", Type: "none",
+			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/foo/mytmp")}}, Action: update.Keep},
 	})
 }
 
@@ -1970,12 +2023,14 @@ func (s *changeSuite) TestPerformFileBindUnmountOnTmpfsEmpty(c *C) {
 
 // Change.Perform wants to unmount a file bind mount made on empty tmpfs placeholder but it is busy!.
 func (s *changeSuite) TestPerformFileBindUnmountOnTmpfsEmptyButBusy(c *C) {
+	restore := osutil.MockMountInfo("")
+	defer restore()
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Size: 0})
 	s.sys.InsertFault(`remove "/target"`, syscall.EBUSY)
 	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.as)
-	c.Assert(err, ErrorMatches, "device or resource busy")
+	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW`},
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},

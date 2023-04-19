@@ -36,11 +36,13 @@ func (s *cmdSuite) TestRecoveryChooserTriggerDefaults(c *C) {
 	n := 0
 	marker := filepath.Join(c.MkDir(), "marker")
 	passedTimeout := time.Duration(0)
+	passedDeviceTimeout := time.Duration(0)
 
 	restore := main.MockDefaultMarkerFile(marker)
 	defer restore()
-	restore = main.MockTriggerwatchWait(func(timeout time.Duration) error {
+	restore = main.MockTriggerwatchWait(func(timeout time.Duration, deviceTimeout time.Duration) error {
 		passedTimeout = timeout
+		passedDeviceTimeout = deviceTimeout
 		n++
 		// trigger happened
 		return nil
@@ -52,6 +54,7 @@ func (s *cmdSuite) TestRecoveryChooserTriggerDefaults(c *C) {
 	c.Assert(rest, HasLen, 0)
 	c.Check(n, Equals, 1)
 	c.Check(passedTimeout, Equals, main.DefaultTimeout)
+	c.Check(passedDeviceTimeout, Equals, main.DefaultDeviceTimeout)
 	c.Check(marker, testutil.FilePresent)
 }
 
@@ -61,7 +64,7 @@ func (s *cmdSuite) TestRecoveryChooserTriggerNoTrigger(c *C) {
 
 	restore := main.MockDefaultMarkerFile(marker)
 	defer restore()
-	restore = main.MockTriggerwatchWait(func(_ time.Duration) error {
+	restore = main.MockTriggerwatchWait(func(_ time.Duration, _ time.Duration) error {
 		n++
 		// trigger did not happen
 		return triggerwatch.ErrTriggerNotDetected
@@ -78,9 +81,11 @@ func (s *cmdSuite) TestRecoveryChooserTriggerTakesOptions(c *C) {
 	marker := filepath.Join(c.MkDir(), "foobar")
 	n := 0
 	passedTimeout := time.Duration(0)
+	passedDeviceTimeout := time.Duration(0)
 
-	restore := main.MockTriggerwatchWait(func(timeout time.Duration) error {
+	restore := main.MockTriggerwatchWait(func(timeout time.Duration, deviceTimeout time.Duration) error {
 		passedTimeout = timeout
+		passedDeviceTimeout = deviceTimeout
 		n++
 		// trigger happened
 		return nil
@@ -89,6 +94,7 @@ func (s *cmdSuite) TestRecoveryChooserTriggerTakesOptions(c *C) {
 
 	rest, err := main.Parser().ParseArgs([]string{
 		"recovery-chooser-trigger",
+		"--device-timeout", "1m",
 		"--wait-timeout", "2m",
 		"--marker-file", marker,
 	})
@@ -96,13 +102,14 @@ func (s *cmdSuite) TestRecoveryChooserTriggerTakesOptions(c *C) {
 	c.Assert(rest, HasLen, 0)
 	c.Check(n, Equals, 1)
 	c.Check(passedTimeout, Equals, 2*time.Minute)
+	c.Check(passedDeviceTimeout, Equals, 1*time.Minute)
 	c.Check(marker, testutil.FilePresent)
 }
 
 func (s *cmdSuite) TestRecoveryChooserTriggerDoesNothingWhenMarkerPresent(c *C) {
 	marker := filepath.Join(c.MkDir(), "foobar")
 	n := 0
-	restore := main.MockTriggerwatchWait(func(_ time.Duration) error {
+	restore := main.MockTriggerwatchWait(func(_ time.Duration, _ time.Duration) error {
 		n++
 		return errors.New("unexpected call")
 	})
@@ -127,7 +134,7 @@ func (s *cmdSuite) TestRecoveryChooserTriggerBadDurationFallback(c *C) {
 	restore := main.MockDefaultMarkerFile(filepath.Join(c.MkDir(), "marker"))
 	defer restore()
 
-	restore = main.MockTriggerwatchWait(func(timeout time.Duration) error {
+	restore = main.MockTriggerwatchWait(func(timeout time.Duration, _ time.Duration) error {
 		passedTimeout = timeout
 		n++
 		// trigger happened
@@ -144,13 +151,36 @@ func (s *cmdSuite) TestRecoveryChooserTriggerBadDurationFallback(c *C) {
 	c.Check(passedTimeout, Equals, main.DefaultTimeout)
 }
 
+func (s *cmdSuite) TestRecoveryChooserTriggerBadDeviceDurationFallback(c *C) {
+	n := 0
+	passedTimeout := time.Duration(0)
+	restore := main.MockDefaultMarkerFile(filepath.Join(c.MkDir(), "marker"))
+	defer restore()
+
+	restore = main.MockTriggerwatchWait(func(_ time.Duration, timeout time.Duration) error {
+		passedTimeout = timeout
+		n++
+		// trigger happened
+		return triggerwatch.ErrTriggerNotDetected
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{
+		"recovery-chooser-trigger",
+		"--device-timeout=foobar",
+	})
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 1)
+	c.Check(passedTimeout, Equals, main.DefaultDeviceTimeout)
+}
+
 func (s *cmdSuite) TestRecoveryChooserTriggerNoInputDevsNoError(c *C) {
 	n := 0
 	marker := filepath.Join(c.MkDir(), "marker")
 
 	restore := main.MockDefaultMarkerFile(marker)
 	defer restore()
-	restore = main.MockTriggerwatchWait(func(_ time.Duration) error {
+	restore = main.MockTriggerwatchWait(func(_ time.Duration, _ time.Duration) error {
 		n++
 		// no input devices
 		return triggerwatch.ErrNoMatchingInputDevices

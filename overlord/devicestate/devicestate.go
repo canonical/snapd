@@ -23,6 +23,7 @@ package devicestate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -72,7 +73,7 @@ func findModel(st *state.State) (*asserts.Model, error) {
 		"brand-id": device.Brand,
 		"model":    device.Model,
 	})
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, state.ErrNoState
 	}
 	if err != nil {
@@ -101,7 +102,7 @@ func findSerial(st *state.State, device *auth.DeviceState) (*asserts.Serial, err
 		"model":    device.Model,
 		"serial":   device.Serial,
 	})
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, state.ErrNoState
 	}
 	if err != nil {
@@ -138,7 +139,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	// Check model exists, for validity. We always have a model, either
 	// seeded or a generic one that ships with snapd.
 	_, err := findModel(st)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return false, nil
 	}
 	if err != nil {
@@ -146,7 +147,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	}
 
 	_, err = findSerial(st, nil)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return false, nil
 	}
 	if err != nil {
@@ -166,8 +167,8 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 		snapType = snap.TypeGadget
 		getName = (*asserts.Model).Gadget
 	case snap.TypeKernel:
-		if release.OnClassic {
-			return fmt.Errorf("cannot install a kernel snap on classic")
+		if deviceCtx.IsClassicBoot() {
+			return fmt.Errorf("cannot install a kernel snap if classic boot")
 		}
 
 		kind = "kernel"
@@ -264,7 +265,7 @@ func proxyStore(st *state.State, tr *config.Transaction) (*asserts.Store, error)
 	a, err := assertstate.DB(st).Find(asserts.StoreType, map[string]string{
 		"store": proxyStore,
 	})
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, state.ErrNoState
 	}
 	if err != nil {
@@ -285,11 +286,11 @@ func interfaceConnected(st *state.State, snapName, ifName string) bool {
 // switched to the "core.refresh.schedule=managed" mode.
 //
 // TODO:
-// - Move the CanManageRefreshes code into the ifstate
-// - Look at the connections and find the connection for snapd-control
-//   with the managed attribute
-// - Take the snap from this connection and look at the snapstate to see
-//   if that snap has a snap declaration (to ensure it comes from the store)
+//   - Move the CanManageRefreshes code into the ifstate
+//   - Look at the connections and find the connection for snapd-control
+//     with the managed attribute
+//   - Take the snap from this connection and look at the snapstate to see
+//     if that snap has a snap declaration (to ensure it comes from the store)
 func CanManageRefreshes(st *state.State) bool {
 	snapStates, err := snapstate.All(st)
 	if err != nil {
@@ -323,6 +324,21 @@ func CanManageRefreshes(st *state.State) bool {
 	}
 
 	return false
+}
+
+// ResetSession clears the device store session if any.
+func ResetSession(st *state.State) error {
+	device, err := internal.Device(st)
+	if err != nil {
+		return err
+	}
+	if device.SessionMacaroon != "" {
+		device.SessionMacaroon = ""
+		if err := internal.SetDevice(st, device); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func getAllRequiredSnapsForModel(model *asserts.Model) *naming.SnapSet {
@@ -522,7 +538,7 @@ func prereqsFromSnapTaskSet(ts *state.TaskSet) ([]string, error) {
 		// find the first task that carries snap setup
 		sup, err := snapstate.TaskSnapSetup(t)
 		if err != nil {
-			if err != state.ErrNoState {
+			if !errors.Is(err, state.ErrNoState) {
 				return nil, err
 			}
 			// try the next one
@@ -841,15 +857,15 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 // transition is not possible.
 //
 // TODO:
-// - Check estimated disk size delta
-// - Check all relevant snaps exist in new store
-//   (need to check that even unchanged snaps are accessible)
-// - Make sure this works with Core 20 as well, in the Core 20 case
-//   we must enforce the default-channels from the model as well
+//   - Check estimated disk size delta
+//   - Check all relevant snaps exist in new store
+//     (need to check that even unchanged snaps are accessible)
+//   - Make sure this works with Core 20 as well, in the Core 20 case
+//     we must enforce the default-channels from the model as well
 func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !seeded {
@@ -862,7 +878,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 
 	if _, err := findSerial(st, nil); err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			return nil, fmt.Errorf("cannot remodel without a serial")
 		}
 		return nil, err
@@ -870,6 +886,14 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 
 	if current.Series() != new.Series() {
 		return nil, fmt.Errorf("cannot remodel to different series yet")
+	}
+
+	// don't allow remodel on classic for now
+	if current.Classic() {
+		return nil, fmt.Errorf("cannot remodel from classic model")
+	}
+	if current.Classic() != new.Classic() {
+		return nil, fmt.Errorf("cannot remodel across classic and non-classic models")
 	}
 
 	// TODO:UC20: ensure we never remodel to a lower
@@ -930,7 +954,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		}
 		// ensure a new session accounting for the new brand store
 		st.Unlock()
-		_, err := sto.EnsureDeviceSession()
+		err := sto.EnsureDeviceSession()
 		st.Lock()
 		if err != nil {
 			return nil, fmt.Errorf("cannot get a store session based on the new model assertion: %v", err)
@@ -1060,7 +1084,7 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 func CreateRecoverySystem(st *state.State, label string) (*state.Change, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !seeded {
@@ -1072,5 +1096,45 @@ func CreateRecoverySystem(st *state.State, label string) (*state.Change, error) 
 		return nil, err
 	}
 	chg.AddAll(ts)
+	return chg, nil
+}
+
+// InstallFinish creates a change that will finish the install for the given
+// label and volumes. This includes writing missing volume content, seting
+// up the bootloader and installing the kernel.
+func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error) {
+	if label == "" {
+		return nil, fmt.Errorf("cannot finish install with an empty system label")
+	}
+	if onVolumes == nil {
+		return nil, fmt.Errorf("cannot finish install without volumes data")
+	}
+
+	chg := st.NewChange("install-step-finish", fmt.Sprintf("Finish setup of run system for %q", label))
+	finishTask := st.NewTask("install-finish", fmt.Sprintf("Finish setup of run system for %q", label))
+	finishTask.Set("system-label", label)
+	finishTask.Set("on-volumes", onVolumes)
+	chg.AddTask(finishTask)
+
+	return chg, nil
+}
+
+// InstallSetupStorageEncryption creates a change that will setup the
+// storage encryption for the install of the given label and
+// volumes.
+func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error) {
+	if label == "" {
+		return nil, fmt.Errorf("cannot setup storage encryption with an empty system label")
+	}
+	if onVolumes == nil {
+		return nil, fmt.Errorf("cannot setup storage encryption without volumes data")
+	}
+
+	chg := st.NewChange("install-step-setup-storage-encryption", fmt.Sprintf("Setup storage encryption for installing system %q", label))
+	setupStorageEncryptionTask := st.NewTask("install-setup-storage-encryption", fmt.Sprintf("Setup storage encryption for installing system %q", label))
+	setupStorageEncryptionTask.Set("system-label", label)
+	setupStorageEncryptionTask.Set("on-volumes", onVolumes)
+	chg.AddTask(setupStorageEncryptionTask)
+
 	return chg, nil
 }

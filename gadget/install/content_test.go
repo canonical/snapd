@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -31,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
@@ -55,21 +55,21 @@ var _ = Suite(&contentTestSuite{})
 func (s *contentTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
+	s.AddCleanup(func() { dirs.SetRootDir(dirs.GlobalRootDir) })
 	s.dir = c.MkDir()
+	dirs.SetRootDir(s.dir)
 
 	s.mockMountErr = nil
 	s.mockMountCalls = nil
 	s.mockUnmountCalls = nil
 
 	s.gadgetRoot = c.MkDir()
-	err := makeMockGadget(s.gadgetRoot, gadgetContent)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 
 	s.mockMountPoint = c.MkDir()
-	restore := install.MockContentMountpoint(s.mockMountPoint)
-	s.AddCleanup(restore)
 
-	restore = install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
 		s.mockMountCalls = append(s.mockMountCalls, struct{ source, target, fstype string }{source, target, fstype})
 		return s.mockMountErr
 	})
@@ -82,33 +82,9 @@ func (s *contentTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 }
 
-var mockOnDiskStructureBiosBoot = gadget.OnDiskStructure{
-	Node: "/dev/node1",
-	LaidOutStructure: gadget.LaidOutStructure{
+func mockOnDiskStructureSystemSeed(gadgetRoot string) *gadget.LaidOutStructure {
+	return &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Name: "BIOS Boot",
-			Size: 1 * 1024 * 1024,
-			Type: "DA,21686148-6449-6E6F-744E-656564454649",
-			Content: []gadget.VolumeContent{
-				{
-					Image: "pc-core.img",
-				},
-			},
-		},
-		StartOffset: 0,
-		YamlIndex:   1,
-	},
-}
-
-var mockOnDiskStructureSystemSeed = gadget.OnDiskStructure{
-	Node: "/dev/node2",
-	LaidOutStructure: gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Name:       "Recovery",
-			Size:       1258291200,
-			Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Role:       "system-seed",
-			Label:      "ubuntu-seed",
 			Filesystem: "vfat",
 			Content: []gadget.VolumeContent{
 				{
@@ -116,31 +92,18 @@ var mockOnDiskStructureSystemSeed = gadget.OnDiskStructure{
 					Target:           "EFI/boot/grubx64.efi",
 				},
 			},
+			YamlIndex: 1000, // to demonstrate we do not use the laid out index
 		},
-		StartOffset: 2097152,
-		YamlIndex:   1000, // to demonstrate we do not use the laid out index
-	},
-	DiskIndex: 2,
-}
-
-func makeMockGadget(gadgetRoot, gadgetContent string) error {
-	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
-		return err
+		ResolvedContent: []gadget.ResolvedContent{
+			{
+				VolumeContent: &gadget.VolumeContent{
+					UnresolvedSource: "grubx64.efi",
+					Target:           "EFI/boot/grubx64.efi",
+				},
+				ResolvedSource: filepath.Join(gadgetRoot, "grubx64.efi"),
+			},
+		},
 	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644); err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644); err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 const gadgetContent = `volumes:
@@ -181,25 +144,26 @@ type mockContentChange struct {
 }
 
 type mockWriteObserver struct {
-	content        map[string][]*mockContentChange
-	observeErr     error
-	expectedStruct *gadget.LaidOutStructure
-	c              *C
+	content      map[string][]*mockContentChange
+	observeErr   error
+	expectedRole string
+	c            *C
 }
 
-func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
+func (m *mockWriteObserver) Observe(op gadget.ContentOperation, partRole,
 	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	if m.content == nil {
 		m.content = make(map[string][]*mockContentChange)
 	}
 	m.content[targetRootDir] = append(m.content[targetRootDir],
 		&mockContentChange{path: relativeTargetPath, change: data})
-	m.c.Assert(sourceStruct, NotNil)
-	m.c.Check(sourceStruct, DeepEquals, m.expectedStruct)
+	m.c.Check(partRole, Equals, m.expectedRole)
 	return gadget.ChangeApply, m.observeErr
 }
 
 func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
+	defer dirs.SetRootDir(dirs.GlobalRootDir)
+
 	for _, tc := range []struct {
 		mountErr   error
 		unmountErr error
@@ -213,7 +177,7 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 		}, {
 			mountErr:   errors.New("mount error"),
 			unmountErr: nil,
-			err:        "cannot mount filesystem .*: mount error",
+			err:        "cannot mount .* at .*: mount error",
 		}, {
 			mountErr:   nil,
 			unmountErr: errors.New("unmount error"),
@@ -223,12 +187,12 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			err:        "cannot create filesystem image: cannot write filesystem content of source:grubx64.efi: cannot observe file write: observe error",
 		},
 	} {
-		mockMountpoint := c.MkDir()
+		dirs.SetRootDir(c.MkDir())
 
-		restore := install.MockContentMountpoint(mockMountpoint)
-		defer restore()
-
-		restore = install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+			c.Check(source, Equals, "/dev/node2")
+			c.Check(fstype, Equals, "vfat")
+			c.Check(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2"))
 			return tc.mountErr
 		})
 		defer restore()
@@ -239,22 +203,13 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 		defer restore()
 
 		// copy existing mock
-		m := mockOnDiskStructureSystemSeed
-		m.ResolvedContent = []gadget.ResolvedContent{
-			{
-				VolumeContent: &gadget.VolumeContent{
-					UnresolvedSource: "grubx64.efi",
-					Target:           "EFI/boot/grubx64.efi",
-				},
-				ResolvedSource: filepath.Join(s.gadgetRoot, "grubx64.efi"),
-			},
-		}
+		m := mockOnDiskStructureSystemSeed(s.gadgetRoot)
 		obs := &mockWriteObserver{
-			c:              c,
-			observeErr:     tc.observeErr,
-			expectedStruct: &m.LaidOutStructure,
+			c:            c,
+			observeErr:   tc.observeErr,
+			expectedRole: m.Role(),
 		}
-		err := install.WriteContent(&m, obs)
+		err := install.WriteFilesystemContent(m, "/dev/node2", obs)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -263,11 +218,11 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 
 		if err == nil {
 			// the target file system is mounted on a directory named after the structure index
-			content, err := ioutil.ReadFile(filepath.Join(mockMountpoint, "2", "EFI/boot/grubx64.efi"))
+			content, err := ioutil.ReadFile(filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2", "EFI/boot/grubx64.efi"))
 			c.Assert(err, IsNil)
 			c.Check(string(content), Equals, "grubx64.efi content")
 			c.Assert(obs.content, DeepEquals, map[string][]*mockContentChange{
-				filepath.Join(mockMountpoint, "2"): {
+				filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2"): {
 					{
 						path:   "EFI/boot/grubx64.efi",
 						change: &gadget.ContentChange{After: filepath.Join(s.gadgetRoot, "grubx64.efi")},
@@ -276,39 +231,6 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			})
 		}
 	}
-}
-
-func (s *contentTestSuite) TestWriteRawContentNotSupported(c *C) {
-	mockNode := filepath.Join(s.dir, "mock-node")
-	err := ioutil.WriteFile(mockNode, nil, 0644)
-	c.Assert(err, IsNil)
-
-	// copy existing mock
-	m := mockOnDiskStructureBiosBoot
-	m.Node = mockNode
-	m.LaidOutContent = []gadget.LaidOutContent{
-		{
-			VolumeContent: &gadget.VolumeContent{
-				Image: "pc-core.img",
-			},
-			StartOffset: 2,
-			Size:        quantity.Size(len("pc-core.img content")),
-		},
-	}
-
-	err = install.WriteContent(&m, nil)
-	c.Assert(err, ErrorMatches, `cannot write non-filesystem structures during install`)
-}
-
-func (s *contentTestSuite) TestMakeFilesystemStructureHasNoFilesystem(c *C) {
-	restore := install.MockMkfsMake(func(typ, img, label string, devSize, sectorSize quantity.Size) error {
-		c.Errorf("unexpected call to mkfs.Make()")
-		return fmt.Errorf("should not be called")
-	})
-	defer restore()
-
-	err := install.MakeFilesystem(&mockOnDiskStructureBiosBoot, quantity.Size(512))
-	c.Assert(err, ErrorMatches, `internal error: on disk structure for partition /dev/node1 has no filesystem`)
 }
 
 func (s *contentTestSuite) TestMakeFilesystem(c *C) {
@@ -325,7 +247,13 @@ func (s *contentTestSuite) TestMakeFilesystem(c *C) {
 	})
 	defer restore()
 
-	err := install.MakeFilesystem(&mockOnDiskStructureWritable, quantity.Size(512))
+	err := install.MakeFilesystem(install.MkfsParams{
+		Type:       mockOnDiskStructureWritable.PartitionFSType,
+		Device:     mockOnDiskStructureWritable.Node,
+		Label:      mockOnDiskStructureWritable.PartitionFSLabel,
+		Size:       mockOnDiskStructureWritable.Size,
+		SectorSize: quantity.Size(512),
+	})
 	c.Assert(err, IsNil)
 
 	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
@@ -340,7 +268,13 @@ func (s *contentTestSuite) TestMakeFilesystemRealMkfs(c *C) {
 	mockMkfsExt4 := testutil.MockCommand(c, "mkfs.ext4", "")
 	defer mockMkfsExt4.Restore()
 
-	err := install.MakeFilesystem(&mockOnDiskStructureWritable, quantity.Size(512))
+	err := install.MakeFilesystem(install.MkfsParams{
+		Type:       mockOnDiskStructureWritable.PartitionFSType,
+		Device:     mockOnDiskStructureWritable.Node,
+		Label:      mockOnDiskStructureWritable.PartitionFSLabel,
+		Size:       mockOnDiskStructureWritable.Size,
+		SectorSize: quantity.Size(512),
+	})
 	c.Assert(err, IsNil)
 
 	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
@@ -356,15 +290,8 @@ func (s *contentTestSuite) TestMountFilesystem(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
 
-	// mounting will only happen for devices with a label
-	mockOnDiskStructureBiosBoot.Label = "bios-boot"
-	defer func() { mockOnDiskStructureBiosBoot.Label = "" }()
-
-	err := install.MountFilesystem(&mockOnDiskStructureBiosBoot, boot.InitramfsRunMntDir)
-	c.Assert(err, ErrorMatches, "cannot mount a partition with no filesystem")
-
 	// mount a filesystem...
-	err = install.MountFilesystem(&mockOnDiskStructureSystemSeed, boot.InitramfsRunMntDir)
+	err := install.MountFilesystem("/dev/node2", "vfat", filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
 	c.Assert(err, IsNil)
 
 	// ...and check if it was mounted at the right mount point
@@ -373,10 +300,8 @@ func (s *contentTestSuite) TestMountFilesystem(c *C) {
 		{"/dev/node2", boot.InitramfsUbuntuSeedDir, "vfat"},
 	})
 
-	// now try to mount a filesystem with no label
-	mockOnDiskStructureSystemSeed.Label = ""
-	defer func() { mockOnDiskStructureSystemSeed.Label = "ubuntu-seed" }()
-
-	err = install.MountFilesystem(&mockOnDiskStructureSystemSeed, boot.InitramfsRunMntDir)
-	c.Assert(err, ErrorMatches, "cannot mount a filesystem with no label")
+	// try again with mocked error
+	s.mockMountErr = fmt.Errorf("mock mount error")
+	err = install.MountFilesystem("/dev/node2", "vfat", filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
+	c.Assert(err, ErrorMatches, `cannot mount filesystem "/dev/node2" at ".*/run/mnt/ubuntu-seed": mock mount error`)
 }

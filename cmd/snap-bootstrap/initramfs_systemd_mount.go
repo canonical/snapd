@@ -73,6 +73,10 @@ type systemdMountOptions struct {
 	Bind bool
 	// Read-only mount
 	ReadOnly bool
+	// Private mount
+	Private bool
+	// Umount the mountpoint
+	Umount bool
 }
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
@@ -94,6 +98,11 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	unitName := whereEscaped + ".mount"
 
 	args := []string{what, where, "--no-pager", "--no-ask-password"}
+
+	if opts.Umount {
+		args = []string{where, "--umount", "--no-pager", "--no-ask-password"}
+	}
+
 	if opts.Tmpfs {
 		args = append(args, "--type=tmpfs")
 	}
@@ -138,6 +147,9 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	}
 	if opts.ReadOnly {
 		options = append(options, "ro")
+	}
+	if opts.Private {
+		options = append(options, "private")
 	}
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))
@@ -195,7 +207,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		var now time.Time
 		for now = timeNow(); now.Sub(start) < defaultMountUnitWaitTimeout; now = timeNow() {
 			mounted, err := osutilIsMounted(where)
-			if mounted {
+			if mounted == !opts.Umount {
 				break
 			}
 			if err != nil {

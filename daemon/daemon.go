@@ -595,7 +595,7 @@ func (d *Daemon) rebootDelay(immediate bool) (time.Duration, error) {
 	// see whether a reboot had already been scheduled
 	var rebootAt time.Time
 	err := d.state.Get("daemon-system-restart-at", &rebootAt)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return 0, err
 	}
 	rebootDelay := 1 * time.Minute
@@ -673,7 +673,7 @@ var errExpectedReboot = errors.New("expected reboot did not happen")
 func (d *Daemon) RebootDidNotHappen(st *state.State) error {
 	var nTentative int
 	err := st.Get("daemon-system-restart-tentative", &nTentative)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	nTentative++

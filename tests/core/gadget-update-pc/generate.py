@@ -46,6 +46,13 @@ def must_find_struct(structs, matcher):
     return found[0]
 
 
+def may_find_struct(structs, matcher):
+    found = [s for s in structs if matcher(s)]
+    if len(found) != 1:
+        return None
+    return found[0]
+
+
 def bump_update_edition(update):
     if update is None:
         return {"edition": 1}
@@ -62,7 +69,7 @@ def make_v1(doc, system_seed):
     structs = doc["volumes"]["pc"]["structure"]
     # "EFI System" in UC16/UC18, or just system-boot in UC20
     efisystem = must_find_struct(structs, match_role_with_fallback("system-boot"))
-    biosboot = must_find_struct(structs, match_name("BIOS Boot"))
+    biosboot = may_find_struct(structs, match_name("BIOS Boot"))
 
     # from UC16/UC18 gadgets:
     #
@@ -99,8 +106,9 @@ def make_v1(doc, system_seed):
     #     - image: foo.img
     #   update:
     #       edition: 1
-    biosboot["content"].append({"image": "foo.img"})
-    biosboot["update"] = bump_update_edition(biosboot.get("update"))
+    if biosboot is not None and "content" in biosboot:
+        biosboot["content"].append({"image": "foo.img"})
+        biosboot["update"] = bump_update_edition(biosboot.get("update"))
 
     if system_seed:
         # from UC20 gadget:

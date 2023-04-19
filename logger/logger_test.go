@@ -21,12 +21,15 @@ package logger_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -87,6 +90,50 @@ func (s *LogSuite) TestDefault(c *C) {
 	c.Check(logger.GetLoggerFlags(), Equals, log.Lshortfile)
 }
 
+func (s *LogSuite) TestBootSetup(c *C) {
+	// env shenanigans
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	oldTerm, hadTerm := os.LookupEnv("TERM")
+	defer func() {
+		if hadTerm {
+			os.Setenv("TERM", oldTerm)
+		} else {
+			os.Unsetenv("TERM")
+		}
+	}()
+
+	if logger.GetLogger() != nil {
+		logger.SetLogger(nil)
+	}
+	c.Check(logger.GetLogger(), IsNil)
+
+	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
+	err := ioutil.WriteFile(cmdlineFile, []byte("mocked panic=-1"), 0644)
+	c.Assert(err, IsNil)
+	restore := osutil.MockProcCmdline(cmdlineFile)
+	defer restore()
+	os.Setenv("TERM", "dumb")
+	err = logger.BootSetup()
+	c.Assert(err, IsNil)
+	c.Check(logger.GetLogger(), NotNil)
+	c.Check(logger.GetLoggerFlags(), Equals, logger.DefaultFlags)
+	c.Check(logger.GetQuiet(), Equals, false)
+
+	cmdlineFile = filepath.Join(c.MkDir(), "cmdline")
+	err = ioutil.WriteFile(cmdlineFile, []byte("mocked panic=-1 quiet"), 0644)
+	c.Assert(err, IsNil)
+	restore = osutil.MockProcCmdline(cmdlineFile)
+	defer restore()
+	os.Unsetenv("TERM")
+	err = logger.BootSetup()
+	c.Assert(err, IsNil)
+	c.Check(logger.GetLogger(), NotNil)
+	c.Check(logger.GetLoggerFlags(), Equals, log.Lshortfile)
+	c.Check(logger.GetQuiet(), Equals, true)
+}
+
 func (s *LogSuite) TestNew(c *C) {
 	var buf bytes.Buffer
 	l, err := logger.New(&buf, logger.DefaultFlags)
@@ -128,6 +175,19 @@ func (s *LogSuite) TestWithLoggerLock(c *C) {
 	c.Check(called, Equals, true)
 }
 
+func (s *LogSuite) TestNoGuardDebug(c *C) {
+	debugValue, ok := os.LookupEnv("SNAPD_DEBUG")
+	if ok {
+		defer func() {
+			os.Setenv("SNAPD_DEBUG", debugValue)
+		}()
+		os.Unsetenv("SNAPD_DEBUG")
+	}
+
+	logger.NoGuardDebugf("xyzzy")
+	c.Check(s.logbuf.String(), testutil.Contains, `DEBUG: xyzzy`)
+}
+
 func (s *LogSuite) TestIntegrationDebugFromKernelCmdline(c *C) {
 	// must enable actually checking the command line, because by default the
 	// logger package will skip checking for the kernel command line parameter
@@ -147,4 +207,33 @@ func (s *LogSuite) TestIntegrationDebugFromKernelCmdline(c *C) {
 	c.Assert(err, IsNil)
 	l.Debug("xyzzy")
 	c.Check(buf.String(), testutil.Contains, `DEBUG: xyzzy`)
+}
+
+func (s *LogSuite) TestStartupTimestampMsg(c *C) {
+	os.Setenv("SNAPD_DEBUG", "1")
+	defer os.Unsetenv("SNAPD_DEBUG")
+
+	type msgTimestamp struct {
+		Stage string `json:"stage"`
+		Time  string `json:"time"`
+	}
+
+	now := time.Date(2022, time.May, 16, 10, 43, 12, 22312000, time.UTC)
+	logger.MockTimeNow(func() time.Time {
+		return now
+	})
+	logger.StartupStageTimestamp("foo to bar")
+	msg := strings.TrimSpace(s.logbuf.String())
+	c.Assert(msg, Matches, `.* DEBUG: -- snap startup \{"stage":"foo to bar", "time":"1652697792.022312"\}$`)
+
+	var m msgTimestamp
+	start := strings.LastIndex(msg, "{")
+	c.Assert(start, Not(Equals), -1)
+	stamp := msg[start:]
+	err := json.Unmarshal([]byte(stamp), &m)
+	c.Assert(err, IsNil)
+	c.Check(m, Equals, msgTimestamp{
+		Stage: "foo to bar",
+		Time:  "1652697792.022312",
+	})
 }

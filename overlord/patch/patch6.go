@@ -20,6 +20,8 @@
 package patch
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -66,11 +68,11 @@ func patch6FlagsFromPatch4(old patch4Flags) patch6Flags {
 }
 
 // patch6:
-//  - move from a flags-are-ints world to a flags-are-struct-of-bools world
+//   - move from a flags-are-ints world to a flags-are-struct-of-bools world
 func patch6(st *state.State) error {
 	var oldStateMap map[string]*patch4SnapState
 	err := st.Get("snaps", &oldStateMap)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
 	if err != nil {
@@ -92,10 +94,10 @@ func patch6(st *state.State) error {
 	for _, task := range st.Tasks() {
 		var old patch4SnapSetup
 		err := task.Get("snap-setup", &old)
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			continue
 		}
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 

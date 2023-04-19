@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 BINDIR := /usr/bin
+LIBEXECDIR := /usr/lib
 DBUSDIR = /usr/share/dbus-1
 DBUSSERVICESDIR := ${DBUSDIR}/services
 
@@ -21,7 +22,10 @@ SERVICES_GENERATED := $(patsubst %.service.in,%.service,$(wildcard *.service.in)
 SERVICES := ${SERVICES_GENERATED}
 
 %.service: %.service.in
-	cat $< | sed 's:@bindir@:${BINDIR}:g' | cat > $@
+	cat $< | \
+		sed s:@libexecdir@:$(LIBEXECDIR):g | \
+		sed 's:@bindir@:${BINDIR}:g' | \
+		cat > $@
 
 all: ${SERVICES}
 

@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -351,7 +352,7 @@ func (s *patchSuite) testMaybeResetPatchLevel6(c *C, snapdVersion, lastVersion s
 	c.Assert(st.Get("patch-level", &level), IsNil)
 	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
 	c.Assert(st.Get("patch-sublevel-last-version", &ver), IsNil)
-	c.Assert(st.Get("patch-sublevel-reset", &lastRefresh), Equals, state.ErrNoState)
+	c.Assert(st.Get("patch-sublevel-reset", &lastRefresh), testutil.ErrorIs, state.ErrNoState)
 	c.Check(ver, Equals, "snapd-version-1")
 	c.Check(level, Equals, 6)
 	c.Check(sublevel, Equals, 2)

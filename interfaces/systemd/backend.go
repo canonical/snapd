@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -107,7 +106,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 		if !b.preseed {
 			// If we have new services here which aren't started yet the restart
 			// operation will start them.
-			if err := systemd.Restart(changed, 10*time.Second); err != nil {
+			if err := systemd.Restart(changed); err != nil {
 				logger.Noticef("cannot restart services %q: %s", changed, err)
 			}
 		}
@@ -140,7 +139,7 @@ func (b *Backend) Remove(snapName string) error {
 			logger.Noticef("cannot disable services %q: %s", removed, err)
 		}
 		if !b.preseed {
-			if err := systemd.Stop(removed, 5*time.Second); err != nil {
+			if err := systemd.Stop(removed); err != nil {
 				logger.Noticef("cannot stop services %q: %s", removed, err)
 			}
 		}
@@ -205,7 +204,7 @@ func (b *Backend) disableRemovedServices(systemd sysd.Systemd, dir, glob string,
 		}
 	}
 	if len(stopUnits) > 0 {
-		if err := systemd.Stop(stopUnits, 5*time.Second); err != nil {
+		if err := systemd.Stop(stopUnits); err != nil {
 			logger.Noticef("cannot stop services %q: %s", stopUnits, err)
 		}
 	}

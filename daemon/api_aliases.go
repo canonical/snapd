@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -80,10 +81,10 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 			// or just an alias
 			var snapst snapstate.SnapState
 			err := snapstate.Get(st, a.Snap, &snapst)
-			if err != nil && err != state.ErrNoState {
+			if err != nil && !errors.Is(err, state.ErrNoState) {
 				return InternalError("%v", err)
 			}
-			if err == state.ErrNoState { // not a snap
+			if errors.Is(err, state.ErrNoState) { // not a snap
 				a.Snap = ""
 			}
 		}

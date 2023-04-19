@@ -91,9 +91,10 @@ const sharedMemoryBaseDeclarationSlots = `
         - app
         - gadget
         - core
-      slot-snap-id:
-        - PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
-        - 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+    deny-installation:
+      slot-snap-type:
+        - app
+        - gadget
     deny-auto-connection: true
 `
 
@@ -220,7 +221,7 @@ func writeSharedMemoryPaths(w io.Writer, slot *interfaces.ConnectedSlot,
 	snippetType sharedMemorySnippetType) {
 	emitWritableRule := func(path string) {
 		// Ubuntu 14.04 uses /run/shm instead of the most common /dev/shm
-		fmt.Fprintf(w, "\"/{dev,run}/shm/%s\" rwk,\n", path)
+		fmt.Fprintf(w, "\"/{dev,run}/shm/%s\" mrwlk,\n", path)
 	}
 
 	// All checks were already done in BeforePrepare{Plug,Slot}

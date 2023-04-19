@@ -259,16 +259,6 @@ mknodat - - |S_IFSOCK -
 modify_ldt
 mprotect
 
-# LP: #1448184 - these aren't currently mediated by AppArmor. Deny for now
-#mq_getsetattr
-#mq_notify
-#mq_open
-#mq_timedreceive
-#mq_timedreceive_time64
-#mq_timedsend
-#mq_timedsend_time64
-#mq_unlink
-
 mremap
 msgctl
 msgget
@@ -454,6 +444,7 @@ socket AF_LOCAL
 socket AF_INET
 socket AF_INET6
 socket AF_IPX
+socket AF_XDP
 socket AF_X25
 socket AF_AX25
 socket AF_ATMPVC
@@ -705,14 +696,19 @@ setresuid32 u:root u:root -1
 // Template for privilege drop and chown operations. This intentionally does
 // not support all combinations of users or obscure combinations (we can add
 // combinations as users dictate). Eg, these are supported:
-//   chown foo:foo
-//   chown foo
-//   chgrp foo
+//
+//	chown foo:foo
+//	chown foo
+//	chgrp foo
+//
 // but these are not:
-//   chown foo:bar
-//   chown bar:foo
+//
+//	chown foo:bar
+//	chown bar:foo
+//
 // For now, users who want 'foo:bar' can do:
-//   chown foo ; chgrp bar
+//
+//	chown foo ; chgrp bar
 var privDropAndChownSyscalls = `
 # allow setgid to ###GROUP###
 setgid g:###GROUP###

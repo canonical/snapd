@@ -18,7 +18,7 @@ prepare: |
     snap install test-snapd-sh
 
 debug: |
-    grub-editenv list
+    grub-editenv list || true
 
 execute: |
     same=$(snap info pc-kernel | awk "

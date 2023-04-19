@@ -3,7 +3,9 @@ summary: Check that the browser-support interface works
 environment:
     ALLOW_SANDBOX/allow: true
     ALLOW_SANDBOX/disallow: false
-    OWNED_FILES: "/var/tmp/etilqs_test"
+    OWNED_FILES:
+        /var/tmp/etilqs_test
+        /home/test/.local/share/jupyter/foo
     READABLE_FILES:
         /run/udev/data/+platform:test
         /etc/opt/chrome/test
@@ -66,6 +68,11 @@ execute: |
 
     echo "And the snap is able to access owned files"
     for owned_file in $OWNED_FILES; do
+        parent_dir=$(dirname "$owned_file")
+        if [ ! -d "$parent_dir" ]; then
+            su -l -c "mkdir -p $parent_dir" test
+            echo "$parent_dir" >> created_dirs
+        fi
         echo "test" > "$owned_file"
         chown test:12345 "$owned_file"
         su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd cat $owned_file" test | MATCH test

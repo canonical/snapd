@@ -5,9 +5,6 @@ set -x
 # handle errors in general.
 set -e
 
-# shellcheck source=tests/lib/quiet.sh
-. "$TESTSLIB/quiet.sh"
-
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
@@ -70,13 +67,13 @@ build_deb(){
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
 
-    if os.query is-debian-sid; then
+    if os.query is-debian sid; then
         # ensure we really build without vendored packages
         rm -rf vendor/*/*
     fi
 
     unshare -n -- \
-            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
 }
@@ -119,18 +116,10 @@ build_rpm() {
 
     # Build our source package
     unshare -n -- \
-            rpmbuild --with testkeys -bs "$packaging_path/snapd.spec"
+            rpmbuild --with testkeys -bs "$rpm_dir/SOURCES/snapd.spec"
 
     # .. and we need all necessary build dependencies available
-    deps=()
-    IFS=$'\n'
-    for dep in $(rpm -qpR "$rpm_dir"/SRPMS/snapd-1337.*.src.rpm); do
-      if [[ "$dep" = rpmlib* ]]; then
-         continue
-      fi
-      deps+=("$dep")
-    done
-    distro_install_package "${deps[@]}"
+    install_snapd_rpm_dependencies "$rpm_dir"/SRPMS/snapd-1337.*.src.rpm
 
     # And now build our binary package
     unshare -n -- \
@@ -138,7 +127,7 @@ build_rpm() {
             --with testkeys \
             --nocheck \
             -ba \
-            "$packaging_path/snapd.spec"
+            "$rpm_dir/SOURCES/snapd.spec"
 
     find "$rpm_dir"/RPMS -name '*.rpm' -exec cp -v {} "${GOPATH%%:*}" \;
 }
@@ -203,12 +192,47 @@ download_from_published(){
     done
 }
 
+download_from_gce_bucket(){
+    curl -o "${SPREAD_SYSTEM}.tar" "https://storage.googleapis.com/snapd-spread-tests/snapd-tests/packages/${SPREAD_SYSTEM}.tar"
+    tar -xf "${SPREAD_SYSTEM}.tar" -C "$PROJECT_PATH"/..
+}
+
 install_dependencies_from_published(){
     local published_version="$1"
 
     for dep in snap-confine ubuntu-core-launcher; do
         dpkg -i "$GOHOME/${dep}_${published_version}_$(dpkg --print-architecture).deb"
     done
+}
+
+install_snapd_rpm_dependencies(){
+    SRC_PATH=$1
+    deps=()
+    IFS=$'\n'
+    for dep in $(rpm -qpR "$SRC_PATH"); do
+        if [[ "$dep" = rpmlib* ]]; then
+            continue
+        fi
+        deps+=("$dep")
+    done
+    distro_install_package "${deps[@]}"
+}
+
+install_dependencies_gce_bucket(){
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            cp "$PROJECT_PATH"/../*.deb "$GOHOME"
+            ;;
+        fedora-*|opensuse-*|amazon-*|centos-*)
+            install_snapd_rpm_dependencies "$PROJECT_PATH"/../snapd-1337.*.src.rpm
+            # sources are not needed to run the tests
+            rm "$PROJECT_PATH"/../snapd-1337.*.src.rpm
+            find "$PROJECT_PATH"/.. -name '*.rpm' -exec cp -v {} "${GOPATH%%:*}" \;
+            ;;
+        arch-*)
+            cp "$PROJECT_PATH"/../snapd*.pkg.tar.* "${GOPATH%%:*}"
+            ;;
+    esac
 }
 
 ###
@@ -308,7 +332,7 @@ prepare_project() {
     fi
 
     # debian-sid packaging is special
-    if os.query is-debian-sid; then
+    if os.query is-debian sid; then
         if [ ! -d packaging/debian-sid ]; then
             echo "no packaging/debian-sid/ directory "
             echo "broken test setup"
@@ -334,7 +358,7 @@ prepare_project() {
         tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git .
 
         # and build a source package - this will be used during the sbuild test
-        dpkg-buildpackage -S --no-sign
+        dpkg-buildpackage -S -uc -us
     fi
 
     # so is ubuntu-14.04
@@ -359,6 +383,14 @@ prepare_project() {
 
         quiet eatmydata apt-get install -y --install-recommends linux-generic-lts-xenial
         quiet eatmydata apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
+    fi
+
+    # ubuntu-16.04 is EOL so the updated go-1.18 is only available via
+    # the ppa:snappy-dev/image ppa for now. if needed the package could
+    # be copied from the PPA to the ESM archive.
+    if os.query is-xenial; then
+        quiet add-apt-repository ppa:snappy-dev/image
+        quiet eatmydata apt-get update
     fi
 
     # WORKAROUND for older postrm scripts that did not do
@@ -483,26 +515,28 @@ prepare_project() {
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
-            best_golang=golang-1.13
-            if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
-                echo "debian-9 tests disabled (no golang-1.13)"
-                exit 1
-            elif [[ "$SPREAD_SYSTEM" == debian-10-* ]]; then
-                # debian-10 needs backports for golang-1.13
-                echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list
+            best_golang=golang-1.18
+            if [[ "$SPREAD_SYSTEM" == debian-10-* ]]; then
+                # debian-10 needs backports for dh-golang
+		# TODO: drop when we drop debian-10 support fully
+		echo "deb http://deb.debian.org/debian buster-backports-sloppy main" >> /etc/apt/sources.list
+                # debian-10 needs backports for golang-1.18, there is no
+		# buser-backports anymore so we can only use a PPA
+                echo "deb https://ppa.launchpadcontent.net/snappy-dev/image/ubuntu xenial main" >> /etc/apt/sources.list
+		curl 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x78e1918602959b9c59103100f1831ddafc42e99d' | apt-key add -
                 apt update
                 # dh-golang must come from backports, gdebi/apt cannot
                 # resolve this on their own
-                apt install -y -t buster-backports dh-golang
-                # we need the specific golang-1.13 here, not golang-go
-                sed -i -e "s/golang-go (>=2:1.13).*,/${best_golang},/" ./debian/control
+                apt install -y -t buster-backports-sloppy dh-golang
+                sed -i -e "s/golang-go (>=2:1.18~).*,/${best_golang},/" ./debian/control
             fi
             # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-            gdebi --quiet --apt-line ./debian/control | quiet xargs -r eatmydata apt-get install -y
-            # The go 1.13 backport is not using alternatives or anything else so
+            gdebi --quiet --apt-line ./debian/control >deps.txt
+            quiet xargs -r eatmydata apt-get install -y < deps.txt
+            # The go 1.18 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
-                # the path filesystem path is: /usr/lib/go-1.13/bin
+                # the path filesystem path is: /usr/lib/go-1.18/bin
                 ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
             ;;
@@ -526,7 +560,7 @@ prepare_project() {
     # go mod runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
 
-    if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
+    if [ "$BUILD_SNAPD_FROM_CURRENT" = true ]; then
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 build_deb
@@ -542,9 +576,12 @@ prepare_project() {
                 exit 1
                 ;;
         esac
-    else
+    elif [ -n "$SNAPD_PUBLISHED_VERSION" ]; then
         download_from_published "$SNAPD_PUBLISHED_VERSION"
         install_dependencies_from_published "$SNAPD_PUBLISHED_VERSION"
+    else
+        download_from_gce_bucket
+        install_dependencies_gce_bucket
     fi
 
     # Build fakestore.
@@ -561,7 +598,7 @@ prepare_project() {
     go install ./tests/lib/systemd-escape
 
     # Build the tool for signing model assertions
-    go install ./tests/lib/gendeveloper1model
+    go install ./tests/lib/gendeveloper1
 
     # and the U20 create partitions wrapper
     go install ./tests/lib/uc20-create-partitions
@@ -606,6 +643,9 @@ prepare_suite_each() {
     touch "$RUNTIME_STATE_PATH/runs"
     touch "$RUNTIME_STATE_PATH/journalctl_cursor"
 
+    # Clean the dmesg log
+    dmesg --read-clear
+
     # Start fs monitor
     "$TESTSTOOLS"/fs-state start-monitor
 
@@ -638,12 +678,11 @@ prepare_suite_each() {
     fi
 
     if [[ "$variant" = full ]]; then
-        # shellcheck source=tests/lib/prepare.sh
-        . "$TESTSLIB"/prepare.sh
         if os.query is-classic; then
+            # shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
             prepare_each_classic
         fi
-        prepare_memory_limit_override
     fi
 
     case "$SPREAD_SYSTEM" in
@@ -691,7 +730,9 @@ restore_suite_each() {
     fi
 
     # In case of nested tests the next checks and changes are not needed
+    # Just is needed to cleanup the snaps installed
     if tests.nested is-nested; then
+        "$TESTSTOOLS"/snaps.cleanup
         return 0
     fi
 
@@ -730,9 +771,7 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     if [ "$REMOTE_STORE" = staging ]; then
-        # shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB"/store.sh
-        teardown_staging_store
+        "$TESTSTOOLS"/store-state teardown-staging-store
     fi
 
     if os.query is-classic; then

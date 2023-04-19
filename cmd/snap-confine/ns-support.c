@@ -273,34 +273,102 @@ static dev_t find_base_snap_device(const char *base_snap_name,
 	return base_snap_dev;
 }
 
-static bool should_discard_current_ns(dev_t base_snap_dev)
+static bool base_snap_device_changed(sc_mountinfo *mi, dev_t base_snap_dev)
 {
-	// Inspect the namespace and check if we should discard it.
-	//
-	// The namespace may become "stale" when the rootfs is not the same
-	// device we found above. This will happen whenever the base snap is
-	// refreshed since the namespace was first created.
 	sc_mountinfo_entry *mie;
+
+	/* We are looking for a mount entry matching the device ID of the base
+	 * snap. We need to take these cases into account:
+	 * 1) In the typical case, this will be mounted on the "/" directory.
+	 * 2) If the root directory is a tmpfs, the base snap would be mounted
+	 *    under /usr.
+	 * 3) If the snap has a layout that adds directories or files directly
+	 *    under /usr, a writable mimic will be created: /usr will be a tmpfs,
+	 *    with all of the original directory entries inside of /usr being
+	 *    bind-mounted onto mount-points created into the tmpfs.
+	 * In light of the above, we do ignore all tmpfs entries and accept that
+	 * our base snap might be mounted under /, /usr, or anywhere under /usr.
+	 */
+	for (mie = sc_first_mountinfo_entry(mi); mie != NULL;
+	     mie = sc_next_mountinfo_entry(mie)) {
+		if (sc_streq(mie->fs_type, "tmpfs")) {
+			continue;
+		}
+
+		if (base_snap_dev == makedev(mie->dev_major, mie->dev_minor) &&
+		    (sc_streq(mie->mount_dir, "/") ||
+		     sc_streq(mie->mount_dir, "/usr") ||
+		     sc_startswith(mie->mount_dir, "/usr/"))) {
+			debug("found base snap device %d:%d on %s",
+			      mie->dev_major, mie->dev_minor, mie->mount_dir);
+			return false;
+		}
+	}
+	debug("base snap device %d:%d not found in existing mount ns",
+	      major(base_snap_dev), minor(base_snap_dev));
+	return true;
+}
+
+static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs, int num_homedirs)
+{
+	if (num_homedirs == 0) {
+		return true;
+	}
+
+	/* We know that the number of homedirs is not going to be huge, so let's
+	 * just allocare this vector on the stack */
+	bool homedir_seen[num_homedirs];
+	for (int i = 0; i < num_homedirs; i++) {
+		homedir_seen[i] = false;
+	}
+
+	sc_mountinfo_entry *mie;
+	for (mie = sc_first_mountinfo_entry(mi); mie != NULL;
+	     mie = sc_next_mountinfo_entry(mie)) {
+		for (int i = 0; i < num_homedirs; i++) {
+			if (sc_streq(mie->mount_dir, homedirs[i])) {
+				homedir_seen[i] = true;
+			}
+		}
+	}
+
+	bool all_seen = true;
+	for (int i = 0; i < num_homedirs; i++) {
+		if (!homedir_seen[i]) {
+			debug("Homedir %s missing from namespace", homedirs[i]);
+			all_seen = false;
+			break;
+		}
+	}
+	return all_seen;
+}
+
+// Inspect the namespace and check if we should discard it.
+static bool should_discard_current_ns(const struct sc_invocation *inv,
+                                      dev_t base_snap_dev)
+{
 	sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 
 	mi = sc_parse_mountinfo(NULL);
 	if (mi == NULL) {
 		die("cannot parse mountinfo of the current process");
 	}
-	for (mie = sc_first_mountinfo_entry(mi); mie != NULL;
-	     mie = sc_next_mountinfo_entry(mie)) {
-		if (!sc_streq(mie->mount_dir, "/")) {
-			continue;
-		}
-		// NOTE: we want the initial rootfs just in case overmount
-		// was used to do something weird. The initial rootfs was
-		// set up by snap-confine and that is the one we want to
-		// measure.
-		debug("block device of the root filesystem is %d:%d",
-		      mie->dev_major, mie->dev_minor);
-		return base_snap_dev != makedev(mie->dev_major, mie->dev_minor);
+
+	// The namespace may become "stale" when the rootfs is not the same
+	// device we found above. This will happen whenever the base snap is
+	// refreshed since the namespace was first created.
+	if (base_snap_device_changed(mi, base_snap_dev)) {
+		return true;
 	}
-	die("cannot find mount entry of the root filesystem");
+
+	// Another reason for becoming stale is if the homedirs configuration has
+	// changed: so this code will check that all homedirs are mounted in the
+	// namespace.
+	if (!homedirs_are_mounted(mi, inv->homedirs, inv->num_homedirs)) {
+		return true;
+	}
+
+	return false;
 }
 
 enum sc_discard_vote {
@@ -453,7 +521,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// systemd. This makes us end up in a situation where the outer base
 		// snap will never match the rootfs inside the mount namespace.
 		if (inv->is_normal_mode
-		    && should_discard_current_ns(base_snap_dev)) {
+		    && should_discard_current_ns(inv, base_snap_dev)) {
 			value = SC_DISCARD_SHOULD;
 			value_str = "should";
 		}

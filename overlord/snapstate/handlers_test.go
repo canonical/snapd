@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -44,6 +45,7 @@ func (s *handlersSuite) SetUpTest(c *C) {
 	s.baseHandlerSuite.SetUpTest(c)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
+	s.AddCleanup(osutil.MockMountInfo(""))
 }
 
 func (s *handlersSuite) TestSetTaskSnapSetupFirstTask(c *C) {
@@ -226,14 +228,14 @@ func (s *handlersSuite) TestComputeMissingDisabledServices(c *C) {
 type testLinkParticipant struct {
 	callCount      int
 	instanceNames  []string
-	linkageChanged func(st *state.State, instanceName string) error
+	linkageChanged func(st *state.State, snapsup *snapstate.SnapSetup) error
 }
 
-func (lp *testLinkParticipant) SnapLinkageChanged(st *state.State, instanceName string) error {
+func (lp *testLinkParticipant) SnapLinkageChanged(st *state.State, snapsup *snapstate.SnapSetup) error {
 	lp.callCount++
-	lp.instanceNames = append(lp.instanceNames, instanceName)
+	lp.instanceNames = append(lp.instanceNames, snapsup.InstanceName())
 	if lp.linkageChanged != nil {
-		return lp.linkageChanged(st, instanceName)
+		return lp.linkageChanged(st, snapsup)
 	}
 	return nil
 }
@@ -249,16 +251,16 @@ func (s *handlersSuite) TestAddLinkParticipant(c *C) {
 	defer restore()
 
 	lp := &testLinkParticipant{
-		linkageChanged: func(st *state.State, instanceName string) error {
+		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			c.Assert(st, NotNil)
-			c.Check(instanceName, Equals, "snap-name")
+			c.Check(snapsup.InstanceName(), Equals, "snap-name")
 			return nil
 		},
 	}
 	snapstate.AddLinkSnapParticipant(lp)
 
 	t := s.state.NewTask("link-snap", "test")
-	snapstate.NotifyLinkParticipants(t, "snap-name")
+	snapstate.NotifyLinkParticipants(t, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "snap-name"}})
 	c.Assert(lp.callCount, Equals, 1)
 }
 
@@ -271,14 +273,14 @@ func (s *handlersSuite) TestNotifyLinkParticipantsErrorHandling(c *C) {
 	defer restore()
 
 	lp := &testLinkParticipant{
-		linkageChanged: func(st *state.State, instanceName string) error {
+		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			return fmt.Errorf("something failed")
 		},
 	}
 	snapstate.AddLinkSnapParticipant(lp)
 
 	t := s.state.NewTask("link-snap", "test")
-	snapstate.NotifyLinkParticipants(t, "snap-name")
+	snapstate.NotifyLinkParticipants(t, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "snap-name"}})
 	c.Assert(lp.callCount, Equals, 1)
 	logs := t.Log()
 	c.Assert(logs, HasLen, 1)

@@ -49,12 +49,18 @@ func handleUnsupported(db asserts.RODatabase) func(ref *asserts.Ref, unsupported
 	}
 }
 
-func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetching func(asserts.Fetcher) error) error {
+// doFetch fetches and save assertions. If a batch is passed then it's not committed.
+// If no batch is passed, one is created and committed.
+func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, batch *asserts.Batch, fetching func(asserts.Fetcher) error) error {
 	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
-
 	db := cachedDB(s)
 
-	b := asserts.NewBatch(handleUnsupported(db))
+	// don't commit batch if it was passed in since caller might want to do it later
+	var commitBatch bool
+	if batch == nil {
+		batch = asserts.NewBatch(handleUnsupported(db))
+		commitBatch = true
+	}
 
 	user, err := userFromUserID(s, userID)
 	if err != nil {
@@ -69,14 +75,17 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetc
 	}
 
 	s.Unlock()
-	err = b.Fetch(db, retrieve, fetching)
+	err = batch.Fetch(db, retrieve, fetching)
 	s.Lock()
 	if err != nil {
 		return err
 	}
 
 	// TODO: trigger w. caller a global validity check if a is revoked
-	// (but try to save as much possible still),
-	// or err is a check error
-	return b.CommitTo(db, nil)
+	// (but try to save as much possible still), or err is a check error
+	if commitBatch {
+		return batch.CommitTo(db, nil)
+	}
+
+	return nil
 }

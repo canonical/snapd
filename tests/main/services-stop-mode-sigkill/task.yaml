@@ -34,9 +34,7 @@ execute: |
     [ "$n" = "2" ]
 
     echo "When it is re-installed one process uses sigterm, the other sigterm-all"
-    # due to refresh-app-awareness we need to ignore running processes since the
-    # sigterm service keeps a sleep process running.
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-service --ignore-running
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     retry -n 20 --wait 1 sh -c 'test -f /var/snap/test-snapd-service/common/ready'
 
     echo "After reinstall the sigterm-all service and all children got killed"

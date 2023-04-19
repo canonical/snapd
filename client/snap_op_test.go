@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,6 +33,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var chanName = "achan"
@@ -48,6 +49,8 @@ var ops = []struct {
 	{(*client.Client).Enable, "enable"},
 	{(*client.Client).Disable, "disable"},
 	{(*client.Client).Switch, "switch"},
+	{(*client.Client).HoldRefreshes, "hold"},
+	{(*client.Client).UnholdRefreshes, "unhold"},
 }
 
 var multiOps = []struct {
@@ -57,6 +60,8 @@ var multiOps = []struct {
 	{(*client.Client).RefreshMany, "refresh"},
 	{(*client.Client).InstallMany, "install"},
 	{(*client.Client).RemoveMany, "remove"},
+	{(*client.Client).HoldRefreshesMany, "hold"},
+	{(*client.Client).UnholdRefreshesMany, "unhold"},
 }
 
 func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {
@@ -293,12 +298,12 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
-	c.Assert(string(body), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
-	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n.*")
+	c.Assert(string(body), testutil.Contains, "\r\nsnap-data\r\n")
+	c.Assert(string(body), testutil.Contains, "Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n")
 
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")
-	c.Assert(cs.req.Header.Get("Content-Type"), check.Matches, "multipart/form-data; boundary=.*")
+	c.Assert(cs.req.Header.Get("Content-Type"), testutil.Contains, "multipart/form-data; boundary=")
 	_, ok := cs.req.Context().Deadline()
 	c.Assert(ok, check.Equals, false)
 	c.Check(id, check.Equals, "66b3")
@@ -470,6 +475,37 @@ func (cs *clientSuite) TestClientOpInstallPathManyWithOptions(c *check.C) {
 	c.Check(string(body), check.Matches, `(?s).*Content-Disposition: form-data; name="devmode"\r\n\r\ntrue\r\n.*`)
 	c.Check(string(body), check.Matches, `(?s).*Content-Disposition: form-data; name="classic"\r\n\r\ntrue\r\n.*`)
 }
+
+func (cs *clientSuite) TestClientOpInstallPathManyWithQuotaGroup(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+
+	var paths []string
+	for _, name := range []string{"foo.snap", "bar.snap"} {
+		path := filepath.Join(c.MkDir(), name)
+		paths = append(paths, path)
+		c.Assert(ioutil.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
+	}
+
+	// Verify that the quota group option is serialized as a part of multipart form.
+	_, err := cs.cli.InstallPathMany(paths, &client.SnapOptions{
+		Dangerous:      true,
+		QuotaGroupName: "foo-group",
+	})
+
+	c.Assert(err, check.IsNil)
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(body), check.Matches, `(?s).*Content-Disposition: form-data; name="dangerous"\r\n\r\ntrue\r\n.*`)
+	c.Check(string(body), check.Matches, `(?s).*Content-Disposition: form-data; name="quota-group"\r\n\r\nfoo-group\r\n.*`)
+}
+
 func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
 	cs.status = 202
 	cs.rsp = `{
@@ -770,4 +806,74 @@ func (cs *clientSuite) TestClientOpDownloadResume(c *check.C) {
 	c.Check(string(content), check.Equals, cs.rsp)
 	// and we can close it
 	c.Check(rc.Close(), check.IsNil)
+}
+
+func (cs *clientSuite) TestClientRefreshWithValidationSets(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "12",
+		"status-code": 202,
+		"type": "async"
+	}`
+
+	sets := []string{"foo/bar=2", "foo/baz"}
+	chgID, err := cs.cli.RefreshMany(nil, &client.SnapOptions{
+		ValidationSets: sets,
+	})
+	c.Assert(err, check.IsNil)
+	c.Check(chgID, check.Equals, "12")
+
+	type req struct {
+		ValidationSets []string `json:"validation-sets"`
+		Action         string   `json:"action"`
+	}
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	var decodedBody req
+	err = json.Unmarshal(body, &decodedBody)
+	c.Assert(err, check.IsNil)
+
+	c.Check(decodedBody, check.DeepEquals, req{
+		ValidationSets: sets,
+		Action:         "refresh",
+	})
+	c.Check(cs.req.Header["Content-Type"], check.DeepEquals, []string{"application/json"})
+}
+
+func (cs *clientSuite) TestClientHoldMany(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "12",
+		"status-code": 202,
+		"type": "async"
+	}`
+
+	chgID, err := cs.cli.HoldRefreshesMany([]string{"foo", "bar"}, &client.SnapOptions{
+		Time:      "forever",
+		HoldLevel: "general",
+	})
+	c.Assert(err, check.IsNil)
+	c.Check(chgID, check.Equals, "12")
+
+	type req struct {
+		Action    string   `json:"action"`
+		Snaps     []string `json:"snaps"`
+		Time      string   `json:"time"`
+		HoldLevel string   `json:"hold-level"`
+	}
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	var decodedBody req
+	err = json.Unmarshal(body, &decodedBody)
+	c.Assert(err, check.IsNil)
+
+	c.Check(decodedBody, check.DeepEquals, req{
+		Action:    "hold",
+		Snaps:     []string{"foo", "bar"},
+		Time:      "forever",
+		HoldLevel: "general",
+	})
+	c.Check(cs.req.Header["Content-Type"], check.DeepEquals, []string{"application/json"})
 }

@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -50,13 +51,23 @@ type RebootInfo struct {
 	RebootBootloader bootloader.RebootBootloader
 }
 
+// NextBootContext carries additional significative information used when
+// setting the next boot.
+type NextBootContext struct {
+	// BootWithoutTry is sets if we don't want to use the "try" logic. This
+	// is useful if the next boot is part of an installation undo.
+	BootWithoutTry bool
+}
+
 // A BootParticipant handles the boot process details for a snap involved in it.
 type BootParticipant interface {
-	// SetNextBoot will schedule the snap to be used in the next boot. For
-	// base snaps it is up to the caller to select the right bootable base
-	// (from the model assertion). It is a noop for not relevant snaps.
-	// Otherwise it returns whether a reboot is required.
-	SetNextBoot() (rebootInfo RebootInfo, err error)
+	// SetNextBoot will schedule the snap to be used in the next
+	// boot. bootCtx contains context information that influences how the
+	// next boot is performed. For base snaps it is up to the caller to
+	// select the right bootable base (from the model assertion). It is a
+	// noop for not relevant snaps.  Otherwise it returns whether a reboot
+	// is required.
+	SetNextBoot(bootCtx NextBootContext) (rebootInfo RebootInfo, err error)
 
 	// Is this a trivial implementation of the interface?
 	IsTrivial() bool
@@ -77,7 +88,9 @@ type BootKernel interface {
 
 type trivial struct{}
 
-func (trivial) SetNextBoot() (RebootInfo, error)         { return RebootInfo{RebootRequired: false}, nil }
+func (trivial) SetNextBoot(bootCtx NextBootContext) (RebootInfo, error) {
+	return RebootInfo{RebootRequired: false}, nil
+}
 func (trivial) IsTrivial() bool                          { return true }
 func (trivial) RemoveKernelAssets() error                { return nil }
 func (trivial) ExtractKernelAssets(snap.Container) error { return nil }
@@ -129,8 +142,25 @@ func Kernel(s snap.PlaceInfo, t snap.Type, dev snap.Device) BootKernel {
 	return trivial{}
 }
 
+// SnapTypeParticipatesInBoot returns whether a snap type participates in the
+// boot for a given device.
+func SnapTypeParticipatesInBoot(t snap.Type, dev snap.Device) bool {
+	if dev.IsClassicBoot() {
+		return false
+	}
+	switch t {
+	case snap.TypeBase, snap.TypeOS:
+		// Bases are not boot participants for classic with modes
+		return !dev.Classic()
+	case snap.TypeKernel, snap.TypeGadget:
+		return true
+	}
+
+	return false
+}
+
 func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
-	if dev.Classic() {
+	if !SnapTypeParticipatesInBoot(t, dev) {
 		return false
 	}
 	// In ephemeral modes we never need to care about updating the boot
@@ -139,15 +169,12 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
 		return false
 	}
 
-	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase {
-		// note we don't currently have anything useful to do with gadgets
-		return false
-	}
-
 	switch t {
 	case snap.TypeKernel:
 		if s.InstanceName() != dev.Kernel() {
-			// a remodel might leave you in this state
+			// a remodel might leave behind installed a kernel that
+			// is not the device kernel anymore, ignore such a
+			// kernel by checking the name
 			return false
 		}
 	case snap.TypeBase, snap.TypeOS:
@@ -158,6 +185,16 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
 		if s.InstanceName() != base {
 			return false
 		}
+	case snap.TypeGadget:
+		// First condition: gadget is not a boot participant for UC16/18
+		// Second condition: a remodel might leave behind installed a
+		// gadget that is not the device gadget anymore, ignore such a
+		// gadget by checking the name
+		if !dev.HasModeenv() || s.InstanceName() != dev.Gadget() {
+			return false
+		}
+	default:
+		return false
 	}
 
 	return true
@@ -175,11 +212,12 @@ type bootState interface {
 	// curSnap instead if the error is only for the trySnap or tryingStatus.
 	revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error)
 
-	// setNext lazily implements setting the next boot target for
-	// the type's boot snap. actually committing the update
-	// is done via the returned bootStateUpdate's commit method.
-	// It will return information for rebooting if necessary.
-	setNext(s snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error)
+	// setNext lazily implements setting the next boot target for the type's
+	// boot snap. bootCtx specifies additional information bits we might
+	// need. Actually committing the update is done via the returned
+	// bootStateUpdate's commit method. It will return information for
+	// rebooting if necessary.
+	setNext(s snap.PlaceInfo, bootCtx NextBootContext) (rbi RebootInfo, u bootStateUpdate, err error)
 
 	// markSuccessful lazily implements marking the boot
 	// successful for the type's boot snap. The actual committing
@@ -202,18 +240,21 @@ func bootStateFor(typ snap.Type, dev snap.Device) (s bootState, err error) {
 	if !dev.RunMode() {
 		return nil, fmt.Errorf("internal error: no boot state handling for ephemeral modes")
 	}
+	if typ == snap.TypeOS {
+		typ = snap.TypeBase
+	}
 	newBootState := newBootState16
+	participantTypes := []snap.Type{snap.TypeBase, snap.TypeKernel}
 	if dev.HasModeenv() {
 		newBootState = newBootState20
+		participantTypes = append(participantTypes, snap.TypeGadget)
 	}
-	switch typ {
-	case snap.TypeOS, snap.TypeBase:
-		return newBootState(snap.TypeBase, dev), nil
-	case snap.TypeKernel:
-		return newBootState(snap.TypeKernel, dev), nil
-	default:
-		return nil, fmt.Errorf("internal error: no boot state handling for snap type %q", typ)
+	for _, partTyp := range participantTypes {
+		if typ == partTyp {
+			return newBootState(typ, dev), nil
+		}
 	}
+	return nil, fmt.Errorf("internal error: no boot state handling for snap type %q", typ)
 }
 
 // InUseFunc is a function to check if the snap is in use or not.
@@ -228,18 +269,11 @@ func fixedInUse(inUse bool) InUseFunc {
 // InUse returns a checker for whether a given name/revision is used in the
 // boot environment for snaps of the relevant snap type.
 func InUse(typ snap.Type, dev snap.Device) (InUseFunc, error) {
-	if dev.Classic() {
-		// no boot state on classic
-		return fixedInUse(false), nil
-	}
 	if !dev.RunMode() {
 		// ephemeral mode, block manipulations for now
 		return fixedInUse(true), nil
 	}
-	switch typ {
-	case snap.TypeKernel, snap.TypeBase, snap.TypeOS:
-		break
-	default:
+	if !SnapTypeParticipatesInBoot(typ, dev) || typ == snap.TypeGadget {
 		return fixedInUse(false), nil
 	}
 	cands := make([]snap.PlaceInfo, 0, 2)
@@ -304,26 +338,29 @@ type bootStateUpdate interface {
 // target for rollback.
 //
 // The states that a boot goes through for UC16/18 are the following:
-// - By default snap_mode is "" in which case the bootloader loads
-//   two squashfs'es denoted by variables snap_core and snap_kernel.
-// - On a refresh of core/kernel snapd will set snap_mode=try and
-//   will also set snap_try_{core,kernel} to the core/kernel that
-//   will be tried next.
-// - On reboot the bootloader will inspect the snap_mode and if the
-//   mode is set to "try" it will set "snap_mode=trying" and then
-//   try to boot the snap_try_{core,kernel}".
-// - On a successful boot snapd resets snap_mode to "" and copies
-//   snap_try_{core,kernel} to snap_{core,kernel}. The snap_try_*
-//   values are cleared afterwards.
-// - On a failing boot the bootloader will see snap_mode=trying which
-//   means snapd did not start successfully. In this case the bootloader
-//   will set snap_mode="" and the system will boot with the known good
-//   values from snap_{core,kernel}
+//   - By default snap_mode is "" in which case the bootloader loads
+//     two squashfs'es denoted by variables snap_core and snap_kernel.
+//   - On a refresh of core/kernel snapd will set snap_mode=try and
+//     will also set snap_try_{core,kernel} to the core/kernel that
+//     will be tried next.
+//   - On reboot the bootloader will inspect the snap_mode and if the
+//     mode is set to "try" it will set "snap_mode=trying" and then
+//     try to boot the snap_try_{core,kernel}".
+//   - On a successful boot snapd resets snap_mode to "" and copies
+//     snap_try_{core,kernel} to snap_{core,kernel}. The snap_try_*
+//     values are cleared afterwards.
+//   - On a failing boot the bootloader will see snap_mode=trying which
+//     means snapd did not start successfully. In this case the bootloader
+//     will set snap_mode="" and the system will boot with the known good
+//     values from snap_{core,kernel}
 func MarkBootSuccessful(dev snap.Device) error {
 	const errPrefix = "cannot mark boot successful: %s"
 
 	var u bootStateUpdate
 	for _, t := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
+		if !SnapTypeParticipatesInBoot(t, dev) {
+			continue
+		}
 		s, err := bootStateFor(t, dev)
 		if err != nil {
 			return err
@@ -393,10 +430,12 @@ func SetRecoveryBootSystemAndMode(dev snap.Device, systemLabel, mode string) err
 	return bl.SetBootVars(m)
 }
 
-// UpdateManagedBootConfigs updates managed boot config assets if those are
-// present for the ubuntu-boot bootloader. Returns true when an update was
-// carried out.
-func UpdateManagedBootConfigs(dev snap.Device, gadgetSnapOrDir string) (updated bool, err error) {
+// UpdateManagedBootConfigs updates managed boot config assets if
+// those are present for the ubuntu-boot bootloader. To do this it
+// needs information from the model, the gadget we are updating to,
+// and any additional kernel command line arguments coming from system
+// options. Returns true when an update was carried out.
+func UpdateManagedBootConfigs(dev snap.Device, gadgetSnapOrDir, cmdlineAppend string) (updated bool, err error) {
 	if !dev.HasModeenv() {
 		// only UC20 devices use managed boot config
 		return false, nil
@@ -404,10 +443,10 @@ func UpdateManagedBootConfigs(dev snap.Device, gadgetSnapOrDir string) (updated 
 	if !dev.RunMode() {
 		return false, fmt.Errorf("internal error: boot config can only be updated in run mode")
 	}
-	return updateManagedBootConfigForBootloader(dev, ModeRun, gadgetSnapOrDir)
+	return updateManagedBootConfigForBootloader(dev, ModeRun, gadgetSnapOrDir, cmdlineAppend)
 }
 
-func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir string) (updated bool, err error) {
+func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir, cmdlineAppend string) (updated bool, err error) {
 	if mode != ModeRun {
 		return false, fmt.Errorf("internal error: updating boot config of recovery bootloader is not supported yet")
 	}
@@ -425,18 +464,20 @@ func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir
 		return false, err
 	}
 	// boot config update can lead to a change of kernel command line
-	_, err = observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir)
+	_, err = observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir, cmdlineAppend)
 	if err != nil {
 		return false, err
 	}
 	return tbl.UpdateBootConfig()
 }
 
-// UpdateCommandLineForGadgetComponent handles the update of a gadget that
-// contributes to the kernel command line of the run system. Returns true when a
-// change in command line has been observed and a reboot is needed. The reboot,
-// if needed, should be requested at the the earliest possible occasion.
-func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir string) (needsReboot bool, err error) {
+// UpdateCommandLineForGadgetComponent handles the update of a gadget
+// that contributes to the kernel command line of the run system
+// (appending any additional kernel command line arguments coming from
+// system options). Returns true when a change in command line has
+// been observed and a reboot is needed. The reboot, if needed, should
+// be requested at the the earliest possible occasion.
+func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdlineAppend string) (needsReboot bool, err error) {
 	if !dev.HasModeenv() {
 		// only UC20 devices are supported
 		return false, fmt.Errorf("internal error: command line component cannot be updated on pre-UC20 devices")
@@ -454,8 +495,9 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir string
 		}
 		return false, err
 	}
+
 	// gadget update can lead to a change of kernel command line
-	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonGadget, gadgetSnapOrDir)
+	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonGadget, gadgetSnapOrDir, cmdlineAppend)
 	if err != nil {
 		return false, err
 	}
@@ -464,12 +506,26 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir string
 	}
 	// update the bootloader environment, maybe clearing the relevant
 	// variables
-	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir)
+	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineAppend)
 	if err != nil {
 		return false, fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
 	}
+	logger.Debugf("updating boot vars: %v", cmdlineVars)
 	if err := tbl.SetBootVars(cmdlineVars); err != nil {
 		return false, fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
 	}
 	return cmdlineChange, nil
+}
+
+// MarkFactoryResetComplete runs a series of steps in a run system that complete a
+// factory reset process.
+func MarkFactoryResetComplete(encrypted bool) error {
+	if !encrypted {
+		// there is nothing to do on an unencrypted system
+		return nil
+	}
+	if err := postFactoryResetCleanup(); err != nil {
+		return fmt.Errorf("cannot perform post factory reset boot cleanup: %v", err)
+	}
+	return nil
 }

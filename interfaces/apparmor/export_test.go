@@ -22,7 +22,9 @@ package apparmor
 import (
 	"os"
 
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -33,13 +35,16 @@ var (
 	DefaultOtherBaseTemplateRules   = defaultOtherBaseTemplateRules
 )
 
-// MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
-func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
-	old := isRootWritableOverlay
-	isRootWritableOverlay = new
-	return func() {
-		isRootWritableOverlay = old
-	}
+func MockLoadProfiles(f func(fnames []string, cacheDir string, flags apparmor_sandbox.AaParserFlags) error) (restore func()) {
+	r := testutil.Backup(&loadProfiles)
+	loadProfiles = f
+	return r
+}
+
+func MockUnloadProfiles(f func(fnames []string, cacheDir string) error) (restore func()) {
+	r := testutil.Backup(&unloadProfiles)
+	unloadProfiles = f
+	return r
 }
 
 // MockProcSelfExe mocks the location of /proc/self/exe read by setupSnapConfineGeneratedPolicy.

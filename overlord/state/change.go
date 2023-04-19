@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -38,7 +38,8 @@ const (
 	// to an aggregation of its tasks' statuses. See Change.Status for details.
 	DefaultStatus Status = 0
 
-	// HoldStatus means the task should not run, perhaps as a consequence of an error on another task.
+	// HoldStatus means the task should not run for the moment, perhaps as a
+	// consequence of an error on another task.
 	HoldStatus Status = 1
 
 	// DoStatus means the change or task is ready to start.
@@ -66,6 +67,12 @@ const (
 	// ErrorStatus means the change or task has errored out while running or being undone.
 	ErrorStatus Status = 9
 
+	// WaitStatus means the task was accomplished successfully but some
+	// external event needs to happen before work can progress further
+	// (e.g. on classic we require the user to reboot after a
+	// kernel snap update).
+	WaitStatus Status = 10
+
 	nStatuses = iota
 )
 
@@ -89,6 +96,8 @@ func (s Status) String() string {
 		return "Doing"
 	case DoneStatus:
 		return "Done"
+	case WaitStatus:
+		return "Wait"
 	case AbortStatus:
 		return "Abort"
 	case UndoStatus:
@@ -248,12 +257,19 @@ func (c *Change) Get(key string, value interface{}) error {
 	return c.data.get(key, value)
 }
 
+// Has returns whether the provided key has an associated value.
+func (c *Change) Has(key string) bool {
+	c.state.reading()
+	return c.data.has(key)
+}
+
 var statusOrder = []Status{
 	AbortStatus,
 	UndoingStatus,
 	UndoStatus,
 	DoingStatus,
 	DoStatus,
+	WaitStatus,
 	ErrorStatus,
 	UndoneStatus,
 	DoneStatus,
@@ -271,10 +287,9 @@ func init() {
 // of the individual tasks related to the change, according to the following
 // decision sequence:
 //
-//     - With at least one task in DoStatus, return DoStatus
-//     - With at least one task in ErrorStatus, return ErrorStatus
-//     - Otherwise, return DoneStatus
-//
+//   - With at least one task in DoStatus, return DoStatus
+//   - With at least one task in ErrorStatus, return ErrorStatus
+//   - Otherwise, return DoneStatus
 func (c *Change) Status() Status {
 	c.state.reading()
 	if c.status == DefaultStatus {
@@ -553,7 +568,7 @@ NextChangeTask:
 
 		var live bool
 		switch t.Status() {
-		case DoStatus, DoingStatus, DoneStatus:
+		case DoStatus, DoingStatus, WaitStatus, DoneStatus:
 			live = true
 		}
 
@@ -610,7 +625,7 @@ func (c *Change) abortTasks(tasks []*Task, abortedLanes map[int]bool, seenTasks 
 		case DoingStatus:
 			// In progress so stop and undo it.
 			t.SetStatus(AbortStatus)
-		case DoneStatus:
+		case WaitStatus, DoneStatus:
 			// Already done so undo it.
 			t.SetStatus(UndoStatus)
 		}

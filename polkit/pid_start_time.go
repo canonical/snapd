@@ -37,7 +37,8 @@ func getStartTimeForPid(pid int32) (uint64, error) {
 // getStartTimeForProcStatFile determines the start time from a process stat file
 //
 // The implementation is intended to be compatible with polkit:
-//    https://cgit.freedesktop.org/polkit/tree/src/polkit/polkitunixprocess.c
+//
+//	https://cgit.freedesktop.org/polkit/tree/src/polkit/polkitunixprocess.c
 func getStartTimeForProcStatFile(filename string) (uint64, error) {
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {

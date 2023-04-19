@@ -59,6 +59,7 @@ const (
 	loadNone loadOption = iota
 	loadDenied
 	loadOnBoot
+	loadDynamic
 )
 
 type ModuleInfo struct {
@@ -95,6 +96,8 @@ func enumerateModules(plug interfaces.Attrer, handleModule func(moduleInfo *Modu
 				load = loadDenied
 			case "on-boot":
 				load = loadOnBoot
+			case "dynamic":
+				load = loadDynamic
 			default:
 				return fmt.Errorf(`kernel-module-load "load" value is unrecognized: %q`, loadString)
 			}
@@ -139,7 +142,8 @@ func validateOptionsAttr(moduleInfo *ModuleInfo) error {
 		return errors.New(`kernel-module-load "options" attribute incompatible with "load: denied"`)
 	}
 
-	if !kernelModuleOptionsRegexp.MatchString(moduleInfo.options) {
+	dynamicLoadingWithAnyOptions := moduleInfo.load == loadDynamic && moduleInfo.options == "*"
+	if !dynamicLoadingWithAnyOptions && !kernelModuleOptionsRegexp.MatchString(moduleInfo.options) {
 		return fmt.Errorf(`kernel-module-load "options" attribute contains invalid characters: %q`, moduleInfo.options)
 	}
 
@@ -194,8 +198,8 @@ func (iface *kernelModuleLoadInterface) KModConnectedPlug(spec *kmod.Specificati
 				break
 			}
 			fallthrough
-		case loadNone:
-			if len(moduleInfo.options) > 0 {
+		case loadNone, loadDynamic:
+			if len(moduleInfo.options) > 0 && moduleInfo.options != "*" {
 				// module options might include filesystem paths. Beside
 				// supporting hardcoded paths, it makes sense to support also
 				// paths to files provided by the snap; for this reason, we

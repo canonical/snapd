@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/polkit"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/polkit/validate"
 	"github.com/snapcore/snapd/snap"
 )
@@ -58,18 +59,24 @@ dbus (send)
     path="/org/freedesktop/PolicyKit1/Authority"
     interface="org.freedesktop.PolicyKit1.Authority"
     member="{,Cancel}CheckAuthorization"
-    peer=(name="org.freedesktop.PolicyKit1", label=unconfined),
+    peer=(label=unconfined),
+dbus (send)
+    bus=system
+    path="/org/freedesktop/PolicyKit1/Authority"
+    interface="org.freedesktop.PolicyKit1.Authority"
+    member="RegisterAuthenticationAgentWithOptions"
+    peer=(label=unconfined),
 dbus (send)
     bus=system
     path="/org/freedesktop/PolicyKit1/Authority"
     interface="org.freedesktop.DBus.Properties"
-    peer=(name="org.freedesktop.PolicyKit1", label=unconfined),
+    peer=(label=unconfined),
 dbus (send)
     bus=system
     path="/org/freedesktop/PolicyKit1/Authority"
     interface="org.freedesktop.DBus.Introspectable"
     member="Introspect"
-    peer=(name="org.freedesktop.PolicyKit1", label=unconfined),
+    peer=(label=unconfined),
 `
 
 type polkitInterface struct {
@@ -146,7 +153,7 @@ func init() {
 		commonInterface{
 			name:                  "polkit",
 			summary:               polkitSummary,
-			implicitOnCore:        false,
+			implicitOnCore:        osutil.IsExecutable("/usr/libexec/polkitd"),
 			implicitOnClassic:     true,
 			baseDeclarationPlugs:  polkitBaseDeclarationPlugs,
 			baseDeclarationSlots:  polkitBaseDeclarationSlots,

@@ -14,6 +14,9 @@ details: |
 systems:
     # TODO: change the bases such that we can have 32-bit support again
     - -ubuntu-18.04-32
+    # TODO: make the snap test-snapd-cups-consumer work well for arm64
+    # currently producing error: 'nc: unix connect failed: No such file or directory'
+    - -ubuntu-2*-arm-64
 
 prepare: |
     # install the test snaps

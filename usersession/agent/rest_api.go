@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/systemd"
-	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/usersession/client"
 )
 
@@ -44,6 +43,7 @@ var restApi = []*Command{
 	sessionInfoCmd,
 	serviceControlCmd,
 	pendingRefreshNotificationCmd,
+	finishRefreshNotificationCmd,
 }
 
 var (
@@ -85,11 +85,6 @@ type serviceInstruction struct {
 	Services []string `json:"services"`
 }
 
-var (
-	stopTimeout = time.Duration(timeout.DefaultTimeout)
-	killWait    = 5 * time.Second
-)
-
 func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	// Refuse to start non-snap services
 	for _, service := range inst.Services {
@@ -111,7 +106,7 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	stopErrors := make(map[string]string)
 	if len(startErrors) != 0 {
 		for _, service := range started {
-			if err := sysd.Stop([]string{service}, stopTimeout); err != nil {
+			if err := sysd.Stop([]string{service}); err != nil {
 				stopErrors[service] = err.Error()
 			}
 		}
@@ -143,7 +138,7 @@ func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
 
 	stopErrors := make(map[string]string)
 	for _, service := range inst.Services {
-		if err := sysd.Stop([]string{service}, stopTimeout); err != nil {
+		if err := sysd.Stop([]string{service}); err != nil {
 			stopErrors[service] = err.Error()
 		}
 	}
@@ -233,13 +228,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	decoder := json.NewDecoder(r.Body)
 
 	// pendingSnapRefreshInfo holds information about pending snap refresh provided by snapd.
-	type pendingSnapRefreshInfo struct {
-		InstanceName        string        `json:"instance-name"`
-		TimeRemaining       time.Duration `json:"time-remaining,omitempty"`
-		BusyAppName         string        `json:"busy-app-name,omitempty"`
-		BusyAppDesktopEntry string        `json:"busy-app-desktop-entry,omitempty"`
-	}
-	var refreshInfo pendingSnapRefreshInfo
+	var refreshInfo client.PendingSnapRefreshInfo
 	if err := decoder.Decode(&refreshInfo); err != nil {
 		return BadRequest("cannot decode request body into pending snap refresh info: %v", err)
 	}
@@ -261,7 +250,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	var body, icon string
 	var hints []notification.Hint
 
-	plzClose := i18n.G("Close the app to avoid disruptions")
+	plzClose := i18n.G("Close the app to update now")
 	if daysLeft := int(refreshInfo.TimeRemaining.Truncate(time.Hour).Hours() / 24); daysLeft > 0 {
 		urgencyLevel = notification.LowUrgency
 		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
@@ -335,12 +324,24 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
-	if err := c.s.notificationMgr.CloseNotification(notification.ID(finishRefresh.InstanceName)); err != nil {
+	summary := fmt.Sprintf(i18n.G("%q snap has been refreshed"), finishRefresh.InstanceName)
+	body := i18n.G("Now available to launch")
+	hints := []notification.Hint{
+		notification.WithDesktopEntry("io.snapcraft.SessionAgent"),
+		notification.WithUrgency(notification.LowUrgency),
+	}
+
+	msg := &notification.Message{
+		Title: summary,
+		Body:  body,
+		Hints: hints,
+	}
+	if err := c.s.notificationMgr.SendNotification(notification.ID(finishRefresh.InstanceName), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,
 			Result: &errorResult{
-				Message: fmt.Sprintf("cannot send close notification message: %v", err),
+				Message: fmt.Sprintf("cannot send notification message: %v", err),
 			},
 		})
 	}

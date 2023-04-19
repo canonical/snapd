@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func target(at *snapstate.AliasTarget) string {
@@ -151,7 +152,6 @@ func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
 			"alias2": "cmd2",
 			"alias4": "cmd4",
 			"alias5": "cmd5",
-			"alias6": "cmd6b",
 		}, nil
 	}
 
@@ -178,11 +178,10 @@ func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
 	c.Check(changed, HasLen, 1)
 	which := changed["alias-snap"]
 	sort.Strings(which)
-	c.Check(which, DeepEquals, []string{"alias4", "alias5", "alias6"})
+	c.Check(which, DeepEquals, []string{"alias4", "alias5"})
 
-	c.Check(dropped, DeepEquals, map[string][]string{
-		"alias-snap": {"alias3"},
-	})
+	c.Check(dropped, HasLen, 1)
+	c.Check(dropped["alias-snap"], testutil.DeepUnsortedMatches, []string{"alias3", "alias6"})
 }
 
 func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
@@ -195,6 +194,11 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 				"alias2": "cmd2",
 				"alias4": "cmd4",
 				"alias5": "cmd5",
+			}, nil
+		}
+		if info.InstanceName() == "alias-snap-apps-go-away" {
+			return map[string]string{
+				"alias-remains": "cmd1",
 			}, nil
 		}
 		return nil, nil
@@ -217,6 +221,17 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 		Current: snap.R(2),
 		Active:  true,
 	})
+	snapstate.Set(s.state, "alias-snap-apps-go-away", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap-apps-go-away", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+		Active:  true,
+		Aliases: map[string]*snapstate.AliasTarget{
+			"alias-remains":   {Auto: "cmd1"},
+			"alias-goes-away": {Auto: "cmd2"},
+		},
+	})
 
 	changed, dropped, err := snapstate.AutoAliasesDelta(s.state, nil)
 	c.Assert(err, IsNil)
@@ -226,12 +241,15 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 	sort.Strings(which)
 	c.Check(which, DeepEquals, []string{"alias1", "alias2", "alias4", "alias5"})
 
-	c.Check(dropped, HasLen, 0)
+	c.Check(dropped, DeepEquals, map[string][]string{
+		"alias-snap-apps-go-away": {"alias-goes-away"},
+	})
 
 	c.Check(seen, DeepEquals, map[string]bool{
-		"core":       true,
-		"alias-snap": true,
-		"other-snap": true,
+		"core":                    true,
+		"alias-snap":              true,
+		"other-snap":              true,
+		"alias-snap-apps-go-away": true,
 	})
 }
 
@@ -279,7 +297,6 @@ func (s *snapmgrTestSuite) TestRefreshAliases(c *C) {
 			"alias1": "cmd1",
 			"alias2": "cmd2",
 			"alias4": "cmd4",
-			"alias5": "cmd5",
 		}, nil
 	}
 

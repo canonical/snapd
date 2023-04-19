@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -67,7 +66,7 @@ func validTmpfsSize(sizeStr string) error {
 	return nil
 }
 
-func validateTmpfsSettings(tr config.ConfGetter) error {
+func validateTmpfsSettings(tr ConfGetter) error {
 	tmpfsSz, err := coreCfg(tr, "tmp.size")
 	if err != nil {
 		return err
@@ -76,7 +75,7 @@ func validateTmpfsSettings(tr config.ConfGetter) error {
 	return validTmpfsSize(tmpfsSz)
 }
 
-func handleTmpfsConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleTmpfsConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	tmpfsSz, err := coreCfg(tr, "tmp.size")
 	if err != nil {
 		return err

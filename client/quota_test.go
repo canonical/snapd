@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -32,8 +33,13 @@ import (
 )
 
 func (cs *clientSuite) TestCreateQuotaGroupInvalidName(c *check.C) {
-	_, err := cs.cli.EnsureQuota("", "", nil, nil)
+	_, err := cs.cli.EnsureQuota("", nil)
 	c.Check(err, check.ErrorMatches, `cannot create or update quota group without a name`)
+}
+
+func (cs *clientSuite) TestCreateQuotaGroupInvalidOptions(c *check.C) {
+	_, err := cs.cli.EnsureQuota("foo", nil)
+	c.Check(err, check.ErrorMatches, `cannot create or update quota group without any options`)
 }
 
 func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
@@ -54,9 +60,21 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 			CPUs: []int{0},
 		},
 		Threads: 32,
+		Journal: &client.QuotaJournalValues{
+			Size: quantity.SizeMiB,
+			QuotaJournalRate: &client.QuotaJournalRate{
+				RateCount:  150,
+				RatePeriod: time.Minute,
+			},
+		},
 	}
 
-	chgID, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a", "snap-b"}, quotaValues)
+	chgID, err := cs.cli.EnsureQuota("foo", &client.EnsureQuotaOptions{
+		Parent:      "bar",
+		Snaps:       []string{"snap-a", "snap-b"},
+		Services:    []string{"snap-a.svc1", "snap-b.svc1"},
+		Constraints: quotaValues,
+	})
 	c.Assert(err, check.IsNil)
 	c.Assert(chgID, check.Equals, "42")
 	c.Check(cs.req.Method, check.Equals, "POST")
@@ -71,6 +89,7 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 		"group-name": "foo",
 		"parent":     "bar",
 		"snaps":      []interface{}{"snap-a", "snap-b"},
+		"services":   []interface{}{"snap-a.svc1", "snap-b.svc1"},
 		"constraints": map[string]interface{}{
 			"memory": json.Number("1001"),
 			"cpu": map[string]interface{}{
@@ -81,6 +100,11 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 				"cpus": []interface{}{json.Number("0")},
 			},
 			"threads": json.Number("32"),
+			"journal": map[string]interface{}{
+				"size":        json.Number("1048576"),
+				"rate-count":  json.Number("150"),
+				"rate-period": json.Number("60000000000"),
+			},
 		},
 	})
 }
@@ -88,7 +112,11 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 func (cs *clientSuite) TestEnsureQuotaGroupError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
-	_, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a"}, &client.QuotaValues{Memory: quantity.Size(1)})
+	_, err := cs.cli.EnsureQuota("foo", &client.EnsureQuotaOptions{
+		Parent:      "bar",
+		Snaps:       []string{"snap-a"},
+		Constraints: &client.QuotaValues{Memory: quantity.Size(1)},
+	})
 	c.Check(err, check.ErrorMatches, `server error: "Internal Server Error"`)
 }
 
@@ -106,6 +134,7 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 			"parent":"bar",
 			"subgroups":["foo-subgrp"],
 			"snaps":["snap-a"],
+			"services":["snap-a.svc1"],
 			"constraints": { "memory": 999 },
 			"current": { "memory": 450 }
 		}
@@ -122,6 +151,7 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 		Constraints: &client.QuotaValues{Memory: quantity.Size(999)},
 		Current:     &client.QuotaValues{Memory: quantity.Size(450)},
 		Snaps:       []string{"snap-a"},
+		Services:    []string{"snap-a.svc1"},
 	})
 }
 

@@ -128,7 +128,14 @@ sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile)
 		int aa_change_onexec_errno = errno;
 		if (secure_getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL) {
 			errno = aa_change_onexec_errno;
-			die("cannot change profile for the next exec call");
+			if (errno == ENOENT) {
+				fprintf(stderr, "missing profile %s.\n"
+				        "Please make sure that the snapd.apparmor service is enabled and started\n",
+				        profile);
+				exit(1);
+			} else {
+				die("cannot change profile for the next exec call");
+			}
 		}
 	}
 #endif				// ifdef HAVE_APPARMOR

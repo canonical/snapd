@@ -50,6 +50,7 @@ func (*featureSuite) TestName(c *C) {
 	c.Check(features.UserDaemons.String(), Equals, "user-daemons")
 	c.Check(features.DbusActivation.String(), Equals, "dbus-activation")
 	c.Check(features.HiddenSnapDataHomeDir.String(), Equals, "hidden-snap-folder")
+	c.Check(features.MoveSnapHomeDir.String(), Equals, "move-snap-home-dir")
 	c.Check(features.CheckDiskSpaceInstall.String(), Equals, "check-disk-space-install")
 	c.Check(features.CheckDiskSpaceRefresh.String(), Equals, "check-disk-space-refresh")
 	c.Check(features.CheckDiskSpaceRemove.String(), Equals, "check-disk-space-remove")
@@ -79,6 +80,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	c.Check(features.UserDaemons.IsExported(), Equals, false)
 	c.Check(features.DbusActivation.IsExported(), Equals, false)
 	c.Check(features.HiddenSnapDataHomeDir.IsExported(), Equals, true)
+	c.Check(features.MoveSnapHomeDir.IsExported(), Equals, true)
 	c.Check(features.CheckDiskSpaceInstall.IsExported(), Equals, false)
 	c.Check(features.CheckDiskSpaceRefresh.IsExported(), Equals, false)
 	c.Check(features.CheckDiskSpaceRemove.IsExported(), Equals, false)
@@ -116,6 +118,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	c.Check(features.UserDaemons.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.DbusActivation.IsEnabledWhenUnset(), Equals, true)
 	c.Check(features.HiddenSnapDataHomeDir.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.MoveSnapHomeDir.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.CheckDiskSpaceInstall.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.CheckDiskSpaceRefresh.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.CheckDiskSpaceRemove.IsEnabledWhenUnset(), Equals, false)
@@ -128,6 +131,7 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.ParallelInstances.ControlFile(), Equals, "/var/lib/snapd/features/parallel-instances")
 	c.Check(features.RobustMountNamespaceUpdates.ControlFile(), Equals, "/var/lib/snapd/features/robust-mount-namespace-updates")
 	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")
+	c.Check(features.MoveSnapHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/move-snap-home-dir")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)
 }

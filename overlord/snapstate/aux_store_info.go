@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,8 +35,10 @@ import (
 // returned for locally-installed snaps
 type auxStoreInfo struct {
 	Media    snap.MediaInfos `json:"media,omitempty"`
-	Website  string          `json:"website,omitempty"`
 	StoreURL string          `json:"store-url,omitempty"`
+	// XXX this is now included in snap.SideInfo.EditedLinks but
+	// continue having this to support old snapd
+	Website string `json:"website,omitempty"`
 }
 
 func auxStoreInfoFilename(snapID string) string {
@@ -67,7 +69,10 @@ func retrieveAuxStoreInfo(info *snap.Info) error {
 	}
 
 	info.Media = aux.Media
-	info.Website = aux.Website
+	if len(info.EditedLinks) == 0 {
+		// XXX we set this to use old snapd info if it's all we have
+		info.LegacyWebsite = aux.Website
+	}
 	info.StoreURL = aux.StoreURL
 
 	return nil

@@ -48,6 +48,8 @@ var (
 	FindIconFiles = findIconFiles
 )
 
+type GenerateSnapServicesOptions = generateSnapServicesOptions
+
 func MockKillWait(wait time.Duration) (restore func()) {
 	oldKillWait := killWait
 	killWait = wait

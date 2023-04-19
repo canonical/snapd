@@ -20,11 +20,13 @@
 package metautil_test
 
 import (
+	"errors"
 	"reflect"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/metautil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type conversionssSuite struct{}
@@ -139,4 +141,9 @@ func (s *conversionssSuite) TestSetValueFromAttributeUnhappy(c *C) {
 		err := metautil.SetValueFromAttribute(td.snapName, td.ifaceName, td.attrName, td.inputValue, td.outputValue)
 		c.Check(err, ErrorMatches, td.expectedError, Commentf("input value %v", td.inputValue))
 	}
+}
+
+func (s *conversionssSuite) TestAttributeNotCompatibleIsTypeCheck(c *C) {
+	c.Assert(metautil.AttributeNotCompatibleError{}, testutil.ErrorIs, metautil.AttributeNotCompatibleError{})
+	c.Assert(metautil.AttributeNotCompatibleError{}, Not(testutil.ErrorIs), errors.New(""))
 }

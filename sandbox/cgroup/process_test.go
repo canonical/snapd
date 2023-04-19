@@ -64,6 +64,8 @@ func (s *cgroupSuite) TestV1SnapNameFromPidEmptyName(c *C) {
 }
 
 func (s *cgroupSuite) TestSnapNameFromPidTracking(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
 	pid := s.mockPidCgroup(c, "1:name=systemd:/user.slice/user-1000.slice/user@1000.service/apps.slice/snap.foo.bar.00000-1111-3333.service\n")
 	name, err := cgroup.SnapNameFromPid(pid)
 	c.Assert(err, IsNil)

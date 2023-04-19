@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package internal
 
 // AuxInfo20 is an entry in the per-snap-id map that is aux-json
 type AuxInfo20 struct {
-	Private bool   `json:"private,omitempty"`
-	Contact string `json:"contact,omitempty"`
+	Private bool                `json:"private,omitempty"`
+	Links   map[string][]string `json:"links,omitempty"`
+	Contact string              `json:"contact,omitempty"`
 }

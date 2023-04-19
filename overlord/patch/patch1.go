@@ -20,6 +20,7 @@
 package patch
 
 import (
+	"errors"
 	"io/ioutil"
 	"path/filepath"
 
@@ -89,7 +90,7 @@ func patch1(s *state.State) error {
 	var stateMap map[string]*patch1SnapState
 
 	err := s.Get("snaps", &stateMap)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
 	if err != nil {

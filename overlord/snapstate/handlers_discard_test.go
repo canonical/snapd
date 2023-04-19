@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type discardSnapSuite struct {
@@ -129,7 +130,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapInQuotaGroup(c *C) {
 	defer s.state.Unlock()
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
@@ -161,7 +162,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 	defer s.state.Unlock()
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {

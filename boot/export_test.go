@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -63,7 +64,7 @@ var (
 	NewTrustedAssetsCache = newTrustedAssetsCache
 
 	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
-	SealKeyToModeenv                = sealKeyToModeenv
+	SealKeyToModeenv                = sealKeyToModeenvImpl
 	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
 	SealKeyModelParams              = sealKeyModelParams
@@ -103,6 +104,12 @@ func (o *TrustedAssetsInstallObserver) CurrentSaveEncryptionKey() keys.Encryptio
 	return o.saveEncryptionKey
 }
 
+func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error) (restore func()) {
+	restore = testutil.Backup(&secbootProvisionTPM)
+	secbootProvisionTPM = f
+	return restore
+}
+
 func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error) (restore func()) {
 	old := secbootSealKeys
 	secbootSealKeys = f
@@ -125,6 +132,18 @@ func MockSeedReadSystemEssential(f func(seedDir, label string, essentialTypes []
 	return func() {
 		seedReadSystemEssential = old
 	}
+}
+
+func MockSecbootPCRHandleOfSealedKey(f func(p string) (uint32, error)) (restore func()) {
+	restore = testutil.Backup(&secbootPCRHandleOfSealedKey)
+	secbootPCRHandleOfSealedKey = f
+	return restore
+}
+
+func MockSecbootReleasePCRResourceHandles(f func(handles ...uint32) error) (restore func()) {
+	restore = testutil.Backup(&secbootReleasePCRResourceHandles)
+	secbootReleasePCRResourceHandles = f
+	return restore
 }
 
 func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash string, recovery bool) {
@@ -206,7 +225,7 @@ func MockRebootArgsPath(argsPath string) (restore func()) {
 	return func() { rebootArgsPath = oldRebootArgsPath }
 }
 
-func MockHasFDESetupHook(f func() (bool, error)) (restore func()) {
+func MockHasFDESetupHook(f func(*snap.Info) (bool, error)) (restore func()) {
 	oldHasFDESetupHook := HasFDESetupHook
 	HasFDESetupHook = f
 	return func() {

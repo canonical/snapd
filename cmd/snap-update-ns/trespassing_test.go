@@ -347,6 +347,35 @@ func (s *trespassingSuite) TestRestrictionsForVarSnap(c *C) {
 	rs.Lift()
 }
 
+func (s *trespassingSuite) TestRestrictionsForRunSystemd(c *C) {
+	a := &update.Assumptions{}
+	a.AddUnrestrictedPaths("/run/systemd")
+
+	// There should be no restrictions under /run/systemd
+	rs := a.RestrictionsFor("/run/systemd/journal")
+	c.Assert(rs, IsNil)
+	rs = a.RestrictionsFor("/run/systemd/journal.namespace")
+	c.Assert(rs, IsNil)
+
+	// however we should still disallow anything else under /run
+	rs = a.RestrictionsFor("/run/test.txt")
+	c.Assert(rs, NotNil)
+
+	fd, err := s.sys.Open("/run", syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
+
+	err = rs.Check(fd, "/run")
+	c.Assert(err, ErrorMatches, `cannot write to "/run/test.txt" because it would affect the host in "/run"`)
+	c.Assert(err.(*update.TrespassingError).ViolatedPath, Equals, "/run")
+	c.Assert(err.(*update.TrespassingError).DesiredPath, Equals, "/run/test.txt")
+
+	rs.Lift()
+	c.Assert(rs.Check(fd, "/run"), IsNil)
+}
+
 func (s *trespassingSuite) TestRestrictionsForRootfsEntries(c *C) {
 	a := &update.Assumptions{}
 

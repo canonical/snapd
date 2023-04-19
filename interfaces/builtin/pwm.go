@@ -137,8 +137,6 @@ func init() {
 	registerIface(&pwmInterface{commonInterface{
 		name:                 "pwm",
 		summary:              pwmSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
 		baseDeclarationSlots: pwmBaseDeclarationSlots,
 	}})
 }

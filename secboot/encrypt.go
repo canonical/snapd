@@ -23,7 +23,21 @@ package secboot
 type EncryptionType string
 
 const (
-	EncryptionTypeNone            EncryptionType = ""
-	EncryptionTypeLUKS            EncryptionType = "cryptsetup"
-	EncryptionTypeDeviceSetupHook EncryptionType = "device-setup-hook"
+	EncryptionTypeNone        EncryptionType = ""
+	EncryptionTypeLUKS        EncryptionType = "cryptsetup"
+	EncryptionTypeLUKSWithICE EncryptionType = "cryptsetup-with-inline-crypto-engine"
 )
+
+// TODO:ICE: all EncryptionTypes are LUKS based now so this could be removed?
+func (et EncryptionType) IsLUKS() bool {
+	return et == EncryptionTypeLUKS || et == EncryptionTypeLUKSWithICE
+}
+
+type RecoveryKeyDevice struct {
+	// Mountpoint of the device
+	Mountpoint string
+	// AuthorizingKeyFile is the path to the key to authorize the
+	// operation, if empty, then it is assumed that the authorization key is
+	// present in the user session keyring
+	AuthorizingKeyFile string
+}

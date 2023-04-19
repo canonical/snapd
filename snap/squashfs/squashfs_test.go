@@ -559,6 +559,34 @@ EOF
 	c.Check(err.Error(), Equals, `cannot extract "*" to "some-output-dir": failed: "Failed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols, skipping", "Write on output file failed because No space left on device", "writer: failed to write data block 0", "Failed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols.bin, skipping", and 15 more`)
 }
 
+func (s *SquashfsTestSuite) TestUnpackDetectsFailuresViaExitCode(c *C) {
+	mockUnsquashfs := testutil.MockCommand(c, "unsquashfs", `
+cat <<EOF
+Parallel unsquashfs: Using 16 processors
+10522 inodes (11171 blocks) to write
+EOF
+
+cat >&2 <<EOF
+Write on output file failed because No space left on device
+
+FATAL ERROR: writer: failed to write file squashfs-root/etc/modprobe.d/some.conf
+EOF
+exit 1
+`)
+	defer mockUnsquashfs.Restore()
+
+	data := "mock kernel snap"
+	sn := makeSnap(c, "", data)
+	err := sn.Unpack("*", "some-output-dir")
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, `cannot extract "*" to "some-output-dir": 
+-----
+Write on output file failed because No space left on device
+
+FATAL ERROR: writer: failed to write file squashfs-root/etc/modprobe.d/some.conf
+-----`)
+}
+
 func (s *SquashfsTestSuite) TestBuildAll(c *C) {
 	// please keep TestBuildUsesExcludes in sync with this one so it makes sense.
 	buildDir := c.MkDir()

@@ -56,6 +56,9 @@ network netlink raw,
 # that are assigned to the snap, but we are not there yet.
 /sys/bus/usb/devices/** r,
 
+# used since MM 1.18
+network netlink dgram,
+
 # Access to modem ports
 # FIXME snapd should be more dynamic to avoid conflicts between snaps trying to
 # access same ports.
@@ -65,6 +68,8 @@ network netlink raw,
 
 # For ioctl TIOCSSERIAL ASYNC_CLOSING_WAIT_NONE
 capability sys_admin,
+# used since MM 1.18
+capability net_admin,
 
 # For {mbim,qmi}-proxy
 unix (bind, listen) type=stream addr="@{mbim,qmi}-proxy",
@@ -246,19 +251,18 @@ bind
 listen
 # libgudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+# used since MM 1.18
+socket AF_NETLINK - NETLINK_ROUTE
 `
 
 const modemManagerPermanentSlotDBus = `
-<policy user="root">
-    <allow own="org.freedesktop.ModemManager1"/>
-    <allow send_destination="org.freedesktop.ModemManager1"/>
-</policy>
-`
-
-const modemManagerConnectedPlugDBus = `
 <policy context="default">
     <deny own="org.freedesktop.ModemManager1"/>
     <deny send_destination="org.freedesktop.ModemManager1"/>
+</policy>
+<policy user="root">
+    <allow own="org.freedesktop.ModemManager1"/>
+    <allow send_destination="org.freedesktop.ModemManager1"/>
 </policy>
 `
 
@@ -1354,11 +1358,6 @@ func (iface *modemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 		// Let confined apps access unconfined ofono on classic
 		spec.AddSnippet(modemManagerConnectedPlugAppArmorClassic)
 	}
-	return nil
-}
-
-func (iface *modemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(modemManagerConnectedPlugDBus)
 	return nil
 }
 

@@ -5,8 +5,6 @@ summary: |
 execute: |
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/names.sh
-    . "$TESTSLIB"/names.sh
 
     echo "Wait for first boot to be done"
     wait_for_first_boot_change
@@ -25,6 +23,8 @@ execute: |
     echo "Check we have a serial"
     snap model --serial --assertion | MATCH "authority-id: canonical"
     snap model --serial --assertion | MATCH "brand-id: canonical"
+
+    gadget_name="$(snaps.name gadget)"
     case "$SPREAD_SYSTEM" in
         ubuntu-core-22-64)
             snap model --serial --assertion | MATCH "model: ubuntu-core-22-amd64"

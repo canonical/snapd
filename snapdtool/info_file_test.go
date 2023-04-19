@@ -44,7 +44,7 @@ func (s *infoFileSuite) TestNoVersionData(c *C) {
 	c.Assert(ioutil.WriteFile(infoFile, []byte("foo"), 0644), IsNil)
 
 	_, _, err := snapdtool.SnapdVersionFromInfoFile(top)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find snapd version information in file %q`, infoFile))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find version in snapd info file %q`, infoFile))
 }
 
 func (s *infoFileSuite) TestVersionHappy(c *C) {

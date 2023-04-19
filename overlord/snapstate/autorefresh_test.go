@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2018 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,9 +21,11 @@ package snapstate_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -53,7 +55,8 @@ type autoRefreshStore struct {
 
 	ops []string
 
-	err error
+	err         error
+	refreshable []*snap.Info
 
 	snapActionOpsFunc func()
 }
@@ -88,7 +91,12 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 
 	r.ops = append(r.ops, "list-refresh")
 
-	return nil, nil, r.err
+	var res []store.SnapActionResult
+	for _, rs := range r.refreshable {
+		res = append(res, store.SnapActionResult{Info: rs})
+	}
+
+	return res, nil, r.err
 }
 
 type autoRefreshTestSuite struct {
@@ -137,7 +145,7 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	s.state.Set("refresh-privacy-key", "privacy-key")
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	s.AddCleanup(restore)
@@ -394,6 +402,37 @@ func (s *autoRefreshTestSuite) TestDefaultScheduleIsRandomized(c *C) {
 				Commentf("clock span %v is not randomized", span))
 		}
 	}
+}
+
+func (s *autoRefreshTestSuite) TestRefreshHoldForever(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lastRefresh := time.Now().Add(-12 * time.Hour)
+	s.state.Set("last-refresh", lastRefresh)
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", "forever")
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	s.state.Unlock()
+	err := af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+
+	// no refresh
+	c.Check(s.store.ops, HasLen, 0)
+
+	var storedRefresh time.Time
+	c.Assert(s.state.Get("last-refresh", &storedRefresh), IsNil)
+	cmt := Commentf("expected %s but got %s instead", lastRefresh.Format(time.RFC3339), storedRefresh.Format(time.RFC3339))
+	c.Check(storedRefresh.Equal(lastRefresh), Equals, true, cmt)
+
+	var holdVal string
+	err = tr.Get("core", "refresh.hold", &holdVal)
+	c.Assert(err, IsNil)
+	c.Check(holdVal, Equals, "forever")
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshHold(c *C) {
@@ -670,11 +709,7 @@ func (s *autoRefreshTestSuite) TestEffectiveRefreshHold(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// assume no seed-time
-	s.state.Set("seed-time", nil)
-
 	af := snapstate.NewAutoRefresh(s.state)
-
 	t0, err := af.EffectiveRefreshHold()
 	c.Assert(err, IsNil)
 	c.Check(t0.IsZero(), Equals, true)
@@ -684,24 +719,23 @@ func (s *autoRefreshTestSuite) TestEffectiveRefreshHold(c *C) {
 	tr.Set("core", "refresh.hold", holdTime)
 	tr.Commit()
 
-	seedTime := holdTime.Add(-100 * 24 * time.Hour)
-	s.state.Set("seed-time", seedTime)
-
 	t1, err := af.EffectiveRefreshHold()
 	c.Assert(err, IsNil)
-	c.Check(t1.Equal(seedTime.Add(95*24*time.Hour)), Equals, true)
-
-	lastRefresh := holdTime.Add(-99 * 24 * time.Hour)
-	s.state.Set("last-refresh", lastRefresh)
-
-	t1, err = af.EffectiveRefreshHold()
-	c.Assert(err, IsNil)
-	c.Check(t1.Equal(lastRefresh.Add(95*24*time.Hour)), Equals, true)
-
-	s.state.Set("last-refresh", holdTime.Add(-6*time.Hour))
-	t1, err = af.EffectiveRefreshHold()
-	c.Assert(err, IsNil)
 	c.Check(t1.Equal(holdTime), Equals, true)
+
+	longTime := time.Now().Add(snapstate.MaxDuration + time.Hour)
+	// truncate time that isn't part of the RFC3339 timestamp
+	longTime = longTime.UTC().Truncate(time.Second)
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", longTime.Format(time.RFC3339))
+	tr.Commit()
+
+	t2, err := af.EffectiveRefreshHold()
+	c.Assert(err, IsNil)
+
+	t2 = t2.UTC().Truncate(time.Second)
+	c.Check(t2.Equal(longTime), Equals, true)
 }
 
 func (s *autoRefreshTestSuite) TestEnsureLastRefreshAnchor(c *C) {
@@ -902,11 +936,8 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	notificationCount := 0
 	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
-		notificationCount++
-		c.Check(refreshInfo.InstanceName, Equals, "pkg")
-		c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24-time.Second)
+		c.Fatal("shouldn't trigger pending refresh notification unless it was an auto-refresh and we're overdue")
 	})
 	defer restore()
 
@@ -916,24 +947,31 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 		Sequence: []*snap.SideInfo{si},
 		Current:  si.Revision,
 	}
-	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
+	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
+
+	restore = snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
 	})
+	defer restore()
+
+	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
-	c.Check(notificationCount, Equals, 1)
+
+	var timedErr *snapstate.TimedBusySnapError
+	c.Assert(errors.As(err, &timedErr), Equals, true)
+
+	refreshInfo := timedErr.PendingSnapRefreshInfo()
+	c.Assert(refreshInfo, NotNil)
+	c.Check(refreshInfo.InstanceName, Equals, "pkg")
+	c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24-time.Second)
 }
 
 func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	notificationCount := 0
 	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
-		notificationCount++
-		c.Check(refreshInfo.InstanceName, Equals, "pkg")
-		// XXX: This test measures real time, with second granularity.
-		// It takes non-zero (hence the subtracted second) to execute the test.
-		c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24/2-time.Second)
+		c.Fatal("shouldn't trigger pending refresh notification unless it was an auto-refresh and we're overdue")
 	})
 	defer restore()
 
@@ -947,12 +985,25 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
 	}
+	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
-	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
+	restore = snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
 	})
+	defer restore()
+
+	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
-	c.Check(notificationCount, Equals, 1)
+
+	var timedErr *snapstate.TimedBusySnapError
+	c.Assert(errors.As(err, &timedErr), Equals, true)
+	refreshInfo := timedErr.PendingSnapRefreshInfo()
+
+	c.Assert(refreshInfo, NotNil)
+	c.Check(refreshInfo.InstanceName, Equals, "pkg")
+	// XXX: This test measures real time, with second granularity.
+	// It takes non-zero (hence the subtracted second) to execute the test.
+	c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24/2-time.Second)
 }
 
 func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
@@ -977,9 +1028,207 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
 	}
-	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
+	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
+
+	restore = snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return &snapstate.BusySnapError{SnapInfo: si}
 	})
-	c.Assert(err, IsNil)
+	defer restore()
+
+	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	c.Assert(err == nil, Equals, true)
 	c.Check(notificationCount, Equals, 1)
+}
+
+func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+		c.Fatal("shouldn't trigger pending refresh notification if refresh was manual")
+	})
+	defer restore()
+
+	pastInstant := time.Now().Add(-snapstate.MaxInhibition)
+
+	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
+	info := &snap.Info{SideInfo: *si}
+	snapst := &snapstate.SnapState{
+		Sequence:             []*snap.SideInfo{si},
+		Current:              si.Revision,
+		RefreshInhibitedTime: &pastInstant,
+	}
+	// manual refresh
+	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: false}}
+
+	restore = snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+		return &snapstate.BusySnapError{SnapInfo: si}
+	})
+	defer restore()
+
+	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	c.Assert(err, testutil.ErrorIs, &snapstate.BusySnapError{})
+}
+
+func (s *autoRefreshTestSuite) TestBlockedAutoRefreshCreatesPreDownloads(c *C) {
+	s.addRefreshableSnap("foo")
+
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.Ensure()
+	c.Check(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chgs := s.state.Changes()
+	c.Assert(chgs, HasLen, 1)
+	checkPreDownloadChange(c, chgs[0], "foo", snap.R(8))
+}
+
+func (s *autoRefreshTestSuite) TestAutoRefreshCreatesBothRefreshAndPreDownload(c *C) {
+	s.addRefreshableSnap("foo", "bar")
+
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+		if si.RealName == "foo" {
+			return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
+		}
+
+		return nil
+	})
+	defer restore()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.Ensure()
+	c.Check(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chgs := s.state.Changes()
+	c.Assert(chgs, HasLen, 2)
+	// sort "auto-refresh" into first and "pre-download" into second
+	sort.Slice(chgs, func(i, j int) bool {
+		return chgs[i].Kind() < chgs[j].Kind()
+	})
+
+	checkPreDownloadChange(c, chgs[1], "foo", snap.R(8))
+
+	c.Assert(chgs[0].Kind(), Equals, "auto-refresh")
+	var names []string
+	err = chgs[0].Get("snap-names", &names)
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"bar"})
+}
+
+func checkPreDownloadChange(c *C, chg *state.Change, name string, rev snap.Revision) {
+	c.Assert(chg.Kind(), Equals, "pre-download")
+	c.Assert(chg.Summary(), Equals, fmt.Sprintf(`Pre-download "%s" for auto-refresh`, name))
+	c.Assert(chg.Tasks(), HasLen, 1)
+	task := chg.Tasks()[0]
+	c.Assert(task.Kind(), Equals, "pre-download-snap")
+	c.Assert(task.Summary(), testutil.Contains, fmt.Sprintf("Pre-download snap %q (%s) from channel", name, rev))
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(task.Get("snap-setup", &snapsup), IsNil)
+	c.Assert(snapsup.InstanceName(), Equals, name)
+	c.Assert(snapsup.Revision(), Equals, rev)
+
+	var refreshInfo userclient.PendingSnapRefreshInfo
+	c.Assert(task.Get("refresh-info", &refreshInfo), IsNil)
+	c.Assert(refreshInfo.InstanceName, Equals, name)
+}
+
+func (s *autoRefreshTestSuite) addRefreshableSnap(names ...string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, name := range names {
+		si := &snap.SideInfo{RealName: name, SnapID: fmt.Sprintf("%s-id", name), Revision: snap.R(1)}
+		snapstate.Set(s.state, name, &snapstate.SnapState{
+			Active:   true,
+			Sequence: []*snap.SideInfo{si},
+			Current:  si.Revision,
+			SnapType: string(snap.TypeApp),
+		})
+
+		s.store.refreshable = append(s.store.refreshable, &snap.Info{
+			SnapType:      snap.TypeApp,
+			Architectures: []string{"all"},
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Revision: snap.R(8),
+			}})
+	}
+}
+
+func (s *autoRefreshTestSuite) TestPartiallyInhibitedAutoRefreshIsContinued(c *C) {
+	s.addRefreshableSnap("foo")
+
+	now := time.Now()
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	s.state.Lock()
+	s.state.Cache("auto-refresh-continue-attempt", 1)
+	s.state.Unlock()
+
+	err := af.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var lastRefresh time.Time
+	err = s.state.Get("last-refresh", &lastRefresh)
+	c.Assert(err, IsNil)
+	c.Check(lastRefresh.Equal(now), Equals, true)
+	c.Check(s.state.Cached("auto-refresh-continue-attempt"), IsNil)
+
+	// check that the "IsContinuedAutoRefresh" flag is set for a
+	// continued auto-refresh
+	chgs := s.state.Changes()
+	c.Assert(chgs, HasLen, 1)
+	checkIsContinuedAutoRefresh(c, chgs[0].Tasks(), true)
+}
+
+func (s *autoRefreshTestSuite) TestContinueAutorefreshOnlyFirstOverridesDelay(c *C) {
+	// fail the auto-refresh
+	s.store.err = fmt.Errorf("random store error")
+
+	af := snapstate.NewAutoRefresh(s.state)
+	// run it once so we're in the retry delay
+	err := af.Ensure()
+	c.Assert(err, ErrorMatches, "random store error")
+
+	s.state.Lock()
+	s.state.Cache("auto-refresh-continue-attempt", 1)
+	s.state.Unlock()
+
+	err = af.Ensure()
+	c.Check(err, ErrorMatches, "random store error")
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh", "list-refresh"})
+	s.state.Lock()
+	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 2)
+	s.state.Unlock()
+
+	err = af.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh", "list-refresh"})
+	s.state.Lock()
+	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 2)
+	s.state.Unlock()
+}
+
+func (s *autoRefreshTestSuite) TestTooSoonError(c *C) {
+	c.Check(snapstate.TooSoonError{}, testutil.ErrorIs, snapstate.TooSoonError{})
+	c.Check(snapstate.TooSoonError{}, Not(testutil.ErrorIs), errors.New(""))
+	c.Check(snapstate.TooSoonError{}.Error(), Equals, "cannot auto-refresh so soon")
 }

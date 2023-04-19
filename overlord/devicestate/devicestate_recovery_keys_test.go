@@ -31,8 +31,12 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 var _ = Suite(&deviceMgrRecoveryKeysSuite{})
@@ -46,6 +50,7 @@ func (s *deviceMgrRecoveryKeysSuite) SetUpTest(c *C) {
 		c.Skip("needs working secboot recovery key")
 	}
 	s.deviceMgrBaseSuite.setupBaseTest(c, false)
+	s.setUC20PCModelInState(c)
 
 	devicestate.SetSystemMode(s.mgr, "run")
 }
@@ -71,6 +76,9 @@ func mockSystemRecoveryKeys(c *C, alsoReinstall bool) {
 }
 
 func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeysBackwardCompat(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	mockSystemRecoveryKeys(c, true)
 
 	keys, err := s.mgr.EnsureRecoveryKeys()
@@ -82,15 +90,63 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeysBackwardCompat(c *C) 
 	})
 }
 
-func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
+func (s *deviceMgrBaseSuite) setClassicWithModesModelInState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.makeModelAssertionInState(c, "canonical", "pc-22", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core22",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "22",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "22",
+			},
+		},
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-22",
+		Serial: "serialserialserial",
+	})
+}
+
+func (s *deviceMgrRecoveryKeysSuite) testEnsureRecoveryKey(c *C, classic bool) {
+	if classic {
+		s.setClassicWithModesModelInState(c)
+	}
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	_, err := s.mgr.EnsureRecoveryKeys()
 	c.Check(err, ErrorMatches, `system does not use disk encryption`)
 
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
 	c.Assert(err, IsNil)
-	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, mountPoints []string) (keys.RecoveryKey, error) {
+	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, rkeyDevs []secboot.RecoveryKeyDevice) (keys.RecoveryKey, error) {
 		c.Check(keyFile, Equals, filepath.Join(dirs.SnapFDEDir, "recovery.key"))
-		c.Check(mountPoints, DeepEquals, []string{boot.InitramfsDataDir, boot.InitramfsUbuntuSaveDir})
+		keyFilePath := "var/lib/snapd/device/fde/ubuntu-save.key"
+		if !classic {
+			keyFilePath = filepath.Join("system-data", keyFilePath)
+		}
+		c.Check(rkeyDevs, DeepEquals, []secboot.RecoveryKeyDevice{
+			{Mountpoint: boot.InitramfsDataDir},
+			{
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, keyFilePath),
+			},
+		})
 
 		var rkey keys.RecoveryKey
 		copy(rkey[:], []byte(rkeystr))
@@ -106,21 +162,42 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
 	})
 }
 
+func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
+	classic := false
+	s.testEnsureRecoveryKey(c, classic)
+}
+
+func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyOnClassic(c *C) {
+	classic := true
+	s.testEnsureRecoveryKey(c, classic)
+}
+
 func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	devicestate.SetSystemMode(s.mgr, "install")
 
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
 	c.Assert(err, IsNil)
-	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, mountPoints []string) (keys.RecoveryKey, error) {
-		c.Check(keyFile, Equals, filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"))
-		c.Check(mountPoints, DeepEquals, []string{filepath.Dir(boot.InstallHostWritableDir), boot.InitramfsUbuntuSaveDir})
+	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, rkeyDevs []secboot.RecoveryKeyDevice) (keys.RecoveryKey, error) {
+		c.Check(keyFile, Equals, filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "recovery.key"))
+		c.Check(rkeyDevs, DeepEquals, []secboot.RecoveryKeyDevice{
+			{
+				Mountpoint: filepath.Dir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")),
+			},
+			{
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				AuthorizingKeyFile: filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"),
+			},
+		})
 
 		var rkey keys.RecoveryKey
 		copy(rkey[:], []byte(rkeystr))
 		return rkey, nil
 	})()
 
-	p := filepath.Join(boot.InstallHostFDEDataDir, "marker")
+	p := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker")
 	err = os.MkdirAll(filepath.Dir(p), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(p, nil, 0644)
@@ -135,23 +212,39 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
 }
 
 func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyRecoverMode(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	devicestate.SetSystemMode(s.mgr, "recover")
 
 	_, err := s.mgr.EnsureRecoveryKeys()
 	c.Check(err, ErrorMatches, `cannot ensure recovery keys from system mode "recover"`)
 }
 
-func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
+func (s *deviceMgrRecoveryKeysSuite) testRemoveRecoveryKeys(c *C, classic bool) {
+	if classic {
+		s.setClassicWithModesModelInState(c)
+	}
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	err := s.mgr.RemoveRecoveryKeys()
 	c.Check(err, ErrorMatches, `system does not use disk encryption`)
 
 	called := false
 	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
-	defer devicestate.MockSecbootRemoveRecoveryKeys(func(m2k map[string]string) error {
+	defer devicestate.MockSecbootRemoveRecoveryKeys(func(r2k map[secboot.RecoveryKeyDevice]string) error {
 		called = true
-		c.Check(m2k, DeepEquals, map[string]string{
-			boot.InitramfsDataDir:       rkey,
-			boot.InitramfsUbuntuSaveDir: rkey,
+		keyFilePath := "var/lib/snapd/device/fde/ubuntu-save.key"
+		if !classic {
+			keyFilePath = filepath.Join("system-data", keyFilePath)
+		}
+		c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
+			{Mountpoint: boot.InitramfsDataDir}: rkey,
+			{
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, keyFilePath),
+			}: rkey,
 		})
 		return nil
 	})()
@@ -162,14 +255,30 @@ func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
 	c.Check(called, Equals, true)
 }
 
+func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
+	classic := false
+	s.testRemoveRecoveryKeys(c, classic)
+}
+
+func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysOnClassic(c *C) {
+	classic := true
+	s.testRemoveRecoveryKeys(c, classic)
+}
+
 func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysBackwardCompat(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	called := false
 	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
-	defer devicestate.MockSecbootRemoveRecoveryKeys(func(m2k map[string]string) error {
+	defer devicestate.MockSecbootRemoveRecoveryKeys(func(r2k map[secboot.RecoveryKeyDevice]string) error {
 		called = true
-		c.Check(m2k, DeepEquals, map[string]string{
-			boot.InitramfsDataDir:       rkey,
-			boot.InitramfsUbuntuSaveDir: filepath.Join(dirs.SnapFDEDir, "reinstall.key"),
+		c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
+			{Mountpoint: boot.InitramfsDataDir}: rkey,
+			{
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, "system-data/var/lib/snapd/device/fde/ubuntu-save.key"),
+			}: filepath.Join(dirs.SnapFDEDir, "reinstall.key"),
 		})
 		return nil
 	})()

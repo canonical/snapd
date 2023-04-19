@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -88,6 +88,29 @@ func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
 	c.Assert(osutil.FileExists(varCommonData), Equals, false)
 	c.Assert(osutil.FileExists(filepath.Dir(varCommonData)), Equals, true)
 	c.Assert(osutil.FileExists(rootCommonDir), Equals, false)
+}
+
+func (s *snapdataSuite) TestRemoveSnapCommonSave(c *C) {
+	varSaveData := snap.CommonDataSaveDir("hello")
+	err := os.MkdirAll(varSaveData, 0755)
+	c.Assert(err, IsNil)
+
+	varCommonData := filepath.Join(dirs.SnapDataDir, "hello/common")
+	err = os.MkdirAll(varCommonData, 0755)
+	c.Assert(err, IsNil)
+
+	rootCommonDir := filepath.Join(s.tempdir, "root", "snap", "hello", "common")
+	c.Assert(os.MkdirAll(rootCommonDir, 0700), IsNil)
+
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	err = s.be.RemoveSnapSaveData(info, mockDev)
+	c.Assert(err, IsNil)
+	c.Check(osutil.FileExists(varSaveData), Equals, false)
+	c.Check(osutil.FileExists(filepath.Dir(varSaveData)), Equals, true)
+	c.Check(osutil.FileExists(varCommonData), Equals, true)
+	c.Check(osutil.FileExists(filepath.Dir(varCommonData)), Equals, true)
+	c.Check(osutil.FileExists(rootCommonDir), Equals, true)
 }
 
 func (s *snapdataSuite) TestRemoveSnapDataDir(c *C) {

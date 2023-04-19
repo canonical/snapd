@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -177,7 +178,7 @@ func (s *modelSuite) TestGetModelHasModelAssertion(c *check.C) {
 
 	// check that we get an assertion response
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion")
 
 	// check that there is only one assertion
 	dec := asserts.NewDecoder(rec.Body)
@@ -217,9 +218,9 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	// get the body and try to unmarshal into modelAssertJSON
-	c.Assert(rsp.Result, check.FitsTypeOf, daemon.ModelAssertJSON{})
+	c.Assert(rsp.Result, check.FitsTypeOf, clientutil.ModelAssertJSON{})
 
-	jsonResponse := rsp.Result.(daemon.ModelAssertJSON)
+	jsonResponse := rsp.Result.(clientutil.ModelAssertJSON)
 
 	// get the architecture key from the headers
 	arch, ok := jsonResponse.Headers["architecture"]
@@ -299,7 +300,7 @@ func (s *modelSuite) TestGetModelHasSerialAssertion(c *check.C) {
 
 	// check that we get an assertion response
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion")
 
 	// check that there is only one assertion
 	dec := asserts.NewDecoder(rec.Body)
@@ -364,9 +365,9 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	// get the body and try to unmarshal into modelAssertJSON
-	c.Assert(rsp.Result, check.FitsTypeOf, daemon.ModelAssertJSON{})
+	c.Assert(rsp.Result, check.FitsTypeOf, clientutil.ModelAssertJSON{})
 
-	jsonResponse := rsp.Result.(daemon.ModelAssertJSON)
+	jsonResponse := rsp.Result.(clientutil.ModelAssertJSON)
 
 	// get the architecture key from the headers
 	devKey, ok := jsonResponse.Headers["device-key"]

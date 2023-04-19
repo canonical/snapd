@@ -30,10 +30,4 @@ func MockGetDiskUnlockKeyFromKernel(f func(prefix, devicePath string, remove boo
 	return restore
 }
 
-func MockAddKeyToUserKeyring(f func(key []byte, devicePath, purpose, prefix string) error) (restore func()) {
-	restore = testutil.Backup(&keyringAddKeyToUserKeyring)
-	keyringAddKeyToUserKeyring = f
-	return restore
-}
-
 var RecoveryKDF = recoveryKDF

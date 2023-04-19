@@ -62,7 +62,7 @@ restore: |
     dmsetup -v --noudevsync --noudevrules  remove dm-ram0
 
 debug: |
-    journalctl -b | tail -100
+    "$TESTSTOOLS"/journal-state get-log -b | tail -100
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

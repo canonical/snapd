@@ -313,6 +313,17 @@ func (s *delUserSuite) TestDelUser(c *check.C) {
 	c.Assert(s.mockUserDel.Calls(), check.DeepEquals, [][]string{s.expectedCmd("u1")})
 }
 
+func (s *delUserSuite) TestDelUserForce(c *check.C) {
+	c.Assert(osutil.DelUser("u1", &osutil.DelUserOptions{Force: false}), check.IsNil)
+	c.Assert(osutil.DelUser("u2", &osutil.DelUserOptions{Force: true}), check.IsNil)
+
+	// validity check
+	c.Check(s.mockUserDel.Calls(), check.DeepEquals, [][]string{
+		{"userdel", "--remove", "u1"},
+		{"userdel", "--remove", "--force", "u2"},
+	})
+}
+
 func (s *delUserSuite) TestDelUserRemovesSudoersIfPresent(c *check.C) {
 	f1 := osutil.SudoersFile("u1")
 

@@ -288,10 +288,11 @@ type InstallCandidateMinimalCheck struct {
 }
 
 func (ic *InstallCandidateMinimalCheck) checkSlotRule(slot *snap.SlotInfo, rule *asserts.SlotRule) error {
-	if hasConstraints, err := checkMinimalSlotInstallationAltConstraints(slot, rule.DenyInstallation); hasConstraints && err == nil {
-		return fmt.Errorf("installation denied by %q slot rule of interface %q", slot.Name, slot.Interface)
-	}
-
+	// we use the allow-installation to check if the snap type
+	// is expected to have this kind of slot at all,
+	// the potential deny-installation is ignored here, but allows
+	// to for example constraint super-privileged app-provided slots
+	// while letting user test them locally with --dangerous
 	// TODO check that the snap is an app or gadget if allow-installation had no slot-snap-type constraints
 	if _, err := checkMinimalSlotInstallationAltConstraints(slot, rule.AllowInstallation); err != nil {
 		return fmt.Errorf("installation not allowed by %q slot rule of interface %q", slot.Name, slot.Interface)

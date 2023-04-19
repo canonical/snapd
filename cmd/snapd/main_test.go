@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	snapd "github.com/snapcore/snapd/cmd/snapd"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -64,7 +63,7 @@ func (s *snapdSuite) SetUpTest(c *C) {
 func (s *snapdSuite) TestSyscheckFailGoesIntoDegradedMode(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
-	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
 	restore = seccomp.MockSnapSeccompVersionInfo("abcdef 1.2.3 1234abcd -")
 	defer restore()

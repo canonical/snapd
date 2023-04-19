@@ -288,11 +288,11 @@ echo "%s"
 }
 
 func (s *compilerSuite) TestCompilerStderrErr(c *C) {
-	cmd := testutil.MockCommand(c, "snap-seccomp", fmt.Sprintf(`
+	cmd := testutil.MockCommand(c, "snap-seccomp", `
 echo "this goes to stderr" >&2
 # this goes to stdout
 echo "this goes to stdout"
-exit 1`))
+exit 1`)
 
 	_, err := seccomp.CompilerVersionInfo(fromCmd(c, cmd))
 	c.Assert(err, ErrorMatches, "this goes to stderr")

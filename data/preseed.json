@@ -4,6 +4,7 @@
         "etc/systemd",
         "etc/dbus-1",
         "snap",
+        "var/lib/extrausers",
         "var/lib/snapd/state.json",
         "var/lib/snapd/apparmor",
         "var/lib/snapd/system-key",
@@ -13,6 +14,7 @@
         "var/lib/snapd/sequence",
         "var/lib/snapd/cookie",
         "var/lib/snapd/dbus-1",
+        "var/lib/snapd/mount",
         "var/snap",
         "var/cache/snapd/aux",
         "var/cache/apparmor"

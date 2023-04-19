@@ -22,13 +22,12 @@ package configcore
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
 type configHandler interface {
-	validate(config.ConfGetter) error
-	handle(sysconfig.Device, config.ConfGetter, *fsOnlyContext) error
+	validate(ConfGetter) error
+	handle(sysconfig.Device, ConfGetter, *fsOnlyContext) error
 	needsState() bool
 	flags() flags
 }
@@ -38,6 +37,9 @@ type flags struct {
 	// coreOnlyConfig tells Run/FilesystemOnlyApply to apply the config on core
 	// systems only.
 	coreOnlyConfig bool
+	// modeenvOnlyConfig is set if the option can be applied only
+	// to systems with core-like booting.
+	modeenvOnlyConfig bool
 	// validatedOnlyStateConfig tells that the config requires only validation,
 	// its options are applied dynamically elsewhere.
 	validatedOnlyStateConfig bool
@@ -50,8 +52,8 @@ type flags struct {
 }
 
 type fsOnlyHandler struct {
-	validateFunc func(config.ConfGetter) error
-	handleFunc   func(sysconfig.Device, config.ConfGetter, *fsOnlyContext) error
+	validateFunc func(ConfGetter) error
+	handleFunc   func(sysconfig.Device, ConfGetter, *fsOnlyContext) error
 	configFlags  flags
 }
 
@@ -74,10 +76,13 @@ func init() {
 	addFSOnlyHandler(validateNetworkSettings, handleNetworkConfiguration, coreOnly)
 
 	// service.*.disable
-	addFSOnlyHandler(nil, handleServiceDisableConfiguration, coreOnly)
+	addFSOnlyHandler(validateServiceConfiguration, handleServiceConfiguration, coreOnly)
 
 	// system.power-key-action
 	addFSOnlyHandler(nil, handlePowerButtonConfiguration, coreOnly)
+
+	// system.disable-ctrl-alt-del
+	addFSOnlyHandler(nil, handleCtrlAltDelConfiguration, coreOnly)
 
 	// pi-config.*
 	addFSOnlyHandler(nil, handlePiConfiguration, coreOnly)
@@ -101,8 +106,14 @@ func init() {
 	// when applying so there is no validation handler, see LP:1952740
 	addFSOnlyHandler(nil, handleHostnameConfiguration, coreOnly)
 
+	// home directory configuration
+	addFSOnlyHandler(validateHomedirsConfiguration, handleHomedirsConfiguration, nil)
+
 	// tmpfs.size
 	addFSOnlyHandler(validateTmpfsSettings, handleTmpfsConfiguration, coreOnly)
+
+	// system.faillock
+	addFSOnlyHandler(validateFaillockSettings, handleFaillockConfiguration, coreOnly)
 
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = filesystemOnlyApply
 }
@@ -110,7 +121,7 @@ func init() {
 // addFSOnlyHandler registers functions to validate and handle a subset of
 // system config options that do not require to manipulate state but only
 // the file system.
-func addFSOnlyHandler(validate func(config.ConfGetter) error, handle func(sysconfig.Device, config.ConfGetter, *fsOnlyContext) error, flags *flags) {
+func addFSOnlyHandler(validate func(ConfGetter) error, handle func(sysconfig.Device, ConfGetter, *fsOnlyContext) error, flags *flags) {
 	if handle == nil {
 		panic("cannot have nil handle with fsOnlyHandler")
 	}
@@ -132,14 +143,14 @@ func (h *fsOnlyHandler) flags() flags {
 	return h.configFlags
 }
 
-func (h *fsOnlyHandler) validate(cfg config.ConfGetter) error {
+func (h *fsOnlyHandler) validate(cfg ConfGetter) error {
 	if h.validateFunc != nil {
 		return h.validateFunc(cfg)
 	}
 	return nil
 }
 
-func (h *fsOnlyHandler) handle(dev sysconfig.Device, cfg config.ConfGetter, opts *fsOnlyContext) error {
+func (h *fsOnlyHandler) handle(dev sysconfig.Device, cfg ConfGetter, opts *fsOnlyContext) error {
 	// handleFunc is guaranteed to be non-nil by addFSOnlyHandler
 	return h.handleFunc(dev, cfg, opts)
 }
@@ -155,10 +166,13 @@ func filesystemOnlyApply(dev sysconfig.Device, rootDir string, values map[string
 	}
 
 	cfg := plainCoreConfig(values)
-
 	ctx := &fsOnlyContext{
 		RootDir: rootDir,
 	}
+	return filesystemOnlyRun(dev, cfg, ctx)
+}
+
+func filesystemOnlyRun(dev sysconfig.Device, cfg ConfGetter, ctx *fsOnlyContext) error {
 	for _, h := range handlers {
 		if h.needsState() {
 			continue
@@ -173,6 +187,9 @@ func filesystemOnlyApply(dev sysconfig.Device, rootDir string, values map[string
 			continue
 		}
 		if h.flags().coreOnlyConfig && dev.Classic() {
+			continue
+		}
+		if h.flags().modeenvOnlyConfig && !dev.HasModeenv() {
 			continue
 		}
 		if err := h.handle(dev, cfg, ctx); err != nil {

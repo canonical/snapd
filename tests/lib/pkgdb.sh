@@ -1,11 +1,9 @@
 #!/bin/bash
 
-# shellcheck source=tests/lib/quiet.sh
-. "$TESTSLIB/quiet.sh"
-
 debian_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
     . "$TESTSLIB/tools/tests.pkgs.apt.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -14,6 +12,7 @@ debian_name_package() {
 ubuntu_14_04_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
     . "$TESTSLIB/tools/tests.pkgs.apt.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -22,6 +21,7 @@ ubuntu_14_04_name_package() {
 fedora_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
     . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -30,6 +30,7 @@ fedora_name_package() {
 amazon_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
     . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -38,6 +39,7 @@ amazon_name_package() {
 opensuse_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.zypper.sh
     . "$TESTSLIB/tools/tests.pkgs.zypper.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -46,6 +48,7 @@ opensuse_name_package() {
 arch_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.pacman.sh
     . "$TESTSLIB/tools/tests.pkgs.pacman.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -168,16 +171,6 @@ distro_install_package() {
         ubuntu-*|debian-*)
         if [[ "$*" =~ "libudev-dev" ]]; then
             eatmydata apt-get install -y --only-upgrade systemd
-        fi
-        ;;
-    esac
-
-    # fix dependency issue where libp11-kit0 needs to be downgraded to
-    # install gnome-keyring
-    case "$SPREAD_SYSTEM" in
-        debian-9-*)
-        if [[ "$*" =~ "gnome-keyring" ]]; then
-            eatmydata apt-get remove -y libp11-kit0
         fi
         ;;
     esac
@@ -479,7 +472,7 @@ distro_install_build_snapd(){
             fi
         fi
 
-        if os.query is-opensuse-tumbleweed; then
+        if os.query is-opensuse || os.query is-arch-linux; then
             # Package installation applies vendor presets only, which leaves
             # snapd.apparmor disabled.
             systemctl enable --now snapd.apparmor.service
@@ -608,27 +601,31 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-utils
                 "
             ;;
-        ubuntu-20.04-64)
+        ubuntu-20.04-64|ubuntu-20.04-arm-64)
+            # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
                 evolution-data-server
                 fwupd
                 gccgo-9
                 libvirt-daemon-system
+                linux-tools-$(uname -r)
                 packagekit
                 qemu-kvm
                 qemu-utils
                 shellcheck
                 "
             ;;
-        ubuntu-21.10-64|ubuntu-22.04-64)
+        ubuntu-22.*|ubuntu-23.*)
             # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
                 fwupd
                 golang
+                libvirt-daemon-system
                 linux-tools-$(uname -r)
                 lz4
+                qemu-kvm
                 qemu-utils
                 "
             ;;
@@ -694,7 +691,6 @@ pkg_dependencies_fedora_centos_common(){
         dbus-x11
         evolution-data-server
         expect
-        fish
         fontconfig
         fwupd
         git
@@ -710,7 +706,6 @@ pkg_dependencies_fedora_centos_common(){
         python3-yaml
         python3-dbus
         python3-gobject
-        redhat-lsb-core
         rpm-build
         udisks2
         upower
@@ -719,6 +714,12 @@ pkg_dependencies_fedora_centos_common(){
         strace
         zsh
         "
+    if ! os.query is-centos 9; then
+        echo "
+            fish
+            redhat-lsb-core
+        "
+    fi
 }
 
 pkg_dependencies_fedora(){
@@ -793,6 +794,11 @@ pkg_dependencies_opensuse(){
         xdg-utils
         zsh
         "
+    if os.query is-opensuse tumbleweed; then
+        echo "
+            libfwupd2
+        "
+    fi
 }
 
 pkg_dependencies_arch(){

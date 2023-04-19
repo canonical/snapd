@@ -7,7 +7,7 @@ environment:
   SNAPD_NO_MEMORY_LIMIT: 1
 
 debug: |
-  journalctl -u snap.docker.dockerd
+  "$TESTSTOOLS"/journal-state get-log -u snap.docker.dockerd
 
 execute: |
   if ! snap install docker; then

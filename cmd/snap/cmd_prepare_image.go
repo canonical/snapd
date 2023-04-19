@@ -29,13 +29,18 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/seed/seedwriter"
 )
 
 type cmdPrepareImage struct {
 	Classic        bool   `long:"classic"`
 	Preseed        bool   `long:"preseed"`
 	PreseedSignKey string `long:"preseed-sign-key"`
-	Architecture   string `long:"arch"`
+	// optional path to AppArmor kernel features directory
+	AppArmorKernelFeaturesDir string `long:"apparmor-features-dir"`
+	// optional sysfs overlay
+	SysfsOverlay string `long:"sysfs-overlay"`
+	Architecture string `long:"arch"`
 
 	Positional struct {
 		ModelAssertionFn string
@@ -47,8 +52,10 @@ type cmdPrepareImage struct {
 	Customize string `long:"customize" hidden:"yes"`
 
 	// TODO: introduce SnapWithChannel?
-	Snaps      []string `long:"snap" value-name:"<snap>[=<channel>]"`
-	ExtraSnaps []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED
+	Snaps              []string `long:"snap" value-name:"<snap>[=<channel>]"`
+	ExtraSnaps         []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED
+	RevisionsFile      string   `long:"revisions"`
+	WriteRevisionsFile string   `long:"write-revisions" optional:"true" optional-value:"./seed.manifest"`
 }
 
 func init() {
@@ -67,15 +74,23 @@ For preparing classic images it supports a --classic mode`),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"classic": i18n.G("Enable classic mode to prepare a classic model image"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"preseed": i18n.G("Preseed (UC20 only)"),
+			"preseed": i18n.G("Preseed (UC20+ only)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"preseed-sign-key": i18n.G("Name of the key to use to sign preseed assertion, otherwise use the default key"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"sysfs-overlay": i18n.G("Optional sysfs overlay to be used when running preseeding steps"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"apparmor-features-dir": i18n.G("Optional path to apparmor kernel features directory (UC20+ only)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"arch": i18n.G("Specify an architecture for snaps for --classic when the model does not"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"snap": i18n.G("Include the given snap from the store or a local file and/or specify the channel to track for the given snap"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"extra-snaps": i18n.G("Extra snaps to be installed (DEPRECATED)"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"revisions": i18n.G("Specify a seeds.manifest file referencing the exact revisions of the provided snaps which should be installed"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"write-revisions": i18n.G("Writes a manifest file containing references to the exact snap revisions used for the image. A path for the manifest is optional."),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"channel": i18n.G("The channel to use"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -96,13 +111,23 @@ For preparing classic images it supports a --classic mode`),
 }
 
 var imagePrepare = image.Prepare
+var seedwriterReadManifest = seedwriter.ReadManifest
 
 func (x *cmdPrepareImage) Execute(args []string) error {
 	opts := &image.Options{
-		Snaps:        x.ExtraSnaps,
-		ModelFile:    x.Positional.ModelAssertionFn,
-		Channel:      x.Channel,
-		Architecture: x.Architecture,
+		Snaps:            x.ExtraSnaps,
+		ModelFile:        x.Positional.ModelAssertionFn,
+		Channel:          x.Channel,
+		Architecture:     x.Architecture,
+		SeedManifestPath: x.WriteRevisionsFile,
+	}
+
+	if x.RevisionsFile != "" {
+		seedManifest, err := seedwriterReadManifest(x.RevisionsFile)
+		if err != nil {
+			return err
+		}
+		opts.SeedManifest = seedManifest
 	}
 
 	if x.Customize != "" {
@@ -141,8 +166,15 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	if x.PreseedSignKey != "" && !x.Preseed {
 		return fmt.Errorf("--preseed-sign-key cannot be used without --preseed")
 	}
+
+	if x.SysfsOverlay != "" && !x.Preseed {
+		return fmt.Errorf("--sysfs-overlay cannot be used without --preseed")
+	}
+
 	opts.Preseed = x.Preseed
 	opts.PreseedSignKey = x.PreseedSignKey
+	opts.AppArmorKernelFeaturesDir = x.AppArmorKernelFeaturesDir
+	opts.SysfsOverlay = x.SysfsOverlay
 
 	return imagePrepare(opts)
 }

@@ -45,6 +45,8 @@ OPERATIONS = [
     'Allocated', 'Connecting', 'Connected', 'Sending'
     ]
 RESULTS = ['Successful', 'Aborted', 'Failed']
+FAILED_LEVELS = ['task', 'suite', 'project']
+FAILED_STAGES = ['prepare', 'restore']
 
 
 class Action:
@@ -80,11 +82,12 @@ class Result:
     The results can be: Successful, failed and aborted
     """
 
-    def __init__(self, result_type, level, number, date, time,
+    def __init__(self, result_type, level, stage, number, date, time,
                  detail, source_line):
         self.type = RESULT
         self.result_type = result_type
         self.level = level
+        self.stage = stage
         self.number = number
         self.time = time
         self.date = date
@@ -106,6 +109,7 @@ class Result:
             'time': self.time,
             'result_type': self.result_type,
             'level': self.level,
+            'stage': self.stage,
             'number': self.number,
             'detail': prepared_detail
             }
@@ -264,7 +268,7 @@ class LogReader:
             else:
                 prepared_log.append(item.__dict__())
         with open(filepath, 'w') as json_file:
-            json.dump(prepared_log, json_file)
+            json.dump(prepared_log, json_file, indent=4)
 
     def _next_line(self):
         self.iter = self.iter + 1
@@ -309,7 +313,7 @@ class LogReader:
                     self.full_log.append(info)
                 continue
 
-            # The line is another opertion: Rebooting, Discarding, Allocating
+            # The line is another operation: Rebooting, Discarding, Allocating
             # Waiting, Allocated, Connecting, Connected, Sending'
             if self._match_operation(line):
                 operation = self._get_operation(line)
@@ -366,25 +370,57 @@ class LogReader:
             self._match_date(parts[0]) and \
             self._match_time(parts[1])
 
-    def _get_detail(self, other_limit=None):
+    def _get_detail(self, results=False, other_limit=None):
         """
         This function is used to get the piece of log which is after the
         info lines (error, debug, warning). The detail could also include
         a limit of lines to tail the log and show the last lines.
         It returns a Detail object included all the lines.
         """
+
+        # If the first line matches with a regular line, this means the detail
+        # has no output and has to be discarded
+        line = self.lines[self.iter]
+        if self._match_task(line) or self._match_info(line) or \
+            self._match_operation(line) or self._match_result(line):
+            return None
+
+        detail=[]
         initial_iter = self.iter
         while self.iter < len(self.lines):
             line = self._next_line()
             if self._match_task(line) or self._match_info(line) or \
             self._match_operation(line) or self._match_result(line):
+                # When the details is for results, then any match is ok to break
+                if results:
+                    break
+                # When the details is no for results, then we need to check also
+                # the the last time was just a '.'
+                # The details for info (Error, Debug and Warning) always finish with
+                # ----
+                # .
+                #
+                # As the iter is already pointing to the next line since 'line = self._next_line()'
+                # to access the previous line of the current one it is needed to do 'self.iter-2'
+                elif self.lines[self.iter-2].strip() == '.':
+                    break
+
+                detail.append(line)
+
+            # When the details is for results, if the detail line does not start
+            # with "    - ", then it is time to break
+            if results and not line.startswith("    - "):
                 break
+            else:
+                detail.append(line)
+        
+        # We leave the iter in the last time in case the log has finished
         if not self.iter == len(self.lines):
             self.iter = self.iter - 1
         if not other_limit:
             other_limit = self.lines_limit
 
-        return Detail(other_limit, self.lines[initial_iter:self.iter])
+        return Detail(other_limit, detail)
 
     def _get_info(self, line):
         """
@@ -397,6 +433,7 @@ class LogReader:
         date = parts[0]
         time = parts[1]
         info_type = parts[2]
+
         verb = None
         task = None
         if info_type == WARN_TYPE:
@@ -415,14 +452,13 @@ class LogReader:
         else:
             print('log-parser: detail type not recognized: {}'.format(info_type))
 
-        detail = self._get_detail()
+        detail = self._get_detail(results=False)
         return Info(info_type, verb, task, extra, date, time, detail, line)
 
     def _get_result(self, line):
         """ Get the Result object including the details for the result """
         parts = line.strip().split(' ')
         if len(parts) < 3:
-            print(parts)
             return None
         date = parts[0]
         time = parts[1]
@@ -430,12 +466,14 @@ class LogReader:
         level = parts[3].split(':')[0]
         number = parts[-1]
 
+        stage = None
+        detail = None
         if result_type == FAILED_TYPE:
-            detail = self._get_detail(other_limit=-1)
-        else:
-            detail = None
+            if level in FAILED_LEVELS:
+                stage = parts[4].split(':')[0]
+            detail = self._get_detail(results=True, other_limit=-1)
 
-        return Result(result_type, level, number.strip(), date, time, detail,
+        return Result(result_type, level, stage, number.strip(), date, time, detail,
                       line)
 
     def _get_action(self, line):
@@ -468,7 +506,7 @@ def _make_parser():
     # type: () -> argparse.ArgumentParser
     parser = argparse.ArgumentParser(
         description="""
-Parse the spread log and generates a file with a standarized output. It also
+Parse the spread log and generates a file with a standardized output. It also
 allows to filter the output by type and define the number of lines to show
 for the error/debug/warning output.
 """
@@ -478,7 +516,7 @@ for the error/debug/warning output.
         "--cut",
         type=int,
         default=1000,
-        help="maximun number of lines for logs on errors and debug sections",
+        help="maximum number of lines for logs on errors and debug sections",
     )
     parser.add_argument(
         "-f",

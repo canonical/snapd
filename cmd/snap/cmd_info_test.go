@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,6 +34,7 @@ import (
 	snaplib "github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 var cmdAppInfos = []client.AppInfo{{Name: "app1"}, {Name: "app2"}}
@@ -338,7 +339,7 @@ func (s *infoSuite) TestMaybePrintSum(c *check.C) {
 	c.Check(buf.String(), check.Equals, "")
 }
 
-func (s *infoSuite) TestMaybePrintContact(c *check.C) {
+func (s *infoSuite) TestMaybePrintLinksContact(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriter(&buf)
 
@@ -350,9 +351,131 @@ func (s *infoSuite) TestMaybePrintContact(c *check.C) {
 	} {
 		buf.Reset()
 		snap.SetupDiskSnap(iw, "", &client.Snap{Contact: contact})
-		snap.MaybePrintContact(iw)
+		snap.MaybePrintLinks(iw)
 		c.Check(buf.String(), check.Equals, expected, check.Commentf("%q", contact))
 	}
+}
+
+func (s *infoSuite) TestMaybePrintHoldingInfo(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriterWithFmtTime(&buf, timeutil.Human)
+	instant, err := time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
+	c.Assert(err, check.IsNil)
+
+	restore := snap.MockTimeNow(func() time.Time {
+		return instant
+	})
+	defer restore()
+
+	restore = timeutil.MockTimeNow(func() time.Time {
+		return instant
+	})
+	defer restore()
+
+	// ensure timezone is UTC, otherwise test runs in other timezones would fail
+	oldLocal := time.Local
+	time.Local = time.UTC
+	defer func() {
+		time.Local = oldLocal
+	}()
+
+	for _, holdKind := range []string{"hold", "hold-by-gating"} {
+		for hold, expected := range map[string]string{
+			"":                     "",
+			"0001-01-01T00:00:00Z": "",
+			"1999-01-01T00:00:00Z": "",
+			"2000-01-01T11:30:00Z": fmt.Sprintf("%s:\ttoday at 11:30 UTC\n", holdKind),
+			"2000-01-02T12:00:00Z": fmt.Sprintf("%s:\ttomorrow at 12:00 UTC\n", holdKind),
+			"2000-02-01T00:00:00Z": fmt.Sprintf("%s:\tin 31 days, at 00:00 UTC\n", holdKind),
+			"2099-01-01T00:00:00Z": fmt.Sprintf("%s:\t2099-01-01\n", holdKind),
+			"2100-01-01T00:00:00Z": fmt.Sprintf("%s:\tforever\n", holdKind),
+		} {
+			buf.Reset()
+
+			var holdTime *time.Time
+			if hold != "" {
+				t, err := time.Parse(time.RFC3339, hold)
+				c.Assert(err, check.IsNil)
+				holdTime = &t
+			}
+
+			switch holdKind {
+			case "hold":
+				snap.SetupSnap(iw, &client.Snap{Hold: holdTime}, nil, nil)
+			case "hold-by-gating":
+				snap.SetupSnap(iw, &client.Snap{GatingHold: holdTime}, nil, nil)
+			default:
+				c.Fatalf("unknown hold field: %s", holdKind)
+			}
+
+			snap.MaybePrintRefreshInfo(iw)
+			iw.Flush()
+			cmt := check.Commentf("expected %q but got %q", expected, buf.String())
+			c.Assert(buf.String(), check.Equals, expected, cmt)
+		}
+	}
+}
+
+func (s *infoSuite) TestMaybePrintHoldingNonUTCLocalTime(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriterWithFmtTime(&buf, timeutil.Human)
+	instant, err := time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
+	c.Assert(err, check.IsNil)
+
+	restore := snap.MockTimeNow(func() time.Time {
+		return instant
+	})
+	defer restore()
+
+	restore = timeutil.MockTimeNow(func() time.Time {
+		return instant
+	})
+	defer restore()
+
+	hold := "2000-01-05T10:00:00Z"
+	holdTime, err := time.Parse(time.RFC3339, hold)
+	c.Assert(err, check.IsNil)
+
+	// mock a local timezone other than UTC
+	oldLocal := time.Local
+	time.Local = time.FixedZone("UTC+4", 4*60*60)
+	defer func() {
+		time.Local = oldLocal
+	}()
+
+	snap.SetupSnap(iw, &client.Snap{Hold: &holdTime}, nil, nil)
+
+	snap.MaybePrintRefreshInfo(iw)
+	iw.Flush()
+	c.Assert(buf.String(), check.Equals, "hold:\tin 4 days, at 14:00 UTC+4\n")
+}
+
+func (s *infoSuite) TestMaybePrintLinksVerbose(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	snap.SetVerbose(iw, true)
+
+	const contact = "mailto:joe@example.com"
+	const website1 = "http://example.com/www1"
+	const website2 = "http://example.com/www2"
+	snap.SetupDiskSnap(iw, "", &client.Snap{
+		Links: map[string][]string{
+			"contact": {contact},
+			"website": {website1, website2},
+		},
+		Contact: contact,
+		Website: website1,
+	})
+
+	snap.MaybePrintLinks(iw)
+	c.Check(buf.String(), check.Equals, "contact:\tjoe@example.com\n"+
+		`links:
+  contact:
+    - mailto:joe@example.com
+  website:
+    - http://example.com/www1
+    - http://example.com/www2
+`)
 }
 
 func (s *infoSuite) TestMaybePrintBase(c *check.C) {

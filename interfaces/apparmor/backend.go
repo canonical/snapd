@@ -61,7 +61,6 @@ import (
 
 var (
 	procSelfExe           = "/proc/self/exe"
-	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 	kernelFeatures        = apparmor_sandbox.KernelFeatures
 	parserFeatures        = apparmor_sandbox.ParserFeatures
@@ -102,15 +101,6 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// possible because snapd must be able to install a new core and only at
 	// that moment generate it.
 
-	// Inspect the system and sets up local apparmor policy for snap-confine.
-	// Local policy is included by the system-wide policy. If the local policy
-	// has changed then the apparmor profile for snap-confine is reloaded.
-
-	// Create the local policy directory if it is not there.
-	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
-		return fmt.Errorf("cannot create snap-confine policy directory: %s", err)
-	}
-
 	// Check the /proc/self/exe symlink, this is needed below but we want to
 	// fail early if this fails for whatever reason.
 	exe, err := os.Readlink(procSelfExe)
@@ -118,56 +108,8 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		return fmt.Errorf("cannot read %s: %s", procSelfExe, err)
 	}
 
-	// Location of the generated policy.
-	glob := "*"
-	policy := make(map[string]osutil.FileState)
-
-	// Check if NFS is mounted at or under $HOME. Because NFS is not
-	// transparent to apparmor we must alter our profile to counter that and
-	// allow snap-confine to work.
-	if nfs, err := isHomeUsingNFS(); err != nil {
-		logger.Noticef("cannot determine if NFS is in use: %v", err)
-	} else if nfs {
-		policy["nfs-support"] = &osutil.MemoryFileState{
-			Content: []byte(nfsSnippet),
-			Mode:    0644,
-		}
-		logger.Noticef("snapd enabled NFS support, additional implicit network permissions granted")
-	}
-
-	// Check if '/' is on overlayfs. If so, add the necessary rules for
-	// upperdir and allow snap-confine to work.
-	if overlayRoot, err := isRootWritableOverlay(); err != nil {
-		logger.Noticef("cannot determine if root filesystem on overlay: %v", err)
-	} else if overlayRoot != "" {
-		snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
-		policy["overlay-root"] = &osutil.MemoryFileState{
-			Content: []byte(snippet),
-			Mode:    0644,
-		}
-		logger.Noticef("snapd enabled root filesystem on overlay support, additional upperdir permissions granted")
-	}
-
-	// Check whether apparmor_parser supports bpf capability. Some older
-	// versions do not, hence the capability cannot be part of the default
-	// profile of snap-confine as loading it would fail.
-	if features, err := apparmor_sandbox.ParserFeatures(); err != nil {
-		logger.Noticef("cannot determine apparmor_parser features: %v", err)
-	} else if strutil.ListContains(features, "cap-bpf") {
-		policy["cap-bpf"] = &osutil.MemoryFileState{
-			Content: []byte(capabilityBPFSnippet),
-			Mode:    0644,
-		}
-	}
-
-	// Ensure that generated policy is what we computed above.
-	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, policy)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize snap-confine policy: %s", err)
-	}
-	if len(created) == 0 && len(removed) == 0 {
-		// If the generated policy didn't change, we're all done.
-		return nil
+	if _, err := apparmor_sandbox.SetupSnapConfineSnippets(); err != nil {
+		return err
 	}
 
 	// If snapd is executing from the core snap the it means it has
@@ -182,22 +124,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// Reload the apparmor profile of snap-confine. This points to the main
 	// file in /etc/apparmor.d/ as that file contains include statements that
 	// load any of the files placed in /var/lib/snapd/apparmor/snap-confine/.
-	// For historical reasons we may have a filename that ends with .real or
-	// not.  If we do then we prefer the file ending with the name .real as
-	// that is the more recent name we use.
-	var profilePath string
-	// TODO: fix for distros using /usr/libexec/snapd
-	for _, profileFname := range []string{"usr.lib.snapd.snap-confine.real", "usr.lib.snapd.snap-confine"} {
-		maybeProfilePath := filepath.Join(apparmor_sandbox.ConfDir, profileFname)
-		if _, err := os.Stat(maybeProfilePath); err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return err
-		}
-		profilePath = maybeProfilePath
-		break
-	}
+	profilePath := apparmor_sandbox.SnapConfineDistroProfilePath()
 	if profilePath == "" {
 		// XXX: is profile mandatory on some distros?
 
@@ -218,7 +145,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		// When we cannot reload the profile then let's remove the generated
 		// policy. Maybe we have caused the problem so it's better to let other
 		// things work.
-		osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, nil)
+		apparmor_sandbox.RemoveSnapConfineSnippets()
 		return fmt.Errorf("cannot reload snap-confine apparmor profile: %v", err)
 	}
 	return nil
@@ -411,6 +338,9 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 
 	// Add snippets derived from the layout definition.
 	spec.(*Specification).AddLayout(snapInfo)
+
+	// Add additional mount layouts rules for the snap.
+	spec.(*Specification).AddExtraLayouts(snapInfo, opts.ExtraLayouts)
 
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
@@ -679,7 +609,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string
 			return snapInfo.InstanceName()
 		case "###SNIPPETS###":
 			if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {
-				snippets += strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
+				snippets += strings.Replace(apparmor_sandbox.OverlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
 			}
 			return snippets
 		}
@@ -866,16 +796,20 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
   %[2]s
 `, usrLibSnapdConfineTransitionRule, nonBaseCoreTransitionSnippet)
 
+		case "###INCLUDE_IF_EXISTS_SNAP_TUNING###":
+			features, _ := parserFeatures()
+			if strutil.ListContains(features, "include-if-exists") {
+				return `#include if exists "/var/lib/snapd/apparmor/snap-tuning"`
+			}
+			return ""
 		case "###VAR###":
 			return templateVariables(snapInfo, securityTag, cmdName)
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
 		case "###CHANGEPROFILE_RULE###":
 			features, _ := parserFeatures()
-			for _, f := range features {
-				if f == "unsafe" {
-					return "change_profile unsafe /**,"
-				}
+			if strutil.ListContains(features, "unsafe") {
+				return "change_profile unsafe /**,"
 			}
 			return "change_profile,"
 		case "###SNIPPETS###":
@@ -894,13 +828,18 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 				// transparent to apparmor we must alter the profile to counter that and
 				// allow access to SNAP_USER_* files.
 				tagSnippets = snippetForTag
-				if nfs, _ := isHomeUsingNFS(); nfs {
-					tagSnippets += nfsSnippet
+				if nfs, _ := osutil.IsHomeUsingNFS(); nfs {
+					tagSnippets += apparmor_sandbox.NfsSnippet
 				}
 
 				if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {
-					snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
+					snippet := strings.Replace(apparmor_sandbox.OverlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
 					tagSnippets += snippet
+				}
+
+				// Add core specific snippets when not on classic
+				if !release.OnClassic {
+					tagSnippets += coreSnippet
 				}
 			}
 
@@ -979,15 +918,4 @@ func (b *Backend) SandboxFeatures() []string {
 	tags = append(tags, fmt.Sprintf("policy:%s", policy))
 
 	return tags
-}
-
-// MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS.
-// This is exported so that other packages that indirectly interact with AppArmor backend
-// can mock isHomeUsingNFS.
-func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
-	old := isHomeUsingNFS
-	isHomeUsingNFS = new
-	return func() {
-		isHomeUsingNFS = old
-	}
 }

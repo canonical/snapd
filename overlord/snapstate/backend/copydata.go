@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -52,7 +52,7 @@ func MockAllUsers(f func(options *dirs.SnapDirOptions) ([]*user.User, error)) fu
 }
 
 // CopySnapData makes a copy of oldSnap data for newSnap in its data directories.
-func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter, opts *dirs.SnapDirOptions) error {
+func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOptions, meter progress.Meter) error {
 	// deal with the old data or
 	// otherwise just create an empty data dir
 
@@ -81,7 +81,7 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter,
 }
 
 // UndoCopySnapData removes the copy that may have been done for newInfo snap of oldInfo snap data and also the data directories that may have been created for newInfo snap.
-func (b Backend) UndoCopySnapData(newInfo, oldInfo *snap.Info, _ progress.Meter, opts *dirs.SnapDirOptions) error {
+func (b Backend) UndoCopySnapData(newInfo, oldInfo *snap.Info, opts *dirs.SnapDirOptions, _ progress.Meter) error {
 	if oldInfo != nil && oldInfo.Revision == newInfo.Revision {
 		// nothing to do
 		return nil
@@ -106,6 +106,40 @@ func (b Backend) UndoCopySnapData(newInfo, oldInfo *snap.Info, _ progress.Meter,
 	}
 
 	return firstErr(err1, err2)
+}
+
+func (b Backend) SetupSnapSaveData(info *snap.Info, dev snap.Device, meter progress.Meter) error {
+	// ubuntu-save per-snap directories are only created on core systems
+	if dev.Classic() {
+		return nil
+	}
+
+	// verify that ubuntu-save has been mounted under the expected path and
+	// that it is indeed a mount-point.
+	if hasSave, err := osutil.IsMounted(dirs.SnapSaveDir); err != nil || !hasSave {
+		if err != nil {
+			return fmt.Errorf("cannot check if ubuntu-save is mounted: %v", err)
+		}
+		return nil
+	}
+
+	saveDir := snap.CommonDataSaveDir(info.InstanceName())
+	return os.MkdirAll(saveDir, 0755)
+}
+
+func (b Backend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, dev snap.Device, meter progress.Meter) error {
+	// ubuntu-save per-snap directories are only created on core systems
+	if dev.Classic() {
+		return nil
+	}
+
+	if oldInfo == nil {
+		// Clear out snap save data when removing totally
+		if err := b.RemoveSnapSaveData(newInfo, dev); err != nil {
+			return fmt.Errorf("cannot remove save data directories for %q: %v", newInfo.InstanceName(), err)
+		}
+	}
+	return nil
 }
 
 // ClearTrashedData removes the trash. It returns no errors on the assumption that it is called very late in the game.
@@ -272,12 +306,10 @@ type UndoInfo struct {
 }
 
 // InitExposedSnapHome creates and initializes ~/Snap/<snapName> based on the
-// specified revision. Must be called after the snap has been migrated. If no
-// error occurred, returns a non-nil undoInfo so that the operation can be undone.
-// If an error occurred, an attempt is made to undo so no undoInfo is returned.
-func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (undoInfo *UndoInfo, err error) {
-	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-
+// specified revision. If no error occurred, returns a non-nil undoInfo so that
+// the operation can be undone. If an error occurred, an attempt is made to undo
+// so no undoInfo is returned.
+func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *dirs.SnapDirOptions) (undoInfo *UndoInfo, err error) {
 	users, err := allUsers(opts)
 	if err != nil {
 		return nil, err

@@ -50,7 +50,8 @@ import (
 type seed20 struct {
 	systemDir string
 
-	db asserts.RODatabase
+	db       asserts.RODatabase
+	commitTo func(*asserts.Batch) error
 
 	model *asserts.Model
 
@@ -180,6 +181,8 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 
 	// remember db for later use
 	s.db = db
+	// remember commitTo for LoadPreseedAssertion
+	s.commitTo = commitTo
 	// remember
 	s.model = modelAssertion
 	s.snapDeclsByID = snapDeclsByID
@@ -318,6 +321,17 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Typ
 		snapPath = newPath
 	}
 
+	if _, err := snapasserts.CrossCheckProvenance(snapName, snapRev, snapDecl, s.model, s.db); err != nil {
+		return "", nil, nil, err
+	}
+
+	// we have an authorized snap-revision with matching hash for
+	// the blob, double check that the snap metadata provenance is
+	// as expected
+	if err := snapasserts.CheckProvenanceWithVerifiedRevision(snapPath, snapRev); err != nil {
+		return "", nil, nil, err
+	}
+
 	return snapPath, snapRev, snapDecl, nil
 }
 
@@ -363,8 +377,8 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 	auxInfo := s.auxInfos[sideInfo.SnapID]
 	if auxInfo != nil {
 		sideInfo.Private = auxInfo.Private
-		// TODO: consider whether to use this if we have links
-		sideInfo.EditedContact = auxInfo.Contact
+		sideInfo.EditedLinks = auxInfo.Links
+		sideInfo.LegacyEditedContact = auxInfo.Contact
 	}
 
 	return &Snap{
@@ -395,6 +409,7 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler SnapHandler, tm ti
 	var essential bool
 	var essType snap.Type
 	var required bool
+	var classic bool
 	if sntoc.modelSnap != nil {
 		snapRef = sntoc.modelSnap
 		essential = sntoc.essential
@@ -403,6 +418,7 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler SnapHandler, tm ti
 		}
 		required = essential || sntoc.modelSnap.Presence == "required"
 		channel = sntoc.modelSnap.DefaultChannel
+		classic = sntoc.modelSnap.Classic
 		snapsDir = "../../snaps"
 	} else {
 		snapRef = sntoc.optSnap
@@ -419,6 +435,7 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler SnapHandler, tm ti
 	}
 	seedSnap.Essential = essential
 	seedSnap.Required = required
+	seedSnap.Classic = classic
 	if essential {
 		if sntoc.modelSnap.SnapType == "gadget" {
 			// validity
@@ -761,4 +778,74 @@ func (s *seed20) Iter(f func(sn *Snap) error) error {
 		}
 	}
 	return nil
+}
+
+func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) error {
+	if s.model.Grade() != asserts.ModelDangerous {
+		return nil
+	}
+
+	autoImportAssert := filepath.Join(s.systemDir, "auto-import.assert")
+	af, err := os.Open(autoImportAssert)
+	if err != nil {
+		return err
+	}
+	defer af.Close()
+	batch := asserts.NewBatch(nil)
+	if _, err := batch.AddStream(af); err != nil {
+		return err
+	}
+	return commitTo(batch)
+}
+
+func (s *seed20) HasArtifact(relName string) bool {
+	return osutil.FileExists(s.ArtifactPath(relName))
+}
+
+func (s *seed20) ArtifactPath(relName string) string {
+	return filepath.Join(s.systemDir, relName)
+}
+
+func (s *seed20) LoadPreseedAssertion() (*asserts.Preseed, error) {
+	model := s.Model()
+	sysLabel := filepath.Base(s.systemDir)
+
+	batch := asserts.NewBatch(nil)
+	refs, err := readAsserts(batch, filepath.Join(s.systemDir, "preseed"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrNoPreseedAssertion
+		}
+	}
+	var preseedRef *asserts.Ref
+	for _, ref := range refs {
+		if ref.Type == asserts.PreseedType {
+			if preseedRef != nil {
+				return nil, fmt.Errorf("system preseed assertion file cannot contain multiple preseed assertions")
+			}
+			preseedRef = ref
+		}
+	}
+	if preseedRef == nil {
+		return nil, fmt.Errorf("system preseed assertion file must contain a preseed assertion")
+	}
+	if err := s.commitTo(batch); err != nil {
+		return nil, err
+	}
+	a, err := preseedRef.Resolve(s.db.Find)
+	if err != nil {
+		return nil, err
+	}
+	preseedAs := a.(*asserts.Preseed)
+	switch {
+	case preseedAs.SystemLabel() != sysLabel:
+		return nil, fmt.Errorf("preseed assertion system label %q doesn't match system label %q", preseedAs.SystemLabel(), sysLabel)
+	case preseedAs.Model() != model.Model():
+		return nil, fmt.Errorf("preseed assertion model %q doesn't match the model %q", preseedAs.Model(), model.Model())
+	case preseedAs.BrandID() != model.BrandID():
+		return nil, fmt.Errorf("preseed assertion brand %q doesn't match model brand %q", preseedAs.BrandID(), model.BrandID())
+	case preseedAs.Series() != model.Series():
+		return nil, fmt.Errorf("preseed assertion series %q doesn't match model series %q", preseedAs.Series(), model.Series())
+	}
+	return preseedAs, nil
 }

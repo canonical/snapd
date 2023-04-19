@@ -22,6 +22,7 @@ package image
 import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/image/preseed"
 	"github.com/snapcore/snapd/store/tooling"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -53,7 +54,7 @@ func MockNewToolingStoreFromModel(f func(model *asserts.Model, fallbackArchitect
 	}
 }
 
-func MockPreseedCore20(f func(dir string, key, aaDir string) error) (restore func()) {
+func MockPreseedCore20(f func(opts *preseed.CoreOptions) error) (restore func()) {
 	r := testutil.Backup(&preseedCore20)
 	preseedCore20 = f
 	return r

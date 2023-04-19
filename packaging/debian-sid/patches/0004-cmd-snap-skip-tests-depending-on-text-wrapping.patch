@@ -23,47 +23,47 @@ Signed-off-by: Zygmunt Krynicki <me@zygoon.pl>
  cmd/snap/cmd_unalias_test.go    | 1 +
  8 files changed, 9 insertions(+)
 
-diff --git a/cmd/snap/cmd_alias_test.go b/cmd/snap/cmd_alias_test.go
-index bede9d62b..71a7861ad 100644
---- a/cmd/snap/cmd_alias_test.go
-+++ b/cmd/snap/cmd_alias_test.go
+Index: snapd/cmd/snap/cmd_alias_test.go
+===================================================================
+--- snapd.orig/cmd/snap/cmd_alias_test.go
++++ snapd/cmd/snap/cmd_alias_test.go
 @@ -29,6 +29,7 @@ import (
  )
  
  func (s *SnapSuite) TestAliasHelp(c *C) {
 +	c.Skip("the rendering of this text depends on the version of go-flags")
  	msg := `Usage:
-   snap.test alias [alias-OPTIONS] [<snap.app>] [<alias>]
+   snap.test alias [alias-OPTIONS] <snap.app> <alias>
  
-diff --git a/cmd/snap/cmd_connect_test.go b/cmd/snap/cmd_connect_test.go
-index c7a85dcef..9571d735b 100644
---- a/cmd/snap/cmd_connect_test.go
-+++ b/cmd/snap/cmd_connect_test.go
+Index: snapd/cmd/snap/cmd_connect_test.go
+===================================================================
+--- snapd.orig/cmd/snap/cmd_connect_test.go
++++ snapd/cmd/snap/cmd_connect_test.go
 @@ -32,6 +32,7 @@ import (
  )
  
  func (s *SnapSuite) TestConnectHelp(c *C) {
 +	c.Skip("the rendering of this text depends on the version of go-flags")
  	msg := `Usage:
-   snap.test connect [connect-OPTIONS] [<snap>:<plug>] [<snap>:<slot>]
+   snap.test connect [connect-OPTIONS] <snap>:<plug> [<snap>:<slot>]
  
-diff --git a/cmd/snap/cmd_disconnect_test.go b/cmd/snap/cmd_disconnect_test.go
-index 6e88ed22a..1e4c9fd00 100644
---- a/cmd/snap/cmd_disconnect_test.go
-+++ b/cmd/snap/cmd_disconnect_test.go
+Index: snapd/cmd/snap/cmd_disconnect_test.go
+===================================================================
+--- snapd.orig/cmd/snap/cmd_disconnect_test.go
++++ snapd/cmd/snap/cmd_disconnect_test.go
 @@ -31,6 +31,7 @@ import (
  )
  
  func (s *SnapSuite) TestDisconnectHelp(c *C) {
 +	c.Skip("the rendering of this text depends on the version of go-flags")
  	msg := `Usage:
-   snap.test disconnect [disconnect-OPTIONS] [<snap>:<plug>] [<snap>:<slot>]
+   snap.test disconnect [disconnect-OPTIONS] <snap>:<plug> [<snap>:<slot>]
  
-diff --git a/cmd/snap/cmd_info_test.go b/cmd/snap/cmd_info_test.go
-index 185fd7df9..c0066300c 100644
---- a/cmd/snap/cmd_info_test.go
-+++ b/cmd/snap/cmd_info_test.go
-@@ -352,6 +352,7 @@ installed:    2.10 (1) 1kB disabled
+Index: snapd/cmd/snap/cmd_info_test.go
+===================================================================
+--- snapd.orig/cmd/snap/cmd_info_test.go
++++ snapd/cmd/snap/cmd_info_test.go
+@@ -763,6 +763,7 @@ func (s *infoSuite) TestInfoNotFound(c *
  }
  
  func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
@@ -71,7 +71,7 @@ index 185fd7df9..c0066300c 100644
  	n := 0
  	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
  		switch n {
-@@ -388,6 +389,7 @@ installed:    2.10 (100) 1kB disabled
+@@ -799,6 +800,7 @@ installed:    2.10 (100) 1kB disabled
  }
  
  func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
@@ -79,10 +79,10 @@ index 185fd7df9..c0066300c 100644
  	n := 0
  	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
  		switch n {
-diff --git a/cmd/snap/cmd_interface_test.go b/cmd/snap/cmd_interface_test.go
-index b5e98d555..cd0a95f65 100644
---- a/cmd/snap/cmd_interface_test.go
-+++ b/cmd/snap/cmd_interface_test.go
+Index: snapd/cmd/snap/cmd_interface_test.go
+===================================================================
+--- snapd.orig/cmd/snap/cmd_interface_test.go
++++ snapd/cmd/snap/cmd_interface_test.go
 @@ -32,6 +32,7 @@ import (
  )
  
@@ -91,10 +91,10 @@ index b5e98d555..cd0a95f65 100644
  	msg := `Usage:
    snap.test interface [interface-OPTIONS] [<interface>]
  
-diff --git a/cmd/snap/cmd_list_test.go b/cmd/snap/cmd_list_test.go
-index 98312c8ae..e198ebdc9 100644
---- a/cmd/snap/cmd_list_test.go
-+++ b/cmd/snap/cmd_list_test.go
+Index: snapd/cmd/snap/cmd_list_test.go
+===================================================================
+--- snapd.orig/cmd/snap/cmd_list_test.go
++++ snapd/cmd/snap/cmd_list_test.go
 @@ -29,6 +29,7 @@ import (
  )
  
@@ -103,30 +103,27 @@ index 98312c8ae..e198ebdc9 100644
  	msg := `Usage:
    snap.test list [list-OPTIONS] [<snap>...]
  
-diff --git a/cmd/snap/cmd_prefer_test.go b/cmd/snap/cmd_prefer_test.go
-index b47cb5c43..fb9e009e7 100644
---- a/cmd/snap/cmd_prefer_test.go
-+++ b/cmd/snap/cmd_prefer_test.go
+Index: snapd/cmd/snap/cmd_prefer_test.go
+===================================================================
+--- snapd.orig/cmd/snap/cmd_prefer_test.go
++++ snapd/cmd/snap/cmd_prefer_test.go
 @@ -29,6 +29,7 @@ import (
  )
  
  func (s *SnapSuite) TestPreferHelp(c *C) {
 +	c.Skip("the rendering of this text depends on the version of go-flags")
  	msg := `Usage:
-   snap.test prefer [prefer-OPTIONS] [<snap>]
+   snap.test prefer [prefer-OPTIONS] <snap>
  
-diff --git a/cmd/snap/cmd_unalias_test.go b/cmd/snap/cmd_unalias_test.go
-index e6ec99761..e1903740f 100644
---- a/cmd/snap/cmd_unalias_test.go
-+++ b/cmd/snap/cmd_unalias_test.go
+Index: snapd/cmd/snap/cmd_unalias_test.go
+===================================================================
+--- snapd.orig/cmd/snap/cmd_unalias_test.go
++++ snapd/cmd/snap/cmd_unalias_test.go
 @@ -29,6 +29,7 @@ import (
  )
  
  func (s *SnapSuite) TestUnaliasHelp(c *C) {
 +	c.Skip("the rendering of this text depends on the version of go-flags")
  	msg := `Usage:
-   snap.test unalias [unalias-OPTIONS] [<alias-or-snap>]
+   snap.test unalias [unalias-OPTIONS] <alias-or-snap>
  
--- 
-2.17.1
-

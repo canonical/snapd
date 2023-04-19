@@ -85,6 +85,19 @@ volumes:
       type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
 `
 
+// from UC18 image, for testing the implicit system data partition case
+const RaspiUC18SimplifiedYaml = `
+volumes:
+  pi:
+    schema: mbr
+    bootloader: u-boot
+    structure:
+      - type: 0C
+        filesystem: vfat
+        filesystem-label: system-boot
+        size: 256M
+`
+
 var expPiSeedStructureTraits = gadget.DiskStructureDeviceTraits{
 	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
 	OriginalKernelPath: "/dev/mmcblk0p1",
@@ -222,6 +235,33 @@ var ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits = gadget.DiskVolumeDeviceTr
 		expPiBootStructureTraits,
 		expPiSaveEncStructureTraits,
 		expPiDataEncStructureTraits,
+	},
+}
+
+// ExpectedRaspiUC18DiskVolumeDeviceTraits, for testing the implicit system
+// data partition case
+var ExpectedRaspiUC18DiskVolumeDeviceTraits = gadget.DiskVolumeDeviceTraits{
+	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+	OriginalKernelPath: "/dev/mmcblk0",
+	DiskID:             "7c301cbd",
+	Size:               32010928128,
+	SectorSize:         512,
+	Schema:             "dos",
+	Structure: []gadget.DiskStructureDeviceTraits{
+		{
+			OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+			OriginalKernelPath: "/dev/mmcblk0p1",
+			PartitionUUID:      "7c301cbd-01",
+			PartitionType:      "0C",
+			PartitionLabel:     "",
+			FilesystemUUID:     "23F9-881F",
+			FilesystemLabel:    "system-boot",
+			FilesystemType:     "vfat",
+			Offset:             quantity.OffsetMiB,
+			Size:               256 * quantity.SizeMiB,
+		},
+		// note no writable structure here - since it's not in the YAML, we
+		// don't save it in the traits either
 	},
 }
 
@@ -390,6 +430,48 @@ var ExpectedRaspiMockDiskInstallModeMapping = &disks.MockDiskMapping{
 	Structure: []disks.Partition{
 		// only ubuntu-seed
 		mockSeedPartition,
+	},
+}
+
+// ExpectedRaspiUC18MockDiskMapping, for testing the implicit system data partition case
+var ExpectedRaspiUC18MockDiskMapping = &disks.MockDiskMapping{
+	DevNode:             "/dev/mmcblk0",
+	DevPath:             "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+	DevNum:              "179:0",
+	DiskUsableSectorEnd: 30528 * oneMeg / 512,
+	DiskSizeInBytes:     30528 * oneMeg,
+	SectorSizeBytes:     512,
+	DiskSchema:          "dos",
+	ID:                  "7c301cbd",
+	Structure: []disks.Partition{
+		{
+			PartitionUUID:    "7c301cbd-01",
+			PartitionType:    "0C",
+			FilesystemLabel:  "system-boot",
+			FilesystemUUID:   "23F9-881F",
+			FilesystemType:   "vfat",
+			Major:            179,
+			Minor:            1,
+			KernelDeviceNode: "/dev/mmcblk0p1",
+			KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+			DiskIndex:        1,
+			StartInBytes:     oneMeg,
+			SizeInBytes:      256 * oneMeg,
+		},
+		{
+			PartitionUUID:    "7c301cbd-02",
+			PartitionType:    "83",
+			FilesystemLabel:  "writable",
+			FilesystemUUID:   "cba2b8b3-c2e4-4e51-9a57-d35041b7bf9a",
+			FilesystemType:   "ext4",
+			Major:            179,
+			Minor:            2,
+			KernelDeviceNode: "/dev/mmcblk0p2",
+			KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
+			DiskIndex:        2,
+			StartInBytes:     (1 + 256) * oneMeg,
+			SizeInBytes:      32270 * oneMeg,
+		},
 	},
 }
 
@@ -726,6 +808,66 @@ volumes:
         size: 1G
 `
 
+const SingleVolumeClassicWithModesGadgetYaml = `
+volumes:
+  pc:
+    # bootloader configuration is shipped and managed by snapd
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        update:
+          edition: 1
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        update:
+          edition: 2
+        content:
+          - image: pc-core.img
+      - name: EFI System partition
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        # TODO make this realistically smaller?
+        size: 99M
+        update:
+          edition: 2
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        offset: 1202M
+        size: 750M
+        update:
+          edition: 1
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 4G
+`
+
 const MultiVolumeUC20GadgetYaml = SingleVolumeUC20GadgetYaml + `
   foo:
     schema: gpt
@@ -737,6 +879,75 @@ const MultiVolumeUC20GadgetYaml = SingleVolumeUC20GadgetYaml + `
         type: A11D2A7C-D82A-4C2F-8A01-1805240E6626
         size: 4096
       - name: some-filesystem
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+
+const SingleVolumeClassicwithModesNoEncryptGadgetYaml = `
+volumes:
+  pc:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: EFI System Partition
+        role: system-seed-null
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 750M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+
+const SingleVolumeClassicwithModesEncryptGadgetYaml = `
+volumes:
+  pc:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: EFI System Partition
+        role: system-seed-null
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 750M
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
         filesystem: ext4
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         size: 1G
@@ -1196,50 +1407,32 @@ const UC16YAMLImplicitSystemData = `volumes:
 var UC16DeviceLayout = gadget.OnDiskVolume{
 	Structure: []gadget.OnDiskStructure{
 		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name: "BIOS Boot",
-					Type: "21686148-6449-6E6F-744E-656564454649",
-					ID:   "b2e891ee-b971-4a2b-b874-694bbf9b821a",
-					Size: quantity.SizeMiB,
-				},
-				StartOffset: quantity.OffsetMiB,
-			},
-			DiskIndex: 1,
-			Node:      "/dev/sda1",
-			Size:      quantity.SizeMiB,
+			Name:        "BIOS Boot",
+			Type:        "21686148-6449-6E6F-744E-656564454649",
+			StartOffset: quantity.OffsetMiB,
+			DiskIndex:   1,
+			Node:        "/dev/sda1",
+			Size:        quantity.SizeMiB,
 		},
 		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name:       "EFI System",
-					Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-					ID:         "a87e9dcb-b1e1-4eab-89cf-1c2fc057b038",
-					Label:      "system-boot",
-					Filesystem: "vfat",
-					Size:       52428800,
-				},
-				StartOffset: 2097152,
-			},
-			DiskIndex: 2,
-			Node:      "/dev/sda2",
-			Size:      52428800,
+			Name:             "EFI System",
+			Type:             "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			PartitionFSLabel: "system-boot",
+			PartitionFSType:  "vfat",
+			StartOffset:      2097152,
+			DiskIndex:        2,
+			Node:             "/dev/sda2",
+			Size:             52428800,
 		},
 		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name:       "writable",
-					Type:       "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					ID:         "cba2b8b3-c2e4-4e51-9a57-d35041b7bf9a",
-					Label:      "writable",
-					Filesystem: "ext4",
-					Size:       10682875392,
-				},
-				StartOffset: 54525952,
-			},
-			DiskIndex: 3,
-			Node:      "/dev/sda3",
-			Size:      10682875392,
+			Name:             "writable",
+			Type:             "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			PartitionFSLabel: "writable",
+			PartitionFSType:  "ext4",
+			Size:             10682875392,
+			StartOffset:      54525952,
+			DiskIndex:        3,
+			Node:             "/dev/sda3",
 		},
 	},
 	ID:               "2a9b0671-4597-433b-b3ad-be99950e8c5e",

@@ -223,7 +223,7 @@ version: 1
 `, "")
 
 	// pretend snap foo is held initially
-	_, err = snapstate.HoldRefresh(s.st, "snap1", 0, "foo")
+	_, err = snapstate.HoldRefresh(s.st, snapstate.HoldAutoRefresh, "snap1", 0, "foo")
 	c.Check(err, IsNil)
 	s.st.Unlock()
 

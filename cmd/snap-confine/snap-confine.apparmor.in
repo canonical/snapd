@@ -154,6 +154,16 @@
     # adding a missing bpf mount
     mount fstype=bpf options=(rw) bpf -> /sys/fs/bpf/,
 
+    # For mounting base dir by dir (write dirs and mount on them)
+    /tmp/snap.rootfs_** rw,
+    mount options=(remount ro) -> /tmp/snap.rootfs_*/,
+    mount options=(rw rbind) @SNAP_MOUNT_DIR@/*/*/**/ -> /tmp/snap.rootfs_**/,
+    # For mounting individual files
+    mount options=(rw bind) @SNAP_MOUNT_DIR@/*/*/** -> /tmp/snap.rootfs_*/**,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_**/,
+    # Allow mounting dirs from /
+    mount options=(rw rbind) /*/ -> /tmp/snap.rootfs_**/,
+
     # LP: #1668659 and parallel instaces of classic snaps
     mount options=(rw rbind) /snap/ -> /snap/,
     mount options=(rw rshared) -> /snap/,
@@ -161,6 +171,7 @@
     mount options=(rw rshared) -> /var/lib/snapd/snap/,
 
     # boostrapping the mount namespace
+    /tmp/snap.rootfs_*/ rw,
     mount options=(rw rshared) -> /,
     mount options=(rw bind) /tmp/snap.rootfs_*/ -> /tmp/snap.rootfs_*/,
     mount options=(rw unbindable) -> /tmp/snap.rootfs_*/,
@@ -281,7 +292,8 @@
     # Explicitly deny creating the old_root directory in case it is
     # inadvertently added somewhere else. While this doesn't resolve
     # LP: #1791711, it provides some hardening.
-    audit deny /tmp/snap.rootfs_*/{var/,var/lib/,var/lib/snapd/,var/lib/snapd/hostfs/} w,
+    # For dir on dir mounts, we do need write permissions in /var though
+    audit deny /tmp/snap.rootfs_*/{var/lib/,var/lib/snapd/,var/lib/snapd/hostfs/} w,
 
     # cleanup
     umount /var/lib/snapd/hostfs/tmp/snap.rootfs_*/,
@@ -313,10 +325,11 @@
     # set up snap-specific private /tmp dir
     capability chown,
     /tmp/ rw,
-    /tmp/snap.*/ rw,
-    /tmp/snap.*/tmp/ rw,
+    /tmp/snap-private-tmp/ rw,
+    /tmp/snap-private-tmp/snap.*/ rw,
+    /tmp/snap-private-tmp/snap.*/tmp/ rw,
     mount options=(rw private) ->  /tmp/,
-    mount options=(rw bind) /tmp/snap.*/tmp/ -> /tmp/,
+    mount options=(rw bind) /tmp/snap-private-tmp/snap.*/tmp/ -> /tmp/,
     mount fstype=devpts options=(rw) devpts -> /dev/pts/,
     mount options=(rw bind) /dev/pts/ptmx -> /dev/ptmx,     # for bind mounting
     mount options=(rw bind) /dev/pts/ptmx -> /dev/pts/ptmx, # for bind mounting under LXD
