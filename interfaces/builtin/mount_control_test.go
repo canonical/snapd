@@ -67,6 +67,13 @@ plugs:
     where: $SNAP_COMMON/{foo,other,**}
     type: [mycustomfs]
     options: [sync]
+  - what: /dev/sd[abc]
+    where: /media/someuser/**
+    options: [nofail, rw]
+  - what: /dev/sda[123]
+    where: $SNAP_COMMON/mnt/**
+    type: [ext2, ext3, ext4]
+    options: [nofail, sync, acl]
 apps:
  app:
   plugs: [mntctl]
@@ -221,12 +228,20 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			`mount-control "where" setting cannot be used: missing closing bracket ']'.*`,
 		},
 		{
-			"mount:\n  - what: /\n    where: /media/*\n    options: [nofail,gid=2000,invalid]",
+			"mount:\n  - what: /\n    where: /media/*\n    options: [sync,invalid]",
 			`mount-control option unrecognized or forbidden: "invalid"`,
 		},
 		{
-			"mount:\n  - what: /\n    where: /media/*\n    type: [ext4]\n    options: [gid=2000]",
+			"mount:\n  - what: /\n    where: /media/*\n    type: [ext2,ext3,ext4]\n    options: [acl,gid=2000]",
 			`mount-control option unrecognized or forbidden: "gid=2000"`,
+		},
+		{
+			"mount:\n  - what: /\n    where: /media/*\n    type: [adfs,ext2,ext3,ext4]\n    options: [acl,gid=2000]",
+			`mount-control option unrecognized or forbidden: "acl"`,
+		},
+		{
+			"mount:\n  - what: /\n    where: /media/*\n    type: [adfs]\n    options: [gid=2000,acl]",
+			`mount-control option unrecognized or forbidden: "acl"`,
 		},
 		{
 			"mount:\n  - what: /\n    where: /media/*\n    type: [ext4,debugfs]",
@@ -325,6 +340,20 @@ func (s *MountControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine4)
 	expectedUmountLine4 := `umount "/var/snap/consumer/common/{foo,other,**}{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine4)
+
+	expectedMountLine5 := `mount fstype=(` +
+		`aufs,autofs,btrfs,ext2,ext3,ext4,hfs,iso9660,jfs,msdos,ntfs,ramfs,` +
+		`reiserfs,squashfs,tmpfs,ubifs,udf,ufs,vfat,zfs,xfs` +
+		`) options=(rw) "/dev/sd[abc]" -> "/media/someuser/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine5)
+	expectedUmountLine5 := `umount "/media/someuser/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine5)
+
+	expectedMountLine6 := `mount fstype=(ext2,ext3,ext4) options=(sync) ` +
+		`"/dev/sda[123]" -> "/var/snap/consumer/common/mnt/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine6)
+	expectedUmountLine6 := `umount "/var/snap/consumer/common/mnt/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine6)
 }
 
 func (s *MountControlInterfaceSuite) TestStaticInfo(c *C) {

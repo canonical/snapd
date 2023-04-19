@@ -437,17 +437,12 @@ func validateMountOptions(mountInfo *MountInfo) error {
 		if strutil.ListContains(allowedUserspaceMountOptions, o) {
 			continue
 		}
-		foundAllowed := false
 		optionName := strings.Split(o, "=")[0]
 		for _, fstype := range types {
 			fsAllowedOptions, exists := allowedFilesystemSpecificMountOptions[fstype]
-			if exists && strutil.ListContains(fsAllowedOptions, optionName) {
-				foundAllowed = true
-				break
+			if !(exists && strutil.ListContains(fsAllowedOptions, optionName)) {
+				return fmt.Errorf(`mount-control option unrecognized or forbidden: %q`, o)
 			}
-		}
-		if !foundAllowed {
-			return fmt.Errorf(`mount-control option unrecognized or forbidden: %q`, o)
 		}
 	}
 	return nil
