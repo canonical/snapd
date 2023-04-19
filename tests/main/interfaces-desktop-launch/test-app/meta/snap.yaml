@@ -1,5 +1,6 @@
 name: test-app
 version: 1.0
+base: core22
 summary: Basic desktop app test snap
 description: A basic snap to act as a target for the launcher
 
