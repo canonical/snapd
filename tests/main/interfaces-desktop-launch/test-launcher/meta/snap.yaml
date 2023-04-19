@@ -4,6 +4,9 @@ summary: Basic desktop launcher snap
 description: A basic snap that attempts to launch other snaps
 
 apps:
-  test-launcher:
-    command: bin/launcher.sh
+  dbus:
+    command: bin/dbus.sh
+    plugs: [desktop-launch]
+  exec:
+    command: bin/exec.sh
     plugs: [desktop-launch]
