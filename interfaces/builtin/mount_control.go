@@ -72,7 +72,6 @@ var allowedKernelMountOptions = []string{
 	"dirsync",
 	"iversion",
 	"lazytime",
-	"nofail",
 	"noiversion",
 	"nomand",
 	"noatime",
