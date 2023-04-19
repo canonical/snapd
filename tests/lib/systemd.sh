@@ -65,7 +65,3 @@ systemd_stop_units() {
         fi
     done
 }
-
-systemd_get_active_snapd_units() {
-    systemctl list-units --plain --state=active|grep -Eo '^snapd\..*(socket|service|timer)' || true
-}

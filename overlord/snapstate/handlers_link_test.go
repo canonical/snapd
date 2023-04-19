@@ -347,9 +347,9 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 
 	linkChangeCount := 0
 	lp := &testLinkParticipant{
-		linkageChanged: func(st *state.State, instanceName string) error {
+		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(st, instanceName, &snapst)
+			err := snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			linkChangeCount++
 			switch linkChangeCount {
 			case 1:
@@ -1323,9 +1323,9 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 
 	linkChangeCount := 0
 	lp := &testLinkParticipant{
-		linkageChanged: func(st *state.State, instanceName string) error {
+		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(st, instanceName, &snapst)
+			err := snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			linkChangeCount++
 			switch linkChangeCount {
 			case 1:

@@ -2,15 +2,12 @@
 
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
-# shellcheck source=tests/lib/systemd.sh
-. "$TESTSLIB/systemd.sh"
-
 
 reset_classic() {
     # Reload all service units as in some situations the unit might
     # have changed on the disk.
     systemctl daemon-reload
-    systemd_stop_units snapd.service snapd.socket
+    tests.systemd stop-unit snapd.service snapd.socket
 
     # none of the purge steps stop the user services, we need to do it
     # explicitly, at least for the root user
@@ -53,7 +50,7 @@ reset_classic() {
         ls -lR "$SNAP_MOUNT_DIR"/ /var/snap/
         exit 1
     fi
-    rm -rf /tmp/snap-private-tmp
+    rm -rf /tmp/snap-private-tmp/*
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)

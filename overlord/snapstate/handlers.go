@@ -921,40 +921,42 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 
 	abort := make(chan bool, 1)
 	monitoredSnaps[refreshInfo.InstanceName] = abort
-	st.Cache("monitored-snaps", monitoredSnaps)
+	updateMonitoringState(st, monitoredSnaps)
 
-	go func() {
-		continueAutoRefresh := false
-		select {
-		case <-done:
-			continueAutoRefresh = true
-		case <-abort:
-		}
-
-		st.Lock()
-		defer st.Unlock()
-
-		monitoredSnaps := snapMonitoring(st)
-		if monitoredSnaps == nil {
-			// shouldn't happen except for programmer error
-			logger.Noticef("cannot find monitoring state for snap %q", refreshInfo.InstanceName)
-		} else {
-			delete(monitoredSnaps, refreshInfo.InstanceName)
-
-			if len(monitoredSnaps) == 0 {
-				// use nil to delete entry but must be nil type (can't be map var set to nil)
-				st.Cache("monitored-snaps", nil)
-			} else {
-				st.Cache("monitored-snaps", monitoredSnaps)
-			}
-		}
-
-		if continueAutoRefresh {
-			continueInhibitedAutoRefresh(st)
-		}
-	}()
+	go continueRefreshOnSnapClose(st, refreshInfo.InstanceName, done, abort)
 
 	return nil
+}
+
+func continueRefreshOnSnapClose(st *state.State, instanceName string, done <-chan string, abort <-chan bool) {
+	continueAutoRefresh := false
+	select {
+	case <-done:
+		continueAutoRefresh = true
+	case <-abort:
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	monitoredSnaps := snapMonitoring(st)
+	if monitoredSnaps == nil {
+		// shouldn't happen except for programmer error
+		logger.Noticef("cannot find monitoring state for snap %q", instanceName)
+	} else {
+		delete(monitoredSnaps, instanceName)
+
+		if len(monitoredSnaps) == 0 {
+			// use nil to delete entry but must be nil type (can't be map var set to nil)
+			updateMonitoringState(st, nil)
+		} else {
+			updateMonitoringState(st, monitoredSnaps)
+		}
+	}
+
+	if continueAutoRefresh {
+		continueInhibitedAutoRefresh(st)
+	}
 }
 
 // continueInhibitedAutoRefresh triggers an auto-refresh so it can be continued
@@ -972,6 +974,22 @@ func snapMonitoring(st *state.State) map[string]chan<- bool {
 	}
 
 	return nil
+}
+
+func updateMonitoringState(st *state.State, monitored map[string]chan<- bool) {
+	if monitored == nil {
+		st.Cache("monitored-snaps", nil)
+		st.Set("monitored-snaps", nil)
+		return
+	}
+
+	var snaps []string
+	for snap := range monitored {
+		snaps = append(snaps, snap)
+	}
+
+	st.Cache("monitored-snaps", monitored)
+	st.Set("monitored-snaps", snaps)
 }
 
 func abortMonitoring(st *state.State, snapName string) {
@@ -1283,7 +1301,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// undo migration if appropriate
 	if snapsup.Flags.Revert {
@@ -1417,7 +1435,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
@@ -1804,14 +1822,14 @@ func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string
 type LinkSnapParticipant interface {
 	// SnapLinkageChanged is called when a snap is linked or unlinked.
 	// The error is only logged and does not stop the task it is used from.
-	SnapLinkageChanged(st *state.State, instanceName string) error
+	SnapLinkageChanged(st *state.State, snapsup *SnapSetup) error
 }
 
 // LinkSnapParticipantFunc is an adapter from function to LinkSnapParticipant.
-type LinkSnapParticipantFunc func(st *state.State, instanceName string) error
+type LinkSnapParticipantFunc func(st *state.State, snapsup *SnapSetup) error
 
-func (f LinkSnapParticipantFunc) SnapLinkageChanged(st *state.State, instanceName string) error {
-	return f(st, instanceName)
+func (f LinkSnapParticipantFunc) SnapLinkageChanged(st *state.State, snapsup *SnapSetup) error {
+	return f(st, snapsup)
 }
 
 var linkSnapParticipants []LinkSnapParticipant
@@ -1830,10 +1848,10 @@ func MockLinkSnapParticipants(ps []LinkSnapParticipant) (restore func()) {
 	}
 }
 
-func notifyLinkParticipants(t *state.Task, instanceName string) {
+func notifyLinkParticipants(t *state.Task, snapsup *SnapSetup) {
 	st := t.State()
 	for _, p := range linkSnapParticipants {
-		if err := p.SnapLinkageChanged(st, instanceName); err != nil {
+		if err := p.SnapLinkageChanged(st, snapsup); err != nil {
 			t.Errorf("%v", err)
 		}
 	}
@@ -2009,7 +2027,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		if backendErr != nil {
 			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", snapsup.InstanceName(), backendErr)
 		}
-		notifyLinkParticipants(t, snapsup.InstanceName())
+		notifyLinkParticipants(t, snapsup)
 	}()
 	if err != nil {
 		return err
@@ -2124,7 +2142,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	finalStatus := state.DoneStatus
@@ -2537,7 +2555,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// Finish task: set status, possibly restart
 
@@ -2960,7 +2978,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	return err
 }
@@ -3026,7 +3044,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// if we just linked back a core snap, request a restart
 	// so that we switch executing its snapd.
@@ -3939,7 +3957,9 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		}
 	}
 
-	if createPreDownloadChange(st, updateTss) {
+	if created, err := createPreDownloadChange(st, updateTss); err != nil {
+		return err
+	} else if created {
 		newTasks = true
 	}
 
@@ -3971,7 +3991,9 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		return err
 	}
 
-	createPreDownloadChange(st, updateTss)
+	if _, err := createPreDownloadChange(st, updateTss); err != nil {
+		return err
+	}
 
 	if updateTss.Refresh != nil {
 		// update the map of refreshed snaps on the task, this affects
