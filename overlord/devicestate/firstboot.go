@@ -366,13 +366,13 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		if trackVss, err := maybeEnforceValidationSetsTask(st, model, db); err != nil {
 			return nil, err
 		} else if trackVss != nil {
+			trackVss.WaitAll(ts)
 			endTs.AddTask(trackVss)
 		}
 	}
 
 	markSeeded := markSeededTask(st)
 	if preseed {
-		preseedDoneTask.WaitAll(endTs)
 		endTs.AddTask(preseedDoneTask)
 	}
 	whatSeeds := &seededSystem{
@@ -386,11 +386,11 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	// mark-seeded waits for the taskset of last snap, and
 	// for all the tasks in the endTs as well.
+	markSeeded.WaitAll(ts)
 	markSeeded.WaitAll(endTs)
 	endTs.AddTask(markSeeded)
 
 	// the last task-set waits for the taskset of the last snap
-	endTs.WaitAll(ts)
 	tsAll = append(tsAll, endTs)
 
 	return tsAll, nil
