@@ -306,7 +306,12 @@ prepare_reexec_override() {
         # the re-exec setting may have changed in the service so we need
         # to ensure snapd is reloaded
         systemctl daemon-reload
+        # Leave some time for snapd to finish processing hooks
+        flush_changes
         systemctl restart snapd
+        # Snapd might need to run some hooks (prepare-device) which
+        # triggers `tests.invariant cgroup-scopes` false positives
+        flush_changes
     fi
 }
 
