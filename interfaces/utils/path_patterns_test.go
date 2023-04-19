@@ -102,7 +102,7 @@ func (s *pathPatternsSuite) TestRegexCreationUnhappy(c *C) {
 	}
 }
 
-func (s *pathPatternsSuite) TestCommasInRegex(c *C) {
+func (s *pathPatternsSuite) TestCreateRegexWithCommas(c *C) {
 	data := []struct {
 		pattern        string
 		allowCommas    bool
