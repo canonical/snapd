@@ -161,12 +161,12 @@ func (p *PromptNotifierDbus) Run() error {
 		logger.Debugf("waiting prompt loop")
 		select {
 		case req := <-p.notifier.R:
-			logger.Debugf("req ch %v", req)
+			logger.Noticef("Got from kernel req ch %v", req)
 			// XXX: deal with the kernel timeout of prompts
 			go p.handleReq(req)
 
 		case err := <-p.notifier.E:
-			logger.Debugf("err ch %v", err)
+			logger.Noticef("Got from kernel error ch %v", err)
 			return err
 		}
 	}

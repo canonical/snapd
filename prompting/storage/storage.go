@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/prompting/notifier"
 )
@@ -35,7 +36,10 @@ func New() *PromptsDB {
 }
 
 func findPathInSubdirs(paths map[string]bool, path string) bool {
+	// TODO: make logger
+	logger.Noticef("findPathInSubdirs: %v %v", path, paths)
 	for path != filepath.Dir(path) {
+		logger.Noticef("checking: %v", path)
 		if paths[path] {
 			return true
 		}
