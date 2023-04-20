@@ -471,3 +471,7 @@ func MockCgroupMonitorSnapEnded(f func(string, chan<- string) error) func() {
 		cgroupMonitorSnapEnded = old
 	}
 }
+
+func SetRestoredMonitoring(snapmgr *SnapManager, value bool) {
+	snapmgr.autoRefresh.restoredMonitoring = value
+}

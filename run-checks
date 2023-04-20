@@ -14,8 +14,8 @@ COVERAGE_OUT=${COVERAGE_OUT:-.coverage/coverage-$COVERAGE_SUFFIX.cov}
 CHANGED_FILES=${CHANGED_FILES:-""}
 
 if [ -z "${GITHUB_WORKFLOW:-}" ]; then
-    # when *not* running inside github, ensure we use go-1.13 by default
-    export PATH=/usr/lib/go-1.13/bin:"${PATH}"
+    # when *not* running inside github, ensure we use go-1.18 by default
+    export PATH=/usr/lib/go-1.18/bin:"${PATH}"
 fi
 
 # add workaround for https://github.com/golang/go/issues/24449
@@ -74,14 +74,15 @@ addtrap() {
 
 goinstall() {
     pkg="$1"
+    version="${2:-}"
     # go1.18+ will no longer build/install packages. Here "go install"
     # must be used but it will only fetch remote packages if the @latest
     # (or similar syntax is used). Instead of checking the version we
     # check if the "go install" help mentions this new feature.
     if go help install | grep -q @latest; then
-        go install "${pkg}"@latest
+        go install "${pkg}"@"${version:=latest}"
     else
-        go get -u "${pkg}"
+        go get -u "${pkg}"@"${version:=latest}"
     fi
 }
 
@@ -282,7 +283,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo "Checking for naked returns"
     if ! command -v nakedret >/dev/null; then
-        goinstall github.com/alexkohler/nakedret
+        goinstall github.com/alexkohler/nakedret v1.0.1
     fi
     got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
     if [ -n "$got" ]; then

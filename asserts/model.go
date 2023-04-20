@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
@@ -430,6 +431,16 @@ type ModelValidationSet struct {
 	Sequence int
 	// Mode is the enforcement mode the validation set should be applied with.
 	Mode ModelValidationSetMode
+}
+
+func (mvs *ModelValidationSet) AtSequence() *AtSequence {
+	return &AtSequence{
+		Type:        ValidationSetType,
+		SequenceKey: []string{release.Series, mvs.AccountID, mvs.Name},
+		Sequence:    mvs.Sequence,
+		Pinned:      mvs.Sequence > 0,
+		Revision:    RevisionNotKnown,
+	}
 }
 
 // Model holds a model assertion, which is a statement by a brand

@@ -647,6 +647,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
+		YamlIndex: 0,
 	}
 	fsStruct := gadget.VolumeStructure{
 		VolumeName: "foo",
@@ -657,6 +658,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 		Content: []gadget.VolumeContent{
 			{UnresolvedSource: "/second-content", Target: "/"},
 		},
+		YamlIndex: 1,
 	}
 	lastStruct := gadget.VolumeStructure{
 		VolumeName: "foo",
@@ -667,6 +669,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 		Content: []gadget.VolumeContent{
 			{UnresolvedSource: "/third-content", Target: "/"},
 		},
+		YamlIndex: 2,
 	}
 	// start with identical data for new and old infos, they get updated by
 	// the caller as needed

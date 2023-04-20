@@ -196,21 +196,22 @@ type snapInstruction struct {
 	Action string `json:"action"`
 	Amend  bool   `json:"amend"`
 	snapRevisionOptions
-	DevMode                bool                   `json:"devmode"`
-	JailMode               bool                   `json:"jailmode"`
-	Classic                bool                   `json:"classic"`
-	IgnoreValidation       bool                   `json:"ignore-validation"`
-	IgnoreRunning          bool                   `json:"ignore-running"`
-	Unaliased              bool                   `json:"unaliased"`
-	Purge                  bool                   `json:"purge,omitempty"`
-	SystemRestartImmediate bool                   `json:"system-restart-immediate"`
-	Transaction            client.TransactionType `json:"transaction"`
-	Snaps                  []string               `json:"snaps"`
-	Users                  []string               `json:"users"`
-	ValidationSets         []string               `json:"validation-sets"`
-	QuotaGroupName         string                 `json:"quota-group"`
-	Time                   string                 `json:"time"`
-	HoldLevel              string                 `json:"hold-level"`
+	DevMode                bool                             `json:"devmode"`
+	JailMode               bool                             `json:"jailmode"`
+	Classic                bool                             `json:"classic"`
+	IgnoreValidation       bool                             `json:"ignore-validation"`
+	IgnoreRunning          bool                             `json:"ignore-running"`
+	Unaliased              bool                             `json:"unaliased"`
+	Purge                  bool                             `json:"purge,omitempty"`
+	SystemRestartImmediate bool                             `json:"system-restart-immediate"`
+	Transaction            client.TransactionType           `json:"transaction"`
+	Snaps                  []string                         `json:"snaps"`
+	Users                  []string                         `json:"users"`
+	SnapshotOptions        map[string]*snap.SnapshotOptions `json:"snapshot-options"`
+	ValidationSets         []string                         `json:"validation-sets"`
+	QuotaGroupName         string                           `json:"quota-group"`
+	Time                   string                           `json:"time"`
+	HoldLevel              string                           `json:"hold-level"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -258,6 +259,43 @@ func (inst *snapInstruction) holdLevel() snapstate.HoldLevel {
 	default:
 		panic("not validated hold level")
 	}
+}
+
+// cleanSnapshotOptions cleans the snapshot options.
+//
+// With default marshalling, some permutations of valid JSON definitions of snapshot-options e.g.
+//   - `"snapshot-options": { "snap1": {} }`
+//   - `"snapshot-options": { "snap1": {exclude: []} }`
+//
+// results in a pointer to SnapshotOptions object with a nil or zero length exclusion list
+// which in turn will be marshalled to JSON as `options: {}` when we rather want it omitted.
+// The cleaning step ensures that we only populate map entries for snapshot options that contain
+// usable content that we want to be marshalled downstream.
+func (inst *snapInstruction) cleanSnapshotOptions() {
+	for name, options := range inst.SnapshotOptions {
+		if options.Unset() {
+			delete(inst.SnapshotOptions, name)
+		}
+	}
+}
+
+func (inst *snapInstruction) validateSnapshotOptions() error {
+	if inst.SnapshotOptions == nil {
+		return nil
+	}
+	if inst.Action != "snapshot" {
+		return fmt.Errorf("snapshot-options can only be specified for snapshot action")
+	}
+	for name, options := range inst.SnapshotOptions {
+		if !strutil.ListContains(inst.Snaps, name) {
+			return fmt.Errorf("cannot use snapshot-options for snap %q that is not listed in snaps", name)
+		}
+		if err := options.Validate(); err != nil {
+			return fmt.Errorf("invalid snapshot-options for snap %q: %v", name, err)
+		}
+	}
+
+	return nil
 }
 
 func (inst *snapInstruction) validate() error {
@@ -315,6 +353,14 @@ func (inst *snapInstruction) validate() error {
 		if inst.HoldLevel != "" {
 			return errors.New(`hold-level can only be specified for the "hold" action`)
 		}
+	}
+
+	if err := inst.validateSnapshotOptions(); err != nil {
+		return err
+	}
+
+	if inst.Action == "snapshot" {
+		inst.cleanSnapshotOptions()
 	}
 
 	return inst.snapRevisionOptions.validate()

@@ -63,6 +63,8 @@ type storeSnap struct {
 	Media []storeSnapMedia `json:"media"`
 
 	CommonIDs []string `json:"common-ids"`
+
+	Categories []storeSnapCategory `json:"categories"`
 }
 
 type storeSnapDownload struct {
@@ -86,6 +88,11 @@ type storeSnapMedia struct {
 	URL    string `json:"url"`
 	Width  int64  `json:"width"`
 	Height int64  `json:"height"`
+}
+
+type storeSnapCategory struct {
+	Featured bool   `json:"featured"`
+	Name     string `json:"name"`
 }
 
 // storeInfoChannel is the channel description included in info results
@@ -252,6 +259,9 @@ func copyNonZeroFrom(src, dst *storeSnap) {
 	if len(src.CommonIDs) > 0 {
 		dst.CommonIDs = src.CommonIDs
 	}
+	if len(src.Categories) > 0 {
+		dst.Categories = src.Categories
+	}
 	if len(src.Website) > 0 {
 		dst.Website = src.Website
 	}
@@ -344,6 +354,8 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	// media
 	addMedia(info, d.Media)
 
+	addCategories(info, d.Categories)
+
 	return info, nil
 }
 
@@ -357,5 +369,16 @@ func addMedia(info *snap.Info, media []storeSnapMedia) {
 		info.Media[i].URL = mediaObj.URL
 		info.Media[i].Width = mediaObj.Width
 		info.Media[i].Height = mediaObj.Height
+	}
+}
+
+func addCategories(info *snap.Info, categories []storeSnapCategory) {
+	if len(categories) == 0 {
+		return
+	}
+	info.Categories = make([]snap.CategoryInfo, len(categories))
+	for i, category := range categories {
+		info.Categories[i].Featured = category.Featured
+		info.Categories[i].Name = category.Name
 	}
 }

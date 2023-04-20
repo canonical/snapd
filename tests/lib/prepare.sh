@@ -276,31 +276,51 @@ EOF
     flush_changes
 }
 
-prepare_each_classic() {
-    mkdir -p /etc/systemd/system/snapd.service.d
-    if [ -z "${SNAP_REEXEC:-}" ]; then
-        rm -f /etc/systemd/system/snapd.service.d/reexec.conf
-    else
-        cat <<EOF > /etc/systemd/system/snapd.service.d/reexec.conf
+create_reexec_file(){
+    local reexec_file=$1
+    cat <<EOF > "$reexec_file"
 [Service]
 Environment=SNAP_REEXEC=$SNAP_REEXEC
 EOF
+}
+
+prepare_reexec_override() {
+    local reexec_file=/etc/systemd/system/snapd.service.d/reexec.conf
+    local updated=false
+
+    # Just update reexec configuration when the SNAP_REEXEC var has been updated
+    # Otherwise it is used the configuration set during project preparation
+    mkdir -p /etc/systemd/system/snapd.service.d
+    if [ -z "${SNAP_REEXEC:-}" ] && [ -f "$reexec_file" ] ; then
+        rm -f "$reexec_file"
+        updated=true
+    elif [ -n "${SNAP_REEXEC:-}" ] && [ ! -f "$reexec_file" ]; then
+        create_reexec_file "$reexec_file"
+        updated=true
+    elif [ -n "${SNAP_REEXEC:-}" ] && NOMATCH "Environment=SNAP_REEXEC=$SNAP_REEXEC" < "$reexec_file"; then
+        create_reexec_file "$reexec_file"
+        updated=true
     fi
-    # the re-exec setting may have changed in the service so we need
-    # to ensure snapd is reloaded
-    systemctl daemon-reload
 
-    # Leave some time for snapd to finish processing hooks
-    flush_changes
-    systemctl restart snapd
-    # Snapd might need to run some hooks (prepare-device) which
-    # triggers `tests.invariant cgroup-scopes` false positives
-    flush_changes
+    if [ "$updated" = true ]; then
+        # the re-exec setting may have changed in the service so we need
+        # to ensure snapd is reloaded
+        systemctl daemon-reload
+        # Leave some time for snapd to finish processing hooks
+        flush_changes
+        systemctl restart snapd
+        # Snapd might need to run some hooks (prepare-device) which
+        # triggers `tests.invariant cgroup-scopes` false positives
+        flush_changes
+    fi
+}
 
+prepare_each_classic() {
     if [ ! -f /etc/systemd/system/snapd.service.d/local.conf ]; then
         echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
         exit 1
     fi
+    prepare_reexec_override
 }
 
 prepare_classic() {
@@ -383,6 +403,8 @@ prepare_classic() {
         update_core_snap_for_classic_reexec
         systemctl start snapd.{service,socket}
 
+        prepare_reexec_override
+        prepare_memory_limit_override
         disable_refreshes
 
         # Check bootloader environment output in architectures different to s390x which uses zIPL
@@ -398,6 +420,7 @@ prepare_classic() {
         fi
 
         setup_experimental_features
+
         systemctl stop snapd.{service,socket}
         save_snapd_state
         systemctl start snapd.socket
@@ -1416,10 +1439,10 @@ prepare_ubuntu_core() {
 
     # Snapshot the fresh state (including boot/bootenv)
     if ! is_snapd_state_saved; then
-
         # important to remove disabled snaps before calling save_snapd_state
         # or restore will break
         remove_disabled_snaps
+        prepare_memory_limit_override
         setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state

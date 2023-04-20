@@ -34,19 +34,71 @@ import (
 
 var osOpen = os.Open
 
-// SnapshotOptions contains the information provided by a snap package about
-// what files should be included in the snapshots.
+// SnapshotOptions describes the options available for snapshots.
+// The initial source of these options is a file in the snap package.
+// In addition, options can be modified with dynamic requests via REST API.
 type SnapshotOptions struct {
-	// ExcludePaths is the list of file and directory patterns that need to be
+	// Exclude is the list of file and directory patterns that need to be
 	// excluded from a snapshot. At the moment the only supported globbing
 	// character is "*", which stands for any sequence of characters other than
 	// "/".
-	ExcludePaths []string `yaml:"exclude"`
+	Exclude []string `yaml:"exclude" json:"exclude,omitempty"`
 }
 
 const (
 	snapshotManifestPath = "meta/snapshots.yaml"
 )
+
+// Unset determines if the SnapshotOptions object contains meaningful values.
+//
+// It can be used, for example, to determine if the SnapshotOptions object should be
+// serialized to metadata.
+func (opts *SnapshotOptions) Unset() bool {
+	return len(opts.Exclude) == 0
+}
+
+// MergeDynamicExcludes combines dynamic excludes with existing excludes.
+func (opts *SnapshotOptions) MergeDynamicExcludes(dynamicExcludes []string) error {
+	mergedExcludes := append(opts.Exclude, dynamicExcludes...)
+	dryRunOptions := SnapshotOptions{Exclude: mergedExcludes}
+	if err := dryRunOptions.Validate(); err != nil {
+		return err
+	}
+	opts.Exclude = mergedExcludes
+
+	return nil
+}
+
+// Validate checks the validity of all snapshot options.
+func (opts *SnapshotOptions) Validate() error {
+	// Validate the exclude list; note that this is an *exclusion* list, so
+	// even if the manifest specified paths starting with ../ this would not
+	// cause tar to navigate into those directories and pose a security risk.
+	// Still, let's have a minimal validation on them being sensible.
+	validFirstComponents := []string{
+		"$SNAP_DATA", "$SNAP_COMMON", "$SNAP_USER_DATA", "$SNAP_USER_COMMON",
+	}
+	const invalidChars = "[]{}?"
+	for _, excludePath := range opts.Exclude {
+		firstComponent := strings.SplitN(excludePath, "/", 2)[0]
+		if !strutil.ListContains(validFirstComponents, firstComponent) {
+			return fmt.Errorf("snapshot exclude path must start with one of %q (got: %q)", validFirstComponents, excludePath)
+		}
+
+		cleanPath := filepath.Clean(excludePath)
+		if cleanPath != excludePath {
+			return fmt.Errorf("snapshot exclude path not clean: %q", excludePath)
+		}
+
+		// We could use a regexp to do this validation, but an explicit check
+		// is more readable and less error-prone
+		if strings.ContainsAny(excludePath, invalidChars) || strings.Contains(excludePath, "**") {
+			return fmt.Errorf("snapshot exclude path contains invalid characters: %q", excludePath)
+		}
+	}
+
+	return nil
+}
 
 // ReadSnapshotYaml reads the snapshot manifest file for the given snap.
 func ReadSnapshotYaml(si *Info) (*SnapshotOptions, error) {
@@ -81,33 +133,8 @@ func readSnapshotYaml(r io.Reader) (*SnapshotOptions, error) {
 	if err := yaml.NewDecoder(r).Decode(&opts); err != nil {
 		return nil, fmt.Errorf("cannot read snapshot manifest: %v", err)
 	}
-
-	// Validate the exclude list; note that this is an *exclusion* list, so
-	// even if the manifest specified paths starting with ../ this would not
-	// cause tar to navigate into those directories and pose a security risk.
-	// Still, let's have a minimal validation on them being sensible.
-	validFirstComponents := []string{
-		"$SNAP_DATA", "$SNAP_COMMON", "$SNAP_USER_DATA", "$SNAP_USER_COMMON",
-	}
-	const invalidChars = "[]{}?"
-
-	for _, excludePath := range opts.ExcludePaths {
-		firstComponent := strings.SplitN(excludePath, "/", 2)[0]
-		if !strutil.ListContains(validFirstComponents, firstComponent) {
-			return nil, fmt.Errorf("snapshot exclude path must start with one of %q (got: %q)", validFirstComponents, excludePath)
-		}
-
-		cleanPath := filepath.Clean(excludePath)
-		if cleanPath != excludePath {
-			return nil, fmt.Errorf("snapshot exclude path not clean: %q", excludePath)
-		}
-
-		// We could use a regexp to do this validation, but an explicit check
-		// is more readable and less error-prone
-		if strings.ContainsAny(excludePath, invalidChars) ||
-			strings.Contains(excludePath, "**") {
-			return nil, fmt.Errorf("snapshot exclude path contains invalid characters: %q", excludePath)
-		}
+	if err := opts.Validate(); err != nil {
+		return nil, err
 	}
 
 	return &opts, nil

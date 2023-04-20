@@ -372,6 +372,10 @@ func probeParserFeatures() ([]string, error) {
 			feature: "xdp",
 			probe:   "network xdp,",
 		},
+		{
+			feature: "userns",
+			probe:   "userns,",
+		},
 	}
 	_, internal, err := AppArmorParser()
 	if err != nil {
