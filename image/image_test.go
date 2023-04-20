@@ -4474,7 +4474,7 @@ func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
 	c.Check(s.seqReqs, DeepEquals, []seqReq{
 		{
 			key:      []string{"16", "canonical", "base-set"},
-			sequence: 0,
+			sequence: 1,
 		},
 	})
 
