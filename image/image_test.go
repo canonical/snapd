@@ -4449,7 +4449,7 @@ func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
 
 	// write a seed.manifest we will provide to image
 	manifestFile := filepath.Join(rootDir, "seed.manifest")
-	err := ioutil.WriteFile(manifestFile, []byte("canonical/base-set=1"), 0644)
+	err := ioutil.WriteFile(manifestFile, []byte("canonical/base-set 1"), 0644)
 	c.Assert(err, IsNil)
 
 	manifest, err := seedwriter.ReadManifest(manifestFile)
