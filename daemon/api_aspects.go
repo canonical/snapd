@@ -40,11 +40,11 @@ var (
 )
 
 type AspectRequest struct {
-	Account string `json:"account"`
-	Bundle  string `json:"bundle"`
-	Aspect  string `json:"aspect"`
-	Field   string `json:"field"`
-	Value   string `json:"value"`
+	Account    string `json:"account"`
+	BundleName string `json:"bundle"`
+	Aspect     string `json:"aspect"`
+	Field      string `json:"field"`
+	Value      string `json:"value"`
 }
 
 const emptyFieldFmt = "cannot have empty %q field"
@@ -52,7 +52,7 @@ const emptyFieldFmt = "cannot have empty %q field"
 func (r *AspectRequest) validate() error {
 	if r.Account == "" {
 		return fmt.Errorf(emptyFieldFmt, "account")
-	} else if r.Bundle == "" {
+	} else if r.BundleName == "" {
 		return fmt.Errorf(emptyFieldFmt, "bundle")
 	} else if r.Aspect == "" {
 		return fmt.Errorf(emptyFieldFmt, "aspect")
@@ -74,7 +74,7 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return BadRequest(err.Error())
 	}
 
-	value, err := aspectstate.Get(c.d.state, req.Account, req.Bundle, req.Aspect, req.Field)
+	value, err := aspectstate.Get(c.d.state, req.Account, req.BundleName, req.Aspect, req.Field)
 	if err != nil {
 		if errors.Is(err, &aspects.NotFoundError{}) {
 			return NotFound(err.Error())
@@ -101,7 +101,7 @@ func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return BadRequest(err.Error())
 	}
 
-	err := aspectstate.Set(c.d.state, req.Account, req.Bundle, req.Aspect, req.Field, req.Value)
+	err := aspectstate.Set(c.d.state, req.Account, req.BundleName, req.Aspect, req.Field, req.Value)
 	if err != nil {
 		if errors.Is(err, &aspects.NotFoundError{}) {
 			return NotFound(err.Error())
