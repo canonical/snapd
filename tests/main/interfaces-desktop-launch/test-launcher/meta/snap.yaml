@@ -1,5 +1,6 @@
 name: test-launcher
 version: 1.0
+base: core22
 summary: Basic desktop launcher snap
 description: A basic snap that attempts to launch other snaps
 
