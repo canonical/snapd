@@ -68,6 +68,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "desktop-launch",
 		summary:               desktopLaunchSummary,
+		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		baseDeclarationPlugs:  desktopLaunchBaseDeclarationPlugs,
 		baseDeclarationSlots:  desktopLaunchBaseDeclarationSlots,

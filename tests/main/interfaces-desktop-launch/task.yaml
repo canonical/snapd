@@ -4,7 +4,7 @@ details: |
     The desktop-launch interface allows a snap to launch other snaps via
     the desktop files they provide to the host system.
 
-systems: [-ubuntu-core-*]
+systems: [-ubuntu-core-1*]
 
 prepare: |
     if ! tests.session has-session-systemd-and-dbus; then
@@ -52,6 +52,9 @@ execute: |
     echo "The app was invoked with the arguments in the desktop file"
     MATCH "^args=arg-before arg-after$" < "$launch_data"
 
+    if ! os.query is-core; then
+        exit 0
+    fi
     echo "The launcher snap can also invoke the snap via the desktop file Exec line"
     rm "$launch_data"
     tests.session -u test exec test-launcher.exec \
