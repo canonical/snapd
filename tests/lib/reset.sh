@@ -118,12 +118,19 @@ reset_classic() {
     fi
 }
 
+flush_changes() {
+    # Leave some time for the tasks to show up in snap changes
+    sleep 1
+    retry -n 20 sh -c 'snap changes | grep -q Doing' || true
+}
+
 reset_all_snap() {
     # remove all leftover snaps
 
     # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
     if ! systemctl status snapd.service snapd.socket >/dev/null; then
         systemctl start snapd.service snapd.socket
+        flush_changes
     fi
 
     skip_snaps=""
@@ -138,12 +145,14 @@ reset_all_snap() {
     udevadm settle
 
     # ensure we have the same state as initially
+    flush_changes
     systemctl stop snapd.service snapd.socket
     restore_snapd_state
     rm -rf /root/.snap
     rm -rf /tmp/snap-private-tmp/snap.*
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.service snapd.socket
+        flush_changes
     fi
 
     # Exit in case there is a snap in broken state after restoring the snapd state

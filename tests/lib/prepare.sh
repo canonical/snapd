@@ -72,9 +72,11 @@ disable_refreshes() {
     ensure_jq
 
     echo "Modify state to make it look like the last refresh just happened"
+    flush_changes
     systemctl stop snapd.socket snapd.service
     "$TESTSTOOLS"/snapd-state prevent-autorefresh
     systemctl start snapd.socket snapd.service
+    flush_changes
 
     echo "Minimize risk of hitting refresh schedule"
     snap set core refresh.schedule=00:00-23:59
@@ -98,10 +100,12 @@ EOF
     # We change the service configuration so reload and restart
     # the units to get them applied
     systemctl daemon-reload
+    flush_changes
     # stop the socket (it pulls down the service)
     systemctl stop snapd.socket
     # start the service (it pulls up the socket)
     systemctl start snapd.service
+    flush_changes
 }
 
 # setup_experimental_features enables experimental snapd features passed
@@ -369,6 +373,7 @@ prepare_classic() {
 
     if [ "$REMOTE_STORE" = staging ]; then
         # reset seeding data that is likely tainted with production keys
+        flush_changes
         systemctl stop snapd.service snapd.socket
         rm -rf /var/lib/snapd/assertions/*
         rm -f /var/lib/snapd/state.json
@@ -399,9 +404,11 @@ prepare_classic() {
 
         snap list | grep core
 
+        flush_changes
         systemctl stop snapd.{service,socket}
         update_core_snap_for_classic_reexec
         systemctl start snapd.{service,socket}
+        flush_changes
 
         prepare_reexec_override
         prepare_memory_limit_override
@@ -421,9 +428,11 @@ prepare_classic() {
 
         setup_experimental_features
 
+        flush_changes
         systemctl stop snapd.{service,socket}
         save_snapd_state
         systemctl start snapd.socket
+        flush_changes
     fi
 
     disable_kernel_rate_limiting
@@ -1444,9 +1453,11 @@ prepare_ubuntu_core() {
         remove_disabled_snaps
         prepare_memory_limit_override
         setup_experimental_features
+        flush_changes
         systemctl stop snapd.service snapd.socket
         save_snapd_state
         systemctl start snapd.socket
+        flush_changes
     fi
 
     disable_kernel_rate_limiting
