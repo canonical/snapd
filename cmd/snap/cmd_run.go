@@ -224,7 +224,7 @@ func (x *cmdRun) Execute(args []string) error {
 	// the Exec line, so checking for this indicates this application is being run via a desktop file and not directly.
 	snapPath := os.Getenv("SNAP")
 	desktopFile := os.Getenv("BAMF_DESKTOP_FILE_HINT")
-	if snapPath != "" && desktopFile != "" && len(args) == 0 {
+	if snapPath != "" && desktopFile != "" {
 		// Only the application file name is required for launching.
 		desktopFile := filepath.Base(desktopFile)
 
