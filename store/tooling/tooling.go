@@ -33,6 +33,7 @@ import (
 	"syscall"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -285,6 +286,8 @@ type CurrentSnap struct {
 type DownloadManyOptions struct {
 	BeforeDownloadFunc func(*snap.Info) (targetPath string, err error)
 	EnforceValidation  bool
+	// ValidationSets is an optional array of validation set primary keys.
+	ValidationSets []snapasserts.ValidationSetKey
 }
 
 // DownloadMany downloads the specified snaps.
@@ -320,6 +323,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 			TrackingChannel:  ch,
 			Epoch:            csnap.Epoch,
 			IgnoreValidation: !opts.EnforceValidation,
+			ValidationSets:   opts.ValidationSets,
 		})
 	}
 
@@ -333,12 +337,13 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		}
 
 		actions = append(actions, &store.SnapAction{
-			Action:       "download",
-			InstanceName: sn.Snap.SnapName(), // XXX consider using snap-id first
-			Channel:      channel,
-			Revision:     sn.Revision,
-			CohortKey:    sn.CohortKey,
-			Flags:        actionFlag,
+			Action:         "download",
+			InstanceName:   sn.Snap.SnapName(), // XXX consider using snap-id first
+			Channel:        channel,
+			Revision:       sn.Revision,
+			CohortKey:      sn.CohortKey,
+			Flags:          actionFlag,
+			ValidationSets: opts.ValidationSets,
 		})
 	}
 
