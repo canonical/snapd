@@ -4083,8 +4083,8 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 	st.Lock()
 	defer st.Unlock()
 
-	var userID int
-	if err := t.Get("userID", &userID); err != nil {
+	var local bool
+	if err := t.Get("local", &local); err != nil {
 		return err
 	}
 
@@ -4117,10 +4117,20 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 		return err
 	}
 
-	if err := EnforceValidationSets(st, decodedAsserts, pinnedSeqs, snaps, ignoreValidation, userID); err != nil {
-		return fmt.Errorf("cannot enforce validation sets: %v", err)
-	}
+	if local {
+		if err := EnforceLocalValidationSets(st, decodedAsserts, pinnedSeqs, snaps, ignoreValidation); err != nil {
+			return fmt.Errorf("cannot enforce validation sets: %v", err)
+		}
+	} else {
+		var userID int
+		if err := t.Get("userID", &userID); err != nil {
+			return err
+		}
 
+		if err := EnforceValidationSets(st, decodedAsserts, pinnedSeqs, snaps, ignoreValidation, userID); err != nil {
+			return fmt.Errorf("cannot enforce validation sets: %v", err)
+		}
+	}
 	return nil
 }
 

@@ -111,8 +111,7 @@ func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, db as
 	}
 
 	t := st.NewTask("enforce-validation-sets", i18n.G("Track validation sets"))
-	userID := 0
-	t.Set("userID", userID)
+	t.Set("local", true)
 	t.Set("validation-sets", vsas)
 	t.Set("pinned-sequence-numbers", pins)
 	return t, nil
@@ -361,14 +360,11 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	// Start tracking any validation sets included in the seed after
 	// installing the included snaps.
-	// XXX: For both preseed and seed or *just* seed?
-	if !preseed {
-		if trackVss, err := maybeEnforceValidationSetsTask(st, model, db); err != nil {
-			return nil, err
-		} else if trackVss != nil {
-			trackVss.WaitAll(ts)
-			endTs.AddTask(trackVss)
-		}
+	if trackVss, err := maybeEnforceValidationSetsTask(st, model, db); err != nil {
+		return nil, err
+	} else if trackVss != nil {
+		trackVss.WaitAll(ts)
+		endTs.AddTask(trackVss)
 	}
 
 	markSeeded := markSeededTask(st)

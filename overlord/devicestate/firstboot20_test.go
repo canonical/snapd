@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -48,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -1198,19 +1196,6 @@ func (s *firstBoot20Suite) setupTestValidationSets(c *C) {
 	c.Assert(err, IsNil)
 }
 
-type mockedStore struct {
-	storetest.Store
-	db asserts.RODatabase
-}
-
-func (s *mockedStore) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
-	hdrs, err := asserts.HeadersFromPrimaryKey(assertType, primaryKey)
-	if err != nil {
-		return nil, err
-	}
-	return s.db.Find(assertType, hdrs)
-}
-
 func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C, valSets []string) *state.Change {
 	s.setupTestValidationSets(c)
 
@@ -1236,9 +1221,6 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C,
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	snapstate.ReplaceStore(st, &mockedStore{
-		db: s.StoreSigning.Database,
-	})
 
 	// run the firstboot code
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)

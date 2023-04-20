@@ -1551,6 +1551,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	enforceTask := st.NewTask("enforce-validation-sets", "Enforce validation sets")
 	enforceTask.Set("validation-sets", encodedAsserts)
 	enforceTask.Set("pinned-sequence-numbers", pinnedSeqs)
+	enforceTask.Set("local", false)
 	enforceTask.Set("userID", userID)
 
 	for _, ts := range tasksets {
