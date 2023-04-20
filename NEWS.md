@@ -1,3 +1,6 @@
+# New in snapd 2.60:
+* Support for dynamic snapshot data exclusions
+
 # New in snapd 2.59.2:
 * Notify users when a user triggered auto refresh finished
 
