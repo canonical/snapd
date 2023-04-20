@@ -111,6 +111,8 @@ func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, db as
 	}
 
 	t := st.NewTask("enforce-validation-sets", i18n.G("Track validation sets"))
+	// Set local to true to indicate that we are providing all the neccessary assertions
+	// locally from our assertion database.
 	t.Set("local", true)
 	t.Set("validation-sets", vsas)
 	t.Set("pinned-sequence-numbers", pins)

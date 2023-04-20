@@ -4083,6 +4083,11 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 	st.Lock()
 	defer st.Unlock()
 
+	// 'local' determines which enforcement function to invoke. If local is set
+	// to true, then we should call EnforceLocalValidationSets, which does not
+	// fetch any assertions or their pre-requisites. If local is set to false, then
+	// we can call EnforceValidationSets, which may contact the store for any additional
+	// assertions.
 	var local bool
 	if err := t.Get("local", &local); err != nil {
 		return err
