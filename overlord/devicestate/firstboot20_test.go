@@ -1174,6 +1174,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C,
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
+	// ensure the validation-set tracking task is present
 	tsEnd := tsAll[len(tsAll)-1]
 	c.Assert(tsEnd.Tasks(), HasLen, 2)
 	c.Check(tsEnd.Tasks()[0].Kind(), Equals, "enforce-validation-sets")
@@ -1242,6 +1243,18 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(
 	s.overlord.State().Lock()
 	defer s.overlord.State().Unlock()
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s", chg.Err()))
+
+	// Ensure that we are now tracking the validation-set
+	var tr assertstate.ValidationSetTracking
+	err = assertstate.GetValidationSet(s.overlord.State(), "canonical", "base-set", &tr)
+	c.Assert(err, IsNil)
+	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
+		AccountID: "canonical",
+		Name:      "base-set",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+		PinnedAt:  1,
+	})
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsUnmetCriterias(c *C) {
