@@ -1140,7 +1140,7 @@ func mustParseStructureNoImplicit(c *C, s string) *gadget.VolumeStructure {
 
 func mustParseStructure(c *C, s string) *gadget.VolumeStructure {
 	vs := mustParseStructureNoImplicit(c, s)
-	gadget.SetImplicitForVolumeStructure(vs, 0, make(map[string]bool))
+	gadget.SetImplicitForVolumeStructure(vs, 0, make(map[string]bool), make(map[string]bool))
 	return vs
 }
 
@@ -1409,6 +1409,46 @@ volumes:
 		yaml := fmt.Sprintf(string(yamlTemplate), t.dupLabel, t.dupLabel)
 		_, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
 		c.Assert(err, ErrorMatches, t.err)
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetDuplicateFsLabelWithCase(c *C) {
+	yamlTemplate := `
+volumes:
+   minimal:
+     bootloader: grub
+     structure:
+       - name: data1
+         filesystem-label: %s
+         filesystem: %s
+         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+         size: 1G
+       - name: data2
+         filesystem-label: %s
+         filesystem: %s
+         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+         size: 1G
+`
+
+	tests := []struct {
+		label1, label2   string
+		fsType1, fsType2 string
+		err              string
+	}{
+		{"foo", "FOO", "vfat", "vfat", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"foo", "FOO", "ext4", "ext4", ""},
+		{"foo", "FOO", "vfat", "ext4", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"FOO", "foo", "vfat", "ext4", `invalid volume "minimal": filesystem label "foo" is not unique`},
+	}
+
+	for _, t := range tests {
+		yaml := fmt.Sprintf(string(yamlTemplate), t.label1, t.fsType1, t.label2, t.fsType2)
+		_, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
+		if t.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, t.err)
+		}
 	}
 }
 
