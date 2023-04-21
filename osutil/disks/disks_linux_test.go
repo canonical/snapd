@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
@@ -2087,4 +2088,68 @@ func (s *diskSuite) TestPartitionUUID(c *C) {
 	uuid, err = disks.PartitionUUID("/dev/mock-failure")
 	c.Assert(err, ErrorMatches, "cannot process udev properties: mock failure")
 	c.Check(uuid, Equals, "")
+}
+
+func (s *diskSuite) TestFilesystemTypeForPartition(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/vda4":
+			return map[string]string{
+				"ID_FS_TYPE": "vfat",
+			}, nil
+		case "/dev/no-fs":
+			return map[string]string{}, nil
+		case "/dev/mock-failure":
+			return nil, fmt.Errorf("mock failure")
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	fs, err := disks.FilesystemTypeForPartition("/dev/vda4")
+	c.Assert(err, IsNil)
+	c.Check(fs, Equals, "vfat")
+
+	fs, err = disks.FilesystemTypeForPartition("/dev/no-fs")
+	c.Assert(err, IsNil)
+	c.Check(fs, Equals, "")
+
+	fs, err = disks.FilesystemTypeForPartition("/dev/mock-failure")
+	c.Assert(err.Error(), Equals, "mock failure")
+	c.Check(fs, Equals, "")
+}
+
+func (s *diskSuite) TestFindMatchingPartitionWithFsLabel(c *C) {
+	// mock disk
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMappingSeedFsLabelCaps,
+	})
+	defer restore()
+
+	d, err := disks.DiskFromDeviceName("/dev/vda")
+	c.Assert(err, IsNil)
+
+	// seed partition is vfat, capitals are ignored when searching
+	for _, searchLabel := range []string{"ubuntu-seed", "UBUNTU-SEED", "ubuntu-SEED"} {
+		p, err := d.FindMatchingPartitionWithFsLabel(searchLabel)
+		c.Assert(err, IsNil)
+		c.Check(p.KernelDeviceNode, Equals, "/dev/vda1")
+		c.Check(p.FilesystemLabel, Equals, "UBUNTU-SEED")
+	}
+
+	// boot partition is not vfat, case-sensitive search
+	for _, searchLabel := range []string{"ubuntu-boot", "UBUNTU-BOOT", "ubuntu-BOOT"} {
+		p, err := d.FindMatchingPartitionWithFsLabel(searchLabel)
+		if searchLabel == "ubuntu-boot" {
+			c.Assert(err, IsNil)
+			c.Check(p.KernelDeviceNode, Equals, "/dev/vda2")
+			c.Check(p.FilesystemLabel, Equals, "ubuntu-boot")
+		} else {
+			c.Assert(err.Error(), Equals, fmt.Sprintf("filesystem label %q not found", searchLabel))
+			c.Check(p, Equals, disks.Partition{})
+		}
+	}
 }
