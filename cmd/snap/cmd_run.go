@@ -239,7 +239,8 @@ func (x *cmdRun) Execute(args []string) error {
 			return fmt.Errorf(i18n.G("failed to launch %s via the privileged desktop launcher: %v"), desktopFile, call.Err)
 		}
 
-		return nil
+		// main does not expect us to return on success
+		os.Exit(0)
 	}
 
 	// Catch some invalid parameter combinations, provide helpful errors
