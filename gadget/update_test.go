@@ -1243,6 +1243,249 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	c.Assert(muo.canceledCalled, Equals, 0)
 }
 
+func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySystemBootSeedFslabelCaps(c *C) {
+	u.restoreVolumeStructureToLocationMap()
+	oldData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	newData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	rollbackDir := c.MkDir()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYamlNoBIOS, uc20Model)
+	c.Assert(err, IsNil)
+
+	// put the same volumes into both the old and the new data so they are
+	// identical to start
+	for volName, laidOutVol := range allLaidOutVolumes {
+		// need to make separate copies of the volume since laidOUutVol.Volume
+		// is a pointer
+		numStructures := len(laidOutVol.Volume.Structure)
+		newData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+
+		oldData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+	}
+
+	// note don't need to mock anything for the second volume on disk, we don't
+	// consider it at all
+
+	// setup symlink for the ubuntu-seed partition, in capitals
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", disks.BlkIDEncodeLabel("UBUNTU-SEED")))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/vda1"): gadgettest.VMSystemVolumeDiskMappingSeedFsLabelCaps,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMappingSeedFsLabelCaps,
+	})
+	defer restore()
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	// set all structs on system-boot volume to be updated - only structs on
+	// system-boot volume can be updated as per policy since the initial mapping
+	// was missing
+
+	// mbr - bare structure
+	newData.Info.Volumes["pc"].Structure[0].Update.Edition = 1
+	// ubuntu-seed
+	newData.Info.Volumes["pc"].Structure[1].Update.Edition = 1
+	// ubuntu-boot
+	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
+	// ubuntu-save
+	newData.Info.Volumes["pc"].Structure[3].Update.Edition = 1
+	// ubuntu-data
+	newData.Info.Volumes["pc"].Structure[4].Update.Edition = 1
+
+	muo := &mockUpdateProcessObserver{}
+	updaterForStructureCalls := 0
+	updateCalls := make(map[string]bool)
+	backupCalls := make(map[string]bool)
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		c.Assert(psRootDir, Equals, newData.RootDir)
+		c.Assert(psRollbackDir, Equals, rollbackDir)
+		c.Assert(observer, Equals, muo)
+		// TODO:UC20 verify observer
+
+		switch updaterForStructureCalls {
+		case 0:
+			// mbr raw structure
+			c.Check(ps.Name(), Equals, "mbr")
+			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
+			c.Check(ps.IsPartition(), Equals, false)
+			// no offset since we are updating the MBR itself
+			c.Check(ps.StartOffset, Equals, quantity.Offset(0))
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				Device: "/dev/vda",
+				Offset: quantity.Offset(0),
+			})
+		case 1:
+			// ubuntu-seed
+			c.Check(ps.Name(), Equals, "ubuntu-seed")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "vfat")
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, 1*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
+			})
+		case 2:
+			// ubuntu-boot
+			c.Check(ps.Name(), Equals, "ubuntu-boot")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "ext4")
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+1200)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot"),
+			})
+		case 3:
+			// ubuntu-save
+			c.Check(ps.Name(), Equals, "ubuntu-save")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "ext4")
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+1200+750)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save"),
+			})
+		case 4:
+			// ubuntu-data
+			c.Check(ps.Name(), Equals, "ubuntu-data")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "ext4")
+			c.Check(ps.IsPartition(), Equals, true)
+			// NOTE: this is the laid out size, not the actual size (since data
+			// gets expanded), but the update op doesn't actually care about the
+			// size so it's okay
+			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
+			c.Check(ps.StartOffset, Equals, (1+1200+750+16)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"),
+			})
+
+		default:
+			c.Fatalf("unexpected call")
+		}
+		updaterForStructureCalls++
+		mu := &mockUpdater{
+			backupCb: func() error {
+				backupCalls[ps.Name()] = true
+				return nil
+			},
+			updateCb: func() error {
+				updateCalls[ps.Name()] = true
+				return nil
+			},
+			rollbackCb: func() error {
+				c.Fatalf("unexpected call")
+				return errors.New("not called")
+			},
+		}
+		return mu, nil
+	})
+	defer restore()
+
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		switch dev {
+		case filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/UBUNTU-SEED"):
+			c.Assert(typeOpt, Equals, "--name")
+			return map[string]string{
+				"ID_FS_TYPE": "vfat",
+			}, nil
+		case "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda":
+			c.Assert(typeOpt, Equals, "--path")
+			return map[string]string{}, nil
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	// go go go
+	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, IsNil)
+	c.Assert(updaterForStructureCalls, Equals, 5)
+	c.Assert(backupCalls, DeepEquals, map[string]bool{
+		"mbr":         true,
+		"ubuntu-seed": true,
+		"ubuntu-boot": true,
+		"ubuntu-save": true,
+		"ubuntu-data": true,
+	})
+	c.Assert(updateCalls, DeepEquals, map[string]bool{
+		"mbr":         true,
+		"ubuntu-seed": true,
+		"ubuntu-boot": true,
+		"ubuntu-save": true,
+		"ubuntu-data": true,
+	})
+
+	c.Assert(muo.beforeWriteCalled, Equals, 1)
+	c.Assert(muo.canceledCalled, Equals, 0)
+}
+
 func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySystemBootEvenIfAllVolsHaveUpdates(c *C) {
 	u.restoreVolumeStructureToLocationMap()
 	mockLog, restore := logger.MockLogger()
