@@ -36,7 +36,6 @@ const snapChangesIntrospectionXML = `
 	<signal name="Change">
 		<arg type="s" name="change_id" />
 		<arg type="s" name="change_type" />
-		<arg type="s" name="change_kind" />
 		<arg type="a{sv}" name="metadata" />
 	</signal>
 
@@ -96,7 +95,9 @@ func (s *SnapChanges) GetTasks(changeId string, extraData map[string]dbus.Varian
 
 func (s *SnapChanges) EmitChange(change_id string, change_type string, change_kind string, extraData map[string]dbus.Variant) error {
 	if s.conn != nil {
-		s.conn.Emit(s.ObjectPath(), "io.snapcraft.SnapChanges.Change", change_id, change_type, change_kind, extraData)
+		extraData := make(map[string]dbus.Variant)
+		extraData["Kind"] = dbus.MakeVariant(change_kind)
+		s.conn.Emit(s.ObjectPath(), "io.snapcraft.SnapChanges.Change", change_id, change_type, extraData)
 		return nil
 	}
 	return errors.New("No session bus connection.")
