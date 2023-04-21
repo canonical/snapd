@@ -344,8 +344,8 @@ func (client *Client) FinishRefreshNotification(ctx context.Context, closeInfo *
 
 // DelayedRefreshNotifyInfo holds information about a refresh notification
 type DelayedRefreshNotifyInfo struct {
-	SnapName string `json:"snap-name"`
-	Icon     string `json:"icon,omitempty"`
+	SnapName    string `json:"snap-name"`
+	DesktopFile string `json:"desktop-file,omitempty"`
 }
 
 // ChangeNotification notifies that a new change has been added

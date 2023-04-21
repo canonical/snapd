@@ -34,7 +34,6 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/mvo5/goconfigparser"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
@@ -970,19 +969,11 @@ func continueRefreshOnSnapClose(st *state.State, instanceName string, desktopEnt
 	if continueAutoRefresh {
 		continueInhibitedAutoRefresh(st)
 
-		var icon string
-		if desktopEntry != "" {
-			parser := goconfigparser.New()
-			desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, desktopEntry+".desktop")
-			if err := parser.ReadFile(desktopFilePath); err == nil {
-				icon, _ = parser.Get("Desktop Entry", "Icon")
-
-			}
-		}
 		data := userclient.DelayedRefreshNotifyInfo{
-			SnapName: instanceName,
-			Icon:     icon,
+			SnapName:    instanceName,
+			DesktopFile: filepath.Join(dirs.SnapDesktopFilesDir, desktopEntry+".desktop"),
 		}
+
 		asyncDelayedRefreshNotification(userclient.New(), context.TODO(), data)
 	}
 }

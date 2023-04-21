@@ -361,7 +361,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 	return SyncResponse(nil)
 }
 
-var tryNotifyRefreshViaSnapDesktopIntegrationFlow = func(snapName string, icon string, create bool) error {
+var tryNotifyRefreshViaSnapDesktopIntegrationFlow = func(snapName string, desktopFile string, create bool) error {
 	// Check if Snapd-Desktop-Integration is available
 	conn, err := dbusutil.SessionBus()
 	if err != nil {
@@ -370,8 +370,8 @@ var tryNotifyRefreshViaSnapDesktopIntegrationFlow = func(snapName string, icon s
 	}
 	obj := conn.Object("io.snapcraft.SnapDesktopIntegration", "/io/snapcraft/SnapDesktopIntegration")
 	extraParams := make(map[string]dbus.Variant)
-	if icon != "" {
-		extraParams["icon_image"] = dbus.MakeVariant(icon)
+	if desktopFile != "" {
+		extraParams["desktop_file"] = dbus.MakeVariant(desktopFile)
 	}
 	if create {
 		err = obj.Call("io.snapcraft.SnapDesktopIntegration.ApplicationIsBeingRefreshed", 0, snapName, "", extraParams).Store()
@@ -397,7 +397,7 @@ func postNotifyDelayedRefresh(c *Command, r *http.Request) Response {
 		return BadRequest("cannot decode request body into delayed refresh notification info: %v", err)
 	}
 
-	if err := tryNotifyRefreshViaSnapDesktopIntegrationFlow(delayedRefreshNotify.SnapName, delayedRefreshNotify.Icon, true); err == nil {
+	if err := tryNotifyRefreshViaSnapDesktopIntegrationFlow(delayedRefreshNotify.SnapName, delayedRefreshNotify.DesktopFile, true); err == nil {
 		return SyncResponse(nil)
 	}
 	// Notification through snapd-desktop-integration failed; use a standard notification
