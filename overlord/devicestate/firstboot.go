@@ -92,19 +92,16 @@ func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, db as
 		return nil, err
 	}
 
-	vsas := make(map[string][]byte)
+	vsKeys := make(map[string][]string)
 	for _, a := range as {
 		vsa := a.(*asserts.ValidationSet)
-		vsas[vsKey(vsa.AccountID(), vsa.Name())] = asserts.Encode(a)
+		vsKeys[vsKey(vsa.AccountID(), vsa.Name())] = a.Ref().PrimaryKey
 	}
 
 	// Set up pins from the model
 	pins := make(map[string]int)
 	for _, vs := range model.ValidationSets() {
 		key := vsKey(vs.AccountID, vs.Name)
-		if _, ok := vsas[key]; !ok {
-			return nil, fmt.Errorf("missing validation set assertion for %q in the seed", key)
-		}
 		if vs.Sequence > 0 {
 			pins[key] = vs.Sequence
 		}
@@ -114,7 +111,7 @@ func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, db as
 	// Set local to true to indicate that we are providing all the neccessary assertions
 	// locally from our assertion database.
 	t.Set("local", true)
-	t.Set("validation-sets", vsas)
+	t.Set("validation-set-keys", vsKeys)
 	t.Set("pinned-sequence-numbers", pins)
 	return t, nil
 }
@@ -127,8 +124,7 @@ func trivialSeeding(st *state.State) []*state.TaskSet {
 	// give the internal core config a chance to run (even if core is
 	// not used at all we put system configuration there)
 	configTs := snapstate.ConfigureSnap(st, "core", 0)
-	// XXX: Add a validation-set tracking task here? It seems the case for
-	// some UC16/18 seeds to end up here according to comments
+	// XXX: Add a validation-set tracking task here?
 	markSeeded := markSeededTask(st)
 	markSeeded.WaitAll(configTs)
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
@@ -362,11 +358,13 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	// Start tracking any validation sets included in the seed after
 	// installing the included snaps.
-	if trackVss, err := maybeEnforceValidationSetsTask(st, model, db); err != nil {
-		return nil, err
-	} else if trackVss != nil {
-		trackVss.WaitAll(ts)
-		endTs.AddTask(trackVss)
+	if !preseed {
+		if trackVss, err := maybeEnforceValidationSetsTask(st, model, db); err != nil {
+			return nil, err
+		} else if trackVss != nil {
+			trackVss.WaitAll(ts)
+			endTs.AddTask(trackVss)
+		}
 	}
 
 	markSeeded := markSeededTask(st)

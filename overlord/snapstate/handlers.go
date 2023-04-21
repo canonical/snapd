@@ -4078,6 +4078,28 @@ func (m *SnapManager) undoMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error 
 	return writeMigrationStatus(t, snapst, snapsup)
 }
 
+func (m *SnapManager) decodeValidationSets(t *state.Task) (map[string]*asserts.ValidationSet, error) {
+	encodedAsserts := make(map[string][]byte)
+	if err := t.Get("validation-sets", &encodedAsserts); err != nil {
+		return nil, err
+	}
+
+	decodedAsserts := make(map[string]*asserts.ValidationSet, len(encodedAsserts))
+	for vsStr, encAssert := range encodedAsserts {
+		decAssert, err := asserts.Decode(encAssert)
+		if err != nil {
+			return nil, err
+		}
+
+		vsAssert, ok := decAssert.(*asserts.ValidationSet)
+		if !ok {
+			return nil, errors.New("expected encoded assertion to be of type ValidationSet")
+		}
+		decodedAsserts[vsStr] = vsAssert
+	}
+	return decodedAsserts, nil
+}
+
 func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -4093,25 +4115,6 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 		return err
 	}
 
-	encodedAsserts := make(map[string][]byte)
-	if err := t.Get("validation-sets", &encodedAsserts); err != nil {
-		return err
-	}
-
-	decodedAsserts := make(map[string]*asserts.ValidationSet, len(encodedAsserts))
-	for vsStr, encAssert := range encodedAsserts {
-		decAssert, err := asserts.Decode(encAssert)
-		if err != nil {
-			return err
-		}
-
-		vsAssert, ok := decAssert.(*asserts.ValidationSet)
-		if !ok {
-			return errors.New("expected encoded assertion to be of type ValidationSet")
-		}
-		decodedAsserts[vsStr] = vsAssert
-	}
-
 	var pinnedSeqs map[string]int
 	if err := t.Get("pinned-sequence-numbers", &pinnedSeqs); err != nil {
 		return err
@@ -4123,12 +4126,22 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 	}
 
 	if local {
-		if err := EnforceLocalValidationSets(st, decodedAsserts, pinnedSeqs, snaps, ignoreValidation); err != nil {
+		vsKeys := make(map[string][]string)
+		if err := t.Get("validation-set-keys", &vsKeys); err != nil {
+			return err
+		}
+
+		if err := EnforceLocalValidationSets(st, vsKeys, pinnedSeqs, snaps, ignoreValidation); err != nil {
 			return fmt.Errorf("cannot enforce validation sets: %v", err)
 		}
 	} else {
 		var userID int
 		if err := t.Get("userID", &userID); err != nil {
+			return err
+		}
+
+		decodedAsserts, err := m.decodeValidationSets(t)
+		if err != nil {
 			return err
 		}
 

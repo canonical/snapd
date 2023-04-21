@@ -878,6 +878,23 @@ func TryEnforcedValidationSets(st *state.State, validationSets []string, userID 
 	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
+func resolveValidationSetPrimaryKeys(st *state.State, vsKeys map[string][]string) (map[string]*asserts.ValidationSet, error) {
+	db := cachedDB(st)
+	valsets := make(map[string]*asserts.ValidationSet, len(vsKeys))
+	for key, pk := range vsKeys {
+		hdrs, err := asserts.HeadersFromPrimaryKey(asserts.ValidationSetType, pk)
+		if err != nil {
+			return nil, err
+		}
+		a, err := db.Find(asserts.ValidationSetType, hdrs)
+		if err != nil {
+			return nil, err
+		}
+		valsets[key] = a.(*asserts.ValidationSet)
+	}
+	return valsets, nil
+}
+
 func validationSetTrackings(valsets map[string]*asserts.ValidationSet, pinnedSeqs map[string]int) ([]*asserts.ValidationSet, []*ValidationSetTracking, error) {
 	valsetsSlice := make([]*asserts.ValidationSet, 0, len(valsets))
 	valsetsTracking := make([]*ValidationSetTracking, 0, len(valsets))
@@ -908,10 +925,15 @@ func validationSetTrackings(valsets map[string]*asserts.ValidationSet, pinnedSeq
 
 // ApplyLocalEnforcedValidationSets enforces the supplied validation sets. It takes a map
 // of validation set keys to validation sets, pinned sequence numbers (if any),
-// installed snaps and ignored snaps. This is a 'local' variant of ApplyEnforcedValidationSets which
-// does not fetch any pre-requisites of the validation-sets. Its purpose is to be used during seeding
-// to track any included validation-sets.
-func ApplyLocalEnforcedValidationSets(st *state.State, valsets map[string]*asserts.ValidationSet, pinnedSeqs map[string]int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+// installed snaps and ignored snaps. The local in this naming indicates that it uses the
+// validation-set primary keys to lookup assertions in the current database. No fetching is
+// done contrary to the non-local version.
+func ApplyLocalEnforcedValidationSets(st *state.State, vsKeys map[string][]string, pinnedSeqs map[string]int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+	valsets, err := resolveValidationSetPrimaryKeys(st, vsKeys)
+	if err != nil {
+		return err
+	}
+
 	valsetsSlice, valsetsTracking, err := validationSetTrackings(valsets, pinnedSeqs)
 	if err != nil {
 		return err

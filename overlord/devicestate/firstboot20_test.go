@@ -1146,59 +1146,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKe
 	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous, switchToSigned, `snap "classic-installer" requires classic confinement`)
 }
 
-func (s *firstBoot20Suite) setupTestValidationSets(c *C) {
-	vsa, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
-		"type":         "validation-set",
-		"authority-id": "canonical",
-		"series":       "16",
-		"account-id":   "canonical",
-		"name":         "base-set",
-		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":     "pc-kernel",
-				"id":       s.AssertedSnapID("pc-kernel"),
-				"presence": "required",
-				"revision": "1",
-			},
-			map[string]interface{}{
-				"name":     "pc",
-				"id":       s.AssertedSnapID("pc"),
-				"presence": "required",
-				"revision": "1",
-			},
-		},
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.StoreSigning.Add(vsa)
-	c.Assert(err, IsNil)
-
-	vsb, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
-		"type":         "validation-set",
-		"authority-id": "canonical",
-		"series":       "16",
-		"account-id":   "canonical",
-		"name":         "opt-set",
-		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":     "my-snap",
-				"id":       s.AssertedSnapID("my-snap"),
-				"presence": "required",
-				"revision": "1",
-			},
-		},
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.StoreSigning.Add(vsb)
-	c.Assert(err, IsNil)
-}
-
 func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C, valSets []string) *state.Change {
-	s.setupTestValidationSets(c)
-
 	m := boot.Modeenv{
 		Mode:           "install",
 		RecoverySystem: "20191018",
@@ -1262,6 +1210,33 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C,
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(c *C) {
+	vsa, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "base-set",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       s.AssertedSnapID("pc-kernel"),
+				"presence": "required",
+				"revision": "1",
+			},
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       s.AssertedSnapID("pc"),
+				"presence": "required",
+				"revision": "1",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(vsa)
+	c.Assert(err, IsNil)
+
 	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, []string{"canonical/base-set/1"})
 
 	s.overlord.State().Lock()
@@ -1269,11 +1244,32 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s", chg.Err()))
 }
 
-func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsMissingSnap(c *C) {
-	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, []string{"canonical/base-set/1", "canonical/opt-set/2"})
+func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsUnmetCriterias(c *C) {
+	vsb, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "base-set",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       s.AssertedSnapID("my-snap"),
+				"presence": "required",
+				"revision": "1",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(vsb)
+	c.Assert(err, IsNil)
+
+	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, []string{"canonical/base-set/2"})
 
 	s.overlord.State().Lock()
 	defer s.overlord.State().Unlock()
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
-	c.Check(chg.Err().Error(), testutil.Contains, "my-snap (required at revision 1 by sets canonical/opt-set))")
+	c.Check(chg.Err().Error(), testutil.Contains, "my-snap (required at revision 1 by sets canonical/base-set))")
 }
