@@ -273,6 +273,8 @@ type SnapToDownload struct {
 	Channel   string
 	Revision  snap.Revision
 	CohortKey string
+	// ValidationSets is an optional array of validation set primary keys.
+	ValidationSets []snapasserts.ValidationSetKey
 }
 
 type CurrentSnap struct {
@@ -286,8 +288,6 @@ type CurrentSnap struct {
 type DownloadManyOptions struct {
 	BeforeDownloadFunc func(*snap.Info) (targetPath string, err error)
 	EnforceValidation  bool
-	// ValidationSets is an optional array of validation set primary keys.
-	ValidationSets []snapasserts.ValidationSetKey
 }
 
 // DownloadMany downloads the specified snaps.
@@ -323,7 +323,6 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 			TrackingChannel:  ch,
 			Epoch:            csnap.Epoch,
 			IgnoreValidation: !opts.EnforceValidation,
-			ValidationSets:   opts.ValidationSets,
 		})
 	}
 
@@ -343,7 +342,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 			Revision:       sn.Revision,
 			CohortKey:      sn.CohortKey,
 			Flags:          actionFlag,
-			ValidationSets: opts.ValidationSets,
+			ValidationSets: sn.ValidationSets,
 		})
 	}
 

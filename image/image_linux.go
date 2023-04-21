@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
@@ -481,28 +482,40 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.SeedAssertionFetcher,
 	return snaps, s.w.InfoDerived()
 }
 
-func (s *imageSeeder) validationSetKeys() ([]snapasserts.ValidationSetKey, error) {
+func (s *imageSeeder) validationSetsAndRevisionForSnap(snapName string) ([]snapasserts.ValidationSetKey, snap.Revision, error) {
 	vsas, err := s.db.FindMany(asserts.ValidationSetType, nil)
 	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
-		return nil, err
+		return nil, snap.Revision{}, err
 	}
 
-	var vsKeys []snapasserts.ValidationSetKey
+	allVss := snapasserts.NewValidationSets()
 	for _, a := range vsas {
-		vsa := a.(*asserts.ValidationSet)
-		vsKeys = append(vsKeys, snapasserts.NewValidationSetKey(vsa))
+		if err := allVss.Add(a.(*asserts.ValidationSet)); err != nil {
+			return nil, snap.Revision{}, err
+		}
 	}
-	return vsKeys, nil
+
+	snapVss, snapRev, err := allVss.CheckPresenceRequired(naming.Snap(snapName))
+	if err != nil {
+		return nil, snap.Revision{}, err
+	}
+	if len(snapVss) > 0 {
+		return snapVss, snapRev, nil
+	}
+	return nil, s.w.Manifest().AllowedSnapRevision(snapName), nil
 }
 
-func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap, vsKeys []snapasserts.ValidationSetKey) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
+func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
 	byName := make(map[string]*seedwriter.SeedSnap, len(snapsToDownload))
 	beforeDownload := func(info *snap.Info) (string, error) {
 		sn := byName[info.SnapName()]
 		if sn == nil {
 			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 		}
-		rev := s.w.Manifest().AllowedSnapRevision(sn.SnapName())
+		_, rev, err := s.validationSetsAndRevisionForSnap(sn.SnapName())
+		if err != nil {
+			return "", err
+		}
 		if rev.Unset() {
 			rev = info.Revision
 		}
@@ -517,11 +530,17 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 	}
 	snapToDownloadOptions := make([]tooling.SnapToDownload, len(snapsToDownload))
 	for i, sn := range snapsToDownload {
+		vss, rev, err := s.validationSetsAndRevisionForSnap(sn.SnapName())
+		if err != nil {
+			return nil, err
+		}
+
 		byName[sn.SnapName()] = sn
 		snapToDownloadOptions[i].Snap = sn
 		snapToDownloadOptions[i].Channel = sn.Channel
-		snapToDownloadOptions[i].Revision = s.w.Manifest().AllowedSnapRevision(sn.SnapName())
+		snapToDownloadOptions[i].Revision = rev
 		snapToDownloadOptions[i].CohortKey = s.wideCohortKey
+		snapToDownloadOptions[i].ValidationSets = vss
 	}
 
 	// sort the curSnaps slice for test consistency
@@ -531,7 +550,6 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 	downloadedSnaps, err = s.tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
 		BeforeDownloadFunc: beforeDownload,
 		EnforceValidation:  s.customizations.Validation == "enforce",
-		ValidationSets:     vsKeys,
 	})
 	if err != nil {
 		return nil, err
@@ -556,13 +574,6 @@ func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
 }
 
 func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts seedwriter.AssertsFetchFunc) error {
-	// Get validation set keys from database, it will contain all
-	// resolved validation-sets needed for the seeded snaps (if any).
-	vsKeys, err := s.validationSetKeys()
-	if err != nil {
-		return err
-	}
-
 	curSnaps := localSnapsWithID(localSnaps)
 	for {
 		toDownload, err := s.w.SnapsToDownload()
@@ -570,7 +581,7 @@ func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts se
 			return err
 		}
 
-		downloadedSnaps, err := s.downloadSnaps(toDownload, curSnaps, vsKeys)
+		downloadedSnaps, err := s.downloadSnaps(toDownload, curSnaps)
 		if err != nil {
 			return err
 		}
@@ -731,6 +742,14 @@ func (s *imageSeeder) finish() error {
 	// print warnings on unasserted snaps
 	if err := s.warnOnUnassertedSnaps(); err != nil {
 		return err
+	}
+
+	// run validation-set checks, this is also done by store but
+	// we double-check for the seed.
+	if s.customizations.Validation != "ignore" {
+		if err := s.w.CheckValidationSets(); err != nil {
+			return err
+		}
 	}
 
 	copySnap := func(name, src, dst string) error {
