@@ -1551,9 +1551,6 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	enforceTask := st.NewTask("enforce-validation-sets", "Enforce validation sets")
 	enforceTask.Set("validation-sets", encodedAsserts)
 	enforceTask.Set("pinned-sequence-numbers", pinnedSeqs)
-	// Set 'local' to false to indicate that we may fetch any necessary assertions. When
-	// setting local to false, we also need to provide the userID.
-	enforceTask.Set("local", false)
 	enforceTask.Set("userID", userID)
 
 	for _, ts := range tasksets {

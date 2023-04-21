@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
@@ -389,4 +390,29 @@ func (s *handlersSuite) TestGetHiddenDirOptionsNoState(c *C) {
 
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true})
+}
+
+func (s *handlersSuite) TestDoEnforceValidationSetsTaskLocal(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var enforcedCalls int
+	r := snapstate.MockEnforceLocalValidationSets(func(s *state.State, m1 map[string][]string, m2 map[string]int, is []*snapasserts.InstalledSnap, m3 map[string]bool) error {
+		enforcedCalls++
+		return nil
+	})
+	defer r()
+
+	t := s.state.NewTask("enforce-validation-sets", "test")
+	t.Set("pinned-sequence-numbers", map[string]int{})
+	t.Set("validation-set-keys", map[string][]string{})
+
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+	c.Check(enforcedCalls, Equals, 1)
 }

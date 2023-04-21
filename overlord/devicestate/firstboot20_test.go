@@ -106,7 +106,7 @@ type core20SeedOptions struct {
 	valsets         []string
 }
 
-func (s *firstBoot20Suite) setupCore20LikeSeed(c *C, opts *core20SeedOptions, extraSnaps ...string) *asserts.Model {
+func (s *firstBoot20Suite) setupCore20LikeSeed(c *C, opts core20SeedOptions, extraSnaps ...string) *asserts.Model {
 	var gadgetYaml string
 	if opts.kernelAndGadget {
 		gadgetYaml = `
@@ -301,7 +301,7 @@ func (s *firstBoot20Suite) earlySetup(c *C, m *boot.Modeenv, modelGrade asserts.
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	model = s.setupCore20LikeSeed(c, &core20SeedOptions{
+	model = s.setupCore20LikeSeed(c, core20SeedOptions{
 		sysLabel:        m.RecoverySystem,
 		modelGrade:      modelGrade,
 		kernelAndGadget: true,
@@ -804,7 +804,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	model := s.setupCore20LikeSeed(c, &core20SeedOptions{
+	model := s.setupCore20LikeSeed(c, core20SeedOptions{
 		sysLabel:        m.RecoverySystem,
 		modelGrade:      modelGrade,
 		kernelAndGadget: false,
@@ -970,7 +970,7 @@ apps:
 `
 
 	sysLabel := m.RecoverySystem
-	model := s.setupCore20LikeSeed(c, &core20SeedOptions{
+	model := s.setupCore20LikeSeed(c, core20SeedOptions{
 		sysLabel:        sysLabel,
 		modelGrade:      modelGrade,
 		kernelAndGadget: false,
@@ -1155,7 +1155,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C,
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	model := s.setupCore20LikeSeed(c, &core20SeedOptions{
+	model := s.setupCore20LikeSeed(c, core20SeedOptions{
 		sysLabel:        m.RecoverySystem,
 		modelGrade:      "signed",
 		kernelAndGadget: true,

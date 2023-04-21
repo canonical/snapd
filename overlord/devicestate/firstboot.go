@@ -108,10 +108,6 @@ func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, db as
 	}
 
 	t := st.NewTask("enforce-validation-sets", i18n.G("Track validation sets"))
-	// Set local to true to indicate that we do only use assertions from the
-	// local assertion database, and that we should not contact the store
-	// for any additional assertions.
-	t.Set("local", true)
 	t.Set("validation-set-keys", vsKeys)
 	t.Set("pinned-sequence-numbers", pins)
 	return t, nil
@@ -125,7 +121,6 @@ func trivialSeeding(st *state.State) []*state.TaskSet {
 	// give the internal core config a chance to run (even if core is
 	// not used at all we put system configuration there)
 	configTs := snapstate.ConfigureSnap(st, "core", 0)
-	// XXX: Add a validation-set tracking task here?
 	markSeeded := markSeededTask(st)
 	markSeeded.WaitAll(configTs)
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
@@ -359,13 +354,11 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	// Start tracking any validation sets included in the seed after
 	// installing the included snaps.
-	if !preseed {
-		if trackVss, err := maybeEnforceValidationSetsTask(st, model, db); err != nil {
-			return nil, err
-		} else if trackVss != nil {
-			trackVss.WaitAll(ts)
-			endTs.AddTask(trackVss)
-		}
+	if trackVss, err := maybeEnforceValidationSetsTask(st, model, db); err != nil {
+		return nil, err
+	} else if trackVss != nil {
+		trackVss.WaitAll(ts)
+		endTs.AddTask(trackVss)
 	}
 
 	markSeeded := markSeededTask(st)

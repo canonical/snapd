@@ -4105,16 +4105,6 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 	st.Lock()
 	defer st.Unlock()
 
-	// 'local' determines which enforcement function to invoke. If local is set
-	// to true, then we should call EnforceLocalValidationSets, which does not
-	// fetch any assertions or their pre-requisites. If local is set to false, then
-	// we can call EnforceValidationSets, which may contact the store for any additional
-	// assertions.
-	var local bool
-	if err := t.Get("local", &local); err != nil {
-		return err
-	}
-
 	var pinnedSeqs map[string]int
 	if err := t.Get("pinned-sequence-numbers", &pinnedSeqs); err != nil {
 		return err
@@ -4125,12 +4115,23 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 		return err
 	}
 
-	if local {
-		vsKeys := make(map[string][]string)
-		if err := t.Get("validation-set-keys", &vsKeys); err != nil {
-			return err
-		}
+	// 'validation-set-keys' determines which enforcement function to invoke. If provided
+	// then we should call EnforceLocalValidationSets, which does not
+	// fetch any assertions or their pre-requisites. If not provided, then 'validation-sets'
+	// must be set, and we call EnforceValidationSets, which may contact the
+	// store for any additional assertions.
+	var local bool
+	vsKeys := make(map[string][]string)
+	if err := t.Get("validation-set-keys", &vsKeys); err != nil && !errors.Is(err, &state.NoStateError{}) {
+		// we accept NoStateError, it simply means we use the normal version, however then
+		// 'userID' and 'validation-sets' must be present
+		return err
+	} else if err == nil {
+		// 'validation-set-keys' was present, use the local version
+		local = true
+	}
 
+	if local {
 		if err := EnforceLocalValidationSets(st, vsKeys, pinnedSeqs, snaps, ignoreValidation); err != nil {
 			return fmt.Errorf("cannot enforce validation sets: %v", err)
 		}
