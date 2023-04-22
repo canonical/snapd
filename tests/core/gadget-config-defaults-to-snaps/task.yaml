@@ -110,9 +110,6 @@ restore: |
     . "$TESTSLIB"/systemd.sh
 
     SUFFIX="$(get_test_snap_suffix)"
-    
-    # remove snap with default-configure hook
-    snap remove --purge "test-snapd-with-default-configure${SUFFIX}"
 
     echo "Undo the service disable"
     if [ "$SERVICE" = ssh ]; then
