@@ -2498,6 +2498,7 @@ func (s *backendSuite) TestRemoveAllSnapAppArmorProfiles(c *C) {
 		c.Check(os.IsNotExist(err), Equals, true)
 	}
 
+	// remove snaps to restore the test environment back to the original state
 	s.RemoveSnap(c, snapInfo2)
 	s.RemoveSnap(c, snapInfo1)
 }
