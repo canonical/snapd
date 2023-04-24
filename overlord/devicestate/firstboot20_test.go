@@ -21,8 +21,10 @@ package devicestate_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1177,7 +1179,30 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C,
 	// ensure the validation-set tracking task is present
 	tsEnd := tsAll[len(tsAll)-1]
 	c.Assert(tsEnd.Tasks(), HasLen, 2)
-	c.Check(tsEnd.Tasks()[0].Kind(), Equals, "enforce-validation-sets")
+	t := tsEnd.Tasks()[0]
+	c.Check(t.Kind(), Equals, "enforce-validation-sets")
+
+	expectedSeqs := make(map[string]int)
+	expectedVss := make(map[string][]string)
+	for _, vs := range valSets {
+		tokens := strings.Split(vs, "/")
+		c.Check(tokens, HasLen, 3)
+		seq, err := strconv.Atoi(tokens[2])
+		c.Assert(err, IsNil)
+		key := fmt.Sprintf("%s/%s", tokens[0], tokens[1])
+		expectedSeqs[key] = seq
+		expectedVss[key] = append([]string{release.Series}, tokens...)
+	}
+
+	// verify that the correct data is provided to the task
+	var pinnedSeqs map[string]int
+	err = t.Get("pinned-sequence-numbers", &pinnedSeqs)
+	c.Assert(err, IsNil)
+	c.Check(pinnedSeqs, DeepEquals, expectedSeqs)
+	var vsKeys map[string][]string
+	err = t.Get("validation-set-keys", &vsKeys)
+	c.Assert(err, IsNil)
+	c.Check(vsKeys, DeepEquals, expectedVss)
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one

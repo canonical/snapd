@@ -2251,7 +2251,29 @@ snaps:
 	// ensure the validation-set tracking task is present
 	tsEnd := tsAll[len(tsAll)-1]
 	c.Assert(tsEnd.Tasks(), HasLen, 2)
-	c.Check(tsEnd.Tasks()[0].Kind(), Equals, "enforce-validation-sets")
+	t := tsEnd.Tasks()[0]
+	c.Check(t.Kind(), Equals, "enforce-validation-sets")
+
+	expectedSeqs := make(map[string]int)
+	expectedVss := make(map[string][]string)
+	for _, vs := range vsHeaders {
+		hdrs := vs.(map[string]interface{})
+		seq, err := strconv.Atoi(hdrs["sequence"].(string))
+		c.Assert(err, IsNil)
+		key := fmt.Sprintf("%s/%s", hdrs["account-id"].(string), hdrs["name"].(string))
+		expectedSeqs[key] = seq
+		expectedVss[key] = []string{release.Series, hdrs["account-id"].(string), hdrs["name"].(string), hdrs["sequence"].(string)}
+	}
+
+	// verify that the correct data is provided to the task
+	var pinnedSeqs map[string]int
+	err = t.Get("pinned-sequence-numbers", &pinnedSeqs)
+	c.Assert(err, IsNil)
+	c.Check(pinnedSeqs, DeepEquals, expectedSeqs)
+	var vsKeys map[string][]string
+	err = t.Get("validation-set-keys", &vsKeys)
+	c.Assert(err, IsNil)
+	c.Check(vsKeys, DeepEquals, expectedVss)
 
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")

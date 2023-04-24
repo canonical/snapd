@@ -4105,7 +4105,7 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 	st.Lock()
 	defer st.Unlock()
 
-	var pinnedSeqs map[string]int
+	pinnedSeqs := make(map[string]int)
 	if err := t.Get("pinned-sequence-numbers", &pinnedSeqs); err != nil {
 		return err
 	}
