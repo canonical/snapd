@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-func Set(st *state.State, account, bundleName, aspect, field, value string) error {
+func Set(st *state.State, account, bundleName, aspect, field string, value interface{}) error {
 	st.Lock()
 	defer st.Unlock()
 
@@ -55,13 +55,7 @@ func Set(st *state.State, account, bundleName, aspect, field, value string) erro
 		return notFound("aspect %q was not found", aspect)
 	}
 
-	// delete the entry
-	var val interface{}
-	if value != "" {
-		val = value
-	}
-
-	if err := asp.Set(field, val); err != nil {
+	if err := asp.Set(field, value); err != nil {
 		return err
 	}
 
@@ -72,7 +66,7 @@ func Set(st *state.State, account, bundleName, aspect, field, value string) erro
 	return nil
 }
 
-func Get(st *state.State, account, bundleName, aspect, field string) (string, error) {
+func Get(st *state.State, account, bundleName, aspect, field string) (interface{}, error) {
 	st.Lock()
 	defer st.Unlock()
 
@@ -100,7 +94,7 @@ func Get(st *state.State, account, bundleName, aspect, field string) (string, er
 		return "", notFound("aspect %s/%s/%s was not found", account, bundleName, aspect)
 	}
 
-	var value string
+	var value interface{}
 	if err := asp.Get(field, &value); err != nil {
 		return "", err
 	}

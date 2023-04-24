@@ -40,11 +40,11 @@ var (
 )
 
 type AspectRequest struct {
-	Account    string `json:"account"`
-	BundleName string `json:"bundle"`
-	Aspect     string `json:"aspect"`
-	Field      string `json:"field"`
-	Value      string `json:"value"`
+	Account    string      `json:"account"`
+	BundleName string      `json:"bundle"`
+	Aspect     string      `json:"aspect"`
+	Field      string      `json:"field"`
+	Value      interface{} `json:"value"`
 }
 
 const emptyFieldFmt = "cannot have empty %q field"
@@ -82,12 +82,7 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return InternalError(err.Error())
 	}
 
-	// if field has no value, return null object
-	var val interface{}
-	if value != "" {
-		val = value
-	}
-	return SyncResponse(val)
+	return SyncResponse(value)
 }
 
 func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {

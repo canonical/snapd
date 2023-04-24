@@ -49,3 +49,13 @@ execute: |
   curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XGET -d '{"account": "system", "bundle": "network", "aspect": "wifi-setup", "field": "private.your-company"}' -H 'Content-Type: application/json' > response.txt
   jq -r '."status-code"' < response.txt | MATCH 200
   jq -r '.result' < response.txt | MATCH "your-config"
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XPOST -d '{"account": "system", "bundle": "network", "aspect": "wifi-setup", "field": "private.your-company"}' -H 'Content-Type: application/json' > response.txt
+
+  # write a list
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XPOST -d '{"account": "system", "bundle": "network", "aspect": "wifi-setup", "field": "ssids", "value": ["one", 2]}' -H 'Content-Type: application/json' > response.txt
+  jq -r '."status-code"' < response.txt | MATCH 200
+
+  # read the same value
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -XGET -d '{"account": "system", "bundle": "network", "aspect": "wifi-setup", "field": "ssids"}' -H 'Content-Type: application/json' > response.txt
+  jq -r '."status-code"' < response.txt | MATCH 200
+  jq -r '.result' < response.txt | MATCH '["one", 2]'
