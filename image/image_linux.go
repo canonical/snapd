@@ -495,6 +495,16 @@ func (s *imageSeeder) validationSetsAndRevisionForSnap(snapName string) ([]snapa
 		}
 	}
 
+	// Just for a good measure, perform a conflict check once we have the
+	// list of all validation-sets for the image seed.
+	if err := allVss.Conflict(); err != nil {
+		return nil, snap.Revision{}, err
+	}
+
+	// TODO: It's pointed out that here and some of the others uses of this
+	// may miss logic for optional snaps which have required revisions. This
+	// is not covered by the below check, and we may or may not have multiple places
+	// with a similar issue.
 	snapVss, snapRev, err := allVss.CheckPresenceRequired(naming.Snap(snapName))
 	if err != nil {
 		return nil, snap.Revision{}, err
