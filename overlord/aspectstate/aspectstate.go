@@ -31,7 +31,7 @@ func Set(st *state.State, account, bundleName, aspect, field string, value inter
 	st.Lock()
 	defer st.Unlock()
 
-	databag, err := getDatabag(st, account, bundleName, aspect)
+	databag, err := getDatabag(st, account, bundleName)
 	if err != nil {
 		if !errors.Is(err, state.ErrNoState) && !errors.Is(err, &aspects.NotFoundError{}) {
 			return err
@@ -59,7 +59,7 @@ func Set(st *state.State, account, bundleName, aspect, field string, value inter
 		return err
 	}
 
-	if err := updateDatabags(st, account, bundleName, aspect, databag); err != nil {
+	if err := updateDatabags(st, account, bundleName, databag); err != nil {
 		return err
 	}
 
@@ -70,7 +70,7 @@ func Get(st *state.State, account, bundleName, aspect, field string) (interface{
 	st.Lock()
 	defer st.Unlock()
 
-	databag, err := getDatabag(st, account, bundleName, aspect)
+	databag, err := getDatabag(st, account, bundleName)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
 			return "", notFound("aspect %s/%s/%s was not found", account, bundleName, aspect)
@@ -102,29 +102,29 @@ func Get(st *state.State, account, bundleName, aspect, field string) (interface{
 	return value, nil
 }
 
-func updateDatabags(st *state.State, account, bundleName, aspect string, databag aspects.JSONDataBag) error {
-	var databags map[string]map[string]map[string]aspects.JSONDataBag
+func updateDatabags(st *state.State, account, bundleName string, databag aspects.JSONDataBag) error {
+	var databags map[string]map[string]aspects.JSONDataBag
 	if err := st.Get("aspect-databags", &databags); err != nil {
 		if !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 
-		databags = map[string]map[string]map[string]aspects.JSONDataBag{
-			account: {bundleName: {}},
+		databags = map[string]map[string]aspects.JSONDataBag{
+			account: {bundleName: aspects.NewJSONDataBag()},
 		}
 	}
 
-	databags[account][bundleName][aspect] = databag
+	databags[account][bundleName] = databag
 	st.Set("aspect-databags", databags)
 	return nil
 }
 
-func getDatabag(st *state.State, account, bundleName, aspect string) (aspects.JSONDataBag, error) {
-	var databags map[string]map[string]map[string]aspects.JSONDataBag
+func getDatabag(st *state.State, account, bundleName string) (aspects.JSONDataBag, error) {
+	var databags map[string]map[string]aspects.JSONDataBag
 	if err := st.Get("aspect-databags", &databags); err != nil {
 		return nil, err
 	}
-	return databags[account][bundleName][aspect], nil
+	return databags[account][bundleName], nil
 }
 
 func notFound(msg string, v ...interface{}) *aspects.NotFoundError {
