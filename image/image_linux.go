@@ -507,15 +507,13 @@ func (s *imageSeeder) validationSetsAndRevisionForSnap(snapName string) ([]snapa
 
 func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
 	byName := make(map[string]*seedwriter.SeedSnap, len(snapsToDownload))
+	revisions := make(map[string]snap.Revision)
 	beforeDownload := func(info *snap.Info) (string, error) {
 		sn := byName[info.SnapName()]
 		if sn == nil {
 			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 		}
-		_, rev, err := s.validationSetsAndRevisionForSnap(sn.SnapName())
-		if err != nil {
-			return "", err
-		}
+		rev := revisions[info.SnapName()]
 		if rev.Unset() {
 			rev = info.Revision
 		}
@@ -536,6 +534,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 		}
 
 		byName[sn.SnapName()] = sn
+		revisions[sn.SnapName()] = rev
 		snapToDownloadOptions[i].Snap = sn
 		snapToDownloadOptions[i].Channel = sn.Channel
 		snapToDownloadOptions[i].Revision = rev

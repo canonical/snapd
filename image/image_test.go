@@ -4514,7 +4514,8 @@ func (s *imageSuite) TestDownloadSnapsModelValidationSets(c *C) {
 			"name":     "pc-kernel",
 			"id":       s.AssertedSnapID("pc-kernel"),
 			"presence": "required",
-			"revision": "1",
+			// setupSnaps sets pc-kernel to snap.R(2)
+			"revision": "2",
 		},
 		map[string]interface{}{
 			"name":     "pc",
@@ -4549,9 +4550,9 @@ func (s *imageSuite) TestDownloadSnapsModelValidationSets(c *C) {
 	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
-		// For pc snap we must have both correct revision (1) and
+		// For pc snap we must have both correct revision (2) and
 		// the validation-set applied
-		Revision: snap.R(1),
+		Revision: snap.R(2),
 		Flags:    store.SnapActionEnforceValidation,
 		ValidationSets: []snapasserts.ValidationSetKey{
 			snapasserts.NewValidationSetKey(vsa),
@@ -4603,7 +4604,8 @@ func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
 			"name":     "pc-kernel",
 			"id":       s.AssertedSnapID("pc-kernel"),
 			"presence": "required",
-			"revision": "1",
+			// setupSnaps sets pc-kernel to snap.R(2)
+			"revision": "2",
 		},
 		map[string]interface{}{
 			"name":     "pc",
@@ -4659,7 +4661,7 @@ func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
 		InstanceName: "pc-kernel",
 		// For pc-kernel snap we must have both correct revision (1) and
 		// the validation-set applied
-		Revision: snap.R(1),
+		Revision: snap.R(2),
 		Flags:    store.SnapActionEnforceValidation,
 		ValidationSets: []snapasserts.ValidationSetKey{
 			snapasserts.NewValidationSetKey(vsa),
