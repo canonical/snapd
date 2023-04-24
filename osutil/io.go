@@ -46,12 +46,7 @@ const (
 // all unit tests in genreal.
 var snapdUnsafeIO bool = IsTestBinary() && GetenvBool("SNAPD_UNSAFE_IO", true)
 
-var atomicFilePrng *randutil.PseudoRand
-
-func init() {
-	// Use simple time and PID based seeding.
-	atomicFilePrng = randutil.NewPseudoRand(randutil.SeedDatePid())
-}
+var atomicFilePrng = randutil.NewPseudoRand(nil)
 
 // An AtomicFile is similar to an os.File but it has an additional
 // Commit() method that does whatever needs to be done so the

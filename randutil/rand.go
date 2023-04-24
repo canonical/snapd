@@ -34,6 +34,8 @@ import (
 	"time"
 )
 
+var defaultSeeder = SeedDatePid
+
 // SeedDatePid provides a basic seed value based only on
 // time and os PID value.
 func SeedDatePid() int64 {
@@ -49,7 +51,7 @@ func SeedDatePid() int64 {
 func SeedDatePidHostMac() int64 {
 	// Use a pseudo RNG initially for time and pid inclusion
 	var b [8]byte
-	pr := NewPseudoRand(SeedDatePid())
+	pr := NewPseudoRand(nil)
 	pr.rand.Read(b[:])
 
 	h := sha256.New224()
@@ -76,8 +78,16 @@ type PseudoRand struct {
 	lk   sync.Mutex
 }
 
-// NewPseudoRand returns a new pseudo RNG instance.
-func NewPseudoRand(seed int64) *PseudoRand {
+// SeedFunc can compute a pseudo RNG seed value.
+type SeedFunc func() int64
+
+// NewPseudoRand returns a new pseudo RNG instance. Note that passing
+// nil is shorthand for selecting the date and pid based seeder.
+func NewPseudoRand(seeder SeedFunc) *PseudoRand {
+	var seed = defaultSeeder()
+	if seeder != nil {
+		seed = seeder()
+	}
 	return &PseudoRand{rand: rand.New(rand.NewSource(seed))}
 }
 

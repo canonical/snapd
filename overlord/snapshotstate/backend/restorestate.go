@@ -28,12 +28,7 @@ import (
 	"github.com/snapcore/snapd/randutil"
 )
 
-var bePrng *randutil.PseudoRand
-
-func init() {
-	// Use simple time and PID based seeding.
-	bePrng = randutil.NewPseudoRand(randutil.SeedDatePid())
-}
+var bePrng = randutil.NewPseudoRand(nil)
 
 // RestoreState stores information that can be used to cleanly revert (or finish
 // cleaning up) a snapshot Restore.

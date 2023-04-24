@@ -37,12 +37,7 @@ var (
 	pkgBucketKey = []byte("Snaps")
 )
 
-var advisorPrng *randutil.PseudoRand
-
-func init() {
-	// Use simple time and PID based seeding.
-	advisorPrng = randutil.NewPseudoRand(randutil.SeedDatePid())
-}
+var advisorPrng = randutil.NewPseudoRand(nil)
 
 type writer struct {
 	fn        string

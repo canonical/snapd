@@ -48,27 +48,16 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 var (
-	ssPrng                            *randutil.PseudoRand
-	snapdTransitionDelayWithRandomess time.Duration
+	ssPrng                            = randutil.NewPseudoRand(nil)
+	snapdTransitionDelayWithRandomess = 3*time.Hour + timeutil.RandomDuration(4*time.Hour)
 
 	// overridden in the tests
 	errtrackerReport = errtracker.Report
 )
-
-func init() {
-	// Snapstate operations can impact server load so we need to use a seed
-	// that is not only based on time and PID, but contains
-	// additional variance introduced by device specific details such
-	// as hostname and MAC.
-	ssPrng = randutil.NewPseudoRand(randutil.SeedDatePidHostMac())
-
-	initAfterPrng()
-
-	snapdTransitionDelayWithRandomess = 3*time.Hour + ssPrng.RandomDuration(4*time.Hour)
-}
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {

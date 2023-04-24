@@ -28,12 +28,7 @@ import (
 	"github.com/snapcore/snapd/randutil"
 )
 
-var revealPrng *randutil.PseudoRand
-
-func init() {
-	// Use simple time and PID based seeding.
-	revealPrng = randutil.NewPseudoRand(randutil.SeedDatePid())
-}
+var revealPrng = randutil.NewPseudoRand(nil)
 
 // RevealKeyRequest carries the operation parameters to the fde-reavel-key
 // helper that receives them serialized over stdin.

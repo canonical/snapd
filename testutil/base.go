@@ -24,6 +24,8 @@ import (
 	"reflect"
 
 	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/randutil"
 )
 
 // BaseTest is a structure used as a base test suite for all the snappy
@@ -89,4 +91,11 @@ func backupMockables(mockablesByPtr []interface{}) (backup []*reflect.Value) {
 		backup[i] = &saved
 	}
 	return backup
+}
+
+var testutilPrng = randutil.NewPseudoRand(nil)
+
+// RandomString generates a random string for tests.
+func RandomString(length int) string {
+	return testutilPrng.RandomString(length)
 }

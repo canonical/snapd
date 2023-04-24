@@ -36,15 +36,8 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/randutil"
+	"github.com/snapcore/snapd/testutil"
 )
-
-var atPrng *randutil.PseudoRand
-
-func init() {
-	// Use simple time and PID based seeding.
-	atPrng = randutil.NewPseudoRand(randutil.SeedDatePid())
-}
 
 // GenerateKey generates a private/public key pair of the given bits. It panics on error.
 func GenerateKey(bits int) (asserts.PrivateKey, *rsa.PrivateKey) {
@@ -176,7 +169,7 @@ func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{
 	}
 	otherHeaders["username"] = username
 	if otherHeaders["account-id"] == nil {
-		otherHeaders["account-id"] = atPrng.RandomString(32)
+		otherHeaders["account-id"] = testutil.RandomString(32)
 	}
 	if otherHeaders["display-name"] == nil {
 		otherHeaders["display-name"] = strings.ToTitle(username[:1]) + username[1:]

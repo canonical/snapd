@@ -154,10 +154,10 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileOverwriteRelativeSymlink(c *C
 func (ts *AtomicWriteTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) {
 	tmpdir := c.MkDir()
 	// ensure we always get the same result
-	osutil.AtomicFilePrng().Reseed(1)
-	expectedRandomness := osutil.AtomicFilePrng().RandomString(12) + "~"
+	osutil.AtomicFilePrng.Reseed(1)
+	expectedRandomness := osutil.AtomicFilePrng.RandomString(12) + "~"
 	// ensure we always get the same result
-	osutil.AtomicFilePrng().Reseed(1)
+	osutil.AtomicFilePrng.Reseed(1)
 
 	p := filepath.Join(tmpdir, "foo")
 	err := ioutil.WriteFile(p+"."+expectedRandomness, []byte(""), 0644)
@@ -378,7 +378,7 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlink(c *C) {
 
 func (ts *AtomicSymlinkTestSuite) createCollisionSequence(c *C, baseName string, many int) {
 	for i := 0; i < many; i++ {
-		expectedRandomness := osutil.AtomicFilePrng().RandomString(12) + "~"
+		expectedRandomness := osutil.AtomicFilePrng.RandomString(12) + "~"
 		// ensure we always get the same result
 		err := ioutil.WriteFile(baseName+"."+expectedRandomness, []byte(""), 0644)
 		c.Assert(err, IsNil)
@@ -388,11 +388,11 @@ func (ts *AtomicSymlinkTestSuite) createCollisionSequence(c *C, baseName string,
 func (ts *AtomicSymlinkTestSuite) TestAtomicSymlinkCollisionError(c *C) {
 	tmpdir := c.MkDir()
 	// ensure we always get the same result
-	osutil.AtomicFilePrng().Reseed(1)
+	osutil.AtomicFilePrng.Reseed(1)
 	p := filepath.Join(tmpdir, "foo")
 	ts.createCollisionSequence(c, p, osutil.MaxSymlinkTries)
 	// restart random number sequence
-	osutil.AtomicFilePrng().Reseed(1)
+	osutil.AtomicFilePrng.Reseed(1)
 
 	err := osutil.AtomicSymlink("target", p)
 	c.Assert(err, ErrorMatches, "cannot create a temporary symlink")
@@ -401,11 +401,11 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlinkCollisionError(c *C) {
 func (ts *AtomicSymlinkTestSuite) TestAtomicSymlinkCollisionHappy(c *C) {
 	tmpdir := c.MkDir()
 	// ensure we always get the same result
-	osutil.AtomicFilePrng().Reseed(1)
+	osutil.AtomicFilePrng.Reseed(1)
 	p := filepath.Join(tmpdir, "foo")
 	ts.createCollisionSequence(c, p, osutil.MaxSymlinkTries/2)
 	// restart random number sequence
-	osutil.AtomicFilePrng().Reseed(1)
+	osutil.AtomicFilePrng.Reseed(1)
 
 	err := osutil.AtomicSymlink("target", p)
 	c.Assert(err, IsNil)

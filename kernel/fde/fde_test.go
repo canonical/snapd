@@ -239,7 +239,7 @@ func (s *fdeSuite) TestReveal(c *C) {
 	checkSystemdRunOrSkip(c)
 
 	// fix randutil outcome
-	fde.RevealPrng().Reseed(1)
+	fde.RevealPrng.Reseed(1)
 
 	sealedKey := []byte("sealed-v2-payload")
 	v2payload := []byte("unsealed-v2-payload")
@@ -276,7 +276,7 @@ func (s *fdeSuite) TestRevealV1(c *C) {
 	checkSystemdRunOrSkip(c)
 
 	// fix randutil outcome
-	fde.RevealPrng().Reseed(1)
+	fde.RevealPrng.Reseed(1)
 
 	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
@@ -307,7 +307,7 @@ func (s *fdeSuite) TestRevealV2PayloadV1Hook(c *C) {
 	checkSystemdRunOrSkip(c)
 
 	// fix randutil outcome
-	fde.RevealPrng().Reseed(1)
+	fde.RevealPrng.Reseed(1)
 
 	sealedKey := []byte("sealed-v2-payload")
 	v2payload := []byte("unsealed-v2-payload")
@@ -344,7 +344,7 @@ func (s *fdeSuite) TestRevealV2BadJSON(c *C) {
 	checkSystemdRunOrSkip(c)
 
 	// fix randutil outcome
-	fde.RevealPrng().Reseed(1)
+	fde.RevealPrng.Reseed(1)
 
 	sealedKey := []byte("sealed-v2-payload")
 
@@ -380,7 +380,7 @@ func (s *fdeSuite) TestRevealV1BadOutputSize(c *C) {
 	checkSystemdRunOrSkip(c)
 
 	// fix randutil outcome
-	fde.RevealPrng().Reseed(1)
+	fde.RevealPrng.Reseed(1)
 
 	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
@@ -405,7 +405,7 @@ func (s *fdeSuite) TestedRevealTruncatesStreamFiles(c *C) {
 	checkSystemdRunOrSkip(c)
 
 	// fix randutil outcome
-	fde.RevealPrng().Reseed(1)
+	fde.RevealPrng.Reseed(1)
 
 	// create the temporary output file streams with garbage data to ensure that
 	// by the time the hook runs the files are emptied and recreated with the
@@ -494,7 +494,7 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 	checkSystemdRunOrSkip(c)
 
 	// fix randutil outcome
-	fde.RevealPrng().Reseed(1)
+	fde.RevealPrng.Reseed(1)
 
 	mockSystemdRun := testutil.MockCommand(c, "systemd-run", `echo failed 1>&2; false`)
 	defer mockSystemdRun.Restore()

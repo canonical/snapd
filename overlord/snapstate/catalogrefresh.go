@@ -35,19 +35,14 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
 )
 
 var (
 	catalogRefreshDelayBase      = 24 * time.Hour
-	catalogRefreshDelayWithDelta time.Duration
+	catalogRefreshDelayWithDelta = 24*time.Hour + 1 + timeutil.RandomDuration(6*time.Hour)
 )
-
-// initAfterPrng is called by snapmng.go init() to ensure the prng is initialised before
-// this call is made. We do not want to depend on init() file order for this to work.
-func initAfterPrng() {
-	catalogRefreshDelayWithDelta = 24*time.Hour + 1 + ssPrng.RandomDuration(6*time.Hour)
-}
 
 type catalogRefresh struct {
 	state *state.State

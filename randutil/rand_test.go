@@ -34,9 +34,11 @@ type randutilSuite struct{}
 
 var _ = Suite(&randutilSuite{})
 
+func fixedSeedOne() int64 { return 1 }
+
 func (s *randutilSuite) TestReseed(c *C) {
 	// predictable starting point
-	r := randutil.NewPseudoRand(1)
+	r := randutil.NewPseudoRand(fixedSeedOne)
 	s1 := r.RandomString(100)
 	r.Reseed(1)
 	s2 := r.RandomString(100)
@@ -50,7 +52,7 @@ func (s *randutilSuite) TestReseed(c *C) {
 
 func (s *randutilSuite) TestRandomString(c *C) {
 	// predictable starting point
-	r := randutil.NewPseudoRand(1)
+	r := randutil.NewPseudoRand(fixedSeedOne)
 
 	for _, v := range []struct {
 		length int
@@ -67,7 +69,7 @@ func (s *randutilSuite) TestRandomString(c *C) {
 
 func (s *randutilSuite) TestRandomDuration(c *C) {
 	// predictable starting point
-	r := randutil.NewPseudoRand(1)
+	r := randutil.NewPseudoRand(fixedSeedOne)
 
 	for _, v := range []struct {
 		duration time.Duration
@@ -87,4 +89,10 @@ func (s *randutilSuite) TestRandomDuration(c *C) {
 		}
 		c.Assert(res, Equals, v.result)
 	}
+}
+
+func (s *randutilSuite) TestRandomDurationWithSeedDatePidHostMac(c *C) {
+	r := randutil.NewPseudoRand(randutil.SeedDatePidHostMac)
+	d := r.RandomDuration(time.Hour)
+	c.Check(d < time.Hour, Equals, true)
 }
