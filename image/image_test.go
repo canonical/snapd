@@ -4659,7 +4659,7 @@ func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
 	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
-		// For pc-kernel snap we must have both correct revision (1) and
+		// For pc-kernel snap we must have both correct revision (2) and
 		// the validation-set applied
 		Revision: snap.R(2),
 		Flags:    store.SnapActionEnforceValidation,
