@@ -264,7 +264,7 @@ func (s *SnapKeysSuite) TestSignChainDirect(c *C) {
 	s.stdout.Reset()
 	s.stdin.Reset()
 	s.stdin.Write([]byte(statement))
-	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--direct"})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--direct"})
 	c.Assert(err, ErrorMatches, "signing with --direct requires specifying --chain")
 	c.Assert(n, Equals, 0)
 	// if we fail in retrieving the account-key assertion, we should not write
