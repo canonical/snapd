@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"fmt"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -397,17 +398,47 @@ func (s *handlersSuite) TestDoEnforceValidationSetsTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	vsEncoded := fmt.Sprintf(`type: validation-set
+authority-id: canonical
+series: 16
+account-id: canonical
+name: foo-set
+sequence: 2
+snaps:
+  -
+    name: baz
+    id: bazlinuxidididididididididididid
+    presence: optional
+    revision: 13
+timestamp: %s
+body-length: 0
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`, time.Now().Truncate(time.Second).UTC().Format(time.RFC3339))
+	expectedVss := map[string][]byte{
+		"foo-set": []byte(vsEncoded),
+	}
+	expectedPinnedSeqs := map[string]int{
+		"foo-set": 4,
+	}
+
 	var enforcedCalls int
 	r := snapstate.MockEnforceValidationSets(func(s *state.State, m1 map[string]*asserts.ValidationSet, m2 map[string]int, is []*snapasserts.InstalledSnap, m3 map[string]bool, userID int) error {
 		enforcedCalls++
+		c.Check(m1, HasLen, 1)
+		c.Check(m1["foo-set"].AccountID(), Equals, "canonical")
+		c.Check(m1["foo-set"].Name(), Equals, "foo-set")
+		c.Check(m1["foo-set"].Sequence(), Equals, 2)
+		c.Check(m2, DeepEquals, expectedPinnedSeqs)
+		c.Check(userID, Equals, 1)
 		return nil
 	})
 	defer r()
 
 	t := s.state.NewTask("enforce-validation-sets", "test")
-	t.Set("pinned-sequence-numbers", map[string]int{})
-	t.Set("validation-sets", map[string][]byte{})
-	t.Set("userID", 0)
+	t.Set("pinned-sequence-numbers", expectedPinnedSeqs)
+	t.Set("validation-sets", expectedVss)
+	t.Set("userID", 1)
 
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
@@ -423,16 +454,25 @@ func (s *handlersSuite) TestDoEnforceValidationSetsTaskLocal(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	expectedVsKeys := map[string][]string{
+		"test-set-1": {"1", "2", "3", "4"},
+	}
+	expectedPinnedSeqs := map[string]int{
+		"test-set-1": 4,
+	}
+
 	var enforcedCalls int
 	r := snapstate.MockEnforceLocalValidationSets(func(s *state.State, m1 map[string][]string, m2 map[string]int, is []*snapasserts.InstalledSnap, m3 map[string]bool) error {
 		enforcedCalls++
+		c.Check(m1, DeepEquals, expectedVsKeys)
+		c.Check(m2, DeepEquals, expectedPinnedSeqs)
 		return nil
 	})
 	defer r()
 
 	t := s.state.NewTask("enforce-validation-sets", "test")
-	t.Set("pinned-sequence-numbers", map[string]int{})
-	t.Set("validation-set-keys", map[string][]string{})
+	t.Set("pinned-sequence-numbers", expectedPinnedSeqs)
+	t.Set("validation-set-keys", expectedVsKeys)
 
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
