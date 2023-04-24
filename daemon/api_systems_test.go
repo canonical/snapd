@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -836,7 +837,7 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 			client.StorageEncryptionSupportAvailable, "encrypted", "",
 		},
 	} {
-		mockEncryptionSupportInfo := &devicestate.EncryptionSupportInfo{
+		mockEncryptionSupportInfo := &install.EncryptionSupportInfo{
 			Available:          tc.available,
 			Disabled:           tc.disabled,
 			StorageSafety:      tc.storageSafety,
@@ -844,7 +845,7 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 			UnavailableWarning: tc.unavailableWarning,
 		}
 
-		r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *devicestate.EncryptionSupportInfo, error) {
+		r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 			c.Check(label, check.Equals, "20191119")
 			sys := &devicestate.System{
 				Model: s.seedModelForLabel20191119,
@@ -884,7 +885,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
 	s.daemon(c)
 	s.expectRootAccess()
 
-	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *devicestate.EncryptionSupportInfo, error) {
+	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 		return nil, nil, nil, fmt.Errorf("boom")
 	})
 	defer r()
@@ -922,7 +923,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	restore = s.mockSystemSeeds(c)
 	defer restore()
 
-	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *devicestate.EncryptionSupportInfo, error) {
+	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 		// mockSystemSeed will ensure everything here is coming from
 		// the mocked seed except the encryptionInfo
 		sys, gadgetInfo, encInfo, err := deviceMgr.SystemAndGadgetAndEncryptionInfo(label)
@@ -978,6 +979,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 								Image: "pc-boot.img",
 							},
 						},
+						YamlIndex: 0,
 					},
 					{
 						Name:       "BIOS Boot",
@@ -994,6 +996,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 								Image: "pc-core.img",
 							},
 						},
+						YamlIndex: 1,
 					},
 					{
 						Name:       "ubuntu-seed",
@@ -1014,6 +1017,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 								Target:           "EFI/boot/bootx64.efi",
 							},
 						},
+						YamlIndex: 2,
 					},
 					{
 						Name:       "ubuntu-boot",
@@ -1024,6 +1028,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						Offset:     asOffsetPtr(1202 * quantity.OffsetMiB),
 						Size:       750 * quantity.SizeMiB,
 						Filesystem: "ext4",
+						YamlIndex:  3,
 					},
 					{
 						Name:       "ubuntu-save",
@@ -1034,6 +1039,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						Offset:     asOffsetPtr(1952 * quantity.OffsetMiB),
 						Size:       16 * quantity.SizeMiB,
 						Filesystem: "ext4",
+						YamlIndex:  4,
 					},
 					{
 						Name:       "ubuntu-data",
@@ -1044,6 +1050,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						Offset:     asOffsetPtr(1968 * quantity.OffsetMiB),
 						Size:       1 * quantity.SizeGiB,
 						Filesystem: "ext4",
+						YamlIndex:  5,
 					},
 				},
 			},

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2021 Canonical Ltd
+ * Copyright (C) 2015-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -301,14 +301,15 @@ func getGadgetDiskMapping(st *state.State) Response {
 		}
 		// no sealed keys, so no encryption
 	} else {
+		// TODO: is there a better way to find the encType
+		// than indirectly via the sealedKeyMethods? does not
+		// matter right now because there really is only one
+		// encryption type
 		switch sealingMethod {
-		case device.SealingMethodLegacyTPM, device.SealingMethodTPM:
+		case device.SealingMethodLegacyTPM, device.SealingMethodTPM, device.SealingMethodFDESetupHook:
+			// LUKS and LUKS-with-ICE are the same for what is
+			// required here
 			encType = secboot.EncryptionTypeLUKS
-		case device.SealingMethodFDESetupHook:
-			// TODO:ICE: device setup hook support goes away
-			// XXX: this also seems to be broken already, this sealing
-			// method should not imply ICE
-			encType = secboot.EncryptionTypeDeviceSetupHook
 		default:
 			return InternalError("unknown sealing method: %s", sealingMethod)
 		}

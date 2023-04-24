@@ -1,3 +1,20 @@
+snapd (2.59.2) xenial; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Notify users when a user triggered auto refresh finished
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 18 Apr 2023 19:46:10 +0200
+
+snapd (2.59.1) xenial; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Add udev rules from steam-devices to steam-support interface
+    - Bugfixes for layout path checking, dm_crypt permissions,
+      mount-control interface parameter checking, kernel commandline
+      parsing, docker-support, refresh-app-awareness
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 28 Mar 2023 20:58:44 +0200
+
 snapd (2.59) xenial; urgency=medium
 
   * New upstream release, LP: #2009946

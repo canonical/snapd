@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -43,6 +43,8 @@ type policy16 struct {
 
 	needsCore   []string
 	needsCore16 []string
+
+	snapdUsedOnClassic bool
 }
 
 func (pol *policy16) allowsDangerousFeatures() error {
@@ -147,7 +149,7 @@ func (pol *policy16) implicitSnaps(availableByMode map[string]*naming.SnapSet) [
 	if len(pol.needsCore) != 0 && !availableSnaps.Contains(naming.Snap("core")) {
 		return []*asserts.ModelSnap{makeSystemSnap("core")}
 	}
-	if pol.model.Classic() && !availableSnaps.Empty() {
+	if pol.model.Classic() && !availableSnaps.Empty() && !availableSnaps.Contains(naming.Snap("snapd")) {
 		return []*asserts.ModelSnap{makeSystemSnap("snapd")}
 	}
 	return nil
@@ -161,6 +163,14 @@ func (pol *policy16) implicitExtraSnaps(availableByMode map[string]*naming.SnapS
 	return nil
 }
 
+func (pol *policy16) recordSnapNameUsage(snapName string) {
+	if !pol.model.Classic() {
+		// nothing to record
+		return
+	}
+	pol.snapdUsedOnClassic = snapName == "snapd"
+}
+
 func (pol *policy16) isSystemSnapCandidate(sn *SeedSnap) bool {
 	if sn.modelSnap != nil {
 		sysSnap := pol.systemSnap()
@@ -171,7 +181,14 @@ func (pol *policy16) isSystemSnapCandidate(sn *SeedSnap) bool {
 			return true
 		}
 	}
-	return pol.model.Classic() && sn.SnapName() == "core"
+	if pol.model.Classic() {
+		if pol.snapdUsedOnClassic {
+			return sn.SnapName() == "snapd"
+		} else {
+			return sn.SnapName() == "core"
+		}
+	}
+	return false
 }
 
 func (pol *policy16) ignoreUndeterminedSystemSnap() bool {

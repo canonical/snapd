@@ -42,7 +42,7 @@ environment:
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     # a global setting for LXD channel to use in the tests
     LXD_SNAP_CHANNEL: "latest/candidate"
-    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/candidate"
+    UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
     # controls whether ubuntu-image is built using the current snapd tree as a
     # dependency or the one listed in its go.mod
     UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
@@ -178,8 +178,6 @@ backends:
                   image: centos-9-64
 
             # unstable systems below
-            - opensuse-15.3-64:
-                  workers: 6
             - opensuse-15.4-64:
                   workers: 6
             - opensuse-tumbleweed-64:

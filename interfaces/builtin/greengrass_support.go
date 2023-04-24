@@ -25,7 +25,9 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const greengrassSupportSummary = `allows operating as the Greengrass service`
@@ -351,6 +353,11 @@ owner /state/server/{,**} rw,
 #include <abstractions/ssl_certs>
 `
 
+const greengrassSupportConnectedPlugAppArmorUserNS = `
+# allow use of user namespaces
+userns,
+`
+
 const greengrassSupportConnectedPlugSeccomp = `
 # Description: can manage greengrass 'things' and their sandboxes. This
 # policy is intentionally not restrictive and is here to help guard against
@@ -422,6 +429,17 @@ func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 		}
 		// greengrass needs to use ptrace for controlling it's containers
 		spec.SetUsesPtraceTrace()
+		// if apparmor supports userns mediation then add this too as we
+		// allow unshare in the seccomp profile in this flavor
+		if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
+			features, err := apparmor_sandbox.ParserFeatures()
+			if err != nil {
+				return err
+			}
+			if strutil.ListContains(features, "userns") {
+				spec.AddSnippet(greengrassSupportConnectedPlugAppArmorUserNS)
+			}
+		}
 	case "no-container":
 		// this is the no-container version, it does not use as much privilege
 		// as the default "legacy-container" flavor

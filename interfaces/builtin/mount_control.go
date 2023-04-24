@@ -97,14 +97,19 @@ var allowedMountOptions = []string{
 // options.
 var optionsWithoutFsType = []string{
 	"bind",
-	// Note: the following flags should also fall into this list, but we are
-	// not currently allowing them (and don't plan to):
-	// - "make-private"
-	// - "make-shared"
-	// - "make-slave"
-	// - "make-unbindable"
-	// - "move"
-	// - "remount"
+	// The following flags are only relevant to filesystem type "functionfs", in which case options
+	// are not validated against allowedMountOptions.
+	"rbind",
+	"move",
+	"remount",
+	"make-private",
+	"make-shared",
+	"make-slave",
+	"make-unbindable",
+	"make-rshared",
+	"make-rslave",
+	"make-rprivate",
+	"make-runbindable",
 }
 
 // List of filesystem types to allow if the plug declaration does not
@@ -201,6 +206,14 @@ type MountInfo struct {
 	options    []string
 }
 
+func (mi *MountInfo) isType(typ string) bool {
+	return len(mi.types) == 1 && mi.types[0] == typ
+}
+
+func (mi *MountInfo) hasType() bool {
+	return len(mi.types) > 0
+}
+
 func parseStringList(mountEntry map[string]interface{}, fieldName string) ([]string, error) {
 	var list []string
 	value, ok := mountEntry[fieldName]
@@ -272,16 +285,22 @@ func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error
 	return nil
 }
 
+func validateNoAppArmorRegexpWithError(errPrefix string, strList ...string) error {
+	for _, str := range strList {
+		if err := apparmor_sandbox.ValidateNoAppArmorRegexp(str); err != nil {
+			return fmt.Errorf(errPrefix+`: %w`, err)
+		}
+	}
+	return nil
+}
+
 func validateWhatAttr(mountInfo *MountInfo) error {
 	what := mountInfo.what
 
 	// with "functionfs" the "what" can essentially be anything, see
 	// https://www.kernel.org/doc/html/latest/usb/functionfs.html
-	if len(mountInfo.types) == 1 && mountInfo.types[0] == "functionfs" {
-		if err := apparmor_sandbox.ValidateNoAppArmorRegexp(what); err != nil {
-			return fmt.Errorf(`cannot use mount-control "what" attribute: %w`, err)
-		}
-		return nil
+	if mountInfo.isType("functionfs") {
+		return validateNoAppArmorRegexpWithError(`cannot use mount-control "what" attribute`, what)
 	}
 
 	if !whatRegexp.MatchString(what) {
@@ -297,7 +316,7 @@ func validateWhatAttr(mountInfo *MountInfo) error {
 	}
 
 	// "what" must be set to "none" iff the type is "tmpfs"
-	isTmpfs := len(mountInfo.types) == 1 && mountInfo.types[0] == "tmpfs"
+	isTmpfs := mountInfo.isType("tmpfs")
 	if mountInfo.what == "none" {
 		if !isTmpfs {
 			return errors.New(`mount-control "what" attribute can be "none" only with "tmpfs"`)
@@ -345,14 +364,25 @@ func validateMountTypes(types []string) error {
 	return nil
 }
 
-func validateMountOptions(options []string) error {
-	if len(options) == 0 {
+func validateMountOptions(mountInfo *MountInfo) error {
+	if len(mountInfo.options) == 0 {
 		return errors.New(`mount-control "options" cannot be empty`)
 	}
-	for _, o := range options {
-		if !strutil.ListContains(allowedMountOptions, o) {
-			return fmt.Errorf(`mount-control option unrecognized or forbidden: %q`, o)
+	// With "functionfs" none of the valid "options" can be harmful so no need to check against allowedMountOptions
+	if mountInfo.isType("functionfs") {
+		if err := validateNoAppArmorRegexpWithError(`cannot use mount-control "option" attribute`, mountInfo.options...); err != nil {
+			return err
 		}
+	} else {
+		for _, o := range mountInfo.options {
+			if !strutil.ListContains(allowedMountOptions, o) {
+				return fmt.Errorf(`mount-control option unrecognized or forbidden: %q`, o)
+			}
+		}
+	}
+	fsExclusiveOption := optionIncompatibleWithFsType(mountInfo.options)
+	if fsExclusiveOption != "" && mountInfo.hasType() {
+		return fmt.Errorf(`mount-control option %q is incompatible with specifying filesystem type`, fsExclusiveOption)
 	}
 	return nil
 }
@@ -380,14 +410,8 @@ func validateMountInfo(mountInfo *MountInfo) error {
 		return err
 	}
 
-	if err := validateMountOptions(mountInfo.options); err != nil {
+	if err := validateMountOptions(mountInfo); err != nil {
 		return err
-	}
-
-	// Check if any options are incompatible with specifying a FS type
-	fsExclusiveOption := optionIncompatibleWithFsType(mountInfo.options)
-	if fsExclusiveOption != "" && len(mountInfo.types) > 0 {
-		return fmt.Errorf(`mount-control option %q is incompatible with specifying filesystem type`, fsExclusiveOption)
 	}
 
 	// Until we have a clear picture of how this should work, disallow creating
@@ -471,7 +495,7 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 			typeRule = ""
 		} else {
 			var types []string
-			if len(mountInfo.types) > 0 {
+			if mountInfo.hasType() {
 				types = mountInfo.types
 			} else {
 				types = defaultFSTypes

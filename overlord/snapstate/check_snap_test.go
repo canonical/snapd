@@ -201,6 +201,8 @@ var assumesTests = []struct {
 	assumes: "[command-chain]",
 }, {
 	assumes: "[kernel-assets]",
+}, {
+	assumes: "[snap-uid-envvars]",
 },
 }
 
@@ -1492,4 +1494,33 @@ version: 2
 	err = snapstate.CheckSnap(st, "snap-path", "new-gadget", nil, nil, snapstate.Flags{}, deviceCtx)
 	st.Lock()
 	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestCheckConfigureHooksHappy(c *C) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		info := snaptest.MockInfo(c, "{name: snap-with-default-configure, version: 1.0}", si)
+		info.Hooks["default-configure"] = &snap.HookInfo{}
+		info.Hooks["configure"] = &snap.HookInfo{}
+		return info, emptyContainer(c), nil
+	}
+
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	err := snapstate.CheckSnap(s.st, "snap-path", "snap-with-default-configure", nil, nil, snapstate.Flags{}, nil)
+	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestCheckConfigureHooksUnHappy(c *C) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		info := snaptest.MockInfo(c, "{name: snap-with-default-configure, version: 1.0}", si)
+		info.Hooks["default-configure"] = &snap.HookInfo{}
+		return info, emptyContainer(c), nil
+	}
+
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	err := snapstate.CheckSnap(s.st, "snap-path", "snap-with-default-configure", nil, nil, snapstate.Flags{}, nil)
+	c.Check(err, ErrorMatches, `cannot specify "default-configure" hook without "configure" hook`)
 }

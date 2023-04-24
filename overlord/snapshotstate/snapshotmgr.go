@@ -163,12 +163,13 @@ func (SnapshotManager) affectedSnaps(t *state.Task) ([]string, error) {
 }
 
 type snapshotSetup struct {
-	SetID    uint64        `json:"set-id"`
-	Snap     string        `json:"snap"`
-	Users    []string      `json:"users,omitempty"`
-	Filename string        `json:"filename,omitempty"`
-	Current  snap.Revision `json:"current"`
-	Auto     bool          `json:"auto,omitempty"`
+	SetID    uint64                `json:"set-id"`
+	Snap     string                `json:"snap"`
+	Users    []string              `json:"users,omitempty"`
+	Options  *snap.SnapshotOptions `json:"options,omitempty"`
+	Filename string                `json:"filename,omitempty"`
+	Current  snap.Revision         `json:"current"`
+	Auto     bool                  `json:"auto,omitempty"`
 }
 
 func filename(setID uint64, si *snap.Info) string {
@@ -232,7 +233,7 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, opts)
+	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, snapshot.Options, opts)
 	if err != nil {
 		st.Lock()
 		defer st.Unlock()
@@ -467,7 +468,7 @@ func delayedCrossMgrInit() {
 	snapstate.EstimateSnapshotSize = EstimateSnapshotSize
 }
 
-func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string, *dirs.SnapDirOptions) (*client.Snapshot, error)) (restore func()) {
+func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string, *snap.SnapshotOptions, *dirs.SnapDirOptions) (*client.Snapshot, error)) (restore func()) {
 	old := backendSave
 	backendSave = f
 	return func() {

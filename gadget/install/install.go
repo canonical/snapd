@@ -41,12 +41,12 @@ import (
 // diskWithSystemSeed will locate a disk that has the partition corresponding
 // to a structure with SystemSeed role of the specified gadget volume and return
 // the device node.
-func diskWithSystemSeed(lv *gadget.LaidOutVolume) (device string, err error) {
-	for _, vs := range lv.LaidOutStructure {
+func diskWithSystemSeed(gv *gadget.Volume) (device string, err error) {
+	for _, gs := range gv.Structure {
 		// XXX: this part of the finding maybe should be a
 		// method on gadget.*Volume
-		if vs.Role() == gadget.SystemSeed {
-			device, err = gadget.FindDeviceForStructure(vs.VolumeStructure)
+		if gs.Role == gadget.SystemSeed {
+			device, err = gadget.FindDeviceForStructure(&gs)
 			if err != nil {
 				return "", fmt.Errorf("cannot find device for role system-seed: %v", err)
 			}
@@ -136,17 +136,8 @@ func maybeEncryptPartition(laidOut *gadget.LaidOutStructure, encryptionType secb
 			if err != nil {
 				return nil, nil, err
 			}
-
-			//TODO:ICE: device-setup hook support goes away
-		case secboot.EncryptionTypeDeviceSetupHook:
-			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device-setup-hook[%s]", laidOut.Role()),
-				fmt.Sprintf("Create encryption device for %s using device-setup-hook", laidOut.Role()),
-				func(timings.Measurer) {
-					dataPart, err = createEncryptedDeviceWithSetupHook(&laidOut.OnDiskStructure, encryptionKey, laidOut.Name())
-				})
-			if err != nil {
-				return nil, nil, err
-			}
+		default:
+			return nil, nil, fmt.Errorf("internal error: unknown encryption type: %v", encryptionType)
 		}
 
 		// update the encrypted device node, such that subsequent steps
@@ -222,42 +213,45 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	logger.Noticef("        encryption: %v", options.EncryptionType)
+
 	if gadgetRoot == "" {
 		return "", nil, nil, 0, fmt.Errorf("cannot use empty gadget root directory")
 	}
 
 	if model.Grade() == asserts.ModelGradeUnset {
-		return "", nil, nil, 0, fmt.Errorf("cannot run install mode on pre-UC20 system")
+		return "", nil, nil, 0,
+			fmt.Errorf("cannot run install mode on pre-UC20 system")
 	}
 
+	// Find boot laid out data
 	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model, options.EncryptionType)
 	if err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot layout volumes: %v", err)
 	}
-	// TODO: resolve content paths from gadget here
+	bootVol := laidOutBootVol.Volume
 
 	// auto-detect device if no device is forced
 	// device forcing is used for (spread) testing only
 	if bootDevice == "" {
-		bootDevice, err = diskWithSystemSeed(laidOutBootVol)
+		bootDevice, err = diskWithSystemSeed(bootVol)
 		if err != nil {
 			return "", nil, nil, 0, fmt.Errorf("cannot find device to create partitions on: %v", err)
 		}
 	}
 
-	diskLayout, err := gadget.OnDiskVolumeFromDevice(bootDevice)
+	diskVolume, err := gadget.OnDiskVolumeFromDevice(bootDevice)
 	if err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
 
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
-	if err := gadget.EnsureLayoutCompatibility(laidOutBootVol, diskLayout, nil); err != nil {
+	if err := gadget.EnsureVolumeCompatibility(bootVol, diskVolume, nil); err != nil {
 		return "", nil, nil, 0, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
 	}
 
 	// remove partitions added during a previous install attempt
-	if err := removeCreatedPartitions(gadgetRoot, laidOutBootVol, diskLayout); err != nil {
+	if err := removeCreatedPartitions(gadgetRoot, bootVol, diskVolume); err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
@@ -274,14 +268,14 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 		opts := &CreateOptions{
 			GadgetRootDir: gadgetRoot,
 		}
-		created, err = createMissingPartitions(diskLayout, laidOutBootVol, opts)
+		created, err = createMissingPartitions(diskVolume, laidOutBootVol, opts)
 	})
 	if err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
-	bootVolGadgetName = laidOutBootVol.Name
-	bootVolSectorSize = diskLayout.SectorSize
+	bootVolGadgetName = bootVol.Name
+	bootVolSectorSize = diskVolume.SectorSize
 	return bootVolGadgetName, created, allLaidOutVols, bootVolSectorSize, nil
 }
 
@@ -289,11 +283,8 @@ func createEncryptionParams(encTyp secboot.EncryptionType) gadget.StructureEncry
 	switch encTyp {
 	case secboot.EncryptionTypeLUKS, secboot.EncryptionTypeLUKSWithICE:
 		return gadget.StructureEncryptionParameters{
+			// TODO:ICE: remove "Method" entirely, there is only LUKS
 			Method: gadget.EncryptionLUKS,
-		}
-	case secboot.EncryptionTypeDeviceSetupHook:
-		return gadget.StructureEncryptionParameters{
-			Method: gadget.EncryptionICE,
 		}
 	}
 	logger.Noticef("internal error: unknown encryption parameter %q", encTyp)
@@ -715,7 +706,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	// auto-detect device if no device is forced
 	// device forcing is used for (spread) testing only
 	if bootDevice == "" {
-		bootDevice, err = diskWithSystemSeed(laidOutBootVol)
+		bootDevice, err = diskWithSystemSeed(laidOutBootVol.Volume)
 		if err != nil {
 			return nil, fmt.Errorf("cannot find device to create partitions on: %v", err)
 		}
@@ -726,7 +717,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		return nil, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
 
-	layoutCompatOps := &gadget.EnsureLayoutCompatibilityOptions{
+	layoutCompatOps := &gadget.VolumeCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
 		ExpectedStructureEncryption:      map[string]gadget.StructureEncryptionParameters{},
 	}
@@ -748,7 +739,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	}
 	// factory reset is done on a system that was once installed, so this
 	// should be always successful unless the partition table has changed
-	if err := gadget.EnsureLayoutCompatibility(laidOutBootVol, diskLayout, layoutCompatOps); err != nil {
+	if err := gadget.EnsureVolumeCompatibility(laidOutBootVol.Volume, diskLayout, layoutCompatOps); err != nil {
 		return nil, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
 	}
 

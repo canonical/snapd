@@ -84,20 +84,11 @@ type LaidOutStructure struct {
 	// AbsoluteOffsetWrite is the resolved absolute position of offset-write
 	// for this structure element within the enclosing volume
 	AbsoluteOffsetWrite *quantity.Offset
-	// Index of the structure definition in gadget YAML, note this starts at 0.
-	YamlIndex int
 	// LaidOutContent is a list of raw content inside the structure
 	LaidOutContent []LaidOutContent
 	// ResolvedContent is a list of filesystem content that has all
 	// relative paths or references resolved
 	ResolvedContent []ResolvedContent
-}
-
-// IsRoleMBR returns whether a structure's role is MBR or not.
-// meh this function is weirdly placed, not sure what to do w/o making schemaMBR
-// constant exported
-func IsRoleMBR(ls LaidOutStructure) bool {
-	return ls.Role() == schemaMBR
 }
 
 // These accessors return currently what comes in the gadget, but will use
@@ -146,7 +137,7 @@ func (l *LaidOutStructure) IsPartition() bool {
 }
 
 func (p LaidOutStructure) String() string {
-	return fmtIndexAndName(p.YamlIndex, p.Name())
+	return fmtIndexAndName(p.VolumeStructure.YamlIndex, p.Name())
 }
 
 type byStartOffset []LaidOutStructure
@@ -200,7 +191,6 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 	for idx := range volume.Structure {
 		ps := LaidOutStructure{
 			VolumeStructure: &volume.Structure[idx],
-			YamlIndex:       idx,
 		}
 
 		if ps.Name() != "" {

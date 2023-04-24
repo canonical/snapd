@@ -50,7 +50,8 @@ import (
 type seed20 struct {
 	systemDir string
 
-	db asserts.RODatabase
+	db       asserts.RODatabase
+	commitTo func(*asserts.Batch) error
 
 	model *asserts.Model
 
@@ -180,6 +181,8 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 
 	// remember db for later use
 	s.db = db
+	// remember commitTo for LoadPreseedAssertion
+	s.commitTo = commitTo
 	// remember
 	s.model = modelAssertion
 	s.snapDeclsByID = snapDeclsByID
@@ -793,4 +796,56 @@ func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) e
 		return err
 	}
 	return commitTo(batch)
+}
+
+func (s *seed20) HasArtifact(relName string) bool {
+	return osutil.FileExists(s.ArtifactPath(relName))
+}
+
+func (s *seed20) ArtifactPath(relName string) string {
+	return filepath.Join(s.systemDir, relName)
+}
+
+func (s *seed20) LoadPreseedAssertion() (*asserts.Preseed, error) {
+	model := s.Model()
+	sysLabel := filepath.Base(s.systemDir)
+
+	batch := asserts.NewBatch(nil)
+	refs, err := readAsserts(batch, filepath.Join(s.systemDir, "preseed"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrNoPreseedAssertion
+		}
+	}
+	var preseedRef *asserts.Ref
+	for _, ref := range refs {
+		if ref.Type == asserts.PreseedType {
+			if preseedRef != nil {
+				return nil, fmt.Errorf("system preseed assertion file cannot contain multiple preseed assertions")
+			}
+			preseedRef = ref
+		}
+	}
+	if preseedRef == nil {
+		return nil, fmt.Errorf("system preseed assertion file must contain a preseed assertion")
+	}
+	if err := s.commitTo(batch); err != nil {
+		return nil, err
+	}
+	a, err := preseedRef.Resolve(s.db.Find)
+	if err != nil {
+		return nil, err
+	}
+	preseedAs := a.(*asserts.Preseed)
+	switch {
+	case preseedAs.SystemLabel() != sysLabel:
+		return nil, fmt.Errorf("preseed assertion system label %q doesn't match system label %q", preseedAs.SystemLabel(), sysLabel)
+	case preseedAs.Model() != model.Model():
+		return nil, fmt.Errorf("preseed assertion model %q doesn't match the model %q", preseedAs.Model(), model.Model())
+	case preseedAs.BrandID() != model.BrandID():
+		return nil, fmt.Errorf("preseed assertion brand %q doesn't match model brand %q", preseedAs.BrandID(), model.BrandID())
+	case preseedAs.Series() != model.Series():
+		return nil, fmt.Errorf("preseed assertion series %q doesn't match model series %q", preseedAs.Series(), model.Series())
+	}
+	return preseedAs, nil
 }

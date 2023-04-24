@@ -76,6 +76,26 @@ func LayoutFromYaml(newDir, gadgetYaml string, model gadget.Model) (*gadget.Laid
 	return MustLayOutSingleVolumeFromGadget(gadgetRoot, "", model)
 }
 
+func VolumeFromYaml(newDir, gadgetYaml string, model gadget.Model) (*gadget.Volume, error) {
+	gadgetRoot, err := WriteGadgetYaml(newDir, gadgetYaml)
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := gadget.ReadInfo(gadgetRoot, model)
+	if err != nil {
+		return nil, err
+	}
+	if len(info.Volumes) != 1 {
+		return nil, fmt.Errorf("only single volumes supported in test helper")
+	}
+	for _, vol := range info.Volumes {
+		return vol, nil
+	}
+
+	panic("impossible logic error")
+}
+
 // MustLayOutSingleVolumeFromGadget takes a gadget rootdir and lays out the
 // partitions as specified. This function does not handle multiple volumes and
 // is meant for test helpers only. For runtime users, with multiple volumes
