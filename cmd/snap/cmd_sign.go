@@ -21,6 +21,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 
@@ -118,8 +119,11 @@ func (x *cmdSign) Execute(args []string) error {
 		return err
 	}
 
-	// --direct implies --chain
-	if x.Chain || x.Direct {
+	if x.Direct && !x.Chain {
+		return errors.New(i18n.G("signing with --direct requires specifying --chain"))
+	}
+
+	if x.Chain {
 		known := knownRemoteWithFallback
 		if x.Direct {
 			known = func(_ *client.Client, assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
