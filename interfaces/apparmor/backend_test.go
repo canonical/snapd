@@ -2479,7 +2479,10 @@ func (s *backendSuite) TestRemoveAllSnapAppArmorProfiles(c *C) {
 
 	opts := interfaces.ConfinementOptions{}
 	snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+	s.AddCleanup(func() { s.RemoveSnap(c, snapInfo1) })
 	snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
+	s.AddCleanup(func() { s.RemoveSnap(c, snapInfo2) })
+
 	snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
 	snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	snap2nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap")
@@ -2497,8 +2500,4 @@ func (s *backendSuite) TestRemoveAllSnapAppArmorProfiles(c *C) {
 		_, err := os.Stat(p)
 		c.Check(os.IsNotExist(err), Equals, true)
 	}
-
-	// remove snaps to restore the test environment back to the original state
-	s.RemoveSnap(c, snapInfo2)
-	s.RemoveSnap(c, snapInfo1)
 }
