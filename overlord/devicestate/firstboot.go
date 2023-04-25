@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -126,12 +125,6 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		return trivialSeeding(st), nil
 	}
 
-	commitTo := func(batch *asserts.Batch) error {
-		return assertstate.AddBatch(st, batch, nil)
-	}
-	db := assertstate.DB(st)
-	processAutoImportAssertions(st, deviceSeed, db, commitTo)
-
 	timings.Run(tm, "load-verified-snap-metadata", "load verified snap metadata from seed", func(nested timings.Measurer) {
 		err = deviceSeed.LoadMeta(mode, nil, nested)
 	})
@@ -154,9 +147,6 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	if err != nil {
 		return nil, err
 	}
-
-	// optimistically forget the deviceSeed here
-	m.earlyDeviceSeed = nil
 
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
@@ -385,28 +375,25 @@ func (m *DeviceManager) importAssertionsFromSeed(isCoreBoot bool) (seed.Seed, er
 
 // processAutoImportAssertions attempts to load the auto import assertions
 // and create all knows system users, if and only if the model grade is dangerous.
-// Processing of the auto-import assertion is opportunistic and should not fail
-func processAutoImportAssertions(st *state.State, deviceSeed seed.Seed, db asserts.RODatabase, commitTo func(batch *asserts.Batch) error) {
+// Processing of the auto-import assertion is opportunistic and can fail
+// for example if system-user-as is serial bound and there is no serial-as yet
+func processAutoImportAssertions(st *state.State, deviceSeed seed.Seed, db asserts.RODatabase, commitTo func(batch *asserts.Batch) error) error {
 	// only proceed for dangerous model
 	if deviceSeed.Model().Grade() != asserts.ModelDangerous {
-		return
+		return nil
 	}
 	seed20AssertionsLoader, ok := deviceSeed.(seed.AutoImportAssertionsLoaderSeed)
 	if !ok {
-		logger.Noticef("failed to auto-import assertions, invalid loader")
-		return
+		return fmt.Errorf("failed to auto-import assertions, invalid loader")
 	}
 	err := seed20AssertionsLoader.LoadAutoImportAssertions(commitTo)
 	if err != nil {
-		logger.Noticef("failed to auto-import assertions: %v", err)
-		return
+		return err
 	}
 	// automatic user creation is meant to imply sudoers
 	const sudoer = true
 	_, err = createAllKnownSystemUsers(st, db, deviceSeed.Model(), nil, sudoer)
-	if err != nil {
-		logger.Noticef("failed to create known users: %v", err)
-	}
+	return err
 }
 
 // loadDeviceSeed loads the seed based on sysLabel,
