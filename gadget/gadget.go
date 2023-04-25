@@ -866,7 +866,7 @@ func validateVolume(vol *Volume) error {
 			start := *s.Offset
 			end := start + quantity.Offset(s.Size)
 			if start < 512*34 && end > 4096 {
-				return fmt.Errorf("invalid structure: GPT header or GPT partition table overlapped with structure %q\n", s.Name)
+				logger.Noticef("WARNING: invalid structure: GPT header or GPT partition table overlapped with structure %q\n", s.Name)
 			} else if start < 4096*6 && end > 512 {
 				logger.Noticef("WARNING: GPT header or GPT partition table might be overlapped with structure %q", s.Name)
 			}
