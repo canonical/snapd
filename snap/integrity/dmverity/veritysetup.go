@@ -22,6 +22,7 @@ package dmverity
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os/exec"
@@ -47,7 +48,7 @@ type Info struct {
 func getVal(line string) (string, error) {
 	parts := strings.SplitN(line, ":", 2)
 	if len(parts) != 2 {
-		return "", fmt.Errorf("internal error: unexpected veritysetup output format")
+		return "", errors.New("internal error: unexpected veritysetup output format")
 	}
 	return strings.TrimSpace(parts[1]), nil
 }
@@ -68,7 +69,7 @@ func getRootHashFromOutput(output []byte) (rootHash string, err error) {
 				return "", err
 			}
 			if hashAlgo != "sha256" {
-				return "", fmt.Errorf("internal error: unexpected hash algorithm")
+				return "", errors.New("internal error: unexpected hash algorithm")
 			}
 		}
 	}
@@ -78,7 +79,7 @@ func getRootHashFromOutput(output []byte) (rootHash string, err error) {
 	}
 
 	if len(rootHash) != 64 {
-		return "", fmt.Errorf("internal error: unexpected root hash length")
+		return "", errors.New("internal error: unexpected root hash length")
 	}
 
 	return rootHash, nil
