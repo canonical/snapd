@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -4590,6 +4591,122 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithUnmetConstraints(c *C) {
 		"public-key-sha3-384": vs.SignKeyID(),
 	})
 	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
+
+	err = assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &assertstate.ValidationSetTracking{})
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+}
+
+func (s *assertMgrSuite) testApplyLocalEnforcedValidationSets(c *C, pinnedSeq int) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// validation set that we refreshed to enforce
+	snaps := []interface{}{
+		map[string]interface{}{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "required",
+		}}
+	localVs := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps)
+	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
+	c.Assert(assertstate.Add(st, localVs), IsNil)
+
+	vsKey := fmt.Sprintf("%s/foo", s.dev1Acct.AccountID())
+	var pinnedSeqs map[string]int
+	if pinnedSeq != 0 {
+		pinnedSeqs = make(map[string]int, 1)
+		pinnedSeqs[vsKey] = pinnedSeq
+	}
+	valSets := map[string][]string{
+		vsKey: {release.Series, s.dev1Acct.AccountID(), "foo", "1"},
+	}
+	installedSnaps := []*snapasserts.InstalledSnap{
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+	}
+	err := assertstate.ApplyLocalEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil)
+	c.Assert(err, IsNil)
+
+	var tr assertstate.ValidationSetTracking
+	err = assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &tr)
+	c.Assert(err, IsNil)
+	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "foo",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+		PinnedAt:  pinnedSeq,
+	})
+}
+
+func (s *assertMgrSuite) TestApplyLocalEnforcedValidationSets(c *C) {
+	s.testApplyLocalEnforcedValidationSets(c, 0)
+}
+
+func (s *assertMgrSuite) TestApplyLocalEnforcedValidationSetsPinned(c *C) {
+	s.testApplyLocalEnforcedValidationSets(c, 1)
+}
+
+func (s *assertMgrSuite) TestApplyLocalEnforcedValidationSetsWithMismatchedPinnedSeq(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	localVs := s.validationSetAssertForSnaps(c, "foo", "1", "1", []interface{}{
+		map[string]interface{}{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "required",
+		},
+	})
+	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
+	c.Assert(assertstate.Add(st, localVs), IsNil)
+
+	// user requested op with sequence 2 but we're passing a different sequence
+	vsKey := fmt.Sprintf("%s/foo", s.dev1Acct.AccountID())
+	valSets := map[string][]string{
+		vsKey: {release.Series, s.dev1Acct.AccountID(), "foo", "1"},
+	}
+	pinnedSeqs := map[string]int{vsKey: 2}
+
+	err := assertstate.ApplyLocalEnforcedValidationSets(st, valSets, pinnedSeqs, nil, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("internal error: trying to enforce validation set %q with sequence point 1 different than pinned 2", vsKey))
+}
+
+func (s *assertMgrSuite) TestApplyLocalEnforcedValidationSetsWithUnmetConstraints(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	snaps := []interface{}{
+		map[string]interface{}{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "required",
+			"revision": "1",
+		},
+	}
+
+	localVs := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps)
+	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
+	c.Assert(assertstate.Add(st, localVs), IsNil)
+
+	valSets := map[string][]string{
+		fmt.Sprintf("%s/foo", s.dev1Acct.AccountID()): {release.Series, s.dev1Acct.AccountID(), "foo", "1"},
+	}
+
+	installedSnaps := []*snapasserts.InstalledSnap{
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 2}),
+	}
+
+	err := assertstate.ApplyLocalEnforcedValidationSets(st, valSets, nil, installedSnaps, nil)
+	c.Assert(err, FitsTypeOf, &snapasserts.ValidationSetsValidationError{})
 
 	err = assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &assertstate.ValidationSetTracking{})
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})

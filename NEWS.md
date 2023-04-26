@@ -1,3 +1,10 @@
+# New in snapd 2.60:
+* Support for dynamic snapshot data exclusions
+* Apparmor userspace is vendored inside the snapd snap
+
+# New in snapd 2.59.2:
+* Notify users when a user triggered auto refresh finished
+
 # New in snapd 2.59.1:
 
 * Add udev rules from steam-devices to steam-support interface

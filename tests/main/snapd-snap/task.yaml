@@ -218,13 +218,6 @@ execute: |
 
     unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
 
-    # This check is to cheat the shellcheck
-    if os.query is-ubuntu; then
-        # TODO:apparmor-vendoring
-        # remove this "exit 0" once apparmor-vendoring is ready
-        exit 0
-    fi
-
     echo "Ensure we have apparmor_parser"
     unsquashfs -ll snapd_spread-test.snap | MATCH usr/lib/snapd/apparmor_parser
 
@@ -300,8 +293,8 @@ execute: |
         # snap whilst waiting for apparmor_parser to finish, so avoid this
         # by only touching some of the interfaces overall - there also
         # seems to be another smaller leak on Bionic etc too so only do
-        # half the interfaces on other systems
-        if os.query is-xenial && [ "$((RANDOM % 8))" != 0 ] || [ "$((RANDOM % 2))" != 0 ]; then
+        # one third of the interfaces on other systems
+        if os.query is-xenial && [ "$((RANDOM % 8))" != 0 ] || [ "$((RANDOM % 3))" != 0 ]; then
             echo "skipping plug: $plugcmd"
             continue
         fi

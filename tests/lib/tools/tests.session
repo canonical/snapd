@@ -181,6 +181,9 @@ main() {
 				umount -l /var/lib/systemd
 			fi
 
+			# Make sure there is not neither stopping nor abandoned user sessions
+			systemctl restart systemd-logind.service
+
 			exit 0
 			;;
 		dump)

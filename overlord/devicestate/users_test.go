@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -744,24 +745,16 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownNoModelError(c *check.C)
 	c.Assert(createdUsers, check.IsNil)
 }
 
-func (s *usersSuite) TestCreateUserFromAssertionNoModel(c *check.C) {
+func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
-	model := s.brands.Model("my-brand", "other-model", map[string]interface{}{
-		"architecture":          "amd64",
-		"gadget":                "pc",
-		"kernel":                "pc-kernel",
-		"system-user-authority": []interface{}{"my-brand", "partner"},
-	})
 
 	s.state.Lock()
-	assertstatetest.AddMany(s.state, model)
 	err := devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand:  "my-brand",
-		Model:  "my-model",
-		Serial: "other-serial-assertion",
+		Brand: "my-brand",
+		Model: "my-model",
 	})
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
@@ -775,6 +768,34 @@ func (s *usersSuite) TestCreateUserFromAssertionNoModel(c *check.C) {
 	c.Check(userErr.Error(), check.Matches, `cannot create user "serial@bar.com": bound to serial assertion but device not yet registered`)
 	c.Check(s.errorIsInternal(userErr), check.Equals, false)
 	c.Assert(createdUsers, check.IsNil)
+}
+
+func (s *usersSuite) TestCreateAllKnownUsersFromAssertionNoSerial(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
+
+	s.state.Lock()
+	err := devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+	})
+	s.state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// create user
+	s.state.Lock()
+	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "")
+	s.state.Unlock()
+
+	c.Check(userErr, check.IsNil)
+	c.Assert(createdUsers, check.IsNil)
+
+	c.Check(logbuf.String(), check.Matches, `(?s).*ignoring system-user assertion for "serial@bar\.com": bound to serial assertion but device not yet registered.*`)
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {

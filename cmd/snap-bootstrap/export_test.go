@@ -35,6 +35,8 @@ var (
 	DoSystemdMount = doSystemdMountImpl
 
 	MountNonDataPartitionMatchingKernelDisk = mountNonDataPartitionMatchingKernelDisk
+
+	GetNonUEFISystemDisk = getNonUEFISystemDisk
 )
 
 type SystemdMountOptions = systemdMountOptions

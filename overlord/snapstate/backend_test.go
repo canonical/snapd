@@ -1256,6 +1256,13 @@ func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
 	return f.maybeErrForLastOp()
 }
 
+func (f *fakeSnappyBackend) RemoveAllSnapAppArmorProfiles() error {
+	f.appendOp(&fakeOp{
+		op: "remove-apparmor-profiles",
+	})
+	return f.maybeErrForLastOp()
+}
+
 func (f *fakeSnappyBackend) RemoveSnapInhibitLock(snapName string) error {
 	f.appendOp(&fakeOp{
 		op:   "remove-inhibit-lock",

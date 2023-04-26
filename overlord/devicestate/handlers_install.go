@@ -425,6 +425,7 @@ func maybeApplyPreseededData(model *asserts.Model, ubuntuSeedDir, sysLabel, writ
 	if err != nil {
 		return false, err
 	}
+	// this function is for UC20+ only so sysSeed ia always PreseedCapable
 	preseedSeed := sysSeed.(seed.PreseedCapable)
 
 	if !preseedSeed.HasArtifact("preseed.tgz") {

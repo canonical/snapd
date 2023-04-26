@@ -466,9 +466,54 @@ func IsSytemDirectoryExistsError(err error) bool {
 	return ok
 }
 
+func (w *Writer) validationSetFromManifest(vsm *asserts.ModelValidationSet) *ManifestValidationSet {
+	for _, vs := range w.manifest.AllowedValidationSets() {
+		if vs.AccountID == vsm.AccountID && vs.Name == vsm.Name {
+			return vs
+		}
+	}
+	return nil
+}
+
+// finalValidationSetAtSequence returns the final AtSequence for an
+// validation set. If any restrictions have been set in the manifest
+// then we must use the sequence and pinning status from that instead
+// of whats set in the model.
+func (w *Writer) finalValidationSetAtSequence(vsm *asserts.ModelValidationSet) (*asserts.AtSequence, error) {
+	atSeq := vsm.AtSequence()
+
+	// Check the manifest for a matching entry, to handle any restrictions that
+	// might have been setup.
+	vs := w.validationSetFromManifest(vsm)
+	if vs == nil {
+		return atSeq, nil
+	}
+
+	// If the model has the validation-set pinned, this can't be
+	// changed by the manifest.
+	if vsm.Sequence > 0 && vs.Sequence != vsm.Sequence {
+		// It's pinned by the model, then the sequence must match
+		return nil, fmt.Errorf("cannot use sequence %d of %q: model requires sequence %d",
+			vs.Sequence, vs.Unique(), vsm.Sequence)
+	}
+
+	// If the model does not have a sequence set, then we don't allow
+	// pinning through the manifest.
+	if vsm.Sequence <= 0 && vs.Pinned {
+		return nil, fmt.Errorf("pinning of %q is not allowed by the model", vs.Unique())
+	}
+
+	atSeq.Sequence = vs.Sequence
+	return atSeq, nil
+}
+
 func (w *Writer) fetchValidationSets(f SeedAssertionFetcher) error {
 	for _, vs := range w.model.ValidationSets() {
-		if err := f.FetchSequence(vs.AtSequence()); err != nil {
+		atSeq, err := w.finalValidationSetAtSequence(vs)
+		if err != nil {
+			return err
+		}
+		if err := f.FetchSequence(atSeq); err != nil {
 			return err
 		}
 	}
@@ -1240,15 +1285,32 @@ func (w *Writer) resolveValidationSetAssertion(seq *asserts.AtSequence) (asserts
 	return seq.Resolve(w.db.Find)
 }
 
-func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
-	valsets := snapasserts.NewValidationSets()
+func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.ValidationSet, error) {
+	vsAsserts := make(map[*asserts.AtSequence]*asserts.ValidationSet)
 	vss := w.model.ValidationSets()
 	for _, vs := range vss {
-		a, err := w.resolveValidationSetAssertion(vs.AtSequence())
+		atSeq, err := w.finalValidationSetAtSequence(vs)
+		if err != nil {
+			return nil, fmt.Errorf("internal error: %v", err)
+		}
+		a, err := w.resolveValidationSetAssertion(atSeq)
 		if err != nil {
 			return nil, fmt.Errorf("internal error: cannot resolve validation-set: %v", err)
 		}
-		valsets.Add(a.(*asserts.ValidationSet))
+		vsAsserts[atSeq] = a.(*asserts.ValidationSet)
+	}
+	return vsAsserts, nil
+}
+
+func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
+	vss, err := w.validationSetAsserts()
+	if err != nil {
+		return nil, err
+	}
+
+	valsets := snapasserts.NewValidationSets()
+	for _, vs := range vss {
+		valsets.Add(vs)
 	}
 	return valsets, nil
 }
