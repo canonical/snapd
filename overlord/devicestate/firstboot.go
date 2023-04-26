@@ -76,12 +76,13 @@ func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge
 
 // maybeEnforceValidationSetsTask returns a task for tracking validation-sets. This may
 // return nil if no validation-sets are present.
-func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, db asserts.RODatabase) (*state.Task, error) {
+func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model) (*state.Task, error) {
 	vsKey := func(accountID, name string) string {
 		return fmt.Sprintf("%s/%s", accountID, name)
 	}
 
 	// Encode validation-sets included in the seed
+	db := assertstate.DB(st)
 	as, err := db.FindMany(asserts.ValidationSetType, nil)
 	if err != nil {
 		// If none are included, then skip this
@@ -344,7 +345,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	// Start tracking any validation sets included in the seed after
 	// installing the included snaps.
-	if trackVss, err := maybeEnforceValidationSetsTask(st, model, db); err != nil {
+	if trackVss, err := maybeEnforceValidationSetsTask(st, model); err != nil {
 		return nil, err
 	} else if trackVss != nil {
 		trackVss.WaitAll(ts)
