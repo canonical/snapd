@@ -476,12 +476,13 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, partRo
 	var err error
 	var isRecovery bool
 
+	logger.Debugf("observing role %q (root %q, target %q", partRole, root, relativeTarget)
 	switch partRole {
 	case gadget.SystemBoot:
 		whichBootloader = o.bootBootloader
 		whichTrustedAssets = o.bootTrustedAssets
 		whichManagedAssets = o.bootManagedAssets
-	case gadget.SystemSeed:
+	case gadget.SystemSeed, gadget.SystemSeedNull:
 		whichBootloader = o.seedBootloader
 		whichTrustedAssets = o.seedTrustedAssets
 		whichManagedAssets = o.seedManagedAssets
