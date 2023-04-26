@@ -21,7 +21,7 @@ package disks
 
 import (
 	"fmt"
-	"os"
+	"io/ioutil"
 	"path/filepath"
 	"strings"
 
@@ -36,7 +36,7 @@ import (
 // the symlink in the by-label folder.
 func CandidateByLabelPath(label string) (string, error) {
 	byLabelDir := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/")
-	byLabelFs, err := os.ReadDir(byLabelDir)
+	byLabelFs, err := ioutil.ReadDir(byLabelDir)
 	if err != nil {
 		return "", err
 	}
