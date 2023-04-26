@@ -482,7 +482,7 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.SeedAssertionFetcher,
 	return snaps, s.w.InfoDerived()
 }
 
-func (s *imageSeeder) validationSetsAndRevisionForSnap(snapName string) ([]snapasserts.ValidationSetKey, snap.Revision, error) {
+func (s *imageSeeder) validationSetKeysAndRevisionForSnap(snapName string) ([]snapasserts.ValidationSetKey, snap.Revision, error) {
 	vsas, err := s.db.FindMany(asserts.ValidationSetType, nil)
 	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, snap.Revision{}, err
@@ -505,12 +505,12 @@ func (s *imageSeeder) validationSetsAndRevisionForSnap(snapName string) ([]snapa
 	// may miss logic for optional snaps which have required revisions. This
 	// is not covered by the below check, and we may or may not have multiple places
 	// with a similar issue.
-	snapVss, snapRev, err := allVss.CheckPresenceRequired(naming.Snap(snapName))
+	snapVsKeys, snapRev, err := allVss.CheckPresenceRequired(naming.Snap(snapName))
 	if err != nil {
 		return nil, snap.Revision{}, err
 	}
-	if len(snapVss) > 0 {
-		return snapVss, snapRev, nil
+	if len(snapVsKeys) > 0 {
+		return snapVsKeys, snapRev, nil
 	}
 	return nil, s.w.Manifest().AllowedSnapRevision(snapName), nil
 }
@@ -538,7 +538,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 	}
 	snapToDownloadOptions := make([]tooling.SnapToDownload, len(snapsToDownload))
 	for i, sn := range snapsToDownload {
-		vss, rev, err := s.validationSetsAndRevisionForSnap(sn.SnapName())
+		vss, rev, err := s.validationSetKeysAndRevisionForSnap(sn.SnapName())
 		if err != nil {
 			return nil, err
 		}
