@@ -4145,36 +4145,34 @@ func (m *SnapManager) undoMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error 
 	return writeMigrationStatus(t, snapst, snapsup)
 }
 
-func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	var userID int
-	if err := t.Get("userID", &userID); err != nil {
-		return err
-	}
-
+func (m *SnapManager) decodeValidationSets(t *state.Task) (map[string]*asserts.ValidationSet, error) {
 	encodedAsserts := make(map[string][]byte)
 	if err := t.Get("validation-sets", &encodedAsserts); err != nil {
-		return err
+		return nil, err
 	}
 
 	decodedAsserts := make(map[string]*asserts.ValidationSet, len(encodedAsserts))
 	for vsStr, encAssert := range encodedAsserts {
 		decAssert, err := asserts.Decode(encAssert)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		vsAssert, ok := decAssert.(*asserts.ValidationSet)
 		if !ok {
-			return errors.New("expected encoded assertion to be of type ValidationSet")
+			return nil, errors.New("expected encoded assertion to be of type ValidationSet")
 		}
 		decodedAsserts[vsStr] = vsAssert
 	}
+	return decodedAsserts, nil
+}
 
-	var pinnedSeqs map[string]int
+func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	pinnedSeqs := make(map[string]int)
 	if err := t.Get("pinned-sequence-numbers", &pinnedSeqs); err != nil {
 		return err
 	}
@@ -4184,10 +4182,41 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 		return err
 	}
 
-	if err := EnforceValidationSets(st, decodedAsserts, pinnedSeqs, snaps, ignoreValidation, userID); err != nil {
-		return fmt.Errorf("cannot enforce validation sets: %v", err)
+	// 'validation-set-keys' determines which enforcement function to invoke. If provided
+	// then we should call EnforceLocalValidationSets, which does not
+	// fetch any assertions or their pre-requisites. If not provided, then 'validation-sets'
+	// must be set, and we call EnforceValidationSets, which may contact the
+	// store for any additional assertions.
+	var local bool
+	vsKeys := make(map[string][]string)
+	if err := t.Get("validation-set-keys", &vsKeys); err != nil && !errors.Is(err, &state.NoStateError{}) {
+		// we accept NoStateError, it simply means we use the normal version, however then
+		// 'userID' and 'validation-sets' must be present
+		return err
+	} else if err == nil {
+		// 'validation-set-keys' was present, use the local version
+		local = true
 	}
 
+	if local {
+		if err := EnforceLocalValidationSets(st, vsKeys, pinnedSeqs, snaps, ignoreValidation); err != nil {
+			return fmt.Errorf("cannot enforce validation sets: %v", err)
+		}
+	} else {
+		var userID int
+		if err := t.Get("userID", &userID); err != nil {
+			return err
+		}
+
+		decodedAsserts, err := m.decodeValidationSets(t)
+		if err != nil {
+			return err
+		}
+
+		if err := EnforceValidationSets(st, decodedAsserts, pinnedSeqs, snaps, ignoreValidation, userID); err != nil {
+			return fmt.Errorf("cannot enforce validation sets: %v", err)
+		}
+	}
 	return nil
 }
 

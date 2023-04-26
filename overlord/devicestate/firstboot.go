@@ -74,6 +74,44 @@ func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge
 	return beginEdge, beforeHooksEdge, hooksEdge, nil
 }
 
+// maybeEnforceValidationSetsTask returns a task for tracking validation-sets. This may
+// return nil if no validation-sets are present.
+func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, db asserts.RODatabase) (*state.Task, error) {
+	vsKey := func(accountID, name string) string {
+		return fmt.Sprintf("%s/%s", accountID, name)
+	}
+
+	// Encode validation-sets included in the seed
+	as, err := db.FindMany(asserts.ValidationSetType, nil)
+	if err != nil {
+		// If none are included, then skip this
+		if errors.Is(err, &asserts.NotFoundError{}) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	vsKeys := make(map[string][]string)
+	for _, a := range as {
+		vsa := a.(*asserts.ValidationSet)
+		vsKeys[vsKey(vsa.AccountID(), vsa.Name())] = a.Ref().PrimaryKey
+	}
+
+	// Set up pins from the model
+	pins := make(map[string]int)
+	for _, vs := range model.ValidationSets() {
+		key := vsKey(vs.AccountID, vs.Name)
+		if vs.Sequence > 0 {
+			pins[key] = vs.Sequence
+		}
+	}
+
+	t := st.NewTask("enforce-validation-sets", i18n.G("Track validation sets"))
+	t.Set("validation-set-keys", vsKeys)
+	t.Set("pinned-sequence-numbers", pins)
+	return t, nil
+}
+
 func markSeededTask(st *state.State) *state.Task {
 	return st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 }
@@ -304,10 +342,18 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	ts := tsAll[len(tsAll)-1]
 	endTs := state.NewTaskSet()
 
+	// Start tracking any validation sets included in the seed after
+	// installing the included snaps.
+	if trackVss, err := maybeEnforceValidationSetsTask(st, model, db); err != nil {
+		return nil, err
+	} else if trackVss != nil {
+		trackVss.WaitAll(ts)
+		endTs.AddTask(trackVss)
+	}
+
 	markSeeded := markSeededTask(st)
 	if preseed {
 		endTs.AddTask(preseedDoneTask)
-		markSeeded.WaitFor(preseedDoneTask)
 	}
 	whatSeeds := &seededSystem{
 		System:    sysLabel,
@@ -318,8 +364,10 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	}
 	markSeeded.Set("seed-system", whatSeeds)
 
-	// mark-seeded waits for the taskset of last snap
+	// mark-seeded waits for the taskset of last snap, and
+	// for all the tasks in the endTs as well.
 	markSeeded.WaitAll(ts)
+	markSeeded.WaitAll(endTs)
 	endTs.AddTask(markSeeded)
 	tsAll = append(tsAll, endTs)
 

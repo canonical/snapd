@@ -2196,3 +2196,199 @@ func (s *firstBoot16Suite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBe
 	a, err := signing.Sign(asserts.SerialType, headers, body, "")
 	return a, nil, err
 }
+
+func (s *firstBoot16Suite) testPopulateFromSeedCore18ValidationSetTracking(c *C, vsAsserts []asserts.Assertion, vsHeaders []interface{}) *state.Change {
+	var sysdLog [][]string
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+	bloader.SetBootKernel("pc-kernel_1.snap")
+	bloader.SetBootBase("core18_1.snap")
+
+	s.WriteAssertions("developer.account", s.devAcct)
+
+	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c, &core18SnapsOpts{})
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model", map[string]interface{}{"base": "core18", "validation-sets": vsHeaders})
+	s.WriteAssertions("model.asserts", assertsChain...)
+
+	// write validation set assertions
+	for i, a := range vsAsserts {
+		s.WriteAssertions(fmt.Sprintf("vs-%d.validation-set", i), a)
+	}
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: core18
+   file: %s
+ - name: pc-kernel
+   file: %s
+ - name: pc
+   file: %s
+`, snapdFname, core18Fname, kernelFname, gadgetFname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	s.startOverlord(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
+	c.Assert(err, IsNil)
+
+	// ensure the validation-set tracking task is present
+	tsEnd := tsAll[len(tsAll)-1]
+	c.Assert(tsEnd.Tasks(), HasLen, 2)
+	t := tsEnd.Tasks()[0]
+	c.Check(t.Kind(), Equals, "enforce-validation-sets")
+
+	expectedSeqs := make(map[string]int)
+	expectedVss := make(map[string][]string)
+	for _, vs := range vsHeaders {
+		hdrs := vs.(map[string]interface{})
+		seq, err := strconv.Atoi(hdrs["sequence"].(string))
+		c.Assert(err, IsNil)
+		key := fmt.Sprintf("%s/%s", hdrs["account-id"].(string), hdrs["name"].(string))
+		expectedSeqs[key] = seq
+		expectedVss[key] = []string{release.Series, hdrs["account-id"].(string), hdrs["name"].(string), hdrs["sequence"].(string)}
+	}
+
+	// verify that the correct data is provided to the task
+	var pinnedSeqs map[string]int
+	err = t.Get("pinned-sequence-numbers", &pinnedSeqs)
+	c.Assert(err, IsNil)
+	c.Check(pinnedSeqs, DeepEquals, expectedSeqs)
+	var vsKeys map[string][]string
+	err = t.Get("validation-set-keys", &vsKeys)
+	c.Assert(err, IsNil)
+	c.Check(vsKeys, DeepEquals, expectedVss)
+
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc")
+
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Check(err, IsNil)
+	c.Check(chg.Err(), IsNil)
+
+	// at this point the system is "restarting", pretend the restart has
+	// happened
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	restart.MockPending(st, restart.RestartUnset)
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	return chg
+}
+
+func (s *firstBoot16Suite) TestPopulateFromSeedCore18ValidationSetTrackingHappy(c *C) {
+	a, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "base-set",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       s.AssertedSnapID("pc-kernel"),
+				"presence": "required",
+				"revision": "1",
+			},
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       s.AssertedSnapID("pc"),
+				"presence": "required",
+				"revision": "1",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"account-id": "canonical",
+		"name":       "base-set",
+		"sequence":   "1",
+		"mode":       "enforce",
+	}
+	chg := s.testPopulateFromSeedCore18ValidationSetTracking(c, []asserts.Assertion{a}, []interface{}{headers})
+
+	s.overlord.State().Lock()
+	defer s.overlord.State().Unlock()
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s", chg.Err()))
+
+	// Ensure that we are now tracking the validation-set
+	var tr assertstate.ValidationSetTracking
+	err = assertstate.GetValidationSet(s.overlord.State(), "canonical", "base-set", &tr)
+	c.Assert(err, IsNil)
+	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
+		AccountID: "canonical",
+		Name:      "base-set",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+		PinnedAt:  1,
+	})
+}
+
+func (s *firstBoot16Suite) TestPopulateFromSeedCore18ValidationSetTrackingUnmetCriteria(c *C) {
+	a, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "base-set",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       s.AssertedSnapID("pc-kernel"),
+				"presence": "required",
+				// Set required revision of pc-kernel to 7, this should make it fail
+				"revision": "7",
+			},
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       s.AssertedSnapID("pc"),
+				"presence": "required",
+				"revision": "1",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"account-id": "canonical",
+		"name":       "base-set",
+		"sequence":   "1",
+		"mode":       "enforce",
+	}
+	chg := s.testPopulateFromSeedCore18ValidationSetTracking(c, []asserts.Assertion{a}, []interface{}{headers})
+
+	s.overlord.State().Lock()
+	defer s.overlord.State().Unlock()
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err().Error(), testutil.Contains, "pc-kernel (required at revision 7 by sets canonical/base-set))")
+}
