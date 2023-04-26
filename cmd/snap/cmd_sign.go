@@ -120,7 +120,7 @@ func (x *cmdSign) Execute(args []string) error {
 	}
 
 	if x.Direct && !x.Chain {
-		return errors.New(i18n.G("signing with --direct requires specifying --chain"))
+		return errors.New(i18n.G("--direct specified without --chain"))
 	}
 
 	if x.Chain {
