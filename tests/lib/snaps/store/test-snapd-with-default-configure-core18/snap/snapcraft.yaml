@@ -1,5 +1,5 @@
 name: test-snapd-with-default-configure-core18
-version: '3.0'
+version: '4.0'
 summary: Basic snap with a default-configure and configure hook
 description: |
   This snap can be used to test that gadget configurations are made available 
