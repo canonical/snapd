@@ -1429,7 +1429,9 @@ func (w *Writer) markValidationSetsSeeded() error {
 		return err
 	}
 	for seq, vs := range vsm {
-		w.manifest.MarkValidationSetSeeded(vs, seq.Pinned)
+		if err := w.manifest.MarkValidationSetSeeded(vs, seq.Pinned); err != nil {
+			return err
+		}
 	}
 	return nil
 }
