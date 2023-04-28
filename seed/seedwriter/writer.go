@@ -1441,7 +1441,7 @@ func (w *Writer) WriteMeta() error {
 	}
 
 	if w.opts.ManifestPath != "" {
-		// Mark validation sets seeded in the manifest if we the options
+		// Mark validation sets seeded in the manifest if the options
 		// are set to produce a manifest.
 		if err := w.markValidationSetsSeeded(); err != nil {
 			return err
