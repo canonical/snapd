@@ -20,7 +20,7 @@
 package syscalls
 
 // Generated using arch-syscall-dump test tool from libseccomp tree, git
-// revision bf747eb21e428c2b3ead6ebcca27951b681963a0.
+// revision aa168d49243b95f63b9825a87351a1eb323dc792.
 var SeccompSyscalls = []string{
 	"_llseek",
 	"_newselect",
