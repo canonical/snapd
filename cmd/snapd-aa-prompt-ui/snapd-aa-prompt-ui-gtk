@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import subprocess
+import sys
 import time
 
 import gi
@@ -45,8 +46,6 @@ class PromptDialog(Gtk.Dialog):
         details.set_markup(f"{app} would like to access {path} for {operation}.")
         vbox.pack_start(details, True, True, 6)
 
-        hbox = Gtk.Box(spacing=6)
-
         self.add_button("Always allow", self.RESPONSE_ALLOW)
         self.add_button("Deny", self.RESPONSE_DENY)
         # TODO: add "more info"
@@ -71,10 +70,18 @@ class Agent(dbus.service.Object):
         elif res == PromptDialog.RESPONSE_DENY:
             extra_constraints["always-prompt"] = "yes"
             prompt_allow = False
+        else:
+            print(f"unknown dialog result {res}")
         dialog.destroy()
 
         # TODO: implement extra_constraints 
         return prompt_allow, extra_constraints
+
+
+def test_mode():
+    agent = Agent()
+    allow, constraints = agent.Prompt("some-path", {})
+    print(allow,constraints)
 
 
 # this is a workaround a the bug in 23.04 where
@@ -111,4 +118,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--test-mode":
+        test_mode()
+    else:
+        main()
