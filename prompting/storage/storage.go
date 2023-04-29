@@ -14,16 +14,16 @@ import (
 var ErrNoSavedDecision = errors.New("no saved prompt decision")
 
 type userDB struct {
-	PerLabelDB map[string]*labelDB
+	PerLabelDB map[string]*labelDB `json:"per-label-db"`
 }
 
 type labelDB struct {
-	AllowWithSubdirs map[string]bool
+	AllowWithSubdirs map[string]bool `json:"allow-with-subdir"`
 }
 
 // TODO: make this an interface
 type PromptsDB struct {
-	PerUser map[uint32]*userDB
+	PerUser map[uint32]*userDB `json:"per-user"`
 }
 
 // TODO: take a dir as argument to store prompt decisions
@@ -67,7 +67,7 @@ func (pd *PromptsDB) PathsForUidAndLabel(uid uint32, label string) map[string]bo
 }
 
 func (pd *PromptsDB) dbpath() string {
-	return filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "prompt.db")
+	return filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "prompt.json")
 }
 
 func (pd *PromptsDB) save() error {
