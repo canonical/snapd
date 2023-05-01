@@ -435,13 +435,14 @@ the testing one. Don't forget to roll back to the original, after you finish tes
 
 ### Testing the snap userd agent
 
-To test the `snap userd --agent` command, you must first kill the current process if it is
+To test the `snap userd --agent` command, you must first to stop the current process if it is
 running, and then stop the dbus activation part. To do so, just run:
 
     systemctl --user disable snapd.session-agent.socket
     systemctl --user stop snapd.session-agent.socket
 
-After that, it's now possible to launch the program from a command line.
+After that, it's now possible to launch the daemon with `snapd userd --agent` from a command
+line.
 
 To re-enable the dbus activation, kill that process and run:
 
