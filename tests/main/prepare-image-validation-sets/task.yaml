@@ -15,8 +15,8 @@ systems:
 
 environment:
     ROOT: /home/test/tmp/
-    IMAGE: /home/test/tmp/system-seed
-    GADGET: /home/test/tmp/gadget
+    IMAGE: $ROOT/system-seed
+    GADGET: $ROOT/gadget
     STORE_DIR: $(pwd)/fake-store-blobdir
     STORE_ADDR: localhost:11028
 
@@ -123,9 +123,9 @@ execute: |
     install_snap_to_fakestore test-snapd-sh 13
 
     # Use the fake-store to verify behaviour, so we can use our own assertions
-    export SNAPPY_FORCE_API_URL=http://$STORE_ADDR
+    export SNAPPY_FORCE_API_URL=http://"$STORE_ADDR"
     echo Running prepare-image
-    snap prepare-image --channel edge --write-revisions --snap core --snap test-snapd-sh ./model.assert $ROOT
+    snap prepare-image --channel edge --write-revisions --snap core --snap test-snapd-sh ./model.assert "$ROOT"
     
     # The generated seed.manifest will be in working directory.
     echo Verifying the generated manifest has correct contents
@@ -149,14 +149,14 @@ execute: |
     # vs1.json
     # pc:        1
     # pc-kernel: 1
-    journalctl -u fakestore | grep 'requested snap "pc" revision 1'
-    journalctl -u fakestore | grep 'requested snap "pc-kernel" revision 1'
+    journal-state get-log -u fakestore | MATCH 'requested snap "pc" revision 1'
+    journal-state get-log -u fakestore | MATCH 'requested snap "pc-kernel" revision 1'
     
     # vs2.json
     # test-snapd-sh: 13
-    journalctl -u fakestore | grep 'requested snap "test-snapd-sh" revision 13'
+    journal-state get-log -u fakestore | MATCH 'requested snap "test-snapd-sh" revision 13'
 
     # rest should not have a revision provided
-    journalctl -u fakestore | grep 'requested snap "core20" revision 0'
-    journalctl -u fakestore | grep 'requested snap "snapd" revision 0'
-    journalctl -u fakestore | grep 'requested snap "core" revision 0'
+    journal-state get-log -u fakestore | MATCH 'requested snap "core20" revision 0'
+    journal-state get-log -u fakestore | MATCH 'requested snap "snapd" revision 0'
+    journal-state get-log -u fakestore | MATCH 'requested snap "core" revision 0'
