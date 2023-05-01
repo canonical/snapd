@@ -60,8 +60,8 @@ execute: |
         "snap-id": "$SNAP_NAME-id",
         "plugs": {
             "snapd-control": {
-            "allow-installation": "true",
-            "allow-auto-connection": "true"
+                "allow-installation": "true",
+                "allow-auto-connection": "true"
             }
         }
     }
@@ -149,14 +149,14 @@ execute: |
     # vs1.json
     # pc:        1
     # pc-kernel: 1
-    journal-state get-log -u fakestore | MATCH 'requested snap "pc" revision 1'
-    journal-state get-log -u fakestore | MATCH 'requested snap "pc-kernel" revision 1'
+    "$TESTSTOOLS"/journal-state get-log -u fakestore | MATCH 'requested snap "pc" revision 1'
+    "$TESTSTOOLS"/journal-state get-log -u fakestore | MATCH 'requested snap "pc-kernel" revision 1'
     
     # vs2.json
     # test-snapd-sh: 13
-    journal-state get-log -u fakestore | MATCH 'requested snap "test-snapd-sh" revision 13'
+    "$TESTSTOOLS"/journal-state get-log -u fakestore | MATCH 'requested snap "test-snapd-sh" revision 13'
 
     # rest should not have a revision provided
-    journal-state get-log -u fakestore | MATCH 'requested snap "core20" revision 0'
-    journal-state get-log -u fakestore | MATCH 'requested snap "snapd" revision 0'
-    journal-state get-log -u fakestore | MATCH 'requested snap "core" revision 0'
+    "$TESTSTOOLS"/journal-state get-log -u fakestore | MATCH 'requested snap "core20" revision 0'
+    "$TESTSTOOLS"/journal-state get-log -u fakestore | MATCH 'requested snap "snapd" revision 0'
+    "$TESTSTOOLS"/journal-state get-log -u fakestore | MATCH 'requested snap "core" revision 0'
