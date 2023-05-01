@@ -31,13 +31,13 @@ systemctl_stop() {
     echo "Stopping unit $unit"
     systemctl stop -q "$unit" || true
 
-    for i in $(seq 20); do
+    for i in $(seq 10); do
         echo "Waiting until unit $unit is stopped [attempt $i]"
         if ! systemctl is-active -q "$unit"; then
             echo "$unit is stopped."
             return
         fi
-        sleep .1
+        sleep .5
     done
 }
 
