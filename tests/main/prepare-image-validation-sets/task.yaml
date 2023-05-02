@@ -75,7 +75,6 @@ execute: |
     # Ensure the following snaps are available on the host snap to avoid the
     # store script trying to fetch these after setting up the fake store.
     echo Installing required snaps we will need
-    snap install core
     snap install remarshal
     snap install jq
 
