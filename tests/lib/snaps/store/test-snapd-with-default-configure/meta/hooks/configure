@@ -16,6 +16,3 @@ valueB=$( snapctl get b )
 
 # Append "a" to indicate configure hook modified it
 snapctl set a="$valueA+configureHook"
-
-# Indicate done
-echo "configure-done: $( date +"%m %d %Y %H:%M:%S" )" >> "$infoFile"
