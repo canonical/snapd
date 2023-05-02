@@ -34,17 +34,20 @@ func New() *PromptsDB {
 	return pd
 }
 
-func findPathInSubdirs(paths map[string]bool, path string) bool {
+func findPathInSubdirs(paths map[string]bool, path string) (bool, error) {
 	for {
-		if paths[path] || paths[path+"/"] {
-			return true
+		if allow, exists := paths[path]; exists {
+			return allow, nil
+		}
+		if allow, exists := paths[path+"/"]; exists {
+			return allow, nil
 		}
 		path = filepath.Dir(path)
 		if path == "/" || path == "." {
 			break
 		}
 	}
-	return false
+	return false, ErrNoSavedDecision
 }
 
 // TODO: unexport
@@ -105,7 +108,7 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	if !osutil.IsDirectory(path) {
 		path = filepath.Dir(path)
 	}
-	if findPathInSubdirs(allowWithSubdirs, path) {
+	if alreadyAllowed, _ := findPathInSubdirs(allowWithSubdirs, path); alreadyAllowed {
 		return nil
 	}
 	allowWithSubdirs[path] = allow
@@ -115,9 +118,5 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 
 func (pd *PromptsDB) Get(req *notifier.Request) (bool, error) {
 	allowWithSubdirs := pd.PathsForUidAndLabel(req.SubjectUid, req.Label)
-	if findPathInSubdirs(allowWithSubdirs, req.Path) {
-		return true, nil
-	}
-
-	return false, ErrNoSavedDecision
+	return findPathInSubdirs(allowWithSubdirs, req.Path)
 }
