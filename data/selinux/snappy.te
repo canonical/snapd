@@ -494,7 +494,6 @@ admin_pattern(snappy_mount_t, snappy_tmp_t)
 # not happen when snap-confine is executed by unconfined_t, should we still end
 # up with user_tmp_t allow acting on it
 allow snappy_mount_t user_tmp_t:dir { mounton rmdir };
-allow snappy_mount_t etc_t:dir mounton;
 userdom_delete_user_tmp_files(snappy_mount_t)
 # when managing some interfaces, a mount from the host /tmp may need to be set
 # up and files or directories may need to be created or removed (eg. x11
@@ -503,6 +502,9 @@ userdom_delete_user_tmp_files(snappy_mount_t)
 # when the host's /tmp is not a tmpfs
 files_manage_generic_tmp_dirs(snappy_mount_t)
 files_manage_generic_tmp_files(snappy_mount_t)
+
+# Allow snap-{update,discard}-ns to mount on /etc/
+allow snappy_mount_t etc_t:dir mounton;
 
 # Allow snap-{update,discard}-ns to manage mounts
 gen_require(`
