@@ -49,15 +49,8 @@ execute: |
         local SNAP_REVISION="$2"
         local SNAP_PATH
 
-        SNAP_PATH=$("$TESTSTOOLS"/snaps-state pack-local "$SNAP_NAME")
-        "$TESTSTOOLS"/store-state make-snap-installable "$STORE_DIR" "$SNAP_PATH"
         cat > snap-"$SNAP_NAME"-decl.json <<EOF
     {
-        "type": "snap-declaration",
-        "format": "1",
-        "revision": "1",
-        "snap-name": "$SNAP_NAME",
-        "snap-id": "$SNAP_NAME-id",
         "plugs": {
             "snapd-control": {
                 "allow-installation": "true",
@@ -73,7 +66,9 @@ execute: |
         "snap-revision": "$SNAP_REVISION"
     }
     EOF
-        fakestore new-snap-declaration --dir "${STORE_DIR}" "$SNAP_PATH" --snap-decl-json snap-"$SNAP_NAME"-decl.json
+
+        SNAP_PATH=$("$TESTSTOOLS"/snaps-state pack-local "$SNAP_NAME")
+        "$TESTSTOOLS"/store-state make-snap-installable --extra-decl-json snap-"$SNAP_NAME"-decl.json "$STORE_DIR" "$SNAP_PATH"
         fakestore new-snap-revision --dir "${STORE_DIR}" "$SNAP_PATH" --snap-rev-json snap-"$SNAP_NAME"-rev.json
     }
     
