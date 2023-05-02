@@ -326,6 +326,9 @@ apps:
   network-status:
     command: bin/run
     plugs: [ network-status ]
+  nfs-mount:
+    command: bin/run
+    plugs: [ nfs-mount ]
   nvidia-drivers-support:
     command: bin/run
     plugs: [ nvidia-drivers-support ]
