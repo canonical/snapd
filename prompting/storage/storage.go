@@ -108,7 +108,7 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	if !osutil.IsDirectory(path) {
 		path = filepath.Dir(path)
 	}
-	if alreadyAllowed, _ := findPathInSubdirs(allowWithSubdirs, path); alreadyAllowed {
+	if alreadyAllowed, err := findPathInSubdirs(allowWithSubdirs, path); err == nil && alreadyAllowed {
 		return nil
 	}
 	allowWithSubdirs[path] = allow
