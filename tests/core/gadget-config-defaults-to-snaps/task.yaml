@@ -167,14 +167,14 @@ execute: |
     snap model --verbose|MATCH "model:\s* my-model-w-config"
 
     echo "Snap with configure hook only: Installed"
-    snap list|MATCH "test-snapd-with-configure${SUFFIX}"
+    snap list "test-snapd-with-configure${SUFFIX}"
 
     echo "Snap with configure hook only: The config defaults from the gadget where applied by configure hook"
     snap get "test-snapd-with-configure${SUFFIX}" a | MATCH "^A$"
     snap get "test-snapd-with-configure${SUFFIX}" b | MATCH "^B$"
 
     echo "Snap with default-configure and configure hooks: Installed"
-    snap list|MATCH "test-snapd-with-default-configure${SUFFIX}"
+    snap list "test-snapd-with-default-configure${SUFFIX}"
 
     echo "Snap with default-configure and configure hooks: The config defaults from the gadget where applied by default-configure hook"
     snap get "test-snapd-with-default-configure${SUFFIX}" a | MATCH "^C\+defaultConfigureHook\+configureHook$"
