@@ -400,6 +400,7 @@ jobs:
         - ubuntu-core-18-64
         - ubuntu-core-20-64
         - ubuntu-core-22-64
+        - ubuntu-core-22-arm-64
         - ubuntu-secboot-20.04-64
     steps:
     - name: Cleanup job workspace
@@ -557,6 +558,7 @@ jobs:
         - ubuntu-18.04-64
         - ubuntu-20.04-64
         - ubuntu-22.04-64
+        - ubuntu-22.04-arm-64
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace
@@ -614,10 +616,19 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
           export NESTED_BUILD_SNAPD_FROM_CURRENT=true
           export NESTED_ENABLE_KVM=true
-          RUN_TESTS="google-nested:${{ matrix.system }}:tests/nested/..."
+
+          BACKEND=google-nested
+          SPREAD=spread
+          if [[ "${{ matrix.system }}" =~ -arm- ]]; then
+              BACKEND=google-nested-arm
+              SPREAD=spread-arm
+          fi
+
+          RUN_TESTS="$BACKEND:${{ matrix.system }}:tests/nested/..."
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
           fi
+
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
