@@ -105,7 +105,7 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	allowWithSubdirs := pd.PathsForUidAndLabel(req.SubjectUid, req.Label)
 
 	path := req.Path
-	if !osutil.IsDirectory(path) {
+	if ((allow && extras["allow-directory"] == "yes") || (!allow && extras["deny-directory"] == "yes")) && !osutil.IsDirectory(path) {
 		path = filepath.Dir(path)
 	}
 	alreadyAllowed, err := findPathInSubdirs(allowWithSubdirs, path)
