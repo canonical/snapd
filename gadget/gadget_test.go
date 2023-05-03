@@ -4327,7 +4327,7 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 	type validOffsetTc struct {
 		structIdx int
 		offset    quantity.Offset
-		err       *gadget.InvalidOffset
+		err       *gadget.InvalidOffsetError
 	}
 	for _, tc := range []struct {
 		vss         []gadget.VolumeStructure
@@ -4343,22 +4343,22 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 			},
 			votcs: []validOffsetTc{
 				{structIdx: 0, offset: 0, err: nil},
-				{structIdx: 0, offset: 5, err: gadget.CreateInvalidOffset(5, 0, 0)},
-				{structIdx: 1, offset: 0, err: gadget.CreateInvalidOffset(0, 10, 20)},
+				{structIdx: 0, offset: 5, err: gadget.NewInvalidOffsetError(5, 0, 0)},
+				{structIdx: 1, offset: 0, err: gadget.NewInvalidOffsetError(0, 10, 20)},
 				{structIdx: 1, offset: 10, err: nil},
 				{structIdx: 1, offset: 15, err: nil},
 				{structIdx: 1, offset: 20, err: nil},
-				{structIdx: 1, offset: 21, err: gadget.CreateInvalidOffset(21, 10, 20)},
-				{structIdx: 1, offset: gadget.UnboundedStructureOffset, err: gadget.CreateInvalidOffset(gadget.UnboundedStructureOffset, 10, 20)},
-				{structIdx: 2, offset: 10, err: gadget.CreateInvalidOffset(10, 20, 40)},
+				{structIdx: 1, offset: 21, err: gadget.NewInvalidOffsetError(21, 10, 20)},
+				{structIdx: 1, offset: gadget.UnboundedStructureOffset, err: gadget.NewInvalidOffsetError(gadget.UnboundedStructureOffset, 10, 20)},
+				{structIdx: 2, offset: 10, err: gadget.NewInvalidOffsetError(10, 20, 40)},
 				{structIdx: 2, offset: 20, err: nil},
 				{structIdx: 2, offset: 30, err: nil},
 				{structIdx: 2, offset: 40, err: nil},
-				{structIdx: 2, offset: 41, err: gadget.CreateInvalidOffset(41, 20, 40)},
-				{structIdx: 2, offset: gadget.UnboundedStructureOffset, err: gadget.CreateInvalidOffset(gadget.UnboundedStructureOffset, 20, 40)},
-				{structIdx: 3, offset: 49, err: gadget.CreateInvalidOffset(49, 50, 50)},
+				{structIdx: 2, offset: 41, err: gadget.NewInvalidOffsetError(41, 20, 40)},
+				{structIdx: 2, offset: gadget.UnboundedStructureOffset, err: gadget.NewInvalidOffsetError(gadget.UnboundedStructureOffset, 20, 40)},
+				{structIdx: 3, offset: 49, err: gadget.NewInvalidOffsetError(49, 50, 50)},
 				{structIdx: 3, offset: 50, err: nil},
-				{structIdx: 3, offset: 51, err: gadget.CreateInvalidOffset(51, 50, 50)},
+				{structIdx: 3, offset: 51, err: gadget.NewInvalidOffsetError(51, 50, 50)},
 			},
 			description: "test one",
 		},
@@ -4370,14 +4370,14 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 			},
 			votcs: []validOffsetTc{
 				{structIdx: 0, offset: 0, err: nil},
-				{structIdx: 0, offset: 1, err: gadget.CreateInvalidOffset(1, 0, 0)},
-				{structIdx: 1, offset: 9, err: gadget.CreateInvalidOffset(9, 10, 70)},
+				{structIdx: 0, offset: 1, err: gadget.NewInvalidOffsetError(1, 0, 0)},
+				{structIdx: 1, offset: 9, err: gadget.NewInvalidOffsetError(9, 10, 70)},
 				{structIdx: 1, offset: 10, err: nil},
 				{structIdx: 1, offset: 70, err: nil},
-				{structIdx: 1, offset: 71, err: gadget.CreateInvalidOffset(71, 10, 70)},
-				{structIdx: 2, offset: 79, err: gadget.CreateInvalidOffset(79, 80, 80)},
+				{structIdx: 1, offset: 71, err: gadget.NewInvalidOffsetError(71, 10, 70)},
+				{structIdx: 2, offset: 79, err: gadget.NewInvalidOffsetError(79, 80, 80)},
 				{structIdx: 2, offset: 80, err: nil},
-				{structIdx: 2, offset: 81, err: gadget.CreateInvalidOffset(81, 80, 80)},
+				{structIdx: 2, offset: 81, err: gadget.NewInvalidOffsetError(81, 80, 80)},
 			},
 			description: "test two",
 		},
@@ -4392,10 +4392,10 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 				{Offset: asOffsetPtr(100), MinSize: 100, Size: 100},
 			},
 			votcs: []validOffsetTc{
-				{structIdx: 2, offset: 39, err: gadget.CreateInvalidOffset(39, 40, 60)},
+				{structIdx: 2, offset: 39, err: gadget.NewInvalidOffsetError(39, 40, 60)},
 				{structIdx: 2, offset: 40, err: nil},
 				{structIdx: 2, offset: 60, err: nil},
-				{structIdx: 2, offset: 61, err: gadget.CreateInvalidOffset(61, 40, 60)},
+				{structIdx: 2, offset: 61, err: gadget.NewInvalidOffsetError(61, 40, 60)},
 			},
 			description: "test three",
 		},

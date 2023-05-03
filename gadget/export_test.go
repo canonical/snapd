@@ -24,7 +24,7 @@ import "github.com/snapcore/snapd/gadget/quantity"
 type (
 	MountedFilesystemUpdater = mountedFilesystemUpdater
 	RawStructureUpdater      = rawStructureUpdater
-	InvalidOffset            = invalidOffset
+	InvalidOffsetError       = invalidOffsetError
 )
 
 var (
@@ -67,8 +67,8 @@ var (
 
 	OnDiskStructureIsLikelyImplicitSystemDataRole = onDiskStructureIsLikelyImplicitSystemDataRole
 
-	SearchForVolumeWithTraits = searchForVolumeWithTraits
-	OrderStructuresByOffset   = orderStructuresByOffset
+	SearchVolumeWithTraitsAndMatchParts = searchVolumeWithTraitsAndMatchParts
+	OrderStructuresByOffset             = orderStructuresByOffset
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
@@ -88,6 +88,6 @@ func (s *StructureEncryptionParameters) SetUnknownKeys(m map[string]string) {
 	s.unknownKeys = m
 }
 
-func CreateInvalidOffset(offset, lowerBound, upperBound quantity.Offset) *InvalidOffset {
-	return &invalidOffset{offset: offset, lowerBound: lowerBound, upperBound: upperBound}
+func NewInvalidOffsetError(offset, lowerBound, upperBound quantity.Offset) *InvalidOffsetError {
+	return &invalidOffsetError{offset: offset, lowerBound: lowerBound, upperBound: upperBound}
 }
