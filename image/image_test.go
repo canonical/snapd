@@ -4313,34 +4313,179 @@ func (s *imageSuite) TestLocalSnapRevisionMatchingStoreRevision(c *C) {
 	})
 }
 
-func (s *imageSuite) setupValidationSets(c *C) *asserts.ValidationSet {
+func (s *imageSuite) setupValidationSet(c *C, name string, snaps []interface{}) *asserts.ValidationSet {
 	vs, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
-		"name":         "base-set",
+		"name":         name,
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":     "pc-kernel",
-				"id":       s.AssertedSnapID("pc-kernel"),
-				"presence": "required",
-				"revision": "1",
-			},
-			map[string]interface{}{
-				"name":     "pc",
-				"id":       s.AssertedSnapID("pc"),
-				"presence": "required",
-				"revision": "1",
-			},
-		},
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"snaps":        snaps,
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 	err = s.StoreSigning.Add(vs)
 	c.Check(err, IsNil)
 	return vs.(*asserts.ValidationSet)
+}
+
+func (s *imageSuite) TestSetupSeedValidationSetsUnmetCriteria(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses validation-sets
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my display name",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "base-set",
+				"mode":       "enforce",
+			},
+		},
+	})
+
+	// setup validation-sets that will fail the check
+	vsa := s.setupValidationSet(c, "base-set", []interface{}{
+		map[string]interface{}{
+			"name":     "pc-kernel",
+			"id":       s.AssertedSnapID("pc-kernel"),
+			"presence": "required",
+			"revision": "6",
+		},
+	})
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	s.setupSnaps(c, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "my-brand",
+	}, "")
+
+	opts := &image.Options{
+		Snaps: []string{
+			s.AssertedSnap("core"),
+		},
+		PrepareDir: filepath.Dir(rootdir),
+		Customizations: image.Customizations{
+			Validation: "enforce",
+		},
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err.Error(), testutil.Contains, `pc-kernel (required at revision 6 by sets canonical/base-set)`)
+
+	// ensure download actions were invoked with the validation-sets
+	// described in the model.
+	c.Check(s.storeActionsBunchSizes, DeepEquals, []int{3})
+	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc-kernel",
+		// For pc snap we must have both correct revision (6) and
+		// the validation-set applied
+		Revision: snap.R(6),
+		Flags:    store.SnapActionEnforceValidation,
+		ValidationSets: []snapasserts.ValidationSetKey{
+			snapasserts.NewValidationSetKey(vsa),
+		},
+	})
+	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc",
+		Channel:      stableChannel,
+		Flags:        store.SnapActionEnforceValidation,
+		// Empty validation-sets for this one as no validation-set applies here
+	})
+	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "required-snap1",
+		Channel:      stableChannel,
+		Flags:        store.SnapActionEnforceValidation,
+		// Empty validation-sets for this one as no validation-set applies here
+	})
+}
+
+func (s *imageSuite) TestSetupSeedValidationSetsUnmetCriteriaButIgnoredValidation(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses validation-sets
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my display name",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "base-set",
+				"mode":       "enforce",
+			},
+		},
+	})
+
+	// setup validation-sets that will fail the check
+	vsa := s.setupValidationSet(c, "base-set", []interface{}{
+		map[string]interface{}{
+			"name":     "pc-kernel",
+			"id":       s.AssertedSnapID("pc-kernel"),
+			"presence": "required",
+			"revision": "6",
+		},
+	})
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	s.setupSnaps(c, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "my-brand",
+	}, "")
+
+	opts := &image.Options{
+		Snaps: []string{
+			s.AssertedSnap("core"),
+		},
+		PrepareDir: filepath.Dir(rootdir),
+		Customizations: image.Customizations{
+			Validation: "ignore",
+		},
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+
+	// ensure download actions were invoked with the validation-sets
+	// described in the model.
+	c.Check(s.storeActionsBunchSizes, DeepEquals, []int{3})
+	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc-kernel",
+		// For pc snap we must have both correct revision (6) and
+		// the validation-set applied
+		Revision: snap.R(6),
+		Flags:    store.SnapActionIgnoreValidation,
+		ValidationSets: []snapasserts.ValidationSetKey{
+			snapasserts.NewValidationSetKey(vsa),
+		},
+	})
+	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc",
+		Channel:      stableChannel,
+		Flags:        store.SnapActionIgnoreValidation,
+		// Empty validation-sets for this one as no validation-set applies here
+	})
+	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "required-snap1",
+		Channel:      stableChannel,
+		Flags:        store.SnapActionIgnoreValidation,
+		// Empty validation-sets for this one as no validation-set applies here
+	})
 }
 
 func (s *imageSuite) TestDownloadSnapsModelValidationSets(c *C) {
@@ -4364,7 +4509,21 @@ func (s *imageSuite) TestDownloadSnapsModelValidationSets(c *C) {
 	})
 
 	// setup validation-sets
-	vsa := s.setupValidationSets(c)
+	vsa := s.setupValidationSet(c, "base-set", []interface{}{
+		map[string]interface{}{
+			"name":     "pc-kernel",
+			"id":       s.AssertedSnapID("pc-kernel"),
+			"presence": "required",
+			// setupSnaps sets pc-kernel to snap.R(2)
+			"revision": "2",
+		},
+		map[string]interface{}{
+			"name":     "pc",
+			"id":       s.AssertedSnapID("pc"),
+			"presence": "required",
+			"revision": "1",
+		},
+	})
 
 	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
@@ -4391,8 +4550,10 @@ func (s *imageSuite) TestDownloadSnapsModelValidationSets(c *C) {
 	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
-		Channel:      stableChannel,
-		Flags:        store.SnapActionEnforceValidation,
+		// For pc snap we must have both correct revision (2) and
+		// the validation-set applied
+		Revision: snap.R(2),
+		Flags:    store.SnapActionEnforceValidation,
 		ValidationSets: []snapasserts.ValidationSetKey{
 			snapasserts.NewValidationSetKey(vsa),
 		},
@@ -4400,8 +4561,10 @@ func (s *imageSuite) TestDownloadSnapsModelValidationSets(c *C) {
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc",
-		Channel:      stableChannel,
-		Flags:        store.SnapActionEnforceValidation,
+		// For pc snap we must have both correct revision (1) and
+		// the validation-set applied
+		Revision: snap.R(1),
+		Flags:    store.SnapActionEnforceValidation,
 		ValidationSets: []snapasserts.ValidationSetKey{
 			snapasserts.NewValidationSetKey(vsa),
 		},
@@ -4411,9 +4574,7 @@ func (s *imageSuite) TestDownloadSnapsModelValidationSets(c *C) {
 		InstanceName: "required-snap1",
 		Channel:      stableChannel,
 		Flags:        store.SnapActionEnforceValidation,
-		ValidationSets: []snapasserts.ValidationSetKey{
-			snapasserts.NewValidationSetKey(vsa),
-		},
+		// Empty validation-sets for this one as no validation-set applies here
 	})
 }
 
@@ -4438,7 +4599,21 @@ func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
 	})
 
 	// setup validation-sets
-	vsa := s.setupValidationSets(c)
+	vsa := s.setupValidationSet(c, "base-set", []interface{}{
+		map[string]interface{}{
+			"name":     "pc-kernel",
+			"id":       s.AssertedSnapID("pc-kernel"),
+			"presence": "required",
+			// setupSnaps sets pc-kernel to snap.R(2)
+			"revision": "2",
+		},
+		map[string]interface{}{
+			"name":     "pc",
+			"id":       s.AssertedSnapID("pc"),
+			"presence": "required",
+			"revision": "1",
+		},
+	})
 
 	rootDir := c.MkDir()
 	imageDir := filepath.Join(rootDir, "image")
@@ -4484,8 +4659,10 @@ func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
 	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
-		Channel:      stableChannel,
-		Flags:        store.SnapActionEnforceValidation,
+		// For pc-kernel snap we must have both correct revision (2) and
+		// the validation-set applied
+		Revision: snap.R(2),
+		Flags:    store.SnapActionEnforceValidation,
 		ValidationSets: []snapasserts.ValidationSetKey{
 			snapasserts.NewValidationSetKey(vsa),
 		},
@@ -4493,8 +4670,10 @@ func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc",
-		Channel:      stableChannel,
-		Flags:        store.SnapActionEnforceValidation,
+		// For pc snap we must have both correct revision (1) and
+		// the validation-set applied
+		Revision: snap.R(1),
+		Flags:    store.SnapActionEnforceValidation,
 		ValidationSets: []snapasserts.ValidationSetKey{
 			snapasserts.NewValidationSetKey(vsa),
 		},
@@ -4504,10 +4683,73 @@ func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
 		InstanceName: "required-snap1",
 		Channel:      stableChannel,
 		Flags:        store.SnapActionEnforceValidation,
-		ValidationSets: []snapasserts.ValidationSetKey{
-			snapasserts.NewValidationSetKey(vsa),
+		// Empty validation-sets for this one as no validation-set applies here
+	})
+}
+
+func (s *imageSuite) TestImageSeedValidationSetConflict(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses validation-sets
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my display name",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "base-set",
+				"mode":       "enforce",
+			},
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "other-set",
+				"mode":       "enforce",
+			},
 		},
 	})
+
+	// setup conflicting validation-sets, one that requests revision
+	// 1 of pc-kernel, and one that requests revision 7
+	s.setupValidationSet(c, "base-set", []interface{}{
+		map[string]interface{}{
+			"name":     "pc-kernel",
+			"id":       s.AssertedSnapID("pc-kernel"),
+			"presence": "required",
+			"revision": "1",
+		},
+	})
+	s.setupValidationSet(c, "other-set", []interface{}{
+		map[string]interface{}{
+			"name":     "pc-kernel",
+			"id":       s.AssertedSnapID("pc-kernel"),
+			"presence": "required",
+			"revision": "7",
+		},
+	})
+
+	rootDir := c.MkDir()
+	imageDir := filepath.Join(rootDir, "image")
+	s.setupSnaps(c, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "my-brand",
+	}, "")
+
+	opts := &image.Options{
+		Snaps: []string{
+			s.AssertedSnap("core"),
+		},
+		PrepareDir: filepath.Dir(imageDir),
+		Customizations: image.Customizations{
+			Validation: "enforce",
+		},
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, ErrorMatches, `*cannot constrain snap "pc-kernel" at different revisions 1 \(canonical/base-set\), 7 \(canonical/other-set\)`)
 }
 
 func (s *imageSuite) TestSetupSeedLocalSnapWithInvalidArchitecture(c *C) {
