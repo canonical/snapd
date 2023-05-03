@@ -214,12 +214,6 @@ update_core_snap_for_classic_reexec() {
     done
 }
 
-flush_changes() {
-    # Leave some time for the tasks to show up in snap changes
-    sleep 1
-    retry -n 20 sh -c 'snap changes | grep -q Doing' || true
-}
-
 prepare_memory_limit_override() {
     # set up memory limits for snapd bu default unless explicit requested not to
     # or the system is known to be problematic
@@ -267,13 +261,7 @@ EOF
     # the service setting may have changed in the service so we need
     # to ensure snapd is reloaded
     systemctl daemon-reload
-
-    # Leave some time for snapd to finish processing hooks
-    flush_changes
     systemctl restart snapd
-    # Snapd might need to run some hooks (prepare-device) which
-    # triggers `tests.invariant cgroup-scopes` false positives
-    flush_changes
 }
 
 create_reexec_file(){
@@ -306,12 +294,7 @@ prepare_reexec_override() {
         # the re-exec setting may have changed in the service so we need
         # to ensure snapd is reloaded
         systemctl daemon-reload
-        # Leave some time for snapd to finish processing hooks
-        flush_changes
         systemctl restart snapd
-        # Snapd might need to run some hooks (prepare-device) which
-        # triggers `tests.invariant cgroup-scopes` false positives
-        flush_changes
     fi
 }
 
