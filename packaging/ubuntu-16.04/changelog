@@ -1,3 +1,17 @@
+snapd (2.59.3) xenial; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Fix quiet boot
+    - i/b/physical_memory_observe: allow reading virt-phys page mappings
+    - gadget: warn instead of returning error if overlapping with GPT
+      header
+    - overlord,wrappers: restart always enabled units
+    - go.mod: update github.com/snapcore/secboot to latest uc22
+    - boot: make sure we update assets for the system-seed-null role
+    - many: ignore case for vfat partitions when validating
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 03 May 2023 12:31:00 +0200
+
 snapd (2.59.2) xenial; urgency=medium
 
   * New upstream release, LP: #2009946
