@@ -221,6 +221,10 @@ func (s *IntegrityTestSuite) TestGenerateAndAppendSuccess(c *C) {
 	// mock the verity-setup command, what it does is make of a copy of the snap
 	// and then returns pre-calculated output
 	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
+if "$1" == "--version"; then
+	echo "veritysetup 2.2.6"
+	exit 0
+fi
 cp %[1]s %[1]s.verity
 echo "VERITY header information for %[1]s.verity"
 echo "UUID:            	f8b4f201-fe4e-41a2-9f1d-4908d3c76632"
@@ -261,6 +265,7 @@ echo "Root hash:      	e2926364a8b1242d92fb1b56081e1ddb86eba35411961252a103a1c08
 	c.Check(integrityDataHeader.Size, Equals, uint64(2*4096))
 	c.Check(integrityDataHeader.DmVerity.RootHash, HasLen, 64)
 
-	c.Assert(vscmd.Calls(), HasLen, 1)
-	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
+	c.Assert(vscmd.Calls(), HasLen, 2)
+	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "--version"})
+	c.Check(vscmd.Calls()[1], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
 }

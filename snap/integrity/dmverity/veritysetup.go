@@ -23,7 +23,10 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/logger"
@@ -81,11 +84,65 @@ func getRootHashFromOutput(output []byte) (rootHash string, err error) {
 	return rootHash, nil
 }
 
+func verityVersion() (major, minor, patch int, err error) {
+	cmd := exec.Command("veritysetup", "--version")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return -1, -1, -1, osutil.OutputErr(output, err)
+	}
+
+	exp := regexp.MustCompile(`^(\d+\.)?(\d+\.)?(\*|\d+)$`)
+	match := exp.FindStringSubmatch(string(output))
+	if len(match) < 4 {
+		return -1, -1, -1, nil
+	}
+
+	major, err = strconv.Atoi(match[1])
+	if err != nil {
+		return -1, -1, -1, err
+	}
+	minor, err = strconv.Atoi(match[2])
+	if err != nil {
+		return -1, -1, -1, err
+	}
+	patch, err = strconv.Atoi(match[3])
+	if err != nil {
+		return -1, -1, -1, err
+	}
+	return major, minor, patch, nil
+}
+
+func shouldDeployWorkaround(hashDevice string) (bool, error) {
+	major, minor, patch, err := verityVersion()
+	if err != nil {
+		return false, err
+	}
+
+	// From version 2.0.4 we don't need this anymore
+	if major > 2 || major == 2 && (minor > 0 || patch >= 4) {
+		return false, nil
+	}
+	return true, nil
+}
+
 // Format runs "veritysetup format" and returns an Info struct which includes the
 // root hash. "veritysetup format" calculates the hash verification data for
 // dataDevice and stores them in hashDevice. The root hash is retrieved from
 // the command's stdout.
 func Format(dataDevice string, hashDevice string) (*Info, error) {
+	// In older versions of cryptsetup there is a bug when cryptsetup writes
+	// its superblock header. It expects the hash device to atleast contain
+	// a sector-size of space. Fixed in commit dc852a100f8e640dfdf4f6aeb86e129100653673
+	// which is version 2.0.4
+	deploy, err := shouldDeployWorkaround(hashDevice)
+	if err != nil {
+		return nil, err
+	} else if deploy {
+		// The verity superblock header is 512 bytes.
+		space := make([]byte, 512)
+		ioutil.WriteFile(hashDevice, space, 0644)
+	}
+
 	cmd := exec.Command("veritysetup", "format", dataDevice, hashDevice)
 
 	output, err := cmd.CombinedOutput()

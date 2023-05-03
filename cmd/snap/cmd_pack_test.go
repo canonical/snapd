@@ -149,6 +149,10 @@ func (s *SnapSuite) TestPackPacksASnapWithIntegrityHappy(c *check.C) {
 	// mock the verity-setup command, what it does is make of a copy of the snap
 	// and then returns pre-calculated output
 	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
+if "$1" == "--version"; then
+	echo "veritysetup 2.2.6"
+	exit 0
+fi
 cp %[1]s/hello_1.0_all.snap %[1]s/hello_1.0_all.snap.verity
 echo "VERITY header information for %[1]s/hello_1.0_all.snap.verity"
 echo "UUID:            	8f6dcdd2-9426-49d8-9879-a5c87fc78c15"
@@ -167,8 +171,9 @@ echo "Root hash:      	306398e250a950ea1cbfceda608ee4585f053323251b08b7ed3f00474
 
 	snapOriginal := path.Join(snapDir, "hello_1.0_all.snap")
 	snapVerity := snapOriginal + ".verity"
-	c.Assert(vscmd.Calls(), check.HasLen, 1)
-	c.Check(vscmd.Calls()[0], check.DeepEquals, []string{"veritysetup", "format", snapOriginal, snapVerity})
+	c.Assert(vscmd.Calls(), check.HasLen, 2)
+	c.Check(vscmd.Calls()[0], check.DeepEquals, []string{"veritysetup", "--version"})
+	c.Check(vscmd.Calls()[1], check.DeepEquals, []string{"veritysetup", "format", snapOriginal, snapVerity})
 
 	matches, err := filepath.Glob(snapDir + "/hello*.snap")
 	c.Assert(err, check.IsNil)

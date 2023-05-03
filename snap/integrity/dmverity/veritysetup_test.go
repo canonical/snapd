@@ -95,6 +95,10 @@ func (s *VerityTestSuite) TestFormatSuccess(c *C) {
 	// mock the verity-setup command, what it does is make of a copy of the snap
 	// and then returns pre-calculated output
 	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
+if "$1" == "--version"; then
+	echo "veritysetup 2.2.6"
+	exit 0
+fi
 cp %[1]s %[1]s.verity
 echo VERITY header information for %[1]s.verity
 echo "UUID:            	97d80536-aad9-4f25-a528-5319c038c0c4"
@@ -110,12 +114,58 @@ echo "Root hash:      	e48cfc4df6df0f323bcf67f17b659a5074bec3afffe28f0b3b4db981d
 
 	_, err := dmverity.Format(snapPath, snapPath+".verity")
 	c.Assert(err, IsNil)
-	c.Assert(vscmd.Calls(), HasLen, 1)
-	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
+	c.Assert(vscmd.Calls(), HasLen, 2)
+	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "--version"})
+	c.Check(vscmd.Calls()[1], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
 }
 
-func (s *VerityTestSuite) TestFormatFail(c *C) {
+func (s *VerityTestSuite) TestFormatSuccessWithWorkaround(c *C) {
 	snapPath, _ := snaptest.MakeTestSnapInfoWithFiles(c, "name: foo\nversion: 1.0", nil, nil)
+
+	// use a version that forces the deployment of the workaround to run. Any version
+	// before 2.0.4 should automatically create a file we can verify
+	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
+if "$1" == "--version"; then
+	echo "veritysetup 1.6.4"
+	exit 0
+fi
+if ![ -e %[1]s.verity ]; then
+    exit 1
+fi
+echo VERITY header information for %[1]s.verity
+echo "UUID:            	97d80536-aad9-4f25-a528-5319c038c0c4"
+echo "Hash type:       	1"
+echo "Data blocks:     	1"
+echo "Data block size: 	4096"
+echo "Hash block size: 	4096"
+echo "Hash algorithm:  	sha256"
+echo "Salt:            	c0234a906cfde0d5ffcba25038c240a98199cbc1d8fbd388a41e8faa02239c08"
+echo "Root hash:      	e48cfc4df6df0f323bcf67f17b659a5074bec3afffe28f0b3b4db981d78d2e3e"
+`, snapPath))
+	defer vscmd.Restore()
+
+	_, err := dmverity.Format(snapPath, snapPath+".verity")
+	c.Assert(err, IsNil)
+	c.Assert(vscmd.Calls(), HasLen, 2)
+	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "--version"})
+	c.Check(vscmd.Calls()[1], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
+}
+
+func (s *VerityTestSuite) TestFormatVerityFails(c *C) {
+	snapPath, _ := snaptest.MakeTestSnapInfoWithFiles(c, "name: foo\nversion: 1.0", nil, nil)
+	vscmd := testutil.MockCommand(c, "veritysetup", `
+case "$1" in
+	--version)
+		echo "veritysetup 2.2.6"
+		exit 0
+		;;
+	format)
+		echo "Cannot create hash image $3 for writing."
+		exit 1
+		;;
+esac
+`)
+	defer vscmd.Restore()
 
 	_, err := dmverity.Format(snapPath, "")
 	c.Check(err, ErrorMatches, "Cannot create hash image  for writing.")
