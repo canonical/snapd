@@ -832,9 +832,6 @@ EOF
     snap pack repacked-kernel "$TARGET"
     rm -rf repacked-kernel
 
-    if os.query is-arm && os.query is-focal; then
-        snap remove test-snapd-arm-tools
-    fi
 }
 
 
