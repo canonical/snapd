@@ -364,6 +364,10 @@ func (s *packSuite) TestPackWithIntegrity(c *C) {
 	// mock the verity-setup command, what it does is make of a copy of the snap
 	// and then returns pre-calculated output
 	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
+if "$1" == "--version"; then
+	echo "veritysetup 2.2.6"
+	exit 0
+fi
 cp %[1]s/hello_0_all.snap %[1]s/hello_0_all.snap.verity
 echo "VERITY header information for %[1]s/hello_0_all.snap.verity"
 echo "UUID:            	606d10a2-24d8-4c6b-90cf-68207aa7c850"
@@ -383,8 +387,9 @@ echo "Root hash:      	3fbfef5f1f0214d727d03eebc4723b8ef5a34740fd8f1359783cff1ef
 	})
 	c.Assert(err, IsNil)
 	c.Check(snapPath, testutil.FilePresent)
-	c.Assert(vscmd.Calls(), HasLen, 1)
-	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
+	c.Assert(vscmd.Calls(), HasLen, 2)
+	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "--version"})
+	c.Check(vscmd.Calls()[1], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
 
 	magic := []byte{'s', 'n', 'a', 'p', 'e', 'x', 't'}
 
