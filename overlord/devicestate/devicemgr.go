@@ -990,6 +990,57 @@ func (m *DeviceManager) ensureSeeded() error {
 	return nil
 }
 
+var processAutoImportAssertionsImpl = processAutoImportAssertions
+
+// ensureAutoImportAssertions makes sure that auto import assertions
+// get processed. Assertion should be processed while seeding is in progress.
+func (m *DeviceManager) ensureAutoImportAssertions() error {
+	if release.OnClassic {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.earlyDeviceSeed == nil {
+		// we have no seed cached yet, no point to check further
+		return nil
+	}
+
+	var seeded bool
+	if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	// if system is seeded, stop trying
+	if seeded {
+		return nil
+	}
+
+	// check if we have processed auto-import asssertions already
+	var autoImported bool
+	if err := m.state.Get("asserts-early-auto-imported", &autoImported); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if autoImported {
+		return nil
+	}
+
+	commitTo := func(batch *asserts.Batch) error {
+		return assertstate.AddBatch(m.state, batch, nil)
+	}
+	db := assertstate.DB(m.state)
+	// Set asserts-early-auto-imported as processed, even if it fails,
+	// it should not be re-run. State should not be altered once
+	// processAutoImportAssertionsImpl is called.
+	m.state.Set("asserts-early-auto-imported", true)
+	err := processAutoImportAssertionsImpl(m.state, m.earlyDeviceSeed, db, commitTo)
+	if err != nil {
+		// best effort
+		logger.Noticef("cannot process auto import assertion: %v", err)
+	}
+	return nil
+}
+
 func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1656,6 +1707,15 @@ func (m *DeviceManager) Ensure() error {
 	}
 
 	if !m.preseed {
+		if err := m.ensureAutoImportAssertions(); err != nil {
+			errs = append(errs, err)
+		}
+
+		// code below should not need the early loaded device seed
+		// optimistically forget the earlyDeviceSeed here
+		// to free the corresponding memory usage
+		m.earlyDeviceSeed = nil
+
 		if err := m.ensureCloudInitRestricted(); err != nil {
 			errs = append(errs, err)
 		}

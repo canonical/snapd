@@ -1166,7 +1166,7 @@ func mustParseStructureNoImplicit(c *C, s string) *gadget.VolumeStructure {
 
 func mustParseStructure(c *C, s string) *gadget.VolumeStructure {
 	vs := mustParseStructureNoImplicit(c, s)
-	gadget.SetImplicitForVolumeStructure(vs, 0, make(map[string]bool))
+	gadget.SetImplicitForVolumeStructure(vs, 0, make(map[string]bool), make(map[string]bool))
 	return vs
 }
 
@@ -1349,17 +1349,16 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchemaNotOverlapWithGPT(c *C) {
 				{Name: "name", Type: "bare", Size: tc.sz, Offset: &tc.o},
 			},
 		})
-		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err)
-		} else {
-			c.Check(err, IsNil)
+		c.Check(err, IsNil)
 
-			start := tc.o
-			end := start + quantity.Offset(tc.sz)
-			if start < 4096*34 && end > 512 {
-				c.Assert(loggerBuf.String(), testutil.Contains,
-					fmt.Sprintf("WARNING: GPT header or GPT partition table might be overlapped with structure \"name\""))
-			}
+		start := tc.o
+		end := start + quantity.Offset(tc.sz)
+		if start < 512*34 && end > 4096 {
+			c.Assert(loggerBuf.String(), testutil.Contains,
+				fmt.Sprintf("WARNING: invalid structure: GPT header or GPT partition table overlapped with structure \"name\""))
+		} else if start < 4096*6 && end > 512 {
+			c.Assert(loggerBuf.String(), testutil.Contains,
+				fmt.Sprintf("WARNING: GPT header or GPT partition table might be overlapped with structure \"name\""))
 		}
 	}
 }
@@ -1435,6 +1434,46 @@ volumes:
 		yaml := fmt.Sprintf(string(yamlTemplate), t.dupLabel, t.dupLabel)
 		_, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
 		c.Assert(err, ErrorMatches, t.err)
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetDuplicateFsLabelWithCase(c *C) {
+	yamlTemplate := `
+volumes:
+   minimal:
+     bootloader: grub
+     structure:
+       - name: data1
+         filesystem-label: %s
+         filesystem: %s
+         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+         size: 1G
+       - name: data2
+         filesystem-label: %s
+         filesystem: %s
+         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+         size: 1G
+`
+
+	tests := []struct {
+		label1, label2   string
+		fsType1, fsType2 string
+		err              string
+	}{
+		{"foo", "FOO", "vfat", "vfat", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"foo", "FOO", "ext4", "ext4", ""},
+		{"foo", "FOO", "vfat", "ext4", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"FOO", "foo", "vfat", "ext4", `invalid volume "minimal": filesystem label "foo" is not unique`},
+	}
+
+	for _, t := range tests {
+		yaml := fmt.Sprintf(string(yamlTemplate), t.label1, t.fsType1, t.label2, t.fsType2)
+		_, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
+		if t.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, t.err)
+		}
 	}
 }
 

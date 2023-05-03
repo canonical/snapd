@@ -19,7 +19,10 @@
 
 package disks
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Options is a set of options used when querying information about
 // partition and disk devices.
@@ -167,6 +170,13 @@ type Partition struct {
 
 	// TODO: also include a Disk field for finding what Disk this partition came
 	// from?
+}
+
+func (p *Partition) hasFilesystemLabel(encodedLabel string) bool {
+	if p.FilesystemType == "vfat" {
+		return strings.EqualFold(p.FilesystemLabel, encodedLabel)
+	}
+	return p.FilesystemLabel == encodedLabel
 }
 
 // MountPointsForPartitionRoot returns all mounts from the mount table which are

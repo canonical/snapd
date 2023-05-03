@@ -213,6 +213,15 @@ func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
 }
 
+// HasLabel checks if label matches the VolumeStructure label. It ignores
+// capitals if the structure has a vfat filesystem.
+func (vs *VolumeStructure) HasLabel(label string) bool {
+	if vs.Filesystem == "vfat" {
+		return strings.EqualFold(vs.Label, label)
+	}
+	return vs.Label == label
+}
+
 // VolumeContent defines the contents of the structure. The content can be
 // either files within a filesystem described by the structure or raw images
 // written into the area of a bare structure.
@@ -747,6 +756,30 @@ func whichVolRuleset(model Model) volRuleset {
 	return volRuleset16
 }
 
+func setKnownLabel(label, filesystem string, knownFsLabels, knownVfatFsLabels map[string]bool) (unique bool) {
+	lowerLabel := strings.ToLower(label)
+	if seen := knownVfatFsLabels[lowerLabel]; seen {
+		return false
+	}
+	if filesystem == "vfat" {
+		// labels with same name (ignoring capitals) as an already
+		// existing vfat label are not allowed
+		for knownLabel := range knownFsLabels {
+			if lowerLabel == strings.ToLower(knownLabel) {
+				return false
+			}
+		}
+		knownVfatFsLabels[lowerLabel] = true
+	} else {
+		if seen := knownFsLabels[label]; seen {
+			return false
+		}
+		knownFsLabels[label] = true
+	}
+
+	return true
+}
+
 func setImplicitForVolume(vol *Volume, model Model) error {
 	rs := whichVolRuleset(model)
 	if vol.Schema == "" {
@@ -756,12 +789,12 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 
 	// for uniqueness of filesystem labels
 	knownFsLabels := make(map[string]bool, len(vol.Structure))
+	knownVfatFsLabels := make(map[string]bool, len(vol.Structure))
 	for _, s := range vol.Structure {
 		if s.Label != "" {
-			if seen := knownFsLabels[s.Label]; seen {
+			if !setKnownLabel(s.Label, s.Filesystem, knownFsLabels, knownVfatFsLabels) {
 				return fmt.Errorf("filesystem label %q is not unique", s.Label)
 			}
-			knownFsLabels[s.Label] = true
 		}
 	}
 
@@ -773,7 +806,7 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		vol.Structure[i].YamlIndex = i
 
 		// set other implicit data for the structure
-		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels); err != nil {
+		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels, knownVfatFsLabels); err != nil {
 			return err
 		}
 
@@ -794,7 +827,7 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 	return nil
 }
 
-func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLabels map[string]bool) error {
+func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLabels, knownVfatFsLabels map[string]bool) error {
 	if vs.Role == "" && vs.Type == schemaMBR {
 		vs.Role = schemaMBR
 		return nil
@@ -821,10 +854,9 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLa
 			implicitLabel = ubuntuSaveLabel
 		}
 		if implicitLabel != "" {
-			if knownFsLabels[implicitLabel] {
+			if !setKnownLabel(implicitLabel, vs.Filesystem, knownFsLabels, knownVfatFsLabels) {
 				return fmt.Errorf("filesystem label %q is implied by %s role but was already set elsewhere", implicitLabel, vs.Role)
 			}
-			knownFsLabels[implicitLabel] = true
 			vs.Label = implicitLabel
 		}
 	}
@@ -954,7 +986,7 @@ func validateVolume(vol *Volume) error {
 			start := *s.Offset
 			end := start + quantity.Offset(s.Size)
 			if start < 512*34 && end > 4096 {
-				return fmt.Errorf("invalid structure: GPT header or GPT partition table overlapped with structure %q\n", s.Name)
+				logger.Noticef("WARNING: invalid structure: GPT header or GPT partition table overlapped with structure %q\n", s.Name)
 			} else if start < 4096*6 && end > 512 {
 				logger.Noticef("WARNING: GPT header or GPT partition table might be overlapped with structure %q", s.Name)
 			}

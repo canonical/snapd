@@ -1423,6 +1423,19 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 	return nil
 }
 
+func (w *Writer) markValidationSetsSeeded() error {
+	vsm, err := w.validationSetAsserts()
+	if err != nil {
+		return err
+	}
+	for seq, vs := range vsm {
+		if err := w.manifest.MarkValidationSetSeeded(vs, seq.Pinned); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // WriteMeta writes seed metadata and assertions into the seed.
 func (w *Writer) WriteMeta() error {
 	if err := w.checkStep(writeMetaStep); err != nil {
@@ -1430,6 +1443,11 @@ func (w *Writer) WriteMeta() error {
 	}
 
 	if w.opts.ManifestPath != "" {
+		// Mark validation sets seeded in the manifest if the options
+		// are set to produce a manifest.
+		if err := w.markValidationSetsSeeded(); err != nil {
+			return err
+		}
 		if err := w.manifest.Write(w.opts.ManifestPath); err != nil {
 			return err
 		}
