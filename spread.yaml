@@ -250,7 +250,6 @@ backends:
         location: snapd-spread/us-central1-a
         plan: t2a-standard-2
         halt-timeout: 2h
-        cpu-family: "Intel Cascade Lake"
         systems:
             - ubuntu-22.04-arm-64:
                   image: ubuntu-2204-arm-64-virt-enabled

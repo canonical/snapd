@@ -1045,7 +1045,7 @@ nested_start_core_vm_unit() {
     if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
         if os.query is-arm; then
             PARAM_MACHINE="-machine virt${ATTR_KVM}"
-            PARAM_CPU="-cpu cortex-a57"
+            PARAM_CPU="-cpu host"
         else
             PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
         fi
@@ -1113,8 +1113,6 @@ nested_start_core_vm_unit() {
             if os.query is-arm; then
                 cp -f "/usr/share/AAVMF/AAVMF_VARS.fd" "$NESTED_ASSETS_DIR/AAVMF_VARS.fd"
                 PARAM_BIOS="-drive file=/usr/share/AAVMF/AAVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/AAVMF_VARS.fd,if=pflash,format=raw"
-                PARAM_MACHINE="-machine virt --accel tcg,thread=multi"
-                PARAM_CPU="-cpu cortex-a57"
             else
                 cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd"
                 PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
