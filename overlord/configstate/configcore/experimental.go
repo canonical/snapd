@@ -20,12 +20,16 @@
 package configcore
 
 import (
+	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -86,4 +90,42 @@ func doExportExperimentalFlags(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCo
 
 func ExportExperimentalFlags(tr ConfGetter) error {
 	return doExportExperimentalFlags(nil, tr, nil)
+}
+
+func doExperimentalApparmorPromptProfileRegeneration(c RunTransaction, opts *fsOnlyContext) error {
+	st := c.State()
+
+	var prompting bool
+	err := c.Get("core", "experimental."+features.AppArmorPrompting.String(), &prompting)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	var prevPrompting bool
+	err = c.GetPristine("core", "experimental."+features.AppArmorPrompting.String(), &prevPrompting)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if prompting == prevPrompting {
+		return nil
+	}
+
+	st.Lock()
+	regenerateProfilesChg := st.NewChange("regenerate-all-security-profiles",
+		i18n.G("Regenerate all profiles due to change in prompting"))
+	t := st.NewTask("regenerate-all-security-profiles", i18n.G("Regenerate all profiles due to change in prompting"))
+	regenerateProfilesChg.AddTask(t)
+	st.Unlock()
+	st.EnsureBefore(0)
+
+	select {
+	case <-regenerateProfilesChg.Ready():
+		st.Lock()
+		defer st.Unlock()
+		return regenerateProfilesChg.Err()
+	case <-time.After(10 * time.Minute):
+		// profile generate may take some time
+		return fmt.Errorf("%s is taking too long", regenerateProfilesChg.Kind())
+	}
+
+	return nil
 }
