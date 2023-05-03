@@ -435,7 +435,7 @@ the testing one. Don't forget to roll back to the original, after you finish tes
 
 ### Testing the snap userd agent
 
-To test the `snap userd --agent` command, you must first to stop the current process if it is
+To test the `snap userd --agent` command, you must first stop the current process, if it is
 running, and then stop the dbus activation part. To do so, just run:
 
     systemctl --user disable snapd.session-agent.socket
