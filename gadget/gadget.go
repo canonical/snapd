@@ -312,13 +312,13 @@ func maxStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
 	return max
 }
 
-type invalidOffset struct {
+type invalidOffsetError struct {
 	offset     quantity.Offset
 	lowerBound quantity.Offset
 	upperBound quantity.Offset
 }
 
-func (e *invalidOffset) Error() string {
+func (e *invalidOffsetError) Error() string {
 	maxDesc := "unbounded"
 	if e.upperBound != UnboundedStructureOffset {
 		maxDesc = fmt.Sprintf("%d (%s)", e.upperBound, e.upperBound.IECString())
@@ -335,7 +335,7 @@ func CheckValidStartOffset(off quantity.Offset, vss []VolumeStructure, idx int) 
 	if min <= off && off <= max {
 		return nil
 	}
-	return &invalidOffset{offset: off, lowerBound: min, upperBound: max}
+	return &invalidOffsetError{offset: off, lowerBound: min, upperBound: max}
 }
 
 // VolumeContent defines the contents of the structure. The content can be
@@ -1109,6 +1109,10 @@ func validateVolume(vol *Volume) error {
 			// is some data in the union - intersection of the described GPT segments, which
 			// might be fine but is suspicious.
 			start := *s.Offset
+			// MinSize instead of Size as we warn only if we are
+			// sure that there will be a problem (that is, the
+			// problem will happen even for the smallest structure
+			// case).
 			end := start + quantity.Offset(s.MinSize)
 			if start < 512*34 && end > 4096 {
 				logger.Noticef("WARNING: invalid structure: GPT header or GPT partition table overlapped with structure %q\n", s.Name)

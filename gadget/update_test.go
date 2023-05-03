@@ -4181,7 +4181,7 @@ func (s *updateTestSuite) TestSearchForVolumeWithTraitsFails(c *C) {
 		AllowImplicitSystemData: true,
 	}
 
-	_, err = gadget.SearchForVolumeWithTraits(laidOutVol, gadgettest.UC16ImplicitSystemDataDeviceTraits, allowImplicitDataOpts)
+	_, err = gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol, gadgettest.UC16ImplicitSystemDataDeviceTraits, allowImplicitDataOpts)
 	c.Assert(err, ErrorMatches, "cannot find physical disk laid out to map with volume pc")
 }
 
@@ -4247,7 +4247,7 @@ func testSearchForVolumeWithTraits(c *C,
 	})
 	defer r()
 
-	d, err := gadget.SearchForVolumeWithTraits(laidOutVol, traits, validateOpts)
+	d, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol, traits, validateOpts)
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, realMapping.DevNum)
 
@@ -4260,7 +4260,7 @@ func testSearchForVolumeWithTraits(c *C,
 
 	// we still find it because we fall back on the device name from the traits
 	// (/dev/sda)
-	d2, err := gadget.SearchForVolumeWithTraits(laidOutVol, traits, validateOpts)
+	d2, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol, traits, validateOpts)
 	c.Assert(err, IsNil)
 	c.Assert(d2.Dev(), Equals, realMapping.DevNum)
 
@@ -4296,7 +4296,7 @@ func testSearchForVolumeWithTraits(c *C,
 	r = disks.MockDevicePathToDiskMapping(devicePathMapping)
 	defer r()
 
-	d3, err := gadget.SearchForVolumeWithTraits(laidOutVol, traits, validateOpts)
+	d3, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol, traits, validateOpts)
 	c.Assert(err, IsNil)
 	c.Assert(d3.Dev(), Equals, realMapping.DevNum)
 }

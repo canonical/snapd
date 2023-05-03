@@ -123,7 +123,9 @@ type ContentUpdateObserver interface {
 	Canceled() error
 }
 
-func searchForVolumeWithTraits(laidOutVol *LaidOutVolume, traits DiskVolumeDeviceTraits, validateOpts *DiskVolumeValidationOptions) (disks.Disk, error) {
+// searchVolumeWithTraitsAndMatchParts searches for a disk matching the given
+// traits and assigns disk partitions data to the matching laid out partition.
+func searchVolumeWithTraitsAndMatchParts(laidOutVol *LaidOutVolume, traits DiskVolumeDeviceTraits, validateOpts *DiskVolumeValidationOptions) (disks.Disk, error) {
 	if validateOpts == nil {
 		validateOpts = &DiskVolumeValidationOptions{}
 	}
@@ -982,7 +984,7 @@ func buildVolumeStructureToLocation(mod Model,
 			ExpectedStructureEncryption: diskDeviceTraits.StructureEncryption,
 		}
 
-		disk, err := searchForVolumeWithTraits(laidOutVol, diskDeviceTraits, validateOpts)
+		disk, err := searchVolumeWithTraitsAndMatchParts(laidOutVol, diskDeviceTraits, validateOpts)
 		if err != nil {
 			dieErr := fmt.Errorf("could not map volume %s from gadget.yaml to any physical disk: %v", volName, err)
 			return nil, maybeFatalError(dieErr)
