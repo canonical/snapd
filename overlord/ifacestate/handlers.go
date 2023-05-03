@@ -1960,3 +1960,15 @@ func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) erro
 	// no conflicting change for same hotplug key found
 	return nil
 }
+
+func (m *InterfaceManager) doRegenerateAllSecurityProfiles(task *state.Task, _ *tomb.Tomb) error {
+	// XXX: this will make snapd unusable for a long time :(
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(task)
+	defer perfTimings.Save(task.State())
+
+	return m.regenerateAllSecurityProfiles(perfTimings)
+}

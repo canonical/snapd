@@ -66,6 +66,10 @@ func init() {
 
 	// kernel.{,dangerous-}cmdline-append
 	addWithStateHandler(validateCmdlineAppend, handleCmdlineAppend, &flags{modeenvOnlyConfig: true})
+
+	// experimental.apparmor-prompting
+	addWithStateHandler(nil, doExperimentalApparmorPromptProfileRegeneration, nil)
+
 }
 
 // RunTransaction is an interface describing how to access
