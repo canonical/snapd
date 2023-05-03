@@ -231,7 +231,7 @@ func (x *cmdRun) Execute(args []string) error {
 		// Attempt to launch the desktop file via the privileged launcher, this will check that this snap has the desktop-launch interface connected.
 		conn, err := dbusutil.SessionBusPrivate()
 		if err != nil {
-			return fmt.Errorf(i18n.G("unable to access privileged desktop launcher: unable unable to get session bus: %v"), err)
+			return fmt.Errorf(i18n.G("unable to access privileged desktop launcher: unable to get session bus: %v"), err)
 		}
 		o := conn.Object("io.snapcraft.Launcher", "/io/snapcraft/PrivilegedDesktopLauncher")
 		call := o.Call("io.snapcraft.PrivilegedDesktopLauncher.OpenDesktopEntry", 0, desktopFile)
