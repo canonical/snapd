@@ -62,6 +62,81 @@ func (s *storageSuite) TestSimple(c *C) {
 	c.Check(allowed, Equals, true)
 }
 
+func (s *storageSuite) TestSubdirOverrides(c *C) {
+	st := storage.New()
+
+	req := &notifier.Request{
+		Label:      "snap.lxd.lxd",
+		SubjectUid: 1000,
+		Path:       "/home/test/foo",
+	}
+
+	allowed, err := st.Get(req)
+	c.Assert(err, Equals, storage.ErrNoSavedDecision)
+	c.Check(allowed, Equals, false)
+
+	allow := true
+	extra := map[string]string{}
+	err = st.Set(req, allow, extra)
+	c.Assert(err, IsNil)
+
+	// set a more nested path to not allow
+	req.Path = "/home/test/foo/bar"
+	err = st.Set(req, !allow, extra)
+	c.Assert(err, IsNil)
+	// more nested path was added
+	paths := st.PathsForUidAndLabel(1000, "snap.lxd.lxd")
+	c.Check(paths, HasLen, 2)
+
+	// and check more nested path is not allowed
+	allowed, err = st.Get(req)
+	c.Assert(err, IsNil)
+	c.Check(allowed, Equals, false)
+	// and even more nested path is not allowed
+	req.Path = "/home/test/foo/bar/baz"
+	allowed, err = st.Get(req)
+	c.Assert(err, IsNil)
+	c.Check(allowed, Equals, false)
+	// but original path is still allowed
+	req.Path = "/home/test/foo"
+	allowed, err = st.Get(req)
+	c.Assert(err, IsNil)
+	c.Check(allowed, Equals, true)
+
+	// set original path to not allow
+	err = st.Set(req, !allow, extra)
+	c.Assert(err, IsNil)
+	// original assignment was overridden
+	paths = st.PathsForUidAndLabel(1000, "snap.lxd.lxd")
+	c.Check(paths, HasLen, 2)
+	// TODO: in the future, possibly this should be 1, if we decide to remove
+	// subdirectories with the same access from the database when an ancestor
+	// directory with the same access is added
+
+	// set a more nested path to allow
+	req.Path = "/home/test/foo/bar"
+	err = st.Set(req, allow, extra)
+	c.Assert(err, IsNil)
+	// more nested path was added
+	paths = st.PathsForUidAndLabel(1000, "snap.lxd.lxd")
+	c.Check(paths, HasLen, 2)
+
+	// and check more nested path is allowed
+	allowed, err = st.Get(req)
+	c.Assert(err, IsNil)
+	c.Check(allowed, Equals, true)
+	// and even more nested path is also allowed
+	req.Path = "/home/test/foo/bar/baz"
+	allowed, err = st.Get(req)
+	c.Assert(err, IsNil)
+	c.Check(allowed, Equals, true)
+	// but original path is still not allowed
+	req.Path = "/home/test/foo"
+	allowed, err = st.Get(req)
+	c.Assert(err, IsNil)
+	c.Check(allowed, Equals, false)
+}
+
 func (s *storageSuite) TestLoadSave(c *C) {
 	st := storage.New()
 
