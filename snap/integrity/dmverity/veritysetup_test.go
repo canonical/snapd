@@ -21,7 +21,6 @@ package dmverity_test
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -36,22 +35,12 @@ func Test(t *testing.T) { TestingT(t) }
 
 type VerityTestSuite struct {
 	testutil.BaseTest
-
-	veritysetup *testutil.MockCmd
 }
 
 var _ = Suite(&VerityTestSuite{})
 
 func (s *VerityTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-
-	veritysetupWrapper := `exec %[1]s "$@" </dev/stdin`
-
-	veritysetup, err := exec.LookPath("veritysetup")
-	c.Assert(err, IsNil)
-
-	s.veritysetup = testutil.MockCommand(c, "veritysetup", fmt.Sprintf(veritysetupWrapper, veritysetup))
-	s.AddCleanup(s.veritysetup.Restore)
 }
 
 func (s *VerityTestSuite) TearDownTest(c *C) {
@@ -103,12 +92,26 @@ func (s *VerityTestSuite) TestGetRootHashFromOutputInvalid(c *C) {
 func (s *VerityTestSuite) TestFormatSuccess(c *C) {
 	snapPath, _ := snaptest.MakeTestSnapInfoWithFiles(c, "name: foo\nversion: 1.0", nil, nil)
 
+	// mock the verity-setup command, what it does is make of a copy of the snap
+	// and then returns pre-calculated output
+	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
+cp %[1]s %[1]s.verity
+echo VERITY header information for %[1]s.verity
+echo "UUID:            	97d80536-aad9-4f25-a528-5319c038c0c4"
+echo "Hash type:       	1"
+echo "Data blocks:     	1"
+echo "Data block size: 	4096"
+echo "Hash block size: 	4096"
+echo "Hash algorithm:  	sha256"
+echo "Salt:            	c0234a906cfde0d5ffcba25038c240a98199cbc1d8fbd388a41e8faa02239c08"
+echo "Root hash:      	e48cfc4df6df0f323bcf67f17b659a5074bec3afffe28f0b3b4db981d78d2e3e"
+`, snapPath))
+	defer vscmd.Restore()
+
 	_, err := dmverity.Format(snapPath, snapPath+".verity")
 	c.Assert(err, IsNil)
-	c.Check(s.veritysetup.Calls(), HasLen, 1)
-
-	// [1:] to ignore Exe() which is the tmp path for cryptsetup from the mocking
-	c.Check(s.veritysetup.Calls()[1:], DeepEquals, [][]string{{s.veritysetup.Exe(), "format", snapPath, snapPath + ".verity"}}[1:])
+	c.Assert(vscmd.Calls(), HasLen, 1)
+	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
 }
 
 func (s *VerityTestSuite) TestFormatFail(c *C) {

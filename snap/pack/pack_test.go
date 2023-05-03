@@ -359,13 +359,32 @@ func (s *packSuite) TestPackWithCompressionUnhappy(c *C) {
 
 func (s *packSuite) TestPackWithIntegrity(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
+	targetDir := c.MkDir()
+
+	// mock the verity-setup command, what it does is make of a copy of the snap
+	// and then returns pre-calculated output
+	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
+cp %[1]s/hello_0_all.snap %[1]s/hello_0_all.snap.verity
+echo "VERITY header information for %[1]s/hello_0_all.snap.verity"
+echo "UUID:            	606d10a2-24d8-4c6b-90cf-68207aa7c850"
+echo "Hash type:       	1"
+echo "Data blocks:     	1"
+echo "Data block size: 	4096"
+echo "Hash block size: 	4096"
+echo "Hash algorithm:  	sha256"
+echo "Salt:            	eba61f2091bb6122226aef83b0d6c1623f095fc1fda5712d652a8b34a02024ea"
+echo "Root hash:      	3fbfef5f1f0214d727d03eebc4723b8ef5a34740fd8f1359783cff1ef9c3f334"
+`, targetDir))
+	defer vscmd.Restore()
 
 	snapPath, err := pack.Snap(sourceDir, &pack.Options{
-		TargetDir: c.MkDir(),
+		TargetDir: targetDir,
 		Integrity: true,
 	})
 	c.Assert(err, IsNil)
 	c.Check(snapPath, testutil.FilePresent)
+	c.Assert(vscmd.Calls(), HasLen, 1)
+	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
 
 	magic := []byte{'s', 'n', 'a', 'p', 'e', 'x', 't'}
 
