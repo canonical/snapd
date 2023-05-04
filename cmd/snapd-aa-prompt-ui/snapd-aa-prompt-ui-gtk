@@ -49,6 +49,7 @@ class PromptDialog(Gtk.Dialog):
 
 
 AGENT_INTERFACE = "io.snapcraft.PromptAgent"
+
 class Agent(dbus.service.Object):
     AA_PROMPT_IFACE = "io.snapcraft.AppArmorPrompt"
     AA_PROMPT_PATH = "/io/snapcraft/AppArmorPrompt"
@@ -57,23 +58,27 @@ class Agent(dbus.service.Object):
         super(Agent, self).__init__(bus, object_path, connection)
         self.bus = bus
         self.object_path = object_path
+
     def init(self):
         self._register_agent()
-        bus_obj = bus.get_object("org.freedesktop.DBus", "/org/freedesktop/DBus")
+        bus_obj = self.bus.get_object("org.freedesktop.DBus", "/org/freedesktop/DBus")
         bus_obj.connect_to_signal("NameOwnerChanged", self._name_owner_changed_cb)
+
     def _register_agent(self):
         prompt_obj = self.bus.get_object(
             self.AA_PROMPT_IFACE, self.AA_PROMPT_PATH)
         prompt_obj.RegisterAgent(self.object_path)
-    def _name_owner_changed_cb(name, old_owner, new_owner):
-        if name != aa_prompt_iface:
+
+    def _name_owner_changed_cb(self, name, old_owner, new_owner):
+        print(f'Called _name_owner_changed_cb(`{name}`, `{old_owner}`, `{new_owner}`)')
+        if name != self.AA_PROMPT_IFACE:
             return
         if new_owner != "":
             self._register_agent()
 
     @dbus.service.method(AGENT_INTERFACE, in_signature="sa{ss}", out_signature="ba{ss}")
     def Prompt(self, path, info):
-        print(f"Prompt() called with {path} {info}")
+        print(f"Called Prompt(`{path}`, `{info}`)")
         prompt_allow = False
         extra_constraints = {}
         # XXX: spec says we get the snap/app from info
