@@ -21,7 +21,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io/ioutil"
 
@@ -29,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/signtool"
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -41,14 +39,12 @@ of the assertion can be specified through a "body" pseudo-header.
 `)
 
 type cmdSign struct {
-	clientMixin
 	Positional struct {
 		Filename flags.Filename
 	} `positional-args:"yes"`
 
 	KeyName keyName `short:"k" default:"default"`
 	Chain   bool    `long:"chain"`
-	Direct  bool    `long:"direct"`
 }
 
 func init() {
@@ -59,8 +55,6 @@ func init() {
 		"k": i18n.G("Name of the key to use, otherwise use the default key"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"chain": i18n.G("Append the account and account-key assertions necessary to allow any device to validate the signed assertion."),
-		// TRANSLATORS: This should not start with a lowercase letter.
-		"direct": i18n.G("Query the store directly, without attempting to go via snapd, for any assertions appended by --chain"),
 	}, []argDesc{{
 		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<filename>"),
@@ -119,19 +113,8 @@ func (x *cmdSign) Execute(args []string) error {
 		return err
 	}
 
-	if x.Direct && !x.Chain {
-		return errors.New(i18n.G("--direct specified without --chain"))
-	}
-
 	if x.Chain {
-		known := knownRemoteWithFallback
-		if x.Direct {
-			known = func(_ *client.Client, assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
-				return downloadAssertion(assertTypeName, headers)
-			}
-		}
-
-		accountKey, err := mustKnowOneAssert(known, x.client, "account-key", map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})
+		accountKey, err := mustGetOneAssert("account-key", map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})
 		if err != nil {
 			return err
 		}
@@ -141,7 +124,7 @@ func (x *cmdSign) Execute(args []string) error {
 			return err
 		}
 
-		account, err := mustKnowOneAssert(known, x.client, "account", map[string]string{"account-id": accountKey.(*asserts.AccountKey).AccountID()})
+		account, err := mustGetOneAssert("account", map[string]string{"account-id": accountKey.(*asserts.AccountKey).AccountID()})
 		if err != nil {
 			return err
 		}
@@ -159,23 +142,17 @@ func (x *cmdSign) Execute(args []string) error {
 	return nil
 }
 
-type assertKnower func(cli *client.Client, assertTypeName string, headers map[string]string) ([]asserts.Assertion, error)
-
 // call this function in a way that is guaranteed to specify a unique assertion
 // (i.e. with a header specifying a value for the assertion's primary key)
-func mustKnowOneAssert(known assertKnower, cl *client.Client, assertType string, headers map[string]string) (asserts.Assertion, error) {
-	asserts, err := known(cl, assertType, headers)
+func mustGetOneAssert(assertType string, headers map[string]string) (asserts.Assertion, error) {
+	asserts, err := downloadAssertion(assertType, headers)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(i18n.G("cannot create assertion chain: %w"), err)
 	}
 
-	switch len(asserts) {
-	case 0:
-		// TRANSLATORS: %s is the assertion-type
-		return nil, fmt.Errorf(i18n.G("cannot retrieve %s assertion"), assertType)
-	case 1:
+	if len(asserts) == 1 {
 		return asserts[0], nil
-	default:
-		return nil, fmt.Errorf(i18n.G("internal error: cannot identify unique %s assertion for specified headers"), assertType)
 	}
+
+	return nil, fmt.Errorf(i18n.G("internal error: cannot identify unique %s assertion for specified headers"), assertType)
 }

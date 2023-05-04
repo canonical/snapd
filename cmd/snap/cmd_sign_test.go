@@ -30,7 +30,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -183,188 +182,100 @@ func (s *SnapKeysSuite) checkSignChainResults(c *C, statementType *asserts.Asser
 	c.Assert(foundAccount, Equals, true)
 }
 
-func (s *SnapKeysSuite) TestSignChainViaSnapd(c *C) {
+func (s *SnapKeysSuite) TestSignChain(c *C) {
+	var server *httptest.Server
+
+	restorer := snap.MockStoreNew(func(cfg *store.Config, stoCtx store.DeviceAndAuthContext) *store.Store {
+		if cfg == nil {
+			cfg = store.DefaultConfig()
+		}
+		serverURL, _ := url.Parse(server.URL)
+		cfg.AssertionsBaseURL = serverURL
+		return store.New(cfg, stoCtx)
+	})
+	defer restorer()
+
 	n := 0
-	expectedAccountKeyQuery := url.Values{
-		"public-key-sha3-384": []string{"g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ"},
-		"remote":              []string{"true"},
-	}
-	expectedAccountQuery := url.Values{
-		"account-id": []string{"canonical"},
-		"remote":     []string{"true"},
-	}
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.URL.Path, Matches, ".*/assertions/.*") // basic check for request
 		switch n {
 		case 0:
-			c.Check(r.URL.Path, Equals, "/v2/assertions/account-key")
-			c.Check(r.URL.Query(), DeepEquals, expectedAccountKeyQuery)
-			w.Header().Set("X-Ubuntu-Assertions-Count", "1")
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/assertions/account-key/g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ")
 			fmt.Fprint(w, mockAccountKeyAssertion)
 		case 1:
-			c.Check(r.URL.Path, Equals, "/v2/assertions/account")
-			c.Check(r.URL.Query(), DeepEquals, expectedAccountQuery)
-			w.Header().Set("X-Ubuntu-Assertions-Count", "1")
-			fmt.Fprintf(w, mockAccountAssertion)
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/assertions/account/canonical")
+			fmt.Fprint(w, mockAccountAssertion)
 		default:
 			c.Fatalf("expected to get 2 requests, now on %d", n+1)
 		}
 		n++
-	})
+	}))
 
-	// first run the default --chain, which should be equivalent to --chain=remote
 	s.stdin.Write([]byte(statement))
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	s.checkSignChainResults(c, asserts.SnapBuildType)
-	c.Assert(n, Equals, 2)
-}
-
-func (s *SnapKeysSuite) TestSignChainDirect(c *C) {
-	var server *httptest.Server
-
-	restorer := snap.MockStoreNew(func(cfg *store.Config, stoCtx store.DeviceAndAuthContext) *store.Store {
-		if cfg == nil {
-			cfg = store.DefaultConfig()
-		}
-		serverURL, _ := url.Parse(server.URL)
-		cfg.AssertionsBaseURL = serverURL
-		return store.New(cfg, stoCtx)
-	})
-	defer restorer()
-
-	n := 0
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Assert(r.URL.Path, Matches, ".*/assertions/.*") // basic check for request
-		switch n {
-		case 0:
-			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/assertions/account-key/g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ")
-			fmt.Fprint(w, mockAccountKeyAssertion)
-		case 1:
-			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/assertions/account/canonical")
-			fmt.Fprint(w, mockAccountAssertion)
-		default:
-			c.Fatalf("expected to get 2 requests, now on %d", n+1)
-		}
-		n++
-	}))
-
-	// first run --chain --direct
-	s.stdin.Write([]byte(statement))
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain", "--direct"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-	s.checkSignChainResults(c, asserts.SnapBuildType)
-	c.Assert(n, Equals, 2)
-
-	// then run just --direct, which should be equivalent
-	n = 0
-	s.stdout.Reset()
-	s.stdin.Reset()
-	s.stdin.Write([]byte(statement))
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--direct"})
-	c.Assert(err, ErrorMatches, "--direct specified without --chain")
-	c.Assert(n, Equals, 0)
-	// if we fail in retrieving the account-key assertion, we should not write
-	// partial output
-	c.Assert(s.Stdout(), Equals, "")
-}
-
-func (s *SnapKeysSuite) TestSignChainRemoteAutoFallback(c *C) {
-	var server *httptest.Server
-
-	restorer := snap.MockStoreNew(func(cfg *store.Config, stoCtx store.DeviceAndAuthContext) *store.Store {
-		if cfg == nil {
-			cfg = store.DefaultConfig()
-		}
-		serverURL, _ := url.Parse(server.URL)
-		cfg.AssertionsBaseURL = serverURL
-		return store.New(cfg, stoCtx)
-	})
-	defer restorer()
-
-	n := 0
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Assert(r.URL.Path, Matches, ".*/assertions/.*") // basic check for request
-		switch n {
-		case 0:
-			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/assertions/account-key/g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ")
-			fmt.Fprint(w, mockAccountKeyAssertion)
-		case 1:
-			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/assertions/account/canonical")
-			fmt.Fprint(w, mockAccountAssertion)
-		default:
-			c.Fatalf("expected to get 2 requests, now on %d", n+1)
-		}
-		n++
-	}))
-
-	cli := snap.Client()
-	cli.Hijack(func(*http.Request) (*http.Response, error) {
-		return nil, client.ConnectionError{Err: fmt.Errorf("no snapd")}
-	})
-
-	s.stdin.Write([]byte(statement))
-	rest, err := snap.Parser(cli).ParseArgs([]string{"sign", "--chain"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-	s.checkSignChainResults(c, asserts.SnapBuildType)
-	c.Assert(n, Equals, 2)
-	c.Check(s.Stderr(), Equals, "")
 }
 
 func (s *SnapKeysSuite) TestSignChainUnknownAccountOrKey(c *C) {
-	n := 0
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch n {
-		case 0:
-			c.Check(r.URL.Path, Equals, "/v2/assertions/account-key")
-			c.Check(r.URL.Query(), DeepEquals, url.Values{
-				"public-key-sha3-384": []string{"g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ"},
-				"remote":              []string{"true"},
-			})
-			w.Header().Set("X-Ubuntu-Assertions-Count", "0")
-		case 1:
-			c.Check(r.URL.Path, Equals, "/v2/assertions/account-key")
-			c.Check(r.URL.Query(), DeepEquals, url.Values{
-				"public-key-sha3-384": []string{"g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ"},
-				"remote":              []string{"true"},
-			})
-			w.Header().Set("X-Ubuntu-Assertions-Count", "1")
-			fmt.Fprint(w, mockAccountKeyAssertion)
-		case 2:
-			c.Check(r.URL.Path, Equals, "/v2/assertions/account")
-			c.Check(r.URL.Query(), DeepEquals, url.Values{
-				"account-id": []string{"canonical"},
-				"remote":     []string{"true"},
-			})
-			w.Header().Set("X-Ubuntu-Assertions-Count", "0")
-		default:
-			c.Fatalf("expected to get 3 requests, now on %d", n+1)
+	var server *httptest.Server
+
+	restorer := snap.MockStoreNew(func(cfg *store.Config, stoCtx store.DeviceAndAuthContext) *store.Store {
+		if cfg == nil {
+			cfg = store.DefaultConfig()
 		}
-		n++
+		serverURL, _ := url.Parse(server.URL)
+		cfg.AssertionsBaseURL = serverURL
+		return store.New(cfg, stoCtx)
 	})
+	defer restorer()
 
 	// case 1, fail on account-key
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.URL.Path, Matches, ".*/assertions/.*") // basic check for request
+		switch r.URL.Path {
+		case "/v2/assertions/account-key/g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ":
+			c.Check(r.Method, Equals, "GET")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(404)
+			io.WriteString(w, `{"error-list":[{"code":"not-found","message":"not found: no ..."}]}`)
+		default:
+			c.Fatalf("Unexpected %s request for %s", r.Method, r.URL.Path)
+		}
+	}))
+
 	s.stdin.Write([]byte(statement))
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain"})
-	c.Assert(err, ErrorMatches, "cannot retrieve account-key assertion")
-	c.Assert(n, Equals, 1)
+	c.Assert(err, ErrorMatches, "cannot create assertion chain: account-key .* not found")
 	// if we fail in retrieving the account-key assertion, we should not write
 	// partial output
 	c.Assert(s.Stdout(), Equals, "")
 
 	// case 2, fail on account
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.URL.Path, Matches, ".*/assertions/.*") // basic check for request
+		switch r.URL.Path {
+		case "/v2/assertions/account-key/g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ":
+			c.Check(r.Method, Equals, "GET")
+			fmt.Fprint(w, mockAccountKeyAssertion)
+		case "/v2/assertions/account/canonical":
+			c.Check(r.Method, Equals, "GET")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(404)
+			io.WriteString(w, `{"error-list":[{"code":"not-found","message":"not found: no ..."}]}`)
+		default:
+			c.Fatalf("Unexpected %s request for %s", r.Method, r.URL.Path)
+		}
+	}))
+
 	s.stdin.Reset()
 	s.stdout.Reset()
 	s.stdin.Write([]byte(statement))
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain"})
-	c.Assert(err, ErrorMatches, "cannot retrieve account assertion")
-	c.Assert(n, Equals, 3)
+	c.Assert(err, ErrorMatches, "cannot create assertion chain: account .* not found")
 	// if we fail in retrieving the account assertion, we should not write
 	// partial output
 	c.Assert(s.Stdout(), Equals, "")
