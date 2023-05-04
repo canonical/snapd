@@ -91,35 +91,34 @@ func verityVersion() (major, minor, patch int, err error) {
 		return -1, -1, -1, osutil.OutputErr(output, err)
 	}
 
-	exp := regexp.MustCompile(`^(\d+\.)?(\d+\.)?(\*|\d+)$`)
+	exp := regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)`)
 	match := exp.FindStringSubmatch(string(output))
-	if len(match) < 4 {
-		return -1, -1, -1, nil
+	if len(match) != 4 {
+		return -1, -1, -1, fmt.Errorf("cannot detect veritysetup version from: %s", string(output))
 	}
-
 	major, err = strconv.Atoi(match[1])
 	if err != nil {
-		return -1, -1, -1, err
+		return -1, -1, -1, fmt.Errorf("cannot detect veritysetup version from: %s", string(output))
 	}
 	minor, err = strconv.Atoi(match[2])
 	if err != nil {
-		return -1, -1, -1, err
+		return -1, -1, -1, fmt.Errorf("cannot detect veritysetup version from: %s", string(output))
 	}
 	patch, err = strconv.Atoi(match[3])
 	if err != nil {
-		return -1, -1, -1, err
+		return -1, -1, -1, fmt.Errorf("cannot detect veritysetup version from: %s", string(output))
 	}
 	return major, minor, patch, nil
 }
 
-func shouldDeployWorkaround(hashDevice string) (bool, error) {
+func shouldApplyNewFileWorkaroundForOlderThan204() (bool, error) {
 	major, minor, patch, err := verityVersion()
 	if err != nil {
 		return false, err
 	}
 
 	// From version 2.0.4 we don't need this anymore
-	if major > 2 || major == 2 && (minor > 0 || patch >= 4) {
+	if major > 2 || (major == 2 && (minor > 0 || patch >= 4)) {
 		return false, nil
 	}
 	return true, nil
@@ -131,15 +130,13 @@ func shouldDeployWorkaround(hashDevice string) (bool, error) {
 // the command's stdout.
 func Format(dataDevice string, hashDevice string) (*Info, error) {
 	// In older versions of cryptsetup there is a bug when cryptsetup writes
-	// its superblock header. It expects the hash device to atleast contain
-	// a sector-size of space. Fixed in commit dc852a100f8e640dfdf4f6aeb86e129100653673
-	// which is version 2.0.4
-	deploy, err := shouldDeployWorkaround(hashDevice)
+	// its superblock header, and there isn't already preallocated space.
+	// Fixed in commit dc852a100f8e640dfdf4f6aeb86e129100653673 which is version 2.0.4
+	deploy, err := shouldApplyNewFileWorkaroundForOlderThan204()
 	if err != nil {
 		return nil, err
 	} else if deploy {
-		// The verity superblock header is 512 bytes.
-		space := make([]byte, 512)
+		space := make([]byte, 4096)
 		ioutil.WriteFile(hashDevice, space, 0644)
 	}
 

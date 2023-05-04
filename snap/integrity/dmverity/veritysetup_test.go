@@ -92,23 +92,27 @@ func (s *VerityTestSuite) TestGetRootHashFromOutputInvalid(c *C) {
 func (s *VerityTestSuite) TestFormatSuccess(c *C) {
 	snapPath, _ := snaptest.MakeTestSnapInfoWithFiles(c, "name: foo\nversion: 1.0", nil, nil)
 
-	// mock the verity-setup command, what it does is make of a copy of the snap
+	// mock the verity-setup command, what it does is make a copy of the snap
 	// and then returns pre-calculated output
 	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
-if "$1" == "--version"; then
-	echo "veritysetup 2.2.6"
-	exit 0
-fi
-cp %[1]s %[1]s.verity
-echo VERITY header information for %[1]s.verity
-echo "UUID:            	97d80536-aad9-4f25-a528-5319c038c0c4"
-echo "Hash type:       	1"
-echo "Data blocks:     	1"
-echo "Data block size: 	4096"
-echo "Hash block size: 	4096"
-echo "Hash algorithm:  	sha256"
-echo "Salt:            	c0234a906cfde0d5ffcba25038c240a98199cbc1d8fbd388a41e8faa02239c08"
-echo "Root hash:      	e48cfc4df6df0f323bcf67f17b659a5074bec3afffe28f0b3b4db981d78d2e3e"
+case "$1" in
+	--version)
+		echo "veritysetup 2.2.6"
+		exit 0
+		;;
+	format)
+		cp %[1]s %[1]s.verity
+		echo VERITY header information for %[1]s.verity
+		echo "UUID:            	97d80536-aad9-4f25-a528-5319c038c0c4"
+		echo "Hash type:       	1"
+		echo "Data blocks:     	1"
+		echo "Data block size: 	4096"
+		echo "Hash block size: 	4096"
+		echo "Hash algorithm:  	sha256"
+		echo "Salt:            	c0234a906cfde0d5ffcba25038c240a98199cbc1d8fbd388a41e8faa02239c08"
+		echo "Root hash:      	e48cfc4df6df0f323bcf67f17b659a5074bec3afffe28f0b3b4db981d78d2e3e"
+		;;
+esac
 `, snapPath))
 	defer vscmd.Restore()
 
@@ -125,22 +129,26 @@ func (s *VerityTestSuite) TestFormatSuccessWithWorkaround(c *C) {
 	// use a version that forces the deployment of the workaround to run. Any version
 	// before 2.0.4 should automatically create a file we can verify
 	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
-if "$1" == "--version"; then
-	echo "veritysetup 1.6.4"
-	exit 0
-fi
-if ![ -e %[1]s.verity ]; then
-    exit 1
-fi
-echo VERITY header information for %[1]s.verity
-echo "UUID:            	97d80536-aad9-4f25-a528-5319c038c0c4"
-echo "Hash type:       	1"
-echo "Data blocks:     	1"
-echo "Data block size: 	4096"
-echo "Hash block size: 	4096"
-echo "Hash algorithm:  	sha256"
-echo "Salt:            	c0234a906cfde0d5ffcba25038c240a98199cbc1d8fbd388a41e8faa02239c08"
-echo "Root hash:      	e48cfc4df6df0f323bcf67f17b659a5074bec3afffe28f0b3b4db981d78d2e3e"
+case "$1" in
+	--version)
+		echo "veritysetup 1.6.4"
+		exit 0
+		;;
+	format)
+		if ! [ -e %[1]s.verity ]; then
+			exit 1
+		fi
+		echo VERITY header information for %[1]s.verity
+		echo "UUID:            	97d80536-aad9-4f25-a528-5319c038c0c4"
+		echo "Hash type:       	1"
+		echo "Data blocks:     	1"
+		echo "Data block size: 	4096"
+		echo "Hash block size: 	4096"
+		echo "Hash algorithm:  	sha256"
+		echo "Salt:            	c0234a906cfde0d5ffcba25038c240a98199cbc1d8fbd388a41e8faa02239c08"
+		echo "Root hash:      	e48cfc4df6df0f323bcf67f17b659a5074bec3afffe28f0b3b4db981d78d2e3e"
+		;;
+esac
 `, snapPath))
 	defer vscmd.Restore()
 
@@ -169,4 +177,31 @@ esac
 
 	_, err := dmverity.Format(snapPath, "")
 	c.Check(err, ErrorMatches, "Cannot create hash image  for writing.")
+}
+
+func (s *VerityTestSuite) TestVerityVersionDetect(c *C) {
+	tests := []struct {
+		ver    string
+		deploy bool
+		err    string
+	}{
+		{"", false, `cannot detect veritysetup version from: veritysetup\n`},
+		{"1", false, `cannot detect veritysetup version from: veritysetup 1\n`},
+		{"1.6", false, `cannot detect veritysetup version from: veritysetup 1.6\n`},
+		{"1.6.4", true, ``},
+		{"2.0.0", true, ``},
+		{"2.0.4", false, ``},
+		{"2.1.0", false, ``},
+	}
+
+	for _, t := range tests {
+		vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`echo veritysetup %s`, t.ver))
+		defer vscmd.Restore()
+
+		deploy, err := dmverity.ShouldApplyWorkaround()
+		if err != nil {
+			c.Check(err, ErrorMatches, t.err, Commentf("test failed for version: %s", t.ver))
+		}
+		c.Check(deploy, Equals, t.deploy, Commentf("test failed for version: %s", t.ver))
+	}
 }
