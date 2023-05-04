@@ -4,7 +4,7 @@ details: |
     The desktop-launch interface allows a snap to launch other snaps via
     the desktop files they provide to the host system.
 
-systems: [-ubuntu-core-1*]
+systems: [-ubuntu-core-1*, -ubuntu-*-32]
 
 prepare: |
     if ! tests.session has-session-systemd-and-dbus; then
