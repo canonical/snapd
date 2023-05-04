@@ -167,6 +167,12 @@ execute: |
     cgroup_procs_path="$cgroup_procs_path" retry -n 10 --wait 0.5 sh -c 'test "$(wc -l < $cgroup_procs_path)" -eq 1'
 
     wait "$session3_pid" || true  # same as above
+    # When tests.session is used with systemd-run
+    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -gt 252 ]; then
+        pid3_sleep="$(cat "$cgroup_procs_path")"
+        test -e "${base_cg_path}${pid3_tracking_cg_path}"
+        kill "$pid3_sleep"
+    fi
     retry -n 10 test ! -e "${base_cg_path}${pid3_tracking_cg_path}"
 
     if [ "$USER" != "root" ]; then

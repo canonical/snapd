@@ -452,6 +452,12 @@ allow snappy_t unconfined_service_t:process { getpgid sigkill };
 # not transition to a separate type and has no interface policy
 kernel_read_xen_state(snappy_t)
 
+# Allow snapd to read upowerd binary requiered by upower-observe interface
+gen_require(`
+    type devicekit_power_exec_t;
+')
+allow snappy_t devicekit_power_exec_t:file { getattr };
+
 ########################################
 #
 # snap-update-ns, snap-dicsard-ns local policy
@@ -496,6 +502,9 @@ userdom_delete_user_tmp_files(snappy_mount_t)
 # when the host's /tmp is not a tmpfs
 files_manage_generic_tmp_dirs(snappy_mount_t)
 files_manage_generic_tmp_files(snappy_mount_t)
+
+# Allow snap-{update,discard}-ns to mount on /etc/
+allow snappy_mount_t etc_t:dir mounton;
 
 # Allow snap-{update,discard}-ns to manage mounts
 gen_require(`

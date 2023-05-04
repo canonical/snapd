@@ -131,6 +131,20 @@ type Volume struct {
 	Name string `json:"-"`
 }
 
+// MinSize returns the minimal size required by a volume, as implicitly
+// defined by the size structures.
+func (v *Volume) MinSize() quantity.Size {
+	endVol := quantity.Offset(0)
+	for _, s := range v.Structure {
+		structEnd := *s.Offset + quantity.Offset(s.Size)
+		if structEnd > endVol {
+			endVol = structEnd
+		}
+	}
+
+	return quantity.Size(endVol)
+}
+
 const GPTPartitionGUIDESP = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
 
 // VolumeStructure describes a single structure inside a volume. A structure can
@@ -178,6 +192,14 @@ type VolumeStructure struct {
 	// and just used as part of the POST /systems/<label> API that
 	// is used by an installer.
 	Device string `yaml:"-" json:"device,omitempty"`
+
+	// Index of the structure definition in gadget YAML, note this starts at 0.
+	YamlIndex int `yaml:"-" json:"-"`
+}
+
+// IsRoleMBR tells us if v has MBR role or not.
+func (v *VolumeStructure) IsRoleMBR() bool {
+	return v.Role == schemaMBR
 }
 
 // HasFilesystem returns true if the structure is using a filesystem.
@@ -189,6 +211,15 @@ func (vs *VolumeStructure) HasFilesystem() bool {
 // device.
 func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
+}
+
+// HasLabel checks if label matches the VolumeStructure label. It ignores
+// capitals if the structure has a vfat filesystem.
+func (vs *VolumeStructure) HasLabel(label string) bool {
+	if vs.Filesystem == "vfat" {
+		return strings.EqualFold(vs.Label, label)
+	}
+	return vs.Label == label
 }
 
 // VolumeContent defines the contents of the structure. The content can be
@@ -560,6 +591,68 @@ func compatWithPibootOrIndeterminate(m Model) bool {
 	return m == nil || m.Grade() != asserts.ModelGradeUnset
 }
 
+// Ancillary structs to sort volume structures. We split volumes in
+// contiguousStructs slices, with each of these beginning with a structure with
+// a known fixed offset, followed by structures for which the offset is unknown
+// so we can know for sure that they appear after the first structure in
+// contiguousStruct. The unknown offsets appear because of min-size use. The
+// contiguousStructs are the things that we need to order, as all have a known
+// starting offset, which is not true for all the volume structures.
+type contiguousStructs struct {
+	// vss contains contiguous structures with the first one
+	// containing a valid Offset
+	vss []VolumeStructure
+}
+
+type contiguousStructsSet []*contiguousStructs
+
+func (scss contiguousStructsSet) Len() int {
+	return len(scss)
+}
+
+func (scss contiguousStructsSet) Less(i, j int) bool {
+	return *scss[i].vss[0].Offset < *scss[j].vss[0].Offset
+}
+
+func (scss contiguousStructsSet) Swap(i, j int) {
+	scss[i], scss[j] = scss[j], scss[i]
+}
+
+func orderStructuresByOffset(vss []VolumeStructure) []VolumeStructure {
+	if vss == nil {
+		return nil
+	}
+
+	// Build contiguous structures
+	scss := contiguousStructsSet{}
+	var currentCont *contiguousStructs
+	for _, s := range vss {
+		// If offset is set we can start a new "block", otherwise the
+		// structure goes right after the latest structure of the
+		// current block. Note that currentCont will never be accessed
+		// as nil as necessarily the first structure in gadget.yaml will
+		// have offset explicitly or implicitly (the only way for a
+		// structure to have nil offset is when the current structure
+		// does not have explicit offset and the previous one either
+		// does not have itself offset or has min-size set).
+		if s.Offset != nil {
+			currentCont = &contiguousStructs{}
+			scss = append(scss, currentCont)
+		}
+
+		currentCont.vss = append(currentCont.vss, s)
+	}
+
+	sort.Sort(scss)
+
+	// Build plain list of structures now
+	ordVss := []VolumeStructure{}
+	for _, cs := range scss {
+		ordVss = append(ordVss, cs.vss...)
+	}
+	return ordVss
+}
+
 // InfoFromGadgetYaml parses the provided gadget metadata.
 // If model is nil only self-consistency checks are performed.
 // If model is not nil implied values for filesystem labels will be set
@@ -619,6 +712,8 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
+		v.Structure = orderStructuresByOffset(v.Structure)
+
 		switch v.Bootloader {
 		case "":
 			// pass
@@ -661,6 +756,30 @@ func whichVolRuleset(model Model) volRuleset {
 	return volRuleset16
 }
 
+func setKnownLabel(label, filesystem string, knownFsLabels, knownVfatFsLabels map[string]bool) (unique bool) {
+	lowerLabel := strings.ToLower(label)
+	if seen := knownVfatFsLabels[lowerLabel]; seen {
+		return false
+	}
+	if filesystem == "vfat" {
+		// labels with same name (ignoring capitals) as an already
+		// existing vfat label are not allowed
+		for knownLabel := range knownFsLabels {
+			if lowerLabel == strings.ToLower(knownLabel) {
+				return false
+			}
+		}
+		knownVfatFsLabels[lowerLabel] = true
+	} else {
+		if seen := knownFsLabels[label]; seen {
+			return false
+		}
+		knownFsLabels[label] = true
+	}
+
+	return true
+}
+
 func setImplicitForVolume(vol *Volume, model Model) error {
 	rs := whichVolRuleset(model)
 	if vol.Schema == "" {
@@ -670,12 +789,12 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 
 	// for uniqueness of filesystem labels
 	knownFsLabels := make(map[string]bool, len(vol.Structure))
+	knownVfatFsLabels := make(map[string]bool, len(vol.Structure))
 	for _, s := range vol.Structure {
 		if s.Label != "" {
-			if seen := knownFsLabels[s.Label]; seen {
+			if !setKnownLabel(s.Label, s.Filesystem, knownFsLabels, knownVfatFsLabels) {
 				return fmt.Errorf("filesystem label %q is not unique", s.Label)
 			}
-			knownFsLabels[s.Label] = true
 		}
 	}
 
@@ -683,9 +802,11 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 	for i := range vol.Structure {
 		// set the VolumeName for the structure from the volume itself
 		vol.Structure[i].VolumeName = vol.Name
+		// Store index as we will reorder later
+		vol.Structure[i].YamlIndex = i
 
 		// set other implicit data for the structure
-		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels); err != nil {
+		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels, knownVfatFsLabels); err != nil {
 			return err
 		}
 
@@ -706,7 +827,7 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 	return nil
 }
 
-func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLabels map[string]bool) error {
+func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLabels, knownVfatFsLabels map[string]bool) error {
 	if vs.Role == "" && vs.Type == schemaMBR {
 		vs.Role = schemaMBR
 		return nil
@@ -733,10 +854,9 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLa
 			implicitLabel = ubuntuSaveLabel
 		}
 		if implicitLabel != "" {
-			if knownFsLabels[implicitLabel] {
+			if !setKnownLabel(implicitLabel, vs.Filesystem, knownFsLabels, knownVfatFsLabels) {
 				return fmt.Errorf("filesystem label %q is implied by %s role but was already set elsewhere", implicitLabel, vs.Role)
 			}
-			knownFsLabels[implicitLabel] = true
 			vs.Label = implicitLabel
 		}
 	}
@@ -866,7 +986,7 @@ func validateVolume(vol *Volume) error {
 			start := *s.Offset
 			end := start + quantity.Offset(s.Size)
 			if start < 512*34 && end > 4096 {
-				return fmt.Errorf("invalid structure: GPT header or GPT partition table overlapped with structure %q\n", s.Name)
+				logger.Noticef("WARNING: invalid structure: GPT header or GPT partition table overlapped with structure %q\n", s.Name)
 			} else if start < 4096*6 && end > 512 {
 				logger.Noticef("WARNING: GPT header or GPT partition table might be overlapped with structure %q", s.Name)
 			}

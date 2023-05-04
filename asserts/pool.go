@@ -920,10 +920,11 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 	if err != nil {
 		return err
 	}
-
-	u := *toUpdate
 	retrieve := func(ref *Ref) (Assertion, error) {
 		return ref.Resolve(p.groundDB.Find)
+	}
+	retrieveSeq := func(seq *AtSequence) (Assertion, error) {
+		return seq.Resolve(p.groundDB.Find)
 	}
 	add := func(a Assertion) error {
 		if !a.Type().SequenceForming() {
@@ -931,15 +932,12 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 		}
 		// sequence forming assertions are never predefined, so no check for it.
 		// final add corresponding to toUpdate itself.
+		u := *toUpdate
 		u.Revision = a.Revision()
 		return p.addUnresolvedSeq(&u, gnum)
 	}
-	f := NewFetcher(p.groundDB, retrieve, add)
-	ref := &Ref{
-		Type:       toUpdate.Type,
-		PrimaryKey: append(u.SequenceKey, fmt.Sprintf("%d", u.Sequence)),
-	}
-	if err := f.Fetch(ref); err != nil {
+	f := NewSequenceFormingFetcher(p.groundDB, retrieve, retrieveSeq, add)
+	if err := f.FetchSequence(toUpdate); err != nil {
 		return err
 	}
 	return nil

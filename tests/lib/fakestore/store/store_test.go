@@ -443,6 +443,23 @@ timestamp: 2016-08-19T19:19:19Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw=`
+	exampleValidationSet = `type: validation-set
+authority-id: canonical
+account-id: canonical
+name: base-set
+sequence: 2
+revision: 1
+series: 16
+snaps:
+  -
+    id: yOqKhntON3vR7kwEbVPsILm7bUViPDzz
+    name: snap-b
+    presence: required
+    revision: 1
+timestamp: 2020-11-06T09:16:26Z
+sign-key-sha3-384: 7bbncP0c4RcufwReeiylCe0S7IMCn-tHLNSCgeOVmV3K-7_MzpAHgJDYeOjldefE
+
+AXNpZw==`
 )
 
 func (s *storeTestSuite) TestAssertionsEndpointPreloaded(c *C) {
@@ -476,6 +493,59 @@ func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(body), Equals, exampleSnapRev)
+}
+
+func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertion(c *C) {
+	err := ioutil.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
+	c.Assert(err, IsNil)
+
+	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=2`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Check(resp.StatusCode, Equals, 200)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, exampleValidationSet)
+}
+
+func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionLatest(c *C) {
+	err := ioutil.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
+	c.Assert(err, IsNil)
+
+	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=latest`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Check(resp.StatusCode, Equals, 200)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, exampleValidationSet)
+}
+
+func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionInvalidSequence(c *C) {
+	err := ioutil.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
+	c.Assert(err, IsNil)
+
+	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=0`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 400)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, "cannot retrieve assertion [16 canonical base-set]: the requested sequence must be above 0\n")
+}
+
+func (s *storeTestSuite) TestAssertionsEndpointSequenceInvalid(c *C) {
+	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=foo`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 400)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, "cannot retrieve assertion [16 canonical base-set]: cannot parse sequence foo: strconv.Atoi: parsing \"foo\": invalid syntax\n")
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointNotFound(c *C) {

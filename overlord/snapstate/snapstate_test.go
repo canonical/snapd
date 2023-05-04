@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	userclient "github.com/snapcore/snapd/usersession/client"
 
 	// So it registers Configure.
 	_ "github.com/snapcore/snapd/overlord/configstate"
@@ -327,6 +328,10 @@ SNAPD_APPARMOR_REEXEC=1
 
 	s.reloadOrRestarts = make(map[string]int)
 	s.AddCleanup(s.mockSystemctlCallsUpdateMounts(c))
+
+	// mock so the actual notification code isn't called. It races with the SetRootDir
+	// call in the TearDown function. It's harmless but triggers go test -race
+	s.AddCleanup(snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo) {}))
 }
 
 func (s *snapmgrBaseTest) TearDownTest(c *C) {
@@ -560,6 +565,19 @@ func checkIsAutoRefresh(c *C, tasks []*state.Task, expected bool) {
 			err := t.Get("snap-setup", &snapsup)
 			c.Assert(err, IsNil)
 			c.Check(snapsup.IsAutoRefresh, Equals, expected)
+			return
+		}
+	}
+	c.Fatalf("cannot find download-snap task in %v", tasks)
+}
+
+func checkIsContinuedAutoRefresh(c *C, tasks []*state.Task, expected bool) {
+	for _, t := range tasks {
+		if t.Kind() == "download-snap" {
+			var snapsup snapstate.SnapSetup
+			err := t.Get("snap-setup", &snapsup)
+			c.Assert(err, IsNil)
+			c.Check(snapsup.IsContinuedAutoRefresh, Equals, expected)
 			return
 		}
 	}
@@ -4032,6 +4050,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	s.verifyRefreshLast(c)
 
 	checkIsAutoRefresh(c, chg.Tasks(), true)
+	checkIsContinuedAutoRefresh(c, chg.Tasks(), false)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesImmediateWithUpdate(c *C) {
@@ -7965,6 +7984,7 @@ var nonReLinkKinds = []string{
 	"set-auto-aliases",
 	"setup-aliases",
 	"run-hook[install]",
+	"run-hook[default-configure]",
 	"start-snap-services",
 	"run-hook[configure]",
 	"run-hook[check-health]",

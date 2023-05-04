@@ -112,6 +112,9 @@ func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 			cmdline: "foo",
 			comment: "cmdline non-key-value",
 			keys:    []string{"foo"},
+			exp: map[string]string{
+				"foo": "",
+			},
 		},
 		{
 			cmdline: "foo=1",
@@ -151,7 +154,7 @@ func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 			comment: "cmdline key-value pair and non-key-value",
 			keys:    []string{"foo"},
 			exp: map[string]string{
-				"foo": "1",
+				"foo": "",
 			},
 		},
 		{
@@ -166,13 +169,14 @@ func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 			cmdline: "=foo",
 			comment: "missing key",
 			keys:    []string{"foo"},
-			err:     "unexpected assignment",
 		},
 		{
 			cmdline: `"foo`,
 			comment: "invalid kernel cmdline",
 			keys:    []string{"foo"},
-			err:     "unexpected quoting",
+			exp: map[string]string{
+				"foo": "",
+			},
 		},
 	} {
 		cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
@@ -229,8 +233,10 @@ func (s *kcmdlineTestSuite) TestKernelParseCommandLine(c *C) {
 			{"foo", "bar", true}, {"foo", "bar", true}}},
 		{cmd: `foo=* baz=bar`, exp: []osutil.KernelArgument{
 			{"foo", "*", false}, {"baz", "bar", false}}},
+		{cmd: `foo-dev-mode`, exp: []osutil.KernelArgument{
+			{"foo-dev-mode", "", false}}},
 		{cmd: `foo_bar-tee=bar_aa-bb`, exp: []osutil.KernelArgument{
-			{"foo_bar_tee", "bar_aa-bb", false}}},
+			{"foo_bar-tee", "bar_aa-bb", false}}},
 		{cmd: `foo="1$2"`, exp: []osutil.KernelArgument{{"foo", "1$2", true}}},
 		{cmd: `foo=1$2`, exp: []osutil.KernelArgument{{"foo", "1$2", false}}},
 		{cmd: `foo= bar`, exp: []osutil.KernelArgument{{"foo", "", false}, {"bar", "", false}}},

@@ -27,6 +27,7 @@ import (
 )
 
 var NewConfigureHandler = newConfigureHandler
+var NewDefaultConfigureHandler = newDefaultConfigureHandler
 
 func MockConfigcoreExportExperimentalFlags(mock func(tr configcore.ConfGetter) error) (restore func()) {
 	old := configcoreExportExperimentalFlags

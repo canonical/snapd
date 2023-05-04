@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# shellcheck source=tests/lib/systemd.sh
-. "$TESTSLIB"/systemd.sh
-
 : "${NESTED_WORK_DIR:=/tmp/work-dir}"
 : "${NESTED_IMAGES_DIR:=${NESTED_WORK_DIR}/images}"
 : "${NESTED_RUNTIME_DIR:=${NESTED_WORK_DIR}/runtime}"
@@ -1136,7 +1133,7 @@ nested_start_core_vm_unit() {
     # make sure we start with clean log file
     echo > "${NESTED_LOGS_DIR}/serial.log"
     # Systemd unit is created, it is important to respect the qemu parameters order
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
+    tests.systemd create-and-start-unit "$NESTED_VM" "${QEMU} \
         ${PARAM_SMP} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
@@ -1252,14 +1249,14 @@ nested_shutdown() {
     remote.exec "sudo shutdown now" || true
     nested_wait_for_no_ssh
     nested_force_stop_vm
-    wait_for_service "$NESTED_VM" inactive 30
+    tests.systemd wait-for-service -n 30 --wait 1 --state inactive "$NESTED_VM"
     sync
 }
 
 nested_start() {
     nested_save_serial_log
     nested_force_start_vm
-    wait_for_service "$NESTED_VM" active 30
+    tests.systemd wait-for-service -n 30 --wait 1 --state active "$NESTED_VM"
     nested_wait_for_ssh
     nested_prepare_tools
 }
@@ -1267,7 +1264,7 @@ nested_start() {
 nested_force_restart_vm() {
     nested_force_stop_vm
     nested_force_start_vm
-    wait_for_service "$NESTED_VM" active 30
+    tests.systemd wait-for-service -n 30 --wait 1 --state active "$NESTED_VM"
 }
 
 nested_create_classic_vm() {
@@ -1387,7 +1384,7 @@ nested_start_classic_vm() {
 
     # Systemd unit is created, it is important to respect the qemu parameters 
     # order
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
+    tests.systemd create-and-start-unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
@@ -1413,7 +1410,7 @@ nested_start_classic_vm() {
 }
 
 nested_destroy_vm() {
-    systemd_stop_and_remove_unit "$NESTED_VM"
+    tests.systemd stop-unit --remove "$NESTED_VM"
 
     local CURRENT_IMAGE
     CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)" 
@@ -1449,6 +1446,7 @@ nested_prepare_tools() {
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/MATCH" &>/dev/null; then
+        # shellcheck source=tests/lib/spread-funcs.sh
         . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > MATCH_FILE
         type MATCH | tail -n +2 >> MATCH_FILE
@@ -1460,6 +1458,7 @@ nested_prepare_tools() {
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/NOMATCH" &>/dev/null; then
+        # shellcheck source=tests/lib/spread-funcs.sh
         . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > NOMATCH_FILE
         type NOMATCH | tail -n +2 >> NOMATCH_FILE

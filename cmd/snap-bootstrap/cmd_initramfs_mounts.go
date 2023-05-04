@@ -1353,7 +1353,13 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 		}
 		return partition.KernelDeviceNode, nil
 	}
-	return filepath.Join("/dev/disk/by-label", fallbacklabel), nil
+
+	candidate, err := disks.CandidateByLabelPath(fallbacklabel)
+	if err != nil {
+		return "", err
+	}
+
+	return candidate, nil
 }
 
 // mountNonDataPartitionMatchingKernelDisk will select the partition to mount at

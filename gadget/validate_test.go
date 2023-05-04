@@ -47,20 +47,23 @@ func (s *validateGadgetTestSuite) SetUpTest(c *C) {
 
 func (s *validateGadgetTestSuite) TestRuleValidateStructureReservedLabels(c *C) {
 	for _, tc := range []struct {
-		role, label, err string
-		model            gadget.Model
+		role, label, fs, err string
+		model                gadget.Model
 	}{
-		{label: "ubuntu-seed", err: `label "ubuntu-seed" is reserved`},
-		{label: "ubuntu-data", err: `label "ubuntu-data" is reserved`},
+		{label: "ubuntu-seed", fs: "vfat", err: `label "ubuntu-seed" is reserved`},
+		{label: "UBUNTU-SEED", fs: "vfat", err: `label "UBUNTU-SEED" is reserved`},
+		{label: "ubuntu-data", fs: "ext4", err: `label "ubuntu-data" is reserved`},
+		// not reserved as it os not vfat and case is enforced
+		{label: "UBUNTU-DATA", fs: "ext4"},
 		// ok to allow hybrid 20-ready devices
-		{label: "ubuntu-boot"},
-		{label: "ubuntu-save"},
+		{label: "ubuntu-boot", fs: "ext4"},
+		{label: "ubuntu-save", fs: "ext4"},
 		// reserved only if seed present/expected
-		{label: "ubuntu-boot", err: `label "ubuntu-boot" is reserved`, model: uc20Mod},
-		{label: "ubuntu-save", err: `label "ubuntu-save" is reserved`, model: uc20Mod},
+		{label: "ubuntu-boot", fs: "ext4", err: `label "ubuntu-boot" is reserved`, model: uc20Mod},
+		{label: "ubuntu-save", fs: "ext4", err: `label "ubuntu-save" is reserved`, model: uc20Mod},
 		// these are ok
-		{role: "system-boot", label: "ubuntu-boot"},
-		{label: "random-ubuntu-label"},
+		{role: "system-boot", fs: "ext4", label: "ubuntu-boot"},
+		{label: "random-ubuntu-label", fs: "ext4"},
 	} {
 		gi := &gadget.Info{
 			Volumes: map[string]*gadget.Volume{
@@ -68,7 +71,7 @@ func (s *validateGadgetTestSuite) TestRuleValidateStructureReservedLabels(c *C) 
 					Structure: []gadget.VolumeStructure{{
 						Type:       "21686148-6449-6E6F-744E-656564454649",
 						Role:       tc.role,
-						Filesystem: "ext4",
+						Filesystem: tc.fs,
 						Label:      tc.label,
 						Size:       10 * 1024,
 					}},
@@ -111,6 +114,7 @@ func rolesYaml(c *C, data, seed, save string) *gadget.Info {
         size: 1G
         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
         role: system-seed
+        filesystem: vfat
 `
 		if seed != "" {
 			h += fmt.Sprintf("        filesystem-label: %s\n", seed)
@@ -142,6 +146,9 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 		}
 		return rolesYaml(c, dataLabel, seed, "-")
 	}
+	ginfoSeed := func(seedLabel string) *gadget.Info {
+		return rolesYaml(c, "", seedLabel, "-")
+	}
 
 	for i, tc := range []struct {
 		gi  *gadget.Info
@@ -159,6 +166,11 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 		{ginfo(false, "foobar"), `.* must have an implicit label or "writable", not "foobar"`},
 		{ginfo(false, "writable"), ""},
 		{ginfo(false, "ubuntu-data"), `.* must have an implicit label or "writable", not "ubuntu-data"`},
+		{ginfo(false, "WRITABLE"), `.* must have an implicit label or "writable", not "WRITABLE"`},
+		{ginfoSeed("ubuntu-seed"), ""},
+		// It is a vfat partition so this is fine
+		{ginfoSeed("UBUNTU-SEED"), ""},
+		{ginfoSeed("ubuntu-foo"), `.* must have an implicit label or "ubuntu-seed", not "ubuntu-foo"`},
 	} {
 		c.Logf("tc: %d %v", i, tc.gi.Volumes["roles"])
 

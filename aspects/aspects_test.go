@@ -35,41 +35,41 @@ func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&aspectSuite{})
 
-func (*aspectSuite) TestNewAspectDirectory(c *C) {
-	_, err := aspects.NewAspectDirectory("foo", nil, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot define aspects directory: no aspects`)
+func (*aspectSuite) TestNewAspectBundle(c *C) {
+	_, err := aspects.NewAspectBundle("foo", nil, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
+	c.Assert(err, ErrorMatches, `cannot define aspects bundle: no aspects`)
 
-	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
+	_, err = aspects.NewAspectBundle("foo", map[string]interface{}{
 		"bar": "baz",
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns should be a list of maps`)
 
-	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
+	_, err = aspects.NewAspectBundle("foo", map[string]interface{}{
 		"bar": []map[string]string{},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, ErrorMatches, `cannot define aspect "bar": no access patterns found`)
 
-	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
+	_, err = aspects.NewAspectBundle("foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"path": "foo"},
 		},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns must have a "name" field`)
 
-	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
+	_, err = aspects.NewAspectBundle("foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "foo"},
 		},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns must have a "path" field`)
 
-	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "a", "path": "b"},
 		},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
-	c.Check(aspectDir, Not(IsNil))
+	c.Check(aspectBundle, Not(IsNil))
 }
 
 func (s *aspectSuite) TestAccessTypes(c *C) {
@@ -96,7 +96,7 @@ func (s *aspectSuite) TestAccessTypes(c *C) {
 			err:    true,
 		},
 	} {
-		aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+		aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
 			"bar": []map[string]string{
 				{"name": "a", "path": "b", "access": t.access},
 			}}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
@@ -104,16 +104,16 @@ func (s *aspectSuite) TestAccessTypes(c *C) {
 		cmt := Commentf("\"%s access\" sub-test failed", t.access)
 		if t.err {
 			c.Assert(err, ErrorMatches, fmt.Sprintf(`.*expected 'access' to be one of "read-write", "read", "write" but was %q`, t.access), cmt)
-			c.Check(aspectDir, IsNil, cmt)
+			c.Check(aspectBundle, IsNil, cmt)
 		} else {
 			c.Assert(err, IsNil, cmt)
-			c.Check(aspectDir, Not(IsNil), cmt)
+			c.Check(aspectBundle, Not(IsNil), cmt)
 		}
 	}
 }
 
 func (*aspectSuite) TestGetAndSetAspects(c *C) {
-	aspectDir, err := aspects.NewAspectDirectory("system/network", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("system/network", map[string]interface{}{
 		"wifi-setup": []map[string]string{
 			{"name": "ssids", "path": "wifi.ssids"},
 			{"name": "ssid", "path": "wifi.ssid"},
@@ -123,7 +123,7 @@ func (*aspectSuite) TestGetAndSetAspects(c *C) {
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	wsAspect := aspectDir.Aspect("wifi-setup")
+	wsAspect := aspectBundle.Aspect("wifi-setup")
 
 	// nested string value
 	err = wsAspect.Set("ssid", "my-ssid")
@@ -163,7 +163,7 @@ func (*aspectSuite) TestGetAndSetAspects(c *C) {
 }
 
 func (s *aspectSuite) TestAspectNotFoundError(c *C) {
-	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "top-level", "path": "top-level"},
 			{"name": "nested", "path": "top.nested-one"},
@@ -172,7 +172,7 @@ func (s *aspectSuite) TestAspectNotFoundError(c *C) {
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	aspect := aspectDir.Aspect("bar")
+	aspect := aspectBundle.Aspect("bar")
 
 	var value string
 	err = aspect.Get("missing", &value)
@@ -196,7 +196,7 @@ func (s *aspectSuite) TestAspectNotFoundError(c *C) {
 }
 
 func (s *aspectSuite) TestAspectBadRead(c *C) {
-	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "one", "path": "one"},
 			{"name": "onetwo", "path": "one.two"},
@@ -204,7 +204,7 @@ func (s *aspectSuite) TestAspectBadRead(c *C) {
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	aspect := aspectDir.Aspect("bar")
+	aspect := aspectBundle.Aspect("bar")
 	err = aspect.Set("one", "foo")
 	c.Assert(err, IsNil)
 
@@ -218,7 +218,7 @@ func (s *aspectSuite) TestAspectBadRead(c *C) {
 }
 
 func (s *aspectSuite) TestAspectsAccessControl(c *C) {
-	aspectDir, err := aspects.NewAspectDirectory("dir", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("bundle", map[string]interface{}{
 		"foo": []map[string]string{
 			{"name": "default", "path": "path.default"},
 			{"name": "read-write", "path": "path.read-write", "access": "read-write"},
@@ -228,7 +228,7 @@ func (s *aspectSuite) TestAspectsAccessControl(c *C) {
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	aspect := aspectDir.Aspect("foo")
+	aspect := aspectBundle.Aspect("foo")
 
 	for _, t := range []struct {
 		name   string
@@ -304,7 +304,7 @@ func (s *witnessDataBag) getLastPaths() (get, set string) {
 func (s *aspectSuite) TestAspectAssertionWithPlaceholder(c *C) {
 	bag := newSpyDataBag(aspects.NewJSONDataBag())
 
-	aspectDir, err := aspects.NewAspectDirectory("dir", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("bundle", map[string]interface{}{
 		"foo": []map[string]string{
 			{"name": "defaults.{foo}", "path": "first.{foo}.last"},
 			{"name": "{bar}.name", "path": "first.{bar}"},
@@ -316,7 +316,7 @@ func (s *aspectSuite) TestAspectAssertionWithPlaceholder(c *C) {
 	}, bag, aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	aspect := aspectDir.Aspect("foo")
+	aspect := aspectBundle.Aspect("foo")
 
 	for _, t := range []struct {
 		testName string
@@ -432,7 +432,7 @@ func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
 			name:     "a. .c", path: "a.b", err: `invalid access name "a. .c": invalid subkey " "`,
 		},
 	} {
-		_, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+		_, err := aspects.NewAspectBundle("foo", map[string]interface{}{
 			"foo": []map[string]string{
 				{"name": tc.name, "path": tc.path},
 			},
@@ -445,7 +445,7 @@ func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
 }
 
 func (s *aspectSuite) TestAspectUnsetTopLevelEntry(c *C) {
-	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
 		"my-aspect": []map[string]string{
 			{"name": "foo", "path": "foo"},
 			{"name": "bar", "path": "bar"},
@@ -453,7 +453,7 @@ func (s *aspectSuite) TestAspectUnsetTopLevelEntry(c *C) {
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	aspect := aspectDir.Aspect("my-aspect")
+	aspect := aspectBundle.Aspect("my-aspect")
 	err = aspect.Set("foo", "fval")
 	c.Assert(err, IsNil)
 
@@ -473,7 +473,7 @@ func (s *aspectSuite) TestAspectUnsetTopLevelEntry(c *C) {
 }
 
 func (s *aspectSuite) TestAspectUnsetLeafWithSiblings(c *C) {
-	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
 		"my-aspect": []map[string]string{
 			{"name": "bar", "path": "foo.bar"},
 			{"name": "baz", "path": "foo.baz"},
@@ -481,7 +481,7 @@ func (s *aspectSuite) TestAspectUnsetLeafWithSiblings(c *C) {
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	aspect := aspectDir.Aspect("my-aspect")
+	aspect := aspectBundle.Aspect("my-aspect")
 	err = aspect.Set("bar", "barVal")
 	c.Assert(err, IsNil)
 
@@ -502,7 +502,7 @@ func (s *aspectSuite) TestAspectUnsetLeafWithSiblings(c *C) {
 }
 
 func (s *aspectSuite) TestAspectUnsetWithNestedEntry(c *C) {
-	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
 		"my-aspect": []map[string]string{
 			{"name": "foo", "path": "foo"},
 			{"name": "bar", "path": "foo.bar"},
@@ -510,7 +510,7 @@ func (s *aspectSuite) TestAspectUnsetWithNestedEntry(c *C) {
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	aspect := aspectDir.Aspect("my-aspect")
+	aspect := aspectBundle.Aspect("my-aspect")
 	err = aspect.Set("bar", "barVal")
 	c.Assert(err, IsNil)
 
@@ -526,7 +526,7 @@ func (s *aspectSuite) TestAspectUnsetWithNestedEntry(c *C) {
 }
 
 func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
-	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
 		"my-aspect": []map[string]string{
 			{"name": "foo", "path": "foo"},
 			{"name": "bar", "path": "foo.bar"},
@@ -534,7 +534,7 @@ func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	aspect := aspectDir.Aspect("my-aspect")
+	aspect := aspectBundle.Aspect("my-aspect")
 	err = aspect.Set("bar", "val")
 	c.Assert(err, IsNil)
 
@@ -551,7 +551,7 @@ func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
 }
 
 func (s *aspectSuite) TestAspectUnsetAlreadyUnsetEntry(c *C) {
-	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
 		"my-aspect": []map[string]string{
 			{"name": "foo", "path": "foo"},
 			{"name": "bar", "path": "one.bar"},
@@ -559,7 +559,7 @@ func (s *aspectSuite) TestAspectUnsetAlreadyUnsetEntry(c *C) {
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	aspect := aspectDir.Aspect("my-aspect")
+	aspect := aspectBundle.Aspect("my-aspect")
 	err = aspect.Set("foo", nil)
 	c.Assert(err, IsNil)
 

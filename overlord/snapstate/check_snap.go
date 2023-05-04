@@ -53,6 +53,8 @@ var featureSet = map[string]bool{
 	"kernel-assets": true,
 	// Support for "refresh-mode: ignore-running" in snap.yaml
 	"app-refresh-mode": true,
+	// Support for "SNAP_UID" and "SNAP_EUID" environment variables
+	"snap-uid-envvars": true,
 }
 
 func checkAssumes(si *snap.Info) error {
@@ -564,10 +566,21 @@ func checkAndCreateSystemUsernames(si *snap.Info) error {
 	return nil
 }
 
+func checkConfigureHooks(_ *state.State, snapInfo, curInfo *snap.Info, _ snap.Container, _ Flags, deviceCtx DeviceContext) error {
+	hasDefaultConfigureHook := snapInfo.Hooks["default-configure"] != nil
+	hasConfigureHook := snapInfo.Hooks["configure"] != nil
+
+	if hasDefaultConfigureHook && !hasConfigureHook {
+		return fmt.Errorf(`cannot specify "default-configure" hook without "configure" hook`)
+	}
+	return nil
+}
+
 func init() {
 	AddCheckSnapCallback(checkCoreName)
 	AddCheckSnapCallback(checkSnapdName)
 	AddCheckSnapCallback(checkGadgetOrKernel)
 	AddCheckSnapCallback(checkBases)
 	AddCheckSnapCallback(checkEpochs)
+	AddCheckSnapCallback(checkConfigureHooks)
 }

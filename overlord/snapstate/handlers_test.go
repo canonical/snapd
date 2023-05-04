@@ -21,9 +21,12 @@ package snapstate_test
 
 import (
 	"fmt"
+	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
@@ -228,14 +231,14 @@ func (s *handlersSuite) TestComputeMissingDisabledServices(c *C) {
 type testLinkParticipant struct {
 	callCount      int
 	instanceNames  []string
-	linkageChanged func(st *state.State, instanceName string) error
+	linkageChanged func(st *state.State, snapsup *snapstate.SnapSetup) error
 }
 
-func (lp *testLinkParticipant) SnapLinkageChanged(st *state.State, instanceName string) error {
+func (lp *testLinkParticipant) SnapLinkageChanged(st *state.State, snapsup *snapstate.SnapSetup) error {
 	lp.callCount++
-	lp.instanceNames = append(lp.instanceNames, instanceName)
+	lp.instanceNames = append(lp.instanceNames, snapsup.InstanceName())
 	if lp.linkageChanged != nil {
-		return lp.linkageChanged(st, instanceName)
+		return lp.linkageChanged(st, snapsup)
 	}
 	return nil
 }
@@ -251,16 +254,16 @@ func (s *handlersSuite) TestAddLinkParticipant(c *C) {
 	defer restore()
 
 	lp := &testLinkParticipant{
-		linkageChanged: func(st *state.State, instanceName string) error {
+		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			c.Assert(st, NotNil)
-			c.Check(instanceName, Equals, "snap-name")
+			c.Check(snapsup.InstanceName(), Equals, "snap-name")
 			return nil
 		},
 	}
 	snapstate.AddLinkSnapParticipant(lp)
 
 	t := s.state.NewTask("link-snap", "test")
-	snapstate.NotifyLinkParticipants(t, "snap-name")
+	snapstate.NotifyLinkParticipants(t, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "snap-name"}})
 	c.Assert(lp.callCount, Equals, 1)
 }
 
@@ -273,14 +276,14 @@ func (s *handlersSuite) TestNotifyLinkParticipantsErrorHandling(c *C) {
 	defer restore()
 
 	lp := &testLinkParticipant{
-		linkageChanged: func(st *state.State, instanceName string) error {
+		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			return fmt.Errorf("something failed")
 		},
 	}
 	snapstate.AddLinkSnapParticipant(lp)
 
 	t := s.state.NewTask("link-snap", "test")
-	snapstate.NotifyLinkParticipants(t, "snap-name")
+	snapstate.NotifyLinkParticipants(t, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "snap-name"}})
 	c.Assert(lp.callCount, Equals, 1)
 	logs := t.Log()
 	c.Assert(logs, HasLen, 1)
@@ -389,4 +392,94 @@ func (s *handlersSuite) TestGetHiddenDirOptionsNoState(c *C) {
 
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true})
+}
+
+func (s *handlersSuite) TestDoEnforceValidationSetsTask(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	vsEncoded := fmt.Sprintf(`type: validation-set
+authority-id: canonical
+series: 16
+account-id: canonical
+name: foo-set
+sequence: 2
+snaps:
+  -
+    name: baz
+    id: bazlinuxidididididididididididid
+    presence: optional
+    revision: 13
+timestamp: %s
+body-length: 0
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`, time.Now().Truncate(time.Second).UTC().Format(time.RFC3339))
+	expectedVss := map[string][]byte{
+		"foo-set": []byte(vsEncoded),
+	}
+	expectedPinnedSeqs := map[string]int{
+		"foo-set": 4,
+	}
+
+	var enforcedCalls int
+	r := snapstate.MockEnforceValidationSets(func(s *state.State, m1 map[string]*asserts.ValidationSet, m2 map[string]int, is []*snapasserts.InstalledSnap, m3 map[string]bool, userID int) error {
+		enforcedCalls++
+		c.Check(m1, HasLen, 1)
+		c.Check(m1["foo-set"].AccountID(), Equals, "canonical")
+		c.Check(m1["foo-set"].Name(), Equals, "foo-set")
+		c.Check(m1["foo-set"].Sequence(), Equals, 2)
+		c.Check(m2, DeepEquals, expectedPinnedSeqs)
+		c.Check(userID, Equals, 1)
+		return nil
+	})
+	defer r()
+
+	t := s.state.NewTask("enforce-validation-sets", "test")
+	t.Set("pinned-sequence-numbers", expectedPinnedSeqs)
+	t.Set("validation-sets", expectedVss)
+	t.Set("userID", 1)
+
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+	c.Check(enforcedCalls, Equals, 1)
+}
+
+func (s *handlersSuite) TestDoEnforceValidationSetsTaskLocal(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	expectedVsKeys := map[string][]string{
+		"test-set-1": {"1", "2", "3", "4"},
+	}
+	expectedPinnedSeqs := map[string]int{
+		"test-set-1": 4,
+	}
+
+	var enforcedCalls int
+	r := snapstate.MockEnforceLocalValidationSets(func(s *state.State, m1 map[string][]string, m2 map[string]int, is []*snapasserts.InstalledSnap, m3 map[string]bool) error {
+		enforcedCalls++
+		c.Check(m1, DeepEquals, expectedVsKeys)
+		c.Check(m2, DeepEquals, expectedPinnedSeqs)
+		return nil
+	})
+	defer r()
+
+	t := s.state.NewTask("enforce-validation-sets", "test")
+	t.Set("pinned-sequence-numbers", expectedPinnedSeqs)
+	t.Set("validation-set-keys", expectedVsKeys)
+
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+	c.Check(enforcedCalls, Equals, 1)
 }

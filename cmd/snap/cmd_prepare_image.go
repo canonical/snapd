@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/seed/seedwriter"
 )
 
 type cmdPrepareImage struct {
@@ -110,7 +111,7 @@ For preparing classic images it supports a --classic mode`),
 }
 
 var imagePrepare = image.Prepare
-var imageReadSeedManifest = image.ReadSeedManifest
+var seedwriterReadManifest = seedwriter.ReadManifest
 
 func (x *cmdPrepareImage) Execute(args []string) error {
 	opts := &image.Options{
@@ -122,11 +123,11 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	}
 
 	if x.RevisionsFile != "" {
-		revisions, err := imageReadSeedManifest(x.RevisionsFile)
+		seedManifest, err := seedwriterReadManifest(x.RevisionsFile)
 		if err != nil {
 			return err
 		}
-		opts.Revisions = revisions
+		opts.SeedManifest = seedManifest
 	}
 
 	if x.Customize != "" {

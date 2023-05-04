@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.59
+Version:        2.59.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -996,6 +996,17 @@ fi
 
 
 %changelog
+* Tue Apr 18 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.2
+ - Notify users when a user triggered auto refresh finished
+
+* Tue Mar 28 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.1
+ - Add udev rules from steam-devices to steam-support interface
+ - Bugfixes for layout path checking, dm_crypt permissions,
+   mount-control interface parameter checking, kernel commandline
+   parsing, docker-support, refresh-app-awareness
+
 * Fri Mar 10 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.59
  - Support setting extra kernel command line parameters via snap

@@ -81,6 +81,7 @@ func (s *PhysicalMemoryObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/mem r,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `@{PROC}/@{pids}/pagemap r,`)
 }
 
 func (s *PhysicalMemoryObserveInterfaceSuite) TestUDevSpec(c *C) {
