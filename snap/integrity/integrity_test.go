@@ -218,23 +218,27 @@ func (s *IntegrityTestSuite) TestGenerateAndAppendSuccess(c *C) {
 
 	snapPath, _ := snaptest.MakeTestSnapInfoWithFiles(c, "name: foo\nversion: 1.0", nil, nil)
 
-	// mock the verity-setup command, what it does is make of a copy of the snap
+	// mock the verity-setup command, what it does is make a copy of the snap
 	// and then returns pre-calculated output
 	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
-if "$1" == "--version"; then
-	echo "veritysetup 2.2.6"
-	exit 0
-fi
-cp %[1]s %[1]s.verity
-echo "VERITY header information for %[1]s.verity"
-echo "UUID:            	f8b4f201-fe4e-41a2-9f1d-4908d3c76632"
-echo "Hash type:       	1"
-echo "Data blocks:     	1"
-echo "Data block size: 	4096"
-echo "Hash block size: 	4096"
-echo "Hash algorithm:  	sha256"
-echo "Salt:            	f1a7f87b88692b388f47dbda4a3bdf790f5adc3104b325f8772aee593488bf15"
-echo "Root hash:      	e2926364a8b1242d92fb1b56081e1ddb86eba35411961252a103a1c083c2be6d"
+case "$1" in
+	--version)
+		echo "veritysetup 2.2.6"
+		exit 0
+		;;
+	format)
+		cp %[1]s %[1]s.verity
+		echo "VERITY header information for %[1]s.verity"
+		echo "UUID:            	f8b4f201-fe4e-41a2-9f1d-4908d3c76632"
+		echo "Hash type:       	1"
+		echo "Data blocks:     	1"
+		echo "Data block size: 	4096"
+		echo "Hash block size: 	4096"
+		echo "Hash algorithm:  	sha256"
+		echo "Salt:            	f1a7f87b88692b388f47dbda4a3bdf790f5adc3104b325f8772aee593488bf15"
+		echo "Root hash:      	e2926364a8b1242d92fb1b56081e1ddb86eba35411961252a103a1c083c2be6d"
+		;;
+esac
 `, snapPath))
 	defer vscmd.Restore()
 

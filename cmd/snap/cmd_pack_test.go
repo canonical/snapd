@@ -146,23 +146,27 @@ func (s *SnapSuite) TestPackPacksASnapWithCompressionUnhappy(c *check.C) {
 func (s *SnapSuite) TestPackPacksASnapWithIntegrityHappy(c *check.C) {
 	snapDir := makeSnapDirForPack(c, "name: hello\nversion: 1.0")
 
-	// mock the verity-setup command, what it does is make of a copy of the snap
+	// mock the verity-setup command, what it does is make a copy of the snap
 	// and then returns pre-calculated output
 	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
-if "$1" == "--version"; then
-	echo "veritysetup 2.2.6"
-	exit 0
-fi
-cp %[1]s/hello_1.0_all.snap %[1]s/hello_1.0_all.snap.verity
-echo "VERITY header information for %[1]s/hello_1.0_all.snap.verity"
-echo "UUID:            	8f6dcdd2-9426-49d8-9879-a5c87fc78c15"
-echo "Hash type:       	1"
-echo "Data blocks:     	1"
-echo "Data block size: 	4096"
-echo "Hash block size: 	4096"
-echo "Hash algorithm:  	sha256"
-echo "Salt:            	06d01a87b298b6855b6a3a1b32450deba4550417cbec2bb21a38d6dda24a1b53"
-echo "Root hash:      	306398e250a950ea1cbfceda608ee4585f053323251b08b7ed3f004740e91ba5"
+case "$1" in
+	--version)
+		echo "veritysetup 2.2.6"
+		exit 0
+		;;
+	format)
+		cp %[1]s/hello_1.0_all.snap %[1]s/hello_1.0_all.snap.verity
+		echo "VERITY header information for %[1]s/hello_1.0_all.snap.verity"
+		echo "UUID:            	8f6dcdd2-9426-49d8-9879-a5c87fc78c15"
+		echo "Hash type:       	1"
+		echo "Data blocks:     	1"
+		echo "Data block size: 	4096"
+		echo "Hash block size: 	4096"
+		echo "Hash algorithm:  	sha256"
+		echo "Salt:            	06d01a87b298b6855b6a3a1b32450deba4550417cbec2bb21a38d6dda24a1b53"
+		echo "Root hash:      	306398e250a950ea1cbfceda608ee4585f053323251b08b7ed3f004740e91ba5"
+		;;
+esac
 `, snapDir))
 	defer vscmd.Restore()
 
