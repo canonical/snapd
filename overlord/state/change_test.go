@@ -1130,10 +1130,10 @@ func (cs *changeSuite) TestIsWaitingSingle(c *C) {
 	t1 := st.NewTask("task1", "...")
 
 	chg.AddTask(t1)
-	c.Check(chg.IsWaiting(), Equals, false)
+	c.Check(chg.Status(), Equals, state.DoStatus)
 
 	t1.SetStatus(state.WaitStatus)
-	c.Check(chg.IsWaiting(), Equals, true)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
 }
 
 func (cs *changeSuite) TestIsWaitingTwoTasks(c *C) {
@@ -1151,20 +1151,20 @@ func (cs *changeSuite) TestIsWaitingTwoTasks(c *C) {
 	chg.AddTask(t2)
 
 	// task1 (do) => task2 (do) no reboot
-	c.Check(chg.IsWaiting(), Equals, false)
+	c.Check(chg.Status(), Equals, state.DoStatus)
 
 	// task1 (done) => task2 (do) no reboot
 	t1.SetStatus(state.DoneStatus)
-	c.Check(chg.IsWaiting(), Equals, false)
+	c.Check(chg.Status(), Equals, state.DoStatus)
 
 	// task1 (wait) => task2 (do) means need a reboot
 	t1.SetStatus(state.WaitStatus)
-	c.Check(chg.IsWaiting(), Equals, true)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
 
 	// task1 (done) => task2 (wait) means need a reboot
 	t1.SetStatus(state.DoneStatus)
 	t2.SetStatus(state.WaitStatus)
-	c.Check(chg.IsWaiting(), Equals, true)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
 }
 
 func (cs *changeSuite) TestIsWaitingCircularDependency(c *C) {
@@ -1186,20 +1186,20 @@ func (cs *changeSuite) TestIsWaitingCircularDependency(c *C) {
 	chg.AddTask(t2)
 
 	// task1 (do) => task2 (do) no reboot
-	c.Check(chg.IsWaiting(), Equals, false)
+	c.Check(chg.Status(), Equals, state.DoStatus)
 
 	// task1 (done) => task2 (do) no reboot
 	t1.SetStatus(state.DoneStatus)
-	c.Check(chg.IsWaiting(), Equals, false)
+	c.Check(chg.Status(), Equals, state.DoStatus)
 
 	// task1 (wait) => task2 (do) means need a reboot
 	t1.SetStatus(state.WaitStatus)
-	c.Check(chg.IsWaiting(), Equals, true)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
 
 	// task1 (done) => task2 (wait) means need a reboot
 	t1.SetStatus(state.DoneStatus)
 	t2.SetStatus(state.WaitStatus)
-	c.Check(chg.IsWaiting(), Equals, true)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
 }
 
 func (cs *changeSuite) TestIsWaitingMultipleDependencies(c *C) {
@@ -1220,33 +1220,33 @@ func (cs *changeSuite) TestIsWaitingMultipleDependencies(c *C) {
 	chg.AddTask(t3)
 
 	// task1 (do) + task2 (do) => task3 (do) no reboot
-	c.Check(chg.IsWaiting(), Equals, false)
+	c.Check(chg.Status(), Equals, state.DoStatus)
 
 	// task1 (done) + task2 (done) => task3 (do) no reboot
 	t1.SetStatus(state.DoneStatus)
 	t2.SetStatus(state.DoneStatus)
-	c.Check(chg.IsWaiting(), Equals, false)
+	c.Check(chg.Status(), Equals, state.DoStatus)
 
 	// task1 (done) + task2 (do) => task3 (do) no reboot
 	t1.SetStatus(state.DoneStatus)
 	t2.SetStatus(state.DoStatus)
-	c.Check(chg.IsWaiting(), Equals, false)
+	c.Check(chg.Status(), Equals, state.DoStatus)
 
 	// task1 (wait) + task2 (done) => task3 (do) means need a reboot
 	t1.SetStatus(state.WaitStatus)
 	t2.SetStatus(state.DoneStatus)
-	c.Check(chg.IsWaiting(), Equals, true)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
 
 	// task1 (wait) + task2 (wait) => task3 (do) means need a reboot
 	t1.SetStatus(state.WaitStatus)
 	t2.SetStatus(state.WaitStatus)
-	c.Check(chg.IsWaiting(), Equals, true)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
 
 	// task1 (done) + task2 (done) => task3 (wait) means need a reboot
 	t1.SetStatus(state.DoneStatus)
 	t2.SetStatus(state.DoneStatus)
 	t3.SetStatus(state.WaitStatus)
-	c.Check(chg.IsWaiting(), Equals, true)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
 }
 
 func (cs *changeSuite) TestIsWaitingUndoTwoTasks(c *C) {
@@ -1266,22 +1266,22 @@ func (cs *changeSuite) TestIsWaitingUndoTwoTasks(c *C) {
 	// task1 (undo) => task2 (undo) no reboot
 	t1.SetStatus(state.UndoStatus)
 	t2.SetStatus(state.UndoStatus)
-	c.Check(chg.IsWaiting(), Equals, false)
+	c.Check(chg.Status(), Equals, state.UndoStatus)
 
 	// task1 (undo) => task2 (undone) no reboot
 	t1.SetStatus(state.UndoStatus)
 	t2.SetStatus(state.UndoneStatus)
-	c.Check(chg.IsWaiting(), Equals, false)
+	c.Check(chg.Status(), Equals, state.UndoStatus)
 
 	// task1 (undo) => task2 (wait) means need a reboot
 	t1.SetStatus(state.UndoStatus)
 	t2.SetStatus(state.WaitStatus)
-	c.Check(chg.IsWaiting(), Equals, true)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
 
 	// task1 (wait) => task2 (undone) means need a reboot
 	t1.SetStatus(state.WaitStatus)
 	t2.SetStatus(state.UndoneStatus)
-	c.Check(chg.IsWaiting(), Equals, true)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
 }
 
 func (cs *changeSuite) TestIsWaitingUndoMultipleDependencies(c *C) {
@@ -1309,25 +1309,25 @@ func (cs *changeSuite) TestIsWaitingUndoMultipleDependencies(c *C) {
 	t1.SetStatus(state.UndoStatus)
 	t2.SetStatus(state.UndoStatus)
 	t3.SetStatus(state.UndoStatus)
-	c.Check(chg.IsWaiting(), Equals, false)
+	c.Check(chg.Status(), Equals, state.UndoStatus)
 
 	// task1 (undo) + task2 (undo) => task3 (undone) no reboot
 	t1.SetStatus(state.UndoStatus)
 	t2.SetStatus(state.UndoStatus)
 	t3.SetStatus(state.UndoneStatus)
-	c.Check(chg.IsWaiting(), Equals, false)
+	c.Check(chg.Status(), Equals, state.UndoStatus)
 
 	// task1 (wait) + task2 (wait) => task3 (undone) + task4 (undo) no reboot
 	t1.SetStatus(state.WaitStatus)
 	t2.SetStatus(state.WaitStatus)
 	t3.SetStatus(state.UndoneStatus)
 	t4.SetStatus(state.UndoStatus)
-	c.Check(chg.IsWaiting(), Equals, false)
+	c.Check(chg.Status(), Equals, state.UndoStatus)
 
 	// task1 (wait) + task2 (wait) => task3 (undone) + task4 (undone) means need a reboot
 	t1.SetStatus(state.WaitStatus)
 	t2.SetStatus(state.WaitStatus)
 	t3.SetStatus(state.UndoneStatus)
 	t4.SetStatus(state.UndoneStatus)
-	c.Check(chg.IsWaiting(), Equals, true)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
 }

@@ -282,6 +282,65 @@ func init() {
 	}
 }
 
+func (c *Change) isTaskWaiting(visited map[string]bool, t *Task) bool {
+	if ok := visited[t.ID()]; ok {
+		// if we run into cyclic things, then no
+		return false
+	}
+	visited[t.ID()] = true
+
+	for _, wt := range t.WaitTasks() {
+		switch wt.Status() {
+		case WaitStatus:
+			return true
+		case DoStatus:
+			// If it has waiters that are in 'Do', we must check whether
+			// that task is in turn waiting for something else.
+			if c.isTaskWaiting(visited, wt) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isTaskReadyToUndo returns whether a task in undo is ready to run.
+func (c *Change) isTaskReadyToUndo(t *Task) bool {
+	for _, wt := range t.HaltTasks() {
+		if !wt.Status().Ready() {
+			return false
+		}
+	}
+	return true
+}
+
+// isChangeWaiting returns whether a change has all of its tasks blocked by
+// wait tasks. If just one of the tasks is able to run, then this returns
+// false.
+func (c *Change) isChangeWaiting() bool {
+	visited := make(map[string]bool)
+	for _, t := range c.Tasks() {
+		// All tasks in 'Do' must be able to be traced back
+		// to a task in 'Wait'. Otherwise the change is able
+		// to run.
+		switch t.Status() {
+		case DoStatus:
+			if !c.isTaskWaiting(visited, t) {
+				return false
+			}
+		case UndoStatus:
+			// If something is in undo status, check if it can
+			// run.
+			if c.isTaskReadyToUndo(t) {
+				return false
+			}
+		}
+	}
+	// In any case, we know we have atleast one waiter since
+	// this function was called
+	return true
+}
+
 // Status returns the current status of the change.
 // If the status was not explicitly set the result is derived from the status
 // of the individual tasks related to the change, according to the following
@@ -292,22 +351,35 @@ func init() {
 //   - Otherwise, return DoneStatus
 func (c *Change) Status() Status {
 	c.state.reading()
-	if c.status == DefaultStatus {
-		if len(c.taskIDs) == 0 {
-			return HoldStatus
-		}
-		statusStats := make([]int, nStatuses)
-		for _, tid := range c.taskIDs {
-			statusStats[c.state.tasks[tid].Status()]++
-		}
-		for _, s := range statusOrder {
-			if statusStats[s] > 0 {
-				return s
-			}
-		}
-		panic(fmt.Sprintf("internal error: cannot process change status: %v", statusStats))
+	if c.status != DefaultStatus {
+		return c.status
 	}
-	return c.status
+
+	if len(c.taskIDs) == 0 {
+		return HoldStatus
+	}
+
+	statusStats := make([]int, nStatuses)
+	for _, tid := range c.taskIDs {
+		statusStats[c.state.tasks[tid].Status()]++
+	}
+
+	// if the change has any waiters, check for any runnable tasks
+	// or whether it's completely blocked by waiters
+	if statusStats[WaitStatus] > 0 {
+		// only if the change has all tasks blocked we return WaitStatus
+		if c.isChangeWaiting() {
+			return WaitStatus
+		}
+	}
+
+	// otherwise we return the current status with the highest priority
+	for _, s := range statusOrder {
+		if statusStats[s] > 0 {
+			return s
+		}
+	}
+	panic(fmt.Sprintf("internal error: cannot process change status: %v", statusStats))
 }
 
 // SetStatus sets the change status, overriding the default behavior (see Status method).
@@ -379,68 +451,6 @@ func (c *Change) IsReady() bool {
 	default:
 	}
 	return false
-}
-
-func (c *Change) isTaskWaiting(visited map[string]bool, t *Task) bool {
-	if ok := visited[t.ID()]; ok {
-		// if we run into cyclic things, then no
-		return false
-	}
-	visited[t.ID()] = true
-
-	for _, wt := range t.WaitTasks() {
-		switch wt.Status() {
-		case WaitStatus:
-			return true
-		case DoStatus:
-			// If it has waiters that are in 'Do', we must check whether
-			// that task is in turn waiting for something else.
-			if c.isTaskWaiting(visited, wt) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// isTaskReadyToUndo returns whether a task in undo is ready to run.
-func (c *Change) isTaskReadyToUndo(t *Task) bool {
-	for _, wt := range t.HaltTasks() {
-		if !wt.Status().Ready() {
-			return false
-		}
-	}
-	return true
-}
-
-// IsWaiting returns whether a change have all of its tasks blocked by
-// wait tasks. If just one of the tasks is able to run, then this returns
-// false.
-func (c *Change) IsWaiting() bool {
-	visited := make(map[string]bool)
-	var waiters int
-	for _, t := range c.Tasks() {
-		// All tasks in 'Do' must be able to be traced back
-		// to a task in 'Wait'. Otherwise the change is able
-		// to run.
-		switch t.Status() {
-		case WaitStatus:
-			waiters++
-		case DoStatus:
-			if !c.isTaskWaiting(visited, t) {
-				return false
-			}
-		case UndoStatus:
-			// If something is in undo status, check if it can
-			// run.
-			if c.isTaskReadyToUndo(t) {
-				return false
-			}
-		}
-	}
-	// In any case, we must have encountered atleast one
-	// task with 'WaitStatus'.
-	return waiters > 0
 }
 
 func (c *Change) taskCleanChanged() {
