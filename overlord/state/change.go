@@ -558,6 +558,18 @@ func (c *Change) abortUnreadyLanes() {
 	c.abortLanes(abortLanes, make(map[int]bool), make(map[string]bool))
 }
 
+// taskEffectiveStatus returns the 'effective' status. This means it accounts
+// for tasks being in WaitStatus, and instead of returning the WaitStatus we
+// return the actual status. (The status after the wait).
+func taskEffectiveStatus(t *Task) Status {
+	status := t.Status()
+	if status == WaitStatus {
+		// If the task is waiting, then use the effective status instead.
+		status = t.WaitedStatus()
+	}
+	return status
+}
+
 func (c *Change) abortLanes(lanes []int, abortedLanes map[int]bool, seenTasks map[string]bool) {
 	var hasLive = make(map[int]bool)
 	var hasDead = make(map[int]bool)
@@ -567,8 +579,8 @@ NextChangeTask:
 		t := c.state.tasks[tid]
 
 		var live bool
-		switch t.Status() {
-		case DoStatus, DoingStatus, WaitStatus, DoneStatus:
+		switch taskEffectiveStatus(t) {
+		case DoStatus, DoingStatus, DoneStatus:
 			live = true
 		}
 
@@ -618,14 +630,14 @@ func (c *Change) abortTasks(tasks []*Task, abortedLanes map[int]bool, seenTasks 
 			continue
 		}
 		seenTasks[t.id] = true
-		switch t.Status() {
+		switch taskEffectiveStatus(t) {
 		case DoStatus:
 			// Still pending so don't even start.
 			t.SetStatus(HoldStatus)
 		case DoingStatus:
 			// In progress so stop and undo it.
 			t.SetStatus(AbortStatus)
-		case WaitStatus, DoneStatus:
+		case DoneStatus:
 			// Already done so undo it.
 			t.SetStatus(UndoStatus)
 		}
