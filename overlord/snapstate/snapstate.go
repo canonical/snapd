@@ -3655,7 +3655,7 @@ func Installing(st *state.State) bool {
 	for _, task := range st.Tasks() {
 		k := task.Kind()
 		chg := task.Change()
-		if k == "mount-snap" && chg != nil && !chg.Status().Ready() {
+		if k == "mount-snap" && chg != nil && !chg.IsReady() {
 			return true
 		}
 	}

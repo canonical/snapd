@@ -682,7 +682,7 @@ func createPreDownloadChange(st *state.State, updateTss *UpdateTaskSets) (bool, 
 
 func autoRefreshInFlight(st *state.State) bool {
 	for _, chg := range st.Changes() {
-		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
+		if chg.Kind() == "auto-refresh" && !chg.IsReady() {
 			return true
 		}
 	}

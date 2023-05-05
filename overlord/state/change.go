@@ -348,6 +348,7 @@ func (c *Change) isChangeWaiting() bool {
 //
 //   - With at least one task in DoStatus, return DoStatus
 //   - With at least one task in ErrorStatus, return ErrorStatus
+//   - With all tasks blocked by tasks in WaitStatus, return WaitStatus
 //   - Otherwise, return DoneStatus
 func (c *Change) Status() Status {
 	c.state.reading()

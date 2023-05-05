@@ -656,7 +656,7 @@ func (m *SnapManager) EnsureAutoRefreshesAreDelayed(delay time.Duration) ([]*sta
 	// look for auto refresh changes in progress
 	autoRefreshChgsInFlight := []*state.Change{}
 	for _, chg := range m.state.Changes() {
-		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
+		if chg.Kind() == "auto-refresh" && !chg.IsReady() {
 			autoRefreshChgsInFlight = append(autoRefreshChgsInFlight, chg)
 		}
 	}
