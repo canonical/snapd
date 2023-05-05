@@ -507,6 +507,9 @@ files_manage_generic_tmp_files(snappy_mount_t)
 allow snappy_mount_t etc_t:dir { mounton write rmdir remove_name };
 
 # Allow snap-{update,discard}-ns to mount /boot/
+gen_require(`
+	type boot_t;
+')
 allow snappy_mount_t boot_t:dir { mounton };
 
 # Allow snap-{update,discard}-ns to manage mounts
