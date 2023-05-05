@@ -155,20 +155,10 @@ parts:
       fi
   apparmor:
     plugin: autotools
-    build-packages: [bison, flex, gettext, g++, pkg-config, wget]
-    source: https://launchpad.net/apparmor/3.0/3.0.8/+download/apparmor-3.0.8.tar.gz
-    override-pull: |
-      snapcraftctl pull
-      # add support for mediating posix mqueue's and userns - these come from
-      # the ubuntu source package for lunar
-      # https://git.launchpad.net/ubuntu/+source/apparmor/tree/debian/patches/ubuntu?h=ubuntu/lunar
-      for feature in mqueue userns; do
-        wget https://git.launchpad.net/ubuntu/+source/apparmor/plain/debian/patches/ubuntu/add-${feature}-support.patch?h=ubuntu/lunar -O - | patch -p1
-      done
-      # apply local apparmor patches
-      for patch in $SNAPCRAFT_PROJECT_DIR/build-aux/snap/patches/apparmor/*; do
-          patch -p1 < $patch
-      done
+    build-packages: [bison, flex, gettext, g++, pkg-config]
+    source: https://gitlab.com/jjohansen/apparmor.git
+    source-type: git
+    source-branch: prompt
     override-build: |
       cd $SNAPCRAFT_PART_BUILD/libraries/libapparmor
       ./autogen.sh

@@ -84,7 +84,7 @@ AS_IF([test "x$with_unit_tests" = "xyes"], [
 AS_IF([test "x$enable_apparmor" = "xyes"], [
     # Expect AppArmor3 when building as a snap under snapcraft
     AS_IF([test "x$SNAPCRAFT_PROJECT_NAME" = "xsnapd"], [
-        PKG_CHECK_MODULES([APPARMOR3], [libapparmor = 3.0.8], [
+        PKG_CHECK_MODULES([APPARMOR3], [libapparmor = 3.0.9], [
             AC_DEFINE([HAVE_APPARMOR], [1], [Build with apparmor3 support])], [
             AC_MSG_ERROR([unable to find apparmor3 for snap build of snapd])])], [
         PKG_CHECK_MODULES([APPARMOR], [libapparmor], [
