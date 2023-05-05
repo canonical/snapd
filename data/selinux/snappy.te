@@ -560,6 +560,9 @@ allow snappy_mount_t lib_t:dir mounton;
 # mount things labeled usr_t from the host
 allow snappy_mount_t usr_t:dir mounton;
 
+# allow mounting on top of /var/lib
+allow snappy_mount_t var_lib_t:dir mounton;
+
 # mount and unmount on top of snaps
 allow snappy_mount_t snappy_snap_t:dir mounton;
 allow snappy_mount_t snappy_snap_t:file mounton;
