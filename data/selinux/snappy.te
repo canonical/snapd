@@ -503,8 +503,11 @@ userdom_delete_user_tmp_files(snappy_mount_t)
 files_manage_generic_tmp_dirs(snappy_mount_t)
 files_manage_generic_tmp_files(snappy_mount_t)
 
-# Allow snap-{update,discard}-ns to mount on /etc/
-allow snappy_mount_t etc_t:dir mounton;
+# Allow snap-{update,discard}-ns to manipulate /etc/
+allow snappy_mount_t etc_t:dir { mounton write rmdir remove_name };
+
+# Allow snap-{update,discard}-ns to mount /boot/
+allow snappy_mount_t boot_t:dir { mounton };
 
 # Allow snap-{update,discard}-ns to manage mounts
 gen_require(`
