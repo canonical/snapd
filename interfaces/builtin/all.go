@@ -30,7 +30,7 @@ import (
 func init() {
 	snap.SanitizePlugsSlots = SanitizePlugsSlots
 
-	// setup the ByName function using allInterfaces
+	// define the ByName() function using allInterfaces
 	interfaces.ByName = func(name string) (interfaces.Interface, error) {
 		iface, ok := allInterfaces[name]
 		if !ok {
@@ -54,7 +54,7 @@ func Interfaces() []interfaces.Interface {
 	return ifaces
 }
 
-// registerIface appends the given interface into the list of all known interfaces.
+// registerIface appends the given interface to the list of all known interfaces.
 func registerIface(iface interfaces.Interface) {
 	if allInterfaces[iface.Name()] != nil {
 		panic(fmt.Errorf("cannot register duplicate interface %q", iface.Name()))
@@ -148,8 +148,14 @@ func MockInterface(iface interfaces.Interface) func() {
 
 type byIfaceName []interfaces.Interface
 
-func (c byIfaceName) Len() int      { return len(c) }
-func (c byIfaceName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byIfaceName) Len() int {
+	return len(c)
+}
+
+func (c byIfaceName) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
+}
+
 func (c byIfaceName) Less(i, j int) bool {
 	return c[i].Name() < c[j].Name()
 }
