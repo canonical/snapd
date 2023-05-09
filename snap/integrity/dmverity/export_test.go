@@ -21,4 +21,5 @@ package dmverity
 
 var (
 	GetRootHashFromOutput = getRootHashFromOutput
+	ShouldApplyWorkaround = shouldApplyNewFileWorkaroundForOlderThan204
 )

@@ -539,10 +539,16 @@ func RemoveAllSnapAppArmorProfiles() error {
 	cache := apparmor_sandbox.CacheDir
 	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, nil)
 	errRemoveCached := removeCachedProfiles(removed, cache)
-	if errEnsure != nil {
+	switch {
+	case errEnsure != nil && errRemoveCached != nil:
+		return fmt.Errorf("cannot remove apparmor profiles: %s (and also %s)", errEnsure, errRemoveCached)
+	case errEnsure != nil:
 		return fmt.Errorf("cannot remove apparmor profiles: %s", errEnsure)
+	case errRemoveCached != nil:
+		return errRemoveCached
+	default:
+		return nil
 	}
-	return errRemoveCached
 }
 
 // Remove removes the apparmor profiles of a given snap from disk and the cache.

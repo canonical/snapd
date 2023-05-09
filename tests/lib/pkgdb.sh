@@ -637,6 +637,7 @@ pkg_dependencies_ubuntu_classic(){
         debian-*)
             echo "
                 autopkgtest
+                cryptsetup-bin
                 debootstrap
                 eatmydata
                 evolution-data-server
