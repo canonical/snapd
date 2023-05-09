@@ -69,13 +69,18 @@ build_deb(){
 
     if os.query is-debian sid; then
         # ensure we really build without vendored packages
-        rm -rf vendor/*/*
+        mv ./vendor /tmp
     fi
 
     unshare -n -- \
             su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
+
+    if os.query is-debian sid; then
+        # restore vendor dir, it's needed by e.g. fakestore
+        mv /tmp/vendor ./
+    fi
 }
 
 build_rpm() {
