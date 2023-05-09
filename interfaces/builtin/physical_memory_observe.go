@@ -35,6 +35,9 @@ const physicalMemoryObserveConnectedPlugAppArmor = `
 # access to architecture-specific subset of the physical address (eg, PCI,
 # space, BIOS code and data regions on x86, etc).
 /dev/mem r,
+
+# Allow reading info about the physical mapping of virtual pages
+@{PROC}/@{pids}/pagemap r,
 `
 
 var physicalMemoryObserveConnectedPlugUDev = []string{`KERNEL=="mem"`}

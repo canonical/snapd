@@ -566,10 +566,21 @@ func checkAndCreateSystemUsernames(si *snap.Info) error {
 	return nil
 }
 
+func checkConfigureHooks(_ *state.State, snapInfo, curInfo *snap.Info, _ snap.Container, _ Flags, deviceCtx DeviceContext) error {
+	hasDefaultConfigureHook := snapInfo.Hooks["default-configure"] != nil
+	hasConfigureHook := snapInfo.Hooks["configure"] != nil
+
+	if hasDefaultConfigureHook && !hasConfigureHook {
+		return fmt.Errorf(`cannot specify "default-configure" hook without "configure" hook`)
+	}
+	return nil
+}
+
 func init() {
 	AddCheckSnapCallback(checkCoreName)
 	AddCheckSnapCallback(checkSnapdName)
 	AddCheckSnapCallback(checkGadgetOrKernel)
 	AddCheckSnapCallback(checkBases)
 	AddCheckSnapCallback(checkEpochs)
+	AddCheckSnapCallback(checkConfigureHooks)
 }

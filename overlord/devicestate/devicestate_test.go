@@ -61,6 +61,9 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/seed/seedtest"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -103,6 +106,8 @@ type deviceMgrBaseSuite struct {
 	// test the actual functions, it can just call this in it's SetUpTest, see
 	// devicestate_cloudinit_test.go for details
 	restoreCloudInitStatusRestore func()
+
+	restoreProcessAutoImportAssertion func()
 }
 
 type deviceMgrSuite struct {
@@ -250,6 +255,11 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.AddCleanup(devicestate.MockSecbootMarkSuccessful(func() error {
 		return nil
 	}))
+
+	s.restoreProcessAutoImportAssertion = devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		return nil
+	})
+	s.AddCleanup(s.restoreProcessAutoImportAssertion)
 }
 
 func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -265,6 +275,7 @@ func (s *deviceMgrBaseSuite) settle(c *C) {
 func (s *deviceMgrBaseSuite) seeding() {
 	chg := s.state.NewChange("seed", "Seed system")
 	chg.SetStatus(state.DoingStatus)
+	s.state.Set("seeded", false)
 }
 
 func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) *asserts.Model {
@@ -2407,4 +2418,239 @@ func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotUnseeded(c *C) {
 	// Mock a user that would be expired, but expect it not to be removed
 	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
 	s.testExpiredUserNotRemoved(c)
+}
+
+func (s *deviceMgrSuite) cacheDeviceCore20Seed(c *C) {
+
+	// now create a minimal uc20 seed dir with snaps/assertions
+	ss := &seedtest.SeedSnaps{
+		StoreSigning: s.storeSigning,
+		Brands:       s.brands,
+	}
+
+	// now create a minimal uc20 seed dir with snaps/assertions
+	seed20 := &seedtest.TestingSeed20{
+		SeedSnaps: *ss,
+		SeedDir:   dirs.SnapSeedDir,
+	}
+
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+        structure:
+        - name: ubuntu-seed
+          role: system-seed
+          type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+          size: 1G
+        - name: ubuntu-data
+          role: system-data
+          type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+          size: 2G
+`
+	makeSnap := func(yamlKey string) {
+		var files [][]string
+		if yamlKey == "pc=20" {
+			files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
+		}
+		seed20.MakeAssertedSnap(c, seedtest.SampleSnapYaml[yamlKey], files, snap.R(1), "canonical", seed20.StoreSigning.Database)
+	}
+
+	makeSnap("snapd")
+	makeSnap("pc-kernel=20")
+	makeSnap("core20")
+	makeSnap("pc=20")
+	optSnapPath := snaptest.MakeTestSnapWithFiles(c, seedtest.SampleSnapYaml["optional20-a"], nil)
+
+	model := map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              seed20.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              seed20.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   seed20.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   seed20.AssertedSnapID("core20"),
+				"type": "base",
+			}},
+	}
+
+	modelAs := seed20.MakeSeed(c, "20220401", "my-brand", "my-model", model, []*seedwriter.OptionsSnap{{Path: optSnapPath}})
+	c.Assert(modelAs, NotNil)
+
+	// mock /he modeenv file
+	m := boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: "20220401",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	// reload device seed
+	_, _, err = devicestate.ReloadEarlyDeviceSeed(s.mgr, state.ErrNoState)
+	c.Assert(err, IsNil)
+
+	// not fully realistic but avoids more mocking
+	devicestate.SetBootOkRan(s.mgr, true)
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionClassic(c *C) {
+	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		panic("trying to process auto-import-assertion on classic system")
+	})
+	defer a()
+
+	release.OnClassic = true
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Check(err, IsNil)
+
+	// ensure state has not been changed
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	c.Assert(autoImported, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhenDone(c *C) {
+	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		panic("trying to process auto-import-assertion after it was already processed")
+	})
+	defer a()
+
+	s.mockSystemMode(c, "run")
+
+	// set state as processed
+	s.state.Lock()
+	s.state.Set("asserts-early-auto-imported", true)
+	s.cacheDeviceCore20Seed(c)
+	s.seeding()
+	s.state.Unlock()
+
+	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Check(err, IsNil)
+
+	// check state has not changed
+	s.state.Lock()
+	defer s.state.Unlock()
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, IsNil)
+	c.Assert(autoImported, Equals, true)
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionNoSeedCache(c *C) {
+	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		panic("trying to process auto-import-assertion without cached system seed")
+	})
+	defer a()
+
+	s.mockSystemMode(c, "run")
+
+	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Check(err, IsNil)
+
+	// ensure state has not been changed
+	s.state.Lock()
+	defer s.state.Unlock()
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	c.Assert(autoImported, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionFailed(c *C) {
+	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		return fmt.Errorf("failed to add user from system user assertions")
+	})
+	defer a()
+
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	s.state.Set("seeded", nil)
+	s.state.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err := s.mgr.Ensure()
+	c.Check(err, IsNil)
+
+	// ensure state has not been changed
+	s.state.Lock()
+	defer s.state.Unlock()
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, IsNil)
+	c.Assert(autoImported, Equals, true)
+	c.Assert(logbuf.String(), testutil.Contains, `failed to add user from system user assertions`)
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionAlreadySeeded(c *C) {
+	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		return fmt.Errorf("failed to process auto import assertion")
+	})
+	defer a()
+
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	err := s.mgr.Ensure()
+	c.Check(err, IsNil)
+
+	// ensure state has not been changed
+	s.state.Lock()
+	defer s.state.Unlock()
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	c.Assert(autoImported, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionHappy(c *C) {
+
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	s.state.Set("seeded", nil)
+	s.state.Unlock()
+
+	err := s.mgr.Ensure()
+	c.Check(err, IsNil)
+
+	// check state is set as done
+	s.state.Lock()
+	defer s.state.Unlock()
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, IsNil)
+	c.Assert(autoImported, Equals, true)
 }

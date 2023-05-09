@@ -177,6 +177,7 @@ var mockLaidoutStructureWritable = gadget.LaidOutStructure{
 	VolumeStructure: &gadget.VolumeStructure{
 		VolumeName: "pc",
 		Name:       "Writable",
+		MinSize:    1258291200,
 		Size:       1258291200,
 		Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 		Role:       "system-data",
@@ -208,6 +209,7 @@ var mockLaidoutStructureSave = gadget.LaidOutStructure{
 		VolumeName: "pc",
 		Name:       "Save",
 		Label:      "ubuntu-save",
+		MinSize:    128 * quantity.SizeMiB,
 		Size:       128 * quantity.SizeMiB,
 		Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 		Role:       "system-save",
@@ -235,6 +237,7 @@ var mockLaidoutStructureWritableAfterSave = gadget.LaidOutStructure{
 	VolumeStructure: &gadget.VolumeStructure{
 		VolumeName: "pc",
 		Name:       "Writable",
+		MinSize:    1200 * quantity.SizeMiB,
 		Size:       1200 * quantity.SizeMiB,
 		Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 		Role:       "system-data",
@@ -875,6 +878,44 @@ const gptGadgetContentWithSave = `volumes:
         size: 1200M
 `
 
+const gptGadgetContentWithMinSize = `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        content:
+          - image: pc-core.img
+      - name: Recovery
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+      - name: Save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        min-size: 128M
+        size: 256M
+      - name: Writable
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+`
+
 func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
 	m := map[string]*disks.MockDiskMapping{
 		"node": {
@@ -955,6 +996,20 @@ func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
 	c.Assert(err, IsNil)
 
 	list := install.CreatedDuringInstall(pv.Volume, dl)
+	// only save and writable should show up
+	c.Check(list, DeepEquals, []string{"/dev/node3", "/dev/node4"})
+
+	// min-size for ubuntu-save for this gadget will match the third partition size
+	// (but size wouldn't)
+	err = gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithMinSize)
+	c.Assert(err, IsNil)
+	pv, err = gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
+	c.Assert(err, IsNil)
+
+	dl, err = gadget.OnDiskVolumeFromDevice("node")
+	c.Assert(err, IsNil)
+
+	list = install.CreatedDuringInstall(pv.Volume, dl)
 	// only save and writable should show up
 	c.Check(list, DeepEquals, []string{"/dev/node3", "/dev/node4"})
 }

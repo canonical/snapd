@@ -3359,17 +3359,17 @@ func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
 	}
 
 	tests := []struct {
-		skip   bool
-		double bool
+		omitPreseedAssert bool
+		dupPreseedAssert  bool
 
 		overrides map[string]interface{}
 		asserts   []asserts.Assertion
 		err       string
 	}{
-		{skip: true, asserts: s.Brands.AccountsAndKeys("my-brand"), err: `system preseed assertion file must contain a preseed assertion`},
+		{omitPreseedAssert: true, asserts: s.Brands.AccountsAndKeys("my-brand"), err: `system preseed assertion file must contain a preseed assertion`},
 		// this works for contrast
 		{asserts: s.Brands.AccountsAndKeys("my-brand"), err: ""},
-		{double: true, err: `system preseed assertion file cannot contain multiple preseed assertions`},
+		{dupPreseedAssert: true, err: `system preseed assertion file cannot contain multiple preseed assertions`},
 		{overrides: map[string]interface{}{"system-label": "other-label"}, err: `preseed assertion system label "other-label" doesn't match system label "20230406"`},
 		{overrides: map[string]interface{}{"model": "other-model"}, err: `preseed assertion model "other-model" doesn't match the model "my-model"`},
 		{overrides: map[string]interface{}{"series": "other-series"}, err: `preseed assertion series "other-series" doesn't match model series "16"`},
@@ -3389,7 +3389,7 @@ func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
 			"snaps":             snaps,
 		}
 		as := tc.asserts
-		if !tc.skip {
+		if !tc.omitPreseedAssert {
 			for h, v := range tc.overrides {
 				headers[h] = v
 			}
@@ -3398,7 +3398,7 @@ func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
 			c.Assert(err, IsNil)
 			as = append(as, preseedAs)
 		}
-		if tc.double {
+		if tc.dupPreseedAssert {
 			headers["system-label"] = "other-label"
 			signer := s.Brands.Signing(headers["brand-id"].(string))
 			preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")

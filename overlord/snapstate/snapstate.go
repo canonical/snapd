@@ -137,6 +137,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 
 	revnoOpts, flags, snapst := params(update)
 	flags.IsAutoRefresh = globalFlags.IsAutoRefresh
+	flags.IsContinuedAutoRefresh = globalFlags.IsContinuedAutoRefresh
 
 	flags, err := earlyChecks(st, snapst, update, flags)
 	if err != nil {
@@ -310,6 +311,32 @@ var excludeFromRefreshAppAwareness = func(t snap.Type) bool {
 	return t == snap.TypeSnapd || t == snap.TypeOS
 }
 
+func isDefaultConfigureAllowed(snapsup *SnapSetup) bool {
+	return isConfigureAllowed(snapsup) && !isCoreSnap(snapsup.InstanceName())
+}
+
+func isConfigureAllowed(snapsup *SnapSetup) bool {
+	// we do not support configuration for bases or the "snapd" snap yet
+	return snapsup.Type != snap.TypeBase && snapsup.Type != snap.TypeSnapd
+}
+
+func configureSnapFlags(snapst *SnapState, snapsup *SnapSetup) int {
+	confFlags := 0
+	// config defaults cannot be retrieved without a snap ID
+	hasSnapID := snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != ""
+
+	if !snapst.IsInstalled() && hasSnapID && !isCoreSnap(snapsup.InstanceName()) {
+		// installation, run configure using the gadget defaults if available, system config defaults (attached to
+		// "core") are consumed only during seeding, via an explicit configure step separate from installing
+		confFlags |= UseConfigDefaults
+	}
+	return confFlags
+}
+
+func isCoreSnap(snapName string) bool {
+	return snapName == defaultCoreSnapName
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	// NB: we should strive not to need or propagate deviceCtx
 	// here, the resulting effects/changes were not pleasant at
@@ -430,12 +457,18 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	prepare.WaitFor(prereq)
 
 	tasks := []*state.Task{prereq, prepare}
+	prev = prepare
+
 	addTask := func(t *state.Task) {
 		t.Set("snap-setup-task", prepare.ID())
 		t.WaitFor(prev)
 		tasks = append(tasks, t)
 	}
-	prev = prepare
+	addTasksFromTaskSet := func(ts *state.TaskSet) {
+		ts.WaitFor(prev)
+		tasks = append(tasks, ts.Tasks()...)
+		prev = tasks[len(tasks)-1]
+	}
 
 	var checkAsserts *state.Task
 	if fromStore {
@@ -576,6 +609,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = quotaAddSnapTask
 	}
 
+	// only run default-configure hook if installing the snap for the first time and
+	// default-configure is allowed
+	if !snapst.IsInstalled() && isDefaultConfigureAllowed(snapsup) {
+		defaultConfigureSet := DefaultConfigure(st, snapsup.InstanceName())
+		addTasksFromTaskSet(defaultConfigureSet)
+	}
+
 	// run new services
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
@@ -602,9 +642,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 				continue
 			}
 			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
-			ts.WaitFor(prev)
-			tasks = append(tasks, ts.Tasks()...)
-			prev = tasks[len(tasks)-1]
+			addTasksFromTaskSet(ts)
 		}
 
 		// make sure we're not scheduling the removal of the target
@@ -636,9 +674,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 				continue
 			}
 			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
-			ts.WaitFor(prev)
-			tasks = append(tasks, ts.Tasks()...)
-			prev = tasks[len(tasks)-1]
+			addTasksFromTaskSet(ts)
 		}
 
 		addTask(st.NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", snapsup.InstanceName(), revisionStr)))
@@ -669,18 +705,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	ts.AddAllWithEdges(installSet)
 
-	// we do not support configuration for bases or the "snapd" snap yet
-	if snapsup.Type != snap.TypeBase && snapsup.Type != snap.TypeSnapd {
-		confFlags := 0
-		notCore := snapsup.InstanceName() != "core"
-		hasSnapID := snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != ""
-		if !snapst.IsInstalled() && hasSnapID && notCore {
-			// installation, run configure using the gadget defaults
-			// if available, system config defaults (attached to
-			// "core") are consumed only during seeding, via an
-			// explicit configure step separate from installing
-			confFlags |= UseConfigDefaults
-		}
+	if isConfigureAllowed(snapsup) {
+		confFlags := configureSnapFlags(snapst, snapsup)
 		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
 		configSet.WaitAll(ts)
 		ts.AddAll(configSet)
@@ -718,7 +744,7 @@ func ConfigureSnap(st *state.State, snapName string, confFlags int) *state.TaskS
 	// This is slightly ugly, ideally we would check the type instead
 	// of hardcoding the name here. Unfortunately we do not have the
 	// type until we actually run the change.
-	if snapName == defaultCoreSnapName {
+	if isCoreSnap(snapName) {
 		confFlags |= IgnoreHookError
 		confFlags |= TrackHookError
 	}
@@ -727,6 +753,10 @@ func ConfigureSnap(st *state.State, snapName string, confFlags int) *state.TaskS
 
 var Configure = func(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	panic("internal error: snapstate.Configure is unset")
+}
+
+var DefaultConfigure = func(st *state.State, snapName string) *state.TaskSet {
+	panic("internal error: snapstate.DefaultConfigure is unset")
 }
 
 var SetupInstallHook = func(st *state.State, snapName string) *state.Task {
@@ -2466,10 +2496,19 @@ var AddCurrentTrackingToValidationSetsStack func(st *state.State) error
 
 var RestoreValidationSetsTracking func(st *state.State) error
 
+// AutoRefreshOptions are the options that can be passed to AutoRefresh
+type AutoRefreshOptions struct {
+	IsContinuedAutoRefresh bool
+}
+
 // AutoRefresh is the wrapper that will do a refresh of all the installed
 // snaps on the system. In addition to that it will also refresh important
 // assertions.
-func AutoRefresh(ctx context.Context, st *state.State) ([]string, *UpdateTaskSets, error) {
+func AutoRefresh(ctx context.Context, st *state.State, opts *AutoRefreshOptions) ([]string, *UpdateTaskSets, error) {
+	if opts == nil {
+		opts = &AutoRefreshOptions{}
+	}
+
 	userID := 0
 
 	if AutoRefreshAssertions != nil {
@@ -2487,10 +2526,13 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, *UpdateTaskSet
 	}
 	if !gateAutoRefreshHook {
 		// old-style refresh (gate-auto-refresh-hook feature disabled)
-		return updateManyFiltered(ctx, st, nil, nil, userID, nil, &Flags{IsAutoRefresh: true}, "")
+		return updateManyFiltered(ctx, st, nil, nil, userID, nil, &Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: opts.IsContinuedAutoRefresh}, "")
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
+	// TODO2: pass "IsContinuedAutoRefresh" so that the SnapSetup of
+	//        gate-auto-refresh contains this field (required so that
+	//        the update-finished notifications work)
 	updated, tss, err := autoRefreshPhase1(ctx, st, "")
 	if err != nil {
 		return nil, nil, err

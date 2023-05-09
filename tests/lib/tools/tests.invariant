@@ -150,6 +150,22 @@ check_cgroup_scopes() {
 		return 0
 	fi
 
+	wait_for_system_scopes=5
+	while [ "${wait_for_system_scopes}" -gt 0 ]; do
+		has_active_scope=0
+		while read -r -d '' scope; do
+			if systemctl is-active "$(basename "${scope}")"; then
+				has_active_scope=1
+				break
+			fi
+		done < <(find /sys/fs/cgroup/system.slice -name 'snap.*.scope' -print0)
+		if [ "${has_active_scope}" -eq 0 ]; then
+			break
+		fi
+		: $((wait_for_system_scopes--))
+		sleep 1
+	done
+
 	n="$1" # invariant name
 	find /sys/fs/cgroup -name 'snap.*.scope' > "$TESTSTMP/tests.invariant.$n"
 	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
