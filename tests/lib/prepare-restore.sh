@@ -591,7 +591,6 @@ prepare_project() {
     fi
 
     # eval to prevent expansion errors on opensuse (the variable keeps quotes)
-    ./get-deps.sh
     eval "go install $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
 
     # Build additional utilities we need for testing
