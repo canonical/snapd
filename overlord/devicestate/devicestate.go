@@ -519,7 +519,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 						// gadget snaps may need gadget
 						// related tasks such as assets
 						// update or command line update
-						ts, err = snapstate.AddGadgetAssetsTasks(st, ts, fromChange)
+						ts, err = snapstate.AddGadgetAssetsTasks(st, ts)
 						if err != nil {
 							return nil, err
 						}
