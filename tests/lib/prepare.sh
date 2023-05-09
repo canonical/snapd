@@ -617,6 +617,7 @@ uc20_build_corrupt_kernel_snap() {
 }
 
 uc20_build_initramfs_kernel_snap() {
+    quiet apt install software-properties-common -y
     # carries ubuntu-core-initframfs
     quiet add-apt-repository ppa:snappy-dev/image -y
     # On focal, lvm2 does not reinstall properly after being removed.
@@ -675,9 +676,15 @@ uc20_build_initramfs_kernel_snap() {
         # kernel and we don't want to test that, just test our snap-bootstrap
         cp -ar unpacked-initrd skeleton
         # all the skeleton edits go to a local copy of distro directory
-        skeletondir=$PWD/skeleton
-        cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap.real"
-        cat <<'EOF' | sed -E "s/^ {8}//" >"$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+         skeletondir="$PWD/skeleton"
+        snap_bootstrap_file="$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+        clock_epoch_file="$skeletondir/main/usr/lib/clock-epoch"
+        if os.query is-arm; then
+            snap_bootstrap_file="$skeletondir/usr/lib/snapd/snap-bootstrap"
+            clock_epoch_file="$skeletondir/usr/lib/clock-epoch"
+        fi
+        cp -a /usr/lib/snapd/snap-bootstrap "${snap_bootstrap_file}.real"
+        cat <<'EOF' | sed -E "s/^ {8}//" >"$snap_bootstrap_file"
         #!/bin/sh
         set -eux
         if [ "$1" != initramfs-mounts ]; then
@@ -699,20 +706,24 @@ uc20_build_initramfs_kernel_snap() {
         date --utc '+%s' > /run/mnt/ubuntu-seed/test/${mode}-after-snap-bootstrap-date
 EOF
 
-        chmod +x "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+        chmod +x "$snap_bootstrap_file"
 
         if [ "$injectKernelPanic" = "true" ]; then
             # add a kernel panic to the end of the-tool execution
-            echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+            echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$snap_bootstrap_file"
         fi
 
         # bump the epoch time file timestamp, converting unix timestamp to 
         # touch's date format
-        touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$skeletondir/main/usr/lib/clock-epoch"
+        touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$clock_epoch_file"
 
         # copy any extra files to the same location inside the initrd
         if [ -d ../extra-initrd/ ]; then
-            cp -a ../extra-initrd/* "$skeletondir"/main
+            if os.query is-arm; then
+                cp -a ../extra-initrd/* "$skeletondir"
+            else
+                cp -a ../extra-initrd/* "$skeletondir"/main
+            fi
         fi
 
         # XXX: need to be careful to build an initrd using the right kernel
@@ -721,7 +732,13 @@ EOF
         (
             # accommodate assumptions about tree layout, use the unpacked initrd
             # to pick up the right modules
-            cd unpacked-initrd/main
+            if os.query is-arm; then
+                cd unpacked-initrd
+                feature='.'
+            else
+                cd unpacked-initrd/main
+                feature='main'
+            fi
             # XXX: pass feature 'main' and u-c-i picks up any directory named
             # after feature inside skeletondir and uses that a template
             ubuntu-core-initramfs create-initrd \
@@ -729,8 +746,8 @@ EOF
                                   --skeleton "$skeletondir" \
                                   --kerneldir "${unpackeddir}/modules/$kver" \
                                   --firmwaredir "${unpackeddir}/firmware" \
-                                  --feature 'main' \
-                                  --output ../../repacked-initrd
+                                  --feature "$feature" \
+                                  --output "$unpackeddir"/repacked-initrd
         )
 
         # copy out the kernel image for create-efi command
@@ -797,6 +814,7 @@ EOF
     
     snap pack repacked-kernel "$TARGET"
     rm -rf repacked-kernel
+
 }
 
 
@@ -959,7 +977,9 @@ setup_reflash_magic() {
     UNPACK_DIR="/tmp/$core_name-snap"
     unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
-    if os.query is-core16; then
+    if os.query is-arm; then
+        snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+    elif os.query is-core16; then
         # the new ubuntu-image expects mkfs to support -d option, which was not
         # supported yet by the version of mkfs that shipped with Ubuntu 16.04
         snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
@@ -991,7 +1011,11 @@ setup_reflash_magic() {
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
     elif os.query is-core22; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
-        cp "$TESTSLIB/assertions/ubuntu-core-22-amd64.model" "$IMAGE_HOME/pc.model"
+        if os.query is-arm; then
+            cp "$TESTSLIB/assertions/ubuntu-core-22-arm64.model" "$IMAGE_HOME/pc.model"
+        else
+            cp "$TESTSLIB/assertions/ubuntu-core-22-amd64.model" "$IMAGE_HOME/pc.model"
+        fi
     else
         # FIXME: install would be better but we don't have dpkg on
         #        the image
@@ -1156,7 +1180,7 @@ EOF
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap ${IMAGE_HOME}/${BASE}.snap"
     fi
     local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
-    if os.query is-core16; then
+    if os.query is-core16 || os.query is-arm; then
         # ubuntu-image on 16.04 needs to be installed from a snap
         UBUNTU_IMAGE=/snap/bin/ubuntu-image
     fi
@@ -1169,7 +1193,9 @@ EOF
                     --output-dir "$IMAGE_HOME"
     rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core{20,22}.{snap,assert}
 
-    if os.query is-core20 || os.query is-core22; then
+    if os.query is-arm; then
+        LOOP_PARTITION=1
+    elif os.query is-core20 || os.query is-core22; then
         # (ab)use ubuntu-seed
         LOOP_PARTITION=2
     else
@@ -1289,6 +1315,8 @@ set -x
 OF=/dev/sda
 if [ -e /dev/vda ]; then
     OF=/dev/vda
+elif [ -e /dev/nvme0n1 ]; then
+    OF=/dev/nvme0n1
 fi
 dd if=/tmp/$IMAGE of=\$OF bs=4M
 # and reboot
