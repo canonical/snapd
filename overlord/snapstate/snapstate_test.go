@@ -8276,7 +8276,7 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	testTask := s.state.NewTask("test-task", "test task")
 	ts := state.NewTaskSet(tPrepare, testTask)
 
-	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts, "")
+	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts)
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
@@ -8304,35 +8304,8 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 
 	// but bails when there is no task with snap setup
 	ts = state.NewTaskSet()
-	tsNew, err = snapstate.AddGadgetAssetsTasks(s.state, ts, "")
+	tsNew, err = snapstate.AddGadgetAssetsTasks(s.state, ts)
 	c.Assert(err, ErrorMatches, `internal error: cannot identify task with snap-setup`)
-	c.Assert(tsNew, IsNil)
-}
-
-func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasksConflict(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	si := &snap.SideInfo{RealName: "some-gadget", Revision: snap.R(3)}
-	tPrepare := s.state.NewTask("prepare-snap", "test task")
-	snapsup := &snapstate.SnapSetup{
-		SideInfo: si,
-		Type:     "gadget",
-	}
-	tPrepare.Set("snap-setup", snapsup)
-	testTask := s.state.NewTask("test-task", "test task")
-	ts := state.NewTaskSet(tPrepare, testTask)
-
-	tugc := s.state.NewTask("update-gadget-cmdline", "update gadget cmdline")
-	chg := s.state.NewChange("optional-kernel-cmdline", "optional kernel cmdline")
-	chg.AddTask(tugc)
-
-	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts, "")
-	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
 	c.Assert(tsNew, IsNil)
 }
 
@@ -8357,7 +8330,7 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetNoRemodelConflict(c *C) {
 	ts := state.NewTaskSet(tPrepare, tugc)
 	chg.AddTask(tugc)
 
-	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts, chg.ID())
+	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts)
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 }

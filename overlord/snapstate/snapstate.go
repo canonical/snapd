@@ -2992,7 +2992,7 @@ func SwitchToNewGadget(st *state.State, name string, fromChange string) (*state.
 
 // AddGadgetAssetsTasks creates the same tasks as SwitchToNewGadget but adds
 // them to the provided task set.
-func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet, fromChange string) (*state.TaskSet, error) {
+func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet) (*state.TaskSet, error) {
 	allTasks := ts.Tasks()
 	snapSetupTask, snapsup, err := findSnapSetupTask(allTasks)
 	if err != nil {
@@ -3000,11 +3000,6 @@ func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet, fromChange string)
 	}
 	if snapSetupTask == nil {
 		return nil, fmt.Errorf("internal error: cannot identify task with snap-setup")
-	}
-
-	// make sure no other active changes are changing the kernel command line
-	if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {
-		return nil, err
 	}
 
 	gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapsup.Revision()))
