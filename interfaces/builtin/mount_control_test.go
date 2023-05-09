@@ -74,6 +74,10 @@ plugs:
     where: $SNAP_COMMON/mnt/**
     type: [ext2, ext3, ext4]
     options: [nofail, sync, acl]
+  - what: /dev/nvme0n1p1
+    where: $SNAP_COMMON/mnt/**
+    type: [aufs]
+    options: [br:/mnt/a, add:0:/mnt/b, dirwh=1, rw]
 apps:
  app:
   plugs: [mntctl]
@@ -244,6 +248,14 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			`mount-control option unrecognized or forbidden: "acl"`,
 		},
 		{
+			"mount:\n  - what: /\n    where: /media/*\n    type: [aufs]\n    options: [br:/mnt/a,add:0:/mnt/b,dirwh=1,verbose:foo]",
+			`mount-control option unrecognized or forbidden: "verbose:foo"`,
+		},
+		{
+			"mount:\n  - what: /\n    where: /media/*\n    type: [aufs]\n    options: [br:/mnt/a,add:0:/mnt/b,dirwh=1,ins]",
+			`mount-control option unrecognized or forbidden: "ins"`,
+		},
+		{
 			"mount:\n  - what: /\n    where: /media/*\n    type: [ext4,debugfs]",
 			`mount-control forbidden filesystem type: "debugfs"`,
 		},
@@ -354,6 +366,12 @@ func (s *MountControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine6)
 	expectedUmountLine6 := `umount "/var/snap/consumer/common/mnt/**{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine6)
+
+	expectedMountLine7 := `mount fstype=(aufs) options=(rw) ` +
+		`"/dev/nvme0n1p1" -> "/var/snap/consumer/common/mnt/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine7)
+	expectedUmountLine7 := `umount "/var/snap/consumer/common/mnt/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine7)
 }
 
 func (s *MountControlInterfaceSuite) TestStaticInfo(c *C) {

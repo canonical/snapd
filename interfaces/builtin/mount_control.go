@@ -460,8 +460,12 @@ func optionIncompatibleWithFsType(options []string) string {
 
 func isAllowedFilesystemSpecificMountOption(types []string, optionName string) bool {
 	for _, fstype := range types {
+		option := optionName
+		if fstype == "aufs" { // aufs uses ':' as separator between option and optarg for some options
+			option = strings.SplitAfter(optionName, ":")[0]
+		}
 		fsAllowedOptions := allowedFilesystemSpecificMountOptions[fstype]
-		if !strutil.ListContains(fsAllowedOptions, optionName) {
+		if !strutil.ListContains(fsAllowedOptions, option) {
 			return false
 		}
 	}
