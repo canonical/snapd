@@ -436,16 +436,14 @@ func validateMountOptions(mountInfo *MountInfo) error {
 		if strutil.ListContains(allowedKernelMountOptions, o) {
 			continue
 		}
-		if strutil.ListContains(allowedUserspaceMountOptions, o) {
+		optionName := strings.Split(o, "=")[0] // for options with arguments, validate only option
+		if strutil.ListContains(allowedUserspaceMountOptions, optionName) {
 			continue
 		}
-		optionName := strings.Split(o, "=")[0]
-		for _, fstype := range types {
-			fsAllowedOptions, exists := allowedFilesystemSpecificMountOptions[fstype]
-			if !(exists && strutil.ListContains(fsAllowedOptions, optionName)) {
-				return fmt.Errorf(`mount-control option unrecognized or forbidden: %q`, o)
-			}
+		if isAllowedFilesystemSpecificMountOption(types, optionName) {
+			continue
 		}
+		return fmt.Errorf(`mount-control option unrecognized or forbidden: %q`, o)
 	}
 	return nil
 }
@@ -458,6 +456,16 @@ func optionIncompatibleWithFsType(options []string) string {
 		}
 	}
 	return ""
+}
+
+func isAllowedFilesystemSpecificMountOption(types []string], optionName string) bool {
+	for _, fstype := range types {
+		fsAllowedOptions := allowedFilesystemSpecificMountOptions[fstype]
+		if !strutil.ListContains(fsAllowedOptions, optionName) {
+			return false
+		}
+	}
+	return true
 }
 
 func validateMountInfo(mountInfo *MountInfo) error {
