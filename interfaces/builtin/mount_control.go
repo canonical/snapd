@@ -90,6 +90,7 @@ var allowedKernelMountOptions = []string{
 	"rw",
 }
 
+// These mount options are evaluated by mount(8) only and never reach the kernel
 var allowedUserspaceMountOptions = []string{
 	"auto",
 	"defaults",
@@ -100,6 +101,9 @@ var allowedUserspaceMountOptions = []string{
 	"nousers",
 }
 
+// This map was obtained by referencing the mount(8) manpage, the manpages for
+// individual filesystems, and examining filesystem source code in the fs/
+// directory of the linux kernel source, in that order.
 var allowedFilesystemSpecificMountOptions = map[string][]string{
 	"adfs":       {"uid", "gid", "ownmask", "othmask"},
 	"affs":       {"uid", "gid", "setuid", "setgid", "mode", "protect", "usemp", "verbose", "prefix", "volume", "reserved", "root", "bs", "grpquota", "noquota", "quota", "usrquota"},
@@ -107,8 +111,8 @@ var allowedFilesystemSpecificMountOptions = map[string][]string{
 	"autofs":     {"fd", "uid", "gid", "pgrp", "minproto", "maxproto", "indirect", "direct", "offset", "strictexpire", "ignore"},
 	"btrfs":      {"acl", "noacl", "autodefrag", "noautodefrag", "barrier", "nobarrier", "check_int", "check_int_data", "check_int_print_mask", "clear_cache", "commit", "compress", "compress-force", "datacow", "nodatacow", "datasum", "nodatasum", "degraded", "device", "discard", "nodiscard", "enospc_debug", "noenospc_debug", "fatal_errors", "flushoncommit", "noflushoncommit", "fragment", "nologreplay", "max_inline", "metadata_ratio", "norecovery", "rescan_uuid_tree", "rescue", "skip_balance", "space_cache", "nospace_cache", "ssd", "ssd_spread", "nossd", "nossd_spread", "subvol", "subvolid", "thread_pool", "treelog", "notreelog", "usebackuproot", "user_subvol_rm_allowed", "recovery", "inode_cache", "noinode_cache"},
 	"cifs":       {"username", "user", "password", "pass", "credentials", "cred", "uid", "forceuid", "cruid", "gid", "forcegid", "idsfromsid", "port", "netbiosname", "servern", "file_mode", "dir_mode", "ip", "addr", "domain", "dom", "workgroup", "domainauto", "guest", "iocharset", "setuids", "nosetuids", "perm", "noperm", "denperm", "cache", "handlecache", "nohandlecache", "handletimeout", "rwpidforward", "mapchars", "nomapchars", "mapposix", "intr", "nointr", "hard", "soft", "noacl", "cifsacl", "backupuid", "backupgid", "nocase", "ignorecase", "sec", "seal", "rdma", "resilienthandles", "noresilienthandles", "persistenthandles", "nopersistenthandles", "snapshot", "nobrl", "forcemandatorylock", "locallease", "nolease", "sfu", "mfsymlinks", "echo_interval", "serverino", "noserverino", "posix", "unix", "linux", "noposix", "nounix", "nolinux", "nouser_xattr", "nodfs", "noautotune", "nosharesock", "noblocksend", "rsize", "wsize", "bsize", "max_credits", "fsc", "multiuser", "actimeo", "noposixpaths", "posixpaths", "vers"},
-	"debugfs":    {"uid", "gid", "mode"},                            // debugfs not allowed
-	"devpts":     {"uid", "gid", "mode", "newinstance", "ptmxmode"}, // devpts not allowed
+	"debugfs":    {"uid", "gid", "mode"},                            // debugfs not allowed by mount-control but listed for completeness
+	"devpts":     {"uid", "gid", "mode", "newinstance", "ptmxmode"}, // devpts not allowed by mount-control but listed for completeness
 	"ext2":       {"acl", "noacl", "bsddf", "minixdf", "check", "nocheck", "debug", "errors", "grpid", "bsdgroups", "nogrpid", "sysvgroups", "grpquota", "noquota", "quota", "usrquota", "nouid32", "oldalloc", "orlov", "resgid", "resuid", "sb", "user_xattr", "nouser_xattr"},
 	"ext3":       {"acl", "noacl", "bsddf", "minixdf", "check", "nocheck", "debug", "errors", "grpid", "bsdgroups", "nogrpid", "sysvgroups", "grpquota", "noquota", "quota", "usrquota", "nouid32", "oldalloc", "orlov", "resgid", "resuid", "sb", "user_xattr", "nouser_xattr", "journal_dev", "journal_path", "norecovery", "noload", "data", "data_err", "barrier", "commit", "user_xattr", "jqfmt", "usrjquota", "grpjquota"},
 	"ext4":       {"journal_dev", "journal_path", "norecovery", "noload", "data", "commit", "orlov", "oldalloc", "user_xattr", "nouser_xattr", "acl", "noacl", "bsddf", "minixdf", "debug", "errors", "data_err", "grpid", "bsdgroups", "nogrpid", "sysvgroups", "resgid", "resuid", "sb", "quota", "noquota", "nouid32", "grpquota", "usrquota", "usrjquota", "grpjquota", "jqfmt", "journal_checksum", "nojournal_checksum", "journal_async_commit", "barrier", "inode_readahead_blks", "stripe", "delalloc", "nodelalloc", "max_batch_time", "min_batch_time", "journal_ioprio", "abort", "auto_da_alloc", "noauto_da_alloc", "noinit_itable", "init_itable", "discard", "nodiscard", "block_validity", "noblock_validity", "dioread_lock", "dioread_nolock", "max_dir_size_kb", "i_version", "nombcache", "prjquota"},
@@ -421,9 +425,8 @@ func validateMountOptions(mountInfo *MountInfo) error {
 	}
 	var types []string
 	if mountInfo.hasType() {
-		fsExclusiveOption := optionIncompatibleWithFsType(mountInfo.options)
-		if fsExclusiveOption != "" {
-			return fmt.Errorf(`mount-control option %q is incompatible with specifying filesystem type`, fsExclusiveOption)
+		if incompatibleOption := optionIncompatibleWithFsType(mountInfo.options); incompatibleOption != "" {
+			return fmt.Errorf(`mount-control option %q is incompatible with specifying filesystem type`, incompatibleOption)
 		}
 		types = mountInfo.types
 	} else {
@@ -483,8 +486,9 @@ func validateMountInfo(mountInfo *MountInfo) error {
 	return nil
 }
 
-// Create a new list containing only the kernel options from the given options
-func filterKernelMountOptions(options []string) []string {
+// Create a new list containing only the allowed kernel options from the given
+// options
+func filterAllowedKernelMountOptions(options []string) []string {
 	var filtered []string
 	for _, opt := range options {
 		if strutil.ListContains(allowedKernelMountOptions, opt) {
@@ -574,8 +578,8 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 			typeRule = "fstype=(" + strings.Join(types, ",") + ")"
 		}
 
-		// only pass the kernel mount options on to apparmor
-		options := strings.Join(filterKernelMountOptions(mountInfo.options), ",")
+		// only pass the allowed kernel mount options on to apparmor
+		options := strings.Join(filterAllowedKernelMountOptions(mountInfo.options), ",")
 
 		emit("  mount %s options=(%s) \"%s\" -> \"%s{,/}\",\n", typeRule, options, source, target)
 		emit("  umount \"%s{,/}\",\n", target)
