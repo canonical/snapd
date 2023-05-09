@@ -458,7 +458,7 @@ func optionIncompatibleWithFsType(options []string) string {
 	return ""
 }
 
-func isAllowedFilesystemSpecificMountOption(types []string], optionName string) bool {
+func isAllowedFilesystemSpecificMountOption(types []string, optionName string) bool {
 	for _, fstype := range types {
 		fsAllowedOptions := allowedFilesystemSpecificMountOptions[fstype]
 		if !strutil.ListContains(fsAllowedOptions, optionName) {
