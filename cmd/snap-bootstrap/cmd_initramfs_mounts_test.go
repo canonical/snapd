@@ -381,6 +381,9 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 	s.AddCleanup(main.MockOsutilSetTime(func(time.Time) error {
 		return nil
 	}))
+
+	s.AddCleanup(main.MockPollWaitForLabel(0))
+	s.AddCleanup(main.MockPollWaitForLabelIters(1))
 }
 
 // static test cases for time test variants shared across the different modes
@@ -7932,6 +7935,38 @@ func (s *initramfsMountsSuite) TestGetDiskNotUEFINotKernelCmdlineOk(c *C) {
 	path, err := main.GetNonUEFISystemDisk("ubuntu-seed")
 	c.Assert(err, IsNil)
 	c.Assert(path, Equals, filepath.Join(s.byLabelDir, "UBUNTU-SEED"))
+
+	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "info", "--query", "property", "--name",
+			filepath.Join(s.byLabelDir, "UBUNTU-SEED")},
+	})
+}
+
+func (s *initramfsMountsSuite) TestGetDiskNotUEFINotKernelCmdlineSomeItersOk(c *C) {
+	mockUdevadm := testutil.MockCommand(c, "udevadm", `
+	echo "ID_FS_TYPE=vfat"
+`)
+	defer mockUdevadm.Restore()
+	s.AddCleanup(main.MockPollWaitForLabel(50 * time.Millisecond))
+	s.AddCleanup(main.MockPollWaitForLabelIters(100))
+
+	err := os.Remove(filepath.Join(s.byLabelDir, "ubuntu-seed"))
+	c.Assert(err, IsNil)
+
+	ch := make(chan bool)
+	go func() {
+		path, err := main.GetNonUEFISystemDisk("ubuntu-seed")
+		c.Check(err, IsNil)
+		c.Check(path, Equals, filepath.Join(s.byLabelDir, "UBUNTU-SEED"))
+		ch <- true
+	}()
+	// Wait a bit so we get at least an iteration
+	time.Sleep(50 * time.Millisecond)
+	// Now create a file that matches the label
+	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	<-ch
 
 	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name",
