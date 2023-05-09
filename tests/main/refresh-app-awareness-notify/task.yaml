@@ -29,9 +29,8 @@ execute: |
     systemctl stop snapd.{service,socket}
     "$TESTSTOOLS"/snapd-state force-autorefresh
     systemctl start snapd.{socket,service}
-    retry -n 60 sh -c 'journalctl -u snapd | MATCH "notifying agents about pending refresh for snap \"test-snapd-sh\""'
 
+    "$TESTSTOOLS"/journal-state match-log -n 60 -u snapd "notifying agents about pending refresh for snap \"test-snapd-sh\""
     # exit test-snap, this should trigger the refresh right away
     kill "$PID"
-
-    retry -n 60 sh -c 'journalctl -u snapd | MATCH "notifying user client about continued refresh for \"test-snapd-sh\""'
+    "$TESTSTOOLS"/journal-state match-log -n 60 -u snapd "notifying user client about continued refresh for \"test-snapd-sh\""
