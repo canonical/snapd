@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -51,6 +52,18 @@ func (r *RecoverDegradedState) Degraded(isEncrypted bool) bool {
 		degradedState:  r,
 	}
 	return m.degraded()
+}
+
+func MockPollWaitForLabel(newPollDur time.Duration) (restore func()) {
+	restore = testutil.Backup(&pollWaitForLabel)
+	pollWaitForLabel = newPollDur
+	return restore
+}
+
+func MockPollWaitForLabelIters(newNumIters int) (restore func()) {
+	restore = testutil.Backup(&pollWaitForLabelIters)
+	pollWaitForLabelIters = newNumIters
+	return restore
 }
 
 func MockTimeNow(f func() time.Time) (restore func()) {

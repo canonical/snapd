@@ -1330,6 +1330,37 @@ func waitForDevice(path string) error {
 	return nil
 }
 
+// Defined externally for faster unit tests
+var pollWaitForLabel = 50 * time.Millisecond
+var pollWaitForLabelIters = 1200
+
+// TODO: those have to be waited by udev instead
+func waitForCandidateByLabelPath(label string) (string, error) {
+	logger.Noticef("waiting up to %v for label %v to appear",
+		time.Duration(pollWaitForLabelIters)*pollWaitForLabel, label)
+	var err error
+	for i := 0; i < pollWaitForLabelIters; i++ {
+		var candidate string
+		// Ideally depending on the type of error we would return
+		// immediately or try again, but that would complicate code more
+		// than necessary and the extra wait will happen only when we
+		// will fail to boot anyway. Note also that this code is
+		// actually racy as we could get a not-best-possible-label (say,
+		// we get "Ubuntu-boot" while actually an exact "ubuntu-boot"
+		// label exists but the link has not been created yet): this is
+		// not a fully solvable problem although waiting by udev will
+		// help if the disk is present on boot.
+		if candidate, err = disks.CandidateByLabelPath(label); err == nil {
+			logger.Noticef("label %q found", candidate)
+			return candidate, nil
+		}
+		time.Sleep(pollWaitForLabel)
+	}
+
+	// This is the last error from CandidateByLabelPath
+	return "", err
+}
+
 func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 	values, err := osutil.KernelCommandLineKeyValues("snapd_system_disk")
 	if err != nil {
@@ -1354,7 +1385,7 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 		return partition.KernelDeviceNode, nil
 	}
 
-	candidate, err := disks.CandidateByLabelPath(fallbacklabel)
+	candidate, err := waitForCandidateByLabelPath(fallbacklabel)
 	if err != nil {
 		return "", err
 	}
