@@ -240,28 +240,6 @@ install_dependencies_gce_bucket(){
     esac
 }
 
-
-build_helpers() {
-    # Build fakestore.
-    fakestore_tags=
-    if [ "$REMOTE_STORE" = staging ]; then
-        fakestore_tags="-tags withstagingkeys"
-    fi
-
-    # eval to prevent expansion errors on opensuse (the variable keeps quotes)
-    eval "go install $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
-
-    # Build additional utilities we need for testing
-    go install ./tests/lib/fakedevicesvc
-    go install ./tests/lib/systemd-escape
-
-    # Build the tool for signing model assertions
-    go install ./tests/lib/gendeveloper1
-
-    # and the U20 create partitions wrapper
-    go install ./tests/lib/uc20-create-partitions
-}
-
 ###
 ### Prepare / restore functions for {project,suite}
 ###
@@ -327,11 +305,6 @@ prepare_project() {
     fi
 
     create_test_user
-    # install deps early
-    install_pkg_dependencies
-    # build helpers early as they may depend on vendoring which is removed
-    # on e.g. debian-sid
-    build_helpers
 
     distro_update_package_db
 
@@ -491,6 +464,8 @@ prepare_project() {
         restart_logind=maybe
     fi
 
+    install_pkg_dependencies
+
     if [ "$restart_logind" = maybe ]; then
         if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 246 ]; then
             restart_logind=yes
@@ -613,6 +588,25 @@ prepare_project() {
         download_from_gce_bucket
         install_dependencies_gce_bucket
     fi
+
+    # Build fakestore.
+    fakestore_tags=
+    if [ "$REMOTE_STORE" = staging ]; then
+        fakestore_tags="-tags withstagingkeys"
+    fi
+
+    # eval to prevent expansion errors on opensuse (the variable keeps quotes)
+    eval "go install $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
+
+    # Build additional utilities we need for testing
+    go install ./tests/lib/fakedevicesvc
+    go install ./tests/lib/systemd-escape
+
+    # Build the tool for signing model assertions
+    go install ./tests/lib/gendeveloper1
+
+    # and the U20 create partitions wrapper
+    go install ./tests/lib/uc20-create-partitions
 
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation
