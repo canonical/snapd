@@ -19,7 +19,7 @@ execute: |
     fi
 
     for u in root test; do
-        su "$login_option" -c "
+        su $login_option -c "
             set -e
             # use the snap so it creates the directories
             test-snapd-tools.echo OK
@@ -43,7 +43,7 @@ execute: |
     test "$revno" != "$new_revno"
 
     for u in root test; do
-        su "$login_option" -c "
+        su $login_option -c "
             set -e
             # update the current symlink
             test-snapd-tools.echo OK
@@ -58,7 +58,7 @@ execute: |
     test "$new_revno" = "$( readlink ~/snap/test-snapd-tools/current )"
 
     for u in root test; do
-        su "$login_option" -c "
+        su $login_option -c "
             set -e
             # canary is back
             test -e ~/snap/test-snapd-tools/current/canary.txt" "$u"
