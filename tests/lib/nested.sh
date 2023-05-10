@@ -5,6 +5,7 @@
 : "${NESTED_RUNTIME_DIR:=${NESTED_WORK_DIR}/runtime}"
 : "${NESTED_ASSETS_DIR:=${NESTED_WORK_DIR}/assets}"
 : "${NESTED_LOGS_DIR:=${NESTED_WORK_DIR}/logs}"
+: "${NESTED_ARCHITECTURE:=amd64}"
 
 : "${NESTED_VM:=nested-vm}"
 : "${NESTED_SSH_PORT:=8022}"
@@ -251,7 +252,7 @@ nested_get_snap_rev_for_channel() {
     local CHANNEL=$2
 
     curl -s \
-         -H "Snap-Device-Architecture: ${NESTED_ARCHITECTURE:-amd64}" \
+         -H "Snap-Device-Architecture: $NESTED_ARCHITECTURE" \
          -H "Snap-Device-Series: 16" \
          -X POST \
          -H "Content-Type: application/json" \
