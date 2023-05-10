@@ -5,12 +5,15 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
+	"time"
 
 	"github.com/godbus/dbus"
 	"github.com/godbus/dbus/introspect"
 
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/prompting/notifier"
 	"github.com/snapcore/snapd/prompting/storage"
 	"github.com/snapcore/snapd/snapdtool"
@@ -89,6 +92,46 @@ func NewPromptNotifierDbus() (*PromptNotifierDbus, error) {
 	return dbusNotifier, nil
 }
 
+// maybeWorkaroundMissingDBusPolicy will inspect an error to see if it
+// indicates that the dbus policy file is not installed and if so fix
+// that
+//
+// XXX: the deb really needs to take care of this
+func maybeWorkaroundMissingDBusPolicy(dbusErr dbus.Error) error {
+	if dbusErr.Name != "org.freedesktop.DBus.Error.AccessDenied" {
+		return dbusErr
+	}
+	if len(dbusErr.Body) < 1 {
+		return dbusErr
+	}
+	message, ok := dbusErr.Body[0].(string)
+	if !ok {
+		return dbusErr
+	}
+	// fugly but dbus bus errors are not translaed and it it seems the
+	// only way
+	if !strings.Contains(message, "is not allowed to own the service") {
+		return dbusErr
+	}
+
+	// At this point it very much looks like the service cannot start
+	// because the dbus policy for io.snapcraft.AppArmorPrompt is not
+	// installed (probably because of a snapd that re-execs). Workaround
+	// this here.
+	// XXX: is this what we want long term?
+	src := "/snap/snapd/current/usr/share/dbus-1/system.d/io.snapcraft.AppArmorPrompt.conf"
+	dst := "/usr/share/dbus-1/system.d/io.snapcraft.AppArmorPrompt.conf"
+	if osutil.FileExists(dst) {
+		return dbusErr
+	}
+	logger.Noticef("installing dbus config %v -> %v", src, dst)
+	if err := osutil.CopyFile(src, dst, 0); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (p *PromptNotifierDbus) setupDbus() error {
 	// godbus uses a global systemBus object internally so we *must*
 	// not close the connection.
@@ -98,6 +141,15 @@ func (p *PromptNotifierDbus) setupDbus() error {
 	}
 
 	reply, err := conn.RequestName("io.snapcraft.AppArmorPrompt", dbus.NameFlagDoNotQueue)
+	if dbusErr, ok := err.(dbus.Error); ok {
+		if err := maybeWorkaroundMissingDBusPolicy(dbusErr); err != nil {
+			return err
+		}
+		// give dbus time to pickup the changed config via inotify
+		time.Sleep(1 * time.Second)
+		// try to get the name again
+		reply, err = conn.RequestName("io.snapcraft.AppArmorPrompt", dbus.NameFlagDoNotQueue)
+	}
 	if err != nil {
 		return err
 	}
