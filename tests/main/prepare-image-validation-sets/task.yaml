@@ -11,7 +11,9 @@ backends: [-autopkgtest]
 systems:
 - -ubuntu-14.04-*
 - -ubuntu-18.04-32
-- -ubuntu-20.04-arm-*
+# The test downloads pc from track 20, which is not available for arm
+# TODO run the test also for a UC22 model
+- -ubuntu-*-arm-*
 
 environment:
     ROOT: /home/test/tmp/
