@@ -256,15 +256,15 @@ jobs:
       run: |
           sudo snap install --classic --channel=${{ matrix.gochannel }} go
 
+    - name: Get deps
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/ && ./get-deps.sh
+
     - name: Build C
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
           ./autogen.sh
           make -j$(nproc)
-
-    - name: Get deps
-      run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/ && ./get-deps.sh
 
     - name: Build Go
       run: |
