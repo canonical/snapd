@@ -86,6 +86,7 @@ debug: |
     journalctl -u snapd.aa-prompt-listener
     cat fake-agent.log
     gdbus introspect --system --dest io.snapcraft.AppArmorPrompt --object-path /io/snapcraft/AppArmorPrompt || true
+    uname -a
 
 execute: |
     # this will rebuild the profiles
