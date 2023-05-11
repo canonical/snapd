@@ -4,13 +4,20 @@ summary: check that cerberus can process prompting
 systems: [ubuntu-23.04-64]
 
 prepare: |
+    # ensure the listener is in debug mode
+    mkdir -p /etc/systemd/system/snapd.aa-prompt-listener.service.d/
+    printf "[Service]\nEnvironment=SNAPD_DEBUG=1\n" > /etc/systemd/system/snapd.aa-prompt-listener.service.d/debug.conf
+    systemctl daemon-reload
+    systemctl restart snapd.aa-prompt-listener.service
+
     # cannot use "tests.cleanup defer" here until no more reboot is needed
     apt update
     # no need to cleanup, setup/teardown will remove extra pkgs
     # automatically
     apt install -y software-properties-common
     apt-add-repository -y ppa:apparmor-dev/prompt-dev
-    apt install -y --allow-downgrades apparmor= 3.0.8-1ubuntu2+prompt48
+    # TODO: replace this with the vendoring of apparmor from the snapq
+    apt install -y --allow-downgrades apparmor=3.0.8-1ubuntu2+prompt48
     # TODO: this is only needed for as long as prompting is not in
     # the default lunar kernel.
     if [ ! -e /sys/kernel/security/apparmor/.notify ]; then
@@ -28,12 +35,15 @@ prepare: |
             REBOOT
         fi
     fi
-
     # Run the flip-flop fake agent
     systemd-run --unit fake-agent.service \
         --property=StandardOutput=file:"$(pwd)/fake-agent.log" \
         --property=StandardError=inherit \
         "$(pwd)/fake-agent.py"
+    # use the home-consumer for testing prompting
+    "$TESTSTOOLS"/snaps-state install-local home-consumer
+    # TODO: build/install the snapcraft snap here to get the vendored userland
+    # *or* build apaprmor from https://gitlab.com/jjohansen/apparmor.git:prompt
 
 restore: |
     snap unset system experimental.apparmor-prompting
@@ -46,20 +56,19 @@ restore: |
         fi
     fi
     apt-add-repository -r ppa:apparmor-dev/prompt-dev
+    # TODO: remove this
     apt install -y apparmor
 
 debug: |
+    journalctl -u fake-agent.service
+    journalctl -u snapd.aa-prompt-listener
     cat fake-agent.log
     gdbus introspect --system --dest io.snapcraft.AppArmorPrompt --object-path /io/snapcraft/AppArmorPrompt || true
 
 execute: |
-    # enable prompting (TODO: this should trigger a profile rebuild)
+    # this will rebuild the profiles
     snap set system experimental.apparmor-prompting=true
-
-    # TODO: enabling prompting does not rebuild the home profile right
-    # now so this install needs to happen after the prompting option
-    # is set or otherwise old apparmor profiles are used
-    "$TESTSTOOLS"/snaps-state install-local home-consumer
+    MATCH '^prompt ' < /var/lib/snapd/apparmor/profiles/snap.home-consumer.reader
 
     # check that reading a file in home triggers a prompt
     echo "ok" > "$HOME/test-file-1"
@@ -72,6 +81,13 @@ execute: |
     echo "no" > "$HOME/test-file-2"
     if home-consumer.reader "$HOME/test-file-2"; then
         echo "expected apparmor denial"
+        exit 1
+    fi
+    test "$(grep -E -c 'Prompt()' fake-agent.log)" -eq 2
+
+    # read something outside of /home should trigger a denial and no prompt
+    if home-consumer.reader "/etc/fstab"; then
+        echo "expected apparmor denial outside /home"
         exit 1
     fi
     test "$(grep -E -c 'Prompt()' fake-agent.log)" -eq 2

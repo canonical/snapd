@@ -30,8 +30,9 @@ class FlipFlopAgent(dbus.service.Object):
         print(f"Prompt() {prompt_path} {info} will reply {prompt_answer}")
         # flip/flop for next time
         self.answer = not self.answer
-        
-        return prompt_answer, {"extra": "info"}
+
+        extra_constraints = {"always-prompt": "yes"}
+        return prompt_answer, extra_constraints
 
 
 def main():
