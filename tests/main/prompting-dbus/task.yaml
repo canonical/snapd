@@ -3,6 +3,10 @@ summary: check that cerberus can process prompting
 # TODO: enable on more systems
 systems: [ubuntu-23.04-64]
 
+environment:
+    AA_SOURCE/deb: deb
+    AA_SOURCE/git: git
+
 prepare: |
     # ensure the listener is in debug mode
     mkdir -p /etc/systemd/system/snapd.aa-prompt-listener.service.d/
@@ -41,24 +45,29 @@ prepare: |
     #
     # Build the custom userspace version that supports prompting from
     # JJs branch (TOOD: keep in sync with what the snapd snap uses)
-    pushd /tmp
-    apt build-dep -y apparmor
-    git clone https://gitlab.com/jjohansen/apparmor.git
-    cd apparmor
-    git checkout prompt
-    # build libapparmor first
-    cd libraries/libapparmor
-    ./autogen.sh
-    ./configure --prefix=/usr --disable-man-pages --disable-perl --disable-python --disable-ruby
-    make -j$(nproc)
-    make -C src install
-    # then build parser
-    cd ../../parser
-    make -j$(nproc)
-    make install DESTDIR=/usr
-    popd
-    # XXX: uncomment to test apprmor from PPA
-    #apt install -y --allow-downgrades apparmor=3.0.8-1ubuntu2+prompt48
+    if [ "$AA_SOURCE" = git ]; then
+        pushd /tmp
+        apt build-dep -y apparmor
+        git clone https://gitlab.com/jjohansen/apparmor.git
+        cd apparmor
+        git checkout prompt
+        # build libapparmor first
+        cd libraries/libapparmor
+        ./autogen.sh
+        ./configure --prefix=/usr --disable-man-pages --disable-perl --disable-python --disable-ruby
+        make -j$(nproc)
+        make -C src install
+        # then build parser
+        cd ../../parser
+        make -j$(nproc)
+        make install DESTDIR=/usr
+        popd
+    elif [ "$AA_SOURCE" = deb ]; then
+        apt install -y --allow-downgrades apparmor=3.0.8-1ubuntu2+prompt48
+    else
+        echo "unsupported AA_SOURCE: $AA_SOURCE"
+        exit 1
+    fi
 
 restore: |
     snap unset system experimental.apparmor-prompting
@@ -98,9 +107,10 @@ execute: |
     fi
     test "$(grep -E -c 'Prompt()' fake-agent.log)" -eq 2
 
-    # read something outside of /home should trigger a denial and no prompt
-    if home-consumer.reader "/proc/modules/"; then
+    # read something outside of /home should trigger a denial
+    if home-consumer.reader "/proc/modules"; then
         echo "expected apparmor denial outside /home"
         exit 1
     fi
+    # no prompt was created
     test "$(grep -E -c 'Prompt()' fake-agent.log)" -eq 2
