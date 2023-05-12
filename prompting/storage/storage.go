@@ -152,13 +152,13 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	}
 	// what if matching entry is already in the db?
 	// should it be removed since we want to "always prompt"?
-	labelDB := pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
+	labelEntries := pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
 
 	path := strings.TrimSuffix(req.Path, "/")
 	if ((allow && extras["allow-directory"] == "yes") || (!allow && extras["deny-directory"] == "yes")) && !osutil.IsDirectory(path) {
 		path = filepath.Dir(path)
 	}
-	alreadyAllowed, err, which, matchingPath := findPathInLabelDB(labelDB, path)
+	alreadyAllowed, err, which, matchingPath := findPathInLabelDB(labelEntries, path)
 	if err != nil && err != ErrNoSavedDecision {
 		return err
 	}
@@ -200,24 +200,24 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	// if there's an exact match in one of the maps, delete it
 	if matchingPath == path {
 		// XXX maybe don't even need if statement here, as deletion is no-op if key not in map
-		delete(labelDB.Allow, path)
-		delete(labelDB.AllowWithDir, path)
-		delete(labelDB.AllowWithSubdirs, path)
+		delete(labelEntries.Allow, path)
+		delete(labelEntries.AllowWithDir, path)
+		delete(labelEntries.AllowWithSubdirs, path)
 	}
 
 	if (allow && extras["allow-subdirectories"] == "yes") || (!allow && extras["deny-subdirectories"] == "yes") {
-		labelDB.AllowWithSubdirs[path] = allow
+		labelEntries.AllowWithSubdirs[path] = allow
 	} else if (allow && extras["allow-directory"] == "yes") || (!allow && extras["deny-directory"] == "yes") {
-		labelDB.AllowWithDir[path] = allow
+		labelEntries.AllowWithDir[path] = allow
 	} else {
-		labelDB.Allow[path] = allow
+		labelEntries.Allow[path] = allow
 	}
 
 	return pd.save()
 }
 
 func (pd *PromptsDB) Get(req *notifier.Request) (bool, error) {
-	labelDB := pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
-	allow, err, _, _ := findPathInLabelDB(labelDB, req.Path)
+	labelEntries := pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
+	allow, err, _, _ := findPathInLabelDB(labelEntries, req.Path)
 	return allow, err
 }
