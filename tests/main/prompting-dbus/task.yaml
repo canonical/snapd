@@ -44,7 +44,7 @@ prepare: |
     # TODO: build/install the snapcraft snap here to get the vendored userland
     #
     # Build the custom userspace version that supports prompting from
-    # JJs branch (TOOD: keep in sync with what the snapd snap uses)
+    # JJs branch (TODO: keep in sync with what the snapd snap uses)
     if [ "$AA_SOURCE" = git ]; then
         pushd /tmp
         apt build-dep -y apparmor
