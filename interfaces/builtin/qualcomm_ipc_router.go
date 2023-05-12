@@ -51,6 +51,12 @@ network qipcrtr,
 
 # CAP_NET_ADMIN required for port number smaller QRTR_MIN_EPH_SOCKET per 'https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/net/qrtr/qrtr.c'
 capability net_admin,
+
+# Socket for diag-router which is using Linux abstract socket address (@0000...)
+# the server side
+unix (bind, listen, connect, accept, send, receive) type=seqpacket addr="@**",
+# the client side
+unix (connect, send, receive) type=seqpacket addr=none peer=(addr="@**"),
 `
 
 const qipcrtrConnectedPlugSecComp = `

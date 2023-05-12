@@ -102,6 +102,8 @@ func (s *QrtrInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network qipcrtr,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "capability net_admin,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "unix (bind, listen, connect, accept, send, receive) type=seqpacket addr=\"@**\",\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "unix (connect, send, receive) type=seqpacket addr=none peer=(addr=\"@**\"),\n")
 }
 
 func (s *QrtrInterfaceSuite) TestSecCompSpec(c *C) {
