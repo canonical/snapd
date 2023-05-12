@@ -64,6 +64,4 @@ func doExperimentalApparmorPromptProfileRegeneration(c RunTransaction, opts *fsO
 		// profile generate may take some time
 		return fmt.Errorf("%s is taking too long", regenerateProfilesChg.Kind())
 	}
-
-	return nil
 }
