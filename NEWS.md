@@ -4,6 +4,15 @@
 * Added a default-configure hook that exposes gadget default configuration
   options to snaps during first install before services are started
 
+# New in snapd 2.59.4:
+* Retry when looking for disk label on non-UEFI systems
+* Fix remodel from UC20 to UC22
+
+# New in snapd 2.59.3:
+* Fix quiet boot
+* Ignore case for vfat paritions when validating
+* Restart always enabled units
+
 # New in snapd 2.59.2:
 * Notify users when a user triggered auto refresh finished
 
