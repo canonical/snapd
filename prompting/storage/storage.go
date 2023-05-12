@@ -46,6 +46,10 @@ func findPathInLabelDB(db *labelDB, path string) (bool, error, string, string) {
 	// error: (nil | ErrMultipleDecisions | ErrNoSavedDecision)
 	// string: ("allow" | "allow-with-dir" | "allow-with-subdir") -- json name of map which contained match
 	// string: matching path current in the db
+	path = filepath.Clean(path)
+	if strings.HasSuffix(path, "/") {
+		path = filepath.Dir(path)
+	}
 	storedAllow := true
 	which := ""
 	var err error
@@ -154,8 +158,8 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	// should it be removed since we want to "always prompt"?
 	labelEntries := pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
 
-	path := strings.TrimSuffix(req.Path, "/")
-	if ((allow && extras["allow-directory"] == "yes") || (!allow && extras["deny-directory"] == "yes")) && !osutil.IsDirectory(path) {
+	path := filepath.Clean(req.Path)
+	if strings.HasSuffix(path, "/") || (((allow && (extras["allow-directory"] == "yes" || extras["allow-subdirectories"] == "yes")) || (!allow && (extras["deny-directory"] == "yes" || extras["deny-subdirectories"] == "yes"))) && !osutil.IsDirectory(path)) {
 		path = filepath.Dir(path)
 	}
 	alreadyAllowed, err, which, matchingPath := findPathInLabelDB(labelEntries, path)

@@ -29,7 +29,7 @@ func (s *storageSuite) TestSimple(c *C) {
 	req := &notifier.Request{
 		Label:      "snap.lxd.lxd",
 		SubjectUid: 1000,
-		Path:       "/home/test/foo",
+		Path:       "/home/test/foo/",
 	}
 
 	allowed, err := st.Get(req)
@@ -55,7 +55,6 @@ func (s *storageSuite) TestSimple(c *C) {
 	err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 	// more nested path is not added
-	paths = st.MapsForUidAndLabel(1000, "snap.lxd.lxd").AllowWithSubdirs
 	c.Check(paths, HasLen, 1)
 
 	// and more nested path is still allowed
@@ -70,7 +69,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	req := &notifier.Request{
 		Label:      "snap.lxd.lxd",
 		SubjectUid: 1000,
-		Path:       "/home/test/foo",
+		Path:       "/home/test/foo/",
 	}
 
 	allowed, err := st.Get(req)
@@ -85,7 +84,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	c.Assert(err, IsNil)
 
 	// set a more nested path to not allow
-	req.Path = "/home/test/foo/bar"
+	req.Path = "/home/test/foo/bar/"
 	err = st.Set(req, !allow, extra)
 	c.Assert(err, IsNil)
 	// more nested path was added
@@ -102,7 +101,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(allowed, Equals, false)
 	// but original path is still allowed
-	req.Path = "/home/test/foo"
+	req.Path = "/home/test/foo/"
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
 	c.Check(allowed, Equals, true)
@@ -111,18 +110,16 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	err = st.Set(req, !allow, extra)
 	c.Assert(err, IsNil)
 	// original assignment was overridden
-	paths = st.MapsForUidAndLabel(1000, "snap.lxd.lxd").AllowWithSubdirs
 	c.Check(paths, HasLen, 2)
 	// TODO: in the future, possibly this should be 1, if we decide to remove
 	// subdirectories with the same access from the database when an ancestor
 	// directory with the same access is added
 
 	// set a more nested path to allow
-	req.Path = "/home/test/foo/bar"
+	req.Path = "/home/test/foo/bar/"
 	err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 	// more nested path was added
-	paths = st.MapsForUidAndLabel(1000, "snap.lxd.lxd").AllowWithSubdirs
 	c.Check(paths, HasLen, 2)
 
 	// and check more nested path is allowed
@@ -135,7 +132,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(allowed, Equals, true)
 	// but original path is still not allowed
-	req.Path = "/home/test/foo"
+	req.Path = "/home/test/foo/"
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
 	c.Check(allowed, Equals, false)
