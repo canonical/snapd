@@ -96,19 +96,6 @@ outside:
 	return false, ErrNoSavedDecision, "", ""
 }
 
-func findPathInSubdirs(paths map[string]bool, path string) (bool, error) {
-	for {
-		if allow, exists := paths[path]; exists {
-			return allow, nil
-		}
-		path = filepath.Dir(path)
-		if path == "/" || path == "." {
-			break
-		}
-	}
-	return false, ErrNoSavedDecision
-}
-
 // TODO: unexport
 func (pd *PromptsDB) MapsForUidAndLabel(uid uint32, label string) *labelDB {
 	userEntries := pd.PerUser[uid]
