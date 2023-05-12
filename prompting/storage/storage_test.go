@@ -38,10 +38,12 @@ func (s *storageSuite) TestSimple(c *C) {
 
 	allow := true
 	extra := map[string]string{}
+	extra["allow-subdirectories"] = "yes"
+	extra["deny-subdirectories"] = "yes"
 	err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 
-	paths := st.PathsForUidAndLabel(1000, "snap.lxd.lxd")
+	paths := st.MapsForUidAndLabel(1000, "snap.lxd.lxd").AllowWithSubdirs
 	c.Check(paths, HasLen, 1)
 
 	allowed, err = st.Get(req)
@@ -53,7 +55,7 @@ func (s *storageSuite) TestSimple(c *C) {
 	err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 	// more nested path is not added
-	paths = st.PathsForUidAndLabel(1000, "snap.lxd.lxd")
+	paths = st.MapsForUidAndLabel(1000, "snap.lxd.lxd").AllowWithSubdirs
 	c.Check(paths, HasLen, 1)
 
 	// and more nested path is still allowed
@@ -77,6 +79,8 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 
 	allow := true
 	extra := map[string]string{}
+	extra["allow-subdirectories"] = "yes"
+	extra["deny-subdirectories"] = "yes"
 	err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 
@@ -85,7 +89,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	err = st.Set(req, !allow, extra)
 	c.Assert(err, IsNil)
 	// more nested path was added
-	paths := st.PathsForUidAndLabel(1000, "snap.lxd.lxd")
+	paths := st.MapsForUidAndLabel(1000, "snap.lxd.lxd").AllowWithSubdirs
 	c.Check(paths, HasLen, 2)
 
 	// and check more nested path is not allowed
@@ -107,7 +111,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	err = st.Set(req, !allow, extra)
 	c.Assert(err, IsNil)
 	// original assignment was overridden
-	paths = st.PathsForUidAndLabel(1000, "snap.lxd.lxd")
+	paths = st.MapsForUidAndLabel(1000, "snap.lxd.lxd").AllowWithSubdirs
 	c.Check(paths, HasLen, 2)
 	// TODO: in the future, possibly this should be 1, if we decide to remove
 	// subdirectories with the same access from the database when an ancestor
@@ -118,7 +122,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 	// more nested path was added
-	paths = st.PathsForUidAndLabel(1000, "snap.lxd.lxd")
+	paths = st.MapsForUidAndLabel(1000, "snap.lxd.lxd").AllowWithSubdirs
 	c.Check(paths, HasLen, 2)
 
 	// and check more nested path is allowed

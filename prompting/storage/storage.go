@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -12,14 +13,20 @@ import (
 )
 
 var ErrNoSavedDecision = errors.New("no saved prompt decision")
+var ErrMultipleDecisions = errors.New("multiple prompt decisions for the same path")
 
 type userDB struct {
 	PerLabelDB map[string]*labelDB `json:"per-label-db"`
 }
 
 type labelDB struct {
+	Allow            map[string]bool `json:"allow"`
+	AllowWithDir     map[string]bool `json:"allow-with-dir"`
 	AllowWithSubdirs map[string]bool `json:"allow-with-subdir"`
+	// XXX: Always check with the following priority: Allow, then AllowWithDir, then AllowWithSubdirs
 }
+
+// TODO: use Permission (interface{}) in place of bool to store particular permissions
 
 // TODO: make this an interface
 type PromptsDB struct {
@@ -34,12 +41,64 @@ func New() *PromptsDB {
 	return pd
 }
 
+func findPathInLabelDB(db *labelDB, path string) (bool, error, string, string) {
+	// bool: allow
+	// error: (nil | ErrMultipleDecisions | ErrNoSavedDecision)
+	// string: ("allow" | "allow-with-dir" | "allow-with-subdir") -- json name of map which contained match
+	// string: matching path current in the db
+	storedAllow := true
+	which := ""
+	var err error
+	// Check if original path has exact match in db.Allow
+	if allow, exists := db.Allow[path]; exists {
+		which = "allow"
+		storedAllow = storedAllow && allow
+	}
+outside:
+	for i := 0; i < 2; i++ {
+		// Check if original path and parent of path has match in db.AllowWithDir
+		// Thus, run twice
+		if allow, exists := db.AllowWithDir[path]; exists {
+			if which != "" {
+				err = ErrMultipleDecisions
+				which = which + "," + "allow-with-dir"
+			} else {
+				which = "allow-with-dir"
+			}
+			storedAllow = storedAllow && allow
+		}
+		for {
+			// Check if any ancestor of path has match in db.AllowWithSubdirs
+			// Thus, loop until path is "/" or "."
+			if allow, exists := db.AllowWithSubdirs[path]; exists {
+				if which != "" {
+					err = ErrMultipleDecisions
+					which = which + "," + "allow-with-subdir"
+				} else {
+					which = "allow-with-subdir"
+				}
+				storedAllow = storedAllow && allow
+			}
+			if which != "" {
+				return storedAllow, err, which, path
+			}
+			path = filepath.Dir(path)
+			if path == "/" || path == "." {
+				break outside
+			}
+			// Only run once during the first loop for AllowWithDir
+			if i == 0 {
+				break
+			}
+			// Otherwise, loop until path is "/" or "."
+		}
+	}
+	return false, ErrNoSavedDecision, "", ""
+}
+
 func findPathInSubdirs(paths map[string]bool, path string) (bool, error) {
 	for {
 		if allow, exists := paths[path]; exists {
-			return allow, nil
-		}
-		if allow, exists := paths[path+"/"]; exists {
 			return allow, nil
 		}
 		path = filepath.Dir(path)
@@ -51,7 +110,7 @@ func findPathInSubdirs(paths map[string]bool, path string) (bool, error) {
 }
 
 // TODO: unexport
-func (pd *PromptsDB) PathsForUidAndLabel(uid uint32, label string) map[string]bool {
+func (pd *PromptsDB) MapsForUidAndLabel(uid uint32, label string) *labelDB {
 	userEntries := pd.PerUser[uid]
 	if userEntries == nil {
 		userEntries = &userDB{
@@ -62,11 +121,13 @@ func (pd *PromptsDB) PathsForUidAndLabel(uid uint32, label string) map[string]bo
 	labelEntries := userEntries.PerLabelDB[label]
 	if labelEntries == nil {
 		labelEntries = &labelDB{
+			Allow:            make(map[string]bool),
+			AllowWithDir:     make(map[string]bool),
 			AllowWithSubdirs: make(map[string]bool),
 		}
 		userEntries.PerLabelDB[label] = labelEntries
 	}
-	return labelEntries.AllowWithSubdirs
+	return labelEntries
 }
 
 func (pd *PromptsDB) dbpath() string {
@@ -102,25 +163,74 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	if extras["always-prompt"] == "yes" {
 		return nil
 	}
-	allowWithSubdirs := pd.PathsForUidAndLabel(req.SubjectUid, req.Label)
+	// what if matching entry is already in the db?
+	// should it be removed since we want to "always prompt"?
+	labelDB := pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
 
-	path := req.Path
+	path := strings.TrimSuffix(req.Path, "/")
 	if ((allow && extras["allow-directory"] == "yes") || (!allow && extras["deny-directory"] == "yes")) && !osutil.IsDirectory(path) {
 		path = filepath.Dir(path)
 	}
-	alreadyAllowed, err := findPathInSubdirs(allowWithSubdirs, path)
+	alreadyAllowed, err, which, matchingPath := findPathInLabelDB(labelDB, path)
 	if err != nil && err != ErrNoSavedDecision {
 		return err
 	}
-	if err == nil && (alreadyAllowed == allow) {
-		return nil
+
+	// if path matches entry already in a different map (XXX means can't return early):
+	// new Allow, old Allow -> replace if different
+	// new Allow, old AllowWithDir, exact match -> replace if different (forces prompt for entries in directory of path)
+	// new Allow, old AllowWithSubdirs, exact match -> same as ^^
+	// new Allow, old AllowWithDir, parent match -> insert if different
+	// new Allow, old AllowWithSubdirs, ancestor match -> same as ^^
+	// new AllowWithDir, old Allow -> replace always XXX
+	// new AllowWithDir, old AllowWithDir, exact match -> replace if different
+	// new AllowWithDir, old AllowWithSubdir, exact match -> same as ^^
+	// new AllowWithDir, old AllowWithDir, parent match -> insert always XXX
+	// new AllowWithDir, old AllowWithSubdir, ancestor match -> insert if different
+	// new AllowWithSubdir, old Allow -> replace always XXX
+	// new AllowWithSubdir, old AllowWithDir, exact match -> replace always XXX
+	// new AllowWithSubdir, old AllowWithSubdir, exact match -> replace if different
+	// new AllowWithSubdir, old AllowWithDir, parent match -> insert always XXX
+	// new AllowWithSubdir, old AllowWithSubdir, ancestor match -> insert if different
+
+	// in summary:
+	// do nothing if decision matches and _not_ one of:
+	//  1. new AllowWithDir, old Allow
+	//  2. new AllowWithDir, old AllowWithDir, parent match
+	//  3. new AllowWithSubdir, old _not_ AllowWithSubdir
+	// otherwise:
+	// remove any existing exact match (no-op if there is none)
+	// insert the path with the decision in the correct map
+
+	if (err == nil) && (alreadyAllowed == allow) {
+		// already in db and decision matches
+		if !((extras["allow-directory"] == "yes" && (which == "allow" || (which == "allow-with-dir" && matchingPath != path))) || (extras["allow-subdirectories"] == "yes" && which != "allow-with-subdirs")) {
+			// don't need to do anything
+			return nil
+		}
 	}
-	allowWithSubdirs[path] = allow
+
+	// if there's an exact match in one of the maps, delete it
+	if matchingPath == path {
+		// XXX maybe don't even need if statement here, as deletion is no-op if key not in map
+		delete(labelDB.Allow, path)
+		delete(labelDB.AllowWithDir, path)
+		delete(labelDB.AllowWithSubdirs, path)
+	}
+
+	if (allow && extras["allow-subdirectories"] == "yes") || (!allow && extras["deny-subdirectories"] == "yes") {
+		labelDB.AllowWithSubdirs[path] = allow
+	} else if (allow && extras["allow-directory"] == "yes") || (!allow && extras["deny-directory"] == "yes") {
+		labelDB.AllowWithDir[path] = allow
+	} else {
+		labelDB.Allow[path] = allow
+	}
 
 	return pd.save()
 }
 
 func (pd *PromptsDB) Get(req *notifier.Request) (bool, error) {
-	allowWithSubdirs := pd.PathsForUidAndLabel(req.SubjectUid, req.Label)
-	return findPathInSubdirs(allowWithSubdirs, req.Path)
+	labelDB := pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
+	allow, err, _, _ := findPathInLabelDB(labelDB, req.Path)
+	return allow, err
 }
