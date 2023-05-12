@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.59.3
+Version:        2.59.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -996,6 +996,12 @@ fi
 
 
 %changelog
+* Fri May 12 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.4
+ - Retry when looking for disk label on non-UEFI systems
+   (LP: #2018977)
+ - Fix remodel from UC20 to UC22
+
 * Wed May 03 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.59.3
  - Fix quiet boot

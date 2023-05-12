@@ -1,3 +1,12 @@
+snapd (2.59.4~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Retry when looking for disk label on non-UEFI systems
+      (LP: #2018977)
+    - Fix remodel from UC20 to UC22
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 12 May 2023 10:15:57 +0200
+
 snapd (2.59.3~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #2009946
