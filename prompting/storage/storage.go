@@ -191,7 +191,7 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 
 	if (err == nil) && (alreadyAllowed == allow) {
 		// already in db and decision matches
-		if !((extras["allow-directory"] == "yes" && (which == "allow" || (which == "allow-with-dir" && matchingPath != path))) || (extras["allow-subdirectories"] == "yes" && which != "allow-with-subdirs")) {
+		if !((extras["allow-directory"] == "yes" && (which == "allow" || (which == "allow-with-dir" && matchingPath != path))) || (extras["allow-subdirectories"] == "yes" && which != "allow-with-subdir")) {
 			// don't need to do anything
 			return nil
 		}
