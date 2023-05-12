@@ -26,6 +26,21 @@ type labelDB struct {
 	// XXX: Always check with the following priority: Allow, then AllowWithDir, then AllowWithSubdirs
 }
 
+const (
+	// must match the json annotations for entries in labelDB
+	jsonAllow            = "allow"
+	jsonAllowWithDir     = "allow-with-dir"
+	jsonAllowWithSubdirs = "allow-with-subdir"
+	// must match the specification for extra information map returned by the prompt
+	extrasAlwaysPrompt     = "always-prompt"
+	extrasAllowWithDir     = "allow-directory"
+	extrasAllowWithSubdirs = "allow-subdirectories"
+	extrasAllowExtraPerms  = "allow-extra-permissions"
+	extrasDenyWithDir      = "deny-directory"
+	extrasDenyWithSubdirs  = "deny-subdirectories"
+	extrasDenyExtraPerms   = "deny-extra-permissions"
+)
+
 // TODO: use Permission (interface{}) in place of bool to store particular permissions
 
 // TODO: make this an interface
@@ -42,9 +57,10 @@ func New() *PromptsDB {
 }
 
 func findPathInLabelDB(db *labelDB, path string) (bool, error, string, string) {
+	// Returns:
 	// bool: allow
 	// error: (nil | ErrMultipleDecisions | ErrNoSavedDecision)
-	// string: ("allow" | "allow-with-dir" | "allow-with-subdir") -- json name of map which contained match
+	// string: (jsonAllow | jsonAllowWithDir | jsonAllowWithSubdirs) -- json name of map which contained match
 	// string: matching path current in the db
 	path = filepath.Clean(path)
 	storedAllow := true
@@ -52,7 +68,7 @@ func findPathInLabelDB(db *labelDB, path string) (bool, error, string, string) {
 	var err error
 	// Check if original path has exact match in db.Allow
 	if allow, exists := db.Allow[path]; exists {
-		which = "allow"
+		which = jsonAllow
 		storedAllow = storedAllow && allow
 	}
 outside:
@@ -62,9 +78,9 @@ outside:
 		if allow, exists := db.AllowWithDir[path]; exists {
 			if which != "" {
 				err = ErrMultipleDecisions
-				which = which + "," + "allow-with-dir"
+				which = which + "," + jsonAllowWithDir
 			} else {
-				which = "allow-with-dir"
+				which = jsonAllowWithDir
 			}
 			storedAllow = storedAllow && allow
 		}
@@ -74,9 +90,9 @@ outside:
 			if allow, exists := db.AllowWithSubdirs[path]; exists {
 				if which != "" {
 					err = ErrMultipleDecisions
-					which = which + "," + "allow-with-subdir"
+					which = which + "," + jsonAllowWithSubdirs
 				} else {
-					which = "allow-with-subdir"
+					which = jsonAllowWithSubdirs
 				}
 				storedAllow = storedAllow && allow
 			}
@@ -148,7 +164,7 @@ func (pd *PromptsDB) load() error {
 // TODO: extras is ways too loosly typed right now
 func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]string) error {
 	// nothing to store in the db
-	if extras["always-prompt"] == "yes" {
+	if extras[extrasAlwaysPrompt] == "yes" {
 		return nil
 	}
 	// what if matching entry is already in the db?
@@ -156,7 +172,7 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	labelEntries := pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
 
 	path := req.Path
-	if strings.HasSuffix(path, "/") || (((allow && (extras["allow-directory"] == "yes" || extras["allow-subdirectories"] == "yes")) || (!allow && (extras["deny-directory"] == "yes" || extras["deny-subdirectories"] == "yes"))) && !osutil.IsDirectory(path)) {
+	if strings.HasSuffix(path, "/") || (((allow && (extras[extrasAllowWithDir] == "yes" || extras[extrasAllowWithSubdirs] == "yes")) || (!allow && (extras[extrasDenyWithDir] == "yes" || extras[extrasDenyWithSubdirs] == "yes"))) && !osutil.IsDirectory(path)) {
 		path = filepath.Dir(path)
 	}
 	path = filepath.Clean(path)
@@ -193,7 +209,7 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 
 	if (err == nil) && (alreadyAllowed == allow) {
 		// already in db and decision matches
-		if !((extras["allow-directory"] == "yes" && (which == "allow" || (which == "allow-with-dir" && matchingPath != path))) || (extras["allow-subdirectories"] == "yes" && which != "allow-with-subdir")) {
+		if !((extras[extrasAllowWithDir] == "yes" && (which == jsonAllow || (which == jsonAllowWithDir && matchingPath != path))) || (extras[extrasAllowWithSubdirs] == "yes" && which != jsonAllowWithSubdirs)) {
 			// don't need to do anything
 			return nil
 		}
@@ -207,9 +223,9 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 		delete(labelEntries.AllowWithSubdirs, path)
 	}
 
-	if (allow && extras["allow-subdirectories"] == "yes") || (!allow && extras["deny-subdirectories"] == "yes") {
+	if (allow && extras[extrasAllowWithSubdirs] == "yes") || (!allow && extras[extrasDenyWithSubdirs] == "yes") {
 		labelEntries.AllowWithSubdirs[path] = allow
-	} else if (allow && extras["allow-directory"] == "yes") || (!allow && extras["deny-directory"] == "yes") {
+	} else if (allow && extras[extrasAllowWithDir] == "yes") || (!allow && extras[extrasDenyWithDir] == "yes") {
 		labelEntries.AllowWithDir[path] = allow
 	} else {
 		labelEntries.Allow[path] = allow
