@@ -1403,16 +1403,6 @@ func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
 	return oldV, newV, nil
 }
 
-func isSameOffset(one *quantity.Offset, two *quantity.Offset) bool {
-	if one == nil && two == nil {
-		return true
-	}
-	if one != nil && two != nil {
-		return *one == *two
-	}
-	return false
-}
-
 func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
 	if one == nil && two == nil {
 		return true
