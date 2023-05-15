@@ -130,4 +130,3 @@ execute: |
         test "$(find /etc/systemd/user -name 'snap.*.socket' | wc -l)" -eq 0
     fi
     test "$(find /etc/systemd -name 'snap.*.slice' | wc -l)" -eq 0
-
