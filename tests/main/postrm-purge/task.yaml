@@ -101,7 +101,7 @@ execute: |
         exit 1
     fi
 
-    # Check there are not snapd services listed
+    # Check no snapd services are listed
     systemctl -l | NOMATCH "snapd\."
 
     echo "No dangling service symlinks are left behind"
