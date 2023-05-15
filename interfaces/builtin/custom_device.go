@@ -423,7 +423,7 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 			}
 		}
 		if !foundMatch {
-			deviceName := devicePath[5:]
+			deviceName := devicePath[len("/dev/"):]
 			deviceRules[deviceName] = fmt.Sprintf(`KERNEL=="%s"`, deviceName)
 		}
 	}
