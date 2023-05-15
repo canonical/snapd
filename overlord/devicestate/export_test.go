@@ -206,6 +206,23 @@ func MockPopulateStateFromSeed(m *DeviceManager, f func(seedLabel, seedMode stri
 	}
 }
 
+func EnsureAutoImportAssertions(m *DeviceManager) error {
+	return m.ensureAutoImportAssertions()
+}
+
+func ReloadEarlyDeviceSeed(m *DeviceManager, seedLoadErr error) (snapstate.DeviceContext, seed.Seed, error) {
+	m.seedChosen = false
+	return m.earlyLoadDeviceSeed(seedLoadErr)
+}
+
+func MockProcessAutoImportAssertion(f func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error) (restore func()) {
+	old := processAutoImportAssertionsImpl
+	processAutoImportAssertionsImpl = f
+	return func() {
+		processAutoImportAssertionsImpl = old
+	}
+}
+
 func EnsureBootOk(m *DeviceManager) error {
 	return m.ensureBootOk()
 }
@@ -284,13 +301,11 @@ var (
 	LogNewSystemSnapFile                   = logNewSystemSnapFile
 	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
-
-	MaybeApplyPreseededData = maybeApplyPreseededData
 )
 
-func MockMaybeApplyPreseededData(f func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (bool, error)) (restore func()) {
-	r := testutil.Backup(&maybeApplyPreseededData)
-	maybeApplyPreseededData = f
+func MockApplyPreseededData(f func(deviceSeed seed.PreseedCapable, writableDir string) error) (restore func()) {
+	r := testutil.Backup(&applyPreseededData)
+	applyPreseededData = f
 	return r
 }
 

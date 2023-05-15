@@ -114,6 +114,7 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 				cmd.ActionModifier = "disable"
 			}
 		case inst.Action == "restart":
+			cmd.RestartEnabledNonActive = true
 			if inst.Reload {
 				cmd.Action = "reload-or-restart"
 			} else {

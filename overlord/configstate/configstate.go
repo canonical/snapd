@@ -43,6 +43,7 @@ import (
 
 func init() {
 	snapstate.Configure = Configure
+	snapstate.DefaultConfigure = DefaultConfigure
 }
 
 func ConfigureHookTimeout() time.Duration {
@@ -130,6 +131,22 @@ func Configure(st *state.State, snapName string, patch map[string]interface{}, f
 	}
 
 	task := hookstate.HookTask(st, summary, hooksup, contextData)
+	return state.NewTaskSet(task)
+}
+
+// DefaultConfigure returns a taskset to apply the given default-configuration patch.
+func DefaultConfigure(st *state.State, snapName string) *state.TaskSet {
+	summary := fmt.Sprintf(i18n.G("Run default-configure hook of %q snap if present"), snapName)
+	hooksup := &hookstate.HookSetup{
+		Snap:     snapName,
+		Hook:     "default-configure",
+		Optional: true,
+		// all configure hooks must finish within this timeout
+		Timeout: ConfigureHookTimeout(),
+	}
+	// the default-configure hook always uses defaults, no need to indicate this
+	// by setting use-defaults flag in context data
+	task := hookstate.HookTask(st, summary, hooksup, nil)
 	return state.NewTaskSet(task)
 }
 

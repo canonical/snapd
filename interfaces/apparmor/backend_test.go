@@ -51,7 +51,7 @@ type loadProfilesParams struct {
 	flags    apparmor_sandbox.AaParserFlags
 }
 
-type unloadProfilesParams struct {
+type removeCachedProfilesParams struct {
 	fnames   []string
 	cacheDir string
 }
@@ -62,10 +62,10 @@ type backendSuite struct {
 	perf *timings.Timings
 	meas *timings.Span
 
-	loadProfilesCalls    []loadProfilesParams
-	loadProfilesReturn   error
-	unloadProfilesCalls  []unloadProfilesParams
-	unloadProfilesReturn error
+	loadProfilesCalls          []loadProfilesParams
+	loadProfilesReturn         error
+	removeCachedProfilesCalls  []removeCachedProfilesParams
+	removeCachedProfilesReturn error
 }
 
 var _ = Suite(&backendSuite{})
@@ -96,8 +96,8 @@ func (s *backendSuite) SetUpTest(c *C) {
 
 	s.loadProfilesCalls = nil
 	s.loadProfilesReturn = nil
-	s.unloadProfilesCalls = nil
-	s.unloadProfilesReturn = nil
+	s.removeCachedProfilesCalls = nil
+	s.removeCachedProfilesReturn = nil
 	restore = apparmor.MockLoadProfiles(func(fnames []string, cacheDir string, flags apparmor_sandbox.AaParserFlags) error {
 		// To simplify testing, ignore invocations with no profiles (as a
 		// matter of fact, the real implementation is doing the same)
@@ -108,9 +108,9 @@ func (s *backendSuite) SetUpTest(c *C) {
 		return s.loadProfilesReturn
 	})
 	s.AddCleanup(restore)
-	restore = apparmor.MockUnloadProfiles(func(fnames []string, cacheDir string) error {
-		s.unloadProfilesCalls = append(s.unloadProfilesCalls, unloadProfilesParams{fnames, cacheDir})
-		return s.unloadProfilesReturn
+	restore = apparmor.MockRemoveCachedProfiles(func(fnames []string, cacheDir string) error {
+		s.removeCachedProfilesCalls = append(s.removeCachedProfilesCalls, removeCachedProfilesParams{fnames, cacheDir})
+		return s.removeCachedProfilesReturn
 	})
 	s.AddCleanup(restore)
 
@@ -415,9 +415,9 @@ func (s *backendSuite) TestProfilesAreAlwaysLoaded(c *C) {
 func (s *backendSuite) TestRemovingSnapRemovesAndUnloadsProfiles(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
-		s.unloadProfilesCalls = nil
+		s.removeCachedProfilesCalls = nil
 		s.RemoveSnap(c, snapInfo)
-		c.Check(s.unloadProfilesCalls, DeepEquals, []unloadProfilesParams{
+		c.Check(s.removeCachedProfilesCalls, DeepEquals, []removeCachedProfilesParams{
 			{[]string{"snap-update-ns.samba", "snap.samba.smbd"}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir)},
 		})
 	}
@@ -426,9 +426,9 @@ func (s *backendSuite) TestRemovingSnapRemovesAndUnloadsProfiles(c *C) {
 func (s *backendSuite) TestRemovingSnapWithHookRemovesAndUnloadsProfiles(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.HookYaml, 1)
-		s.unloadProfilesCalls = nil
+		s.removeCachedProfilesCalls = nil
 		s.RemoveSnap(c, snapInfo)
-		c.Check(s.unloadProfilesCalls, DeepEquals, []unloadProfilesParams{
+		c.Check(s.removeCachedProfilesCalls, DeepEquals, []removeCachedProfilesParams{
 			{[]string{"snap-update-ns.foo", "snap.foo.hook.configure"}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir)},
 		})
 	}
@@ -2472,5 +2472,32 @@ func (s *backendSuite) TestCoreSnippetOnCoreSystem(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
 		s.RemoveSnap(c, snapInfo)
+	}
+}
+func (s *backendSuite) TestRemoveAllSnapAppArmorProfiles(c *C) {
+	dirs.SetRootDir(s.RootDir)
+
+	opts := interfaces.ConfinementOptions{}
+	snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+	s.AddCleanup(func() { s.RemoveSnap(c, snapInfo1) })
+	snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
+	s.AddCleanup(func() { s.RemoveSnap(c, snapInfo2) })
+
+	snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
+	snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	snap2nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap")
+	snap2AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.some-snap.someapp")
+
+	for _, p := range []string{snap1nsProfile, snap1AAprofile, snap2nsProfile, snap2AAprofile} {
+		_, err := os.Stat(p)
+		c.Assert(err, IsNil)
+	}
+
+	err := apparmor.RemoveAllSnapAppArmorProfiles()
+	c.Assert(err, IsNil)
+
+	for _, p := range []string{snap1nsProfile, snap1AAprofile, snap2nsProfile, snap2AAprofile} {
+		_, err := os.Stat(p)
+		c.Check(os.IsNotExist(err), Equals, true)
 	}
 }

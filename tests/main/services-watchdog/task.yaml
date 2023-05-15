@@ -10,7 +10,7 @@ debug: |
     done
 
 execute: |
-    echo "When the service snap  is installed"
+    echo "When the service snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service-watchdog
 
     # the interface is disconnected by default
