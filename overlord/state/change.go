@@ -296,7 +296,7 @@ func (c *Change) isTaskWaiting(visited map[string]taskWaitComputeStatus, t *Task
 	computeStatus := visited[taskID]
 	switch computeStatus {
 	case taskWaitStatusComputing:
-		// cyclic dependency, return false to ignore this
+		// Cyclic dependency detected, return false to short-circuit.
 		return false
 	case taskWaitStatusWaiting, taskWaitStatusNotWaiting:
 		return computeStatus == taskWaitStatusWaiting
@@ -309,20 +309,19 @@ depscheck:
 		switch wt.Status() {
 		case WaitStatus:
 			isWaiting = true
+		// For 'Do' and 'Undo' we have to check whether the task is waiting
+		// for any dependencies. The logic is the same, but the set of tasks
+		// varies.
 		case DoStatus:
-			// If it has waiters that are in 'Do', we must check whether
-			// that task is in turn waiting for something else.
 			isWaiting = c.isTaskWaiting(visited, wt, wt.WaitTasks())
 			if !isWaiting {
-				// cancel early if we detect something is runnable
+				// Cancel early if we detect something is runnable.
 				break depscheck
 			}
 		case UndoStatus:
-			// If it has waiters that are in 'Undo', we must check whether
-			// that task is in turn waiting for something else.
 			isWaiting = c.isTaskWaiting(visited, wt, wt.HaltTasks())
 			if !isWaiting {
-				// cancel early if we detect something is runnable
+				// Cancel early if we detect something is runnable.
 				break depscheck
 			}
 		}
@@ -361,7 +360,7 @@ func (c *Change) isChangeWaiting() bool {
 		}
 	}
 	// In any case, we know we have atleast one waiter since
-	// this function was called
+	// this function was called.
 	return true
 }
 
@@ -389,16 +388,16 @@ func (c *Change) Status() Status {
 		statusStats[c.state.tasks[tid].Status()]++
 	}
 
-	// if the change has any waiters, check for any runnable tasks
-	// or whether it's completely blocked by waiters
+	// If the change has any waiters, check for any runnable tasks
+	// or whether it's completely blocked by waiters.
 	if statusStats[WaitStatus] > 0 {
-		// only if the change has all tasks blocked we return WaitStatus
+		// Only if the change has all tasks blocked we return WaitStatus.
 		if c.isChangeWaiting() {
 			return WaitStatus
 		}
 	}
 
-	// otherwise we return the current status with the highest priority
+	// Otherwise we return the current status with the highest priority.
 	for _, s := range statusOrder {
 		if statusStats[s] > 0 {
 			return s
