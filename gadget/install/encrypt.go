@@ -29,17 +29,16 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var (
 	secbootFormatEncryptedDevice = secboot.FormatEncryptedDevice
-	secbootAddRecoveryKey        = secboot.AddRecoveryKey
 )
 
 // encryptedDeviceCryptsetup represents a encrypted block device.
 type encryptedDevice interface {
 	Node() string
-	AddRecoveryKey(key secboot.EncryptionKey, rkey secboot.RecoveryKey) error
 	Close() error
 }
 
@@ -50,12 +49,12 @@ type encryptedDeviceLUKS struct {
 	node   string
 }
 
-// sanity
+// expected interface is implemented
 var _ = encryptedDevice(&encryptedDeviceLUKS{})
 
 // newEncryptedDeviceLUKS creates an encrypted device in the existing
 // partition using the specified key with the LUKS backend.
-func newEncryptedDeviceLUKS(part *gadget.OnDiskStructure, key secboot.EncryptionKey, name string) (encryptedDevice, error) {
+func newEncryptedDeviceLUKS(part *gadget.OnDiskStructure, encType secboot.EncryptionType, key keys.EncryptionKey, label, name string) (encryptedDevice, error) {
 	dev := &encryptedDeviceLUKS{
 		parent: part,
 		name:   name,
@@ -65,7 +64,7 @@ func newEncryptedDeviceLUKS(part *gadget.OnDiskStructure, key secboot.Encryption
 		node: fmt.Sprintf("/dev/mapper/%s", name),
 	}
 
-	if err := secbootFormatEncryptedDevice(key, name+"-enc", part.Node); err != nil {
+	if err := secbootFormatEncryptedDevice(key, encType, label, part.Node); err != nil {
 		return nil, fmt.Errorf("cannot format encrypted device: %v", err)
 	}
 
@@ -76,10 +75,6 @@ func newEncryptedDeviceLUKS(part *gadget.OnDiskStructure, key secboot.Encryption
 	return dev, nil
 }
 
-func (dev *encryptedDeviceLUKS) AddRecoveryKey(key secboot.EncryptionKey, rkey secboot.RecoveryKey) error {
-	return secbootAddRecoveryKey(key, rkey, dev.parent.Node)
-}
-
 func (dev *encryptedDeviceLUKS) Node() string {
 	return dev.node
 }
@@ -88,7 +83,7 @@ func (dev *encryptedDeviceLUKS) Close() error {
 	return cryptsetupClose(dev.name)
 }
 
-func cryptsetupOpen(key secboot.EncryptionKey, node, name string) error {
+func cryptsetupOpen(key keys.EncryptionKey, node, name string) error {
 	cmd := exec.Command("cryptsetup", "open", "--key-file", "-", node, name)
 	cmd.Stdin = bytes.NewReader(key[:])
 	if output, err := cmd.CombinedOutput(); err != nil {

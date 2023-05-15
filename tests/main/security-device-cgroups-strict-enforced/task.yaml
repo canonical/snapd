@@ -3,6 +3,10 @@ summary: Check that device cgroup control is enforced for tagged devices
 details: |
   The test verifies that device cgroup control is enforced for tagged devices.
 
+systems:
+  #TODO: bpftool is not available on core22 and tests.device-cgroup needs it for cgroups v2
+  - -ubuntu-core-22-*
+
 environment:
     # note that /dev/full has well known major:minor which is 1:7
     SYS_PATH: /sys/devices/virtual/mem/full
@@ -36,7 +40,7 @@ execute: |
     retry -n 5 test -e /var/snap/test-strict-cgroup/common/started
 
     echo "Disallow access to /dev/full"
-    # sanity check
+    # precondition check
     tests.device-cgroup test-strict-cgroup.sh dump | MATCH 'c 1:7 rwm'
     tests.device-cgroup --verbose test-strict-cgroup.sh deny c 1:7
 

@@ -22,6 +22,7 @@ package assets
 var (
 	RegisterInternal           = registerInternal
 	RegisterSnippetForEditions = registerSnippetForEditions
+	RegisterGrubSnippets       = registerGrubSnippets
 )
 
 func MockCleanState() (restore func()) {

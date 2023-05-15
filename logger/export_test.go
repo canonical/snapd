@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014,2015,2017 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,6 +19,12 @@
 
 package logger
 
+import (
+	"time"
+
+	"github.com/snapcore/snapd/testutil"
+)
+
 func GetLogger() Logger {
 	lock.Lock()
 	defer lock.Unlock()
@@ -35,10 +41,22 @@ func GetLoggerFlags() int {
 	return log.log.Flags()
 }
 
+func GetQuiet() bool {
+	log := GetLogger().(*Log)
+
+	return log.quiet
+}
+
 func ProcCmdlineMustMock(new bool) (restore func()) {
 	old := procCmdlineUseDefaultMockInTests
 	procCmdlineUseDefaultMockInTests = new
 	return func() {
 		procCmdlineUseDefaultMockInTests = old
 	}
+}
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	restore = testutil.Backup(&timeNow)
+	timeNow = f
+	return restore
 }

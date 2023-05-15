@@ -4,6 +4,11 @@ summary: Check that correct SELinux file contexts were assigned on upgrade
 systems: [fedora-*, centos-*]
 
 execute: |
+    # TODO: remove this when snapd and snap-confine are uploaded to CentOS Stream 9 repo
+    if os.query is-centos 9; then
+        exit 0
+    fi
+
     # only runs on distros with SELinux enabled
     selinuxenabled
 

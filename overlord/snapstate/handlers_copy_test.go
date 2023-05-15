@@ -64,7 +64,7 @@ func (s *copySnapDataSuite) TestDoCopySnapDataFailedRead(c *C) {
 			Revision: snap.R(42),
 		},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(task)
 
 	// Run the task we created

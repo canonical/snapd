@@ -68,3 +68,33 @@ func MakeMockUC20Model(overrides ...map[string]interface{}) *asserts.Model {
 	}
 	return assertstest.FakeAssertion(append([]map[string]interface{}{headers}, overrides...)...).(*asserts.Model)
 }
+
+func MakeMockClassicWithModesModel(overrides ...map[string]interface{}) *asserts.Model {
+	headers := map[string]interface{}{
+		"type":         "model",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model-classic-modes",
+		"display-name": "My Model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"timestamp":    "2019-11-01T08:00:00+00:00",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name": "pc-kernel",
+				"id":   "pckernelidididididididididididid",
+				"type": "kernel",
+			},
+			map[string]interface{}{
+				"name": "pc",
+				"id":   "pcididididididididididididididid",
+				"type": "gadget",
+			},
+		},
+	}
+	return assertstest.FakeAssertion(append([]map[string]interface{}{headers}, overrides...)...).(*asserts.Model)
+}

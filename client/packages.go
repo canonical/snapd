@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,7 +20,6 @@
 package client
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -41,7 +40,7 @@ type Snap struct {
 	DownloadSize  int64              `json:"download-size,omitempty"`
 	Icon          string             `json:"icon,omitempty"`
 	InstalledSize int64              `json:"installed-size,omitempty"`
-	InstallDate   time.Time          `json:"install-date,omitempty"`
+	InstallDate   *time.Time         `json:"install-date,omitempty"`
 	Name          string             `json:"name"`
 	Publisher     *snap.StoreAccount `json:"publisher,omitempty"`
 	StoreURL      string             `json:"store-url,omitempty"`
@@ -62,16 +61,21 @@ type Snap struct {
 	TryMode          bool          `json:"trymode,omitempty"`
 	Apps             []AppInfo     `json:"apps,omitempty"`
 	Broken           string        `json:"broken,omitempty"`
-	Contact          string        `json:"contact"`
 	License          string        `json:"license,omitempty"`
 	CommonIDs        []string      `json:"common-ids,omitempty"`
 	MountedFrom      string        `json:"mounted-from,omitempty"`
 	CohortKey        string        `json:"cohort-key,omitempty"`
-	Website          string        `json:"website,omitempty"`
+
+	Links map[string][]string `json:"links,omitempy"`
+
+	// legacy fields before we had links
+	Contact string `json:"contact"`
+	Website string `json:"website,omitempty"`
 
 	Prices      map[string]float64    `json:"prices,omitempty"`
 	Screenshots []snap.ScreenshotInfo `json:"screenshots,omitempty"`
 	Media       snap.MediaInfos       `json:"media,omitempty"`
+	Categories  []snap.CategoryInfo   `json:"categories,omitempty"`
 
 	// The flattended channel map with $track/$risk
 	Channels map[string]*snap.ChannelSnapInfo `json:"channels,omitempty"`
@@ -80,6 +84,11 @@ type Snap struct {
 	Tracks []string `json:"tracks,omitempty"`
 
 	Health *SnapHealth `json:"health,omitempty"`
+
+	// Hold is the time until which the snap's refreshes are held by the user.
+	Hold *time.Time `json:"hold,omitempty"`
+	// GatingHold is the time until which the snap's refreshes are held by a snap.
+	GatingHold *time.Time `json:"gating-hold,omitempty"`
 }
 
 type SnapHealth struct {
@@ -88,21 +97,6 @@ type SnapHealth struct {
 	Status    string        `json:"status"`
 	Message   string        `json:"message,omitempty"`
 	Code      string        `json:"code,omitempty"`
-}
-
-func (s *Snap) MarshalJSON() ([]byte, error) {
-	type auxSnap Snap // use auxiliary type so that Go does not call Snap.MarshalJSON()
-	// separate type just for marshalling
-	m := struct {
-		auxSnap
-		InstallDate *time.Time `json:"install-date,omitempty"`
-	}{
-		auxSnap: auxSnap(*s),
-	}
-	if !s.InstallDate.IsZero() {
-		m.InstallDate = &s.InstallDate
-	}
-	return json.Marshal(&m)
 }
 
 // Statuses and types a snap may have.
@@ -138,6 +132,8 @@ type FindOptions struct {
 
 	CommonID string
 
+	Category string
+	// Section is deprecated, use Category instead.
 	Section string
 	Private bool
 	Scope   string
@@ -149,6 +145,11 @@ var ErrNoSnapsInstalled = errors.New("no snaps installed")
 
 type ListOptions struct {
 	All bool
+}
+
+// Information about a category
+type Category struct {
+	Name string `json:"name"`
 }
 
 // List returns the list of all snaps installed on the system
@@ -179,6 +180,7 @@ func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
 }
 
 // Sections returns the list of existing snap sections in the store
+// This is deprecated, use Categories() instead.
 func (client *Client) Sections() ([]string, error) {
 	var sections []string
 	_, err := client.doSync("GET", "/v2/sections", nil, nil, nil, &sections)
@@ -187,6 +189,16 @@ func (client *Client) Sections() ([]string, error) {
 		return nil, xerrors.Errorf(fmt, err)
 	}
 	return sections, nil
+}
+
+// Categories returns the list of existing snap categories in the store
+func (client *Client) Categories() ([]*Category, error) {
+	var categories []*Category
+	_, err := client.doSync("GET", "/v2/categories", nil, nil, nil, &categories)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get snap categories: %w", err)
+	}
+	return categories, nil
 }
 
 // Find returns a list of snaps available for install from the
@@ -215,6 +227,9 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 		q.Set("select", "refresh")
 	case opts.Private:
 		q.Set("select", "private")
+	}
+	if opts.Category != "" {
+		q.Set("category", opts.Category)
 	}
 	if opts.Section != "" {
 		q.Set("section", opts.Section)

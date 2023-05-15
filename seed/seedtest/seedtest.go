@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2019 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package seedtest
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -79,6 +80,10 @@ func (ss *SeedSnaps) SetSnapAssertionNow(t time.Time) {
 }
 
 func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, developerID, ss.StoreSigning.SigningDB, "", nil, dbs...)
+}
+
+func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, revSigning *assertstest.SigningDB, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	snapName := info.SnapName()
@@ -86,26 +91,35 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	snapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, files)
 
 	snapID := ss.AssertedSnapID(snapName)
-	declA, err := ss.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      snapID,
 		"publisher-id": developerID,
 		"snap-name":    snapName,
 		"timestamp":    ss.snapAssertionNow().UTC().Format(time.RFC3339),
-	}, nil, "")
+	}
+	if revisionAuthority != nil {
+		headers["revision-authority"] = []interface{}{revisionAuthority}
+	}
+	declA, err := ss.StoreSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapFile)
 	c.Assert(err, IsNil)
 
-	revA, err := ss.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	revHeaders := map[string]interface{}{
+		"authority-id":  revSigning.AuthorityID,
 		"snap-sha3-384": sha3_384,
 		"snap-size":     fmt.Sprintf("%d", size),
 		"snap-id":       snapID,
 		"developer-id":  developerID,
 		"snap-revision": revision.String(),
 		"timestamp":     ss.snapAssertionNow().UTC().Format(time.RFC3339),
-	}, nil, "")
+	}
+	if revProvenance != "" {
+		revHeaders["provenance"] = revProvenance
+	}
+	revA, err := revSigning.Sign(asserts.SnapRevisionType, revHeaders, nil, "")
 	c.Assert(err, IsNil)
 
 	if !revision.Unset() {
@@ -134,6 +148,10 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	ss.snapRevs[snapName] = snapRev
 
 	return snapDecl, snapRev
+}
+
+func (ss *SeedSnaps) MakeAssertedDelegatedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID, delegateID, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, developerID, ss.Brands.Signing(delegateID), revProvenance, revisionAuthority, dbs...)
 }
 
 func (ss *SeedSnaps) AssertedSnap(snapName string) (snapFile string) {
@@ -195,7 +213,7 @@ func (s *TestingSeed16) WriteAssertions(fn string, assertions ...asserts.Asserti
 }
 
 func WriteAssertions(fn string, assertions ...asserts.Assertion) {
-	f, err := os.OpenFile(fn, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(fn, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		panic(err)
 	}
@@ -255,6 +273,9 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.StoreSigning.Find)
 	}
+	retrieveSeq := func(seq *asserts.AtSequence) (asserts.Assertion, error) {
+		return seq.Resolve(s.StoreSigning.Find)
+	}
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
 		save2 := func(a asserts.Assertion) error {
 			// for checking
@@ -267,8 +288,9 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 			}
 			return save(a)
 		}
-		return asserts.NewFetcher(db, retrieve, save2)
+		return asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, save2)
 	}
+	sf := seedwriter.MakeSeedAssertionFetcher(newFetcher)
 
 	opts := seedwriter.Options{
 		SeedDir: s.SeedDir,
@@ -280,15 +302,17 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	err = w.SetOptionsSnaps(optSnaps)
 	c.Assert(err, IsNil)
 
-	rf, err := w.Start(db, newFetcher)
+	err = w.Start(db, sf)
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
 	c.Assert(err, IsNil)
 
+	localARefs := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
+
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, rf, db)
-		if !asserts.IsNotFound(err) {
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, sf, db)
+		if !errors.Is(err, &asserts.NotFoundError{}) {
 			c.Assert(err, IsNil)
 		}
 		f, err := snapfile.Open(sn.Path)
@@ -296,11 +320,24 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
 		w.SetInfo(sn, info)
-		sn.ARefs = aRefs
+		if aRefs != nil {
+			localARefs[sn] = aRefs
+		}
 	}
 
 	err = w.InfoDerived()
 	c.Assert(err, IsNil)
+
+	fetchAsserts := func(sn, _, _ *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
+		if aRefs, ok := localARefs[sn]; ok {
+			return aRefs, nil
+		}
+		prev := len(sf.Refs())
+		if err = sf.Save(s.snapRevs[sn.SnapName()]); err != nil {
+			return nil, err
+		}
+		return sf.Refs()[prev:], nil
+	}
 
 	for {
 		snaps, err := w.SnapsToDownload()
@@ -314,11 +351,6 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 			err := w.SetInfo(sn, info)
 			c.Assert(err, IsNil)
 
-			prev := len(rf.Refs())
-			err = rf.Save(s.snapRevs[name])
-			c.Assert(err, IsNil)
-			sn.ARefs = rf.Refs()[prev:]
-
 			if _, err := os.Stat(sn.Path); err == nil {
 				// snap is already present
 				continue
@@ -328,7 +360,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 			c.Assert(err, IsNil)
 		}
 
-		complete, err := w.Downloaded()
+		complete, err := w.Downloaded(fetchAsserts)
 		c.Assert(err, IsNil)
 		if complete {
 			break
@@ -363,7 +395,7 @@ func ValidateSeed(c *C, root, label string, usesSnapd bool, trusted []asserts.As
 	err = sd.LoadAssertions(db, commitTo)
 	c.Assert(err, IsNil)
 
-	err = sd.LoadMeta(tm)
+	err = sd.LoadMeta(seed.AllModes, nil, tm)
 	c.Assert(err, IsNil)
 
 	// core18/core20 use the snapd snap, old core does not
@@ -376,4 +408,36 @@ func ValidateSeed(c *C, root, label string, usesSnapd bool, trusted []asserts.As
 		c.Check(sd.EssentialSnaps(), HasLen, 3)
 	}
 	return sd
+}
+
+var goodUser = map[string]interface{}{
+	"authority-id": "my-brand",
+	"brand-id":     "my-brand",
+	"email":        "foo@bar.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model", "other-model"},
+	"name":         "Boring Guy",
+	"username":     "guy",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+func WriteValidAutoImportAssertion(c *C, brands *assertstest.SigningAccounts, seedDir, sysLabel string, perm os.FileMode) {
+	systemUsers := []map[string]interface{}{goodUser}
+	// write system user assertion to the system seed root
+	autoImportAssert := filepath.Join(seedDir, "systems", sysLabel, "auto-import.assert")
+	f, err := os.OpenFile(autoImportAssert, os.O_CREATE|os.O_WRONLY, perm)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	enc := asserts.NewEncoder(f)
+	c.Assert(enc, NotNil)
+
+	for _, suMap := range systemUsers {
+		systemUser, err := brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, "")
+		c.Assert(err, IsNil)
+		systemUser = systemUser.(*asserts.SystemUser)
+		err = enc.Encode(systemUser)
+		c.Assert(err, IsNil)
+	}
 }

@@ -1,6 +1,8 @@
 summary: verify booting into recovery mode on UC20 systems
 
-systems: [ubuntu-core-20-*]
+systems:
+  - ubuntu-core-20-*
+  - ubuntu-core-22-*
 
 restore: |
     rm -f /writable/systems.json.run
@@ -11,15 +13,9 @@ restore: |
     fi
 
 debug: |
-    if [ -e systems.json ]; then
-        cat systems.json
-    fi
-    if [ -e system-info ]; then
-        cat system-info
-    fi
-    if [ -e /tmp/mock-shutdown.calls ]; then
-        cat /tmp/mock-shutdown.calls
-    fi
+    cat systems.json || true
+    cat system-info || true
+    cat /tmp/mock-shutdown.calls || true
 
 execute: |
     # shellcheck source=tests/lib/uc20-recovery.sh

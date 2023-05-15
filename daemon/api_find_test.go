@@ -229,6 +229,22 @@ func (s *findSuite) TestFindSection(c *check.C) {
 	})
 }
 
+func (s *findSuite) TestFindCategory(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{}
+
+	req, err := http.NewRequest("GET", "/v2/find?q=foo&category=bar", nil)
+	c.Assert(err, check.IsNil)
+
+	_ = s.syncReq(c, req, nil)
+
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{
+		Query:    "foo",
+		Category: "bar",
+	})
+}
+
 func (s *findSuite) TestFindScope(c *check.C) {
 	s.daemon(c)
 
@@ -363,7 +379,12 @@ func (s *findSuite) TestFindOneWithAuth(c *check.C) {
 
 	state := d.Overlord().State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, auth.NewUserParams{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 

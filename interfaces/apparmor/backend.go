@@ -61,10 +61,11 @@ import (
 
 var (
 	procSelfExe           = "/proc/self/exe"
-	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 	kernelFeatures        = apparmor_sandbox.KernelFeatures
 	parserFeatures        = apparmor_sandbox.ParserFeatures
+	loadProfiles          = apparmor_sandbox.LoadProfiles
+	removeCachedProfiles  = apparmor_sandbox.RemoveCachedProfiles
 
 	// make sure that apparmor profile fulfills the late discarding backend
 	// interface
@@ -100,15 +101,6 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// possible because snapd must be able to install a new core and only at
 	// that moment generate it.
 
-	// Inspect the system and sets up local apparmor policy for snap-confine.
-	// Local policy is included by the system-wide policy. If the local policy
-	// has changed then the apparmor profile for snap-confine is reloaded.
-
-	// Create the local policy directory if it is not there.
-	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
-		return fmt.Errorf("cannot create snap-confine policy directory: %s", err)
-	}
-
 	// Check the /proc/self/exe symlink, this is needed below but we want to
 	// fail early if this fails for whatever reason.
 	exe, err := os.Readlink(procSelfExe)
@@ -116,56 +108,8 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		return fmt.Errorf("cannot read %s: %s", procSelfExe, err)
 	}
 
-	// Location of the generated policy.
-	glob := "*"
-	policy := make(map[string]osutil.FileState)
-
-	// Check if NFS is mounted at or under $HOME. Because NFS is not
-	// transparent to apparmor we must alter our profile to counter that and
-	// allow snap-confine to work.
-	if nfs, err := isHomeUsingNFS(); err != nil {
-		logger.Noticef("cannot determine if NFS is in use: %v", err)
-	} else if nfs {
-		policy["nfs-support"] = &osutil.MemoryFileState{
-			Content: []byte(nfsSnippet),
-			Mode:    0644,
-		}
-		logger.Noticef("snapd enabled NFS support, additional implicit network permissions granted")
-	}
-
-	// Check if '/' is on overlayfs. If so, add the necessary rules for
-	// upperdir and allow snap-confine to work.
-	if overlayRoot, err := isRootWritableOverlay(); err != nil {
-		logger.Noticef("cannot determine if root filesystem on overlay: %v", err)
-	} else if overlayRoot != "" {
-		snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
-		policy["overlay-root"] = &osutil.MemoryFileState{
-			Content: []byte(snippet),
-			Mode:    0644,
-		}
-		logger.Noticef("snapd enabled root filesystem on overlay support, additional upperdir permissions granted")
-	}
-
-	// Check whether apparmor_parser supports bpf capability. Some older
-	// versions do not, hence the capability cannot be part of the default
-	// profile of snap-confine as loading it would fail.
-	if features, err := apparmor_sandbox.ParserFeatures(); err != nil {
-		logger.Noticef("cannot determine apparmor_parser features: %v", err)
-	} else if strutil.ListContains(features, "cap-bpf") {
-		policy["cap-bpf"] = &osutil.MemoryFileState{
-			Content: []byte(capabilityBPFSnippet),
-			Mode:    0644,
-		}
-	}
-
-	// Ensure that generated policy is what we computed above.
-	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, policy)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize snap-confine policy: %s", err)
-	}
-	if len(created) == 0 && len(removed) == 0 {
-		// If the generated policy didn't change, we're all done.
-		return nil
+	if _, err := apparmor_sandbox.SetupSnapConfineSnippets(); err != nil {
+		return err
 	}
 
 	// If snapd is executing from the core snap the it means it has
@@ -180,22 +124,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// Reload the apparmor profile of snap-confine. This points to the main
 	// file in /etc/apparmor.d/ as that file contains include statements that
 	// load any of the files placed in /var/lib/snapd/apparmor/snap-confine/.
-	// For historical reasons we may have a filename that ends with .real or
-	// not.  If we do then we prefer the file ending with the name .real as
-	// that is the more recent name we use.
-	var profilePath string
-	// TODO: fix for distros using /usr/libexec/snapd
-	for _, profileFname := range []string{"usr.lib.snapd.snap-confine.real", "usr.lib.snapd.snap-confine"} {
-		maybeProfilePath := filepath.Join(apparmor_sandbox.ConfDir, profileFname)
-		if _, err := os.Stat(maybeProfilePath); err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return err
-		}
-		profilePath = maybeProfilePath
-		break
-	}
+	profilePath := apparmor_sandbox.SnapConfineDistroProfilePath()
 	if profilePath == "" {
 		// XXX: is profile mandatory on some distros?
 
@@ -207,17 +136,16 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		return nil
 	}
 
-	aaFlags := skipReadCache
+	aaFlags := apparmor_sandbox.SkipReadCache
 	if b.preseed {
-		aaFlags |= skipKernelLoad
+		aaFlags |= apparmor_sandbox.SkipKernelLoad
 	}
 
-	// We are not using apparmor.LoadProfiles() because it uses other cache.
 	if err := loadProfiles([]string{profilePath}, apparmor_sandbox.SystemCacheDir, aaFlags); err != nil {
 		// When we cannot reload the profile then let's remove the generated
 		// policy. Maybe we have caused the problem so it's better to let other
 		// things work.
-		osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, nil)
+		apparmor_sandbox.RemoveSnapConfineSnippets()
 		return fmt.Errorf("cannot reload snap-confine apparmor profile: %v", err)
 	}
 	return nil
@@ -334,20 +262,20 @@ func (b *Backend) setupSnapConfineReexec(info *snap.Info) error {
 		pathnames[i] = filepath.Join(dir, profile)
 	}
 
-	var aaFlags aaParserFlags
+	var aaFlags apparmor_sandbox.AaParserFlags
 	if b.preseed {
-		aaFlags = skipKernelLoad
+		aaFlags = apparmor_sandbox.SkipKernelLoad
 	}
 	errReload := loadProfiles(pathnames, cache, aaFlags)
-	errUnload := unloadProfiles(removed, cache)
+	errRemoveCached := removeCachedProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize snap-confine apparmor profile: %s", errEnsure)
 	}
 	if errReload != nil {
 		return fmt.Errorf("cannot reload snap-confine apparmor profile: %s", errReload)
 	}
-	if errUnload != nil {
-		return fmt.Errorf("cannot unload snap-confine apparmor profile: %s", errReload)
+	if errRemoveCached != nil {
+		return fmt.Errorf("cannot remove cached snap-confine apparmor profile: %s", errReload)
 	}
 	return nil
 }
@@ -411,6 +339,9 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 	// Add snippets derived from the layout definition.
 	spec.(*Specification).AddLayout(snapInfo)
 
+	// Add additional mount layouts rules for the snap.
+	spec.(*Specification).AddExtraLayouts(snapInfo, opts.ExtraLayouts)
+
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		if err := b.setupSnapConfineReexec(snapInfo); err != nil {
@@ -453,7 +384,7 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 		return nil, fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
 	}
 	changed, removedPaths, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, content)
-	// XXX: in the old code this error was reported late, after doing load/unload.
+	// XXX: in the old code this error was reported late, after doing load/removeCached.
 	if errEnsure != nil {
 		return nil, fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
@@ -500,9 +431,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// work despite time being wrong (e.g. in the past). For more details see
 	// https://forum.snapcraft.io/t/apparmor-profile-caching/1268/18
 	var errReloadChanged error
-	aaFlags := skipReadCache
+	aaFlags := apparmor_sandbox.SkipReadCache
 	if b.preseed {
-		aaFlags |= skipKernelLoad
+		aaFlags |= apparmor_sandbox.SkipKernelLoad
 	}
 	timings.Run(tm, "load-profiles[changed]", fmt.Sprintf("load changed security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
 		errReloadChanged = loadProfiles(prof.changed, apparmor_sandbox.CacheDir, aaFlags)
@@ -514,19 +445,19 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	var errReloadOther error
 	aaFlags = 0
 	if b.preseed {
-		aaFlags |= skipKernelLoad
+		aaFlags |= apparmor_sandbox.SkipKernelLoad
 	}
 	timings.Run(tm, "load-profiles[unchanged]", fmt.Sprintf("load unchanged security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
 		errReloadOther = loadProfiles(prof.unchanged, apparmor_sandbox.CacheDir, aaFlags)
 	})
-	errUnload := unloadProfiles(prof.removed, apparmor_sandbox.CacheDir)
+	errRemoveCached := removeCachedProfiles(prof.removed, apparmor_sandbox.CacheDir)
 	if errReloadChanged != nil {
 		return errReloadChanged
 	}
 	if errReloadOther != nil {
 		return errReloadOther
 	}
-	return errUnload
+	return errRemoveCached
 }
 
 // SetupMany creates and loads apparmor profiles for multiple snaps.
@@ -552,25 +483,25 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 	}
 
 	if !fallback {
-		aaFlags := skipReadCache | conserveCPU
+		aaFlags := apparmor_sandbox.SkipReadCache | apparmor_sandbox.ConserveCPU
 		if b.preseed {
-			aaFlags |= skipKernelLoad
+			aaFlags |= apparmor_sandbox.SkipKernelLoad
 		}
 		var errReloadChanged error
 		timings.Run(tm, "load-profiles[changed-many]", fmt.Sprintf("load changed security profiles of %d snaps", len(snaps)), func(nesttm timings.Measurer) {
 			errReloadChanged = loadProfiles(allChangedPaths, apparmor_sandbox.CacheDir, aaFlags)
 		})
 
-		aaFlags = conserveCPU
+		aaFlags = apparmor_sandbox.ConserveCPU
 		if b.preseed {
-			aaFlags |= skipKernelLoad
+			aaFlags |= apparmor_sandbox.SkipKernelLoad
 		}
 		var errReloadOther error
 		timings.Run(tm, "load-profiles[unchanged-many]", fmt.Sprintf("load unchanged security profiles %d snaps", len(snaps)), func(nesttm timings.Measurer) {
 			errReloadOther = loadProfiles(allUnchangedPaths, apparmor_sandbox.CacheDir, aaFlags)
 		})
 
-		errUnload := unloadProfiles(allRemovedPaths, apparmor_sandbox.CacheDir)
+		errRemoveCached := removeCachedProfiles(allRemovedPaths, apparmor_sandbox.CacheDir)
 		if errReloadChanged != nil {
 			logger.Noticef("failed to batch-reload changed profiles: %s", errReloadChanged)
 			fallback = true
@@ -579,8 +510,8 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 			logger.Noticef("failed to batch-reload unchanged profiles: %s", errReloadOther)
 			fallback = true
 		}
-		if errUnload != nil {
-			logger.Noticef("failed to batch-unload profiles: %s", errUnload)
+		if errRemoveCached != nil {
+			logger.Noticef("failed to batch-remove cached profiles: %s", errRemoveCached)
 			fallback = true
 		}
 	}
@@ -598,18 +529,40 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 	return errors
 }
 
-// Remove removes and unloads apparmor profiles of a given snap.
+// Removes all AppArmor profiles from disk but does not unload them from the
+// kernel - currently it is not possible to ensure that all services of a snap
+// are stopped and so it is not possible to safely unload the profile for a snap
+// from the kernel and so we only remove it from the cache on disk
+func RemoveAllSnapAppArmorProfiles() error {
+	dir := dirs.SnapAppArmorDir
+	globs := []string{"snap.*", "snap-update-ns.*", "snap-confine.*"}
+	cache := apparmor_sandbox.CacheDir
+	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, nil)
+	errRemoveCached := removeCachedProfiles(removed, cache)
+	switch {
+	case errEnsure != nil && errRemoveCached != nil:
+		return fmt.Errorf("cannot remove apparmor profiles: %s (and also %s)", errEnsure, errRemoveCached)
+	case errEnsure != nil:
+		return fmt.Errorf("cannot remove apparmor profiles: %s", errEnsure)
+	case errRemoveCached != nil:
+		return errRemoveCached
+	default:
+		return nil
+	}
+}
+
+// Remove removes the apparmor profiles of a given snap from disk and the cache.
 func (b *Backend) Remove(snapName string) error {
 	dir := dirs.SnapAppArmorDir
 	globs := profileGlobs(snapName)
 	cache := apparmor_sandbox.CacheDir
 	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, nil)
-	// always try to unload affected profiles
-	errUnload := unloadProfiles(removed, cache)
+	// always try to remove affected profiles from the cache
+	errRemoveCached := removeCachedProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
-	return errUnload
+	return errRemoveCached
 }
 
 func (b *Backend) RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error {
@@ -621,14 +574,15 @@ func (b *Backend) RemoveLate(snapName string, rev snap.Revision, typ snap.Type) 
 
 	globs := []string{snapConfineProfileName(snapName, rev)}
 	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dirs.SnapAppArmorDir, globs, nil)
-	// XXX: unloadProfiles() does not unload profiles from the kernel, but
-	// only removes profiles from the cache
-	// always try to unload the affected profile
-	errUnload := unloadProfiles(removed, apparmor_sandbox.CacheDir)
+	// XXX: we should also try and unload the profile from the kernel
+	// instead of just removing it from the cache but currently it is not
+	// possible to ensure all snap services are stopped at this time and so
+	// it is not safe to unload the profile
+	errRemoveCached := removeCachedProfiles(removed, apparmor_sandbox.CacheDir)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot remove security profiles for snap %q (%s): %s", snapName, rev, errEnsure)
 	}
-	return errUnload
+	return errRemoveCached
 }
 
 var (
@@ -678,7 +632,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string
 			return snapInfo.InstanceName()
 		case "###SNIPPETS###":
 			if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {
-				snippets += strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
+				snippets += strings.Replace(apparmor_sandbox.OverlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
 			}
 			return snippets
 		}
@@ -865,16 +819,20 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
   %[2]s
 `, usrLibSnapdConfineTransitionRule, nonBaseCoreTransitionSnippet)
 
+		case "###INCLUDE_IF_EXISTS_SNAP_TUNING###":
+			features, _ := parserFeatures()
+			if strutil.ListContains(features, "include-if-exists") {
+				return `#include if exists "/var/lib/snapd/apparmor/snap-tuning"`
+			}
+			return ""
 		case "###VAR###":
 			return templateVariables(snapInfo, securityTag, cmdName)
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
 		case "###CHANGEPROFILE_RULE###":
 			features, _ := parserFeatures()
-			for _, f := range features {
-				if f == "unsafe" {
-					return "change_profile unsafe /**,"
-				}
+			if strutil.ListContains(features, "unsafe") {
+				return "change_profile unsafe /**,"
 			}
 			return "change_profile,"
 		case "###SNIPPETS###":
@@ -893,13 +851,18 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 				// transparent to apparmor we must alter the profile to counter that and
 				// allow access to SNAP_USER_* files.
 				tagSnippets = snippetForTag
-				if nfs, _ := isHomeUsingNFS(); nfs {
-					tagSnippets += nfsSnippet
+				if nfs, _ := osutil.IsHomeUsingNFS(); nfs {
+					tagSnippets += apparmor_sandbox.NfsSnippet
 				}
 
 				if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {
-					snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
+					snippet := strings.Replace(apparmor_sandbox.OverlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
 					tagSnippets += snippet
+				}
+
+				// Add core specific snippets when not on classic
+				if !release.OnClassic {
+					tagSnippets += coreSnippet
 				}
 			}
 
@@ -978,15 +941,4 @@ func (b *Backend) SandboxFeatures() []string {
 	tags = append(tags, fmt.Sprintf("policy:%s", policy))
 
 	return tags
-}
-
-// MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS.
-// This is exported so that other packages that indirectly interact with AppArmor backend
-// can mock isHomeUsingNFS.
-func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
-	old := isHomeUsingNFS
-	isHomeUsingNFS = new
-	return func() {
-		isHomeUsingNFS = old
-	}
 }

@@ -31,7 +31,9 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -40,22 +42,18 @@ type encryptSuite struct {
 
 	mockCryptsetup *testutil.MockCmd
 
-	mockedEncryptionKey secboot.EncryptionKey
-	mockedRecoveryKey   secboot.RecoveryKey
+	mockedEncryptionKey keys.EncryptionKey
+	mockedRecoveryKey   keys.RecoveryKey
 }
 
 var _ = Suite(&encryptSuite{})
 
 var mockDeviceStructure = gadget.OnDiskStructure{
-	LaidOutStructure: gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Name: "Test structure",
-			Size: 0x100000,
-		},
-		StartOffset: 0,
-		YamlIndex:   1,
-	},
-	Node: "/dev/node1",
+	Name:             "Test structure",
+	PartitionFSLabel: "some-label",
+	StartOffset:      0,
+	Size:             3 * quantity.SizeMiB,
+	Node:             "/dev/node1",
 }
 
 func (s *encryptSuite) SetUpTest(c *C) {
@@ -63,11 +61,11 @@ func (s *encryptSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0755), IsNil)
 
 	// create empty key to prevent blocking on lack of system entropy
-	s.mockedEncryptionKey = secboot.EncryptionKey{}
+	s.mockedEncryptionKey = keys.EncryptionKey{}
 	for i := range s.mockedEncryptionKey {
 		s.mockedEncryptionKey[i] = byte(i)
 	}
-	s.mockedRecoveryKey = secboot.RecoveryKey{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
+	s.mockedRecoveryKey = keys.RecoveryKey{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
 }
 
 func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
@@ -101,7 +99,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		s.AddCleanup(s.mockCryptsetup.Restore)
 
 		calls := 0
-		restore := install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
+		restore := install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, encType secboot.EncryptionType, label, node string) error {
 			calls++
 			c.Assert(key, DeepEquals, s.mockedEncryptionKey)
 			c.Assert(label, Equals, "some-label-enc")
@@ -110,7 +108,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
+		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, secboot.EncryptionTypeLUKS, s.mockedEncryptionKey, "some-label-enc", "some-label")
 		c.Assert(calls, Equals, 1)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
@@ -119,54 +117,6 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 			continue
 		}
 		c.Assert(dev.Node(), Equals, "/dev/mapper/some-label")
-
-		err = dev.Close()
-		c.Assert(err, IsNil)
-
-		c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
-			{"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label"},
-			{"cryptsetup", "close", "some-label"},
-		})
-	}
-}
-
-func (s *encryptSuite) TestAddRecoveryKey(c *C) {
-	for _, tc := range []struct {
-		mockedAddErr error
-		expectedErr  string
-	}{
-		{mockedAddErr: nil, expectedErr: ""},
-		{mockedAddErr: errors.New("add key error"), expectedErr: "add key error"},
-	} {
-		s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", "")
-		s.AddCleanup(s.mockCryptsetup.Restore)
-
-		restore := install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
-			return nil
-		})
-		defer restore()
-
-		calls := 0
-		restore = install.MockSecbootAddRecoveryKey(func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error {
-			calls++
-			c.Assert(key, DeepEquals, s.mockedEncryptionKey)
-			c.Assert(rkey, DeepEquals, s.mockedRecoveryKey)
-			c.Assert(node, Equals, "/dev/node1")
-			return tc.mockedAddErr
-		})
-		defer restore()
-
-		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
-		c.Assert(err, IsNil)
-
-		err = dev.AddRecoveryKey(s.mockedEncryptionKey, s.mockedRecoveryKey)
-		c.Assert(calls, Equals, 1)
-		if tc.expectedErr == "" {
-			c.Assert(err, IsNil)
-		} else {
-			c.Assert(err, ErrorMatches, tc.expectedErr)
-			continue
-		}
 
 		err = dev.Close()
 		c.Assert(err, IsNil)

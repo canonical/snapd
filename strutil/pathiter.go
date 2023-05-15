@@ -35,10 +35,12 @@ import (
 // A simple example on how to use the iterator:
 // ```
 // iter:= NewPathIterator(path)
-// for iter.Next() {
-//    // Use iter.CurrentName() with openat(2) family of functions.
-//    // Use iter.CurrentPath() or iter.CurrentBase() for context.
-// }
+//
+//	for iter.Next() {
+//	   // Use iter.CurrentName() with openat(2) family of functions.
+//	   // Use iter.CurrentPath() or iter.CurrentBase() for context.
+//	}
+//
 // ```
 type PathIterator struct {
 	path        string

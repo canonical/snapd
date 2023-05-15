@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -316,7 +317,7 @@ func addAliasConflicts(st *state.State, skipSnap string, testAliases map[string]
 func checkAliasesConflicts(st *state.State, snapName string, candAutoDisabled bool, candAliases map[string]*AliasTarget, changing map[string]*SnapState) (conflicts map[string][]string, err error) {
 	var snapNames map[string]*json.RawMessage
 	err = st.Get("snaps", &snapNames)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -450,7 +451,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 
 	var aliasesV1 map[string]interface{}
 	err := m.state.Get("aliases", &aliasesV1)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if len(aliasesV1) == 0 {
@@ -473,7 +474,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 		if t.Kind() == "alias" && !t.Status().Ready() {
 			var param interface{}
 			err := t.Get("aliases", &param)
-			if err == state.ErrNoState {
+			if errors.Is(err, state.ErrNoState) {
 				// not the old variant, leave alone
 				continue
 			}
@@ -536,7 +537,7 @@ func Alias(st *state.State, instanceName, app, alias string) (*state.TaskSet, er
 
 	var snapst SnapState
 	err := Get(st, instanceName, &snapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: instanceName}
 	}
 	if err != nil {
@@ -593,7 +594,7 @@ func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, al
 func DisableAllAliases(st *state.State, instanceName string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, instanceName, &snapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: instanceName}
 	}
 	if err != nil {
@@ -680,7 +681,7 @@ func manualUnalias(curAliases map[string]*AliasTarget, alias string) (newAliases
 func Prefer(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: name}
 	}
 	if err != nil {

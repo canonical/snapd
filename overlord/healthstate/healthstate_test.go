@@ -191,7 +191,7 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 		c.Check(cmd.Calls(), check.DeepEquals, [][]string{{"snap", "run", "--hook", "check-health", "-r", "42", "test-snap"}})
 	} else {
 		// no script -> no health
-		c.Assert(err, check.Equals, state.ErrNoState)
+		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 		c.Check(healths, check.IsNil)
 		c.Check(health, check.IsNil)
 		c.Check(cmd.Calls(), check.HasLen, 0)
@@ -222,7 +222,7 @@ func (s *healthSuite) TestSetFromHookContext(c *check.C) {
 	defer ctx.Unlock()
 
 	var hs map[string]*healthstate.HealthState
-	c.Check(s.state.Get("health", &hs), check.Equals, state.ErrNoState)
+	c.Check(s.state.Get("health", &hs), testutil.ErrorIs, state.ErrNoState)
 
 	ctx.Set("health", &healthstate.HealthState{Status: 42})
 
@@ -244,11 +244,11 @@ func (s *healthSuite) TestSetFromHookContextEmpty(c *check.C) {
 	defer ctx.Unlock()
 
 	var hs map[string]healthstate.HealthState
-	c.Check(s.state.Get("health", &hs), check.Equals, state.ErrNoState)
+	c.Check(s.state.Get("health", &hs), testutil.ErrorIs, state.ErrNoState)
 
 	err = healthstate.SetFromHookContext(ctx)
 	c.Assert(err, check.IsNil)
 
 	// no health in the context -> no health in state
-	c.Check(s.state.Get("health", &hs), check.Equals, state.ErrNoState)
+	c.Check(s.state.Get("health", &hs), testutil.ErrorIs, state.ErrNoState)
 }

@@ -155,6 +155,16 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "tmpfs",
 			where: "/run/mnt/data",
 			opts: &main.SystemdMountOptions{
+				Umount: true,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{false},
+			comment:          "happy umount",
+		},
+		{
+			what:  "tmpfs",
+			where: "/run/mnt/data",
+			opts: &main.SystemdMountOptions{
 				NoSuid: true,
 				Bind:   true,
 			},
@@ -237,17 +247,22 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			args := []string{
 				"systemd-mount", t.what, t.where, "--no-pager", "--no-ask-password",
 			}
+			if opts.Umount {
+				args = []string{
+					"systemd-mount", t.where, "--umount", "--no-pager", "--no-ask-password",
+				}
+			}
 			c.Assert(call[:len(args)], DeepEquals, args)
 
 			foundTypeTmpfs := false
 			foundFsckYes := false
 			foundFsckNo := false
 			foundNoBlock := false
-			foundDefaultDependenciesNo := false
 			foundBeforeInitrdfsTarget := false
 			foundNoSuid := false
 			foundBind := false
 			foundReadOnly := false
+			foundPrivate := false
 
 			for _, arg := range call[len(args):] {
 				switch {
@@ -259,8 +274,6 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					foundFsckNo = true
 				case arg == "--no-block":
 					foundNoBlock = true
-				case arg == "--property=DefaultDependencies=no":
-					foundDefaultDependenciesNo = true
 				case arg == "--property=Before=initrd-fs.target":
 					foundBeforeInitrdfsTarget = true
 				case strings.HasPrefix(arg, "--options="):
@@ -272,6 +285,8 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 							foundBind = true
 						case "ro":
 							foundReadOnly = true
+						case "private":
+							foundPrivate = true
 						default:
 							c.Logf("Option '%s' unexpected", opt)
 							c.Fail()
@@ -286,16 +301,17 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			c.Assert(foundFsckYes, Equals, opts.NeedsFsck)
 			c.Assert(foundFsckNo, Equals, !opts.NeedsFsck)
 			c.Assert(foundNoBlock, Equals, opts.NoWait)
-			c.Assert(foundDefaultDependenciesNo, Equals, !opts.Ephemeral)
 			c.Assert(foundBeforeInitrdfsTarget, Equals, !opts.Ephemeral)
 			c.Assert(foundNoSuid, Equals, opts.NoSuid)
 			c.Assert(foundBind, Equals, opts.Bind)
 			c.Assert(foundReadOnly, Equals, opts.ReadOnly)
+			c.Assert(foundPrivate, Equals, opts.Private)
 
 			// check that the overrides are present if opts.Ephemeral is false,
 			// or check the overrides are not present if opts.Ephemeral is true
 			for _, initrdUnit := range []string{
 				"initrd-fs.target",
+				"local-fs.target",
 			} {
 				mountUnit := systemd.EscapeUnitNamePath(t.where)
 				fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,9 +27,28 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type sortSuite struct{}
+type sortSuite struct {
+	sort        func([]osutil.MountEntry)
+	layoutsLast bool
+}
 
-var _ = Suite(&sortSuite{})
+type byOriginAndMountPointSuite struct {
+	sortSuite
+}
+
+type byOvernameAndMountPointSuite struct {
+	sortSuite
+}
+
+var (
+	_ = Suite(&byOriginAndMountPointSuite{sortSuite{
+		sort:        func(entries []osutil.MountEntry) { sort.Sort(byOriginAndMountPoint(entries)) },
+		layoutsLast: true,
+	}})
+	_ = Suite(&byOvernameAndMountPointSuite{sortSuite{
+		sort: func(entries []osutil.MountEntry) { sort.Sort(byOvernameAndMountPoint(entries)) },
+	}})
+)
 
 func (s *sortSuite) TestTrailingSlashesComparison(c *C) {
 	// Naively sorted entries.
@@ -39,7 +58,7 @@ func (s *sortSuite) TestTrailingSlashesComparison(c *C) {
 		{Dir: "/a/b-1/3"},
 		{Dir: "/a/b/c"},
 	}
-	sort.Sort(byOriginAndMagicDir(entries))
+	s.sort(entries)
 	// Entries sorted as if they had a trailing slash.
 	c.Assert(entries, DeepEquals, []osutil.MountEntry{
 		{Dir: "/a/b-1"},
@@ -60,17 +79,32 @@ func (s *sortSuite) TestParallelInstancesAndSimple(c *C) {
 		{Dir: "/var/snap/bar", Options: []string{osutil.XSnapdOriginOvername()}},
 		{Dir: "/a/b/c"},
 	}
-	sort.Sort(byOriginAndMagicDir(entries))
+	s.sort(entries)
 	// Entries sorted as if they had a trailing slash.
-	c.Assert(entries, DeepEquals, []osutil.MountEntry{
+	expected := []osutil.MountEntry{
 		{Dir: "/snap/bar", Options: []string{osutil.XSnapdOriginOvername()}},
 		{Dir: "/var/snap/bar", Options: []string{osutil.XSnapdOriginOvername()}},
 		{Dir: "/a/b-1"},
 		{Dir: "/a/b-1/3"},
-		{Dir: "/a/b", Options: []string{osutil.XSnapdOriginLayout()}},
-		{Dir: "/a/b/c"},
-		{Dir: "/snap/bar/baz", Options: []string{osutil.XSnapdOriginLayout()}},
-	})
+	}
+	if s.layoutsLast {
+		expected = append(expected, []osutil.MountEntry{
+			// implicit content before layouts
+			{Dir: "/a/b/c"},
+			// layouts
+			{Dir: "/a/b", Options: []string{osutil.XSnapdOriginLayout()}},
+			{Dir: "/snap/bar/baz", Options: []string{osutil.XSnapdOriginLayout()}},
+		}...)
+	} else {
+		expected = append(expected, []osutil.MountEntry{
+			// just lexicographic
+			{Dir: "/a/b", Options: []string{osutil.XSnapdOriginLayout()}},
+			{Dir: "/a/b/c"},
+			{Dir: "/snap/bar/baz", Options: []string{osutil.XSnapdOriginLayout()}},
+		}...)
+
+	}
+	c.Assert(entries, DeepEquals, expected)
 }
 
 func (s *sortSuite) TestOvernameOrder(c *C) {
@@ -86,9 +120,9 @@ func (s *sortSuite) TestOvernameOrder(c *C) {
 		{Dir: "/a/b/2", Options: []string{osutil.XSnapdOriginOvername()}},
 		{Dir: "/a/b"},
 	}
-	sort.Sort(byOriginAndMagicDir(entries))
+	s.sort(entries)
 	c.Assert(entries, DeepEquals, expected)
-	sort.Sort(byOriginAndMagicDir(entriesRev))
+	s.sort(entriesRev)
 	c.Assert(entriesRev, DeepEquals, expected)
 }
 
@@ -109,7 +143,7 @@ func (s *sortSuite) TestParallelInstancesAlmostSorted(c *C) {
 		{Dir: "/usr/bin/python3.7", Options: []string{osutil.XSnapdOriginLayout()}},
 		{Dir: "/usr/bin/python3.8", Options: []string{osutil.XSnapdOriginLayout()}},
 	}
-	sort.Sort(byOriginAndMagicDir(entries))
+	s.sort(entries)
 	// overname entries are always first
 	c.Assert(entries, DeepEquals, []osutil.MountEntry{
 		{Dir: "/snap/foo", Options: []string{osutil.XSnapdOriginOvername()}},

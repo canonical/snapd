@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,40 +20,49 @@
 package image
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/store/tooling"
+	"github.com/snapcore/snapd/strutil"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
+	"github.com/snapcore/snapd/image/preseed"
+	"github.com/snapcore/snapd/osutil"
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
 var (
 	Stdout io.Writer = os.Stdout
 	Stderr io.Writer = os.Stderr
+
+	preseedCore20 = preseed.Core20
 )
 
 func (custo *Customizations) validate(model *asserts.Model) error {
-	core20 := model.Grade() != asserts.ModelGradeUnset
+	hasModes := model.Grade() != asserts.ModelGradeUnset
 	var unsupported []string
 	unsupportedConsoleConfDisable := func() {
 		if custo.ConsoleConf == "disabled" {
@@ -68,8 +77,8 @@ func (custo *Customizations) validate(model *asserts.Model) error {
 
 	kind := "UC16/18"
 	switch {
-	case core20:
-		kind = "UC20"
+	case hasModes:
+		kind = "UC20+"
 		// TODO:UC20: consider supporting these with grade dangerous?
 		unsupportedConsoleConfDisable()
 		if custo.CloudInitUserData != "" {
@@ -94,7 +103,7 @@ func classicHasSnaps(model *asserts.Model, opts *Options) bool {
 	return model.Gadget() != "" || len(model.RequiredNoEssentialSnaps()) != 0 || len(opts.Snaps) != 0
 }
 
-var newToolingStoreFromModel = NewToolingStoreFromModel
+var newToolingStoreFromModel = tooling.NewToolingStoreFromModel
 
 func Prepare(opts *Options) error {
 	var model *asserts.Model
@@ -134,6 +143,7 @@ func Prepare(opts *Options) error {
 	if err != nil {
 		return err
 	}
+	tsto.Stdout = Stdout
 
 	// FIXME: limitation until we can pass series parametrized much more
 	if model.Series() != release.Series {
@@ -144,7 +154,28 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	return setupSeed(tsto, model, opts)
+	if err := setupSeed(tsto, model, opts); err != nil {
+		return err
+	}
+
+	if opts.Preseed {
+		// TODO: support UC22
+		if model.Classic() {
+			return fmt.Errorf("cannot preseed the image for a classic model")
+		}
+		if model.Base() != "core20" {
+			return fmt.Errorf("cannot preseed the image for a model other than core20")
+		}
+		coreOpts := &preseed.CoreOptions{
+			PrepareImageDir:           opts.PrepareDir,
+			PreseedSignKey:            opts.PreseedSignKey,
+			AppArmorKernelFeaturesDir: opts.AppArmorKernelFeaturesDir,
+			SysfsOverlay:              opts.SysfsOverlay,
+		}
+		return preseedCore20(coreOpts)
+	}
+
+	return nil
 }
 
 // these are postponed, not implemented or abandoned, not finalized,
@@ -245,45 +276,136 @@ func makeLabel(now time.Time) string {
 	return now.UTC().Format("20060102")
 }
 
-func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
+type imageSeeder struct {
+	model *asserts.Model
+	tsto  *tooling.ToolingStore
+
+	classic        bool
+	prepareDir     string
+	wideCohortKey  string
+	customizations *Customizations
+	architecture   string
+
+	hasModes    bool
+	rootDir     string
+	bootRootDir string
+	seedDir     string
+	label       string
+	db          *asserts.Database
+	w           *seedwriter.Writer
+	f           seedwriter.SeedAssertionFetcher
+}
+
+func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) (*imageSeeder, error) {
 	if model.Classic() != opts.Classic {
-		return fmt.Errorf("internal error: classic model but classic mode not set")
+		return nil, fmt.Errorf("internal error: classic model but classic mode not set")
 	}
 
-	core20 := model.Grade() != asserts.ModelGradeUnset
-	var rootDir string
-	var bootRootDir string
-	var seedDir string
-	var label string
-	if !core20 {
-		if opts.Classic {
-			// Classic, PrepareDir is the root dir itself
-			rootDir = opts.PrepareDir
-		} else {
-			// Core 16/18,  writing for the writeable partition
-			rootDir = filepath.Join(opts.PrepareDir, "image")
-			bootRootDir = rootDir
-		}
-		seedDir = dirs.SnapSeedDirUnder(rootDir)
+	// Determine image seed paths, which can vary based on the type of image
+	// we are generating.
+	s := &imageSeeder{
+		classic:       opts.Classic,
+		prepareDir:    opts.PrepareDir,
+		wideCohortKey: opts.WideCohortKey,
+		// keep a pointer to the customization object in opts as the Validation
+		// member might be defaulted if not set.
+		customizations: &opts.Customizations,
+		architecture:   determineImageArchitecture(model, opts),
 
-		// sanity check target
-		if osutil.FileExists(dirs.SnapStateFileUnder(rootDir)) {
-			return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(rootDir))
-		}
-		if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDirUnder(rootDir), "*.snap")); len(snaps) > 0 {
-			return fmt.Errorf("expected empty snap dir in rootdir, got: %v", snaps)
-		}
+		hasModes: model.Grade() != asserts.ModelGradeUnset,
+		model:    model,
+		tsto:     tsto,
+	}
 
+	if !s.hasModes {
+		if err := s.setModelessDirs(); err != nil {
+			return nil, err
+		}
 	} else {
-		// Core 20, writing for the system-seed partition
-		seedDir = filepath.Join(opts.PrepareDir, "system-seed")
-		label = makeLabel(time.Now())
-		bootRootDir = seedDir
-
-		// sanity check target
-		if systems, _ := filepath.Glob(filepath.Join(seedDir, "systems", "*")); len(systems) > 0 {
-			return fmt.Errorf("expected empty systems dir in system-seed, got: %v", systems)
+		if err := s.setModesDirs(); err != nil {
+			return nil, err
 		}
+	}
+
+	// create directory for later unpacking the gadget in
+	if !s.classic {
+		gadgetUnpackDir := filepath.Join(s.prepareDir, "gadget")
+		kernelUnpackDir := filepath.Join(s.prepareDir, "kernel")
+		for _, unpackDir := range []string{gadgetUnpackDir, kernelUnpackDir} {
+			if err := os.MkdirAll(unpackDir, 0755); err != nil {
+				return nil, fmt.Errorf("cannot create unpack dir %q: %s", unpackDir, err)
+			}
+		}
+	}
+
+	wOpts := &seedwriter.Options{
+		SeedDir:        s.seedDir,
+		Label:          s.label,
+		DefaultChannel: opts.Channel,
+		Manifest:       opts.SeedManifest,
+		ManifestPath:   opts.SeedManifestPath,
+
+		TestSkipCopyUnverifiedModel: osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL"),
+	}
+	w, err := seedwriter.New(model, wOpts)
+	if err != nil {
+		return nil, err
+	}
+	s.w = w
+	return s, nil
+}
+
+func determineImageArchitecture(model *asserts.Model, opts *Options) string {
+	// let the architecture supplied in opts take precedence
+	if opts.Architecture != "" {
+		// in theory we could check that this does not differ from the one
+		// specified in the model, but this check is done somewhere else.
+		return opts.Architecture
+	} else if model.Architecture() != "" {
+		return model.Architecture()
+	} else {
+		// if none had anything set, use the host architecture
+		return arch.DpkgArchitecture()
+	}
+}
+
+func (s *imageSeeder) setModelessDirs() error {
+	if s.classic {
+		// Classic, PrepareDir is the root dir itself
+		s.rootDir = s.prepareDir
+	} else {
+		// Core 16/18,  writing for the writeable partition
+		s.rootDir = filepath.Join(s.prepareDir, "image")
+		s.bootRootDir = s.rootDir
+	}
+	s.seedDir = dirs.SnapSeedDirUnder(s.rootDir)
+
+	// validity check target
+	if osutil.FileExists(dirs.SnapStateFileUnder(s.rootDir)) {
+		return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(s.rootDir))
+	}
+	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDirUnder(s.rootDir), "*.snap")); len(snaps) > 0 {
+		return fmt.Errorf("expected empty snap dir in rootdir, got: %v", snaps)
+	}
+	return nil
+}
+
+func (s *imageSeeder) setModesDirs() error {
+	// Core 20, writing for the system-seed partition
+	s.seedDir = filepath.Join(s.prepareDir, "system-seed")
+	s.label = makeLabel(time.Now())
+	s.bootRootDir = s.seedDir
+
+	// validity check target
+	if systems, _ := filepath.Glob(filepath.Join(s.seedDir, "systems", "*")); len(systems) > 0 {
+		return fmt.Errorf("expected empty systems dir in system-seed, got: %v", systems)
+	}
+	return nil
+}
+
+func (s *imageSeeder) start(optSnaps []*seedwriter.OptionsSnap) error {
+	if err := s.w.SetOptionsSnaps(optSnaps); err != nil {
+		return err
 	}
 
 	// TODO: developer database in home or use snapd (but need
@@ -296,19 +418,371 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	wOpts := &seedwriter.Options{
-		SeedDir:        seedDir,
-		Label:          label,
-		DefaultChannel: opts.Channel,
+	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
+		return s.tsto.AssertionSequenceFormingFetcher(db, save)
+	}
+	s.db = db
+	s.f = seedwriter.MakeSeedAssertionFetcher(newFetcher)
+	return s.w.Start(db, s.f)
+}
 
-		TestSkipCopyUnverifiedModel: osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL"),
+func (s *imageSeeder) snapSupportsImageArch(sn *seedwriter.SeedSnap) bool {
+	for _, a := range sn.Info.Architectures {
+		if a == "all" || a == s.architecture {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *imageSeeder) validateSnapArchs(snaps []*seedwriter.SeedSnap) error {
+	for _, sn := range snaps {
+		if !s.snapSupportsImageArch(sn) {
+			return fmt.Errorf("snap %q supported architectures (%s) are incompatible with the model architecture (%s)",
+				sn.Info.SnapName(), strings.Join(sn.Info.Architectures, ", "), s.architecture)
+		}
+	}
+	return nil
+}
+
+type localSnapRefs map[*seedwriter.SeedSnap][]*asserts.Ref
+
+func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.SeedAssertionFetcher, db *asserts.Database) (localSnapRefs, error) {
+	localSnaps, err := s.w.LocalSnaps()
+	if err != nil {
+		return nil, err
 	}
 
-	w, err := seedwriter.New(model, wOpts)
+	snaps := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
+	for _, sn := range localSnaps {
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, s.model, f, db)
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
+			return nil, err
+		}
+
+		snapFile, err := snapfile.Open(sn.Path)
+		if err != nil {
+			return nil, err
+		}
+		info, err := snap.ReadInfoFromSnapFile(snapFile, si)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := s.w.SetInfo(sn, info); err != nil {
+			return nil, err
+		}
+		snaps[sn] = aRefs
+	}
+
+	// derive info first before verifying the arch
+	if err := s.validateSnapArchs(localSnaps); err != nil {
+		return nil, err
+	}
+	return snaps, s.w.InfoDerived()
+}
+
+func (s *imageSeeder) validationSetKeysAndRevisionForSnap(snapName string) ([]snapasserts.ValidationSetKey, snap.Revision, error) {
+	vsas, err := s.db.FindMany(asserts.ValidationSetType, nil)
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
+		return nil, snap.Revision{}, err
+	}
+
+	allVss := snapasserts.NewValidationSets()
+	for _, a := range vsas {
+		if err := allVss.Add(a.(*asserts.ValidationSet)); err != nil {
+			return nil, snap.Revision{}, err
+		}
+	}
+
+	// Just for a good measure, perform a conflict check once we have the
+	// list of all validation-sets for the image seed.
+	if err := allVss.Conflict(); err != nil {
+		return nil, snap.Revision{}, err
+	}
+
+	// TODO: It's pointed out that here and some of the others uses of this
+	// may miss logic for optional snaps which have required revisions. This
+	// is not covered by the below check, and we may or may not have multiple places
+	// with a similar issue.
+	snapVsKeys, snapRev, err := allVss.CheckPresenceRequired(naming.Snap(snapName))
+	if err != nil {
+		return nil, snap.Revision{}, err
+	}
+	if len(snapVsKeys) > 0 {
+		return snapVsKeys, snapRev, nil
+	}
+	return nil, s.w.Manifest().AllowedSnapRevision(snapName), nil
+}
+
+func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
+	byName := make(map[string]*seedwriter.SeedSnap, len(snapsToDownload))
+	revisions := make(map[string]snap.Revision)
+	beforeDownload := func(info *snap.Info) (string, error) {
+		sn := byName[info.SnapName()]
+		if sn == nil {
+			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
+		}
+		rev := revisions[info.SnapName()]
+		if rev.Unset() {
+			rev = info.Revision
+		}
+		fmt.Fprintf(Stdout, "Fetching %s (%s)\n", sn.SnapName(), rev)
+		if err := s.w.SetInfo(sn, info); err != nil {
+			return "", err
+		}
+		if err := s.validateSnapArchs([]*seedwriter.SeedSnap{sn}); err != nil {
+			return "", err
+		}
+		return sn.Path, nil
+	}
+	snapToDownloadOptions := make([]tooling.SnapToDownload, len(snapsToDownload))
+	for i, sn := range snapsToDownload {
+		vss, rev, err := s.validationSetKeysAndRevisionForSnap(sn.SnapName())
+		if err != nil {
+			return nil, err
+		}
+
+		byName[sn.SnapName()] = sn
+		revisions[sn.SnapName()] = rev
+		snapToDownloadOptions[i].Snap = sn
+		snapToDownloadOptions[i].Channel = sn.Channel
+		snapToDownloadOptions[i].Revision = rev
+		snapToDownloadOptions[i].CohortKey = s.wideCohortKey
+		snapToDownloadOptions[i].ValidationSets = vss
+	}
+
+	// sort the curSnaps slice for test consistency
+	sort.Slice(curSnaps, func(i, j int) bool {
+		return curSnaps[i].SnapName < curSnaps[j].SnapName
+	})
+	downloadedSnaps, err = s.tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
+		BeforeDownloadFunc: beforeDownload,
+		EnforceValidation:  s.customizations.Validation == "enforce",
+	})
+	if err != nil {
+		return nil, err
+	}
+	return downloadedSnaps, nil
+}
+
+func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
+	var localSnaps []*tooling.CurrentSnap
+	for sn := range snaps {
+		if sn.Info.ID() == "" {
+			continue
+		}
+		localSnaps = append(localSnaps, &tooling.CurrentSnap{
+			SnapName: sn.Info.SnapName(),
+			SnapID:   sn.Info.ID(),
+			Revision: sn.Info.Revision,
+			Epoch:    sn.Info.Epoch,
+		})
+	}
+	return localSnaps
+}
+
+func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts seedwriter.AssertsFetchFunc) error {
+	curSnaps := localSnapsWithID(localSnaps)
+	for {
+		toDownload, err := s.w.SnapsToDownload()
+		if err != nil {
+			return err
+		}
+
+		downloadedSnaps, err := s.downloadSnaps(toDownload, curSnaps)
+		if err != nil {
+			return err
+		}
+
+		for _, sn := range toDownload {
+			dlsn := downloadedSnaps[sn.SnapName()]
+			if err := s.w.SetRedirectChannel(sn, dlsn.RedirectChannel); err != nil {
+				return err
+			}
+
+			curSnaps = append(curSnaps, &tooling.CurrentSnap{
+				SnapName: sn.Info.SnapName(),
+				SnapID:   sn.Info.ID(),
+				Revision: sn.Info.Revision,
+				Epoch:    sn.Info.Epoch,
+				Channel:  sn.Channel,
+			})
+		}
+
+		complete, err := s.w.Downloaded(fetchAsserts)
+		if err != nil {
+			return err
+		}
+		if complete {
+			break
+		}
+	}
+	return nil
+}
+
+func (s *imageSeeder) finishSeedClassic() error {
+	var fpath string
+	if s.hasModes {
+		fpath = filepath.Join(s.seedDir, "systems")
+	} else {
+		fpath = filepath.Join(s.seedDir, "seed.yaml")
+	}
+	// warn about ownership if not root:root
+	fi, err := os.Stat(fpath)
+	if err != nil {
+		return fmt.Errorf("cannot stat %q: %s", fpath, err)
+	}
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+		if st.Uid != 0 || st.Gid != 0 {
+			fmt.Fprintf(Stderr, "WARNING: ensure that the contents under %s are owned by root:root in the (final) image\n", s.seedDir)
+		}
+	}
+	// done already
+	return nil
+}
+
+func (s *imageSeeder) finishSeedCore() error {
+	gadgetUnpackDir := filepath.Join(s.prepareDir, "gadget")
+	kernelUnpackDir := filepath.Join(s.prepareDir, "kernel")
+
+	bootSnaps, err := s.w.BootSnaps()
 	if err != nil {
 		return err
 	}
 
+	bootWith := &boot.BootableSet{
+		UnpackedGadgetDir: gadgetUnpackDir,
+		Recovery:          s.hasModes,
+	}
+	if s.label != "" {
+		bootWith.RecoverySystemDir = filepath.Join("/systems/", s.label)
+		bootWith.RecoverySystemLabel = s.label
+	}
+
+	// find the snap.Info/path for kernel/os/base/gadget so
+	// that boot.MakeBootable can DTRT
+	kernelFname := ""
+	for _, sn := range bootSnaps {
+		switch sn.Info.Type() {
+		case snap.TypeGadget:
+			bootWith.Gadget = sn.Info
+			bootWith.GadgetPath = sn.Path
+		case snap.TypeOS, snap.TypeBase:
+			bootWith.Base = sn.Info
+			bootWith.BasePath = sn.Path
+		case snap.TypeKernel:
+			bootWith.Kernel = sn.Info
+			bootWith.KernelPath = sn.Path
+			kernelFname = sn.Path
+		}
+	}
+
+	// unpacking the gadget for core models
+	if err := unpackSnap(bootWith.GadgetPath, gadgetUnpackDir); err != nil {
+		return err
+	}
+	if err := unpackSnap(kernelFname, kernelUnpackDir); err != nil {
+		return err
+	}
+
+	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, s.model, nil)
+	if err != nil {
+		return err
+	}
+	// validate content against the kernel as well
+	if err := gadget.ValidateContent(gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
+		return err
+	}
+
+	// write resolved content to structure root
+	if err := writeResolvedContent(s.prepareDir, gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
+		return err
+	}
+
+	if err := boot.MakeBootableImage(s.model, s.bootRootDir, bootWith, s.customizations.BootFlags); err != nil {
+		return err
+	}
+
+	// early config & cloud-init config (done at install for Core 20)
+	if !s.hasModes {
+		// and the cloud-init things
+		if err := installCloudConfig(s.rootDir, gadgetUnpackDir); err != nil {
+			return err
+		}
+
+		defaultsDir := sysconfig.WritableDefaultsDir(s.rootDir)
+		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
+		if len(defaults) > 0 {
+			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(s.rootDir, "/etc"), 0755); err != nil {
+				return err
+			}
+			if err := sysconfig.ApplyFilesystemOnlyDefaults(s.model, defaultsDir, defaults); err != nil {
+				return err
+			}
+		}
+
+		customizeImage(s.rootDir, defaultsDir, s.customizations)
+	}
+	return nil
+}
+
+func (s *imageSeeder) warnOnUnassertedSnaps() error {
+	unassertedSnaps, err := s.w.UnassertedSnaps()
+	if err != nil {
+		return err
+	}
+	if len(unassertedSnaps) > 0 {
+		locals := make([]string, len(unassertedSnaps))
+		for i, sn := range unassertedSnaps {
+			locals[i] = sn.SnapName()
+		}
+		fmt.Fprintf(Stderr, "WARNING: %s installed from local snaps disconnected from a store cannot be refreshed subsequently!\n", strutil.Quoted(locals))
+	}
+	return nil
+}
+
+func (s *imageSeeder) finish() error {
+	// print any warnings that occurred during the download phase
+	for _, warn := range s.w.Warnings() {
+		fmt.Fprintf(Stderr, "WARNING: %s\n", warn)
+	}
+
+	// print warnings on unasserted snaps
+	if err := s.warnOnUnassertedSnaps(); err != nil {
+		return err
+	}
+
+	// run validation-set checks, this is also done by store but
+	// we double-check for the seed.
+	if s.customizations.Validation != "ignore" {
+		if err := s.w.CheckValidationSets(); err != nil {
+			return err
+		}
+	}
+
+	copySnap := func(name, src, dst string) error {
+		fmt.Fprintf(Stdout, "Copying %q (%s)\n", src, name)
+		return osutil.CopyFile(src, dst, 0)
+	}
+	if err := s.w.SeedSnaps(copySnap); err != nil {
+		return err
+	}
+
+	if err := s.w.WriteMeta(); err != nil {
+		return err
+	}
+
+	// TODO: There will be classic UC20+ model based systems
+	//       that will have a bootable  ubuntu-seed partition.
+	//       This will need to be handled here eventually too.
+	if s.classic {
+		return s.finishSeedClassic()
+	}
+	return s.finishSeedCore()
+}
+
+func optionSnaps(opts *Options) []*seedwriter.OptionsSnap {
 	optSnaps := make([]*seedwriter.OptionsSnap, 0, len(opts.Snaps))
 	for _, snapName := range opts.Snaps {
 		var optSnap seedwriter.OptionsSnap
@@ -321,266 +795,131 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		optSnap.Channel = opts.SnapChannels[snapName]
 		optSnaps = append(optSnaps, &optSnap)
 	}
+	return optSnaps
+}
 
-	if err := w.SetOptionsSnaps(optSnaps); err != nil {
+func selectAssertionMaxFormats(tsto *tooling.ToolingStore, model *asserts.Model, sysSn, kernSn *seedwriter.SeedSnap) error {
+	if sysSn == nil {
+		// nothing to do
+		return nil
+	}
+	snapf, err := snapfile.Open(sysSn.Path)
+	if err != nil {
 		return err
 	}
-
-	var gadgetUnpackDir, kernelUnpackDir string
-	// create directory for later unpacking the gadget in
-	if !opts.Classic {
-		gadgetUnpackDir = filepath.Join(opts.PrepareDir, "gadget")
-		kernelUnpackDir = filepath.Join(opts.PrepareDir, "kernel")
-		for _, unpackDir := range []string{gadgetUnpackDir, kernelUnpackDir} {
-			if err := os.MkdirAll(unpackDir, 0755); err != nil {
-				return fmt.Errorf("cannot create unpack dir %q: %s", unpackDir, err)
+	maxFormats, _, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+	if err != nil {
+		return err
+	}
+	if model.Grade() != asserts.ModelGradeUnset && kernSn != nil {
+		// take also kernel into account
+		kf, err := snapfile.Open(kernSn.Path)
+		if err != nil {
+			return err
+		}
+		kMaxFormats, _, err := snap.SnapdAssertionMaxFormatsFromSnapFile(kf)
+		if err != nil {
+			return err
+		}
+		if kMaxFormats == nil {
+			fmt.Fprintf(Stderr, "WARNING: the kernel for the specified UC20+ model does not carry assertion max formats information, assuming possibly incorrectly the kernel revision can use the same formats as snapd\n")
+		} else {
+			for name, maxFormat := range maxFormats {
+				// pick the lowest format
+				if kMaxFormats[name] < maxFormat {
+					maxFormats[name] = kMaxFormats[name]
+				}
 			}
 		}
 	}
+	tsto.SetAssertionMaxFormats(maxFormats)
+	return nil
+}
 
-	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
-		return tsto.AssertionFetcher(db, save)
-	}
-	f, err := w.Start(db, newFetcher)
+var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) error {
+	s, err := newImageSeeder(tsto, model, opts)
 	if err != nil {
 		return err
 	}
 
-	if opts.Customizations.Validation == "" && !opts.Classic {
-		fmt.Fprintf(Stderr, "WARNING: proceeding to download snaps ignoring validations, this default will change in the future. For now use --validation=enforce for validations to be taken into account, pass instead --validation=ignore to preserve current behavior going forward\n")
+	if err := s.start(optionSnaps(opts)); err != nil {
+		return err
 	}
+
+	// We need to use seedwriter.DeriveSideInfo earlier than
+	// we might possibly know the system and kernel snaps to
+	// know the correct assertion max format to use.
+	// Fetch assertions tentatively into a temporary database
+	// and later either copy them or fetch more appropriate ones.
+	tmpDb := s.db.WithStackedBackstore(asserts.NewMemoryBackstore())
+	tmpFetcher := seedwriter.MakeSeedAssertionFetcher(func(save func(asserts.Assertion) error) asserts.Fetcher {
+		return tsto.AssertionFetcher(tmpDb, save)
+	})
+
+	localSnaps, err := s.deriveInfoForLocalSnaps(tmpFetcher, tmpDb)
+	if err != nil {
+		return err
+	}
+
 	if opts.Customizations.Validation == "" {
+		if !opts.Classic {
+			fmt.Fprintf(Stderr, "WARNING: proceeding to download snaps ignoring validations, this default will change in the future. For now use --validation=enforce for validations to be taken into account, pass instead --validation=ignore to preserve current behavior going forward\n")
+		}
 		opts.Customizations.Validation = "ignore"
 	}
 
-	localSnaps, err := w.LocalSnaps()
-	if err != nil {
-		return err
-	}
+	assertMaxFormatsSelected := false
+	var assertMaxFormats map[string]int
 
-	var curSnaps []*CurrentSnap
-	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, f, db)
-		if err != nil && !asserts.IsNotFound(err) {
-			return err
-		}
-
-		snapFile, err := snapfile.Open(sn.Path)
-		if err != nil {
-			return err
-		}
-		info, err := snap.ReadInfoFromSnapFile(snapFile, si)
-		if err != nil {
-			return err
-		}
-
-		if err := w.SetInfo(sn, info); err != nil {
-			return err
-		}
-		sn.ARefs = aRefs
-
-		if info.ID() != "" {
-			curSnaps = append(curSnaps, &CurrentSnap{
-				SnapName: info.SnapName(),
-				SnapID:   info.ID(),
-				Revision: info.Revision,
-				Epoch:    info.Epoch,
-			})
-		}
-	}
-
-	if err := w.InfoDerived(); err != nil {
-		return err
-	}
-
-	for {
-		toDownload, err := w.SnapsToDownload()
-		if err != nil {
-			return err
-		}
-
-		byName := make(map[string]*seedwriter.SeedSnap, len(toDownload))
-		beforeDownload := func(info *snap.Info) (string, error) {
-			sn := byName[info.SnapName()]
-			if sn == nil {
-				return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
+	copyOrRefetchIfFormatTooNewIntoDb := func(aRefs []*asserts.Ref) error {
+		// copy or re-fetch assertions to replace if the format is too
+		// new; as the replacing is based on the primary key previous
+		// cross check on provenance will still be valid or db
+		// consistency checks will fail
+		for _, aRef := range aRefs {
+			a, err := aRef.Resolve(tmpDb.Find)
+			if err != nil {
+				return fmt.Errorf("internal error: lost saved assertion")
 			}
-			fmt.Fprintf(Stdout, "Fetching %s\n", sn.SnapName())
-			if err := w.SetInfo(sn, info); err != nil {
-				return "", err
-			}
-			return sn.Path, nil
-		}
-		snapToDownloadOptions := make([]SnapToDownload, len(toDownload))
-		for i, sn := range toDownload {
-			byName[sn.SnapName()] = sn
-			snapToDownloadOptions[i].Snap = sn
-			snapToDownloadOptions[i].Channel = sn.Channel
-			snapToDownloadOptions[i].CohortKey = opts.WideCohortKey
-		}
-		downloadedSnaps, err := tsto.DownloadMany(snapToDownloadOptions, curSnaps, DownloadManyOptions{
-			BeforeDownloadFunc: beforeDownload,
-			EnforceValidation:  opts.Customizations.Validation == "enforce",
-		})
-		if err != nil {
-			return err
-		}
-
-		for _, sn := range toDownload {
-			dlsn := downloadedSnaps[sn.SnapName()]
-
-			if err := w.SetRedirectChannel(sn, dlsn.RedirectChannel); err != nil {
-				return err
-			}
-
-			// fetch snap assertions
-			prev := len(f.Refs())
-			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, f, db); err != nil {
-				return err
-			}
-			aRefs := f.Refs()[prev:]
-			sn.ARefs = aRefs
-
-			curSnaps = append(curSnaps, &CurrentSnap{
-				SnapName: sn.Info.SnapName(),
-				SnapID:   sn.Info.ID(),
-				Revision: sn.Info.Revision,
-				Epoch:    sn.Info.Epoch,
-				Channel:  sn.Channel,
-			})
-		}
-
-		complete, err := w.Downloaded()
-		if err != nil {
-			return err
-		}
-		if complete {
-			break
-		}
-	}
-
-	for _, warn := range w.Warnings() {
-		fmt.Fprintf(Stderr, "WARNING: %s\n", warn)
-	}
-
-	unassertedSnaps, err := w.UnassertedSnaps()
-	if err != nil {
-		return err
-	}
-	if len(unassertedSnaps) > 0 {
-		locals := make([]string, len(unassertedSnaps))
-		for i, sn := range unassertedSnaps {
-			locals[i] = sn.SnapName()
-		}
-		fmt.Fprintf(Stderr, "WARNING: %s installed from local snaps disconnected from a store cannot be refreshed subsequently!\n", strutil.Quoted(locals))
-	}
-
-	copySnap := func(name, src, dst string) error {
-		fmt.Fprintf(Stdout, "Copying %q (%s)\n", src, name)
-		return osutil.CopyFile(src, dst, 0)
-	}
-	if err := w.SeedSnaps(copySnap); err != nil {
-		return err
-	}
-
-	if err := w.WriteMeta(); err != nil {
-		return err
-	}
-
-	if opts.Classic {
-		// TODO:UC20: consider Core 20 extended models vs classic
-		seedFn := filepath.Join(seedDir, "seed.yaml")
-		// warn about ownership if not root:root
-		fi, err := os.Stat(seedFn)
-		if err != nil {
-			return fmt.Errorf("cannot stat seed.yaml: %s", err)
-		}
-		if st, ok := fi.Sys().(*syscall.Stat_t); ok {
-			if st.Uid != 0 || st.Gid != 0 {
-				fmt.Fprintf(Stderr, "WARNING: ensure that the contents under %s are owned by root:root in the (final) image", seedDir)
+			if assertMaxFormats != nil && a.Format() > assertMaxFormats[aRef.Type.Name] {
+				// format was too new, re-fetch to replace
+				if err := s.f.Fetch(aRef); err != nil {
+					return err
+				}
+			} else {
+				// copy
+				if err := s.f.Save(a); err != nil {
+					return err
+				}
 			}
 		}
-		// done already
 		return nil
 	}
 
-	bootSnaps, err := w.BootSnaps()
-	if err != nil {
-		return err
-	}
-
-	bootWith := &boot.BootableSet{
-		UnpackedGadgetDir: gadgetUnpackDir,
-		Recovery:          core20,
-	}
-	if label != "" {
-		bootWith.RecoverySystemDir = filepath.Join("/systems/", label)
-		bootWith.RecoverySystemLabel = label
-	}
-
-	// find the gadget file
-	// find the snap.Info/path for kernel/os/base so
-	// that boot.MakeBootable can DTRT
-	gadgetFname := ""
-	kernelFname := ""
-	for _, sn := range bootSnaps {
-		switch sn.Info.Type() {
-		case snap.TypeGadget:
-			gadgetFname = sn.Path
-		case snap.TypeOS, snap.TypeBase:
-			bootWith.Base = sn.Info
-			bootWith.BasePath = sn.Path
-		case snap.TypeKernel:
-			bootWith.Kernel = sn.Info
-			bootWith.KernelPath = sn.Path
-			kernelFname = sn.Path
-		}
-	}
-
-	// unpacking the gadget for core models
-	if err := unpackSnap(gadgetFname, gadgetUnpackDir); err != nil {
-		return err
-	}
-	if err := unpackSnap(kernelFname, kernelUnpackDir); err != nil {
-		return err
-	}
-
-	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
-		return err
-	}
-
-	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
-	if err != nil {
-		return err
-	}
-	// validate content against the kernel as well
-	if err := gadget.ValidateContent(gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
-		return err
-	}
-
-	// write resolved content to structure root
-	if err := writeResolvedContent(opts.PrepareDir, gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
-		return err
-	}
-
-	// early config & cloud-init config (done at install for Core 20)
-	if !core20 {
-		// and the cloud-init things
-		if err := installCloudConfig(rootDir, gadgetUnpackDir); err != nil {
-			return err
-		}
-
-		defaultsDir := sysconfig.WritableDefaultsDir(rootDir)
-		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
-		if len(defaults) > 0 {
-			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(rootDir, "/etc"), 0755); err != nil {
-				return err
+	fetchAsserts := func(sn, sysSn, kernSn *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
+		if !assertMaxFormatsSelected {
+			if err := selectAssertionMaxFormats(tsto, model, sysSn, kernSn); err != nil {
+				return nil, err
 			}
-			return sysconfig.ApplyFilesystemOnlyDefaults(model, defaultsDir, defaults)
+			assertMaxFormatsSelected = true
+			assertMaxFormats = tsto.AssertionMaxFormats()
 		}
-
-		customizeImage(rootDir, defaultsDir, &opts.Customizations)
+		prev := len(s.f.Refs())
+		if aRefs, ok := localSnaps[sn]; ok {
+			if err := copyOrRefetchIfFormatTooNewIntoDb(aRefs); err != nil {
+				return nil, err
+			}
+		} else {
+			// fetch snap assertions
+			if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, s.f, s.db); err != nil {
+				return nil, err
+			}
+		}
+		return s.f.Refs()[prev:], nil
 	}
 
-	return nil
+	if err := s.downloadAllSnaps(localSnaps, fetchAsserts); err != nil {
+		return err
+	}
+	return s.finish()
 }

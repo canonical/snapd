@@ -252,7 +252,7 @@ func downloadTokensSecret(d *Daemon) (secret []byte, err error) {
 	if err == nil {
 		return secret, nil
 	}
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	secret, err = randutil.CryptoTokenBytes(32)

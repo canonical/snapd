@@ -29,7 +29,7 @@ import (
 
 var errBuildWithoutSecboot = errors.New("build without secboot support")
 
-func CheckTPMKeySealingSupported() error {
+func CheckTPMKeySealingSupported(mode TPMProvisionMode) error {
 	return errBuildWithoutSecboot
 }
 
@@ -42,5 +42,21 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 }
 
 func ResealKeys(params *ResealKeysParams) error {
+	return errBuildWithoutSecboot
+}
+
+func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
+	return errBuildWithoutSecboot
+}
+
+func PCRHandleOfSealedKey(p string) (uint32, error) {
+	return 0, errBuildWithoutSecboot
+}
+
+func ReleasePCRResourceHandles(handles ...uint32) error {
+	return errBuildWithoutSecboot
+}
+
+func resetLockoutCounter(lockoutAuthFile string) error {
 	return errBuildWithoutSecboot
 }

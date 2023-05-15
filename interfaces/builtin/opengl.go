@@ -55,6 +55,7 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcudnn{,_adv_infer,_adv_train,_cnn_infer,_cnn_train,_ops_infer,_ops_train}*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvrtc{,-builtins}*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvToolsExt.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}nvidia/wine/*.dll rm,
 
 # Support reading the Vulkan ICD files
 /var/lib/snapd/lib/vulkan/ r,
@@ -96,6 +97,9 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 # va-api
 /dev/dri/renderD[0-9]* rw,
 
+# intel
+@{PROC}/sys/dev/i915/perf_stream_paranoid r,
+
 # cuda
 @{PROC}/sys/vm/mmap_min_addr r,
 @{PROC}/devices r,
@@ -121,6 +125,10 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /dev/mali[0-9]* rw,
 /dev/dma_buf_te rw,
 
+# NXP i.MX driver
+# https://github.com/Freescale/kernel-module-imx-gpu-viv
+/dev/galcore rw,
+
 # OpenCL ICD files
 /etc/OpenCL/vendors/ r,
 /etc/OpenCL/vendors/** r,
@@ -129,12 +137,14 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 @{PROC}/driver/prl_vtg rw,
 
 # /sys/devices
-/sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/config r,
-/sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/revision r,
-/sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/boot_vga r,
-/sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/{,subsystem_}class r,
-/sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/{,subsystem_}device r,
-/sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/{,subsystem_}vendor r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/config r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/revision r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/resource r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/irq r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/boot_vga r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/{,subsystem_}class r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/{,subsystem_}device r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/{,subsystem_}vendor r,
 /sys/devices/**/drm{,_dp_aux_dev}/** r,
 
 # FIXME: this is an information leak and snapd should instead query udev for
@@ -171,6 +181,7 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="pvr_sync"`,
 	`KERNEL=="mali[0-9]*"`,
 	`KERNEL=="dma_buf_te"`,
+	`KERNEL=="galcore"`,
 }
 
 func init() {

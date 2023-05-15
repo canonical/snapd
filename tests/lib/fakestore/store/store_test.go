@@ -215,6 +215,30 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 		"confinement":       "strict",
 		"type":              "base",
 	})
+
+	snapFn = s.makeTestSnap(c, "name: foo-core20\nversion: 1\ntype: app\nbase: core20")
+	resp, err = s.StoreGet(`/api/v1/snaps/details/foo-core20`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	sha3_384, _ = getSha(snapFn)
+	c.Check(body, DeepEquals, map[string]interface{}{
+		"architecture":      []interface{}{"all"},
+		"snap_id":           "",
+		"package_name":      "foo-core20",
+		"origin":            "canonical",
+		"developer_id":      "canonical",
+		"anon_download_url": s.store.URL() + "/download/foo-core20_1_all.snap",
+		"download_url":      s.store.URL() + "/download/foo-core20_1_all.snap",
+		"version":           "1",
+		"revision":          float64(424242),
+		"download_sha3_384": sha3_384,
+		"confinement":       "strict",
+		"type":              "app",
+		"base":              "core20",
+	})
 }
 
 func (s *storeTestSuite) TestBulkEndpoint(c *C) {
@@ -253,11 +277,16 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
 }
 
 func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
-	snapFn := s.makeTestSnap(c, "name: foo\nversion: 10")
-	s.makeAssertions(c, snapFn, "foo", "xidididididididididididididididid", "foo-devel", "foo-devel-id", 99)
+	snapFn1 := s.makeTestSnap(c, "name: foo\nversion: 10")
+	s.makeAssertions(c, snapFn1, "foo", "xidididididididididididididididid", "foo-devel", "foo-devel-id", 99)
+	snapFn2 := s.makeTestSnap(c, "name: foo-core20\nversion: 10\nbase: core20")
+	s.makeAssertions(c, snapFn2, "foo-core20", "xidididididididididididididcore20", "foo-core20-devel", "foo-core20-devel-id", 98)
 
 	resp, err := s.StorePostJSON("/api/v1/snaps/metadata", []byte(`{
-"snaps": [{"snap_id":"xidididididididididididididididid","channel":"stable","revision":1}]
+"snaps": [
+    {"snap_id":"xidididididididididididididididid","channel":"stable","revision":1},
+    {"snap_id":"xidididididididididididididcore20","channel":"stable","revision":1}
+]
 }`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -269,7 +298,8 @@ func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
 		} `json:"_embedded"`
 	}
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
-	sha3_384, _ := getSha(snapFn)
+	sha3_384_1, _ := getSha(snapFn1)
+	sha3_384_2, _ := getSha(snapFn2)
 	c.Check(body.Top.Cat, DeepEquals, []map[string]interface{}{{
 		"architecture":      []interface{}{"all"},
 		"snap_id":           "xidididididididididididididididid",
@@ -280,9 +310,23 @@ func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
 		"download_url":      s.store.URL() + "/download/foo_10_all.snap",
 		"version":           "10",
 		"revision":          float64(99),
-		"download_sha3_384": sha3_384,
+		"download_sha3_384": sha3_384_1,
 		"confinement":       "strict",
 		"type":              "app",
+	}, {
+		"architecture":      []interface{}{"all"},
+		"snap_id":           "xidididididididididididididcore20",
+		"package_name":      "foo-core20",
+		"origin":            "foo-core20-devel",
+		"developer_id":      "foo-core20-devel-id",
+		"anon_download_url": s.store.URL() + "/download/foo-core20_10_all.snap",
+		"download_url":      s.store.URL() + "/download/foo-core20_10_all.snap",
+		"version":           "10",
+		"revision":          float64(98),
+		"download_sha3_384": sha3_384_2,
+		"confinement":       "strict",
+		"type":              "app",
+		"base":              "core20",
 	}})
 }
 
@@ -399,6 +443,23 @@ timestamp: 2016-08-19T19:19:19Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw=`
+	exampleValidationSet = `type: validation-set
+authority-id: canonical
+account-id: canonical
+name: base-set
+sequence: 2
+revision: 1
+series: 16
+snaps:
+  -
+    id: yOqKhntON3vR7kwEbVPsILm7bUViPDzz
+    name: snap-b
+    presence: required
+    revision: 1
+timestamp: 2020-11-06T09:16:26Z
+sign-key-sha3-384: 7bbncP0c4RcufwReeiylCe0S7IMCn-tHLNSCgeOVmV3K-7_MzpAHgJDYeOjldefE
+
+AXNpZw==`
 )
 
 func (s *storeTestSuite) TestAssertionsEndpointPreloaded(c *C) {
@@ -432,6 +493,59 @@ func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(body), Equals, exampleSnapRev)
+}
+
+func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertion(c *C) {
+	err := ioutil.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
+	c.Assert(err, IsNil)
+
+	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=2`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Check(resp.StatusCode, Equals, 200)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, exampleValidationSet)
+}
+
+func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionLatest(c *C) {
+	err := ioutil.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
+	c.Assert(err, IsNil)
+
+	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=latest`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Check(resp.StatusCode, Equals, 200)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, exampleValidationSet)
+}
+
+func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionInvalidSequence(c *C) {
+	err := ioutil.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
+	c.Assert(err, IsNil)
+
+	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=0`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 400)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, "cannot retrieve assertion [16 canonical base-set]: the requested sequence must be above 0\n")
+}
+
+func (s *storeTestSuite) TestAssertionsEndpointSequenceInvalid(c *C) {
+	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=foo`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 400)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, "cannot retrieve assertion [16 canonical base-set]: cannot parse sequence foo: strconv.Atoi: parsing \"foo\": invalid syntax\n")
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointNotFound(c *C) {
@@ -619,6 +733,50 @@ func (s *storeTestSuite) TestSnapActionEndpointWithAssertionsInstall(c *C) {
 			"revision":    float64(99),
 			"confinement": "strict",
 			"type":        "app",
+		},
+	})
+}
+
+func (s *storeTestSuite) TestSnapActionEndpointSnapWithBase(c *C) {
+	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1\nbase: core20")
+
+	resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(`{
+"context": [{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","tracking-channel":"stable","revision":1}],
+"actions": [{"action":"refresh","instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw"}]
+}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	var body struct {
+		Results []map[string]interface{}
+	}
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	c.Check(body.Results, HasLen, 1)
+	sha3_384, size := getSha(snapFn)
+	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+		"result":       "refresh",
+		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"name":         "test-snapd-tools",
+		"snap": map[string]interface{}{
+			"architectures": []interface{}{"all"},
+			"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+			"name":          "test-snapd-tools",
+			"publisher": map[string]interface{}{
+				"username": "canonical",
+				"id":       "canonical",
+			},
+			"download": map[string]interface{}{
+				"url":      s.store.URL() + "/download/test-snapd-tools_1_all.snap",
+				"sha3-384": sha3_384,
+				"size":     float64(size),
+			},
+			"version":     "1",
+			"revision":    float64(424242),
+			"confinement": "strict",
+			"type":        "app",
+			"base":        "core20",
 		},
 	})
 }

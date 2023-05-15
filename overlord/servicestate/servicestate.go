@@ -20,7 +20,9 @@
 package servicestate
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -32,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/strutil"
@@ -92,7 +95,7 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 	for _, snapName := range sortedNames {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
-			if err == state.ErrNoState {
+			if errors.Is(err, state.ErrNoState) {
 				return nil, fmt.Errorf("snap not found: %s", snapName)
 			}
 			return nil, err
@@ -111,6 +114,7 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 				cmd.ActionModifier = "disable"
 			}
 		case inst.Action == "restart":
+			cmd.RestartEnabledNonActive = true
 			if inst.Reload {
 				cmd.Action = "reload-or-restart"
 			} else {
@@ -356,16 +360,15 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 }
 
 // SnapServiceOptions computes the options to configure services for
-// the given snap. This function might not check for the existence
-// of instanceName. It also takes as argument a map of all quota groups as an
+// the given snap. It also takes as argument a map of all quota groups as an
 // optimization, the map if non-nil is used in place of checking state for
 // whether or not the specified snap is in a quota group or not. If nil, state
 // is consulted directly instead.
-func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
+func SnapServiceOptions(st *state.State, snapInfo *snap.Info, quotaGroups map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
 	// if quotaGroups was not provided to us, then go get that
 	if quotaGroups == nil {
 		allGrps, err := AllQuotas(st)
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
 		quotaGroups = allGrps
@@ -380,7 +383,7 @@ func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[st
 		return nil, err
 	}
 	for i, s := range strings.Split(vitalityStr, ",") {
-		if s == instanceName {
+		if s == snapInfo.InstanceName() {
 			opts.VitalityRank = i + 1
 			break
 		}
@@ -388,11 +391,37 @@ func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[st
 
 	// also check for quota group for this instance name
 	for _, grp := range quotaGroups {
-		if strutil.ListContains(grp.Snaps, instanceName) {
+		if strutil.ListContains(grp.Snaps, snapInfo.InstanceName()) {
 			opts.QuotaGroup = grp
 			break
 		}
 	}
 
 	return opts, nil
+}
+
+// LogReader returns an io.ReadCloser which produce logs for the provided
+// snap AppInfo's. It is a convenience wrapper around the systemd.LogReader
+// implementation.
+func LogReader(appInfos []*snap.AppInfo, n int, follow bool) (io.ReadCloser, error) {
+	serviceNames := make([]string, len(appInfos))
+	for i, appInfo := range appInfos {
+		if !appInfo.IsService() {
+			return nil, fmt.Errorf("cannot read logs for app %q: not a service", appInfo.Name)
+		}
+		serviceNames[i] = appInfo.ServiceName()
+	}
+
+	// Include journal namespaces if supported. The --namespace option was
+	// introduced in systemd version 245. If systemd is older than that then
+	// we cannot use journal quotas in any case and don't include them.
+	includeNamespaces := false
+	if err := systemd.EnsureAtLeast(245); err == nil {
+		includeNamespaces = true
+	} else if !systemd.IsSystemdTooOld(err) {
+		return nil, fmt.Errorf("cannot get systemd version: %v", err)
+	}
+
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
+	return sysd.LogReader(serviceNames, n, follow, includeNamespaces)
 }

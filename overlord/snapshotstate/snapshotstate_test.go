@@ -38,6 +38,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -69,10 +70,13 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+	old := snapstate.EnforcedValidationSets
+	s.AddCleanup(func() {
+		snapstate.EnforcedValidationSets = old
 	})
-	s.AddCleanup(restore)
+	snapstate.EnforcedValidationSets = func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	}
 }
 
 func (s *snapshotSuite) TearDownTest(c *check.C) {
@@ -355,7 +359,7 @@ func (snapshotSuite) TestSaveChecksSnapnamesError(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
-	_, _, _, err := snapshotstate.Save(st, nil, nil)
+	_, _, _, err := snapshotstate.Save(st, nil, nil, nil)
 	c.Check(err, check.ErrorMatches, "bzzt")
 }
 
@@ -420,7 +424,7 @@ func (s snapshotSuite) TestSaveChecksSnapstateConflict(c *check.C) {
 	st, restore := s.createConflictingChange(c)
 	defer restore()
 
-	_, _, _, err := snapshotstate.Save(st, []string{"foo"}, nil)
+	_, _, _, err := snapshotstate.Save(st, []string{"foo"}, nil, nil)
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.FitsTypeOf, &snapstate.ChangeConflictError{})
 }
@@ -456,7 +460,7 @@ func (snapshotSuite) TestSaveConflictsWithSnapstate(c *check.C) {
 	})
 
 	chg := st.NewChange("snapshot-save", "...")
-	_, _, saveTasks, err := snapshotstate.Save(st, nil, nil)
+	_, _, saveTasks, err := snapshotstate.Save(st, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 	chg.AddAll(saveTasks)
 
@@ -472,7 +476,7 @@ func (snapshotSuite) TestSaveChecksSnapstateConflictError(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
-	_, _, _, err := snapshotstate.Save(st, nil, nil)
+	_, _, _, err := snapshotstate.Save(st, nil, nil, nil)
 	c.Check(err, check.ErrorMatches, "bzzt")
 }
 
@@ -483,7 +487,7 @@ func (snapshotSuite) TestSaveChecksSetIDError(c *check.C) {
 
 	st.Set("last-snapshot-set-id", "3/4")
 
-	_, _, _, err := snapshotstate.Save(st, nil, nil)
+	_, _, _, err := snapshotstate.Save(st, nil, nil, nil)
 	c.Check(err, check.ErrorMatches, ".* could not unmarshal .*")
 }
 
@@ -492,11 +496,23 @@ func (snapshotSuite) TestSaveNoSnapsInState(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	setID, saved, taskset, err := snapshotstate.Save(st, nil, nil)
+	setID, saved, taskset, err := snapshotstate.Save(st, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.HasLen, 0)
 	c.Check(taskset.Tasks(), check.HasLen, 0)
+}
+
+func (snapshotSuite) TestSaveSnapNotInstalled(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	setID, saved, taskset, err := snapshotstate.Save(st, []string{"foo"}, nil, nil)
+	c.Assert(err, check.ErrorMatches, `snap "foo" is not installed`)
+	c.Check(setID, check.Equals, uint64(0))
+	c.Check(saved, check.HasLen, 0)
+	c.Check(taskset, check.IsNil)
 }
 
 func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
@@ -514,7 +530,11 @@ func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	setID, saved, taskset, err := snapshotstate.Save(st, nil, nil)
+	snapshotOptions := map[string]*snap.SnapshotOptions{
+		"a-snap": {Exclude: []string{"$SNAP_COMMON/exclude", "$SNAP_DATA/exclude"}},
+	}
+
+	setID, saved, taskset, err := snapshotstate.Save(st, nil, nil, snapshotOptions)
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.DeepEquals, []string{"a-snap", "c-snap"})
@@ -522,23 +542,45 @@ func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	c.Assert(tasks, check.HasLen, 2)
 	c.Check(tasks[0].Kind(), check.Equals, "save-snapshot")
 	c.Check(tasks[0].Summary(), check.Equals, `Save data of snap "a-snap" in snapshot set #1`)
+
+	var snapshot [2]map[string]interface{}
+	c.Assert(tasks[0].Get("snapshot-setup", &snapshot[0]), check.IsNil)
+	c.Check(snapshot[0], check.DeepEquals, map[string]interface{}{
+		"set-id":  1.,
+		"snap":    "a-snap",
+		"options": map[string]interface{}{"exclude": []interface{}{"$SNAP_COMMON/exclude", "$SNAP_DATA/exclude"}},
+		"current": "unset",
+	})
+
 	c.Check(tasks[1].Kind(), check.Equals, "save-snapshot")
 	c.Check(tasks[1].Summary(), check.Equals, `Save data of snap "c-snap" in snapshot set #1`)
+	c.Assert(tasks[1].Get("snapshot-setup", &snapshot[1]), check.IsNil)
+	c.Check(snapshot[1], check.DeepEquals, map[string]interface{}{
+		"set-id":  1.,
+		"snap":    "c-snap",
+		"current": "unset",
+	})
 }
 
-func (snapshotSuite) TestSaveOneSnap(c *check.C) {
-	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
+func (s snapshotSuite) TestSaveOneSnap(c *check.C) {
+	defer snapshotstate.MockSnapstateAll(func(*state.State) (map[string]*snapstate.SnapState, error) {
 		// snapstate.All isn't called when a snap name is passed in
 		return nil, errors.New("bzzt")
-	}
-
-	defer snapshotstate.MockSnapstateAll(fakeSnapstateAll)()
+	})()
 
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
-	setID, saved, taskset, err := snapshotstate.Save(st, []string{"a-snap"}, []string{"a-user"})
+	snapstate.Set(st, "a-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "a-snap", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+	})
+
+	setID, saved, taskset, err := snapshotstate.Save(st, []string{"a-snap"}, []string{"a-user"}, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.DeepEquals, []string{"a-snap"})
@@ -588,6 +630,11 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
+	snapshotOptions := map[string]*snap.SnapshotOptions{
+		"one-snap": {Exclude: []string{"$SNAP_COMMON/exclude-a-snap", "$SNAP_DATA/exclude-a-snap"}},
+		"tri-snap": {Exclude: []string{"$SNAP_COMMON/exclude-b-snap", "$SNAP_DATA/exclude-b-snap"}},
+	}
+
 	snapshots := make(map[string]*client.Snapshot, 3)
 	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
 		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
@@ -608,10 +655,11 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 			Version:  "v1",
 			Revision: sideInfo.Revision,
 			Epoch:    snap.E("0"),
+			Options:  snapshotOptions[name],
 		}
 	}
 
-	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"})
+	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"}, snapshotOptions)
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.DeepEquals, []string{"one-snap", "too-snap", "tri-snap"})
@@ -651,7 +699,7 @@ func (snapshotSuite) TestSaveIntegrationFails(c *check.C) {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
-	// sanity check: no files in snapshot dir
+	// precondition check: no files in snapshot dir
 	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
@@ -718,7 +766,7 @@ exec /bin/tar "$@"
 		c.Assert(os.Mkdir(filepath.Join(homedir, "snap", name, "common", "common-"+name), mode), check.IsNil)
 	}
 
-	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"})
+	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"}, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.DeepEquals, []string{"one-snap", "too-snap", "tri-snap"})
@@ -734,18 +782,18 @@ exec /bin/tar "$@"
 	c.Assert(tasks, check.HasLen, 3)
 
 	// task 0 (for "one-snap") will have been undone
-	c.Check(tasks[0].Summary(), testutil.Contains, `"one-snap"`) // sanity check: task 0 is one-snap's
+	c.Check(tasks[0].Summary(), testutil.Contains, `"one-snap"`) // validity check: task 0 is one-snap's
 	c.Check(tasks[0].Status(), check.Equals, state.UndoneStatus)
 
 	// task 1 (for "too-snap") will have errored
-	c.Check(tasks[1].Summary(), testutil.Contains, `"too-snap"`) // sanity check: task 1 is too-snap's
+	c.Check(tasks[1].Summary(), testutil.Contains, `"too-snap"`) // validity check: task 1 is too-snap's
 	c.Check(tasks[1].Status(), check.Equals, state.ErrorStatus)
 	c.Check(strings.Join(tasks[1].Log(), "\n"), check.Matches, `(?ms)\S+ ERROR cannot create archive:
 /bin/tar: common/common-too-snap: .* Permission denied
 /bin/tar: Exiting with failure status due to previous errors`)
 
 	// task 2 (for "tri-snap") will have errored as well, hopefully, but it's a race (see the "tar" comment above)
-	c.Check(tasks[2].Summary(), testutil.Contains, `"tri-snap"`) // sanity check: task 2 is tri-snap's
+	c.Check(tasks[2].Summary(), testutil.Contains, `"tri-snap"`) // validity check: task 2 is tri-snap's
 	c.Check(tasks[2].Status(), check.Equals, state.ErrorStatus, check.Commentf("if this ever fails, duplicate the fake tar sleeps please"))
 	// sometimes you'll get one, sometimes you'll get the other (depending on ordering of events)
 	c.Check(strings.Join(tasks[2].Log(), "\n"), check.Matches, `\S+ ERROR( tar failed:)? context canceled`)
@@ -761,7 +809,7 @@ func (snapshotSuite) testSaveIntegrationTarFails(c *check.C, tarLogLines int, ex
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
-	// sanity check: no files in snapshot dir
+	// precondition check: no files in snapshot dir
 	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
@@ -818,7 +866,7 @@ exec /bin/tar "$@"
 	// these dir permissions (000) make tar unhappy
 	c.Assert(os.Mkdir(filepath.Join(homedir, "snap/tar-fail-snap/common/common-tar-fail-snap"), 00), check.IsNil)
 
-	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"})
+	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"}, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.DeepEquals, []string{"tar-fail-snap"})
@@ -834,7 +882,7 @@ exec /bin/tar "$@"
 	c.Assert(tasks, check.HasLen, 1)
 
 	// task 1 (for "too-snap") will have errored
-	c.Check(tasks[0].Summary(), testutil.Contains, `"tar-fail-snap"`) // sanity check: task 1 is too-snap's
+	c.Check(tasks[0].Summary(), testutil.Contains, `"tar-fail-snap"`) // validity check: task 1 is too-snap's
 	c.Check(tasks[0].Status(), check.Equals, state.ErrorStatus)
 	c.Check(strings.Join(tasks[0].Log(), "\n"), check.Matches, expectedErr)
 
@@ -1099,8 +1147,9 @@ func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(found, check.DeepEquals, []string{"a-snap"})
 	tasks := taskset.Tasks()
-	c.Assert(tasks, check.HasLen, 1)
+	c.Assert(tasks, check.HasLen, 2)
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
+	c.Check(tasks[1].Kind(), check.Equals, "cleanup-after-restore")
 	c.Check(tasks[0].Summary(), check.Equals, `Restore data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
@@ -1135,8 +1184,9 @@ func (snapshotSuite) TestRestore(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(found, check.DeepEquals, []string{"a-snap"})
 	tasks := taskset.Tasks()
-	c.Assert(tasks, check.HasLen, 1)
+	c.Assert(tasks, check.HasLen, 2)
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
+	c.Check(tasks[1].Kind(), check.Equals, "cleanup-after-restore")
 	c.Check(tasks[0].Summary(), check.Equals, `Restore data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
@@ -1212,7 +1262,7 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOp
 			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name, "common", "common-"+name), 0755), check.IsNil)
 		}
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, opts)
+		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, nil, opts)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1236,7 +1286,9 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOp
 	defer st.Unlock()
 
 	// the three restores warn about the missing home (but no errors, no panics)
-	for _, task := range change.Tasks() {
+	c.Assert(change.Tasks(), check.HasLen, 4)
+	restoreTasks := change.Tasks()[:3]
+	for _, task := range restoreTasks {
 		c.Check(strings.Join(task.Log(), "\n"), check.Matches, `.* Skipping restore of "[^"]+/home/b-user/[^"]+" as "[^"]+/home/b-user" doesn't exist.`)
 	}
 
@@ -1289,7 +1341,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
 		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common", "common-"+name), 0755), check.IsNil)
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"}, nil)
+		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"}, nil, nil)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1314,8 +1366,9 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	defer st.Unlock()
 
 	tasks := change.Tasks()
-	c.Check(tasks, check.HasLen, 3)
-	for _, task := range tasks {
+	c.Check(tasks, check.HasLen, 4)
+	restoreTasks := tasks[:3]
+	for _, task := range restoreTasks {
 		if strings.Contains(task.Summary(), `"too-snap"`) {
 			// too-snap was set up to fail, should always fail with
 			// 'permission denied' (see the mkdirall w/mode 0 above)

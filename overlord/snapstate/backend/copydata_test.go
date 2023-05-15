@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -95,7 +95,7 @@ func (s *copydataSuite) testCopyData(c *C, snapDir string, opts *dirs.SnapDirOpt
 
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	// just creates data dirs in this case
-	err = s.be.CopySnapData(v1, nil, progress.Null, opts)
+	err = s.be.CopySnapData(v1, nil, opts, progress.Null)
 	c.Assert(err, IsNil)
 
 	canaryDataFile := filepath.Join(v1.DataDir(), "canary.txt")
@@ -110,7 +110,7 @@ func (s *copydataSuite) testCopyData(c *C, snapDir string, opts *dirs.SnapDirOpt
 	c.Assert(err, IsNil)
 
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
-	err = s.be.CopySnapData(v2, v1, progress.Null, opts)
+	err = s.be.CopySnapData(v2, v1, opts, progress.Null)
 	c.Assert(err, IsNil)
 
 	newCanaryDataFile := filepath.Join(dirs.SnapDataDir, "hello/20", "canary.txt")
@@ -133,11 +133,11 @@ func (s *copydataSuite) TestCopyDataBails(c *C) {
 	defer func() { dirs.SnapDataHomeGlob = oldSnapDataHomeGlob }()
 
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	c.Assert(s.be.CopySnapData(v1, nil, progress.Null, nil), IsNil)
+	c.Assert(s.be.CopySnapData(v1, nil, nil, progress.Null), IsNil)
 	c.Assert(os.Chmod(v1.DataDir(), 0), IsNil)
 
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
-	err := s.be.CopySnapData(v2, v1, progress.Null, nil)
+	err := s.be.CopySnapData(v2, v1, nil, progress.Null)
 	c.Check(err, ErrorMatches, "cannot copy .*")
 }
 
@@ -150,7 +150,7 @@ func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snap")
 
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	err := s.be.CopySnapData(v1, nil, progress.Null, nil)
+	err := s.be.CopySnapData(v1, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	canaryDataFile := filepath.Join(v1.DataDir(), "canary.txt")
@@ -161,7 +161,7 @@ func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
 	c.Assert(err, IsNil)
 
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
-	err = s.be.CopySnapData(v2, v1, progress.Null, nil)
+	err = s.be.CopySnapData(v2, v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(filepath.Join(v2.DataDir(), "canary.txt"))
@@ -169,7 +169,7 @@ func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
 	_, err = os.Stat(filepath.Join(v2.CommonDataDir(), "canary.common"))
 	c.Assert(err, IsNil)
 
-	// sanity atm
+	// validity atm
 	c.Check(v1.DataDir(), Not(Equals), v2.DataDir())
 	c.Check(v1.CommonDataDir(), Equals, v2.CommonDataDir())
 }
@@ -234,7 +234,7 @@ func (s *copydataSuite) testCopyDataUndo(c *C, snapDir string, opts *dirs.SnapDi
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// copy data
-	err := s.be.CopySnapData(v2, v1, progress.Null, opts)
+	err := s.be.CopySnapData(v2, v1, opts, progress.Null)
 	c.Assert(err, IsNil)
 	v2data := filepath.Join(dirs.SnapDataDir, "hello/20")
 	l, err := filepath.Glob(filepath.Join(v2data, "*"))
@@ -245,7 +245,7 @@ func (s *copydataSuite) testCopyDataUndo(c *C, snapDir string, opts *dirs.SnapDi
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
 
-	err = s.be.UndoCopySnapData(v2, v1, progress.Null, opts)
+	err = s.be.UndoCopySnapData(v2, v1, opts, progress.Null)
 	c.Assert(err, IsNil)
 
 	// now removed
@@ -268,14 +268,14 @@ func (s *copydataSuite) TestCopyDataDoUndoNoUserHomes(c *C) {
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// copy data
-	err := s.be.CopySnapData(v2, v1, progress.Null, nil)
+	err := s.be.CopySnapData(v2, v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 	v2data := filepath.Join(dirs.SnapDataDir, "hello/20")
 	l, err := filepath.Glob(filepath.Join(v2data, "*"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
 
-	err = s.be.UndoCopySnapData(v2, v1, progress.Null, nil)
+	err = s.be.UndoCopySnapData(v2, v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// now removed
@@ -287,14 +287,14 @@ func (s *copydataSuite) TestCopyDataDoUndoFirstInstall(c *C) {
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	// first install
-	err := s.be.CopySnapData(v1, nil, progress.Null, nil)
+	err := s.be.CopySnapData(v1, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(v1.DataDir())
 	c.Assert(err, IsNil)
 	_, err = os.Stat(v1.CommonDataDir())
 	c.Assert(err, IsNil)
 
-	err = s.be.UndoCopySnapData(v1, nil, progress.Null, nil)
+	err = s.be.UndoCopySnapData(v1, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(v1.DataDir())
 	c.Check(os.IsNotExist(err), Equals, true)
@@ -320,7 +320,7 @@ func (s *copydataSuite) testCopyDataDoABA(c *C, opts *dirs.SnapDirOptions) {
 	c.Check(s.populatedData("20"), Equals, "20\n")
 
 	// and now we pretend to refresh back to v1 (r10)
-	c.Check(s.be.CopySnapData(v1, v2, progress.Null, opts), IsNil)
+	c.Check(s.be.CopySnapData(v1, v2, opts, progress.Null), IsNil)
 
 	// so 10 now has 20's data
 	c.Check(s.populatedData("10"), Equals, "20\n")
@@ -345,14 +345,14 @@ func (s *copydataSuite) TestCopyDataDoUndoABA(c *C) {
 	c.Check(s.populatedData("20"), Equals, "20\n")
 
 	// and now we pretend to refresh back to v1 (r10)
-	c.Check(s.be.CopySnapData(v1, v2, progress.Null, nil), IsNil)
+	c.Check(s.be.CopySnapData(v1, v2, nil, progress.Null), IsNil)
 
 	// so v1 (r10) now has v2 (r20)'s data and we have trash
 	c.Check(s.populatedData("10"), Equals, "20\n")
 	c.Check(s.populatedData("10.old"), Equals, "10\n")
 
 	// but oh no! we have to undo it!
-	c.Check(s.be.UndoCopySnapData(v1, v2, progress.Null, nil), IsNil)
+	c.Check(s.be.UndoCopySnapData(v1, v2, nil, progress.Null), IsNil)
 
 	// so now v1 (r10) has v1 (r10)'s data and v2 (r20) has v2 (r20)'s data and we have no trash
 	c.Check(s.populatedData("10"), Equals, "10\n")
@@ -372,10 +372,10 @@ func (s *copydataSuite) TestCopyDataDoIdempotent(c *C) {
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// copy data
-	err := s.be.CopySnapData(v2, v1, progress.Null, nil)
+	err := s.be.CopySnapData(v2, v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
-	err = s.be.CopySnapData(v2, v1, progress.Null, nil)
+	err = s.be.CopySnapData(v2, v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	v2data := filepath.Join(dirs.SnapDataDir, "hello/20")
@@ -399,15 +399,15 @@ func (s *copydataSuite) TestCopyDataUndoIdempotent(c *C) {
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// copy data
-	err := s.be.CopySnapData(v2, v1, progress.Null, nil)
+	err := s.be.CopySnapData(v2, v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	v2data := filepath.Join(dirs.SnapDataDir, "hello/20")
 
-	err = s.be.UndoCopySnapData(v2, v1, progress.Null, nil)
+	err = s.be.UndoCopySnapData(v2, v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
-	err = s.be.UndoCopySnapData(v2, v1, progress.Null, nil)
+	err = s.be.UndoCopySnapData(v2, v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// now removed
@@ -422,10 +422,10 @@ func (s *copydataSuite) TestCopyDataDoFirstInstallIdempotent(c *C) {
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	// first install
-	err := s.be.CopySnapData(v1, nil, progress.Null, nil)
+	err := s.be.CopySnapData(v1, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 
-	err = s.be.CopySnapData(v1, nil, progress.Null, nil)
+	err = s.be.CopySnapData(v1, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(v1.DataDir())
@@ -433,7 +433,7 @@ func (s *copydataSuite) TestCopyDataDoFirstInstallIdempotent(c *C) {
 	_, err = os.Stat(v1.CommonDataDir())
 	c.Assert(err, IsNil)
 
-	err = s.be.UndoCopySnapData(v1, nil, progress.Null, nil)
+	err = s.be.UndoCopySnapData(v1, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(v1.DataDir())
 	c.Check(os.IsNotExist(err), Equals, true)
@@ -445,17 +445,17 @@ func (s *copydataSuite) TestCopyDataUndoFirstInstallIdempotent(c *C) {
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	// first install
-	err := s.be.CopySnapData(v1, nil, progress.Null, nil)
+	err := s.be.CopySnapData(v1, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(v1.DataDir())
 	c.Assert(err, IsNil)
 	_, err = os.Stat(v1.CommonDataDir())
 	c.Assert(err, IsNil)
 
-	err = s.be.UndoCopySnapData(v1, nil, progress.Null, nil)
+	err = s.be.UndoCopySnapData(v1, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 
-	err = s.be.UndoCopySnapData(v1, nil, progress.Null, nil)
+	err = s.be.UndoCopySnapData(v1, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(v1.DataDir())
@@ -478,7 +478,7 @@ func (s *copydataSuite) TestCopyDataCopyFailure(c *C) {
 	}
 
 	// copy data will fail
-	err := s.be.CopySnapData(v2, v1, progress.Null, nil)
+	err := s.be.CopySnapData(v2, v1, nil, progress.Null)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot copy %s to %s: .*: "cp: boom" \(3\)`, q(v1.DataDir()), q(v2.DataDir())))
 }
 
@@ -492,7 +492,7 @@ func (s *copydataSuite) TestCopyDataPartialFailure(c *C) {
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
-	// sanity check: the 20 dirs don't exist yet (but 10 do)
+	// precondition check: the 20 dirs don't exist yet (but 10 do)
 	for _, dir := range []string{dirs.SnapDataDir, homedir1, homedir2} {
 		c.Assert(osutil.FileExists(filepath.Join(dir, "hello", "20")), Equals, false, Commentf(dir))
 		c.Assert(osutil.FileExists(filepath.Join(dir, "hello", "10")), Equals, true, Commentf(dir))
@@ -501,7 +501,7 @@ func (s *copydataSuite) TestCopyDataPartialFailure(c *C) {
 	c.Assert(os.Chmod(filepath.Join(homedir2, "hello", "10", "canary.home"), 0), IsNil)
 
 	// try to copy data
-	err := s.be.CopySnapData(v2, v1, progress.Null, nil)
+	err := s.be.CopySnapData(v2, v1, nil, progress.Null)
 	c.Assert(err, NotNil)
 
 	// the copy data failed, so check it cleaned up after itself (but not too much!)
@@ -532,7 +532,7 @@ func (s *copydataSuite) TestCopyDataSameRevision(c *C) {
 	}
 
 	// copy data works
-	err := s.be.CopySnapData(v1, v1, progress.Null, nil)
+	err := s.be.CopySnapData(v1, v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// the data is still there :-)
@@ -568,7 +568,7 @@ func (s *copydataSuite) TestUndoCopyDataSameRevision(c *C) {
 	}
 
 	// undo copy data works
-	err := s.be.UndoCopySnapData(v1, v1, progress.Null, nil)
+	err := s.be.UndoCopySnapData(v1, v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// the data is still there :-)
@@ -580,6 +580,108 @@ func (s *copydataSuite) TestUndoCopyDataSameRevision(c *C) {
 	} {
 		c.Check(osutil.FileExists(fn), Equals, true, Commentf(fn))
 	}
+}
+
+const (
+	mountRunMntUbuntuSaveFmt = `26 27 8:3 / %s/run/mnt/ubuntu-save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	mountSnapSaveFmt         = `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+)
+
+func (s *copydataSuite) TestSetupCommonSaveDataClassic(c *C) {
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	// first install
+	err := s.be.SetupSnapSaveData(v1, mockClassicDev, progress.Null)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(v1.CommonDataSaveDir())
+	c.Assert(err.Error(), Equals, fmt.Sprintf("stat %s/var/lib/snapd/save/snap/hello: no such file or directory", dirs.GlobalRootDir))
+}
+
+func (s *copydataSuite) TestSetupCommonSaveDataCoreNoMount(c *C) {
+	restore := osutil.MockMountInfo("")
+	defer restore()
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	// first install
+	err := s.be.SetupSnapSaveData(v1, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(v1.CommonDataSaveDir())
+	c.Assert(err.Error(), Equals, fmt.Sprintf("stat %s/var/lib/snapd/save/snap/hello: no such file or directory", dirs.GlobalRootDir))
+}
+
+func (s *copydataSuite) TestSetupCommonSaveDataFirstInstall(c *C) {
+	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir) + "\n" +
+		fmt.Sprintf(mountSnapSaveFmt, dirs.GlobalRootDir))
+	defer restore()
+
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	// first install
+	err := s.be.SetupSnapSaveData(v1, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(v1.CommonDataSaveDir())
+	c.Assert(err, IsNil)
+
+	// create a test file to make sure this also gets removed
+	c.Assert(ioutil.WriteFile(filepath.Join(v1.CommonDataSaveDir(), "canary.txt"), nil, 0644), IsNil)
+
+	// removes correctly when no previous info is present
+	err = s.be.UndoSetupSnapSaveData(v1, nil, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(v1.CommonDataSaveDir())
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	// verify that the root (snap) folder has not been touched
+	exists, isDir, err := osutil.DirExists(dirs.SnapDataSaveDir)
+	c.Check(err, IsNil)
+	c.Check(exists && isDir, Equals, true)
+}
+
+func (s *copydataSuite) TestSetupCommonSaveDataSameRevision(c *C) {
+	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir) + "\n" +
+		fmt.Sprintf(mountSnapSaveFmt, dirs.GlobalRootDir))
+	defer restore()
+
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	c.Assert(os.MkdirAll(v1.CommonDataSaveDir(), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(v1.CommonDataSaveDir(), "canary.txt"), nil, 0644), IsNil)
+	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
+
+	// setup snap save data works
+	err := s.be.SetupSnapSaveData(v1, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+
+	// assert data still is there
+	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
+}
+
+func (s *copydataSuite) TestUndoSetupCommonSaveDataClassic(c *C) {
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	c.Assert(os.MkdirAll(v1.CommonDataSaveDir(), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(v1.CommonDataSaveDir(), "canary.txt"), nil, 0644), IsNil)
+	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
+
+	// make sure that undo doesn't do anything on a classic system
+	err := s.be.UndoSetupSnapSaveData(v1, v1, mockClassicDev, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
+}
+
+func (s *copydataSuite) TestUndoSetupCommonSaveDataSameRevision(c *C) {
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	c.Assert(os.MkdirAll(v1.CommonDataSaveDir(), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(v1.CommonDataSaveDir(), "canary.txt"), nil, 0644), IsNil)
+	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
+
+	// make sure that undo doesn't do anything with a previous version present
+	err := s.be.UndoSetupSnapSaveData(v1, v1, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
 }
 
 func (s *copydataSuite) TestHideSnapData(c *C) {
@@ -683,6 +785,49 @@ func (s *copydataSuite) TestHideSnapDataSkipNoData(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(matches, HasLen, 1)
 	c.Assert(matches[0], Equals, newSnapDir)
+}
+
+func (s *copydataSuite) TestHideSnapDataOverwrite(c *C) {
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	// mock user home
+	homedir := filepath.Join(s.tempdir, "home", "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homedir
+
+	restore := backend.MockAllUsers(func(*dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	// writes a file canary.home file to the rev dir of the "hello" snap
+	s.populateHomeData(c, "user", snap.R(10))
+
+	// write data to be overwritten
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	snapDir := info.UserDataDir(homedir, opts)
+	c.Assert(os.MkdirAll(snapDir, 0700), IsNil)
+
+	revFile := filepath.Join(snapDir, "canary.home")
+	c.Assert(ioutil.WriteFile(revFile, []byte("stuff"), 0600), IsNil)
+
+	otherFile := filepath.Join(snapDir, "file")
+	c.Assert(ioutil.WriteFile(otherFile, []byte("stuff"), 0600), IsNil)
+
+	c.Assert(s.be.HideSnapData("hello"), IsNil)
+
+	// check versioned file was moved and previous contents were overwritten
+	data, err := ioutil.ReadFile(revFile)
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, []byte("10\n"))
+
+	_, err = os.Stat(otherFile)
+	c.Assert(errors.Is(err, os.ErrNotExist), Equals, true)
+
+	// check old '~/snap' folder was removed
+	_, err = os.Stat(snap.SnapDir(homedir, nil))
+	c.Assert(errors.Is(err, os.ErrNotExist), Equals, true)
 }
 
 func (s *copydataSuite) TestUndoHideSnapData(c *C) {
@@ -930,9 +1075,12 @@ func (s *copydataSuite) TestInitSnapUserHome(c *C) {
 	dirPath := filepath.Join(revDir, "dir")
 	c.Assert(os.Mkdir(dirPath, 0775), IsNil)
 
-	c.Assert(s.be.InitExposedSnapHome(snapName, rev), IsNil)
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, opts)
+	c.Assert(err, IsNil)
+	exposedHome := filepath.Join(homeDir, dirs.ExposedSnapHomeDir, snapName)
+	c.Check(undoInfo.Created, DeepEquals, []string{exposedHome})
 
-	expectedFile := filepath.Join(homeDir, dirs.ExposedSnapHomeDir, snapName, "file")
+	expectedFile := filepath.Join(exposedHome, "file")
 	data, err := ioutil.ReadFile(expectedFile)
 	c.Assert(err, IsNil)
 	c.Check(string(data), Equals, "stuff")
@@ -942,7 +1090,7 @@ func (s *copydataSuite) TestInitSnapUserHome(c *C) {
 	c.Check(exists, Equals, true)
 	c.Check(isReg, Equals, true)
 
-	expectedDir := filepath.Join(homeDir, dirs.ExposedSnapHomeDir, snapName, "dir")
+	expectedDir := filepath.Join(exposedHome, "dir")
 	exists, isDir, err := osutil.DirExists(expectedDir)
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, true)
@@ -952,6 +1100,57 @@ func (s *copydataSuite) TestInitSnapUserHome(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, true)
 	c.Check(isDir, Equals, true)
+}
+
+func (s *copydataSuite) TestInitExposedHomeIgnoreXDGDirs(c *C) {
+	homeDir := filepath.Join(s.tempdir, "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homeDir
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	revDir := snap.UserDataDir(homeDir, snapName, rev, opts)
+
+	cachePath := filepath.Join(revDir, ".cache")
+	c.Assert(os.MkdirAll(cachePath, 0700), IsNil)
+	configPath := filepath.Join(revDir, ".config")
+	c.Assert(os.MkdirAll(configPath, 0700), IsNil)
+	localPath := filepath.Join(revDir, ".local", "share")
+	c.Assert(os.MkdirAll(localPath, 0700), IsNil)
+
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, opts)
+	c.Assert(err, IsNil)
+	exposedHome := snap.UserExposedHomeDir(homeDir, snapName)
+	c.Check(undoInfo.Created, DeepEquals, []string{exposedHome})
+
+	cachePath = filepath.Join(exposedHome, ".cache")
+	exists, _, err := osutil.DirExists(cachePath)
+	c.Check(err, IsNil)
+	c.Check(exists, Equals, false)
+
+	configPath = filepath.Join(exposedHome, ".config")
+	exists, _, err = osutil.DirExists(configPath)
+	c.Check(err, IsNil)
+	c.Check(exists, Equals, false)
+
+	localPath = filepath.Join(exposedHome, ".local")
+	exists, _, err = osutil.DirExists(localPath)
+	c.Check(err, IsNil)
+	c.Check(exists, Equals, true)
+
+	sharePath := filepath.Join(exposedHome, ".local", "share")
+	exists, _, err = osutil.DirExists(sharePath)
+	c.Check(err, IsNil)
+	c.Check(exists, Equals, false)
 }
 
 func (s *copydataSuite) TestInitSnapFailOnFirstErr(c *C) {
@@ -977,7 +1176,9 @@ func (s *copydataSuite) TestInitSnapFailOnFirstErr(c *C) {
 	rev, err := snap.ParseRevision("2")
 	c.Assert(err, IsNil)
 
-	c.Assert(s.be.InitExposedSnapHome(snapName, rev), ErrorMatches, ".*: boom")
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, nil)
+	c.Assert(err, ErrorMatches, ".*: boom")
+	c.Check(undoInfo, IsNil)
 
 	exists, _, err := osutil.DirExists(filepath.Join(usr1.HomeDir, dirs.ExposedSnapHomeDir))
 	c.Assert(err, IsNil)
@@ -986,6 +1187,57 @@ func (s *copydataSuite) TestInitSnapFailOnFirstErr(c *C) {
 	exists, _, err = osutil.DirExists(filepath.Join(usr2.HomeDir, dirs.ExposedSnapHomeDir))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, false)
+}
+
+func (s *copydataSuite) TestInitSnapUndoOnErr(c *C) {
+	usr1, err := user.Current()
+	c.Assert(err, IsNil)
+	usr1.HomeDir = filepath.Join(s.tempdir, "user1")
+
+	usr2, err := user.Current()
+	c.Assert(err, IsNil)
+	usr2.HomeDir = filepath.Join(s.tempdir, "user2")
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr1, usr2}, nil
+	})
+	defer restore()
+
+	first := true
+	restore = backend.MockMkdirAllChown(func(string, os.FileMode, sys.UserID, sys.GroupID) error {
+		if first {
+			first = false
+			return nil
+		}
+
+		return errors.New("boom")
+	})
+	defer restore()
+
+	var calledRemove bool
+	restore = backend.MockRemoveIfEmpty(func(dir string) error {
+		calledRemove = true
+		return backend.RemoveIfEmpty(dir)
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, nil)
+	c.Assert(err, ErrorMatches, ".*: boom")
+	c.Check(undoInfo, IsNil)
+
+	exists, _, err := osutil.DirExists(filepath.Join(usr1.HomeDir, dirs.ExposedSnapHomeDir))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
+
+	exists, _, err = osutil.DirExists(filepath.Join(usr2.HomeDir, dirs.ExposedSnapHomeDir))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
+
+	c.Check(calledRemove, Equals, true)
 }
 
 func (s *copydataSuite) TestInitSnapNothingToCopy(c *C) {
@@ -1002,7 +1254,9 @@ func (s *copydataSuite) TestInitSnapNothingToCopy(c *C) {
 	rev, err := snap.ParseRevision("2")
 	c.Assert(err, IsNil)
 
-	c.Assert(s.be.InitExposedSnapHome(snapName, rev), IsNil)
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, nil)
+	c.Assert(err, IsNil)
+	c.Check(undoInfo.Created, DeepEquals, []string{snap.UserExposedHomeDir(usr.HomeDir, snapName)})
 
 	newHomeDir := filepath.Join(usr.HomeDir, dirs.ExposedSnapHomeDir, snapName)
 	exists, _, err := osutil.DirExists(newHomeDir)
@@ -1012,6 +1266,72 @@ func (s *copydataSuite) TestInitSnapNothingToCopy(c *C) {
 	entries, err := ioutil.ReadDir(newHomeDir)
 	c.Assert(err, IsNil)
 	c.Check(entries, HasLen, 0)
+}
+
+func (s *copydataSuite) TestInitAlreadyExistsFile(c *C) {
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = filepath.Join(s.tempdir, "user")
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+
+	// ~/Snap/some-snap already exists but is file
+	newHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
+	parent := filepath.Dir(newHome)
+	c.Assert(os.MkdirAll(parent, 0700), IsNil)
+	c.Assert(ioutil.WriteFile(newHome, nil, 0600), IsNil)
+
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot initialize new user HOME %q: already exists but is not a directory", newHome))
+	c.Check(undoInfo, IsNil)
+
+	exists, isReg, err := osutil.RegularFileExists(newHome)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(isReg, Equals, true)
+}
+
+func (s *copydataSuite) TestInitAlreadyExistsDir(c *C) {
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = filepath.Join(s.tempdir, "user")
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+
+	// ~/Snap/some-snap already exists but is file
+	newHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
+	c.Assert(os.MkdirAll(newHome, 0700), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(newHome, "file"), nil, 0600), IsNil)
+
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, nil)
+	c.Assert(err, IsNil)
+	c.Check(undoInfo.Created, HasLen, 0)
+
+	exists, isDir, err := osutil.DirExists(newHome)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(isDir, Equals, true)
+
+	files, err := ioutil.ReadDir(newHome)
+	c.Assert(err, IsNil)
+	c.Check(files, HasLen, 1)
+	c.Check(files[0].Name(), Equals, "file")
 }
 
 func (s *copydataSuite) TestRemoveExposedHome(c *C) {
@@ -1028,8 +1348,10 @@ func (s *copydataSuite) TestRemoveExposedHome(c *C) {
 	exposedDir := filepath.Join(usr.HomeDir, dirs.ExposedSnapHomeDir, snapName)
 	c.Assert(os.MkdirAll(exposedDir, 0700), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(exposedDir, "file"), []byte("foo"), 0600), IsNil)
+	var undoInfo backend.UndoInfo
+	undoInfo.Created = append(undoInfo.Created, exposedDir)
 
-	c.Assert(s.be.RemoveExposedSnapHome(snapName), IsNil)
+	c.Assert(s.be.UndoInitExposedSnapHome(snapName, &undoInfo), IsNil)
 
 	exists, _, err := osutil.DirExists(exposedDir)
 	c.Assert(err, IsNil)
@@ -1057,6 +1379,7 @@ func (s *copydataSuite) TestRemoveExposedKeepGoingOnFail(c *C) {
 	defer restore()
 
 	snapName := "some-snap"
+	var undoInfo backend.UndoInfo
 	var usrs []*user.User
 	for _, usrName := range []string{"usr1", "usr2"} {
 		homedir := filepath.Join(s.tempdir, usrName)
@@ -1068,6 +1391,7 @@ func (s *copydataSuite) TestRemoveExposedKeepGoingOnFail(c *C) {
 		c.Assert(os.MkdirAll(exposedDir, 0700), IsNil)
 		c.Assert(ioutil.WriteFile(filepath.Join(exposedDir, "file"), []byte("foo"), 0700), IsNil)
 		usrs = append(usrs, usr)
+		undoInfo.Created = append(undoInfo.Created, exposedDir)
 	}
 
 	restUsers := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
@@ -1078,9 +1402,109 @@ func (s *copydataSuite) TestRemoveExposedKeepGoingOnFail(c *C) {
 	buf, restLogger := logger.MockLogger()
 	defer restLogger()
 
-	err := s.be.RemoveExposedSnapHome(snapName)
+	err := s.be.UndoInitExposedSnapHome(snapName, &undoInfo)
 	// the first error is returned
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot remove %q: first error`, filepath.Join(s.tempdir, "usr1", "Snap")))
 	// second error is logged
 	c.Assert(buf, Matches, fmt.Sprintf(`.*cannot remove %q: other error\n`, filepath.Join(s.tempdir, "usr2", "Snap")))
+}
+
+func (s *copydataSuite) TestInitXDGDirsAlreadyExist(c *C) {
+	homeDir := filepath.Join(s.tempdir, "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homeDir
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	revDir := snap.UserDataDir(homeDir, snapName, rev, opts)
+
+	var srcDirs []string
+	mkDir := func(dirs ...string) {
+		srcDir := filepath.Join(append([]string{revDir}, dirs...)...)
+		srcDirs = append(srcDirs, srcDir)
+		c.Assert(os.MkdirAll(srcDir, 0700), IsNil)
+	}
+
+	for _, d := range [][]string{{".config"}, {".cache"}, {".local", "share"}} {
+		mkDir(d...)
+	}
+
+	info := &snap.Info{SideInfo: snap.SideInfo{Revision: rev, RealName: snapName}}
+	c.Assert(s.be.InitXDGDirs(info), IsNil)
+
+	for _, d := range []string{"xdg-config", "xdg-cache", "xdg-data"} {
+		dir := filepath.Join(revDir, d)
+
+		exists, isDir, err := osutil.DirExists(dir)
+		c.Check(err, IsNil)
+		c.Check(exists, Equals, true)
+		c.Check(isDir, Equals, true)
+	}
+}
+
+func (s *copydataSuite) TestInitXDGDirsCreateNew(c *C) {
+	homeDir := filepath.Join(s.tempdir, "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homeDir
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	revDir := snap.UserDataDir(homeDir, snapName, rev, opts)
+
+	info := &snap.Info{SideInfo: snap.SideInfo{Revision: rev, RealName: snapName}}
+	c.Assert(s.be.InitXDGDirs(info), IsNil)
+
+	for _, d := range []string{"xdg-config", "xdg-cache", "xdg-data"} {
+		dir := filepath.Join(revDir, d)
+
+		exists, isDir, err := osutil.DirExists(dir)
+		c.Check(err, IsNil)
+		c.Check(exists, Equals, true)
+		c.Check(isDir, Equals, true)
+	}
+}
+
+func (s *copydataSuite) TestInitXDGDirsFailAlreadyExists(c *C) {
+	homeDir := filepath.Join(s.tempdir, "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homeDir
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	revDir := snap.UserDataDir(homeDir, snapName, rev, opts)
+	dst := filepath.Join(revDir, "xdg-config")
+	src := filepath.Join(revDir, ".config")
+	c.Assert(os.MkdirAll(dst, 0700), IsNil)
+	c.Assert(os.MkdirAll(src, 0700), IsNil)
+
+	info := &snap.Info{SideInfo: snap.SideInfo{Revision: rev, RealName: snapName}}
+	err = s.be.InitXDGDirs(info)
+	c.Assert(err.Error(), Equals, fmt.Sprintf("cannot migrate XDG dir %q to %q because destination already exists", src, dst))
 }

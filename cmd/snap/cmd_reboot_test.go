@@ -43,16 +43,17 @@ trigger a regular reboot.
 When called without a system label but with a mode it will use the
 current system to enter the given mode.
 
-Note that "recover" and "run" modes are only available for the
+Note that "recover", "factory-reset" and "run" modes are only available for the
 current system.
 
 [reboot command options]
-      --run        Boot into run mode
-      --install    Boot into install mode
-      --recover    Boot into recover mode
+      --run              Boot into run mode
+      --install          Boot into install mode
+      --recover          Boot into recover mode
+      --factory-reset    Boot into factory-reset mode
 
 [reboot command arguments]
-  <label>:         The recovery system label
+  <label>:               The recovery system label
 `
 	s.testSubCommandHelp(c, "reboot", msg)
 }
@@ -88,6 +89,12 @@ func (s *SnapSuite) TestRebootHappy(c *C) {
 			expectedEndpoint: "/v2/systems/20200101",
 			expectedJSON:     `{"action":"reboot","mode":"recover"}`,
 			expectedMsg:      `Reboot into "20200101" "recover" mode.`,
+		},
+		{
+			cmdline:          []string{"reboot", "--factory-reset", "20200101"},
+			expectedEndpoint: "/v2/systems/20200101",
+			expectedJSON:     `{"action":"reboot","mode":"factory-reset"}`,
+			expectedMsg:      `Reboot into "20200101" "factory-reset" mode.`,
 		},
 	} {
 

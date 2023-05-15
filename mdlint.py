@@ -11,11 +11,11 @@ import codecs
 
 
 def lint_li(fname, text):
-    """Ensure that the list-items are multiplies of 4"""
+    """Ensure that the list-items are multiplies of 2"""
     is_clean = True
     for i, line in enumerate(text.splitlines()):
-        if line.lstrip().startswith("*") and line.index("*") % 4 != 0:
-            print("%s: line %i list has non-4 spaces indent" % (fname, i))
+        if line.lstrip().startswith("*") and line.index("*") % 2 != 0:
+            print("%s: line %i list has non-2 spaces indent" % (fname, i))
             is_clean = False
     return is_clean
 

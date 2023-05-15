@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -154,7 +154,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 		{map[string]interface{}{"architecture": "pdp-7"}, "cannot remodel to different architectures yet"},
 		{map[string]interface{}{"base": "core18"}, "cannot remodel from core to bases yet"},
 		// pre-UC20 to UC20
-		{map[string]interface{}{"base": "core20", "kernel": nil, "gadget": nil, "snaps": mockCore20ModelSnaps}, "cannot remodel to Ubuntu Core 20 models yet"},
+		{map[string]interface{}{"base": "core20", "kernel": nil, "gadget": nil, "snaps": mockCore20ModelSnaps}, `cannot remodel from pre-UC20 to UC20\+ models`},
+		{map[string]interface{}{"base": "core20", "kernel": nil, "gadget": nil, "classic": "true", "distribution": "ubuntu", "snaps": mockCore20ModelSnaps}, `cannot remodel across classic and non-classic models`},
 	} {
 		mergeMockModelHeaders(cur, t.new)
 		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), t.new)
@@ -162,6 +163,41 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 		c.Check(chg, IsNil)
 		c.Check(err, ErrorMatches, t.errStr)
 	}
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelFromClassicUnhappy(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// set a model assertion
+	cur := map[string]interface{}{
+		"brand":        "canonical",
+		"model":        "pc-model",
+		"architecture": "amd64",
+		"classic":      "true",
+		"gadget":       "pc",
+	}
+	s.makeModelAssertionInState(c, cur["brand"].(string), cur["model"].(string), map[string]interface{}{
+		"architecture": cur["architecture"],
+		"gadget":       cur["gadget"],
+		"classic":      cur["classic"],
+	})
+	s.makeSerialAssertionInState(c, cur["brand"].(string), cur["model"].(string), "orig-serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  cur["brand"].(string),
+		Model:  cur["model"].(string),
+		Serial: "orig-serial",
+	})
+
+	new := s.brands.Model(cur["brand"].(string), "new-model", map[string]interface{}{
+		"architecture": cur["architecture"],
+		"gadget":       cur["gadget"],
+		"classic":      cur["classic"],
+	})
+
+	_, err := devicestate.Remodel(s.state, new)
+	c.Check(err, ErrorMatches, `cannot remodel from classic model`)
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelCheckGrade(c *C) {
@@ -698,9 +734,9 @@ type freshSessionStore struct {
 	ensureDeviceSession int
 }
 
-func (sto *freshSessionStore) EnsureDeviceSession() (*auth.DeviceState, error) {
+func (sto *freshSessionStore) EnsureDeviceSession() error {
 	sto.ensureDeviceSession += 1
-	return nil, nil
+	return nil
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {
@@ -1063,7 +1099,7 @@ func (s *deviceMgrRemodelSuite) TestDeviceCtxNoTask(c *C) {
 	// nothing in the state
 
 	_, err := devicestate.DeviceCtx(s.state, nil, nil)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a model assertion
 	model := s.brands.Model("canonical", "pc", map[string]interface{}{
@@ -1337,7 +1373,7 @@ volumes:
         type: 00000000-0000-0000-0000-0000deadbeef
 `
 
-	errMatch := `cannot remodel to an incompatible gadget: incompatible layout change: incompatible structure #0 \("foo"\) change: cannot change structure size from 10485760 to 20971520`
+	errMatch := `cannot remodel to an incompatible gadget: incompatible layout change: incompatible structure #0 \("foo"\) change: new valid structure size range \[20971520, 20971520\] is not compatible with current \(\[10485760, 10485760\]\)`
 	s.testCheckGadgetRemodelCompatibleWithYaml(c, compatibleTestMockOkGadget, mockBadGadgetYaml, errMatch)
 }
 
@@ -1346,6 +1382,11 @@ func (s *deviceMgrRemodelSuite) mockTasksNopHandler(kinds ...string) {
 	for _, kind := range kinds {
 		s.o.TaskRunner().AddHandler(kind, nopHandler, nil)
 	}
+}
+
+func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
+	goff := offs
+	return &goff
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsUpdate(c *C) {
@@ -1476,19 +1517,25 @@ volumes:
 							VolumeName: "pc",
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
+							Offset:     asOffsetPtr(gadget.NonMBRStartOffset),
+							MinSize:    10 * quantity.SizeMiB,
 							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
 								{UnresolvedSource: "foo-content", Target: "/"},
 							},
+							YamlIndex: 0,
 						}, {
 							VolumeName: "pc",
 							Name:       "bare-one",
 							Type:       "bare",
+							Offset:     asOffsetPtr(gadget.NonMBRStartOffset + 10*quantity.OffsetMiB),
+							MinSize:    quantity.SizeMiB,
 							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "bare.img"},
 							},
+							YamlIndex: 1,
 						}},
 					},
 				},
@@ -1506,19 +1553,25 @@ volumes:
 							VolumeName: "pc",
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
+							Offset:     asOffsetPtr(gadget.NonMBRStartOffset),
+							MinSize:    10 * quantity.SizeMiB,
 							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
 								{UnresolvedSource: "new-foo-content", Target: "/"},
 							},
+							YamlIndex: 0,
 						}, {
 							VolumeName: "pc",
 							Name:       "bare-one",
 							Type:       "bare",
+							Offset:     asOffsetPtr(gadget.NonMBRStartOffset + 10*quantity.OffsetMiB),
+							MinSize:    quantity.SizeMiB,
 							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "new-bare-content.img"},
 							},
+							YamlIndex: 1,
 						}},
 					},
 				},

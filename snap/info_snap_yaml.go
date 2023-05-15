@@ -42,6 +42,7 @@ type snapYaml struct {
 	Title           string                 `yaml:"title"`
 	Description     string                 `yaml:"description"`
 	Summary         string                 `yaml:"summary"`
+	Provenance      string                 `yaml:"provenance"`
 	License         string                 `yaml:"license,omitempty"`
 	Epoch           Epoch                  `yaml:"epoch,omitempty"`
 	Base            string                 `yaml:"base,omitempty"`
@@ -280,6 +281,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		OriginalTitle:       y.Title,
 		OriginalDescription: y.Description,
 		OriginalSummary:     y.Summary,
+		SnapProvenance:      y.Provenance,
 		License:             y.License,
 		Epoch:               y.Epoch,
 		Confinement:         confinement,
@@ -694,16 +696,19 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 }
 
 // Short form:
-//   system-usernames:
-//     snap_daemon: shared  # 'scope' is 'shared'
-//     lxd: external        # currently unsupported
-//     foo: private         # currently unsupported
+//
+//	system-usernames:
+//	  snap_daemon: shared  # 'scope' is 'shared'
+//	  lxd: external        # currently unsupported
+//	  foo: private         # currently unsupported
+//
 // Attributes form:
-//   system-usernames:
-//     snap_daemon:
-//       scope: shared
-//       attrib1: ...
-//       attrib2: ...
+//
+//	system-usernames:
+//	  snap_daemon:
+//	    scope: shared
+//	    attrib1: ...
+//	    attrib2: ...
 func convertToUsernamesData(user string, data interface{}) (scope string, attrs map[string]interface{}, err error) {
 	switch data.(type) {
 	case string:

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -298,11 +298,26 @@ func validateTitle(title string) error {
 	return nil
 }
 
+func validateProvenance(prov string) error {
+	if prov == "" {
+		// empty means default
+		return nil
+	}
+	if prov == naming.DefaultProvenance {
+		return fmt.Errorf("provenance cannot be set to default (global-upload) explicitly")
+	}
+	return naming.ValidateProvenance(prov)
+}
+
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
 	name := info.InstanceName()
 	if name == "" {
 		return errors.New("snap name cannot be empty")
+	}
+
+	if err := validateProvenance(info.SnapProvenance); err != nil {
+		return err
 	}
 
 	if err := ValidateName(info.SnapName()); err != nil {
@@ -381,7 +396,7 @@ func Validate(info *Info) error {
 	}
 
 	// Ensure links are valid
-	if err := ValidateLinks(info.Links()); err != nil {
+	if err := ValidateLinks(info.OriginalLinks); err != nil {
 		return err
 	}
 
@@ -788,7 +803,7 @@ func ValidateApp(app *AppInfo) error {
 	}
 	// validate refresh-mode
 	switch app.RefreshMode {
-	case "", "endure", "restart":
+	case "", "endure", "restart", "ignore-running":
 		// valid
 	default:
 		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)
@@ -803,8 +818,12 @@ func ValidateApp(app *AppInfo) error {
 	if app.StopMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"stop-mode" cannot be used for %q, only for services`, app.Name)
 	}
-	if app.RefreshMode != "" && app.Daemon == "" {
-		return fmt.Errorf(`"refresh-mode" cannot be used for %q, only for services`, app.Name)
+	if app.RefreshMode != "" {
+		if app.Daemon != "" && app.RefreshMode == "ignore-running" {
+			return errors.New(`"refresh-mode" cannot be set to "ignore-running" for services`)
+		} else if app.Daemon == "" && app.RefreshMode != "ignore-running" {
+			return fmt.Errorf(`"refresh-mode" for app %q can only have value "ignore-running"`, app.Name)
+		}
 	}
 	if app.InstallMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"install-mode" cannot be used for %q, only for services`, app.Name)
@@ -905,6 +924,7 @@ var layoutRejectionList = []string{
 	// snap applications to be integrated with the rest of the system and
 	// therefore snaps should not be allowed to replace it.
 	"/run",
+	"/var/run",
 	// The /tmp directory contains a private, per-snap, view of /tmp and
 	// there's no valid reason to allow snaps to replace it.
 	"/tmp",
@@ -920,9 +940,11 @@ var layoutRejectionList = []string{
 	// firmware. Therefore firmware must not be replaceable to prevent
 	// malicious firmware from attacking the host.
 	"/lib/firmware",
+	"/usr/lib/firmware",
 	// Similarly the kernel will load modules and the modules should not be
 	// something that snaps can tamper with.
 	"/lib/modules",
+	"/usr/lib/modules",
 
 	// Locations that store essential data:
 

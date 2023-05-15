@@ -1,5 +1,9 @@
 summary: Test handling of D-Bus service name conflicts
 
+systems:
+  # TODO: dbus issue
+  - -ubuntu-core-22-*
+
 prepare: |
     snap set system experimental.user-daemons=true
 

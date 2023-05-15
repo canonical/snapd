@@ -19,9 +19,12 @@
 
 package gadget
 
+import "github.com/snapcore/snapd/gadget/quantity"
+
 type (
 	MountedFilesystemUpdater = mountedFilesystemUpdater
 	RawStructureUpdater      = rawStructureUpdater
+	InvalidOffsetError       = invalidOffsetError
 )
 
 var (
@@ -47,9 +50,6 @@ var (
 	NewRawStructureUpdater      = newRawStructureUpdater
 	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
 
-	FindDeviceForStructureWithFallback = findDeviceForStructureWithFallback
-	FindMountPointForStructure         = findMountPointForStructure
-
 	ParseRelativeOffset = parseRelativeOffset
 
 	SplitKernelRef = splitKernelRef
@@ -57,6 +57,7 @@ var (
 	ResolveVolumeContent = resolveVolumeContent
 
 	GadgetVolumeConsumesOneKernelUpdateAsset = gadgetVolumeConsumesOneKernelUpdateAsset
+	GadgetVolumeKernelUpdateAssetsConsumed   = gadgetVolumeKernelUpdateAssetsConsumed
 
 	BuildNewVolumeToDeviceMapping = buildNewVolumeToDeviceMapping
 	ErrSkipUpdateProceedRefresh   = errSkipUpdateProceedRefresh
@@ -66,7 +67,8 @@ var (
 
 	OnDiskStructureIsLikelyImplicitSystemDataRole = onDiskStructureIsLikelyImplicitSystemDataRole
 
-	SearchForVolumeWithTraits = searchForVolumeWithTraits
+	SearchVolumeWithTraitsAndMatchParts = searchVolumeWithTraitsAndMatchParts
+	OrderStructuresByOffset             = orderStructuresByOffset
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
@@ -84,4 +86,8 @@ func (m *MountedFilesystemWriter) WriteDirectory(volumeRoot, src, dst string, pr
 // to test handling of unknown keys when we un-marshal
 func (s *StructureEncryptionParameters) SetUnknownKeys(m map[string]string) {
 	s.unknownKeys = m
+}
+
+func NewInvalidOffsetError(offset, lowerBound, upperBound quantity.Offset) *InvalidOffsetError {
+	return &invalidOffsetError{offset: offset, lowerBound: lowerBound, upperBound: upperBound}
 }

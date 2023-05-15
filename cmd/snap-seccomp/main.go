@@ -74,6 +74,11 @@ package main
 //#define PF_QIPCRTR AF_QIPCRTR
 //#endif				// AF_QIPCRTR
 //
+//#ifndef AF_XDP
+//#define AF_XDP 44
+//#define PF_XDP AF_XDP
+//#endif				// AF_XDP
+//
 // // https://github.com/sctplab/usrsctp/blob/master/usrsctplib/usrsctp.h
 //#ifndef AF_CONN
 //#define AF_CONN 123
@@ -286,6 +291,8 @@ var seccompResolver = map[string]uint64{
 	"PF_CONN":    C.PF_CONN,
 	"AF_QIPCRTR": C.AF_QIPCRTR, // 42
 	"PF_QIPCRTR": C.PF_QIPCRTR,
+	"AF_XDP":     C.AF_XDP, // 44
+	"PF_XDP":     C.PF_XDP,
 
 	// man 2 socket - type
 	"SOCK_STREAM":    syscall.SOCK_STREAM,
@@ -479,25 +486,26 @@ func (sc *SeccompData) SetArgs(args [6]uint64) {
 // the arg is known to be 32 bit (uid_t/gid_t) and the kernel accepts one
 // or both of uint32(-1) and uint64(-1) and does its own masking).
 var syscallsWithNegArgsMaskHi32 = map[string]bool{
-	"chown":       true,
-	"chown32":     true,
-	"fchown":      true,
-	"fchown32":    true,
-	"fchownat":    true,
-	"lchown":      true,
-	"lchown32":    true,
-	"setgid":      true,
-	"setgid32":    true,
-	"setregid":    true,
-	"setregid32":  true,
-	"setresgid":   true,
-	"setresgid32": true,
-	"setreuid":    true,
-	"setreuid32":  true,
-	"setresuid":   true,
-	"setresuid32": true,
-	"setuid":      true,
-	"setuid32":    true,
+	"chown":           true,
+	"chown32":         true,
+	"fchown":          true,
+	"fchown32":        true,
+	"fchownat":        true,
+	"lchown":          true,
+	"lchown32":        true,
+	"setgid":          true,
+	"setgid32":        true,
+	"setregid":        true,
+	"setregid32":      true,
+	"setresgid":       true,
+	"setresgid32":     true,
+	"setreuid":        true,
+	"setreuid32":      true,
+	"setresuid":       true,
+	"setresuid32":     true,
+	"setuid":          true,
+	"setuid32":        true,
+	"copy_file_range": true,
 }
 
 // The kernel uses uint32 for all syscall arguments, but seccomp takes a
@@ -729,7 +737,7 @@ func complainAction() seccomp.ScmpAction {
 	}
 
 	// Because ActLog is functionally ActAllow with logging, if we don't
-	// support ActLog, fallback to ActLog.
+	// support ActLog, fallback to ActAllow.
 	return seccomp.ActAllow
 }
 

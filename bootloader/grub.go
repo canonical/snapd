@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// sanity - grub implements the required interfaces
+// grub implements the required interfaces
 var (
 	_ Bootloader                        = (*grub)(nil)
 	_ RecoveryAwareBootloader           = (*grub)(nil)
@@ -470,7 +470,11 @@ func (g *grub) getGrubBootAssetsForArch() (*grubBootAssetPath, error) {
 	if g.prepareImageTime {
 		return nil, fmt.Errorf("internal error: retrieving boot assets at prepare image time")
 	}
-	assets := grubBootAssetsForArch[arch.DpkgArchitecture()]
+	archi := arch.DpkgArchitecture()
+	assets, ok := grubBootAssetsForArch[archi]
+	if !ok {
+		return nil, fmt.Errorf("cannot find grub assets for %q", archi)
+	}
 	return &assets, nil
 }
 

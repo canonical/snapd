@@ -73,12 +73,12 @@ func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
 	runner.AddHandler("forget-snapshot", doForget, nil)
 	runner.AddHandler("check-snapshot", doCheck, nil)
 	runner.AddHandler("restore-snapshot", doRestore, undoRestore)
-	runner.AddCleanup("restore-snapshot", cleanupRestore)
+	runner.AddHandler("cleanup-after-restore", doCleanupAfterRestore, nil)
 
 	manager := &SnapshotManager{
 		state: st,
 	}
-	snapstate.AddAffectedSnapsByAttr("snapshot-setup", manager.affectedSnaps)
+	snapstate.RegisterAffectedSnapsByAttr("snapshot-setup", manager.affectedSnaps)
 
 	return manager
 }
@@ -163,12 +163,13 @@ func (SnapshotManager) affectedSnaps(t *state.Task) ([]string, error) {
 }
 
 type snapshotSetup struct {
-	SetID    uint64        `json:"set-id"`
-	Snap     string        `json:"snap"`
-	Users    []string      `json:"users,omitempty"`
-	Filename string        `json:"filename,omitempty"`
-	Current  snap.Revision `json:"current"`
-	Auto     bool          `json:"auto,omitempty"`
+	SetID    uint64                `json:"set-id"`
+	Snap     string                `json:"snap"`
+	Users    []string              `json:"users,omitempty"`
+	Options  *snap.SnapshotOptions `json:"options,omitempty"`
+	Filename string                `json:"filename,omitempty"`
+	Current  snap.Revision         `json:"current"`
+	Auto     bool                  `json:"auto,omitempty"`
 }
 
 func filename(setID uint64, si *snap.Info) string {
@@ -232,7 +233,7 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, opts)
+	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, snapshot.Options, opts)
 	if err != nil {
 		st.Lock()
 		defer st.Unlock()
@@ -371,6 +372,23 @@ func undoRestore(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func doCleanupAfterRestore(task *state.Task, tomb *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	restoreTasks := task.WaitTasks()
+	st.Unlock()
+	for _, t := range restoreTasks {
+		if err := cleanupRestore(t, tomb); err != nil {
+			logger.Noticef("Cleanup of restore task %s failed: %v", task.ID(), err)
+			// do not quit the loop: we must perform all cleanups anyway
+		}
+	}
+
+	// Also, do not return an error here: we don't want a failed cleanup to
+	// trigger an undo of the restore operation
+	return nil
+}
+
 func cleanupRestore(task *state.Task, _ *tomb.Tomb) error {
 	var restoreState backend.RestoreState
 
@@ -450,7 +468,7 @@ func delayedCrossMgrInit() {
 	snapstate.EstimateSnapshotSize = EstimateSnapshotSize
 }
 
-func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string, *dirs.SnapDirOptions) (*client.Snapshot, error)) (restore func()) {
+func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string, *snap.SnapshotOptions, *dirs.SnapDirOptions) (*client.Snapshot, error)) (restore func()) {
 	old := backendSave
 	backendSave = f
 	return func() {

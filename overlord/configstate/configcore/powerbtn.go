@@ -26,7 +26,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -72,7 +71,7 @@ HandlePowerKey=%s
 	return osutil.AtomicWriteFile(powerBtnCfg(opts), []byte(content), 0644, 0)
 }
 
-func handlePowerButtonConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handlePowerButtonConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	output, err := coreCfg(tr, "system.power-key-action")
 	if err != nil {
 		return err

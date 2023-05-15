@@ -18,7 +18,7 @@ prepare: |
 debug: |
     #shellcheck source=tests/lib/random.sh
     . "$TESTSLIB"/random.sh
-    debug_random
+    debug_random || true
 
 execute: |
     echo "Creating a new key without a password"

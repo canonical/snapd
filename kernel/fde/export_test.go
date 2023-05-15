@@ -23,26 +23,26 @@ import (
 	"time"
 )
 
-func MockFdeRevealKeyCommandExtra(args []string) (restore func()) {
-	oldFdeRevealKeyCommandExtra := fdeRevealKeyCommandExtra
-	fdeRevealKeyCommandExtra = args
+func MockFdeInitramfsHelperCommandExtra(args []string) (restore func()) {
+	oldFdeRevealKeyCommandExtra := fdeInitramfsHelperCommandExtra
+	fdeInitramfsHelperCommandExtra = args
 	return func() {
-		fdeRevealKeyCommandExtra = oldFdeRevealKeyCommandExtra
+		fdeInitramfsHelperCommandExtra = oldFdeRevealKeyCommandExtra
 	}
 }
 
 func MockFdeRevealKeyRuntimeMax(d time.Duration) (restore func()) {
-	oldFdeRevealKeyRuntimeMax := fdeRevealKeyRuntimeMax
-	fdeRevealKeyRuntimeMax = d
+	oldFdeRevealKeyRuntimeMax := fdeInitramfsHelperRuntimeMax
+	fdeInitramfsHelperRuntimeMax = d
 	return func() {
-		fdeRevealKeyRuntimeMax = oldFdeRevealKeyRuntimeMax
+		fdeInitramfsHelperRuntimeMax = oldFdeRevealKeyRuntimeMax
 	}
 }
 
 func MockFdeRevealKeyPollWaitParanoiaFactor(n int) (restore func()) {
-	oldFdeRevealKeyPollWaitParanoiaFactor := fdeRevealKeyPollWaitParanoiaFactor
-	fdeRevealKeyPollWaitParanoiaFactor = n
+	oldFdeRevealKeyPollWaitParanoiaFactor := fdeInitramfsHelperPollWaitParanoiaFactor
+	fdeInitramfsHelperPollWaitParanoiaFactor = n
 	return func() {
-		fdeRevealKeyPollWaitParanoiaFactor = oldFdeRevealKeyPollWaitParanoiaFactor
+		fdeInitramfsHelperPollWaitParanoiaFactor = oldFdeRevealKeyPollWaitParanoiaFactor
 	}
 }

@@ -305,6 +305,23 @@ func (s *cpSuite) TestAtomicWriteFileCopySimple(c *C) {
 
 }
 
+func (s *cpSuite) TestAtomicWriteFileCopyPreservesModTime(c *C) {
+	t := time.Date(2010, time.January, 1, 13, 0, 0, 0, time.UTC)
+	c.Assert(os.Chtimes(s.f1, t, t), IsNil)
+
+	err := osutil.AtomicWriteFileCopy(s.f2, s.f1, 0)
+	c.Assert(err, IsNil)
+	c.Assert(s.f2, testutil.FileEquals, s.data)
+
+	finfo, err := os.Stat(s.f1)
+	c.Assert(err, IsNil)
+	m1 := finfo.ModTime()
+	finfo, err = os.Stat(s.f2)
+	c.Assert(err, IsNil)
+	m2 := finfo.ModTime()
+	c.Assert(m1.Equal(m2), Equals, true)
+}
+
 func (s *cpSuite) TestAtomicWriteFileCopyOverwrites(c *C) {
 	err := ioutil.WriteFile(s.f2, []byte("this is f2 content"), 0644)
 	c.Assert(err, IsNil)

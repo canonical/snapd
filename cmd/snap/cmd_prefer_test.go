@@ -30,7 +30,7 @@ import (
 
 func (s *SnapSuite) TestPreferHelp(c *C) {
 	msg := `Usage:
-  snap.test prefer [prefer-OPTIONS] [<snap>]
+  snap.test prefer [prefer-OPTIONS] <snap>
 
 The prefer command enables all aliases of the given snap in preference
 to conflicting aliases of other snaps whose aliases will be disabled

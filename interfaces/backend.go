@@ -63,6 +63,12 @@ type ConfinementOptions struct {
 	JailMode bool
 	// Classic flag switches the core snap "chroot" off.
 	Classic bool
+	// ExtraLayouts is a list of extra mount layouts to add to the
+	// snap. One example being if the snap is inside a quota group
+	// with a journal quota set. This will require an additional layout
+	// as systemd provides a mount namespace which will clash with the
+	// one snapd sets up.
+	ExtraLayouts []snap.Layout
 }
 
 // SecurityBackendOptions carries extra flags that affect initialization of the

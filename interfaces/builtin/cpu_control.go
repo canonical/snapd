@@ -38,15 +38,15 @@ const cpuControlConnectedPlugAppArmor = `
 
 /sys/module/cpu_boost/parameters/input_boost_freq rw,
 /sys/module/cpu_boost/parameters/input_boost_ms rw,
-/sys/devices/system/cpu/cpu[0-9][0-9]*/cpufreq/scaling_min_freq rw,
-/sys/devices/system/cpu/cpu[0-9][0-9]*/cpufreq/scaling_max_freq rw,
-/sys/devices/system/cpu/cpu[0-9][0-9]*/core_ctl/min_cpus rw,
-/sys/devices/system/cpu/cpu[0-9][0-9]*/core_ctl/busy_up_thres rw,
-/sys/devices/system/cpu/cpu[0-9][0-9]*/core_ctl/busy_down_thres rw,
-/sys/devices/system/cpu/cpu[0-9][0-9]*/core_ctl/offline_delay_ms rw,
-/sys/devices/system/cpu/cpu[0-9][0-9]*/core_ctl/task_thres rw,
-/sys/devices/system/cpu/cpu[0-9][0-9]*/core_ctl/nr_prev_assist_thresh rw,
-/sys/devices/system/cpu/cpu[0-9][0-9]*/core_ctl/enable rw,
+/sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_min_freq rw,
+/sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_max_freq rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/min_cpus rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/busy_up_thres rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/busy_down_thres rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/offline_delay_ms rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/task_thres rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/nr_prev_assist_thresh rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/enable rw,
 
 # https://www.kernel.org/doc/html/latest/admin-guide/pm/cpufreq.html#policy-interface-in-sysfs
 /sys/devices/system/cpu/cpufreq/{,**} r,
@@ -77,8 +77,8 @@ const cpuControlConnectedPlugAppArmor = `
 /proc/sys/kernel/sched_boost rw,
 
 # see https://www.osadl.org/monitoring/add-on-patches/4.16.7-rt1...4.16.15-rt7/sched-add-per-cpu-load-measurement.patch.html
-/proc/idleruntime/{all,cpu[0-9][0-9]*}/data r,
-/proc/idleruntime/{all,cpu[0-9][0-9]*}/reset w,
+/proc/idleruntime/{all,cpu[0-9]*}/data r,
+/proc/idleruntime/{all,cpu[0-9]*}/reset w,
 `
 
 func init() {

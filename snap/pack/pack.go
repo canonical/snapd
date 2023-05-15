@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
 )
@@ -124,6 +125,9 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 	if err := snap.ValidateContainer(snapdir.New(sourceDir), info, logger.Noticef); err != nil {
 		return nil, err
 	}
+	if _, err := snap.ReadSnapshotYamlFromSnapFile(snapdir.New(sourceDir)); err != nil {
+		return nil, err
+	}
 
 	if info.SnapType == snap.TypeGadget {
 		// TODO:UC20: optionally pass model
@@ -203,6 +207,8 @@ type Options struct {
 	SnapName string
 	// Compression method to use
 	Compression string
+	// Integrity requests appending integrity data to the snap when set
+	Integrity bool
 }
 
 var Defaults *Options = nil
@@ -239,6 +245,13 @@ func Snap(sourceDir string, opts *Options) (string, error) {
 		ExcludeFiles: []string{excludes},
 	}); err != nil {
 		return "", err
+	}
+
+	if opts.Integrity {
+		err := integrity.GenerateAndAppend(snapName)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	return snapName, nil

@@ -19,6 +19,8 @@
 
 package snapstate
 
+import "github.com/snapcore/snapd/client"
+
 // Flags are used to pass additional flags to operations and to keep track of
 // snap modes.
 type Flags struct {
@@ -73,6 +75,9 @@ type Flags struct {
 	// IsAutoRefresh is true if the snap is currently auto-refreshed
 	IsAutoRefresh bool `json:"is-auto-refresh,omitempty"`
 
+	// IsContinuedAutoRefresh is true if this is a continued auto-refresh
+	IsContinuedAutoRefresh bool `json:"is-continued-auto-refresh,omitempty"`
+
 	// NoReRefresh prevents refresh from adding epoch-hopping
 	// re-refresh tasks. This allows refresh to work offline, as
 	// long as refresh assets are cached.
@@ -91,9 +96,18 @@ type Flags struct {
 	// assertion for non-dangerous grade models too.
 	ApplySnapDevMode bool `json:"apply-snap-devmode,omitempty"`
 
-	// Transactional is set to true to request that the set of
-	// snaps is transactionally installed/updated jointly.
-	Transactional bool `json:"transaction,omitempty"`
+	// Transaction is set to "all-snaps" to request that the set of
+	// snaps is transactionally installed/updated jointly, or to
+	// "per-snap" in case each snap is treated in a different
+	// transaction.
+	Transaction client.TransactionType `json:"transaction,omitempty"`
+
+	// QuotaGroupName represents the quota group a snap should be assigned
+	// to during installation.
+	QuotaGroupName string `json:"quota-group,omitempty"`
+
+	// Lane is the lane that tasks should join if Transaction is set to "all-snaps".
+	Lane int `json:"lane,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode
@@ -110,6 +124,6 @@ func (f Flags) ForSnapSetup() Flags {
 	f.NoReRefresh = false
 	f.RequireTypeBase = false
 	f.ApplySnapDevMode = false
-	f.Transactional = false
+	f.Lane = 0
 	return f
 }

@@ -142,6 +142,7 @@ func AtomicWriteFileCopy(dst, src string, flags AtomicWriteFlags) (err error) {
 	if err != nil {
 		return fmt.Errorf("cannot create atomic file: %v", err)
 	}
+	fout.SetModTime(fi.ModTime())
 	defer func() {
 		if cerr := fout.Cancel(); cerr != ErrCannotCancel && err == nil {
 			err = fmt.Errorf("cannot cancel temporary file copy %s: %v", fout.Name(), cerr)

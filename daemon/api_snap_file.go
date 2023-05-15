@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/snapcore/snapd/overlord/auth"
@@ -48,14 +49,13 @@ func getSnapFile(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err == nil {
 		info, err = snapst.CurrentInfo()
 	}
-	switch err {
-	case nil:
-		// ok
-	case state.ErrNoState:
-		return SnapNotFound(name, err)
-	default:
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return SnapNotFound(name, err)
+		}
 		return InternalError("cannot download file for snap %q: %v", name, err)
 	}
+
 	if !snapst.Active {
 		return BadRequest("cannot download file of inactive snap %q", name)
 	}

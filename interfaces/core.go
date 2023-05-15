@@ -180,13 +180,13 @@ type Interface interface {
 	Name() string
 
 	// AutoConnect returns whether plug and slot should be
-	// implicitly auto-connected assuming they will be an
+	// implicitly auto-connected assuming there will be an
 	// unambiguous connection candidate and declaration-based checks
 	// allow.
 	AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool
 }
 
-// PlugSanitizer can be implemented by Interfaces that have reasons to sanitize
+// ConnPlugSanitizer can be implemented by Interfaces that have reasons to sanitize
 // their plugs specifically before a connection is performed.
 type ConnPlugSanitizer interface {
 	BeforeConnectPlug(plug *ConnectedPlug) error
@@ -205,7 +205,7 @@ type SlotSanitizer interface {
 // StaticInfo describes various static-info of a given interface.
 //
 // The Summary must be a one-line string of length suitable for listing views.
-// The DocsURL can point to website (e.g. a forum thread) that goes into more
+// The DocURL can point to website (e.g. a forum thread) that goes into more
 // depth and documents the interface in detail.
 type StaticInfo struct {
 	Summary string `json:"summary,omitempty"`

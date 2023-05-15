@@ -3,10 +3,11 @@ project: snapd
 environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
-    # on some distros the default GOPROXY setting is 'direct' (eg. Fedora), the
-    # go import tags of packages such as maze.io/x/crypt (which is one of
-    # secboot dependencies), cannot be obtained when poking the import URL
-    # directly, thus we need to force the golang.org hosted proxy to be used
+    # On some distros the default GOPROXY setting is 'direct' (eg. Fedora).
+    # Some of the external go packages may get removed or could be temporary
+    # offline (as happened with maze.io/x/crypt), and then the sources are
+    # only available through the proxy cache. Play it safe and enable the
+    # proxy to allow for least CI interruptions.
     GOPROXY: https://proxy.golang.org,direct
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
@@ -41,7 +42,10 @@ environment:
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     # a global setting for LXD channel to use in the tests
     LXD_SNAP_CHANNEL: "latest/candidate"
-    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/edge"
+    UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
+    # controls whether ubuntu-image is built using the current snapd tree as a
+    # dependency or the one listed in its go.mod
+    UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
@@ -51,8 +55,7 @@ environment:
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
     DELTA_REF: 2.52
     DELTA_PREFIX: snapd-$DELTA_REF/
-    REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
-    SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
+    REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'    
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
     HTTPS_PROXY: '$(HOST: echo "$SPREAD_HTTPS_PROXY")'
     NO_PROXY: "127.0.0.1"
@@ -71,6 +74,10 @@ environment:
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
     EXPERIMENTAL_FEATURES: '$(HOST: echo "${SPREAD_EXPERIMENTAL_FEATURES:-}")'
 
+    SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
+    # Build and use snapd from current branch
+    BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-true}")'
+
     # Directory where the nested images and test assets are stored
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
     # Channel used to create the nested vm
@@ -85,6 +92,10 @@ environment:
     NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
     # Configure nested images to be reused on the following tests
     NESTED_CONFIGURE_IMAGES: '$(HOST: echo "${NESTED_CONFIGURE_IMAGES:-false}")'
+    # Indicates if the snap has to be repacked in case NESTED_BUILD_SNAPD_FROM_CURRENT is true
+    NESTED_REPACK_KERNEL_SNAP: '$(HOST: echo "${NESTED_REPACK_KERNEL_SNAP:-true}")'
+    NESTED_REPACK_GADGET_SNAP: '$(HOST: echo "${NESTED_REPACK_GADGET_SNAP:-true}")'
+    NESTED_REPACK_BASE_SNAP: '$(HOST: echo "${NESTED_REPACK_BASE_SNAP:-true}")'
 
 backends:
     google:
@@ -100,6 +111,7 @@ backends:
             - ubuntu-18.04-32:
                   workers: 6
             - ubuntu-18.04-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-20.04-64:
                   storage: 12G
@@ -112,16 +124,23 @@ backends:
                   workers: 6
             - ubuntu-core-20-64:
                   image: ubuntu-20.04-64
-                  workers: 6
+                  workers: 8
+                  storage: 20G
+            - ubuntu-core-22-64:
+                  image: ubuntu-22.04-64
+                  workers: 8
                   storage: 20G
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
                   workers: 1
                   secure-boot: true
-            - ubuntu-21.10-64:
+            - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
-            - ubuntu-22.04-64:
+            - ubuntu-22.10-64:
+                  storage: 12G
+                  workers: 8
+            - ubuntu-23.04-64:
                   storage: 12G
                   workers: 8
 
@@ -130,18 +149,17 @@ backends:
             - debian-11-64:
                   workers: 6
             - debian-sid-64:
+                  storage: 12G
                   workers: 6
 
-            - fedora-33-64:
+            - fedora-36-64:
                   workers: 6
-                  manual: true
-            - fedora-34-64:
-                  workers: 6
-            - fedora-35-64:
+            - fedora-37-64:
                   workers: 6
 
             - arch-linux-64:
                   workers: 6
+                  storage: 12G
             - amazon-linux-2-64:
                   workers: 6
                   storage: preserve-size
@@ -153,16 +171,38 @@ backends:
             - centos-8-64:
                   workers: 6
                   storage: preserve-size
-                  image: centos-stream-8
-            # unstable systems below
-            - opensuse-15.2-64:
+                  image: centos-8-64
+            - centos-9-64:
                   workers: 6
-                  manual: true
-            - opensuse-15.3-64:
+                  storage: preserve-size
+                  image: centos-9-64
+
+            # unstable systems below
+            - opensuse-15.4-64:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
                   manual: true
+
+    google-arm:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-central1-a
+        plan: t2a-standard-1
+        halt-timeout: 2h
+        systems:
+            - ubuntu-20.04-arm-64:
+                  image: ubuntu-os-cloud/ubuntu-2004-lts-arm64
+                  workers: 8
+                  storage: 12G
+            - ubuntu-22.04-arm-64:
+                  image: ubuntu-os-cloud/ubuntu-2204-lts-arm64
+                  workers: 8
+                  storage: 12G
+            - ubuntu-core-22-arm-64:
+                  image: ubuntu-22.04-arm-64
+                  workers: 6
+                  storage: 30G
 
     google-sru:
         type: google
@@ -174,7 +214,9 @@ backends:
                   workers: 6
             - ubuntu-20.04-64:
                   workers: 6
-            - ubuntu-21.10-64:
+            - ubuntu-22.04-64:
+                  workers: 6
+            - ubuntu-22.10-64:
                   workers: 6
 
     google-nested:
@@ -196,11 +238,48 @@ backends:
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 7
-            - ubuntu-21.10-64:
-                  image: ubuntu-2110-64-virt-enabled
+                  workers: 8
+            - ubuntu-22.04-64:
+                  image: ubuntu-2204-64-virt-enabled
+                  storage: 25G
+                  workers: 8
+
+    google-nested-arm:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-central1-a
+        plan: t2a-standard-2
+        halt-timeout: 2h
+        systems:
+            - ubuntu-22.04-arm-64:
+                  image: ubuntu-2204-arm-64-virt-enabled
+                  storage: 25G
+                  workers: 8
+
+    google-nested-dev:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-east1-b
+        plan: n2-standard-4
+        halt-timeout: 2h
+        cpu-family: "Intel Cascade Lake"
+        systems:
+            - ubuntu-16.04-64:
+                  image: ubuntu-1604-64-virt-enabled
                   storage: 20G
                   workers: 3
+            - ubuntu-18.04-64:
+                  image: ubuntu-1804-64-virt-enabled
+                  storage: 20G
+                  workers: 3
+            - ubuntu-20.04-64:
+                  image: ubuntu-2004-64-virt-enabled
+                  storage: 20G
+                  workers: 8
+            - ubuntu-22.04-64:
+                  image: ubuntu-2204-64-virt-enabled
+                  storage: 20G
+                  workers: 8
 
     qemu-nested:
         memory: 4G
@@ -215,8 +294,12 @@ backends:
             - ubuntu-20.04-64:
                   username: ubuntu
                   password: ubuntu
+            - ubuntu-22.04-64:
+                  username: ubuntu
+                  password: ubuntu
 
     qemu:
+        memory: 4G
         systems:
             - ubuntu-14.04-32:
                   username: ubuntu
@@ -264,7 +347,7 @@ backends:
             - ubuntu-20.04-32:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-21.10-64:
+            - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
             - debian-10-64:
@@ -282,9 +365,6 @@ backends:
             - amazon-linux-2-64:
                   username: ec2-user
                   password: ec2-user
-            - opensuse-15.2-64:
-                  username: opensuse
-                  password: opensuse
             - opensuse-tumbleweed-64:
                   username: opensuse
                   password: opensuse
@@ -429,6 +509,9 @@ backends:
             - ubuntu-core-22-arm-32:
                   username: external
                   password: ubuntu
+            - ubuntu-core-24-64:
+                  username: external
+                  password: ubuntu
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
@@ -466,11 +549,12 @@ debug-each: |
     if tests.nested is-nested; then
         echo '# nested VM status'
         tests.nested vm status
-        tests.nested get serial-log
+        # filter out ^[ to ensure that the debug output gets not messed up
+        tests.nested get serial-log | sed 's/\x1b//g'
         # add another echo in case the serial log is missing a newline
         echo
 
-        tests.nested exec "sudo journalctl --no-pager -u snapd" || true
+        remote.exec "sudo journalctl --no-pager -u snapd" || true
     fi
 
     echo "# definition of snapd.service"
@@ -540,7 +624,8 @@ debug-each: |
 
     # Keep it as the last step in debug-each
     echo '# tasks executed on system'
-    cat "$RUNTIME_STATE_PATH/runs" || true
+    # since the runs file does not have a newline at EOF, add one 
+    echo "" | cat "$RUNTIME_STATE_PATH/runs" - || true
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
@@ -676,6 +761,12 @@ prepare: |
             ;;
     esac
 
+    # Make sure ssh service is restarted after it is killed by spread (pkill -o -HUP sshd)
+    # during the machine setup in google systems. For more details see lp:2011458
+    if [ "$SPREAD_BACKEND" = "google" ] && [[ "$SPREAD_SYSTEM" == ubuntu-2* ]] && ! systemctl is-active ssh; then
+        systemctl restart ssh
+    fi
+
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
@@ -713,11 +804,6 @@ prepare: |
         rmdir "$DELTA_PREFIX"
     fi
 
-    # TODO: drop once 21.10 images are fixed
-    if [[ "$SPREAD_SYSTEM" == ubuntu-21.10-* ]] && [[ -e /home/ubuntu/.ssh ]]; then
-        chown -R ubuntu:ubuntu /home/ubuntu/.ssh
-    fi
-
     # Take the MATCH and REBOOT functions from spread and allow our shell
     # scripts to use them as shell commands. The replacements are real
     # executables in tests/lib/bin (which is on PATH) but they source
@@ -735,6 +821,7 @@ prepare: |
     # Copy external tools from the subtree to the "$TESTSLIB"/tools directory
     # The idea is to have a single directory with all the testing tools
     cp -f "$TESTSLIB"/external/snapd-testing-tools/tools/* "$TESTSTOOLS"
+    cp -f "$TESTSLIB"/external/snapd-testing-tools/remote/* "$TESTSTOOLS"
 
     # ensure there are no broken snaps or the invariant test will fail later
     if command -v snap; then
@@ -758,6 +845,7 @@ restore-each: |
 suites:
     tests/lib/tools/suite/:
         summary: Tests for tests/lib/tools tools
+        backends: [google, qemu]
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
         restore-each: |
@@ -849,7 +937,7 @@ suites:
         summary: Tests for snapd upgrade
         # Test cases are not yet ported to openSUSE that is why we keep
         # it disabled. A later PR will enable most tests and
-        # drop this blacklist.
+        # drop the list of excluded systems.
         systems: [-ubuntu-core-*, -opensuse-*, -ubuntu-secboot-*]
         prepare-each: |
             # FIXME: this should really use prepare-restore.sh --prepare-suite-each
@@ -882,7 +970,7 @@ suites:
         summary: Suite to run unit tests (non-go and different go runtimes)
         # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
+        # drop the list of excluded systems.
         systems:
             [
                 -ubuntu-core-*,
@@ -928,7 +1016,7 @@ suites:
         manual: true
         # Test cases are not yet ported to Fedora/openSUSE/Arch/AMZN2 that is why
         # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
+        # drop the list of excluded systems.
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -940,8 +1028,7 @@ suites:
 
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
-        backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64]
+        backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -950,33 +1037,51 @@ suites:
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
+            # Add snapd debug and log to serial console
+            NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
+            # Add any extra cmd line parameter to the nested vm
+            NESTED_EXTRA_CMDLINE:  '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
+            # Generic imane name which has to be overwritten in the test
+            NESTED_IMAGE_ID: "unset"
+            # Configuration file used for remote tools
+            REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
+            #shellcheck source=tests/lib/image.sh
+            . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates
-            if os.query is-xenial; then
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                # build a custom version ubuntu-image with test keys
-                (
-                    export GO111MODULE=off
-                    # use go get so that ubuntu-image is built with current snapd sources
-                    go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                    go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                )
+               get_ubuntu_image
+            fi
+
+            if os.query is-arm; then
+                export NESTED_ARCHITECTURE=arm64
+            else
+                export NESTED_ARCHITECTURE=amd64
             fi
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+
+            # Configure the ssh connection to the test vm
+            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
+            if os.query is-xenial && ! command -v ubuntu-image >/dev/null; then
+                # This is needed because the snap in removed during on restore-each
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            fi
         restore-each: |
             tests.nested vm remove
             tests.nested restore
@@ -988,8 +1093,7 @@ suites:
 
     tests/nested/classic/:
         summary: Tests for nested images
-        backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64]
+        backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -998,34 +1102,41 @@ suites:
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
+            # Configuration file used for remote tools
+            REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
+            #shellcheck source=tests/lib/image.sh
+            . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates
-            if os.query is-xenial; then
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                # build a custom version ubuntu-image with test keys
-                (
-                    export GO111MODULE=off
-                    # use go get so that ubuntu-image is built with current snapd sources
-                    go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                    go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                )
+                get_ubuntu_image
+            fi
+
+            if os.query is-arm; then
+                export NESTED_ARCHITECTURE=arm64
+            else
+                export NESTED_ARCHITECTURE=amd64
             fi
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
+            # Configure the ssh connection to the test vm
+            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
+
             tests.nested prepare
             tests.nested build-image classic
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-            tests.backup prepare
             tests.nested create-vm classic
         restore-each: |
             tests.nested vm remove
@@ -1039,44 +1150,48 @@ suites:
 
     tests/nested/core/:
         summary: Tests for nested images
-        backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
+        backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
-            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-}")'
+            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
+            # Add snapd debug and log to serial console
+            NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
+            # Add any extra cmd line parameter to the nested vm
+            NESTED_EXTRA_CMDLINE:  '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
+            # Configuration file used for remote tools
+            REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
+            #shellcheck source=tests/lib/image.sh
+            . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates
-            if os.query is-xenial; then
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                # build a custom version ubuntu-image with test keys
-                (
-                    export GO111MODULE=off
-                    # use go get so that ubuntu-image is built with current snapd sources
-                    go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                    go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                )
+                get_ubuntu_image
             fi
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
+            # Configure the ssh connection to the test vm
+            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
+
             tests.nested prepare
             tests.nested build-image core
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-            tests.backup prepare
             tests.nested create-vm core
         restore-each: |
             tests.nested vm remove

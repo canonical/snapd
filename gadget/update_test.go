@@ -25,7 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
+	"sync"
 
 	. "gopkg.in/check.v1"
 
@@ -41,19 +41,32 @@ import (
 
 var (
 	uc16Model = &gadgettest.ModelCharacteristics{}
-	uc20Model = &gadgettest.ModelCharacteristics{SystemSeed: true}
+	uc20Model = &gadgettest.ModelCharacteristics{HasModes: true}
 )
 
 type updateTestSuite struct {
+	restoreVolumeStructureToLocationMap func()
+
 	testutil.BaseTest
 }
+
+var _ = Suite(&updateTestSuite{})
 
 func (s *updateTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-}
 
-var _ = Suite(&updateTestSuite{})
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+		return nil, fmt.Errorf("unmocked volume structure to loc map")
+	})
+	restoreDoer := sync.Once{}
+	s.restoreVolumeStructureToLocationMap = func() {
+		restoreDoer.Do(r)
+	}
+	s.AddCleanup(func() {
+		s.restoreVolumeStructureToLocationMap()
+	})
+}
 
 func (u *updateTestSuite) TestResolveVolumeDifferentName(c *C) {
 	oldInfo := &gadget.Info{
@@ -108,8 +121,8 @@ func (u *updateTestSuite) TestResolveVolumeSimple(c *C) {
 }
 
 type canUpdateTestCase struct {
-	from   gadget.LaidOutStructure
-	to     gadget.LaidOutStructure
+	from   gadget.VolumeStructure
+	to     gadget.VolumeStructure
 	schema string
 	err    string
 }
@@ -121,7 +134,9 @@ func (u *updateTestSuite) testCanUpdate(c *C, testCases []canUpdateTestCase) {
 		if schema == "" {
 			schema = "gpt"
 		}
-		err := gadget.CanUpdateStructure(&tc.from, &tc.to, schema)
+		fromVss := []gadget.VolumeStructure{tc.from}
+		toVss := []gadget.VolumeStructure{tc.to}
+		err := gadget.CanUpdateStructure(fromVss, 0, toVss, 0, schema)
 		if tc.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -135,22 +150,44 @@ func (u *updateTestSuite) TestCanUpdateSize(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			// size change
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1*quantity.SizeMiB + 1*quantity.SizeKiB},
-			},
-			err: "cannot change structure size from [0-9]+ to [0-9]+",
+			from: gadget.VolumeStructure{MinSize: quantity.SizeMiB, Size: quantity.SizeMiB},
+			to:   gadget.VolumeStructure{MinSize: quantity.SizeMiB + quantity.SizeKiB, Size: quantity.SizeMiB + quantity.SizeKiB},
+			err:  `new valid structure size range \[1049600, 1049600\] is not compatible with current \(\[1048576, 1048576\]\)`,
 		}, {
-			// size change
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-			},
-			err: "",
+			// no size change
+			from: gadget.VolumeStructure{MinSize: quantity.SizeMiB, Size: quantity.SizeMiB},
+			to:   gadget.VolumeStructure{MinSize: quantity.SizeMiB, Size: quantity.SizeMiB},
+			err:  "",
+		}, {
+			// range ok
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
+			to:   gadget.VolumeStructure{MinSize: 0, Size: 10},
+			err:  "",
+		}, {
+			// range ok
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
+			to:   gadget.VolumeStructure{MinSize: 0, Size: 15},
+			err:  "",
+		}, {
+			// range ok
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
+			to:   gadget.VolumeStructure{MinSize: 15, Size: 18},
+			err:  "",
+		}, {
+			// range ok
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
+			to:   gadget.VolumeStructure{MinSize: 15, Size: 25},
+			err:  "",
+		}, {
+			// range out
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
+			to:   gadget.VolumeStructure{MinSize: 1, Size: 9},
+			err:  `new valid structure size range \[1, 9\] is not compatible with current \(\[10, 20\]\)`,
+		}, {
+			// range out
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
+			to:   gadget.VolumeStructure{MinSize: 21, Size: 25},
+			err:  `new valid structure size range \[21, 25\] is not compatible with current \(\[10, 20\]\)`,
 		},
 	}
 
@@ -162,93 +199,61 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			// offset-write change
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
-				},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{Offset: 2048},
-				},
-			},
+			from: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{Offset: 1024}},
+			to: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{Offset: 2048}},
 			err: "cannot change structure offset-write from [0-9]+ to [0-9]+",
 		}, {
 			// offset-write, change in relative-to structure name
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
-				},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024},
-				},
-			},
+			from: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024}},
+			to: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024}},
 			err: `cannot change structure offset-write from foo\+[0-9]+ to bar\+[0-9]+`,
 		}, {
 			// offset-write, unspecified in old
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: nil,
-				},
+			from: gadget.VolumeStructure{
+				OffsetWrite: nil,
 			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024},
-				},
+			to: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024},
 			},
 			err: `cannot change structure offset-write from unspecified to bar\+[0-9]+`,
 		}, {
 			// offset-write, unspecified in new
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
-				},
+			from: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
 			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: nil,
-				},
+			to: gadget.VolumeStructure{
+				OffsetWrite: nil,
 			},
 			err: `cannot change structure offset-write from foo\+[0-9]+ to unspecified`,
 		}, {
 			// all ok, both nils
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: nil,
-				},
+			from: gadget.VolumeStructure{
+				OffsetWrite: nil,
 			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: nil,
-				},
+			to: gadget.VolumeStructure{
+				OffsetWrite: nil,
 			},
 			err: ``,
 		}, {
 			// all ok, both fully specified
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
-				},
+			from: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
 			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
-				},
+			to: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
 			},
 			err: ``,
 		}, {
 			// all ok, both fully specified
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
-				},
+			from: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
 			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
-				},
+			to: gadget.VolumeStructure{
+				OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
 			},
 			err: ``,
 		},
@@ -261,49 +266,25 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			// explicitly declared start offset change
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
-				StartOffset:     1024,
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
-				StartOffset:     2048,
-			},
-			err: "cannot change structure offset from [0-9]+ to [0-9]+",
+			from: gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
+			to:   gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
+			err:  `new valid structure offset range \[2048, 2048\] is not compatible with current \(\[1024, 1024\]\)`,
 		}, {
 			// explicitly declared start offset in new structure
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
-				StartOffset:     1024,
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
-				StartOffset:     2048,
-			},
-			err: "cannot change structure offset from unspecified to [0-9]+",
+			from: gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
+			to:   gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
+			err:  `new valid structure offset range \[2048, 2048\] is not compatible with current \(\[0, 0\]\)`,
 		}, {
 			// explicitly declared start offset in old structure,
 			// missing from new
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
-				StartOffset:     1024,
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
-				StartOffset:     2048,
-			},
-			err: "cannot change structure offset from [0-9]+ to unspecified",
+			from: gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
+			to:   gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
+			err:  `new valid structure offset range \[0, 0\] is not compatible with current \(\[1024, 1024\]\)`,
 		}, {
 			// start offset changed due to layout
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-				StartOffset:     1 * quantity.OffsetMiB,
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-				StartOffset:     2 * quantity.OffsetMiB,
-			},
-			err: "cannot change structure start offset from [0-9]+ to [0-9]+",
+			from: gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1 * quantity.OffsetMiB)},
+			to:   gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2 * quantity.OffsetMiB)},
+			err:  `new valid structure offset range \[2097152, 2097152\] is not compatible with current \(\[1048576, 1048576\]\)`,
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -314,49 +295,29 @@ func (u *updateTestSuite) TestCanUpdateRole(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			// new role
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: ""},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: "system-data"},
-			},
-			err: `cannot change structure role from "" to "system-data"`,
+			from: gadget.VolumeStructure{Role: ""},
+			to:   gadget.VolumeStructure{Role: "system-data"},
+			err:  `cannot change structure role from "" to "system-data"`,
 		}, {
 			// explicitly set tole
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: "mbr"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: "system-data"},
-			},
-			err: `cannot change structure role from "mbr" to "system-data"`,
+			from: gadget.VolumeStructure{Role: "mbr"},
+			to:   gadget.VolumeStructure{Role: "system-data"},
+			err:  `cannot change structure role from "mbr" to "system-data"`,
 		}, {
 			// implicit legacy role to proper explicit role
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
-			},
-			err: "",
+			from: gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
+			to:   gadget.VolumeStructure{Type: "bare", Role: "mbr"},
+			err:  "",
 		}, {
 			// but not in the opposite direction
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
-			},
-			err: `cannot change structure type from "bare" to "mbr"`,
+			from: gadget.VolumeStructure{Type: "bare", Role: "mbr"},
+			to:   gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
+			err:  `cannot change structure type from "bare" to "mbr"`,
 		}, {
 			// start offset changed due to layout
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: ""},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: ""},
-			},
-			err: "",
+			from: gadget.VolumeStructure{Role: ""},
+			to:   gadget.VolumeStructure{Role: ""},
+			err:  "",
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -367,77 +328,41 @@ func (u *updateTestSuite) TestCanUpdateType(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			// from hybrid type to GUID
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			err: `cannot change structure type from "0C,00000000-0000-0000-0000-dd00deadbeef" to "00000000-0000-0000-0000-dd00deadbeef"`,
+			from: gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
+			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			err:  `cannot change structure type from "0C,00000000-0000-0000-0000-dd00deadbeef" to "00000000-0000-0000-0000-dd00deadbeef"`,
 		}, {
 			// from MBR type to GUID (would be stopped at volume update checks)
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			err: `cannot change structure type from "0C" to "00000000-0000-0000-0000-dd00deadbeef"`,
+			from: gadget.VolumeStructure{Type: "0C"},
+			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			err:  `cannot change structure type from "0C" to "00000000-0000-0000-0000-dd00deadbeef"`,
 		}, {
 			// from one MBR type to another
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0A"},
-			},
-			err: `cannot change structure type from "0C" to "0A"`,
+			from: gadget.VolumeStructure{Type: "0C"},
+			to:   gadget.VolumeStructure{Type: "0A"},
+			err:  `cannot change structure type from "0C" to "0A"`,
 		}, {
 			// from one MBR type to another
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare"},
-			},
-			err: `cannot change structure type from "0C" to "bare"`,
+			from: gadget.VolumeStructure{Type: "0C"},
+			to:   gadget.VolumeStructure{Type: "bare"},
+			err:  `cannot change structure type from "0C" to "bare"`,
 		}, {
 			// from one GUID to another
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadcafe"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			err: `cannot change structure type from "00000000-0000-0000-0000-dd00deadcafe" to "00000000-0000-0000-0000-dd00deadbeef"`,
+			from: gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadcafe"},
+			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			err:  `cannot change structure type from "00000000-0000-0000-0000-dd00deadcafe" to "00000000-0000-0000-0000-dd00deadbeef"`,
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare"},
-			},
+			from: gadget.VolumeStructure{Type: "bare"},
+			to:   gadget.VolumeStructure{Type: "bare"},
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
-			},
+			from: gadget.VolumeStructure{Type: "0C"},
+			to:   gadget.VolumeStructure{Type: "0C"},
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
+			from: gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
-			},
+			from: gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
+			to:   gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -447,13 +372,9 @@ func (u *updateTestSuite) TestCanUpdateID(c *C) {
 
 	cases := []canUpdateTestCase{
 		{
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{ID: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{ID: "00000000-0000-0000-0000-dd00deadcafe"},
-			},
-			err: `cannot change structure ID from "00000000-0000-0000-0000-dd00deadbeef" to "00000000-0000-0000-0000-dd00deadcafe"`,
+			from: gadget.VolumeStructure{ID: "00000000-0000-0000-0000-dd00deadbeef", Offset: asOffsetPtr(0)},
+			to:   gadget.VolumeStructure{ID: "00000000-0000-0000-0000-dd00deadcafe", Offset: asOffsetPtr(0)},
+			err:  `cannot change structure ID from "00000000-0000-0000-0000-dd00deadbeef" to "00000000-0000-0000-0000-dd00deadcafe"`,
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -463,46 +384,26 @@ func (u *updateTestSuite) TestCanUpdateBareOrFilesystem(c *C) {
 
 	cases := []canUpdateTestCase{
 		{
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: ""},
-			},
-			err: `cannot change a filesystem structure to a bare one`,
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0)},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "", Offset: asOffsetPtr(0)},
+			err:  `cannot change a filesystem structure to a bare one`,
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: ""},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
-			},
-			err: `cannot change a bare structure to filesystem one`,
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "", Offset: asOffsetPtr(0)},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0)},
+			err:  `cannot change a bare structure to filesystem one`,
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "vfat"},
-			},
-			err: `cannot change filesystem from "ext4" to "vfat"`,
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0)},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "vfat", Offset: asOffsetPtr(0)},
+			err:  `cannot change filesystem from "ext4" to "vfat"`,
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "writable"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
-			},
-			err: `cannot change filesystem label from "writable" to ""`,
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "writable", Offset: asOffsetPtr(0)},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0)},
+			err:  `cannot change filesystem label from "writable" to ""`,
 		}, {
 			// all ok
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},
-			},
-			err: ``,
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch", Offset: asOffsetPtr(0)},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch", Offset: asOffsetPtr(0)},
+			err:  ``,
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -512,26 +413,50 @@ func (u *updateTestSuite) TestCanUpdateName(c *C) {
 
 	cases := []canUpdateTestCase{
 		{
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Name: "foo", Type: "0C"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Name: "mbr-ok", Type: "0C"},
-			},
+			from:   gadget.VolumeStructure{Name: "foo", Type: "0C"},
+			to:     gadget.VolumeStructure{Name: "mbr-ok", Type: "0C"},
 			err:    ``,
 			schema: "mbr",
 		}, {
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Name: "foo", Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Name: "gpt-unhappy", Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
+			from:   gadget.VolumeStructure{Name: "foo", Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			to:     gadget.VolumeStructure{Name: "gpt-unhappy", Type: "00000000-0000-0000-0000-dd00deadbeef"},
 			err:    `cannot change structure name from "foo" to "gpt-unhappy"`,
 			schema: "gpt",
 		},
 	}
 	u.testCanUpdate(c, cases)
+}
+
+func (u *updateTestSuite) TestCanUpdateOffsetRange(c *C) {
+	fromVss := []gadget.VolumeStructure{
+		{Offset: asOffsetPtr(0), MinSize: 10, Size: 20},
+		// Valid offset range for second structure is [10, 20]
+		{MinSize: 10, Size: 10},
+	}
+	toVss := []gadget.VolumeStructure{
+		{Offset: asOffsetPtr(0), MinSize: 10, Size: 10},
+		{MinSize: 10, Size: 10},
+	}
+
+	err := gadget.CanUpdateStructure(fromVss, 1, toVss, 1, "")
+	c.Check(err, IsNil)
+
+	toVss = []gadget.VolumeStructure{
+		{Offset: asOffsetPtr(0), MinSize: 15, Size: 21},
+		{MinSize: 10, Size: 10},
+	}
+
+	err = gadget.CanUpdateStructure(fromVss, 1, toVss, 1, "")
+	c.Check(err, IsNil)
+
+	toVss = []gadget.VolumeStructure{
+		{Offset: asOffsetPtr(0), MinSize: 21, Size: 30},
+		{MinSize: 10, Size: 10},
+	}
+
+	err = gadget.CanUpdateStructure(fromVss, 1, toVss, 1, "")
+	c.Check(err.Error(), Equals,
+		`new valid structure offset range [21, 30] is not compatible with current ([10, 20])`)
 }
 
 func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
@@ -624,36 +549,49 @@ func (m *mockUpdater) Update() error {
 	return callOrNil(m.updateCb)
 }
 
-func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, rollbackDir string) {
+func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, rollbackDir string) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
-		Name: "first",
-		Size: 5 * quantity.SizeMiB,
+		VolumeName: "foo",
+		Name:       "first",
+		Offset:     asOffsetPtr(quantity.OffsetMiB),
+		MinSize:    5 * quantity.SizeMiB,
+		Size:       5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
+		YamlIndex: 0,
 	}
 	fsStruct := gadget.VolumeStructure{
+		VolumeName: "foo",
 		Name:       "second",
+		Offset:     asOffsetPtr((1 + 5) * quantity.OffsetMiB),
+		MinSize:    10 * quantity.SizeMiB,
 		Size:       10 * quantity.SizeMiB,
 		Filesystem: "ext4",
 		Content: []gadget.VolumeContent{
 			{UnresolvedSource: "/second-content", Target: "/"},
 		},
+		YamlIndex: 1,
 	}
 	lastStruct := gadget.VolumeStructure{
+		VolumeName: "foo",
 		Name:       "third",
+		Offset:     asOffsetPtr((1 + 5 + 10) * quantity.OffsetMiB),
+		MinSize:    5 * quantity.SizeMiB,
 		Size:       5 * quantity.SizeMiB,
 		Filesystem: "vfat",
 		Content: []gadget.VolumeContent{
 			{UnresolvedSource: "/third-content", Target: "/"},
 		},
+		YamlIndex: 2,
 	}
 	// start with identical data for new and old infos, they get updated by
 	// the caller as needed
 	oldInfo := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
 			"foo": {
+				Name:       "foo",
 				Bootloader: "grub",
 				Schema:     "gpt",
 				Structure:  []gadget.VolumeStructure{bareStruct, fsStruct, lastStruct},
@@ -663,12 +601,33 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 	newInfo := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
 			"foo": {
+				Name:       "foo",
 				Bootloader: "grub",
 				Schema:     "gpt",
 				Structure:  []gadget.VolumeStructure{bareStruct, fsStruct, lastStruct},
 			},
 		},
 	}
+
+	// reasonably default volume structure to location map - individual tests
+	// can override this
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+		return map[string]map[int]gadget.StructureLocation{
+			"foo": {
+				0: {
+					Device: "/dev/foo",
+					Offset: quantity.OffsetMiB,
+				},
+				1: {
+					RootMountPoint: "/foo",
+				},
+				2: {
+					RootMountPoint: "/foo",
+				},
+			},
+		}, nil
+	})
+	u.AddCleanup(r)
 
 	oldRootDir := c.MkDir()
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
@@ -693,8 +652,7 @@ type mockUpdateProcessObserver struct {
 	canceledErr       error
 }
 
-func (m *mockUpdateProcessObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+func (m *mockUpdateProcessObserver) Observe(op gadget.ContentOperation, partRole, targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	return gadget.ChangeAbort, errors.New("unexpected call")
 }
 
@@ -709,7 +667,7 @@ func (m *mockUpdateProcessObserver) Canceled() error {
 }
 
 func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
-	oldData, newData, rollbackDir := updateDataSet(c)
+	oldData, newData, rollbackDir := u.updateDataSet(c)
 	// update two structs
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
@@ -718,7 +676,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 	updaterForStructureCalls := 0
 	updateCalls := make(map[string]bool)
 	backupCalls := make(map[string]bool)
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		c.Assert(psRootDir, Equals, newData.RootDir)
 		c.Assert(psRollbackDir, Equals, rollbackDir)
 		c.Assert(observer, Equals, muo)
@@ -726,9 +684,9 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 
 		switch updaterForStructureCalls {
 		case 0:
-			c.Check(ps.Name, Equals, "first")
+			c.Check(ps.Name(), Equals, "first")
 			c.Check(ps.HasFilesystem(), Equals, false)
-			c.Check(ps.Size, Equals, 5*quantity.SizeMiB)
+			c.Check(ps.VolumeStructure.Size, Equals, 5*quantity.SizeMiB)
 			c.Check(ps.IsPartition(), Equals, true)
 			// non MBR start offset defaults to 1MiB
 			c.Check(ps.StartOffset, Equals, 1*quantity.OffsetMiB)
@@ -736,28 +694,28 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 			c.Check(ps.LaidOutContent[0].Image, Equals, "first.img")
 			c.Check(ps.LaidOutContent[0].Size, Equals, 900*quantity.SizeKiB)
 		case 1:
-			c.Check(ps.Name, Equals, "second")
+			c.Check(ps.Name(), Equals, "second")
 			c.Check(ps.HasFilesystem(), Equals, true)
-			c.Check(ps.Filesystem, Equals, "ext4")
+			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.IsPartition(), Equals, true)
-			c.Check(ps.Size, Equals, 10*quantity.SizeMiB)
+			c.Check(ps.VolumeStructure.Size, Equals, 10*quantity.SizeMiB)
 			// foo's start offset + foo's size
 			c.Check(ps.StartOffset, Equals, (1+5)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 1)
-			c.Check(ps.Content[0].UnresolvedSource, Equals, "/second-content")
-			c.Check(ps.Content[0].Target, Equals, "/")
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
+			c.Check(ps.VolumeStructure.Content[0].UnresolvedSource, Equals, "/second-content")
+			c.Check(ps.VolumeStructure.Content[0].Target, Equals, "/")
 		default:
 			c.Fatalf("unexpected call")
 		}
 		updaterForStructureCalls++
 		mu := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.Name] = true
+				backupCalls[ps.Name()] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.Name] = true
+				updateCalls[ps.Name()] = true
 				return nil
 			},
 			rollbackCb: func() error {
@@ -785,8 +743,1938 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 	c.Assert(muo.canceledCalled, Equals, 0)
 }
 
+func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
+	u.restoreVolumeStructureToLocationMap()
+	oldData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	newData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	rollbackDir := c.MkDir()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
+	c.Assert(err, IsNil)
+
+	// put the same volumes into both the old and the new data so they are
+	// identical to start
+	for volName, laidOutVol := range allLaidOutVolumes {
+		// need to make separate copies of the volume since laidOUutVol.Volume
+		// is a pointer
+		numStructures := len(laidOutVol.Volume.Structure)
+		newData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+
+		oldData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+	}
+
+	// setup symlink for the system-boot partition
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/sda1"): gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sda": gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	// add a writable mountpoint for the system-boot partition
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(`27 27 600:3 / %[1]s/boot/ubuntu rw,relatime shared:7 - vfat %[1]s/dev/sda2 rw`, dirs.GlobalRootDir),
+	)
+	defer restore()
+
+	// update all 3 structs
+	// mbr - raw structure
+	newData.Info.Volumes["pc"].Structure[0].Update.Edition = 1
+	// bios - partition w/o filesystem
+	newData.Info.Volumes["pc"].Structure[1].Update.Edition = 1
+	// system-boot - partition w/ filesystem struct
+	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
+
+	muo := &mockUpdateProcessObserver{}
+	updaterForStructureCalls := 0
+	updateCalls := make(map[string]bool)
+	backupCalls := make(map[string]bool)
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		c.Assert(psRootDir, Equals, newData.RootDir)
+		c.Assert(psRollbackDir, Equals, rollbackDir)
+		c.Assert(observer, Equals, muo)
+		// TODO:UC20 verify observer
+
+		switch updaterForStructureCalls {
+		case 0:
+			// mbr raw structure
+			c.Check(ps.Name(), Equals, "mbr")
+			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
+			c.Check(ps.IsPartition(), Equals, false)
+			// no offset since we are updating the MBR itself
+			c.Check(ps.StartOffset, Equals, quantity.Offset(0))
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				Device: "/dev/sda",
+				Offset: quantity.Offset(0),
+			})
+		case 1:
+			// bios boot
+			c.Check(ps.Name(), Equals, "BIOS Boot")
+			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				Device: "/dev/sda",
+				Offset: quantity.OffsetMiB,
+			})
+		case 2:
+			// EFI system partition
+			c.Check(ps.Name(), Equals, "EFI System")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "vfat")
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, 50*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/boot/ubuntu"),
+			})
+		default:
+			c.Fatalf("unexpected call")
+		}
+		updaterForStructureCalls++
+		mu := &mockUpdater{
+			backupCb: func() error {
+				backupCalls[ps.Name()] = true
+				return nil
+			},
+			updateCb: func() error {
+				updateCalls[ps.Name()] = true
+				return nil
+			},
+			rollbackCb: func() error {
+				c.Fatalf("unexpected call")
+				return errors.New("not called")
+			},
+		}
+		return mu, nil
+	})
+	defer restore()
+
+	// go go go
+	err = gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, IsNil)
+	c.Assert(updaterForStructureCalls, Equals, 3)
+	c.Assert(backupCalls, DeepEquals, map[string]bool{
+		"mbr":        true,
+		"BIOS Boot":  true,
+		"EFI System": true,
+	})
+	c.Assert(updateCalls, DeepEquals, map[string]bool{
+		"mbr":        true,
+		"BIOS Boot":  true,
+		"EFI System": true,
+	})
+
+	c.Assert(muo.beforeWriteCalled, Equals, 1)
+	c.Assert(muo.canceledCalled, Equals, 0)
+}
+
+func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySystemBoot(c *C) {
+	u.restoreVolumeStructureToLocationMap()
+	oldData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	newData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	rollbackDir := c.MkDir()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
+	c.Assert(err, IsNil)
+
+	// put the same volumes into both the old and the new data so they are
+	// identical to start
+	for volName, laidOutVol := range allLaidOutVolumes {
+		// need to make separate copies of the volume since laidOUutVol.Volume
+		// is a pointer
+		numStructures := len(laidOutVol.Volume.Structure)
+		newData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+
+		oldData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+	}
+
+	// note don't need to mock anything for the second volume on disk, we don't
+	// consider it at all
+
+	// setup symlink for the BIOS Boot partition
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/vda1"): gadgettest.VMSystemVolumeDiskMapping,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+	})
+	defer restore()
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	// set all structs on system-boot volume to be updated - only structs on
+	// system-boot volume can be updated as per policy since the initial mapping
+	// was missing
+
+	// mbr - bare structure
+	newData.Info.Volumes["pc"].Structure[0].Update.Edition = 1
+	// bios - partition w/o filesystem
+	newData.Info.Volumes["pc"].Structure[1].Update.Edition = 1
+	// ubuntu-seed
+	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
+	// ubuntu-boot
+	newData.Info.Volumes["pc"].Structure[3].Update.Edition = 1
+	// ubuntu-save
+	newData.Info.Volumes["pc"].Structure[4].Update.Edition = 1
+	// ubuntu-data
+	newData.Info.Volumes["pc"].Structure[5].Update.Edition = 1
+
+	muo := &mockUpdateProcessObserver{}
+	updaterForStructureCalls := 0
+	updateCalls := make(map[string]bool)
+	backupCalls := make(map[string]bool)
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		c.Assert(psRootDir, Equals, newData.RootDir)
+		c.Assert(psRollbackDir, Equals, rollbackDir)
+		c.Assert(observer, Equals, muo)
+		// TODO:UC20 verify observer
+
+		switch updaterForStructureCalls {
+		case 0:
+			// mbr raw structure
+			c.Check(ps.Name(), Equals, "mbr")
+			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
+			c.Check(ps.IsPartition(), Equals, false)
+			// no offset since we are updating the MBR itself
+			c.Check(ps.StartOffset, Equals, quantity.Offset(0))
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				Device: "/dev/vda",
+				Offset: quantity.Offset(0),
+			})
+		case 1:
+			// bios boot
+			c.Check(ps.Name(), Equals, "BIOS Boot")
+			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				Device: "/dev/vda",
+				Offset: quantity.OffsetMiB,
+			})
+		case 2:
+			// ubuntu-seed
+			c.Check(ps.Name(), Equals, "ubuntu-seed")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "vfat")
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
+			})
+		case 3:
+			// ubuntu-boot
+			c.Check(ps.Name(), Equals, "ubuntu-boot")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "ext4")
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+1+1200)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot"),
+			})
+		case 4:
+			// ubuntu-save
+			c.Check(ps.Name(), Equals, "ubuntu-save")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "ext4")
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+1+1200+750)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save"),
+			})
+		case 5:
+			// ubuntu-data
+			c.Check(ps.Name(), Equals, "ubuntu-data")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "ext4")
+			c.Check(ps.IsPartition(), Equals, true)
+			// NOTE: this is the laid out size, not the actual size (since data
+			// gets expanded), but the update op doesn't actually care about the
+			// size so it's okay
+			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
+			c.Check(ps.StartOffset, Equals, (1+1+1200+750+16)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"),
+			})
+
+		default:
+			c.Fatalf("unexpected call")
+		}
+		updaterForStructureCalls++
+		mu := &mockUpdater{
+			backupCb: func() error {
+				backupCalls[ps.Name()] = true
+				return nil
+			},
+			updateCb: func() error {
+				updateCalls[ps.Name()] = true
+				return nil
+			},
+			rollbackCb: func() error {
+				c.Fatalf("unexpected call")
+				return errors.New("not called")
+			},
+		}
+		return mu, nil
+	})
+	defer restore()
+
+	// go go go
+	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, IsNil)
+	c.Assert(updaterForStructureCalls, Equals, 6)
+	c.Assert(backupCalls, DeepEquals, map[string]bool{
+		"mbr":         true,
+		"BIOS Boot":   true,
+		"ubuntu-seed": true,
+		"ubuntu-boot": true,
+		"ubuntu-save": true,
+		"ubuntu-data": true,
+	})
+	c.Assert(updateCalls, DeepEquals, map[string]bool{
+		"mbr":         true,
+		"BIOS Boot":   true,
+		"ubuntu-seed": true,
+		"ubuntu-boot": true,
+		"ubuntu-save": true,
+		"ubuntu-data": true,
+	})
+
+	c.Assert(muo.beforeWriteCalled, Equals, 1)
+	c.Assert(muo.canceledCalled, Equals, 0)
+}
+
+func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySystemBootSeedFslabelCaps(c *C) {
+	u.restoreVolumeStructureToLocationMap()
+	oldData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	newData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	rollbackDir := c.MkDir()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYamlNoBIOS, uc20Model)
+	c.Assert(err, IsNil)
+
+	// put the same volumes into both the old and the new data so they are
+	// identical to start
+	for volName, laidOutVol := range allLaidOutVolumes {
+		// need to make separate copies of the volume since laidOUutVol.Volume
+		// is a pointer
+		numStructures := len(laidOutVol.Volume.Structure)
+		newData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+
+		oldData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+	}
+
+	// note don't need to mock anything for the second volume on disk, we don't
+	// consider it at all
+
+	// setup symlink for the ubuntu-seed partition, in capitals
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", disks.BlkIDEncodeLabel("UBUNTU-SEED")))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/vda1"): gadgettest.VMSystemVolumeDiskMappingSeedFsLabelCaps,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMappingSeedFsLabelCaps,
+	})
+	defer restore()
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	// set all structs on system-boot volume to be updated - only structs on
+	// system-boot volume can be updated as per policy since the initial mapping
+	// was missing
+
+	// mbr - bare structure
+	newData.Info.Volumes["pc"].Structure[0].Update.Edition = 1
+	// ubuntu-seed
+	newData.Info.Volumes["pc"].Structure[1].Update.Edition = 1
+	// ubuntu-boot
+	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
+	// ubuntu-save
+	newData.Info.Volumes["pc"].Structure[3].Update.Edition = 1
+	// ubuntu-data
+	newData.Info.Volumes["pc"].Structure[4].Update.Edition = 1
+
+	muo := &mockUpdateProcessObserver{}
+	updaterForStructureCalls := 0
+	updateCalls := make(map[string]bool)
+	backupCalls := make(map[string]bool)
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		c.Assert(psRootDir, Equals, newData.RootDir)
+		c.Assert(psRollbackDir, Equals, rollbackDir)
+		c.Assert(observer, Equals, muo)
+		// TODO:UC20 verify observer
+
+		switch updaterForStructureCalls {
+		case 0:
+			// mbr raw structure
+			c.Check(ps.Name(), Equals, "mbr")
+			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
+			c.Check(ps.IsPartition(), Equals, false)
+			// no offset since we are updating the MBR itself
+			c.Check(ps.StartOffset, Equals, quantity.Offset(0))
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				Device: "/dev/vda",
+				Offset: quantity.Offset(0),
+			})
+		case 1:
+			// ubuntu-seed
+			c.Check(ps.Name(), Equals, "ubuntu-seed")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "vfat")
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, 1*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
+			})
+		case 2:
+			// ubuntu-boot
+			c.Check(ps.Name(), Equals, "ubuntu-boot")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "ext4")
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+1200)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot"),
+			})
+		case 3:
+			// ubuntu-save
+			c.Check(ps.Name(), Equals, "ubuntu-save")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "ext4")
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+1200+750)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save"),
+			})
+		case 4:
+			// ubuntu-data
+			c.Check(ps.Name(), Equals, "ubuntu-data")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "ext4")
+			c.Check(ps.IsPartition(), Equals, true)
+			// NOTE: this is the laid out size, not the actual size (since data
+			// gets expanded), but the update op doesn't actually care about the
+			// size so it's okay
+			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
+			c.Check(ps.StartOffset, Equals, (1+1200+750+16)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"),
+			})
+
+		default:
+			c.Fatalf("unexpected call")
+		}
+		updaterForStructureCalls++
+		mu := &mockUpdater{
+			backupCb: func() error {
+				backupCalls[ps.Name()] = true
+				return nil
+			},
+			updateCb: func() error {
+				updateCalls[ps.Name()] = true
+				return nil
+			},
+			rollbackCb: func() error {
+				c.Fatalf("unexpected call")
+				return errors.New("not called")
+			},
+		}
+		return mu, nil
+	})
+	defer restore()
+
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		switch dev {
+		case filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/UBUNTU-SEED"):
+			c.Assert(typeOpt, Equals, "--name")
+			return map[string]string{
+				"ID_FS_TYPE": "vfat",
+			}, nil
+		case "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda":
+			c.Assert(typeOpt, Equals, "--path")
+			return map[string]string{}, nil
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	// go go go
+	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, IsNil)
+	c.Assert(updaterForStructureCalls, Equals, 5)
+	c.Assert(backupCalls, DeepEquals, map[string]bool{
+		"mbr":         true,
+		"ubuntu-seed": true,
+		"ubuntu-boot": true,
+		"ubuntu-save": true,
+		"ubuntu-data": true,
+	})
+	c.Assert(updateCalls, DeepEquals, map[string]bool{
+		"mbr":         true,
+		"ubuntu-seed": true,
+		"ubuntu-boot": true,
+		"ubuntu-save": true,
+		"ubuntu-data": true,
+	})
+
+	c.Assert(muo.beforeWriteCalled, Equals, 1)
+	c.Assert(muo.canceledCalled, Equals, 0)
+}
+
+func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySystemBootEvenIfAllVolsHaveUpdates(c *C) {
+	u.restoreVolumeStructureToLocationMap()
+	mockLog, restore := logger.MockLogger()
+	defer restore()
+
+	oldData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	newData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	rollbackDir := c.MkDir()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
+	c.Assert(err, IsNil)
+
+	// put the same volumes into both the old and the new data so they are
+	// identical to start
+	for volName, laidOutVol := range allLaidOutVolumes {
+		// need to make separate copies of the volume since laidOUutVol.Volume
+		// is a pointer
+		numStructures := len(laidOutVol.Volume.Structure)
+		newData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+
+		oldData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+	}
+
+	// setup symlink for the system-boot partition
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/vda1"): gadgettest.VMSystemVolumeDiskMapping,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+	})
+	defer restore()
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	// try to update all structures on both volumes, but only the structures on
+	// the system-boot volume will end up getting updated as per policy
+
+	// mbr - bare structure
+	newData.Info.Volumes["pc"].Structure[0].Update.Edition = 1
+	// bios - partition w/o filesystem
+	newData.Info.Volumes["pc"].Structure[1].Update.Edition = 1
+	// ubuntu-seed
+	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
+	// ubuntu-boot
+	newData.Info.Volumes["pc"].Structure[3].Update.Edition = 1
+	// ubuntu-save
+	newData.Info.Volumes["pc"].Structure[4].Update.Edition = 1
+	// ubuntu-data
+	newData.Info.Volumes["pc"].Structure[5].Update.Edition = 1
+
+	// bare structure
+	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
+	// partition without a filesystem
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
+	// some filesystem
+	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
+
+	muo := &mockUpdateProcessObserver{}
+	updaterForStructureCalls := 0
+	updateCalls := make(map[string]bool)
+	backupCalls := make(map[string]bool)
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		c.Assert(psRootDir, Equals, newData.RootDir)
+		c.Assert(psRollbackDir, Equals, rollbackDir)
+		c.Assert(observer, Equals, muo)
+		// TODO:UC20 verify observer
+
+		switch updaterForStructureCalls {
+		case 0:
+			// mbr raw structure
+			c.Check(ps.Name(), Equals, "mbr")
+			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
+			c.Check(ps.IsPartition(), Equals, false)
+			// no offset since we are updating the MBR itself
+			c.Check(ps.StartOffset, Equals, quantity.Offset(0))
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				Device: "/dev/vda",
+				Offset: quantity.Offset(0),
+			})
+		case 1:
+			// bios boot
+			c.Check(ps.Name(), Equals, "BIOS Boot")
+			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				Device: "/dev/vda",
+				Offset: quantity.OffsetMiB,
+			})
+		case 2:
+			// ubuntu-seed
+			c.Check(ps.Name(), Equals, "ubuntu-seed")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "vfat")
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
+			})
+		case 3:
+			// ubuntu-boot
+			c.Check(ps.Name(), Equals, "ubuntu-boot")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "ext4")
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+1+1200)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot"),
+			})
+		case 4:
+			// ubuntu-save
+			c.Check(ps.Name(), Equals, "ubuntu-save")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "ext4")
+			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+1+1200+750)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save"),
+			})
+		case 5:
+			// ubuntu-data
+			c.Check(ps.Name(), Equals, "ubuntu-data")
+			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.Filesystem(), Equals, "ext4")
+			c.Check(ps.IsPartition(), Equals, true)
+			// NOTE: this is the laid out size, not the actual size (since data
+			// gets expanded), but the update op doesn't actually care about the
+			// size so it's okay
+			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
+			c.Check(ps.StartOffset, Equals, (1+1+1200+750+16)*quantity.OffsetMiB)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(loc, Equals, gadget.StructureLocation{
+				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"),
+			})
+
+		default:
+			c.Fatalf("unexpected call")
+		}
+		updaterForStructureCalls++
+		mu := &mockUpdater{
+			backupCb: func() error {
+				backupCalls[ps.Name()] = true
+				return nil
+			},
+			updateCb: func() error {
+				updateCalls[ps.Name()] = true
+				return nil
+			},
+			rollbackCb: func() error {
+				c.Fatalf("unexpected call")
+				return errors.New("not called")
+			},
+		}
+		return mu, nil
+	})
+	defer restore()
+
+	// go go go
+	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, IsNil)
+	c.Assert(updaterForStructureCalls, Equals, 6)
+	c.Assert(backupCalls, DeepEquals, map[string]bool{
+		"mbr":         true,
+		"BIOS Boot":   true,
+		"ubuntu-seed": true,
+		"ubuntu-boot": true,
+		"ubuntu-save": true,
+		"ubuntu-data": true,
+	})
+	c.Assert(updateCalls, DeepEquals, map[string]bool{
+		"mbr":         true,
+		"BIOS Boot":   true,
+		"ubuntu-seed": true,
+		"ubuntu-boot": true,
+		"ubuntu-save": true,
+		"ubuntu-data": true,
+	})
+
+	c.Assert(muo.beforeWriteCalled, Equals, 1)
+	c.Assert(muo.canceledCalled, Equals, 0)
+
+	c.Assert(mockLog.String(), testutil.Contains, "skipping update on non-supported volume foo to structure barething")
+	c.Assert(mockLog.String(), testutil.Contains, "skipping update on non-supported volume foo to structure nofspart")
+	c.Assert(mockLog.String(), testutil.Contains, "skipping update on non-supported volume foo to structure some-filesystem")
+}
+
+func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFullLogic(c *C) {
+	u.restoreVolumeStructureToLocationMap()
+
+	oldData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	newData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	rollbackDir := c.MkDir()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	c.Assert(err, IsNil)
+	// write out the provided traits JSON so we can at least load the traits for
+	// mocking via setupForVolumeStructureToLocation
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	// put the same volumes into both the old and the new data so they are
+	// identical to start
+	for volName, laidOutVol := range allLaidOutVolumes {
+		// need to make separate copies of the volume since laidOUutVol.Volume
+		// is a pointer
+		numStructures := len(laidOutVol.Volume.Structure)
+		newData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+
+		oldData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+	}
+
+	// setup symlink for the system-boot partition
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/vda1"): gadgettest.VMSystemVolumeDiskMapping,
+		filepath.Join(dirs.GlobalRootDir, "/dev/vdb1"): gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+		"/dev/vdb": gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 525:3 / %[1]s/foo/some-filesystem rw,relatime shared:7 - vfat %[1]s/dev/vdb2 rw
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	// update all structures
+
+	// mbr - bare structure
+	newData.Info.Volumes["pc"].Structure[0].Update.Edition = 1
+	// bios - partition w/o filesystem
+	newData.Info.Volumes["pc"].Structure[1].Update.Edition = 1
+	// ubuntu-seed
+	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
+	// ubuntu-boot
+	newData.Info.Volumes["pc"].Structure[3].Update.Edition = 1
+	// ubuntu-save
+	newData.Info.Volumes["pc"].Structure[4].Update.Edition = 1
+	// ubuntu-data
+	newData.Info.Volumes["pc"].Structure[5].Update.Edition = 1
+
+	// bare structure
+	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
+	// partition without a filesystem
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
+	// some filesystem
+	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
+
+	muo := &mockUpdateProcessObserver{}
+	pcUpdaterForStructureCalls := 0
+	fooUpdaterForStructureCalls := 0
+	pcUpdateCalls := make(map[string]bool)
+	pcBackupCalls := make(map[string]bool)
+	fooUpdateCalls := make(map[string]bool)
+	fooBackupCalls := make(map[string]bool)
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		c.Assert(psRootDir, Equals, newData.RootDir)
+		c.Assert(psRollbackDir, Equals, rollbackDir)
+		c.Assert(observer, Equals, muo)
+		// TODO:UC20 verify observer
+
+		var mu *mockUpdater
+
+		switch ps.VolumeStructure.VolumeName {
+		case "pc":
+			switch pcUpdaterForStructureCalls {
+			case 0:
+				// mbr raw structure
+				c.Check(ps.Name(), Equals, "mbr")
+				c.Check(ps.HasFilesystem(), Equals, false)
+				c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
+				c.Check(ps.IsPartition(), Equals, false)
+				// no offset since we are updating the MBR itself
+				c.Check(ps.StartOffset, Equals, quantity.Offset(0))
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					Device: "/dev/vda",
+					Offset: quantity.Offset(0),
+				})
+			case 1:
+				// bios boot
+				c.Check(ps.Name(), Equals, "BIOS Boot")
+				c.Check(ps.HasFilesystem(), Equals, false)
+				c.Check(ps.IsPartition(), Equals, true)
+				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
+				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					Device: "/dev/vda",
+					Offset: quantity.OffsetMiB,
+				})
+			case 2:
+				// ubuntu-seed
+				c.Check(ps.Name(), Equals, "ubuntu-seed")
+				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.Filesystem(), Equals, "vfat")
+				c.Check(ps.IsPartition(), Equals, true)
+				c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
+				c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
+				})
+			case 3:
+				// ubuntu-boot
+				c.Check(ps.Name(), Equals, "ubuntu-boot")
+				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.Filesystem(), Equals, "ext4")
+				c.Check(ps.IsPartition(), Equals, true)
+				c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
+				c.Check(ps.StartOffset, Equals, (1+1+1200)*quantity.OffsetMiB)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot"),
+				})
+			case 4:
+				// ubuntu-save
+				c.Check(ps.Name(), Equals, "ubuntu-save")
+				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.Filesystem(), Equals, "ext4")
+				c.Check(ps.IsPartition(), Equals, true)
+				c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
+				c.Check(ps.StartOffset, Equals, (1+1+1200+750)*quantity.OffsetMiB)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save"),
+				})
+			case 5:
+				// ubuntu-data
+				c.Check(ps.Name(), Equals, "ubuntu-data")
+				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.Filesystem(), Equals, "ext4")
+				c.Check(ps.IsPartition(), Equals, true)
+				// NOTE: this is the laid out size, not the actual size (since data
+				// gets expanded), but the update op doesn't actually care about the
+				// size so it's okay
+				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
+				c.Check(ps.StartOffset, Equals, (1+1+1200+750+16)*quantity.OffsetMiB)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"),
+				})
+			}
+			pcUpdaterForStructureCalls++
+
+			mu = &mockUpdater{
+				backupCb: func() error {
+					pcBackupCalls[ps.Name()] = true
+					return nil
+				},
+				updateCb: func() error {
+					pcUpdateCalls[ps.Name()] = true
+					return nil
+				},
+				rollbackCb: func() error {
+					c.Fatalf("unexpected call")
+					return errors.New("not called")
+				},
+			}
+		case "foo":
+			switch fooUpdaterForStructureCalls {
+			case 0:
+				c.Check(ps.Name(), Equals, "barething")
+				c.Check(ps.HasFilesystem(), Equals, false)
+				c.Check(ps.IsPartition(), Equals, false)
+				c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(4096))
+				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					Device: "/dev/vdb",
+					Offset: quantity.OffsetMiB,
+				})
+			case 1:
+				c.Check(ps.Name(), Equals, "nofspart")
+				c.Check(ps.HasFilesystem(), Equals, false)
+				c.Check(ps.IsPartition(), Equals, true)
+				c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(4096))
+				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					Device: "/dev/vdb",
+					Offset: quantity.OffsetMiB + 4096,
+				})
+			case 2:
+				c.Check(ps.Name(), Equals, "some-filesystem")
+				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.Filesystem(), Equals, "ext4")
+				c.Check(ps.IsPartition(), Equals, true)
+				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
+				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096+4096)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/foo/some-filesystem"),
+				})
+			default:
+				c.Fatalf("unexpected call")
+			}
+			fooUpdaterForStructureCalls++
+
+			mu = &mockUpdater{
+				backupCb: func() error {
+					fooBackupCalls[ps.Name()] = true
+					return nil
+				},
+				updateCb: func() error {
+					fooUpdateCalls[ps.Name()] = true
+					return nil
+				},
+				rollbackCb: func() error {
+					c.Fatalf("unexpected call")
+					return errors.New("not called")
+				},
+			}
+		}
+
+		return mu, nil
+	})
+	defer restore()
+
+	// go go go
+	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, IsNil)
+	c.Assert(pcUpdaterForStructureCalls, Equals, 6)
+	c.Assert(fooUpdaterForStructureCalls, Equals, 3)
+	c.Assert(pcBackupCalls, DeepEquals, map[string]bool{
+		"mbr":         true,
+		"BIOS Boot":   true,
+		"ubuntu-seed": true,
+		"ubuntu-boot": true,
+		"ubuntu-save": true,
+		"ubuntu-data": true,
+	})
+	c.Assert(pcUpdateCalls, DeepEquals, map[string]bool{
+		"mbr":         true,
+		"BIOS Boot":   true,
+		"ubuntu-seed": true,
+		"ubuntu-boot": true,
+		"ubuntu-save": true,
+		"ubuntu-data": true,
+	})
+
+	c.Assert(fooBackupCalls, DeepEquals, map[string]bool{
+		"barething":       true,
+		"nofspart":        true,
+		"some-filesystem": true,
+	})
+	c.Assert(fooUpdateCalls, DeepEquals, map[string]bool{
+		"barething":       true,
+		"nofspart":        true,
+		"some-filesystem": true,
+	})
+
+	c.Assert(muo.beforeWriteCalled, Equals, 1)
+	c.Assert(muo.canceledCalled, Equals, 0)
+}
+
+func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructureChangesOnMultiVolumeUpdate(c *C) {
+	u.restoreVolumeStructureToLocationMap()
+
+	oldData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	newData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	rollbackDir := c.MkDir()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	c.Assert(err, IsNil)
+	// write out the provided traits JSON so we can at least load the traits for
+	// mocking via setupForVolumeStructureToLocation
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	// put the same volumes into both the old and the new data so they are
+	// identical to start
+	for volName, laidOutVol := range allLaidOutVolumes {
+		// need to make separate copies of the volume since laidOUutVol.Volume
+		// is a pointer
+		numStructures := len(laidOutVol.Volume.Structure)
+		newData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+
+		oldData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+	}
+
+	// don't need to mock anything as we don't get that far
+
+	// change the new nofspart structure size which is an incompatible change
+
+	// nofspart
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
+	newData.Info.Volumes["foo"].Structure[1].MinSize = quantity.SizeKiB
+	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeKiB
+
+	muo := &mockUpdateProcessObserver{}
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		c.Fatalf("unexpected call")
+		return nil, errors.New("not called")
+	})
+	defer restore()
+
+	// go go go
+	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("nofspart"\) for volume foo: new valid structure size range \[1024, 1024\] is not compatible with current \(\[4096, 4096\]\)`)
+
+	// now with overlap
+	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeMiB
+	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, ErrorMatches, `cannot lay out the new volume foo: cannot lay out volume, structure #2 \("some-filesystem"\) overlaps with preceding structure #1 \("nofspart"\)`)
+}
+
+func (u *updateTestSuite) TestUpdateApplyUC20KernelAssetsOnAllVolumesWithInitialMapAllVolumesUpdatedFullLogic(c *C) {
+	u.restoreVolumeStructureToLocationMap()
+
+	oldKernelDir := c.MkDir()
+	newKernelDir := c.MkDir()
+
+	kernelYaml := []byte(`assets:
+  ref:
+    update: true
+    content:
+      - kernel-content
+      - kernel-content2`)
+	makeSizedFile(c, filepath.Join(newKernelDir, "meta/kernel.yaml"), 0, kernelYaml)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "meta/kernel.yaml"), 0, kernelYaml)
+
+	makeSizedFile(c, filepath.Join(newKernelDir, "kernel-content"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(newKernelDir, "kernel-content2"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "kernel-content"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "kernel-content2"), quantity.SizeMiB, nil)
+
+	oldData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir:       c.MkDir(),
+		KernelRootDir: oldKernelDir,
+	}
+
+	newData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir:       c.MkDir(),
+		KernelRootDir: newKernelDir,
+	}
+
+	rollbackDir := c.MkDir()
+
+	const multiVolWithKernel = `
+volumes:
+  pc:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+        content:
+          - source: $kernel:ref/kernel-content
+            target: /
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        # whats the appropriate size?
+        size: 750M
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+  foo:
+    schema: gpt
+    structure:
+      - name: barething
+        type: bare
+        size: 4096
+      - name: nofspart
+        type: A11D2A7C-D82A-4C2F-8A01-1805240E6626
+        size: 4096
+      - name: some-filesystem
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+        content:
+          - source: $kernel:ref/kernel-content2
+            target: /
+`
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), oldKernelDir, multiVolWithKernel, uc20Model)
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	c.Assert(err, IsNil)
+	// write out the provided traits JSON so we can at least load the traits for
+	// mocking via setupForVolumeStructureToLocation
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	// put the same volumes into both the old and the new data so they are
+	// identical to start
+	for volName, laidOutVol := range allLaidOutVolumes {
+		// need to make separate copies of the volume since laidOUutVol.Volume
+		// is a pointer
+		numStructures := len(laidOutVol.Volume.Structure)
+		newData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+
+		oldData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+	}
+
+	// setup symlink for the system-boot partition
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/vda1"): gadgettest.VMSystemVolumeDiskMapping,
+		filepath.Join(dirs.GlobalRootDir, "/dev/vdb1"): gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+		"/dev/vdb": gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 525:3 / %[1]s/foo/some-filesystem rw,relatime shared:7 - vfat %[1]s/dev/vdb2 rw
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	// update the kernel asset referencing structures
+
+	// ubuntu-seed
+	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
+
+	// some filesystem
+	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
+
+	muo := &mockUpdateProcessObserver{}
+	pcUpdaterForStructureCalls := 0
+	fooUpdaterForStructureCalls := 0
+	pcUpdateCalls := make(map[string]bool)
+	pcBackupCalls := make(map[string]bool)
+	fooUpdateCalls := make(map[string]bool)
+	fooBackupCalls := make(map[string]bool)
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		c.Assert(psRootDir, Equals, newData.RootDir)
+		c.Assert(psRollbackDir, Equals, rollbackDir)
+		c.Assert(observer, Equals, muo)
+		// TODO:UC20 verify observer
+
+		var mu *mockUpdater
+
+		switch ps.VolumeStructure.VolumeName {
+		case "pc":
+			switch pcUpdaterForStructureCalls {
+			case 0:
+				// ubuntu-seed
+				c.Check(ps.Name(), Equals, "ubuntu-seed")
+				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.Filesystem(), Equals, "vfat")
+				c.Check(ps.IsPartition(), Equals, true)
+				c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
+				c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, DeepEquals, []gadget.VolumeContent{
+					{
+						UnresolvedSource: "$kernel:ref/kernel-content",
+						Target:           "/",
+					},
+				})
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
+				})
+			}
+			pcUpdaterForStructureCalls++
+
+			mu = &mockUpdater{
+				backupCb: func() error {
+					pcBackupCalls[ps.Name()] = true
+					return nil
+				},
+				updateCb: func() error {
+					pcUpdateCalls[ps.Name()] = true
+					return nil
+				},
+				rollbackCb: func() error {
+					c.Fatalf("unexpected call")
+					return errors.New("not called")
+				},
+			}
+		case "foo":
+			switch fooUpdaterForStructureCalls {
+			case 0:
+				c.Check(ps.Name(), Equals, "some-filesystem")
+				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.Filesystem(), Equals, "ext4")
+				c.Check(ps.IsPartition(), Equals, true)
+				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
+				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096+4096)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, DeepEquals, []gadget.VolumeContent{
+					{
+						UnresolvedSource: "$kernel:ref/kernel-content2",
+						Target:           "/",
+					},
+				})
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/foo/some-filesystem"),
+				})
+			default:
+				c.Fatalf("unexpected call")
+			}
+			fooUpdaterForStructureCalls++
+
+			mu = &mockUpdater{
+				backupCb: func() error {
+					fooBackupCalls[ps.Name()] = true
+					return nil
+				},
+				updateCb: func() error {
+					fooUpdateCalls[ps.Name()] = true
+					return nil
+				},
+				rollbackCb: func() error {
+					c.Fatalf("unexpected call")
+					return errors.New("not called")
+				},
+			}
+		}
+
+		return mu, nil
+	})
+	defer restore()
+
+	// go go go
+	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, IsNil)
+	c.Assert(pcUpdaterForStructureCalls, Equals, 1)
+	c.Assert(fooUpdaterForStructureCalls, Equals, 1)
+	c.Assert(pcBackupCalls, DeepEquals, map[string]bool{
+		"ubuntu-seed": true,
+	})
+	c.Assert(pcUpdateCalls, DeepEquals, map[string]bool{
+		"ubuntu-seed": true,
+	})
+
+	c.Assert(fooBackupCalls, DeepEquals, map[string]bool{
+		"some-filesystem": true,
+	})
+	c.Assert(fooUpdateCalls, DeepEquals, map[string]bool{
+		"some-filesystem": true,
+	})
+
+	c.Assert(muo.beforeWriteCalled, Equals, 1)
+	c.Assert(muo.canceledCalled, Equals, 0)
+}
+
+func (u *updateTestSuite) TestUpdateApplyUC20KernelAssetsOnSingleVolumeWithInitialMapAllVolumesUpdatedFullLogic(c *C) {
+	u.restoreVolumeStructureToLocationMap()
+
+	oldKernelDir := c.MkDir()
+	newKernelDir := c.MkDir()
+
+	kernelYaml := []byte(`assets:
+  ref:
+    update: true
+    content:
+      - kernel-content
+      - kernel-content2`)
+	makeSizedFile(c, filepath.Join(newKernelDir, "meta/kernel.yaml"), 0, kernelYaml)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "meta/kernel.yaml"), 0, kernelYaml)
+
+	makeSizedFile(c, filepath.Join(newKernelDir, "kernel-content"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(newKernelDir, "kernel-content2"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "kernel-content"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "kernel-content2"), quantity.SizeMiB, nil)
+
+	oldData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir:       c.MkDir(),
+		KernelRootDir: oldKernelDir,
+	}
+
+	newData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir:       c.MkDir(),
+		KernelRootDir: newKernelDir,
+	}
+
+	rollbackDir := c.MkDir()
+
+	const multiVolWithKernel = `
+volumes:
+  pc:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+        content:
+          - source: $kernel:ref/kernel-content
+            target: /
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        # whats the appropriate size?
+        size: 750M
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+  foo:
+    schema: gpt
+    structure:
+      - name: barething
+        type: bare
+        size: 4096
+      - name: nofspart
+        type: A11D2A7C-D82A-4C2F-8A01-1805240E6626
+        size: 4096
+      - name: some-filesystem
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), oldKernelDir, multiVolWithKernel, uc20Model)
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	c.Assert(err, IsNil)
+	// write out the provided traits JSON so we can at least load the traits for
+	// mocking via setupForVolumeStructureToLocation
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	// put the same volumes into both the old and the new data so they are
+	// identical to start
+	for volName, laidOutVol := range allLaidOutVolumes {
+		// need to make separate copies of the volume since laidOUutVol.Volume
+		// is a pointer
+		numStructures := len(laidOutVol.Volume.Structure)
+		newData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+
+		oldData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+	}
+
+	// setup symlink for the system-boot partition
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/vda1"): gadgettest.VMSystemVolumeDiskMapping,
+		filepath.Join(dirs.GlobalRootDir, "/dev/vdb1"): gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+		"/dev/vdb": gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 525:3 / %[1]s/foo/some-filesystem rw,relatime shared:7 - vfat %[1]s/dev/vdb2 rw
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	// update the kernel asset referencing structures
+
+	// ubuntu-seed
+	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
+
+	// some filesystem
+	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
+
+	muo := &mockUpdateProcessObserver{}
+	pcUpdaterForStructureCalls := 0
+	fooUpdaterForStructureCalls := 0
+	pcUpdateCalls := make(map[string]bool)
+	pcBackupCalls := make(map[string]bool)
+	fooUpdateCalls := make(map[string]bool)
+	fooBackupCalls := make(map[string]bool)
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		c.Assert(psRootDir, Equals, newData.RootDir)
+		c.Assert(psRollbackDir, Equals, rollbackDir)
+		c.Assert(observer, Equals, muo)
+		// TODO:UC20 verify observer
+
+		var mu *mockUpdater
+
+		switch ps.VolumeStructure.VolumeName {
+		case "pc":
+			switch pcUpdaterForStructureCalls {
+			case 0:
+				// ubuntu-seed
+				c.Check(ps.Name(), Equals, "ubuntu-seed")
+				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.Filesystem(), Equals, "vfat")
+				c.Check(ps.IsPartition(), Equals, true)
+				c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
+				c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, DeepEquals, []gadget.VolumeContent{
+					{
+						UnresolvedSource: "$kernel:ref/kernel-content",
+						Target:           "/",
+					},
+				})
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
+				})
+			}
+			pcUpdaterForStructureCalls++
+
+			mu = &mockUpdater{
+				backupCb: func() error {
+					pcBackupCalls[ps.Name()] = true
+					return nil
+				},
+				updateCb: func() error {
+					pcUpdateCalls[ps.Name()] = true
+					return nil
+				},
+				rollbackCb: func() error {
+					c.Fatalf("unexpected call")
+					return errors.New("not called")
+				},
+			}
+		case "foo":
+			switch fooUpdaterForStructureCalls {
+			case 0:
+				c.Check(ps.Name(), Equals, "some-filesystem")
+				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.Filesystem(), Equals, "ext4")
+				c.Check(ps.IsPartition(), Equals, true)
+				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
+				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096+4096)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/foo/some-filesystem"),
+				})
+			default:
+				c.Fatalf("unexpected call")
+			}
+			fooUpdaterForStructureCalls++
+
+			mu = &mockUpdater{
+				backupCb: func() error {
+					fooBackupCalls[ps.Name()] = true
+					return nil
+				},
+				updateCb: func() error {
+					fooUpdateCalls[ps.Name()] = true
+					return nil
+				},
+				rollbackCb: func() error {
+					c.Fatalf("unexpected call")
+					return errors.New("not called")
+				},
+			}
+		}
+
+		return mu, nil
+	})
+	defer restore()
+
+	// go go go
+	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, IsNil)
+	c.Assert(pcUpdaterForStructureCalls, Equals, 1)
+	c.Assert(fooUpdaterForStructureCalls, Equals, 1)
+	c.Assert(pcBackupCalls, DeepEquals, map[string]bool{
+		"ubuntu-seed": true,
+	})
+	c.Assert(pcUpdateCalls, DeepEquals, map[string]bool{
+		"ubuntu-seed": true,
+	})
+
+	c.Assert(fooBackupCalls, DeepEquals, map[string]bool{
+		"some-filesystem": true,
+	})
+	c.Assert(fooUpdateCalls, DeepEquals, map[string]bool{
+		"some-filesystem": true,
+	})
+
+	c.Assert(muo.beforeWriteCalled, Equals, 1)
+	c.Assert(muo.canceledCalled, Equals, 0)
+}
+
 func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
-	oldData, newData, rollbackDir := updateDataSet(c)
+	oldData, newData, rollbackDir := u.updateDataSet(c)
 	// first structure is updated
 	oldData.Info.Volumes["foo"].Structure[0].Update.Edition = 0
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
@@ -799,14 +2687,14 @@ func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 
 	muo := &mockUpdateProcessObserver{}
 	updaterForStructureCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		c.Assert(psRootDir, Equals, newData.RootDir)
 		c.Assert(psRollbackDir, Equals, rollbackDir)
 
 		switch updaterForStructureCalls {
 		case 0:
 			// only called for the first structure
-			c.Assert(ps.Name, Equals, "first")
+			c.Assert(ps.Name(), Equals, "first")
 		default:
 			c.Fatalf("unexpected call")
 		}
@@ -832,8 +2720,9 @@ func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
-		Name: "foo",
-		Size: 5 * quantity.SizeMiB,
+		Name:   "foo",
+		Offset: asOffsetPtr(0),
+		Size:   5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
@@ -870,7 +2759,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 
 	// cannot lay out the new volume when bare struct data is missing
 	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
-	c.Assert(err, ErrorMatches, `cannot lay out the new volume: cannot lay out structure #0 \("foo"\): content "first.img": .* no such file or directory`)
+	c.Assert(err, ErrorMatches, `cannot lay out the new volume foo: cannot lay out structure #0 \("foo"\): content "first.img": .* no such file or directory`)
 
 	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), quantity.SizeMiB, nil)
 
@@ -882,8 +2771,9 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
-		Name: "foo",
-		Size: 5 * quantity.SizeMiB,
+		Name:   "foo",
+		Offset: asOffsetPtr(0),
+		Size:   5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
@@ -891,6 +2781,8 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 	bareStructUpdate := bareStruct
 	bareStructUpdate.Name = "foo update"
 	bareStructUpdate.Update.Edition = 1
+	bareStructUpdate.Offset = asOffsetPtr(5 * quantity.OffsetMiB)
+
 	oldInfo := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
 			"foo": {
@@ -923,14 +2815,15 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*quantity.SizeKiB, nil)
 
 	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
-	c.Assert(err, ErrorMatches, `cannot apply update to volume: cannot change the number of structures within volume from 1 to 2`)
+	c.Assert(err, ErrorMatches, `cannot apply update to volume foo: cannot change the number of structures within volume from 1 to 2`)
 }
 
 func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
-		Name: "foo",
-		Size: 5 * quantity.SizeMiB,
+		Name:   "foo",
+		Offset: asOffsetPtr(0),
+		Size:   5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
@@ -938,6 +2831,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 	fsStruct := gadget.VolumeStructure{
 		Name:       "foo",
 		Filesystem: "ext4",
+		Offset:     asOffsetPtr(0),
 		Size:       5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{UnresolvedSource: "/", Target: "/"},
@@ -974,10 +2868,10 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
 
 	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
-	c.Assert(err, ErrorMatches, `cannot update volume structure #0 \("foo"\): cannot change a bare structure to filesystem one`)
+	c.Assert(err, ErrorMatches, `cannot update volume structure #0 \("foo"\) for volume foo: cannot change a bare structure to filesystem one`)
 }
 
-func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
+func (u *updateTestSuite) TestUpdateApplyErrorRenamedVolume(c *C) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
 		Name: "foo",
@@ -997,7 +2891,8 @@ func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
 	}
 	newInfo := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
-			// same volume info but using a different name
+			// same volume info but using a different name which ends up being
+			// counted as having the old one removed and a new one added
 			"foo-new": oldInfo.Volumes["foo"],
 		},
 	}
@@ -1006,21 +2901,22 @@ func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
 	newData := gadget.GadgetData{Info: newInfo, RootDir: c.MkDir()}
 	rollbackDir := c.MkDir()
 
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		c.Fatalf("unexpected call")
 		return &mockUpdater{}, nil
 	})
 	defer restore()
 
 	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
-	c.Assert(err, ErrorMatches, `cannot find entry for volume "foo" in updated gadget info`)
+	c.Assert(err, ErrorMatches, `cannot update gadget assets: volumes were both added and removed`)
 }
 
 func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
-		Name: "foo",
-		Size: 5 * quantity.SizeMiB,
+		Name:   "foo",
+		Offset: asOffsetPtr(0),
+		Size:   5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
@@ -1052,7 +2948,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 
 	muo := &mockUpdateProcessObserver{}
 
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		c.Fatalf("unexpected call")
 		return &mockUpdater{}, nil
 	})
@@ -1065,29 +2961,66 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 	c.Assert(muo.beforeWriteCalled, Equals, 0)
 }
 
-func policyDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, rollbackDir string) {
-	oldData, newData, rollbackDir = updateDataSet(c)
+func (u *updateTestSuite) policyDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, rollbackDir string) {
+	oldData, newData, rollbackDir = u.updateDataSet(c)
 	noPartitionStruct := gadget.VolumeStructure{
-		Name: "no-partition",
-		Type: "bare",
-		Size: 5 * quantity.SizeMiB,
+		VolumeName: "foo",
+		Name:       "no-partition",
+		Type:       "bare",
+		Offset:     asOffsetPtr((1 + 5 + 10 + 5) * quantity.OffsetMiB),
+		MinSize:    5 * quantity.SizeMiB,
+		Size:       5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
 	}
 	mbrStruct := gadget.VolumeStructure{
-		Name:   "mbr",
-		Role:   "mbr",
-		Size:   446,
-		Offset: asOffsetPtr(0),
+		VolumeName: "foo",
+		Name:       "mbr",
+		Role:       "mbr",
+		MinSize:    446,
+		Size:       446,
+		Offset:     asOffsetPtr(0),
 	}
 
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+		return map[string]map[int]gadget.StructureLocation{
+			"foo": {
+				0: {
+					Device: "/dev/foo",
+					Offset: quantity.OffsetMiB,
+				},
+				1: {
+					RootMountPoint: "/foo",
+				},
+				2: {
+					RootMountPoint: "/foo",
+				},
+				3: {
+					Device: "/dev/foo",
+					Offset: 10000,
+				},
+				4: {
+					Device: "/dev/foo",
+					Offset: 0,
+				},
+			},
+		}, nil
+	})
+	u.AddCleanup(r)
+
 	oldVol := oldData.Info.Volumes["foo"]
-	oldVol.Structure = append(oldVol.Structure, noPartitionStruct, mbrStruct)
+	oldStructs := oldVol.Structure
+	oldVol.Structure = []gadget.VolumeStructure{mbrStruct}
+	oldVol.Structure = append(oldVol.Structure, oldStructs...)
+	oldVol.Structure = append(oldVol.Structure, noPartitionStruct)
 	oldData.Info.Volumes["foo"] = oldVol
 
 	newVol := newData.Info.Volumes["foo"]
-	newVol.Structure = append(newVol.Structure, noPartitionStruct, mbrStruct)
+	newStructs := newVol.Structure
+	newVol.Structure = []gadget.VolumeStructure{mbrStruct}
+	newVol.Structure = append(newVol.Structure, newStructs...)
+	newVol.Structure = append(newVol.Structure, noPartitionStruct)
 	newData.Info.Volumes["foo"] = newVol
 
 	c.Assert(oldData.Info.Volumes["foo"].Structure, HasLen, 5)
@@ -1096,7 +3029,7 @@ func policyDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 }
 
 func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
-	oldData, newData, rollbackDir := policyDataSet(c)
+	oldData, newData, rollbackDir := u.policyDataSet(c)
 	c.Assert(oldData.Info.Volumes["foo"].Structure, HasLen, 5)
 	c.Assert(newData.Info.Volumes["foo"].Structure, HasLen, 5)
 	// all structures have higher Edition, thus all would be updated under
@@ -1108,15 +3041,15 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	newData.Info.Volumes["foo"].Structure[4].Update.Edition = 5
 
 	toUpdate := map[string]int{}
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
-		toUpdate[ps.Name]++
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		toUpdate[ps.Name()]++
 		return &mockUpdater{}, nil
 	})
 	defer restore()
 
 	policySeen := map[string]int{}
 	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
-		policySeen[to.Name]++
+		policySeen[to.Name()]++
 		return false, nil
 	}, nil)
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
@@ -1132,8 +3065,8 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	// try with different policy
 	policySeen = map[string]int{}
 	err = gadget.Update(uc16Model, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
-		policySeen[to.Name]++
-		return to.Name == "second", nil
+		policySeen[to.Name()]++
+		return to.Name() == "second", nil
 	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(policySeen, DeepEquals, map[string]int{
@@ -1149,7 +3082,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 }
 
 func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
-	oldData, newData, rollbackDir := policyDataSet(c)
+	oldData, newData, rollbackDir := u.policyDataSet(c)
 
 	// old structures have higher Edition, no update would occur under the default policy
 	oldData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
@@ -1159,8 +3092,8 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
 	oldData.Info.Volumes["foo"].Structure[4].Update.Edition = 5
 
 	toUpdate := map[string]int{}
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
-		toUpdate[ps.Name] = toUpdate[ps.Name] + 1
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		toUpdate[ps.Name()] = toUpdate[ps.Name()] + 1
 		return &mockUpdater{}, nil
 	})
 	defer restore()
@@ -1177,15 +3110,33 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
 }
 
 func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
-	oldData, newData, rollbackDir := updateDataSet(c)
+	oldData, newData, rollbackDir := u.updateDataSet(c)
 	// update both structs
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
 
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+		return map[string]map[int]gadget.StructureLocation{
+			"foo": {
+				0: {
+					Device: "/dev/foo",
+					Offset: quantity.OffsetMiB,
+				},
+				1: {
+					RootMountPoint: "/foo",
+				},
+				2: {
+					RootMountPoint: "/foo",
+				},
+			},
+		}, nil
+	})
+	defer r()
+
 	muo := &mockUpdateProcessObserver{}
 	updaterForStructureCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updater := &mockUpdater{
 			updateCb: func() error {
 				c.Fatalf("unexpected update call")
@@ -1197,7 +3148,7 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 			},
 		}
 		if updaterForStructureCalls == 1 {
-			c.Assert(ps.Name, Equals, "second")
+			c.Assert(ps.Name(), Equals, "second")
 			updater.backupCb = func() error {
 				return errors.New("failed")
 			}
@@ -1209,7 +3160,7 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 
 	// go go go
 	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, ErrorMatches, `cannot backup volume structure #1 \("second"\): failed`)
+	c.Assert(err, ErrorMatches, `cannot backup volume structure #1 \("second"\) on volume foo: failed`)
 
 	// update was canceled before backup pass completed
 	c.Check(muo.canceledCalled, Equals, 1)
@@ -1217,7 +3168,7 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 }
 
 func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
-	oldData, newData, rollbackDir := updateDataSet(c)
+	oldData, newData, rollbackDir := u.updateDataSet(c)
 	// update all structs
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
@@ -1228,26 +3179,26 @@ func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
 	backupCalls := make(map[string]bool)
 	rollbackCalls := make(map[string]bool)
 	updaterForStructureCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updater := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.Name] = true
+				backupCalls[ps.Name()] = true
 				return nil
 			},
 			rollbackCb: func() error {
-				rollbackCalls[ps.Name] = true
+				rollbackCalls[ps.Name()] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.Name] = true
+				updateCalls[ps.Name()] = true
 				return nil
 			},
 		}
 		if updaterForStructureCalls == 1 {
-			c.Assert(ps.Name, Equals, "second")
+			c.Assert(ps.Name(), Equals, "second")
 			// fail update of 2nd structure
 			updater.updateCb = func() error {
-				updateCalls[ps.Name] = true
+				updateCalls[ps.Name()] = true
 				return errors.New("failed")
 			}
 		}
@@ -1258,7 +3209,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
 
 	// go go go
 	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("second"\): failed`)
+	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("second"\) on volume foo: failed`)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		// all were backed up
 		"first":  true,
@@ -1285,7 +3236,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	oldData, newData, rollbackDir := updateDataSet(c)
+	oldData, newData, rollbackDir := u.updateDataSet(c)
 	// update all structs
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
@@ -1295,34 +3246,34 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 	backupCalls := make(map[string]bool)
 	rollbackCalls := make(map[string]bool)
 	updaterForStructureCalls := 0
-	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updater := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.Name] = true
+				backupCalls[ps.Name()] = true
 				return nil
 			},
 			rollbackCb: func() error {
-				rollbackCalls[ps.Name] = true
+				rollbackCalls[ps.Name()] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.Name] = true
+				updateCalls[ps.Name()] = true
 				return nil
 			},
 		}
 		switch updaterForStructureCalls {
 		case 1:
-			c.Assert(ps.Name, Equals, "second")
+			c.Assert(ps.Name(), Equals, "second")
 			// rollback fails on 2nd structure
 			updater.rollbackCb = func() error {
-				rollbackCalls[ps.Name] = true
+				rollbackCalls[ps.Name()] = true
 				return errors.New("rollback failed with different error")
 			}
 		case 2:
-			c.Assert(ps.Name, Equals, "third")
+			c.Assert(ps.Name(), Equals, "third")
 			// fail update of 3rd structure
 			updater.updateCb = func() error {
-				updateCalls[ps.Name] = true
+				updateCalls[ps.Name()] = true
 				return errors.New("update error")
 			}
 		}
@@ -1334,7 +3285,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 	// go go go
 	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
 	// preserves update error
-	c.Assert(err, ErrorMatches, `cannot update volume structure #2 \("third"\): update error`)
+	c.Assert(err, ErrorMatches, `cannot update volume structure #2 \("third"\) on volume foo: update error`)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		// all were backed up
 		"first":  true,
@@ -1352,25 +3303,25 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 		"third":  true,
 	})
 
-	c.Check(logbuf.String(), testutil.Contains, `cannot update gadget: cannot update volume structure #2 ("third"): update error`)
-	c.Check(logbuf.String(), testutil.Contains, `cannot rollback volume structure #1 ("second") update: rollback failed with different error`)
+	c.Check(logbuf.String(), testutil.Contains, `cannot update gadget: cannot update volume structure #2 ("third") on volume foo: update error`)
+	c.Check(logbuf.String(), testutil.Contains, `cannot rollback volume structure #1 ("second") update on volume foo: rollback failed with different error`)
 }
 
 func (u *updateTestSuite) TestUpdateApplyBadUpdater(c *C) {
-	oldData, newData, rollbackDir := updateDataSet(c)
+	oldData, newData, rollbackDir := u.updateDataSet(c)
 	// update all structs
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
 
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		return nil, errors.New("bad updater for structure")
 	})
 	defer restore()
 
 	// go go go
 	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
-	c.Assert(err, ErrorMatches, `cannot prepare update for volume structure #0 \("first"\): bad updater for structure`)
+	c.Assert(err, ErrorMatches, `cannot prepare update for volume structure #0 \("first"\) on volume foo: bad updater for structure`)
 }
 
 func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
@@ -1397,38 +3348,35 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	defer restore()
 
 	psBare := &gadget.LaidOutStructure{
+		OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1 * quantity.OffsetMiB},
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "none",
 			Size:       10 * quantity.SizeMiB,
 		},
-		StartOffset: 1 * quantity.OffsetMiB,
 	}
-	updater, err := gadget.UpdaterForStructure(psBare, gadgetRootDir, rollbackDir, nil)
+	updater, err := gadget.UpdaterForStructure(gadget.StructureLocation{}, psBare, gadgetRootDir, rollbackDir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updater, FitsTypeOf, &gadget.RawStructureUpdater{})
 
 	psFs := &gadget.LaidOutStructure{
+		OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1 * quantity.OffsetMiB},
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "ext4",
 			Size:       10 * quantity.SizeMiB,
 			Label:      "writable",
 		},
-		StartOffset: 1 * quantity.OffsetMiB,
 	}
-	updater, err = gadget.UpdaterForStructure(psFs, gadgetRootDir, rollbackDir, nil)
+	updater, err = gadget.UpdaterForStructure(gadget.StructureLocation{}, psFs, gadgetRootDir, rollbackDir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updater, FitsTypeOf, &gadget.MountedFilesystemUpdater{})
 
 	// trigger errors
-	updater, err = gadget.UpdaterForStructure(psBare, gadgetRootDir, "", nil)
+	updater, err = gadget.UpdaterForStructure(gadget.StructureLocation{}, psBare, gadgetRootDir, "", nil)
 	c.Assert(err, ErrorMatches, "internal error: backup directory cannot be unset")
 	c.Assert(updater, IsNil)
 }
 
-func (u *updateTestSuite) TestUpdaterMultiVolumesDoesNotError(c *C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
+func (u *updateTestSuite) TestUpdaterMultiVolumesAddedRemovedErrors(c *C) {
 	multiVolume := gadget.GadgetData{
 		Info: &gadget.Info{
 			Volumes: map[string]*gadget.Volume{
@@ -1445,20 +3393,18 @@ func (u *updateTestSuite) TestUpdaterMultiVolumesDoesNotError(c *C) {
 		},
 	}
 
-	// a new multi volume gadget update gives no error
+	// an update to a gadget with multiple volumes when we had just a single one
+	// before fails
 	err := gadget.Update(uc16Model, singleVolume, multiVolume, "some-rollback-dir", nil, nil)
-	c.Assert(err, IsNil)
-	// but it warns that nothing happens either
-	c.Assert(logbuf.String(), testutil.Contains, "WARNING: gadget assests cannot be updated yet when multiple volumes are used")
+	c.Assert(err, ErrorMatches, "cannot update gadget assets: volumes were removed")
 
-	// same for old
+	// same for an update removing volumes
 	err = gadget.Update(uc16Model, multiVolume, singleVolume, "some-rollback-dir", nil, nil)
-	c.Assert(err, IsNil)
-	c.Assert(strings.Count(logbuf.String(), "WARNING: gadget assests cannot be updated yet when multiple volumes are used"), Equals, 2)
+	c.Assert(err, ErrorMatches, "cannot update gadget assets: volumes were added")
 }
 
 func (u *updateTestSuite) TestUpdateApplyNoChangedContentInAll(c *C) {
-	oldData, newData, rollbackDir := updateDataSet(c)
+	oldData, newData, rollbackDir := u.updateDataSet(c)
 	// first structure is updated
 	oldData.Info.Volumes["foo"].Structure[0].Update.Edition = 0
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
@@ -1469,10 +3415,10 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInAll(c *C) {
 	muo := &mockUpdateProcessObserver{}
 	expectedStructs := []string{"first", "second"}
 	updateCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		mu := &mockUpdater{
 			updateCb: func() error {
-				c.Assert(expectedStructs, testutil.Contains, ps.Name)
+				c.Assert(expectedStructs, testutil.Contains, ps.Name())
 				updateCalls++
 				return gadget.ErrNoUpdate
 			},
@@ -1496,7 +3442,7 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInAll(c *C) {
 }
 
 func (u *updateTestSuite) TestUpdateApplyNoChangedContentInSome(c *C) {
-	oldData, newData, rollbackDir := updateDataSet(c)
+	oldData, newData, rollbackDir := u.updateDataSet(c)
 	// first structure is updated
 	oldData.Info.Volumes["foo"].Structure[0].Update.Edition = 0
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
@@ -1507,12 +3453,12 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInSome(c *C) {
 	muo := &mockUpdateProcessObserver{}
 	expectedStructs := []string{"first", "second"}
 	updateCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		mu := &mockUpdater{
 			updateCb: func() error {
-				c.Assert(expectedStructs, testutil.Contains, ps.Name)
+				c.Assert(expectedStructs, testutil.Contains, ps.Name())
 				updateCalls++
-				if ps.Name == "first" {
+				if ps.Name() == "first" {
 					return gadget.ErrNoUpdate
 				}
 				return nil
@@ -1537,10 +3483,10 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInSome(c *C) {
 }
 
 func (u *updateTestSuite) TestUpdateApplyObserverBeforeWriteErrs(c *C) {
-	oldData, newData, rollbackDir := updateDataSet(c)
+	oldData, newData, rollbackDir := u.updateDataSet(c)
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updater := &mockUpdater{
 			updateCb: func() error {
 				c.Fatalf("unexpected call")
@@ -1566,12 +3512,12 @@ func (u *updateTestSuite) TestUpdateApplyObserverCanceledErrs(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	oldData, newData, rollbackDir := updateDataSet(c)
+	oldData, newData, rollbackDir := u.updateDataSet(c)
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 
 	backupErr := errors.New("backup fails")
 	updateErr := errors.New("update fails")
-	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updater := &mockUpdater{
 			backupCb: func() error { return backupErr },
 			updateCb: func() error { return updateErr },
@@ -1706,7 +3652,9 @@ func (u *updateTestSuite) TestKernelUpdatePolicyFunc(c *C) {
 func (u *updateTestSuite) TestUpdateApplyUpdatesWithKernelPolicy(c *C) {
 	// prepare the stage
 	fsStruct := gadget.VolumeStructure{
+		VolumeName: "foo",
 		Name:       "foo",
+		Offset:     asOffsetPtr(0),
 		Size:       5 * quantity.SizeMiB,
 		Filesystem: "ext4",
 		Content: []gadget.VolumeContent{
@@ -1717,12 +3665,24 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesWithKernelPolicy(c *C) {
 	oldInfo := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
 			"foo": {
+				Name:       "foo",
 				Bootloader: "grub",
 				Schema:     "gpt",
 				Structure:  []gadget.VolumeStructure{fsStruct},
 			},
 		},
 	}
+
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+		return map[string]map[int]gadget.StructureLocation{
+			"foo": {
+				0: {
+					RootMountPoint: "/foo",
+				},
+			},
+		}, nil
+	})
+	defer r()
 
 	oldRootDir := c.MkDir()
 	oldKernelDir := c.MkDir()
@@ -1755,7 +3715,7 @@ assets:
 	// updater is only called with the kernel content, not with the
 	// gadget content.
 	mockUpdaterCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		mockUpdaterCalls++
 		c.Check(ps.ResolvedContent, DeepEquals, []gadget.ResolvedContent{
 			{
@@ -1792,6 +3752,7 @@ assets:
 	// update policy rule no. 1 from update.go
 	fsStruct := gadget.VolumeStructure{
 		Name:       "foo",
+		Offset:     asOffsetPtr(0),
 		Size:       5 * quantity.SizeMiB,
 		Filesystem: "ext4",
 		Content: []gadget.VolumeContent{
@@ -1824,7 +3785,7 @@ assets:
 	rollbackDir := c.MkDir()
 	muo := &mockUpdateProcessObserver{}
 
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		panic("should not get called")
 	})
 	defer restore()
@@ -1955,6 +3916,7 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTMultiVolume(c *C
 
 	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
 		c.MkDir(),
+		"",
 		gadgettest.MultiVolumeUC20GadgetYaml,
 		uc20Model,
 	)
@@ -2054,7 +4016,7 @@ volumes:
 	// DiskTraitsFromDeviceAndValidate is more strict and requires all
 	// structures to exist and to match
 	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
-	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find gadget structure #1 \("ubuntu-data"\) on disk`)
+	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find gadget structure "ubuntu-data" on disk`)
 
 	// if we add a structure to the mock disk which is smaller than the ondisk
 	// layout, we still reject it because the on disk must be at least the size
@@ -2078,7 +4040,7 @@ volumes:
 	defer restore()
 
 	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
-	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1052672\) in gadget: on disk size 4096 \(4 KiB\) is smaller than gadget size 1572864000 \(1.46 GiB\)`)
+	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1052672\) in gadget: on disk size 4096 \(4 KiB\) is smaller than gadget min size 1572864000 \(1.46 GiB\)`)
 
 	// same size is okay though
 	mockDisk.Structure[1].SizeInBytes = 1500 * 1024 * 1024
@@ -2151,6 +4113,31 @@ func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataH
 	c.Assert(traits, DeepEquals, gadgettest.UC16ImplicitSystemDataDeviceTraits)
 }
 
+func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataRaspiHappy(c *C) {
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/mmcblk0": gadgettest.ExpectedRaspiUC18MockDiskMapping,
+	})
+	defer restore()
+
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.RaspiUC18SimplifiedYaml, nil)
+	c.Assert(err, IsNil)
+
+	// the volume cannot be found with no opts set
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", nil)
+	c.Assert(err.Error(), Equals, `volume pi is not compatible with disk /dev/mmcblk0: cannot find disk partition /dev/mmcblk0p2 (starting at 269484032) in gadget: disk partition "" offset 269484032 (257 MiB) is not in the valid gadget interval (min: 1048576 (1 MiB): max: 1048576 (1 MiB))`)
+
+	// with opts for pc then it can be found
+	opts := &gadget.DiskVolumeValidationOptions{
+		AllowImplicitSystemData: true,
+	}
+
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", opts)
+	c.Assert(err, IsNil)
+
+	c.Assert(traits, DeepEquals, gadgettest.ExpectedRaspiUC18DiskVolumeDeviceTraits)
+}
+
 func (s *updateTestSuite) TestSearchForVolumeWithTraitsImplicitSystemData(c *C) {
 	allowImplicitDataOpts := &gadget.DiskVolumeValidationOptions{
 		AllowImplicitSystemData: true,
@@ -2179,7 +4166,7 @@ func (s *updateTestSuite) TestSearchForVolumeWithTraitsFails(c *C) {
 	})
 	defer r()
 
-	allVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, uc16Model)
+	allVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
 	c.Assert(err, IsNil)
 
 	laidOutVol := allVolumes["pc"]
@@ -2194,7 +4181,7 @@ func (s *updateTestSuite) TestSearchForVolumeWithTraitsFails(c *C) {
 		AllowImplicitSystemData: true,
 	}
 
-	_, err = gadget.SearchForVolumeWithTraits(laidOutVol, gadgettest.UC16ImplicitSystemDataDeviceTraits, allowImplicitDataOpts)
+	_, err = gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol, gadgettest.UC16ImplicitSystemDataDeviceTraits, allowImplicitDataOpts)
 	c.Assert(err, ErrorMatches, "cannot find physical disk laid out to map with volume pc")
 }
 
@@ -2249,7 +4236,7 @@ func testSearchForVolumeWithTraits(c *C,
 	})
 	defer r()
 
-	allVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgetYaml, model)
+	allVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgetYaml, model)
 	c.Assert(err, IsNil)
 
 	laidOutVol := allVolumes[volName]
@@ -2260,7 +4247,7 @@ func testSearchForVolumeWithTraits(c *C,
 	})
 	defer r()
 
-	d, err := gadget.SearchForVolumeWithTraits(laidOutVol, traits, validateOpts)
+	d, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol, traits, validateOpts)
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, realMapping.DevNum)
 
@@ -2273,7 +4260,7 @@ func testSearchForVolumeWithTraits(c *C,
 
 	// we still find it because we fall back on the device name from the traits
 	// (/dev/sda)
-	d2, err := gadget.SearchForVolumeWithTraits(laidOutVol, traits, validateOpts)
+	d2, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol, traits, validateOpts)
 	c.Assert(err, IsNil)
 	c.Assert(d2.Dev(), Equals, realMapping.DevNum)
 
@@ -2309,7 +4296,7 @@ func testSearchForVolumeWithTraits(c *C,
 	r = disks.MockDevicePathToDiskMapping(devicePathMapping)
 	defer r()
 
-	d3, err := gadget.SearchForVolumeWithTraits(laidOutVol, traits, validateOpts)
+	d3, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol, traits, validateOpts)
 	c.Assert(err, IsNil)
 	c.Assert(d3.Dev(), Equals, realMapping.DevNum)
 }
@@ -2353,7 +4340,7 @@ volumes:
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC16(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, uc16Model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -2497,17 +4484,14 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMul
 	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), implicitSystemBootVolumeYAML)
 	c.Assert(err, IsNil)
 
-	constraints := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-	}
-
 	info, err := gadget.ReadInfo(gadgetRoot, uc16Model)
 	c.Assert(err, IsNil)
 
 	allLaidOutVolumes := map[string]*gadget.LaidOutVolume{}
 
+	opts := &gadget.LayoutOptions{GadgetRootDir: gadgetRoot}
 	for volName, vol := range info.Volumes {
-		lvol, err := gadget.LayoutVolume(gadgetRoot, "", vol, constraints)
+		lvol, err := gadget.LayoutVolume(vol, opts)
 		c.Assert(err, IsNil)
 		allLaidOutVolumes[volName] = lvol
 	}
@@ -2523,7 +4507,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMul
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, uc16Model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -2548,7 +4532,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -2591,7 +4575,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml, uc20Model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.RaspiSimplifiedYaml, uc20Model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -2940,7 +4924,7 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 	volMappings map[string]*disks.MockDiskMapping,
 	expMapping map[string]map[int]gadget.StructureLocation,
 ) (gadget.GadgetData, map[string]*gadget.LaidOutVolume) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), yaml, model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", yaml, model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -3237,9 +5221,9 @@ func (s *updateTestSuite) TestVolumeStructureToLocationMapMissingInitialTraitsMa
 			4: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save")},
 			5: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data")},
 		},
-		// empty foo volume since because the disk-mapping.json was not written
-		// initially, we only handle updates to the pc / system-boot volume
-		"foo": {},
+		// missing foo volume since because the disk-mapping.json was not
+		// written initially, we only handle updates to the pc / system-boot
+		// volume
 	}
 
 	// setup mountinfo for root mount points of the partitions with filesystems

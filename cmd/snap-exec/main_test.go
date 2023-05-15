@@ -25,6 +25,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"syscall"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -193,14 +195,21 @@ func (s *snapExecSuite) TestSnapExecAppIntegrationCupsServerWorkaround(c *C) {
 		Revision: snap.R("42"),
 	})
 
-	// mock the /var/cups dir so that we observe CUPS_SERVER set
-	err := os.MkdirAll(filepath.Join(dir, "/var/cups"), 0755)
-	c.Assert(err, IsNil)
+	// mock the /var/cups dir is a bind-mount
+	restore := snapExec.MockSyscallStat(func(p string, st *syscall.Stat_t) error {
+		if strings.HasSuffix(p, "/var/cups/") {
+			st.Dev = 2
+		} else {
+			st.Dev = 1
+		}
+		return nil
+	})
+	defer restore()
 
 	execArgv0 := ""
 	execArgs := []string{}
 	execEnv := []string{}
-	restore := snapExec.MockSyscallExec(func(argv0 string, argv []string, env []string) error {
+	restore = snapExec.MockSyscallExec(func(argv0 string, argv []string, env []string) error {
 		execArgv0 = argv0
 		execArgs = argv
 		execEnv = env
@@ -209,7 +218,7 @@ func (s *snapExecSuite) TestSnapExecAppIntegrationCupsServerWorkaround(c *C) {
 	defer restore()
 
 	// launch and verify its run the right way
-	err = snapExec.ExecApp("snapname.app", "42", "stop", []string{"arg1", "arg2"})
+	err := snapExec.ExecApp("snapname.app", "42", "stop", []string{"arg1", "arg2"})
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "arg1", "arg2"})

@@ -40,7 +40,7 @@ func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
 		restore := apparmor_sandbox.MockLevel(level)
 		defer restore()
 
-		all := backends.Backends()
+		all := backends.All()
 		names := make([]string, len(all))
 		for i, backend := range all {
 			names[i] = string(backend.Name())
@@ -59,7 +59,7 @@ func (s *backendsSuite) TestEssentialOrdering(c *C) {
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 
-	all := backends.Backends()
+	all := backends.All()
 	aaIndex := -1
 	sdIndex := -1
 	for i, backend := range all {

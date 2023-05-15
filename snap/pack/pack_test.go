@@ -21,12 +21,15 @@ package pack_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -352,4 +355,76 @@ func (s *packSuite) TestPackWithCompressionUnhappy(c *C) {
 		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot use compression %q", comp))
 		c.Assert(snapfile, Equals, "")
 	}
+}
+
+func (s *packSuite) TestPackWithIntegrity(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
+	targetDir := c.MkDir()
+
+	// mock the verity-setup command, what it does is make a copy of the snap
+	// and then returns pre-calculated output
+	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
+case "$1" in
+	--version)
+		echo "veritysetup 2.2.6"
+		exit 0
+		;;
+	format)
+		cp %[1]s/hello_0_all.snap %[1]s/hello_0_all.snap.verity
+		echo "VERITY header information for %[1]s/hello_0_all.snap.verity"
+		echo "UUID:            	606d10a2-24d8-4c6b-90cf-68207aa7c850"
+		echo "Hash type:       	1"
+		echo "Data blocks:     	1"
+		echo "Data block size: 	4096"
+		echo "Hash block size: 	4096"
+		echo "Hash algorithm:  	sha256"
+		echo "Salt:            	eba61f2091bb6122226aef83b0d6c1623f095fc1fda5712d652a8b34a02024ea"
+		echo "Root hash:      	3fbfef5f1f0214d727d03eebc4723b8ef5a34740fd8f1359783cff1ef9c3f334"
+		;;
+esac
+`, targetDir))
+	defer vscmd.Restore()
+
+	snapPath, err := pack.Snap(sourceDir, &pack.Options{
+		TargetDir: targetDir,
+		Integrity: true,
+	})
+	c.Assert(err, IsNil)
+	c.Check(snapPath, testutil.FilePresent)
+	c.Assert(vscmd.Calls(), HasLen, 2)
+	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "--version"})
+	c.Check(vscmd.Calls()[1], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
+
+	magic := []byte{'s', 'n', 'a', 'p', 'e', 'x', 't'}
+
+	snapFile, err := os.Open(snapPath)
+	c.Assert(err, IsNil)
+	defer snapFile.Close()
+
+	// example snap has a size of 4096 (1 block)
+	_, err = snapFile.Seek(4096, io.SeekStart)
+	c.Assert(err, IsNil)
+
+	integrityHdr := make([]byte, 4096)
+	_, err = snapFile.Read(integrityHdr)
+	c.Assert(err, IsNil)
+
+	c.Check(bytes.HasPrefix(integrityHdr, magic), Equals, true)
+
+	var hdr interface{}
+	integrityHdr = bytes.Trim(integrityHdr, "\x00")
+	err = json.Unmarshal(integrityHdr[len(magic):], &hdr)
+	c.Check(err, IsNil)
+
+	integrityDataHeader, ok := hdr.(map[string]interface{})
+	c.Assert(ok, Equals, true)
+	hdrSizeStr, ok := integrityDataHeader["size"].(string)
+	c.Assert(ok, Equals, true)
+	hdrSize, err := strconv.ParseUint(hdrSizeStr, 10, 64)
+	c.Assert(err, IsNil)
+	c.Check(hdrSize, Equals, uint64(2*4096))
+
+	fi, err := snapFile.Stat()
+	c.Assert(err, IsNil)
+	c.Check(fi.Size(), Equals, int64(3*4096))
 }

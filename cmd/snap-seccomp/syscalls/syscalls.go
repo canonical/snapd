@@ -20,7 +20,7 @@
 package syscalls
 
 // Generated using arch-syscall-dump test tool from libseccomp tree, git
-// revision bf747eb21e428c2b3ead6ebcca27951b681963a0.
+// revision aa168d49243b95f63b9825a87351a1eb323dc792.
 var SeccompSyscalls = []string{
 	"_llseek",
 	"_newselect",
@@ -36,6 +36,8 @@ var SeccompSyscalls = []string{
 	"arch_prctl",
 	"arm_fadvise64_64",
 	"arm_sync_file_range",
+	"atomic_barrier",
+	"atomic_cmpxchg_32",
 	"bdflush",
 	"bind",
 	"bpf",
@@ -125,6 +127,7 @@ var SeccompSyscalls = []string{
 	"ftruncate64",
 	"futex",
 	"futex_time64",
+	"futex_waitv",
 	"futimesat",
 	"get_kernel_syms",
 	"get_mempolicy",
@@ -144,6 +147,7 @@ var SeccompSyscalls = []string{
 	"getgroups",
 	"getgroups32",
 	"getitimer",
+	"getpagesize",
 	"getpeername",
 	"getpgid",
 	"getpgrp",
@@ -372,6 +376,7 @@ var SeccompSyscalls = []string{
 	"sendmsg",
 	"sendto",
 	"set_mempolicy",
+	"set_mempolicy_home_node",
 	"set_robust_list",
 	"set_thread_area",
 	"set_tid_address",

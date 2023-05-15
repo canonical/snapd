@@ -35,8 +35,8 @@ execute: |
 
     if ! stat /var/cache/snapd/commands.db; then
         # workaround for misbehaving store
-        if "$TESTSTOOLS"/journal-state get-log -u snapd | MATCH "429 Too Many Requests"; then
-            echo "Store is reporting 429 (too many requests), skipping the test"
+        if "$TESTSTOOLS"/journal-state get-log -u snapd | grep -E "(429 Too Many Requests|403 Forbidden)"; then
+            echo "Store is reporting 429 (too many requests) or 403, skipping the test"
             exit 0
         fi
         if "$TESTSTOOLS"/journal-state get-log -u snapd | MATCH "Catalog refresh failed: cannot retrieve sections"; then

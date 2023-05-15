@@ -56,17 +56,30 @@ func Test(t *testing.T) { TestingT(t) }
 
 // systemd's testsuite
 type SystemdTestSuite struct {
+	// 'systemctl' command except for stop. These all
+	// run synchronously so they can share attributes.
 	i      int
 	argses [][]string
 	errors []error
 	outs   [][]byte
+	// 'systemctl stop' command requires some special
+	// mocking because it runs in its own thread. We
+	// have to track its own set of attributes otherwise
+	// the unit test arguments checks will intermittendly
+	// fail due to the random completion ordering. We
+	// do not care about output for 'systemctl stop'.
+	stopDelays []time.Duration
+	stopArgses [][]string
+	stopErrors []error
+	stopIter   int
 
-	j        int
-	jns      []string
-	jsvcs    [][]string
-	jouts    [][]byte
-	jerrs    []error
-	jfollows []bool
+	j           int
+	jns         []string
+	jsvcs       [][]string
+	jouts       [][]byte
+	jerrs       []error
+	jfollows    []bool
+	jnamespaces []bool
 
 	rep *testreporter
 
@@ -83,16 +96,22 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(dirs.SnapRuntimeServicesDir, 0755)
 	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants"), 0755), IsNil)
+	// This is only to handle older version of snapd
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755), IsNil)
 
 	// force UTC timezone, for reproducible timestamps
 	os.Setenv("TZ", "")
 
-	s.restoreSystemctl = MockSystemctl(s.myRun)
+	s.restoreSystemctl = MockSystemctlWithDelay(s.myRun)
 	s.i = 0
 	s.argses = nil
 	s.errors = nil
 	s.outs = nil
+	s.stopDelays = nil
+	s.stopArgses = nil
+	s.stopErrors = nil
+	s.stopIter = 0
 
 	s.restoreJournalctl = MockJournalctl(s.myJctl)
 	s.j = 0
@@ -101,6 +120,7 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	s.jouts = nil
 	s.jerrs = nil
 	s.jfollows = nil
+	s.jnamespaces = nil
 
 	s.rep = new(testreporter)
 
@@ -113,25 +133,45 @@ func (s *SystemdTestSuite) TearDownTest(c *C) {
 	s.restoreSELinux()
 }
 
-func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
-	s.argses = append(s.argses, args)
-	if s.i < len(s.outs) {
-		out = s.outs[s.i]
+func (s *SystemdTestSuite) myRun(args ...string) (out []byte, delay time.Duration, err error) {
+	// Default completion time for 'systemctl' operations
+	delayReq := time.Duration(0)
+
+	// We deal with 'systemctl stop' separately because this is a
+	// blocking call running inside a go routine (separate thread)
+	if args[0] == "stop" {
+		// 'systemctl stop' cases
+		s.stopArgses = append(s.stopArgses, args)
+		if s.stopIter < len(s.stopErrors) {
+			err = s.stopErrors[s.stopIter]
+		}
+		if s.stopIter < len(s.stopDelays) {
+			delayReq = s.stopDelays[s.stopIter]
+		}
+		s.stopIter++
+	} else {
+		// Other 'systemctl' cases
+		s.argses = append(s.argses, args)
+		if s.i < len(s.outs) {
+			out = s.outs[s.i]
+		}
+		if s.i < len(s.errors) {
+			err = s.errors[s.i]
+		}
+		s.i++
 	}
-	if s.i < len(s.errors) {
-		err = s.errors[s.i]
-	}
-	s.i++
-	return out, err
+
+	return out, delayReq, err
 }
 
-func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow bool) (io.ReadCloser, error) {
+func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow, namespaces bool) (io.ReadCloser, error) {
 	var err error
 	var out []byte
 
 	s.jns = append(s.jns, strconv.Itoa(n))
 	s.jsvcs = append(s.jsvcs, svcs)
 	s.jfollows = append(s.jfollows, follow)
+	s.jnamespaces = append(s.jnamespaces, namespaces)
 
 	if s.j < len(s.jouts) {
 		out = s.jouts[s.j]
@@ -228,58 +268,177 @@ func (s *SystemdTestSuite) TestStartNoBlock(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "--no-block", "foo", "bar"}})
 }
 
-func (s *SystemdTestSuite) TestStop(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
+// Stop failed because systemctl stop returned an error
+func (s *SystemdTestSuite) TestStopSystemCtlStopError(c *C) {
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	defer restore()
+	s.stopErrors = []error{errors.New("mock error")}
+	err := New(SystemMode, s.rep).Stop([]string{"foo"})
+	c.Assert(err, ErrorMatches, "mock error")
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	// No notifications
+	c.Assert(len(s.rep.msgs), Equals, 0)
+}
+
+// Stop failed because systemctl show returned an error
+func (s *SystemdTestSuite) TestSystemCtlShowError(c *C) {
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
+	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+
+	// 'systemctl show'
+	s.errors = []error{errors.New("mock error")}
+
+	err := New(SystemMode, s.rep).Stop([]string{"foo"})
+	c.Assert(err, ErrorMatches, "mock error")
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	c.Assert(s.argses, HasLen, 1)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	// No notifications
+	c.Assert(len(s.rep.msgs), Equals, 0)
+}
+
+// The stop completed before the notification silence period expired so
+// no output (notification) is expected
+func (s *SystemdTestSuite) TestStopBeforeNotify(c *C) {
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
+	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+	s.stopErrors = []error{nil, errors.New("mock error")}
+
+	// 'systemctl show'
 	s.outs = [][]byte{
-		nil, // for the "stop" itself
+		[]byte("ActiveState=inactive\n"),
+	}
+	s.errors = []error{nil, errors.New("mock error")}
+
+	err := New(SystemMode, s.rep).Stop([]string{"foo"})
+	c.Assert(err, IsNil)
+	// 'systemctl stop'
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	// 'systemctl show'
+	c.Assert(s.argses, HasLen, 1)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+
+	// No notifications
+	c.Assert(len(s.rep.msgs), Equals, 0)
+}
+
+// The stop completed after the notification silence period expired
+func (s *SystemdTestSuite) TestStopAfterNotify(c *C) {
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
+	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+	s.stopErrors = []error{nil, errors.New("mock error")}
+
+	// 'systemctl show'
+	s.outs = [][]byte{
+		[]byte("ActiveState=whatever\n"),
+		[]byte("ActiveState=whatever\n"),
 		[]byte("ActiveState=whatever\n"),
 		[]byte("ActiveState=active\n"),
 		[]byte("ActiveState=inactive\n"),
 	}
-	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New(SystemMode, s.rep).Stop([]string{"foo"}, 1*time.Second)
+	// The timeout error output should never by reached because the 's.outs'
+	// entry before this slot indicates the unit has stopped
+	s.errors = []error{nil, nil, nil, nil, nil, errors.New("mock error")}
+
+	err := New(SystemMode, s.rep).Stop([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Assert(s.argses, HasLen, 4)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[1], DeepEquals, s.argses[2])
-	c.Check(s.argses[1], DeepEquals, s.argses[3])
+	// 'systemctl stop'
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	// 'systemctl show'
+	c.Assert(s.argses, HasLen, 5)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[0], DeepEquals, s.argses[1])
+	c.Check(s.argses[0], DeepEquals, s.argses[2])
+	c.Check(s.argses[0], DeepEquals, s.argses[3])
+	c.Check(s.argses[0], DeepEquals, s.argses[4])
+
+	// Only the initial notification will be shown because no
+	// list update are possible with only a single service unit
+	c.Assert(len(s.rep.msgs), Equals, 1)
+	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo" to stop.`)
 }
 
 func (s *SystemdTestSuite) TestStopMany(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+	s.stopErrors = []error{nil, errors.New("mock error")}
+
+	// 'systemctl show'
 	s.outs = [][]byte{
-		nil,                              // for the "stop" itself
+		[]byte("ActiveState=whatever\n"), // foo
+		[]byte("ActiveState=whatever\n"), // bar
+		[]byte("ActiveState=whatever\n"), // foo
+		[]byte("ActiveState=whatever\n"), // bar
+		[]byte("ActiveState=active\n"),   // foo
+		[]byte("ActiveState=whatever\n"), // bar
 		[]byte("ActiveState=inactive\n"), // foo
+		[]byte("ActiveState=active\n"),   // bar
 		[]byte("ActiveState=inactive\n"), // bar
 	}
-	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"}, 1*time.Second)
+	// The timeout error output should never by reached because the 's.outs'
+	// entry before this slot indicates the unit has stopped
+	s.errors = []error{nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("mock error")}
+	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
-	c.Assert(s.argses, HasLen, 3)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo", "bar"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
-}
+	// 'systemctl stop'
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo", "bar"})
+	// 'systemctl show'
+	c.Assert(s.argses, HasLen, 9)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[3], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[4], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[5], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[6], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[7], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[8], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
 
-func (s *SystemdTestSuite) TestStopTimesOut(c *C) {
-	restore := MockStopDelays(time.Millisecond, 4*time.Millisecond)
-	defer restore()
-	s.outs = [][]byte{
-		nil, // for the "stop" itself
-		[]byte("ActiveState=active\n"),
-		[]byte("ActiveState=active\n"),
-		[]byte("ActiveState=active\n"),
-	}
-	s.errors = []error{nil, nil, nil, nil, nil}
-	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"}, 3*time.Millisecond)
-	c.Assert(err, ErrorMatches, `"foo", "bar" failed to stop: timeout`)
-	c.Assert(len(s.argses) >= 3, Equals, true)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo", "bar"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Assert(len(s.rep.msgs), Equals, 2)
+	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo", "bar" to stop.`)
+	c.Check(s.rep.msgs[1], Equals, `Waiting for "bar" to stop.`)
 }
 
 func (s *SystemdTestSuite) TestStatus(c *C) {
@@ -603,38 +762,20 @@ NeedDaemonReload=no
 	c.Check(out, IsNil)
 }
 
-func (s *SystemdTestSuite) TestStopTimeout(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
-	defer restore()
-	err := New(SystemMode, s.rep).Stop([]string{"foo"}, 10*time.Millisecond)
-	c.Assert(err, FitsTypeOf, &Timeout{})
-	c.Assert(len(s.rep.msgs) > 0, Equals, true)
-	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo" to stop.`)
-}
-
-func (s *SystemdTestSuite) TestStopManyTimeout(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
-	defer restore()
-	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"}, 10*time.Millisecond)
-	c.Assert(err, FitsTypeOf, &Timeout{})
-	c.Assert(len(s.rep.msgs) > 0, Equals, true)
-	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo", "bar" to stop.`)
-}
-
 func (s *SystemdTestSuite) TestDisable(c *C) {
 	sysd := New(SystemMode, s.rep)
-	err := sysd.Disable([]string{"foo"})
+	err := sysd.DisableNoReload([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"disable", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo"}})
 
 	s.argses = nil
-	err = sysd.Disable([]string{"foo", "bar"})
+	err = sysd.DisableNoReload([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"disable", "foo", "bar"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestUnderRootDisable(c *C) {
-	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Disable([]string{"foo"})
+	err := NewUnderRoot("xyzzy", SystemMode, s.rep).DisableNoReload([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo"}})
 }
@@ -683,18 +824,18 @@ func (s *SystemdTestSuite) TestVersion(c *C) {
 
 func (s *SystemdTestSuite) TestEnable(c *C) {
 	sysd := New(SystemMode, s.rep)
-	err := sysd.Enable([]string{"foo"})
+	err := sysd.EnableNoReload([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"enable", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "enable", "foo"}})
 
 	s.argses = nil
-	err = sysd.Enable([]string{"foo", "bar"})
+	err = sysd.EnableNoReload([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"enable", "foo", "bar"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "enable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestEnableUnderRoot(c *C) {
-	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Enable([]string{"foo"})
+	err := NewUnderRoot("xyzzy", SystemMode, s.rep).EnableNoReload([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 }
@@ -724,39 +865,57 @@ func (s *SystemdTestSuite) TestUnmaskUnderRoot(c *C) {
 }
 
 func (s *SystemdTestSuite) TestRestart(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+
 	s.outs = [][]byte{
-		nil, // for the "stop" itself
 		[]byte("ActiveState=inactive\n"),
 		nil, // for the "start"
 	}
-	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New(SystemMode, s.rep).Restart([]string{"foo"}, 100*time.Millisecond)
+	s.errors = []error{nil, nil, errors.New("mock error")}
+	err := New(SystemMode, s.rep).Restart([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, HasLen, 3)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[2], DeepEquals, []string{"start", "foo"})
+	c.Check(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	c.Check(s.argses, HasLen, 2)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"start", "foo"})
 }
 
 func (s *SystemdTestSuite) TestRestartMany(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+
 	s.outs = [][]byte{
-		nil,                              // for the "stop" itself
 		[]byte("ActiveState=inactive\n"), // foo
 		[]byte("ActiveState=inactive\n"), // bar
 		nil,                              // for the "start"
 	}
-	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New(SystemMode, s.rep).Restart([]string{"foo", "bar"}, 100*time.Millisecond)
+	s.errors = []error{nil, nil, nil, errors.New("mock error")}
+	err := New(SystemMode, s.rep).Restart([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, HasLen, 4)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo", "bar"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
-	c.Check(s.argses[3], DeepEquals, []string{"start", "foo", "bar"})
+	c.Check(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo", "bar"})
+	c.Check(s.argses, HasLen, 3)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[2], DeepEquals, []string{"start", "foo", "bar"})
 }
 
 func (s *SystemdTestSuite) TestKill(c *C) {
@@ -764,20 +923,16 @@ func (s *SystemdTestSuite) TestKill(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP", "--kill-who=all"}})
 }
 
-func (s *SystemdTestSuite) TestIsTimeout(c *C) {
-	c.Check(IsTimeout(os.ErrInvalid), Equals, false)
-	c.Check(IsTimeout(&Timeout{}), Equals, true)
-}
-
 func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
-	s.jerrs = []error{&Timeout{}}
+	s.jerrs = []error{errors.New("mock journalctl error")}
 
-	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false)
+	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false, false)
 	c.Check(err, NotNil)
 	c.Check(reader, IsNil)
 	c.Check(s.jns, DeepEquals, []string{"24"})
 	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
 	c.Check(s.jfollows, DeepEquals, []bool{false})
+	c.Check(s.jnamespaces, DeepEquals, []bool{false})
 	c.Check(s.j, Equals, 1)
 }
 
@@ -787,7 +942,7 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 `
 	s.jouts = [][]byte{[]byte(expected)}
 
-	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false)
+	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false, false)
 	c.Check(err, IsNil)
 	logs, err := ioutil.ReadAll(reader)
 	c.Assert(err, IsNil)
@@ -795,6 +950,7 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 	c.Check(s.jns, DeepEquals, []string{"24"})
 	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
 	c.Check(s.jfollows, DeepEquals, []bool{false})
+	c.Check(s.jnamespaces, DeepEquals, []bool{false})
 	c.Check(s.j, Equals, 1)
 }
 
@@ -1003,15 +1159,16 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foo, revision 42
-Before=snapd.service
-After=zfs-mount.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1021,13 +1178,138 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
+WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], mockSnapPath))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", "snap-snapname-123.mount"},
-		{"start", "snap-snapname-123.mount"},
+		{"reload-or-restart", "snap-snapname-123.mount"},
+	})
+}
+
+func (s *SystemdTestSuite) TestEnsureMountUnitUnchanged(c *C) {
+	rootDir := dirs.GlobalRootDir
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	// Now we create the mount unit already
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	content := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], mockSnapPath)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, IsNil)
+
+	// Should still be the same file
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], mockSnapPath))
+
+	// No call systemctl
+	c.Assert(s.argses, DeepEquals, [][]string(nil))
+}
+
+func (s *SystemdTestSuite) TestEnsureMountUnitChanged(c *C) {
+	rootDir := dirs.GlobalRootDir
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	// Now we create the mount unit already
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+
+	// Note the "someotheroption" that should be removed
+	content := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+Before=snapd.service
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,someotheroption
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], mockSnapPath)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, IsNil)
+
+	// Should still be the same file
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], mockSnapPath))
+
+	// No call systemctl
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--root", rootDir, "enable", "snap-snapname-123.mount"},
+		{"reload-or-restart", "snap-snapname-123.mount"},
 	})
 }
 
@@ -1037,15 +1319,16 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 
 	// a directory instead of a file produces a different output
 	snapDir := c.MkDir()
-	mountUnitName, err := New(SystemMode, nil).AddMountUnitFile("foodir", "x1", snapDir, "/snap/snapname/x1", "squashfs")
+	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("foodir", "x1", snapDir, "/snap/snapname/x1", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foodir, revision x1
-Before=snapd.service
-After=zfs-mount.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1055,13 +1338,14 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide,bind
 LazyUnmount=yes
 
 [Install]
+WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], snapDir))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"enable", "snap-snapname-x1.mount"},
-		{"start", "snap-snapname-x1.mount"},
+		{"--no-reload", "enable", "snap-snapname-x1.mount"},
+		{"reload-or-restart", "snap-snapname-x1.mount"},
 	})
 }
 
@@ -1083,15 +1367,16 @@ func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
 		Options:  []string{"remount,ro"},
 		Origin:   "bar",
 	}
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).AddMountUnitFileWithOptions(addMountUnitOptions)
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions)
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapRuntimeServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foo via bar
-Before=snapd.service
-After=zfs-mount.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1101,6 +1386,7 @@ Options=remount,ro
 LazyUnmount=yes
 
 [Install]
+WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 X-SnapdOrigin=bar
 `[1:], mockSnapPath))
@@ -1108,7 +1394,7 @@ X-SnapdOrigin=bar
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", "snap-snapname-345.mount"},
-		{"start", "snap-snapname-345.mount"},
+		{"reload-or-restart", "snap-snapname-345.mount"},
 	})
 }
 
@@ -1126,15 +1412,16 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New(SystemMode, nil).AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foo, revision 42
-Before=snapd.service
-After=zfs-mount.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1144,6 +1431,7 @@ Options=nodev,context=system_u:object_r:snappy_snap_t:s0,ro,x-gdu.hide,x-gvfs-hi
 LazyUnmount=yes
 
 [Install]
+WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], mockSnapPath))
 }
@@ -1170,15 +1458,16 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New(SystemMode, nil).AddMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
 	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foo, revision x1
-Before=snapd.service
-After=zfs-mount.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1188,6 +1477,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide,allow_other
 LazyUnmount=yes
 
 [Install]
+WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], mockSnapPath))
 }
@@ -1210,15 +1500,16 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New(SystemMode, nil).AddMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foo, revision x1
-Before=snapd.service
-After=zfs-mount.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1228,6 +1519,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
+WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], mockSnapPath))
 }
@@ -1236,20 +1528,23 @@ func (s *SystemdTestSuite) TestJctl(c *C) {
 	var args []string
 	var err error
 	MockOsutilStreamCommand(func(name string, myargs ...string) (io.ReadCloser, error) {
-		c.Check(cap(myargs) <= len(myargs)+2, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
+		c.Check(cap(myargs) <= len(myargs)+3, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
 		args = myargs
 		return nil, nil
 	})
 
-	_, err = Jctl([]string{"foo", "bar"}, 10, false)
+	_, err = Jctl([]string{"foo", "bar"}, 10, false, false)
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "-n", "10", "-u", "foo", "-u", "bar"})
-	_, err = Jctl([]string{"foo", "bar", "baz"}, 99, true)
+	_, err = Jctl([]string{"foo", "bar", "baz"}, 99, true, false)
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "-n", "99", "-f", "-u", "foo", "-u", "bar", "-u", "baz"})
-	_, err = Jctl([]string{"foo", "bar"}, -1, false)
+	_, err = Jctl([]string{"foo", "bar"}, -1, false, false)
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "--no-tail", "-u", "foo", "-u", "bar"})
+	_, err = Jctl([]string{"foo", "bar"}, -1, false, true)
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "--no-tail", "--namespace=*", "-u", "foo", "-u", "bar"})
 }
 
 func (s *SystemdTestSuite) TestIsActiveUnderRoot(c *C) {
@@ -1386,7 +1681,7 @@ func (s *SystemdTestSuite) testDaemonOpWithMutex(c *C, testFunc func(Systemd) er
 	// daemon-reload. This will be serialized, if not this would
 	// panic because systemd.daemonReloadNoLock ensures the lock is
 	// taken when this happens.
-	_, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/foo/42", "squashfs")
+	_, err := sysd.EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/foo/42", "squashfs")
 	c.Assert(err, IsNil)
 	close(stopCh)
 	<-stoppedCh
@@ -1400,7 +1695,7 @@ func (s *SystemdTestSuite) TestUserMode(c *C) {
 	rootDir := dirs.GlobalRootDir
 	sysd := NewUnderRoot(rootDir, UserMode, nil)
 
-	c.Assert(sysd.Enable([]string{"foo"}), IsNil)
+	c.Assert(sysd.EnableNoReload([]string{"foo"}), IsNil)
 	c.Check(s.argses[0], DeepEquals, []string{"--user", "--root", rootDir, "enable", "foo"})
 	c.Assert(sysd.Start([]string{"foo"}), IsNil)
 	c.Check(s.argses[1], DeepEquals, []string{"--user", "start", "foo"})
@@ -1410,9 +1705,9 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	rootDir := dirs.GlobalRootDir
 	sysd := NewUnderRoot(rootDir, GlobalUserMode, nil)
 
-	c.Assert(sysd.Enable([]string{"foo"}), IsNil)
+	c.Assert(sysd.EnableNoReload([]string{"foo"}), IsNil)
 	c.Check(s.argses[0], DeepEquals, []string{"--user", "--global", "--root", rootDir, "enable", "foo"})
-	c.Assert(sysd.Disable([]string{"foo"}), IsNil)
+	c.Assert(sysd.DisableNoReload([]string{"foo"}), IsNil)
 	c.Check(s.argses[1], DeepEquals, []string{"--user", "--global", "--root", rootDir, "disable", "foo"})
 	c.Assert(sysd.Mask("foo"), IsNil)
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "mask", "foo"})
@@ -1427,8 +1722,8 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	c.Check(sysd.DaemonReexec, Panics, "cannot call daemon-reexec with GlobalUserMode")
 	c.Check(func() { sysd.Start([]string{"foo"}) }, Panics, "cannot call start with GlobalUserMode")
 	c.Check(func() { sysd.StartNoBlock([]string{"foo"}) }, Panics, "cannot call start with GlobalUserMode")
-	c.Check(func() { sysd.Stop([]string{"foo"}, 0) }, Panics, "cannot call stop with GlobalUserMode")
-	c.Check(func() { sysd.Restart([]string{"foo"}, 0) }, Panics, "cannot call restart with GlobalUserMode")
+	c.Check(func() { sysd.Stop([]string{"foo"}) }, Panics, "cannot call stop with GlobalUserMode")
+	c.Check(func() { sysd.Restart([]string{"foo"}) }, Panics, "cannot call restart with GlobalUserMode")
 	c.Check(func() { sysd.Kill("foo", "HUP", "") }, Panics, "cannot call kill with GlobalUserMode")
 	c.Check(func() { sysd.IsActive("foo") }, Panics, "cannot call is-active with GlobalUserMode")
 }
@@ -1478,8 +1773,9 @@ func (s *SystemdTestSuite) TestEmulationModeBackend(c *C) {
 const unitTemplate = `
 [Unit]
 Description=Mount unit for foo, revision 42
-Before=snapd.service
-After=zfs-mount.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1489,6 +1785,7 @@ Options=%s
 LazyUnmount=yes
 
 [Install]
+WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `
 
@@ -1504,16 +1801,102 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	mountUnitName, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := sysd.EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
-	// systemd was not called
-	c.Check(s.argses, HasLen, 0)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "enable", "snap-snapname-123.mount"}})
 	// mount was called
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide,x-gvfs-hide"})
-	// unit was enabled with a symlink
-	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)), Equals, true)
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
+}
+
+func (s *SystemdTestSuite) TestPreseedModeAddMountUnitUnchanged(c *C) {
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	content := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], mockSnapPath)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = sysd.EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, IsNil)
+
+	// systemd was not called
+	c.Check(s.argses, HasLen, 0)
+	// no mount was called
+	c.Check(mockMountCmd.Calls(), HasLen, 0)
+}
+
+func (s *SystemdTestSuite) TestPreseedModeAddMountUniModified(c *C) {
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	// Note the "anotheroption"
+	content := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,anotheroption
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], mockSnapPath)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	mountUnitName, err := sysd.EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, IsNil)
+
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "enable", "snap-snapname-123.mount"}})
+	// mount was called with remount option
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide,x-gvfs-hide,remount"})
 	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
 }
 
@@ -1529,7 +1912,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	mountUnitName, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := sysd.EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1549,7 +1932,7 @@ func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	_, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	_, err := sysd.EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, ErrorMatches, `cannot mount .*/var/lib/snappy/snaps/foo_1.0.snap \(squashfs\) at /snap/snapname/123 in preseed mode: exit status 1; some failure\n`)
 }
 
@@ -1568,16 +1951,14 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
 	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	mountUnit := makeMockMountUnit(c, mountDir)
-	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
-	c.Assert(os.Symlink(mountUnit, symlinkPath), IsNil)
+
 	c.Assert(sysd.RemoveMountUnitFile(mountDir), IsNil)
+
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "disable", "snap-foo-42.mount"}})
 
 	// the file is gone
 	c.Check(osutil.FileExists(mountUnit), Equals, false)
-	// unit symlink is gone
-	c.Check(osutil.IsSymlink(symlinkPath), Equals, false)
-	// and systemd was not called
-	c.Check(s.argses, HasLen, 0)
+
 	// umount was called
 	c.Check(mockUmountCmd.Calls(), DeepEquals, [][]string{{"umount", "-d", "-l", mountDir}})
 }
@@ -1596,17 +1977,15 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
 
 	sysd := NewEmulationMode(dirs.GlobalRootDir)
 	mountUnit := makeMockMountUnit(c, mountDir)
-	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
+	symlinkPath := filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants", filepath.Base(mountUnit))
 	c.Assert(os.Symlink(mountUnit, symlinkPath), IsNil)
+	// This is only to handle older version of snapd
+	oldSymlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
+	c.Assert(os.Symlink(mountUnit, oldSymlinkPath), IsNil)
 
 	c.Assert(sysd.RemoveMountUnitFile(mountDir), IsNil)
 
-	// the file is gone
-	c.Check(osutil.FileExists(mountUnit), Equals, false)
-	// unit symlink is gone
-	c.Check(osutil.IsSymlink(symlinkPath), Equals, false)
-	// and systemd was not called
-	c.Check(s.argses, HasLen, 0)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "disable", "snap-foo-42.mount"}})
 	// umount was not called
 	c.Check(mockUmountCmd.Calls(), HasLen, 0)
 }
@@ -1619,16 +1998,16 @@ func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
 
 	mockSnapPath := c.MkDir()
 
-	_, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "")
+	_, err := sysd.EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "")
 	c.Assert(err, ErrorMatches, `bind-mounted directory is not supported in emulation mode`)
 }
 
 func (s *SystemdTestSuite) TestEnableInEmulationMode(c *C) {
 	sysd := NewEmulationMode("/path")
-	c.Assert(sysd.Enable([]string{"foo"}), IsNil)
+	c.Assert(sysd.EnableNoReload([]string{"foo"}), IsNil)
 
 	sysd = NewEmulationMode("")
-	c.Assert(sysd.Enable([]string{"bar"}), IsNil)
+	c.Assert(sysd.EnableNoReload([]string{"bar"}), IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", "/path", "enable", "foo"},
 		{"--root", dirs.GlobalRootDir, "enable", "bar"}})
@@ -1636,7 +2015,7 @@ func (s *SystemdTestSuite) TestEnableInEmulationMode(c *C) {
 
 func (s *SystemdTestSuite) TestDisableInEmulationMode(c *C) {
 	sysd := NewEmulationMode("/path")
-	c.Assert(sysd.Disable([]string{"foo"}), IsNil)
+	c.Assert(sysd.DisableNoReload([]string{"foo"}), IsNil)
 
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", "/path", "disable", "foo"}})
@@ -1709,7 +2088,7 @@ Type=doesntmatter
 Options=do,not,matter,either
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=doesntmatter.target
 X-SnapdOrigin=%s
 `, snapName, where, origin)
 		return ioutil.WriteFile(path, []byte(contents), 0644)
@@ -1951,6 +2330,57 @@ func (s *SystemdTestSuite) TestInactiveEnterTimestampMalformedMore(c *C) {
 		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
 	})
 	c.Check(stamp.IsZero(), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestSystemdRunError(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "fail"; exit 11`)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	output, err := sysd.Run([]string{"bad-cmd", "arg1"}, nil)
+	c.Check(output, IsNil)
+	c.Assert(err, ErrorMatches, `cannot run \["bad-cmd" "arg1"\]: fail`)
+}
+
+func (s *SystemdTestSuite) TestSystemdRunHappy(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "happy output" && >&2 echo "to stderr"`)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	output, err := sysd.Run([]string{"happy-cmd", "arg1"}, nil)
+	c.Check(string(output), Equals, "happy output\nto stderr\n")
+	c.Check(err, IsNil)
+	c.Check(sr.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--wait", "--pipe", "--collect", "--service-type=exec", "--quiet", "--", "happy-cmd", "arg1"},
+	})
+}
+
+func (s *SystemdTestSuite) TestSystemdRunHappyWithStdin(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "some output" && cat - `)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	opts := &RunOptions{Stdin: bytes.NewBufferString("stdin input\n")}
+	output, err := sysd.Run([]string{"cmd-with-stdin", "arg1"}, opts)
+	c.Check(string(output), Equals, "some output\nstdin input\n")
+	c.Check(err, IsNil)
+	c.Check(sr.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--wait", "--pipe", "--collect", "--service-type=exec", "--quiet", "--", "cmd-with-stdin", "arg1"},
+	})
+}
+
+func (s *SystemdTestSuite) TestSystemdRunKeyringMode(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "happy output"`)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	opts := &RunOptions{KeyringMode: KeyringModePrivate}
+	output, err := sysd.Run([]string{"happy-cmd", "arg1"}, opts)
+	c.Check(string(output), Equals, "happy output\n")
+	c.Check(err, IsNil)
+	c.Check(sr.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--wait", "--pipe", "--collect", "--service-type=exec", "--quiet", "--property=KeyringMode=private", "--", "happy-cmd", "arg1"},
+	})
 }
 
 type systemdErrorSuite struct{}

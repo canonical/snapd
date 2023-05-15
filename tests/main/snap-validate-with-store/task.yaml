@@ -20,7 +20,7 @@ environment:
   ACCOUNT_ID: xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f
 
 execute: |
-  # sanity
+  # precondition
   snap validate 2>&1 | MATCH "No validations are available"
 
   echo "Setting validation set in monitor mode (pinned at sequence 1)"

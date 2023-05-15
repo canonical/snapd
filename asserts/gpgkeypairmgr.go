@@ -224,7 +224,7 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 				uid = uidFields[9]
 			}
 		}
-		// sanity checking
+		// validity checking
 		if privKey == nil || uid == "" {
 			continue
 		}
@@ -298,7 +298,7 @@ func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) (*packet.
 		return nil, fmt.Errorf("cannot sign using GPG: %v", err)
 	}
 
-	badSig := "bad GPG produced signature: "
+	const badSig = "bad GPG produced signature: "
 	sigpkt, err := packet.Read(bytes.NewBuffer(out))
 	if err != nil {
 		return nil, fmt.Errorf(badSig+"%v", err)

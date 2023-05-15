@@ -37,7 +37,7 @@ func (r Revision) String() string {
 	if r.N < 0 {
 		return fmt.Sprintf("x%d", -r.N)
 	}
-	return strconv.Itoa(int(r.N))
+	return strconv.Itoa(r.N)
 }
 
 func (r Revision) Unset() bool {

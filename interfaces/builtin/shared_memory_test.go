@@ -21,12 +21,18 @@ package builtin_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -43,6 +49,10 @@ type SharedMemoryInterfaceSuite struct {
 	wildcardPlug     *interfaces.ConnectedPlug
 	wildcardSlotInfo *snap.SlotInfo
 	wildcardSlot     *interfaces.ConnectedSlot
+	privatePlugInfo  *snap.PlugInfo
+	privatePlug      *interfaces.ConnectedPlug
+	privateSlotInfo  *snap.SlotInfo
+	privateSlot      *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&SharedMemoryInterfaceSuite{
@@ -55,9 +65,14 @@ plugs:
  shmem:
   interface: shared-memory
   shared-memory: foo
+  private: false
  shmem-wildcard:
   interface: shared-memory
   shared-memory: foo-wildcard
+  private: false
+ shmem-private:
+  interface: shared-memory
+  private: true
 apps:
  app:
   plugs: [shmem]
@@ -71,14 +86,26 @@ slots:
   shared-memory: foo
   write: [ bar ]
   read: [ bar-ro ]
+  private: false
  shmem-wildcard:
   interface: shared-memory
   shared-memory: foo-wildcard
   write: [ bar* ]
   read: [ bar-ro* ]
+  private: false
 apps:
  app:
   slots: [shmem]
+`
+
+const sharedMemoryCoreYaml = `name: core
+version: 0
+type: os
+slots:
+ shared-memory:
+  interface: shared-memory
+apps:
+ app:
 `
 
 func (s *SharedMemoryInterfaceSuite) SetUpTest(c *C) {
@@ -89,6 +116,9 @@ func (s *SharedMemoryInterfaceSuite) SetUpTest(c *C) {
 
 	s.wildcardPlug, s.wildcardPlugInfo = MockConnectedPlug(c, sharedMemoryConsumerYaml, nil, "shmem-wildcard")
 	s.wildcardSlot, s.wildcardSlotInfo = MockConnectedSlot(c, sharedMemoryProviderYaml, nil, "shmem-wildcard")
+
+	s.privatePlug, s.privatePlugInfo = MockConnectedPlug(c, sharedMemoryConsumerYaml, nil, "shmem-private")
+	s.privateSlot, s.privateSlotInfo = MockConnectedSlot(c, sharedMemoryCoreYaml, nil, "shared-memory")
 }
 
 func (s *SharedMemoryInterfaceSuite) TestName(c *C) {
@@ -122,6 +152,14 @@ apps:
 			"shared-memory: [one two]",
 			`shared-memory "shared-memory" attribute must be a string, not \[one two\]`,
 		},
+		{
+			"private: hello",
+			`shared-memory "private" attribute must be a bool, not hello`,
+		},
+		{
+			"private: true\n  shared-memory: foo",
+			`shared-memory "shared-memory" attribute must not be set together with "private: true"`,
+		},
 	}
 
 	for _, testData := range data {
@@ -130,6 +168,53 @@ apps:
 		err := interfaces.BeforePreparePlug(s.iface, plug)
 		c.Check(err, ErrorMatches, testData.expectedError, Commentf("yaml: %s", testData.plugYaml))
 	}
+}
+
+func (s *SharedMemoryInterfaceSuite) TestPlugPrivateAttribute(c *C) {
+	const snapYaml = `name: consumer
+version: 0
+plugs:
+ shmem:
+  interface: shared-memory
+  private: true
+apps:
+ app:
+  plugs: [shmem]
+`
+	_, plug := MockConnectedPlug(c, snapYaml, nil, "shmem")
+	err := interfaces.BeforePreparePlug(s.iface, plug)
+	c.Assert(err, IsNil)
+	c.Check(plug.Attrs["private"], Equals, true)
+	c.Check(plug.Attrs["shared-memory"], Equals, nil)
+}
+
+func (s *SharedMemoryInterfaceSuite) TestPlugPrivateConflictsWithNonPrivate(c *C) {
+	const snapYaml1 = `name: consumer
+version: 0
+plugs:
+  shmem:
+    interface: shared-memory
+  shmem-private:
+    interface: shared-memory
+    private: true
+`
+	_, plug := MockConnectedPlug(c, snapYaml1, nil, "shmem-private")
+	err := interfaces.BeforePreparePlug(s.iface, plug)
+	c.Check(err, ErrorMatches, `shared-memory plug with "private: true" set cannot be used with other shared-memory plugs`)
+
+	const snapYaml2 = `name: consumer
+version: 0
+plugs:
+  shmem-private:
+    interface: shared-memory
+    private: true
+slots:
+  shmem:
+    interface: shared-memory
+`
+	_, plug = MockConnectedPlug(c, snapYaml2, nil, "shmem-private")
+	err = interfaces.BeforePreparePlug(s.iface, plug)
+	c.Check(err, ErrorMatches, `shared-memory plug with \"private: true\" set cannot be used with shared-memory slots`)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestPlugShmAttribute(c *C) {
@@ -163,6 +248,8 @@ apps:
 		_, plug := MockConnectedPlug(c, snapYaml, nil, "shmem")
 		err := interfaces.BeforePreparePlug(s.iface, plug)
 		c.Assert(err, IsNil)
+		c.Check(plug.Attrs["private"], Equals, false,
+			Commentf(`yaml: %q`, testData.plugYaml))
 		c.Check(plug.Attrs["shared-memory"], Equals, testData.expectedName,
 			Commentf(`yaml: %q`, testData.plugYaml))
 	}
@@ -289,8 +376,8 @@ apps:
 
 func (s *SharedMemoryInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Check(si.ImplicitOnCore, Equals, false)
-	c.Check(si.ImplicitOnClassic, Equals, false)
+	c.Check(si.ImplicitOnCore, Equals, true)
+	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.Summary, Equals, `allows two snaps to use predefined shared memory objects`)
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "shared-memory")
 }
@@ -306,12 +393,12 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.provider.app"})
 
-	c.Check(plugSnippet, testutil.Contains, `"/{dev,run}/shm/bar" rwk,`)
+	c.Check(plugSnippet, testutil.Contains, `"/{dev,run}/shm/bar" mrwlk,`)
 	c.Check(plugSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro" r,`)
 
 	// Slot has read-write permissions to all paths
-	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar" rwk,`)
-	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro" rwk,`)
+	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar" mrwlk,`)
+	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro" mrwlk,`)
 
 	wildcardSpec := &apparmor.Specification{}
 	c.Assert(wildcardSpec.AddConnectedPlug(s.iface, s.wildcardPlug, s.wildcardSlot), IsNil)
@@ -322,12 +409,58 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	c.Assert(wildcardSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.provider.app"})
 
-	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" rwk,`)
+	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" mrwlk,`)
 	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" r,`)
 
 	// Slot has read-write permissions to all paths
-	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" rwk,`)
-	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" rwk,`)
+	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" mrwlk,`)
+	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" mrwlk,`)
+
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.privatePlug, s.privateSlot), IsNil)
+	privatePlugSnippet := spec.SnippetForTag("snap.consumer.app")
+	privateUpdateNS := spec.UpdateNS()
+
+	c.Assert(spec.AddConnectedSlot(s.iface, s.privatePlug, s.privateSlot), IsNil)
+	privateSlotSnippet := spec.SnippetForTag("snap.core.app")
+
+	c.Check(privatePlugSnippet, testutil.Contains, `"/dev/shm/*" mrwlkix`)
+	c.Check(privateSlotSnippet, Equals, "")
+	c.Check(strings.Join(privateUpdateNS, ""), Equals, `  # Private /dev/shm
+  /dev/ r,
+  /dev/shm/{,**} rw,
+  mount options=(bind, rw) /dev/shm/snap.consumer/ -> /dev/shm/,
+  umount /dev/shm/,`)
+}
+
+func (s *SharedMemoryInterfaceSuite) TestMountSpec(c *C) {
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	defer dirs.SetRootDir("/")
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/dev/shm"), 0777), IsNil)
+
+	// No mount entries for non-private shared-memory plugs
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.MountEntries(), HasLen, 0)
+
+	spec = &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.privatePlug, s.privateSlot), IsNil)
+	mounts := []osutil.MountEntry{
+		{
+			Name:    filepath.Join(tmpdir, "/dev/shm/snap.consumer"),
+			Dir:     "/dev/shm",
+			Options: []string{"bind", "rw"},
+		},
+	}
+	c.Check(spec.MountEntries(), DeepEquals, mounts)
+
+	// Cannot set up mount entries if /dev/shm is a symlink
+	c.Assert(os.Remove(filepath.Join(tmpdir, "/dev/shm")), IsNil)
+	c.Assert(os.Symlink("/run/shm", filepath.Join(tmpdir, "/dev/shm")), IsNil)
+	spec = &mount.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.privatePlug, s.privateSlot)
+	c.Check(err, ErrorMatches, `shared-memory plug with "private: true" cannot be connected if ".*/dev/shm" is a symlink`)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestAutoConnect(c *C) {

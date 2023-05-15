@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -308,6 +309,14 @@ apps:
 			`custom-device "udev-tagging" invalid "kernel" tag: "bar" does not match a specified device`,
 		},
 		{
+			"devices: [/dev/subdir/foo]\n  udev-tagging:\n    - kernel: foo\n      subsystem: 12",
+			`custom-device "udev-tagging" invalid "subsystem" tag: value "12" is not a string`,
+		},
+		{
+			"devices: [/dev/dir1/foo, /dev/dir2/foo]\n  udev-tagging:\n    - kernel: foo",
+			`custom-device "udev-tagging" invalid "kernel" tag: "foo" matches more than one specified device: \[/dev/dir1/foo /dev/dir2/foo\]`,
+		},
+		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - attributes: foo",
 			`custom-device "udev-tagging" invalid "attributes" tag: value "foo" is not a map`,
 		},
@@ -464,31 +473,73 @@ apps:
 				{`KERNEL`: `"js*"`},
 			},
 		},
+		{
+			`udev-tagging:
+   - kernel: mice
+     attributes:
+      wheel: "true"
+   - kernel: event[0-9]
+     subsystem: input
+     environment:
+      env1: first
+      env2: second|other`,
+			[]map[string]string{
+				{
+					`KERNEL`:    `"event[0-9]"`,
+					`SUBSYSTEM`: `"input"`,
+					`ENV{env1}`: `"first"`,
+					`ENV{env2}`: `"second|other"`,
+				},
+				{`KERNEL`: `"mice"`, `ATTR{wheel}`: `"true"`},
+				{`KERNEL`: `"js*"`},
+			},
+		},
 	}
 
 	for _, testData := range data {
+		testLabel := Commentf("yaml: %s", testData.slotYaml)
 		spec := &udev.Specification{}
 		snapYaml := fmt.Sprintf(slotYamlTemplate, testData.slotYaml)
 		slot, _ := MockConnectedSlot(c, snapYaml, nil, "hwdev")
 		c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
 		snippets := spec.Snippets()
 
+		// The first lines are for the tagging, the last one is for the
+		// snap-device-helper
+		rulesCount := len(testData.expectedRules)
+		c.Assert(snippets, HasLen, rulesCount+1)
+
 		// The following rule is not fixed since the order of the elements depend
 		// on the map iteration order, which in golang is not deterministic.
 		// Therefore, we decompose each rule into a map:
 		var decomposedSnippets []map[string]string
-		for _, snippet := range snippets {
-			ruleTags := strings.Split(snippet, ", ")
+		for _, snippet := range snippets[:rulesCount] {
+			lines := strings.Split(snippet, "\n")
+			c.Assert(lines, HasLen, 2, testLabel)
+
+			// The first line is just a comment
+			c.Check(lines[0], Matches, "^#.*", testLabel)
+
+			// The second line contains the actual rule
+			ruleTags := strings.Split(lines[1], ", ")
+			// Verify that the last part is the tag assignment
+			lastElement := len(ruleTags) - 1
+			c.Check(ruleTags[lastElement], Equals, `TAG+="snap_consumer_app"`)
 			decomposedTags := make(map[string]string)
-			for _, ruleTag := range ruleTags {
+			for _, ruleTag := range ruleTags[:lastElement] {
 				tagMembers := strings.SplitN(ruleTag, "==", 2)
 				c.Assert(tagMembers, HasLen, 2)
 				decomposedTags[tagMembers[0]] = tagMembers[1]
 			}
 			decomposedSnippets = append(decomposedSnippets, decomposedTags)
 		}
-		c.Assert(decomposedSnippets, testutil.DeepUnsortedMatches, testData.expectedRules,
-			Commentf("yaml: %s", testData.slotYaml))
+		c.Assert(decomposedSnippets, testutil.DeepUnsortedMatches, testData.expectedRules, testLabel)
+
+		// The last line of the snippet is about snap-device-helper
+		actionLine := snippets[rulesCount]
+		c.Assert(actionLine, Matches,
+			fmt.Sprintf(`^TAG=="snap_consumer_app", RUN\+="%s/snap-device-helper .*`, dirs.DistroLibExecDir),
+			testLabel)
 	}
 }
 

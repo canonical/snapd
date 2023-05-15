@@ -19,7 +19,7 @@ execute: |
     echo "Install test snap"
     "$TESTSTOOLS"/snaps-state install-local config-versions
 
-    # sanity
+    # precondition
     snap get config-versions configure-marker | MATCH "executed-for-v1"
 
     echo "Setting config value affecting rev 1"
@@ -28,7 +28,7 @@ execute: |
     echo "Install a new version of the test snap"
     "$TESTSTOOLS"/snaps-state install-local config-versions-v2
 
-    # sanity
+    # precondition
     snap get config-versions configure-marker | MATCH "executed-for-v2"
     snap get config-versions post-refresh-hook-marker | MATCH "executed-for-v2"
 

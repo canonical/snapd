@@ -42,7 +42,9 @@ execute: |
       pid=$!
       test-snapd-core-migration.sh -c "cat /usr/lib/os-release" | MATCH 'VERSION_ID="16"'
       MATCH 'base-snap-name=core' < /run/snapd/ns/snap.test-snapd-core-migration.info
-      snap install --dangerous test-snapd-core-migration_2_all.snap
+      # there is a sleep process running in the background in the snap context, due to 
+      # refresh-app-awareness we need to ignore it
+      snap install --ignore-running --dangerous test-snapd-core-migration_2_all.snap
       # With core -> core18 migration this doesn't work however, as now
       # applications that were expecting to use core18 libraries would be forced to
       # run on top of core16.
@@ -89,7 +91,9 @@ execute: |
       pid=$!
       test-snapd-core-migration.sh -c "cat /usr/lib/os-release" | MATCH 'VERSION_ID="18"'
       MATCH 'base-snap-name=core18' < /run/snapd/ns/snap.test-snapd-core-migration.info
-      snap install --dangerous test-snapd-core-migration_1_all.snap
+      # We run a process in the background, so due to refresh-app-awareness need to
+      # ignore running apps.
+      snap install --ignore-running --dangerous test-snapd-core-migration_1_all.snap
       # With core18 -> core migration this doesn't work however, as now
       # applications that were expecting to use core libraries would be forced to
       # run on top of core18.

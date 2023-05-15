@@ -53,13 +53,14 @@ func (snapshotSuite) TestManager(c *check.C) {
 	sort.Strings(kinds)
 	c.Check(kinds, check.DeepEquals, []string{
 		"check-snapshot",
+		"cleanup-after-restore",
 		"forget-snapshot",
 		"restore-snapshot",
 		"save-snapshot",
 	})
 }
 
-func mockDummySnapshot(c *check.C) (restore func()) {
+func mockFakeSnapshot(c *check.C) (restore func()) {
 	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
 	c.Assert(err, check.IsNil)
 
@@ -87,7 +88,7 @@ func (snapshotSuite) TestEnsureForgetsSnapshots(c *check.C) {
 	})
 	defer restoreOsRemove()
 
-	restore := mockDummySnapshot(c)
+	restore := mockFakeSnapshot(c)
 	defer restore()
 
 	st := state.New(nil)
@@ -175,7 +176,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotOp st
 	})
 	defer restoreOsRemove()
 
-	restore := mockDummySnapshot(c)
+	restore := mockFakeSnapshot(c)
 	defer restore()
 
 	st := state.New(nil)
@@ -215,7 +216,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotOp st
 	c.Check(removeCalled, check.Equals, 0)
 
 	if tsk != nil {
-		// sanity check of the test setup: snapshot gets removed once conflict goes away
+		// validity check of the test setup: snapshot gets removed once conflict goes away
 		tsk.SetStatus(state.DoneStatus)
 	} else {
 		c.Check(snapshotstate.UnsetSnapshotOpInProgress(st, 1), check.Equals, snapshotOp)
@@ -278,25 +279,44 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 		buf := json.RawMessage(`{"hello": "there"}`)
 		return &buf, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
+
+	expectedOptions := &snap.SnapshotOptions{}
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string,
+		options *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		c.Check(id, check.Equals, uint64(42))
 		c.Check(si, check.DeepEquals, &snapInfo)
 		c.Check(cfg, check.DeepEquals, map[string]interface{}{"hello": "there"})
 		c.Check(usernames, check.DeepEquals, []string{"a-user", "b-user"})
+		c.Check(options, check.DeepEquals, expectedOptions)
 		return nil, nil
 	})()
 
-	st := state.New(nil)
-	st.Lock()
-	task := st.NewTask("save-snapshot", "...")
-	task.Set("snapshot-setup", map[string]interface{}{
-		"set-id": 42,
-		"snap":   "a-snap",
-		"users":  []string{"a-user", "b-user"},
-	})
-	st.Unlock()
-	err := snapshotstate.DoSave(task, &tomb.Tomb{})
-	c.Assert(err, check.IsNil)
+	exclTypOptions := &snap.SnapshotOptions{Exclude: []string{"$SNAP_USER_DATA/exclude", "$SNAP_USER_COMMON/exclude", "$SNAP_DATA/exclude", "$SNAP_COMMON/exclude"}}
+	testMap := map[string]struct {
+		setupOptions    *snap.SnapshotOptions
+		expectedOptions *snap.SnapshotOptions
+	}{
+		"options-nil":     {nil, nil},
+		"exclude-nil":     {&snap.SnapshotOptions{}, &snap.SnapshotOptions{}},
+		"exclude-empty":   {&snap.SnapshotOptions{Exclude: []string{}}, &snap.SnapshotOptions{}},
+		"exclude-typical": {exclTypOptions, exclTypOptions},
+	}
+
+	for _, test := range testMap {
+		st := state.New(nil)
+		st.Lock()
+		task := st.NewTask("save-snapshot", "...")
+		task.Set("snapshot-setup", map[string]interface{}{
+			"set-id":  42,
+			"snap":    "a-snap",
+			"users":   []string{"a-user", "b-user"},
+			"options": test.setupOptions,
+		})
+		st.Unlock()
+		expectedOptions = test.expectedOptions
+		err := snapshotstate.DoSave(task, &tomb.Tomb{})
+		c.Assert(err, check.IsNil)
+	}
 }
 
 func (snapshotSuite) TestDoSaveGetsSnapDirOpts(c *check.C) {
@@ -318,7 +338,7 @@ func (snapshotSuite) TestDoSaveGetsSnapDirOpts(c *check.C) {
 	})()
 
 	var checkOpts bool
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, opts *dirs.SnapDirOptions) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *snap.SnapshotOptions, opts *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		c.Check(opts.HiddenSnapDataDir, check.Equals, true)
 		checkOpts = true
 		return nil, nil
@@ -342,7 +362,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnap(c *check.C) {
 		return nil, errors.New("bzzt")
 	})()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *snap.SnapshotOptions, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -369,7 +389,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnapshot(c *check.C) {
 	}
 	defer snapshotstate.MockSnapstateCurrentInfo(func(*state.State, string) (*snap.Info, error) { return &snapInfo, nil })()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *snap.SnapshotOptions, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -393,7 +413,7 @@ func (snapshotSuite) TestDoSaveFailsBackendError(c *check.C) {
 	}
 	defer snapshotstate.MockSnapstateCurrentInfo(func(*state.State, string) (*snap.Info, error) { return &snapInfo, nil })()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *snap.SnapshotOptions, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		return nil, errors.New("bzzt")
 	})()
 
@@ -422,7 +442,7 @@ func (snapshotSuite) TestDoSaveFailsConfigError(c *check.C) {
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) {
 		return nil, errors.New("bzzt")
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *snap.SnapshotOptions, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -453,7 +473,7 @@ func (snapshotSuite) TestDoSaveFailsBadConfig(c *check.C) {
 		buf := json.RawMessage(`"hello-there"`)
 		return &buf, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *snap.SnapshotOptions, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -486,7 +506,7 @@ func (snapshotSuite) TestDoSaveFailureRemovesStateEntry(c *check.C) {
 	defer snapshotstate.MockConfigGetSnapConfig(func(_ *state.State, snapname string) (*json.RawMessage, error) {
 		return nil, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *snap.SnapshotOptions, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		var expirations map[uint64]interface{}
 		st.Lock()
 		defer st.Unlock()

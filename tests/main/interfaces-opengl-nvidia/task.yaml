@@ -1,16 +1,26 @@
 summary: Ensure that basic opengl works with faked nvidia
 
-systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-20.04-*]
+systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
 
 environment:
     NV_VERSION/stable: "123.456"
     NV_VERSION/experimental: "123.456.02" # because reality
 
 prepare: |
-    # mock nvidia driver
-    mount -t tmpfs tmp /sys/module
-    mkdir -p /sys/module/nvidia
-    echo "$NV_VERSION" > /sys/module/nvidia/version
+    # mock nvidia driver, we need to user overlayfs because on 22.04+
+    # /sys/module/apparmor is used by apparmor to communicate
+    mkdir -p /tmp/sys-module/nvidia
+    echo "$NV_VERSION" > /tmp/sys-module/nvidia/version
+    if os.query is-xenial || os.query is-bionic; then
+        mount -o bind /tmp/sys-module/ /sys/module
+    else
+        mkdir -p /tmp/sys-module-work
+        LO="/sys/module/"
+        UP="/tmp/sys-module"
+        WORK="/tmp/sys-module-work"
+        mount -t overlay overlay \
+            -olowerdir="$LO",upperdir="$UP",workdir="$WORK" /sys/module
+    fi
 
     # mock nvidia icd file
     test ! -d /usr/share/vulkan
@@ -66,7 +76,7 @@ prepare: |
     fi
 
 restore: |
-    umount -t tmpfs /sys/module
+    umount /sys/module
     rm -rf /usr/share/vulkan
 
     if ! os.query is-xenial; then

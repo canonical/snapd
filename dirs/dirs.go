@@ -33,34 +33,34 @@ import (
 var (
 	GlobalRootDir string
 
+	RunDir string
+
 	SnapMountDir string
 
 	DistroLibExecDir string
 
 	HiddenSnapDataHomeGlob string
 
-	SnapBlobDir               string
-	SnapDataDir               string
-	SnapDataHomeGlob          string
-	SnapDownloadCacheDir      string
-	SnapAppArmorDir           string
-	SnapAppArmorAdditionalDir string
-	SnapConfineAppArmorDir    string
-	SnapSeccompBase           string
-	SnapSeccompDir            string
-	SnapMountPolicyDir        string
-	SnapUdevRulesDir          string
-	SnapKModModulesDir        string
-	SnapKModModprobeDir       string
-	LocaleDir                 string
-	SnapMetaDir               string
-	SnapdSocket               string
-	SnapSocket                string
-	SnapRunDir                string
-	SnapRunNsDir              string
-	SnapRunLockDir            string
-	SnapBootstrapRunDir       string
-	SnapVoidDir               string
+	SnapBlobDir            string
+	SnapDataDir            string
+	SnapDataHomeGlob       string
+	SnapDownloadCacheDir   string
+	SnapAppArmorDir        string
+	SnapConfineAppArmorDir string
+	SnapSeccompBase        string
+	SnapSeccompDir         string
+	SnapMountPolicyDir     string
+	SnapUdevRulesDir       string
+	SnapKModModulesDir     string
+	SnapKModModprobeDir    string
+	LocaleDir              string
+	SnapdSocket            string
+	SnapSocket             string
+	SnapRunDir             string
+	SnapRunNsDir           string
+	SnapRunLockDir         string
+	SnapBootstrapRunDir    string
+	SnapVoidDir            string
 
 	SnapdMaintenanceFile string
 
@@ -101,6 +101,8 @@ var (
 	SnapDesktopFilesDir    string
 	SnapDesktopIconsDir    string
 	SnapPolkitPolicyDir    string
+	SnapSystemdDir         string
+	SnapSystemdRunDir      string
 
 	SnapDBusSessionPolicyDir   string
 	SnapDBusSystemPolicyDir    string
@@ -112,6 +114,7 @@ var (
 	SnapFDEDir        string
 	SnapSaveDir       string
 	SnapDeviceSaveDir string
+	SnapDataSaveDir   string
 
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
@@ -122,6 +125,8 @@ var (
 	XdgRuntimeDirGlob string
 
 	CompletionHelperInCore string
+	BashCompletionScript   string
+	LegacyCompletersDir    string
 	CompletersDir          string
 
 	SystemFontsDir            string
@@ -278,6 +283,11 @@ func FeaturesDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "features")
 }
 
+// SnapSystemParamsUnder returns the path to the system-params file under rootdir.
+func SnapSystemParamsUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "system-params")
+}
+
 // SnapSystemdConfDirUnder returns the path to the systemd conf dir under
 // rootdir.
 func SnapSystemdConfDirUnder(rootdir string) string {
@@ -356,12 +366,10 @@ func SetRootDir(rootdir string) {
 	HiddenSnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", HiddenSnapDataHomeDir)
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
-	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
 	SnapDownloadCacheDir = filepath.Join(rootdir, snappyDir, "cache")
 	SnapSeccompBase = filepath.Join(rootdir, snappyDir, "seccomp")
 	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
-	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapdMaintenanceFile = filepath.Join(rootdir, snappyDir, "maintenance.json")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
 	SnapVoidDir = filepath.Join(rootdir, snappyDir, "void")
@@ -370,6 +378,7 @@ func SetRootDir(rootdir string) {
 	// freedesktop.org specifications
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	SnapDesktopIconsDir = filepath.Join(rootdir, snappyDir, "desktop", "icons")
+	RunDir = filepath.Join(rootdir, "/run")
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
@@ -405,6 +414,7 @@ func SetRootDir(rootdir string) {
 	SnapFDEDir = SnapFDEDirUnder(rootdir)
 	SnapSaveDir = SnapSaveDirUnder(rootdir)
 	SnapDeviceSaveDir = filepath.Join(SnapSaveDir, "device")
+	SnapDataSaveDir = filepath.Join(SnapSaveDir, "snap")
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
@@ -419,6 +429,8 @@ func SetRootDir(rootdir string) {
 	SnapRuntimeServicesDir = filepath.Join(rootdir, "/run/systemd/system")
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
+	SnapSystemdDir = filepath.Join(rootdir, "/etc/systemd")
+	SnapSystemdRunDir = filepath.Join(rootdir, "/run/systemd")
 
 	SnapDBusSystemPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 	SnapDBusSessionPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/session.d")
@@ -470,7 +482,9 @@ func SetRootDir(rootdir string) {
 	XdgRuntimeDirGlob = filepath.Join(XdgRuntimeDirBase, "*/")
 
 	CompletionHelperInCore = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
-	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
+	BashCompletionScript = filepath.Join(rootdir, "/usr/share/bash-completion/bash_completion")
+	LegacyCompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
+	CompletersDir = filepath.Join(rootdir, snappyDir, "desktop/bash-completion/completions/")
 
 	// These paths agree across all supported distros
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")

@@ -45,6 +45,7 @@ type mockConf struct {
 	conf    map[string]interface{}
 	changes map[string]interface{}
 	err     error
+	task    *state.Task
 }
 
 func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
@@ -96,6 +97,10 @@ func (cfg *mockConf) GetPristineMaybe(snapName, key string, result interface{}) 
 	return nil
 }
 
+func (cfg *mockConf) Task() *state.Task {
+	return cfg.task
+}
+
 func (cfg *mockConf) Set(snapName, key string, v interface{}) error {
 	if snapName != "core" {
 		return fmt.Errorf("mockConf only knows about core")
@@ -119,6 +124,8 @@ func (cfg *mockConf) State() *state.State {
 	return cfg.state
 }
 
+func (cfg *mockConf) Commit() {}
+
 // configcoreSuite is the base for all the configcore tests
 type configcoreSuite struct {
 	testutil.BaseTest
@@ -137,6 +144,8 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	s.AddCleanup(osutil.MockMountInfo(""))
 
 	s.systemctlOutput = func(args ...string) []byte {
 		return []byte("ActiveState=inactive")
@@ -175,18 +184,6 @@ type runCfgSuite struct {
 
 var _ = Suite(&runCfgSuite{})
 
-func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
-	conf := &mockConf{
-		state: r.state,
-		changes: map[string]interface{}{
-			"unknown.option": "1",
-		},
-	}
-
-	err := configcore.Run(coreDev, conf)
-	c.Check(err, ErrorMatches, `cannot set "core.unknown.option": unsupported system option`)
-}
-
 type mockDev struct {
 	mode    string
 	classic bool
@@ -210,22 +207,27 @@ func (d mockDev) Kernel() string {
 var (
 	coreDev    = mockDev{classic: false}
 	classicDev = mockDev{classic: true}
+
+	core20Dev = mockDev{classic: false, uc20: true}
 )
 
 // applyCfgSuite tests configcore.Apply()
 type applyCfgSuite struct {
+	testutil.BaseTest
+
 	tmpDir string
 }
 
 var _ = Suite(&applyCfgSuite{})
 
 func (s *applyCfgSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	s.tmpDir = c.MkDir()
 	dirs.SetRootDir(s.tmpDir)
-}
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 
-func (s *applyCfgSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
+	s.AddCleanup(osutil.MockMountInfo(""))
 }
 
 func (s *applyCfgSuite) TestEmptyRootDir(c *C) {
@@ -260,10 +262,7 @@ func (s *applyCfgSuite) TestPlainCoreConfigGetMaybe(c *C) {
 	c.Check(val, DeepEquals, "bar")
 }
 
-func (s *applyCfgSuite) TestNilHandlePanics(c *C) {
+func (s *applyCfgSuite) TestNilHandleAddFSOnlyHandlerPanic(c *C) {
 	c.Assert(func() { configcore.AddFSOnlyHandler(nil, nil, nil) },
 		Panics, "cannot have nil handle with fsOnlyHandler")
-
-	c.Assert(func() { configcore.AddWithStateHandler(nil, nil, nil) },
-		Panics, "cannot have nil handle with addWithStateHandler if validatedOnlyStateConfig flag is not set")
 }

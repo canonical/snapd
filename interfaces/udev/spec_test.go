@@ -146,7 +146,7 @@ func (s *specSuite) TestTagDeviceAltLibexecdir(c *C) {
 	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
 	defer restore()
 	dirs.SetRootDir("")
-	// sanity
+	// validity
 	c.Check(dirs.DistroLibExecDir, Equals, "/usr/libexec/snapd")
 	s.testTagDevice(c, "/usr/libexec/snapd")
 }

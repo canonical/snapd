@@ -28,6 +28,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -184,7 +185,7 @@ func (n assertTypeName) Complete(match string) []flags.Completion {
 type keyName string
 
 func (s keyName) Complete(match string) []flags.Completion {
-	keypairManager, err := getKeypairManager()
+	keypairManager, err := signtool.GetKeypairManager()
 	if err != nil {
 		return nil
 	}
@@ -437,6 +438,15 @@ func (s appName) Complete(match string) []flags.Completion {
 }
 
 type serviceName string
+
+func serviceNames(services []serviceName) []string {
+	names := make([]string, len(services))
+	for i, name := range services {
+		names[i] = string(name)
+	}
+
+	return names
+}
 
 func (s serviceName) Complete(match string) []flags.Completion {
 	cli := mkClient()

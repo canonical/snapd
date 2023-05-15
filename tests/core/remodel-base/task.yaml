@@ -98,7 +98,7 @@ execute: |
     }
     # initial boot with the current model 
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        # sanity check
+        # precondition check
         snap list "$OLD_BASE"
 
         echo "We have the right model assertion"

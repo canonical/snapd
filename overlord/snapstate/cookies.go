@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,7 +35,7 @@ import (
 func cookies(st *state.State) (map[string]string, error) {
 	var snapCookies map[string]string
 	if err := st.Get("snap-cookies", &snapCookies); err != nil {
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			return nil, fmt.Errorf("cannot get snap cookies: %v", err)
 		}
 		snapCookies = make(map[string]string)
@@ -48,7 +49,7 @@ func cookies(st *state.State) (map[string]string, error) {
 // It is the caller's responsibility to lock state before calling this function.
 func (m *SnapManager) SyncCookies(st *state.State) error {
 	var instanceNames map[string]*json.RawMessage
-	if err := st.Get("snaps", &instanceNames); err != nil && err != state.ErrNoState {
+	if err := st.Get("snaps", &instanceNames); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -131,7 +132,7 @@ func (m *SnapManager) removeSnapCookie(st *state.State, instanceName string) err
 	var snapCookies map[string]string
 	err := st.Get("snap-cookies", &snapCookies)
 	if err != nil {
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			return fmt.Errorf("cannot get snap cookies: %v", err)
 		}
 		// no cookies in the state

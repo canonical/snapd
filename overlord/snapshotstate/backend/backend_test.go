@@ -153,7 +153,7 @@ func (s *snapshotSuite) TestLastSnapshotID(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(0))
 
-	// create snapshots dir and dummy snapshots
+	// create snapshots dir and test snapshots
 	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 	for _, name := range []string{
 		"9_some-snap-1.zip", "1234_not-a-snapshot", "12_other-snap.zip", "3_foo.zip",
@@ -451,7 +451,7 @@ func (s *snapshotSuite) TestIterSetIDoverride(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	cfg := map[string]interface{}{"some-setting": false}
 
-	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, nil)
+	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, nil, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, uint64(12))
 
@@ -557,20 +557,26 @@ func (s *snapshotSuite) TestList(c *check.C) {
 }
 
 func (s *snapshotSuite) TestAddDirToZipBails(c *check.C) {
-	snapshot := &client.Snapshot{SetID: 42, Snap: "a-snap"}
+	snapshot := &client.Snapshot{SetID: 42, Snap: "a-snap", Revision: snap.R(5)}
+
+	oldVal := os.Getenv("SNAPD_DEBUG")
+	c.Assert(os.Setenv("SNAPD_DEBUG", "1"), check.IsNil)
+	defer func() {
+		os.Setenv("SNAPD_DEBUG", oldVal)
+	}()
+
 	buf, restore := logger.MockLogger()
 	defer restore()
+	savingUserData := false
 	// note as the zip is nil this would panic if it didn't bail
-	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", filepath.Join(s.root, "nonexistent")), check.IsNil)
-	// no log for the non-existent case
-	c.Check(buf.String(), check.Equals, "")
-	buf.Reset()
-	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", "/etc/passwd"), check.IsNil)
-	c.Check(buf.String(), check.Matches, "(?m).* is not a directory.")
+	c.Check(backend.AddSnapDirToZip(nil, snapshot, nil, "", "an/entry", filepath.Join(s.root, "nonexistent"), savingUserData, nil), check.IsNil)
+	c.Check(backend.AddSnapDirToZip(nil, snapshot, nil, "", "an/entry", "/etc/passwd", savingUserData, nil), check.IsNil)
+	c.Check(buf.String(), check.Matches, "(?m).* is does not exist.*")
 }
 
 func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
-	d := filepath.Join(s.root, "foo")
+	rev := snap.R(5)
+	d := filepath.Join(s.root, rev.String())
 	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0755), check.IsNil)
 
@@ -579,11 +585,13 @@ func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
 
 	var buf bytes.Buffer
 	z := zip.NewWriter(&buf)
-	c.Assert(backend.AddDirToZip(ctx, nil, z, "", "an/entry", d), check.ErrorMatches, ".* context canceled")
+	savingUserData := false
+	c.Assert(backend.AddSnapDirToZip(ctx, &client.Snapshot{Revision: rev}, z, "", "an/entry", s.root, savingUserData, nil), check.ErrorMatches, ".* context canceled")
 }
 
 func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
-	d := filepath.Join(s.root, "foo")
+	rev := snap.R(5)
+	d := filepath.Join(s.root, rev.String())
 	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d, "bar", "baz"), []byte("hello\n"), 0644), check.IsNil)
@@ -592,8 +600,10 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 	z := zip.NewWriter(&buf)
 	snapshot := &client.Snapshot{
 		SHA3_384: map[string]string{},
+		Revision: rev,
 	}
-	c.Assert(backend.AddDirToZip(context.Background(), snapshot, z, "", "an/entry", d), check.IsNil)
+	savingUserData := false
+	c.Assert(backend.AddSnapDirToZip(context.Background(), snapshot, z, "", "an/entry", s.root, savingUserData, nil), check.IsNil)
 	z.Close() // write out the central directory
 
 	c.Check(snapshot.SHA3_384, check.HasLen, 1)
@@ -604,6 +614,77 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(r.File, check.HasLen, 1)
 	c.Check(r.File[0].Name, check.Equals, "an/entry")
+}
+
+func (s *snapshotSuite) TestAddDirToZipExclusions(c *check.C) {
+	d := filepath.Join(s.root, "x1")
+	c.Assert(os.MkdirAll(d, 0755), check.IsNil)
+
+	var buf bytes.Buffer
+	z := zip.NewWriter(&buf)
+	snapshot := &client.Snapshot{
+		SHA3_384: map[string]string{},
+		Revision: snap.R("x1"),
+	}
+	defer z.Close()
+
+	var tarArgs []string
+	restore := backend.MockTarAsUser(func(username string, args ...string) *exec.Cmd {
+		// We care only about the exclusion arguments in this test
+		tarArgs = nil
+		for _, arg := range args {
+			if strings.HasPrefix(arg, "--exclude=") {
+				tarArgs = append(tarArgs, arg)
+			}
+		}
+		// We only care about being called with the right arguments
+		return exec.Command("false")
+	})
+	defer restore()
+
+	for _, testData := range []struct {
+		excludes       []string
+		savingUserData bool
+		expectedArgs   []string
+	}{
+		{
+			[]string{"$SNAP_DATA/file"},
+			false,
+			[]string{"--exclude=x1/file"},
+		},
+		{
+			// user data, but vars are for system data: they must be ignored
+			[]string{"$SNAP_DATA/a", "$SNAP_COMMON_DATA/b"}, true, nil,
+		},
+		{
+			// system data, but vars are for system data: they must be ignored
+			[]string{"$SNAP_USER_DATA/a", "$SNAP_USER_COMMON/b"}, false, nil,
+		},
+		{
+			// system data
+			[]string{"$SNAP_DATA/one", "$SNAP_COMMON/two"},
+			false,
+			[]string{"--exclude=x1/one", "--exclude=common/two"},
+		},
+		{
+			// user data
+			[]string{"$SNAP_USER_DATA/file", "$SNAP_USER_COMMON/test"},
+			true,
+			[]string{"--exclude=x1/file", "--exclude=common/test"},
+		},
+		{
+			// mixed case
+			[]string{"$SNAP_USER_DATA/1", "$SNAP_DATA/2", "$SNAP_COMMON/3", "$SNAP_DATA/4"},
+			false,
+			[]string{"--exclude=x1/2", "--exclude=common/3", "--exclude=x1/4"},
+		},
+	} {
+		testLabel := check.Commentf("%s/%v", testData.excludes, testData.savingUserData)
+
+		err := backend.AddSnapDirToZip(context.Background(), snapshot, z, "", "an/entry", s.root, testData.savingUserData, testData.excludes)
+		c.Check(err, check.ErrorMatches, "tar failed.*")
+		c.Check(tarArgs, check.DeepEquals, testData.expectedArgs, testLabel)
+	}
 }
 
 func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
@@ -639,7 +720,20 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
-	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"}, nil)
+	statExcludes := []string{"$SNAP_USER_DATA/exclude", "$SNAP_USER_COMMON/exclude"}
+	dynExcludes := []string{"$SNAP_DATA/exclude", "$SNAP_COMMON/exclude"}
+	mergedExcludes := append(statExcludes, dynExcludes...)
+	statSnapshotOpts := &snap.SnapshotOptions{Exclude: statExcludes}
+	dynSnapshotOpts := &snap.SnapshotOptions{Exclude: dynExcludes}
+
+	var readSnapshotYamlCalled int
+	defer backend.MockReadSnapshotYaml(func(si *snap.Info) (*snap.SnapshotOptions, error) {
+		readSnapshotYamlCalled++
+		c.Check(si, check.DeepEquals, info)
+		return statSnapshotOpts, nil
+	})()
+
+	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"}, dynSnapshotOpts, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
 	c.Check(shw.Snap, check.Equals, info.InstanceName())
@@ -649,8 +743,11 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	c.Check(shw.Revision, check.Equals, info.Revision)
 	c.Check(shw.Conf, check.DeepEquals, cfg)
 	c.Check(shw.Auto, check.Equals, false)
+	c.Check(shw.Options, check.DeepEquals, dynSnapshotOpts)
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
+	c.Check(statSnapshotOpts.Exclude, check.DeepEquals, mergedExcludes)
+	c.Check(readSnapshotYamlCalled, check.Equals, 1)
 
 	shs, err := backend.List(context.TODO(), 0, nil)
 	c.Assert(err, check.IsNil)
@@ -672,6 +769,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 		c.Check(sh.Conf, check.DeepEquals, cfg, comm)
 		c.Check(sh.SHA3_384, check.DeepEquals, shw.SHA3_384, comm)
 		c.Check(sh.Auto, check.Equals, false)
+		c.Check(sh.Options, check.DeepEquals, dynSnapshotOpts)
 	}
 	c.Check(shr.Name(), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(shr.Check(context.TODO(), nil), check.IsNil)
@@ -689,7 +787,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 
 	for i := 0; i < 3; i++ {
 		comm := check.Commentf("%d", i)
-		// sanity check
+		// validity check
 		c.Check(diff().Run(), check.NotNil, comm)
 
 		// restore leaves things like they were (again and again)
@@ -713,7 +811,7 @@ func (s *snapshotSuite) TestOpenSetIDoverride(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	cfg := map[string]interface{}{"some-setting": false}
 
-	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, nil)
+	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, nil, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, uint64(12))
 
@@ -737,7 +835,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	shID := uint64(12)
 
-	shw, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, nil)
+	shw, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, nil, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 
@@ -767,7 +865,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 		return cmd
 	}
 
-	// sanity check
+	// validity check
 	c.Check(diff().Run(), check.NotNil)
 
 	// restore leaves things like they were, but in the new dir
@@ -919,6 +1017,15 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 	err = createTestExportFile(tarFile4, flags)
 	c.Check(err, check.IsNil)
 
+	// create an exported snapshot with parent path element
+	tarFile5 := path.Join(tempdir, "exported5.snapshot")
+	flags = &createTestExportFlags{
+		exportJSON: true,
+		withParent: true,
+	}
+	err = createTestExportFile(tarFile5, flags)
+	c.Check(err, check.IsNil)
+
 	type tableT struct {
 		setID      uint64
 		filename   string
@@ -931,6 +1038,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		{14, tarFile2, false, "cannot import snapshot 14: no export.json file in uploaded data"},
 		{14, tarFile3, false, "cannot import snapshot 14: cannot read snapshot import: unexpected EOF"},
 		{14, tarFile4, false, "cannot import snapshot 14: unexpected directory in import file"},
+		{14, tarFile5, false, "cannot import snapshot 14: invalid filename in import file"},
 		{14, tarFile1, true, "cannot import snapshot 14: already in progress for this set id"},
 	}
 
@@ -1002,7 +1110,7 @@ func (s *snapshotSuite) TestImportDuplicated(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	shID := uint64(12)
 
-	shw, err := backend.Save(ctx, shID, info, nil, []string{"snapuser"}, nil)
+	shw, err := backend.Save(ctx, shID, info, nil, []string{"snapuser"}, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	export, err := backend.NewSnapshotExport(ctx, shw.SetID)
@@ -1032,7 +1140,7 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
-	shw, err := backend.Save(ctx, shID, info, cfg, []string{"snapuser"}, nil)
+	shw, err := backend.Save(ctx, shID, info, cfg, []string{"snapuser"}, nil, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
 
@@ -1193,7 +1301,7 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	}
 	// create a snapshot
 	shID := uint64(12)
-	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, nil)
+	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, nil, nil)
 	c.Check(err, check.IsNil)
 
 	// content.json + num_files + export.json + footer
@@ -1242,6 +1350,7 @@ func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
 type createTestExportFlags struct {
 	exportJSON      bool
 	withDir         bool
+	withParent      bool
 	corruptChecksum bool
 }
 
@@ -1263,7 +1372,7 @@ func createTestExportFile(filename string, flags *createTestExportFlags) error {
 
 		sha := map[string]string{}
 
-		// create dummy archive.tgz
+		// create test archive.tgz
 		archiveWriter, err := zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"})
 		if err != nil {
 			return err
@@ -1329,6 +1438,20 @@ func createTestExportFile(filename string, flags *createTestExportFlags) error {
 		}
 	}
 
+	if flags.withParent {
+		hdr := &tar.Header{
+			Name: dirs.SnapshotsDir + "/../../2_foo",
+			Mode: 0644,
+			Size: int64(0),
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+		if _, err = tw.Write([]byte("")); err != nil {
+			return nil
+		}
+	}
+
 	if flags.exportJSON {
 		exp := fmt.Sprintf(`{"format":1, "date":"%s"}`, time.Now().Format(time.RFC3339))
 		hdr := &tar.Header{
@@ -1351,13 +1474,13 @@ func makeMockSnapshotZipContent(c *check.C) []byte {
 	buf := bytes.NewBuffer(nil)
 	zipW := zip.NewWriter(buf)
 
-	// create dummy archive.tgz
+	// create test archive.tgz
 	archiveWriter, err := zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"})
 	c.Assert(err, check.IsNil)
 	_, err = archiveWriter.Write([]byte("mock archive.tgz content"))
 	c.Assert(err, check.IsNil)
 
-	// create dummy meta.json
+	// create test meta.json
 	archiveWriter, err = zipW.CreateHeader(&zip.FileHeader{Name: "meta.json"})
 	c.Assert(err, check.IsNil)
 	_, err = archiveWriter.Write([]byte("{}"))
@@ -1525,7 +1648,7 @@ func (s *snapshotSuite) TestSnapshotExportContentHash(c *check.C) {
 		Version: "v1.33",
 	}
 	shID := uint64(12)
-	shw, err := backend.Save(ctx, shID, info, nil, []string{"snapuser"}, nil)
+	shw, err := backend.Save(ctx, shID, info, nil, []string{"snapuser"}, nil, nil)
 	c.Check(err, check.IsNil)
 
 	// now export it
@@ -1547,7 +1670,7 @@ func (s *snapshotSuite) TestSnapshotExportContentHash(c *check.C) {
 		},
 		Version: "v1.33",
 	}
-	shw, err = backend.Save(ctx, shID, info, nil, []string{"snapuser"}, nil)
+	shw, err = backend.Save(ctx, shID, info, nil, []string{"snapuser"}, nil, nil)
 	c.Check(err, check.IsNil)
 
 	export3, err := backend.NewSnapshotExport(ctx, shw.SetID)

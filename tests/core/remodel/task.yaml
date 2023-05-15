@@ -87,7 +87,7 @@ execute: |
 
     SNAP="$(get_snap_for_system test-snapd-tools)"
 
-    # sanity check
+    # precondition check
     not snap list "$SNAP"
 
     echo "Wait for first boot to be done"

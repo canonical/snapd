@@ -1,19 +1,23 @@
 summary: Integration tests for the bootstrap.Run
 
-# use the same system and tooling as uc20
-systems: [ubuntu-20.04-64]
+# use the same system and tooling as uc20/uc22
+systems: [ubuntu-2*]
 
 environment:
     SNAPD_DEBUG: "1"
     DISK_MAPPING_JSON: /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/disk-mapping.json
 
 prepare: |
+    if not os.query is-pc-amd64; then
+        echo "test designed for amd64 architecture, exiting..."
+        exit
+    fi
+
     echo "Create a fake block device image that looks like an image from u-i"
-    truncate --size=20GB fake.img
+    truncate --size=5GB fake.img
 
     echo "Setup the image as a block device"
-    losetup -fP fake.img
-    losetup -a |grep fake.img|cut -f1 -d: > loop.txt
+    losetup --show -fP fake.img >loop.txt
     LOOP="$(cat loop.txt)"
 
     echo "Create a partition that looks like a uc20 image"
@@ -31,11 +35,25 @@ prepare: |
     sfdisk -l "$LOOP" | MATCH 'BIOS boot'
     sfdisk -l "$LOOP" | MATCH 'EFI System'
 
+    # Resize the disk without resizing the partition table
+    truncate --size=20GB fake.img
+    losetup -c "${LOOP}"
+    partx -u "${LOOP}"
+
     echo "Get the UC20 gadget"
-    snap download --channel=20/edge pc
+    if os.query is-focal; then
+        snap download --channel=20/edge pc
+    elif os.query is-ubuntu 22.04 || os.query is-ubuntu 22.10 || os.query is-ubuntu 23.04; then
+        snap download --channel=22/edge pc
+    fi
     unsquashfs -d gadget-dir pc_*.snap
 
 restore: |
+    if not os.query is-pc-amd64; then
+        echo "test designed for amd64 architecture, exiting..."
+        exit
+    fi
+
     for label in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot other-ext4; do
         if mountpoint "/run/mnt/$label"; then
             umount "/run/mnt/$label"
@@ -47,30 +65,40 @@ restore: |
     if mountpoint ./mnt; then
         umount ./mnt
     fi
-    # sanity check
+    # precondition check
     mount | NOMATCH /run/mnt
     if [ -f loop.txt ]; then
         LOOP="$(cat loop.txt)"
         losetup -d "$LOOP"
         losetup -l | NOMATCH "$LOOP"
     fi
-    rm -f "$GOHOME"/bin/uc20-create-partitions
 
 debug: |
     cat /proc/partitions
-    LOOP="$(cat loop.txt)"
-    udevadm info --query property "${LOOP}" || true
-    udevadm info --query property "${LOOP}p1" || true
-    udevadm info --query property "${LOOP}p2" || true
-    udevadm info --query property "${LOOP}p3" || true
-    udevadm info --query property "${LOOP}p4" || true
-    udevadm info --query property "${LOOP}p5" || true
+    if [ -f loop.txt ]; then
+        LOOP="$(cat loop.txt)"
+        udevadm info --query property "${LOOP}" || true
+        udevadm info --query property "${LOOP}p1" || true
+        udevadm info --query property "${LOOP}p2" || true
+        udevadm info --query property "${LOOP}p3" || true
+        udevadm info --query property "${LOOP}p4" || true
+        udevadm info --query property "${LOOP}p5" || true
+    fi
 
 execute: |
+    if not os.query is-pc-amd64; then
+        echo "test designed for amd64 architecture, exiting..."
+        exit
+    fi
+
+    channel=20
+    if os.query is-ubuntu 22.04 || os.query is-ubuntu 22.10 || os.query is-ubuntu 23.04; then
+        channel=22
+    fi
+
     LOOP="$(cat loop.txt)"
 
     echo "Run the snap-bootstrap tool"
-    go get ../../lib/uc20-create-partitions
     # TODO:UC20: make kernel-dir non-empty once we have a gadget that has a
     #            "$kernel:" style ref in the meta/gadget.yaml
     kerneldir=""
@@ -148,7 +176,8 @@ execute: |
             filesystem-label: other-ext4
             size: 110M
     EOF
-    uc20-create-partitions ./gadget-dir "$kerneldir" "$LOOP" 2>&1 | MATCH "panic: gadget and system-boot device ${LOOP} partition table not compatible: cannot find gadget structure #6 \(\"Other ext4\"\) on disk"
+    uc20-create-partitions ./gadget-dir "$kerneldir" "$LOOP" 2>&1 |
+        MATCH "panic: gadget and system-boot device ${LOOP} partition table not compatible: cannot find gadget structure \"Other ext4\" on disk"
 
     # replace the gadget.yaml without the extra partition
     cp gadget.yaml.backup gadget-dir/meta/gadget.yaml
@@ -158,8 +187,13 @@ execute: |
     sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1\.2G\s* EFI System"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p3 .* 750M\s* Linux filesystem"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 16M\s* Linux filesystem"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 16\.7G\s* Linux filesystem"
+    if [ "$channel" = "20" ]; then
+        sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 16M\s* Linux filesystem"
+        sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 16\.7G\s* Linux filesystem"
+    else
+        sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 32M\s* Linux filesystem"
+        sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 16\.7G\s* Linux filesystem"
+    fi
 
     echo "check that the filesystems are created and mounted"
     mount | MATCH /run/mnt/ubuntu-boot
@@ -220,8 +254,13 @@ execute: |
     jq -r '.pc.structure[3]."filesystem-label"' < "$DISK_MAPPING_JSON" | MATCH ubuntu-save
     jq -r '.pc.structure[3]."partition-label"'  < "$DISK_MAPPING_JSON" | MATCH ubuntu-save
     jq -r '.pc.structure[3].id'                 < "$DISK_MAPPING_JSON" | MATCH ""
-    jq -r '.pc.structure[3].offset'             < "$DISK_MAPPING_JSON" | MATCH 2046820352
-    jq -r '.pc.structure[3].size'               < "$DISK_MAPPING_JSON" | MATCH 16777216
+    if [ "$channel" = "20" ]; then
+        jq -r '.pc.structure[3].offset'         < "$DISK_MAPPING_JSON" | MATCH 2046820352
+        jq -r '.pc.structure[3].size'           < "$DISK_MAPPING_JSON" | MATCH 16777216
+    else
+        jq -r '.pc.structure[3].offset'         < "$DISK_MAPPING_JSON" | MATCH 2046820352
+        jq -r '.pc.structure[3].size'           < "$DISK_MAPPING_JSON" | MATCH 33554432
+    fi
 
     # fifth structure - ubuntu-data
     jq -r '.pc.structure[4]."device-path"'      < "$DISK_MAPPING_JSON" | MATCH "/sys/devices/virtual/block/$LOOP_BASENAME/${LOOP_BASENAME}p5"
@@ -229,5 +268,10 @@ execute: |
     jq -r '.pc.structure[4]."filesystem-label"' < "$DISK_MAPPING_JSON" | MATCH ubuntu-data
     jq -r '.pc.structure[4]."partition-label"'  < "$DISK_MAPPING_JSON" | MATCH ubuntu-data
     jq -r '.pc.structure[4].id'                 < "$DISK_MAPPING_JSON" | MATCH ""
-    jq -r '.pc.structure[4].offset'             < "$DISK_MAPPING_JSON" | MATCH 2063597568
-    jq -r '.pc.structure[4].size'               < "$DISK_MAPPING_JSON" | MATCH 17936385536
+    if [ "$channel" = "20" ]; then
+        jq -r '.pc.structure[4].offset'         < "$DISK_MAPPING_JSON" | MATCH 2063597568
+        jq -r '.pc.structure[4].size'           < "$DISK_MAPPING_JSON" | MATCH 17936385536
+    else
+        jq -r '.pc.structure[4].offset'         < "$DISK_MAPPING_JSON" | MATCH 2080374784
+        jq -r '.pc.structure[4].size'           < "$DISK_MAPPING_JSON" | MATCH 17919608320
+    fi

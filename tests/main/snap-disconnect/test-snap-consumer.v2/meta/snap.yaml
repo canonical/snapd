@@ -2,4 +2,4 @@ name: test-snap-consumer
 version: 2
 plugs:
     other:
-        interface: dummy
+        interface: empty

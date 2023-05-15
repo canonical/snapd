@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,7 +27,6 @@ import (
 
 // snapDetails encapsulates the data sent to us from the store as JSON.
 type snapDetails struct {
-	AnonDownloadURL  string             `json:"anon_download_url,omitempty"`
 	Architectures    []string           `json:"architecture"`
 	Channel          string             `json:"channel,omitempty"`
 	DownloadSha3_384 string             `json:"download_sha3_384,omitempty"`
@@ -99,13 +98,12 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
-	info.AnonDownloadURL = d.AnonDownloadURL
 	info.DownloadURL = d.DownloadURL
 	info.Prices = d.Prices
 	info.Private = d.Private
 	info.Paid = len(info.Prices) > 0
 	info.Confinement = snap.ConfinementType(d.Confinement)
-	info.EditedContact = d.Contact
+	info.LegacyEditedContact = d.Contact
 	info.License = d.License
 	info.Base = d.Base
 	info.CommonIDs = d.CommonIDs
@@ -114,8 +112,8 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 
 	// FIXME: once the store sends "contact" for everything, remove
 	//        the "SupportURL" part of the if
-	if info.EditedContact == "" {
-		info.EditedContact = d.SupportURL
+	if info.LegacyEditedContact == "" {
+		info.LegacyEditedContact = d.SupportURL
 	}
 
 	return info

@@ -261,6 +261,7 @@ func AddUser(name string, opts *AddUserOptions) error {
 
 type DelUserOptions struct {
 	ExtraUsers bool
+	Force      bool
 }
 
 // DelUser removes a "regular login user" from the system, including their
@@ -274,6 +275,9 @@ func DelUser(name string, opts *DelUserOptions) error {
 	cmdStr := []string{"--remove"}
 	if opts.ExtraUsers {
 		cmdStr = append(cmdStr, "--extrausers")
+	}
+	if opts.Force {
+		cmdStr = append(cmdStr, "--force")
 	}
 	cmdStr = append(cmdStr, name)
 

@@ -154,10 +154,27 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 		return trySnap(c.d.overlord.State(), form.Values["snap-path"][0], flags)
 	}
 
+	if len(form.Values["quota-group"]) > 0 {
+		if len(form.Values["quota-group"]) != 1 {
+			return BadRequest("too many names provided for 'quota-group' option")
+		}
+		flags.QuotaGroupName = form.Values["quota-group"][0]
+	}
+
 	flags.RemoveSnapPath = true
 	flags.Unaliased = isTrue(form, "unaliased")
 	flags.IgnoreRunning = isTrue(form, "ignore-running")
-	flags.Transactional = isTrue(form, "transactional")
+	trasactionVals := form.Values["transaction"]
+	flags.Transaction = client.TransactionPerSnap
+	if len(trasactionVals) > 0 {
+		switch trasactionVals[0] {
+		case string(client.TransactionPerSnap), string(client.TransactionAllSnaps):
+			flags.Transaction = client.TransactionType(trasactionVals[0])
+		default:
+			return BadRequest(`transaction must be either %q or %q`,
+				client.TransactionPerSnap, client.TransactionAllSnaps)
+		}
+	}
 
 	sideloadFlags := sideloadFlags{
 		Flags:       flags,
@@ -198,13 +215,18 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 }
 
 func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, InternalError(err.Error())
+	}
+
 	sideInfos := make([]*snap.SideInfo, len(snapFiles))
 	names := make([]string, len(snapFiles))
 	tempPaths := make([]string, len(snapFiles))
 	origPaths := make([]string, len(snapFiles))
 
 	for i, snapFile := range snapFiles {
-		si, apiError := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags)
+		si, apiError := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
 		if apiError != nil {
 			return nil, apiError
 		}
@@ -242,7 +264,12 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 		}
 	}
 
-	sideInfo, apiErr := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags)
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, InternalError(err.Error())
+	}
+
+	sideInfo, apiErr := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
 	if apiErr != nil {
 		return nil, apiErr
 	}
@@ -268,15 +295,15 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 	return chg, nil
 }
 
-func readSideInfo(st *state.State, tempPath string, origPath string, flags sideloadFlags) (*snap.SideInfo, *apiError) {
+func readSideInfo(st *state.State, tempPath string, origPath string, flags sideloadFlags, model *asserts.Model) (*snap.SideInfo, *apiError) {
 	var sideInfo *snap.SideInfo
 
 	if !flags.dangerousOK {
-		si, err := snapasserts.DeriveSideInfo(tempPath, assertstate.DB(st))
+		si, err := snapasserts.DeriveSideInfo(tempPath, model, assertstate.DB(st))
 		switch {
 		case err == nil:
 			sideInfo = si
-		case asserts.IsNotFound(err):
+		case errors.Is(err, &asserts.NotFoundError{}):
 			// with devmode we try to find assertions but it's ok
 			// if they are not there (implies --dangerous)
 			if !flags.DevMode {

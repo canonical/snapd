@@ -20,6 +20,7 @@
 package triggerwatch_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -27,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/triggerwatch"
+	"github.com/snapcore/snapd/osutil/udev/netlink"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -55,11 +57,14 @@ func (m *mockTriggerDevice) String() string { return "mock-device" }
 func (m *mockTriggerDevice) Close()         { m.closeCalls++ }
 
 type mockTrigger struct {
-	f   triggerwatch.TriggerCapabilityFilter
-	d   *mockTriggerDevice
+	f               triggerwatch.TriggerCapabilityFilter
+	d               *mockTriggerDevice
+	unlistedDevices map[string]*mockTriggerDevice
+
 	err error
 
 	findMatchingCalls int
+	openCalls         int
 }
 
 func (m *mockTrigger) FindMatchingDevices(f triggerwatch.TriggerCapabilityFilter) ([]triggerwatch.TriggerDevice, error) {
@@ -75,7 +80,18 @@ func (m *mockTrigger) FindMatchingDevices(f triggerwatch.TriggerCapabilityFilter
 	return nil, nil
 }
 
+func (m *mockTrigger) Open(filter triggerwatch.TriggerCapabilityFilter, node string) (triggerwatch.TriggerDevice, error) {
+	m.openCalls++
+	device, ok := m.unlistedDevices[node]
+	if !ok {
+		return nil, errors.New("Not found")
+	} else {
+		return device, nil
+	}
+}
+
 const testTriggerTimeout = 5 * time.Millisecond
+const testDeviceTimeout = 2 * time.Millisecond
 
 func (s *triggerwatchSuite) TestNoDevsWaitKey(c *C) {
 	md := &mockTriggerDevice{ev: &triggerwatch.KeyEvent{}}
@@ -83,7 +99,7 @@ func (s *triggerwatchSuite) TestNoDevsWaitKey(c *C) {
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
 
-	err := triggerwatch.Wait(testTriggerTimeout)
+	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
 	c.Assert(err, IsNil)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 	c.Assert(md.waitForTriggerCalls, Equals, 1)
@@ -96,7 +112,7 @@ func (s *triggerwatchSuite) TestNoDevsWaitKeyTimeout(c *C) {
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
 
-	err := triggerwatch.Wait(testTriggerTimeout)
+	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
 	c.Assert(err, Equals, triggerwatch.ErrTriggerNotDetected)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 	c.Assert(md.waitForTriggerCalls, Equals, 1)
@@ -108,7 +124,7 @@ func (s *triggerwatchSuite) TestNoDevsWaitNoMatching(c *C) {
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
 
-	err := triggerwatch.Wait(testTriggerTimeout)
+	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
 	c.Assert(err, Equals, triggerwatch.ErrNoMatchingInputDevices)
 }
 
@@ -117,7 +133,7 @@ func (s *triggerwatchSuite) TestNoDevsWaitMatchingError(c *C) {
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
 
-	err := triggerwatch.Wait(testTriggerTimeout)
+	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
 	c.Assert(err, ErrorMatches, "cannot list trigger devices: failed")
 }
 
@@ -125,6 +141,78 @@ func (s *triggerwatchSuite) TestChecksInput(c *C) {
 	restore := triggerwatch.MockInput(nil)
 	defer restore()
 
-	c.Assert(func() { triggerwatch.Wait(testTriggerTimeout) },
+	c.Assert(func() { triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout) },
 		Panics, "trigger is unset")
+}
+
+func (s *triggerwatchSuite) TestUdevEvent(c *C) {
+	nodepath := "/dev/input/event0"
+	devpath := "/devices/SOMEBUS/input/input0/event0"
+
+	md := &mockTriggerDevice{ev: &triggerwatch.KeyEvent{}}
+	mi := &mockTrigger{
+		unlistedDevices: map[string]*mockTriggerDevice{
+			"/dev/input/event0": md,
+		},
+	}
+	restore := triggerwatch.MockInput(mi)
+	defer restore()
+
+	events := []netlink.UEvent{
+		{
+			Action: netlink.ADD,
+			KObj:   devpath,
+			Env: map[string]string{
+				"SUBSYSTEM": "input",
+				"DEVNAME":   nodepath,
+				"DEVPATH":   devpath,
+			},
+		},
+	}
+	restoreUevents := triggerwatch.MockUEvent(events)
+	defer restoreUevents()
+
+	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
+	c.Assert(err, IsNil)
+	c.Assert(mi.findMatchingCalls, Equals, 1)
+
+	c.Assert(mi.openCalls, Equals, 1)
+	c.Assert(md.waitForTriggerCalls, Equals, 1)
+	c.Assert(md.closeCalls, Equals, 1)
+}
+
+func (s *triggerwatchSuite) TestUdevEventNoKeyEvent(c *C) {
+	nodepath := "/dev/input/event0"
+	devpath := "/devices/SOMEBUS/input/input0/event0"
+
+	md := &mockTriggerDevice{}
+	mi := &mockTrigger{
+		unlistedDevices: map[string]*mockTriggerDevice{
+			"/dev/input/event0": md,
+		},
+	}
+	restore := triggerwatch.MockInput(mi)
+	defer restore()
+
+	events := []netlink.UEvent{
+		{
+			Action: netlink.ADD,
+			KObj:   devpath,
+			Env: map[string]string{
+				"SUBSYSTEM": "input",
+				"DEVNAME":   nodepath,
+				"DEVPATH":   devpath,
+			},
+		},
+	}
+	restoreUevents := triggerwatch.MockUEvent(events)
+	defer restoreUevents()
+
+	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
+	c.Assert(err, Equals, triggerwatch.ErrTriggerNotDetected)
+	c.Assert(mi.findMatchingCalls, Equals, 1)
+
+	c.Assert(mi.openCalls, Equals, 1)
+	c.Assert(md.waitForTriggerCalls, Equals, 1)
+	c.Assert(md.closeCalls, Equals, 1)
 }

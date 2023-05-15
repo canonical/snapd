@@ -239,7 +239,7 @@ type: kernel
 	c.Assert(bloader.ExtractKernelAssetsCalls[1].InstanceName(), Equals, "kernel")
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
-	// sanity checks
+	// validity checks
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 1)
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
@@ -289,7 +289,7 @@ type: kernel
 	err = s.be.UndoSetupSnap(minInfo, "kernel", nil, mockDevWithKernel, progress.Null)
 	c.Assert(err, IsNil)
 
-	// sanity checks
+	// validity checks
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 0)
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
@@ -320,7 +320,7 @@ func (s *setupSuite) TestSetupUndoKeepsTargetSnapIfSymlink(c *C) {
 	// after setup the snap file is in the right dir
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, true)
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, true)
-	// sanity
+	// validity
 	c.Assert(osutil.IsSymlink(minInfo.MountFile()), Equals, true)
 
 	// undo keeps the target .snap file intact if requested
@@ -363,7 +363,7 @@ func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// mount unit start fails
-		if len(cmd) >= 2 && cmd[0] == "start" && strings.HasSuffix(cmd[1], ".mount") {
+		if len(cmd) >= 2 && cmd[0] == "reload-or-restart" && strings.HasSuffix(cmd[1], ".mount") {
 			return nil, fmt.Errorf("failed")
 		}
 		return []byte("ActiveState=inactive\n"), nil

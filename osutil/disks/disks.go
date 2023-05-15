@@ -19,7 +19,10 @@
 
 package disks
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Options is a set of options used when querying information about
 // partition and disk devices.
@@ -169,6 +172,13 @@ type Partition struct {
 	// from?
 }
 
+func (p *Partition) hasFilesystemLabel(encodedLabel string) bool {
+	if p.FilesystemType == "vfat" {
+		return strings.EqualFold(p.FilesystemLabel, encodedLabel)
+	}
+	return p.FilesystemLabel == encodedLabel
+}
+
 // MountPointsForPartitionRoot returns all mounts from the mount table which are
 // for the root directory of the specified partition and have matching mount
 // options as specified. Options not specified in the map argument can have any
@@ -206,6 +216,7 @@ var (
 	_ = error(PartitionNotFoundError{})
 )
 
+// TODO: simplify this away as now we have only LUKS?
 var deviceMapperBackResolvers = map[string]func(dmUUID, dmName []byte) (dev string, ok bool){}
 
 // RegisterDeviceMapperBackResolver takes a callback function which is used when

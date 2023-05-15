@@ -109,7 +109,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 
 	s.state.Lock()
 	t := s.state.NewTask("set-model", "set-model test")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.Set("new-model", string(asserts.Encode(newModel)))
 	chg.AddTask(t)
 
@@ -160,7 +160,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
 	c.Assert(err, IsNil)
 
 	t := s.state.NewTask("set-model", "set-model test")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.Set("new-model", string(asserts.Encode(model)))
 	chg.AddTask(t)
 
@@ -207,7 +207,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerStoreSwitch(c *C) {
 
 	s.state.Lock()
 	t := s.state.NewTask("set-model", "set-model test")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.Set("new-model", string(asserts.Encode(newModel)))
 	chg.Set("device", auth.DeviceState{
 		Brand:           "canonical",
@@ -284,7 +284,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerRereg(c *C) {
 
 	s.state.Lock()
 	t := s.state.NewTask("set-model", "set-model test")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.Set("new-model", string(asserts.Encode(newModel)))
 	chg.Set("device", auth.DeviceState{
 		Brand:           "canonical",
@@ -420,7 +420,7 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 	// 1 "set-model" task at the end
 	c.Assert(tl, HasLen, 1+2*3+1)
 
-	// sanity
+	// validity
 	c.Check(tl[1].Kind(), Equals, "fake-download")
 	c.Check(tl[1+2*3].Kind(), Equals, "set-model")
 
@@ -493,6 +493,7 @@ apps:
 
 type preseedingClassicSuite struct {
 	preseedingBaseSuite
+	now time.Time
 }
 
 var _ = Suite(&preseedingClassicSuite{})
@@ -500,16 +501,16 @@ var _ = Suite(&preseedingClassicSuite{})
 func (s *preseedingClassicSuite) SetUpTest(c *C) {
 	classic := true
 	preseed := true
+	s.now = time.Now()
+	r := devicestate.MockTimeNow(func() time.Time {
+		return s.now
+	})
 	s.preseedingBaseSuite.SetUpTest(c, preseed, classic)
+	// can use cleanup only after having called base SetUpTest
+	s.AddCleanup(r)
 }
 
 func (s *preseedingClassicSuite) TestDoMarkPreseeded(c *C) {
-	now := time.Now()
-	restore := devicestate.MockTimeNow(func() time.Time {
-		return now
-	})
-	defer restore()
-
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -535,13 +536,13 @@ func (s *preseedingClassicSuite) TestDoMarkPreseeded(c *C) {
 	c.Check(preseeded, Equals, true)
 
 	var systemKey map[string]interface{}
-	c.Assert(st.Get("seed-restart-system-key", &systemKey), Equals, state.ErrNoState)
+	c.Assert(st.Get("seed-restart-system-key", &systemKey), testutil.ErrorIs, state.ErrNoState)
 	c.Assert(st.Get("preseed-system-key", &systemKey), IsNil)
 	c.Check(systemKey["build-id"], Equals, "abcde")
 
 	var preseededTime time.Time
 	c.Assert(st.Get("preseed-time", &preseededTime), IsNil)
-	c.Check(preseededTime.Equal(now), Equals, true)
+	c.Check(preseededTime.Equal(s.now), Equals, true)
 
 	// core snap was "manually" unmounted
 	c.Check(s.cmdUmount.Calls(), DeepEquals, [][]string{
@@ -564,16 +565,9 @@ func (s *preseedingClassicSuite) TestDoMarkPreseeded(c *C) {
 }
 
 func (s *preseedingClassicSuite) TestEnsureSeededPreseedFlag(c *C) {
-	now := time.Now()
-	restoreTimeNow := devicestate.MockTimeNow(func() time.Time {
-		return now
-	})
-	defer restoreTimeNow()
-
 	called := false
-	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
+	restore := devicestate.MockPopulateStateFromSeed(s.mgr, func(sLabel, sMode string, tm timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
-		c.Check(opts.Preseed, Equals, true)
 		return nil, nil
 	})
 	defer restore()
@@ -587,7 +581,7 @@ func (s *preseedingClassicSuite) TestEnsureSeededPreseedFlag(c *C) {
 
 	var preseedStartTime time.Time
 	c.Assert(s.state.Get("preseed-start-time", &preseedStartTime), IsNil)
-	c.Check(preseedStartTime.Equal(now), Equals, true)
+	c.Check(preseedStartTime.Equal(s.now), Equals, true)
 }
 
 type preseedingClassicDoneSuite struct {
@@ -626,7 +620,7 @@ func (s *preseedingClassicDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
 	// in real world preseed-system-key would be present at this point because
 	// mark-preseeded would be run twice (before & after preseeding); this is
 	// not the case in this test.
-	c.Assert(st.Get("preseed-system-key", &systemKey), Equals, state.ErrNoState)
+	c.Assert(st.Get("preseed-system-key", &systemKey), testutil.ErrorIs, state.ErrNoState)
 	c.Assert(st.Get("seed-restart-system-key", &systemKey), IsNil)
 	c.Check(systemKey["build-id"], Equals, "abcde")
 
@@ -713,8 +707,8 @@ volumes:
 	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, nil)
 }
 
-func (s *preseedingUC20Suite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
-	// sanity
+func (s *preseedingUC20Suite) TestEarlyPreloadGadgetPicksSystemOnCore20(c *C) {
+	// validity
 	c.Assert(snapdenv.Preseeding(), Equals, true)
 	c.Assert(release.OnClassic, Equals, false)
 
@@ -738,31 +732,30 @@ func (s *preseedingUC20Suite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, _, err = devicestate.PreloadGadget(mgr)
+	_, _, err = devicestate.EarlyPreloadGadget(mgr)
 	// error from mocked loadDeviceSeed results in ErrNoState from preloadGadget
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(readSysLabel, Equals, "20220108")
 }
 
 func (s *preseedingUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
-	// sanity
+	// validity
 	c.Assert(snapdenv.Preseeding(), Equals, true)
 	c.Assert(release.OnClassic, Equals, false)
 
 	called := false
-	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
-		called = true
-		c.Check(opts.Preseed, Equals, true)
-		c.Check(opts.Label, Equals, "20220105")
-		c.Check(opts.Mode, Equals, "run")
-		return nil, nil
-	})
-	defer restore()
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
 
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
+	restore := devicestate.MockPopulateStateFromSeed(mgr, func(sLabel, sMode string, tm timings.Measurer) ([]*state.TaskSet, error) {
+		called = true
+		c.Check(sLabel, Equals, "20220105")
+		c.Check(sMode, Equals, "run")
+		return nil, nil
+	})
+	defer restore()
 
 	err = devicestate.EnsureSeeded(mgr)
 	c.Assert(err, IsNil)
@@ -770,7 +763,7 @@ func (s *preseedingUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 }
 
 func (s *preseedingUC20Suite) TestSysModeIsRunWhenPreseeding(c *C) {
-	// sanity
+	// validity
 	c.Assert(snapdenv.Preseeding(), Equals, true)
 	c.Assert(release.OnClassic, Equals, false)
 

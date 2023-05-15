@@ -1,0 +1,35 @@
+project: log-analyzer
+
+details: |
+    This project is used to test the log analyzer tool. The project contains a
+    set of tests which are needed by the log analyzer to list all the tests which
+    have to be consider to be able to detect the tests which have been aborted and
+    are not listed in the results section.
+
+backends:
+    google:
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-east1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-20.04-64:
+                workers: 1
+            - ubuntu-22.04-64:
+                workers: 1
+
+path: /root/log-analyzer-reexec
+
+prepare: |
+    echo "Prepare log-analyzer-reexec project"
+
+restore: |
+    echo "Restore snapd-testing-tools project"
+
+suites:
+    tests/:
+        summary: Main test suite for snapd-testing-tools
+        prepare: |
+            echo "Preparing log-analyzer-reexec main suite"
+
+        restore: |
+            echo "Restoring log-analyzer-reexec main suite"

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
@@ -51,6 +52,9 @@ type ModelSnap struct {
 	PinnedTrack string
 	// Presence is one of: required|optional
 	Presence string
+	// Classic indicates that this classic snap is intentionally
+	// included in a classic model
+	Classic bool
 }
 
 // SnapName implements naming.SnapRef.
@@ -98,7 +102,7 @@ var (
 	defaultModes       = []string{"run"}
 )
 
-func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade) (*modelSnaps, error) {
+func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade, modelIsClassic bool) (*modelSnaps, error) {
 	const wrongHeaderType = `"snaps" header must be a list of maps`
 
 	entries, ok := extendedSnaps.([]interface{})
@@ -115,7 +119,7 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 		if !ok {
 			return nil, fmt.Errorf(wrongHeaderType)
 		}
-		modelSnap, err := checkModelSnap(snap, grade)
+		modelSnap, err := checkModelSnap(snap, grade, modelIsClassic)
 		if err != nil {
 			return nil, err
 		}
@@ -172,6 +176,10 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 		if len(modelSnap.Modes) == 0 {
 			modelSnap.Modes = defaultModes
 		}
+		if modelSnap.Classic && (len(modelSnap.Modes) != 1 || modelSnap.Modes[0] != "run") {
+			return nil, fmt.Errorf("classic snap %q not allowed outside of run mode: %v", modelSnap.Name, modelSnap.Modes)
+		}
+
 		if modelSnap.Presence == "" {
 			modelSnap.Presence = "required"
 		}
@@ -190,7 +198,7 @@ var (
 	validSnapPresences = []string{"required", "optional"}
 )
 
-func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, error) {
+func checkModelSnap(snap map[string]interface{}, grade ModelGrade, modelIsClassic bool) (*ModelSnap, error) {
 	name, err := checkNotEmptyStringWhat(snap, "name", "of snap")
 	if err != nil {
 		return nil, err
@@ -256,6 +264,17 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 		return nil, fmt.Errorf("presence of snap %q must be one of required|optional", name)
 	}
 
+	isClassic, err := checkOptionalBoolWhat(snap, "classic", what)
+	if err != nil {
+		return nil, err
+	}
+	if isClassic && !modelIsClassic {
+		return nil, fmt.Errorf("snap %q cannot be classic in non-classic model", name)
+	}
+	if isClassic && typ != "app" {
+		return nil, fmt.Errorf("snap %q cannot be classic with type %q instead of app", name, typ)
+	}
+
 	return &ModelSnap{
 		Name:           name,
 		SnapID:         snapID,
@@ -263,6 +282,7 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 		Modes:          modes, // can be empty
 		DefaultChannel: defaultChannel,
 		Presence:       presence, // can be empty
+		Classic:        isClassic,
 	}, nil
 }
 
@@ -361,14 +381,16 @@ var validStorageSafeties = []string{string(StorageSafetyEncrypted), string(Stora
 var validModelGrades = []string{string(ModelSecured), string(ModelSigned), string(ModelDangerous)}
 
 // gradeToCode encodes grades into 32 bits, trying to be slightly future-proof:
-// * lower 16 bits are reserved
-// * in the higher bits use the sequence 1, 8, 16 to have some space
-//   to possibly add new grades in between
+//   - lower 16 bits are reserved
+//   - in the higher bits use the sequence 1, 8, 16 to have some space
+//     to possibly add new grades in between
 var gradeToCode = map[ModelGrade]uint32{
 	ModelGradeUnset: 0,
 	ModelDangerous:  0x10000,
 	ModelSigned:     0x80000,
 	ModelSecured:    0x100000,
+	// reserved by secboot to measure classic models
+	// "ClassicModelGradeMask": 0x80000000
 }
 
 // Code returns a bit representation of the grade, for example for
@@ -379,6 +401,46 @@ func (mg ModelGrade) Code() uint32 {
 		panic(fmt.Sprintf("unknown model grade: %s", mg))
 	}
 	return code
+}
+
+type ModelValidationSetMode string
+
+const (
+	ModelValidationSetModePreferEnforced ModelValidationSetMode = "prefer-enforce"
+	ModelValidationSetModeEnforced       ModelValidationSetMode = "enforce"
+)
+
+var validModelValidationSetModes = []string{
+	string(ModelValidationSetModePreferEnforced),
+	string(ModelValidationSetModeEnforced),
+}
+
+// ModelValidationSet represents a reference to a validation set assertion.
+// The structure also describes how the validation set will be applied
+// to the device, and whether the validation set should be pinned to
+// a specific sequence.
+type ModelValidationSet struct {
+	// AccountID is the account ID the validation set originates from.
+	// If this was not explicitly set in the stanza, this will instead
+	// be set to the brand ID.
+	AccountID string
+	// Name is the name of the validation set from the account ID.
+	Name string
+	// Sequence, if non-zero, specifies that the validation set should be
+	// pinned at this sequence number.
+	Sequence int
+	// Mode is the enforcement mode the validation set should be applied with.
+	Mode ModelValidationSetMode
+}
+
+func (mvs *ModelValidationSet) AtSequence() *AtSequence {
+	return &AtSequence{
+		Type:        ValidationSetType,
+		SequenceKey: []string{release.Series, mvs.AccountID, mvs.Name},
+		Sequence:    mvs.Sequence,
+		Pinned:      mvs.Sequence > 0,
+		Revision:    RevisionNotKnown,
+	}
 }
 
 // Model holds a model assertion, which is a statement by a brand
@@ -400,6 +462,8 @@ type Model struct {
 	// snapRef
 	requiredWithEssentialSnaps []naming.SnapRef
 	numEssentialSnaps          int
+
+	validationSets []*ModelValidationSet
 
 	serialAuthority  []string
 	sysUserAuthority []string
@@ -434,6 +498,11 @@ func (mod *Model) Series() string {
 // Classic returns whether the model is a classic system.
 func (mod *Model) Classic() bool {
 	return mod.classic
+}
+
+// Distribution returns the linux distro specified in the model.
+func (mod *Model) Distribution() string {
+	return mod.HeaderString("distribution")
 }
 
 // Architecture returns the architecture the model is based on.
@@ -538,6 +607,11 @@ func (mod *Model) SnapsWithoutEssential() []*ModelSnap {
 	return mod.allSnaps[mod.numEssentialSnaps:]
 }
 
+// ValidationSets returns all the validation-sets listed by the model.
+func (mod *Model) ValidationSets() []*ModelValidationSet {
+	return mod.validationSets
+}
+
 // SerialAuthority returns the authority ids that are accepted as
 // signers for serial assertions for this model. It always includes the
 // brand of the model.
@@ -563,7 +637,7 @@ func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*Model)(nil)
 
 // limit model to only lowercase for now
@@ -631,11 +705,126 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 	return nil, fmt.Errorf("%q header must be '*' or a list of account ids", name)
 }
 
+func checkModelValidationSetAccountID(headers map[string]interface{}, what, brandID string) (string, error) {
+	accountID, err := checkOptionalStringWhat(headers, "account-id", what)
+	if err != nil {
+		return "", err
+	}
+
+	// default to brand ID if account ID is not provided
+	if accountID == "" {
+		return brandID, nil
+	}
+	return accountID, nil
+}
+
+// checkOptionalModelValidationSetSequence reads the optional 'sequence' member, if
+// not set, returns 0 as this means unpinned. Unfortunately we are not able
+// to reuse `checkSequence` as it operates inside different parameters.
+func checkOptionalModelValidationSetSequence(headers map[string]interface{}, what string) (int, error) {
+	// Default to 0 when the sequence header is not present
+	if _, ok := headers["sequence"]; !ok {
+		return 0, nil
+	}
+
+	seq, err := checkIntWhat(headers, "sequence", what)
+	if err != nil {
+		return 0, err
+	}
+
+	// If sequence is provided, only accept positive values above 0
+	if seq <= 0 {
+		return 0, fmt.Errorf("\"sequence\" %s must be larger than 0 or left unspecified (meaning tracking latest)", what)
+	}
+	return seq, nil
+}
+
+func checkModelValidationSetMode(headers map[string]interface{}, what string) (ModelValidationSetMode, error) {
+	modeStr, err := checkNotEmptyStringWhat(headers, "mode", what)
+	if err != nil {
+		return "", err
+	}
+
+	if modeStr != "" && !strutil.ListContains(validModelValidationSetModes, modeStr) {
+		return "", fmt.Errorf("\"mode\" %s must be %s, not %q", what, strings.Join(validModelValidationSetModes, "|"), modeStr)
+	}
+	return ModelValidationSetMode(modeStr), nil
+}
+
+func checkModelValidationSet(headers map[string]interface{}, brandID string) (*ModelValidationSet, error) {
+	name, err := checkStringMatchesWhat(headers, "name", "of validation-set", validValidationSetName)
+	if err != nil {
+		return nil, err
+	}
+
+	what := fmt.Sprintf("of validation-set %q", name)
+	accountID, err := checkModelValidationSetAccountID(headers, what, brandID)
+	if err != nil {
+		return nil, err
+	}
+
+	what = fmt.Sprintf("of validation-set \"%s/%s\"", accountID, name)
+	seq, err := checkOptionalModelValidationSetSequence(headers, what)
+	if err != nil {
+		return nil, err
+	}
+
+	mode, err := checkModelValidationSetMode(headers, what)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ModelValidationSet{
+		AccountID: accountID,
+		Name:      name,
+		Sequence:  seq,
+		Mode:      mode,
+	}, nil
+}
+
+func checkOptionalModelValidationSets(headers map[string]interface{}, brandID string) ([]*ModelValidationSet, error) {
+	valSets, ok := headers["validation-sets"]
+	if !ok {
+		return nil, nil
+	}
+
+	entries, ok := valSets.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf(`"validation-sets" must be a list of validation sets`)
+	}
+
+	vss := make([]*ModelValidationSet, len(entries))
+	seen := make(map[string]bool, len(entries))
+	for i, entry := range entries {
+		data, ok := entry.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf(`entry in "validation-sets" is not a valid validation-set`)
+		}
+
+		vs, err := checkModelValidationSet(data, brandID)
+		if err != nil {
+			return nil, err
+		}
+		vsKey := fmt.Sprintf("%s/%s", vs.AccountID, vs.Name)
+		if seen[vsKey] {
+			return nil, fmt.Errorf("cannot add validation set %q twice", vsKey)
+		}
+
+		vss[i] = vs
+		seen[vsKey] = true
+	}
+	return vss, nil
+}
+
 var (
 	modelMandatory           = []string{"architecture", "gadget", "kernel"}
-	extendedCoreMandatory    = []string{"architecture", "base"}
+	extendedMandatory        = []string{"architecture", "base"}
 	extendedSnapsConflicting = []string{"gadget", "kernel", "required-snaps"}
 	classicModelOptional     = []string{"architecture", "gadget"}
+
+	// The distribution header must be a valid ID according to
+	// https://www.freedesktop.org/software/systemd/man/os-release.html#ID=
+	validDistribution = regexp.MustCompile(`^[a-z0-9._-]*$`)
 )
 
 func assembleModel(assert assertionBase) (Assertion, error) {
@@ -657,10 +846,6 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	// Core 20 extended snaps header
 	extendedSnaps, extended := assert.headers["snaps"]
 	if extended {
-		if classic {
-			return nil, fmt.Errorf("cannot use extended snaps header for a classic model (yet)")
-		}
-
 		for _, conflicting := range extendedSnapsConflicting {
 			if _, ok := assert.headers[conflicting]; ok {
 				return nil, fmt.Errorf("cannot specify separate %q header once using the extended snaps header", conflicting)
@@ -675,19 +860,30 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		}
 	}
 
-	if classic {
+	if classic && !extended {
 		if _, ok := assert.headers["kernel"]; ok {
-			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
+			return nil, fmt.Errorf("cannot specify a kernel with a non-extended classic model")
 		}
 		if _, ok := assert.headers["base"]; ok {
-			return nil, fmt.Errorf("cannot specify a base with a classic model")
+			return nil, fmt.Errorf("cannot specify a base with a non-extended classic model")
 		}
+	}
+
+	// distribution mandatory for classic with extended snaps, not
+	// allowed otherwise.
+	if classic && extended {
+		_, err := checkStringMatches(assert.headers, "distribution", validDistribution)
+		if err != nil {
+			return nil, fmt.Errorf("%v, see distribution ID in os-release spec", err)
+		}
+	} else if _, ok := assert.headers["distribution"]; ok {
+		return nil, fmt.Errorf("cannot specify distribution for model unless it is classic and has an extended snaps header")
 	}
 
 	checker := checkNotEmptyString
 	toCheck := modelMandatory
 	if extended {
-		toCheck = extendedCoreMandatory
+		toCheck = extendedMandatory
 	} else if classic {
 		checker = checkOptionalString
 		toCheck = classicModelOptional
@@ -759,15 +955,23 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			return nil, fmt.Errorf(`secured grade model must not have storage-safety overridden, only "encrypted" is valid`)
 		}
 
-		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade)
+		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade, classic)
 		if err != nil {
 			return nil, err
 		}
-		if modSnaps.gadget == nil {
-			return nil, fmt.Errorf(`one "snaps" header entry must specify the model gadget`)
-		}
-		if modSnaps.kernel == nil {
-			return nil, fmt.Errorf(`one "snaps" header entry must specify the model kernel`)
+		hasKernel := modSnaps.kernel != nil
+		hasGadget := modSnaps.gadget != nil
+		if !classic {
+			if !hasGadget {
+				return nil, fmt.Errorf(`one "snaps" header entry must specify the model gadget`)
+			}
+			if !hasKernel {
+				return nil, fmt.Errorf(`one "snaps" header entry must specify the model kernel`)
+			}
+		} else {
+			if hasKernel && !hasGadget {
+				return nil, fmt.Errorf("cannot specify a kernel in an extended classic model without a model gadget")
+			}
 		}
 
 		if modSnaps.base == nil {
@@ -831,6 +1035,11 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 
 	allSnaps, requiredWithEssentialSnaps, numEssentialSnaps := modSnaps.list()
 
+	valSets, err := checkOptionalModelValidationSets(assert.headers, brandID)
+	if err != nil {
+		return nil, err
+	}
+
 	// NB:
 	// * core is not supported at this time, it defaults to ubuntu-core
 	// in prepare-image until rename and/or introduction of the header.
@@ -850,6 +1059,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		allSnaps:                   allSnaps,
 		requiredWithEssentialSnaps: requiredWithEssentialSnaps,
 		numEssentialSnaps:          numEssentialSnaps,
+		validationSets:             valSets,
 		serialAuthority:            serialAuthority,
 		sysUserAuthority:           sysUserAuthority,
 		timestamp:                  timestamp,

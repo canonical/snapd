@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,21 +30,37 @@ import (
 	"path/filepath"
 )
 
+// TransactionType says whether we want to treat each snap separately
+// (the transaction is per snap) or whether to consider the call a
+// single transaction so everything is reverted if it fails for just
+// one snap. This applies to installs and updates, which can be done
+// for multiple snaps in the same API call.
+type TransactionType string
+
+const (
+	TransactionAllSnaps TransactionType = "all-snaps"
+	TransactionPerSnap  TransactionType = "per-snap"
+)
+
 type SnapOptions struct {
-	Channel          string `json:"channel,omitempty"`
-	Revision         string `json:"revision,omitempty"`
-	CohortKey        string `json:"cohort-key,omitempty"`
-	LeaveCohort      bool   `json:"leave-cohort,omitempty"`
-	DevMode          bool   `json:"devmode,omitempty"`
-	JailMode         bool   `json:"jailmode,omitempty"`
-	Classic          bool   `json:"classic,omitempty"`
-	Dangerous        bool   `json:"dangerous,omitempty"`
-	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
-	IgnoreRunning    bool   `json:"ignore-running,omitempty"`
-	Unaliased        bool   `json:"unaliased,omitempty"`
-	Purge            bool   `json:"purge,omitempty"`
-	Amend            bool   `json:"amend,omitempty"`
-	Transactional    bool   `json:"transactional,omitempty"`
+	Channel          string          `json:"channel,omitempty"`
+	Revision         string          `json:"revision,omitempty"`
+	CohortKey        string          `json:"cohort-key,omitempty"`
+	LeaveCohort      bool            `json:"leave-cohort,omitempty"`
+	DevMode          bool            `json:"devmode,omitempty"`
+	JailMode         bool            `json:"jailmode,omitempty"`
+	Classic          bool            `json:"classic,omitempty"`
+	Dangerous        bool            `json:"dangerous,omitempty"`
+	IgnoreValidation bool            `json:"ignore-validation,omitempty"`
+	IgnoreRunning    bool            `json:"ignore-running,omitempty"`
+	Unaliased        bool            `json:"unaliased,omitempty"`
+	Purge            bool            `json:"purge,omitempty"`
+	Amend            bool            `json:"amend,omitempty"`
+	Transaction      TransactionType `json:"transaction,omitempty"`
+	QuotaGroupName   string          `json:"quota-group,omitempty"`
+	ValidationSets   []string        `json:"validation-sets,omitempty"`
+	Time             string          `json:"time,omitempty"`
+	HoldLevel        string          `json:"hold-level,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -85,7 +101,16 @@ func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
 	fields := []field{
 		{"ignore-running", opts.IgnoreRunning},
 		{"unaliased", opts.Unaliased},
-		{"transactional", opts.Transactional},
+	}
+	if opts.Transaction != "" {
+		if err := mw.WriteField("transaction", string(opts.Transaction)); err != nil {
+			return err
+		}
+	}
+	if opts.QuotaGroupName != "" {
+		if err := mw.WriteField("quota-group", opts.QuotaGroupName); err != nil {
+			return err
+		}
 	}
 	return writeFields(mw, fields)
 }
@@ -98,10 +123,15 @@ type actionData struct {
 }
 
 type multiActionData struct {
-	Action        string   `json:"action"`
-	Snaps         []string `json:"snaps,omitempty"`
-	Users         []string `json:"users,omitempty"`
-	Transactional bool     `json:"transactional,omitempty"`
+	Action         string          `json:"action"`
+	Snaps          []string        `json:"snaps,omitempty"`
+	Users          []string        `json:"users,omitempty"`
+	Transaction    TransactionType `json:"transaction,omitempty"`
+	IgnoreRunning  bool            `json:"ignore-running,omitempty"`
+	Purge          bool            `json:"purge,omitempty"`
+	ValidationSets []string        `json:"validation-sets,omitempty"`
+	Time           string          `json:"time,omitempty"`
+	HoldLevel      string          `json:"hold-level,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -131,6 +161,22 @@ func (client *Client) Refresh(name string, options *SnapOptions) (changeID strin
 
 func (client *Client) RefreshMany(names []string, options *SnapOptions) (changeID string, err error) {
 	return client.doMultiSnapAction("refresh", names, options)
+}
+
+func (client *Client) HoldRefreshes(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("hold", name, options)
+}
+
+func (client *Client) HoldRefreshesMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("hold", names, options)
+}
+
+func (client *Client) UnholdRefreshes(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("unhold", name, options)
+}
+
+func (client *Client) UnholdRefreshesMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("unhold", names, options)
 }
 
 func (client *Client) Enable(name string, options *SnapOptions) (changeID string, err error) {
@@ -206,7 +252,12 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 	if options != nil {
 		// TODO: consider returning error when options.Dangerous is set
 		action.Users = options.Users
-		action.Transactional = options.Transactional
+		action.Transaction = options.Transaction
+		action.IgnoreRunning = options.IgnoreRunning
+		action.Purge = options.Purge
+		action.ValidationSets = options.ValidationSets
+		action.Time = options.Time
+		action.HoldLevel = options.HoldLevel
 	}
 
 	data, err := json.Marshal(&action)
