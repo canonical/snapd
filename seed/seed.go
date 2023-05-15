@@ -242,22 +242,21 @@ func ReadSystemEssential(seedDir, label string, essentialTypes []snap.Type, tm t
 	return seed20.Model(), seed20.EssentialSnaps(), nil
 }
 
-// ReadSystemEssentialAndBetterEarliestTime retrieves in one go
-// information about the model and essential snaps of the given types
-// for the Core 20 recovery system seed specified by seedDir and label
-// (which cannot be empty). numJobs specifies the suggested number of
-// jobs to run in parallel (0 disables parallelism).
-// It can operate even if current system time is unreliable by taking
-// a earliestTime lower bound for current time.
+// ReadSeedAndBetterEarliestTime retrieves in one go the seed and
+// assertions for the Core 20 recovery system seed specified by
+// seedDir and label (which cannot be empty). numJobs specifies the
+// suggested number of jobs to run in parallel (0 disables
+// parallelism).  It can operate even if current system time is
+// unreliable by taking a earliestTime lower bound for current time.
 // It returns as well an improved lower bound by considering
 // appropriate assertions in the seed.
-func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTypes []snap.Type, earliestTime time.Time, numJobs int, tm timings.Measurer) (*asserts.Model, []*Snap, time.Time, error) {
+func ReadSeedAndBetterEarliestTime(seedDir, label string, earliestTime time.Time, numJobs int, tm timings.Measurer) (Seed, time.Time, error) {
 	if label == "" {
-		return nil, nil, time.Time{}, fmt.Errorf("system label cannot be empty")
+		return nil, time.Time{}, fmt.Errorf("system label cannot be empty")
 	}
 	seed20, err := open(seedDir, label)
 	if err != nil {
-		return nil, nil, time.Time{}, err
+		return nil, time.Time{}, err
 
 	}
 
@@ -293,7 +292,7 @@ func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTy
 	// create a temporary database, commitTo will invoke improve
 	db, commitTo, err := newMemAssertionsDB(improve)
 	if err != nil {
-		return nil, nil, time.Time{}, err
+		return nil, time.Time{}, err
 	}
 	// set up the database to check for key expiry only assuming
 	// earliestTime (if not zero)
@@ -301,12 +300,7 @@ func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTy
 
 	// load assertions into the temporary database
 	if err := seed20.LoadAssertions(db, commitTo); err != nil {
-		return nil, nil, time.Time{}, err
-	}
-
-	// load and verify info about essential snaps
-	if err := seed20.LoadEssentialMeta(essentialTypes, tm); err != nil {
-		return nil, nil, time.Time{}, err
+		return nil, time.Time{}, err
 	}
 
 	// consider the model's timestamp as well - it must be signed
@@ -316,5 +310,5 @@ func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTy
 		earliestTime = mod.Timestamp()
 	}
 
-	return mod, seed20.EssentialSnaps(), earliestTime, nil
+	return seed20, earliestTime, nil
 }
