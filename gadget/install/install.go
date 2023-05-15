@@ -246,7 +246,7 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
-	if err := gadget.EnsureVolumeCompatibility(bootVol, diskVolume, nil); err != nil {
+	if _, err := gadget.EnsureVolumeCompatibility(bootVol, diskVolume, nil); err != nil {
 		return "", nil, nil, 0, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
 	}
 
@@ -739,7 +739,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	}
 	// factory reset is done on a system that was once installed, so this
 	// should be always successful unless the partition table has changed
-	if err := gadget.EnsureVolumeCompatibility(laidOutBootVol.Volume, diskLayout, layoutCompatOps); err != nil {
+	if _, err := gadget.EnsureVolumeCompatibility(laidOutBootVol.Volume, diskLayout, layoutCompatOps); err != nil {
 		return nil, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
 	}
 

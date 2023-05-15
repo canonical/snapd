@@ -4590,4 +4590,15 @@ series: 16
 account-id: canonical
 name: base-set
 sequence: 1`)
+
+	// verify that the manifest was correctly produced, now that
+	// the manifest is tracking validation-sets, then we should not
+	// see pc/pc-kernel in the manifest, instead it should just show
+	// the validation-set tracking those.
+	m, err := ioutil.ReadFile(s.opts.ManifestPath)
+	c.Assert(err, IsNil)
+	c.Check(string(m), Equals, `canonical/base-set 1
+core20 1
+snapd 1
+`)
 }

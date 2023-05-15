@@ -119,7 +119,12 @@ execute: |
         exit 0
     fi
 
-    snap install docker
+    CHANNEL=latest/stable
+    if os.query is-pc-i386; then
+        # on i386 only the "base: core18" version is available
+        CHANNEL=core18/stable
+    fi
+    snap install --channel="$CHANNEL" docker
     tests.cleanup defer snap remove docker
 
     echo "Test that docker container cgroups on ubuntu are not moved when systemctl daemon-reload is executed"

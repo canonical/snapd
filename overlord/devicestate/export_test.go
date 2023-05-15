@@ -206,6 +206,23 @@ func MockPopulateStateFromSeed(m *DeviceManager, f func(seedLabel, seedMode stri
 	}
 }
 
+func EnsureAutoImportAssertions(m *DeviceManager) error {
+	return m.ensureAutoImportAssertions()
+}
+
+func ReloadEarlyDeviceSeed(m *DeviceManager, seedLoadErr error) (snapstate.DeviceContext, seed.Seed, error) {
+	m.seedChosen = false
+	return m.earlyLoadDeviceSeed(seedLoadErr)
+}
+
+func MockProcessAutoImportAssertion(f func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error) (restore func()) {
+	old := processAutoImportAssertionsImpl
+	processAutoImportAssertionsImpl = f
+	return func() {
+		processAutoImportAssertionsImpl = old
+	}
+}
+
 func EnsureBootOk(m *DeviceManager) error {
 	return m.ensureBootOk()
 }

@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -47,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
@@ -289,6 +291,7 @@ type imageSeeder struct {
 	bootRootDir string
 	seedDir     string
 	label       string
+	db          *asserts.Database
 	w           *seedwriter.Writer
 	f           seedwriter.SeedAssertionFetcher
 }
@@ -400,13 +403,25 @@ func (s *imageSeeder) setModesDirs() error {
 	return nil
 }
 
-func (s *imageSeeder) start(db *asserts.Database, optSnaps []*seedwriter.OptionsSnap) error {
+func (s *imageSeeder) start(optSnaps []*seedwriter.OptionsSnap) error {
 	if err := s.w.SetOptionsSnaps(optSnaps); err != nil {
 		return err
 	}
-	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
-		return s.tsto.AssertionFetcher(db, save)
+
+	// TODO: developer database in home or use snapd (but need
+	// a bit more API there, potential issues when crossing stores/series)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   trusted,
+	})
+	if err != nil {
+		return err
 	}
+
+	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
+		return s.tsto.AssertionSequenceFormingFetcher(db, save)
+	}
+	s.db = db
 	s.f = seedwriter.MakeSeedAssertionFetcher(newFetcher)
 	return s.w.Start(db, s.f)
 }
@@ -467,14 +482,48 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.SeedAssertionFetcher,
 	return snaps, s.w.InfoDerived()
 }
 
+func (s *imageSeeder) validationSetKeysAndRevisionForSnap(snapName string) ([]snapasserts.ValidationSetKey, snap.Revision, error) {
+	vsas, err := s.db.FindMany(asserts.ValidationSetType, nil)
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
+		return nil, snap.Revision{}, err
+	}
+
+	allVss := snapasserts.NewValidationSets()
+	for _, a := range vsas {
+		if err := allVss.Add(a.(*asserts.ValidationSet)); err != nil {
+			return nil, snap.Revision{}, err
+		}
+	}
+
+	// Just for a good measure, perform a conflict check once we have the
+	// list of all validation-sets for the image seed.
+	if err := allVss.Conflict(); err != nil {
+		return nil, snap.Revision{}, err
+	}
+
+	// TODO: It's pointed out that here and some of the others uses of this
+	// may miss logic for optional snaps which have required revisions. This
+	// is not covered by the below check, and we may or may not have multiple places
+	// with a similar issue.
+	snapVsKeys, snapRev, err := allVss.CheckPresenceRequired(naming.Snap(snapName))
+	if err != nil {
+		return nil, snap.Revision{}, err
+	}
+	if len(snapVsKeys) > 0 {
+		return snapVsKeys, snapRev, nil
+	}
+	return nil, s.w.Manifest().AllowedSnapRevision(snapName), nil
+}
+
 func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
 	byName := make(map[string]*seedwriter.SeedSnap, len(snapsToDownload))
+	revisions := make(map[string]snap.Revision)
 	beforeDownload := func(info *snap.Info) (string, error) {
 		sn := byName[info.SnapName()]
 		if sn == nil {
 			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 		}
-		rev := s.w.Manifest().AllowedSnapRevision(sn.SnapName())
+		rev := revisions[info.SnapName()]
 		if rev.Unset() {
 			rev = info.Revision
 		}
@@ -489,11 +538,18 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 	}
 	snapToDownloadOptions := make([]tooling.SnapToDownload, len(snapsToDownload))
 	for i, sn := range snapsToDownload {
+		vss, rev, err := s.validationSetKeysAndRevisionForSnap(sn.SnapName())
+		if err != nil {
+			return nil, err
+		}
+
 		byName[sn.SnapName()] = sn
+		revisions[sn.SnapName()] = rev
 		snapToDownloadOptions[i].Snap = sn
 		snapToDownloadOptions[i].Channel = sn.Channel
-		snapToDownloadOptions[i].Revision = s.w.Manifest().AllowedSnapRevision(sn.SnapName())
+		snapToDownloadOptions[i].Revision = rev
 		snapToDownloadOptions[i].CohortKey = s.wideCohortKey
+		snapToDownloadOptions[i].ValidationSets = vss
 	}
 
 	// sort the curSnaps slice for test consistency
@@ -697,6 +753,14 @@ func (s *imageSeeder) finish() error {
 		return err
 	}
 
+	// run validation-set checks, this is also done by store but
+	// we double-check for the seed.
+	if s.customizations.Validation != "ignore" {
+		if err := s.w.CheckValidationSets(); err != nil {
+			return err
+		}
+	}
+
 	copySnap := func(name, src, dst string) error {
 		fmt.Fprintf(Stdout, "Copying %q (%s)\n", src, name)
 		return osutil.CopyFile(src, dst, 0)
@@ -778,17 +842,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
-	// TODO: developer database in home or use snapd (but need
-	// a bit more API there, potential issues when crossing stores/series)
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   trusted,
-	})
-	if err != nil {
-		return err
-	}
-
-	if err := s.start(db, optionSnaps(opts)); err != nil {
+	if err := s.start(optionSnaps(opts)); err != nil {
 		return err
 	}
 
@@ -797,7 +851,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	// know the correct assertion max format to use.
 	// Fetch assertions tentatively into a temporary database
 	// and later either copy them or fetch more appropriate ones.
-	tmpDb := db.WithStackedBackstore(asserts.NewMemoryBackstore())
+	tmpDb := s.db.WithStackedBackstore(asserts.NewMemoryBackstore())
 	tmpFetcher := seedwriter.MakeSeedAssertionFetcher(func(save func(asserts.Assertion) error) asserts.Fetcher {
 		return tsto.AssertionFetcher(tmpDb, save)
 	})
@@ -857,7 +911,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			}
 		} else {
 			// fetch snap assertions
-			if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, s.f, db); err != nil {
+			if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, s.f, s.db); err != nil {
 				return nil, err
 			}
 		}

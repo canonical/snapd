@@ -1,3 +1,33 @@
+snapd (2.59.4) xenial; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Retry when looking for disk label on non-UEFI systems
+      (LP: #2018977)
+    - Fix remodel from UC20 to UC22
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 12 May 2023 10:15:57 +0200
+
+snapd (2.59.3) xenial; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Fix quiet boot
+    - i/b/physical_memory_observe: allow reading virt-phys page mappings
+    - gadget: warn instead of returning error if overlapping with GPT
+      header
+    - overlord,wrappers: restart always enabled units
+    - go.mod: update github.com/snapcore/secboot to latest uc22
+    - boot: make sure we update assets for the system-seed-null role
+    - many: ignore case for vfat partitions when validating
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 03 May 2023 12:31:00 +0200
+
+snapd (2.59.2) xenial; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Notify users when a user triggered auto refresh finished
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 18 Apr 2023 19:46:10 +0200
+
 snapd (2.59.1) xenial; urgency=medium
 
   * New upstream release, LP: #2009946

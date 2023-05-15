@@ -25,7 +25,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const browserSupportSummary = `allows access to various APIs needed by modern web browsers`
@@ -287,6 +289,11 @@ dbus (send)
     peer=(name=org.freedesktop.RealtimeKit1, label=unconfined),
 `
 
+const browserSupportConnectedPlugAppArmorWithSandboxUserNS = `
+# allow use of user namespaces
+userns,
+`
+
 const browserSupportConnectedPlugSecComp = `
 # Description: Can access various APIs needed by modern browsers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
@@ -385,6 +392,17 @@ func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	spec.AddSnippet(browserSupportConnectedPlugAppArmor)
 	if allowSandbox {
 		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandbox)
+		// if apparmor supports userns mediation then add this too
+		if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
+			features, err := apparmor_sandbox.ParserFeatures()
+			if err != nil {
+				return err
+			}
+			if strutil.ListContains(features, "userns") {
+				spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandboxUserNS)
+			}
+		}
+
 	} else {
 		spec.SetSuppressPtraceTrace()
 	}
