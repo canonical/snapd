@@ -340,7 +340,7 @@ depscheck:
 func (c *Change) isChangeWaiting() bool {
 	// We iteratively run through all tasks in a change, and we do check
 	// dependencies for each task, which means that we will be revisiting
-	// some tasks multiple times. To handle this effeciently, we use a map
+	// some tasks multiple times. To handle this efficiently, we use a map
 	// to store which tasks we've seen already.
 	visited := make(map[string]taskWaitComputeStatus)
 	for _, t := range c.Tasks() {
