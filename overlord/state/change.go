@@ -292,7 +292,8 @@ func init() {
 }
 
 func (c *Change) isTaskWaiting(visited map[string]taskWaitComputeStatus, t *Task, deps []*Task) bool {
-	computeStatus := visited[t.ID()]
+	taskID := t.ID()
+	computeStatus := visited[taskID]
 	switch computeStatus {
 	case taskWaitStatusComputing:
 		// cyclic dependency, return false to ignore this
@@ -300,7 +301,7 @@ func (c *Change) isTaskWaiting(visited map[string]taskWaitComputeStatus, t *Task
 	case taskWaitStatusWaiting, taskWaitStatusNotWaiting:
 		return computeStatus == taskWaitStatusWaiting
 	}
-	visited[t.ID()] = taskWaitStatusComputing
+	visited[taskID] = taskWaitStatusComputing
 
 	var isWaiting bool
 depscheck:
@@ -327,9 +328,9 @@ depscheck:
 		}
 	}
 	if isWaiting {
-		visited[t.ID()] = taskWaitStatusWaiting
+		visited[taskID] = taskWaitStatusWaiting
 	} else {
-		visited[t.ID()] = taskWaitStatusNotWaiting
+		visited[taskID] = taskWaitStatusNotWaiting
 	}
 	return isWaiting
 }
