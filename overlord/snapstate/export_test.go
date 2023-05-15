@@ -167,16 +167,13 @@ var (
 	NewRefreshHints               = newRefreshHints
 	CanRefreshOnMeteredConnection = canRefreshOnMeteredConnection
 
-	NewCatalogRefresh       = newCatalogRefresh
-	CatalogRefreshDelayBase = catalogRefreshDelayBase
+	NewCatalogRefresh            = newCatalogRefresh
+	CatalogRefreshDelayBase      = catalogRefreshDelayBase
+	CatalogRefreshDelayWithDelta = catalogRefreshDelayWithDelta
 
 	SoftCheckNothingRunningForRefresh     = softCheckNothingRunningForRefresh
 	HardEnsureNothingRunningDuringRefresh = hardEnsureNothingRunningDuringRefresh
 )
-
-func CatalogRefreshDelayWithDelta() time.Duration {
-	return catalogRefreshDelayWithDelta
-}
 
 // install
 var HasAllContentAttrs = hasAllContentAttrs
