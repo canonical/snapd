@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/timings"
 )
 
 func init() {
@@ -1440,10 +1441,19 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 
 	// load model and verified essential snaps metadata
 	typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd, snap.TypeGadget}
-	model, essSnaps, err := mst.ReadEssential("", typs)
+
+	theSeed, err := mst.LoadSeed("")
 	if err != nil {
+		return nil, nil, fmt.Errorf("cannot load seed: %v", err)
+	}
+
+	perf := timings.New(nil)
+	if err := theSeed.LoadEssentialMeta(typs, perf); err != nil {
 		return nil, nil, fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
 	}
+
+	model = theSeed.Model()
+	essSnaps := theSeed.EssentialSnaps()
 
 	// 2.1. measure model
 	err = stampedAction(fmt.Sprintf("%s-model-measured", mst.recoverySystem), func() error {
@@ -1865,10 +1875,15 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 4.5 mount snapd snap only on first boot
 	if modeEnv.RecoverySystem != "" && !isClassic {
 		// load the recovery system and generate mount for snapd
-		_, essSnaps, err := mst.ReadEssential(modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
+		theSeed, err := mst.LoadSeed(modeEnv.RecoverySystem)
 		if err != nil {
 			return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 		}
+		perf := timings.New(nil)
+		if err := theSeed.LoadEssentialMeta([]snap.Type{snap.TypeSnapd}, perf); err != nil {
+			return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
+		}
+		essSnaps := theSeed.EssentialSnaps()
 		if err := doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), mountReadOnlyOptions); err != nil {
 			return fmt.Errorf("cannot mount snapd snap: %v", err)
 		}

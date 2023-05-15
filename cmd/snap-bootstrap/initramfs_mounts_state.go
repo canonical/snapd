@@ -48,19 +48,28 @@ type initramfsMountsState struct {
 	recoverySystem string
 
 	verifiedModel gadget.Model
+	seeds         map[string]seed.Seed
 }
 
 var errRunModeNoImpliedRecoverySystem = errors.New("internal error: no implied recovery system in run mode")
 
-// ReadEssential returns the model and verified essential
-// snaps from the recoverySystem. If recoverySystem is "" the
-// implied one will be used (only for modes other than run).
-func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialTypes []snap.Type) (*asserts.Model, []*seed.Snap, error) {
+// LoadSeed returns the seed for the recoverySystem.
+// If recoverySystem is "" the implied one will be used (only for
+// modes other than run).
+func (mst *initramfsMountsState) LoadSeed(recoverySystem string) (seed.Seed, error) {
 	if recoverySystem == "" {
 		if mst.mode == "run" {
-			return nil, nil, errRunModeNoImpliedRecoverySystem
+			return nil, errRunModeNoImpliedRecoverySystem
 		}
 		recoverySystem = mst.recoverySystem
+	}
+
+	if mst.seeds == nil {
+		mst.seeds = make(map[string]seed.Seed)
+	}
+	foundSeed, hasSeed := mst.seeds[recoverySystem]
+	if hasSeed {
+		return foundSeed, nil
 	}
 
 	perf := timings.New(nil)
@@ -79,9 +88,9 @@ func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialT
 	if runtimeNumCPU() > 1 {
 		jobs = 2
 	}
-	model, snaps, newTrustedEarliestTime, err := seed.ReadSystemEssentialAndBetterEarliestTime(boot.InitramfsUbuntuSeedDir, recoverySystem, essentialTypes, now, jobs, perf)
+	seed20, newTrustedEarliestTime, err := seed.ReadSeedAndBetterEarliestTime(boot.InitramfsUbuntuSeedDir, recoverySystem, now, jobs, perf)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// set the time on the system to move forward if it is in the future - never
@@ -94,7 +103,9 @@ func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialT
 		}
 	}
 
-	return model, snaps, nil
+	mst.seeds[recoverySystem] = seed20
+
+	return seed20, nil
 }
 
 // SetVerifiedBootModel sets the "verifiedModel" field. It should only
