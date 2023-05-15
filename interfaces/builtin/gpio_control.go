@@ -44,6 +44,7 @@ const gpioControlConnectedPlugAppArmor = `
 
 /sys/class/gpio/{,un}export rw,
 /sys/class/gpio/gpio[0-9]*/{active_low,direction,value,edge} rw,
+/sys/devices/platform/*/gpio/gpio[0-9]*/{active_low,direction,value,edge} rw,
 `
 
 func init() {
