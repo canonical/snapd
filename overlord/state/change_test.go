@@ -1179,31 +1179,34 @@ func (cs *changeSuite) TestIsWaitingCircularDependency(c *C) {
 	t3 := st.NewTask("task3", "...")
 	t4 := st.NewTask("task4", "...")
 
-	// Setup circular dependency between the four tasks, they should
+	// Setup circular dependency between t1,t2 and t3, they should
 	// still act normally.
 	t2.WaitFor(t1)
 	t3.WaitFor(t2)
-	t4.WaitFor(t3)
-	t1.WaitFor(t4)
+	t1.WaitFor(t3)
 
 	chg.AddTask(t1)
 	chg.AddTask(t2)
 	chg.AddTask(t3)
 	chg.AddTask(t4)
 
-	// task1 (do) => task2 (do) => task3 (do) => task4 (do) no reboot
+	// To trigger the cyclic dependency check, we must trigger the isWaiting logic
+	// and we do this by putting t4 into WaitStatus.
+	t4.SetStatus(state.WaitStatus)
+
+	// task1 (do) => task2 (do) => task3 (do) no reboot
 	c.Check(chg.Status(), Equals, state.DoStatus)
 
-	// task1 (done) => task2 (do) => task3 (do) => task4 (do) no reboot
+	// task1 (done) => task2 (do) => task3 (do) no reboot
 	t1.SetStatus(state.DoneStatus)
 	t2.SetStatus(state.DoingStatus)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 
-	// task1 (wait) => task2 (do) => task3 (do) => task4 (do) means need a reboot
+	// task1 (wait) => task2 (do) => task3 (do) means need a reboot
 	t2.SetStatus(state.WaitStatus)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
 
-	// task1 (done) => task2 (wait) => task3 (do) => task4 (do) means need a reboot
+	// task1 (done) => task2 (wait) => task3 (do) means need a reboot
 	t1.SetStatus(state.DoneStatus)
 	t2.SetStatus(state.WaitStatus)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
