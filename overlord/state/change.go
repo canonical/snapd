@@ -114,6 +114,15 @@ func (s Status) String() string {
 	panic(fmt.Sprintf("internal error: unknown task status code: %d", s))
 }
 
+type taskWaitComputeStatus int
+
+const (
+	taskWaitStatusNotComputed taskWaitComputeStatus = iota
+	taskWaitStatusComputing
+	taskWaitStatusNotWaiting
+	taskWaitStatusWaiting
+)
+
 // Change represents a tracked modification to the system state.
 //
 // The Change provides both the justification for individual tasks
@@ -282,56 +291,70 @@ func init() {
 	}
 }
 
-func (c *Change) isTaskWaiting(visited map[string]bool, t *Task) bool {
-	if ok := visited[t.ID()]; ok {
-		// if we run into cyclic things, then no
+func (c *Change) isTaskWaiting(visited map[string]taskWaitComputeStatus, t *Task, deps []*Task) bool {
+	computeStatus := visited[t.ID()]
+	switch computeStatus {
+	case taskWaitStatusComputing:
+		// cyclic dependency, return false to ignore this
 		return false
+	case taskWaitStatusWaiting, taskWaitStatusNotWaiting:
+		return computeStatus == taskWaitStatusWaiting
 	}
-	visited[t.ID()] = true
+	visited[t.ID()] = taskWaitStatusComputing
 
-	for _, wt := range t.WaitTasks() {
+	var isWaiting bool
+depscheck:
+	for _, wt := range deps {
 		switch wt.Status() {
 		case WaitStatus:
-			return true
+			isWaiting = true
 		case DoStatus:
 			// If it has waiters that are in 'Do', we must check whether
 			// that task is in turn waiting for something else.
-			if c.isTaskWaiting(visited, wt) {
-				return true
+			isWaiting = c.isTaskWaiting(visited, wt, wt.WaitTasks())
+			if !isWaiting {
+				// cancel early if we detect something is runnable
+				break depscheck
+			}
+		case UndoStatus:
+			// If it has waiters that are in 'Undo', we must check whether
+			// that task is in turn waiting for something else.
+			isWaiting = c.isTaskWaiting(visited, wt, wt.HaltTasks())
+			if !isWaiting {
+				// cancel early if we detect something is runnable
+				break depscheck
 			}
 		}
 	}
-	return false
-}
-
-// isTaskReadyToUndo returns whether a task in undo is ready to run.
-func (c *Change) isTaskReadyToUndo(t *Task) bool {
-	for _, wt := range t.HaltTasks() {
-		if !wt.Status().Ready() {
-			return false
-		}
+	if isWaiting {
+		visited[t.ID()] = taskWaitStatusWaiting
+	} else {
+		visited[t.ID()] = taskWaitStatusNotWaiting
 	}
-	return true
+	return isWaiting
 }
 
 // isChangeWaiting returns whether a change has all of its tasks blocked by
 // wait tasks. If just one of the tasks is able to run, then this returns
 // false.
 func (c *Change) isChangeWaiting() bool {
-	visited := make(map[string]bool)
+	// We iteratively run through all tasks in a change, and we do check
+	// dependencies for each task, which means that we will be revisiting
+	// some tasks multiple times. To handle this effeciently, we use a map
+	// to store which tasks we've seen already.
+	visited := make(map[string]taskWaitComputeStatus)
 	for _, t := range c.Tasks() {
-		// All tasks in 'Do' must be able to be traced back
-		// to a task in 'Wait'. Otherwise the change is able
-		// to run.
+		// The only cases we need to take into account is 'Do' and 'Undo', because
+		// those statuses are the only ones that are waiting to execute work. If
+		// there are tasks in Doing or Undoing (i.e trumphs WaitStatus) then we should
+		// not end up here (because WaitStatus is below those in priority order).
 		switch t.Status() {
 		case DoStatus:
-			if !c.isTaskWaiting(visited, t) {
+			if !c.isTaskWaiting(visited, t, t.WaitTasks()) {
 				return false
 			}
 		case UndoStatus:
-			// If something is in undo status, check if it can
-			// run.
-			if c.isTaskReadyToUndo(t) {
+			if !c.isTaskWaiting(visited, t, t.HaltTasks()) {
 				return false
 			}
 		}
