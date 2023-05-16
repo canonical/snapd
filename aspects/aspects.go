@@ -321,14 +321,14 @@ func (a *Aspect) Get(name string, value interface{}) error {
 func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 	accType, err := newAccessType(accesstype)
 	if err != nil {
-		return nil, fmt.Errorf("cannot  aspect pattern: %w", err)
+		return nil, fmt.Errorf("cannot create aspect pattern: %w", err)
 	}
 
 	nameSubkeys := strings.Split(name, ".")
 	nameMatchers := make([]nameMatcher, 0, len(nameSubkeys))
 	for _, subkey := range nameSubkeys {
 		var patt nameMatcher
-		if subkey[0] == '{' && subkey[len(subkey)-1] == '}' {
+		if isPlaceholder(subkey) {
 			patt = placeholder(subkey[1 : len(subkey)-1])
 		} else {
 			patt = literal(subkey)
@@ -341,7 +341,7 @@ func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 	pathWriters := make([]pathWriter, 0, len(pathSubkeys))
 	for _, subkey := range pathSubkeys {
 		var patt pathWriter
-		if subkey[0] == '{' && subkey[len(subkey)-1] == '}' {
+		if isPlaceholder(subkey) {
 			patt = placeholder(subkey[1 : len(subkey)-1])
 		} else {
 			patt = literal(subkey)
@@ -355,6 +355,10 @@ func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 		path:   pathWriters,
 		access: accType,
 	}, nil
+}
+
+func isPlaceholder(part string) bool {
+	return part[0] == '{' && part[len(part)-1] == '}'
 }
 
 // accessPattern represents an individual aspect access pattern. It can be used
@@ -487,7 +491,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 	rawLevel, ok := node[key]
 	if !ok {
 		pathPrefix := strings.Join(subKeys[:index+1], ".")
-		return &NotFoundError{fmt.Sprintf("value of key path %q not found", pathPrefix)}
+		return &NotFoundError{fmt.Sprintf("no value was found under %q", pathPrefix)}
 	}
 
 	// read the final value
@@ -504,7 +508,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 	// decode the next map level
 	var level map[string]json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
-		// TODO see TODO in NewAspectBundle
+		// TODO: see TODO in NewAspectBundle
 		if uErr, ok := err.(*json.UnmarshalTypeError); ok {
 			pathPrefix := strings.Join(subKeys[:index+1], ".")
 			return fmt.Errorf("cannot read path prefix %q: prefix maps to %s", pathPrefix, uErr.Value)
@@ -620,12 +624,12 @@ func (s JSONDataBag) Data() ([]byte, error) {
 type JSONSchema struct{}
 
 // NewJSONSchema returns a Schema able to validate a JSONDataBag's data.
-func NewJSONSchema() *JSONSchema {
-	return &JSONSchema{}
+func NewJSONSchema() JSONSchema {
+	return JSONSchema{}
 }
 
 // Validate validates that the specified data can be encoded into JSON.
-func (s *JSONSchema) Validate(jsonData []byte) error {
+func (s JSONSchema) Validate(jsonData []byte) error {
 	// the top-level is always an object
 	var data map[string]json.RawMessage
 	return json.Unmarshal(jsonData, &data)

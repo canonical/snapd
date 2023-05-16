@@ -185,14 +185,14 @@ func (s *aspectSuite) TestAspectNotFoundError(c *C) {
 
 	err = aspect.Get("top-level", &value)
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get "top-level": value of key path "top-level" not found`)
+	c.Assert(err, ErrorMatches, `cannot get "top-level": no value was found under "top-level"`)
 
 	err = aspect.Set("nested", "thing")
 	c.Assert(err, IsNil)
 
 	err = aspect.Get("other-nested", &value)
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get "other-nested": value of key path "top.nested-two" not found`)
+	c.Assert(err, ErrorMatches, `cannot get "other-nested": no value was found under "top.nested-two"`)
 }
 
 func (s *aspectSuite) TestAspectBadRead(c *C) {
@@ -245,7 +245,7 @@ func (s *aspectSuite) TestAspectsAccessControl(c *C) {
 		{
 			name: "read-only",
 			// unrelated error
-			getErr: `cannot get "read-only": value of key path "path.read-only" not found`,
+			getErr: `cannot get "read-only": no value was found under "path.read-only"`,
 			setErr: `cannot set "read-only": path is not writeable`,
 		},
 		{
