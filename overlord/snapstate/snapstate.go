@@ -399,6 +399,20 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
+		// When downgrading snapd we want to make sure that it's an exclusive change.
+		if snapsup.SnapName() == "snapd" {
+			res, err := strutil.VersionCompare(info.Version, snapsup.Version)
+			if err != nil {
+				return nil, fmt.Errorf("cannot compare versions of snapd [cur: %s, new: %s]: %v", info.Version, snapsup.Version, err)
+			}
+			// If snapsup.Version was smaller, 1 is returned.
+			if res == 1 {
+				if err := CheckChangeConflictRunExclusively(st, "snapd downgrade"); err != nil {
+					return nil, err
+				}
+			}
+		}
+
 		if experimentalRefreshAppAwareness && !excludeFromRefreshAppAwareness(snapsup.Type) && !snapsup.Flags.IgnoreRunning {
 			// Note that because we are modifying the snap state inside
 			// softCheckNothingRunningForRefresh, this block must be located
