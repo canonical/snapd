@@ -143,6 +143,10 @@ var allowedFilesystemSpecificMountOptions = map[string][]string{
 	"xfs":        {"allocsize=", "attr2", "noattr2", "dax=", "discard", "nodiscard", "grpid", "bsdgroups", "nogrpid", "sysvgroups", "filestreams", "ikeep", "noikeep", "inode32", "inode64", "largeio", "nolargeio", "logbufs=", "logbsize=", "logdev=", "rtdev=", "noalign", "norecovery", "nouuid", "noquota", "unquota", "usrquota", "quota", "uqnoenforce", "qnoenforce", "gquota", "grpquota", "gqnoenforce", "pquota", "prjquota", "pqnoenforce", "sunit=", "swidth=", "sqalloc", "wsync"},
 }
 
+var filesystemsWithColonSeparatedOptions = []string{
+	"aufs",
+}
+
 // A few mount flags are special in that if they are specified, the filesystem
 // type is ignored. We list them here, and we will ensure that the plug
 // declaration does not specify a type, if any of them is present among the
@@ -461,7 +465,7 @@ func optionIncompatibleWithFsType(options []string) string {
 func isAllowedFilesystemSpecificMountOption(types []string, optionName string) bool {
 	for _, fstype := range types {
 		option := optionName
-		if fstype == "aufs" { // aufs uses ':' as separator between option and optarg for some options
+		if strutil.ListContains(filesystemsWithColonSeparatedOptions, fstype) {
 			option = strings.SplitAfter(optionName, ":")[0]
 		}
 		fsAllowedOptions := allowedFilesystemSpecificMountOptions[fstype]
