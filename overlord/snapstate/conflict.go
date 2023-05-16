@@ -25,6 +25,7 @@ import (
 	"reflect"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // FinalTasks are task kinds for final tasks in a change which means no further
@@ -98,6 +99,51 @@ func affectedSnaps(t *state.Task) ([]string, error) {
 	return nil, nil
 }
 
+func snapSetupFromChange(chg *state.Change) (*SnapSetup, error) {
+	for _, t := range chg.Tasks() {
+		// Check a known task of each change that we know keep snap info.
+		if t.Kind() != "prerequisites" {
+			continue
+		}
+		return TaskSnapSetup(t)
+	}
+	return nil, nil
+}
+
+// changeIsSnapdDowngrade returns true if the change provided is a snapd
+// setup change with a version lower than what is currently installed. If a change
+// is not SnapSetup related this returns false.
+func changeIsSnapdDowngrade(st *state.State, chg *state.Change) (bool, error) {
+	snapsup, err := snapSetupFromChange(chg)
+	if err != nil {
+		return false, err
+	}
+	if snapsup == nil || snapsup.SnapName() != "snapd" {
+		return false, nil
+	}
+
+	var snapst SnapState
+	if err := Get(st, snapsup.InstanceName(), &snapst); err != nil {
+		return false, err
+	}
+
+	currentInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return false, fmt.Errorf("cannot retrieve snap info for current snapd: %v", err)
+	}
+
+	// On older snapd's 'Version' might be empty, and in this case we assume
+	// that snapd is downgrading as we cannot determine otherwise.
+	if snapsup.Version == "" {
+		return true, nil
+	}
+	res, err := strutil.VersionCompare(currentInfo.Version, snapsup.Version)
+	if err != nil {
+		return false, fmt.Errorf("cannot compare versions of snapd [cur: %s, new: %s]: %v", currentInfo.Version, snapsup.Version, err)
+	}
+	return res == 1, nil
+}
+
 func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, ignoreChangeID string) error {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
@@ -132,6 +178,21 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 			return &ChangeConflictError{
 				Message:    "creating recovery system in progress, no other changes allowed until this is done",
 				ChangeKind: "create-recovery-system",
+				ChangeID:   chg.ID(),
+			}
+		case "revert-snap", "refresh-snap":
+			// Snapd downgrades are exclusive changes
+			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+				continue
+			}
+			if downgrading, err := changeIsSnapdDowngrade(st, chg); err != nil {
+				return err
+			} else if !downgrading {
+				continue
+			}
+			return &ChangeConflictError{
+				Message:    "snapd downgrade in progress, no other changes allowed until this is done",
+				ChangeKind: chg.Kind(),
 				ChangeID:   chg.ID(),
 			}
 		default:
