@@ -59,9 +59,9 @@ With no further options, the snaps are installed tracking the stable channel,
 with strict security confinement. All available channels of a snap are listed in
 its 'snap info' output.
 
-When providing --revision note that a later refresh will typically undo a
-revision override, taking the snap back to the current revision of the channel
-it's tracking.
+When --revision is used, a later refresh will typically undo the revision
+override, taking the snap back to the current revision of the channel it's
+tracking.
 
 Use --name to set the instance name when installing from snap file.
 `)
@@ -86,7 +86,8 @@ With no further options, the snaps are refreshed to the current revision of the
 channel they're tracking, preserving their confinement options. All available
 channels of a snap are listed in its 'snap info' output.
 
-When providing --revision note a later refresh will typically undo a revision override.
+When --revision is used, a later refresh will typically undo the revision
+override.
 
 Hold (--hold) is used to postpone snap refresh updates for all snaps when no
 snaps are specified, or for the specified snaps.
