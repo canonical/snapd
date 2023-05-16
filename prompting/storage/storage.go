@@ -15,17 +15,6 @@ import (
 var ErrNoSavedDecision = errors.New("no saved prompt decision")
 var ErrMultipleDecisions = errors.New("multiple prompt decisions for the same path")
 
-type userDB struct {
-	PerLabelDB map[string]*labelDB `json:"per-label-db"`
-}
-
-type labelDB struct {
-	Allow            map[string]bool `json:"allow"`
-	AllowWithDir     map[string]bool `json:"allow-with-dir"`
-	AllowWithSubdirs map[string]bool `json:"allow-with-subdir"`
-	// XXX: Always check with the following priority: Allow, then AllowWithDir, then AllowWithSubdirs
-}
-
 const (
 	// must match the specification for extra information map returned by the prompt
 	extrasAlwaysPrompt     = "always-prompt"
@@ -37,7 +26,18 @@ const (
 	extrasDenyExtraPerms   = "deny-extra-permissions"
 )
 
+type labelDB struct {
+	Allow            map[string]bool `json:"allow"`
+	AllowWithDir     map[string]bool `json:"allow-with-dir"`
+	AllowWithSubdirs map[string]bool `json:"allow-with-subdir"`
+	// XXX: Always check with the following priority: Allow, then AllowWithDir, then AllowWithSubdirs
+}
+
 // TODO: use Permission (interface{}) in place of bool to store particular permissions
+
+type userDB struct {
+	PerLabelDB map[string]*labelDB `json:"per-label-db"`
+}
 
 // TODO: make this an interface
 type PromptsDB struct {
