@@ -1669,29 +1669,12 @@ volumes:
         content:
           - image: pc-core.img
 `
-	gadgetYamlBadContentName := gadgetYamlHeader + `
-      - name: other-name
-        type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
-        offset: 1M
-        offset-write: my-name-is+92
-        content:
-          - image: pc-core.img
-            offset-write: bad-name+123
-`
 
 	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadStructureName), 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure "other-name" refers to an unknown structure "bad-name"`)
-
-	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadContentName), 0644)
-	c.Assert(err, IsNil)
-
-	_, err = gadget.ReadInfo(s.dir, nil)
-	c.Check(err, ErrorMatches, `invalid volume "pc": structure "other-name", content #0 \("pc-core.img"\) refers to an unknown structure "bad-name"`)
-
 }
 
 func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C) {
@@ -4018,7 +4001,6 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeStructureInternalFieldsNoJSON(
 				Target:           "some-target",
 				Image:            "image",
 				Offset:           asOffsetPtr(12),
-				OffsetWrite:      mustParseGadgetRelativeOffset(c, "mbr+192"),
 				Size:             321,
 				Unpack:           true,
 			},
@@ -4031,7 +4013,7 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeStructureInternalFieldsNoJSON(
 	b, err := json.Marshal(volS)
 	c.Assert(err, IsNil)
 	// ensure the json looks json-ish
-	c.Check(string(b), Equals, `{"name":"pc","filesystem-label":"ubuntu-seed","offset":123,"offset-write":{"relative-to":"mbr","offset":92},"min-size":0,"size":888,"type":"0C","role":"system-seed","id":"gpt-id","filesystem":"vfat","content":[{"source":"source","target":"some-target","image":"image","offset":12,"offset-write":{"relative-to":"mbr","offset":192},"size":321,"unpack":true}],"update":{"edition":2,"preserve":["foo"]}}`)
+	c.Check(string(b), Equals, `{"name":"pc","filesystem-label":"ubuntu-seed","offset":123,"offset-write":{"relative-to":"mbr","offset":92},"min-size":0,"size":888,"type":"0C","role":"system-seed","id":"gpt-id","filesystem":"vfat","content":[{"source":"source","target":"some-target","image":"image","offset":12,"size":321,"unpack":true}],"update":{"edition":2,"preserve":["foo"]}}`)
 
 	// check that the new structure has no volumeName
 	var newVolS *gadget.VolumeStructure

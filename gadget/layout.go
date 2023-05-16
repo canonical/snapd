@@ -150,9 +150,6 @@ type LaidOutContent struct {
 
 	// StartOffset defines the start offset of this content image
 	StartOffset quantity.Offset
-	// AbsoluteOffsetWrite is the resolved absolute position of offset-write
-	// for this content element within the enclosing volume
-	AbsoluteOffsetWrite *quantity.Offset
 	// Size is the maximum size occupied by this image
 	Size quantity.Size
 	// Index of the content in structure declaration inside gadget YAML
@@ -178,9 +175,8 @@ type ResolvedContent struct {
 	KernelUpdate bool
 }
 
-func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
+func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, err error) {
 	structures = make([]LaidOutStructure, len(volume.Structure))
-	byName = make(map[string]*LaidOutStructure, len(volume.Structure))
 
 	// Even although we do not have the final offset as that depends on the
 	// state of the installation disk and we do not know at this point, we
@@ -192,9 +188,6 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 			VolumeStructure: &volume.Structure[idx],
 		}
 
-		if ps.Name() != "" {
-			byName[ps.Name()] = &ps
-		}
 		if volume.Structure[idx].Offset != nil {
 			offset = *volume.Structure[idx].Offset
 		}
@@ -217,23 +210,23 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 	previousEnd := quantity.Offset(0)
 	for idx, ps := range structures {
 		if ps.StartOffset < previousEnd {
-			return nil, nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
+			return nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
 		}
 		previousEnd = ps.StartOffset + quantity.Offset(ps.VolumeStructure.Size)
 
 		offsetWrite, err := resolveOffsetWrite(ps.VolumeStructure.OffsetWrite, byName)
 		if err != nil {
-			return nil, nil, fmt.Errorf("cannot resolve offset-write of structure %v: %v", ps, err)
+			return nil, fmt.Errorf("cannot resolve offset-write of structure %v: %v", ps, err)
 		}
 		structures[idx].AbsoluteOffsetWrite = offsetWrite
 	}
 
-	return structures, byName, nil
+	return structures, nil
 }
 
 // LayoutVolumePartially attempts to lay out only the structures in the volume.
 func LayoutVolumePartially(volume *Volume) (*PartiallyLaidOutVolume, error) {
-	structures, _, err := layoutVolumeStructures(volume)
+	structures, err := layoutVolumeStructures(volume)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +276,7 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		}
 	}
 
-	structures, byName, err := layoutVolumeStructures(volume)
+	structures, err := layoutVolumeStructures(volume)
 	if err != nil {
 		return nil, err
 	}
@@ -308,14 +301,9 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		// has a size so even without the structure content the layout
 		// can be calculated.
 		if !opts.IgnoreContent {
-			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx], byName)
+			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx])
 			if err != nil {
 				return nil, err
-			}
-			for _, c := range content {
-				if c.AbsoluteOffsetWrite != nil && *c.AbsoluteOffsetWrite > fartherstOffsetWrite {
-					fartherstOffsetWrite = *c.AbsoluteOffsetWrite
-				}
 			}
 			structures[idx].LaidOutContent = content
 		}
@@ -448,7 +436,7 @@ func getImageSize(path string) (quantity.Size, error) {
 	return quantity.Size(stat.Size()), nil
 }
 
-func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known map[string]*LaidOutStructure) ([]LaidOutContent, error) {
+func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure) ([]LaidOutContent, error) {
 	if ps.HasFilesystem() {
 		// structures with a filesystem do not need any extra layout
 		return nil, nil
@@ -482,18 +470,11 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known ma
 			actualSize = c.Size
 		}
 
-		offsetWrite, err := resolveOffsetWrite(c.OffsetWrite, known)
-		if err != nil {
-			return nil, fmt.Errorf("cannot resolve offset-write of structure %v content %q: %v", ps, c.Image, err)
-		}
-
 		content[idx] = LaidOutContent{
 			VolumeContent: &ps.VolumeStructure.Content[idx],
 			Size:          actualSize,
 			StartOffset:   ps.StartOffset + start,
 			Index:         idx,
-			// break for gofmt < 1.11
-			AbsoluteOffsetWrite: offsetWrite,
 		}
 		previousEnd = start + quantity.Offset(actualSize)
 		if quantity.Size(previousEnd) > ps.VolumeStructure.Size {

@@ -353,10 +353,6 @@ type VolumeContent struct {
 	Image string `yaml:"image" json:"image"`
 	// Offset the image is written at
 	Offset *quantity.Offset `yaml:"offset" json:"offset"`
-	// OffsetWrite describes a 32-bit address, within the volume, at which
-	// the offset of current image will be written. The position may be
-	// specified as a byte offset relative to the start of a named structure
-	OffsetWrite *RelativeOffset `yaml:"offset-write" json:"offset-write"`
 	// Size of the image, when empty size is calculated by looking at the
 	// image
 	Size quantity.Size `yaml:"size" json:"size"`
@@ -1180,16 +1176,6 @@ func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures 
 			// content relative offset only possible if it's a bare structure
 			continue
 		}
-		for cidx, c := range ps.Content {
-			if c.OffsetWrite == nil || c.OffsetWrite.RelativeTo == "" {
-				continue
-			}
-			relativeToStructure := knownStructures[c.OffsetWrite.RelativeTo]
-			if relativeToStructure == nil {
-				return fmt.Errorf("structure %q, content %v refers to an unknown structure %q",
-					ps.Name, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
-			}
-		}
 	}
 	return nil
 }
@@ -1359,7 +1345,7 @@ func validateBareContent(vc *VolumeContent) error {
 }
 
 func validateFilesystemContent(vc *VolumeContent) error {
-	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
+	if vc.Image != "" || vc.Offset != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
 	if vc.UnresolvedSource == "" {
