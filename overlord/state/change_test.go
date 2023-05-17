@@ -1120,6 +1120,49 @@ func (ts *taskRunnerSuite) TestCheckTaskDependencies(c *C) {
 	}
 }
 
+func (cs *changeSuite) TestIsWaitingStatusOrderWithWaits(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t3 := st.NewTask("task3", "...")
+	t4 := st.NewTask("wait-task", "...")
+	t1.WaitFor(t2)
+	t1.WaitFor(t3)
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+	chg.AddTask(t4)
+
+	// Set the wait-task into WaitStatus, to ensure we trigger the isWaiting
+	// logic and that it doesn't return WaitStatus for statuses which are in
+	// higher order
+	t4.SetToWait(state.DoneStatus)
+
+	// Test the following sequences:
+	// task1 (do) => task2 (done) => task3 (doing)
+	t2.SetToWait(state.DoneStatus)
+	t3.SetStatus(state.DoingStatus)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+
+	// task1 (done) => task2 (done) => task3 (undoing)
+	t1.SetToWait(state.DoneStatus)
+	t2.SetToWait(state.DoneStatus)
+	t3.SetStatus(state.UndoingStatus)
+	c.Check(chg.Status(), Equals, state.UndoingStatus)
+
+	// task1 (done) => task2 (done) => task3 (abort)
+	t1.SetToWait(state.DoneStatus)
+	t2.SetToWait(state.DoneStatus)
+	t3.SetStatus(state.AbortStatus)
+	c.Check(chg.Status(), Equals, state.AbortStatus)
+}
+
 func (cs *changeSuite) TestIsWaitingSingle(c *C) {
 	st := state.New(nil)
 	st.Lock()

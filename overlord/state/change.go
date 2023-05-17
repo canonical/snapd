@@ -114,6 +114,9 @@ func (s Status) String() string {
 	panic(fmt.Sprintf("internal error: unknown task status code: %d", s))
 }
 
+// taskWaitComputeStatus is used while computing the wait status of a change. It keeps
+// track of whether a task is waiting or not waiting, and to prevent cyclic
+// dependencies.
 type taskWaitComputeStatus int
 
 const (
@@ -293,6 +296,8 @@ func init() {
 
 func (c *Change) isTaskWaiting(visited map[string]taskWaitComputeStatus, t *Task, deps []*Task) bool {
 	taskID := t.ID()
+	// Retrieve the compute status of the wait for the task, if not
+	// computed this defaults to 0 (taskWaitStatusNotComputed).
 	computeStatus := visited[taskID]
 	switch computeStatus {
 	case taskWaitStatusComputing:
@@ -338,17 +343,13 @@ depscheck:
 // wait tasks. If just one of the tasks is able to run, then this returns
 // false.
 func (c *Change) isChangeWaiting() bool {
-	// We iteratively run through all tasks in a change, and we do check
-	// dependencies for each task, which means that we will be revisiting
-	// some tasks multiple times. To handle this efficiently, we use a map
-	// to store which tasks we've seen already.
+	// Since we might visit tasks more than once, we store results to avoid recomputing them.
 	visited := make(map[string]taskWaitComputeStatus)
 	for _, t := range c.Tasks() {
-		// The only cases we need to take into account is 'Do' and 'Undo', because
-		// those statuses are the only ones that are waiting to execute work. If
-		// there are tasks in Doing or Undoing (i.e trumphs WaitStatus) then we should
-		// not end up here (because WaitStatus is below those in priority order).
+		// Handle all active, pending and transition states.
 		switch t.Status() {
+		case AbortStatus, DoingStatus, UndoingStatus:
+			return false
 		case DoStatus:
 			if !c.isTaskWaiting(visited, t, t.WaitTasks()) {
 				return false
@@ -359,8 +360,8 @@ func (c *Change) isChangeWaiting() bool {
 			}
 		}
 	}
-	// In any case, we know we have atleast one waiter since
-	// this function was called.
+	// If we end up here, then return true as we know we
+	// have atleast one waiter in this change.
 	return true
 }
 
@@ -369,9 +370,9 @@ func (c *Change) isChangeWaiting() bool {
 // of the individual tasks related to the change, according to the following
 // decision sequence:
 //
+//   - With all pending tasks blocked by other tasks in WaitStatus, return WaitStatus
 //   - With at least one task in DoStatus, return DoStatus
 //   - With at least one task in ErrorStatus, return ErrorStatus
-//   - With all tasks blocked by tasks in WaitStatus, return WaitStatus
 //   - Otherwise, return DoneStatus
 func (c *Change) Status() Status {
 	c.state.reading()
