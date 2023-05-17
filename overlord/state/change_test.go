@@ -1312,6 +1312,12 @@ func (cs *changeSuite) TestIsWaitingMultipleDependencies(c *C) {
 	t2.SetStatus(state.DoneStatus)
 	t3.SetToWait(state.DoneStatus)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// task1 (wait) + task2 (abort) => task3 (do)
+	t1.SetToWait(state.DoneStatus)
+	t2.SetStatus(state.AbortStatus)
+	t3.SetStatus(state.DoStatus)
+	c.Check(chg.Status(), Equals, state.AbortStatus)
 }
 
 func (cs *changeSuite) TestIsWaitingUndoTwoTasks(c *C) {

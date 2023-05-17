@@ -329,6 +329,12 @@ depscheck:
 				// Cancel early if we detect something is runnable.
 				break depscheck
 			}
+		// States that can are valid when waiting
+		// - Done, Undone
+		case DoneStatus, UndoneStatus:
+			continue
+		default:
+			isWaiting = false
 		}
 	}
 	if isWaiting {
@@ -346,8 +352,12 @@ func (c *Change) isChangeWaiting() bool {
 	// Since we might visit tasks more than once, we store results to avoid recomputing them.
 	visited := make(map[string]taskWaitComputeStatus)
 	for _, t := range c.Tasks() {
-		// Handle all active, pending and transition states.
+		// Handle all statuses that have higher order than WaitStatus to ensure
+		// we don't override any otherwise wanted behaviour.
 		switch t.Status() {
+		// Abort is a transition status which gets turned into either
+		// Hold or Undo, but until that decision has been made we count
+		// this change as not waiting.
 		case AbortStatus, DoingStatus, UndoingStatus:
 			return false
 		case DoStatus:
