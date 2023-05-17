@@ -16,6 +16,10 @@ var ErrNoSavedDecision = errors.New("no saved prompt decision")
 var ErrMultipleDecisions = errors.New("multiple prompt decisions for the same path")
 
 const (
+	// must match the json annotations for entries in labelDB
+	jsonAllow            = "allow"
+	jsonAllowWithDir     = "allow-with-dir"
+	jsonAllowWithSubdirs = "allow-with-subdir"
 	// must match the specification for extra information map returned by the prompt
 	extrasAlwaysPrompt     = "always-prompt"
 	extrasAllowWithDir     = "allow-directory"
@@ -52,43 +56,47 @@ func New() *PromptsDB {
 	return pd
 }
 
-func findPathInLabelDB(db *labelDB, path string) (bool, error, map[string]bool, string) {
+func findPathInLabelDB(db *labelDB, path string) (bool, error, string, string) {
 	// Returns:
 	// bool: allow
 	// error: (nil | ErrMultipleDecisions | ErrNoSavedDecision)
-	// map[string]bool: (db.Allow | db.AllowWithDir | db.AllowWithSubdirs)
+	// string: (jsonAllow | jsonAllowWithDir | jsonAllowWithSubdirs) -- json name of map which contained match
 	// string: matching path current in the db
 	path = filepath.Clean(path)
 	storedAllow := true
-	var which map[string]bool = nil
+	which := ""
 	var err error
 	// Check if original path has exact match in db.Allow
 	if allow, exists := db.Allow[path]; exists {
+		which = jsonAllow
 		storedAllow = storedAllow && allow
-		which = db.Allow
 	}
 outside:
 	for i := 0; i < 2; i++ {
 		// Check if original path and parent of path has match in db.AllowWithDir
 		// Thus, run twice
 		if allow, exists := db.AllowWithDir[path]; exists {
-			if which != nil {
-				return false, ErrMultipleDecisions, nil, path
+			if which != "" {
+				err = ErrMultipleDecisions
+				which = which + "," + jsonAllowWithDir
+			} else {
+				which = jsonAllowWithDir
 			}
 			storedAllow = storedAllow && allow
-			which = db.AllowWithDir
 		}
 		for {
 			// Check if any ancestor of path has match in db.AllowWithSubdirs
 			// Thus, loop until path is "/" or "."
 			if allow, exists := db.AllowWithSubdirs[path]; exists {
-				if which != nil {
-					return false, ErrMultipleDecisions, nil, path
+				if which != "" {
+					err = ErrMultipleDecisions
+					which = which + "," + jsonAllowWithSubdirs
+				} else {
+					which = jsonAllowWithSubdirs
 				}
 				storedAllow = storedAllow && allow
-				which = db.AllowWithSubdirs
 			}
-			if which != nil {
+			if which != "" {
 				return storedAllow, err, which, path
 			}
 			path = filepath.Dir(path)
@@ -102,7 +110,7 @@ outside:
 			// Otherwise, loop until path is "/" or "."
 		}
 	}
-	return false, ErrNoSavedDecision, nil, ""
+	return false, ErrNoSavedDecision, "", ""
 }
 
 // TODO: unexport
@@ -194,14 +202,14 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	// do nothing if decision matches and _not_ one of:
 	//  1. new AllowWithDir, old Allow
 	//  2. new AllowWithDir, old AllowWithDir, parent match
-	//  3. new AllowWithSubdirs, old _not_ AllowWithSubdir
+	//  3. new AllowWithSubdirs, old _not_ AllowWithSubdirs
 	// otherwise:
 	// remove any existing exact match (no-op if there is none)
 	// insert the path with the decision in the correct map
 
 	if (err == nil) && (alreadyAllowed == allow) {
 		// already in db and decision matches
-		if !((((allow && extras[extrasAllowWithDir] == "yes") || (!allow && extras[extrasDenyWithDir] == "yes")) && (&which == &labelEntries.Allow || (&which == &labelEntries.AllowWithDir && matchingPath != path))) || (((allow && extras[extrasAllowWithSubdirs] == "yes") || (!allow && extras[extrasDenyWithSubdirs] == "yes")) && &which != &labelEntries.AllowWithSubdirs)) {
+		if !((((allow && extras[extrasAllowWithDir] == "yes") || (!allow && extras[extrasDenyWithDir] == "yes")) && (which == jsonAllow || (which == jsonAllowWithDir && matchingPath != path))) || (((allow && extras[extrasAllowWithSubdirs] == "yes") || (!allow && extras[extrasDenyWithSubdirs] == "yes")) && which != jsonAllowWithSubdirs)) {
 			// don't need to do anything
 			return nil
 		}
@@ -210,7 +218,9 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	// if there's an exact match in one of the maps, delete it
 	if matchingPath == path {
 		// XXX maybe don't even need if statement here, as deletion is no-op if key not in map
-		delete(which, path)
+		delete(labelEntries.Allow, path)
+		delete(labelEntries.AllowWithDir, path)
+		delete(labelEntries.AllowWithSubdirs, path)
 	}
 
 	if (allow && extras[extrasAllowWithSubdirs] == "yes") || (!allow && extras[extrasDenyWithSubdirs] == "yes") {
