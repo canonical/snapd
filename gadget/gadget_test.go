@@ -1674,7 +1674,7 @@ volumes:
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
-	c.Check(err, ErrorMatches, `invalid volume "pc": structure "other-name" refers to an unknown structure "bad-name"`)
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure "other-name" refers to an unexpected structure "bad-name"`)
 }
 
 func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C) {
@@ -4391,6 +4391,93 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 				c.Check(gadget.CheckValidStartOffset(votc.offset, tc.vss,
 					votc.structIdx), DeepEquals, votc.err)
 			}
+		}
+	}
+}
+
+func (p *layoutTestSuite) TestOffsetWriteOutOfVolumeFails(c *C) {
+	var gadgetYamlStructure = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        # 1GB
+        offset-write: mbr+2097152
+`
+	gi, err := gadget.InfoFromGadgetYaml([]byte(gadgetYamlStructure), nil)
+	c.Check(gi, IsNil)
+	c.Assert(err.Error(), Equals, `invalid volume "pc": structure "foo" wants to write offset of 4 bytes to 2097152, outside of referred structure "mbr"`)
+}
+
+func (s *gadgetYamlTestSuite) TestValidateOffsetWrite(c *C) {
+	for i, tc := range []struct {
+		offWrite        *gadget.RelativeOffset
+		firstStrName    string
+		firstStrOffset  *quantity.Offset
+		firstStrMinSize quantity.Size
+		volSize         quantity.Size
+		err             string
+	}{
+		{
+			offWrite: nil,
+			err:      "",
+		}, {
+			offWrite:        &gadget.RelativeOffset{"foo", 0},
+			firstStrName:    "mbr",
+			firstStrOffset:  asOffsetPtr(0),
+			firstStrMinSize: 440,
+			volSize:         512,
+			err:             `structure "test" refers to an unexpected structure "foo"`,
+		},
+		{
+			offWrite:        &gadget.RelativeOffset{"mbr", 437},
+			firstStrName:    "mbr",
+			firstStrOffset:  asOffsetPtr(0),
+			firstStrMinSize: 440,
+			volSize:         512,
+			err:             `structure "test" wants to write offset of 4 bytes to 437, outside of referred structure "mbr"`,
+		},
+		{
+			offWrite:        &gadget.RelativeOffset{"mbr", 436},
+			firstStrName:    "mbr",
+			firstStrOffset:  asOffsetPtr(0),
+			firstStrMinSize: 440,
+			volSize:         512,
+			err:             "",
+		},
+		{
+			offWrite:        &gadget.RelativeOffset{"", 1024},
+			firstStrName:    "mbr",
+			firstStrOffset:  asOffsetPtr(0),
+			firstStrMinSize: 440,
+			volSize:         512,
+			err:             `structure "test" wants to write offset of 4 bytes to 1024, outside of volume of min size 512`,
+		},
+		{
+			offWrite:        &gadget.RelativeOffset{"", 100},
+			firstStrName:    "mbr",
+			firstStrOffset:  asOffsetPtr(0),
+			firstStrMinSize: 440,
+			volSize:         512,
+			err:             "",
+		},
+	} {
+		c.Logf("tc: %v", i)
+
+		err := gadget.ValidateOffsetWrite(
+			&gadget.VolumeStructure{Name: "test", OffsetWrite: tc.offWrite},
+			&gadget.VolumeStructure{Name: tc.firstStrName, Offset: tc.firstStrOffset, MinSize: tc.firstStrMinSize}, tc.volSize)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
 		}
 	}
 }

@@ -909,8 +909,6 @@ volumes:
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[1],
-				// break for gofmt < 1.11
-				AbsoluteOffsetWrite: asOffsetPtr(92),
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[1].Content[0],
@@ -927,8 +925,6 @@ volumes:
 					StartOffset: 2 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[2],
-				// break for gofmt < 1.11
-				AbsoluteOffsetWrite: asOffsetPtr(600),
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[2].Content[0],
@@ -963,33 +959,7 @@ func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteBadRelativeTo(c *C) {
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
 	v, err := gadget.LayoutVolume(&volBadStructure, opts)
 	c.Check(v, IsNil)
-	c.Check(err, ErrorMatches, `cannot resolve offset-write of structure #0 \("foo"\): refers to an unknown structure "bar"`)
-}
-
-func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteEnlargesVolume(c *C) {
-	var gadgetYamlStructure = `
-volumes:
-  pc:
-    bootloader: grub
-    structure:
-      - name: mbr
-        type: mbr
-        size: 440
-      - name: foo
-        type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
-        offset: 1M
-        # 1GB
-        offset-write: mbr+1073741824
-
-`
-	vol := mustParseVolume(c, gadgetYamlStructure, "pc")
-
-	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, opts)
-	c.Assert(err, IsNil)
-	// offset-write is at 1GB
-	c.Check(v.Size, Equals, 1*quantity.SizeGiB+gadget.SizeLBA48Pointer)
+	c.Check(err, ErrorMatches, `structure "foo" refers to an unexpected structure "bar"`)
 }
 
 func (p *layoutTestSuite) TestLayoutVolumePartialNoSuchFile(c *C) {

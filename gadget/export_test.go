@@ -32,6 +32,7 @@ var (
 	ValidateVolumeStructure = validateVolumeStructure
 	ValidateRole            = validateRole
 	ValidateVolume          = validateVolume
+	ValidateOffsetWrite     = validateOffsetWrite
 
 	SetImplicitForVolumeStructure = setImplicitForVolumeStructure
 
