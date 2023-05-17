@@ -50,6 +50,22 @@ execute: |
   for f in "$CACHE_D"/snap-pc-kernel/kernel.efi pc-gadget/grubx64.efi pc-gadget/shim.efi.signed; do
       sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' "$f"
   done
+  # add some hooks to the kernel
+  cat << 'EOF' >> "$CACHE_D"/snap-pc-kernel/meta/snap.yaml
+  hooks:
+    configure:
+    post-refresh:
+  EOF
+  cat << 'EOF' >> /tmp/hook-script
+  #!/bin/sh
+  echo "$0 $@" >> $SNAP_DATA/hooks-run
+  EOF
+  mkdir -p "$CACHE_D"/snap-pc-kernel/meta/hooks
+  for hook in configure post-refresh; do
+      cp /tmp/hook-script "$CACHE_D"/snap-pc-kernel/meta/hooks/"$hook"
+      chmod +x "$CACHE_D"/snap-pc-kernel/meta/hooks/"$hook"
+  done
+
   # Bump edition of ubuntu-boot content
   gadget_p=pc-gadget/meta/gadget.yaml
   yq -i '(.volumes.pc.structure | with_entries(select(.value.name == "ubuntu-boot")) | .[].update.edition) |= . + 1' "$gadget_p"
@@ -172,5 +188,10 @@ execute: |
   # ensure that no revert of core22 happened after the reboot
   remote.exec sudo snap changes | NOMATCH "Update kernel and core snap revisions"
   remote.exec sudo snap list core22 | MATCH " x1 "
+
+  # check that the hooks got run
+  remote.exec sudo cat /var/snap/pc-kernel/current/hooks-run > hooks-run
+  MATCH "configure" < hooks-run
+  MATCH "post-refresh" < hooks-run
 
   rm -rf "$CACHE_D"
