@@ -1,6 +1,7 @@
 package storage_test
 
 import (
+	"reflect"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -136,6 +137,572 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
 	c.Check(allowed, Equals, false)
+}
+
+func cloneAllowMap(m map[string]bool) map[string]bool {
+	newMap := make(map[string]bool, len(m))
+	for k, v := range m {
+		newMap[k] = v
+	}
+	return newMap
+}
+
+func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
+	// if path matches entry already in a different map (XXX means can't return early):
+	// new Allow, old Allow -> replace if different
+	// new Allow, old AllowWithDir, exact match -> replace if different (forces prompt for entries in directory of path)
+	// new Allow, old AllowWithSubdirs, exact match -> same as ^^
+	// new Allow, old AllowWithDir, parent match -> insert if different
+	// new Allow, old AllowWithSubdirs, ancestor match -> same as ^^
+	// new AllowWithDir, old Allow -> replace always XXX
+	// new AllowWithDir, old AllowWithDir, exact match -> replace if different
+	// new AllowWithDir, old AllowWithSubdirs, exact match -> same as ^^
+	// new AllowWithDir, old AllowWithDir, parent match -> insert always XXX
+	// new AllowWithDir, old AllowWithSubdirs, ancestor match -> insert if different
+	// new AllowWithSubdirs, old Allow -> replace always XXX
+	// new AllowWithSubdirs, old AllowWithDir, exact match -> replace always XXX
+	// new AllowWithSubdirs, old AllowWithSubdirs, exact match -> replace if different
+	// new AllowWithSubdirs, old AllowWithDir, parent match -> insert always XXX
+	// new AllowWithSubdirs, old AllowWithSubdirs, ancestor match -> insert if different
+	cases := []struct {
+		initialAllow            map[string]bool
+		initialAllowWithDir     map[string]bool
+		initialAllowWithSubdirs map[string]bool
+		path                    string
+		decision                bool
+		extras                  map[string]string
+		finalAllow              map[string]bool
+		finalAllowWithDir       map[string]bool
+		finalAllowWithSubdirs   map[string]bool
+	}{
+		{ // new Allow, old Allow -> replace if different
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{},
+			"/home/test/foo",
+			true,
+			map[string]string{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{},
+		},
+		{ // new Allow, old Allow -> replace if different
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{},
+			"/home/test/foo",
+			false,
+			map[string]string{},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			map[string]bool{},
+		},
+		{ // new Allow, old AllowWithDir, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test/foo",
+			true,
+			map[string]string{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+		},
+		{ // new Allow, old AllowWithDir, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test/foo",
+			false,
+			map[string]string{},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			map[string]bool{},
+		},
+		{ // new Allow, old AllowWithDir, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			"/home/test/foo",
+			true,
+			map[string]string{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{},
+		},
+		{ // new Allow, old AllowWithSubdirs, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/foo",
+			true,
+			map[string]string{},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+		},
+		{ // new Allow, old AllowWithSubdirs, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/foo",
+			false,
+			map[string]string{},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			map[string]bool{},
+		},
+		{ // new Allow, old AllowWithSubdirs, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+			"/home/test/foo",
+			true,
+			map[string]string{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{},
+		},
+		{ // new Allow, old AllowWithDir, parent match -> insert if different
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			map[string]bool{},
+			"/home/test/foo",
+			true,
+			map[string]string{},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			map[string]bool{},
+		},
+		{ // new Allow, old AllowWithDir, parent match -> insert if different
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			map[string]bool{},
+			"/home/test/foo",
+			false,
+			map[string]string{},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{"/home/test": true},
+			map[string]bool{},
+		},
+		{ // new Allow, old AllowWithDir, no match -> insert always
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			map[string]bool{},
+			"/home/test/foo/bar",
+			true,
+			map[string]string{},
+			map[string]bool{"/home/test/foo/bar": true},
+			map[string]bool{"/home/test": true},
+			map[string]bool{},
+		},
+		{ // new Allow, old AllowWithSubdirs, ancestor match -> insert if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			"/home/test/foo/bar",
+			true,
+			map[string]string{},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+		},
+		{ // new Allow, old AllowWithSubdirs, ancestor match -> insert if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			"/home/test/foo/bar",
+			false,
+			map[string]string{},
+			map[string]bool{"/home/test/foo/bar": false},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+		},
+		{ // new Allow, old AllowWithSubdirs, ancestor match -> insert if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": false},
+			"/home/test/foo/bar",
+			true,
+			map[string]string{},
+			map[string]bool{"/home/test/foo/bar": true},
+			map[string]bool{},
+			map[string]bool{"/home/test": false},
+		},
+		{ // new Allow, old AllowWithSubdirs, no match -> insert always
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/bar",
+			true,
+			map[string]string{},
+			map[string]bool{"/home/test/bar": true},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+		},
+		{ // new Allow, old AllowWithSubdirs, ancestor match -> insert if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/bar",
+			false,
+			map[string]string{},
+			map[string]bool{"/home/test/bar": false},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+		},
+		{ // new AllowWithDir, old Allow -> replace always
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{},
+			"/home/test/foo/",
+			true,
+			map[string]string{"allow-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+		},
+		{ // new AllowWithDir, old Allow -> replace always
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+		},
+		{ // new AllowWithDir, old Allow -> replace always
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			map[string]bool{},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+		},
+		{ // new AllowWithDir, old AllowWithDir, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test/foo/",
+			true,
+			map[string]string{"allow-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+		},
+		{ // new AllowWithDir, old AllowWithDir, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+		},
+		{ // new AllowWithDir, old AllowWithSubdir, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/foo/",
+			true,
+			map[string]string{"allow-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+		},
+		{ // new AllowWithDir, old AllowWithSubdir, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+		},
+		{ // new AllowWithDir, old AllowWithSubdir, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+			"/home/test/foo/",
+			true,
+			map[string]string{"allow-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+		},
+		{ // new AllowWithDir, old AllowWithSubdir, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+		},
+		{ // new AllowWithDir, old AllowWithDir, parent match -> insert always
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			map[string]bool{},
+			"/home/test/foo/",
+			true,
+			map[string]string{"allow-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test": true, "/home/test/foo": true},
+			map[string]bool{},
+		},
+		{ // new AllowWithDir, old AllowWithDir, parent match -> insert always
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			map[string]bool{},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test": true, "/home/test/foo": false},
+			map[string]bool{},
+		},
+		{ // new AllowWithDir, old AllowWithSubdir, ancestor match -> insert if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			"/home/test/foo/bar/",
+			true,
+			map[string]string{"allow-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+		},
+		{ // new AllowWithDir, old AllowWithSubdir, ancestor match -> insert if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			"/home/test/foo/bar/",
+			false,
+			map[string]string{"deny-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo/bar": false},
+			map[string]bool{"/home/test": true},
+		},
+		{ // new AllowWithDir, old AllowWithSubdir, ancestor match -> insert if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": false},
+			"/home/test/foo/",
+			true,
+			map[string]string{"allow-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{"/home/test": false},
+		},
+		{ // new AllowWithSubdirs, old Allow -> replace always
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{},
+			"/home/test/foo/",
+			true,
+			map[string]string{"allow-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+		},
+		{ // new AllowWithSubdirs, old Allow -> replace always
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+		},
+		{ // new AllowWithSubdirs, old Allow -> replace always
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			map[string]bool{},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+		},
+		{ // new AllowWithSubdirs, old AllowWithDir, exact match -> replace always
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test/foo/",
+			true,
+			map[string]string{"allow-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+		},
+		{ // new AllowWithSubdirs, old AllowWithDir, exact match -> replace always
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+		},
+		{ // new AllowWithSubdirs, old AllowWithDir, exact match -> replace always
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+		},
+		{ // new AllowWithSubdirs, old AllowWithDir, exact match -> replace always
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+		},
+		{ // new AllowWithSubdirs, old AllowWithSubdirs, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/foo/",
+			true,
+			map[string]string{"allow-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+		},
+		{ // new AllowWithSubdirs, old AllowWithSubdirs, exact match -> replace if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+		},
+		{ // new AllowWithSubdirs, old AllowWithDir, parent match -> insert always
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			map[string]bool{},
+			"/home/test/foo/",
+			true,
+			map[string]string{"allow-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			map[string]bool{"/home/test/foo": true},
+		},
+		{ // new AllowWithSubdirs, old AllowWithDir, parent match -> insert always
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			map[string]bool{},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			map[string]bool{"/home/test/foo": false},
+		},
+		{ // new AllowWithSubdirs, old AllowWithDir, no match -> insert always
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			map[string]bool{},
+			"/home/test/foo/bar/",
+			true,
+			map[string]string{"allow-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			map[string]bool{"/home/test/foo/bar": true},
+		},
+		{ // new AllowWithSubdirs, old AllowWithSubdirs, ancestor match -> insert if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			"/home/test/foo/bar/",
+			true,
+			map[string]string{"allow-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+		},
+		{ // new AllowWithSubdirs, old AllowWithSubdirs, ancestor match -> insert if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			"/home/test/foo/bar/",
+			false,
+			map[string]string{"deny-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": true, "/home/test/foo/bar": false},
+		},
+		{ // new AllowWithSubdirs, old AllowWithSubdirs, ancestor match -> insert if different
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": false},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": false},
+		},
+		{ // new AllowWithSubdirs, old AllowWithSubdirs, no match -> insert always
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/bar/",
+			true,
+			map[string]string{"allow-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true, "/home/test/bar": true},
+		},
+	}
+
+	st := storage.New()
+
+	req := &notifier.Request{
+		Label:      "snap.lxd.lxd",
+		SubjectUid: 1000,
+		Path:       "placeholder",
+	}
+
+	labelEntries := st.MapsForUidAndLabel(req.SubjectUid, req.Label)
+
+	for i, testCase := range cases {
+		labelEntries.Allow = cloneAllowMap(testCase.initialAllow)
+		labelEntries.AllowWithDir = cloneAllowMap(testCase.initialAllowWithDir)
+		labelEntries.AllowWithSubdirs = cloneAllowMap(testCase.initialAllowWithSubdirs)
+		req.Path = testCase.path
+		result := st.Set(req, testCase.decision, testCase.extras)
+		c.Assert(reflect.DeepEqual(labelEntries.Allow, testCase.finalAllow), Equals, true, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, labelEntries.Allow, labelEntries.AllowWithDir, labelEntries.AllowWithSubdirs, result))
+		c.Assert(reflect.DeepEqual(labelEntries.AllowWithDir, testCase.finalAllowWithDir), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, labelEntries.Allow, labelEntries.AllowWithDir, labelEntries.AllowWithSubdirs, result))
+		c.Assert(reflect.DeepEqual(labelEntries.AllowWithSubdirs, testCase.finalAllowWithSubdirs), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, labelEntries.Allow, labelEntries.AllowWithDir, labelEntries.AllowWithSubdirs, result))
+	}
 }
 
 func (s *storageSuite) TestLoadSave(c *C) {
