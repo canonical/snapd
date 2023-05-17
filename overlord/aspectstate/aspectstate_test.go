@@ -47,10 +47,10 @@ func (s *aspectTestSuite) TestGetAspect(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
+	defer s.state.Unlock()
 	s.state.Set("aspect-databags", map[string]map[string]aspects.JSONDataBag{
 		"system": {"network": databag},
 	})
-	s.state.Unlock()
 
 	var res interface{}
 	err = aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &res)
@@ -59,17 +59,18 @@ func (s *aspectTestSuite) TestGetAspect(c *C) {
 }
 
 func (s *aspectTestSuite) TestGetNotFound(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	var res interface{}
 	err := aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &res)
 	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
 	c.Assert(err, ErrorMatches, `aspect system/network/wifi-setup not found`)
 	c.Check(res, IsNil)
 
-	s.state.Lock()
 	s.state.Set("aspect-databags", map[string]map[string]aspects.JSONDataBag{
 		"system": {"network": aspects.NewJSONDataBag()},
 	})
-	s.state.Unlock()
 
 	err = aspectstate.Get(s.state, "system", "network", "other-aspect", "ssid", &res)
 	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
@@ -83,13 +84,14 @@ func (s *aspectTestSuite) TestGetNotFound(c *C) {
 }
 
 func (s *aspectTestSuite) TestSetAspect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	err := aspectstate.Set(s.state, "system", "network", "wifi-setup", "ssid", "foo")
 	c.Assert(err, IsNil)
 
 	var databags map[string]map[string]aspects.JSONDataBag
-	s.state.Lock()
 	err = s.state.Get("aspect-databags", &databags)
-	s.state.Unlock()
 	c.Assert(err, IsNil)
 
 	databag := databags["system"]["network"]
@@ -102,6 +104,9 @@ func (s *aspectTestSuite) TestSetAspect(c *C) {
 }
 
 func (s *aspectTestSuite) TestSetNotFound(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	err := aspectstate.Set(s.state, "system", "other-bundle", "other-aspect", "foo", "bar")
 	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
 
@@ -110,11 +115,17 @@ func (s *aspectTestSuite) TestSetNotFound(c *C) {
 }
 
 func (s *aspectTestSuite) TestSetAccessError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	err := aspectstate.Set(s.state, "system", "network", "wifi-setup", "status", "foo")
-	c.Assert(err, ErrorMatches, `cannot set field "status": path is not writeable`)
+	c.Assert(err, ErrorMatches, `cannot write field "status": only supports read access`)
 }
 
 func (s *aspectTestSuite) TestUnsetAspect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	err := aspectstate.Set(s.state, "system", "network", "wifi-setup", "ssid", "foo")
 	c.Assert(err, IsNil)
 
@@ -122,9 +133,7 @@ func (s *aspectTestSuite) TestUnsetAspect(c *C) {
 	c.Assert(err, IsNil)
 
 	var databags map[string]map[string]aspects.JSONDataBag
-	s.state.Lock()
 	err = s.state.Get("aspect-databags", &databags)
-	s.state.Unlock()
 	c.Assert(err, IsNil)
 
 	databag := databags["system"]["network"]
