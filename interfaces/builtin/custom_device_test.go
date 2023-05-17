@@ -309,6 +309,14 @@ apps:
 			`custom-device "udev-tagging" invalid "kernel" tag: "bar" does not match a specified device`,
 		},
 		{
+			"devices: [/dev/subdir/foo]\n  udev-tagging:\n    - kernel: foo\n      subsystem: 12",
+			`custom-device "udev-tagging" invalid "subsystem" tag: value "12" is not a string`,
+		},
+		{
+			"devices: [/dev/dir1/foo, /dev/dir2/foo]\n  udev-tagging:\n    - kernel: foo",
+			`custom-device "udev-tagging" invalid "kernel" tag: "foo" matches more than one specified device: \[/dev/dir1/foo /dev/dir2/foo\]`,
+		},
+		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - attributes: foo",
 			`custom-device "udev-tagging" invalid "attributes" tag: value "foo" is not a map`,
 		},
@@ -479,7 +487,6 @@ apps:
 				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
 			},
 		},
-		/* TODO: uncomment this change after "custom-device kernel in subdir" PR is merged
 		{
 			"udev-tagging:\n   - kernel: qcom,qseecom",
 			[]map[string]string{
@@ -489,7 +496,6 @@ apps:
 				{`KERNEL`: `"qcom,qseecom"`},
 			},
 		},
-		*/
 	}
 
 	for _, testData := range data {

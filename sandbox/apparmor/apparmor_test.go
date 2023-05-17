@@ -78,34 +78,31 @@ func (*apparmorSuite) TestAppArmorParser(c *C) {
 }
 
 func (*apparmorSuite) TestAppArmorInternalAppArmorParser(c *C) {
-	// TODO:apparmor-vendoring
-	/*
-		fakeroot := c.MkDir()
-		dirs.SetRootDir(fakeroot)
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
 
-		d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
-		c.Assert(os.MkdirAll(d, 0755), IsNil)
-		p := filepath.Join(d, "apparmor_parser")
-		c.Assert(ioutil.WriteFile(p, nil, 0755), IsNil)
-		restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
-			c.Assert(path, Equals, "/proc/self/exe")
-			return filepath.Join(d, "snapd"), nil
-		})
-		defer restore()
-		restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
-		defer restore()
+	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
+	c.Assert(os.MkdirAll(d, 0755), IsNil)
+	p := filepath.Join(d, "apparmor_parser")
+	c.Assert(ioutil.WriteFile(p, nil, 0755), IsNil)
+	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
+		c.Assert(path, Equals, "/proc/self/exe")
+		return filepath.Join(d, "snapd"), nil
+	})
+	defer restore()
+	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
+	defer restore()
 
-		cmd, internal, err := apparmor.AppArmorParser()
-		c.Check(err, IsNil)
-		c.Check(cmd.Path, Equals, p)
-		c.Check(cmd.Args, DeepEquals, []string{
-			p,
-			"--config-file", filepath.Join(d, "/apparmor/parser.conf"),
-			"--base", filepath.Join(d, "/apparmor.d"),
-			"--policy-features", filepath.Join(d, "/apparmor.d/abi/3.0"),
-		})
-		c.Check(internal, Equals, true)
-	*/
+	cmd, internal, err := apparmor.AppArmorParser()
+	c.Check(err, IsNil)
+	c.Check(cmd.Path, Equals, p)
+	c.Check(cmd.Args, DeepEquals, []string{
+		p,
+		"--config-file", filepath.Join(d, "/apparmor/parser.conf"),
+		"--base", filepath.Join(d, "/apparmor.d"),
+		"--policy-features", filepath.Join(d, "/apparmor.d/abi/3.0"),
+	})
+	c.Check(internal, Equals, true)
 }
 
 func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
@@ -260,7 +257,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 }
 
 func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
-	var features = []string{"unsafe", "include-if-exists", "qipcrtr-socket", "mqueue", "cap-bpf", "cap-audit-read", "xdp"}
+	var features = []string{"unsafe", "include-if-exists", "qipcrtr-socket", "mqueue", "cap-bpf", "cap-audit-read", "xdp", "userns"}
 	// test all combinations of features
 	for i := 0; i < int(math.Pow(2, float64(len(features)))); i++ {
 		expFeatures := []string{}
@@ -326,6 +323,9 @@ profile snap-test {
 profile snap-test {
  network xdp,
 }
+profile snap-test {
+ userns,
+}
 `)
 	}
 
@@ -351,14 +351,9 @@ profile snap-test {
 	defer restore()
 	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
 	defer restore()
-
-	// TODO:apparmor-vendoring
-	// disabled until the spread test failures are fixed
-	/*
-		features, err = apparmor.ProbeParserFeatures()
-		c.Check(err, Equals, nil)
-		c.Check(features, DeepEquals, []string{"snapd-internal"})
-	*/
+	features, err = apparmor.ProbeParserFeatures()
+	c.Check(err, Equals, nil)
+	c.Check(features, DeepEquals, []string{"snapd-internal"})
 }
 
 func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
@@ -382,7 +377,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unsafe", "xdp"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unsafe", "userns", "xdp"})
 }
 
 func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
@@ -422,7 +417,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unsafe", "xdp"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unsafe", "userns", "xdp"})
 
 	// this makes probing fails but is not done again
 	err = os.RemoveAll(d)

@@ -101,6 +101,9 @@ execute: |
         exit 1
     fi
 
+    # Check no snapd services are listed
+    systemctl -l | NOMATCH "snapd\."
+
     echo "No dangling service symlinks are left behind"
     test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"
     # shellcheck disable=SC2251

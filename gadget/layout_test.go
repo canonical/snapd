@@ -1482,3 +1482,43 @@ assets:
 	_, err := gadget.LayoutVolume(vol, opts)
 	c.Assert(err, ErrorMatches, `.*: cannot find wanted kernel content "ab" in.*`)
 }
+
+func (p *layoutTestSuite) TestLayoutWithMinSize(c *C) {
+	vol := gadget.Volume{
+		Structure: []gadget.VolumeStructure{
+			{
+				Offset:  asOffsetPtr(quantity.OffsetMiB),
+				MinSize: quantity.SizeMiB,
+				Size:    2 * quantity.SizeMiB,
+			},
+			{
+				MinSize: quantity.SizeMiB,
+				Size:    2 * quantity.SizeMiB,
+			},
+		},
+	}
+	v, err := gadget.LayoutVolume(&vol, nil)
+	c.Assert(err, IsNil)
+
+	// Check StartOffset and Size is well defined even if using min-size
+	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
+		Volume: &vol,
+		Size:   5 * quantity.SizeMiB,
+		LaidOutStructure: []gadget.LaidOutStructure{
+			{
+				OnDiskStructure: gadget.OnDiskStructure{
+					StartOffset: 1 * quantity.OffsetMiB,
+					Size:        2 * quantity.SizeMiB,
+				},
+				VolumeStructure: &vol.Structure[0],
+			},
+			{
+				OnDiskStructure: gadget.OnDiskStructure{
+					StartOffset: 3 * quantity.OffsetMiB,
+					Size:        2 * quantity.SizeMiB,
+				},
+				VolumeStructure: &vol.Structure[1],
+			},
+		},
+	})
+}

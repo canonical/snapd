@@ -1,6 +1,7 @@
 summary: |
    Test that config defaults specified in the gadget are picked up
-   for first boot snaps
+   for first boot snaps with either configure hook only, or combination
+   of default-configure and configure hooks
 
 # the test is only meaningful on core devices
 # TODO:UC20: enable for UC20, it assumes /var/lib/snapd/seed/assertions/model
@@ -41,29 +42,35 @@ prepare: |
     # Configure the pc snap
     unpack_pc_snap
 
-    # fill in defaults
-    TEST_SNAP_ID=
+    # Select IDs for snaps to receive defaults from gadget
+    TEST_SNAP_CONF_ID=
+    TEST_SNAP_DFLT_CONF_ID=
     if [ "$SNAPPY_USE_STAGING_STORE" = 1 ]; then
         # test-snapd-with-configure
-        TEST_SNAP_ID=jHxWQxtGqu7tHwiq7F8Ojk5qazcEeslT
+        TEST_SNAP_CONF_ID=jHxWQxtGqu7tHwiq7F8Ojk5qazcEeslT
+        TEST_SNAP_DFLT_CONF_ID=cvfpQTiK2jlDAcwfalq47asjAfQT9pnn
 
         if os.query is-core18; then
             # test-snapd-with-configure-core18
-            TEST_SNAP_ID=jHxWQxtGqu7tHwiq7F8Ojk5qazcEeslT
+            TEST_SNAP_CONF_ID=jHxWQxtGqu7tHwiq7F8Ojk5qazcEeslT
+            TEST_SNAP_DFLT_CONF_ID=1kC7gPKoWul5j8qZ0GyxwJww1sm8vddh
         fi
     else
         # test-snapd-with-configure
-        TEST_SNAP_ID=aLcJorEJZgJNUGL2GMb3WR9SoVyHUNAd
+        TEST_SNAP_CONF_ID=aLcJorEJZgJNUGL2GMb3WR9SoVyHUNAd
+        TEST_SNAP_DFLT_CONF_ID=cvfpQTiK2jlDAcwfalq47asjAfQT9pnn
 
         if os.query is-core18; then
             # test-snapd-with-configure-core18
-            TEST_SNAP_ID=BzMG26hwO2ccNBzV5BxK4DZgulJ2AXsa
+            TEST_SNAP_CONF_ID=BzMG26hwO2ccNBzV5BxK4DZgulJ2AXsa
+            TEST_SNAP_DFLT_CONF_ID=1kC7gPKoWul5j8qZ0GyxwJww1sm8vddh
         fi
     fi
 
     # Update the gadget config file
     cat "$GADGET_FILE" >> squashfs-root/meta/gadget.yaml
-    sed -i -e "s/TEST_SNAP_ID/$TEST_SNAP_ID/" squashfs-root/meta/gadget.yaml
+    sed -i -e "s/TEST_SNAP_CONF_ID/$TEST_SNAP_CONF_ID/" squashfs-root/meta/gadget.yaml
+    sed -i -e "s/TEST_SNAP_DFLT_CONF_ID/$TEST_SNAP_DFLT_CONF_ID/" squashfs-root/meta/gadget.yaml
 
     pack_pc_snap
 
@@ -83,6 +90,9 @@ prepare: |
 
     # wait for first boot to be done
     wait_for_first_boot_change
+
+    # install snap with default-configure hook
+    snap install --edge "test-snapd-with-default-configure${SUFFIX}"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -156,12 +166,30 @@ execute: |
     echo "We have a model assertion"
     snap model --verbose|MATCH "model:\s* my-model-w-config"
 
-    echo "The configurable snap was installed"
-    snap list|MATCH "test-snapd-with-configure${SUFFIX}"
+    echo "Snap with configure hook only: Installed"
+    snap list "test-snapd-with-configure${SUFFIX}"
 
-    echo "The configuration defaults from the gadget where applied"
-    snap get "test-snapd-with-configure${SUFFIX}" a|MATCH "^A$"
-    snap get "test-snapd-with-configure${SUFFIX}" b|MATCH "^B$"
+    echo "Snap with configure hook only: The config defaults from the gadget where applied by configure hook"
+    snap get "test-snapd-with-configure${SUFFIX}" a | MATCH "^A$"
+    snap get "test-snapd-with-configure${SUFFIX}" b | MATCH "^B$"
+
+    echo "Snap with default-configure and configure hooks: Installed"
+    snap list "test-snapd-with-default-configure${SUFFIX}"
+
+    echo "Snap with default-configure and configure hooks: The config defaults from the gadget where applied by default-configure hook"
+    snap get "test-snapd-with-default-configure${SUFFIX}" a | MATCH "^C\+defaultConfigureHook\+configureHook$"
+    snap get "test-snapd-with-default-configure${SUFFIX}" b | MATCH "^D$"
+
+    echo "Snap with default-configure and configure hooks: The default-configure hook was run before services started"
+    SNAP_COMMON="/var/snap/test-snapd-with-default-configure${SUFFIX}/common"
+    MATCH "^a: C$" < "$SNAP_COMMON/default-configure-info"
+    MATCH "^b: D$" < "$SNAP_COMMON/default-configure-info"
+    MATCH "^test-snapd-with-default-configure${SUFFIX}.some *disabled *inactive *-$" < "$SNAP_COMMON/default-configure-info"
+
+    echo "Snap with default-configure and configure hooks: The configure hook was run after services started"
+    MATCH "^a: C\+defaultConfigureHook$" < "$SNAP_COMMON/configure-info"
+    MATCH "^b: D$" < "$SNAP_COMMON/configure-info"
+    MATCH "^test-snapd-with-default-configure${SUFFIX}.some *enabled *active *-$" < "$SNAP_COMMON/configure-info"
 
     echo "The configuration for core is applied"
     snap get core "service.$SERVICE.disable" | MATCH true

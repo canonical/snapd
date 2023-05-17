@@ -287,7 +287,7 @@ func updateValidationSet(st *state.State, accountID, name string, reqMode string
 
 	tr, err := assertstateMonitorValidationSet(st, accountID, name, sequence, userID)
 	if err != nil {
-		return BadRequest("cannot get validation set assertion for %v: %v", assertstate.ValidationSetKey(accountID, name), err)
+		return BadRequest("cannot monitor validation set %v: %v", assertstate.ValidationSetKey(accountID, name), err)
 	}
 
 	res, err := validationSetResultFromTracking(st, tr)
@@ -310,7 +310,7 @@ func forgetValidationSet(st *state.State, accountID, name string, sequence int) 
 		return InternalError("accessing validation sets failed: %v", err)
 	}
 	if err := assertstate.ForgetValidationSet(st, accountID, name); err != nil {
-		return BadRequest("cannot forget validation set for %v: %v", assertstate.ValidationSetKey(accountID, name), err)
+		return BadRequest("cannot forget validation set %v: %v", assertstate.ValidationSetKey(accountID, name), err)
 	}
 	return SyncResponse(nil)
 }

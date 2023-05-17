@@ -689,7 +689,7 @@ func (s *PosixMQInterfaceSuite) TestNoAppArmor(c *C) {
 
 func (s *PosixMQInterfaceSuite) TestFeatureDetection(c *C) {
 	// Ensure that the interface fails if the mqueue feature is not present
-	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{}, nil)
+	restore := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer restore()
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testReadWriteSlotInfo), ErrorMatches,
 		`AppArmor does not support POSIX message queues - cannot setup or connect interfaces`)

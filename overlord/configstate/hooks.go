@@ -34,6 +34,145 @@ type configureHandler struct {
 	context *hookstate.Context
 }
 
+func newConfigureHandler(context *hookstate.Context) hookstate.Handler {
+	return &configureHandler{context: context}
+}
+
+// Before is called by the HookManager before the configure hook is run.
+func (h *configureHandler) Before() error {
+	h.context.Lock()
+	defer h.context.Unlock()
+
+	tr := ContextTransaction(h.context)
+
+	// Initialize the transaction if there's a patch provided in the
+	// context or useDefaults is set in which case gadget defaults are used.
+
+	var patch map[string]interface{}
+	var useDefaults bool
+	if err := h.context.Get("use-defaults", &useDefaults); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	instanceName := h.context.InstanceName()
+	if useDefaults {
+		st := h.context.State()
+		task, _ := h.context.Task()
+		deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
+		if err != nil {
+			return err
+		}
+
+		patch, err = snapstate.ConfigDefaults(st, deviceCtx, instanceName)
+		if err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		// core is handled internally and does not need a configure
+		// hook, for other snaps double check that the hook is present
+		if len(patch) != 0 && instanceName != "core" {
+			// TODO: helper on context?
+			info, err := snapstate.CurrentInfo(st, instanceName)
+			if err != nil {
+				return err
+			}
+			if info.Hooks["configure"] == nil {
+				return fmt.Errorf("cannot apply gadget config defaults for snap %q, no configure hook", instanceName)
+			}
+			// if both default-configure and configure hooks are present, default-configure
+			// hook is responsible for applying the default configuration
+			if info.Hooks["default-configure"] != nil {
+				patch = nil
+			}
+		}
+	} else {
+		if err := h.context.Get("patch", &patch); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+	}
+
+	if err := config.Patch(tr, instanceName, patch); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Done is called by the HookManager after the configure hook has exited
+// successfully.
+func (h *configureHandler) Done() error {
+	return nil
+}
+
+// Error is called by the HookManager after the configure hook has exited
+// non-zero, and includes the error.
+func (h *configureHandler) Error(err error) (bool, error) {
+	return false, nil
+}
+
+// defaultConfigureHandler is the handler for the default-configure hook.
+type defaultConfigureHandler struct {
+	context *hookstate.Context
+}
+
+func newDefaultConfigureHandler(context *hookstate.Context) hookstate.Handler {
+	return &defaultConfigureHandler{context: context}
+}
+
+// Before is called by the HookManager before the default-configure hook is run.
+func (h *defaultConfigureHandler) Before() error {
+	h.context.Lock()
+	defer h.context.Unlock()
+
+	tr := ContextTransaction(h.context)
+
+	instanceName := h.context.InstanceName()
+	st := h.context.State()
+	info, err := snapstate.CurrentInfo(st, instanceName)
+	if err != nil {
+		return err
+	}
+	hasDefaultConfigureHook := info.Hooks["default-configure"] != nil
+	hasConfigureHook := info.Hooks["configure"] != nil
+
+	// default-configure hook cannot be used without configure hook, because it is only intended
+	// as an extension of the configure hook that provides additional configuration support
+	if hasDefaultConfigureHook && !hasConfigureHook {
+		// this scenario should be prevented by the snap checker
+		return fmt.Errorf("cannot use default-configure hook for snap %q, no configure hook", instanceName)
+	}
+
+	if hasDefaultConfigureHook {
+		task, _ := h.context.Task()
+		deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
+		if err != nil {
+			return err
+		}
+
+		patch, err := snapstate.ConfigDefaults(st, deviceCtx, instanceName)
+		if err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+
+		if err := config.Patch(tr, instanceName, patch); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Done is called by the HookManager after the default-configure hook has exited
+// successfully.
+func (h *defaultConfigureHandler) Done() error {
+	return nil
+}
+
+// Error is called by the HookManager after the default-configure hook has exited
+// non-zero, and includes the error.
+func (h *defaultConfigureHandler) Error(err error) (bool, error) {
+	return false, nil
+}
+
 // cachedTransaction is the index into the context cache where the initialized
 // transaction is stored.
 type cachedTransaction struct{}
@@ -62,74 +201,4 @@ func ContextTransaction(context *hookstate.Context) *config.Transaction {
 
 	context.Cache(cachedTransaction{}, tr)
 	return tr
-}
-
-func newConfigureHandler(context *hookstate.Context) hookstate.Handler {
-	return &configureHandler{context: context}
-}
-
-// Before is called by the HookManager before the configure hook is run.
-func (h *configureHandler) Before() error {
-	h.context.Lock()
-	defer h.context.Unlock()
-
-	tr := ContextTransaction(h.context)
-
-	// Initialize the transaction if there's a patch provided in the
-	// context or useDefaults is set in which case gadget defaults are used.
-
-	var patch map[string]interface{}
-	var useDefaults bool
-	if err := h.context.Get("use-defaults", &useDefaults); err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-
-	instanceName := h.context.InstanceName()
-	st := h.context.State()
-	if useDefaults {
-		task, _ := h.context.Task()
-		deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
-		if err != nil {
-			return err
-		}
-
-		patch, err = snapstate.ConfigDefaults(st, deviceCtx, instanceName)
-		if err != nil && !errors.Is(err, state.ErrNoState) {
-			return err
-		}
-		// core is handled internally and does not need a configure
-		// hook, for other snaps double check that the hook is present
-		if len(patch) != 0 && instanceName != "core" {
-			// TODO: helper on context?
-			info, err := snapstate.CurrentInfo(st, instanceName)
-			if err != nil {
-				return err
-			}
-			if info.Hooks["configure"] == nil {
-				return fmt.Errorf("cannot apply gadget config defaults for snap %q, no configure hook", instanceName)
-			}
-		}
-	} else {
-		if err := h.context.Get("patch", &patch); err != nil && !errors.Is(err, state.ErrNoState) {
-			return err
-		}
-	}
-
-	if err := config.Patch(tr, instanceName, patch); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Done is called by the HookManager after the configure hook has exited
-// successfully.
-func (h *configureHandler) Done() error {
-	return nil
-}
-
-// Error is called by the HookManager after the configure hook has exited
-// non-zero, and includes the error.
-func (h *configureHandler) Error(err error) (bool, error) {
-	return false, nil
 }

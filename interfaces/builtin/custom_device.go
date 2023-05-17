@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -156,10 +157,21 @@ func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]inte
 			err = iface.validateUDevValue(value)
 			if err == nil {
 				deviceName := value.(string)
-				// furthermore, the kernel name must match the name of one of
-				// the given devices
-				if !strutil.ListContains(devices, "/dev/"+deviceName) {
+				// furthermore, the kernel name must match the basename of one
+				// of the given devices
+				var matches []string
+				for _, devicePath := range devices {
+					if "/dev/"+deviceName == devicePath || deviceName == filepath.Base(devicePath) {
+						matches = append(matches, devicePath)
+					}
+				}
+				switch len(matches) {
+				case 0:
 					err = fmt.Errorf(`%q does not match a specified device`, deviceName)
+				case 1:
+					err = nil
+				default:
+					err = fmt.Errorf(`%q matches more than one specified device: %v`, deviceName, matches)
 				}
 			}
 		case "attributes", "environment":
@@ -361,20 +373,10 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 	allDevicePaths := devicePaths
 	allDevicePaths = append(allDevicePaths, readDevicePaths...)
 
-	// Generate a basic udev rule for each device; we put them into a map
-	// indexed by the device name, so that we can overwrite the entry later
-	// with a more specific rule.
+	// Create a map in which will store udev rules indexed by device name
 	deviceRules := make(map[string]string, len(allDevicePaths))
-	for _, devicePath := range allDevicePaths {
-		if strings.HasPrefix(devicePath, "/dev/") {
-			deviceName := devicePath[5:]
-			deviceRules[deviceName] = fmt.Sprintf(`KERNEL=="%s"`, deviceName)
-		}
-	}
 
-	// Generate udev rules from the "udev-tagging" attribute; note that these
-	// rules might override the simpler KERNEL=="<device>" rules we computed
-	// above -- that's fine.
+	// Generate udev rules from the "udev-tagging" attribute
 	var udevTaggingRules []map[string]interface{}
 	_ = slot.Attr("udev-tagging", &udevTaggingRules)
 	for _, udevTaggingRule := range udevTaggingRules {
@@ -402,6 +404,29 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 		}
 
 		deviceRules[deviceName] = rule.String()
+	}
+
+	// Generate a basic udev rule for each device which was not explicitly
+	// matched by a kernel device name in the "udev-tagging" attribute.
+	// Since each kernel device name matches exactly one device in
+	// allDevicePaths (see: validateUDevTaggingRule), then any device which is
+	// not matched by any kernel device should get a basic KERNEL="<device>"
+	// rule.
+	for _, devicePath := range allDevicePaths {
+		if !strings.HasPrefix(devicePath, "/dev/") {
+			continue
+		}
+		foundMatch := false
+		for deviceName := range deviceRules {
+			if strings.HasSuffix(devicePath, deviceName) {
+				foundMatch = true
+				break
+			}
+		}
+		if !foundMatch {
+			deviceName := devicePath[len("/dev/"):]
+			deviceRules[deviceName] = fmt.Sprintf(`KERNEL=="%s"`, deviceName)
+		}
 	}
 
 	// Now write all the rules

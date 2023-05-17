@@ -140,12 +140,6 @@ func (p LaidOutStructure) String() string {
 	return fmtIndexAndName(p.VolumeStructure.YamlIndex, p.Name())
 }
 
-type byStartOffset []LaidOutStructure
-
-func (b byStartOffset) Len() int           { return len(b) }
-func (b byStartOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
-func (b byStartOffset) Less(i, j int) bool { return b[i].StartOffset < b[j].StartOffset }
-
 // LaidOutContent describes raw content that has been placed within the
 // encompassing structure and volume
 //
@@ -188,6 +182,11 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 	structures = make([]LaidOutStructure, len(volume.Structure))
 	byName = make(map[string]*LaidOutStructure, len(volume.Structure))
 
+	// Even although we do not have the final offset as that depends on the
+	// state of the installation disk and we do not know at this point, we
+	// need some value for StartOffset so we can perform some validations.
+	// We will overwrite the final offsets later.
+	offset := quantity.Offset(0)
 	for idx := range volume.Structure {
 		ps := LaidOutStructure{
 			VolumeStructure: &volume.Structure[idx],
@@ -196,21 +195,24 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 		if ps.Name() != "" {
 			byName[ps.Name()] = &ps
 		}
+		if volume.Structure[idx].Offset != nil {
+			offset = *volume.Structure[idx].Offset
+		}
 		// Fill the parts of OnDiskStructure that do not depend on the disk
 		// or on whether we are encrypting or not.
 		// TODO Eventually fill everything here by passing all needed info
 		ps.OnDiskStructure = OnDiskStructure{
 			Name:        ps.VolumeStructure.Name,
 			Type:        ps.VolumeStructure.Type,
-			StartOffset: *volume.Structure[idx].Offset,
+			StartOffset: offset,
 			Size:        ps.VolumeStructure.Size,
 		}
 
+		offset += quantity.Offset(volume.Structure[idx].Size)
+		// Note that structures are ordered by offset as volume.Structure
+		// was ordered when reading the gadget information.
 		structures[idx] = ps
 	}
-
-	// sort by starting offset
-	sort.Sort(byStartOffset(structures))
 
 	previousEnd := quantity.Offset(0)
 	for idx, ps := range structures {
@@ -547,7 +549,7 @@ func ShiftStructureTo(ps LaidOutStructure, offset quantity.Offset) LaidOutStruct
 	return newPs
 }
 
-func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
+func isLayoutCompatible(current, new *Volume) error {
 	if current.ID != new.ID {
 		return fmt.Errorf("incompatible ID change from %v to %v", current.ID, new.ID)
 	}
@@ -562,17 +564,15 @@ func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
 
 	// XXX: the code below asssumes both volumes have the same number of
 	// structures, this limitation may be lifted later
-	if len(current.LaidOutStructure) != len(new.LaidOutStructure) {
+	if len(current.Structure) != len(new.Structure) {
 		return fmt.Errorf("incompatible change in the number of structures from %v to %v",
-			len(current.LaidOutStructure), len(new.LaidOutStructure))
+			len(current.Structure), len(new.Structure))
 	}
 
 	// at the structure level we expect the volume to be identical
-	for i := range current.LaidOutStructure {
-		from := &current.LaidOutStructure[i]
-		to := &new.LaidOutStructure[i]
-		if err := canUpdateStructure(from, to, new.Schema); err != nil {
-			return fmt.Errorf("incompatible structure %v change: %v", to, err)
+	for i := range current.Structure {
+		if err := canUpdateStructure(current.Structure, i, new.Structure, i, new.Schema); err != nil {
+			return fmt.Errorf("incompatible structure #%d (%q) change: %v", new.Structure[i].YamlIndex, new.Structure[i].Name, err)
 		}
 	}
 	return nil

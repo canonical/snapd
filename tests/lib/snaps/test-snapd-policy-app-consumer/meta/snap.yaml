@@ -506,6 +506,9 @@ apps:
   upower-observe:
     command: bin/run
     plugs: [ upower-observe ]
+  userns:
+    command: bin/run
+    plugs: [ userns ]
   vcio:
     command: bin/run
     plugs: [ vcio ]
