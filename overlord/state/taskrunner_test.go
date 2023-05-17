@@ -1357,6 +1357,8 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHook(c *C) {
 	// Ensure that 'ensure' is run one more time
 	// to report exhaustion
 	r.Ensure()
+	// make sure that hook was called at the end of 'Ensure'
+	c.Check(hookCalls, Equals, 1)
 
 	// Make sure we run 'ensure' once more, that we don't
 	// get a second exhaustion hook
@@ -1368,7 +1370,8 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHook(c *C) {
 
 	c.Check(t1.Status(), Equals, state.DoneStatus)
 
-	// make sure that hook was called at the end of 'Ensure'
+	// make sure that hook wasn't invoked again during the last
+	// ensure call
 	c.Check(hookCalls, Equals, 1)
 	c.Check(hookChange, Equals, chg)
 }

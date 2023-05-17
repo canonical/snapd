@@ -422,7 +422,7 @@ func (r *TaskRunner) Ensure() error {
 		}
 	}
 
-	changes := make(map[string]bool)
+	readyChanges := make(map[string]bool)
 	ensureTime := timeNow()
 	nextTaskTime := time.Time{}
 ConsiderTasks:
@@ -501,10 +501,9 @@ ConsiderTasks:
 
 		// Keep track of changes that have jobs ready to run.
 		chg := t.Change()
-		changes[chg.ID()] = true
+		readyChanges[chg.ID()] = true
 
-		// If a change had jobs ready to run, then reset the exhaustion
-		// status for that change.
+		// If a change had jobs ready to run, reset its exhaustion status.
 		r.exhausted[chg.ID()] = false
 	}
 
@@ -518,9 +517,9 @@ ConsiderTasks:
 	for _, chg := range r.state.changes {
 		// if there are no running tasks for this change, report
 		// task exhaustion for that change.
-		if seen := changes[chg.ID()]; seen {
+		if readyChanges[chg.ID()] {
 			// have we already reported exhaustion for that change?
-			if reported := r.exhausted[chg.ID()]; reported {
+			if r.exhausted[chg.ID()] {
 				continue
 			}
 			r.exhausted[chg.ID()] = true
