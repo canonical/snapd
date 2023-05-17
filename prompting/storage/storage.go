@@ -181,27 +181,27 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	// new Allow, old AllowWithSubdirs, ancestor match -> same as ^^
 	// new AllowWithDir, old Allow -> replace always XXX
 	// new AllowWithDir, old AllowWithDir, exact match -> replace if different
-	// new AllowWithDir, old AllowWithSubdir, exact match -> same as ^^
+	// new AllowWithDir, old AllowWithSubdirs, exact match -> same as ^^
 	// new AllowWithDir, old AllowWithDir, parent match -> insert always XXX
-	// new AllowWithDir, old AllowWithSubdir, ancestor match -> insert if different
-	// new AllowWithSubdir, old Allow -> replace always XXX
-	// new AllowWithSubdir, old AllowWithDir, exact match -> replace always XXX
-	// new AllowWithSubdir, old AllowWithSubdir, exact match -> replace if different
-	// new AllowWithSubdir, old AllowWithDir, parent match -> insert always XXX
-	// new AllowWithSubdir, old AllowWithSubdir, ancestor match -> insert if different
+	// new AllowWithDir, old AllowWithSubdirs, ancestor match -> insert if different
+	// new AllowWithSubdirs, old Allow -> replace always XXX
+	// new AllowWithSubdirs, old AllowWithDir, exact match -> replace always XXX
+	// new AllowWithSubdirs, old AllowWithSubdirs, exact match -> replace if different
+	// new AllowWithSubdirs, old AllowWithDir, parent match -> insert always XXX
+	// new AllowWithSubdirs, old AllowWithSubdirs, ancestor match -> insert if different
 
 	// in summary:
 	// do nothing if decision matches and _not_ one of:
 	//  1. new AllowWithDir, old Allow
 	//  2. new AllowWithDir, old AllowWithDir, parent match
-	//  3. new AllowWithSubdir, old _not_ AllowWithSubdir
+	//  3. new AllowWithSubdirs, old _not_ AllowWithSubdir
 	// otherwise:
 	// remove any existing exact match (no-op if there is none)
 	// insert the path with the decision in the correct map
 
 	if (err == nil) && (alreadyAllowed == allow) {
 		// already in db and decision matches
-		if !((extras[extrasAllowWithDir] == "yes" && (&which == &labelEntries.Allow || (&which == &labelEntries.AllowWithDir && matchingPath != path))) || (extras[extrasAllowWithSubdirs] == "yes" && &which != &labelEntries.AllowWithSubdirs)) {
+		if !((((allow && extras[extrasAllowWithDir] == "yes") || (!allow && extras[extrasDenyWithDir] == "yes")) && (&which == &labelEntries.Allow || (&which == &labelEntries.AllowWithDir && matchingPath != path))) || (((allow && extras[extrasAllowWithSubdirs] == "yes") || (!allow && extras[extrasDenyWithSubdirs] == "yes")) && &which != &labelEntries.AllowWithSubdirs)) {
 			// don't need to do anything
 			return nil
 		}
