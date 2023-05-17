@@ -249,11 +249,11 @@ func (s *aspectSuite) TestAspectsAccessControl(c *C) {
 			name: "read-only",
 			// unrelated error
 			getErr: `cannot get field "read-only": no value was found under "path"`,
-			setErr: `cannot set field "read-only": path is not writeable`,
+			setErr: `cannot write field "read-only": only supports read access`,
 		},
 		{
 			name:   "write-only",
-			getErr: `cannot get field "write-only": path is not readable`,
+			getErr: `cannot read field "write-only": only supports write access`,
 		},
 	} {
 		cmt := Commentf("sub-test %q failed", t.name)
@@ -587,4 +587,20 @@ func (s *aspectSuite) TestFieldNotFoundError(c *C) {
 	err := &aspects.FieldNotFoundError{Message: "expected error"}
 	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
 	c.Assert(err, ErrorMatches, `expected error`)
+}
+
+func (s *aspectSuite) TestInvalidAccessError(c *C) {
+	err := &aspects.InvalidAccessError{RequestedAccess: 1, FieldAccess: 2, Field: "foo"}
+	c.Assert(err, testutil.ErrorIs, &aspects.InvalidAccessError{})
+	c.Assert(err, ErrorMatches, `cannot read field "foo": only supports write access`)
+
+	err = &aspects.InvalidAccessError{RequestedAccess: 2, FieldAccess: 1, Field: "foo"}
+	c.Assert(err, testutil.ErrorIs, &aspects.InvalidAccessError{})
+	c.Assert(err, ErrorMatches, `cannot write field "foo": only supports read access`)
+}
+
+func (s *aspectSuite) TestIsNotFoundErrorHelper(c *C) {
+	c.Assert(aspects.IsNotFoundErr(&aspects.AspectNotFoundError{}), Equals, true)
+	c.Assert(aspects.IsNotFoundErr(&aspects.FieldNotFoundError{}), Equals, true)
+	c.Assert(aspects.IsNotFoundErr(&aspects.InvalidAccessError{}), Equals, false)
 }

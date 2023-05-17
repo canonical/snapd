@@ -87,6 +87,30 @@ func (e *FieldNotFoundError) Is(err error) bool {
 	return ok
 }
 
+// IsNotFoundErr returns true if the error is some kind of aspect-related not
+// found error (e.g., aspect not found, field not found in aspect).
+func IsNotFoundErr(err error) bool {
+	return errors.Is(err, &AspectNotFoundError{}) || errors.Is(err, &FieldNotFoundError{})
+}
+
+// InvalidAccessError represents a failure to perform a read or write due to the
+// aspect's access control.
+type InvalidAccessError struct {
+	RequestedAccess accessType
+	FieldAccess     accessType
+	Field           string
+}
+
+func (e *InvalidAccessError) Error() string {
+	return fmt.Sprintf("cannot %s field %q: only supports %s access",
+		accessTypeStrings[e.RequestedAccess], e.Field, accessTypeStrings[e.FieldAccess])
+}
+
+func (e *InvalidAccessError) Is(err error) bool {
+	_, ok := err.(*InvalidAccessError)
+	return ok
+}
+
 // DataBag controls access to the aspect data storage.
 type DataBag interface {
 	Get(path string, value interface{}) error
@@ -283,7 +307,7 @@ func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
 		}
 
 		if !accessPatt.isWriteable() {
-			return fmt.Errorf("cannot set field %q: path is not writeable", name)
+			return &InvalidAccessError{RequestedAccess: write, FieldAccess: accessPatt.access, Field: name}
 		}
 
 		if err := databag.Set(path, value); err != nil {
@@ -317,7 +341,7 @@ func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 		}
 
 		if !accessPatt.isReadable() {
-			return fmt.Errorf("cannot get field %q: path is not readable", name)
+			return &InvalidAccessError{RequestedAccess: read, FieldAccess: accessPatt.access, Field: name}
 		}
 
 		if err := databag.Get(path, value); err != nil {

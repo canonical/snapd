@@ -111,7 +111,7 @@ func (s *aspectTestSuite) TestSetNotFound(c *C) {
 
 func (s *aspectTestSuite) TestSetAccessError(c *C) {
 	err := aspectstate.Set(s.state, "system", "network", "wifi-setup", "status", "foo")
-	c.Assert(err, ErrorMatches, `cannot set field "status": path is not writeable`)
+	c.Assert(err, ErrorMatches, `cannot write field "status": only supports read access`)
 }
 
 func (s *aspectTestSuite) TestUnsetAspect(c *C) {
