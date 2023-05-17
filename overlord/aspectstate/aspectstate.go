@@ -29,9 +29,6 @@ import (
 // Set finds the aspect identified by the account, bundleName and aspect and sets
 // the specified field to the supplied value.
 func Set(st *state.State, account, bundleName, aspect, field string, value interface{}) error {
-	st.Lock()
-	defer st.Unlock()
-
 	databag, err := getDatabag(st, account, bundleName)
 	if err != nil {
 		if !errors.Is(err, state.ErrNoState) {
@@ -66,9 +63,6 @@ func Set(st *state.State, account, bundleName, aspect, field string, value inter
 // Get finds the aspect identified by the account, bundleName and aspect and
 // returns the specified field's value through the "value" output parameter.
 func Get(st *state.State, account, bundleName, aspect, field string, value interface{}) error {
-	st.Lock()
-	defer st.Unlock()
-
 	databag, err := getDatabag(st, account, bundleName)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
