@@ -161,6 +161,16 @@ func (pd *PromptsDB) load() error {
 	return json.NewDecoder(f).Decode(&pd.PerUser)
 }
 
+func whichMap(allow bool, extras map[string]string) string {
+	if (allow && extras[extrasAllowWithSubdirs] == "yes") || (!allow && extras[extrasDenyWithSubdirs] == "yes") {
+		return jsonAllowWithSubdirs
+	}
+	if (allow && extras[extrasAllowWithDir] == "yes") || (!allow && extras[extrasDenyWithDir] == "yes") {
+		return jsonAllowWithDir
+	}
+	return jsonAllow
+}
+
 // TODO: extras is ways too loosly typed right now
 func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]string) error {
 	// nothing to store in the db
@@ -171,12 +181,14 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	// should it be removed since we want to "always prompt"?
 	labelEntries := pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
 
+	which := whichMap(allow, extras)
 	path := req.Path
-	if strings.HasSuffix(path, "/") || (((allow && (extras[extrasAllowWithDir] == "yes" || extras[extrasAllowWithSubdirs] == "yes")) || (!allow && (extras[extrasDenyWithDir] == "yes" || extras[extrasDenyWithSubdirs] == "yes"))) && !osutil.IsDirectory(path)) {
+
+	if strings.HasSuffix(path, "/") || ((which == jsonAllowWithDir || which == jsonAllowWithSubdirs) && !osutil.IsDirectory(path)) {
 		path = filepath.Dir(path)
 	}
 	path = filepath.Clean(path)
-	alreadyAllowed, err, which, matchingPath := findPathInLabelDB(labelEntries, path)
+	alreadyAllowed, err, matchingMap, matchingPath := findPathInLabelDB(labelEntries, path)
 	if err != nil && err != ErrNoSavedDecision {
 		return err
 	}
@@ -209,7 +221,7 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 
 	if (err == nil) && (alreadyAllowed == allow) {
 		// already in db and decision matches
-		if !((((allow && extras[extrasAllowWithDir] == "yes") || (!allow && extras[extrasDenyWithDir] == "yes")) && (which == jsonAllow || (which == jsonAllowWithDir && matchingPath != path))) || (((allow && extras[extrasAllowWithSubdirs] == "yes") || (!allow && extras[extrasDenyWithSubdirs] == "yes")) && which != jsonAllowWithSubdirs)) {
+		if !((which == jsonAllowWithDir && (matchingMap == jsonAllow || (matchingMap == jsonAllowWithDir && matchingPath != path))) || (which == jsonAllowWithSubdirs && matchingMap != jsonAllowWithSubdirs)) {
 			// don't need to do anything
 			return nil
 		}
@@ -218,14 +230,15 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	// if there's an exact match in one of the maps, delete it
 	if matchingPath == path {
 		// XXX maybe don't even need if statement here, as deletion is no-op if key not in map
+		labelEntries = pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
 		delete(labelEntries.Allow, path)
 		delete(labelEntries.AllowWithDir, path)
 		delete(labelEntries.AllowWithSubdirs, path)
 	}
 
-	if (allow && extras[extrasAllowWithSubdirs] == "yes") || (!allow && extras[extrasDenyWithSubdirs] == "yes") {
+	if which == jsonAllowWithSubdirs {
 		labelEntries.AllowWithSubdirs[path] = allow
-	} else if (allow && extras[extrasAllowWithDir] == "yes") || (!allow && extras[extrasDenyWithDir] == "yes") {
+	} else if which == jsonAllowWithDir {
 		labelEntries.AllowWithDir[path] = allow
 	} else {
 		labelEntries.Allow[path] = allow
