@@ -1298,15 +1298,15 @@ func (cs *changeSuite) TestIsWaitingMultipleDependencies(c *C) {
 	c.Check(chg.Status(), Equals, state.DoStatus)
 
 	// For the next two cases we are testing that a task with dependencies
-	// which have completed, but in a non-succesful way is handled correctly.
+	// which have completed, but in a non-successful way is handled correctly.
 	// The reason we expect a DoStatus from the following:
 	// - Task 1 or 2 is in error
 	// - Task 1 or 2 is wait
 	// - Task 3 depends on 1+2, and is in Do.
-	// - Task 4, is independant, and in Wait.
+	// - Task 4, is independent, and in Wait.
 	// It may seem logically that this change would be in error or wait mode, but because of
 	// our status ordering, Do takes precedence above Wait and Error, so it's important
-	// that our WaitStatus logic (which actually preceeds the ordering) is respecting this
+	// that our WaitStatus logic (which actually precedes the ordering) is respecting this
 	// by determining the next two cases to be identical, and not opinionated otherwise.
 	// task1 (error) + task2 (wait) => task3 (do) no reboot
 	t1.SetStatus(state.ErrorStatus)
@@ -1422,15 +1422,15 @@ func (cs *changeSuite) TestIsWaitingUndoMultipleDependencies(c *C) {
 	c.Check(chg.Status(), Equals, state.UndoStatus)
 
 	// For the next two cases we are testing that a task with dependencies
-	// which have completed, but in a non-succesful way is handled correctly.
+	// which have completed, but in a non-successful way is handled correctly.
 	// The reason we expect a UndoStatus from the following:
 	// - Task 3 or 4 is in error
 	// - Task 3 or 4 is wait
 	// - Task 1+2 depends on 3+4, and is in Undo.
-	// - Task 5, is independant, and in Wait.
+	// - Task 5, is independent, and in Wait.
 	// It may seem logically that this change would be in error or wait mode, but because of
 	// our status ordering, Undo takes precedence above Wait and Error, so it's important
-	// that our WaitStatus logic (which actually preceeds the ordering) is respecting this
+	// that our WaitStatus logic (which actually precedes the ordering) is respecting this
 	// by determining the next two cases to be identical, and not opinionated otherwise.
 	// task1 (undo) + task2 (undo) => task3 (wait) + task4 (error) no reboot
 	t3.SetStatus(state.ErrorStatus)
