@@ -93,15 +93,13 @@ type Bundle struct {
 
 // NewAspectBundle returns a new aspect bundle for the following aspects
 // and access patterns.
-func NewAspectBundle(name string, aspects map[string]interface{}, dataBag DataBag, schema Schema) (*Bundle, error) {
+func NewAspectBundle(name string, aspects map[string]interface{}) (*Bundle, error) {
 	if len(aspects) == 0 {
 		return nil, errors.New(`cannot define aspects bundle: no aspects`)
 	}
 
 	aspectBundle := &Bundle{
 		Name:    name,
-		dataBag: dataBag,
-		schema:  schema,
 		aspects: make(map[string]*Aspect, len(aspects)),
 	}
 
@@ -113,7 +111,7 @@ func NewAspectBundle(name string, aspects map[string]interface{}, dataBag DataBa
 			return nil, fmt.Errorf("cannot define aspect %q: no access patterns found", name)
 		}
 
-		aspect, err := newAspect(aspectBundle, name, aspectPatterns)
+		aspect, err := newAspect(name, aspectPatterns)
 		if err != nil {
 			return nil, fmt.Errorf("cannot define aspect %q: %w", name, err)
 		}
@@ -124,11 +122,10 @@ func NewAspectBundle(name string, aspects map[string]interface{}, dataBag DataBa
 	return aspectBundle, nil
 }
 
-func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) (*Aspect, error) {
+func newAspect(name string, aspectPatterns []map[string]string) (*Aspect, error) {
 	aspect := &Aspect{
 		Name:           name,
 		accessPatterns: make([]*accessPattern, 0, len(aspectPatterns)),
-		bundle:         bundle,
 	}
 
 	for _, aspectPattern := range aspectPatterns {
@@ -250,11 +247,10 @@ func (d *Bundle) Aspect(aspect string) *Aspect {
 type Aspect struct {
 	Name           string
 	accessPatterns []*accessPattern
-	bundle         *Bundle
 }
 
 // Set sets the named aspect to a specified value.
-func (a *Aspect) Set(name string, value interface{}) error {
+func (a *Aspect) Set(databag DataBag, schema Schema, name string, value interface{}) error {
 	nameSubkeys := strings.Split(name, ".")
 	for _, accessPatt := range a.accessPatterns {
 		placeholders, ok := accessPatt.match(nameSubkeys)
@@ -271,16 +267,16 @@ func (a *Aspect) Set(name string, value interface{}) error {
 			return fmt.Errorf("cannot set %q: path is not writeable", name)
 		}
 
-		if err := a.bundle.dataBag.Set(path, value); err != nil {
+		if err := databag.Set(path, value); err != nil {
 			return err
 		}
 
-		data, err := a.bundle.dataBag.Data()
+		data, err := databag.Data()
 		if err != nil {
 			return err
 		}
 
-		return a.bundle.schema.Validate(data)
+		return schema.Validate(data)
 	}
 
 	return &NotFoundError{fmt.Sprintf("cannot set %q: name not found", name)}
@@ -288,7 +284,7 @@ func (a *Aspect) Set(name string, value interface{}) error {
 
 // Get returns the aspect value identified by the name. If either the named aspect
 // or the corresponding value can't be found, a NotFoundError is returned.
-func (a *Aspect) Get(name string, value interface{}) error {
+func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 	subkeys := strings.Split(name, ".")
 	for _, accessPatt := range a.accessPatterns {
 		placeholders, ok := accessPatt.match(subkeys)
@@ -305,7 +301,7 @@ func (a *Aspect) Get(name string, value interface{}) error {
 			return fmt.Errorf("cannot get %q: path is not readable", name)
 		}
 
-		if err := a.bundle.dataBag.Get(path, value); err != nil {
+		if err := databag.Get(path, value); err != nil {
 			if errors.Is(err, &NotFoundError{}) {
 				return &NotFoundError{fmt.Sprintf("cannot get %q: %v", name, err)}
 			}
