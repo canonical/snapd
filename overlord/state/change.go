@@ -26,6 +26,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 // Status is used for status values for changes and tasks.
@@ -302,6 +304,7 @@ func (c *Change) isTaskWaiting(visited map[string]taskWaitComputeStatus, t *Task
 	switch computeStatus {
 	case taskWaitStatusComputing:
 		// Cyclic dependency detected, return false to short-circuit.
+		logger.Noticef("detected cyclic dependencies for task %q in change %q", t.Kind(), t.Change().Kind())
 		return false
 	case taskWaitStatusWaiting, taskWaitStatusNotWaiting:
 		return computeStatus == taskWaitStatusWaiting
@@ -314,6 +317,10 @@ depscheck:
 		switch wt.Status() {
 		case WaitStatus:
 			isWaiting = true
+		// States that can are valid when waiting
+		// - Done, Undone
+		case DoneStatus, UndoneStatus:
+			continue
 		// For 'Do' and 'Undo' we have to check whether the task is waiting
 		// for any dependencies. The logic is the same, but the set of tasks
 		// varies.
@@ -329,12 +336,11 @@ depscheck:
 				// Cancel early if we detect something is runnable.
 				break depscheck
 			}
-		// States that can are valid when waiting
-		// - Done, Undone
-		case DoneStatus, UndoneStatus:
-			continue
 		default:
+			// When we determine the change can not be in a wait-state then
+			// break early.
 			isWaiting = false
+			break depscheck
 		}
 	}
 	if isWaiting {
@@ -345,21 +351,16 @@ depscheck:
 	return isWaiting
 }
 
-// isChangeWaiting returns whether a change has all of its tasks blocked by
-// wait tasks. If just one of the tasks is able to run, then this returns
-// false.
+// isChangeWaiting should only ever return true iff it determines all tasks in Do/Undo
+// are blocked by tasks in either of three states: 'DoneStatus', 'UndoneStatus' or 'WaitStatus',
+// if this fails, we default to the normal status ordering logic.
 func (c *Change) isChangeWaiting() bool {
 	// Since we might visit tasks more than once, we store results to avoid recomputing them.
 	visited := make(map[string]taskWaitComputeStatus)
 	for _, t := range c.Tasks() {
-		// Handle all statuses that have higher order than WaitStatus to ensure
-		// we don't override any otherwise wanted behaviour.
 		switch t.Status() {
-		// Abort is a transition status which gets turned into either
-		// Hold or Undo, but until that decision has been made we count
-		// this change as not waiting.
-		case AbortStatus, DoingStatus, UndoingStatus:
-			return false
+		case WaitStatus, DoneStatus, UndoneStatus:
+			continue
 		case DoStatus:
 			if !c.isTaskWaiting(visited, t, t.WaitTasks()) {
 				return false
@@ -368,6 +369,8 @@ func (c *Change) isChangeWaiting() bool {
 			if !c.isTaskWaiting(visited, t, t.HaltTasks()) {
 				return false
 			}
+		default:
+			return false
 		}
 	}
 	// If we end up here, then return true as we know we
