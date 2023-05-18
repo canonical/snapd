@@ -147,6 +147,305 @@ func cloneAllowMap(m map[string]bool) map[string]bool {
 	return newMap
 }
 
+func (s *storageSuite) TestGetMatches(c *C) {
+	cases := []struct {
+		allow            map[string]bool
+		allowWithDir     map[string]bool
+		allowWithSubdirs map[string]bool
+		path             string
+		decision         bool
+	}{
+		{
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{},
+			"/home/test/foo",
+			true,
+		},
+		{
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test/foo",
+			true,
+		},
+		{
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test/foo/bar",
+			true,
+		},
+		{
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/foo",
+			true,
+		},
+		{
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/foo/bar",
+			true,
+		},
+		{
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/foo/bar/baz",
+			true,
+		},
+		{
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{"/home/test": true},
+			map[string]bool{},
+			"/home/test/foo",
+			false,
+		},
+		{
+			map[string]bool{"/home/test/foo/bar": false},
+			map[string]bool{"/home/test": true},
+			map[string]bool{},
+			"/home/test/foo",
+			true,
+		},
+		{
+			map[string]bool{"/home/test": false},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test/foo",
+			true,
+		},
+		{
+			map[string]bool{"/home/test": false},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test/foo/bar",
+			true,
+		},
+		{
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			"/home/test/foo/bar/baz",
+			true,
+		},
+		{
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			"/home/test/foo/bar",
+			true,
+		},
+		{
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			"/home/test/foo",
+			false,
+		},
+		{
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+			"/home/test",
+			true,
+		},
+		{
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{"/home/test": false},
+			"/home/test/foo/bar/baz",
+			false,
+		},
+		{
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{"/home/test": false},
+			"/home/test/foo/bar",
+			true,
+		},
+		{
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{"/home/test": false},
+			"/home/test/foo",
+			true,
+		},
+		{
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{"/home/test": false},
+			"/home/test",
+			false,
+		},
+		{
+			map[string]bool{"/home/test/foo/bar": false},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{"/home/test": false},
+			"/home/test/foo/bar/baz",
+			false,
+		},
+		{
+			map[string]bool{"/home/test/foo/bar": false},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{"/home/test": false},
+			"/home/test/foo/bar",
+			false,
+		},
+		{
+			map[string]bool{"/home/test/foo/bar": true},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{"/home/test": true},
+			"/home/test/foo/bar",
+			true,
+		},
+		{
+			map[string]bool{"/home/test/foo/bar": false},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{"/home/test": false},
+			"/home/test/foo",
+			true,
+		},
+		{
+			map[string]bool{"/home/test/foo/bar": true},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{"/home/test": true},
+			"/home/test/foo",
+			false,
+		},
+		{
+			map[string]bool{"/home/test/foo/bar": false},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{"/home/test": false},
+			"/home/test",
+			false,
+		},
+		{
+			map[string]bool{"/home/test/foo/bar": true},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{"/home/test": true},
+			"/home/test",
+			true,
+		},
+	}
+
+	st := storage.New()
+
+	req := &notifier.Request{
+		Label:      "snap.lxd.lxd",
+		SubjectUid: 1000,
+		Path:       "placeholder",
+	}
+
+	labelEntries := st.MapsForUidAndLabel(req.SubjectUid, req.Label)
+
+	for i, testCase := range cases {
+		labelEntries.Allow = cloneAllowMap(testCase.allow)
+		labelEntries.AllowWithDir = cloneAllowMap(testCase.allowWithDir)
+		labelEntries.AllowWithSubdirs = cloneAllowMap(testCase.allowWithSubdirs)
+		req.Path = testCase.path
+		allow, err := st.Get(req)
+		c.Assert(err, IsNil, Commentf("\nTest case %d:\n%+v\nError: %v", i, testCase, err))
+		c.Assert(allow, Equals, testCase.decision, Commentf("\nTest case %d:\n%+v\nGet() returned: %v", i, testCase, allow))
+	}
+}
+
+func (s *storageSuite) TestGetErrors(c *C) {
+	cases := []struct {
+		allow            map[string]bool
+		allowWithDir     map[string]bool
+		allowWithSubdirs map[string]bool
+		path             string
+		err              error
+	}{
+		{
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{},
+			"/home/test/foo/bar",
+			storage.ErrNoSavedDecision,
+		},
+		{
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{},
+			"/home/test",
+			storage.ErrNoSavedDecision,
+		},
+		{
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test/foo/bar/baz",
+			storage.ErrNoSavedDecision,
+		},
+		{
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test",
+			storage.ErrNoSavedDecision,
+		},
+		{
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test",
+			storage.ErrNoSavedDecision,
+		},
+		{
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test/foo",
+			storage.ErrMultipleDecisions,
+		},
+		{
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/foo",
+			storage.ErrMultipleDecisions,
+		},
+		{
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/foo",
+			storage.ErrMultipleDecisions,
+		},
+		{
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/foo",
+			storage.ErrMultipleDecisions,
+		},
+	}
+
+	st := storage.New()
+
+	req := &notifier.Request{
+		Label:      "snap.lxd.lxd",
+		SubjectUid: 1000,
+		Path:       "placeholder",
+	}
+
+	labelEntries := st.MapsForUidAndLabel(req.SubjectUid, req.Label)
+
+	for i, testCase := range cases {
+		labelEntries.Allow = cloneAllowMap(testCase.allow)
+		labelEntries.AllowWithDir = cloneAllowMap(testCase.allowWithDir)
+		labelEntries.AllowWithSubdirs = cloneAllowMap(testCase.allowWithSubdirs)
+		req.Path = testCase.path
+		_, err := st.Get(req)
+		c.Assert(err, Equals, testCase.err, Commentf("\nTest case %d:\n%+v\nUnexpected Error: %v", i, testCase, err))
+	}
+}
+
 func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 	// if path matches entry already in a different map (XXX means can't return early):
 	// new Allow, old Allow -> replace if different
