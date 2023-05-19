@@ -30,7 +30,7 @@ execute: |
 
     systemd-run --unit unmount-blocker test-snapd-tools.block
 
-    tests.systemd wait-for-service -n 30 --state active tinyproxy unmount-blocker
+    tests.systemd wait-for-service -n 30 --state active unmount-blocker
     retry -n 20 --wait 1 sh -c "test -f $MARKER"
 
     echo "When we try to remove the snap"
