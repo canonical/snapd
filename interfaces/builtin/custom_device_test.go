@@ -409,6 +409,7 @@ slots:
   devices:
     - /dev/input/event[0-9]
     - /dev/input/mice
+    - /dev/dma_heap/qcom,qseecom
   read-devices:
     - /dev/js*
   %s
@@ -428,6 +429,7 @@ apps:
 				{`KERNEL`: `"input/event[0-9]"`},
 				{`KERNEL`: `"input/mice"`},
 				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
 			},
 		},
 		{
@@ -436,6 +438,7 @@ apps:
 				{`KERNEL`: `"input/event[0-9]"`},
 				{`KERNEL`: `"input/mice"`, `SUBSYSTEM`: `"input"`},
 				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
 			},
 		},
 		{
@@ -450,6 +453,7 @@ apps:
 				{`KERNEL`: `"input/event[0-9]"`},
 				{`KERNEL`: `"input/mice"`, `SUBSYSTEM`: `"input"`},
 				{`KERNEL`: `"js*"`, `ATTR{attr1}`: `"one"`, `ATTR{attr2}`: `"two"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
 			},
 		},
 		{
@@ -471,27 +475,25 @@ apps:
 				},
 				{`KERNEL`: `"input/mice"`, `ATTR{wheel}`: `"true"`},
 				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
 			},
 		},
 		{
-			`udev-tagging:
-   - kernel: mice
-     attributes:
-      wheel: "true"
-   - kernel: event[0-9]
-     subsystem: input
-     environment:
-      env1: first
-      env2: second|other`,
+			"udev-tagging:\n   - kernel: dma_heap/qcom,qseecom",
 			[]map[string]string{
-				{
-					`KERNEL`:    `"event[0-9]"`,
-					`SUBSYSTEM`: `"input"`,
-					`ENV{env1}`: `"first"`,
-					`ENV{env2}`: `"second|other"`,
-				},
-				{`KERNEL`: `"mice"`, `ATTR{wheel}`: `"true"`},
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"input/mice"`},
 				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+			},
+		},
+		{
+			"udev-tagging:\n   - kernel: qcom,qseecom",
+			[]map[string]string{
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"qcom,qseecom"`},
 			},
 		},
 	}
