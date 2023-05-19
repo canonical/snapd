@@ -7,7 +7,7 @@ prepare: |
     echo "Ensure all snaps are gone"
     snapd.tool exec snap-mgmt --purge
 
-    tests.systemd stop-units snapd.service
+    tests.systemd stop-unit snapd.service
     rm -f /var/lib/snapd/state.json
     systemctl start snapd
     snap wait system seed.loaded

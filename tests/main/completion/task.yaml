@@ -10,7 +10,7 @@ environment:
     NAMES: /var/cache/snapd/names
 
 prepare: |
-    tests.systemd stop-units snapd.service snapd.socket
+    tests.systemd stop-unit snapd.service snapd.socket
     if [ -e "$NAMES" ]; then
         mv "$NAMES" "$NAMES.orig"
     fi

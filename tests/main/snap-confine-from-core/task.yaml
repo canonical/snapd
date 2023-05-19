@@ -50,7 +50,7 @@ execute: |
     fi
 
     echo "Force system-key change"
-    systemd_stop_units snapd.service snapd.socket
+    tests.systemd stop-unit snapd.service snapd.socket
     printf '{"version":1}' > /var/lib/snapd/system-key
     rm -f /var/lib/snapd/apparmor/profiles/snap-confine.*
     systemctl start snapd.service snapd.socket
