@@ -109,6 +109,11 @@ func (s *aspectTestSuite) TestSetNotFound(c *C) {
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
 }
 
+func (s *aspectTestSuite) TestSetAccessError(c *C) {
+	err := aspectstate.Set(s.state, "system", "network", "wifi-setup", "status", "foo")
+	c.Assert(err, ErrorMatches, `cannot set "status": path is not writeable`)
+}
+
 func (s *aspectTestSuite) TestUnsetAspect(c *C) {
 	err := aspectstate.Set(s.state, "system", "network", "wifi-setup", "ssid", "foo")
 	c.Assert(err, IsNil)
