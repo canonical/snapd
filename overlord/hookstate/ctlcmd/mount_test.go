@@ -145,6 +145,12 @@ func (s *mountSuite) SetUpTest(c *C) {
 					"options":    []string{"bind", "ro"},
 					"persistent": false,
 				},
+				map[string]interface{}{
+					"what":       "/dev/dma_heap/qcom,qseecom",
+					"where":      "/dest,with,commas",
+					"options":    []string{"ro"},
+					"persistent": false,
+				},
 			},
 		},
 	}
@@ -362,6 +368,30 @@ func (s *mountSuite) TestHappyWithVariableExpansion(c *C) {
 			What:     "/media/me/data",
 			Where:    where,
 			Options:  []string{"bind", "ro"},
+			Origin:   "mount-control",
+		},
+	})
+	c.Check(s.sysd.StartCalls, DeepEquals, [][]string{
+		{"/path/unit.mount"},
+	})
+}
+
+func (s *mountSuite) TestHappyWithCommasInPath(c *C) {
+	s.injectSnapWithProperPlug(c)
+
+	s.sysd.EnsureMountUnitFileWithOptionsResult = ResultForEnsureMountUnitFileWithOptions{"/path/unit.mount", nil}
+
+	// Now try with commas in the paths
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"mount", "-o", "ro", "/dev/dma_heap/qcom,qseecom", "/dest,with,commas"}, 0)
+	c.Check(err, IsNil)
+	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
+		{
+			Lifetime: systemd.Transient,
+			SnapName: "snap1",
+			Revision: "1",
+			What:     "/dev/dma_heap/qcom,qseecom",
+			Where:    "/dest,with,commas",
+			Options:  []string{"ro"},
 			Origin:   "mount-control",
 		},
 	})
