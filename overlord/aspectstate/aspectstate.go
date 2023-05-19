@@ -52,7 +52,7 @@ func Set(st *state.State, account, bundleName, aspect, field string, value inter
 
 	asp := aspectBundle.Aspect(aspect)
 	if asp == nil {
-		return notFound("aspect %q was not found", aspect)
+		return notFound("aspect %s/%s/%s was not found", account, bundleName, aspect)
 	}
 
 	if err := asp.Set(databag, field, value); err != nil {
@@ -66,40 +66,39 @@ func Set(st *state.State, account, bundleName, aspect, field string, value inter
 	return nil
 }
 
-func Get(st *state.State, account, bundleName, aspect, field string) (interface{}, error) {
+func Get(st *state.State, account, bundleName, aspect, field string, value interface{}) error {
 	st.Lock()
 	defer st.Unlock()
 
 	databag, err := getDatabag(st, account, bundleName)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			return nil, notFound("aspect %s/%s/%s was not found", account, bundleName, aspect)
+			return notFound("aspect %s/%s/%s was not found", account, bundleName, aspect)
 		}
 
-		return nil, err
+		return err
 	}
 
 	accPatterns, err := aspecttest.MockAspect(account, bundleName)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	aspectBundle, err := aspects.NewAspectBundle(bundleName, accPatterns, aspects.NewJSONSchema())
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	asp := aspectBundle.Aspect(aspect)
 	if asp == nil {
-		return nil, notFound("aspect %s/%s/%s was not found", account, bundleName, aspect)
+		return notFound("aspect %s/%s/%s was not found", account, bundleName, aspect)
 	}
 
-	var value interface{}
 	if err := asp.Get(databag, field, &value); err != nil {
-		return nil, err
+		return err
 	}
 
-	return value, nil
+	return nil
 }
 
 func updateDatabags(st *state.State, account, bundleName string, databag aspects.JSONDataBag) error {

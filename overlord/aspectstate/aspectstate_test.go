@@ -52,16 +52,18 @@ func (s *aspectTestSuite) TestGetAspect(c *C) {
 	})
 	s.state.Unlock()
 
-	val, err := aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid")
+	var res interface{}
+	err = aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &res)
 	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "foo")
+	c.Assert(res, Equals, "foo")
 }
 
 func (s *aspectTestSuite) TestGetNotFound(c *C) {
-	val, err := aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid")
+	var res interface{}
+	err := aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &res)
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, `aspect system/network/wifi-setup was not found`)
-	c.Check(val, IsNil)
+	c.Check(res, IsNil)
 
 	s.state.Lock()
 	s.state.Set("aspect-databags", map[string]map[string]aspects.JSONDataBag{
@@ -69,15 +71,15 @@ func (s *aspectTestSuite) TestGetNotFound(c *C) {
 	})
 	s.state.Unlock()
 
-	val, err = aspectstate.Get(s.state, "system", "network", "other-aspect", "ssid")
+	err = aspectstate.Get(s.state, "system", "network", "other-aspect", "ssid", &res)
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, `aspect system/network/other-aspect was not found`)
-	c.Check(val, IsNil)
+	c.Check(res, IsNil)
 
-	val, err = aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid")
+	err = aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &res)
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, `cannot get "ssid": no value was found under "wifi"`)
-	c.Check(val, IsNil)
+	c.Check(res, IsNil)
 }
 
 func (s *aspectTestSuite) TestSetAspect(c *C) {
