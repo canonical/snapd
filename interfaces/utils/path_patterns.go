@@ -41,7 +41,7 @@ const (
 // createRegex converts the apparmor-like glob sequence into a regex. Loosely
 // using this as reference:
 // https://gitlab.com/apparmor/apparmor/-/blob/master/parser/parser_regex.c#L107
-func createRegex(pattern string, glob GlobFlags) (string, error) {
+func createRegex(pattern string, glob GlobFlags, allowCommas bool) (string, error) {
 	regex := "^"
 
 	appendGlob := func(defaultGlob, nullGlob string) {
@@ -137,6 +137,9 @@ func createRegex(pattern string, glob GlobFlags) (string, error) {
 			if currentGroupLevel > 0 {
 				itemCountInGroup[currentGroupLevel]++
 				regex += "|"
+			} else if allowCommas {
+				// treat commas outside of groups as literal commas
+				regex += ","
 			} else {
 				return "", fmt.Errorf("cannot use ',' outside of group or character class")
 			}
@@ -160,8 +163,8 @@ func createRegex(pattern string, glob GlobFlags) (string, error) {
 	return regex, nil
 }
 
-func NewPathPattern(pattern string) (*PathPattern, error) {
-	regexPattern, err := createRegex(pattern, globDefault)
+func NewPathPattern(pattern string, allowCommas bool) (*PathPattern, error) {
+	regexPattern, err := createRegex(pattern, globDefault, allowCommas)
 	if err != nil {
 		return nil, err
 	}

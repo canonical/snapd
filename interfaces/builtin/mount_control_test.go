@@ -404,3 +404,17 @@ func (s *MountControlInterfaceSuite) TestFunctionfsValidates(c *C) {
 	err := interfaces.BeforeConnectPlug(s.iface, plug)
 	c.Check(err, IsNil)
 }
+
+func (s *MountControlInterfaceSuite) TestMountDevicePathWithCommas(c *C) {
+	plugYaml := `
+  mount:
+  - persistent: true
+    what: /dev/dma_heap/qcom,qseecom
+    where: /mnt/foo,bar
+    options: [rw]
+`
+	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
+	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
+	err := interfaces.BeforeConnectPlug(s.iface, plug)
+	c.Check(err, IsNil)
+}
