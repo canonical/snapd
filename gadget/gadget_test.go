@@ -3972,13 +3972,14 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeInternalFieldsNoJSON(c *C) {
 		// not json exported
 		Name: "should-be-ignored-by-json",
 		// exported
+		Partial:    []gadget.PartialProperty{gadget.PartialSize},
 		Schema:     "mbr",
 		Bootloader: "grub",
 		ID:         "0c",
 		Structure:  []gadget.VolumeStructure{},
 	})
 	c.Assert(err, IsNil)
-	c.Check(string(enc), Equals, `{"schema":"mbr","bootloader":"grub","id":"0c","structure":[]}`)
+	c.Check(string(enc), Equals, `{"partial":["size"],"schema":"mbr","bootloader":"grub","id":"0c","structure":[]}`)
 }
 
 func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeStructureInternalFieldsNoJSON(c *C) {
@@ -4478,6 +4479,41 @@ func (s *gadgetYamlTestSuite) TestValidateOffsetWrite(c *C) {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
 			c.Check(err, IsNil)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetValidPartials(c *C) {
+	var yamlTemplate = `
+volumes:
+  frobinator-image:
+    partial: [%s]
+    bootloader: grub
+`
+
+	tests := []struct {
+		partial string
+		err     string
+	}{
+		{"", ""},
+		{"size", ""},
+		{"filesystem", ""},
+		{"schema", ""},
+		{"structure", ""},
+		{"bootloader", `"bootloader" is not a valid partial value`},
+		{"size,structure,schema", ""},
+		{"size,structure,schema,bootloader", `"bootloader" is not a valid partial value`},
+		{"size,structure,size", `partial value "size" is repeated`},
+	}
+
+	for _, tc := range tests {
+		c.Logf("testing partial %q", tc.partial)
+		yaml := fmt.Sprintf(yamlTemplate, tc.partial)
+		_, err := gadget.InfoFromGadgetYaml([]byte(yaml), nil)
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err.Error(), Equals, tc.err)
 		}
 	}
 }
