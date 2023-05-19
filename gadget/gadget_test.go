@@ -4517,3 +4517,180 @@ volumes:
 		}
 	}
 }
+
+func (s *gadgetYamlTestSuite) TestGadgetPartialSize(c *C) {
+	var yaml = []byte(`
+volumes:
+  frobinator-image:
+    partial: [size]
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: ubuntu-seed
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-seed
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+      - name: ubuntu-save
+        min-size: 1M
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-save
+      - name: ubuntu-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+`)
+
+	// Not defining size in a structure is fine
+	_, err := gadget.InfoFromGadgetYaml(yaml, nil)
+	c.Assert(err, IsNil)
+
+	// but if defined, things are still checked
+	yaml = append(yaml, []byte(`
+      - name: ubuntu-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+        size: 1M
+        min-size: 2M
+`)...)
+	_, err = gadget.InfoFromGadgetYaml(yaml, nil)
+	c.Assert(err.Error(), Equals, `invalid volume "frobinator-image": invalid structure #4 ("ubuntu-data"): min-size (2097152) is bigger than size (1048576)`)
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetPartialFilesystem(c *C) {
+	var yaml = []byte(`
+volumes:
+  frobinator-image:
+    partial: [filesystem]
+    bootloader: grub
+    schema: gpt
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        update:
+          edition: 1
+        content:
+          - image: mbr.img
+      - name: ubuntu-seed
+        filesystem: vfat
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-seed
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+      - name: ubuntu-save
+        size: 1M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-save
+        content:
+          - source: splash.bmp
+            target: .
+      - name: ubuntu-data
+        size: 1000M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+`)
+
+	// Not defining filesystem in a structure is fine
+	_, err := gadget.InfoFromGadgetYaml(yaml, nil)
+	c.Assert(err, IsNil)
+
+	// checks for bare still happen
+	yaml = append(yaml, []byte(`
+      - name: boot-fw
+        type: bare
+        size: 1M
+        content:
+          - source: splash.bmp
+            target: .
+`)...)
+	_, err = gadget.InfoFromGadgetYaml(yaml, nil)
+	c.Assert(err.Error(), Equals, `invalid volume "frobinator-image": invalid structure #5 ("boot-fw"): invalid content #0: cannot use non-image content for bare file system`)
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetPartialSchema(c *C) {
+	var yaml = []byte(`
+volumes:
+  frobinator-image:
+    partial: [schema]
+    bootloader: u-boot
+    structure:
+      - name: ubuntu-seed
+        filesystem: vfat
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-seed
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+      - name: ubuntu-save
+        size: 1M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-save
+      - name: ubuntu-data
+        size: 1000M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+`)
+
+	// Not defining schema is fine
+	_, err := gadget.InfoFromGadgetYaml(yaml, nil)
+	c.Assert(err, IsNil)
+
+	// but fails if type does not contain both mbr type and gpt guid
+	yamlNoGPTGuid := append(yaml, []byte(`
+      - name: data
+        type: 83
+        size: 1M
+`)...)
+	_, err = gadget.InfoFromGadgetYaml(yamlNoGPTGuid, nil)
+	c.Assert(err.Error(), Equals, `invalid volume "frobinator-image": invalid structure #4 ("data"): invalid type "83": both MBR type and GUID structure type needs to be defined on partial schemas`)
+	yamlNoMBRType := append(yaml, []byte(`
+      - name: data
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1M
+`)...)
+	_, err = gadget.InfoFromGadgetYaml(yamlNoMBRType, nil)
+	c.Assert(err.Error(), Equals, `invalid volume "frobinator-image": invalid structure #4 ("data"): invalid type "0FC63DAF-8483-4772-8E79-3D69D8477DE4": both MBR type and GUID structure type needs to be defined on partial schemas`)
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetPartialStructure(c *C) {
+	var yaml = []byte(`
+volumes:
+  frobinator-image:
+    partial: [structure]
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: ubuntu-seed
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-seed
+      # Space for some unknown structure in the middle is left around
+      - name: ubuntu-boot
+        filesystem: ext4
+        offset: 1000M
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+`)
+
+	// This test does not do a lot as this code does not check gaps
+	// between structures, but is left as a safeguard.
+	_, err := gadget.InfoFromGadgetYaml(yaml, nil)
+	c.Assert(err, IsNil)
+}
