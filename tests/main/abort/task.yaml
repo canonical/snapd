@@ -2,7 +2,6 @@ summary: Check change abort
 
 environment:
     SNAP_NAME: test-snapd-tools
-    SNAPD_NO_MEMORY_LIMIT: 1
 
 execute: |
     echo "Abort with invalid id"
