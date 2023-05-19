@@ -433,7 +433,7 @@ apps:
 				{`KERNEL`: `"event[0-9]"`},
 				{`KERNEL`: `"mice"`},
 				{`KERNEL`: `"js*"`},
-				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
 			},
 		},
 		{
@@ -442,7 +442,7 @@ apps:
 				{`KERNEL`: `"event[0-9]"`},
 				{`KERNEL`: `"mice"`, `SUBSYSTEM`: `"input"`},
 				{`KERNEL`: `"js*"`},
-				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
 			},
 		},
 		{
@@ -457,7 +457,7 @@ apps:
 				{`KERNEL`: `"event[0-9]"`},
 				{`KERNEL`: `"mice"`, `SUBSYSTEM`: `"input"`},
 				{`KERNEL`: `"js*"`, `ATTR{attr1}`: `"one"`, `ATTR{attr2}`: `"two"`},
-				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
 			},
 		},
 		{
@@ -479,23 +479,14 @@ apps:
 				},
 				{`KERNEL`: `"mice"`, `ATTR{wheel}`: `"true"`},
 				{`KERNEL`: `"js*"`},
-				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
-			},
-		},
-		{
-			"udev-tagging:\n   - kernel: dma_heap/qcom,qseecom",
-			[]map[string]string{
-				{`KERNEL`: `"input/event[0-9]"`},
-				{`KERNEL`: `"input/mice"`},
-				{`KERNEL`: `"js*"`},
-				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
 			},
 		},
 		{
 			"udev-tagging:\n   - kernel: qcom,qseecom",
 			[]map[string]string{
-				{`KERNEL`: `"input/event[0-9]"`},
-				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"event[0-9]"`},
+				{`KERNEL`: `"mice"`},
 				{`KERNEL`: `"js*"`},
 				{`KERNEL`: `"qcom,qseecom"`},
 			},
