@@ -157,11 +157,11 @@ func (iface *customDeviceInterface) validateUDevDevicesUniqueBasenames(devices [
 	if len(duplicateBasenames) == 0 {
 		return nil
 	}
-	duplicatesMap := make(map[string][]string, len(duplicateBasenames))
+	var duplicatesOutput []string
 	for _, deviceName := range duplicateBasenames {
-		duplicatesMap[deviceName] = basenames[deviceName]
+		duplicatesOutput = append(duplicatesOutput, fmt.Sprintf(`"%s": ["%s"]`, deviceName, strings.Join(basenames[deviceName], `", "`)))
 	}
-	return fmt.Errorf(`custom-device specified devices have duplicate basenames: %v`, duplicatesMap)
+	return fmt.Errorf(`custom-device specified devices have duplicate basenames: {%s}`, strings.Join(duplicatesOutput, ", "))
 }
 
 func (iface *customDeviceInterface) validateKernelDeviceNameIsBasename(deviceName string) error {

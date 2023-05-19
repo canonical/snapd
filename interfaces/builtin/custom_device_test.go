@@ -318,7 +318,7 @@ apps:
 		},
 		{
 			"devices: [/dev/dir1/foo, /dev/dir2/foo]\n  udev-tagging:\n    - kernel: foo",
-			`custom-device specified devices have duplicate basenames: {foo:[/dev/dir1/foo /dev/dir2/foo]}`,
+			`custom-device specified devices have duplicate basenames: \{"foo": \["/dev/dir1/foo", "/dev/dir2/foo"\]\}`,
 		},
 		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - attributes: foo",
