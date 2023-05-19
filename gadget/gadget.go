@@ -121,10 +121,30 @@ type Info struct {
 	KernelCmdline KernelCmdline `yaml:"kernel-cmdline"`
 }
 
+// PartialProperty is a gadget property that can be partially defined.
+type PartialProperty string
+
+// These are the different properties of the gadget that can be partially
+// defined.
+// TODO What is the exact meaning of having a partial "structure" is not yet
+// fully defined, so enforcing it has not been implemented yet.
+const (
+	PartialSize       PartialProperty = "size"
+	PartialFilesystem PartialProperty = "filesystem"
+	PartialSchema     PartialProperty = "schema"
+	PartialStructure  PartialProperty = "structure"
+)
+
+var validPartialProperties = [...]PartialProperty{PartialSize, PartialFilesystem, PartialSchema, PartialStructure}
+
 // Volume defines the structure and content for the image to be written into a
 // block device.
 type Volume struct {
-	// Schema describes the schema used for the volume
+	// Partial is a list of properties that are only only partially
+	// described in the gadget and that need to be filled by an
+	// installer.
+	Partial []PartialProperty `yaml:"partial,omitempty" json:"partial,omitempty"`
+	// Schema for the volume can be either gpt or mbr.
 	Schema string `yaml:"schema" json:"schema"`
 	// Bootloader names the bootloader used by the volume
 	Bootloader string `yaml:"bootloader" json:"bootloader"`
@@ -771,6 +791,28 @@ func orderStructuresByOffset(vss []VolumeStructure) []VolumeStructure {
 	return ordVss
 }
 
+func validatePartial(v *Volume) error {
+	var foundCache [len(validPartialProperties)]bool
+	for _, p := range v.Partial {
+		found := false
+		for vpvIdx, valid := range validPartialProperties {
+			if p == valid {
+				if foundCache[vpvIdx] == true {
+					return fmt.Errorf("partial value %q is repeated", p)
+				}
+				foundCache[vpvIdx] = true
+				found = true
+				break
+			}
+		}
+		if found == false {
+			return fmt.Errorf("%q is not a valid partial value", p)
+		}
+	}
+
+	return nil
+}
+
 // InfoFromGadgetYaml parses the provided gadget metadata.
 // If model is nil only self-consistency checks are performed.
 // If model is not nil implied values for filesystem labels will be set
@@ -816,6 +858,10 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		v := gi.Volumes[name]
 		if v == nil {
 			return nil, fmt.Errorf("volume %q stanza is empty", name)
+		}
+
+		if err := validatePartial(v); err != nil {
+			return nil, err
 		}
 
 		// set the VolumeName for the volume
