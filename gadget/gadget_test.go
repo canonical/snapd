@@ -1532,7 +1532,7 @@ volumes:
 	}
 
 	for _, t := range tests {
-		yaml := fmt.Sprintf(string(yamlTemplate), t.label1, t.fsType1, t.label2, t.fsType2)
+		yaml := fmt.Sprintf(yamlTemplate, t.label1, t.fsType1, t.label2, t.fsType2)
 		_, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
 		if t.err == "" {
 			c.Assert(err, IsNil)
