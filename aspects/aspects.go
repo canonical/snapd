@@ -93,13 +93,14 @@ type Bundle struct {
 
 // NewAspectBundle returns a new aspect bundle for the following aspects
 // and access patterns.
-func NewAspectBundle(name string, aspects map[string]interface{}) (*Bundle, error) {
+func NewAspectBundle(name string, aspects map[string]interface{}, schema Schema) (*Bundle, error) {
 	if len(aspects) == 0 {
 		return nil, errors.New(`cannot define aspects bundle: no aspects`)
 	}
 
 	aspectBundle := &Bundle{
 		Name:    name,
+		schema:  schema,
 		aspects: make(map[string]*Aspect, len(aspects)),
 	}
 
@@ -111,7 +112,7 @@ func NewAspectBundle(name string, aspects map[string]interface{}) (*Bundle, erro
 			return nil, fmt.Errorf("cannot define aspect %q: no access patterns found", name)
 		}
 
-		aspect, err := newAspect(name, aspectPatterns)
+		aspect, err := newAspect(aspectBundle, name, aspectPatterns)
 		if err != nil {
 			return nil, fmt.Errorf("cannot define aspect %q: %w", name, err)
 		}
@@ -122,10 +123,11 @@ func NewAspectBundle(name string, aspects map[string]interface{}) (*Bundle, erro
 	return aspectBundle, nil
 }
 
-func newAspect(name string, aspectPatterns []map[string]string) (*Aspect, error) {
+func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) (*Aspect, error) {
 	aspect := &Aspect{
 		Name:           name,
 		accessPatterns: make([]*accessPattern, 0, len(aspectPatterns)),
+		bundle:         bundle,
 	}
 
 	for _, aspectPattern := range aspectPatterns {
@@ -247,10 +249,11 @@ func (d *Bundle) Aspect(aspect string) *Aspect {
 type Aspect struct {
 	Name           string
 	accessPatterns []*accessPattern
+	bundle         *Bundle
 }
 
 // Set sets the named aspect to a specified value.
-func (a *Aspect) Set(databag DataBag, schema Schema, name string, value interface{}) error {
+func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
 	nameSubkeys := strings.Split(name, ".")
 	for _, accessPatt := range a.accessPatterns {
 		placeholders, ok := accessPatt.match(nameSubkeys)
@@ -276,7 +279,7 @@ func (a *Aspect) Set(databag DataBag, schema Schema, name string, value interfac
 			return err
 		}
 
-		return schema.Validate(data)
+		return a.bundle.schema.Validate(data)
 	}
 
 	return &NotFoundError{fmt.Sprintf("cannot set %q: name not found", name)}

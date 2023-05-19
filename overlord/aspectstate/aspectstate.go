@@ -45,7 +45,7 @@ func Set(st *state.State, account, bundleName, aspect, field string, value inter
 		return err
 	}
 
-	aspectBundle, err := aspects.NewAspectBundle(bundleName, accPatterns)
+	aspectBundle, err := aspects.NewAspectBundle(bundleName, accPatterns, aspects.NewJSONSchema())
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func Set(st *state.State, account, bundleName, aspect, field string, value inter
 		return notFound("aspect %q was not found", aspect)
 	}
 
-	if err := asp.Set(databag, aspects.NewJSONSchema(), field, value); err != nil {
+	if err := asp.Set(databag, field, value); err != nil {
 		return err
 	}
 
@@ -84,7 +84,7 @@ func Get(st *state.State, account, bundleName, aspect, field string) (interface{
 		return nil, err
 	}
 
-	aspectBundle, err := aspects.NewAspectBundle(bundleName, accPatterns)
+	aspectBundle, err := aspects.NewAspectBundle(bundleName, accPatterns, aspects.NewJSONSchema())
 	if err != nil {
 		return nil, err
 	}
