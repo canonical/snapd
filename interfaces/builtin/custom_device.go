@@ -150,9 +150,9 @@ func (iface *customDeviceInterface) validateUDevDevicesUniqueBasenames(devices [
 	for _, devicePath := range devices {
 		deviceName := filepath.Base(devicePath)
 		if len(basenames[deviceName]) == 1 {
-			append(duplicateBasenames, devicePath)
+			duplicateBasenames = append(duplicateBasenames, deviceName)
 		}
-		append(basenames[deviceName], devicePath)
+		basenames[deviceName] = append(basenames[deviceName], devicePath)
 	}
 	if len(duplicateBasenames) == 0 {
 		return nil
