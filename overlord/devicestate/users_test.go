@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -749,8 +749,28 @@ func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	// initialize device, and add system-user assertion for serialUser
 	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
 
+	created := map[string]bool{}
+
+	// mock the calls that create the user
+	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(opts.Gecos, check.Equals, fmt.Sprintf("%s,%s", serialUser["email"], serialUser["name"]))
+		c.Check(opts.Password, check.Equals, serialUser["password"])
+		created[username] = true
+		return nil
+	})()
+
+	// make sure we report them as non-existing until created
+	defer devicestate.MockUserLookup(func(username string) (*user.User, error) {
+		if created[username] {
+			return s.trivialUserLookup(username)
+		}
+		return nil, fmt.Errorf("not created yet")
+	})()
+
+	// remove serial from device
 	s.state.Lock()
 	err := devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "my-brand",
@@ -759,15 +779,48 @@ func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
 
-	// create user
+	// try creating user
 	s.state.Lock()
-	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "serial@bar.com")
+	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "")
 	s.state.Unlock()
 
-	c.Check(userErr, check.NotNil)
-	c.Check(userErr.Error(), check.Matches, `cannot create user "serial@bar.com": bound to serial assertion but device not yet registered`)
-	c.Check(s.errorIsInternal(userErr), check.Equals, false)
+	// make sure that no users were created
+	c.Check(userErr, check.IsNil)
 	c.Assert(createdUsers, check.IsNil)
+
+	// restore seed, and mark as seeded
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserial",
+	})
+	c.Assert(err, check.IsNil)
+	s.state.Unlock()
+
+	// ensure, thereby creating pending users
+	s.mgr.Ensure()
+
+	// make sure that system-user-waiting-on-serial has been set to false
+	var waitingOnSerial bool
+	s.state.Lock()
+	err = s.state.Get("system-user-waiting-on-serial", &waitingOnSerial)
+	s.state.Unlock()
+
+	c.Assert(err, check.IsNil)
+	c.Check(waitingOnSerial, check.Equals, false)
+
+	// get created users
+	s.state.Lock()
+	users, err := auth.Users(s.state)
+	s.state.Unlock()
+
+	// check that there is only one user, and that the details match serialUser
+	c.Assert(err, check.IsNil)
+	c.Check(len(users), check.Equals, 1)
+	c.Check(users[0].Email, check.Equals, serialUser["email"])
+	c.Check(users[0].Username, check.Equals, serialUser["username"])
 }
 
 func (s *usersSuite) TestCreateAllKnownUsersFromAssertionNoSerial(c *check.C) {
@@ -795,7 +848,7 @@ func (s *usersSuite) TestCreateAllKnownUsersFromAssertionNoSerial(c *check.C) {
 	c.Check(userErr, check.IsNil)
 	c.Assert(createdUsers, check.IsNil)
 
-	c.Check(logbuf.String(), check.Matches, `(?s).*ignoring system-user assertion for "serial@bar\.com": bound to serial assertion but device not yet registered.*`)
+	c.Check(logbuf.String(), check.Matches, `(?s).*waiting for serial to add user "serial@bar\.com": bound to serial assertion but device not yet registered.*`)
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {

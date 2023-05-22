@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -185,8 +185,10 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	// the assertion against the current brand/model/time
 	username, expiration, addUserOpts, err := getUserDetailsFromAssertion(assertDb, model, serial, email)
 	if err != nil {
-		if err == errSystemUserBoundToSerialButTooEarly {
-			// TODO retry later once we have acquired a device serial
+		if errors.Is(err, errSystemUserBoundToSerialButTooEarly) {
+			state.Set("system-user-waiting-on-serial", true)
+			logger.Noticef("waiting for serial to add user %q: %s", email, err)
+			return nil, nil
 		}
 		logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
 		return nil, nil
