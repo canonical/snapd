@@ -337,10 +337,11 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: coverage-files
-        path: .coverage/
+        path: ${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/
 
     - name: Merge coverage results
       run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         echo "List the coverage files downloaded"
         ls -l .coverage/
         # debug
