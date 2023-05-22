@@ -306,7 +306,7 @@ apps:
 		},
 		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: bar",
-			`custom-device "udev-tagging" invalid "kernel" tag: "bar" does not match a specified device`,
+			`custom-device "udev-tagging" invalid "kernel" tag: "bar" does not match any specified device`,
 		},
 		{
 			"devices: [/dev/subdir/foo]\n  udev-tagging:\n    - kernel: subdir/foo",
