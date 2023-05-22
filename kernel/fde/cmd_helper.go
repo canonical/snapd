@@ -37,6 +37,9 @@ import (
 // XXX: what is a reasonable default here?
 var fdeInitramfsHelperRuntimeMax = 2 * time.Minute
 
+// how long we will wait for systemd to finish the unit
+var fdeInitramfsHelperCleanupMax = 5 * time.Second
+
 // 50 ms means we check at a frequency 20 Hz, fast enough to not hold
 // up boot, but not too fast that we are hogging the CPU from the
 // thing we are waiting to finish running
@@ -49,11 +52,36 @@ var fdeInitramfsHelperPollWaitParanoiaFactor = 2
 // overridden in tests
 var fdeInitramfsHelperCommandExtra []string
 
+// Wait for unit not being active.
+// If we remove the directory containing the files for StandardInput=,
+// StandardOutput= and StandardError=, some versions of systemd may
+// hang.
+func waitForUnit(unitName string) error {
+	maxLoops := int(fdeInitramfsHelperCleanupMax/fdeInitramfsHelperPollWait) * fdeInitramfsHelperPollWaitParanoiaFactor
+	for i := 0; i < maxLoops; i++ {
+		err := exec.Command("systemctl", "is-active", "--quiet", unitName).Run()
+		if err != nil {
+			statusCode, runErr := osutil.ExitCode(err)
+			if runErr != nil {
+				return runErr
+			}
+			if statusCode != 0 {
+				return nil
+			}
+		}
+		time.Sleep(fdeInitramfsHelperPollWait)
+	}
+
+	return fmt.Errorf("internal error: systemd did not cleanup unit %s", unitName)
+}
+
 func runFDEinitramfsHelper(name string, stdin []byte) (output []byte, err error) {
 	runDir := filepath.Join(dirs.GlobalRootDir, "/run", name)
 	if err := os.MkdirAll(runDir, 0700); err != nil {
 		return nil, fmt.Errorf("cannot create tmp dir for %s: %v", name, err)
 	}
+
+	unitName := fmt.Sprintf("snapd-fde-run-%s.service", name)
 
 	// delete and re-create the std{in,out,err} stream files that we use for the
 	// hook to be robust against bugs where the files are created with too
@@ -83,6 +111,7 @@ func runFDEinitramfsHelper(name string, stdin []byte) (output []byte, err error)
 	//       running without dbus (i.e. supports running without --pipe)
 	cmd := exec.Command(
 		"systemd-run",
+		fmt.Sprintf("--unit=%s", unitName),
 		"--collect",
 		"--service-type=exec",
 		"--quiet",
@@ -144,8 +173,14 @@ func runFDEinitramfsHelper(name string, stdin []byte) (output []byte, err error)
 			systemdErr, _ := ioutil.ReadFile(filepath.Join(runDir, name+".failed"))
 			buf := bytes.NewBuffer(stderr)
 			buf.Write(systemdErr)
+			if err := waitForUnit(unitName); err != nil {
+				return nil, err
+			}
 			return buf.Bytes(), fmt.Errorf("%s failed", name)
 		case osutil.FileExists(filepath.Join(runDir, name+".success")):
+			if err := waitForUnit(unitName); err != nil {
+				return nil, err
+			}
 			return ioutil.ReadFile(filepath.Join(runDir, name+".stdout"))
 		default:
 			time.Sleep(fdeInitramfsHelperPollWait)

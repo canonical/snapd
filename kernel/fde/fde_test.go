@@ -513,7 +513,7 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 	calls := mockSystemdRun.Calls()
 	c.Check(calls, DeepEquals, [][]string{
 		{
-			"systemd-run", "--collect", "--service-type=exec", "--quiet",
+			"systemd-run", "--unit=snapd-fde-run-fde-reveal-key.service", "--collect", "--service-type=exec", "--quiet",
 			"--property=RuntimeMaxSec=2m0s",
 			"--property=SystemCallFilter=~@mount",
 			"--property=DefaultDependencies=no",
@@ -527,4 +527,78 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 	})
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+}
+
+func (s *fdeSuite) TestRevealWaitForSystemdRun(c *C) {
+	checkSystemdRunOrSkip(c)
+
+	tmpDir := c.MkDir()
+
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
+	defer restore()
+
+	// Will be called twice
+	systemctl := fmt.Sprintf(`
+tmpdir='%s'
+count="$(cat "${tmpdir}/counter" || echo 0)"
+echo "$((++count))" >"${tmpdir}/counter"
+[ "${count}" -lt 2 ]
+`, tmpDir)
+
+	mockSystemctl := testutil.MockCommand(c, "systemctl", systemctl)
+	defer mockSystemctl.Restore()
+
+	mockFdeRevealKey := testutil.MockCommand(c, "fde-reveal-key", `echo '{"key": "ABCD"}'`)
+	defer mockFdeRevealKey.Restore()
+
+	restore = fde.MockFdeRevealKeyCleanupMax(200 * time.Millisecond)
+	defer restore()
+
+	sealedKey := []byte("value")
+	handle := json.RawMessage(`{"some": "handle"}`)
+	p := fde.RevealParams{
+		SealedKey: sealedKey,
+		Handle:    &handle,
+	}
+	_, err := fde.Reveal(&p)
+	c.Assert(err, IsNil)
+
+	calls := mockSystemctl.Calls()
+	c.Check(calls, DeepEquals, [][]string{
+		{"systemctl", "is-active", "--quiet", "snapd-fde-run-fde-reveal-key.service"},
+		{"systemctl", "is-active", "--quiet", "snapd-fde-run-fde-reveal-key.service"},
+	})
+}
+
+func (s *fdeSuite) TestRevealWaitForSystemdRunFailedToClean(c *C) {
+	checkSystemdRunOrSkip(c)
+
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
+	defer restore()
+
+	mockSystemctl := testutil.MockCommand(c, "systemctl", "")
+	defer mockSystemctl.Restore()
+
+	mockFdeRevealKey := testutil.MockCommand(c, "fde-reveal-key", `echo '{"key": "ABCD"}'`)
+	defer mockFdeRevealKey.Restore()
+
+	restore = fde.MockFdeRevealKeyCleanupMax(100 * time.Millisecond)
+	defer restore()
+
+	sealedKey := []byte("value")
+	handle := json.RawMessage(`{"some": "handle"}`)
+	p := fde.RevealParams{
+		SealedKey: sealedKey,
+		Handle:    &handle,
+	}
+	_, err := fde.Reveal(&p)
+	c.Assert(err, ErrorMatches, `.*: internal error: systemd did not cleanup unit snapd-fde-run-fde-reveal-key.service`)
+
+	calls := mockSystemctl.Calls()
+	// It should be called 4 times
+	c.Check(len(calls) > 2, Equals, true)
+	c.Check(len(calls) < 6, Equals, true)
+	for _, call := range calls {
+		c.Check(call, DeepEquals, []string{"systemctl", "is-active", "--quiet", "snapd-fde-run-fde-reveal-key.service"})
+	}
 }

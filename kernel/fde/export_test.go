@@ -39,6 +39,14 @@ func MockFdeRevealKeyRuntimeMax(d time.Duration) (restore func()) {
 	}
 }
 
+func MockFdeRevealKeyCleanupMax(d time.Duration) (restore func()) {
+	oldFdeRevealKeyCleanupMax := fdeInitramfsHelperCleanupMax
+	fdeInitramfsHelperCleanupMax = d
+	return func() {
+		fdeInitramfsHelperCleanupMax = oldFdeRevealKeyCleanupMax
+	}
+}
+
 func MockFdeRevealKeyPollWaitParanoiaFactor(n int) (restore func()) {
 	oldFdeRevealKeyPollWaitParanoiaFactor := fdeInitramfsHelperPollWaitParanoiaFactor
 	fdeInitramfsHelperPollWaitParanoiaFactor = n
