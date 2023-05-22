@@ -26,6 +26,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+// Set finds the aspect identified by the account, bundleName and aspect and sets
+// the specified field to the supplied value.
 func Set(st *state.State, account, bundleName, aspect, field string, value interface{}) error {
 	st.Lock()
 	defer st.Unlock()
@@ -61,6 +63,8 @@ func Set(st *state.State, account, bundleName, aspect, field string, value inter
 	return nil
 }
 
+// Get finds the aspect identified by the account, bundleName and aspect and
+// returns the specified field's value through the "value" output parameter.
 func Get(st *state.State, account, bundleName, aspect, field string, value interface{}) error {
 	st.Lock()
 	defer st.Unlock()
@@ -85,7 +89,7 @@ func Get(st *state.State, account, bundleName, aspect, field string, value inter
 		return &aspects.AspectNotFoundError{Account: account, Bundle: bundleName, Aspect: aspect}
 	}
 
-	if err := asp.Get(databag, field, &value); err != nil {
+	if err := asp.Get(databag, field, value); err != nil {
 		return err
 	}
 
