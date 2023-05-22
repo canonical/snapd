@@ -339,19 +339,6 @@ jobs:
         name: coverage-files
         path: ${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/
 
-    - name: Checkout code
-      uses: actions/checkout@v3
-      with:
-        # needed for git commit history
-        fetch-depth: 0
-        # NOTE: checkout the code in a fixed location, even for forks, as this
-        # is relevant for go's import system.
-        path: ./src/github.com/snapcore/snapd
-
-    - name: Get deps
-      run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/ && ./get-deps.sh
-
     - name: Merge coverage results
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
