@@ -61,8 +61,8 @@ func (s *aspectTestSuite) TestGetAspect(c *C) {
 func (s *aspectTestSuite) TestGetNotFound(c *C) {
 	var res interface{}
 	err := aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &res)
-	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `aspect system/network/wifi-setup was not found`)
+	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
+	c.Assert(err, ErrorMatches, `aspect system/network/wifi-setup not found`)
 	c.Check(res, IsNil)
 
 	s.state.Lock()
@@ -72,13 +72,13 @@ func (s *aspectTestSuite) TestGetNotFound(c *C) {
 	s.state.Unlock()
 
 	err = aspectstate.Get(s.state, "system", "network", "other-aspect", "ssid", &res)
-	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `aspect system/network/other-aspect was not found`)
+	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
+	c.Assert(err, ErrorMatches, `aspect system/network/other-aspect not found`)
 	c.Check(res, IsNil)
 
 	err = aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &res)
-	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get "ssid": no value was found under "wifi"`)
+	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot get field "ssid": no value was found under "wifi"`)
 	c.Check(res, IsNil)
 }
 
@@ -103,15 +103,15 @@ func (s *aspectTestSuite) TestSetAspect(c *C) {
 
 func (s *aspectTestSuite) TestSetNotFound(c *C) {
 	err := aspectstate.Set(s.state, "system", "other-bundle", "other-aspect", "foo", "bar")
-	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
 
 	err = aspectstate.Set(s.state, "system", "network", "other-aspect", "foo", "bar")
-	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
 }
 
 func (s *aspectTestSuite) TestSetAccessError(c *C) {
 	err := aspectstate.Set(s.state, "system", "network", "wifi-setup", "status", "foo")
-	c.Assert(err, ErrorMatches, `cannot set "status": path is not writeable`)
+	c.Assert(err, ErrorMatches, `cannot set field "status": path is not writeable`)
 }
 
 func (s *aspectTestSuite) TestUnsetAspect(c *C) {
@@ -132,6 +132,6 @@ func (s *aspectTestSuite) TestUnsetAspect(c *C) {
 
 	var val string
 	err = databag.Get("wifi.ssid", &val)
-	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
 	c.Assert(val, Equals, "")
 }

@@ -163,7 +163,7 @@ func (*aspectSuite) TestGetAndSetAspects(c *C) {
 	c.Check(num, Equals, 3)
 }
 
-func (s *aspectSuite) TestAspectNotFoundError(c *C) {
+func (s *aspectSuite) TestAspectNotFound(c *C) {
 	databag := aspects.NewJSONDataBag()
 	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
 		"bar": []map[string]string{
@@ -178,23 +178,23 @@ func (s *aspectSuite) TestAspectNotFoundError(c *C) {
 
 	var value string
 	err = aspect.Get(databag, "missing", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get "missing": name not found`)
+	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot get field "missing": not found`)
 
 	err = aspect.Set(databag, "missing", "thing")
-	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot set "missing": name not found`)
+	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot set field "missing": not found`)
 
 	err = aspect.Get(databag, "top-level", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get "top-level": no value was found under "top-level"`)
+	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot get field "top-level": no value was found under "top-level"`)
 
 	err = aspect.Set(databag, "nested", "thing")
 	c.Assert(err, IsNil)
 
 	err = aspect.Get(databag, "other-nested", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get "other-nested": no value was found under "top.nested-two"`)
+	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot get field "other-nested": no value was found under "top.nested-two"`)
 }
 
 func (s *aspectSuite) TestAspectBadRead(c *C) {
@@ -248,12 +248,12 @@ func (s *aspectSuite) TestAspectsAccessControl(c *C) {
 		{
 			name: "read-only",
 			// unrelated error
-			getErr: `cannot get "read-only": no value was found under "path"`,
-			setErr: `cannot set "read-only": path is not writeable`,
+			getErr: `cannot get field "read-only": no value was found under "path"`,
+			setErr: `cannot set field "read-only": path is not writeable`,
 		},
 		{
 			name:   "write-only",
-			getErr: `cannot get "write-only": path is not readable`,
+			getErr: `cannot get field "write-only": path is not readable`,
 		},
 	} {
 		cmt := Commentf("sub-test %q failed", t.name)
@@ -471,7 +471,7 @@ func (s *aspectSuite) TestAspectUnsetTopLevelEntry(c *C) {
 
 	var value string
 	err = aspect.Get(databag, "foo", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
 
 	err = aspect.Get(databag, "bar", &value)
 	c.Assert(err, IsNil)
@@ -500,7 +500,7 @@ func (s *aspectSuite) TestAspectUnsetLeafWithSiblings(c *C) {
 
 	var value string
 	err = aspect.Get(databag, "bar", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
 
 	// doesn't affect the other leaf entry under "foo"
 	err = aspect.Get(databag, "baz", &value)
@@ -527,10 +527,10 @@ func (s *aspectSuite) TestAspectUnsetWithNestedEntry(c *C) {
 
 	var value interface{}
 	err = aspect.Get(databag, "foo", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
 
 	err = aspect.Get(databag, "bar", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
 }
 
 func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
@@ -556,7 +556,7 @@ func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
 	c.Assert(err, IsNil)
 
 	err = aspect.Get(databag, "foo", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
 }
 
 func (s *aspectSuite) TestAspectUnsetAlreadyUnsetEntry(c *C) {
@@ -575,4 +575,16 @@ func (s *aspectSuite) TestAspectUnsetAlreadyUnsetEntry(c *C) {
 
 	err = aspect.Set(databag, "bar", nil)
 	c.Assert(err, IsNil)
+}
+
+func (s *aspectSuite) TestAspectNotFoundError(c *C) {
+	err := &aspects.AspectNotFoundError{Account: "foo", Bundle: "bar", Aspect: "baz"}
+	c.Assert(err, testutil.ErrorIs, &aspects.AspectNotFoundError{})
+	c.Assert(err, ErrorMatches, `aspect foo/bar/baz not found`)
+}
+
+func (s *aspectSuite) TestFieldNotFoundError(c *C) {
+	err := &aspects.FieldNotFoundError{Message: "expected error"}
+	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
+	c.Assert(err, ErrorMatches, `expected error`)
 }

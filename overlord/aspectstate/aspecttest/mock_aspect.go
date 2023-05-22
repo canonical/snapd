@@ -18,20 +18,10 @@
 
 package aspecttest
 
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/aspects"
-)
-
-// MockAspect returns some mocked aspect access patterns for the "system:network"
-// account and bundle combination. This will eventually be replaced by proper
+// MockWifiSetupAspect returns some mocked aspect access patterns for the
+// system/network/wifi-setup. This will eventually be replaced by proper
 // aspect assertions.
-func MockAspect(account, bundle string) (map[string]interface{}, error) {
-	if account != "system" || bundle != "network" {
-		return nil, &aspects.NotFoundError{Message: fmt.Sprintf("aspect assertions for %s:%s not found", account, bundle)}
-	}
-
+func MockWifiSetupAspect() map[string]interface{} {
 	return map[string]interface{}{
 		"wifi-setup": []map[string]string{
 			{"name": "ssids", "path": "wifi.ssids"},
@@ -40,5 +30,5 @@ func MockAspect(account, bundle string) (map[string]interface{}, error) {
 			{"name": "status", "path": "wifi.status", "access": "read"},
 			{"name": "private.{placeholder}", "path": "wifi.{placeholder}"},
 		},
-	}, nil
+	}
 }

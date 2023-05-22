@@ -56,17 +56,34 @@ func newAccessType(access string) (accessType, error) {
 	return readWrite, fmt.Errorf("expected 'access' to be one of %s but was %q", strutil.Quoted(accessTypeStrings), access)
 }
 
-// NotFoundError represents an error caused by a missing entity.
-type NotFoundError struct {
+// AspectNotFoundError represents a failure to find an aspect.
+type AspectNotFoundError struct {
+	Account string
+	Bundle  string
+	Aspect  string
+}
+
+func (e *AspectNotFoundError) Error() string {
+	return fmt.Sprintf("aspect %s/%s/%s not found", e.Account, e.Bundle, e.Aspect)
+}
+
+func (e *AspectNotFoundError) Is(err error) bool {
+	_, ok := err.(*AspectNotFoundError)
+	return ok
+}
+
+// FieldNotFoundError represents a failure to find a field carrying a value in
+// an aspect databag.
+type FieldNotFoundError struct {
 	Message string
 }
 
-func (e *NotFoundError) Error() string {
+func (e *FieldNotFoundError) Error() string {
 	return e.Message
 }
 
-func (e *NotFoundError) Is(err error) bool {
-	_, ok := err.(*NotFoundError)
+func (e *FieldNotFoundError) Is(err error) bool {
+	_, ok := err.(*FieldNotFoundError)
 	return ok
 }
 
@@ -267,7 +284,7 @@ func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
 		}
 
 		if !accessPatt.isWriteable() {
-			return fmt.Errorf("cannot set %q: path is not writeable", name)
+			return fmt.Errorf("cannot set field %q: path is not writeable", name)
 		}
 
 		if err := databag.Set(path, value); err != nil {
@@ -282,7 +299,7 @@ func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
 		return a.bundle.schema.Validate(data)
 	}
 
-	return &NotFoundError{fmt.Sprintf("cannot set %q: name not found", name)}
+	return &FieldNotFoundError{fmt.Sprintf("cannot set field %q: not found", name)}
 }
 
 // Get returns the aspect value identified by the name. If either the named aspect
@@ -301,12 +318,12 @@ func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 		}
 
 		if !accessPatt.isReadable() {
-			return fmt.Errorf("cannot get %q: path is not readable", name)
+			return fmt.Errorf("cannot get field %q: path is not readable", name)
 		}
 
 		if err := databag.Get(path, value); err != nil {
-			if errors.Is(err, &NotFoundError{}) {
-				return &NotFoundError{fmt.Sprintf("cannot get %q: %v", name, err)}
+			if errors.Is(err, &FieldNotFoundError{}) {
+				return &FieldNotFoundError{fmt.Sprintf("cannot get field %q: %v", name, err)}
 			}
 
 			return err
@@ -314,7 +331,7 @@ func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 		return nil
 	}
 
-	return &NotFoundError{fmt.Sprintf("cannot get %q: name not found", name)}
+	return &FieldNotFoundError{fmt.Sprintf("cannot get field %q: not found", name)}
 }
 
 func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
@@ -490,7 +507,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 	rawLevel, ok := node[key]
 	if !ok {
 		pathPrefix := strings.Join(subKeys[:index+1], ".")
-		return &NotFoundError{fmt.Sprintf("no value was found under %q", pathPrefix)}
+		return &FieldNotFoundError{fmt.Sprintf("no value was found under %q", pathPrefix)}
 	}
 
 	// read the final value
