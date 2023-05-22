@@ -1,2 +1,2 @@
 fixes:
-    - "src/github.com/snapcore/snapd/::"
+    - "github.com/snapcore/snapd/::"
