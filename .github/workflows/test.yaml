@@ -343,10 +343,14 @@ jobs:
       run: |
         echo "List the coverage files downloaded"
         ls -l .coverage/
+        # debug
+        head .coverage/coverage-*.cov
 
         echo "Install covertool and merge the results"
         go install github.com/makholm/covertool@latest
         covertool merge -o .coverage/all.cov .coverage/coverage*.cov
+        # debug
+        head .coverage/all.cov
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
