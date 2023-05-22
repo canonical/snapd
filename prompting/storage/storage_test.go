@@ -7,6 +7,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/prompting/apparmor"
 	"github.com/snapcore/snapd/prompting/notifier"
 	"github.com/snapcore/snapd/prompting/storage"
 )
@@ -31,6 +32,7 @@ func (s *storageSuite) TestSimple(c *C) {
 		Label:      "snap.lxd.lxd",
 		SubjectUid: 1000,
 		Path:       "/home/test/foo/",
+		Permission: apparmor.MayReadPermission,
 	}
 
 	allowed, err := st.Get(req)
@@ -44,7 +46,7 @@ func (s *storageSuite) TestSimple(c *C) {
 	err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 
-	paths := st.MapsForUidAndLabel(1000, "snap.lxd.lxd").AllowWithSubdirs
+	paths := st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "read").AllowWithSubdirs
 	c.Check(paths, HasLen, 1)
 
 	allowed, err = st.Get(req)
@@ -71,6 +73,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 		Label:      "snap.lxd.lxd",
 		SubjectUid: 1000,
 		Path:       "/home/test/foo/",
+		Permission: apparmor.MayReadPermission,
 	}
 
 	allowed, err := st.Get(req)
@@ -89,7 +92,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	err = st.Set(req, !allow, extra)
 	c.Assert(err, IsNil)
 	// more nested path was added
-	paths := st.MapsForUidAndLabel(1000, "snap.lxd.lxd").AllowWithSubdirs
+	paths := st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "read").AllowWithSubdirs
 	c.Check(paths, HasLen, 2)
 
 	// and check more nested path is not allowed
@@ -338,14 +341,15 @@ func (s *storageSuite) TestGetMatches(c *C) {
 		Label:      "snap.lxd.lxd",
 		SubjectUid: 1000,
 		Path:       "placeholder",
+		Permission: apparmor.MayReadPermission,
 	}
 
-	labelEntries := st.MapsForUidAndLabel(req.SubjectUid, req.Label)
+	permissionEntries := st.MapsForUidAndLabelAndPermission(req.SubjectUid, req.Label, "read")
 
 	for i, testCase := range cases {
-		labelEntries.Allow = cloneAllowMap(testCase.allow)
-		labelEntries.AllowWithDir = cloneAllowMap(testCase.allowWithDir)
-		labelEntries.AllowWithSubdirs = cloneAllowMap(testCase.allowWithSubdirs)
+		permissionEntries.Allow = cloneAllowMap(testCase.allow)
+		permissionEntries.AllowWithDir = cloneAllowMap(testCase.allowWithDir)
+		permissionEntries.AllowWithSubdirs = cloneAllowMap(testCase.allowWithSubdirs)
 		req.Path = testCase.path
 		allow, err := st.Get(req)
 		c.Assert(err, IsNil, Commentf("\nTest case %d:\n%+v\nError: %v", i, testCase, err))
@@ -432,14 +436,15 @@ func (s *storageSuite) TestGetErrors(c *C) {
 		Label:      "snap.lxd.lxd",
 		SubjectUid: 1000,
 		Path:       "placeholder",
+		Permission: apparmor.MayReadPermission,
 	}
 
-	labelEntries := st.MapsForUidAndLabel(req.SubjectUid, req.Label)
+	permissionEntries := st.MapsForUidAndLabelAndPermission(req.SubjectUid, req.Label, "read")
 
 	for i, testCase := range cases {
-		labelEntries.Allow = cloneAllowMap(testCase.allow)
-		labelEntries.AllowWithDir = cloneAllowMap(testCase.allowWithDir)
-		labelEntries.AllowWithSubdirs = cloneAllowMap(testCase.allowWithSubdirs)
+		permissionEntries.Allow = cloneAllowMap(testCase.allow)
+		permissionEntries.AllowWithDir = cloneAllowMap(testCase.allowWithDir)
+		permissionEntries.AllowWithSubdirs = cloneAllowMap(testCase.allowWithSubdirs)
 		req.Path = testCase.path
 		_, err := st.Get(req)
 		c.Assert(err, Equals, testCase.err, Commentf("\nTest case %d:\n%+v\nUnexpected Error: %v", i, testCase, err))
@@ -988,19 +993,20 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 		Label:      "snap.lxd.lxd",
 		SubjectUid: 1000,
 		Path:       "placeholder",
+		Permission: apparmor.MayReadPermission,
 	}
 
-	labelEntries := st.MapsForUidAndLabel(req.SubjectUid, req.Label)
+	permissionEntries := st.MapsForUidAndLabelAndPermission(req.SubjectUid, req.Label, "read")
 
 	for i, testCase := range cases {
-		labelEntries.Allow = cloneAllowMap(testCase.initialAllow)
-		labelEntries.AllowWithDir = cloneAllowMap(testCase.initialAllowWithDir)
-		labelEntries.AllowWithSubdirs = cloneAllowMap(testCase.initialAllowWithSubdirs)
+		permissionEntries.Allow = cloneAllowMap(testCase.initialAllow)
+		permissionEntries.AllowWithDir = cloneAllowMap(testCase.initialAllowWithDir)
+		permissionEntries.AllowWithSubdirs = cloneAllowMap(testCase.initialAllowWithSubdirs)
 		req.Path = testCase.path
 		result := st.Set(req, testCase.decision, testCase.extras)
-		c.Assert(reflect.DeepEqual(labelEntries.Allow, testCase.finalAllow), Equals, true, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, labelEntries.Allow, labelEntries.AllowWithDir, labelEntries.AllowWithSubdirs, result))
-		c.Assert(reflect.DeepEqual(labelEntries.AllowWithDir, testCase.finalAllowWithDir), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, labelEntries.Allow, labelEntries.AllowWithDir, labelEntries.AllowWithSubdirs, result))
-		c.Assert(reflect.DeepEqual(labelEntries.AllowWithSubdirs, testCase.finalAllowWithSubdirs), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, labelEntries.Allow, labelEntries.AllowWithDir, labelEntries.AllowWithSubdirs, result))
+		c.Assert(reflect.DeepEqual(permissionEntries.Allow, testCase.finalAllow), Equals, true, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Assert(reflect.DeepEqual(permissionEntries.AllowWithDir, testCase.finalAllowWithDir), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Assert(reflect.DeepEqual(permissionEntries.AllowWithSubdirs, testCase.finalAllowWithSubdirs), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
 	}
 }
 
@@ -1011,6 +1017,7 @@ func (s *storageSuite) TestLoadSave(c *C) {
 		Label:      "snap.lxd.lxd",
 		SubjectUid: 1000,
 		Path:       "/home/test/foo",
+		Permission: apparmor.MayReadPermission,
 	}
 	allow := true
 	err := st.Set(req, allow, nil)

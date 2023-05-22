@@ -9,6 +9,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/prompting/apparmor"
 	"github.com/snapcore/snapd/prompting/notifier"
 )
 
@@ -30,17 +31,19 @@ const (
 	extrasDenyExtraPerms   = "deny-extra-permissions"
 )
 
-type labelDB struct {
+type permissionDB struct {
 	Allow            map[string]bool `json:"allow"`
 	AllowWithDir     map[string]bool `json:"allow-with-dir"`
 	AllowWithSubdirs map[string]bool `json:"allow-with-subdir"`
 	// XXX: Always check with the following priority: Allow, then AllowWithDir, then AllowWithSubdirs
 }
 
-// TODO: use Permission (interface{}) in place of bool to store particular permissions
+type labelDB struct {
+	PerPermissionDB map[string]*permissionDB `json:"per-permission-db"`
+}
 
 type userDB struct {
-	PerLabelDB map[string]*labelDB `json:"per-label-db"`
+	PerLabel map[string]*labelDB `json:"per-label"`
 }
 
 // TODO: make this an interface
@@ -56,7 +59,7 @@ func New() *PromptsDB {
 	return pd
 }
 
-func findPathInLabelDB(db *labelDB, path string) (bool, error, string, string) {
+func findPathInPermissionDB(db *permissionDB, path string) (bool, error, string, string) {
 	// Returns:
 	// bool: allow
 	// error: (nil | ErrMultipleDecisions | ErrNoSavedDecision)
@@ -114,24 +117,31 @@ outside:
 }
 
 // TODO: unexport
-func (pd *PromptsDB) MapsForUidAndLabel(uid uint32, label string) *labelDB {
+func (pd *PromptsDB) MapsForUidAndLabelAndPermission(uid uint32, label string, permission string) *permissionDB {
 	userEntries := pd.PerUser[uid]
 	if userEntries == nil {
 		userEntries = &userDB{
-			PerLabelDB: make(map[string]*labelDB),
+			PerLabel: make(map[string]*labelDB),
 		}
 		pd.PerUser[uid] = userEntries
 	}
-	labelEntries := userEntries.PerLabelDB[label]
+	labelEntries := userEntries.PerLabel[label]
 	if labelEntries == nil {
 		labelEntries = &labelDB{
+			PerPermissionDB: make(map[string]*permissionDB),
+		}
+		userEntries.PerLabel[label] = labelEntries
+	}
+	permissionEntries := labelEntries.PerPermissionDB[permission]
+	if permissionEntries == nil {
+		permissionEntries = &permissionDB{
 			Allow:            make(map[string]bool),
 			AllowWithDir:     make(map[string]bool),
 			AllowWithSubdirs: make(map[string]bool),
 		}
-		userEntries.PerLabelDB[label] = labelEntries
+		labelEntries.PerPermissionDB[permission] = permissionEntries
 	}
-	return labelEntries
+	return permissionEntries
 }
 
 func (pd *PromptsDB) dbpath() string {
@@ -171,6 +181,20 @@ func whichMap(allow bool, extras map[string]string) string {
 	return jsonAllow
 }
 
+func parseRequestPermissions(req *notifier.Request) []string {
+	return strings.Split(req.Permission.(apparmor.FilePermission).String(), "|")
+}
+
+func whichPermissions(req *notifier.Request, allow bool, extras map[string]string) []string {
+	perms := parseRequestPermissions(req)
+	if allow {
+		perms = append(perms, strings.Split(extras[extrasAllowExtraPerms], ",")...)
+	} else {
+		perms = append(perms, strings.Split(extras[extrasDenyExtraPerms], ",")...)
+	}
+	return perms
+}
+
 // TODO: extras is ways too loosly typed right now
 func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]string) error {
 	// nothing to store in the db
@@ -179,76 +203,98 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	}
 	// what if matching entry is already in the db?
 	// should it be removed since we want to "always prompt"?
-	labelEntries := pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
 
 	which := whichMap(allow, extras)
 	path := req.Path
 
-	if strings.HasSuffix(path, "/") || ((which == jsonAllowWithDir || which == jsonAllowWithSubdirs) && !osutil.IsDirectory(path)) {
-		path = filepath.Dir(path)
-	}
-	path = filepath.Clean(path)
-	alreadyAllowed, err, matchingMap, matchingPath := findPathInLabelDB(labelEntries, path)
-	if err != nil && err != ErrNoSavedDecision {
-		return err
-	}
+	permissions := whichPermissions(req, allow, extras)
 
-	// if path matches entry already in a different map (XXX means can't return early):
-	// new Allow, old Allow -> replace if different
-	// new Allow, old AllowWithDir, exact match -> replace if different (forces prompt for entries in directory of path)
-	// new Allow, old AllowWithSubdirs, exact match -> same as ^^
-	// new Allow, old AllowWithDir, parent match -> insert if different
-	// new Allow, old AllowWithSubdirs, ancestor match -> same as ^^
-	// new AllowWithDir, old Allow -> replace always XXX
-	// new AllowWithDir, old AllowWithDir, exact match -> replace if different
-	// new AllowWithDir, old AllowWithSubdirs, exact match -> same as ^^
-	// new AllowWithDir, old AllowWithDir, parent match -> insert always XXX
-	// new AllowWithDir, old AllowWithSubdirs, ancestor match -> insert if different
-	// new AllowWithSubdirs, old Allow -> replace always XXX
-	// new AllowWithSubdirs, old AllowWithDir, exact match -> replace always XXX
-	// new AllowWithSubdirs, old AllowWithSubdirs, exact match -> replace if different
-	// new AllowWithSubdirs, old AllowWithDir, parent match -> insert always XXX
-	// new AllowWithSubdirs, old AllowWithSubdirs, ancestor match -> insert if different
+	noChange := true
 
-	// in summary:
-	// do nothing if decision matches and _not_ one of:
-	//  1. new AllowWithDir, old Allow
-	//  2. new AllowWithDir, old AllowWithDir, parent match
-	//  3. new AllowWithSubdirs, old _not_ AllowWithSubdirs
-	// otherwise:
-	// remove any existing exact match (no-op if there is none)
-	// insert the path with the decision in the correct map
+	for _, permission := range permissions {
+		permissionEntries := pd.MapsForUidAndLabelAndPermission(req.SubjectUid, req.Label, permission)
 
-	if (err == nil) && (alreadyAllowed == allow) {
-		// already in db and decision matches
-		if !((which == jsonAllowWithDir && (matchingMap == jsonAllow || (matchingMap == jsonAllowWithDir && matchingPath != path))) || (which == jsonAllowWithSubdirs && matchingMap != jsonAllowWithSubdirs)) {
-			// don't need to do anything
-			return nil
+		if strings.HasSuffix(path, "/") || ((which == jsonAllowWithDir || which == jsonAllowWithSubdirs) && !osutil.IsDirectory(path)) {
+			path = filepath.Dir(path)
+		}
+		path = filepath.Clean(path)
+		alreadyAllowed, err, matchingMap, matchingPath := findPathInPermissionDB(permissionEntries, path)
+		if err != nil && err != ErrNoSavedDecision {
+			return err
+		}
+
+		// if path matches entry already in a different map (XXX means can't return early):
+		// new Allow, old Allow -> replace if different
+		// new Allow, old AllowWithDir, exact match -> replace if different (forces prompt for entries in directory of path)
+		// new Allow, old AllowWithSubdirs, exact match -> same as ^^
+		// new Allow, old AllowWithDir, parent match -> insert if different
+		// new Allow, old AllowWithSubdirs, ancestor match -> same as ^^
+		// new AllowWithDir, old Allow -> replace always XXX
+		// new AllowWithDir, old AllowWithDir, exact match -> replace if different
+		// new AllowWithDir, old AllowWithSubdirs, exact match -> same as ^^
+		// new AllowWithDir, old AllowWithDir, parent match -> insert always XXX
+		// new AllowWithDir, old AllowWithSubdirs, ancestor match -> insert if different
+		// new AllowWithSubdirs, old Allow -> replace always XXX
+		// new AllowWithSubdirs, old AllowWithDir, exact match -> replace always XXX
+		// new AllowWithSubdirs, old AllowWithSubdirs, exact match -> replace if different
+		// new AllowWithSubdirs, old AllowWithDir, parent match -> insert always XXX
+		// new AllowWithSubdirs, old AllowWithSubdirs, ancestor match -> insert if different
+
+		// in summary:
+		// do nothing if decision matches and _not_ one of:
+		//  1. new AllowWithDir, old Allow
+		//  2. new AllowWithDir, old AllowWithDir, parent match
+		//  3. new AllowWithSubdirs, old _not_ AllowWithSubdirs
+		// otherwise:
+		// remove any existing exact match (no-op if there is none)
+		// insert the path with the decision in the correct map
+
+		if (err == nil) && (alreadyAllowed == allow) {
+			// already in db and decision matches
+			if !((which == jsonAllowWithDir && (matchingMap == jsonAllow || (matchingMap == jsonAllowWithDir && matchingPath != path))) || (which == jsonAllowWithSubdirs && matchingMap != jsonAllowWithSubdirs)) {
+				// don't need to do anything
+				continue
+			}
+		}
+
+		noChange = false
+
+		permissionEntries = pd.MapsForUidAndLabelAndPermission(req.SubjectUid, req.Label, permission)
+
+		// if there's an exact match in one of the maps, delete it
+		if matchingPath == path {
+			// XXX maybe don't even need if statement here, as deletion is no-op if key not in map
+			delete(permissionEntries.Allow, path)
+			delete(permissionEntries.AllowWithDir, path)
+			delete(permissionEntries.AllowWithSubdirs, path)
+		}
+
+		if which == jsonAllowWithSubdirs {
+			permissionEntries.AllowWithSubdirs[path] = allow
+		} else if which == jsonAllowWithDir {
+			permissionEntries.AllowWithDir[path] = allow
+		} else {
+			permissionEntries.Allow[path] = allow
 		}
 	}
 
-	// if there's an exact match in one of the maps, delete it
-	if matchingPath == path {
-		// XXX maybe don't even need if statement here, as deletion is no-op if key not in map
-		labelEntries = pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
-		delete(labelEntries.Allow, path)
-		delete(labelEntries.AllowWithDir, path)
-		delete(labelEntries.AllowWithSubdirs, path)
-	}
-
-	if which == jsonAllowWithSubdirs {
-		labelEntries.AllowWithSubdirs[path] = allow
-	} else if which == jsonAllowWithDir {
-		labelEntries.AllowWithDir[path] = allow
-	} else {
-		labelEntries.Allow[path] = allow
+	if noChange {
+		return nil
 	}
 
 	return pd.save()
 }
 
 func (pd *PromptsDB) Get(req *notifier.Request) (bool, error) {
-	labelEntries := pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
-	allow, err, _, _ := findPathInLabelDB(labelEntries, req.Path)
-	return allow, err
+	allAllow := true
+	permissions := parseRequestPermissions(req)
+	for _, permission := range permissions {
+		permissionEntries := pd.MapsForUidAndLabelAndPermission(req.SubjectUid, req.Label, permission)
+		allow, err, _, _ := findPathInPermissionDB(permissionEntries, req.Path)
+		allAllow = allAllow && allow
+		if err != nil {
+			return allow, err
+		}
+	}
+	return allAllow, nil
 }
