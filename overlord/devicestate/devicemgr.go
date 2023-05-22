@@ -1041,6 +1041,62 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 	return nil
 }
 
+func (m *DeviceManager) ensureSerialBoundAssertionsProcessed() error {
+	if release.OnClassic {
+		return nil
+	}
+
+	if m.earlyDeviceSeed != nil {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var waitingOnSerial bool
+	err := m.state.Get("assertion-waiting-on-serial", &waitingOnSerial)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		logger.Noticef("failed to get serial-bound assert state")
+	}
+	if !waitingOnSerial {
+		return nil
+	}
+
+	var seeded bool
+	if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	// we should always have a model if we are seeded and not on classic
+	model, err := m.Model()
+	if err != nil {
+		return err
+	}
+
+	serial, err := m.Serial()
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil
+		}
+		return err
+	}
+
+	db := assertstate.DB(m.state)
+
+	const sudoer = true
+	_, err = createAllKnownSystemUsers(m.state, db, model, serial, sudoer)
+	if err != nil {
+		return err
+	}
+
+	m.state.Set("assertion-waiting-on-serial", false)
+
+	return nil
+}
+
 func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1745,6 +1801,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensurePostFactoryReset(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureSerialBoundAssertionsProcessed(); err != nil {
 			errs = append(errs, err)
 		}
 

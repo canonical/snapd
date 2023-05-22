@@ -103,6 +103,11 @@ func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUse
 
 	username, expiration, opts, err := getUserDetailsFromAssertion(db, model, serial, email)
 	if err != nil {
+		if errors.Is(err, errSystemUserBoundToSerialButTooEarly) {
+			st.Set("assertion-waiting-on-serial", true)
+			logger.Noticef("waiting for serial to add user %q: %s", email, err)
+			return nil, nil
+		}
 		return nil, &UserError{Err: fmt.Errorf("cannot create user %q: %v", email, err)}
 	}
 
@@ -185,8 +190,10 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	// the assertion against the current brand/model/time
 	username, expiration, addUserOpts, err := getUserDetailsFromAssertion(assertDb, model, serial, email)
 	if err != nil {
-		if err == errSystemUserBoundToSerialButTooEarly {
-			// TODO retry later once we have acquired a device serial
+		if errors.Is(err, errSystemUserBoundToSerialButTooEarly) {
+			state.Set("assertion-waiting-on-serial", true)
+			logger.Noticef("waiting for serial to add user %q: %s", email, err)
+			return nil, nil
 		}
 		logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
 		return nil, nil
