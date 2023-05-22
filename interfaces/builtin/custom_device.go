@@ -203,7 +203,7 @@ func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]inte
 				}
 			}
 			if !foundMatch {
-				err = fmt.Errorf(`%q does not match a specified device`, deviceName)
+				err = fmt.Errorf(`%q does not match any specified device`, deviceName)
 			}
 		case "attributes", "environment":
 			err = iface.validateUDevValueMap(value)
