@@ -43,6 +43,7 @@ var restApi = []*Command{
 	sessionInfoCmd,
 	serviceControlCmd,
 	pendingRefreshNotificationCmd,
+	finishRefreshNotificationCmd,
 }
 
 var (
@@ -249,7 +250,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	var body, icon string
 	var hints []notification.Hint
 
-	plzClose := i18n.G("Close the app to avoid disruptions")
+	plzClose := i18n.G("Close the app to update now")
 	if daysLeft := int(refreshInfo.TimeRemaining.Truncate(time.Hour).Hours() / 24); daysLeft > 0 {
 		urgencyLevel = notification.LowUrgency
 		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
@@ -323,12 +324,24 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
-	if err := c.s.notificationMgr.CloseNotification(notification.ID(finishRefresh.InstanceName)); err != nil {
+	summary := fmt.Sprintf(i18n.G("%q snap has been refreshed"), finishRefresh.InstanceName)
+	body := i18n.G("Now available to launch")
+	hints := []notification.Hint{
+		notification.WithDesktopEntry("io.snapcraft.SessionAgent"),
+		notification.WithUrgency(notification.LowUrgency),
+	}
+
+	msg := &notification.Message{
+		Title: summary,
+		Body:  body,
+		Hints: hints,
+	}
+	if err := c.s.notificationMgr.SendNotification(notification.ID(finishRefresh.InstanceName), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,
 			Result: &errorResult{
-				Message: fmt.Sprintf("cannot send close notification message: %v", err),
+				Message: fmt.Sprintf("cannot send notification message: %v", err),
 			},
 		})
 	}

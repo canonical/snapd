@@ -21,6 +21,7 @@ package install_test
 
 import (
 	"bytes"
+	"crypto"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -46,8 +47,11 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -86,6 +90,8 @@ func (s *installSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir(dirs.GlobalRootDir) })
 
+	s.AddCleanup(osutil.MockMountInfo(``))
+
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.TestingSeed20 = &seedtest.TestingSeed20{}
@@ -98,7 +104,7 @@ func (s *installSuite) SetUpTest(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	s.SeedDir = c.MkDir()
+	s.SeedDir = dirs.SnapSeedDir
 
 	s.perfTimings = timings.New(nil)
 
@@ -162,7 +168,7 @@ func (s *installSuite) mountedGadget(c *C) (gadgetInfo *gadget.Info, gadgetDir s
 	files := [][]string{
 		{"meta/gadget.yaml", uc20gadgetYamlWithSave},
 	}
-	s.MakeAssertedSnap(c, "name: pc\nversion: 1.0\ntype: gadget", files, snap.R(1), "canonical", s.StoreSigning.Database)
+	s.MakeAssertedSnap(c, "name: pc\nversion: 1.0\ntype: gadget\nbase: core20", files, snap.R(1), "canonical", s.StoreSigning.Database)
 
 	gadgetDir = c.MkDir()
 	err := unpackSnap(s.AssertedSnap("pc"), gadgetDir)
@@ -1170,4 +1176,394 @@ func (s *installSuite) TestPrepareRunSystemDataWritesTimesyncdClockErr(c *C) {
 
 	err := install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
 	c.Check(err, ErrorMatches, `cannot seed timesyncd clock: cannot copy clock:.*Permission denied.*`)
+}
+
+func (s *installSuite) setupCore20Seed(c *C) *asserts.Model {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "core20", "")
+	s.mountedGadget(c)
+	optSnapPath := snaptest.MakeTestSnapWithFiles(c, seedtest.SampleSnapYaml["optional20-a"], nil)
+
+	model := map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   s.AssertedSnapID("core20"),
+				"type": "base",
+			}},
+	}
+
+	return s.MakeSeed(c, "20220401", "my-brand", "my-model", model, []*seedwriter.OptionsSnap{{Path: optSnapPath}})
+}
+
+func (s *installSuite) mockPreseedAssertion(c *C, brandID, modelName, series, preseedAsPath, sysLabel string, digest string, snaps []interface{}) {
+	headers := map[string]interface{}{
+		"type":              "preseed",
+		"authority-id":      brandID,
+		"series":            series,
+		"brand-id":          brandID,
+		"model":             modelName,
+		"system-label":      sysLabel,
+		"artifact-sha3-384": digest,
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+		"snaps":             snaps,
+	}
+
+	signer := s.Brands.Signing(brandID)
+	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
+	if err != nil {
+		panic(err)
+	}
+
+	f, err := os.Create(preseedAsPath)
+	defer f.Close()
+	c.Assert(err, IsNil)
+	enc := asserts.NewEncoder(f)
+	c.Assert(enc.Encode(preseedAs), IsNil)
+}
+
+func (s *installSuite) TestApplyPreseededData(c *C) {
+	mockTarCmd := testutil.MockCommand(c, "tar", "")
+	defer mockTarCmd.Restore()
+
+	ubuntuSeedDir := dirs.SnapSeedDir
+	sysLabel := "20220401"
+	writableDir := filepath.Join(c.MkDir(), "run/mnt/ubuntu-data/system-data")
+	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
+
+	restore := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.setupCore20Seed(c)
+
+	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+
+	snaps := []interface{}{
+		map[string]interface{}{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
+		map[string]interface{}{"name": "core20", "id": s.AssertedSnapID("core20"), "revision": "1"},
+		map[string]interface{}{"name": "pc-kernel", "id": s.AssertedSnapID("pc-kernel"), "revision": "1"},
+		map[string]interface{}{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
+		map[string]interface{}{"name": "optional20-a"},
+	}
+	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
+	c.Assert(err, IsNil)
+	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
+	c.Assert(err, IsNil)
+
+	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
+	s.mockPreseedAssertion(c, model.BrandID(), model.Model(), "16", preseedAsPath, sysLabel, digest, snaps)
+
+	// set a specific mod time on one of the snaps to verify it's preserved when the blob gets copied.
+	pastTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:00Z")
+	c.Assert(err, IsNil)
+	c.Assert(os.Chtimes(filepath.Join(ubuntuSeedDir, "snaps", "snapd_1.snap"), pastTime, pastTime), IsNil)
+
+	sysSeed, err := seed.Open(ubuntuSeedDir, sysLabel)
+	c.Assert(err, IsNil)
+	err = sysSeed.LoadAssertions(nil, nil)
+	c.Assert(err, IsNil)
+	preseedSeed := sysSeed.(seed.PreseedCapable)
+	c.Check(preseedSeed.HasArtifact("preseed.tgz"), Equals, true)
+
+	// restore root dir, otherwise paths referencing GlobalRootDir, such as from placeInfo.MountFile() get confused
+	// in the test.
+	dirs.SetRootDir("/")
+	err = install.ApplyPreseededData(preseedSeed, writableDir)
+	c.Assert(err, IsNil)
+
+	c.Check(mockTarCmd.Calls(), DeepEquals, [][]string{
+		{"tar", "--extract", "--preserve-permissions", "--preserve-order", "--gunzip", "--directory", writableDir, "-f", preseedArtifact},
+	})
+
+	for _, seedSnap := range []struct {
+		name string
+		blob string
+	}{
+		{"snapd/1", "snapd_1.snap"},
+		{"core20/1", "core20_1.snap"},
+		{"pc-kernel/1", "pc-kernel_1.snap"},
+		{"pc/1", "pc_1.snap"},
+		{"optional20-a/x1", "optional20-a_x1.snap"},
+	} {
+		c.Assert(osutil.FileExists(filepath.Join(writableDir, "/snap", seedSnap.name)), Equals, true, &dumpDirContents{c, writableDir})
+		c.Assert(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, seedSnap.blob)), Equals, true, &dumpDirContents{c, writableDir})
+	}
+
+	// verify that modtime of the copied snap blob was preserved
+	finfo, err := os.Stat(filepath.Join(writableDir, dirs.SnapBlobDir, "snapd_1.snap"))
+	c.Assert(err, IsNil)
+	c.Check(finfo.ModTime().Equal(pastTime), Equals, true)
+}
+
+type dumpDirContents struct {
+	c   *C
+	dir string
+}
+
+func (d *dumpDirContents) CheckCommentString() string {
+	cmd := exec.Command("find", d.dir)
+	data, err := cmd.CombinedOutput()
+	d.c.Assert(err, IsNil)
+	return fmt.Sprintf("writable dir contents:\n%s", data)
+}
+
+func (s *installSuite) TestApplyPreseededDataAssertionMissing(c *C) {
+	mockTarCmd := testutil.MockCommand(c, "tar", "")
+	defer mockTarCmd.Restore()
+
+	ubuntuSeedDir := dirs.SnapSeedDir
+	sysLabel := "20220401"
+	writableDir := filepath.Join(c.MkDir(), "run/mnt/ubuntu-data/system-data")
+	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
+
+	restore := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	s.setupCore20Seed(c)
+
+	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+
+	sysSeed, err := seed.Open(ubuntuSeedDir, sysLabel)
+	c.Assert(err, IsNil)
+	err = sysSeed.LoadAssertions(nil, nil)
+	c.Assert(err, IsNil)
+	preseedSeed := sysSeed.(seed.PreseedCapable)
+	c.Check(preseedSeed.HasArtifact("preseed.tgz"), Equals, true)
+
+	err = install.ApplyPreseededData(preseedSeed, writableDir)
+	c.Assert(err, ErrorMatches, `no seed preseed assertion`)
+
+	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
+	// empty "preseed" assertion file
+	c.Assert(ioutil.WriteFile(preseedAsPath, nil, 0644), IsNil)
+
+	err = install.ApplyPreseededData(preseedSeed, writableDir)
+	c.Assert(err, ErrorMatches, `system preseed assertion file must contain a preseed assertion`)
+}
+
+func (s *installSuite) TestApplyPreseededDataSnapMismatch(c *C) {
+	mockTarCmd := testutil.MockCommand(c, "tar", "")
+	defer mockTarCmd.Restore()
+
+	snapPath1 := filepath.Join(dirs.GlobalRootDir, "essential-snap_1.snap")
+	snapPath2 := filepath.Join(dirs.GlobalRootDir, "mode-snap_3.snap")
+	c.Assert(ioutil.WriteFile(snapPath1, nil, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(snapPath2, nil, 0644), IsNil)
+
+	ubuntuSeedDir := filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-seed")
+	sysLabel := "20220105"
+	writableDir := filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-data/system-data")
+	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
+	c.Assert(os.MkdirAll(filepath.Join(ubuntuSeedDir, "systems", sysLabel), 0755), IsNil)
+	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+
+	model := s.mockModel(map[string]interface{}{
+		"grade": "dangerous",
+	})
+
+	sysSeed := &fakeSeed{
+		model:           model,
+		preseedArtifact: true,
+		sysDir:          filepath.Join(ubuntuSeedDir, "systems", sysLabel),
+		essentialSnaps:  []*seed.Snap{{Path: snapPath1, SideInfo: &snap.SideInfo{RealName: "essential-snap", Revision: snap.R(1), SnapID: "id111111111111111111111111111111"}}},
+		modeSnaps: []*seed.Snap{{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap", Revision: snap.R(3), SnapID: "id222222222222222222222222222222"}},
+			{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap2"}}},
+	}
+
+	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
+	c.Assert(err, IsNil)
+	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
+	c.Assert(err, IsNil)
+
+	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
+
+	for _, tc := range []struct {
+		snapName string
+		rev      string
+		snapID   string
+		err      string
+	}{
+		{"essential-snap", "2", "id111111111111111111111111111111", `snap "essential-snap" has wrong revision 1 \(expected: 2\)`},
+		{"essential-snap", "1", "id000000000000000000000000000000", `snap "essential-snap" has wrong snap id "id111111111111111111111111111111" \(expected: "id000000000000000000000000000000"\)`},
+		{"mode-snap", "4", "id222222222222222222222222222222", `snap "mode-snap" has wrong revision 3 \(expected: 4\)`},
+		{"mode-snap", "3", "id000000000000000000000000000000", `snap "mode-snap" has wrong snap id "id222222222222222222222222222222" \(expected: "id000000000000000000000000000000"\)`},
+		{"mode-snap2", "3", "id000000000000000000000000000000", `snap "mode-snap2" has wrong revision unset \(expected: 3\)`},
+		{"extra-snap", "1", "id000000000000000000000000000000", `seed has 3 snaps but 4 snaps are required by preseed assertion`},
+	} {
+
+		preseedAsSnaps := []interface{}{
+			map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
+			map[string]interface{}{"name": "mode-snap", "id": "id222222222222222222222222222222", "revision": "3"},
+			map[string]interface{}{"name": "mode-snap2"},
+		}
+
+		var found bool
+		for i, ps := range preseedAsSnaps {
+			if ps.(map[string]interface{})["name"] == tc.snapName {
+				preseedAsSnaps[i] = map[string]interface{}{"name": tc.snapName, "id": tc.snapID, "revision": tc.rev}
+				found = true
+				break
+			}
+		}
+		if !found {
+			preseedAsSnaps = append(preseedAsSnaps, map[string]interface{}{"name": tc.snapName, "id": tc.snapID, "revision": tc.rev})
+		}
+
+		s.mockPreseedAssertion(c, model.BrandID(), model.Model(), "16", preseedAsPath, sysLabel, digest, preseedAsSnaps)
+		err = install.ApplyPreseededData(sysSeed, writableDir)
+		c.Assert(err, ErrorMatches, tc.err)
+	}
+
+	// mode-snap is presend in the seed but missing in the preseed assertion; add other-snap to preseed assertion
+	// to satisfy the check for number of snaps.
+	preseedAsSnaps := []interface{}{
+		map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
+		map[string]interface{}{"name": "other-snap", "id": "id333222222222222222222222222222", "revision": "2"},
+		map[string]interface{}{"name": "mode-snap2"},
+	}
+	s.mockPreseedAssertion(c, model.BrandID(), model.Model(), "16", preseedAsPath, sysLabel, digest, preseedAsSnaps)
+	err = install.ApplyPreseededData(sysSeed, writableDir)
+	c.Assert(err, ErrorMatches, `snap "mode-snap" not present in the preseed assertion`)
+}
+
+func (s *installSuite) TestApplyPreseededDataWrongDigest(c *C) {
+	mockTarCmd := testutil.MockCommand(c, "tar", "")
+	defer mockTarCmd.Restore()
+
+	snapPath1 := filepath.Join(dirs.GlobalRootDir, "essential-snap_1.snap")
+	c.Assert(ioutil.WriteFile(snapPath1, nil, 0644), IsNil)
+
+	ubuntuSeedDir := filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-seed")
+	sysLabel := "20220105"
+	writableDir := filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-data/system-data")
+	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
+	c.Assert(os.MkdirAll(filepath.Join(ubuntuSeedDir, "systems", sysLabel), 0755), IsNil)
+	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+
+	model := s.mockModel(map[string]interface{}{
+		"grade": "dangerous",
+	})
+
+	sysSeed := &fakeSeed{
+		model:           model,
+		preseedArtifact: true,
+		sysDir:          filepath.Join(ubuntuSeedDir, "systems", sysLabel),
+		essentialSnaps:  []*seed.Snap{{Path: snapPath1, SideInfo: &snap.SideInfo{RealName: "essential-snap", Revision: snap.R(1)}}},
+	}
+
+	snaps := []interface{}{
+		map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
+	}
+
+	wrongDigest := "DGOnW4ReT30BEH2FLkwkhcUaUKqqlPxhmV5xu-6YOirDcTgxJkrbR_traaaY1fAE"
+	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
+	s.mockPreseedAssertion(c, model.BrandID(), model.Model(), "16", preseedAsPath, sysLabel, wrongDigest, snaps)
+
+	err := install.ApplyPreseededData(sysSeed, writableDir)
+	c.Assert(err, ErrorMatches, `invalid preseed artifact digest`)
+}
+
+type fakeSeed struct {
+	sysDir          string
+	modeSnaps       []*seed.Snap
+	essentialSnaps  []*seed.Snap
+	model           *asserts.Model
+	preseedArtifact bool
+}
+
+func (fs *fakeSeed) ArtifactPath(relName string) string {
+	return filepath.Join(fs.sysDir, relName)
+}
+
+func (fs *fakeSeed) HasArtifact(relName string) bool {
+	return fs.preseedArtifact && relName == "preseed.tgz"
+}
+
+func (*fakeSeed) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
+	return nil
+}
+
+func (fs *fakeSeed) LoadPreseedAssertion() (*asserts.Preseed, error) {
+	f, err := os.Open(filepath.Join(fs.sysDir, "preseed"))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	a, err := asserts.NewDecoder(f).Decode()
+	if err != nil {
+		return nil, err
+	}
+	return a.(*asserts.Preseed), nil
+}
+
+func (fs *fakeSeed) Model() *asserts.Model {
+	return fs.model
+}
+
+func (*fakeSeed) Brand() (*asserts.Account, error) {
+	return nil, nil
+}
+
+func (*fakeSeed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
+	return nil
+}
+
+func (*fakeSeed) LoadEssentialMetaWithSnapHandler([]snap.Type, seed.SnapHandler, timings.Measurer) error {
+	return nil
+}
+
+func (*fakeSeed) LoadMeta(string, seed.SnapHandler, timings.Measurer) error {
+	return nil
+}
+
+func (*fakeSeed) UsesSnapdSnap() bool {
+	return true
+}
+
+func (*fakeSeed) SetParallelism(n int) {}
+
+func (fs *fakeSeed) EssentialSnaps() []*seed.Snap {
+	return fs.essentialSnaps
+}
+
+func (fs *fakeSeed) ModeSnaps(mode string) ([]*seed.Snap, error) {
+	return fs.modeSnaps, nil
+}
+
+func (*fakeSeed) NumSnaps() int {
+	return 0
+}
+
+func (*fakeSeed) Iter(func(sn *seed.Snap) error) error {
+	return nil
 }

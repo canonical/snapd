@@ -14,8 +14,8 @@ COVERAGE_OUT=${COVERAGE_OUT:-.coverage/coverage-$COVERAGE_SUFFIX.cov}
 CHANGED_FILES=${CHANGED_FILES:-""}
 
 if [ -z "${GITHUB_WORKFLOW:-}" ]; then
-    # when *not* running inside github, ensure we use go-1.13 by default
-    export PATH=/usr/lib/go-1.13/bin:"${PATH}"
+    # when *not* running inside github, ensure we use go-1.18 by default
+    export PATH=/usr/lib/go-1.18/bin:"${PATH}"
 fi
 
 # add workaround for https://github.com/golang/go/issues/24449
@@ -27,8 +27,13 @@ if [ "$(uname -m)" = "s390x" ]; then
     fi
 fi
 
-export GOPATH="${GOPATH:-$(realpath "$(dirname "$0")"/../../../../)}"
-export PATH="$PATH:${GOPATH%%:*}/bin"
+# If GOPATH is set in the shell environment, the path will be reflected
+# in $(go env GOPATH). If no shell path was set, Go will default the internal
+# GOPATH to $HOME/go. Note that GOPATH may contain a colon delimited set
+# of paths, so in order to run any binary from any of the installed GOPATHs
+# we must add all the possible bin locations.
+GOBINS=$(go env GOPATH | sed 's|:|/bin:|g' | sed 's|.*|\0/bin|g')
+export PATH="$PATH:$GOBINS"
 
 short=
 

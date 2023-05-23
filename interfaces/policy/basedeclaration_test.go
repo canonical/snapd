@@ -828,6 +828,7 @@ var (
 		"unity8-calendar":           {"app"},
 		"unity8-contacts":           {"app"},
 		"upower-observe":            {"app", "core"},
+		"userns":                    {"core"},
 		"wayland":                   {"app", "core"},
 		"x11":                       {"app", "core"},
 		// snowflakes
@@ -982,6 +983,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"tee":                    true,
 		"uinput":                 true,
 		"unity8":                 true,
+		"userns":                 true,
 		"xilinx-dma":             true,
 	}
 
@@ -1237,6 +1239,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"udisks2":                true,
 		"uinput":                 true,
 		"unity8":                 true,
+		"userns":                 true,
 		"wayland":                true,
 		"xilinx-dma":             true,
 	}

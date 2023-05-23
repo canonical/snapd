@@ -10,7 +10,18 @@ debug: |
   "$TESTSTOOLS"/journal-state get-log -u snap.docker.dockerd
 
 execute: |
-  if ! snap install docker; then
+  # ubuntu trusty is not supported anymore
+  if os.query is-trusty; then
+      exit
+  fi
+
+  CHANNEL=latest/stable
+  if os.query is-pc-i386; then
+      # on i386 only the "base: core18" version is available
+      CHANNEL=core18/stable
+  fi
+
+  if ! snap install --channel="$CHANNEL" docker; then
     echo "failed to install the docker snap!"
     exit 1
   fi
@@ -22,4 +33,4 @@ execute: |
   # also check that the docker snap can be installed in devmode for some 
   # specific customer use cases related to microk8s
   snap remove docker --purge
-  snap install docker --devmode
+  snap install --channel="$CHANNEL" docker --devmode

@@ -65,7 +65,7 @@ var (
 	kernelFeatures        = apparmor_sandbox.KernelFeatures
 	parserFeatures        = apparmor_sandbox.ParserFeatures
 	loadProfiles          = apparmor_sandbox.LoadProfiles
-	unloadProfiles        = apparmor_sandbox.UnloadProfiles
+	removeCachedProfiles  = apparmor_sandbox.RemoveCachedProfiles
 
 	// make sure that apparmor profile fulfills the late discarding backend
 	// interface
@@ -267,15 +267,15 @@ func (b *Backend) setupSnapConfineReexec(info *snap.Info) error {
 		aaFlags = apparmor_sandbox.SkipKernelLoad
 	}
 	errReload := loadProfiles(pathnames, cache, aaFlags)
-	errUnload := unloadProfiles(removed, cache)
+	errRemoveCached := removeCachedProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize snap-confine apparmor profile: %s", errEnsure)
 	}
 	if errReload != nil {
 		return fmt.Errorf("cannot reload snap-confine apparmor profile: %s", errReload)
 	}
-	if errUnload != nil {
-		return fmt.Errorf("cannot unload snap-confine apparmor profile: %s", errReload)
+	if errRemoveCached != nil {
+		return fmt.Errorf("cannot remove cached snap-confine apparmor profile: %s", errReload)
 	}
 	return nil
 }
@@ -384,7 +384,7 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 		return nil, fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
 	}
 	changed, removedPaths, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, content)
-	// XXX: in the old code this error was reported late, after doing load/unload.
+	// XXX: in the old code this error was reported late, after doing load/removeCached.
 	if errEnsure != nil {
 		return nil, fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
@@ -450,14 +450,14 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	timings.Run(tm, "load-profiles[unchanged]", fmt.Sprintf("load unchanged security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
 		errReloadOther = loadProfiles(prof.unchanged, apparmor_sandbox.CacheDir, aaFlags)
 	})
-	errUnload := unloadProfiles(prof.removed, apparmor_sandbox.CacheDir)
+	errRemoveCached := removeCachedProfiles(prof.removed, apparmor_sandbox.CacheDir)
 	if errReloadChanged != nil {
 		return errReloadChanged
 	}
 	if errReloadOther != nil {
 		return errReloadOther
 	}
-	return errUnload
+	return errRemoveCached
 }
 
 // SetupMany creates and loads apparmor profiles for multiple snaps.
@@ -501,7 +501,7 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 			errReloadOther = loadProfiles(allUnchangedPaths, apparmor_sandbox.CacheDir, aaFlags)
 		})
 
-		errUnload := unloadProfiles(allRemovedPaths, apparmor_sandbox.CacheDir)
+		errRemoveCached := removeCachedProfiles(allRemovedPaths, apparmor_sandbox.CacheDir)
 		if errReloadChanged != nil {
 			logger.Noticef("failed to batch-reload changed profiles: %s", errReloadChanged)
 			fallback = true
@@ -510,8 +510,8 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 			logger.Noticef("failed to batch-reload unchanged profiles: %s", errReloadOther)
 			fallback = true
 		}
-		if errUnload != nil {
-			logger.Noticef("failed to batch-unload profiles: %s", errUnload)
+		if errRemoveCached != nil {
+			logger.Noticef("failed to batch-remove cached profiles: %s", errRemoveCached)
 			fallback = true
 		}
 	}
@@ -529,18 +529,40 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 	return errors
 }
 
-// Remove removes and unloads apparmor profiles of a given snap.
+// Removes all AppArmor profiles from disk but does not unload them from the
+// kernel - currently it is not possible to ensure that all services of a snap
+// are stopped and so it is not possible to safely unload the profile for a snap
+// from the kernel and so we only remove it from the cache on disk
+func RemoveAllSnapAppArmorProfiles() error {
+	dir := dirs.SnapAppArmorDir
+	globs := []string{"snap.*", "snap-update-ns.*", "snap-confine.*"}
+	cache := apparmor_sandbox.CacheDir
+	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, nil)
+	errRemoveCached := removeCachedProfiles(removed, cache)
+	switch {
+	case errEnsure != nil && errRemoveCached != nil:
+		return fmt.Errorf("cannot remove apparmor profiles: %s (and also %s)", errEnsure, errRemoveCached)
+	case errEnsure != nil:
+		return fmt.Errorf("cannot remove apparmor profiles: %s", errEnsure)
+	case errRemoveCached != nil:
+		return errRemoveCached
+	default:
+		return nil
+	}
+}
+
+// Remove removes the apparmor profiles of a given snap from disk and the cache.
 func (b *Backend) Remove(snapName string) error {
 	dir := dirs.SnapAppArmorDir
 	globs := profileGlobs(snapName)
 	cache := apparmor_sandbox.CacheDir
 	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, nil)
-	// always try to unload affected profiles
-	errUnload := unloadProfiles(removed, cache)
+	// always try to remove affected profiles from the cache
+	errRemoveCached := removeCachedProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
-	return errUnload
+	return errRemoveCached
 }
 
 func (b *Backend) RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error {
@@ -552,14 +574,15 @@ func (b *Backend) RemoveLate(snapName string, rev snap.Revision, typ snap.Type) 
 
 	globs := []string{snapConfineProfileName(snapName, rev)}
 	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dirs.SnapAppArmorDir, globs, nil)
-	// XXX: unloadProfiles() does not unload profiles from the kernel, but
-	// only removes profiles from the cache
-	// always try to unload the affected profile
-	errUnload := unloadProfiles(removed, apparmor_sandbox.CacheDir)
+	// XXX: we should also try and unload the profile from the kernel
+	// instead of just removing it from the cache but currently it is not
+	// possible to ensure all snap services are stopped at this time and so
+	// it is not safe to unload the profile
+	errRemoveCached := removeCachedProfiles(removed, apparmor_sandbox.CacheDir)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot remove security profiles for snap %q (%s): %s", snapName, rev, errEnsure)
 	}
-	return errUnload
+	return errRemoveCached
 }
 
 var (

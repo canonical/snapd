@@ -375,6 +375,8 @@ func delayedCrossMgrInit() {
 	snapstate.RestoreValidationSetsTracking = RestoreValidationSetsTracking
 	// hook helper for enforcing validation sets without fetching them
 	snapstate.EnforceValidationSets = ApplyEnforcedValidationSets
+	// hook helper for enforcing already existing validation set assertions
+	snapstate.EnforceLocalValidationSets = ApplyLocalEnforcedValidationSets
 }
 
 // AutoRefreshAssertions tries to refresh all assertions
@@ -876,18 +878,24 @@ func TryEnforcedValidationSets(st *state.State, validationSets []string, userID 
 	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
-// ApplyEnforcedValidationSets enforces the supplied validation sets. It takes a map
-// of validation set keys to validation sets, pinned sequence numbers (if any),
-// installed snaps and ignored snaps. It fetches any pre-requisites necessary.
-func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.ValidationSet, pinnedSeqs map[string]int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool, userID int) error {
-	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
-	if err != nil {
-		return err
-	}
-
+func resolveValidationSetPrimaryKeys(st *state.State, vsKeys map[string][]string) (map[string]*asserts.ValidationSet, error) {
 	db := cachedDB(st)
-	batch := asserts.NewBatch(handleUnsupported(db))
+	valsets := make(map[string]*asserts.ValidationSet, len(vsKeys))
+	for key, pk := range vsKeys {
+		hdrs, err := asserts.HeadersFromPrimaryKey(asserts.ValidationSetType, pk)
+		if err != nil {
+			return nil, err
+		}
+		a, err := db.Find(asserts.ValidationSetType, hdrs)
+		if err != nil {
+			return nil, err
+		}
+		valsets[key] = a.(*asserts.ValidationSet)
+	}
+	return valsets, nil
+}
 
+func validationSetTrackings(valsets map[string]*asserts.ValidationSet, pinnedSeqs map[string]int) ([]*asserts.ValidationSet, []*ValidationSetTracking, error) {
 	valsetsSlice := make([]*asserts.ValidationSet, 0, len(valsets))
 	valsetsTracking := make([]*ValidationSetTracking, 0, len(valsets))
 
@@ -896,7 +904,8 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 		if pinnedSeq != 0 && pinnedSeq != vs.Sequence() {
 			// shouldn't be possible save for programmer error since, if we have a pinned
 			// sequence here, it should've been used when fetching the assertion
-			return fmt.Errorf("internal error: trying to enforce validation set %q with sequence point %d different than pinned %d", vsKey, vs.Sequence(), pinnedSeq)
+			return nil, nil, fmt.Errorf("internal error: trying to enforce validation set %q with sequence point %d different than pinned %d",
+				vsKey, vs.Sequence(), pinnedSeq)
 		}
 
 		tr := &ValidationSetTracking{
@@ -910,6 +919,61 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 
 		valsetsTracking = append(valsetsTracking, tr)
 		valsetsSlice = append(valsetsSlice, vs)
+	}
+	return valsetsSlice, valsetsTracking, nil
+}
+
+// ApplyLocalEnforcedValidationSets enforces the supplied validation sets. It takes a map
+// of validation set keys to validation sets, pinned sequence numbers (if any),
+// installed snaps and ignored snaps. The local in this naming indicates that it uses the
+// validation-set primary keys to lookup assertions in the current database. No fetching is
+// done contrary to the non-local version.
+func ApplyLocalEnforcedValidationSets(st *state.State, vsKeys map[string][]string, pinnedSeqs map[string]int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+	valsets, err := resolveValidationSetPrimaryKeys(st, vsKeys)
+	if err != nil {
+		return err
+	}
+
+	valsetsSlice, valsetsTracking, err := validationSetTrackings(valsets, pinnedSeqs)
+	if err != nil {
+		return err
+	}
+
+	valsetGroup, err := TrackedEnforcedValidationSets(st, valsetsSlice...)
+	if err != nil {
+		return err
+	}
+
+	if err := valsetGroup.Conflict(); err != nil {
+		return err
+	}
+
+	if err := valsetGroup.CheckInstalledSnaps(snaps, ignoreValidation); err != nil {
+		return err
+	}
+
+	for _, tr := range valsetsTracking {
+		UpdateValidationSet(st, tr)
+	}
+
+	return addCurrentTrackingToValidationSetsHistory(st)
+}
+
+// ApplyEnforcedValidationSets enforces the supplied validation sets. It takes a map
+// of validation set keys to validation sets, pinned sequence numbers (if any),
+// installed snaps and ignored snaps. It fetches any pre-requisites necessary.
+func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.ValidationSet, pinnedSeqs map[string]int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool, userID int) error {
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return err
+	}
+
+	db := cachedDB(st)
+	batch := asserts.NewBatch(handleUnsupported(db))
+
+	valsetsSlice, valsetsTracking, err := validationSetTrackings(valsets, pinnedSeqs)
+	if err != nil {
+		return err
 	}
 
 	err = doFetch(st, userID, deviceCtx, batch, func(f asserts.Fetcher) error {
@@ -948,11 +1012,66 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
+func validationSetFromModel(st *state.State, accountID, name string) (*asserts.ModelValidationSet, error) {
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	model := deviceCtx.Model()
+	for _, vs := range model.ValidationSets() {
+		if vs.AccountID == accountID && vs.Name == name {
+			return vs, nil
+		}
+	}
+	return nil, nil
+}
+
+func sequenceSetByModelAssertion(st *state.State, accountID, name string) (int, error) {
+	vs, err := validationSetFromModel(st, accountID, name)
+	if err != nil {
+		return 0, err
+	}
+	if vs == nil {
+		return 0, nil
+	}
+	return vs.Sequence, nil
+}
+
+func validateSequenceAgainstModel(st *state.State, accountID, name string, sequence int) (int, error) {
+	modelSeq, err := sequenceSetByModelAssertion(st, accountID, name)
+	if err != nil {
+		return 0, err
+	}
+
+	// Verify the sequence requested does not differ from the one specified by the model
+	// in case one is set.
+	if sequence > 0 {
+		// Sequence was set, it must match any requirements set by model.
+		if modelSeq > 0 && modelSeq != sequence {
+			return 0, fmt.Errorf("only sequence %d allowed by model", modelSeq)
+		}
+	} else if modelSeq > 0 {
+		// Sequence was set by model, use that specifically.
+		sequence = modelSeq
+	}
+	return sequence, nil
+}
+
 // FetchAndApplyEnforcedValidationSet tries to fetch the given validation set and enforce it.
 // If all validation sets constrains are satisfied, the current validation sets
 // tracking state is saved in validation sets history.
 func FetchAndApplyEnforcedValidationSet(st *state.State, accountID, name string, sequence, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*ValidationSetTracking, error) {
-	vs, err := validationSetAssertionForEnforce(st, accountID, name, sequence, userID, snaps, ignoreValidation)
+	// If the model has a specific sequence specified, then either we may
+	// need to use the correct sequence (if no specific is requested)
+	// or we may need to throw a validation error if the user is requesting a
+	// different sequence than is allowed by the model.
+	modelSeq, err := validateSequenceAgainstModel(st, accountID, name, sequence)
+	if err != nil {
+		return nil, fmt.Errorf("cannot enforce sequence %d of validation set %v: %v", sequence, ValidationSetKey(accountID, name), err)
+	}
+
+	vs, err := validationSetAssertionForEnforce(st, accountID, name, modelSeq, userID, snaps, ignoreValidation)
 	if err != nil {
 		return nil, err
 	}
@@ -961,8 +1080,8 @@ func FetchAndApplyEnforcedValidationSet(st *state.State, accountID, name string,
 		AccountID: accountID,
 		Name:      name,
 		Mode:      Enforce,
-		// note, sequence may be 0, meaning not pinned.
-		PinnedAt: sequence,
+		// note, modelSeq may be 0, meaning not pinned.
+		PinnedAt: modelSeq,
 		Current:  vs.Sequence(),
 	}
 
@@ -974,9 +1093,18 @@ func FetchAndApplyEnforcedValidationSet(st *state.State, accountID, name string,
 // MonitorValidationSet tries to fetch the given validation set and monitor it.
 // The current validation sets tracking state is saved in validation sets history.
 func MonitorValidationSet(st *state.State, accountID, name string, sequence int, userID int) (*ValidationSetTracking, error) {
-	pinned := sequence > 0
+	// If the model has a specific sequence specified, then either we may
+	// need to use the correct sequence (if no specific is requested)
+	// or we may need to throw a validation error if the user is requesting a
+	// different sequence than is allowed by the model.
+	modelSeq, err := validateSequenceAgainstModel(st, accountID, name, sequence)
+	if err != nil {
+		return nil, fmt.Errorf("cannot monitor sequence %d of validation set %v: %v", sequence, ValidationSetKey(accountID, name), err)
+	}
+
+	pinned := modelSeq > 0
 	opts := ResolveOptions{AllowLocalFallback: true}
-	as, local, err := validationSetAssertionForMonitor(st, accountID, name, sequence, pinned, userID, &opts)
+	as, local, err := validationSetAssertionForMonitor(st, accountID, name, modelSeq, pinned, userID, &opts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get validation set assertion for %v: %v", ValidationSetKey(accountID, name), err)
 	}
@@ -985,8 +1113,8 @@ func MonitorValidationSet(st *state.State, accountID, name string, sequence int,
 		AccountID: accountID,
 		Name:      name,
 		Mode:      Monitor,
-		// note, Sequence may be 0, meaning not pinned.
-		PinnedAt:  sequence,
+		// note, modelSeq may be 0, meaning not pinned.
+		PinnedAt:  modelSeq,
 		Current:   as.Sequence(),
 		LocalOnly: local,
 	}

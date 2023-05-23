@@ -43,15 +43,13 @@ execute: |
     echo "Restarting services via restart"
     snap restart $EXTRA_FLAGS test-snapd-service-restart
 
-    echo "Check that services 1 and 2 are running"
-    for id in 1 2; do
+    echo "Check that services 1, 2 and 4 are running"
+    for id in 1 2 4; do
         systemctl status snap.test-snapd-service-restart.svc${id}.service | MATCH "running"
     done
 
-    echo "Check that services 3 and 4 are not running"
-    for id in 3 4; do
-        systemctl status snap.test-snapd-service-restart.svc${id}.service | MATCH "inactive"
-    done
+    echo "Check that service 3 is not running"
+    systemctl status snap.test-snapd-service-restart.svc3.service | MATCH "inactive"
 
     echo "Fetching execution timestamps after restart"
     for id in 1 2 3 4; do
@@ -60,14 +58,14 @@ execute: |
     done
 
     echo "Verify expectations in execution timestamps"
+    # When a service has been restarted, time after is later (=greater) than
+    # time before. Otherwise both times are equal.
     test "$TIMESTAMP1_AFTER" -gt "$TIMESTAMP1_BEFORE"
     test "$TIMESTAMP2_AFTER" -gt "$TIMESTAMP2_BEFORE"
     test "$TIMESTAMP3_AFTER" -eq "$TIMESTAMP3_BEFORE"
-    test "$TIMESTAMP4_AFTER" -eq "$TIMESTAMP4_BEFORE"
+    test "$TIMESTAMP4_AFTER" -gt "$TIMESTAMP4_BEFORE"
 
     # Now verify that services explicitly mentioned on the command line always
     # get restarted, regardless of their current state
-    for id in 3 4; do
-        snap restart $EXTRA_FLAGS test-snapd-service-restart.svc${id}
-        systemctl status snap.test-snapd-service-restart.svc${id}.service | MATCH "running"
-    done
+    snap restart $EXTRA_FLAGS test-snapd-service-restart.svc3
+    systemctl status snap.test-snapd-service-restart.svc3.service | MATCH "running"

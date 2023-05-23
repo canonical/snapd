@@ -309,6 +309,14 @@ apps:
 			`custom-device "udev-tagging" invalid "kernel" tag: "bar" does not match a specified device`,
 		},
 		{
+			"devices: [/dev/subdir/foo]\n  udev-tagging:\n    - kernel: foo\n      subsystem: 12",
+			`custom-device "udev-tagging" invalid "subsystem" tag: value "12" is not a string`,
+		},
+		{
+			"devices: [/dev/dir1/foo, /dev/dir2/foo]\n  udev-tagging:\n    - kernel: foo",
+			`custom-device "udev-tagging" invalid "kernel" tag: "foo" matches more than one specified device: \[/dev/dir1/foo /dev/dir2/foo\]`,
+		},
+		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - attributes: foo",
 			`custom-device "udev-tagging" invalid "attributes" tag: value "foo" is not a map`,
 		},
@@ -401,6 +409,7 @@ slots:
   devices:
     - /dev/input/event[0-9]
     - /dev/input/mice
+    - /dev/dma_heap/qcom,qseecom
   read-devices:
     - /dev/js*
   %s
@@ -420,6 +429,7 @@ apps:
 				{`KERNEL`: `"input/event[0-9]"`},
 				{`KERNEL`: `"input/mice"`},
 				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
 			},
 		},
 		{
@@ -428,6 +438,7 @@ apps:
 				{`KERNEL`: `"input/event[0-9]"`},
 				{`KERNEL`: `"input/mice"`, `SUBSYSTEM`: `"input"`},
 				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
 			},
 		},
 		{
@@ -442,6 +453,7 @@ apps:
 				{`KERNEL`: `"input/event[0-9]"`},
 				{`KERNEL`: `"input/mice"`, `SUBSYSTEM`: `"input"`},
 				{`KERNEL`: `"js*"`, `ATTR{attr1}`: `"one"`, `ATTR{attr2}`: `"two"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
 			},
 		},
 		{
@@ -463,6 +475,25 @@ apps:
 				},
 				{`KERNEL`: `"input/mice"`, `ATTR{wheel}`: `"true"`},
 				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+			},
+		},
+		{
+			"udev-tagging:\n   - kernel: dma_heap/qcom,qseecom",
+			[]map[string]string{
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+			},
+		},
+		{
+			"udev-tagging:\n   - kernel: qcom,qseecom",
+			[]map[string]string{
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"qcom,qseecom"`},
 			},
 		},
 	}

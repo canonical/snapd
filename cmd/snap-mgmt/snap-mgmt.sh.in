@@ -27,10 +27,18 @@ SNAP_UNIT_PREFIX="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
 
 systemctl_stop() {
     unit="$1"
-    if systemctl is-active -q "$unit"; then
-        echo "Stopping $unit"
-        systemctl stop -q "$unit" || true
-    fi
+
+    echo "Stopping unit $unit"
+    systemctl stop -q "$unit" || true
+
+    for i in $(seq 10); do
+        echo "Waiting until unit $unit is stopped [attempt $i]"
+        if ! systemctl is-active -q "$unit"; then
+            echo "$unit is stopped."
+            return
+        fi
+        sleep .5
+    done
 }
 
 purge() {
@@ -41,17 +49,6 @@ purge() {
         # snap.mount.service is a trusty thing
         systemctl_stop snap.mount.service
     fi
-
-    # Undo any bind mounts to ${SNAP_MOUNT_DIR} or /var/snap done by parallel
-    # installs or LP:#1668659
-    for mp in "$SNAP_MOUNT_DIR" /var/snap; do
-        # btrfs bind mounts actually include subvolume in the filesystem-path
-        # https://www.mail-archive.com/linux-btrfs@vger.kernel.org/msg51810.html
-        if grep -q " $mp $mp " /proc/self/mountinfo ||
-                grep -q -e "\(/.*\)$mp $mp .* btrfs .*\(subvol=\1\)\(,.*\)\?\$" /proc/self/mountinfo ; then
-            umount -l "$mp" || true
-        fi
-    done
 
     units=$(systemctl list-unit-files --no-legend --full | grep -vF snap.mount.service || true)
     # *.snap mount points
@@ -137,6 +134,23 @@ purge() {
     rmdir "/etc/systemd/system/snapd.mounts.target.wants" || true
     # Units may have been removed do a reload
     systemctl -q daemon-reload || true
+
+    # Undo any bind mounts to ${SNAP_MOUNT_DIR} or /var/snap done by parallel
+    # installs or LP:#1668659
+    for mp in "$SNAP_MOUNT_DIR" /var/snap; do
+        # btrfs bind mounts actually include subvolume in the filesystem-path
+        # https://www.mail-archive.com/linux-btrfs@vger.kernel.org/msg51810.html
+        if grep -q " $mp $mp " /proc/self/mountinfo ||
+                grep -q -e "\(/.*\)$mp $mp .* btrfs .*\(subvol=\1\)\(,.*\)\?\$" /proc/self/mountinfo ; then
+            echo "umounting $mp"
+            umount -l "$mp" || true
+        fi
+    done
+
+    # stop snapd services
+    for serv in snapd.autoimport.service snapd.seeded.service snapd.apparmor.service snapd.mounts.target snapd.mounts-pre.target; do
+        systemctl_stop "$serv"
+    done
 
     # snapd session-agent
     rm -f /etc/systemd/user/snapd.session-agent.socket

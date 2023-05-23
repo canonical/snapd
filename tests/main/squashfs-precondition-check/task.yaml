@@ -16,10 +16,10 @@ execute: |
     . "$TESTSLIB/systemd.sh"
     wait_for_service snapd
 
-    retry -n 120 --wait 1 sh -c 'journalctl -u snapd | MATCH "system does not fully support snapd: cannot mount squashfs image"'
+    "$TESTSTOOLS"/journal-state match-log -n 120 -u snapd "system does not fully support snapd: cannot mount squashfs image"
 
     echo "Ensure precondition check error is reported in the journal"
-    journalctl -u snapd | MATCH "system does not fully support snapd: cannot mount squashfs image"
+    "$TESTSTOOLS"/journal-state get-log -u snapd | MATCH "system does not fully support snapd: cannot mount squashfs image"
 
     echo "Ensure GET commands still work"
     snap list | MATCH core

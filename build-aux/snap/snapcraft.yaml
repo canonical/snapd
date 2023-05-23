@@ -34,9 +34,7 @@ parts:
     source-type: git
     source: https://git.launchpad.net/snapd
     source-branch: master
-    build-snaps:
-      - on riscv64: [go/1.16/stable]
-      - else: [go/1.13/stable]
+    build-snaps: [go/1.18/stable]
     # these packages are needed to call mkversion.sh in override-pull, all other
     # dependencies are installed using apt-get build-dep
     build-packages:
