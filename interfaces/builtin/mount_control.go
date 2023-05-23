@@ -141,6 +141,7 @@ var allowedFilesystemSpecificMountOptions = map[string][]string{
 	"vfat":       {"blocksize=", "uid=", "gid=", "umask=", "dmask=", "fmask=", "allow_utime=", "check=", "codepage=", "conv=", "cvf_format=", "cvf_option", "debug", "discard", "dos1xfloppy", "errors=", "fat=", "iocharset=", "nfs=", "tz=", "time_offset=", "quiet", "rodir", "showexec", "sys_immutable", "flush", "usefree", "dots", "uni_xlate", "posix", "nonumtail", "utf8", "shortname="},
 	"usbfs":      {"devuid=", "devgid=", "devmode=", "busiud=", "busgid=", "busmode=", "listuid=", "listgid=", "listmode="},
 	"xfs":        {"allocsize=", "attr2", "noattr2", "dax=", "discard", "nodiscard", "grpid", "bsdgroups", "nogrpid", "sysvgroups", "filestreams", "ikeep", "noikeep", "inode32", "inode64", "largeio", "nolargeio", "logbufs=", "logbsize=", "logdev=", "rtdev=", "noalign", "norecovery", "nouuid", "noquota", "unquota", "usrquota", "quota", "uqnoenforce", "qnoenforce", "gquota", "grpquota", "gqnoenforce", "pquota", "prjquota", "pqnoenforce", "sunit=", "swidth=", "sqalloc", "wsync"},
+	"zfs":        {"context=", "fscontext=", "defcontext=", "rootcontext=", "xattr", "noxattr"},
 }
 
 var filesystemsWithColonSeparatedOptions = []string{
