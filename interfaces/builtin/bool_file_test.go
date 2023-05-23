@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -154,10 +155,13 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetHandlesSymlinkErrors(c *C) {
 	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return "", fmt.Errorf("broken symbolic link")
 	})
+	loggerBuf, restore := logger.MockLogger()
+	defer restore()
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.gpioSlot)
-	c.Assert(err, ErrorMatches, "cannot compute plug security snippet: broken symbolic link")
+	c.Assert(err, IsNil)
+	c.Assert(loggerBuf.String(), testutil.Contains, "cannot compute plug security snippet: broken symbolic link")
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 }
 

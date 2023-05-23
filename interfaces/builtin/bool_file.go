@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -109,7 +110,8 @@ func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	// filtering.
 	path, err := iface.dereferencedPath(slot)
 	if err != nil {
-		return fmt.Errorf("cannot compute plug security snippet: %v", err)
+		logger.Noticef("cannot compute plug security snippet: %v", err)
+		return nil
 	}
 	spec.AddSnippet(fmt.Sprintf("%s rwk,", path))
 	return nil
