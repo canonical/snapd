@@ -349,11 +349,11 @@ jobs:
         # debug
         head .coverage/coverage-*.cov
 
-        echo "Install covertool and merge the results"
-        go install github.com/makholm/covertool@latest
-        covertool merge -o .coverage/all.cov .coverage/coverage*.cov
+        #echo "Install covertool and merge the results"
+        #go install github.com/makholm/covertool@latest
+        #covertool merge -o .coverage/all.cov .coverage/coverage*.cov
         # debug
-        head .coverage/all.cov
+        #head .coverage/all.cov
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
@@ -364,7 +364,7 @@ jobs:
         fail_ci_if_error: true
         flags: unittests
         name: codecov-umbrella
-        files: .coverage/all.cov
+        files: .coverage/coverage-*.cov
         verbose: true
 
   spread:
