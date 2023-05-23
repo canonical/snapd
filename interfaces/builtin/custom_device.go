@@ -173,9 +173,6 @@ func (iface *customDeviceInterface) validateKernelDeviceNameIsBasename(deviceNam
 }
 
 func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]interface{}, devices []string) error {
-	if err := iface.validateUDevDevicesUniqueBasenames(devices); err != nil {
-		return err
-	}
 	hasKernelTag := false
 	for key, value := range rule {
 		var err error
@@ -276,6 +273,10 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 
 	allDevices := devices
 	allDevices = append(allDevices, readDevices...)
+
+	if err := iface.validateUDevDevicesUniqueBasenames(allDevices); err != nil {
+		return err
+	}
 
 	// validate files
 	var filesMap map[string][]string
@@ -408,7 +409,8 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 	deviceRules := make(map[string]string, len(allDevicePaths))
 
 	// Generate a basic udev rule for each device; we put them into a map
-	// indexed by the device name, so tat we can overwrite the entry later
+	// indexed by the device name, so that we can overwrite the entry later
+	// with a more specific rule.
 	for _, devicePath := range allDevicePaths {
 		if strings.HasPrefix(devicePath, "/dev/") {
 			deviceName := filepath.Base(devicePath)
@@ -418,7 +420,7 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 
 	// Generate udev rules from the "udev-tagging" attribute; note that these
 	// rules might override the simpler KERNEL=="<device>" rules we computed
-	// above -- that's fine
+	// above -- that's fine.
 	var udevTaggingRules []map[string]interface{}
 	_ = slot.Attr("udev-tagging", &udevTaggingRules)
 	for _, udevTaggingRule := range udevTaggingRules {
