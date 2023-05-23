@@ -1,5 +1,8 @@
 summary: Smoke test for microk8s
 
+backends:
+  - -external
+
 systems:
   - -amazon-linux-2-* # fails to start service daemon-containerd
   - -centos-7-*       # doesn't have libseccomp >= 2.4
