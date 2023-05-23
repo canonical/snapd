@@ -1,0 +1,490 @@
+Author: Georgia Garcia <georgia.garcia@canonical.com>
+Description: add parser support for user namespace creation
+Origin: https://gitlab.com/apparmor/apparmor/-/merge_requests/927
+
+---
+ .gitignore             |   1 +
+ parser/Makefile        |   7 ++-
+ parser/parser.h        |   1 +
+ parser/parser_common.c |   1 +
+ parser/parser_lex.l    |  18 +++++--
+ parser/parser_main.c   |   3 ++
+ parser/parser_misc.c   |   1 +
+ parser/parser_regex.c  |   4 ++
+ parser/parser_yacc.y   |  48 ++++++++++++++++++
+ parser/policydb.h      |   1 +
+ parser/userns.cc       | 112 +++++++++++++++++++++++++++++++++++++++++
+ parser/userns.h        |  47 +++++++++++++++++
+ 12 files changed, 237 insertions(+), 7 deletions(-)
+ create mode 100644 parser/userns.cc
+ create mode 100644 parser/userns.h
+
+diff --git a/.gitignore b/.gitignore
+index 8be7679ab..42515104c 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -59,6 +59,7 @@ parser/profile.o
+ parser/ptrace.o
+ parser/rule.o
+ parser/signal.o
++parser/userns.o
+ parser/*.7
+ parser/*.5
+ parser/*.8
+diff --git a/parser/Makefile b/parser/Makefile
+index c83cab2da..596dbe1e7 100644
+--- a/parser/Makefile
++++ b/parser/Makefile
+@@ -101,10 +101,10 @@ SRCS = parser_common.c parser_include.c parser_interface.c parser_lex.c \
+        parser_yacc.c parser_regex.c parser_variable.c parser_policy.c \
+        parser_alias.c common_optarg.c lib.c network.c \
+        mount.cc dbus.cc profile.cc rule.cc signal.cc ptrace.cc \
+-       af_rule.cc af_unix.cc policy_cache.c default_features.c mqueue.cc
++       af_rule.cc af_unix.cc policy_cache.c default_features.c mqueue.cc userns.cc
+ HDRS = parser.h parser_include.h immunix.h mount.h dbus.h lib.h profile.h \
+        rule.h common_optarg.h signal.h ptrace.h network.h af_rule.h af_unix.h \
+-       policy_cache.h file_cache.h mqueue.h
++       policy_cache.h file_cache.h mqueue.h userns.h
+ TOOLS = apparmor_parser
+ 
+ OBJECTS = $(patsubst %.cc, %.o, $(SRCS:.c=.o))
+@@ -304,6 +304,9 @@ rule.o: rule.cc rule.h policydb.h
+ mqueue.o: mqueue.cc mqueue.h parser.h immunix.h profile.h parser_yacc.h rule.h $(APPARMOR_H)
+ 	$(CXX) $(EXTRA_CFLAGS) -c -o $@ $<
+ 
++userns.o: userns.cc userns.h parser.h parser_yacc.h rule.h $(APPARMOR_H)
++	$(CXX) $(EXTRA_CFLAGS) -c -o $@ $<
++
+ parser_version.h: Makefile
+ 	@echo \#define PARSER_VERSION \"$(VERSION)\" > .ver
+ 	@mv -f .ver $@
+diff --git a/parser/parser.h b/parser/parser.h
+index dcbc1fa58..74d21d09c 100644
+--- a/parser/parser.h
++++ b/parser/parser.h
+@@ -343,6 +343,7 @@ extern int features_supports_stacking;
+ extern int features_supports_domain_xattr;
+ extern int features_supports_posix_mqueue;
+ extern int features_supports_sysv_mqueue;
++extern int features_supports_userns;
+ extern int kernel_supports_oob;
+ extern int conf_verbose;
+ extern int conf_quiet;
+diff --git a/parser/parser_common.c b/parser/parser_common.c
+index 87853ada1..387e90ace 100644
+--- a/parser/parser_common.c
++++ b/parser/parser_common.c
+@@ -80,6 +80,7 @@ int features_supports_stacking = 0;	/* kernel supports stacking */
+ int features_supports_domain_xattr = 0;	/* x attachment cond */
+ int features_supports_posix_mqueue = 0;	/* kernel supports mqueue rules */
+ int features_supports_sysv_mqueue = 0;	/* kernel supports mqueue rules */
++int features_supports_userns = 0;	/* kernel supports user namespace */
+ int kernel_supports_oob = 0;		/* out of band transitions */
+ int conf_verbose = 0;
+ int conf_quiet = 0;
+diff --git a/parser/parser_lex.l b/parser/parser_lex.l
+index 2cccf814e..71d065e5a 100644
+--- a/parser/parser_lex.l
++++ b/parser/parser_lex.l
+@@ -328,6 +328,7 @@ GT		>
+ %x INCLUDE_EXISTS
+ %x ABI_MODE
+ %x MQUEUE_MODE
++%x USERNS_MODE
+ 
+ %%
+ 
+@@ -340,7 +341,7 @@ GT		>
+ 	}
+ %}
+ 
+-<INITIAL,SUB_ID_WS,INCLUDE,INCLUDE_EXISTS,LIST_VAL_MODE,EXTCOND_MODE,LIST_COND_VAL,LIST_COND_PAREN_VAL,LIST_COND_MODE,EXTCONDLIST_MODE,ASSIGN_MODE,NETWORK_MODE,CHANGE_PROFILE_MODE,RLIMIT_MODE,MOUNT_MODE,DBUS_MODE,SIGNAL_MODE,PTRACE_MODE,UNIX_MODE,ABI_MODE,MQUEUE_MODE>{
++<INITIAL,SUB_ID_WS,INCLUDE,INCLUDE_EXISTS,LIST_VAL_MODE,EXTCOND_MODE,LIST_COND_VAL,LIST_COND_PAREN_VAL,LIST_COND_MODE,EXTCONDLIST_MODE,ASSIGN_MODE,NETWORK_MODE,CHANGE_PROFILE_MODE,RLIMIT_MODE,MOUNT_MODE,DBUS_MODE,SIGNAL_MODE,PTRACE_MODE,UNIX_MODE,ABI_MODE,MQUEUE_MODE,USERNS_MODE>{
+ 	{WS}+	{  DUMP_PREPROCESS; /* Ignoring whitespace */ }
+ }
+ 
+@@ -571,11 +572,14 @@ GT		>
+ }
+ 
+ <UNIX_MODE,MQUEUE_MODE>{
+-	create	{ RETURN_TOKEN(TOK_CREATE); }
+ 	getattr	{ RETURN_TOKEN(TOK_GETATTR); }
+ 	setattr	{ RETURN_TOKEN(TOK_SETATTR); }
+ }
+ 
++<UNIX_MODE,MQUEUE_MODE,USERNS_MODE>{
++	create	{ RETURN_TOKEN(TOK_CREATE); }
++}
++
+ <DBUS_MODE,UNIX_MODE>{
+ 	bind		{ RETURN_TOKEN(TOK_BIND); }
+ }
+@@ -734,13 +738,16 @@ include/{WS}	{
+ 	case TOK_MQUEUE:
+ 		state = MQUEUE_MODE;
+ 		break;
++	case TOK_USERNS:
++		state = USERNS_MODE;
++		break;
+ 	default: /* nothing */
+ 		break;
+ 	}
+ 	PUSH_AND_RETURN(state, token);
+ }
+ 
+-<INITIAL,NETWORK_MODE,RLIMIT_MODE,CHANGE_PROFILE_MODE,MOUNT_MODE,DBUS_MODE,SIGNAL_MODE,PTRACE_MODE,UNIX_MODE,ABI_MODE,MQUEUE_MODE>{
++<INITIAL,NETWORK_MODE,RLIMIT_MODE,CHANGE_PROFILE_MODE,MOUNT_MODE,DBUS_MODE,SIGNAL_MODE,PTRACE_MODE,UNIX_MODE,ABI_MODE,MQUEUE_MODE,USERNS_MODE>{
+ 	{END_OF_RULE}	{
+ 		if (YY_START != INITIAL)
+ 			POP_NODUMP();
+@@ -748,14 +755,14 @@ include/{WS}	{
+ 	}
+ }
+ 
+-<INITIAL,SUB_ID_WS,INCLUDE,INCLUDE_EXISTS,LIST_VAL_MODE,EXTCOND_MODE,LIST_COND_VAL,LIST_COND_PAREN_VAL,LIST_COND_MODE,EXTCONDLIST_MODE,NETWORK_MODE,CHANGE_PROFILE_MODE,RLIMIT_MODE,MOUNT_MODE,DBUS_MODE,SIGNAL_MODE,PTRACE_MODE,UNIX_MODE,ABI_MODE,MQUEUE_MODE>{
++<INITIAL,SUB_ID_WS,INCLUDE,INCLUDE_EXISTS,LIST_VAL_MODE,EXTCOND_MODE,LIST_COND_VAL,LIST_COND_PAREN_VAL,LIST_COND_MODE,EXTCONDLIST_MODE,NETWORK_MODE,CHANGE_PROFILE_MODE,RLIMIT_MODE,MOUNT_MODE,DBUS_MODE,SIGNAL_MODE,PTRACE_MODE,UNIX_MODE,ABI_MODE,MQUEUE_MODE,USERNS_MODE>{
+ 	\r?\n	{
+ 		DUMP_PREPROCESS;
+ 		current_lineno++;
+ 	}
+ }
+ 
+-<INITIAL,SUB_ID,SUB_ID_WS,SUB_VALUE,LIST_VAL_MODE,EXTCOND_MODE,LIST_COND_VAL,LIST_COND_PAREN_VAL,LIST_COND_MODE,EXTCONDLIST_MODE,ASSIGN_MODE,NETWORK_MODE,CHANGE_PROFILE_MODE,MOUNT_MODE,DBUS_MODE,SIGNAL_MODE,PTRACE_MODE,UNIX_MODE,RLIMIT_MODE,INCLUDE,INCLUDE_EXISTS,ABI_MODE,MQUEUE_MODE>{
++<INITIAL,SUB_ID,SUB_ID_WS,SUB_VALUE,LIST_VAL_MODE,EXTCOND_MODE,LIST_COND_VAL,LIST_COND_PAREN_VAL,LIST_COND_MODE,EXTCONDLIST_MODE,ASSIGN_MODE,NETWORK_MODE,CHANGE_PROFILE_MODE,MOUNT_MODE,DBUS_MODE,SIGNAL_MODE,PTRACE_MODE,UNIX_MODE,RLIMIT_MODE,INCLUDE,INCLUDE_EXISTS,ABI_MODE,MQUEUE_MODE,USERNS_MODE>{
+ 	(.|\n)	{
+ 		DUMP_PREPROCESS;
+ 		/* Something we didn't expect */
+@@ -791,4 +798,5 @@ unordered_map<int, string> state_names = {
+ 	STATE_TABLE_ENT(INCLUDE_EXISTS),
+ 	STATE_TABLE_ENT(ABI_MODE),
+ 	STATE_TABLE_ENT(MQUEUE_MODE),
++	STATE_TABLE_ENT(USERNS_MODE),
+ };
+diff --git a/parser/parser_main.c b/parser/parser_main.c
+index 084673e38..24d4565b0 100644
+--- a/parser/parser_main.c
++++ b/parser/parser_main.c
+@@ -913,6 +913,9 @@ void set_supported_features()
+ 	features_supports_sysv_mqueue = features_intersect(kernel_features,
+ 						      policy_features,
+ 						      "ipc/sysv_mqueue");
++	features_supports_userns = features_intersect(kernel_features,
++						      policy_features,
++						      "namespaces/mask/userns_create");
+ }
+ 
+ static bool do_print_cache_dir(aa_features *features, int dirfd, const char *path)
+diff --git a/parser/parser_misc.c b/parser/parser_misc.c
+index 1c84c3e30..3a5ce03ce 100644
+--- a/parser/parser_misc.c
++++ b/parser/parser_misc.c
+@@ -123,6 +123,7 @@ static struct keyword_table keyword_table[] = {
+ 	{"mqueue",		TOK_MQUEUE},
+ 	{"delete",		TOK_DELETE},
+ 	{"open",		TOK_OPEN},
++	{"userns",		TOK_USERNS},
+ 
+ 	/* terminate */
+ 	{NULL, 0}
+diff --git a/parser/parser_regex.c b/parser/parser_regex.c
+index d4383dfb2..5d6fc0408 100644
+--- a/parser/parser_regex.c
++++ b/parser/parser_regex.c
+@@ -937,6 +937,7 @@ static const char *mediates_netv8 = CLASS_STR(AA_CLASS_NETV8);
+ static const char *mediates_net_unix = CLASS_SUB_STR(AA_CLASS_NET, AF_UNIX);
+ static const char *mediates_posix_mqueue = CLASS_STR(AA_CLASS_POSIX_MQUEUE);
+ static const char *mediates_sysv_mqueue = CLASS_STR(AA_CLASS_SYSV_MQUEUE);
++static const char *mediates_ns = CLASS_STR(AA_CLASS_NS);
+ 
+ int process_profile_policydb(Profile *prof)
+ {
+@@ -985,6 +986,9 @@ int process_profile_policydb(Profile *prof)
+ 	if (features_supports_sysv_mqueue &&
+ 	    !prof->policy.rules->add_rule(mediates_sysv_mqueue, 0, AA_MAY_READ, 0, dfaflags))
+ 		goto out;
++	if (features_supports_userns &&
++	    !prof->policy.rules->add_rule(mediates_ns, 0, AA_MAY_READ, 0, dfaflags))
++		goto out;
+ 
+ 	if (prof->policy.rules->rule_count > 0) {
+ 		int xmatch_len = 0;
+diff --git a/parser/parser_yacc.y b/parser/parser_yacc.y
+index 40d09e343..aebc59ced 100644
+--- a/parser/parser_yacc.y
++++ b/parser/parser_yacc.y
+@@ -144,6 +144,7 @@ void add_local_entry(Profile *prof);
+ %token TOK_ABI
+ %token TOK_MQUEUE
+ %token TOK_DELETE
++%token TOK_USERNS
+ 
+  /* rlimits */
+ %token TOK_RLIMIT
+@@ -180,6 +181,7 @@ void add_local_entry(Profile *prof);
+ 	#include "ptrace.h"
+ 	#include "af_unix.h"
+ 	#include "mqueue.h"
++	#include "userns.h"
+ }
+ 
+ %union {
+@@ -197,6 +199,7 @@ void add_local_entry(Profile *prof);
+ 	ptrace_rule *ptrace_entry;
+ 	unix_rule *unix_entry;
+ 	mqueue_rule *mqueue_entry;
++	userns_rule *userns_entry;
+ 
+ 	flagvals flags;
+ 	int fmode;
+@@ -280,6 +283,10 @@ void add_local_entry(Profile *prof);
+ %type <fmode>  	mqueue_perms
+ %type <fmode>	opt_mqueue_perm
+ %type <mqueue_entry>	mqueue_rule
++%type <fmode>  	userns_perm
++%type <fmode>  	userns_perms
++%type <fmode>	opt_userns_perm
++%type <userns_entry>	userns_rule
+ %%
+ 
+ 
+@@ -866,6 +873,22 @@ rules:  rules opt_prefix unix_rule
+ 		$$ = $1;
+ 	}
+ 
++rules:  rules opt_prefix userns_rule
++	{
++		if ($2.owner)
++			yyerror(_("owner prefix not allowed on userns rules"));
++		if ($2.deny && $2.audit) {
++			$3->deny = 1;
++		} else if ($2.deny) {
++			$3->deny = 1;
++			$3->audit = $3->mode;
++		} else if ($2.audit) {
++			$3->audit = $3->mode;
++		}
++		$1->rule_ents.push_back($3);
++		$$ = $1;
++	}
++
+ rules:	rules opt_prefix change_profile
+ 	{
+ 		PDEBUG("matched: rules change_profile\n");
+@@ -1622,6 +1645,31 @@ mqueue_rule: TOK_MQUEUE opt_mqueue_perm opt_conds TOK_END_OF_RULE
+ 		$$ = ent;
+ 	}
+ 
++userns_perm: TOK_VALUE
++	{
++		if (strcmp($1, "create") == 0)
++			$$ = AA_USERNS_CREATE;
++		else
++			$$ = 0;
++
++		if ($1)
++			free($1);
++	}
++	| TOK_CREATE { $$ = AA_USERNS_CREATE; }
++
++userns_perms: { /* nothing */ $$ = 0; }
++	| userns_perms userns_perm { $$ = $1 | $2; }
++	| userns_perms TOK_COMMA userns_perm { $$ = $1 | $3; }
++
++opt_userns_perm: { /* nothing */ $$ = 0; }
++	| userns_perm { $$ = $1; }
++	| TOK_OPENPAREN userns_perms TOK_CLOSEPAREN { $$ = $2; }
++
++userns_rule: TOK_USERNS opt_userns_perm opt_conds TOK_END_OF_RULE
++	{
++		userns_rule *ent = new userns_rule($2, $3);
++		$$ = ent;
++	}
+ 
+ hat_start: TOK_CARET {}
+ 	| TOK_HAT {}
+diff --git a/parser/policydb.h b/parser/policydb.h
+index 9d3a959c3..a6f5dc0c7 100644
+--- a/parser/policydb.h
++++ b/parser/policydb.h
+@@ -36,6 +36,7 @@
+ #define AA_CLASS_LABEL		16
+ #define AA_CLASS_POSIX_MQUEUE		17
+ #define AA_CLASS_SYSV_MQUEUE		18
++#define AA_CLASS_NS		21
+ 
+ /* defined in libapparmor's apparmor.h #define AA_CLASS_DBUS 32 */
+ #define AA_CLASS_X		33
+diff --git a/parser/userns.cc b/parser/userns.cc
+new file mode 100644
+index 000000000..a83d05904
+--- /dev/null
++++ b/parser/userns.cc
+@@ -0,0 +1,112 @@
++/*
++ *   Copyright (c) 2022
++ *   Canonical, Ltd. (All rights reserved)
++ *
++ *   This program is free software; you can redistribute it and/or
++ *   modify it under the terms of version 2 of the GNU General Public
++ *   License published by the Free Software Foundation.
++ *
++ *   This program is distributed in the hope that it will be useful,
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *   GNU General Public License for more details.
++ *
++ *   You should have received a copy of the GNU General Public License
++ *   along with this program; if not, contact Novell, Inc. or Canonical
++ *   Ltd.
++ */
++
++#include "parser.h"
++#include "profile.h"
++#include "userns.h"
++
++#include <iomanip>
++#include <string>
++#include <iostream>
++#include <sstream>
++
++void userns_rule::move_conditionals(struct cond_entry *conds)
++{
++	struct cond_entry *cond_ent;
++
++	list_for_each(conds, cond_ent) {
++		/* for now disallow keyword 'in' (list) */
++		if (!cond_ent->eq)
++			yyerror("keyword \"in\" is not allowed in userns rules\n");
++
++		/* no valid conditionals atm */
++		yyerror("invalid userns rule conditional \"%s\"\n",
++			cond_ent->name);
++	}
++}
++
++userns_rule::userns_rule(int mode_p, struct cond_entry *conds):
++	audit(0), deny(0)
++{
++	if (mode_p) {
++		if (mode_p & ~AA_VALID_USERNS_PERMS)
++			yyerror("mode contains invalid permissions for userns\n");
++		mode = mode_p;
++
++	} else {
++		/* default to all perms */
++		mode = AA_VALID_USERNS_PERMS;
++	}
++
++	move_conditionals(conds);
++	free_cond_list(conds);
++}
++
++ostream &userns_rule::dump(ostream &os)
++{
++	if (audit)
++		os << "audit ";
++	if (deny)
++		os << "deny ";
++
++	os << "userns ";
++
++	if (mode != AA_VALID_USERNS_PERMS) {
++		if (mode & AA_USERNS_CREATE)
++			os << "create ";
++	}
++
++	os << ",\n";
++
++	return os;
++}
++
++
++int userns_rule::expand_variables(void)
++{
++	return 0;
++}
++
++void userns_rule::warn_once(const char *name)
++{
++	rule_t::warn_once(name, "userns rules not enforced");
++}
++
++int userns_rule::gen_policy_re(Profile &prof)
++{
++	std::ostringstream buffer;
++	std::string buf;
++
++	if (!features_supports_userns) {
++		warn_once(prof.name);
++		return RULE_NOT_SUPPORTED;
++	}
++
++	buffer << "\\x" << std::setfill('0') << std::setw(2) << std::hex << AA_CLASS_NS;
++	buf = buffer.str();
++	if (mode & AA_VALID_USERNS_PERMS) {
++		if (!prof.policy.rules->add_rule(buf.c_str(), deny, mode, audit,
++						 dfaflags))
++			goto fail;
++	}
++
++	return RULE_OK;
++
++fail:
++	return RULE_ERROR;
++}
+diff --git a/parser/userns.h b/parser/userns.h
+new file mode 100644
+index 000000000..9337da285
+--- /dev/null
++++ b/parser/userns.h
+@@ -0,0 +1,47 @@
++/*
++ *   Copyright (c) 2022
++ *   Canonical Ltd. (All rights reserved)
++ *
++ *   This program is free software; you can redistribute it and/or
++ *   modify it under the terms of version 2 of the GNU General Public
++ *   License published by the Free Software Foundation.
++ *
++ *   This program is distributed in the hope that it will be useful,
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *   GNU General Public License for more details.
++ *
++ *   You should have received a copy of the GNU General Public License
++ *   along with this program; if not, contact Novell, Inc. or Canonical
++ *   Ltd.
++ */
++#ifndef __AA_USERNS_H
++#define __AA_USERNS_H
++
++#include "parser.h"
++
++#define AA_USERNS_CREATE	8
++#define AA_VALID_USERNS_PERMS (AA_USERNS_CREATE)
++
++class userns_rule: public rule_t {
++	void move_conditionals(struct cond_entry *conds);
++public:
++	int mode;
++	int audit;
++	int deny;
++
++	userns_rule(int mode, struct cond_entry *conds);
++	virtual ~userns_rule()
++	{
++	};
++
++	virtual ostream &dump(ostream &os);
++	virtual int expand_variables(void);
++	virtual int gen_policy_re(Profile &prof);
++	virtual void post_process(Profile &prof unused) { };
++
++protected:
++	virtual void warn_once(const char *name) override;
++};
++
++#endif /* __AA_USERNS_H */
+-- 
+2.34.1
+

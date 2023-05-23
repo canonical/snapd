@@ -167,8 +167,15 @@ parts:
       - bin/fc-cache-v7
   apparmor:
     plugin: autotools
-    build-packages: [bison, flex, gettext, g++, pkg-config]
-    source: https://launchpad.net/apparmor/3.0/3.0.7/+download/apparmor-3.0.7.tar.gz
+    build-packages: [bison, flex, gettext, g++, pkg-config, wget]
+    source: https://launchpad.net/apparmor/3.0/3.0.8/+download/apparmor-3.0.8.tar.gz
+    override-pull: |
+      snapcraftctl pull
+      # add support for mediating posix mqueue's and userns - these come from
+      # the ubuntu source package
+      # https://git.launchpad.net/ubuntu/+source/apparmor/tree/debian/patches/ubuntu?h=ubuntu/lunar
+      patch -p1 < $SNAPCRAFT_PROJECT_DIR/build-aux/snap/local/apparmor/patches/add-mqueue-support.patch
+      patch -p1 < $SNAPCRAFT_PROJECT_DIR/build-aux/snap/local/apparmor/patches/add-userns-support.patch
     override-build: |
       cd $SNAPCRAFT_PART_BUILD/libraries/libapparmor
       ./autogen.sh
