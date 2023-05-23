@@ -72,22 +72,22 @@ var allowedKernelMountOptions = []string{
 	"dirsync",
 	"iversion",
 	"lazytime",
-	"noiversion",
-	"nomand",
 	"noatime",
 	"nodev",
 	"nodiratime",
 	"noexec",
+	"noiversion",
 	"nolazytime",
+	"nomand",
 	"norelatime",
-	"nosuid",
 	"nostrictatime",
+	"nosuid",
 	"nouser",
 	"relatime",
-	"strictatime",
-	"sync",
 	"ro",
 	"rw",
+	"strictatime",
+	"sync",
 }
 
 // These mount options are evaluated by mount(8) only and never reach the kernel
@@ -190,8 +190,8 @@ var defaultFSTypes = []string{
 	"udf",
 	"ufs",
 	"vfat",
-	"zfs",
 	"xfs",
+	"zfs",
 }
 
 // The filesystems in the following list were considered either dangerous or
