@@ -353,6 +353,9 @@ apps:
   password-manager-service:
     command: bin/run
     plugs: [ password-manager-service ]
+  pcscd:
+    command: bin/run
+    plugs: [ pcscd ]
   physical-memory-control:
     command: bin/run
     plugs: [ physical-memory-control ]
