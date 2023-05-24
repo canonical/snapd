@@ -350,6 +350,9 @@ backends:
             - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
+            - ubuntu-22.10-64:
+                  username: ubuntu
+                  password: ubuntu
             - debian-10-64:
                   username: debian
                   password: debian
