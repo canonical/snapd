@@ -30,6 +30,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -154,11 +156,6 @@ func maybeCreatePartitionTable(bootDevice, schema string) error {
 }
 
 func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encType secboot.EncryptionType) ([]gadget.OnDiskStructure, error) {
-	// TODO: support multiple volumes, see gadget/install/install.go
-	if len(volumes) != 1 {
-		return nil, fmt.Errorf("got unexpected number of volumes %v", len(volumes))
-	}
-
 	vol := firstVol(volumes)
 	// snapd does not create partition tables so we have to do it here
 	// or gadget.OnDiskVolumeFromDevice() will fail
@@ -187,7 +184,7 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encT
 	opts := &install.CreateOptions{CreateAllMissingPartitions: true}
 	created, err := install.CreateMissingPartitions(diskLayout, lvol, opts)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create parititons: %v", err)
+		return nil, fmt.Errorf("cannot create partitons: %v", err)
 	}
 	logger.Noticef("created %v partitions", created)
 
@@ -421,6 +418,83 @@ func detectStorageEncryption(seedLabel string) (bool, error) {
 	return details.StorageEncryption.Support == client.StorageEncryptionSupportAvailable, nil
 }
 
+func fillPartiallyDefinedVolume(vol *gadget.Volume, bootDevice string) error {
+	if len(vol.Partial) == 0 {
+		return nil
+	}
+
+	logger.Noticef("partial gadget for: %q", vol.Partial)
+
+	// TODO: partial structure, as it is not clear what will be possible when set
+
+	if vol.HasPartial(gadget.PartialSchema) && vol.Schema == "" {
+		vol.Schema = "gpt"
+		logger.Debugf("volume %q schema set to %q", vol.Name, vol.Schema)
+	}
+
+	if vol.HasPartial(gadget.PartialFilesystem) {
+		for sidx := range vol.Structure {
+			s := &vol.Structure[sidx]
+			if s.WillHaveFilesystem(vol) && s.Filesystem == "" {
+				switch s.Role {
+				case gadget.SystemSeed, gadget.SystemSeedNull:
+					s.Filesystem = "vfat"
+				default:
+					s.Filesystem = "ext4"
+				}
+				logger.Debugf("%q filesystem set to %s", s.Name, s.Filesystem)
+			}
+		}
+	}
+
+	// Fill sizes: for the moment, to avoid complicating unnecessarily the
+	// code, we do size=min-size except for the last partition.
+	output, err := exec.Command("lsblk", "--bytes", "--noheadings", "--output", "SIZE", bootDevice).CombinedOutput()
+	exitCode, err := osutil.ExitCode(err)
+	if err != nil {
+		return err
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("cannot find size of %q: %q", bootDevice, string(output))
+	}
+	lines := strings.Split(string(output), "\n")
+	if len(lines) == 0 {
+		return fmt.Errorf("error splitting %q", string(output))
+	}
+	diskSize, err := strconv.Atoi(lines[0])
+	if err != nil {
+		return fmt.Errorf("while converting %s to a size: %v", string(output), err)
+	}
+	partStart := quantity.Offset(0)
+	if vol.HasPartial(gadget.PartialSize) {
+		lastIdx := len(vol.Structure) - 1
+		for sidx := range vol.Structure {
+			s := &vol.Structure[sidx]
+			if s.Offset != nil {
+				partStart = *s.Offset
+			}
+			if s.Size == 0 {
+				if sidx == lastIdx {
+					// Last partition, give it all remaining space
+					// (except space for secondary GPT header).
+					s.Size = quantity.Size(diskSize) - quantity.Size(partStart) - 6*4096
+				} else {
+					s.Size = s.MinSize
+				}
+				logger.Debugf("size of %q set to %d", s.Name, s.Size)
+			}
+			if s.Offset == nil {
+				offset := partStart
+				s.Offset = &offset
+				logger.Debugf("offset of %q set to %d", s.Name, *s.Offset)
+			}
+			partStart += quantity.Offset(s.Size)
+		}
+	}
+
+	return nil
+}
+
 func run(seedLabel, rootfsCreator, bootDevice string) error {
 	logger.Noticef("installing on %q", bootDevice)
 
@@ -433,6 +507,16 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	if err != nil {
 		return err
 	}
+	// TODO: support multiple volumes, see gadget/install/install.go
+	if len(details.Volumes) != 1 {
+		return fmt.Errorf("gadget defines %v volumes, while we support only one at the moment", len(details.Volumes))
+	}
+
+	// If partial gadget, fill missing information based on the installation target
+	if err := fillPartiallyDefinedVolume(firstVol(details.Volumes), bootDevice); err != nil {
+		return err
+	}
+
 	// TODO: grow the data-partition based on disk size
 	encType := secboot.EncryptionTypeNone
 	if shouldEncrypt {
@@ -473,7 +557,7 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 func main() {
 	if len(os.Args) != 4 {
 		// XXX: allow installing real UC without a classic-rootfs later
-		fmt.Fprintf(os.Stderr, "need seed-label, target-device and classic-rootfs as argument\n")
+		fmt.Fprintf(os.Stderr, "Usage: %s <seed-label> <rootfs-creator> <target-device>\n", os.Args[0])
 		os.Exit(1)
 	}
 	logger.SimpleSetup()
