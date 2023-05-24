@@ -146,7 +146,7 @@ func verifyDirContents(c *C, where string, expected map[string]contentType) {
 }
 
 func (s *mountedfilesystemTestSuite) mustResolveVolumeContent(c *C, ps *gadget.LaidOutStructure) {
-	rc, err := gadget.ResolveVolumeContent(s.dir, "", nil, ps, nil)
+	rc, err := gadget.ResolveVolumeContent(s.dir, "", nil, ps, nil, &gadget.Volume{})
 	c.Assert(err, IsNil)
 	ps.ResolvedContent = rc
 }

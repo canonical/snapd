@@ -261,8 +261,8 @@ func (vs *VolumeStructure) HasFilesystem() bool {
 	return vs.Filesystem != "none" && vs.Filesystem != ""
 }
 
-// willHaveFilesystem considers also partially defined filesystem.
-func (vs *VolumeStructure) willHaveFilesystem(v *Volume) bool {
+// WillHaveFilesystem considers also partially defined filesystem.
+func (vs *VolumeStructure) WillHaveFilesystem(v *Volume) bool {
 	if vs.HasFilesystem() {
 		return true
 	}
@@ -1308,7 +1308,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 
 	var contentChecker func(*VolumeContent) error
 
-	if vs.willHaveFilesystem(vol) {
+	if vs.WillHaveFilesystem(vol) {
 		contentChecker = validateFilesystemContent
 	} else {
 		contentChecker = validateBareContent
@@ -1466,7 +1466,7 @@ func validateFilesystemContent(vc *VolumeContent) error {
 }
 
 func validateStructureUpdate(vs *VolumeStructure, v *Volume) error {
-	if !vs.willHaveFilesystem(v) && len(vs.Update.Preserve) > 0 {
+	if !vs.WillHaveFilesystem(v) && len(vs.Update.Preserve) > 0 {
 		return errors.New("preserving files during update is not supported for non-filesystem structures")
 	}
 
