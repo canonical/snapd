@@ -75,7 +75,7 @@ slots:
     read:
       - /dev/input/by-id/*
   udev-tagging:
-    - kernel: input/mice
+    - kernel: mice
       subsystem: input
       attributes:
         attr1: one
@@ -306,7 +306,11 @@ apps:
 		},
 		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: bar",
-			`custom-device "udev-tagging" invalid "kernel" tag: "bar" does not match a specified device`,
+			`custom-device "udev-tagging" invalid "kernel" tag: "bar" does not match any specified device`,
+		},
+		{
+			"devices: [/dev/subdir/foo]\n  udev-tagging:\n    - kernel: subdir/foo",
+			`custom-device "udev-tagging" invalid "kernel" tag: kernel device name "subdir/foo" must be a basename`,
 		},
 		{
 			"devices: [/dev/subdir/foo]\n  udev-tagging:\n    - kernel: foo\n      subsystem: 12",
@@ -314,7 +318,7 @@ apps:
 		},
 		{
 			"devices: [/dev/dir1/foo, /dev/dir2/foo]\n  udev-tagging:\n    - kernel: foo",
-			`custom-device "udev-tagging" invalid "kernel" tag: "foo" matches more than one specified device: \[/dev/dir1/foo /dev/dir2/foo\]`,
+			`custom-device specified devices have duplicate basenames: \{"foo": \["/dev/dir1/foo", "/dev/dir2/foo"\]\}`,
 		},
 		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - attributes: foo",
@@ -426,72 +430,63 @@ apps:
 			"", // missing "udev-tagging" attribute
 			[]map[string]string{
 				// all rules are automatically-generated
-				{`KERNEL`: `"input/event[0-9]"`},
-				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"event[0-9]"`},
+				{`KERNEL`: `"mice"`},
 				{`KERNEL`: `"js*"`},
-				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
 			},
 		},
 		{
-			"udev-tagging:\n   - kernel: input/mice\n     subsystem: input",
+			"udev-tagging:\n   - kernel: mice\n     subsystem: input",
 			[]map[string]string{
-				{`KERNEL`: `"input/event[0-9]"`},
-				{`KERNEL`: `"input/mice"`, `SUBSYSTEM`: `"input"`},
+				{`KERNEL`: `"event[0-9]"`},
+				{`KERNEL`: `"mice"`, `SUBSYSTEM`: `"input"`},
 				{`KERNEL`: `"js*"`},
-				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
 			},
 		},
 		{
 			`udev-tagging:
-   - kernel: input/mice
+   - kernel: mice
      subsystem: input
    - kernel: js*
      attributes:
       attr1: one
       attr2: two`,
 			[]map[string]string{
-				{`KERNEL`: `"input/event[0-9]"`},
-				{`KERNEL`: `"input/mice"`, `SUBSYSTEM`: `"input"`},
+				{`KERNEL`: `"event[0-9]"`},
+				{`KERNEL`: `"mice"`, `SUBSYSTEM`: `"input"`},
 				{`KERNEL`: `"js*"`, `ATTR{attr1}`: `"one"`, `ATTR{attr2}`: `"two"`},
-				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
 			},
 		},
 		{
 			`udev-tagging:
-   - kernel: input/mice
+   - kernel: mice
      attributes:
       wheel: "true"
-   - kernel: input/event[0-9]
+   - kernel: event[0-9]
      subsystem: input
      environment:
       env1: first
       env2: second|other`,
 			[]map[string]string{
 				{
-					`KERNEL`:    `"input/event[0-9]"`,
+					`KERNEL`:    `"event[0-9]"`,
 					`SUBSYSTEM`: `"input"`,
 					`ENV{env1}`: `"first"`,
 					`ENV{env2}`: `"second|other"`,
 				},
-				{`KERNEL`: `"input/mice"`, `ATTR{wheel}`: `"true"`},
+				{`KERNEL`: `"mice"`, `ATTR{wheel}`: `"true"`},
 				{`KERNEL`: `"js*"`},
-				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
-			},
-		},
-		{
-			"udev-tagging:\n   - kernel: dma_heap/qcom,qseecom",
-			[]map[string]string{
-				{`KERNEL`: `"input/event[0-9]"`},
-				{`KERNEL`: `"input/mice"`},
-				{`KERNEL`: `"js*"`},
-				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
 			},
 		},
 		{
 			"udev-tagging:\n   - kernel: qcom,qseecom",
 			[]map[string]string{
-				{`KERNEL`: `"input/event[0-9]"`},
-				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"event[0-9]"`},
+				{`KERNEL`: `"mice"`},
 				{`KERNEL`: `"js*"`},
 				{`KERNEL`: `"qcom,qseecom"`},
 			},
