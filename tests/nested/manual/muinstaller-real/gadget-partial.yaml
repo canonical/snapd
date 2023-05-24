@@ -1,6 +1,6 @@
 volumes:
   pc:
-    # TODO Leaving schema out of "partion" for the moment
+    # TODO Leaving schema out of "partial" for the moment
     partial: [structure, filesystem, size]
     schema: gpt
     # bootloader configuration is shipped and managed by snapd
