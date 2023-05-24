@@ -1295,7 +1295,13 @@ var SanitizePlugsSlots = func(snapInfo *Info) {
 // ReadInfo reads the snap information for the installed snap with the given
 // name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
-	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
+	return ReadInfoFromMountPoint(name, MountDir(name, si.Revision), MountFile(name, si.Revision), si)
+}
+
+// ReadInfoFromMountPoint reads the snap information for a mounted
+// snap given the mound point, mount file, and side info.
+func ReadInfoFromMountPoint(name, mountPoint, mountFile string, si *SideInfo) (*Info, error) {
+	snapYamlFn := filepath.Join(mountPoint, "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
 		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: snapYamlFn}
@@ -1313,14 +1319,14 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	_, instanceKey := SplitInstanceName(name)
 	info.InstanceKey = instanceKey
 
-	err = addImplicitHooks(info)
+	hooksDir := filepath.Join(mountPoint, "meta", "hooks")
+	err = addImplicitHooks(info, hooksDir)
 	if err != nil {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
 	bindImplicitHooks(info, strk)
 
-	mountFile := MountFile(name, si.Revision)
 	st, err := os.Lstat(mountFile)
 	if os.IsNotExist(err) {
 		// This can happen when "snap try" mode snap is moved around. The mount

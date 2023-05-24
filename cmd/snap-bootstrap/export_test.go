@@ -24,10 +24,14 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	gadgetInstall "github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -197,3 +201,35 @@ func MockWaitFile(f func(string, time.Duration, int) error) (restore func()) {
 }
 
 var WaitFile = waitFile
+
+func MockGadgetInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error)) (restore func()) {
+	old := gadgetInstallRun
+	gadgetInstallRun = f
+	return func() {
+		gadgetInstallRun = old
+	}
+}
+
+func MockMakeRunnableStandaloneSystem(f func(model *asserts.Model, bootWith *boot.BootableSet, sealer *boot.TrustedAssetsInstallObserver) error) (restore func()) {
+	old := bootMakeRunnableStandaloneSystem
+	bootMakeRunnableStandaloneSystem = f
+	return func() {
+		bootMakeRunnableStandaloneSystem = old
+	}
+}
+
+func MockApplyPreseededData(f func(preseedSeed seed.PreseedCapable, writableDir string) error) (restore func()) {
+	old := installApplyPreseededData
+	installApplyPreseededData = f
+	return func() {
+		installApplyPreseededData = old
+	}
+}
+
+func MockEnsureNextBootToRunMode(f func(systemLabel string) error) (restore func()) {
+	old := bootEnsureNextBootToRunMode
+	bootEnsureNextBootToRunMode = f
+	return func() {
+		bootEnsureNextBootToRunMode = old
+	}
+}
