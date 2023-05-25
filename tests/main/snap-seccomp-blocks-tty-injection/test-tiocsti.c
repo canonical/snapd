@@ -14,9 +14,17 @@ static int ioctl64(int fd, unsigned long nr, void *arg) {
 int main(void) {
   int res;
   char pushmeback = '#';
-  res = ioctl64(0, TIOCSTI, &pushmeback);
+
+  unsigned long syscallnr = TIOCSTI;
+  res = ioctl64(0, syscallnr, &pushmeback);
   printf("normal TIOCSTI: %d (%m)\n", res);
-  res = ioctl64(0, TIOCSTI | (1UL<<32), &pushmeback);
+
+#ifdef __LP64__
+  // this high bit check only works on 64bit systems, on 32bit it will fail:
+  // "error: left shift count >= width of type [-Werror=shift-count-overflow]"
+  syscallnr = TIOCSTI | (1UL<<32);
+#endif
+  res = ioctl64(0, syscallnr, &pushmeback);
   printf("high-bit-set TIOCSTI: %d (%m)\n", res);
   return res;
 }

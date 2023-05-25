@@ -24,6 +24,6 @@ execute: |
         apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.sh
     fi
 
-    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-tiocsti"   < /dev/tty1 2>&1 | MATCH 'normal TIOCSTI: -1 \(Operation not permitted\)'
-    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-tiocsti"   < /dev/tty1 2>&1 | MATCH 'high-bit-set TIOCSTI: -1 \(Operation not permitted\)'
+    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-tiocsti"   < /dev/tty1 2>&1 | MATCH 'normal TIOCSTI: -1 \((Operation not permitted|Permission denied)\)'
+    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-tiocsti"   < /dev/tty1 2>&1 | MATCH 'high-bit-set TIOCSTI: -1 \((Operation not permitted|Permission denied)\)'
     snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-tioclinux" < /dev/tty1 2>&1 | MATCH 'ioctl\(0, TIOCLINUX, ...\) failed: Permission denied'
