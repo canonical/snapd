@@ -103,7 +103,6 @@ type Schema interface {
 // Bundle holds a series of related aspects.
 type Bundle struct {
 	Name    string
-	dataBag DataBag
 	schema  Schema
 	aspects map[string]*Aspect
 }
