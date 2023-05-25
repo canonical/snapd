@@ -58,13 +58,13 @@ func newAccessType(access string) (accessType, error) {
 
 // AspectNotFoundError represents a failure to find an aspect.
 type AspectNotFoundError struct {
-	Account string
-	Bundle  string
-	Aspect  string
+	Account    string
+	BundleName string
+	Aspect     string
 }
 
 func (e *AspectNotFoundError) Error() string {
-	return fmt.Sprintf("aspect %s/%s/%s not found", e.Account, e.Bundle, e.Aspect)
+	return fmt.Sprintf("aspect %s/%s/%s not found", e.Account, e.BundleName, e.Aspect)
 }
 
 func (e *AspectNotFoundError) Is(err error) bool {
@@ -108,7 +108,7 @@ type Bundle struct {
 	aspects map[string]*Aspect
 }
 
-// NewAspectBundle returns a new aspect bundle for the following aspects
+// NewAspectBundle returns a new aspect bundle for the specified aspects
 // and access patterns.
 func NewAspectBundle(name string, aspects map[string]interface{}, schema Schema) (*Bundle, error) {
 	if len(aspects) == 0 {
@@ -122,14 +122,14 @@ func NewAspectBundle(name string, aspects map[string]interface{}, schema Schema)
 	}
 
 	for name, v := range aspects {
-		aspectPatterns, ok := v.([]map[string]string)
+		accessPatterns, ok := v.([]map[string]string)
 		if !ok {
 			return nil, fmt.Errorf("cannot define aspect %q: access patterns should be a list of maps", name)
-		} else if len(aspectPatterns) == 0 {
+		} else if len(accessPatterns) == 0 {
 			return nil, fmt.Errorf("cannot define aspect %q: no access patterns found", name)
 		}
 
-		aspect, err := newAspect(aspectBundle, name, aspectPatterns)
+		aspect, err := newAspect(aspectBundle, name, accessPatterns)
 		if err != nil {
 			return nil, fmt.Errorf("cannot define aspect %q: %w", name, err)
 		}
@@ -524,7 +524,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 	// decode the next map level
 	var level map[string]json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
-		// TODO: see TODO in NewAspectBundle
+		// TODO: see TODO in newAspect()
 		if uErr, ok := err.(*json.UnmarshalTypeError); ok {
 			pathPrefix := strings.Join(subKeys[:index+1], ".")
 			return fmt.Errorf("cannot read path prefix %q: prefix maps to %s", pathPrefix, uErr.Value)

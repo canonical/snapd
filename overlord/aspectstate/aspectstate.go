@@ -49,7 +49,7 @@ func Set(st *state.State, account, bundleName, aspect, field string, value inter
 
 	asp := aspectBundle.Aspect(aspect)
 	if asp == nil {
-		return &aspects.AspectNotFoundError{Account: account, Bundle: bundleName, Aspect: aspect}
+		return &aspects.AspectNotFoundError{Account: account, BundleName: bundleName, Aspect: aspect}
 	}
 
 	if err := asp.Set(databag, field, value); err != nil {
@@ -72,7 +72,7 @@ func Get(st *state.State, account, bundleName, aspect, field string, value inter
 	databag, err := getDatabag(st, account, bundleName)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			return &aspects.AspectNotFoundError{Account: account, Bundle: bundleName, Aspect: aspect}
+			return &aspects.AspectNotFoundError{Account: account, BundleName: bundleName, Aspect: aspect}
 		}
 
 		return err
@@ -86,7 +86,7 @@ func Get(st *state.State, account, bundleName, aspect, field string, value inter
 
 	asp := aspectBundle.Aspect(aspect)
 	if asp == nil {
-		return &aspects.AspectNotFoundError{Account: account, Bundle: bundleName, Aspect: aspect}
+		return &aspects.AspectNotFoundError{Account: account, BundleName: bundleName, Aspect: aspect}
 	}
 
 	if err := asp.Get(databag, field, value); err != nil {

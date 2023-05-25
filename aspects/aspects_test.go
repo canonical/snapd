@@ -578,7 +578,7 @@ func (s *aspectSuite) TestAspectUnsetAlreadyUnsetEntry(c *C) {
 }
 
 func (s *aspectSuite) TestAspectNotFoundError(c *C) {
-	err := &aspects.AspectNotFoundError{Account: "foo", Bundle: "bar", Aspect: "baz"}
+	err := &aspects.AspectNotFoundError{Account: "foo", BundleName: "bar", Aspect: "baz"}
 	c.Assert(err, testutil.ErrorIs, &aspects.AspectNotFoundError{})
 	c.Assert(err, ErrorMatches, `aspect foo/bar/baz not found`)
 }
