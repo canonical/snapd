@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/prompting/apparmor"
 	"github.com/snapcore/snapd/prompting/notifier"
@@ -296,5 +297,6 @@ func (pd *PromptsDB) Get(req *notifier.Request) (bool, error) {
 			return allow, err
 		}
 	}
+	logger.Noticef("found promptDB decision %v for %v (uid %v)", allow, req.Path, req.SubjectUid)
 	return allAllow, nil
 }

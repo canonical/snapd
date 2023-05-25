@@ -14,6 +14,7 @@ import (
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	apparmor_prompting "github.com/snapcore/snapd/prompting/apparmor"
 	"github.com/snapcore/snapd/prompting/notifier"
 	"github.com/snapcore/snapd/prompting/storage"
 	"github.com/snapcore/snapd/snapdtool"
@@ -175,12 +176,19 @@ func (p *PromptNotifierDbus) handleReq(req *notifier.Request) {
 		req.YesNo <- false
 		return
 	}
+	var permStr string
+	switch v := req.Permission.(type) {
+	case apparmor_prompting.FilePermission:
+		permStr = v.String()
+	default:
+		permStr = fmt.Sprintf("unsupported permission type: %v", v)
+	}
 
 	info := map[string]interface{}{
 		"pid": req.Pid,
 		// XXX: aa-label?
 		"label":      req.Label,
-		"permission": req.Permission,
+		"permission": permStr,
 	}
 
 	obj := p.conn.Object(agent.uniqeName, agent.path)
