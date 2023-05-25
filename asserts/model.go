@@ -467,6 +467,7 @@ type Model struct {
 
 	serialAuthority  []string
 	sysUserAuthority []string
+	preseedAuthority []string
 	timestamp        time.Time
 }
 
@@ -626,6 +627,13 @@ func (mod *Model) SystemUserAuthority() []string {
 	return mod.sysUserAuthority
 }
 
+// SystemUserAuthority returns the authority ids that are accepted as
+// signers of the preseed binary blob for this model. It always includes the
+// brand of the model.
+func (mod *Model) PreseedAuthority() []string {
+	return mod.preseedAuthority
+}
+
 // Timestamp returns the time when the model assertion was issued.
 func (mod *Model) Timestamp() time.Time {
 	return mod.timestamp
@@ -666,31 +674,15 @@ func checkAuthorityMatchesBrand(a Assertion) error {
 	return nil
 }
 
-func checkOptionalSerialAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+func checkOptionalAuthority(name string, acceptsAny bool, headers map[string]interface{}, brandID string) ([]string, error) {
 	ids := []string{brandID}
-	const name = "serial-authority"
-	if _, ok := headers[name]; !ok {
-		return ids, nil
-	}
-	if lst, err := checkStringListMatches(headers, name, validAccountID); err == nil {
-		if !strutil.ListContains(lst, brandID) {
-			lst = append(ids, lst...)
-		}
-		return lst, nil
-	}
-	return nil, fmt.Errorf("%q header must be a list of account ids", name)
-}
-
-func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
-	ids := []string{brandID}
-	const name = "system-user-authority"
 	v, ok := headers[name]
 	if !ok {
 		return ids, nil
 	}
 	switch x := v.(type) {
 	case string:
-		if x == "*" {
+		if acceptsAny && x == "*" {
 			return nil, nil
 		}
 	case []interface{}:
@@ -702,7 +694,24 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 			return lst, nil
 		}
 	}
-	return nil, fmt.Errorf("%q header must be '*' or a list of account ids", name)
+
+	if acceptsAny {
+		return nil, fmt.Errorf("%q header must be '*' or a list of account ids", name)
+	} else {
+		return nil, fmt.Errorf("%q header must be a list of account ids", name)
+	}
+}
+
+func checkOptionalSerialAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+	return checkOptionalAuthority("serial-authority", false, headers, brandID)
+}
+
+func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+	return checkOptionalAuthority("system-user-authority", true, headers, brandID)
+}
+
+func checkOptionalPreseedAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+	return checkOptionalAuthority("preseed-authority", false, headers, brandID)
 }
 
 func checkModelValidationSetAccountID(headers map[string]interface{}, what, brandID string) (string, error) {
@@ -1028,6 +1037,11 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	preseedAuthority, err := checkOptionalPreseedAuthority(assert.headers, brandID)
+	if err != nil {
+		return nil, err
+	}
+
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
 		return nil, err
@@ -1062,6 +1076,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		validationSets:             valSets,
 		serialAuthority:            serialAuthority,
 		sysUserAuthority:           sysUserAuthority,
+		preseedAuthority:           preseedAuthority,
 		timestamp:                  timestamp,
 	}, nil
 }

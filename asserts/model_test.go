@@ -49,6 +49,7 @@ const (
 	reqSnaps     = "required-snaps:\n  - foo\n  - bar\n"
 	sysUserAuths = "system-user-authority: *\n"
 	serialAuths  = "serial-authority:\n  - generic\n"
+	preseedAuths = "preseed-authority:\n  - preseed-delegate\n"
 )
 
 const (
@@ -66,6 +67,7 @@ const (
 		serialAuths +
 		sysUserAuths +
 		reqSnaps +
+		preseedAuths +
 		"TSLINE" +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -276,6 +278,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
 	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1", "generic"})
+	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1", "preseed-delegate"})
 }
 
 func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
@@ -458,6 +461,23 @@ func (mods *modelSuite) TestDecodeSystemUserAuthorityIsOptional(c *C) {
 	c.Check(model.SystemUserAuthority(), DeepEquals, []string{"brand-id1", "foo", "bar"})
 }
 
+func (mods *modelSuite) TestDecodePreseedAuthorityIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, preseedAuths, "", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	// the default is just to accept the brand itself
+	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1"})
+
+	encoded = strings.Replace(withTimestamp, preseedAuths, "preseed-authority:\n  - foo\n  - bar\n", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model = a.(*asserts.Model)
+	// the brand is always added implicitly
+	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1", "foo", "bar"})
+}
+
 func (mods *modelSuite) TestDecodeKernelTrack(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, "kernel: baz-linux\n", "kernel: baz-linux=18\n", 1)
@@ -536,6 +556,9 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{serialAuths, "serial-authority:\n  - 5_6\n", `"serial-authority" header must be a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  a: 1\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  - 5_6\n", `"system-user-authority" header must be '\*' or a list of account ids`},
+		{preseedAuths, "preseed-authority:\n  a: 1\n", `"preseed-authority" header must be a list of account ids`},
+		{preseedAuths, "preseed-authority:\n  - 5_6\n", `"preseed-authority" header must be a list of account ids`},
+		{preseedAuths, "preseed-authority: *\n", `"preseed-authority" header must be a list of account ids`},
 		{reqSnaps, "grade: dangerous\n", `cannot specify a grade for model without the extended snaps header`},
 	}
 
@@ -809,6 +832,7 @@ func (mods *modelSuite) testWithSnapsDecodeOK(c *C, modelRaw string, isClassic b
 
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
 	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1"})
+	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1"})
 }
 
 func (mods *modelSuite) TestCore20ExplictBootBase(c *C) {
