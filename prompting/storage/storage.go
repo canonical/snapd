@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/prompting/notifier"
 )
@@ -250,5 +251,6 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 func (pd *PromptsDB) Get(req *notifier.Request) (bool, error) {
 	labelEntries := pd.MapsForUidAndLabel(req.SubjectUid, req.Label)
 	allow, err, _, _ := findPathInLabelDB(labelEntries, req.Path)
+	logger.Noticef("found promptDB decision %v for %v (uid %v)", allow, req.Path, req.SubjectUid)
 	return allow, err
 }
