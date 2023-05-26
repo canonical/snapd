@@ -281,8 +281,8 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 	}
 
 	farthestEnd := quantity.Offset(0)
-	for idx, ps := range structures {
-		if end := ps.StartOffset + quantity.Offset(ps.VolumeStructure.Size); end > farthestEnd {
+	for idx, vs := range structures {
+		if end := vs.StartOffset + quantity.Offset(vs.VolumeStructure.Size); end > farthestEnd {
 			farthestEnd = end
 		}
 
@@ -294,7 +294,7 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		// creation is needed and is safe because each volume structure
 		// has a size so even without the structure content the layout
 		// can be calculated.
-		if !opts.IgnoreContent {
+		if !opts.IgnoreContent && !vs.VolumeStructure.WillHaveFilesystem(volume) {
 			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx], volume)
 			if err != nil {
 				return nil, err
