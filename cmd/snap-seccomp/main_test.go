@@ -224,7 +224,7 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 // posix_fadvise, pread64, pwrite64, readahead,	sync_file_range, and truncate64.
 //
 // Once we start using those. See `man syscall`
-func (s *snapSeccompSuite) runBpf(c *C, seccompWhitelist, bpfInput string, expected int) { //
+func (s *snapSeccompSuite) runBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
 	// Common syscalls we need to allow for a minimal statically linked
 	// c program.
 	//

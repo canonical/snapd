@@ -206,7 +206,12 @@ inotify_rm_watch
 ~ioctl - TIOCSTI
 ~ioctl - TIOCLINUX
 # restrict argument otherwise will match all uses of ioctl() and allow the rules
-# that were disallowed above - TODO: why does this still restrict TIOCLINUX?
+# that were disallowed above
+# TODO: Fix the need to keep TIOCLINUX here - the issue is a unrestricted
+#       allow for "ioctl" here makes libseccomp "optimize" the deny rules
+#       above away and the generated bpf becomes just "allow ioctl".
+#       We should fix this by creating a way to make "AND" rules, so
+#       this becomes "ioctl - !TIOCSTI&&!TIOCLINUX" and remove the "~" again.
 ioctl - !TIOCSTI
 
 io_cancel
