@@ -294,7 +294,7 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		// creation is needed and is safe because each volume structure
 		// has a size so even without the structure content the layout
 		// can be calculated.
-		if !opts.IgnoreContent && !ps.VolumeStructure.WillHaveFilesystem(volume) {
+		if !opts.IgnoreContent {
 			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx], volume)
 			if err != nil {
 				return nil, err
