@@ -24,6 +24,17 @@ execute: |
         apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.sh
     fi
 
+    # For 64bit systems TIOC{STI,LINUX} gets a EPERM because of the
+    # "snap-seccomp-blacklist" that is *only* build for 64bit arches
+    # (because denying also needs to work when the higher bits are set
+    #  which the normal filter will not check, see also commit b923d58)
+    #
+    # On 32bit systems TIOC{STI,LINUX} is blocked by the default seccomp
+    # template.go which will default to EACCESS for explicit denied syscalls.
     snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-tiocsti"   < /dev/tty1 2>&1 | MATCH 'normal TIOCSTI: -1 \((Operation not permitted|Permission denied)\)'
     snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-tiocsti"   < /dev/tty1 2>&1 | MATCH 'high-bit-set TIOCSTI: -1 \((Operation not permitted|Permission denied)\)'
-    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-tioclinux" < /dev/tty1 2>&1 | MATCH 'ioctl\(0, TIOCLINUX, ...\) failed: Permission denied'
+    # TODO: this will not work because TIOCLINUX only works on "real" virtual
+    #       linux terminal which cannot be simulated via spread unless we
+    #       do something with nested qemu and simulated with maybe
+    #       "-chardev tty"
+    #snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-tioclinux" < /dev/tty1 2>&1 | MATCH 'ioctl\(0, TIOCLINUX, ...\) failed: Permission denied'
