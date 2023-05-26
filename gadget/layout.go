@@ -127,11 +127,6 @@ func (l *LaidOutStructure) HasFilesystem() bool {
 	return l.VolumeStructure.HasFilesystem()
 }
 
-// WillHaveFilesystem considers also partially defined filesystem.
-func (l *LaidOutStructure) WillHaveFilesystem(v *Volume) bool {
-	return l.VolumeStructure.WillHaveFilesystem(v)
-}
-
 // IsPartition returns true when the structure describes a partition in a block
 // device.
 func (l *LaidOutStructure) IsPartition() bool {
@@ -299,7 +294,7 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		// creation is needed and is safe because each volume structure
 		// has a size so even without the structure content the layout
 		// can be calculated.
-		if !opts.IgnoreContent && !ps.WillHaveFilesystem(volume) {
+		if !opts.IgnoreContent && !ps.VolumeStructure.WillHaveFilesystem(volume) {
 			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx], volume)
 			if err != nil {
 				return nil, err
@@ -326,7 +321,7 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 }
 
 func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *LaidOutStructure, filter ResolvedContentFilterFunc, vol *Volume) ([]ResolvedContent, error) {
-	if !ps.WillHaveFilesystem(vol) {
+	if !ps.VolumeStructure.WillHaveFilesystem(vol) {
 		// structures without a file system are not resolved here
 		return nil, nil
 	}
@@ -431,7 +426,7 @@ func getImageSize(path string) (quantity.Size, error) {
 }
 
 func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, vol *Volume) ([]LaidOutContent, error) {
-	if ps.WillHaveFilesystem(vol) {
+	if ps.VolumeStructure.WillHaveFilesystem(vol) {
 		// structures with a filesystem do not need any extra layout
 		return nil, nil
 	}
