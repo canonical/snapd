@@ -281,7 +281,7 @@ type witnessDataBag struct {
 	getPath, setPath string
 }
 
-func newSpyDataBag(bag aspects.DataBag) *witnessDataBag {
+func newWitnessDataBag(bag aspects.DataBag) *witnessDataBag {
 	return &witnessDataBag{bag: bag}
 }
 
@@ -359,7 +359,7 @@ func (s *aspectSuite) TestAspectAssertionWithPlaceholder(c *C) {
 	} {
 		cmt := Commentf("sub-test %q failed", t.testName)
 
-		databag := newSpyDataBag(aspects.NewJSONDataBag())
+		databag := newWitnessDataBag(aspects.NewJSONDataBag())
 		err := aspect.Set(databag, t.name, "expectedValue")
 		c.Assert(err, IsNil, cmt)
 
@@ -603,4 +603,20 @@ func (s *aspectSuite) TestIsNotFoundErrorHelper(c *C) {
 	c.Assert(aspects.IsNotFoundErr(&aspects.AspectNotFoundError{}), Equals, true)
 	c.Assert(aspects.IsNotFoundErr(&aspects.FieldNotFoundError{}), Equals, true)
 	c.Assert(aspects.IsNotFoundErr(&aspects.InvalidAccessError{}), Equals, false)
+}
+
+func (s *aspectSuite) TestJSONDataBagCopy(c *C) {
+	bag := aspects.NewJSONDataBag()
+	err := bag.Set("foo", "bar")
+	c.Assert(err, IsNil)
+
+	// precondition check
+	data, err := bag.Data()
+	c.Assert(err, IsNil)
+	c.Assert(string(data), Equals, `{"foo":"bar"}`)
+
+	bagCopy := bag.Copy()
+	data, err = bagCopy.Data()
+	c.Assert(err, IsNil)
+	c.Assert(string(data), Equals, `{"foo":"bar"}`)
 }

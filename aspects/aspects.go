@@ -513,8 +513,7 @@ type JSONDataBag map[string]json.RawMessage
 // NewJSONDataBag returns a DataBag implementation that stores data in JSON.
 // The top-level of the JSON structure is always a map.
 func NewJSONDataBag() JSONDataBag {
-	storage := make(map[string]json.RawMessage)
-	return storage
+	return JSONDataBag(make(map[string]json.RawMessage))
 }
 
 // Get takes a path and a pointer to a variable into which the value referenced
@@ -656,6 +655,18 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 // Data returns all of the bag's data encoded in JSON.
 func (s JSONDataBag) Data() ([]byte, error) {
 	return json.Marshal(s)
+}
+
+// Copy returns a copy of the databag.
+func (s JSONDataBag) Copy() JSONDataBag {
+	toplevel := map[string]json.RawMessage(s)
+	copy := make(map[string]json.RawMessage, len(toplevel))
+
+	for k, v := range toplevel {
+		copy[k] = v
+	}
+
+	return JSONDataBag(copy)
 }
 
 // JSONSchema is the Schema implementation corresponding to JSONDataBag and it's

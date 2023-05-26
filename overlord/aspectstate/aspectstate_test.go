@@ -29,19 +29,19 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-type aspectTestSuite struct {
+type aspectstateTestSuite struct {
 	state *state.State
 }
 
-var _ = Suite(&aspectTestSuite{})
+var _ = Suite(&aspectstateTestSuite{})
 
 func Test(t *testing.T) { TestingT(t) }
 
-func (s *aspectTestSuite) SetUpTest(_ *C) {
+func (s *aspectstateTestSuite) SetUpTest(_ *C) {
 	s.state = overlord.Mock().State()
 }
 
-func (s *aspectTestSuite) TestGetAspect(c *C) {
+func (s *aspectstateTestSuite) TestGetAspect(c *C) {
 	databag := aspects.NewJSONDataBag()
 	err := databag.Set("wifi.ssid", "foo")
 	c.Assert(err, IsNil)
@@ -58,7 +58,7 @@ func (s *aspectTestSuite) TestGetAspect(c *C) {
 	c.Assert(res, Equals, "foo")
 }
 
-func (s *aspectTestSuite) TestGetNotFound(c *C) {
+func (s *aspectstateTestSuite) TestGetNotFound(c *C) {
 	var res interface{}
 	err := aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &res)
 	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
@@ -82,7 +82,7 @@ func (s *aspectTestSuite) TestGetNotFound(c *C) {
 	c.Check(res, IsNil)
 }
 
-func (s *aspectTestSuite) TestSetAspect(c *C) {
+func (s *aspectstateTestSuite) TestSetAspect(c *C) {
 	err := aspectstate.Set(s.state, "system", "network", "wifi-setup", "ssid", "foo")
 	c.Assert(err, IsNil)
 
@@ -101,7 +101,7 @@ func (s *aspectTestSuite) TestSetAspect(c *C) {
 	c.Assert(val, Equals, "foo")
 }
 
-func (s *aspectTestSuite) TestSetNotFound(c *C) {
+func (s *aspectstateTestSuite) TestSetNotFound(c *C) {
 	err := aspectstate.Set(s.state, "system", "other-bundle", "other-aspect", "foo", "bar")
 	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
 
@@ -109,12 +109,12 @@ func (s *aspectTestSuite) TestSetNotFound(c *C) {
 	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
 }
 
-func (s *aspectTestSuite) TestSetAccessError(c *C) {
+func (s *aspectstateTestSuite) TestSetAccessError(c *C) {
 	err := aspectstate.Set(s.state, "system", "network", "wifi-setup", "status", "foo")
 	c.Assert(err, ErrorMatches, `cannot write field "status": only supports read access`)
 }
 
-func (s *aspectTestSuite) TestUnsetAspect(c *C) {
+func (s *aspectstateTestSuite) TestUnsetAspect(c *C) {
 	err := aspectstate.Set(s.state, "system", "network", "wifi-setup", "ssid", "foo")
 	c.Assert(err, IsNil)
 
