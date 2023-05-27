@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.59.4
+Version:        2.59.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -996,6 +996,11 @@ fi
 
 
 %changelog
+* Sat May 27 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.5
+ - Explicitly disallow the use of ioctl + TIOCLINUX
+   This fixes CVE-2023-1523.
+
 * Fri May 12 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.59.4
  - Retry when looking for disk label on non-UEFI systems
