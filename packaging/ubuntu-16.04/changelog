@@ -1,3 +1,11 @@
+snapd (2.59.5) xenial; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Explicitly disallow the use of ioctl + TIOCLINUX
+      This fixes CVE-2023-1523.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Sat, 27 May 2023 09:44:43 +0200
+
 snapd (2.59.4) xenial; urgency=medium
 
   * New upstream release, LP: #2009946
