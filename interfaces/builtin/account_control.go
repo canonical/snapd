@@ -58,6 +58,13 @@ const accountControlConnectedPlugAppArmor = `
 # Needed by chpasswd
 /{,usr/}lib/@{multiarch}/security/* ixr,
 
+# Needed by Linux PAM
+/{,usr/}sbin/pam_extrausers_chkpwd ixr,
+/{,usr/}sbin/unix_chkpwd ixr,
+/{,usr/}lib/core/lockout-not-enabled.sh ixr,
+/etc/security/faillock.conf r,
+/etc/shadow r,
+
 # Useradd needs netlink
 network netlink raw,
 
