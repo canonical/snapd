@@ -215,6 +215,11 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	which := whichMap(allow, extras)
 	path := req.Path
 
+	if strings.HasSuffix(path, "/") || ((which == jsonAllowWithDir || which == jsonAllowWithSubdirs) && !osutil.IsDirectory(path)) {
+		path = filepath.Dir(path)
+	}
+	path = filepath.Clean(path)
+
 	permissions := WhichPermissions(req, allow, extras)
 
 	noChange := true
@@ -222,10 +227,6 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	for _, permission := range permissions {
 		permissionEntries := pd.MapsForUidAndLabelAndPermission(req.SubjectUid, req.Label, permission)
 
-		if strings.HasSuffix(path, "/") || ((which == jsonAllowWithDir || which == jsonAllowWithSubdirs) && !osutil.IsDirectory(path)) {
-			path = filepath.Dir(path)
-		}
-		path = filepath.Clean(path)
 		alreadyAllowed, err, matchingMap, matchingPath := findPathInPermissionDB(permissionEntries, path)
 		if err != nil && err != ErrNoSavedDecision {
 			return err
