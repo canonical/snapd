@@ -1010,6 +1010,129 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 	}
 }
 
+func (s *storageSuite) TestPermissionsSimple(c *C) {
+	st := storage.New()
+
+	req := &notifier.Request{
+		Label:      "snap.lxd.lxd",
+		SubjectUid: 1000,
+		Path:       "/home/test/foo/",
+		Permission: apparmor.MayReadPermission,
+	}
+
+	allowed, err := st.Get(req)
+	c.Assert(err, Equals, storage.ErrNoSavedDecision)
+	c.Check(allowed, Equals, false)
+
+	allow := true
+	extra := map[string]string{}
+	extra["allow-subdirectories"] = "yes"
+	extra["deny-subdirectories"] = "yes"
+	err = st.Set(req, allow, extra)
+	c.Assert(err, IsNil)
+
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Check(allowed, Equals, true)
+
+	// check a different permission
+	req.Permission = apparmor.MayWritePermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, storage.ErrNoSavedDecision)
+	c.Check(allowed, Equals, false)
+
+	// set that permission to false with the same path
+	allow = false
+	err = st.Set(req, allow, extra)
+	c.Assert(err, IsNil)
+
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Check(allowed, Equals, false)
+
+	// check that original permission is still allowed
+	req.Permission = apparmor.MayReadPermission
+	allowed, err = st.Get(req)
+	c.Assert(err, IsNil)
+	c.Check(allowed, Equals, true)
+
+	// set denial of subpath for multiple permissions
+	req.Permission = apparmor.MayExecutePermission
+	req.Path = "/home/test/foo/bar/"
+	allow = false
+	extra["deny-extra-permissions"] = "read,write"
+	err = st.Set(req, allow, extra)
+	c.Assert(err, IsNil)
+
+	allowed, err = st.Get(req)
+	c.Assert(err, IsNil)
+	c.Check(allowed, Equals, false)
+
+	// check that read permission is now false for subpath
+	req.Permission = apparmor.MayReadPermission
+	allowed, err = st.Get(req)
+	c.Assert(err, IsNil)
+	c.Check(allowed, Equals, false)
+	// but original path is still allowed
+	req.Path = "/home/test/foo/"
+	allowed, err = st.Get(req)
+	c.Assert(err, IsNil)
+	c.Check(allowed, Equals, true)
+
+	// check that there are 2 rules for read but the write rule was coalesced
+	paths := st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "read").AllowWithSubdirs
+	c.Check(paths, HasLen, 2)
+	paths = st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "write").AllowWithSubdirs
+	c.Check(paths, HasLen, 1)
+	paths = st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "execute").AllowWithSubdirs
+	c.Check(paths, HasLen, 1)
+}
+
+func (s *storageSuite) TestWhichPermissions(c *C) {
+	req := &notifier.Request{
+		Label:      "snap.lxd.lxd",
+		SubjectUid: 1000,
+		Path:       "/home/test/foo",
+		Permission: apparmor.MayReadPermission,
+	}
+
+	allow := true
+	extras := make(map[string]string)
+
+	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"read"}), Equals, true)
+
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission
+	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"write", "read"}), Equals, true)
+
+	req.Permission = apparmor.MayExecutePermission
+	extras["allow-extra-permissions"] = "read,write"
+	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"execute", "read", "write"}), Equals, true)
+
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission
+	extras["allow-extra-permissions"] = "read,write,execute"
+	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"write", "read", "execute"}), Equals, true, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
+}
+
+func (s *storageSuite) TestGetDoesNotCorruptPath(c *C) {
+	st := storage.New()
+
+	req := &notifier.Request{
+		Label:      "snap.lxd.lxd",
+		SubjectUid: 1000,
+		Path:       "/home/test/foo/",
+		Permission: apparmor.MayReadPermission,
+	}
+
+	c.Assert(req.Path, Equals, "/home/test/foo/")
+
+	allow, err := st.Get(req)
+
+	c.Assert(allow, Equals, false)
+	c.Assert(err, Equals, storage.ErrNoSavedDecision)
+
+	c.Assert(req.Path, Equals, "/home/test/foo/")
+}
+
 func (s *storageSuite) TestLoadSave(c *C) {
 	st := storage.New()
 
