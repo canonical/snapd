@@ -118,8 +118,8 @@ outside:
 	return false, ErrNoSavedDecision, "", ""
 }
 
-// TODO: unexport
-func (pd *PromptsDB) MapsForUidAndLabelAndPermission(uid uint32, label string, permission string) *permissionDB {
+// TODO: unexport, possibly reintegrate into MapsForUidAndLabelAndPermission
+func (pd *PromptsDB) PermissionMapForUidAndLabel(uid uint32, label string) map[string]*permissionDB {
 	userEntries := pd.PerUser[uid]
 	if userEntries == nil {
 		userEntries = &userDB{
@@ -134,14 +134,20 @@ func (pd *PromptsDB) MapsForUidAndLabelAndPermission(uid uint32, label string, p
 		}
 		userEntries.PerLabel[label] = labelEntries
 	}
-	permissionEntries := labelEntries.PerPermissionDB[permission]
+	return labelEntries.PerPermissionDB
+}
+
+// TODO: unexport
+func (pd *PromptsDB) MapsForUidAndLabelAndPermission(uid uint32, label string, permission string) *permissionDB {
+	permissionMap := pd.PermissionMapForUidAndLabel(uid, label)
+	permissionEntries := permissionMap[permission]
 	if permissionEntries == nil {
 		permissionEntries = &permissionDB{
 			Allow:            make(map[string]bool),
 			AllowWithDir:     make(map[string]bool),
 			AllowWithSubdirs: make(map[string]bool),
 		}
-		labelEntries.PerPermissionDB[permission] = permissionEntries
+		permissionMap[permission] = permissionEntries
 	}
 	return permissionEntries
 }
@@ -187,12 +193,12 @@ func parseRequestPermissions(req *notifier.Request) []string {
 	return strings.Split(req.Permission.(apparmor.FilePermission).String(), "|")
 }
 
-func whichPermissions(req *notifier.Request, allow bool, extras map[string]string) []string {
+func WhichPermissions(req *notifier.Request, allow bool, extras map[string]string) []string {
 	perms := parseRequestPermissions(req)
-	if allow {
-		perms = append(perms, strings.Split(extras[extrasAllowExtraPerms], ",")...)
-	} else {
-		perms = append(perms, strings.Split(extras[extrasDenyExtraPerms], ",")...)
+	if extraAllow := extras[extrasAllowExtraPerms]; allow && extraAllow != "" {
+		perms = append(perms, strings.Split(extraAllow, ",")...)
+	} else if extraDeny := extras[extrasDenyExtraPerms]; extraDeny != "" {
+		perms = append(perms, strings.Split(extraDeny, ",")...)
 	}
 	return perms
 }
@@ -209,7 +215,7 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	which := whichMap(allow, extras)
 	path := req.Path
 
-	permissions := whichPermissions(req, allow, extras)
+	permissions := WhichPermissions(req, allow, extras)
 
 	noChange := true
 
