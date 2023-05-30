@@ -193,12 +193,25 @@ func parseRequestPermissions(req *notifier.Request) []string {
 	return strings.Split(req.Permission.(apparmor.FilePermission).String(), "|")
 }
 
+func appendUnique(list []string, other []string) []string {
+	combinedList := append(list, other...)
+	uniqueList := make([]string, 0, len(combinedList))
+	set := make(map[string]bool)
+	for _, item := range combinedList {
+		if _, exists := set[item]; !exists {
+			set[item] = true
+			uniqueList = append(uniqueList, item)
+		}
+	}
+	return uniqueList
+}
+
 func WhichPermissions(req *notifier.Request, allow bool, extras map[string]string) []string {
 	perms := parseRequestPermissions(req)
 	if extraAllow := extras[extrasAllowExtraPerms]; allow && extraAllow != "" {
-		perms = append(perms, strings.Split(extraAllow, ",")...)
+		perms = appendUnique(perms, strings.Split(extraAllow, ","))
 	} else if extraDeny := extras[extrasDenyExtraPerms]; extraDeny != "" {
-		perms = append(perms, strings.Split(extraDeny, ",")...)
+		perms = appendUnique(perms, strings.Split(extraDeny, ","))
 	}
 	return perms
 }

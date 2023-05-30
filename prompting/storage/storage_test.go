@@ -1099,14 +1099,14 @@ func (s *storageSuite) TestWhichPermissions(c *C) {
 	allow := true
 	extras := make(map[string]string)
 
-	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"read"}), Equals, true)
+	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"read"}), Equals, true, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
 
 	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission
-	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"write", "read"}), Equals, true)
+	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"write", "read"}), Equals, true, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
 
 	req.Permission = apparmor.MayExecutePermission
 	extras["allow-extra-permissions"] = "read,write"
-	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"execute", "read", "write"}), Equals, true)
+	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"execute", "read", "write"}), Equals, true, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
 
 	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission
 	extras["allow-extra-permissions"] = "read,write,execute"
