@@ -14,6 +14,7 @@ import (
 	"github.com/snapcore/snapd/prompting/notifier"
 )
 
+var ErrNoPermissions = errors.New("request has no permissions set")
 var ErrNoSavedDecision = errors.New("no saved prompt decision")
 var ErrMultipleDecisions = errors.New("multiple prompt decisions for the same path")
 
@@ -289,6 +290,9 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 func (pd *PromptsDB) Get(req *notifier.Request) (bool, error) {
 	allAllow := true
 	permissions := parseRequestPermissions(req)
+	if len(permissions) == 0 {
+		return false, ErrNoPermissions
+	}
 	for _, permission := range permissions {
 		permissionEntries := pd.MapsForUidAndLabelAndPermission(req.SubjectUid, req.Label, permission)
 		allow, err, _, _ := findPathInPermissionDB(permissionEntries, req.Path)
@@ -297,6 +301,6 @@ func (pd *PromptsDB) Get(req *notifier.Request) (bool, error) {
 			return allow, err
 		}
 	}
-	logger.Noticef("found promptDB decision %v for %v (uid %v)", allow, req.Path, req.SubjectUid)
+	logger.Noticef("found promptDB decision %v for %v (uid %v)", allAllow, req.Path, req.SubjectUid)
 	return allAllow, nil
 }
