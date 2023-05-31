@@ -17,6 +17,7 @@ import (
 var ErrNoPermissions = errors.New("request has no permissions set")
 var ErrNoSavedDecision = errors.New("no saved prompt decision")
 var ErrMultipleDecisions = errors.New("multiple prompt decisions for the same path")
+var ErrUnknownMap = errors.New("map name does not match a known allow map")
 
 const (
 	// must match the json annotations for entries in labelDB
@@ -216,11 +217,99 @@ func WhichPermissions(req *notifier.Request, allow bool, extras map[string]strin
 	return perms
 }
 
+// Returns a map of entries in allowMap which are children of the path, along
+// with the corresponding stored decision
+func findChildrenInMap(path string, allowMap map[string]bool) map[string]bool {
+	matches := make(map[string]bool)
+	for p, decision := range allowMap {
+		if filepath.Dir(p) == path {
+			matches[p] = decision
+		}
+	}
+	return matches
+}
+
+// Returns a map of entries in allowMap which are descendants of the path, along
+// with the corresponding stored decision
+func findDescendantsInMap(path string, allowMap map[string]bool) map[string]bool {
+	matches := make(map[string]bool)
+	for p, decision := range allowMap {
+		for len(p) > len(path) {
+			p = filepath.Dir(p)
+		}
+		if p == path {
+			matches[p] = decision
+		}
+	}
+	return matches
+}
+
+// Insert a new decision into the given permissionEntries and remove all
+// previous decisions which are are more specific than the new decision.
+// Returns a permissionDB with the rules which have been deleted or pruned
+func insertAndPrune(permissionEntries *permissionDB, which string, path string, allow bool) (*permissionDB, error) {
+	var err error = nil
+	deleted := &permissionDB{
+		Allow:            make(map[string]bool),
+		AllowWithDir:     make(map[string]bool),
+		AllowWithSubdirs: make(map[string]bool),
+	}
+	if decision, exists := permissionEntries.Allow[path]; exists {
+		deleted.Allow[path] = decision
+		delete(permissionEntries.Allow, path)
+	}
+	if decision, exists := permissionEntries.AllowWithDir[path]; exists {
+		deleted.AllowWithDir[path] = decision
+		delete(permissionEntries.AllowWithDir, path)
+	}
+	if decision, exists := permissionEntries.AllowWithSubdirs[path]; exists {
+		deleted.AllowWithSubdirs[path] = decision
+		delete(permissionEntries.AllowWithSubdirs, path)
+	}
+	switch which {
+	case jsonAllow:
+		// only delete direct match from other maps -- done above
+		permissionEntries.Allow[path] = allow
+	case jsonAllowWithDir:
+		// delete direct match from other maps -- done above
+		// delete direct children from Allow map
+		toDeleteAllow := findChildrenInMap(path, permissionEntries.Allow)
+		for p, decision := range toDeleteAllow {
+			delete(permissionEntries.Allow, p)
+			deleted.Allow[p] = decision
+		}
+		permissionEntries.AllowWithDir[path] = allow
+	case jsonAllowWithSubdirs:
+		// delete direct match from other maps -- done above
+		// delete descendants from all other maps
+		toDeleteAllow := findDescendantsInMap(path, permissionEntries.Allow)
+		for p, decision := range toDeleteAllow {
+			delete(permissionEntries.Allow, p)
+			deleted.Allow[p] = decision
+		}
+		toDeleteAllowWithDir := findDescendantsInMap(path, permissionEntries.AllowWithDir)
+		for p, decision := range toDeleteAllowWithDir {
+			delete(permissionEntries.AllowWithDir, p)
+			deleted.AllowWithDir[p] = decision
+		}
+		toDeleteAllowWithSubdirs := findDescendantsInMap(path, permissionEntries.AllowWithSubdirs)
+		for p, decision := range toDeleteAllowWithSubdirs {
+			delete(permissionEntries.AllowWithSubdirs, p)
+			deleted.AllowWithSubdirs[p] = decision
+		}
+		permissionEntries.AllowWithSubdirs[path] = allow
+	default:
+		err = ErrUnknownMap
+	}
+	return deleted, err
+}
+
 // TODO: extras is ways too loosly typed right now
-func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]string) error {
+func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]string) (map[string]*permissionDB, error) {
+	deleted := make(map[string]*permissionDB)
 	// nothing to store in the db
 	if extras[extrasAlwaysPrompt] == "yes" {
-		return nil
+		return deleted, nil
 	}
 	// what if matching entry is already in the db?
 	// should it be removed since we want to "always prompt"?
@@ -242,7 +331,7 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 
 		alreadyAllowed, err, matchingMap, matchingPath := findPathInPermissionDB(permissionEntries, path)
 		if err != nil && err != ErrNoSavedDecision {
-			return err
+			return deleted, err
 		}
 
 		// if path matches entry already in a different map (XXX means can't return early):
@@ -281,30 +370,18 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 
 		noChange = false
 
-		permissionEntries = pd.MapsForUidAndLabelAndPermission(req.SubjectUid, req.Label, permission)
-
-		// if there's an exact match in one of the maps, delete it
-		if matchingPath == path {
-			// XXX maybe don't even need if statement here, as deletion is no-op if key not in map
-			delete(permissionEntries.Allow, path)
-			delete(permissionEntries.AllowWithDir, path)
-			delete(permissionEntries.AllowWithSubdirs, path)
-		}
-
-		if which == jsonAllowWithSubdirs {
-			permissionEntries.AllowWithSubdirs[path] = allow
-		} else if which == jsonAllowWithDir {
-			permissionEntries.AllowWithDir[path] = allow
-		} else {
-			permissionEntries.Allow[path] = allow
+		deletedForPermission, err := insertAndPrune(permissionEntries, which, path, allow)
+		deleted[permission] = deletedForPermission
+		if err != nil {
+			return deleted, err
 		}
 	}
 
 	if noChange {
-		return nil
+		return deleted, nil
 	}
 
-	return pd.save()
+	return deleted, pd.save()
 }
 
 func (pd *PromptsDB) Get(req *notifier.Request) (bool, error) {

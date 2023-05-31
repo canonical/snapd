@@ -199,7 +199,7 @@ func (p *PromptNotifierDbus) handleReq(req *notifier.Request) {
 		return
 	}
 	logger.Debugf("got result: %v (%v)", resAllowed, resExtra)
-	if err := p.decisions.Set(req, resAllowed, resExtra); err != nil {
+	if _, err := p.decisions.Set(req, resAllowed, resExtra); err != nil {
 		logger.Noticef("cannot store prompt decision: %v", err)
 	}
 	req.YesNo <- resAllowed

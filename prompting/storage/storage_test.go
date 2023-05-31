@@ -43,7 +43,7 @@ func (s *storageSuite) TestSimple(c *C) {
 	extra := map[string]string{}
 	extra["allow-subdirectories"] = "yes"
 	extra["deny-subdirectories"] = "yes"
-	err = st.Set(req, allow, extra)
+	_, err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 
 	paths := st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "read").AllowWithSubdirs
@@ -55,7 +55,7 @@ func (s *storageSuite) TestSimple(c *C) {
 
 	// set a more nested path
 	req.Path = "/home/test/foo/bar"
-	err = st.Set(req, allow, extra)
+	_, err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 	// more nested path is not added
 	c.Check(paths, HasLen, 1)
@@ -84,12 +84,12 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	extra := map[string]string{}
 	extra["allow-subdirectories"] = "yes"
 	extra["deny-subdirectories"] = "yes"
-	err = st.Set(req, allow, extra)
+	_, err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 
 	// set a more nested path to not allow
 	req.Path = "/home/test/foo/bar/"
-	err = st.Set(req, !allow, extra)
+	_, err = st.Set(req, !allow, extra)
 	c.Assert(err, IsNil)
 	// more nested path was added
 	paths := st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "read").AllowWithSubdirs
@@ -111,7 +111,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	c.Check(allowed, Equals, true)
 
 	// set original path to not allow
-	err = st.Set(req, !allow, extra)
+	_, err = st.Set(req, !allow, extra)
 	c.Assert(err, IsNil)
 	// original assignment was overridden
 	c.Check(paths, HasLen, 2)
@@ -121,7 +121,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 
 	// set a more nested path to allow
 	req.Path = "/home/test/foo/bar/"
-	err = st.Set(req, allow, extra)
+	_, err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 	// more nested path was added
 	c.Check(paths, HasLen, 2)
@@ -1003,7 +1003,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 		permissionEntries.AllowWithDir = cloneAllowMap(testCase.initialAllowWithDir)
 		permissionEntries.AllowWithSubdirs = cloneAllowMap(testCase.initialAllowWithSubdirs)
 		req.Path = testCase.path
-		result := st.Set(req, testCase.decision, testCase.extras)
+		_, result := st.Set(req, testCase.decision, testCase.extras)
 		c.Assert(reflect.DeepEqual(permissionEntries.Allow, testCase.finalAllow), Equals, true, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
 		c.Assert(reflect.DeepEqual(permissionEntries.AllowWithDir, testCase.finalAllowWithDir), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
 		c.Assert(reflect.DeepEqual(permissionEntries.AllowWithSubdirs, testCase.finalAllowWithSubdirs), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
@@ -1028,7 +1028,7 @@ func (s *storageSuite) TestPermissionsSimple(c *C) {
 	extra := map[string]string{}
 	extra["allow-subdirectories"] = "yes"
 	extra["deny-subdirectories"] = "yes"
-	err = st.Set(req, allow, extra)
+	_, err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 
 	allowed, err = st.Get(req)
@@ -1043,7 +1043,7 @@ func (s *storageSuite) TestPermissionsSimple(c *C) {
 
 	// set that permission to false with the same path
 	allow = false
-	err = st.Set(req, allow, extra)
+	_, err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 
 	allowed, err = st.Get(req)
@@ -1061,7 +1061,7 @@ func (s *storageSuite) TestPermissionsSimple(c *C) {
 	req.Path = "/home/test/foo/bar/"
 	allow = false
 	extra["deny-extra-permissions"] = "read,write"
-	err = st.Set(req, allow, extra)
+	_, err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 
 	allowed, err = st.Get(req)
@@ -1143,7 +1143,7 @@ func (s *storageSuite) TestLoadSave(c *C) {
 		Permission: apparmor.MayReadPermission,
 	}
 	allow := true
-	err := st.Set(req, allow, nil)
+	_, err := st.Set(req, allow, nil)
 	c.Assert(err, IsNil)
 
 	// st2 will read DB from the previous storage
