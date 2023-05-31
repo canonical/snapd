@@ -90,29 +90,24 @@ execute: |
     sed -i 's/userns,/##spread##userns,/' /var/lib/snapd/apparmor/profiles/snap.test-snapd-userns.with-userns-plug
     tests.cleanup defer sed -i 's/^##spread##//' /var/lib/snapd/apparmor/profiles/snap.test-snapd-userns.with-userns-plug
 
-    # then reload the profile, ensuring the right apparmor_parser is used
-    APPARMOR_PARSER="apparmor_parser"
+    # then reload the profile, ensuring the right apparmor_parser is used -
+    # always use the policy features of the kernel to ensure that the parser
+    # does not silently downgrade the profile
+    APPARMOR_PARSER="apparmor_parser --policy-features=<kernel>"
     if snap debug sandbox-features --required apparmor:parser:snapd-internal; then
-      # TODO: don't use 3.0 abi as this has no knowledge of userns and so userns
-      # would still be implicitly allowed
-      APPARMOR_PARSER="/snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/3.0"
-    else
-      # ensure the system apparmor_parser doesn't use any pinned set of policy
-      # features
-      sed -i 's/^policy-features/##spread##policy-features/' /etc/apparmor/parser.conf
-      tests.cleanup defer sed -i 's/^##spread##//' /etc/apparmor/parser.conf
+      APPARMOR_PARSER="/snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features=<kernel>"
     fi
     $APPARMOR_PARSER -r /var/lib/snapd/apparmor/profiles/snap.test-snapd-userns.with-userns-plug
 
     # running unshare -U as an unprivileged user to create a new user namespace
     # should be denied
     echo "When the userns AppArmor permission is removed creating a new user namespace as an unprivileged user is denied"
-    tests.session -u test exec sh -c "snap run test-snapd-userns.with-userns-plug -c '\$SNAP_COMMON/unshare -U id'" 2>&1 | MATCH 'unshare: unshare failed: Operation not permitted'
+    tests.session -u test exec sh -c "snap run test-snapd-userns.with-userns-plug -c '\$SNAP_COMMON/unshare -U id'" 2>&1 | MATCH 'unshare: unshare: Permission denied'
 
     # it should also be denied for root as well as per
     # https://gitlab.com/apparmor/apparmor/-/wikis/unprivileged_userns_restriction#allowing-user-namespaces-creation-in-policy
     echo "When the userns AppArmor permission is removed creating a new user namespace as root is denied"
-    snap run test-snapd-userns.with-userns-plug -c "\$SNAP_COMMON/unshare -U id" 2>&1 | MATCH 'unshare: unshare failed: Operation not permitted'
+    snap run test-snapd-userns.with-userns-plug -c "\$SNAP_COMMON/unshare -U id" 2>&1 | MATCH 'unshare: unshare: Permission denied'
 
 
 
