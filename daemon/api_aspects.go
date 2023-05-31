@@ -33,7 +33,7 @@ var (
 		Path:        "/v2/aspects",
 		GET:         getAspect,
 		POST:        setAspect,
-		ReadAccess:  openAccess{},
+		ReadAccess:  authenticatedAccess{Polkit: polkitActionManage},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 )
@@ -46,9 +46,9 @@ type AspectRequest struct {
 	Value      interface{} `json:"value"`
 }
 
-const emptyFieldFmt = "cannot have empty %q field"
-
 func (r *AspectRequest) validate() error {
+	const emptyFieldFmt = "cannot have empty %q field"
+
 	if r.Account == "" {
 		return fmt.Errorf(emptyFieldFmt, "account")
 	} else if r.BundleName == "" {
