@@ -217,6 +217,48 @@ func WhichPermissions(req *notifier.Request, allow bool, extras map[string]strin
 	return perms
 }
 
+// Checks whether the new rule corresponding to the decision map given by
+// which, the given path, and the decision given by allow, is already implied
+// by previous rules in the decision maps given by permissionEntries
+func newDecisionImpliedByPreviousDecision(permissionEntries *permissionDB, which string, path string, allow bool) (bool, error) {
+	alreadyAllowed, err, matchingMap, matchingPath := findPathInPermissionDB(permissionEntries, path)
+	if err != nil && err != ErrNoSavedDecision {
+		return false, err
+	}
+
+	// if path matches entry already in a different map (XXX means can't return early):
+	// new Allow, old Allow -> replace if different
+	// new Allow, old AllowWithDir, exact match -> replace if different (forces prompt for entries in directory of path)
+	// new Allow, old AllowWithSubdirs, exact match -> same as ^^
+	// new Allow, old AllowWithDir, parent match -> insert if different
+	// new Allow, old AllowWithSubdirs, ancestor match -> same as ^^
+	// new AllowWithDir, old Allow -> replace always XXX
+	// new AllowWithDir, old AllowWithDir, exact match -> replace if different
+	// new AllowWithDir, old AllowWithSubdirs, exact match -> same as ^^
+	// new AllowWithDir, old AllowWithDir, parent match -> insert always XXX
+	// new AllowWithDir, old AllowWithSubdirs, ancestor match -> insert if different
+	// new AllowWithSubdirs, old Allow -> replace always XXX
+	// new AllowWithSubdirs, old AllowWithDir, exact match -> replace always XXX
+	// new AllowWithSubdirs, old AllowWithSubdirs, exact match -> replace if different
+	// new AllowWithSubdirs, old AllowWithDir, parent match -> insert always XXX
+	// new AllowWithSubdirs, old AllowWithSubdirs, ancestor match -> insert if different
+
+	// in summary:
+	// do nothing if decision matches and _not_ one of:
+	//  1. new AllowWithDir, old Allow
+	//  2. new AllowWithDir, old AllowWithDir, parent match
+	//  3. new AllowWithSubdirs, old _not_ AllowWithSubdirs
+
+	if (err == nil) && (alreadyAllowed == allow) {
+		// already in db and decision matches
+		if !((which == jsonAllowWithDir && (matchingMap == jsonAllow || (matchingMap == jsonAllowWithDir && matchingPath != path))) || (which == jsonAllowWithSubdirs && matchingMap != jsonAllowWithSubdirs)) {
+			// don't need to do anything
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // Returns a map of entries in allowMap which are children of the path, along
 // with the corresponding stored decision
 func findChildrenInMap(path string, allowMap map[string]bool) map[string]bool {
@@ -248,7 +290,6 @@ func findDescendantsInMap(path string, allowMap map[string]bool) map[string]bool
 // previous decisions which are are more specific than the new decision.
 // Returns a permissionDB with the rules which have been deleted or pruned
 func insertAndPrune(permissionEntries *permissionDB, which string, path string, allow bool) (*permissionDB, error) {
-	var err error = nil
 	deleted := &permissionDB{
 		Allow:            make(map[string]bool),
 		AllowWithDir:     make(map[string]bool),
@@ -266,10 +307,20 @@ func insertAndPrune(permissionEntries *permissionDB, which string, path string, 
 		deleted.AllowWithSubdirs[path] = decision
 		delete(permissionEntries.AllowWithSubdirs, path)
 	}
+
+	// check if new decision is now implied by an existing one (since removing
+	// exact matches), and only insert new decision if necessary
+	skipNewDecision, err := newDecisionImpliedByPreviousDecision(permissionEntries, which, path, allow)
+	if err != nil {
+		return deleted, err
+	}
+
 	switch which {
 	case jsonAllow:
 		// only delete direct match from other maps -- done above
-		permissionEntries.Allow[path] = allow
+		if !skipNewDecision {
+			permissionEntries.Allow[path] = allow
+		}
 	case jsonAllowWithDir:
 		// delete direct match from other maps -- done above
 		// delete direct children from Allow map
@@ -278,7 +329,9 @@ func insertAndPrune(permissionEntries *permissionDB, which string, path string, 
 			delete(permissionEntries.Allow, p)
 			deleted.Allow[p] = decision
 		}
-		permissionEntries.AllowWithDir[path] = allow
+		if !skipNewDecision {
+			permissionEntries.AllowWithDir[path] = allow
+		}
 	case jsonAllowWithSubdirs:
 		// delete direct match from other maps -- done above
 		// delete descendants from all other maps
@@ -297,7 +350,9 @@ func insertAndPrune(permissionEntries *permissionDB, which string, path string, 
 			delete(permissionEntries.AllowWithSubdirs, p)
 			deleted.AllowWithSubdirs[p] = decision
 		}
-		permissionEntries.AllowWithSubdirs[path] = allow
+		if !skipNewDecision {
+			permissionEntries.AllowWithSubdirs[path] = allow
+		}
 	default:
 		err = ErrUnknownMap
 	}
@@ -329,43 +384,12 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	for _, permission := range permissions {
 		permissionEntries := pd.MapsForUidAndLabelAndPermission(req.SubjectUid, req.Label, permission)
 
-		alreadyAllowed, err, matchingMap, matchingPath := findPathInPermissionDB(permissionEntries, path)
-		if err != nil && err != ErrNoSavedDecision {
+		skipNewDecision, err := newDecisionImpliedByPreviousDecision(permissionEntries, which, path, allow)
+		if err != nil {
 			return deleted, err
 		}
-
-		// if path matches entry already in a different map (XXX means can't return early):
-		// new Allow, old Allow -> replace if different
-		// new Allow, old AllowWithDir, exact match -> replace if different (forces prompt for entries in directory of path)
-		// new Allow, old AllowWithSubdirs, exact match -> same as ^^
-		// new Allow, old AllowWithDir, parent match -> insert if different
-		// new Allow, old AllowWithSubdirs, ancestor match -> same as ^^
-		// new AllowWithDir, old Allow -> replace always XXX
-		// new AllowWithDir, old AllowWithDir, exact match -> replace if different
-		// new AllowWithDir, old AllowWithSubdirs, exact match -> same as ^^
-		// new AllowWithDir, old AllowWithDir, parent match -> insert always XXX
-		// new AllowWithDir, old AllowWithSubdirs, ancestor match -> insert if different
-		// new AllowWithSubdirs, old Allow -> replace always XXX
-		// new AllowWithSubdirs, old AllowWithDir, exact match -> replace always XXX
-		// new AllowWithSubdirs, old AllowWithSubdirs, exact match -> replace if different
-		// new AllowWithSubdirs, old AllowWithDir, parent match -> insert always XXX
-		// new AllowWithSubdirs, old AllowWithSubdirs, ancestor match -> insert if different
-
-		// in summary:
-		// do nothing if decision matches and _not_ one of:
-		//  1. new AllowWithDir, old Allow
-		//  2. new AllowWithDir, old AllowWithDir, parent match
-		//  3. new AllowWithSubdirs, old _not_ AllowWithSubdirs
-		// otherwise:
-		// remove any existing exact match (no-op if there is none)
-		// insert the path with the decision in the correct map
-
-		if (err == nil) && (alreadyAllowed == allow) {
-			// already in db and decision matches
-			if !((which == jsonAllowWithDir && (matchingMap == jsonAllow || (matchingMap == jsonAllowWithDir && matchingPath != path))) || (which == jsonAllowWithSubdirs && matchingMap != jsonAllowWithSubdirs)) {
-				// don't need to do anything
-				continue
-			}
+		if skipNewDecision {
+			continue
 		}
 
 		noChange = false
