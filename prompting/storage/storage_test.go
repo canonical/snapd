@@ -1185,6 +1185,12 @@ func (s *storageSuite) TestFindChildrenInMap(c *C) {
 			"/home/test/foo",
 			map[string]bool{"/home/test/foo/file.txt": true},
 		},
+		{
+			// don't match exact path, only children
+			map[string]bool{"/home/test": true, "/home/test/foo": false, "/home/test/foo/file.txt": true, "/home/test/bar": false},
+			"/home/test",
+			map[string]bool{"/home/test/foo": false, "/home/test/bar": false},
+		},
 	}
 	for i, testCase := range cases {
 		actualMatches := storage.FindChildrenInMap(testCase.path, testCase.origMap)
@@ -1212,6 +1218,12 @@ func (s *storageSuite) TestFindDescendantsInMap(c *C) {
 			map[string]bool{"/home/test": true, "/home/test/foo/file.txt": true, "/home/test/bar/baz.txt": false},
 			"/home/test/foo",
 			map[string]bool{"/home/test/foo/file.txt": true},
+		},
+		{
+			// don't match exact path, only descendants
+			map[string]bool{"/home/test": true, "/home/test/foo/file.txt": true, "/home/test/bar/baz.txt": false},
+			"/home/test",
+			map[string]bool{"/home/test/foo/file.txt": true, "/home/test/bar/baz.txt": false},
 		},
 	}
 	for i, testCase := range cases {
