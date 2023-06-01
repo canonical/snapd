@@ -74,7 +74,7 @@ func (p *Preseed) Series() string {
 	return p.HeaderString("series")
 }
 
-// BrandID returns the brand identifier. Same as the authority id.
+// BrandID returns the brand identifier.
 func (p *Preseed) BrandID() string {
 	return p.HeaderString("brand-id")
 }
@@ -186,13 +186,11 @@ func checkPreseedSnaps(snapList interface{}) ([]*PreseedSnap, error) {
 }
 
 func assemblePreseed(assert assertionBase) (Assertion, error) {
-	// authority must match the brand (signer is the brand)
-	err := checkAuthorityMatchesBrand(&assert)
-	if err != nil {
-		return nil, err
-	}
+	// because the authority-id and model-id can differ (as per the model),
+	// authority-id should be validated against allowed IDs when the preseed
+	// blob is being checked
 
-	_, err = checkModel(assert.headers)
+	_, err := checkModel(assert.headers)
 	if err != nil {
 		return nil, err
 	}
