@@ -789,7 +789,8 @@ EOF
         for m in $(find modules/ -name '*.ko'); do
             noko=$(basename "$m"); noko="${noko%.ko}"
             if echo "$noko" | grep -f /tmp/mods -vq; then
-                rm -f "$m"
+                #echo "$m" >> /tmp/dropped_mods
+                #rm -f "$m"
             fi
         done
 
