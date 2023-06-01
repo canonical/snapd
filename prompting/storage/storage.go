@@ -261,7 +261,8 @@ func newDecisionImpliedByPreviousDecision(permissionEntries *permissionDB, which
 
 // Returns a map of entries in allowMap which are children of the path, along
 // with the corresponding stored decision
-func findChildrenInMap(path string, allowMap map[string]bool) map[string]bool {
+// TODO: unexport
+func FindChildrenInMap(path string, allowMap map[string]bool) map[string]bool {
 	matches := make(map[string]bool)
 	for p, decision := range allowMap {
 		if filepath.Dir(p) == path {
@@ -273,14 +274,16 @@ func findChildrenInMap(path string, allowMap map[string]bool) map[string]bool {
 
 // Returns a map of entries in allowMap which are descendants of the path, along
 // with the corresponding stored decision
-func findDescendantsInMap(path string, allowMap map[string]bool) map[string]bool {
+// TODO: unexport
+func FindDescendantsInMap(path string, allowMap map[string]bool) map[string]bool {
 	matches := make(map[string]bool)
-	for p, decision := range allowMap {
+	for pathEntry, decision := range allowMap {
+		p := pathEntry
 		for len(p) > len(path) {
 			p = filepath.Dir(p)
 		}
 		if p == path {
-			matches[p] = decision
+			matches[pathEntry] = decision
 		}
 	}
 	return matches
@@ -324,7 +327,7 @@ func insertAndPrune(permissionEntries *permissionDB, which string, path string, 
 	case jsonAllowWithDir:
 		// delete direct match from other maps -- done above
 		// delete direct children from Allow map
-		toDeleteAllow := findChildrenInMap(path, permissionEntries.Allow)
+		toDeleteAllow := FindChildrenInMap(path, permissionEntries.Allow)
 		for p, decision := range toDeleteAllow {
 			delete(permissionEntries.Allow, p)
 			deleted.Allow[p] = decision
@@ -335,17 +338,17 @@ func insertAndPrune(permissionEntries *permissionDB, which string, path string, 
 	case jsonAllowWithSubdirs:
 		// delete direct match from other maps -- done above
 		// delete descendants from all other maps
-		toDeleteAllow := findDescendantsInMap(path, permissionEntries.Allow)
+		toDeleteAllow := FindDescendantsInMap(path, permissionEntries.Allow)
 		for p, decision := range toDeleteAllow {
 			delete(permissionEntries.Allow, p)
 			deleted.Allow[p] = decision
 		}
-		toDeleteAllowWithDir := findDescendantsInMap(path, permissionEntries.AllowWithDir)
+		toDeleteAllowWithDir := FindDescendantsInMap(path, permissionEntries.AllowWithDir)
 		for p, decision := range toDeleteAllowWithDir {
 			delete(permissionEntries.AllowWithDir, p)
 			deleted.AllowWithDir[p] = decision
 		}
-		toDeleteAllowWithSubdirs := findDescendantsInMap(path, permissionEntries.AllowWithSubdirs)
+		toDeleteAllowWithSubdirs := FindDescendantsInMap(path, permissionEntries.AllowWithSubdirs)
 		for p, decision := range toDeleteAllowWithSubdirs {
 			delete(permissionEntries.AllowWithSubdirs, p)
 			deleted.AllowWithSubdirs[p] = decision

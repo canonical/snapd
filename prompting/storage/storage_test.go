@@ -113,8 +113,9 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	// set original path to not allow
 	_, err = st.Set(req, !allow, extra)
 	c.Assert(err, IsNil)
-	// original assignment was overridden
-	c.Check(paths, HasLen, 2)
+	// original assignment was overridden, and older more specific decisions
+	// were removed
+	c.Check(paths, HasLen, 1)
 	// TODO: in the future, possibly this should be 1, if we decide to remove
 	// subdirectories with the same access from the database when an ancestor
 	// directory with the same access is added
@@ -452,6 +453,9 @@ func (s *storageSuite) TestGetErrors(c *C) {
 }
 
 func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
+	// Test that Set() adds new decisions correctly if there are existing
+	// decisions which match the new decision path
+
 	// if path matches entry already in a different map (XXX means can't return early):
 	// new Allow, old Allow -> replace if different
 	// new Allow, old AllowWithDir, exact match -> replace if different (forces prompt for entries in directory of path)
@@ -1007,6 +1011,212 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 		c.Assert(reflect.DeepEqual(permissionEntries.Allow, testCase.finalAllow), Equals, true, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
 		c.Assert(reflect.DeepEqual(permissionEntries.AllowWithDir, testCase.finalAllowWithDir), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
 		c.Assert(reflect.DeepEqual(permissionEntries.AllowWithSubdirs, testCase.finalAllowWithSubdirs), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+	}
+}
+
+func (s *storageSuite) TestSetDecisionPruning(c *C) {
+	// Test that Set() removes old decisions correctly if they are more
+	// specific than the new rule and should thus be overwritten
+
+	cases := []struct {
+		initialAllow            map[string]bool
+		initialAllowWithDir     map[string]bool
+		initialAllowWithSubdirs map[string]bool
+		path                    string
+		decision                bool
+		extras                  map[string]string
+		finalAllow              map[string]bool
+		finalAllowWithDir       map[string]bool
+		finalAllowWithSubdirs   map[string]bool
+	}{
+		{
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			map[string]bool{},
+			"/home/test/foo",
+			false,
+			map[string]string{},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			map[string]bool{},
+		},
+		{
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+			"/home/test/foo",
+			true,
+			map[string]string{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			map[string]bool{},
+		},
+		{
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": true},
+			"/home/test/foo",
+			false,
+			map[string]string{},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{},
+			map[string]bool{},
+		},
+		{
+			map[string]bool{"/home/test/foo/bar.txt": true},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{"/home/test": true},
+			"/home/test/foo",
+			false,
+			map[string]string{},
+			map[string]bool{"/home/test/foo/bar.txt": true},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{"/home/test": true},
+		},
+		{
+			map[string]bool{"/home/test/foo/bar.txt": true},
+			map[string]bool{"/home/test/foo": false},
+			map[string]bool{"/home/test": true},
+			"/home/test/foo",
+			true,
+			map[string]string{},
+			map[string]bool{"/home/test/foo/bar.txt": true},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+		},
+		{
+			map[string]bool{"/home/test/foo/bar.txt": true, "/home/test/foo/baz.txt": false},
+			map[string]bool{"/home/test/foo/dir1": true, "/home/test/foo/dir2": false},
+			map[string]bool{"/home/test/foo": true, "/home/test/foo/subdir": false},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-directory": "yes"},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false, "/home/test/foo/dir1": true, "/home/test/foo/dir2": false},
+			map[string]bool{"/home/test/foo/subdir": false},
+		},
+		{
+			map[string]bool{"/home/test/foo/bar.txt": true, "/home/test/foo/baz.txt": false},
+			map[string]bool{"/home/test/foo/dir1": true, "/home/test/foo/dir2": false},
+			map[string]bool{"/home/test/foo": true, "/home/test/foo/subdir": false},
+			"/home/test/",
+			true,
+			map[string]string{"allow-directory": "yes"},
+			map[string]bool{"/home/test/foo/bar.txt": true, "/home/test/foo/baz.txt": false},
+			map[string]bool{"/home/test": true, "/home/test/foo/dir1": true, "/home/test/foo/dir2": false},
+			map[string]bool{"/home/test/foo": true, "/home/test/foo/subdir": false},
+		},
+		{
+			map[string]bool{"/home/test/foo/bar.txt": true, "/home/test/foo/baz.txt": false},
+			map[string]bool{"/home/test/foo/dir1": true, "/home/test/foo/dir2": false},
+			map[string]bool{"/home/test/foo": true, "/home/test/foo/subdir": false},
+			"/home/test/",
+			true,
+			map[string]string{"allow-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test": true},
+		},
+		{
+			map[string]bool{"/home/test/foo/bar.txt": true, "/home/test/foo/baz.txt": false},
+			map[string]bool{"/home/test/foo/dir1": true, "/home/test/foo/dir2": false},
+			map[string]bool{"/home/test/foo": true, "/home/test/foo/subdir": false},
+			"/home/test/foo/",
+			false,
+			map[string]string{"deny-subdirectories": "yes"},
+			map[string]bool{},
+			map[string]bool{},
+			map[string]bool{"/home/test/foo": false},
+		},
+		{
+			map[string]bool{"/home/test/foo/bar.txt": true, "/home/test/foo/baz.txt": false},
+			map[string]bool{"/home/test/foo/dir1": true, "/home/test/foo/dir2": false},
+			map[string]bool{"/home/test/foo": true, "/home/test/foo/subdir": false},
+			"/home/test/foo/dir1/",
+			false,
+			map[string]string{"deny-subdirectories": "yes"},
+			map[string]bool{"/home/test/foo/bar.txt": true, "/home/test/foo/baz.txt": false},
+			map[string]bool{"/home/test/foo/dir2": false},
+			map[string]bool{"/home/test/foo": true, "/home/test/foo/dir1": false, "/home/test/foo/subdir": false},
+		},
+	}
+
+	st := storage.New()
+
+	req := &notifier.Request{
+		Label:      "snap.lxd.lxd",
+		SubjectUid: 1000,
+		Path:       "placeholder",
+		Permission: apparmor.MayReadPermission,
+	}
+
+	permissionEntries := st.MapsForUidAndLabelAndPermission(req.SubjectUid, req.Label, "read")
+
+	for i, testCase := range cases {
+		permissionEntries.Allow = cloneAllowMap(testCase.initialAllow)
+		permissionEntries.AllowWithDir = cloneAllowMap(testCase.initialAllowWithDir)
+		permissionEntries.AllowWithSubdirs = cloneAllowMap(testCase.initialAllowWithSubdirs)
+		req.Path = testCase.path
+		_, result := st.Set(req, testCase.decision, testCase.extras)
+		c.Assert(reflect.DeepEqual(permissionEntries.Allow, testCase.finalAllow), Equals, true, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Assert(reflect.DeepEqual(permissionEntries.AllowWithDir, testCase.finalAllowWithDir), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Assert(reflect.DeepEqual(permissionEntries.AllowWithSubdirs, testCase.finalAllowWithSubdirs), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+	}
+}
+
+func (s *storageSuite) TestFindChildrenInMap(c *C) {
+	cases := []struct {
+		origMap map[string]bool
+		path    string
+		matches map[string]bool
+	}{
+		{
+			map[string]bool{"/home/test/foo": true, "/home/test/bar/baz.txt": false},
+			"/home/test",
+			map[string]bool{"/home/test/foo": true},
+		},
+		{
+			map[string]bool{"/home/test/foo": true, "/home/test/bar/baz.txt": false},
+			"/home/test/bar",
+			map[string]bool{"/home/test/bar/baz.txt": false},
+		},
+		{
+			map[string]bool{"/home/test": true, "/home/test/foo/file.txt": true, "/home/test/bar/baz.txt": false},
+			"/home/test/foo",
+			map[string]bool{"/home/test/foo/file.txt": true},
+		},
+	}
+	for i, testCase := range cases {
+		actualMatches := storage.FindChildrenInMap(testCase.path, testCase.origMap)
+		c.Assert(reflect.DeepEqual(testCase.matches, actualMatches), Equals, true, Commentf("\nTest case %d:\n%+v\nIncorrect matches found\nActual matches: %+v", i, testCase, actualMatches))
+	}
+}
+
+func (s *storageSuite) TestFindDescendantsInMap(c *C) {
+	cases := []struct {
+		origMap map[string]bool
+		path    string
+		matches map[string]bool
+	}{
+		{
+			map[string]bool{"/home/test/foo": true, "/home/test/bar/baz.txt": false},
+			"/home/test",
+			map[string]bool{"/home/test/foo": true, "/home/test/bar/baz.txt": false},
+		},
+		{
+			map[string]bool{"/home/test/foo": true, "/home/test/bar/baz.txt": false},
+			"/home/test/bar",
+			map[string]bool{"/home/test/bar/baz.txt": false},
+		},
+		{
+			map[string]bool{"/home/test": true, "/home/test/foo/file.txt": true, "/home/test/bar/baz.txt": false},
+			"/home/test/foo",
+			map[string]bool{"/home/test/foo/file.txt": true},
+		},
+	}
+	for i, testCase := range cases {
+		actualMatches := storage.FindDescendantsInMap(testCase.path, testCase.origMap)
+		c.Assert(reflect.DeepEqual(testCase.matches, actualMatches), Equals, true, Commentf("\nTest case %d:\n%+v\nIncorrect matches found\nActual matches: %+v", i, testCase, actualMatches))
 	}
 }
 
