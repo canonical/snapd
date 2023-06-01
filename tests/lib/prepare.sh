@@ -783,7 +783,7 @@ EOF
 
         # Add additional modules required by tests. Module brd provides /dev/ram*
         # used to create ramdisks and the others are used by interfaces.
-        echo "brd br_netfilter bridge stp llc ip6table_filter iptable_filter ip_tables ip6_tables x_tables arp_tables veth ip_vs_rr ip_vs_sh ip_vs_wrr ip_vs nf_conntrack nf_defrag_ipv4 nf_defrag_ipv6 libcrc32c overlay xcbc arc4 libarc4 bfq md4 kvm vmac dm_snapshot dm_bufio dm_thin_pool dm_persistent_data dm_bio_prison iscsi_tcp libiscsi_tcp libiscsi scsi_transport_iscsi nbd pci_stub target_core_mod vhost vhost_net vhost_scsi vhost_vsock vmw_vsock_virtio_transport_common vhost_iotlb vsock tap rc-core cec drm_kms_helper drm_vram_helper nls_iso8859_1 bochs" | tr ' ' '\n' >> /tmp/mods
+        echo "brd br_netfilter bridge stp llc ip6table_filter iptable_filter ip_tables ip6_tables x_tables arp_tables veth ip_vs_rr ip_vs_sh ip_vs_wrr ip_vs nf_conntrack nf_defrag_ipv4 nf_defrag_ipv6 libcrc32c overlay xcbc arc4 libarc4 bfq md4 kvm vmac dm_snapshot dm_bufio dm_thin_pool dm_persistent_data dm_bio_prison iscsi_tcp libiscsi_tcp libiscsi scsi_transport_iscsi nbd pci-stub target_core_mod vhost vhost_net vhost_scsi vhost_vsock vmw_vsock_virtio_transport_common vhost_iotlb vsock tap rc-core cec drm_kms_helper drm_vram_helper nls_iso8859_1 bochs ip6_gre ip6_vti ip6_tunnel ip6_udp_tunnel ip6table_mangle ip6table_raw ip6table_security ip6table_nat iptable_mangle iptable_raw iptable_nat iptable_security ip_tunnel ip_vti tcp_yeah nf_tables nf_tables_set arptable_filter vkms hv_sock virtio-gpu pci-pf-stub virtio_net ipvlan" | tr ' ' '\n' >> /tmp/mods
 
         #shellcheck disable=SC2044
         for m in $(find modules/ -name '*.ko'); do
