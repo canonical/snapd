@@ -278,6 +278,9 @@ func FindChildrenInMap(path string, allowMap map[string]bool) map[string]bool {
 func FindDescendantsInMap(path string, allowMap map[string]bool) map[string]bool {
 	matches := make(map[string]bool)
 	for pathEntry, decision := range allowMap {
+		if pathEntry == path {
+			continue // do not include exact matches, only descendants
+		}
 		p := pathEntry
 		for len(p) > len(path) {
 			p = filepath.Dir(p)
