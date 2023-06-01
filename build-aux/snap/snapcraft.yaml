@@ -98,6 +98,7 @@ parts:
         ;;
       esac
     override-build: |
+      rm -rf "${CRAFT_PART_INSTALL}/build-base"
       mkdir -p "${CRAFT_PART_INSTALL}/build-base"
       case "${CRAFT_TARGET_ARCH}" in
         i386)
@@ -148,9 +149,10 @@ parts:
       - build-base
     build-packages:
       - attr
+      - quilt
     source-type: git
     source:  https://git.launchpad.net/ubuntu/+source/glibc
-    source-branch: ubuntu/jammy
+    source-branch: ubuntu/jammy-updates
     <<:
       - &common-env
         build-environment:
@@ -177,6 +179,9 @@ parts:
           - CFLAGS: -isystem /snap/snapd/current/include ${DEB_CFLAGS}
           - CPPFLAGS: -isystem /snap/snapd/current/include ${DEB_CPPFLAGS}
           - LDFLAGS: -Wl,-I/snap/snapd/current/lib/${DYNAMIC_LINKER} -L/snap/snapd/current/lib -B/snap/snapd/current/lib/ ${DEB_LDFLAGS}
+      - &common-pull
+        override-pull: |
+            "${CRAFT_PROJECT_DIR}/build-aux/snap/local/get.sh"
       - &common-stage
         override-stage: |
             craftctl default
@@ -212,6 +217,7 @@ parts:
     source-branch: applied/ubuntu/jammy
     <<:
       - *common-env
+      - *common-pull
       - *common-stage
     override-build: |
       ${IN_BUILD_BASE} <<EOF
@@ -235,6 +241,7 @@ parts:
     source-branch: applied/ubuntu/jammy
     <<:
       - *common-env
+      - *common-pull
       - *common-stage
     override-build: |
       ${IN_BUILD_BASE} <<EOF
@@ -264,6 +271,7 @@ parts:
     source-branch: applied/ubuntu/jammy
     <<:
       - *common-env
+      - *common-pull
       - *common-stage
     override-build: |
       ${IN_BUILD_BASE} <<EOF
@@ -292,9 +300,10 @@ parts:
       - glibc
     source-type: git
     source:  https://git.launchpad.net/ubuntu/+source/openssl
-    source-branch: applied/ubuntu/jammy
+    source-branch: applied/ubuntu/jammy-updates
     <<:
       - *common-env
+      - *common-pull
       - *common-stage
     override-build: |
       case "${CRAFT_TARGET_ARCH}" in
@@ -332,6 +341,7 @@ parts:
     source-branch: applied/ubuntu/jammy
     <<:
       - *common-env
+      - *common-pull
       - *common-stage
     override-build: |
       ${IN_BUILD_BASE} <<EOF
@@ -364,6 +374,7 @@ parts:
     source-branch: applied/ubuntu/jammy
     <<:
       - *common-env
+      - *common-pull
       - *common-stage
     override-build: |
       ${IN_BUILD_BASE} <<EOF
@@ -394,6 +405,7 @@ parts:
     #source-branch: applied/ubuntu/jammy
     <<:
       - *common-env
+      #- *common-pull
       - *common-stage
     override-build: |
       ${IN_BUILD_BASE} <<EOF
@@ -421,9 +433,10 @@ parts:
       - libcap
     source-type: git
     source: https://git.launchpad.net/ubuntu/+source/systemd
-    source-branch: applied/ubuntu/jammy
+    source-branch: applied/ubuntu/jammy-updates
     <<:
       - *common-env
+      - *common-pull
       - *common-stage
     override-build: |
       ${IN_BUILD_BASE} <<EOF
@@ -592,9 +605,10 @@ parts:
       - glibc
     source-type: git
     source:  https://git.launchpad.net/ubuntu/+source/zlib
-    source-branch: applied/ubuntu/jammy
+    source-branch: applied/ubuntu/jammy-updates
     <<:
       - *common-env
+      - *common-pull
       - *common-stage
     override-build: |
       ${IN_BUILD_BASE} <<EOF
@@ -622,6 +636,7 @@ parts:
     source-branch: applied/ubuntu/jammy
     <<:
       - *common-env
+      - *common-pull
       - *common-stage
     override-build: |
       ${IN_BUILD_BASE} <<EOF
@@ -650,6 +665,7 @@ parts:
     source-branch: applied/ubuntu/jammy
     <<:
       - *common-env
+      - *common-pull
       - *common-stage
     override-build: |
       ${IN_BUILD_BASE} <<EOF
@@ -676,6 +692,7 @@ parts:
     source-branch: applied/ubuntu/jammy
     <<:
       - *common-env
+      - *common-pull
       - *common-stage
     override-build: |
       ${IN_BUILD_BASE} <<EOF
@@ -702,6 +719,7 @@ parts:
     source-branch: applied/ubuntu/jammy
     <<:
       - *common-env
+      - *common-pull
       - *common-stage
     override-build: |
       ${IN_BUILD_BASE} <<EOF
