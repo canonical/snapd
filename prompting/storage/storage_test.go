@@ -37,7 +37,7 @@ func (s *storageSuite) TestSimple(c *C) {
 
 	allowed, err := st.Get(req)
 	c.Assert(err, Equals, storage.ErrNoSavedDecision)
-	c.Check(allowed, Equals, false)
+	c.Assert(allowed, Equals, false)
 
 	allow := true
 	extra := map[string]string{}
@@ -47,23 +47,23 @@ func (s *storageSuite) TestSimple(c *C) {
 	c.Assert(err, IsNil)
 
 	paths := st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "read").AllowWithSubdirs
-	c.Check(paths, HasLen, 1)
+	c.Assert(paths, HasLen, 1)
 
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
-	c.Check(allowed, Equals, true)
+	c.Assert(allowed, Equals, true)
 
 	// set a more nested path
 	req.Path = "/home/test/foo/bar"
 	_, err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 	// more nested path is not added
-	c.Check(paths, HasLen, 1)
+	c.Assert(paths, HasLen, 1)
 
 	// and more nested path is still allowed
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
-	c.Check(allowed, Equals, true)
+	c.Assert(allowed, Equals, true)
 }
 
 func (s *storageSuite) TestSubdirOverrides(c *C) {
@@ -78,7 +78,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 
 	allowed, err := st.Get(req)
 	c.Assert(err, Equals, storage.ErrNoSavedDecision)
-	c.Check(allowed, Equals, false)
+	c.Assert(allowed, Equals, false)
 
 	allow := true
 	extra := map[string]string{}
@@ -93,29 +93,29 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	c.Assert(err, IsNil)
 	// more nested path was added
 	paths := st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "read").AllowWithSubdirs
-	c.Check(paths, HasLen, 2)
+	c.Assert(paths, HasLen, 2)
 
 	// and check more nested path is not allowed
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
-	c.Check(allowed, Equals, false)
+	c.Assert(allowed, Equals, false)
 	// and even more nested path is not allowed
 	req.Path = "/home/test/foo/bar/baz"
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
-	c.Check(allowed, Equals, false)
+	c.Assert(allowed, Equals, false)
 	// but original path is still allowed
 	req.Path = "/home/test/foo/"
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
-	c.Check(allowed, Equals, true)
+	c.Assert(allowed, Equals, true)
 
 	// set original path to not allow
 	_, err = st.Set(req, !allow, extra)
 	c.Assert(err, IsNil)
 	// original assignment was overridden, and older more specific decisions
 	// were removed
-	c.Check(paths, HasLen, 1)
+	c.Assert(paths, HasLen, 1)
 	// TODO: in the future, possibly this should be 1, if we decide to remove
 	// subdirectories with the same access from the database when an ancestor
 	// directory with the same access is added
@@ -125,22 +125,22 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	_, err = st.Set(req, allow, extra)
 	c.Assert(err, IsNil)
 	// more nested path was added
-	c.Check(paths, HasLen, 2)
+	c.Assert(paths, HasLen, 2)
 
 	// and check more nested path is allowed
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
-	c.Check(allowed, Equals, true)
+	c.Assert(allowed, Equals, true)
 	// and even more nested path is also allowed
 	req.Path = "/home/test/foo/bar/baz"
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
-	c.Check(allowed, Equals, true)
+	c.Assert(allowed, Equals, true)
 	// but original path is still not allowed
 	req.Path = "/home/test/foo/"
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
-	c.Check(allowed, Equals, false)
+	c.Assert(allowed, Equals, false)
 }
 
 func cloneAllowMap(m map[string]bool) map[string]bool {
@@ -353,8 +353,8 @@ func (s *storageSuite) TestGetMatches(c *C) {
 		permissionEntries.AllowWithSubdirs = cloneAllowMap(testCase.allowWithSubdirs)
 		req.Path = testCase.path
 		allow, err := st.Get(req)
-		c.Assert(err, IsNil, Commentf("\nTest case %d:\n%+v\nError: %v", i, testCase, err))
-		c.Assert(allow, Equals, testCase.decision, Commentf("\nTest case %d:\n%+v\nGet() returned: %v", i, testCase, allow))
+		c.Check(err, IsNil, Commentf("\nTest case %d:\n%+v\nError: %v", i, testCase, err))
+		c.Check(allow, Equals, testCase.decision, Commentf("\nTest case %d:\n%+v\nGet() returned: %v", i, testCase, allow))
 	}
 }
 
@@ -448,7 +448,7 @@ func (s *storageSuite) TestGetErrors(c *C) {
 		permissionEntries.AllowWithSubdirs = cloneAllowMap(testCase.allowWithSubdirs)
 		req.Path = testCase.path
 		_, err := st.Get(req)
-		c.Assert(err, Equals, testCase.err, Commentf("\nTest case %d:\n%+v\nUnexpected Error: %v", i, testCase, err))
+		c.Check(err, Equals, testCase.err, Commentf("\nTest case %d:\n%+v\nUnexpected Error: %v", i, testCase, err))
 	}
 }
 
@@ -1008,9 +1008,9 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 		permissionEntries.AllowWithSubdirs = cloneAllowMap(testCase.initialAllowWithSubdirs)
 		req.Path = testCase.path
 		_, result := st.Set(req, testCase.decision, testCase.extras)
-		c.Assert(reflect.DeepEqual(permissionEntries.Allow, testCase.finalAllow), Equals, true, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
-		c.Assert(reflect.DeepEqual(permissionEntries.AllowWithDir, testCase.finalAllowWithDir), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
-		c.Assert(reflect.DeepEqual(permissionEntries.AllowWithSubdirs, testCase.finalAllowWithSubdirs), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Check(reflect.DeepEqual(permissionEntries.Allow, testCase.finalAllow), Equals, true, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Check(reflect.DeepEqual(permissionEntries.AllowWithDir, testCase.finalAllowWithDir), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Check(reflect.DeepEqual(permissionEntries.AllowWithSubdirs, testCase.finalAllowWithSubdirs), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
 	}
 }
 
@@ -1158,9 +1158,9 @@ func (s *storageSuite) TestSetDecisionPruning(c *C) {
 		permissionEntries.AllowWithSubdirs = cloneAllowMap(testCase.initialAllowWithSubdirs)
 		req.Path = testCase.path
 		_, result := st.Set(req, testCase.decision, testCase.extras)
-		c.Assert(reflect.DeepEqual(permissionEntries.Allow, testCase.finalAllow), Equals, true, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
-		c.Assert(reflect.DeepEqual(permissionEntries.AllowWithDir, testCase.finalAllowWithDir), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
-		c.Assert(reflect.DeepEqual(permissionEntries.AllowWithSubdirs, testCase.finalAllowWithSubdirs), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Check(reflect.DeepEqual(permissionEntries.Allow, testCase.finalAllow), Equals, true, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Check(reflect.DeepEqual(permissionEntries.AllowWithDir, testCase.finalAllowWithDir), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Check(reflect.DeepEqual(permissionEntries.AllowWithSubdirs, testCase.finalAllowWithSubdirs), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
 	}
 }
 
@@ -1194,7 +1194,7 @@ func (s *storageSuite) TestFindChildrenInMap(c *C) {
 	}
 	for i, testCase := range cases {
 		actualMatches := storage.FindChildrenInMap(testCase.path, testCase.origMap)
-		c.Assert(reflect.DeepEqual(testCase.matches, actualMatches), Equals, true, Commentf("\nTest case %d:\n%+v\nIncorrect matches found\nActual matches: %+v", i, testCase, actualMatches))
+		c.Check(reflect.DeepEqual(testCase.matches, actualMatches), Equals, true, Commentf("\nTest case %d:\n%+v\nIncorrect matches found\nActual matches: %+v", i, testCase, actualMatches))
 	}
 }
 
@@ -1228,7 +1228,7 @@ func (s *storageSuite) TestFindDescendantsInMap(c *C) {
 	}
 	for i, testCase := range cases {
 		actualMatches := storage.FindDescendantsInMap(testCase.path, testCase.origMap)
-		c.Assert(reflect.DeepEqual(testCase.matches, actualMatches), Equals, true, Commentf("\nTest case %d:\n%+v\nIncorrect matches found\nActual matches: %+v", i, testCase, actualMatches))
+		c.Check(reflect.DeepEqual(testCase.matches, actualMatches), Equals, true, Commentf("\nTest case %d:\n%+v\nIncorrect matches found\nActual matches: %+v", i, testCase, actualMatches))
 	}
 }
 
@@ -1244,7 +1244,7 @@ func (s *storageSuite) TestPermissionsSimple(c *C) {
 
 	allowed, err := st.Get(req)
 	c.Assert(err, Equals, storage.ErrNoSavedDecision)
-	c.Check(allowed, Equals, false)
+	c.Assert(allowed, Equals, false)
 
 	allow := true
 	extra := map[string]string{}
@@ -1255,13 +1255,13 @@ func (s *storageSuite) TestPermissionsSimple(c *C) {
 
 	allowed, err = st.Get(req)
 	c.Assert(err, Equals, nil)
-	c.Check(allowed, Equals, true)
+	c.Assert(allowed, Equals, true)
 
 	// check a different permission
 	req.Permission = apparmor.MayWritePermission
 	allowed, err = st.Get(req)
 	c.Assert(err, Equals, storage.ErrNoSavedDecision)
-	c.Check(allowed, Equals, false)
+	c.Assert(allowed, Equals, false)
 
 	// set that permission to false with the same path
 	allow = false
@@ -1270,13 +1270,13 @@ func (s *storageSuite) TestPermissionsSimple(c *C) {
 
 	allowed, err = st.Get(req)
 	c.Assert(err, Equals, nil)
-	c.Check(allowed, Equals, false)
+	c.Assert(allowed, Equals, false)
 
 	// check that original permission is still allowed
 	req.Permission = apparmor.MayReadPermission
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
-	c.Check(allowed, Equals, true)
+	c.Assert(allowed, Equals, true)
 
 	// set denial of subpath for multiple permissions
 	req.Permission = apparmor.MayExecutePermission
@@ -1288,26 +1288,167 @@ func (s *storageSuite) TestPermissionsSimple(c *C) {
 
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
-	c.Check(allowed, Equals, false)
+	c.Assert(allowed, Equals, false)
 
 	// check that read permission is now false for subpath
 	req.Permission = apparmor.MayReadPermission
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
-	c.Check(allowed, Equals, false)
+	c.Assert(allowed, Equals, false)
 	// but original path is still allowed
 	req.Path = "/home/test/foo/"
 	allowed, err = st.Get(req)
 	c.Assert(err, IsNil)
-	c.Check(allowed, Equals, true)
+	c.Assert(allowed, Equals, true)
 
 	// check that there are 2 rules for read but the write rule was coalesced
 	paths := st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "read").AllowWithSubdirs
-	c.Check(paths, HasLen, 2)
+	c.Assert(paths, HasLen, 2)
 	paths = st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "write").AllowWithSubdirs
-	c.Check(paths, HasLen, 1)
+	c.Assert(paths, HasLen, 1)
 	paths = st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "execute").AllowWithSubdirs
-	c.Check(paths, HasLen, 1)
+	c.Assert(paths, HasLen, 1)
+}
+
+func (s *storageSuite) TestPermissionsComplex(c *C) {
+	st := storage.New()
+
+	req := &notifier.Request{
+		Label:      "snap.lxd.lxd",
+		SubjectUid: 1000,
+	}
+	extra := map[string]string{}
+
+	allow := true
+	req.Path = "/home/test/foo/script.sh"
+	req.Permission = apparmor.MayReadPermission
+	extra["allow-extra-permissions"] = "write,execute"
+	_, err := st.Set(req, allow, extra)
+	c.Assert(err, Equals, nil)
+	/*
+	c.Assert(len(deleted), Equals, 3)
+	emptyMap := make(map[string]bool)
+	emptyDeleted := storage.permissionDB{
+		Allow: make(map[string]bool),
+		AllowWithDir: make(map[string]bool),
+		AllowWithSubdirs: make(map[string]bool),
+	}
+	c.Assert(reflect.DeepEqual(*deleted["read"], emptyDeleted), Equals, true, Commentf(`deleted["read"] should be empty: %+v`, deleted["read"]))
+	c.Assert(reflect.DeepEqual(deleted["read"].Allow, emptyMap), Equals, true, Commentf(`deleted["read"].Allow should be empty: %+v`, deleted["read"].Allow))
+	c.Assert(reflect.DeepEqual(deleted["read"].AllowWithDir, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithDir should be empty: %+v`, deleted["read"].AllowWithDir))
+	c.Assert(reflect.DeepEqual(deleted["read"].AllowWithSubdirs, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithSubdirs should be empty: %+v`, deleted["read"].AllowWithSubdirs))
+	c.Assert(reflect.DeepEqual(deleted["write"].Allow, emptyMap), Equals, true, Commentf(`deleted["read"].Allow should be empty: %+v`, deleted["read"].Allow))
+	c.Assert(reflect.DeepEqual(deleted["write"].AllowWithDir, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithDir should be empty: %+v`, deleted["read"].AllowWithDir))
+	c.Assert(reflect.DeepEqual(deleted["write"].AllowWithSubdirs, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithSubdirs should be empty: %+v`, deleted["read"].AllowWithSubdirs))
+	c.Assert(reflect.DeepEqual(deleted["execute"].Allow, emptyMap), Equals, true, Commentf(`deleted["read"].Allow should be empty: %+v`, deleted["read"].Allow))
+	c.Assert(reflect.DeepEqual(deleted["execute"].AllowWithDir, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithDir should be empty: %+v`, deleted["read"].AllowWithDir))
+	c.Assert(reflect.DeepEqual(deleted["execute"].AllowWithSubdirs, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithSubdirs should be empty: %+v`, deleted["read"].AllowWithSubdirs))
+	*/
+
+	allowed, err := st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, true)
+
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission | apparmor.MayExecutePermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, true)
+
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission | apparmor.MayExecutePermission | apparmor.MayAppendPermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, storage.ErrNoSavedDecision)
+	c.Assert(allowed, Equals, false)
+
+	allow = false
+	req.Path = "/home/test/foo/"
+	req.Permission = apparmor.MayWritePermission | apparmor.MayExecutePermission
+	extra["deny-extra-permissions"] = "create"
+	extra["deny-directory"] = "yes"
+	_, err = st.Set(req, allow, extra)
+
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, false)
+
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission | apparmor.MayExecutePermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, storage.ErrNoSavedDecision)
+	c.Assert(allowed, Equals, false)
+
+	req.Path = "/home/test/foo/script.sh"
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, false)
+
+	req.Permission = apparmor.MayReadPermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, true)
+
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, false)
+
+	req.Permission = apparmor.MayReadPermission | apparmor.MayOpenPermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, storage.ErrNoSavedDecision)
+	c.Assert(allowed, Equals, false)
+
+	allow = true
+	req.Path = "/home/test/"
+	req.Permission = apparmor.MayWritePermission
+	extra["allow-extra-permissions"] = "read"
+	extra["allow-subdirectories"] = "yes"
+	_, err = st.Set(req, allow, extra)
+	c.Assert(err, Equals, nil)
+
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, true)
+
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, true)
+
+	req.Path = "/home/test/foo"
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, true)
+
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission | apparmor.MayExecutePermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, false)
+
+	req.Path = "/home/test/foo/script.sh"
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, true)
+
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission | apparmor.MayExecutePermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, false)
+
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission | apparmor.MayExecutePermission | apparmor.MayCreatePermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, false)
+
+	req.Path = "/home/test/foo/bar/baz.txt"
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, true)
+
+	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission | apparmor.MayExecutePermission
+	allowed, err = st.Get(req)
+	c.Assert(err, Equals, storage.ErrNoSavedDecision)
+	c.Assert(allowed, Equals, false)
 }
 
 func (s *storageSuite) TestWhichPermissions(c *C) {
@@ -1372,5 +1513,5 @@ func (s *storageSuite) TestLoadSave(c *C) {
 	st2 := storage.New()
 	allowed, err := st2.Get(req)
 	c.Assert(err, IsNil)
-	c.Check(allowed, Equals, true)
+	c.Assert(allowed, Equals, true)
 }
