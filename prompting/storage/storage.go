@@ -217,7 +217,7 @@ func WhichPermissions(req *notifier.Request, allow bool, extras map[ExtrasKey]st
 	perms := parseRequestPermissions(req)
 	if extraAllowPerms := extras[ExtrasAllowExtraPerms]; allow && extraAllowPerms != "" {
 		perms = appendUnique(perms, strings.Split(extraAllowPerms, ","))
-	} else if extraDenyPerms := extras[ExtrasDenyExtraPerms]; extraDenyPerms != "" {
+	} else if extraDenyPerms := extras[ExtrasDenyExtraPerms]; !allow && extraDenyPerms != "" {
 		perms = appendUnique(perms, strings.Split(extraDenyPerms, ","))
 	}
 	return perms
