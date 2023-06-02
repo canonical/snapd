@@ -783,7 +783,7 @@ EOF
 
         # Add additional modules required by tests. The list includes modules required for
         # snapd interfaces, ramdisk creation, networking and more.
-        echo "arc4 arp_tables bfq bochs brd bridge br_netfilter cec dm_bio_prison dm_bufio dm_persistent_data dm_snapshot dm_thin_pool drm_kms_helper drm_vram_helper ip6table_filter ip6table_mangle ip6table_nat ip6table_raw ip6_tables ip6table_security iptable_filter iptable_mangle iptable_nat iptable_raw ip_tables iptable_security ip_vs ip_vs_rr ip_vs_sh ip_vs_wrr iscsi_tcp kvm libarc4 libcrc32c libiscsi libiscsi_tcp llc md4 nbd nf_conntrack nf_defrag_ipv4 nf_defrag_ipv6 nls_iso8859_1 overlay pci-stub rc-core scsi_transport_iscsi stp tap target_core_mod veth vhost vhost_iotlb vhost_net vhost_scsi vhost_vsock vmac vmw_vsock_virtio_transport_common vsock xcbc x_tables" | tr ' ' '\n' >> /tmp/mods
+        echo "arc4 arp_tables bfq bochs brd bridge br_netfilter cec dm_bio_prison dm_bufio dm_persistent_data dm_snapshot dm_thin_pool drm_kms_helper drm_vram_helper ip6table_filter ip6table_mangle ip6table_nat ip6table_raw ip6_tables ip6table_security iptable_filter iptable_mangle iptable_nat iptable_raw ip_tables iptable_security ip_vs ip_vs_rr ip_vs_sh ip_vs_wrr iscsi_tcp kvm libarc4 libcrc32c libiscsi libiscsi_tcp llc md4 nbd nf_conntrack nf_defrag_ipv4 nf_defrag_ipv6 nf_tables nft_compat nft_masq nft_chain_nat nf_nat nfnetlink nls_iso8859_1 overlay pci-stub rc-core scsi_transport_iscsi stp tap target_core_mod veth vhost vhost_iotlb vhost_net vhost_scsi vhost_vsock vmac vmw_vsock_virtio_transport_common vsock xcbc x_tables" | tr ' ' '\n' >> /tmp/mods
 
         #shellcheck disable=SC2044
         for m in $(find modules/ -name '*.ko'); do
