@@ -1326,23 +1326,23 @@ func (s *storageSuite) TestPermissionsComplex(c *C) {
 	_, err := st.Set(req, allow, extras)
 	c.Assert(err, Equals, nil)
 	/*
-	c.Assert(len(deleted), Equals, 3)
-	emptyMap := make(map[string]bool)
-	emptyDeleted := storage.permissionDB{
-		Allow: make(map[string]bool),
-		AllowWithDir: make(map[string]bool),
-		AllowWithSubdirs: make(map[string]bool),
-	}
-	c.Assert(reflect.DeepEqual(*deleted["read"], emptyDeleted), Equals, true, Commentf(`deleted["read"] should be empty: %+v`, deleted["read"]))
-	c.Assert(reflect.DeepEqual(deleted["read"].Allow, emptyMap), Equals, true, Commentf(`deleted["read"].Allow should be empty: %+v`, deleted["read"].Allow))
-	c.Assert(reflect.DeepEqual(deleted["read"].AllowWithDir, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithDir should be empty: %+v`, deleted["read"].AllowWithDir))
-	c.Assert(reflect.DeepEqual(deleted["read"].AllowWithSubdirs, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithSubdirs should be empty: %+v`, deleted["read"].AllowWithSubdirs))
-	c.Assert(reflect.DeepEqual(deleted["write"].Allow, emptyMap), Equals, true, Commentf(`deleted["read"].Allow should be empty: %+v`, deleted["read"].Allow))
-	c.Assert(reflect.DeepEqual(deleted["write"].AllowWithDir, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithDir should be empty: %+v`, deleted["read"].AllowWithDir))
-	c.Assert(reflect.DeepEqual(deleted["write"].AllowWithSubdirs, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithSubdirs should be empty: %+v`, deleted["read"].AllowWithSubdirs))
-	c.Assert(reflect.DeepEqual(deleted["execute"].Allow, emptyMap), Equals, true, Commentf(`deleted["read"].Allow should be empty: %+v`, deleted["read"].Allow))
-	c.Assert(reflect.DeepEqual(deleted["execute"].AllowWithDir, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithDir should be empty: %+v`, deleted["read"].AllowWithDir))
-	c.Assert(reflect.DeepEqual(deleted["execute"].AllowWithSubdirs, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithSubdirs should be empty: %+v`, deleted["read"].AllowWithSubdirs))
+		c.Assert(len(deleted), Equals, 3)
+		emptyMap := make(map[string]bool)
+		emptyDeleted := storage.permissionDB{
+			Allow: make(map[string]bool),
+			AllowWithDir: make(map[string]bool),
+			AllowWithSubdirs: make(map[string]bool),
+		}
+		c.Assert(reflect.DeepEqual(*deleted["read"], emptyDeleted), Equals, true, Commentf(`deleted["read"] should be empty: %+v`, deleted["read"]))
+		c.Assert(reflect.DeepEqual(deleted["read"].Allow, emptyMap), Equals, true, Commentf(`deleted["read"].Allow should be empty: %+v`, deleted["read"].Allow))
+		c.Assert(reflect.DeepEqual(deleted["read"].AllowWithDir, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithDir should be empty: %+v`, deleted["read"].AllowWithDir))
+		c.Assert(reflect.DeepEqual(deleted["read"].AllowWithSubdirs, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithSubdirs should be empty: %+v`, deleted["read"].AllowWithSubdirs))
+		c.Assert(reflect.DeepEqual(deleted["write"].Allow, emptyMap), Equals, true, Commentf(`deleted["read"].Allow should be empty: %+v`, deleted["read"].Allow))
+		c.Assert(reflect.DeepEqual(deleted["write"].AllowWithDir, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithDir should be empty: %+v`, deleted["read"].AllowWithDir))
+		c.Assert(reflect.DeepEqual(deleted["write"].AllowWithSubdirs, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithSubdirs should be empty: %+v`, deleted["read"].AllowWithSubdirs))
+		c.Assert(reflect.DeepEqual(deleted["execute"].Allow, emptyMap), Equals, true, Commentf(`deleted["read"].Allow should be empty: %+v`, deleted["read"].Allow))
+		c.Assert(reflect.DeepEqual(deleted["execute"].AllowWithDir, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithDir should be empty: %+v`, deleted["read"].AllowWithDir))
+		c.Assert(reflect.DeepEqual(deleted["execute"].AllowWithSubdirs, emptyMap), Equals, true, Commentf(`deleted["read"].AllowWithSubdirs should be empty: %+v`, deleted["read"].AllowWithSubdirs))
 	*/
 
 	allowed, err := st.Get(req)
@@ -1365,6 +1365,7 @@ func (s *storageSuite) TestPermissionsComplex(c *C) {
 	extras[storage.ExtrasDenyExtraPerms] = "create"
 	extras[storage.ExtrasDenyWithDir] = "yes"
 	_, err = st.Set(req, allow, extras)
+	c.Assert(err, Equals, nil)
 
 	allowed, err = st.Get(req)
 	c.Assert(err, Equals, nil)
