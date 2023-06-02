@@ -64,6 +64,7 @@ func (iface *audioRecordInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              audioRecordSummary,
 		ImplicitOnClassic:    true,
+		ImplicitOnCore:       false,
 		BaseDeclarationSlots: audioRecordBaseDeclarationSlots,
 	}
 }
