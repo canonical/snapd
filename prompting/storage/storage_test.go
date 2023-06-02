@@ -40,10 +40,10 @@ func (s *storageSuite) TestSimple(c *C) {
 	c.Assert(allowed, Equals, false)
 
 	allow := true
-	extra := map[string]string{}
-	extra["allow-subdirectories"] = "yes"
-	extra["deny-subdirectories"] = "yes"
-	_, err = st.Set(req, allow, extra)
+	extras := map[storage.ExtrasKey]string{}
+	extras[storage.ExtrasAllowWithSubdirs] = "yes"
+	extras[storage.ExtrasDenyWithSubdirs] = "yes"
+	_, err = st.Set(req, allow, extras)
 	c.Assert(err, IsNil)
 
 	paths := st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "read").AllowWithSubdirs
@@ -55,7 +55,7 @@ func (s *storageSuite) TestSimple(c *C) {
 
 	// set a more nested path
 	req.Path = "/home/test/foo/bar"
-	_, err = st.Set(req, allow, extra)
+	_, err = st.Set(req, allow, extras)
 	c.Assert(err, IsNil)
 	// more nested path is not added
 	c.Assert(paths, HasLen, 1)
@@ -81,15 +81,15 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	c.Assert(allowed, Equals, false)
 
 	allow := true
-	extra := map[string]string{}
-	extra["allow-subdirectories"] = "yes"
-	extra["deny-subdirectories"] = "yes"
-	_, err = st.Set(req, allow, extra)
+	extras := map[storage.ExtrasKey]string{}
+	extras[storage.ExtrasAllowWithSubdirs] = "yes"
+	extras[storage.ExtrasDenyWithSubdirs] = "yes"
+	_, err = st.Set(req, allow, extras)
 	c.Assert(err, IsNil)
 
 	// set a more nested path to not allow
 	req.Path = "/home/test/foo/bar/"
-	_, err = st.Set(req, !allow, extra)
+	_, err = st.Set(req, !allow, extras)
 	c.Assert(err, IsNil)
 	// more nested path was added
 	paths := st.MapsForUidAndLabelAndPermission(1000, "snap.lxd.lxd", "read").AllowWithSubdirs
@@ -111,7 +111,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 	c.Assert(allowed, Equals, true)
 
 	// set original path to not allow
-	_, err = st.Set(req, !allow, extra)
+	_, err = st.Set(req, !allow, extras)
 	c.Assert(err, IsNil)
 	// original assignment was overridden, and older more specific decisions
 	// were removed
@@ -122,7 +122,7 @@ func (s *storageSuite) TestSubdirOverrides(c *C) {
 
 	// set a more nested path to allow
 	req.Path = "/home/test/foo/bar/"
-	_, err = st.Set(req, allow, extra)
+	_, err = st.Set(req, allow, extras)
 	c.Assert(err, IsNil)
 	// more nested path was added
 	c.Assert(paths, HasLen, 2)
@@ -478,7 +478,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 		initialAllowWithSubdirs map[string]bool
 		path                    string
 		decision                bool
-		extras                  map[string]string
+		extras                  map[storage.ExtrasKey]string
 		finalAllow              map[string]bool
 		finalAllowWithDir       map[string]bool
 		finalAllowWithSubdirs   map[string]bool
@@ -489,7 +489,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo",
 			true,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo": true},
 			map[string]bool{},
 			map[string]bool{},
@@ -500,7 +500,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo",
 			false,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo": false},
 			map[string]bool{},
 			map[string]bool{},
@@ -511,7 +511,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo",
 			true,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true},
 			map[string]bool{},
@@ -522,7 +522,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo",
 			false,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo": false},
 			map[string]bool{},
 			map[string]bool{},
@@ -533,7 +533,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo",
 			true,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo": true},
 			map[string]bool{},
 			map[string]bool{},
@@ -544,7 +544,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test/foo": true},
 			"/home/test/foo",
 			true,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true},
@@ -555,7 +555,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test/foo": true},
 			"/home/test/foo",
 			false,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo": false},
 			map[string]bool{},
 			map[string]bool{},
@@ -566,7 +566,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test/foo": false},
 			"/home/test/foo",
 			true,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo": true},
 			map[string]bool{},
 			map[string]bool{},
@@ -577,7 +577,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo",
 			true,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{},
 			map[string]bool{"/home/test": true},
 			map[string]bool{},
@@ -588,7 +588,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo",
 			false,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo": false},
 			map[string]bool{"/home/test": true},
 			map[string]bool{},
@@ -599,7 +599,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/bar",
 			true,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo/bar": true},
 			map[string]bool{"/home/test": true},
 			map[string]bool{},
@@ -610,7 +610,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test": true},
 			"/home/test/foo/bar",
 			true,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test": true},
@@ -621,7 +621,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test": true},
 			"/home/test/foo/bar",
 			false,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo/bar": false},
 			map[string]bool{},
 			map[string]bool{"/home/test": true},
@@ -632,7 +632,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test": false},
 			"/home/test/foo/bar",
 			true,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo/bar": true},
 			map[string]bool{},
 			map[string]bool{"/home/test": false},
@@ -643,7 +643,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test/foo": true},
 			"/home/test/bar",
 			true,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/bar": true},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true},
@@ -654,7 +654,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test/foo": true},
 			"/home/test/bar",
 			false,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/bar": false},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true},
@@ -665,7 +665,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			true,
-			map[string]string{"allow-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true},
 			map[string]bool{},
@@ -676,7 +676,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": false},
 			map[string]bool{},
@@ -687,7 +687,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": false},
 			map[string]bool{},
@@ -698,7 +698,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			true,
-			map[string]string{"allow-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true},
 			map[string]bool{},
@@ -709,7 +709,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": false},
 			map[string]bool{},
@@ -720,7 +720,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test/foo": true},
 			"/home/test/foo/",
 			true,
-			map[string]string{"allow-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true},
@@ -731,7 +731,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test/foo": true},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": false},
 			map[string]bool{},
@@ -742,7 +742,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test/foo": false},
 			"/home/test/foo/",
 			true,
-			map[string]string{"allow-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true},
 			map[string]bool{},
@@ -753,7 +753,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test/foo": false},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": false},
@@ -764,7 +764,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			true,
-			map[string]string{"allow-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test": true, "/home/test/foo": true},
 			map[string]bool{},
@@ -775,7 +775,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test": true, "/home/test/foo": false},
 			map[string]bool{},
@@ -786,7 +786,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test": true},
 			"/home/test/foo/bar/",
 			true,
-			map[string]string{"allow-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test": true},
@@ -797,7 +797,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test": true},
 			"/home/test/foo/bar/",
 			false,
-			map[string]string{"deny-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo/bar": false},
 			map[string]bool{"/home/test": true},
@@ -808,7 +808,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test": false},
 			"/home/test/foo/",
 			true,
-			map[string]string{"allow-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true},
 			map[string]bool{"/home/test": false},
@@ -819,7 +819,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			true,
-			map[string]string{"allow-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true},
@@ -830,7 +830,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": false},
@@ -841,7 +841,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": false},
@@ -852,7 +852,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			true,
-			map[string]string{"allow-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true},
@@ -863,7 +863,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": false},
@@ -874,7 +874,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": false},
@@ -885,7 +885,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": false},
@@ -896,7 +896,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test/foo": true},
 			"/home/test/foo/",
 			true,
-			map[string]string{"allow-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true},
@@ -907,7 +907,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test/foo": true},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": false},
@@ -918,7 +918,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			true,
-			map[string]string{"allow-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test": true},
 			map[string]bool{"/home/test/foo": true},
@@ -929,7 +929,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test": true},
 			map[string]bool{"/home/test/foo": false},
@@ -940,7 +940,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{},
 			"/home/test/foo/bar/",
 			true,
-			map[string]string{"allow-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test": true},
 			map[string]bool{"/home/test/foo/bar": true},
@@ -951,7 +951,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test": true},
 			"/home/test/foo/bar/",
 			true,
-			map[string]string{"allow-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test": true},
@@ -962,7 +962,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test": true},
 			"/home/test/foo/bar/",
 			false,
-			map[string]string{"deny-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test": true, "/home/test/foo/bar": false},
@@ -973,7 +973,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test": false},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test": false},
@@ -984,7 +984,7 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 			map[string]bool{"/home/test/foo": true},
 			"/home/test/bar/",
 			true,
-			map[string]string{"allow-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true, "/home/test/bar": true},
@@ -1024,7 +1024,7 @@ func (s *storageSuite) TestSetDecisionPruning(c *C) {
 		initialAllowWithSubdirs map[string]bool
 		path                    string
 		decision                bool
-		extras                  map[string]string
+		extras                  map[storage.ExtrasKey]string
 		finalAllow              map[string]bool
 		finalAllowWithDir       map[string]bool
 		finalAllowWithSubdirs   map[string]bool
@@ -1035,7 +1035,7 @@ func (s *storageSuite) TestSetDecisionPruning(c *C) {
 			map[string]bool{},
 			"/home/test/foo",
 			false,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo": false},
 			map[string]bool{},
 			map[string]bool{},
@@ -1046,7 +1046,7 @@ func (s *storageSuite) TestSetDecisionPruning(c *C) {
 			map[string]bool{},
 			"/home/test/foo",
 			true,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": true},
 			map[string]bool{},
@@ -1057,7 +1057,7 @@ func (s *storageSuite) TestSetDecisionPruning(c *C) {
 			map[string]bool{"/home/test/foo": true},
 			"/home/test/foo",
 			false,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo": false},
 			map[string]bool{},
 			map[string]bool{},
@@ -1068,7 +1068,7 @@ func (s *storageSuite) TestSetDecisionPruning(c *C) {
 			map[string]bool{"/home/test": true},
 			"/home/test/foo",
 			false,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo/bar.txt": true},
 			map[string]bool{"/home/test/foo": false},
 			map[string]bool{"/home/test": true},
@@ -1079,7 +1079,7 @@ func (s *storageSuite) TestSetDecisionPruning(c *C) {
 			map[string]bool{"/home/test": true},
 			"/home/test/foo",
 			true,
-			map[string]string{},
+			map[storage.ExtrasKey]string{},
 			map[string]bool{"/home/test/foo/bar.txt": true},
 			map[string]bool{},
 			map[string]bool{"/home/test": true},
@@ -1090,7 +1090,7 @@ func (s *storageSuite) TestSetDecisionPruning(c *C) {
 			map[string]bool{"/home/test/foo": true, "/home/test/foo/subdir": false},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithDir: "yes"},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": false, "/home/test/foo/dir1": true, "/home/test/foo/dir2": false},
 			map[string]bool{"/home/test/foo/subdir": false},
@@ -1101,7 +1101,7 @@ func (s *storageSuite) TestSetDecisionPruning(c *C) {
 			map[string]bool{"/home/test/foo": true, "/home/test/foo/subdir": false},
 			"/home/test/",
 			true,
-			map[string]string{"allow-directory": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithDir: "yes"},
 			map[string]bool{"/home/test/foo/bar.txt": true, "/home/test/foo/baz.txt": false},
 			map[string]bool{"/home/test": true, "/home/test/foo/dir1": true, "/home/test/foo/dir2": false},
 			map[string]bool{"/home/test/foo": true, "/home/test/foo/subdir": false},
@@ -1112,7 +1112,7 @@ func (s *storageSuite) TestSetDecisionPruning(c *C) {
 			map[string]bool{"/home/test/foo": true, "/home/test/foo/subdir": false},
 			"/home/test/",
 			true,
-			map[string]string{"allow-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasAllowWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test": true},
@@ -1123,7 +1123,7 @@ func (s *storageSuite) TestSetDecisionPruning(c *C) {
 			map[string]bool{"/home/test/foo": true, "/home/test/foo/subdir": false},
 			"/home/test/foo/",
 			false,
-			map[string]string{"deny-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithSubdirs: "yes"},
 			map[string]bool{},
 			map[string]bool{},
 			map[string]bool{"/home/test/foo": false},
@@ -1134,7 +1134,7 @@ func (s *storageSuite) TestSetDecisionPruning(c *C) {
 			map[string]bool{"/home/test/foo": true, "/home/test/foo/subdir": false},
 			"/home/test/foo/dir1/",
 			false,
-			map[string]string{"deny-subdirectories": "yes"},
+			map[storage.ExtrasKey]string{storage.ExtrasDenyWithSubdirs: "yes"},
 			map[string]bool{"/home/test/foo/bar.txt": true, "/home/test/foo/baz.txt": false},
 			map[string]bool{"/home/test/foo/dir2": false},
 			map[string]bool{"/home/test/foo": true, "/home/test/foo/dir1": false, "/home/test/foo/subdir": false},
@@ -1247,10 +1247,10 @@ func (s *storageSuite) TestPermissionsSimple(c *C) {
 	c.Assert(allowed, Equals, false)
 
 	allow := true
-	extra := map[string]string{}
-	extra["allow-subdirectories"] = "yes"
-	extra["deny-subdirectories"] = "yes"
-	_, err = st.Set(req, allow, extra)
+	extras := map[storage.ExtrasKey]string{}
+	extras[storage.ExtrasAllowWithSubdirs] = "yes"
+	extras[storage.ExtrasDenyWithSubdirs] = "yes"
+	_, err = st.Set(req, allow, extras)
 	c.Assert(err, IsNil)
 
 	allowed, err = st.Get(req)
@@ -1265,7 +1265,7 @@ func (s *storageSuite) TestPermissionsSimple(c *C) {
 
 	// set that permission to false with the same path
 	allow = false
-	_, err = st.Set(req, allow, extra)
+	_, err = st.Set(req, allow, extras)
 	c.Assert(err, IsNil)
 
 	allowed, err = st.Get(req)
@@ -1282,8 +1282,8 @@ func (s *storageSuite) TestPermissionsSimple(c *C) {
 	req.Permission = apparmor.MayExecutePermission
 	req.Path = "/home/test/foo/bar/"
 	allow = false
-	extra["deny-extra-permissions"] = "read,write"
-	_, err = st.Set(req, allow, extra)
+	extras[storage.ExtrasDenyExtraPerms] = "read,write"
+	_, err = st.Set(req, allow, extras)
 	c.Assert(err, IsNil)
 
 	allowed, err = st.Get(req)
@@ -1317,13 +1317,13 @@ func (s *storageSuite) TestPermissionsComplex(c *C) {
 		Label:      "snap.lxd.lxd",
 		SubjectUid: 1000,
 	}
-	extra := map[string]string{}
+	extras := map[storage.ExtrasKey]string{}
 
 	allow := true
 	req.Path = "/home/test/foo/script.sh"
 	req.Permission = apparmor.MayReadPermission
-	extra["allow-extra-permissions"] = "write,execute"
-	_, err := st.Set(req, allow, extra)
+	extras[storage.ExtrasAllowExtraPerms] = "write,execute"
+	_, err := st.Set(req, allow, extras)
 	c.Assert(err, Equals, nil)
 	/*
 	c.Assert(len(deleted), Equals, 3)
@@ -1362,9 +1362,9 @@ func (s *storageSuite) TestPermissionsComplex(c *C) {
 	allow = false
 	req.Path = "/home/test/foo/"
 	req.Permission = apparmor.MayWritePermission | apparmor.MayExecutePermission
-	extra["deny-extra-permissions"] = "create"
-	extra["deny-directory"] = "yes"
-	_, err = st.Set(req, allow, extra)
+	extras[storage.ExtrasDenyExtraPerms] = "create"
+	extras[storage.ExtrasDenyWithDir] = "yes"
+	_, err = st.Set(req, allow, extras)
 
 	allowed, err = st.Get(req)
 	c.Assert(err, Equals, nil)
@@ -1398,9 +1398,9 @@ func (s *storageSuite) TestPermissionsComplex(c *C) {
 	allow = true
 	req.Path = "/home/test/"
 	req.Permission = apparmor.MayWritePermission
-	extra["allow-extra-permissions"] = "read"
-	extra["allow-subdirectories"] = "yes"
-	_, err = st.Set(req, allow, extra)
+	extras[storage.ExtrasAllowExtraPerms] = "read"
+	extras[storage.ExtrasAllowWithSubdirs] = "yes"
+	_, err = st.Set(req, allow, extras)
 	c.Assert(err, Equals, nil)
 
 	allowed, err = st.Get(req)
@@ -1460,7 +1460,7 @@ func (s *storageSuite) TestWhichPermissions(c *C) {
 	}
 
 	allow := true
-	extras := make(map[string]string)
+	extras := make(map[storage.ExtrasKey]string)
 
 	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"read"}), Equals, true, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
 
@@ -1468,11 +1468,11 @@ func (s *storageSuite) TestWhichPermissions(c *C) {
 	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"write", "read"}), Equals, true, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
 
 	req.Permission = apparmor.MayExecutePermission
-	extras["allow-extra-permissions"] = "read,write"
+	extras[storage.ExtrasAllowExtraPerms] = "read,write"
 	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"execute", "read", "write"}), Equals, true, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
 
 	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission
-	extras["allow-extra-permissions"] = "read,write,execute"
+	extras[storage.ExtrasAllowExtraPerms] = "read,write,execute"
 	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"write", "read", "execute"}), Equals, true, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
 }
 

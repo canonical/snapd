@@ -19,26 +19,32 @@ var ErrNoSavedDecision = errors.New("no saved prompt decision")
 var ErrMultipleDecisions = errors.New("multiple prompt decisions for the same path")
 var ErrUnknownMap = errors.New("map name does not match a known allow map")
 
+type AllowType string
+
 const (
-	// must match the json annotations for entries in labelDB
-	jsonAllow            = "allow"
-	jsonAllowWithDir     = "allow-with-dir"
-	jsonAllowWithSubdirs = "allow-with-subdir"
-	// must match the specification for extra information map returned by the prompt
-	extrasAlwaysPrompt     = "always-prompt"
-	extrasAllowWithDir     = "allow-directory"
-	extrasAllowWithSubdirs = "allow-subdirectories"
-	extrasAllowExtraPerms  = "allow-extra-permissions"
-	extrasDenyWithDir      = "deny-directory"
-	extrasDenyWithSubdirs  = "deny-subdirectories"
-	extrasDenyExtraPerms   = "deny-extra-permissions"
+	AllowUnset       AllowType = ""
+	Allow            AllowType = "allow"
+	AllowWithDir     AllowType = "allow-with-dir"
+	AllowWithSubdirs AllowType = "allow-with-subdirs"
+)
+
+type ExtrasKey string
+
+const (
+	ExtrasAlwaysPrompt     ExtrasKey = "always-prompt"
+	ExtrasAllowWithDir     ExtrasKey = "allow-directory"
+	ExtrasAllowWithSubdirs ExtrasKey = "allow-subdirectories"
+	ExtrasAllowExtraPerms  ExtrasKey = "allow-extra-permissions"
+	ExtrasDenyWithDir      ExtrasKey = "deny-directory"
+	ExtrasDenyWithSubdirs  ExtrasKey = "deny-subdirectories"
+	ExtrasDenyExtraPerms   ExtrasKey = "deny-extra-permissions"
 )
 
 type permissionDB struct {
+	// must match the AllowType definitions above
 	Allow            map[string]bool `json:"allow"`
 	AllowWithDir     map[string]bool `json:"allow-with-dir"`
-	AllowWithSubdirs map[string]bool `json:"allow-with-subdir"`
-	// XXX: Always check with the following priority: Allow, then AllowWithDir, then AllowWithSubdirs
+	AllowWithSubdirs map[string]bool `json:"allow-with-subdirs"`
 }
 
 type labelDB struct {
@@ -62,19 +68,19 @@ func New() *PromptsDB {
 	return pd
 }
 
-func findPathInPermissionDB(db *permissionDB, path string) (bool, error, string, string) {
+func findPathInPermissionDB(db *permissionDB, path string) (bool, error, AllowType, string) {
 	// Returns:
 	// bool: allow
 	// error: (nil | ErrMultipleDecisions | ErrNoSavedDecision)
-	// string: (jsonAllow | jsonAllowWithDir | jsonAllowWithSubdirs) -- json name of map which contained match
+	// AllowType: (Allow | AllowWithDir | AllowWithSubdirs) -- name of map which contained match
 	// string: matching path current in the db
 	path = filepath.Clean(path)
 	storedAllow := true
-	which := ""
+	which := AllowUnset
 	var err error
 	// Check if original path has exact match in db.Allow
 	if allow, exists := db.Allow[path]; exists {
-		which = jsonAllow
+		which = Allow
 		storedAllow = storedAllow && allow
 	}
 outside:
@@ -84,9 +90,9 @@ outside:
 		if allow, exists := db.AllowWithDir[path]; exists {
 			if which != "" {
 				err = ErrMultipleDecisions
-				which = which + "," + jsonAllowWithDir
+				which = which + "," + AllowWithDir
 			} else {
-				which = jsonAllowWithDir
+				which = AllowWithDir
 			}
 			storedAllow = storedAllow && allow
 		}
@@ -96,9 +102,9 @@ outside:
 			if allow, exists := db.AllowWithSubdirs[path]; exists {
 				if which != "" {
 					err = ErrMultipleDecisions
-					which = which + "," + jsonAllowWithSubdirs
+					which = which + "," + AllowWithSubdirs
 				} else {
-					which = jsonAllowWithSubdirs
+					which = AllowWithSubdirs
 				}
 				storedAllow = storedAllow && allow
 			}
@@ -180,14 +186,14 @@ func (pd *PromptsDB) load() error {
 	return json.NewDecoder(f).Decode(&pd.PerUser)
 }
 
-func whichMap(allow bool, extras map[string]string) string {
-	if (allow && extras[extrasAllowWithSubdirs] == "yes") || (!allow && extras[extrasDenyWithSubdirs] == "yes") {
-		return jsonAllowWithSubdirs
+func whichMap(allow bool, extras map[ExtrasKey]string) AllowType {
+	if (allow && extras[ExtrasAllowWithSubdirs] == "yes") || (!allow && extras[ExtrasDenyWithSubdirs] == "yes") {
+		return AllowWithSubdirs
 	}
-	if (allow && extras[extrasAllowWithDir] == "yes") || (!allow && extras[extrasDenyWithDir] == "yes") {
-		return jsonAllowWithDir
+	if (allow && extras[ExtrasAllowWithDir] == "yes") || (!allow && extras[ExtrasDenyWithDir] == "yes") {
+		return AllowWithDir
 	}
-	return jsonAllow
+	return Allow
 }
 
 func parseRequestPermissions(req *notifier.Request) []string {
@@ -207,12 +213,12 @@ func appendUnique(list []string, other []string) []string {
 	return uniqueList
 }
 
-func WhichPermissions(req *notifier.Request, allow bool, extras map[string]string) []string {
+func WhichPermissions(req *notifier.Request, allow bool, extras map[ExtrasKey]string) []string {
 	perms := parseRequestPermissions(req)
-	if extraAllow := extras[extrasAllowExtraPerms]; allow && extraAllow != "" {
-		perms = appendUnique(perms, strings.Split(extraAllow, ","))
-	} else if extraDeny := extras[extrasDenyExtraPerms]; extraDeny != "" {
-		perms = appendUnique(perms, strings.Split(extraDeny, ","))
+	if extraAllowPerms := extras[ExtrasAllowExtraPerms]; allow && extraAllowPerms != "" {
+		perms = appendUnique(perms, strings.Split(extraAllowPerms, ","))
+	} else if extraDenyPerms := extras[ExtrasDenyExtraPerms]; extraDenyPerms != "" {
+		perms = appendUnique(perms, strings.Split(extraDenyPerms, ","))
 	}
 	return perms
 }
@@ -220,7 +226,7 @@ func WhichPermissions(req *notifier.Request, allow bool, extras map[string]strin
 // Checks whether the new rule corresponding to the decision map given by
 // which, the given path, and the decision given by allow, is already implied
 // by previous rules in the decision maps given by permissionEntries
-func newDecisionImpliedByPreviousDecision(permissionEntries *permissionDB, which string, path string, allow bool) (bool, error) {
+func newDecisionImpliedByPreviousDecision(permissionEntries *permissionDB, which AllowType, path string, allow bool) (bool, error) {
 	alreadyAllowed, err, matchingMap, matchingPath := findPathInPermissionDB(permissionEntries, path)
 	if err != nil && err != ErrNoSavedDecision {
 		return false, err
@@ -251,7 +257,7 @@ func newDecisionImpliedByPreviousDecision(permissionEntries *permissionDB, which
 
 	if (err == nil) && (alreadyAllowed == allow) {
 		// already in db and decision matches
-		if !((which == jsonAllowWithDir && (matchingMap == jsonAllow || (matchingMap == jsonAllowWithDir && matchingPath != path))) || (which == jsonAllowWithSubdirs && matchingMap != jsonAllowWithSubdirs)) {
+		if !((which == AllowWithDir && (matchingMap == Allow || (matchingMap == AllowWithDir && matchingPath != path))) || (which == AllowWithSubdirs && matchingMap != AllowWithSubdirs)) {
 			// don't need to do anything
 			return true, nil
 		}
@@ -295,7 +301,7 @@ func FindDescendantsInMap(path string, allowMap map[string]bool) map[string]bool
 // Insert a new decision into the given permissionEntries and remove all
 // previous decisions which are are more specific than the new decision.
 // Returns a permissionDB with the rules which have been deleted or pruned
-func insertAndPrune(permissionEntries *permissionDB, which string, path string, allow bool) (*permissionDB, error) {
+func insertAndPrune(permissionEntries *permissionDB, which AllowType, path string, allow bool) (*permissionDB, error) {
 	deleted := &permissionDB{
 		Allow:            make(map[string]bool),
 		AllowWithDir:     make(map[string]bool),
@@ -322,12 +328,12 @@ func insertAndPrune(permissionEntries *permissionDB, which string, path string, 
 	}
 
 	switch which {
-	case jsonAllow:
+	case Allow:
 		// only delete direct match from other maps -- done above
 		if !skipNewDecision {
 			permissionEntries.Allow[path] = allow
 		}
-	case jsonAllowWithDir:
+	case AllowWithDir:
 		// delete direct match from other maps -- done above
 		// delete direct children from Allow map
 		toDeleteAllow := FindChildrenInMap(path, permissionEntries.Allow)
@@ -338,7 +344,7 @@ func insertAndPrune(permissionEntries *permissionDB, which string, path string, 
 		if !skipNewDecision {
 			permissionEntries.AllowWithDir[path] = allow
 		}
-	case jsonAllowWithSubdirs:
+	case AllowWithSubdirs:
 		// delete direct match from other maps -- done above
 		// delete descendants from all other maps
 		toDeleteAllow := FindDescendantsInMap(path, permissionEntries.Allow)
@@ -366,10 +372,10 @@ func insertAndPrune(permissionEntries *permissionDB, which string, path string, 
 }
 
 // TODO: extras is ways too loosly typed right now
-func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]string) (map[string]*permissionDB, error) {
+func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[ExtrasKey]string) (map[string]*permissionDB, error) {
 	deleted := make(map[string]*permissionDB)
 	// nothing to store in the db
-	if extras[extrasAlwaysPrompt] == "yes" {
+	if extras[ExtrasAlwaysPrompt] == "yes" {
 		return deleted, nil
 	}
 	// what if matching entry is already in the db?
@@ -378,7 +384,7 @@ func (pd *PromptsDB) Set(req *notifier.Request, allow bool, extras map[string]st
 	which := whichMap(allow, extras)
 	path := req.Path
 
-	if strings.HasSuffix(path, "/") || ((which == jsonAllowWithDir || which == jsonAllowWithSubdirs) && !osutil.IsDirectory(path)) {
+	if strings.HasSuffix(path, "/") || ((which == AllowWithDir || which == AllowWithSubdirs) && !osutil.IsDirectory(path)) {
 		path = filepath.Dir(path)
 	}
 	path = filepath.Clean(path)
