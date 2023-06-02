@@ -229,33 +229,6 @@ func generateInitramfsMounts() (err error) {
 }
 
 func canInstallAndRunAtOnce(mst *initramfsMountsState) (bool, error) {
-	currentSeed, err := mst.LoadSeed(mst.recoverySystem)
-	if err != nil {
-		return false, err
-	}
-	preseedSeed, ok := currentSeed.(seed.PreseedCapable)
-	if !ok {
-		return false, nil
-	}
-
-	// TODO: relax this condition when "install and run" well tested
-	if !preseedSeed.HasArtifact("preseed.tgz") {
-		return false, nil
-	}
-
-	// If kernel has fde-setup hook, then we should also have fde-setup in initramfs
-	kernelPath := filepath.Join(boot.InitramfsRunMntDir, "kernel")
-	kernelHasFdeSetup := osutil.FileExists(filepath.Join(kernelPath, "meta", "hooks", "fde-setup"))
-	_, fdeSetupErr := exec.LookPath("fde-setup")
-	if kernelHasFdeSetup && fdeSetupErr != nil {
-		return false, nil
-	}
-
-	gadgetPath := filepath.Join(boot.InitramfsRunMntDir, "gadget")
-	if osutil.FileExists(filepath.Join(gadgetPath, "meta", "hooks", "install-device")) {
-		return false, nil
-	}
-
 	return true, nil
 }
 
