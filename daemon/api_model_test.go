@@ -134,6 +134,67 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 	c.Assert(soon, check.Equals, 1)
 }
 
+func (s *modelSuite) TestPostRemodelWrongBody(c *check.C) {
+	s.expectRootAccess()
+
+	d := s.daemonWithOverlordMockAndStore()
+	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	c.Assert(err, check.IsNil)
+	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.Overlord().AddManager(deviceMgr)
+
+	type badBody struct {
+		body, err string
+	}
+	for _, tc := range []badBody{
+		{"", "cannot decode request body into remodel operation: EOF"},
+		{"garbage", `cannot decode request body into remodel operation: invalid character 'g' looking for beginning of value`},
+		{`{ "new-model": "garbage"}`, "cannot decode new model assertion: assertion content/signature separator not found"},
+	} {
+		req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer([]byte(tc.body)))
+		req.Header.Set("Content-Type", "application/json")
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Assert(rspe.Status, check.Equals, 400)
+		c.Assert(rspe.Kind, check.Equals, client.ErrorKind(""))
+		c.Assert(rspe.Value, check.IsNil)
+		c.Assert(rspe.Message, check.Equals, tc.err)
+	}
+}
+
+func (s *modelSuite) TestPostRemodelWrongContentType(c *check.C) {
+	s.expectRootAccess()
+
+	d := s.daemonWithOverlordMockAndStore()
+	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	c.Assert(err, check.IsNil)
+	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.Overlord().AddManager(deviceMgr)
+
+	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer([]byte("garbage")))
+	req.Header.Set("Content-Type", "footype")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Kind, check.Equals, client.ErrorKind(""))
+	c.Assert(rspe.Value, check.IsNil)
+	c.Assert(rspe.Message, check.Equals, `unexpected media type "footype"`)
+
+	req, err = http.NewRequest("POST", "/v2/model", bytes.NewBuffer([]byte("garbage")))
+	req.Header.Set("Content-Type", "multipart/form-data")
+	c.Assert(err, check.IsNil)
+
+	rspe = s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Kind, check.Equals, client.ErrorKind(""))
+	c.Assert(rspe.Value, check.IsNil)
+	c.Assert(rspe.Message, check.Equals, `media type "multipart/form-data" not implemented yet`)
+}
+
 func (s *modelSuite) TestGetModelNoModelAssertion(c *check.C) {
 
 	d := s.daemonWithOverlordMockAndStore()
