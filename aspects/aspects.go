@@ -56,17 +56,34 @@ func newAccessType(access string) (accessType, error) {
 	return readWrite, fmt.Errorf("expected 'access' to be one of %s but was %q", strutil.Quoted(accessTypeStrings), access)
 }
 
-// NotFoundError represents an error caused by a missing entity.
-type NotFoundError struct {
+// AspectNotFoundError represents a failure to find an aspect.
+type AspectNotFoundError struct {
+	Account    string
+	BundleName string
+	Aspect     string
+}
+
+func (e *AspectNotFoundError) Error() string {
+	return fmt.Sprintf("aspect %s/%s/%s not found", e.Account, e.BundleName, e.Aspect)
+}
+
+func (e *AspectNotFoundError) Is(err error) bool {
+	_, ok := err.(*AspectNotFoundError)
+	return ok
+}
+
+// FieldNotFoundError represents a failure to find a field carrying a value in
+// an aspect databag.
+type FieldNotFoundError struct {
 	Message string
 }
 
-func (e *NotFoundError) Error() string {
+func (e *FieldNotFoundError) Error() string {
 	return e.Message
 }
 
-func (e *NotFoundError) Is(err error) bool {
-	_, ok := err.(*NotFoundError)
+func (e *FieldNotFoundError) Is(err error) bool {
+	_, ok := err.(*FieldNotFoundError)
 	return ok
 }
 
@@ -86,34 +103,32 @@ type Schema interface {
 // Bundle holds a series of related aspects.
 type Bundle struct {
 	Name    string
-	dataBag DataBag
 	schema  Schema
 	aspects map[string]*Aspect
 }
 
-// NewAspectBundle returns a new aspect bundle for the following aspects
+// NewAspectBundle returns a new aspect bundle for the specified aspects
 // and access patterns.
-func NewAspectBundle(name string, aspects map[string]interface{}, dataBag DataBag, schema Schema) (*Bundle, error) {
+func NewAspectBundle(name string, aspects map[string]interface{}, schema Schema) (*Bundle, error) {
 	if len(aspects) == 0 {
 		return nil, errors.New(`cannot define aspects bundle: no aspects`)
 	}
 
 	aspectBundle := &Bundle{
 		Name:    name,
-		dataBag: dataBag,
 		schema:  schema,
 		aspects: make(map[string]*Aspect, len(aspects)),
 	}
 
 	for name, v := range aspects {
-		aspectPatterns, ok := v.([]map[string]string)
+		accessPatterns, ok := v.([]map[string]string)
 		if !ok {
 			return nil, fmt.Errorf("cannot define aspect %q: access patterns should be a list of maps", name)
-		} else if len(aspectPatterns) == 0 {
+		} else if len(accessPatterns) == 0 {
 			return nil, fmt.Errorf("cannot define aspect %q: no access patterns found", name)
 		}
 
-		aspect, err := newAspect(aspectBundle, name, aspectPatterns)
+		aspect, err := newAspect(aspectBundle, name, accessPatterns)
 		if err != nil {
 			return nil, fmt.Errorf("cannot define aspect %q: %w", name, err)
 		}
@@ -254,7 +269,7 @@ type Aspect struct {
 }
 
 // Set sets the named aspect to a specified value.
-func (a *Aspect) Set(name string, value interface{}) error {
+func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
 	nameSubkeys := strings.Split(name, ".")
 	for _, accessPatt := range a.accessPatterns {
 		placeholders, ok := accessPatt.match(nameSubkeys)
@@ -268,14 +283,14 @@ func (a *Aspect) Set(name string, value interface{}) error {
 		}
 
 		if !accessPatt.isWriteable() {
-			return fmt.Errorf("cannot set %q: path is not writeable", name)
+			return fmt.Errorf("cannot set field %q: path is not writeable", name)
 		}
 
-		if err := a.bundle.dataBag.Set(path, value); err != nil {
+		if err := databag.Set(path, value); err != nil {
 			return err
 		}
 
-		data, err := a.bundle.dataBag.Data()
+		data, err := databag.Data()
 		if err != nil {
 			return err
 		}
@@ -283,12 +298,12 @@ func (a *Aspect) Set(name string, value interface{}) error {
 		return a.bundle.schema.Validate(data)
 	}
 
-	return &NotFoundError{fmt.Sprintf("cannot set %q: name not found", name)}
+	return &FieldNotFoundError{fmt.Sprintf("cannot set field %q: not found", name)}
 }
 
 // Get returns the aspect value identified by the name. If either the named aspect
 // or the corresponding value can't be found, a NotFoundError is returned.
-func (a *Aspect) Get(name string, value interface{}) error {
+func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 	subkeys := strings.Split(name, ".")
 	for _, accessPatt := range a.accessPatterns {
 		placeholders, ok := accessPatt.match(subkeys)
@@ -302,12 +317,12 @@ func (a *Aspect) Get(name string, value interface{}) error {
 		}
 
 		if !accessPatt.isReadable() {
-			return fmt.Errorf("cannot get %q: path is not readable", name)
+			return fmt.Errorf("cannot get field %q: path is not readable", name)
 		}
 
-		if err := a.bundle.dataBag.Get(path, value); err != nil {
-			if errors.Is(err, &NotFoundError{}) {
-				return &NotFoundError{fmt.Sprintf("cannot get %q: %v", name, err)}
+		if err := databag.Get(path, value); err != nil {
+			if errors.Is(err, &FieldNotFoundError{}) {
+				return &FieldNotFoundError{fmt.Sprintf("cannot get field %q: %v", name, err)}
 			}
 
 			return err
@@ -315,20 +330,20 @@ func (a *Aspect) Get(name string, value interface{}) error {
 		return nil
 	}
 
-	return &NotFoundError{fmt.Sprintf("cannot get %q: name not found", name)}
+	return &FieldNotFoundError{fmt.Sprintf("cannot get field %q: not found", name)}
 }
 
 func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 	accType, err := newAccessType(accesstype)
 	if err != nil {
-		return nil, fmt.Errorf("cannot  aspect pattern: %w", err)
+		return nil, fmt.Errorf("cannot create aspect pattern: %w", err)
 	}
 
 	nameSubkeys := strings.Split(name, ".")
 	nameMatchers := make([]nameMatcher, 0, len(nameSubkeys))
 	for _, subkey := range nameSubkeys {
 		var patt nameMatcher
-		if subkey[0] == '{' && subkey[len(subkey)-1] == '}' {
+		if isPlaceholder(subkey) {
 			patt = placeholder(subkey[1 : len(subkey)-1])
 		} else {
 			patt = literal(subkey)
@@ -341,7 +356,7 @@ func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 	pathWriters := make([]pathWriter, 0, len(pathSubkeys))
 	for _, subkey := range pathSubkeys {
 		var patt pathWriter
-		if subkey[0] == '{' && subkey[len(subkey)-1] == '}' {
+		if isPlaceholder(subkey) {
 			patt = placeholder(subkey[1 : len(subkey)-1])
 		} else {
 			patt = literal(subkey)
@@ -355,6 +370,10 @@ func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 		path:   pathWriters,
 		access: accType,
 	}, nil
+}
+
+func isPlaceholder(part string) bool {
+	return part[0] == '{' && part[len(part)-1] == '}'
 }
 
 // accessPattern represents an individual aspect access pattern. It can be used
@@ -487,7 +506,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 	rawLevel, ok := node[key]
 	if !ok {
 		pathPrefix := strings.Join(subKeys[:index+1], ".")
-		return &NotFoundError{fmt.Sprintf("value of key path %q not found", pathPrefix)}
+		return &FieldNotFoundError{fmt.Sprintf("no value was found under %q", pathPrefix)}
 	}
 
 	// read the final value
@@ -504,7 +523,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 	// decode the next map level
 	var level map[string]json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
-		// TODO see TODO in NewAspectBundle
+		// TODO: see TODO in newAspect()
 		if uErr, ok := err.(*json.UnmarshalTypeError); ok {
 			pathPrefix := strings.Join(subKeys[:index+1], ".")
 			return fmt.Errorf("cannot read path prefix %q: prefix maps to %s", pathPrefix, uErr.Value)
@@ -620,12 +639,12 @@ func (s JSONDataBag) Data() ([]byte, error) {
 type JSONSchema struct{}
 
 // NewJSONSchema returns a Schema able to validate a JSONDataBag's data.
-func NewJSONSchema() *JSONSchema {
-	return &JSONSchema{}
+func NewJSONSchema() JSONSchema {
+	return JSONSchema{}
 }
 
 // Validate validates that the specified data can be encoded into JSON.
-func (s *JSONSchema) Validate(jsonData []byte) error {
+func (s JSONSchema) Validate(jsonData []byte) error {
 	// the top-level is always an object
 	var data map[string]json.RawMessage
 	return json.Unmarshal(jsonData, &data)

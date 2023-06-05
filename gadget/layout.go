@@ -58,8 +58,6 @@ const NonMBRStartOffset = 1 * quantity.OffsetMiB
 // structures within it
 type LaidOutVolume struct {
 	*Volume
-	// Size is the total size of the volume
-	Size quantity.Size
 	// LaidOutStructure is a list of structures within the volume, sorted
 	// by their start offsets
 	LaidOutStructure []LaidOutStructure
@@ -280,12 +278,7 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		return nil, err
 	}
 
-	farthestEnd := quantity.Offset(0)
-	for idx, ps := range structures {
-		if end := ps.StartOffset + quantity.Offset(ps.VolumeStructure.Size); end > farthestEnd {
-			farthestEnd = end
-		}
-
+	for idx := range structures {
 		// Set appropriately label and type details
 		// TODO: set this in layoutVolumeStructures in the future.
 		setOnDiskLabelAndTypeInLaidOuts(structures, opts.EncType)
@@ -314,7 +307,6 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 
 	vol := &LaidOutVolume{
 		Volume:           volume,
-		Size:             quantity.Size(farthestEnd),
 		LaidOutStructure: structures,
 	}
 	return vol, nil
