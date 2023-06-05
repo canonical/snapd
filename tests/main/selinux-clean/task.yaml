@@ -14,11 +14,8 @@ environment:
     SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB"/pkgdb.sh
-
     # Install some fonts so that the fc-cache helpers have something to work with
-    distro_install_package fontconfig dejavu-sans-fonts
+    tests.pkgs install fontconfig dejavu-sans-fonts
 
     getenforce > enforcing.mode
 
