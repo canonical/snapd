@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -282,7 +283,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	// Insert encryption data when enabled
 	if opts.encrypted {
 		// Mock TPM and sealing
-		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		restore := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
 			c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
 			return nil
 		})
@@ -432,7 +433,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 
 	// Simulate system with TPM
 	if hasTPM {
-		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		restore := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
 			c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
 			return nil
 		})

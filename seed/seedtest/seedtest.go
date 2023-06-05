@@ -273,6 +273,9 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.StoreSigning.Find)
 	}
+	retrieveSeq := func(seq *asserts.AtSequence) (asserts.Assertion, error) {
+		return seq.Resolve(s.StoreSigning.Find)
+	}
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
 		save2 := func(a asserts.Assertion) error {
 			// for checking
@@ -285,7 +288,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 			}
 			return save(a)
 		}
-		return asserts.NewFetcher(db, retrieve, save2)
+		return asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, save2)
 	}
 	sf := seedwriter.MakeSeedAssertionFetcher(newFetcher)
 

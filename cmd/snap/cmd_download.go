@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -58,7 +58,7 @@ func init() {
 		return &cmdDownload{}
 	}, channelDescs.also(map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"revision": i18n.G("Download the given revision of a snap, to which you must have developer access"),
+		"revision": i18n.G("Download the given revision of a snap"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"cohort": i18n.G("Download from the given cohort"),
 		// TRANSLATORS: This should not start with a lowercase letter.

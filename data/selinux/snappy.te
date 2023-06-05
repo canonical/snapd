@@ -503,6 +503,15 @@ userdom_delete_user_tmp_files(snappy_mount_t)
 files_manage_generic_tmp_dirs(snappy_mount_t)
 files_manage_generic_tmp_files(snappy_mount_t)
 
+# Allow snap-{update,discard}-ns to manipulate /etc/
+allow snappy_mount_t etc_t:dir { mounton write rmdir remove_name };
+
+# Allow snap-{update,discard}-ns to mount /boot/
+gen_require(`
+	type boot_t;
+')
+allow snappy_mount_t boot_t:dir { mounton };
+
 # Allow snap-{update,discard}-ns to manage mounts
 gen_require(`
 	type fs_t;
@@ -553,6 +562,9 @@ allow snappy_mount_t lib_t:dir mounton;
 # when supporting interfaces such as appstream-metadata, snap-update-ns will
 # mount things labeled usr_t from the host
 allow snappy_mount_t usr_t:dir mounton;
+
+# allow mounting on top of /var/lib
+allow snappy_mount_t var_lib_t:dir mounton;
 
 # mount and unmount on top of snaps
 allow snappy_mount_t snappy_snap_t:dir mounton;

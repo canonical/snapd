@@ -4808,6 +4808,10 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run install hook of "%s" snap if present`, name))
 	i++
+	if flags&noConfigure == 0 {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run default-configure hook of "%s" snap if present`, name))
+		i++
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Start snap "%s" (%s) services`, name, revno))
 	i++
 	if flags&noConfigure == 0 {
@@ -6547,7 +6551,7 @@ volumes:
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*cannot remodel to an incompatible gadget: .*cannot change structure size.*`)
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*cannot remodel to an incompatible gadget: .*new valid structure size range.*is not compatible with current.*`)
 }
 
 func (s *mgrsSuiteCore) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {

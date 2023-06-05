@@ -134,7 +134,7 @@ func (m *RestartManager) StartUp() error {
 	s.Lock()
 	defer s.Unlock()
 
-	// mark as done tasks that were waiting for an external reboot
+	// update task statuses for tasks that are in WaitStatus
 	for _, chg := range s.Changes() {
 		if chg.IsReady() {
 			continue
@@ -162,15 +162,15 @@ func (m *RestartManager) StartUp() error {
 				continue
 			}
 
-			logger.Debugf("system restart happened, mark as done task %q for change %s", t.Summary(), chg.ID())
-			t.SetStatus(state.DoneStatus)
+			waitStatus := t.WaitedStatus()
+			logger.Debugf("system restart happened, marking task %q as %s for change %s", t.Summary(), waitStatus, chg.ID())
+			t.SetStatus(waitStatus)
 			t.Set("wait-for-system-restart-from-boot-id", nil)
 		}
 		if !stillSetToWait {
 			chg.Set("wait-for-system-restart", nil)
 		}
 	}
-
 	return nil
 }
 
@@ -325,9 +325,8 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType
 				// later if we have rebooted or not
 				task.Set("wait-for-system-restart-from-boot-id", rm.bootID)
 				setWaitForSystemRestart(task.Change())
-				task.SetStatus(state.WaitStatus)
 				task.Logf("Task set to wait until a manual system restart allows to continue")
-				return &state.Wait{Reason: "waiting for manual system restart"}
+				return &state.Wait{Reason: "waiting for manual system restart", WaitedStatus: state.DoneStatus}
 			} else {
 				task.SetStatus(status)
 				task.Logf("Skipped automatic system restart on classic system when undoing changes back to previous state")

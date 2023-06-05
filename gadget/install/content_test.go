@@ -92,8 +92,8 @@ func mockOnDiskStructureSystemSeed(gadgetRoot string) *gadget.LaidOutStructure {
 					Target:           "EFI/boot/grubx64.efi",
 				},
 			},
+			YamlIndex: 1000, // to demonstrate we do not use the laid out index
 		},
-		YamlIndex: 1000, // to demonstrate we do not use the laid out index
 		ResolvedContent: []gadget.ResolvedContent{
 			{
 				VolumeContent: &gadget.VolumeContent{

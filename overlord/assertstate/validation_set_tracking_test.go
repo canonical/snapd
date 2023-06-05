@@ -26,11 +26,13 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type validationSetTrackingSuite struct {
+	testutil.BaseTest
 	st          *state.State
 	dev1Signing *assertstest.SigningDB
 	dev1acct    *asserts.Account
@@ -134,10 +136,33 @@ func (s *validationSetTrackingSuite) TestUpdate(c *C) {
 	c.Check(gotSecond, Equals, true)
 }
 
+func (s *validationSetTrackingSuite) mockModel() {
+	a := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"store":        "my-brand-store",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: a.(*asserts.Model),
+	}
+	s.AddCleanup(snapstatetest.MockDeviceContext(deviceCtx))
+	s.st.Set("seeded", true)
+}
+
 // there is a more extensive test for forget in assertstate_test.go.
 func (s *validationSetTrackingSuite) TestForget(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	// mock a minimal model to get past the check against validation
+	// sets specified in the model
+	s.mockModel()
 
 	// delete non-existing one is fine
 	assertstate.ForgetValidationSet(s.st, "foo", "bar")

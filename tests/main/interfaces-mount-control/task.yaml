@@ -61,9 +61,19 @@ execute: |
         fi
         "${SNAP_NAME}".cmd test "!" -e "$MOUNT_DEST1/file1"
 
+        echo "Verify that a mount with the 'nofail' option can be created"
+        "${SNAP_NAME}".cmd mount -o bind,rw,nofail "$MOUNT_SRC" "$MOUNT_DEST1"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST1" /proc/self/mountinfo
+        "${SNAP_NAME}".cmd umount "$MOUNT_DEST1"
+
         echo "Verify that a mount with a specific FS type can be created"
         "${SNAP_NAME}".cmd mkdir -p "$MOUNT_DEST2"
         "${SNAP_NAME}".cmd mount -o rw -t tmpfs none "$MOUNT_DEST2/"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST2.*tmpfs" /proc/self/mountinfo
+        "${SNAP_NAME}".cmd umount "$MOUNT_DEST2/"
+
+        echo "Verify that a mount with fs-specific options can be created"
+        "${SNAP_NAME}".cmd mount -o rw,uid=2000,gid=2000 -t tmpfs none "$MOUNT_DEST2/"
         "${SNAP_NAME}".cmd grep "$MOUNT_DEST2.*tmpfs" /proc/self/mountinfo
         "${SNAP_NAME}".cmd umount "$MOUNT_DEST2/"
 

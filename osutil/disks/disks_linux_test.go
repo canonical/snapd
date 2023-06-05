@@ -29,8 +29,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/testutil"
@@ -771,123 +771,6 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C)
 	c.Assert(d.Dev(), Equals, "42:0")
 	c.Assert(d.HasPartitions(), Equals, true)
 	c.Assert(d.Schema(), Equals, "dos")
-}
-
-func (s *diskSuite) TestDiskFromMountPointIsDecryptedUnlockedDeviceVolumeHappy(c *C) {
-	// for udevadm trigger and udevadm settle which are called on the partitions
-	mockUdevadm := testutil.MockCommand(c, "udevadm", ``)
-	defer mockUdevadm.Restore()
-
-	restore := osutil.MockMountInfo(`130 30 242:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something-device-locked rw
-`)
-	defer restore()
-
-	// un-register the fde handler so we can make sure that the default
-	// handler(s) don't match this device mapper - this name needs to be kept in
-	// sync with what's in kernel/fde/fde.go
-	disks.UnregisterDeviceMapperBackResolver("device-unlock-kernel-fde")
-	defer func() {
-		// this is registered by default in this file since we import the fde
-		// package so make sure it is re-registered at the end
-		disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-fde", fde.DeviceUnlockKernelHookDeviceMapperBackResolver)
-	}()
-
-	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
-		c.Assert(typeOpt, Equals, "--name")
-		switch dev {
-		case "/dev/mapper/something-device-locked":
-			return map[string]string{
-				"DEVTYPE": "disk",
-				"MAJOR":   "242",
-				"MINOR":   "1",
-			}, nil
-		case "/dev/disk/by-partuuid/5a522809-c87e-4dfa-81a8-8dc5667d1304":
-			return map[string]string{
-				"DEVTYPE":            "disk",
-				"ID_PART_ENTRY_DISK": "41:3",
-			}, nil
-		case "/dev/block/41:3":
-			return map[string]string{
-				"DEVTYPE":            "disk",
-				"DEVNAME":            "/dev/sda",
-				"DEVPATH":            "/block/foo",
-				"ID_PART_TABLE_UUID": "foo-foo-foo-foo",
-				"ID_PART_TABLE_TYPE": "gpt",
-			}, nil
-		case "sda1":
-			return map[string]string{
-				"DEVPATH":              "/block/foo/sda1",
-				"DEVNAME":              "/dev/sda1",
-				"ID_PART_ENTRY_UUID":   "foo-foo-foo-foo-1",
-				"ID_PART_ENTRY_TYPE":   "gooooooo",
-				"ID_PART_ENTRY_SIZE":   "500000",
-				"ID_PART_ENTRY_NUMBER": "1",
-				"ID_PART_ENTRY_OFFSET": "2048",
-				"MAJOR":                "41",
-				"MINOR":                "4",
-			}, nil
-		default:
-			c.Errorf("unexpected udev device properties requested: %s", dev)
-			return nil, fmt.Errorf("unexpected udev device: %s", dev)
-		}
-	})
-	defer restore()
-
-	// mock the sysfs dm uuid and name files
-	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "242:1", "dm")
-	err := os.MkdirAll(dmDir, 0755)
-	c.Assert(err, IsNil)
-
-	// name expected by fde
-	b := []byte("something-device-locked")
-	err = ioutil.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
-	c.Assert(err, IsNil)
-
-	b = []byte("5a522809-c87e-4dfa-81a8-8dc5667d1304")
-	err = ioutil.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
-	c.Assert(err, IsNil)
-
-	opts := &disks.Options{IsDecryptedDevice: true}
-
-	// first try without the handler fails
-	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something-device-locked parent device: internal error: no back resolver supports decrypted device mapper with UUID "5a522809-c87e-4dfa-81a8-8dc5667d1304" and name "something-device-locked"`)
-
-	// next try with the FDE package handler works
-	disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-fde", fde.DeviceUnlockKernelHookDeviceMapperBackResolver)
-
-	d, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, IsNil)
-	c.Assert(d.Dev(), Equals, "41:3")
-	c.Assert(d.HasPartitions(), Equals, true)
-
-	// mock a partition
-	partFile := filepath.Join(dirs.SysfsDir, "/block/foo/sda1/partition")
-	err = os.MkdirAll(filepath.Dir(partFile), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(partFile, nil, 0644)
-	c.Assert(err, IsNil)
-
-	parts, err := d.Partitions()
-	c.Assert(err, IsNil)
-	c.Assert(parts, DeepEquals, []disks.Partition{
-		{
-			PartitionType:    "GOOOOOOO",
-			DiskIndex:        1,
-			StartInBytes:     512 * 2048,
-			SizeInBytes:      500000 * 512,
-			PartitionUUID:    "foo-foo-foo-foo-1",
-			Major:            41,
-			Minor:            4,
-			KernelDevicePath: filepath.Join(dirs.SysfsDir, "/block/foo/sda1"),
-			KernelDeviceNode: "/dev/sda1",
-		},
-	})
-
-	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
-		{"udevadm", "trigger", "--name-match=sda1"},
-		{"udevadm", "settle", "--timeout=180"},
-	})
 }
 
 func (s *diskSuite) TestDiskFromMountPointNotDiskUnsupported(c *C) {
@@ -2087,4 +1970,68 @@ func (s *diskSuite) TestPartitionUUID(c *C) {
 	uuid, err = disks.PartitionUUID("/dev/mock-failure")
 	c.Assert(err, ErrorMatches, "cannot process udev properties: mock failure")
 	c.Check(uuid, Equals, "")
+}
+
+func (s *diskSuite) TestFilesystemTypeForPartition(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/vda4":
+			return map[string]string{
+				"ID_FS_TYPE": "vfat",
+			}, nil
+		case "/dev/no-fs":
+			return map[string]string{}, nil
+		case "/dev/mock-failure":
+			return nil, fmt.Errorf("mock failure")
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	fs, err := disks.FilesystemTypeForPartition("/dev/vda4")
+	c.Assert(err, IsNil)
+	c.Check(fs, Equals, "vfat")
+
+	fs, err = disks.FilesystemTypeForPartition("/dev/no-fs")
+	c.Assert(err, IsNil)
+	c.Check(fs, Equals, "")
+
+	fs, err = disks.FilesystemTypeForPartition("/dev/mock-failure")
+	c.Assert(err.Error(), Equals, "mock failure")
+	c.Check(fs, Equals, "")
+}
+
+func (s *diskSuite) TestFindMatchingPartitionWithFsLabel(c *C) {
+	// mock disk
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMappingSeedFsLabelCaps,
+	})
+	defer restore()
+
+	d, err := disks.DiskFromDeviceName("/dev/vda")
+	c.Assert(err, IsNil)
+
+	// seed partition is vfat, capitals are ignored when searching
+	for _, searchLabel := range []string{"ubuntu-seed", "UBUNTU-SEED", "ubuntu-SEED"} {
+		p, err := d.FindMatchingPartitionWithFsLabel(searchLabel)
+		c.Assert(err, IsNil)
+		c.Check(p.KernelDeviceNode, Equals, "/dev/vda1")
+		c.Check(p.FilesystemLabel, Equals, "UBUNTU-SEED")
+	}
+
+	// boot partition is not vfat, case-sensitive search
+	for _, searchLabel := range []string{"ubuntu-boot", "UBUNTU-BOOT", "ubuntu-BOOT"} {
+		p, err := d.FindMatchingPartitionWithFsLabel(searchLabel)
+		if searchLabel == "ubuntu-boot" {
+			c.Assert(err, IsNil)
+			c.Check(p.KernelDeviceNode, Equals, "/dev/vda2")
+			c.Check(p.FilesystemLabel, Equals, "ubuntu-boot")
+		} else {
+			c.Assert(err.Error(), Equals, fmt.Sprintf("filesystem label %q not found", searchLabel))
+			c.Check(p, Equals, disks.Partition{})
+		}
+	}
 }

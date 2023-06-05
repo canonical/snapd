@@ -206,6 +206,23 @@ func MockPopulateStateFromSeed(m *DeviceManager, f func(seedLabel, seedMode stri
 	}
 }
 
+func EnsureAutoImportAssertions(m *DeviceManager) error {
+	return m.ensureAutoImportAssertions()
+}
+
+func ReloadEarlyDeviceSeed(m *DeviceManager, seedLoadErr error) (snapstate.DeviceContext, seed.Seed, error) {
+	m.seedChosen = false
+	return m.earlyLoadDeviceSeed(seedLoadErr)
+}
+
+func MockProcessAutoImportAssertion(f func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error) (restore func()) {
+	old := processAutoImportAssertionsImpl
+	processAutoImportAssertionsImpl = f
+	return func() {
+		processAutoImportAssertionsImpl = old
+	}
+}
+
 func EnsureBootOk(m *DeviceManager) error {
 	return m.ensureBootOk()
 }
@@ -284,13 +301,11 @@ var (
 	LogNewSystemSnapFile                   = logNewSystemSnapFile
 	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
-
-	MaybeApplyPreseededData = maybeApplyPreseededData
 )
 
-func MockMaybeApplyPreseededData(f func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (bool, error)) (restore func()) {
-	r := testutil.Backup(&maybeApplyPreseededData)
-	maybeApplyPreseededData = f
+func MockApplyPreseededData(f func(deviceSeed seed.PreseedCapable, writableDir string) error) (restore func()) {
+	r := testutil.Backup(&applyPreseededData)
+	applyPreseededData = f
 	return r
 }
 
@@ -336,14 +351,6 @@ func MockBootEnsureNextBootToRunMode(f func(systemLabel string) error) (restore 
 	}
 }
 
-func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionMode) error) (restore func()) {
-	old := secbootCheckTPMKeySealingSupported
-	secbootCheckTPMKeySealingSupported = f
-	return func() {
-		secbootCheckTPMKeySealingSupported = old
-	}
-}
-
 func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client) (restore func()) {
 	old := httputilNewHTTPClient
 	httputilNewHTTPClient = f
@@ -352,12 +359,10 @@ func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client
 	}
 }
 
-func MockSysconfigConfigureTargetSystem(f func(mod *asserts.Model, opts *sysconfig.Options) error) (restore func()) {
-	old := sysconfigConfigureTargetSystem
-	sysconfigConfigureTargetSystem = f
-	return func() {
-		sysconfigConfigureTargetSystem = old
-	}
+func MockInstallLogicPrepareRunSystemData(f func(mod *asserts.Model, gadgetDir string, _ timings.Measurer) error) (restore func()) {
+	r := testutil.Backup(&installLogicPrepareRunSystemData)
+	installLogicPrepareRunSystemData = f
+	return r
 }
 
 func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
@@ -444,14 +449,6 @@ func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]
 
 func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext, mode secboot.TPMProvisionMode) (secboot.EncryptionType, error) {
 	return mgr.checkEncryption(st, deviceCtx, mode)
-}
-
-func DeviceManagerEncryptionSupportInfo(mgr *DeviceManager, model *asserts.Model, mode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
-	return mgr.encryptionSupportInfo(model, mode, kernelInfo, gadgetInfo)
-}
-
-func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) (secboot.EncryptionType, error) {
-	return mgr.checkFDEFeatures()
 }
 
 func MockTimeutilIsNTPSynchronized(f func() (bool, error)) (restore func()) {

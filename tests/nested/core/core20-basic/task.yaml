@@ -3,7 +3,7 @@ summary: Run a smoke test on UC20 with encryption enabled
 details: |
     This test checks basic snapd commands on UC20 with secure boot and encryption enabled
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-20.04-arm-64]
 
 execute: |
     echo "Wait for the system to be seeded first"
@@ -37,6 +37,10 @@ execute: |
     echo "Ensure that recovery keys are not present in fresh install"
     remote.exec "test ! -f /var/lib/snapd/device/fde/recovery.key"
     remote.exec "test ! -f /var/lib/snapd/device/fde/reinstall.key"
+
+    if os.query is-arm; then
+        exit 0
+    fi
 
     # single key for ubuntu-data and ubuntu-save
     test "$(remote.exec "sudo cryptsetup luksDump /dev/vda4 |grep Key:" | wc -l)" = "1"

@@ -26,7 +26,9 @@ prepare: |
       echo "This test needs test keys to be trusted"
       exit
   fi
+  apt install dosfstools kpartx
   snap install jq
+  snap install yq
   "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
 restore: |
@@ -93,7 +95,7 @@ execute: |
   # we don't need the fakestore anymore
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
-  # build the fake-installer snap
+  # build the muinstaller snap
   snap install snapcraft --candidate --classic
   "$TESTSTOOLS"/lxd-state prepare-snap
   (cd "$TESTSLIB"/muinstaller && snapcraft)
@@ -185,16 +187,18 @@ execute: |
   remote.exec "sudo sync"
 
   # boot into the just installed drive
-  tests.nested vm stop
+  tests.nested vm remove
   sync
 
   # HACK: rename to "core" image because we need to boot with OVMF
   # we really should fix this so that classic and core VMs are more similar
   mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
 
-  # remove cached image
-  # TODO: find a more elegant way
-  rm -f "$NESTED_IMAGES_DIR"/ubuntu-core-current.img
+  # Change seed part label to capitals so we cover that use case
+  IMAGE_PATH="$NESTED_IMAGES_DIR/$IMAGE_NAME"
+  kpartx -asv "$IMAGE_PATH"
+  fatlabel /dev/disk/by-label/ubuntu-seed UBUNTU-SEED
+  kpartx -d "$IMAGE_PATH"
 
   tests.nested create-vm core --tpm-no-restart
   
@@ -245,9 +249,21 @@ execute: |
       local snap_new_dir=$3
 
       printf "Test installing snap from file %s\n" "$snap_name"
-      fakestore make-refreshable --dir "$STORE_DIR" --snap-orig-blob "$snap_orig_blob" --snap-blob "$snap_new_dir" "$snap_name"
+      fakestore make-refreshable --dir "$STORE_DIR" \
+          --snap-orig-blob "$snap_orig_blob" --snap-blob "$snap_new_dir" "$snap_name"
+      remote.exec mkdir -p asserts/
+      # Order of assertion acking is important
+      for p in "$STORE_DIR"/asserts/*.account-key "$STORE_DIR"/asserts/*.snap-declaration "$STORE_DIR"/asserts/*.snap-revision; do
+          remote.push "$p" asserts/
+          remote.exec sudo snap ack asserts/"$(basename "$p")"
+      done
+      remote.push "$STORE_DIR"/"$snap_name"_*.snap
+
       boot_id=$(tests.nested boot-id)
-      REMOTE_CHG_ID=$(remote.exec sudo snap refresh --amend --no-wait --channel="$version/edge" "$snap_name")
+      # TODO as in the end we had to do install instead of refreshing from the
+      # fakestore (due to issues connecting from the nested VM), we might want
+      # to not use it at all.
+      REMOTE_CHG_ID=$(remote.exec "sudo snap install --no-wait ${snap_name}_*.snap")
       # Wait until we stall in the connection of interface as we wait for a reboot
       retry --wait 1 -n 120 sh -c "remote.exec \"snap change $REMOTE_CHG_ID | grep -E 'Task set to wait until a manual system restart'\""
 
@@ -272,11 +288,22 @@ execute: |
   export NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="$SNAPPY_FORCE_SAS_URL"
 
   # nested vm needs to restart for fake-store
-  nested_shutdown
+  tests.nested vm stop
   tests.nested create-vm core --tpm-no-restart
 
   # test gadget/kernel refresh
+
+  # Make sure there is a change in assets to update
+  sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-gadget/grubx64.efi
+  # Bump edition of ubuntu-{seed,boot} content to get grub updated in both partitions
+  yq -i '(.volumes.pc.structure | with_entries(select(.value.role == "system-seed-null")) | .[].update.edition) |= . + 1' pc-gadget/meta/gadget.yaml
+  yq -i '(.volumes.pc.structure | with_entries(select(.value.role == "system-boot")) | .[].update.edition) |= . + 1' pc-gadget/meta/gadget.yaml
+  nested_secboot_sign_file pc-gadget/grubx64.efi "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   refresh_rebooting_snap pc pc.snap.orig ./pc-gadget
+
+  # Make sure we installed the new grub
+  remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi'
+  remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi'
 
   unsquashfs -d pc-kernel pc-kernel.snap
   refresh_rebooting_snap pc-kernel pc-kernel.snap.orig ./pc-kernel

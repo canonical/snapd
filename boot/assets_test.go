@@ -660,7 +660,15 @@ func (s *assetsSuite) TestUpdateObserverNew(c *C) {
 	c.Assert(nonUC20obs, IsNil)
 }
 
-func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
+func (s *assetsSuite) TestUpdateObserverUpdateMockedWithResealSeed(c *C) {
+	s.testUpdateObserverUpdateMockedWithReseal(c, gadget.SystemSeed)
+}
+
+func (s *assetsSuite) TestUpdateObserverUpdateMockedWithResealSeedNull(c *C) {
+	s.testUpdateObserverUpdateMockedWithReseal(c, gadget.SystemSeedNull)
+}
+
+func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole string) {
 	// observe an update where some of the assets exist and some are new,
 	// followed by reseal
 
@@ -724,11 +732,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, seedRole, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, seedRole, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content
@@ -736,7 +744,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 		})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "nested/other-asset",
+	res, err = obs.Observe(gadget.ContentUpdate, seedRole, root, "nested/other-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -761,7 +769,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 	})
 
 	// verify that managed assets are to be preserved
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "managed-asset",
+	res, err = obs.Observe(gadget.ContentUpdate, seedRole, root, "managed-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeIgnore)

@@ -46,6 +46,23 @@ type Options struct {
 	// TestSkipCopyUnverifiedModel is set to support naive tests
 	// using an unverified model, the resulting image is broken
 	TestSkipCopyUnverifiedModel bool
+
+	// Manifest is used to track snaps and validation sets that have
+	// been seeded. It can be pre-provided to provide specific revisions
+	// and validation-set sequences.
+	Manifest *Manifest
+	// ManifestPath if set, specifies the file path where the
+	// seed.manifest file should be written.
+	ManifestPath string
+}
+
+// manifest returns either the manifest already provided by the
+// options, or if not provided, returns a newly initialized manifest.
+func (opts *Options) manifest() *Manifest {
+	if opts.Manifest == nil {
+		return NewManifest()
+	}
+	return opts.Manifest
 }
 
 // OptionsSnap represents an options-referred snap with its option values.
@@ -199,6 +216,11 @@ type Writer struct {
 	systemSnap                      *SeedSnap
 	kernelSnap                      *SeedSnap
 	noKernelSnap                    bool
+	// manifest is the manifest of the seed used to track
+	// seeded snaps and validation-sets. It may either be
+	// initialized from the one provided in options, or it
+	// may be initialized to a new copy.
+	manifest *Manifest
 }
 
 type policy interface {
@@ -252,6 +274,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 
 		byNameOptSnaps:  naming.NewSnapSet(nil),
 		byRefLocalSnaps: naming.NewSnapSet(nil),
+		manifest:        opts.manifest(),
 	}
 
 	var treeImpl tree
@@ -443,10 +466,65 @@ func IsSytemDirectoryExistsError(err error) bool {
 	return ok
 }
 
+func (w *Writer) validationSetFromManifest(vsm *asserts.ModelValidationSet) *ManifestValidationSet {
+	for _, vs := range w.manifest.AllowedValidationSets() {
+		if vs.AccountID == vsm.AccountID && vs.Name == vsm.Name {
+			return vs
+		}
+	}
+	return nil
+}
+
+// finalValidationSetAtSequence returns the final AtSequence for an
+// validation set. If any restrictions have been set in the manifest
+// then we must use the sequence and pinning status from that instead
+// of whats set in the model.
+func (w *Writer) finalValidationSetAtSequence(vsm *asserts.ModelValidationSet) (*asserts.AtSequence, error) {
+	atSeq := vsm.AtSequence()
+
+	// Check the manifest for a matching entry, to handle any restrictions that
+	// might have been setup.
+	vs := w.validationSetFromManifest(vsm)
+	if vs == nil {
+		return atSeq, nil
+	}
+
+	// If the model has the validation-set pinned, this can't be
+	// changed by the manifest.
+	if vsm.Sequence > 0 && vs.Sequence != vsm.Sequence {
+		// It's pinned by the model, then the sequence must match
+		return nil, fmt.Errorf("cannot use sequence %d of %q: model requires sequence %d",
+			vs.Sequence, vs.Unique(), vsm.Sequence)
+	}
+
+	// If the model does not have a sequence set, then we don't allow
+	// pinning through the manifest.
+	if vsm.Sequence <= 0 && vs.Pinned {
+		return nil, fmt.Errorf("pinning of %q is not allowed by the model", vs.Unique())
+	}
+
+	atSeq.Sequence = vs.Sequence
+	return atSeq, nil
+}
+
+func (w *Writer) fetchValidationSets(f SeedAssertionFetcher) error {
+	for _, vs := range w.model.ValidationSets() {
+		atSeq, err := w.finalValidationSetAtSequence(vs)
+		if err != nil {
+			return err
+		}
+		if err := f.FetchSequence(atSeq); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Start starts the seed writing, and fetches the necessary model assertions using
-// the provided SeedAssertionFetcher (See MakeSeedAssertionFetcher). The seed-writer
-// assumes that the snap assertions will end up in the given db (writing assertion
-// database). When the system seed directory is already present,
+// the provided SeedAssertionFetcher (See MakeSeedAssertionFetcher). The provided
+// fetcher must support the FetchSequence in case the model refers to any validation
+// sets. The seed-writer assumes that the snap assertions will end up in the given db
+// (writing assertions database). When the system seed directory is already present,
 // SystemAlreadyExistsError is returned.
 func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 	if err := w.checkStep(startStep); err != nil {
@@ -479,6 +557,11 @@ func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 				return err
 			}
 		}
+	}
+
+	// fetch model validation sets if any
+	if err := w.fetchValidationSets(f); err != nil {
+		return err
 	}
 
 	w.modelRefs = f.Refs()
@@ -614,6 +697,11 @@ func (w *Writer) SetRedirectChannel(sn *SeedSnap, redirectChannel string) error 
 	sn.Channel = redirectChannel
 	return nil
 
+}
+
+// Manifest returns the manifest for the current seed.
+func (w *Writer) Manifest() *Manifest {
+	return w.manifest
 }
 
 // snapsToDownloadSet indicates which set of snaps SnapsToDownload should compute
@@ -1186,6 +1274,97 @@ func (w *Writer) Warnings() []string {
 	return w.warnings
 }
 
+func (w *Writer) resolveValidationSetAssertion(seq *asserts.AtSequence) (asserts.Assertion, error) {
+	if seq.Sequence <= 0 {
+		hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
+		if err != nil {
+			return nil, err
+		}
+		return w.db.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
+	}
+	return seq.Resolve(w.db.Find)
+}
+
+func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.ValidationSet, error) {
+	vsAsserts := make(map[*asserts.AtSequence]*asserts.ValidationSet)
+	vss := w.model.ValidationSets()
+	for _, vs := range vss {
+		atSeq, err := w.finalValidationSetAtSequence(vs)
+		if err != nil {
+			return nil, fmt.Errorf("internal error: %v", err)
+		}
+		a, err := w.resolveValidationSetAssertion(atSeq)
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot resolve validation-set: %v", err)
+		}
+		vsAsserts[atSeq] = a.(*asserts.ValidationSet)
+	}
+	return vsAsserts, nil
+}
+
+func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
+	vss, err := w.validationSetAsserts()
+	if err != nil {
+		return nil, err
+	}
+
+	valsets := snapasserts.NewValidationSets()
+	for _, vs := range vss {
+		valsets.Add(vs)
+	}
+	return valsets, nil
+}
+
+func (w *Writer) installedSnaps() []*snapasserts.InstalledSnap {
+	installedSnap := func(snap *SeedSnap) *snapasserts.InstalledSnap {
+		return snapasserts.NewInstalledSnap(snap.SnapName(), snap.ID(), snap.Info.Revision)
+	}
+
+	var installedSnaps []*snapasserts.InstalledSnap
+	for _, sn := range w.snapsFromModel {
+		installedSnaps = append(installedSnaps, installedSnap(sn))
+	}
+	for _, sn := range w.extraSnaps {
+		installedSnaps = append(installedSnaps, installedSnap(sn))
+	}
+	return installedSnaps
+}
+
+func (w *Writer) checkStepCompleted(step writerStep) bool {
+	// expectedStep is the next step it needs to perform. If that
+	// is higher (as they are int based values), then the step we
+	// are checking against has completed.
+	return w.expectedStep > step
+}
+
+// CheckValidationSets validates all snaps that are to be seeded against any
+// specified validation set. Info for all seed snaps must have been derived prior
+// to this call.
+func (w *Writer) CheckValidationSets() error {
+	// It makes no sense to check validation-sets before all required snaps
+	// have been resolved and downloaded. Ensure that this is not called before
+	// the Downloaded step has completed.
+	if !w.checkStepCompleted(downloadedStep) {
+		return fmt.Errorf("internal error: seedwriter.Writer cannot check validation-sets before Downloaded signaled complete")
+	}
+
+	valsets, err := w.validationSets()
+	if err != nil {
+		return err
+	}
+
+	// Check for validation set conflicts first, then we check all
+	// the seeded snaps against them
+	if err := valsets.Conflict(); err != nil {
+		return err
+	}
+
+	// Make one aggregated list of snaps we are seeding, then check that
+	// against the validation sets
+	installedSnaps := w.installedSnaps()
+	return valsets.CheckInstalledSnaps(installedSnaps, nil)
+}
+
 // SeedSnaps checks seed snaps and copies local snaps into the seed using copySnap.
 func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 	if err := w.checkStep(seedSnapsStep); err != nil {
@@ -1225,6 +1404,11 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 				// record final destination path
 				sn.Path = dst
 			}
+			if !info.Revision.Unset() {
+				if err := w.manifest.MarkSnapRevisionSeeded(sn.Info.SnapName(), sn.Info.Revision); err != nil {
+					return fmt.Errorf("cannot record snap for manifest: %s", err)
+				}
+			}
 		}
 		return nil
 	}
@@ -1239,10 +1423,34 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 	return nil
 }
 
+func (w *Writer) markValidationSetsSeeded() error {
+	vsm, err := w.validationSetAsserts()
+	if err != nil {
+		return err
+	}
+	for seq, vs := range vsm {
+		if err := w.manifest.MarkValidationSetSeeded(vs, seq.Pinned); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // WriteMeta writes seed metadata and assertions into the seed.
 func (w *Writer) WriteMeta() error {
 	if err := w.checkStep(writeMetaStep); err != nil {
 		return err
+	}
+
+	if w.opts.ManifestPath != "" {
+		// Mark validation sets seeded in the manifest if the options
+		// are set to produce a manifest.
+		if err := w.markValidationSetsSeeded(); err != nil {
+			return err
+		}
+		if err := w.manifest.Write(w.opts.ManifestPath); err != nil {
+			return err
+		}
 	}
 
 	snapsFromModel := w.snapsFromModel
@@ -1258,7 +1466,7 @@ func (w *Writer) WriteMeta() error {
 // query accessors
 
 func (w *Writer) checkSnapsAccessor() error {
-	if w.expectedStep < seedSnapsStep {
+	if !w.checkStepCompleted(downloadedStep) {
 		return fmt.Errorf("internal error: seedwriter.Writer cannot query seed snaps before Downloaded signaled complete")
 	}
 	return nil
