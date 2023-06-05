@@ -10,6 +10,9 @@ environment:
     TSNAP: account-control-consumer
 
 prepare: |
+    # capture apparmor denials before
+    dmesg | grep DENIED > denied.before || true
+
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
 
@@ -44,3 +47,10 @@ execute: |
 
     # User deletion is unsupported yet on Core: https://bugs.launchpad.net/ubuntu/+source/shadow/+bug/1659534
     # snap run "${TSNAP}${SUFFIX}".userdel --extrausers alice
+
+    # ensure no new deials appeared
+    dmesg |grep DENIED > denied.after
+    if ! diff -u denied.before denied.after; then
+        echo "error new apparmor denials after running the test"
+        exit 1
+    fi
