@@ -27,16 +27,30 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+// UnsupportedOpError denotes an error that the request operation is unsupported.
+type UnsupportedOpError struct {
+	Message string
+}
+
+func (e *UnsupportedOpError) Error() string {
+	return e.Message
+}
+
+func (e *UnsupportedOpError) Is(err error) bool {
+	_, ok := err.(*UnsupportedOpError)
+	return ok
+}
+
 // BaseHijacker implements the aspects.DataBag so derivations of it can implement
 // only the methods that are intended for usage.
 type BaseHijacker struct{}
 
 func (BaseHijacker) Get(string, interface{}) error {
-	return errors.New("Get() method is not implemented")
+	return &UnsupportedOpError{Message: "cannot get aspect: unsupported operation"}
 }
 
 func (BaseHijacker) Set(string, interface{}) error {
-	return errors.New("Set() method is not implemented")
+	return &UnsupportedOpError{Message: "cannot set aspect: unsupported operation"}
 }
 
 func (BaseHijacker) Data() ([]byte, error) {

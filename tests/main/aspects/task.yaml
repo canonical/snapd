@@ -8,6 +8,9 @@ prepare: |
   snap alias test-snapd-curl.curl curl
   snap install --edge jq
 
+debug: |
+    cat response.txt || true
+
 execute: |
   # write a value
   curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -X POST -d '{"account": "system", "bundle": "network", "aspect": "wifi-setup", "field": "ssid", "value": "canonical"}' > response.txt
@@ -72,3 +75,24 @@ execute: |
   curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -X GET -d '{"account": "system", "bundle": "network", "aspect": "wifi-setup", "field": "password"}' > response.txt
   jq -r '."status-code"' < response.txt | MATCH 403
   jq -r '.result.message' < response.txt | MATCH 'cannot read field "password": only supports write access'
+
+  # check get is hijacked and runs sysctl to get a value
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -X GET -d '{"account": "system", "bundle": "sysctl", "aspect": "sysctl", "field": "user\\.max_inotify_watches"}' > response.txt
+  jq -r '."status-code"' < response.txt | MATCH 200
+  jq -r '.result' < response.txt | MATCH '^[0-9]+$'
+
+  # check get with "all" is hijacked and runs 'sysctl -a'
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -X GET -d '{"account": "system", "bundle": "sysctl", "aspect": "sysctl", "field": "all"}' > response.txt
+  jq -r '."status-code"' < response.txt | MATCH 200
+  SYSCTL_LINES=$(jq -r '.result' < response.txt |  sed 's/\\n/\n/g' | wc -l)
+  # the threshold of 5 is arbitrary; we want to know there are many lines but if
+  # we use 1 this could pass even when the result is an error message
+  if [ "$SYSCTL_LINES" -le "5" ]; then
+    echo "expected get of aspect \"sysctl\" with field \"all\" to return many lines but got $SYSCTL_LINES"
+    exit 1
+  fi
+
+  # check set operations are rejected for sysctl hijacks
+  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects -X POST -d '{"account": "system", "bundle": "sysctl", "aspect": "sysctl", "field": "user\\.max_inotify_watches", "value": "foo"}' > response.txt
+  jq -r '."status-code"' < response.txt | MATCH 400
+  jq -r '.result.message' < response.txt | MATCH 'cannot set aspect: unsupported operation'

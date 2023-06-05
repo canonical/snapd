@@ -25,6 +25,7 @@ import (
 	"net/http"
 
 	"github.com/snapcore/snapd/aspects"
+	"github.com/snapcore/snapd/overlord/aspectstate"
 	"github.com/snapcore/snapd/overlord/auth"
 )
 
@@ -76,15 +77,7 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 	var value interface{}
 	err := aspectstateGet(c.d.state, req.Account, req.BundleName, req.Aspect, req.Field, &value)
 	if err != nil {
-		if aspects.IsNotFoundErr(err) {
-			return NotFound(err.Error())
-		} else if errors.Is(err, &aspects.InvalidAccessError{}) {
-			return &apiError{
-				Status:  403,
-				Message: err.Error(),
-			}
-		}
-		return InternalError(err.Error())
+		return toAPIError(err)
 	}
 
 	return SyncResponse(value)
@@ -103,16 +96,27 @@ func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	err := aspectstateSet(c.d.state, req.Account, req.BundleName, req.Aspect, req.Field, req.Value)
 	if err != nil {
-		if aspects.IsNotFoundErr(err) {
-			return NotFound(err.Error())
-		} else if errors.Is(err, &aspects.InvalidAccessError{}) {
-			return &apiError{
-				Status:  403,
-				Message: err.Error(),
-			}
-		}
-		return InternalError(err.Error())
+		return toAPIError(err)
 	}
 
 	return SyncResponse(nil)
+}
+
+func toAPIError(err error) *apiError {
+	switch {
+	case aspects.IsNotFoundErr(err):
+		return NotFound(err.Error())
+
+	case errors.Is(err, &aspects.InvalidAccessError{}):
+		return &apiError{
+			Status:  403,
+			Message: err.Error(),
+		}
+
+	case errors.Is(err, &aspectstate.UnsupportedOpError{}):
+		return BadRequest(err.Error())
+
+	default:
+		return InternalError(err.Error())
+	}
 }

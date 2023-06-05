@@ -58,7 +58,9 @@ var GetAspectAssertion = func(account, bundle string) (map[string]interface{}, e
 		return map[string]interface{}{
 			"sysctl": []map[string]string{
 				{"name": "all", "path": "all", "access": "read"},
-				{"name": "{placeholder}", "path": "{placeholder}", "access": "read"},
+				// only makes sense as read-only access but leave it as read-write so we
+				// can test that the hijacker fails for unsupported ops
+				{"name": "{placeholder}", "path": "{placeholder}"},
 			},
 		}, nil
 	}

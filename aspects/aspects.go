@@ -300,7 +300,7 @@ type Aspect struct {
 
 // Set sets the named aspect to a specified value.
 func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
-	nameSubkeys := strings.Split(name, ".")
+	nameSubkeys := splitOnUnescapedDots(name)
 	for _, accessPatt := range a.accessPatterns {
 		placeholders, ok := accessPatt.match(nameSubkeys)
 		if !ok {
@@ -334,7 +334,7 @@ func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
 // Get returns the aspect value identified by the name. If either the named aspect
 // or the corresponding value can't be found, a NotFoundError is returned.
 func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
-	subkeys := strings.Split(name, ".")
+	subkeys := splitOnUnescapedDots(name)
 	for _, accessPatt := range a.accessPatterns {
 		placeholders, ok := accessPatt.match(subkeys)
 		if !ok {
@@ -361,6 +361,43 @@ func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 	}
 
 	return &FieldNotFoundError{fmt.Sprintf("cannot get field %q: not found", name)}
+}
+
+// splitOnUnescapedDots splits the string on dots '.' unless they're preceded
+// by a backwards slash '\.'
+func splitOnUnescapedDots(str string) []string {
+	var parts []string
+	var lastBoundary int
+	var lastChar rune
+	var ignoreChars []int
+
+	writePart := func(upTo int) {
+		var sb strings.Builder
+		for _, ignoreChar := range ignoreChars {
+			sb.WriteString(str[lastBoundary:ignoreChar])
+			lastBoundary = ignoreChar + 1
+		}
+		sb.WriteString(str[lastBoundary:upTo])
+
+		parts = append(parts, sb.String())
+	}
+
+	for i, char := range str {
+		if char == '.' && (i > 0 && lastChar != '\\') {
+			writePart(i)
+			// don't save the dot
+			lastBoundary = i + 1
+			ignoreChars = nil
+		} else if char == '\\' {
+			// remove the dot escape
+			ignoreChars = append(ignoreChars, i)
+		}
+
+		lastChar = char
+	}
+
+	writePart(len(str))
+	return parts
 }
 
 func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {

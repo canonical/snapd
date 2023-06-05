@@ -65,5 +65,6 @@ c.d
 func (s *sysctlHijackerTestSuite) TestSysctlHijackSet(c *C) {
 	hj := aspectstate.SysctlHijacker{}
 	err := hj.Set("foo", "bar")
-	c.Assert(err, ErrorMatches, `Set\(\) method is not implemented`)
+	c.Assert(err, testutil.ErrorIs, &aspectstate.UnsupportedOpError{})
+	c.Assert(err, ErrorMatches, `cannot set aspect: unsupported operation`)
 }
