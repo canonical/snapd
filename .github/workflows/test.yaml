@@ -339,15 +339,6 @@ jobs:
         name: coverage-files
         path: .coverage/
 
-    - name: Merge coverage results
-      run: |
-        echo "List the coverage files downloaded"
-        ls -l .coverage/
-
-        echo "Install covertool and merge the results"
-        go install github.com/makholm/covertool@latest
-        covertool merge -o .coverage/all.cov .coverage/coverage*.cov
-
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       # uploading to codecov occasionally fails, so continue running the test
@@ -357,7 +348,7 @@ jobs:
         fail_ci_if_error: true
         flags: unittests
         name: codecov-umbrella
-        files: .coverage/all.cov
+        files: .coverage/coverage-*.cov
         verbose: true
 
   spread:

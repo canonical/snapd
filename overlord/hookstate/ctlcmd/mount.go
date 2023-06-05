@@ -68,7 +68,8 @@ func matchMountPathAttribute(path string, attribute interface{}, snapInfo *snap.
 
 	expandedPattern := snapInfo.ExpandSnapVariables(pattern)
 
-	pp, err := utils.NewPathPattern(expandedPattern)
+	const allowCommas = true
+	pp, err := utils.NewPathPattern(expandedPattern, allowCommas)
 	return err == nil && pp.Matches(path)
 }
 

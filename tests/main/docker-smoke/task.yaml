@@ -10,6 +10,11 @@ debug: |
   "$TESTSTOOLS"/journal-state get-log -u snap.docker.dockerd
 
 execute: |
+  # ubuntu trusty is not supported anymore
+  if os.query is-trusty; then
+      exit
+  fi
+
   CHANNEL=latest/stable
   if os.query is-pc-i386; then
       # on i386 only the "base: core18" version is available

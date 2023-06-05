@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -76,7 +77,8 @@ func (iface *customDeviceInterface) validateFilePath(path string, attrName strin
 		return fmt.Errorf(`custom-device %q path is not clean: %q`, attrName, path)
 	}
 
-	if _, err := utils.NewPathPattern(path); err != nil {
+	const allowCommas = true
+	if _, err := utils.NewPathPattern(path, allowCommas); err != nil {
 		return fmt.Errorf(`custom-device %q path cannot be used: %v`, attrName, err)
 	}
 
@@ -143,6 +145,33 @@ func (iface *customDeviceInterface) validateUDevValueMap(value interface{}) erro
 	return nil
 }
 
+func (iface *customDeviceInterface) validateUDevDevicesUniqueBasenames(devices []string) error {
+	basenames := make(map[string][]string, len(devices))
+	var duplicateBasenames []string
+	for _, devicePath := range devices {
+		deviceName := filepath.Base(devicePath)
+		if len(basenames[deviceName]) == 1 {
+			duplicateBasenames = append(duplicateBasenames, deviceName)
+		}
+		basenames[deviceName] = append(basenames[deviceName], devicePath)
+	}
+	if len(duplicateBasenames) == 0 {
+		return nil
+	}
+	var duplicatesOutput []string
+	for _, deviceName := range duplicateBasenames {
+		duplicatesOutput = append(duplicatesOutput, fmt.Sprintf(`"%s": ["%s"]`, deviceName, strings.Join(basenames[deviceName], `", "`)))
+	}
+	return fmt.Errorf(`custom-device specified devices have duplicate basenames: {%s}`, strings.Join(duplicatesOutput, ", "))
+}
+
+func (iface *customDeviceInterface) validateKernelDeviceNameIsBasename(deviceName string) error {
+	if deviceName != filepath.Base(deviceName) {
+		return fmt.Errorf(`kernel device name "%s" must be a basename`, deviceName)
+	}
+	return nil
+}
+
 func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]interface{}, devices []string) error {
 	hasKernelTag := false
 	for key, value := range rule {
@@ -153,13 +182,25 @@ func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]inte
 		case "kernel":
 			hasKernelTag = true
 			err = iface.validateUDevValue(value)
-			if err == nil {
-				deviceName := value.(string)
-				// furthermore, the kernel name must match the name of one of
-				// the given devices
-				if !strutil.ListContains(devices, "/dev/"+deviceName) {
-					err = fmt.Errorf(`%q does not match a specified device`, deviceName)
+			if err != nil {
+				break
+			}
+			deviceName := value.(string)
+			err = iface.validateKernelDeviceNameIsBasename(deviceName)
+			if err != nil {
+				break
+			}
+			// furthermore, the kernel name must match the basename of one
+			// of the given devices
+			foundMatch := false
+			for _, devicePath := range devices {
+				if deviceName == filepath.Base(devicePath) {
+					foundMatch = true
+					break
 				}
+			}
+			if !foundMatch {
+				err = fmt.Errorf(`%q does not match any specified device`, deviceName)
 			}
 		case "attributes", "environment":
 			err = iface.validateUDevValueMap(value)
@@ -232,6 +273,10 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 
 	allDevices := devices
 	allDevices = append(allDevices, readDevices...)
+
+	if err := iface.validateUDevDevicesUniqueBasenames(allDevices); err != nil {
+		return err
+	}
 
 	// validate files
 	var filesMap map[string][]string
@@ -360,13 +405,15 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 	allDevicePaths := devicePaths
 	allDevicePaths = append(allDevicePaths, readDevicePaths...)
 
+	// Create a map in which will store udev rules indexed by device name
+	deviceRules := make(map[string]string, len(allDevicePaths))
+
 	// Generate a basic udev rule for each device; we put them into a map
 	// indexed by the device name, so that we can overwrite the entry later
 	// with a more specific rule.
-	deviceRules := make(map[string]string, len(allDevicePaths))
 	for _, devicePath := range allDevicePaths {
 		if strings.HasPrefix(devicePath, "/dev/") {
-			deviceName := devicePath[5:]
+			deviceName := filepath.Base(devicePath)
 			deviceRules[deviceName] = fmt.Sprintf(`KERNEL=="%s"`, deviceName)
 		}
 	}

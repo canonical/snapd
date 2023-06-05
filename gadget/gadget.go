@@ -176,8 +176,14 @@ type VolumeStructure struct {
 	// Offset defines a starting offset of the structure
 	Offset *quantity.Offset `yaml:"offset" json:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
-	// the offset of current structure will be written. The position may be
-	// specified as a byte offset relative to the start of a named structure
+	// the offset of the current structure will be written. Initially, the
+	// position could be specified as a byte offset relative to the start
+	// of any named structure in the volume, but now the scope has been
+	// limited and the only accepted structure would be one with offset
+	// 0. Which implies that actually this offset will be always absolute,
+	// which should be fine as the only known use case for this is to set
+	// an address in an MBR. Furthermore, writes outside of the first
+	// structure are now not allowed.
 	OffsetWrite *RelativeOffset `yaml:"offset-write" json:"offset-write"`
 	// Minimum size of the structure (optional)
 	MinSize quantity.Size `yaml:"min-size" json:"min-size"`
@@ -353,10 +359,6 @@ type VolumeContent struct {
 	Image string `yaml:"image" json:"image"`
 	// Offset the image is written at
 	Offset *quantity.Offset `yaml:"offset" json:"offset"`
-	// OffsetWrite describes a 32-bit address, within the volume, at which
-	// the offset of current image will be written. The position may be
-	// specified as a byte offset relative to the start of a named structure
-	OffsetWrite *RelativeOffset `yaml:"offset-write" json:"offset-write"`
 	// Size of the image, when empty size is calculated by looking at the
 	// image
 	Size quantity.Size `yaml:"size" json:"size"`
@@ -1130,7 +1132,7 @@ func validateVolume(vol *Volume) error {
 		}
 	}
 
-	return validateCrossVolumeStructure(vol.Structure, knownStructures)
+	return validateCrossVolumeStructure(vol.Structure, vol.MinSize())
 }
 
 // isMBR returns whether the structure is the MBR and can be used before setImplicitForVolume
@@ -1144,27 +1146,20 @@ func isMBR(vs *VolumeStructure) bool {
 	return false
 }
 
-func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures map[string]*VolumeStructure) error {
+func validateCrossVolumeStructure(structures []VolumeStructure, volSize quantity.Size) error {
 	previousEnd := quantity.Offset(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
-	// - laid out structure overlap
-	// use structures laid out within the volume
+	// - structure overlap
 	for pidx, ps := range structures {
 		if isMBR(&ps) {
 			if ps.Offset == nil || *(ps.Offset) != 0 {
 				return fmt.Errorf(`structure %q has "mbr" role and must start at offset 0`, ps.Name)
 			}
 		}
-		if ps.OffsetWrite != nil && ps.OffsetWrite.RelativeTo != "" {
-			// offset-write using a named structure
-			other := knownStructures[ps.OffsetWrite.RelativeTo]
-			if other == nil {
-				return fmt.Errorf("structure %q refers to an unknown structure %q",
-					ps.Name, ps.OffsetWrite.RelativeTo)
-			}
+		if err := validateOffsetWrite(&ps, &structures[0], volSize); err != nil {
+			return err
 		}
-
 		// We are assuming ordered structures
 		if ps.Offset != nil {
 			if *(ps.Offset) < previousEnd {
@@ -1175,22 +1170,35 @@ func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures 
 			previousEnd += quantity.Offset(ps.Size)
 
 		}
-
-		if ps.HasFilesystem() {
-			// content relative offset only possible if it's a bare structure
-			continue
-		}
-		for cidx, c := range ps.Content {
-			if c.OffsetWrite == nil || c.OffsetWrite.RelativeTo == "" {
-				continue
-			}
-			relativeToStructure := knownStructures[c.OffsetWrite.RelativeTo]
-			if relativeToStructure == nil {
-				return fmt.Errorf("structure %q, content %v refers to an unknown structure %q",
-					ps.Name, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
-			}
-		}
 	}
+	return nil
+}
+
+func validateOffsetWrite(s, firstStruct *VolumeStructure, volSize quantity.Size) error {
+	if s.OffsetWrite == nil {
+		return nil
+	}
+
+	if s.OffsetWrite.RelativeTo != "" {
+		// offset-write using a named structure can only refer to
+		// the first volume structure
+		if s.OffsetWrite.RelativeTo != firstStruct.Name {
+			return fmt.Errorf("structure %q refers to an unexpected structure %q",
+				s.Name, s.OffsetWrite.RelativeTo)
+		}
+		if firstStruct.Offset == nil || *(firstStruct.Offset) != 0 {
+			return fmt.Errorf("structure %q refers to structure %q, which does not have 0 offset",
+				s.Name, s.OffsetWrite.RelativeTo)
+		}
+		if quantity.Size(s.OffsetWrite.Offset)+SizeLBA48Pointer > firstStruct.MinSize {
+			return fmt.Errorf("structure %q wants to write offset of %d bytes to %d, outside of referred structure %q",
+				s.Name, SizeLBA48Pointer, s.OffsetWrite.Offset, s.OffsetWrite.RelativeTo)
+		}
+	} else if quantity.Size(s.OffsetWrite.Offset)+SizeLBA48Pointer > volSize {
+		return fmt.Errorf("structure %q wants to write offset of %d bytes to %d, outside of volume of min size %d",
+			s.Name, SizeLBA48Pointer, s.OffsetWrite.Offset, volSize)
+	}
+
 	return nil
 }
 
@@ -1359,7 +1367,7 @@ func validateBareContent(vc *VolumeContent) error {
 }
 
 func validateFilesystemContent(vc *VolumeContent) error {
-	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
+	if vc.Image != "" || vc.Offset != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
 	if vc.UnresolvedSource == "" {
