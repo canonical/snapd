@@ -20,11 +20,69 @@ package aspectstate
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/overlord/aspectstate/aspecttest"
 	"github.com/snapcore/snapd/overlord/state"
 )
+
+// BaseHijacker implements the aspects.DataBag so derivations of it can implement
+// only the methods that are intended for usage.
+type BaseHijacker struct{}
+
+func (BaseHijacker) Get(string, interface{}) error {
+	return errors.New("Get() method is not implemented")
+}
+
+func (BaseHijacker) Set(string, interface{}) error {
+	return errors.New("Set() method is not implemented")
+}
+
+func (BaseHijacker) Data() ([]byte, error) {
+	// hijacker data isn't written to state but return something to pass the schema
+	return []byte("{}"), nil
+}
+
+var hijackedAspects = &hijackedStore{
+	hijackedAspects: make(map[[3]string]aspects.DataBag),
+}
+
+type hijackedStore struct {
+	hijackedAspects map[[3]string]aspects.DataBag
+	mu              sync.RWMutex
+}
+
+func (s *hijackedStore) hijack(account, bundleName, aspect string, hijacker aspects.DataBag) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.hijackedAspects[[3]string{account, bundleName, aspect}] = hijacker
+}
+
+func (s *hijackedStore) get(account, bundleName, aspect string) aspects.DataBag {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.hijackedAspects[[3]string{account, bundleName, aspect}]
+}
+
+func (s *hijackedStore) clear() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for k := range s.hijackedAspects {
+		delete(s.hijackedAspects, k)
+	}
+}
+
+// Hijack register a hijacker that will be called when a get/set is requested
+// for the provided input combination. The hijacker must implement the DataBag
+// interface its Get/Set methods are called transparently.
+//
+// TODO: permit hijacking only get/sets instead of both?
+func Hijack(account, bundleName, aspect string, hijacker aspects.DataBag) {
+	hijackedAspects.hijack(account, bundleName, aspect, hijacker)
+}
 
 // Set finds the aspect identified by the account, bundleName and aspect and sets
 // the specified field to the supplied value.
@@ -32,16 +90,29 @@ func Set(st *state.State, account, bundleName, aspect, field string, value inter
 	st.Lock()
 	defer st.Unlock()
 
-	databag, err := getDatabag(st, account, bundleName)
-	if err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			return err
-		}
+	databag := hijackedAspects.get(account, bundleName, aspect)
+	hijacked := databag != nil
 
-		databag = aspects.NewJSONDataBag()
+	if !hijacked {
+		var err error
+		databag, err = getDatabag(st, account, bundleName)
+		if err != nil {
+			if !errors.Is(err, state.ErrNoState) {
+				return err
+			}
+
+			databag = aspects.NewJSONDataBag()
+		}
 	}
 
-	accPatterns := aspecttest.MockWifiSetupAspect()
+	accPatterns, err := aspecttest.GetAspectAssertion(account, bundleName)
+	if err != nil {
+		if errors.Is(err, &aspecttest.NotFound{}) {
+			return &aspects.AspectNotFoundError{Account: account, BundleName: bundleName, Aspect: aspect, BaseErr: err}
+		}
+		return err
+	}
+
 	aspectBundle, err := aspects.NewAspectBundle(bundleName, accPatterns, aspects.NewJSONSchema())
 	if err != nil {
 		return err
@@ -56,8 +127,12 @@ func Set(st *state.State, account, bundleName, aspect, field string, value inter
 		return err
 	}
 
-	if err := updateDatabags(st, account, bundleName, databag); err != nil {
-		return err
+	if !hijacked {
+		// change updateDatabags to take a generic bag (implement json marshaler?)
+		jsonDb := databag.(aspects.JSONDataBag)
+		if err := updateDatabags(st, account, bundleName, jsonDb); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -69,16 +144,29 @@ func Get(st *state.State, account, bundleName, aspect, field string, value inter
 	st.Lock()
 	defer st.Unlock()
 
-	databag, err := getDatabag(st, account, bundleName)
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return &aspects.AspectNotFoundError{Account: account, BundleName: bundleName, Aspect: aspect}
-		}
+	databag := hijackedAspects.get(account, bundleName, aspect)
+	hijacked := databag != nil
 
+	if !hijacked {
+		var err error
+		databag, err = getDatabag(st, account, bundleName)
+		if err != nil {
+			if errors.Is(err, state.ErrNoState) {
+				return &aspects.AspectNotFoundError{Account: account, BundleName: bundleName, Aspect: aspect}
+			}
+
+			return err
+		}
+	}
+
+	accPatterns, err := aspecttest.GetAspectAssertion(account, bundleName)
+	if err != nil {
+		if errors.Is(err, &aspecttest.NotFound{}) {
+			return &aspects.AspectNotFoundError{Account: account, BundleName: bundleName, Aspect: aspect, BaseErr: err}
+		}
 		return err
 	}
 
-	accPatterns := aspecttest.MockWifiSetupAspect()
 	aspectBundle, err := aspects.NewAspectBundle(bundleName, accPatterns, aspects.NewJSONSchema())
 	if err != nil {
 		return err

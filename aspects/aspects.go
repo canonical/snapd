@@ -61,10 +61,16 @@ type AspectNotFoundError struct {
 	Account    string
 	BundleName string
 	Aspect     string
+	BaseErr    error
 }
 
 func (e *AspectNotFoundError) Error() string {
-	return fmt.Sprintf("aspect %s/%s/%s not found", e.Account, e.BundleName, e.Aspect)
+	var baseErrMsg string
+	if e.BaseErr != nil {
+		baseErrMsg = ": " + e.BaseErr.Error()
+	}
+
+	return fmt.Sprintf("aspect %s/%s/%s not found%s", e.Account, e.BundleName, e.Aspect, baseErrMsg)
 }
 
 func (e *AspectNotFoundError) Is(err error) bool {

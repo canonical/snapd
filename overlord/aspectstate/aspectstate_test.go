@@ -39,6 +39,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 func (s *aspectstateTestSuite) SetUpTest(_ *C) {
 	s.state = overlord.Mock().State()
+	aspectstate.ClearHijackedAspects()
 }
 
 func (s *aspectstateTestSuite) TestGetAspect(c *C) {
@@ -58,7 +59,21 @@ func (s *aspectstateTestSuite) TestGetAspect(c *C) {
 	c.Assert(res, Equals, "foo")
 }
 
-func (s *aspectstateTestSuite) TestGetNotFound(c *C) {
+func (s *aspectstateTestSuite) TestGetAspectAssertionNotFound(c *C) {
+	s.state.Lock()
+	s.state.Set("aspect-databags", map[string]map[string]aspects.JSONDataBag{
+		"system": {"network": aspects.NewJSONDataBag()},
+	})
+	s.state.Unlock()
+
+	var res interface{}
+	err := aspectstate.Get(s.state, "unknown", "network", "wifi-setup", "ssid", &res)
+	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
+	c.Assert(err, ErrorMatches, `aspect unknown/network/wifi-setup not found: cannot find aspect assertion unknown/network`)
+	c.Check(res, IsNil)
+}
+
+func (s *aspectstateTestSuite) TestGetDataBagNotFound(c *C) {
 	var res interface{}
 	err := aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &res)
 	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
@@ -101,10 +116,11 @@ func (s *aspectstateTestSuite) TestSetAspect(c *C) {
 	c.Assert(val, Equals, "foo")
 }
 
-func (s *aspectstateTestSuite) TestSetNotFound(c *C) {
-	err := aspectstate.Set(s.state, "system", "other-bundle", "other-aspect", "foo", "bar")
+func (s *aspectstateTestSuite) TestSetAspectAssertionNotFound(c *C) {
+	err := aspectstate.Set(s.state, "other-system", "network", "wifi-setup", "foo", "bar")
 	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
-
+	err = aspectstate.Set(s.state, "system", "other-bundle", "wifi-setup", "foo", "bar")
+	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
 	err = aspectstate.Set(s.state, "system", "network", "other-aspect", "foo", "bar")
 	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
 }
@@ -134,4 +150,37 @@ func (s *aspectstateTestSuite) TestUnsetAspect(c *C) {
 	err = databag.Get("wifi.ssid", &val)
 	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
 	c.Assert(val, Equals, "")
+}
+
+type hijacker struct {
+	c *C
+	aspectstate.BaseHijacker
+}
+
+func (s *hijacker) Get(path string, value interface{}) error {
+	s.c.Check(path, Equals, "wifi.ssid")
+	*value.(*interface{}) = "hijacked"
+	return nil
+}
+
+func (s *hijacker) Set(path string, value interface{}) error {
+	s.c.Check(path, Equals, "wifi.ssid")
+	s.c.Check(value, Equals, "foo")
+	return nil
+}
+
+func (s *aspectstateTestSuite) TestHijackAspect(c *C) {
+	aspectstate.Hijack("system", "network", "wifi-setup", &hijacker{c: c})
+
+	var val interface{}
+	err := aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &val)
+	c.Assert(err, IsNil)
+	c.Check(val, Equals, "hijacked")
+
+	err = aspectstate.Set(s.state, "system", "network", "wifi-setup", "ssid", "foo")
+	c.Assert(err, IsNil)
+
+	err = aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &val)
+	c.Assert(err, IsNil)
+	c.Check(val, Equals, "hijacked")
 }
