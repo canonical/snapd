@@ -58,8 +58,6 @@ const NonMBRStartOffset = 1 * quantity.OffsetMiB
 // structures within it
 type LaidOutVolume struct {
 	*Volume
-	// Size is the total size of the volume
-	Size quantity.Size
 	// LaidOutStructure is a list of structures within the volume, sorted
 	// by their start offsets
 	LaidOutStructure []LaidOutStructure
@@ -81,23 +79,11 @@ type LaidOutStructure struct {
 	OnDiskStructure
 	// VolumeStructure is the volume structure defined in gadget.yaml
 	VolumeStructure *VolumeStructure
-	// AbsoluteOffsetWrite is the resolved absolute position of offset-write
-	// for this structure element within the enclosing volume
-	AbsoluteOffsetWrite *quantity.Offset
-	// Index of the structure definition in gadget YAML, note this starts at 0.
-	YamlIndex int
 	// LaidOutContent is a list of raw content inside the structure
 	LaidOutContent []LaidOutContent
 	// ResolvedContent is a list of filesystem content that has all
 	// relative paths or references resolved
 	ResolvedContent []ResolvedContent
-}
-
-// IsRoleMBR returns whether a structure's role is MBR or not.
-// meh this function is weirdly placed, not sure what to do w/o making schemaMBR
-// constant exported
-func IsRoleMBR(ls LaidOutStructure) bool {
-	return ls.Role() == schemaMBR
 }
 
 // These accessors return currently what comes in the gadget, but will use
@@ -146,14 +132,8 @@ func (l *LaidOutStructure) IsPartition() bool {
 }
 
 func (p LaidOutStructure) String() string {
-	return fmtIndexAndName(p.YamlIndex, p.Name())
+	return fmtIndexAndName(p.VolumeStructure.YamlIndex, p.Name())
 }
-
-type byStartOffset []LaidOutStructure
-
-func (b byStartOffset) Len() int           { return len(b) }
-func (b byStartOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
-func (b byStartOffset) Less(i, j int) bool { return b[i].StartOffset < b[j].StartOffset }
 
 // LaidOutContent describes raw content that has been placed within the
 // encompassing structure and volume
@@ -165,9 +145,6 @@ type LaidOutContent struct {
 
 	// StartOffset defines the start offset of this content image
 	StartOffset quantity.Offset
-	// AbsoluteOffsetWrite is the resolved absolute position of offset-write
-	// for this content element within the enclosing volume
-	AbsoluteOffsetWrite *quantity.Offset
 	// Size is the maximum size occupied by this image
 	Size quantity.Size
 	// Index of the content in structure declaration inside gadget YAML
@@ -193,18 +170,21 @@ type ResolvedContent struct {
 	KernelUpdate bool
 }
 
-func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
+func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, err error) {
 	structures = make([]LaidOutStructure, len(volume.Structure))
-	byName = make(map[string]*LaidOutStructure, len(volume.Structure))
 
+	// Even although we do not have the final offset as that depends on the
+	// state of the installation disk and we do not know at this point, we
+	// need some value for StartOffset so we can perform some validations.
+	// We will overwrite the final offsets later.
+	offset := quantity.Offset(0)
 	for idx := range volume.Structure {
 		ps := LaidOutStructure{
 			VolumeStructure: &volume.Structure[idx],
-			YamlIndex:       idx,
 		}
 
-		if ps.Name() != "" {
-			byName[ps.Name()] = &ps
+		if volume.Structure[idx].Offset != nil {
+			offset = *volume.Structure[idx].Offset
 		}
 		// Fill the parts of OnDiskStructure that do not depend on the disk
 		// or on whether we are encrypting or not.
@@ -212,36 +192,38 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 		ps.OnDiskStructure = OnDiskStructure{
 			Name:        ps.VolumeStructure.Name,
 			Type:        ps.VolumeStructure.Type,
-			StartOffset: *volume.Structure[idx].Offset,
+			StartOffset: offset,
 			Size:        ps.VolumeStructure.Size,
 		}
 
+		offset += quantity.Offset(volume.Structure[idx].Size)
+		// Note that structures are ordered by offset as volume.Structure
+		// was ordered when reading the gadget information.
 		structures[idx] = ps
 	}
 
-	// sort by starting offset
-	sort.Sort(byStartOffset(structures))
-
+	// Check:
+	// - No structure overlaps
+	// - offset-write meets the restrictions defined in the gadget
+	// TODO Reuse fully validateCrossVolumeStructure
 	previousEnd := quantity.Offset(0)
 	for idx, ps := range structures {
 		if ps.StartOffset < previousEnd {
-			return nil, nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
+			return nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
 		}
 		previousEnd = ps.StartOffset + quantity.Offset(ps.VolumeStructure.Size)
 
-		offsetWrite, err := resolveOffsetWrite(ps.VolumeStructure.OffsetWrite, byName)
-		if err != nil {
-			return nil, nil, fmt.Errorf("cannot resolve offset-write of structure %v: %v", ps, err)
+		if err := validateOffsetWrite(ps.VolumeStructure, structures[0].VolumeStructure, volume.MinSize()); err != nil {
+			return nil, err
 		}
-		structures[idx].AbsoluteOffsetWrite = offsetWrite
 	}
 
-	return structures, byName, nil
+	return structures, nil
 }
 
 // LayoutVolumePartially attempts to lay out only the structures in the volume.
 func LayoutVolumePartially(volume *Volume) (*PartiallyLaidOutVolume, error) {
-	structures, _, err := layoutVolumeStructures(volume)
+	structures, err := layoutVolumeStructures(volume)
 	if err != nil {
 		return nil, err
 	}
@@ -291,22 +273,12 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		}
 	}
 
-	structures, byName, err := layoutVolumeStructures(volume)
+	structures, err := layoutVolumeStructures(volume)
 	if err != nil {
 		return nil, err
 	}
 
-	farthestEnd := quantity.Offset(0)
-	fartherstOffsetWrite := quantity.Offset(0)
-
-	for idx, ps := range structures {
-		if ps.AbsoluteOffsetWrite != nil && *ps.AbsoluteOffsetWrite > fartherstOffsetWrite {
-			fartherstOffsetWrite = *ps.AbsoluteOffsetWrite
-		}
-		if end := ps.StartOffset + quantity.Offset(ps.VolumeStructure.Size); end > farthestEnd {
-			farthestEnd = end
-		}
-
+	for idx := range structures {
 		// Set appropriately label and type details
 		// TODO: set this in layoutVolumeStructures in the future.
 		setOnDiskLabelAndTypeInLaidOuts(structures, opts.EncType)
@@ -316,14 +288,9 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		// has a size so even without the structure content the layout
 		// can be calculated.
 		if !opts.IgnoreContent {
-			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx], byName)
+			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx])
 			if err != nil {
 				return nil, err
-			}
-			for _, c := range content {
-				if c.AbsoluteOffsetWrite != nil && *c.AbsoluteOffsetWrite > fartherstOffsetWrite {
-					fartherstOffsetWrite = *c.AbsoluteOffsetWrite
-				}
 			}
 			structures[idx].LaidOutContent = content
 		}
@@ -338,14 +305,8 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		}
 	}
 
-	volumeSize := quantity.Size(farthestEnd)
-	if fartherstOffsetWrite+quantity.Offset(SizeLBA48Pointer) > farthestEnd {
-		volumeSize = quantity.Size(fartherstOffsetWrite) + SizeLBA48Pointer
-	}
-
 	vol := &LaidOutVolume{
 		Volume:           volume,
-		Size:             volumeSize,
 		LaidOutStructure: structures,
 	}
 	return vol, nil
@@ -456,7 +417,7 @@ func getImageSize(path string) (quantity.Size, error) {
 	return quantity.Size(stat.Size()), nil
 }
 
-func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known map[string]*LaidOutStructure) ([]LaidOutContent, error) {
+func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure) ([]LaidOutContent, error) {
 	if ps.HasFilesystem() {
 		// structures with a filesystem do not need any extra layout
 		return nil, nil
@@ -490,18 +451,11 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known ma
 			actualSize = c.Size
 		}
 
-		offsetWrite, err := resolveOffsetWrite(c.OffsetWrite, known)
-		if err != nil {
-			return nil, fmt.Errorf("cannot resolve offset-write of structure %v content %q: %v", ps, c.Image, err)
-		}
-
 		content[idx] = LaidOutContent{
 			VolumeContent: &ps.VolumeStructure.Content[idx],
 			Size:          actualSize,
 			StartOffset:   ps.StartOffset + start,
 			Index:         idx,
-			// break for gofmt < 1.11
-			AbsoluteOffsetWrite: offsetWrite,
 		}
 		previousEnd = start + quantity.Offset(actualSize)
 		if quantity.Size(previousEnd) > ps.VolumeStructure.Size {
@@ -522,24 +476,6 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known ma
 	return content, nil
 }
 
-func resolveOffsetWrite(offsetWrite *RelativeOffset, knownStructs map[string]*LaidOutStructure) (*quantity.Offset, error) {
-	if offsetWrite == nil {
-		return nil, nil
-	}
-
-	var relativeToOffset quantity.Offset
-	if offsetWrite.RelativeTo != "" {
-		otherStruct, ok := knownStructs[offsetWrite.RelativeTo]
-		if !ok {
-			return nil, fmt.Errorf("refers to an unknown structure %q", offsetWrite.RelativeTo)
-		}
-		relativeToOffset = otherStruct.StartOffset
-	}
-
-	resolvedOffsetWrite := relativeToOffset + offsetWrite.Offset
-	return &resolvedOffsetWrite, nil
-}
-
 // ShiftStructureTo translates the starting offset of a laid out structure and
 // its content to the provided offset.
 func ShiftStructureTo(ps LaidOutStructure, offset quantity.Offset) LaidOutStructure {
@@ -557,7 +493,7 @@ func ShiftStructureTo(ps LaidOutStructure, offset quantity.Offset) LaidOutStruct
 	return newPs
 }
 
-func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
+func isLayoutCompatible(current, new *Volume) error {
 	if current.ID != new.ID {
 		return fmt.Errorf("incompatible ID change from %v to %v", current.ID, new.ID)
 	}
@@ -572,17 +508,15 @@ func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
 
 	// XXX: the code below asssumes both volumes have the same number of
 	// structures, this limitation may be lifted later
-	if len(current.LaidOutStructure) != len(new.LaidOutStructure) {
+	if len(current.Structure) != len(new.Structure) {
 		return fmt.Errorf("incompatible change in the number of structures from %v to %v",
-			len(current.LaidOutStructure), len(new.LaidOutStructure))
+			len(current.Structure), len(new.Structure))
 	}
 
 	// at the structure level we expect the volume to be identical
-	for i := range current.LaidOutStructure {
-		from := &current.LaidOutStructure[i]
-		to := &new.LaidOutStructure[i]
-		if err := canUpdateStructure(from, to, new.Schema); err != nil {
-			return fmt.Errorf("incompatible structure %v change: %v", to, err)
+	for i := range current.Structure {
+		if err := canUpdateStructure(current.Structure, i, new.Structure, i, new.Schema); err != nil {
+			return fmt.Errorf("incompatible structure #%d (%q) change: %v", new.Structure[i].YamlIndex, new.Structure[i].Name, err)
 		}
 	}
 	return nil

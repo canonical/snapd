@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -739,8 +740,80 @@ func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.Asse
 	return a, err
 }
 
+func (s *Store) retrieveLatestSequenceFormingAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, sequenceKey []string) (asserts.Assertion, error) {
+	a, err := bs.SequenceMemberAfter(assertType, sequenceKey, -1, assertType.MaxSupportedFormat())
+	if errors.Is(err, &asserts.NotFoundError{}) && s.assertFallback {
+		return s.fallback.SeqFormingAssertion(assertType, sequenceKey, -1, nil)
+	}
+	return a, err
+}
+
+func (s *Store) sequenceFromQueryValues(values url.Values) (int, error) {
+	if val, ok := values["sequence"]; ok {
+		// special case value of 'latest', in that case
+		// we return -1 to indicate we want the newest
+		if val[0] != "latest" {
+			seq, err := strconv.Atoi(val[0])
+			if err != nil {
+				return -1, fmt.Errorf("cannot parse sequence %s: %v", val[0], err)
+			}
+
+			// Only positive integers and 'latest' are valid
+			if seq <= 0 {
+				return -1, fmt.Errorf("the requested sequence must be above 0")
+			}
+			return seq, nil
+		}
+	}
+	return -1, nil
+}
+
+func (s *Store) assertTypeAndKey(urlPath string) (*asserts.AssertionType, []string, error) {
+	// trim the assertions prefix, and handle any query parameters
+	assertPath := strings.TrimPrefix(urlPath, "/v2/assertions/")
+	comps := strings.Split(assertPath, "/")
+	if len(comps) == 0 {
+		return nil, nil, fmt.Errorf("missing assertion type")
+	}
+
+	typ := asserts.Type(comps[0])
+	if typ == nil {
+		return nil, nil, fmt.Errorf("unknown assertion type: %s", comps[0])
+	}
+	return typ, comps[1:], nil
+}
+
+func (s *Store) retrieveAssertionWrapper(bs asserts.Backstore, assertType *asserts.AssertionType, keyParts []string, values url.Values) (asserts.Assertion, error) {
+	pk := keyParts
+	if assertType.SequenceForming() {
+		seq, err := s.sequenceFromQueryValues(values)
+		if err != nil {
+			return nil, err
+		}
+
+		// If no sequence value was provided, or when requesting the latest sequence
+		// point of an assertion, we use a different method of resolving the assertion.
+		if seq <= 0 {
+			return s.retrieveLatestSequenceFormingAssertion(bs, assertType, keyParts)
+		}
+
+		// Otherwise append the sequence to form the primary key and use
+		// the default retrieval.
+		pk = append(pk, strconv.Itoa(seq))
+	}
+
+	if !assertType.AcceptablePrimaryKey(pk) {
+		return nil, fmt.Errorf("wrong primary key length: %v", pk)
+	}
+	return s.retrieveAssertion(bs, assertType, pk)
+}
+
 func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
-	assertPath := strings.TrimPrefix(req.URL.Path, "/v2/assertions/")
+	typ, pk, err := s.assertTypeAndKey(req.URL.Path)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
 
 	bs, err := s.collectAssertions()
 	if err != nil {
@@ -748,26 +821,7 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	comps := strings.Split(assertPath, "/")
-
-	if len(comps) == 0 {
-		http.Error(w, "missing assertion type", 400)
-		return
-	}
-
-	typ := asserts.Type(comps[0])
-	if typ == nil {
-		http.Error(w, fmt.Sprintf("unknown assertion type: %s", comps[0]), 400)
-		return
-	}
-
-	pk := comps[1:]
-	if !typ.AcceptablePrimaryKey(pk) {
-		http.Error(w, fmt.Sprintf("wrong primary key length: %v", comps), 400)
-		return
-	}
-
-	a, err := s.retrieveAssertion(bs, typ, pk)
+	as, err := s.retrieveAssertionWrapper(bs, typ, pk, req.URL.Query())
 	if errors.Is(err, &asserts.NotFoundError{}) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
@@ -775,13 +829,13 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot retrieve assertion %v: %v", comps, err), 400)
+		http.Error(w, fmt.Sprintf("cannot retrieve assertion %v: %v", pk, err), 400)
 		return
 	}
 
 	w.Header().Set("Content-Type", asserts.MediaType)
 	w.WriteHeader(200)
-	w.Write(asserts.Encode(a))
+	w.Write(asserts.Encode(as))
 }
 
 func addSnapIDs(bs asserts.Backstore, initial map[string]string) (map[string]string, error) {

@@ -26,14 +26,10 @@ prepare: |
     snap install --devmode test-snapd-tools
 
     if [ "$STORE_TYPE" = "fake" ]; then
-        #shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB"/store.sh
-        setup_fake_store "$BLOB_DIR"
+        "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
         echo "And a new version of that snap put in the controlled store"
-        #shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB"/store.sh
-        init_fake_refreshes "$BLOB_DIR" test-snapd-tools
+        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" test-snapd-tools
     fi
 
 restore: |
@@ -45,9 +41,7 @@ restore: |
             echo "This test needs test keys to be trusted"
             exit
         fi
-        #shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB"/store.sh
-        teardown_fake_store "$BLOB_DIR"
+        "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     fi
 
 execute: |

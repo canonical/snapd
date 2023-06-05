@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -59,12 +59,9 @@ With no further options, the snaps are installed tracking the stable channel,
 with strict security confinement. All available channels of a snap are listed in
 its 'snap info' output.
 
-Revision choice via the --revision override requires the user to
-have developer access to the snap, either directly or through the
-store's collaboration feature, and to be logged in (see 'snap help login').
-
-Note that a later refresh will typically undo a revision override, taking the snap
-back to the current revision of the channel it's tracking.
+When --revision is used, a later refresh will typically undo the revision
+override, taking the snap back to the current revision of the channel it's
+tracking.
 
 Use --name to set the instance name when installing from snap file.
 `)
@@ -89,11 +86,8 @@ With no further options, the snaps are refreshed to the current revision of the
 channel they're tracking, preserving their confinement options. All available
 channels of a snap are listed in its 'snap info' output.
 
-Revision choice via the --revision override requires the user to
-have developer access to the snap, either directly or through the
-store's collaboration feature, and to be logged in (see 'snap help login').
-
-Note a later refresh will typically undo a revision override.
+When --revision is used, a later refresh will typically undo the revision
+override.
 
 Hold (--hold) is used to postpone snap refresh updates for all snaps when no
 snaps are specified, or for the specified snaps.
@@ -1264,7 +1258,7 @@ func init() {
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"revision": i18n.G("Install the given revision of a snap, to which you must have developer access"),
+			"revision": i18n.G("Install the given revision of a snap"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"dangerous": i18n.G("Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -1289,7 +1283,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"amend": i18n.G("Allow refresh attempt on snap unknown to the store"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"revision": i18n.G("Refresh to the given revision, to which you must have developer access"),
+			"revision": i18n.G("Refresh to the given revision"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"list": i18n.G("Show the new versions of snaps that would be updated with the next refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.

@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -89,6 +90,10 @@ const (
 	// only supported for legacy reasons
 	legacyBootImage  = "bootimg"
 	legacyBootSelect = "bootselect"
+
+	// UnboundedStructureOffset is the maximum effective partition offset
+	// that we can handle.
+	UnboundedStructureOffset = quantity.Offset(math.MaxUint64)
 )
 
 var (
@@ -116,10 +121,30 @@ type Info struct {
 	KernelCmdline KernelCmdline `yaml:"kernel-cmdline"`
 }
 
+// PartialProperty is a gadget property that can be partially defined.
+type PartialProperty string
+
+// These are the different properties of the gadget that can be partially
+// defined.
+// TODO What is the exact meaning of having a partial "structure" is not yet
+// fully defined, so enforcing it has not been implemented yet.
+const (
+	PartialSize       PartialProperty = "size"
+	PartialFilesystem PartialProperty = "filesystem"
+	PartialSchema     PartialProperty = "schema"
+	PartialStructure  PartialProperty = "structure"
+)
+
+var validPartialProperties = [...]PartialProperty{PartialSize, PartialFilesystem, PartialSchema, PartialStructure}
+
 // Volume defines the structure and content for the image to be written into a
 // block device.
 type Volume struct {
-	// Schema describes the schema used for the volume
+	// Partial is a list of properties that are only only partially
+	// described in the gadget and that need to be filled by an
+	// installer.
+	Partial []PartialProperty `yaml:"partial,omitempty" json:"partial,omitempty"`
+	// Schema for the volume can be either gpt or mbr.
 	Schema string `yaml:"schema" json:"schema"`
 	// Bootloader names the bootloader used by the volume
 	Bootloader string `yaml:"bootloader" json:"bootloader"`
@@ -129,6 +154,41 @@ type Volume struct {
 	Structure []VolumeStructure `yaml:"structure" json:"structure"`
 	// Name is the name of the volume from the gadget.yaml
 	Name string `json:"-"`
+}
+
+// HasPartial checks if the volume has a partially defined part.
+func (v *Volume) HasPartial(pp PartialProperty) bool {
+	for _, vp := range v.Partial {
+		if vp == pp {
+			return true
+		}
+	}
+	return false
+}
+
+// MinSize returns the minimum size required by a volume, as implicitly
+// defined by the size structures. It assumes sorted structures.
+func (v *Volume) MinSize() quantity.Size {
+	endVol := quantity.Offset(0)
+	for _, s := range v.Structure {
+		if s.Offset != nil {
+			endVol = *s.Offset + quantity.Offset(s.MinSize)
+		} else {
+			endVol += quantity.Offset(s.MinSize)
+		}
+	}
+
+	return quantity.Size(endVol)
+}
+
+func (v *Volume) yamlIdxToStructureIdx(yamlIdx int) (int, error) {
+	for i := range v.Structure {
+		if v.Structure[i].YamlIndex == yamlIdx {
+			return i, nil
+		}
+	}
+
+	return -1, fmt.Errorf("structure with yaml index %d not found", yamlIdx)
 }
 
 const GPTPartitionGUIDESP = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
@@ -146,9 +206,17 @@ type VolumeStructure struct {
 	// Offset defines a starting offset of the structure
 	Offset *quantity.Offset `yaml:"offset" json:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
-	// the offset of current structure will be written. The position may be
-	// specified as a byte offset relative to the start of a named structure
+	// the offset of the current structure will be written. Initially, the
+	// position could be specified as a byte offset relative to the start
+	// of any named structure in the volume, but now the scope has been
+	// limited and the only accepted structure would be one with offset
+	// 0. Which implies that actually this offset will be always absolute,
+	// which should be fine as the only known use case for this is to set
+	// an address in an MBR. Furthermore, writes outside of the first
+	// structure are now not allowed.
 	OffsetWrite *RelativeOffset `yaml:"offset-write" json:"offset-write"`
+	// Minimum size of the structure (optional)
+	MinSize quantity.Size `yaml:"min-size" json:"min-size"`
 	// Size of the structure
 	Size quantity.Size `yaml:"size" json:"size"`
 	// Type of the structure, which can be 2-hex digit MBR partition,
@@ -178,6 +246,14 @@ type VolumeStructure struct {
 	// and just used as part of the POST /systems/<label> API that
 	// is used by an installer.
 	Device string `yaml:"-" json:"device,omitempty"`
+
+	// Index of the structure definition in gadget YAML, note this starts at 0.
+	YamlIndex int `yaml:"-" json:"-"`
+}
+
+// IsRoleMBR tells us if v has MBR role or not.
+func (v *VolumeStructure) IsRoleMBR() bool {
+	return v.Role == schemaMBR
 }
 
 // HasFilesystem returns true if the structure is using a filesystem.
@@ -185,10 +261,139 @@ func (vs *VolumeStructure) HasFilesystem() bool {
 	return vs.Filesystem != "none" && vs.Filesystem != ""
 }
 
+// willHaveFilesystem considers also partially defined filesystem.
+func (vs *VolumeStructure) willHaveFilesystem(v *Volume) bool {
+	if vs.HasFilesystem() {
+		return true
+	}
+
+	if vs.Type == "bare" || vs.Type == "mbr" || !v.HasPartial(PartialFilesystem) {
+		return false
+	}
+
+	return true
+}
+
 // IsPartition returns true when the structure describes a partition in a block
 // device.
 func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
+}
+
+// HasLabel checks if label matches the VolumeStructure label. It ignores
+// capitals if the structure has a vfat filesystem.
+func (vs *VolumeStructure) HasLabel(label string) bool {
+	if vs.Filesystem == "vfat" {
+		return strings.EqualFold(vs.Label, label)
+	}
+	return vs.Label == label
+}
+
+// IsFixedSize tells us if size is fixed or if there is range.
+func (vs *VolumeStructure) IsFixedSize() bool {
+	return vs.Size == vs.MinSize
+}
+
+// hasPartialSize tells us if the structure has partially defined size.
+func (vs *VolumeStructure) hasPartialSize(v *Volume) bool {
+	if !v.HasPartial(PartialSize) {
+		return false
+	}
+
+	return vs.Size == 0
+}
+
+// minStructureOffset works out the minimum start offset of an structure, which
+// depends on previous volume structures.
+func minStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
+	if vss[idx].Offset != nil {
+		return *vss[idx].Offset
+	}
+	// Move to lower indices in the slice for minimum: the minimum offset
+	// will be the first fixed offset that we find plus all the minimum
+	// sizes of the structures up to that point.
+	min := quantity.Offset(0)
+	othersSz := quantity.Size(0)
+	for i := idx - 1; i >= 0; i-- {
+		othersSz += vss[i].MinSize
+		if vss[i].Offset != nil {
+			min = *vss[i].Offset + quantity.Offset(othersSz)
+			break
+		}
+	}
+	return min
+}
+
+// maxStructureOffset works out the maximum start offset of an structure, which
+// depends on surrounding volume structures.
+func maxStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
+	if vss[idx].Offset != nil {
+		return *vss[idx].Offset
+	}
+	// There are two restrictions on the maximum:
+	// 1. There is an implicit assumption that structures are contiguous if
+	//    no offset is specified, so the max offset would be the first fixed
+	//    offset while moving to previous structures in the slice plus the
+	//    (max) size of each structure up to that point.
+	// 2. There is also a restriction if we find a fixed offset in following
+	//    structures in the slice - in that case the maximum offset needs to
+	//    be smaller than that offset minus all the minimum sizes of
+	//    structures up to that point.
+	// The final max offset will be the smaller of the two.
+
+	// Move backwards in the slice for the first restriction
+	max := quantity.Offset(0)
+	othersSz := quantity.Size(0)
+	for i := idx - 1; i >= 0; i-- {
+		othersSz += vss[i].Size
+		if vss[i].Offset != nil {
+			max = *vss[i].Offset + quantity.Offset(othersSz)
+			break
+		}
+	}
+
+	// Move forward in the slice for the second restriction
+	maxFw := UnboundedStructureOffset
+	downSz := quantity.Size(0)
+	for i := idx; i < len(vss); i++ {
+		if vss[i].Offset != nil {
+			maxFw = *vss[i].Offset - quantity.Offset(downSz)
+			break
+		}
+		downSz += vss[i].MinSize
+	}
+
+	if maxFw < max {
+		max = maxFw
+	}
+
+	return max
+}
+
+type invalidOffsetError struct {
+	offset     quantity.Offset
+	lowerBound quantity.Offset
+	upperBound quantity.Offset
+}
+
+func (e *invalidOffsetError) Error() string {
+	maxDesc := "unbounded"
+	if e.upperBound != UnboundedStructureOffset {
+		maxDesc = fmt.Sprintf("%d (%s)", e.upperBound, e.upperBound.IECString())
+	}
+	return fmt.Sprintf("offset %d (%s) is not in the valid gadget interval (min: %d (%s): max: %s)",
+		e.offset, e.offset.IECString(), e.lowerBound, e.lowerBound.IECString(), maxDesc)
+}
+
+// CheckValidStartOffset returns an error if the input offset is not valid for
+// the structure at idx, nil otherwise.
+func CheckValidStartOffset(off quantity.Offset, vss []VolumeStructure, idx int) error {
+	min := minStructureOffset(vss, idx)
+	max := maxStructureOffset(vss, idx)
+	if min <= off && off <= max {
+		return nil
+	}
+	return &invalidOffsetError{offset: off, lowerBound: min, upperBound: max}
 }
 
 // VolumeContent defines the contents of the structure. The content can be
@@ -206,10 +411,6 @@ type VolumeContent struct {
 	Image string `yaml:"image" json:"image"`
 	// Offset the image is written at
 	Offset *quantity.Offset `yaml:"offset" json:"offset"`
-	// OffsetWrite describes a 32-bit address, within the volume, at which
-	// the offset of current image will be written. The position may be
-	// specified as a byte offset relative to the start of a named structure
-	OffsetWrite *RelativeOffset `yaml:"offset-write" json:"offset-write"`
 	// Size of the image, when empty size is calculated by looking at the
 	// image
 	Size quantity.Size `yaml:"size" json:"size"`
@@ -560,6 +761,90 @@ func compatWithPibootOrIndeterminate(m Model) bool {
 	return m == nil || m.Grade() != asserts.ModelGradeUnset
 }
 
+// Ancillary structs to sort volume structures. We split volumes in
+// contiguousStructs slices, with each of these beginning with a structure with
+// a known fixed offset, followed by structures for which the offset is unknown
+// so we can know for sure that they appear after the first structure in
+// contiguousStruct. The unknown offsets appear because of min-size use. The
+// contiguousStructs are the things that we need to order, as all have a known
+// starting offset, which is not true for all the volume structures.
+type contiguousStructs struct {
+	// vss contains contiguous structures with the first one
+	// containing a valid Offset
+	vss []VolumeStructure
+}
+
+type contiguousStructsSet []*contiguousStructs
+
+func (scss contiguousStructsSet) Len() int {
+	return len(scss)
+}
+
+func (scss contiguousStructsSet) Less(i, j int) bool {
+	return *scss[i].vss[0].Offset < *scss[j].vss[0].Offset
+}
+
+func (scss contiguousStructsSet) Swap(i, j int) {
+	scss[i], scss[j] = scss[j], scss[i]
+}
+
+func orderStructuresByOffset(vss []VolumeStructure) []VolumeStructure {
+	if vss == nil {
+		return nil
+	}
+
+	// Build contiguous structures
+	scss := contiguousStructsSet{}
+	var currentCont *contiguousStructs
+	for _, s := range vss {
+		// If offset is set we can start a new "block", otherwise the
+		// structure goes right after the latest structure of the
+		// current block. Note that currentCont will never be accessed
+		// as nil as necessarily the first structure in gadget.yaml will
+		// have offset explicitly or implicitly (the only way for a
+		// structure to have nil offset is when the current structure
+		// does not have explicit offset and the previous one either
+		// does not have itself offset or has min-size set).
+		if s.Offset != nil {
+			currentCont = &contiguousStructs{}
+			scss = append(scss, currentCont)
+		}
+
+		currentCont.vss = append(currentCont.vss, s)
+	}
+
+	sort.Sort(scss)
+
+	// Build plain list of structures now
+	ordVss := []VolumeStructure{}
+	for _, cs := range scss {
+		ordVss = append(ordVss, cs.vss...)
+	}
+	return ordVss
+}
+
+func validatePartial(v *Volume) error {
+	var foundCache [len(validPartialProperties)]bool
+	for _, p := range v.Partial {
+		found := false
+		for vpvIdx, valid := range validPartialProperties {
+			if p == valid {
+				if foundCache[vpvIdx] == true {
+					return fmt.Errorf("partial value %q is repeated", p)
+				}
+				foundCache[vpvIdx] = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("%q is not a valid partial value", p)
+		}
+	}
+
+	return nil
+}
+
 // InfoFromGadgetYaml parses the provided gadget metadata.
 // If model is nil only self-consistency checks are performed.
 // If model is not nil implied values for filesystem labels will be set
@@ -607,6 +892,10 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 			return nil, fmt.Errorf("volume %q stanza is empty", name)
 		}
 
+		if err := validatePartial(v); err != nil {
+			return nil, err
+		}
+
 		// set the VolumeName for the volume
 		v.Name = name
 
@@ -614,6 +903,9 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		if err := setImplicitForVolume(v, model); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
+
+		// Note that after this call we assume always ordered structures
+		v.Structure = orderStructuresByOffset(v.Structure)
 
 		if err := validateVolume(v); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
@@ -661,52 +953,94 @@ func whichVolRuleset(model Model) volRuleset {
 	return volRuleset16
 }
 
+func setKnownLabel(label, filesystem string, knownFsLabels, knownVfatFsLabels map[string]bool) (unique bool) {
+	lowerLabel := strings.ToLower(label)
+	if seen := knownVfatFsLabels[lowerLabel]; seen {
+		return false
+	}
+	if filesystem == "vfat" {
+		// labels with same name (ignoring capitals) as an already
+		// existing vfat label are not allowed
+		for knownLabel := range knownFsLabels {
+			if lowerLabel == strings.ToLower(knownLabel) {
+				return false
+			}
+		}
+		knownVfatFsLabels[lowerLabel] = true
+	} else {
+		if seen := knownFsLabels[label]; seen {
+			return false
+		}
+		knownFsLabels[label] = true
+	}
+
+	return true
+}
+
+func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
+	return &offs
+}
+
 func setImplicitForVolume(vol *Volume, model Model) error {
 	rs := whichVolRuleset(model)
-	if vol.Schema == "" {
+	if vol.Schema == "" && !vol.HasPartial(PartialSchema) {
 		// default for schema is gpt
 		vol.Schema = schemaGPT
 	}
 
 	// for uniqueness of filesystem labels
 	knownFsLabels := make(map[string]bool, len(vol.Structure))
+	knownVfatFsLabels := make(map[string]bool, len(vol.Structure))
 	for _, s := range vol.Structure {
 		if s.Label != "" {
-			if seen := knownFsLabels[s.Label]; seen {
+			if !setKnownLabel(s.Label, s.Filesystem, knownFsLabels, knownVfatFsLabels) {
 				return fmt.Errorf("filesystem label %q is not unique", s.Label)
 			}
-			knownFsLabels[s.Label] = true
 		}
 	}
 
-	previousEnd := quantity.Offset(0)
+	previousEnd := asOffsetPtr(0)
 	for i := range vol.Structure {
 		// set the VolumeName for the structure from the volume itself
 		vol.Structure[i].VolumeName = vol.Name
+		// Store index as we will reorder later
+		vol.Structure[i].YamlIndex = i
+		// MinSize is Size if not explicitly set
+		if vol.Structure[i].MinSize == 0 {
+			vol.Structure[i].MinSize = vol.Structure[i].Size
+		}
 
 		// set other implicit data for the structure
-		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels); err != nil {
+		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels, knownVfatFsLabels); err != nil {
 			return err
 		}
 
-		// set offset if it was not set (must be after setImplicitForVolumeStructure
-		// so roles are good).
-		if vol.Structure[i].Offset == nil {
+		// Set offset if it was not set (must be after setImplicitForVolumeStructure
+		// so roles are good). This is possible only if the previous structure had
+		// a well-defined end.
+		if vol.Structure[i].Offset == nil && previousEnd != nil {
 			var start quantity.Offset
-			if vol.Structure[i].Role != schemaMBR && previousEnd < NonMBRStartOffset {
+			if vol.Structure[i].Role != schemaMBR && *previousEnd < NonMBRStartOffset {
 				start = NonMBRStartOffset
 			} else {
-				start = previousEnd
+				start = *previousEnd
 			}
 			vol.Structure[i].Offset = &start
 		}
-		previousEnd = *vol.Structure[i].Offset + quantity.Offset(vol.Structure[i].Size)
+		// We know the end of the structure only if we could define an offset
+		// and the size is fixed.
+		if vol.Structure[i].Offset != nil && vol.Structure[i].IsFixedSize() {
+			previousEnd = asOffsetPtr(*vol.Structure[i].Offset +
+				quantity.Offset(vol.Structure[i].Size))
+		} else {
+			previousEnd = nil
+		}
 	}
 
 	return nil
 }
 
-func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLabels map[string]bool) error {
+func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLabels, knownVfatFsLabels map[string]bool) error {
 	if vs.Role == "" && vs.Type == schemaMBR {
 		vs.Role = schemaMBR
 		return nil
@@ -733,10 +1067,9 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLa
 			implicitLabel = ubuntuSaveLabel
 		}
 		if implicitLabel != "" {
-			if knownFsLabels[implicitLabel] {
+			if !setKnownLabel(implicitLabel, vs.Filesystem, knownFsLabels, knownVfatFsLabels) {
 				return fmt.Errorf("filesystem label %q is implied by %s role but was already set elsewhere", implicitLabel, vs.Role)
 			}
-			knownFsLabels[implicitLabel] = true
 			vs.Label = implicitLabel
 		}
 	}
@@ -821,12 +1154,6 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-type byStructureOffset []VolumeStructure
-
-func (b byStructureOffset) Len() int           { return len(b) }
-func (b byStructureOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
-func (b byStructureOffset) Less(i, j int) bool { return *(b[i].Offset) < *(b[j].Offset) }
-
 func validateVolume(vol *Volume) error {
 	if !validVolumeName.MatchString(vol.Name) {
 		return errors.New("invalid name")
@@ -835,10 +1162,8 @@ func validateVolume(vol *Volume) error {
 		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
-	// named structures, for cross-referencing relative offset-write names
-	knownStructures := make(map[string]*VolumeStructure, len(vol.Structure))
-	// for validating structure overlap
-	structures := make([]VolumeStructure, len(vol.Structure))
+	// named structures, to check that names are not repeated
+	knownStructures := make(map[string]bool, len(vol.Structure))
 
 	// TODO: should we also validate that if there is a system-recovery-select
 	// role there should also be at least 2 system-recovery-image roles and
@@ -848,7 +1173,7 @@ func validateVolume(vol *Volume) error {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
 
-		if vol.Schema == schemaGPT {
+		if vol.Schema == schemaGPT && s.Offset != nil {
 			// If the block size is 512, the First Usable LBA must be greater than or equal to
 			// 34 (allowing 1 block for the Protective MBR, 1 block for the Partition Table
 			// Header, and 32 blocks for the GPT Partition Entry Array); if the logical block
@@ -864,28 +1189,28 @@ func validateVolume(vol *Volume) error {
 			// is some data in the union - intersection of the described GPT segments, which
 			// might be fine but is suspicious.
 			start := *s.Offset
-			end := start + quantity.Offset(s.Size)
+			// MinSize instead of Size as we warn only if we are
+			// sure that there will be a problem (that is, the
+			// problem will happen even for the smallest structure
+			// case).
+			end := start + quantity.Offset(s.MinSize)
 			if start < 512*34 && end > 4096 {
-				return fmt.Errorf("invalid structure: GPT header or GPT partition table overlapped with structure %q\n", s.Name)
+				logger.Noticef("WARNING: invalid structure: GPT header or GPT partition table overlapped with structure %q\n", s.Name)
 			} else if start < 4096*6 && end > 512 {
 				logger.Noticef("WARNING: GPT header or GPT partition table might be overlapped with structure %q", s.Name)
 			}
 		}
 
-		structures[idx] = vol.Structure[idx]
 		if s.Name != "" {
 			if _, ok := knownStructures[s.Name]; ok {
 				return fmt.Errorf("structure name %q is not unique", s.Name)
 			}
 			// keep track of named structures
-			knownStructures[s.Name] = &structures[idx]
+			knownStructures[s.Name] = true
 		}
 	}
 
-	// sort by starting offset
-	sort.Sort(byStructureOffset(structures))
-
-	return validateCrossVolumeStructure(structures, knownStructures)
+	return validateCrossVolumeStructure(vol)
 }
 
 // isMBR returns whether the structure is the MBR and can be used before setImplicitForVolume
@@ -899,54 +1224,71 @@ func isMBR(vs *VolumeStructure) bool {
 	return false
 }
 
-func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures map[string]*VolumeStructure) error {
+func validateCrossVolumeStructure(vol *Volume) error {
 	previousEnd := quantity.Offset(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
-	// - laid out structure overlap
-	// use structures laid out within the volume
-	for pidx, ps := range structures {
+	// - structure overlap
+	for pidx, ps := range vol.Structure {
 		if isMBR(&ps) {
-			if *(ps.Offset) != 0 {
+			if ps.Offset == nil || *(ps.Offset) != 0 {
 				return fmt.Errorf(`structure %q has "mbr" role and must start at offset 0`, ps.Name)
 			}
 		}
-		if ps.OffsetWrite != nil && ps.OffsetWrite.RelativeTo != "" {
-			// offset-write using a named structure
-			other := knownStructures[ps.OffsetWrite.RelativeTo]
-			if other == nil {
-				return fmt.Errorf("structure %q refers to an unknown structure %q",
-					ps.Name, ps.OffsetWrite.RelativeTo)
-			}
+		if err := validateOffsetWrite(&ps, &vol.Structure[0], vol.MinSize()); err != nil {
+			return err
 		}
+		// We are assuming ordered structures
+		if ps.Offset != nil {
+			if *(ps.Offset) < previousEnd {
+				return fmt.Errorf("structure %q overlaps with the preceding structure %q", ps.Name, vol.Structure[pidx-1].Name)
+			}
+			previousEnd = *(ps.Offset) + quantity.Offset(ps.Size)
+		} else {
+			previousEnd += quantity.Offset(ps.Size)
 
-		if *(ps.Offset) < previousEnd {
-			previous := structures[pidx-1]
-			return fmt.Errorf("structure %q overlaps with the preceding structure %q", ps.Name, previous.Name)
-		}
-		previousEnd = *(ps.Offset) + quantity.Offset(ps.Size)
-
-		if ps.HasFilesystem() {
-			// content relative offset only possible if it's a bare structure
-			continue
-		}
-		for cidx, c := range ps.Content {
-			if c.OffsetWrite == nil || c.OffsetWrite.RelativeTo == "" {
-				continue
-			}
-			relativeToStructure := knownStructures[c.OffsetWrite.RelativeTo]
-			if relativeToStructure == nil {
-				return fmt.Errorf("structure %q, content %v refers to an unknown structure %q",
-					ps.Name, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
-			}
 		}
 	}
 	return nil
 }
 
+func validateOffsetWrite(s, firstStruct *VolumeStructure, volSize quantity.Size) error {
+	if s.OffsetWrite == nil {
+		return nil
+	}
+
+	if s.OffsetWrite.RelativeTo != "" {
+		// offset-write using a named structure can only refer to
+		// the first volume structure
+		if s.OffsetWrite.RelativeTo != firstStruct.Name {
+			return fmt.Errorf("structure %q refers to an unexpected structure %q",
+				s.Name, s.OffsetWrite.RelativeTo)
+		}
+		if firstStruct.Offset == nil || *(firstStruct.Offset) != 0 {
+			return fmt.Errorf("structure %q refers to structure %q, which does not have 0 offset",
+				s.Name, s.OffsetWrite.RelativeTo)
+		}
+		if quantity.Size(s.OffsetWrite.Offset)+SizeLBA48Pointer > firstStruct.MinSize {
+			return fmt.Errorf("structure %q wants to write offset of %d bytes to %d, outside of referred structure %q",
+				s.Name, SizeLBA48Pointer, s.OffsetWrite.Offset, s.OffsetWrite.RelativeTo)
+		}
+	} else if quantity.Size(s.OffsetWrite.Offset)+SizeLBA48Pointer > volSize {
+		return fmt.Errorf("structure %q wants to write offset of %d bytes to %d, outside of volume of min size %d",
+			s.Name, SizeLBA48Pointer, s.OffsetWrite.Offset, volSize)
+	}
+
+	return nil
+}
+
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
-	if vs.Size == 0 {
-		return errors.New("missing size")
+	if !vs.hasPartialSize(vol) {
+		if vs.Size == 0 {
+			return errors.New("missing size")
+		}
+		if vs.MinSize > vs.Size {
+			return fmt.Errorf("min-size (%d) is bigger than size (%d)",
+				vs.MinSize, vs.Size)
+		}
 	}
 	if err := validateStructureType(vs.Type, vol); err != nil {
 		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
@@ -966,10 +1308,10 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 
 	var contentChecker func(*VolumeContent) error
 
-	if !vs.HasFilesystem() {
-		contentChecker = validateBareContent
-	} else {
+	if vs.willHaveFilesystem(vol) {
 		contentChecker = validateFilesystemContent
+	} else {
+		contentChecker = validateBareContent
 	}
 	for i, c := range vs.Content {
 		if err := contentChecker(&c); err != nil {
@@ -977,7 +1319,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 		}
 	}
 
-	if err := validateStructureUpdate(vs); err != nil {
+	if err := validateStructureUpdate(vs, vol); err != nil {
 		return err
 	}
 
@@ -998,11 +1340,6 @@ func validateStructureType(s string, vol *Volume) error {
 	// Hybrid ID is 2 hex digits of MBR type, followed by 36 GUUID
 	// example: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
 
-	schema := vol.Schema
-	if schema == "" {
-		schema = schemaGPT
-	}
-
 	if s == "" {
 		return errors.New(`type is not specified`)
 	}
@@ -1017,7 +1354,7 @@ func validateStructureType(s string, vol *Volume) error {
 		return nil
 	}
 
-	var isGPT, isMBR bool
+	var isGPT, isMBR, isHybrid bool
 
 	idx := strings.IndexRune(s, ',')
 	if idx == -1 {
@@ -1032,6 +1369,7 @@ func validateStructureType(s string, vol *Volume) error {
 		}
 	} else {
 		// hybrid ID
+		isHybrid = true
 		code := s[:idx]
 		guid := s[idx+1:]
 		if len(code) != 2 || len(guid) != 36 || !validTypeID.MatchString(code) || !validGUUID.MatchString(guid) {
@@ -1039,12 +1377,22 @@ func validateStructureType(s string, vol *Volume) error {
 		}
 	}
 
-	if schema != schemaGPT && isGPT {
-		// type: <uuid> is only valid for GPT volumes
-		return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
-	}
-	if schema != schemaMBR && isMBR {
-		return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
+	if vol.HasPartial(PartialSchema) {
+		if !isHybrid {
+			return fmt.Errorf("both MBR type and GUID structure type needs to be defined on partial schemas")
+		}
+	} else {
+		schema := vol.Schema
+		if schema == "" {
+			schema = schemaGPT
+		}
+		if schema != schemaGPT && isGPT {
+			// type: <uuid> is only valid for GPT volumes
+			return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
+		}
+		if schema != schemaMBR && isMBR {
+			return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
+		}
 	}
 
 	return nil
@@ -1105,7 +1453,7 @@ func validateBareContent(vc *VolumeContent) error {
 }
 
 func validateFilesystemContent(vc *VolumeContent) error {
-	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
+	if vc.Image != "" || vc.Offset != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
 	if vc.UnresolvedSource == "" {
@@ -1117,8 +1465,8 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	return nil
 }
 
-func validateStructureUpdate(vs *VolumeStructure) error {
-	if !vs.HasFilesystem() && len(vs.Update.Preserve) > 0 {
+func validateStructureUpdate(vs *VolumeStructure, v *Volume) error {
+	if !vs.willHaveFilesystem(v) && len(vs.Update.Preserve) > 0 {
 		return errors.New("preserving files during update is not supported for non-filesystem structures")
 	}
 
@@ -1226,18 +1574,7 @@ func IsCompatible(current, new *Info) error {
 		return fmt.Errorf("internal error: unset volume schemas: old: %q new: %q", currentVol.Schema, newVol.Schema)
 	}
 
-	// layout both volumes partially, without going deep into the layout of
-	// structure content, we only want to make sure that structures are
-	// comapatible
-	pCurrent, err := LayoutVolumePartially(currentVol)
-	if err != nil {
-		return fmt.Errorf("cannot lay out the current volume: %v", err)
-	}
-	pNew, err := LayoutVolumePartially(newVol)
-	if err != nil {
-		return fmt.Errorf("cannot lay out the new volume: %v", err)
-	}
-	if err := isLayoutCompatible(pCurrent, pNew); err != nil {
+	if err := isLayoutCompatible(currentVol, newVol); err != nil {
 		return fmt.Errorf("incompatible layout change: %v", err)
 	}
 	return nil

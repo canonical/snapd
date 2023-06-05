@@ -519,7 +519,7 @@ func (s *installSuite) TestDeviceFromRoleHappy(c *C) {
 	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC20GadgetYaml, uc20Mod)
 	c.Assert(err, IsNil)
 
-	device, err := install.DiskWithSystemSeed(lv)
+	device, err := install.DiskWithSystemSeed(lv.Volume)
 	c.Assert(err, IsNil)
 	c.Check(device, Equals, "/dev/fakedevice0")
 }
@@ -529,7 +529,7 @@ func (s *installSuite) TestDeviceFromRoleErrorNoMatchingSysfs(c *C) {
 	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC20GadgetYaml, uc20Mod)
 	c.Assert(err, IsNil)
 
-	_, err = install.DiskWithSystemSeed(lv)
+	_, err = install.DiskWithSystemSeed(lv.Volume)
 	c.Assert(err, ErrorMatches, `cannot find device for role system-seed: device not found`)
 }
 
@@ -538,7 +538,7 @@ func (s *installSuite) TestDeviceFromRoleErrorNoRole(c *C) {
 	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockGadgetYaml, nil)
 	c.Assert(err, IsNil)
 
-	_, err = install.DiskWithSystemSeed(lv)
+	_, err = install.DiskWithSystemSeed(lv.Volume)
 	c.Assert(err, ErrorMatches, "cannot find role system-seed in gadget")
 }
 

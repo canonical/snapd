@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -160,8 +160,8 @@ type StorageEncryption struct {
 	// StorageSafety can have values of asserts.StorageSafety
 	StorageSafety string `json:"storage-safety,omitempty"`
 
-	// Type has values of secboot.Type: "", "cryptsetup",
-	// "device-setup-hook"
+	// Type has values of secboot.EncryptionType: "", "cryptsetup",
+	// "cryptsetup-with-inline-crypto-engine"
 	Type string `json:"encryption-type,omitempty"`
 
 	// UnavailableReason describes why the encryption is not

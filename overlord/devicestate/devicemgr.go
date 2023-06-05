@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -989,6 +990,57 @@ func (m *DeviceManager) ensureSeeded() error {
 	return nil
 }
 
+var processAutoImportAssertionsImpl = processAutoImportAssertions
+
+// ensureAutoImportAssertions makes sure that auto import assertions
+// get processed. Assertion should be processed while seeding is in progress.
+func (m *DeviceManager) ensureAutoImportAssertions() error {
+	if release.OnClassic {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.earlyDeviceSeed == nil {
+		// we have no seed cached yet, no point to check further
+		return nil
+	}
+
+	var seeded bool
+	if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	// if system is seeded, stop trying
+	if seeded {
+		return nil
+	}
+
+	// check if we have processed auto-import asssertions already
+	var autoImported bool
+	if err := m.state.Get("asserts-early-auto-imported", &autoImported); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if autoImported {
+		return nil
+	}
+
+	commitTo := func(batch *asserts.Batch) error {
+		return assertstate.AddBatch(m.state, batch, nil)
+	}
+	db := assertstate.DB(m.state)
+	// Set asserts-early-auto-imported as processed, even if it fails,
+	// it should not be re-run. State should not be altered once
+	// processAutoImportAssertionsImpl is called.
+	m.state.Set("asserts-early-auto-imported", true)
+	err := processAutoImportAssertionsImpl(m.state, m.earlyDeviceSeed, db, commitTo)
+	if err != nil {
+		// best effort
+		logger.Noticef("cannot process auto import assertion: %v", err)
+	}
+	return nil
+}
+
 func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1655,6 +1707,15 @@ func (m *DeviceManager) Ensure() error {
 	}
 
 	if !m.preseed {
+		if err := m.ensureAutoImportAssertions(); err != nil {
+			errs = append(errs, err)
+		}
+
+		// code below should not need the early loaded device seed
+		// optimistically forget the earlyDeviceSeed here
+		// to free the corresponding memory usage
+		m.earlyDeviceSeed = nil
+
 		if err := m.ensureCloudInitRestricted(); err != nil {
 			errs = append(errs, err)
 		}
@@ -2005,7 +2066,7 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 // SystemAndGadgetAndEncryptionInfo return the system details
 // including the model assertion, gadget details and encryption info
 // for the given system label.
-func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel string) (*System, *gadget.Info, *EncryptionSupportInfo, error) {
+func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel string) (*System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 	// TODO check that the system is not a classic boot one when the
 	// installer is not anymore.
 
@@ -2332,7 +2393,8 @@ func (m *DeviceManager) hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
 			return false, fmt.Errorf("cannot get kernel info: %v", err)
 		}
 	}
-	return hasFDESetupHookInKernel(kernelInfo), nil
+	_, ok := kernelInfo.Hooks["fde-setup"]
+	return ok, nil
 }
 
 func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
@@ -2377,33 +2439,6 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 		return nil, fmt.Errorf("cannot get result from fde-setup hook %q: %v", req.Op, err)
 	}
 	return hookOutput, nil
-}
-
-func (m *DeviceManager) checkFDEFeatures() (et secboot.EncryptionType, err error) {
-	// Run fde-setup hook with "op":"features". If the hook
-	// returns any {"features":[...]} reply we consider the
-	// hardware supported. If the hook errors or if it returns
-	// {"error":"hardware-unsupported"} we don't.
-	features, err := fde.CheckFeatures(m.runFDESetupHook)
-	if err != nil {
-		return et, err
-	}
-	switch {
-	case strutil.ListContains(features, "inline-crypto-engine"):
-		et = secboot.EncryptionTypeLUKSWithICE
-		// TODO:ICE: remove this
-	case strutil.ListContains(features, "device-setup"):
-		et = secboot.EncryptionTypeDeviceSetupHook
-	default:
-		et = secboot.EncryptionTypeLUKS
-	}
-
-	return et, nil
-}
-
-func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
-	_, ok := kernelInfo.Hooks["fde-setup"]
-	return ok
 }
 
 type fdeSetupHandler struct {
@@ -2543,36 +2578,6 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	return secbootRemoveRecoveryKeys(recoveryKeyDevices)
 }
 
-// EncryptionSupportInfo describes what encryption is available and needed
-// for the current device.
-type EncryptionSupportInfo struct {
-	// Disabled is set if to true encryption was forcefully
-	// disabled (e.g. via the seed partition), if set the rest
-	// of the struct content is not relevant.
-	Disabled bool
-
-	// StorageSafety describes the level safety properties
-	// requested by the model
-	StorageSafety asserts.StorageSafety
-	// Available is set to true if encryption is available on this device
-	// with the used gadget.
-	Available bool
-
-	// Type is set to the EncryptionType that can be used if
-	// Available is true.
-	Type secboot.EncryptionType
-
-	// UnvailableErr is set if the encryption support availability of
-	// the this device and used gadget do not match the
-	// storage safety requirements.
-	UnavailableErr error
-	// UnavailbleWarning describes why encryption support is not
-	// available in case it is optional.
-	UnavailableWarning string
-}
-
-var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
-
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
@@ -2592,88 +2597,9 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		return "", err
 	}
 
-	res, err := m.encryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo)
-	if err != nil {
-		return "", err
-	}
-	if res.UnavailableWarning != "" {
-		logger.Noticef("%s", res.UnavailableWarning)
-	}
-	// encryption disabled or preferred unencrypted: follow the model preferences here even if encryption would be available
-	if res.Disabled || res.StorageSafety == asserts.StorageSafetyPreferUnencrypted {
-		res.Type = secboot.EncryptionTypeNone
-	}
-
-	return res.Type, res.UnavailableErr
+	return install.CheckEncryptionSupport(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
 }
 
-func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
-	secured := model.Grade() == asserts.ModelSecured
-	dangerous := model.Grade() == asserts.ModelDangerous
-	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
-
-	res := EncryptionSupportInfo{
-		StorageSafety: model.StorageSafety(),
-	}
-
-	// check if we should disable encryption non-secured devices
-	// TODO:UC20: this is not the final mechanism to bypass encryption
-	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
-		res.Disabled = true
-		return res, nil
-	}
-
-	// check encryption: this can either be provided by the fde-setup
-	// hook mechanism or by the built-in secboot based encryption
-	checkFDESetupHookEncryption := hasFDESetupHookInKernel(kernelInfo)
-	// Note that having a fde-setup hook will disable the internal
-	// secboot based encryption
-	checkSecbootEncryption := !checkFDESetupHookEncryption
-	var checkEncryptionErr error
-	switch {
-	case checkFDESetupHookEncryption:
-		res.Type, checkEncryptionErr = m.checkFDEFeatures()
-	case checkSecbootEncryption:
-		checkEncryptionErr = secbootCheckTPMKeySealingSupported(tpmMode)
-		if checkEncryptionErr == nil {
-			res.Type = secboot.EncryptionTypeLUKS
-		}
-	default:
-		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
-	}
-	res.Available = (checkEncryptionErr == nil)
-
-	if checkEncryptionErr != nil {
-		switch {
-		case secured:
-			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
-		case encrypted:
-			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
-		case checkFDESetupHookEncryption:
-			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
-		case checkSecbootEncryption:
-			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
-		default:
-			return res, fmt.Errorf("internal error: checkEncryptionErr is set but not handled by the code")
-		}
-	}
-
-	// If encryption is available check if the gadget is
-	// compatible with encryption.
-	if res.Available {
-		opts := &gadget.ValidationConstraints{
-			EncryptedData: true,
-		}
-		if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
-			if secured || encrypted {
-				res.UnavailableErr = fmt.Errorf("cannot use encryption with the gadget: %v", err)
-			} else {
-				res.UnavailableWarning = fmt.Sprintf("cannot use encryption with the gadget, disabling encryption: %v", err)
-			}
-			res.Available = false
-			res.Type = secboot.EncryptionTypeNone
-		}
-	}
-
-	return res, nil
+func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (install.EncryptionSupportInfo, error) {
+	return install.GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
 }

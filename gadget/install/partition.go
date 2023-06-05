@@ -241,13 +241,13 @@ func deviceName(name string, index int) string {
 }
 
 // removeCreatedPartitions removes partitions added during a previous install.
-func removeCreatedPartitions(gadgetRoot string, lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) error {
+func removeCreatedPartitions(gadgetRoot string, gv *gadget.Volume, dl *gadget.OnDiskVolume) error {
 	sfdiskIndexes := make([]string, 0, len(dl.Structure))
 	// up to 3 possible partitions are creatable and thus removable:
 	// ubuntu-data, ubuntu-boot, and ubuntu-save
 	deletedIndexes := make(map[int]bool, 3)
 	for i, s := range dl.Structure {
-		if wasCreatedDuringInstall(lv, s) {
+		if wasCreatedDuringInstall(gv, s) {
 			logger.Noticef("partition %s was created during previous install", s.Node)
 			sfdiskIndexes = append(sfdiskIndexes, strconv.Itoa(i+1))
 			deletedIndexes[i] = true
@@ -294,7 +294,7 @@ func removeCreatedPartitions(gadgetRoot string, lv *gadget.LaidOutVolume, dl *ga
 	dl.Structure = newStructure
 
 	// Ensure all created partitions were removed
-	if remaining := createdDuringInstall(lv, dl); len(remaining) > 0 {
+	if remaining := createdDuringInstall(gv, dl); len(remaining) > 0 {
 		return fmt.Errorf("cannot remove partitions: %s", strings.Join(remaining, ", "))
 	}
 
@@ -407,21 +407,21 @@ func udevTrigger(device string) error {
 // structure such as filesystem information since this may be incomplete due to
 // a failed installation, or due to the partial layout that is created by some
 // ARM tools (i.e. ptool and fastboot) when flashing images to internal MMC.
-func wasCreatedDuringInstall(lv *gadget.LaidOutVolume, s gadget.OnDiskStructure) bool {
+func wasCreatedDuringInstall(gv *gadget.Volume, s gadget.OnDiskStructure) bool {
 	// for a structure to have been created during install, it must be one of
 	// the system-boot, system-data, or system-save roles from the gadget, and
 	// as such the on disk structure must exist in the exact same location as
 	// the role from the gadget, so only return true if the provided structure
 	// has the exact same StartOffset as one of those roles
-	for _, gs := range lv.LaidOutStructure {
+	for i, gs := range gv.Structure {
 		// TODO: how to handle ubuntu-save here? maybe a higher level function
 		//       should decide whether to delete it or not?
-		switch gs.Role() {
+		switch gs.Role {
 		case gadget.SystemSave, gadget.SystemData, gadget.SystemBoot:
 			// then it was created during install or is to be created during
 			// install, see if the offset matches the provided on disk structure
 			// has
-			if s.StartOffset == gs.StartOffset {
+			if gadget.CheckValidStartOffset(s.StartOffset, gv.Structure, i) == nil {
 				return true
 			}
 		}
@@ -432,10 +432,10 @@ func wasCreatedDuringInstall(lv *gadget.LaidOutVolume, s gadget.OnDiskStructure)
 
 // createdDuringInstall returns a list of partitions created during the
 // install process.
-func createdDuringInstall(lv *gadget.LaidOutVolume, layout *gadget.OnDiskVolume) (created []string) {
+func createdDuringInstall(gv *gadget.Volume, layout *gadget.OnDiskVolume) (created []string) {
 	created = make([]string, 0, len(layout.Structure))
 	for _, s := range layout.Structure {
-		if wasCreatedDuringInstall(lv, s) {
+		if wasCreatedDuringInstall(gv, s) {
 			created = append(created, s.Node)
 		}
 	}

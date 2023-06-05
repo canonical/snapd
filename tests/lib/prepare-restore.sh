@@ -5,9 +5,6 @@ set -x
 # handle errors in general.
 set -e
 
-# shellcheck source=tests/lib/quiet.sh
-. "$TESTSLIB/quiet.sh"
-
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
@@ -72,13 +69,18 @@ build_deb(){
 
     if os.query is-debian sid; then
         # ensure we really build without vendored packages
-        rm -rf vendor/*/*
+        mv ./vendor /tmp
     fi
 
     unshare -n -- \
-            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
+
+    if os.query is-debian sid; then
+        # restore vendor dir, it's needed by e.g. fakestore
+        mv /tmp/vendor ./
+    fi
 }
 
 build_rpm() {
@@ -361,7 +363,7 @@ prepare_project() {
         tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git .
 
         # and build a source package - this will be used during the sbuild test
-        dpkg-buildpackage -S --no-sign
+        dpkg-buildpackage -S -uc -us
     fi
 
     # so is ubuntu-14.04
@@ -386,6 +388,14 @@ prepare_project() {
 
         quiet eatmydata apt-get install -y --install-recommends linux-generic-lts-xenial
         quiet eatmydata apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
+    fi
+
+    # ubuntu-16.04 is EOL so the updated go-1.18 is only available via
+    # the ppa:snappy-dev/image ppa for now. if needed the package could
+    # be copied from the PPA to the ESM archive.
+    if os.query is-xenial; then
+        quiet add-apt-repository ppa:snappy-dev/image
+        quiet eatmydata apt-get update
     fi
 
     # WORKAROUND for older postrm scripts that did not do
@@ -510,23 +520,28 @@ prepare_project() {
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
-            best_golang=golang-1.13
+            best_golang=golang-1.18
             if [[ "$SPREAD_SYSTEM" == debian-10-* ]]; then
-                # debian-10 needs backports for golang-1.13
-                echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list
+                # debian-10 needs backports for dh-golang
+		# TODO: drop when we drop debian-10 support fully
+		echo "deb http://deb.debian.org/debian buster-backports-sloppy main" >> /etc/apt/sources.list
+                # debian-10 needs backports for golang-1.18, there is no
+		# buser-backports anymore so we can only use a PPA
+                echo "deb https://ppa.launchpadcontent.net/snappy-dev/image/ubuntu xenial main" >> /etc/apt/sources.list
+		curl 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x78e1918602959b9c59103100f1831ddafc42e99d' | apt-key add -
                 apt update
                 # dh-golang must come from backports, gdebi/apt cannot
                 # resolve this on their own
-                apt install -y -t buster-backports dh-golang
-                # we need the specific golang-1.13 here, not golang-go
-                sed -i -e "s/golang-go (>=2:1.13).*,/${best_golang},/" ./debian/control
+                apt install -y -t buster-backports-sloppy dh-golang
+                sed -i -e "s/golang-go (>=2:1.18~).*,/${best_golang},/" ./debian/control
             fi
             # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-            gdebi --quiet --apt-line ./debian/control | quiet xargs -r eatmydata apt-get install -y
-            # The go 1.13 backport is not using alternatives or anything else so
+            gdebi --quiet --apt-line ./debian/control >deps.txt
+            quiet xargs -r eatmydata apt-get install -y < deps.txt
+            # The go 1.18 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
-                # the path filesystem path is: /usr/lib/go-1.13/bin
+                # the path filesystem path is: /usr/lib/go-1.18/bin
                 ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
             ;;
@@ -668,12 +683,11 @@ prepare_suite_each() {
     fi
 
     if [[ "$variant" = full ]]; then
-        # shellcheck source=tests/lib/prepare.sh
-        . "$TESTSLIB"/prepare.sh
         if os.query is-classic; then
+            # shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
             prepare_each_classic
         fi
-        prepare_memory_limit_override
     fi
 
     case "$SPREAD_SYSTEM" in
@@ -762,9 +776,7 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     if [ "$REMOTE_STORE" = staging ]; then
-        # shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB"/store.sh
-        teardown_staging_store
+        "$TESTSTOOLS"/store-state teardown-staging-store
     fi
 
     if os.query is-classic; then

@@ -52,6 +52,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	_ "github.com/snapcore/snapd/overlord/snapstate/policy"
+	// import to register linkNotify callback
+	_ "github.com/snapcore/snapd/overlord/snapstate/agentnotify"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/snapdenv"

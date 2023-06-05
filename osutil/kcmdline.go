@@ -176,30 +176,25 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 }
 
 // KernelCommandLineKeyValues returns a map of the specified keys to the values
-// set for them in the kernel command line (eg. panic=-1). If the value is
-// missing from the kernel command line or it has no value (eg. quiet), the key
-// is omitted from the returned map.
+// set for them in the kernel command line (eg. panic=-1). If the key is missing
+// from the kernel command line, it is omitted from the returned map, but it is
+// added if present even if it has no value.
 func KernelCommandLineKeyValues(keys ...string) (map[string]string, error) {
 	cmdline, err := KernelCommandLine()
 	if err != nil {
 		return nil, err
 	}
-	params, err := KernelCommandLineSplit(cmdline)
-	if err != nil {
-		return nil, err
-	}
 
+	parsed := ParseKernelCommandline(cmdline)
 	m := make(map[string]string, len(keys))
 
-	for _, param := range params {
+	for _, arg := range parsed {
 		for _, key := range keys {
-			if strings.HasPrefix(param, fmt.Sprintf("%s=", key)) {
-				res := strings.SplitN(param, "=", 2)
-				// we have confirmed key= prefix, thus len(res)
-				// is always 2
-				m[key] = res[1]
-				break
+			if arg.Param != key {
+				continue
 			}
+			m[key] = arg.Value
+			break
 		}
 	}
 	return m, nil
@@ -338,10 +333,6 @@ func parseArgument(args []byte) (argument KernelArgument, end int) {
 	}
 
 	param = string(args[startArg : endParam-subsParam])
-
-	// Hyphens (dashes) and underscores are equivalent in parameter names,
-	// so we standardize in "_".
-	param = strings.ReplaceAll(param, "-", "_")
 	argument = KernelArgument{Param: param, Value: val, Quoted: quoted}
 	return argument, end
 }

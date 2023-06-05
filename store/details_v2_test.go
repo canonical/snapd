@@ -84,6 +84,10 @@ const (
     "amd64"
   ],
   "base": "base-18",
+  "categories": [
+    {"featured": true, "name": "featured"},
+    {"featured": false, "name": "productivity"}
+  ],
   "confinement": "strict",
   "contact": "https://thingy.com",
   "common-ids": ["org.thingy"],
@@ -264,7 +268,11 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_01.png"},
 			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
 		},
-		CommonIDs:      []string{"org.thingy"},
+		CommonIDs: []string{"org.thingy"},
+		Categories: []snap.CategoryInfo{
+			{Featured: true, Name: "featured"},
+			{Featured: false, Name: "productivity"},
+		},
 		StoreURL:       "https://snapcraft.io/thingy",
 		SnapProvenance: "prov",
 	})
@@ -398,6 +406,11 @@ func fillStruct(a interface{}, c *C) {
 			x = []storeSnapMedia{{
 				Type: "potato",
 				URL:  "http://example.com/foo.pot",
+			}}
+		case []storeSnapCategory:
+			x = []storeSnapCategory{{
+				Featured: false,
+				Name:     "foo",
 			}}
 		case map[string][]string:
 			x = map[string][]string{

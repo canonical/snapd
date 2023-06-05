@@ -26,12 +26,9 @@ const (
 	EncryptionTypeNone        EncryptionType = ""
 	EncryptionTypeLUKS        EncryptionType = "cryptsetup"
 	EncryptionTypeLUKSWithICE EncryptionType = "cryptsetup-with-inline-crypto-engine"
-
-	// TODO:ICE: remove this
-	EncryptionTypeDeviceSetupHook EncryptionType = "device-setup-hook"
 )
 
-// TODO:ICE: once all EncryptionTypes are LUKS based this can probably go
+// TODO:ICE: all EncryptionTypes are LUKS based now so this could be removed?
 func (et EncryptionType) IsLUKS() bool {
 	return et == EncryptionTypeLUKS || et == EncryptionTypeLUKSWithICE
 }

@@ -656,7 +656,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModeError(c *check
 
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 400)
-	c.Check(rspe.Message, check.Equals, fmt.Sprintf(`cannot get validation set assertion for %s/bar: boom`, s.dev1acct.AccountID()))
+	c.Check(rspe.Message, check.Equals, fmt.Sprintf(`cannot monitor validation set %s/bar: boom`, s.dev1acct.AccountID()))
 }
 
 func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {

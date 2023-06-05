@@ -46,7 +46,7 @@ type dmCryptInterface struct{}
 const dmCryptConnectedPlugAppArmor = `
 # Allow mapper access
 /dev/mapper/control rw,
-/dev/dm-[0-9]* rw,
+/dev/dm-[0-9]* rwk,
 # allow use of cryptsetup from core snap
 /{,usr/}sbin/cryptsetup ixr,
 # Mount points could be in /run/media/<user>/* or /media/<user>/*
@@ -63,7 +63,7 @@ mount options=(rw,nosuid,nodev) /dev/dm-[0-9]* -> /{,run/}media/**,
 /{,var/}run/mount/utab* wrlk,
 
 # Allow access to the file locking mechanism
-/{,var/}run/cryptsetup/ r,
+/{,var/}run/cryptsetup/ rw,
 /{,var/}run/cryptsetup/* rwk,
 /{,var/}run/ r,
 `

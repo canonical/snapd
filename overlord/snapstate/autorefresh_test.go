@@ -1036,7 +1036,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	defer restore()
 
 	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
-	c.Assert(err, IsNil)
+	c.Assert(err == nil, Equals, true)
 	c.Check(notificationCount, Equals, 1)
 }
 
@@ -1127,7 +1127,7 @@ func (s *autoRefreshTestSuite) TestAutoRefreshCreatesBothRefreshAndPreDownload(c
 
 func checkPreDownloadChange(c *C, chg *state.Change, name string, rev snap.Revision) {
 	c.Assert(chg.Kind(), Equals, "pre-download")
-	c.Assert(chg.Summary(), Equals, "Pre-download tasks for auto-refresh")
+	c.Assert(chg.Summary(), Equals, fmt.Sprintf(`Pre-download "%s" for auto-refresh`, name))
 	c.Assert(chg.Tasks(), HasLen, 1)
 	task := chg.Tasks()[0]
 	c.Assert(task.Kind(), Equals, "pre-download-snap")
@@ -1167,6 +1167,8 @@ func (s *autoRefreshTestSuite) addRefreshableSnap(names ...string) {
 }
 
 func (s *autoRefreshTestSuite) TestPartiallyInhibitedAutoRefreshIsContinued(c *C) {
+	s.addRefreshableSnap("foo")
+
 	now := time.Now()
 	restore := snapstate.MockTimeNow(func() time.Time {
 		return now
@@ -1189,6 +1191,12 @@ func (s *autoRefreshTestSuite) TestPartiallyInhibitedAutoRefreshIsContinued(c *C
 	c.Assert(err, IsNil)
 	c.Check(lastRefresh.Equal(now), Equals, true)
 	c.Check(s.state.Cached("auto-refresh-continue-attempt"), IsNil)
+
+	// check that the "IsContinuedAutoRefresh" flag is set for a
+	// continued auto-refresh
+	chgs := s.state.Changes()
+	c.Assert(chgs, HasLen, 1)
+	checkIsContinuedAutoRefresh(c, chgs[0].Tasks(), true)
 }
 
 func (s *autoRefreshTestSuite) TestContinueAutorefreshOnlyFirstOverridesDelay(c *C) {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,7 +27,9 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const dockerSupportSummary = `allows operating as the Docker daemon`
@@ -53,6 +55,11 @@ const dockerSupportConnectedPlugAppArmorCore = `
 # /system-data/var/snap/docker/common/var-lib-docker/overlay2/$SHA/diff/
 /system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**} rwl,
 /system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**} rwl,
+`
+
+const dockerSupportConnectedPlugAppArmorUserNS = `
+# allow use of user namespaces
+userns,
 `
 
 const dockerSupportConnectedPlugAppArmor = `
@@ -154,6 +161,7 @@ pivot_root,
 /etc/apparmor.d/tunables/{,**} r,
 /etc/apparmor.d/abstractions/{,**} r,
 /etc/apparmor/parser.conf r,
+/etc/apparmor.d/abi/{,*} r,
 /etc/apparmor/subdomain.conf r,
 /sys/kernel/security/apparmor/.replace rw,
 /sys/kernel/security/apparmor/{,**} r,
@@ -1013,6 +1021,17 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	if !release.OnClassic {
 		spec.AddSnippet(dockerSupportConnectedPlugAppArmorCore)
 	}
+	// if apparmor supports userns mediation then add this too
+	if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
+		features, err := apparmor_sandbox.ParserFeatures()
+		if err != nil {
+			return err
+		}
+		if strutil.ListContains(features, "userns") {
+			spec.AddSnippet(dockerSupportConnectedPlugAppArmorUserNS)
+		}
+	}
+
 	spec.SetUsesPtraceTrace()
 	return nil
 }

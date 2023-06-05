@@ -78,6 +78,10 @@ func (s *toolingStore) Assertion(assertType *asserts.AssertionType, primaryKey [
 	return as, nil
 }
 
+func (s *toolingStore) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+	panic("not expected")
+}
+
 func (s *toolingStore) SetAssertionMaxFormats(maxFormats map[string]int) {
 	panic("not implemented")
 }

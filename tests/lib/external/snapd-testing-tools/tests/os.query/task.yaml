@@ -76,6 +76,12 @@ execute: |
             ! os.query is-ubuntu 21.04
             ! os.query is-core
             ;;
+        ubuntu-23.04-64)
+            os.query is-classic
+            os.query is-ubuntu 23.04
+            ! os.query is-ubuntu 21.04
+            ! os.query is-core
+            ;;
         debian-10-64)
             os.query is-debian
             os.query is-debian 10
@@ -99,16 +105,16 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
-        fedora-35-64)
+        fedora-36-64)
             os.query is-fedora
-            os.query is-fedora 35
+            os.query is-fedora 36
             ! os.query is-fedora rawhide
             os.query is-classic
             ! os.query is-core
             ;;
-        fedora-36-64)
+        fedora-37-64)
             os.query is-fedora
-            os.query is-fedora 36
+            os.query is-fedora 37
             ! os.query is-fedora rawhide
             os.query is-classic
             ! os.query is-core

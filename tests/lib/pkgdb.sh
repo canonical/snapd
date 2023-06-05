@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# shellcheck source=tests/lib/quiet.sh
-. "$TESTSLIB/quiet.sh"
-
 debian_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
     . "$TESTSLIB/tools/tests.pkgs.apt.sh"
@@ -640,6 +637,7 @@ pkg_dependencies_ubuntu_classic(){
         debian-*)
             echo "
                 autopkgtest
+                cryptsetup-bin
                 debootstrap
                 eatmydata
                 evolution-data-server

@@ -55,6 +55,10 @@ type ServiceAction struct {
 	// inactive and not disabled services in snap-name, and also svc1 regardless
 	// of the state svc1 is in.
 	ExplicitServices []string `json:"explicit-services,omitempty"`
+	// RestartEnabledNonActive is only for "restart" and
+	// "reload-or-restart" actions, and when set it restarts also enabled
+	// non-running services, otherwise these services are left inactive.
+	RestartEnabledNonActive bool `json:"restart-enabled-non-active,omitempty"`
 }
 
 func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
@@ -173,13 +177,12 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	case "restart":
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, nil, meter, perfTimings)
+		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesFlags{AlsoEnabledNonActive: sc.RestartEnabledNonActive}, meter, perfTimings)
 		st.Lock()
 		return err
 	case "reload-or-restart":
-		flags := &wrappers.RestartServicesFlags{Reload: true}
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, flags, meter, perfTimings)
+		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesFlags{Reload: true, AlsoEnabledNonActive: sc.RestartEnabledNonActive}, meter, perfTimings)
 		st.Lock()
 		return err
 	default:

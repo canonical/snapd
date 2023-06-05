@@ -1373,7 +1373,7 @@ volumes:
         type: 00000000-0000-0000-0000-0000deadbeef
 `
 
-	errMatch := `cannot remodel to an incompatible gadget: incompatible layout change: incompatible structure #0 \("foo"\) change: cannot change structure size from 10485760 to 20971520`
+	errMatch := `cannot remodel to an incompatible gadget: incompatible layout change: incompatible structure #0 \("foo"\) change: new valid structure size range \[20971520, 20971520\] is not compatible with current \(\[10485760, 10485760\]\)`
 	s.testCheckGadgetRemodelCompatibleWithYaml(c, compatibleTestMockOkGadget, mockBadGadgetYaml, errMatch)
 }
 
@@ -1518,20 +1518,24 @@ volumes:
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
 							Offset:     asOffsetPtr(gadget.NonMBRStartOffset),
+							MinSize:    10 * quantity.SizeMiB,
 							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
 								{UnresolvedSource: "foo-content", Target: "/"},
 							},
+							YamlIndex: 0,
 						}, {
 							VolumeName: "pc",
 							Name:       "bare-one",
 							Type:       "bare",
 							Offset:     asOffsetPtr(gadget.NonMBRStartOffset + 10*quantity.OffsetMiB),
+							MinSize:    quantity.SizeMiB,
 							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "bare.img"},
 							},
+							YamlIndex: 1,
 						}},
 					},
 				},
@@ -1550,20 +1554,24 @@ volumes:
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
 							Offset:     asOffsetPtr(gadget.NonMBRStartOffset),
+							MinSize:    10 * quantity.SizeMiB,
 							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
 								{UnresolvedSource: "new-foo-content", Target: "/"},
 							},
+							YamlIndex: 0,
 						}, {
 							VolumeName: "pc",
 							Name:       "bare-one",
 							Type:       "bare",
 							Offset:     asOffsetPtr(gadget.NonMBRStartOffset + 10*quantity.OffsetMiB),
+							MinSize:    quantity.SizeMiB,
 							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "new-bare-content.img"},
 							},
+							YamlIndex: 1,
 						}},
 					},
 				},

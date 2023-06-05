@@ -464,10 +464,22 @@ func MockEnforceValidationSets(f func(*state.State, map[string]*asserts.Validati
 	}
 }
 
+func MockEnforceLocalValidationSets(f func(*state.State, map[string][]string, map[string]int, []*snapasserts.InstalledSnap, map[string]bool) error) func() {
+	old := EnforceLocalValidationSets
+	EnforceLocalValidationSets = f
+	return func() {
+		EnforceLocalValidationSets = old
+	}
+}
+
 func MockCgroupMonitorSnapEnded(f func(string, chan<- string) error) func() {
 	old := cgroupMonitorSnapEnded
 	cgroupMonitorSnapEnded = f
 	return func() {
 		cgroupMonitorSnapEnded = old
 	}
+}
+
+func SetRestoredMonitoring(snapmgr *SnapManager, value bool) {
+	snapmgr.autoRefresh.restoredMonitoring = value
 }

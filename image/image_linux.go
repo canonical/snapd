@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -47,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
@@ -281,7 +283,6 @@ type imageSeeder struct {
 	classic        bool
 	prepareDir     string
 	wideCohortKey  string
-	revisions      map[string]snap.Revision
 	customizations *Customizations
 	architecture   string
 
@@ -290,7 +291,9 @@ type imageSeeder struct {
 	bootRootDir string
 	seedDir     string
 	label       string
+	db          *asserts.Database
 	w           *seedwriter.Writer
+	f           seedwriter.SeedAssertionFetcher
 }
 
 func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) (*imageSeeder, error) {
@@ -304,7 +307,6 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 		classic:       opts.Classic,
 		prepareDir:    opts.PrepareDir,
 		wideCohortKey: opts.WideCohortKey,
-		revisions:     opts.Revisions,
 		// keep a pointer to the customization object in opts as the Validation
 		// member might be defaulted if not set.
 		customizations: &opts.Customizations,
@@ -340,6 +342,8 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 		SeedDir:        s.seedDir,
 		Label:          s.label,
 		DefaultChannel: opts.Channel,
+		Manifest:       opts.SeedManifest,
+		ManifestPath:   opts.SeedManifestPath,
 
 		TestSkipCopyUnverifiedModel: osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL"),
 	}
@@ -399,14 +403,27 @@ func (s *imageSeeder) setModesDirs() error {
 	return nil
 }
 
-func (s *imageSeeder) start(db *asserts.Database, optSnaps []*seedwriter.OptionsSnap) (seedwriter.RefAssertsFetcher, error) {
+func (s *imageSeeder) start(optSnaps []*seedwriter.OptionsSnap) error {
 	if err := s.w.SetOptionsSnaps(optSnaps); err != nil {
-		return nil, err
+		return err
 	}
+
+	// TODO: developer database in home or use snapd (but need
+	// a bit more API there, potential issues when crossing stores/series)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   trusted,
+	})
+	if err != nil {
+		return err
+	}
+
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
-		return s.tsto.AssertionFetcher(db, save)
+		return s.tsto.AssertionSequenceFormingFetcher(db, save)
 	}
-	return s.w.Start(db, newFetcher)
+	s.db = db
+	s.f = seedwriter.MakeSeedAssertionFetcher(newFetcher)
+	return s.w.Start(db, s.f)
 }
 
 func (s *imageSeeder) snapSupportsImageArch(sn *seedwriter.SeedSnap) bool {
@@ -430,7 +447,7 @@ func (s *imageSeeder) validateSnapArchs(snaps []*seedwriter.SeedSnap) error {
 
 type localSnapRefs map[*seedwriter.SeedSnap][]*asserts.Ref
 
-func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.RefAssertsFetcher, db *asserts.Database) (localSnapRefs, error) {
+func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.SeedAssertionFetcher, db *asserts.Database) (localSnapRefs, error) {
 	localSnaps, err := s.w.LocalSnaps()
 	if err != nil {
 		return nil, err
@@ -465,19 +482,52 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.RefAssertsFetcher, db
 	return snaps, s.w.InfoDerived()
 }
 
+func (s *imageSeeder) validationSetKeysAndRevisionForSnap(snapName string) ([]snapasserts.ValidationSetKey, snap.Revision, error) {
+	vsas, err := s.db.FindMany(asserts.ValidationSetType, nil)
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
+		return nil, snap.Revision{}, err
+	}
+
+	allVss := snapasserts.NewValidationSets()
+	for _, a := range vsas {
+		if err := allVss.Add(a.(*asserts.ValidationSet)); err != nil {
+			return nil, snap.Revision{}, err
+		}
+	}
+
+	// Just for a good measure, perform a conflict check once we have the
+	// list of all validation-sets for the image seed.
+	if err := allVss.Conflict(); err != nil {
+		return nil, snap.Revision{}, err
+	}
+
+	// TODO: It's pointed out that here and some of the others uses of this
+	// may miss logic for optional snaps which have required revisions. This
+	// is not covered by the below check, and we may or may not have multiple places
+	// with a similar issue.
+	snapVsKeys, snapRev, err := allVss.CheckPresenceRequired(naming.Snap(snapName))
+	if err != nil {
+		return nil, snap.Revision{}, err
+	}
+	if len(snapVsKeys) > 0 {
+		return snapVsKeys, snapRev, nil
+	}
+	return nil, s.w.Manifest().AllowedSnapRevision(snapName), nil
+}
+
 func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
 	byName := make(map[string]*seedwriter.SeedSnap, len(snapsToDownload))
+	revisions := make(map[string]snap.Revision)
 	beforeDownload := func(info *snap.Info) (string, error) {
 		sn := byName[info.SnapName()]
 		if sn == nil {
 			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 		}
-		rev := s.revisions[sn.SnapName()]
-		if !rev.Unset() {
-			fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), rev)
-		} else {
-			fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), info.Revision)
+		rev := revisions[info.SnapName()]
+		if rev.Unset() {
+			rev = info.Revision
 		}
+		fmt.Fprintf(Stdout, "Fetching %s (%s)\n", sn.SnapName(), rev)
 		if err := s.w.SetInfo(sn, info); err != nil {
 			return "", err
 		}
@@ -488,11 +538,18 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 	}
 	snapToDownloadOptions := make([]tooling.SnapToDownload, len(snapsToDownload))
 	for i, sn := range snapsToDownload {
+		vss, rev, err := s.validationSetKeysAndRevisionForSnap(sn.SnapName())
+		if err != nil {
+			return nil, err
+		}
+
 		byName[sn.SnapName()] = sn
+		revisions[sn.SnapName()] = rev
 		snapToDownloadOptions[i].Snap = sn
 		snapToDownloadOptions[i].Channel = sn.Channel
-		snapToDownloadOptions[i].Revision = s.revisions[sn.SnapName()]
+		snapToDownloadOptions[i].Revision = rev
 		snapToDownloadOptions[i].CohortKey = s.wideCohortKey
+		snapToDownloadOptions[i].ValidationSets = vss
 	}
 
 	// sort the curSnaps slice for test consistency
@@ -525,7 +582,7 @@ func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
 	return localSnaps
 }
 
-func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts func(sn, sysSn, kernSn *seedwriter.SeedSnap) ([]*asserts.Ref, error)) error {
+func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts seedwriter.AssertsFetchFunc) error {
 	curSnaps := localSnapsWithID(localSnaps)
 	for {
 		toDownload, err := s.w.SnapsToDownload()
@@ -696,6 +753,14 @@ func (s *imageSeeder) finish() error {
 		return err
 	}
 
+	// run validation-set checks, this is also done by store but
+	// we double-check for the seed.
+	if s.customizations.Validation != "ignore" {
+		if err := s.w.CheckValidationSets(); err != nil {
+			return err
+		}
+	}
+
 	copySnap := func(name, src, dst string) error {
 		fmt.Fprintf(Stdout, "Copying %q (%s)\n", src, name)
 		return osutil.CopyFile(src, dst, 0)
@@ -731,27 +796,6 @@ func optionSnaps(opts *Options) []*seedwriter.OptionsSnap {
 		optSnaps = append(optSnaps, &optSnap)
 	}
 	return optSnaps
-}
-
-// manifestFromLocalSnaps creates an initial seed manifest based on the locally
-// available snaps. It also performs initial verification against any rules given
-// to seedSetup against these.
-func manifestFromLocalSnaps(snaps localSnapRefs, opts *Options) (map[string]snap.Revision, error) {
-	seedManifest := make(map[string]snap.Revision)
-	for sn := range snaps {
-		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
-		// available. Therefore the revision in the local snap must be exactly the revision specified
-		// in the manifest. If it's not, we fail.
-		specifiedRevision := opts.Revisions[sn.Info.SnapName()]
-		if !specifiedRevision.Unset() && specifiedRevision != sn.Info.Revision {
-			return nil, fmt.Errorf("cannot use snap %s for image, unknown/local revision does not match the value specified by revisions file (%s != %s)",
-				sn.Path, sn.Info.Revision, specifiedRevision)
-		}
-		if !sn.Info.Revision.Unset() {
-			seedManifest[sn.Info.SnapName()] = sn.Info.Revision
-		}
-	}
-	return seedManifest, nil
 }
 
 func selectAssertionMaxFormats(tsto *tooling.ToolingStore, model *asserts.Model, sysSn, kernSn *seedwriter.SeedSnap) error {
@@ -798,17 +842,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
-	// TODO: developer database in home or use snapd (but need
-	// a bit more API there, potential issues when crossing stores/series)
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   trusted,
-	})
-	if err != nil {
-		return err
-	}
-	f, err := s.start(db, optionSnaps(opts))
-	if err != nil {
+	if err := s.start(optionSnaps(opts)); err != nil {
 		return err
 	}
 
@@ -817,20 +851,12 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	// know the correct assertion max format to use.
 	// Fetch assertions tentatively into a temporary database
 	// and later either copy them or fetch more appropriate ones.
-	tmpDb := db.WithStackedBackstore(asserts.NewMemoryBackstore())
-	tmpFetcher := seedwriter.MakeRefAssertsFetcher(func(save func(asserts.Assertion) error) asserts.Fetcher {
+	tmpDb := s.db.WithStackedBackstore(asserts.NewMemoryBackstore())
+	tmpFetcher := seedwriter.MakeSeedAssertionFetcher(func(save func(asserts.Assertion) error) asserts.Fetcher {
 		return tsto.AssertionFetcher(tmpDb, save)
 	})
 
 	localSnaps, err := s.deriveInfoForLocalSnaps(tmpFetcher, tmpDb)
-	if err != nil {
-		return err
-	}
-
-	// Create the initial manifest, derived from the locally available snaps.
-	// Must be done after deriveInfoForLocalSnaps, as the snap info must have
-	// been derived if possible.
-	imageManifest, err := manifestFromLocalSnaps(localSnaps, opts)
 	if err != nil {
 		return err
 	}
@@ -857,12 +883,12 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			}
 			if assertMaxFormats != nil && a.Format() > assertMaxFormats[aRef.Type.Name] {
 				// format was too new, re-fetch to replace
-				if err := f.Fetch(aRef); err != nil {
+				if err := s.f.Fetch(aRef); err != nil {
 					return err
 				}
 			} else {
 				// copy
-				if err := f.Save(a); err != nil {
+				if err := s.f.Save(a); err != nil {
 					return err
 				}
 			}
@@ -878,32 +904,22 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			assertMaxFormatsSelected = true
 			assertMaxFormats = tsto.AssertionMaxFormats()
 		}
-		prev := len(f.Refs())
+		prev := len(s.f.Refs())
 		if aRefs, ok := localSnaps[sn]; ok {
 			if err := copyOrRefetchIfFormatTooNewIntoDb(aRefs); err != nil {
 				return nil, err
 			}
 		} else {
 			// fetch snap assertions
-			if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, f, db); err != nil {
+			if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, s.f, s.db); err != nil {
 				return nil, err
 			}
-			if !sn.Info.Revision.Unset() {
-				imageManifest[sn.Info.SnapName()] = sn.Info.Revision
-			}
 		}
-		return f.Refs()[prev:], nil
+		return s.f.Refs()[prev:], nil
 	}
 
 	if err := s.downloadAllSnaps(localSnaps, fetchAsserts); err != nil {
 		return err
-	}
-
-	// last thing is to generate the image seed manifest file
-	if opts.SeedManifestPath != "" {
-		if err := WriteSeedManifest(opts.SeedManifestPath, imageManifest); err != nil {
-			return err
-		}
 	}
 	return s.finish()
 }

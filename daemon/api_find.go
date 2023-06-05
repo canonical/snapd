@@ -52,8 +52,8 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	q := query.Get("q")
 	commonID := query.Get("common-id")
-	// TODO: support both "category" (search v2) and "section"
 	section := query.Get("section")
+	category := query.Get("category")
 	name := query.Get("name")
 	scope := query.Get("scope")
 	private := false
@@ -97,13 +97,20 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot use 'common-id' and 'q' together")
 	}
 
+	if section != "" && category != "" {
+		return BadRequest("cannot use 'section' and 'category' together")
+	}
+	if section != "" {
+		category = section
+	}
+
 	theStore := storeFrom(c.d)
 	ctx := store.WithClientUserAgent(r.Context(), r)
 	found, err := theStore.Find(ctx, &store.Search{
 		Query:    q,
 		Prefix:   prefix,
 		CommonID: commonID,
-		Category: section,
+		Category: category,
 		Private:  private,
 		Scope:    scope,
 	}, user)

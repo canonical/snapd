@@ -245,7 +245,11 @@ func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 
 	for s := state.DefaultStatus + 1; s < state.WaitStatus+1; s++ {
 		t := st.NewTask("download", s.String())
-		t.SetStatus(s)
+		if s == state.WaitStatus {
+			t.SetToWait(state.DoneStatus)
+		} else {
+			t.SetStatus(s)
+		}
 		chg.AddTask(t)
 		tasks[s] = t
 	}
@@ -269,7 +273,11 @@ func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 			if s == s2 {
 				break
 			}
-			tasks[s2].SetStatus(s)
+			if s == state.WaitStatus {
+				tasks[s2].SetToWait(state.DoneStatus)
+			} else {
+				tasks[s2].SetStatus(s)
+			}
 		}
 		c.Assert(chg.Status(), Equals, s)
 	}
@@ -451,7 +459,11 @@ func (cs *changeSuite) TestAbort(c *C) {
 
 	for s := state.DefaultStatus + 1; s < state.WaitStatus+1; s++ {
 		t := st.NewTask("download", s.String())
-		t.SetStatus(s)
+		if s == state.WaitStatus {
+			t.SetToWait(state.DoneStatus)
+		} else {
+			t.SetStatus(s)
+		}
 		t.Set("old-status", s)
 		chg.AddTask(t)
 	}
@@ -703,7 +715,11 @@ func (ts *taskRunnerSuite) TestAbortLanes(c *C) {
 			}
 			seen[parts[0]] = true
 			task := tasks[parts[0]]
-			task.SetStatus(statuses[parts[1]])
+			if statuses[parts[1]] == state.WaitStatus {
+				task.SetToWait(state.DoneStatus)
+			} else {
+				task.SetStatus(statuses[parts[1]])
+			}
 			if len(parts) > 2 {
 				lanes := strings.Split(parts[2], ",")
 				for _, lane := range lanes {
@@ -913,7 +929,11 @@ func (ts *taskRunnerSuite) TestAbortUnreadyLanes(c *C) {
 			}
 			seen[parts[0]] = true
 			task := tasks[parts[0]]
-			task.SetStatus(statuses[parts[1]])
+			if statuses[parts[1]] == state.WaitStatus {
+				task.SetToWait(state.DoneStatus)
+			} else {
+				task.SetStatus(statuses[parts[1]])
+			}
 			if len(parts) > 2 {
 				lanes := strings.Split(parts[2], ",")
 				for _, lane := range lanes {

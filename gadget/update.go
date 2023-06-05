@@ -123,7 +123,9 @@ type ContentUpdateObserver interface {
 	Canceled() error
 }
 
-func searchForVolumeWithTraits(laidOutVol *LaidOutVolume, traits DiskVolumeDeviceTraits, validateOpts *DiskVolumeValidationOptions) (disks.Disk, error) {
+// searchVolumeWithTraitsAndMatchParts searches for a disk matching the given
+// traits and assigns disk partitions data to the matching laid out partition.
+func searchVolumeWithTraitsAndMatchParts(laidOutVol *LaidOutVolume, traits DiskVolumeDeviceTraits, validateOpts *DiskVolumeValidationOptions) (disks.Disk, error) {
 	if validateOpts == nil {
 		validateOpts = &DiskVolumeValidationOptions{}
 	}
@@ -152,15 +154,25 @@ func searchForVolumeWithTraits(laidOutVol *LaidOutVolume, traits DiskVolumeDevic
 			return false
 		}
 		// then try to validate it by laying out the volume
-		opts := &EnsureLayoutCompatibilityOptions{
+		opts := &VolumeCompatibilityOptions{
 			AssumeCreatablePartitionsCreated: true,
 			AllowImplicitSystemData:          validateOpts.AllowImplicitSystemData,
 			ExpectedStructureEncryption:      validateOpts.ExpectedStructureEncryption,
 		}
-		ensureErr := EnsureLayoutCompatibility(laidOutVol, diskLayout, opts)
+		gadgetStructToDiskStruct, ensureErr := EnsureVolumeCompatibility(laidOutVol.Volume, diskLayout, opts)
 		if ensureErr != nil {
 			logger.Debugf("candidate disk %s not appropriate for volume %s due to incompatibility: %v", candidate.KernelDeviceNode(), vol.Name, ensureErr)
 			return false
+		}
+
+		// Set OnDiskStructure for laidOutVol, now that we know the exact match
+		for i := range laidOutVol.LaidOutStructure {
+			gs := laidOutVol.LaidOutStructure[i].VolumeStructure
+			if ds, ok := gadgetStructToDiskStruct[gs.YamlIndex]; ok {
+				logger.Debugf("partition %s (offset %d) matched to gadget structure %s",
+					ds.Node, ds.StartOffset, laidOutVol.LaidOutStructure[i].VolumeStructure.Name)
+				laidOutVol.LaidOutStructure[i].OnDiskStructure = *ds
+			}
 		}
 
 		// success, we found it
@@ -244,7 +256,7 @@ func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
 	}
 }
 
-func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, s OnDiskStructure) bool {
+func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetVolume *Volume, diskLayout *OnDiskVolume, s OnDiskStructure) bool {
 	// in uc16/uc18 we used to allow system-data to be implicit / missing from
 	// the gadget.yaml in which case we won't have system-data in the laidOutVol
 	// but it will be in diskLayout, so we sometimes need to check if a given on
@@ -268,10 +280,10 @@ func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, 
 	// https://github.com/snapcore/core-build/blob/master/initramfs/scripts/local-premount/resize
 
 	// bare structures don't show up on disk, so we can't include them
-	// when calculating how many "structures" are in gadgetLayout to
+	// when calculating how many "structures" are in gadgetVolume to
 	// ensure that there is only one extra OnDiskStructure at the end
 	numPartsInGadget := 0
-	for _, s := range gadgetLayout.Structure {
+	for _, s := range gadgetVolume.Structure {
 		if s.IsPartition() {
 			numPartsInGadget++
 		}
@@ -294,10 +306,10 @@ func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, 
 		numPartsInGadget+1 == numPartsOnDisk
 }
 
-// EnsureLayoutCompatibilityOptions is a set of options for determining how
+// VolumeCompatibilityOptions is a set of options for determining how
 // strict to be when evaluating whether an on-disk structure matches a laid out
 // structure.
-type EnsureLayoutCompatibilityOptions struct {
+type VolumeCompatibilityOptions struct {
 	// AssumeCreatablePartitionsCreated will assume that all partitions such as
 	// ubuntu-data, ubuntu-save, etc. that are creatable in install mode have
 	// already been created and thus must be already exactly matching that which
@@ -305,7 +317,7 @@ type EnsureLayoutCompatibilityOptions struct {
 	AssumeCreatablePartitionsCreated bool
 
 	// AllowImplicitSystemData allows the system-data role to be missing from
-	// the laid out volume as was allowed in UC18 and UC16 where the system-data
+	// the gadget volume as was allowed in UC18 and UC16 where the system-data
 	// partition would be dynamically inserted into the image at image build
 	// time by ubuntu-image without being mentioned in the gadget.yaml.
 	AllowImplicitSystemData bool
@@ -316,33 +328,38 @@ type EnsureLayoutCompatibilityOptions struct {
 	ExpectedStructureEncryption map[string]StructureEncryptionParameters
 }
 
-func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, opts *EnsureLayoutCompatibilityOptions) error {
+// EnsureVolumeCompatibility checks compatibility between a gadget volume and a
+// real disk. It returns a map of the gadget structures yaml indexes to disk
+// structures that was possible to match.
+func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, opts *VolumeCompatibilityOptions) (map[int]*OnDiskStructure, error) {
+	gadgetStructIdxToOnDiskStruct := map[int]*OnDiskStructure{}
 	if opts == nil {
-		opts = &EnsureLayoutCompatibilityOptions{}
+		opts = &VolumeCompatibilityOptions{}
 	}
-	eq := func(ds OnDiskStructure, gs LaidOutStructure) (bool, string) {
-		gv := gs.VolumeStructure
+	logger.Debugf("checking volume compatibility between gadget volume %s and disk %s",
+		gadgetVolume.Name, diskVolume.Device)
 
+	eq := func(ds *OnDiskStructure, vss []VolumeStructure, vssIdx int) (bool, string) {
+		gv := &vss[vssIdx]
 		// name mismatch
 		if gv.Name != ds.Name {
 			// partitions have no names in MBR so bypass the name check
-			if gadgetLayout.Schema != "mbr" {
+			if gadgetVolume.Schema != "mbr" {
 				// don't return a reason if the names don't match
 				return false, ""
 			}
 		}
 
 		// start offset mismatch
-		if ds.StartOffset != gs.StartOffset {
-			return false, fmt.Sprintf("start offsets do not match (disk: %d (%s) and gadget: %d (%s))",
-				ds.StartOffset, ds.StartOffset.IECString(), gs.StartOffset, gs.StartOffset.IECString())
+		if err := CheckValidStartOffset(ds.StartOffset, vss, vssIdx); err != nil {
+			return false, fmt.Sprintf("disk partition %q %v", ds.Name, err)
 		}
 
 		switch {
 		// on disk size too small
-		case ds.Size < gv.Size:
-			return false, fmt.Sprintf("on disk size %d (%s) is smaller than gadget size %d (%s)",
-				ds.Size, ds.Size.IECString(), gv.Size, gv.Size.IECString())
+		case ds.Size < gv.MinSize:
+			return false, fmt.Sprintf("on disk size %d (%s) is smaller than gadget min size %d (%s)",
+				ds.Size, ds.Size.IECString(), gv.MinSize, gv.MinSize.IECString())
 
 		// on disk size too large
 		case ds.Size > gv.Size:
@@ -353,16 +370,17 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			}
 		}
 
-		// If we got to this point, the structure on disk has the same name,
-		// size and offset, so the last thing to check is that the filesystem
-		// matches (or that we don't care about the filesystem).
+		// If we got to this point, the structure on disk has the same
+		// name, and compatible size and offset, so the last thing to
+		// check is that the filesystem matches (or that we don't care
+		// about the filesystem).
 
 		// first handle the strict case where this partition was created at
 		// install in case it is an encrypted one
 		if opts.AssumeCreatablePartitionsCreated && IsCreatableAtInstall(gv) {
 			// only partitions that are creatable at install can be encrypted,
 			// check if this partition was encrypted
-			if encTypeParams, ok := opts.ExpectedStructureEncryption[gs.Name()]; ok {
+			if encTypeParams, ok := opts.ExpectedStructureEncryption[gv.Name]; ok {
 				if encTypeParams.Method == "" {
 					return false, "encrypted structure parameter missing required parameter \"method\""
 				}
@@ -375,8 +393,6 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 				}
 
 				switch encTypeParams.Method {
-				case EncryptionICE:
-					return false, "Inline Crypto Engine encrypted partitions currently unsupported"
 				case EncryptionLUKS:
 					// then this partition is expected to have been encrypted, the
 					// filesystem label on disk will need "-enc" appended
@@ -430,10 +446,10 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		return true, ""
 	}
 
-	laidOutContains := func(haystack []LaidOutStructure, needle OnDiskStructure) (bool, string) {
+	gadgetContains := func(vss []VolumeStructure, ds *OnDiskStructure) (bool, string) {
 		reasonAbsent := ""
-		for _, h := range haystack {
-			matches, reasonNotMatches := eq(needle, h)
+		for vssIdx := range vss {
+			matches, reasonNotMatches := eq(ds, vss, vssIdx)
 			if matches {
 				return true, ""
 			}
@@ -463,12 +479,12 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		if opts.AllowImplicitSystemData {
 			// Handle the case of an implicit system-data role before giving up;
 			// we used to allow system-data to be implicit from the gadget.yaml.
-			// That means we won't have system-data in the laidOutVol but it
-			// will be in diskLayout, so if after searching all the laid out
-			// structures we don't find a on disk structure, check if we might
+			// In that case we won't have system-data in the gadget volume but it
+			// could be on the disk, so if after searching all the gadget
+			// structures we don't find the disk structure, check if we might
 			// be dealing with a structure that looks like the implicit
 			// system-data that ubuntu-image would have created.
-			if onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, diskLayout, needle) {
+			if onDiskStructureIsLikelyImplicitSystemDataRole(gadgetVolume, diskVolume, *ds) {
 				return true, ""
 			}
 		}
@@ -476,11 +492,12 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		return false, reasonAbsent
 	}
 
-	onDiskContains := func(haystack []OnDiskStructure, needle LaidOutStructure) (bool, string) {
+	onDiskContains := func(dss []OnDiskStructure, vss []VolumeStructure, vssIdx int) (bool, string) {
 		reasonAbsent := ""
-		for _, h := range haystack {
-			matches, reasonNotMatches := eq(h, needle)
+		for _, ds := range dss {
+			matches, reasonNotMatches := eq(&ds, vss, vssIdx)
 			if matches {
+				gadgetStructIdxToOnDiskStruct[vss[vssIdx].YamlIndex] = &ds
 				return true, ""
 			}
 			// this has the effect of only returning the last non-empty reason
@@ -493,52 +510,54 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	}
 
 	// check size of volumes
-	lastUsableByte := quantity.Size(diskLayout.UsableSectorsEnd) * diskLayout.SectorSize
-	if gadgetLayout.Size > lastUsableByte {
-		return fmt.Errorf("device %v (last usable byte at %s) is too small to fit the requested layout (%s)", diskLayout.Device,
-			lastUsableByte.IECString(), gadgetLayout.Size.IECString())
+	lastUsableByte := quantity.Size(diskVolume.UsableSectorsEnd) * diskVolume.SectorSize
+	if gadgetVolume.MinSize() > lastUsableByte {
+		return nil, fmt.Errorf("device %v (last usable byte at %s) is too small to fit the requested minimal size (%s)", diskVolume.Device,
+			lastUsableByte.IECString(), gadgetVolume.MinSize().IECString())
 	}
 
 	// check that the sizes of all structures in the gadget are multiples of
 	// the disk sector size (unless the structure is the MBR)
-	for _, ls := range gadgetLayout.LaidOutStructure {
-		if !IsRoleMBR(ls) {
-			if ls.VolumeStructure.Size%diskLayout.SectorSize != 0 {
-				return fmt.Errorf("gadget volume structure %v size is not a multiple of disk sector size %v",
-					ls, diskLayout.SectorSize)
+	for _, vs := range gadgetVolume.Structure {
+		if !vs.IsRoleMBR() {
+			for _, sz := range []quantity.Size{vs.MinSize, vs.Size} {
+				if sz%diskVolume.SectorSize != 0 {
+					return nil, fmt.Errorf("gadget volume structure %q size is not a multiple of disk sector size %v",
+						vs.Name, diskVolume.SectorSize)
+				}
 			}
 		}
 	}
 
 	// Check if top level properties match
-	if !isCompatibleSchema(gadgetLayout.Volume.Schema, diskLayout.Schema) {
-		return fmt.Errorf("disk partitioning schema %q doesn't match gadget schema %q", diskLayout.Schema, gadgetLayout.Volume.Schema)
+	if !isCompatibleSchema(gadgetVolume.Schema, diskVolume.Schema) {
+		return nil, fmt.Errorf("disk partitioning schema %q doesn't match gadget schema %q", diskVolume.Schema, gadgetVolume.Schema)
 	}
-	if gadgetLayout.Volume.ID != "" && gadgetLayout.Volume.ID != diskLayout.ID {
-		return fmt.Errorf("disk ID %q doesn't match gadget volume ID %q", diskLayout.ID, gadgetLayout.Volume.ID)
+	if gadgetVolume.ID != "" && gadgetVolume.ID != diskVolume.ID {
+		return nil, fmt.Errorf("disk ID %q doesn't match gadget volume ID %q", diskVolume.ID, gadgetVolume.ID)
 	}
 
 	// Check if all existing device partitions are also in gadget
-	for _, ds := range diskLayout.Structure {
-		present, reasonAbsent := laidOutContains(gadgetLayout.LaidOutStructure, ds)
+	for _, ds := range diskVolume.Structure {
+		present, reasonAbsent := gadgetContains(gadgetVolume.Structure, &ds)
 		if !present {
 			if reasonAbsent != "" {
 				// use the right format so that it can be
 				// appended to the error message
 				reasonAbsent = fmt.Sprintf(": %s", reasonAbsent)
 			}
-			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
+			return nil, fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
 		}
 	}
 
-	// check all structures in the layout are present in the gadget, or have a
+	// check all structures in the gadget are present on the disk, or have a
 	// valid excuse for absence (i.e. mbr or creatable structures at install)
-	for _, gs := range gadgetLayout.LaidOutStructure {
+	for vssIdx, gs := range gadgetVolume.Structure {
 		// we ignore reasonAbsent here since if there was an extra on disk
 		// structure that didn't match something in the YAML, we would have
 		// caught it above, this loop can only ever identify structures in the
 		// YAML that are not on disk at all
-		if present, _ := onDiskContains(diskLayout.Structure, gs); present {
+		if present, _ := onDiskContains(diskVolume.Structure, gadgetVolume.Structure, vssIdx); present {
 			continue
 		}
 
@@ -553,11 +572,11 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 
 		// allow structures that are creatable during install if we don't assume
 		// created partitions to already exist
-		if IsCreatableAtInstall(gs.VolumeStructure) && !opts.AssumeCreatablePartitionsCreated {
+		if IsCreatableAtInstall(&gs) && !opts.AssumeCreatablePartitionsCreated {
 			continue
 		}
 
-		return fmt.Errorf("cannot find gadget structure %s on disk", gs.String())
+		return nil, fmt.Errorf("cannot find gadget structure %q on disk", gs.Name)
 	}
 
 	// finally ensure that all encrypted partitions mentioned in the options are
@@ -565,18 +584,18 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	// on the disk)
 	for gadgetLabel := range opts.ExpectedStructureEncryption {
 		found := false
-		for _, gs := range gadgetLayout.LaidOutStructure {
-			if gs.Name() == gadgetLabel {
+		for _, gs := range gadgetVolume.Structure {
+			if gs.Name == gadgetLabel {
 				found = true
 				break
 			}
 		}
 		if !found {
-			return fmt.Errorf("expected encrypted structure %s not present in gadget", gadgetLabel)
+			return nil, fmt.Errorf("expected encrypted structure %s not present in gadget", gadgetLabel)
 		}
 	}
 
-	return nil
+	return gadgetStructIdxToOnDiskStruct, nil
 }
 
 // TODO:ICE: remove this as we only support LUKS (and ICE is a variant of LUKS now)
@@ -588,15 +607,12 @@ const (
 	// standard LUKS as it is used for automatic FDE using SecureBoot and TPM
 	// 2.0 in UC20+
 	EncryptionLUKS DiskEncryptionMethod = "LUKS"
-
-	// TODO:ICE: remove this
-	EncryptionICE DiskEncryptionMethod = "ICE"
 )
 
 // DiskVolumeValidationOptions is a set of options on how to validate a disk to
 // volume mapping for a specific disk/volume pair. It is closely related to the
-// options provided to EnsureLayoutCompatibility via
-// EnsureLayoutCompatibilityOptions.
+// options provided to EnsureVolumeCompatibility via
+// EnsureVolumeCompatibilityOptions.
 type DiskVolumeValidationOptions struct {
 	// AllowImplicitSystemData has the same meaning as the eponymously named
 	// field in EnsureLayoutCompatibilityOptions.
@@ -626,7 +642,7 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 
 	// ensure that the on disk volume and the laid out volume are actually
 	// compatible
-	ensureOpts := &EnsureLayoutCompatibilityOptions{
+	volCompatOpts := &VolumeCompatibilityOptions{
 		// at this point all partitions should be created
 		AssumeCreatablePartitionsCreated: true,
 
@@ -634,7 +650,7 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		AllowImplicitSystemData:     opts.AllowImplicitSystemData,
 		ExpectedStructureEncryption: opts.ExpectedStructureEncryption,
 	}
-	if err := EnsureLayoutCompatibility(expLayout, diskLayout, ensureOpts); err != nil {
+	if _, err := EnsureVolumeCompatibility(vol, diskLayout, volCompatOpts); err != nil {
 		return res, fmt.Errorf("volume %s is not compatible with disk %s: %v", vol.Name, dev, err)
 	}
 
@@ -726,7 +742,7 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 				return res, err
 			}
 
-			if onDiskStructureIsLikelyImplicitSystemDataRole(expLayout, diskLayout, s) {
+			if onDiskStructureIsLikelyImplicitSystemDataRole(expLayout.Volume, diskLayout, s) {
 				// it is likely the implicit system-data
 				logger.Debugf("Identified implicit system-data role on system as %s", s.Node)
 				break
@@ -741,7 +757,7 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 			leftovers = append(leftovers, part.KernelDeviceNode)
 		}
 		// this is an internal error because to get here we would have had to
-		// pass validation in EnsureLayoutCompatibility but then still have
+		// pass validation in EnsureVolumeCompatibility but then still have
 		// extra partitions - the only non-buggy situation where that function
 		// passes validation but leaves partitions on disk not in the YAML is
 		// the implicit system-data role handled above
@@ -968,7 +984,7 @@ func buildVolumeStructureToLocation(mod Model,
 			ExpectedStructureEncryption: diskDeviceTraits.StructureEncryption,
 		}
 
-		disk, err := searchForVolumeWithTraits(laidOutVol, diskDeviceTraits, validateOpts)
+		disk, err := searchVolumeWithTraitsAndMatchParts(laidOutVol, diskDeviceTraits, validateOpts)
 		if err != nil {
 			dieErr := fmt.Errorf("could not map volume %s from gadget.yaml to any physical disk: %v", volName, err)
 			return nil, maybeFatalError(dieErr)
@@ -1286,7 +1302,15 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 
 		// can update old layout to new layout
 		for _, update := range updates {
-			if err := canUpdateStructure(update.from, update.to, pNew.Schema); err != nil {
+			fromIdx, err := oldVol.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
+			if err != nil {
+				return err
+			}
+			toIdx, err := oldVol.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
+			if err != nil {
+				return err
+			}
+			if err := canUpdateStructure(oldVol.Structure, fromIdx, newVol.Structure, toIdx, pNew.Schema); err != nil {
 				return fmt.Errorf("cannot update volume structure %v for volume %s: %v", update.to, volName, err)
 			}
 		}
@@ -1379,16 +1403,6 @@ func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
 	return oldV, newV, nil
 }
 
-func isSameOffset(one *quantity.Offset, two *quantity.Offset) bool {
-	if one == nil && two == nil {
-		return true
-	}
-	if one != nil && two != nil {
-		return *one == *two
-	}
-	return false
-}
-
 func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
 	if one == nil && two == nil {
 		return true
@@ -1399,52 +1413,74 @@ func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
 	return false
 }
 
-func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
+func isLegacyMBRTransition(from *VolumeStructure, to *VolumeStructure) bool {
 	// legacy MBR could have been specified by setting type: mbr, with no
 	// role
-	return from.Type() == schemaMBR && to.Role() == schemaMBR
+	return from.Type == schemaMBR && to.Role == schemaMBR
 }
 
-func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema string) error {
-	if schema == schemaGPT && from.Name() != to.Name() {
+func arePossibleSizesCompatible(from *VolumeStructure, to *VolumeStructure) bool {
+	// Check if [from.MinSize,from.Size], the interval of sizes allowed in
+	// "from", intersects with [to.MinSize,to.Size] (the interval of sizes
+	// allowed in "to"). When both checks are true we know some overlap
+	// between the segments is happening (that this is right can be
+	// visualized by sliding a segment over the abscissa while the other is
+	// fixed, for a moving segment either smaller or bigger than the fixed
+	// one).
+	return from.Size >= to.MinSize && from.MinSize <= to.Size
+}
+
+func arePossibleOffsetsCompatible(vss1 []VolumeStructure, idx1 int, vss2 []VolumeStructure, idx2 int) bool {
+	// See comment in arePossibleSizesCompatible, this is the same check but
+	// for offsets instead of sizes.
+	return maxStructureOffset(vss1, idx1) >= minStructureOffset(vss2, idx2) &&
+		minStructureOffset(vss1, idx1) <= maxStructureOffset(vss2, idx2)
+}
+
+func canUpdateStructure(fromVss []VolumeStructure, fromIdx int, toVss []VolumeStructure, toIdx int, schema string) error {
+	from := &fromVss[fromIdx]
+	to := &toVss[toIdx]
+	if schema == schemaGPT && from.Name != to.Name {
 		// partition names are only effective when GPT is used
-		return fmt.Errorf("cannot change structure name from %q to %q", from.Name(), to.Name())
+		return fmt.Errorf("cannot change structure name from %q to %q",
+			from.Name, to.Name)
 	}
-	if from.VolumeStructure.Size != to.VolumeStructure.Size {
-		return fmt.Errorf("cannot change structure size from %v to %v", from.VolumeStructure.Size, to.VolumeStructure.Size)
+	if !arePossibleSizesCompatible(from, to) {
+		return fmt.Errorf("new valid structure size range [%v, %v] is not compatible with current ([%v, %v])",
+			to.MinSize, to.Size, from.MinSize, from.Size)
 	}
-	if !isSameOffset(from.VolumeStructure.Offset, to.VolumeStructure.Offset) {
-		return fmt.Errorf("cannot change structure offset from %v to %v", from.VolumeStructure.Offset, to.VolumeStructure.Offset)
-	}
-	if from.StartOffset != to.StartOffset {
-		return fmt.Errorf("cannot change structure start offset from %v to %v", from.StartOffset, to.StartOffset)
+	if !arePossibleOffsetsCompatible(fromVss, fromIdx, toVss, toIdx) {
+		return fmt.Errorf("new valid structure offset range [%v, %v] is not compatible with current ([%v, %v])",
+			minStructureOffset(toVss, toIdx), maxStructureOffset(toVss, toIdx), minStructureOffset(fromVss, fromIdx), maxStructureOffset(fromVss, fromIdx))
 	}
 	// TODO: should this limitation be lifted?
-	if !isSameRelativeOffset(from.VolumeStructure.OffsetWrite, to.VolumeStructure.OffsetWrite) {
-		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.VolumeStructure.OffsetWrite, to.VolumeStructure.OffsetWrite)
+	if !isSameRelativeOffset(from.OffsetWrite, to.OffsetWrite) {
+		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.OffsetWrite, to.OffsetWrite)
 	}
-	if from.Role() != to.Role() {
-		return fmt.Errorf("cannot change structure role from %q to %q", from.Role(), to.Role())
+	if from.Role != to.Role {
+		return fmt.Errorf("cannot change structure role from %q to %q",
+			from.Role, to.Role)
 	}
-	if from.Type() != to.Type() {
+	if from.Type != to.Type {
 		if !isLegacyMBRTransition(from, to) {
-			return fmt.Errorf("cannot change structure type from %q to %q", from.Type(), to.Type())
+			return fmt.Errorf("cannot change structure type from %q to %q",
+				from.Type, to.Type)
 		}
 	}
-	if from.VolumeStructure.ID != to.VolumeStructure.ID {
-		return fmt.Errorf("cannot change structure ID from %q to %q", from.VolumeStructure.ID, to.VolumeStructure.ID)
+	if from.ID != to.ID {
+		return fmt.Errorf("cannot change structure ID from %q to %q", from.ID, to.ID)
 	}
 	if to.HasFilesystem() {
 		if !from.HasFilesystem() {
 			return fmt.Errorf("cannot change a bare structure to filesystem one")
 		}
-		if from.Filesystem() != to.Filesystem() {
+		if from.Filesystem != to.Filesystem {
 			return fmt.Errorf("cannot change filesystem from %q to %q",
-				from.Filesystem(), to.Filesystem())
+				from.Filesystem, to.Filesystem)
 		}
-		if from.Label() != to.Label() {
+		if from.Label != to.Label {
 			return fmt.Errorf("cannot change filesystem label from %q to %q",
-				from.Label(), to.Label())
+				from.Label, to.Label)
 		}
 	} else {
 		if from.HasFilesystem() {
@@ -1557,13 +1593,13 @@ type Updater interface {
 }
 
 func updateLocationForStructure(structureLocations map[string]map[int]StructureLocation, ps *LaidOutStructure) (loc StructureLocation, err error) {
-	loc, ok := structureLocations[ps.VolumeStructure.VolumeName][ps.YamlIndex]
+	loc, ok := structureLocations[ps.VolumeStructure.VolumeName][ps.VolumeStructure.YamlIndex]
 	if !ok {
-		return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.YamlIndex, ps.VolumeStructure.VolumeName)
+		return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.VolumeStructure.YamlIndex, ps.VolumeStructure.VolumeName)
 	}
 	if !ps.HasFilesystem() {
 		if loc.Device == "" {
-			return loc, fmt.Errorf("internal error: structure %d on volume %s should have had a device set but did not have one in an internal mapping", ps.YamlIndex, ps.VolumeStructure.VolumeName)
+			return loc, fmt.Errorf("internal error: structure %d on volume %s should have had a device set but did not have one in an internal mapping", ps.VolumeStructure.YamlIndex, ps.VolumeStructure.VolumeName)
 		}
 		return loc, nil
 	} else {
@@ -1575,7 +1611,7 @@ func updateLocationForStructure(structureLocations map[string]map[int]StructureL
 			// possibly mounting it, we could also mount it here instead and
 			// then proceed with the update, but we should also have a way to
 			// unmount it when we are done updating it
-			return loc, fmt.Errorf("structure %d on volume %s does not have a writable mountpoint in order to update the filesystem content", ps.YamlIndex, ps.VolumeStructure.VolumeName)
+			return loc, fmt.Errorf("structure %d on volume %s does not have a writable mountpoint in order to update the filesystem content", ps.VolumeStructure.YamlIndex, ps.VolumeStructure.VolumeName)
 		}
 		return loc, nil
 	}

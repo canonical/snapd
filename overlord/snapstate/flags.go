@@ -75,6 +75,9 @@ type Flags struct {
 	// IsAutoRefresh is true if the snap is currently auto-refreshed
 	IsAutoRefresh bool `json:"is-auto-refresh,omitempty"`
 
+	// IsContinuedAutoRefresh is true if this is a continued auto-refresh
+	IsContinuedAutoRefresh bool `json:"is-continued-auto-refresh,omitempty"`
+
 	// NoReRefresh prevents refresh from adding epoch-hopping
 	// re-refresh tasks. This allows refresh to work offline, as
 	// long as refresh assets are cached.

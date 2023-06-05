@@ -1,7 +1,7 @@
 #!/bin/bash
 
 show_help() {
-    echo "usage: snaps.name gadget, kernel, core"
+    echo "usage: snaps.name gadget, kernel, core, snap-suffix"
     echo ""
     echo "get the name of a specific snap for the current system"
 }
@@ -23,6 +23,18 @@ core_name(){
         core_name="core"
     fi
     echo "$core_name"
+}
+
+snap_suffix(){
+    if os.query is-core18; then
+        echo "-core18"
+    elif os.query is-core20; then
+        echo "-core20"
+    elif os.query is-core22; then
+        echo "-core22"
+    elif os.query is-core24; then
+        echo "-core24"
+    fi
 }
 
 main() {
@@ -47,6 +59,10 @@ main() {
                 ;;
             core)
                 core_name
+                exit
+                ;;
+            snap-suffix)
+                snap_suffix
                 exit
                 ;;
             *)

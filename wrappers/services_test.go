@@ -4400,8 +4400,8 @@ apps:
 	c.Assert(err, IsNil)
 
 	s.sysdLog = nil
-	flags := &wrappers.RestartServicesFlags{Reload: true}
-	c.Assert(wrappers.RestartServices(info.Services(), nil, flags, progress.Null, s.perfTimings), IsNil)
+	flags := wrappers.RestartServicesFlags{Reload: true, AlsoEnabledNonActive: true}
+	c.Assert(wrappers.RestartServices(info.Services(), nil, &flags, progress.Null, s.perfTimings), IsNil)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
@@ -4410,7 +4410,7 @@ apps:
 
 	s.sysdLog = nil
 	flags.Reload = false
-	c.Assert(wrappers.RestartServices(info.Services(), nil, flags, progress.Null, s.perfTimings), IsNil)
+	c.Assert(wrappers.RestartServices(info.Services(), nil, &flags, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 		{"stop", srvFile},
@@ -4419,7 +4419,7 @@ apps:
 	})
 
 	s.sysdLog = nil
-	c.Assert(wrappers.RestartServices(info.Services(), nil, nil, progress.Null, s.perfTimings), IsNil)
+	c.Assert(wrappers.RestartServices(info.Services(), nil, &wrappers.RestartServicesFlags{AlsoEnabledNonActive: true}, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 		{"stop", srvFile},
@@ -4473,22 +4473,7 @@ apps:
 	s.sysdLog = nil
 	services := info.Services()
 	sort.Sort(snap.AppInfoBySnapApp(services))
-	c.Assert(wrappers.RestartServices(services, nil, nil, progress.Null, s.perfTimings), IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload",
-			srvFile1, srvFile2, srvFile3, srvFile4},
-		{"stop", srvFile1},
-		{"show", "--property=ActiveState", srvFile1},
-		{"start", srvFile1},
-		{"stop", srvFile3},
-		{"show", "--property=ActiveState", srvFile3},
-		{"start", srvFile3},
-	})
-
-	// Verify that explicitly mentioning a service causes it to restart,
-	// regardless of its state
-	s.sysdLog = nil
-	c.Assert(wrappers.RestartServices(services, []string{srvFile2}, nil, progress.Null, s.perfTimings), IsNil)
+	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesFlags{AlsoEnabledNonActive: true}, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload",
 			srvFile1, srvFile2, srvFile3, srvFile4},
@@ -4498,6 +4483,41 @@ apps:
 		{"stop", srvFile2},
 		{"show", "--property=ActiveState", srvFile2},
 		{"start", srvFile2},
+		{"stop", srvFile3},
+		{"show", "--property=ActiveState", srvFile3},
+		{"start", srvFile3},
+	})
+
+	// Verify that explicitly mentioning a service causes it to restart,
+	// regardless of its state
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(services, []string{srvFile4}, &wrappers.RestartServicesFlags{AlsoEnabledNonActive: true}, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload",
+			srvFile1, srvFile2, srvFile3, srvFile4},
+		{"stop", srvFile1},
+		{"show", "--property=ActiveState", srvFile1},
+		{"start", srvFile1},
+		{"stop", srvFile2},
+		{"show", "--property=ActiveState", srvFile2},
+		{"start", srvFile2},
+		{"stop", srvFile3},
+		{"show", "--property=ActiveState", srvFile3},
+		{"start", srvFile3},
+		{"stop", srvFile4},
+		{"show", "--property=ActiveState", srvFile4},
+		{"start", srvFile4},
+	})
+
+	// Check the restart only active service case
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesFlags{AlsoEnabledNonActive: false}, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload",
+			srvFile1, srvFile2, srvFile3, srvFile4},
+		{"stop", srvFile1},
+		{"show", "--property=ActiveState", srvFile1},
+		{"start", srvFile1},
 		{"stop", srvFile3},
 		{"show", "--property=ActiveState", srvFile3},
 		{"start", srvFile3},

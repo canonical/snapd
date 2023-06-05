@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.59
+Version:        2.59.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -996,6 +996,39 @@ fi
 
 
 %changelog
+* Sat May 27 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.5
+ - Explicitly disallow the use of ioctl + TIOCLINUX
+   This fixes CVE-2023-1523.
+
+* Fri May 12 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.4
+ - Retry when looking for disk label on non-UEFI systems
+   (LP: #2018977)
+ - Fix remodel from UC20 to UC22
+
+* Wed May 03 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.3
+ - Fix quiet boot
+ - i/b/physical_memory_observe: allow reading virt-phys page mappings
+ - gadget: warn instead of returning error if overlapping with GPT
+   header
+ - overlord,wrappers: restart always enabled units
+ - go.mod: update github.com/snapcore/secboot to latest uc22
+ - boot: make sure we update assets for the system-seed-null role
+ - many: ignore case for vfat partitions when validating
+
+* Tue Apr 18 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.2
+ - Notify users when a user triggered auto refresh finished
+
+* Tue Mar 28 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.1
+ - Add udev rules from steam-devices to steam-support interface
+ - Bugfixes for layout path checking, dm_crypt permissions,
+   mount-control interface parameter checking, kernel commandline
+   parsing, docker-support, refresh-app-awareness
+
 * Fri Mar 10 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.59
  - Support setting extra kernel command line parameters via snap

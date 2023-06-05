@@ -218,9 +218,10 @@ func addRestartServicesTasks(st *state.State, queueTask func(task *state.Task), 
 	for _, info := range sortedInfos {
 		restartTask := st.NewTask("service-control", fmt.Sprintf("Restarting services for snap %q", info.InstanceName()))
 		restartTask.Set("service-action", ServiceAction{
-			Action:   "restart",
-			SnapName: info.InstanceName(),
-			Services: getServiceNames(servicesAffected[info]),
+			Action:                  "restart",
+			SnapName:                info.InstanceName(),
+			Services:                getServiceNames(servicesAffected[info]),
+			RestartEnabledNonActive: false,
 		})
 		queueTask(restartTask)
 	}
@@ -844,7 +845,9 @@ func restartSnapServices(st *state.State, appsToRestartBySnap map[*snap.Info][]*
 			return err
 		}
 
-		err = wrappers.RestartServices(startupOrdered, nil, nil, progress.Null, &timings.Timings{})
+		err = wrappers.RestartServices(startupOrdered, nil,
+			&wrappers.RestartServicesFlags{Reload: false},
+			progress.Null, &timings.Timings{})
 		if err != nil {
 			return err
 		}

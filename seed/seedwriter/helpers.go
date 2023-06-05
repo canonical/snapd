@@ -29,43 +29,6 @@ import (
 	"github.com/snapcore/snapd/snap/snapfile"
 )
 
-// A RefAssertsFetcher is a Fetcher that can at any point return
-// references to the fetched assertions.
-type RefAssertsFetcher interface {
-	asserts.Fetcher
-	Refs() []*asserts.Ref
-	ResetRefs()
-}
-
-type refRecFetcher struct {
-	asserts.Fetcher
-	refs []*asserts.Ref
-}
-
-func (rrf *refRecFetcher) Refs() []*asserts.Ref {
-	return rrf.refs
-}
-
-func (rrf *refRecFetcher) ResetRefs() {
-	rrf.refs = nil
-}
-
-// A NewFetcherFunc can build a Fetcher saving to an (implicit)
-// database and also calling the given additional save function.
-type NewFetcherFunc func(save func(asserts.Assertion) error) asserts.Fetcher
-
-// MakeRefAssertsFetcher makes a RefAssertsFetcher using newFetcher which can
-// build a base Fetcher with an additional save function.
-func MakeRefAssertsFetcher(newFetcher NewFetcherFunc) RefAssertsFetcher {
-	var rrf refRecFetcher
-	save := func(a asserts.Assertion) error {
-		rrf.refs = append(rrf.refs, a.Ref())
-		return nil
-	}
-	rrf.Fetcher = newFetcher(save)
-	return &rrf
-}
-
 func whichModelSnap(modSnap *asserts.ModelSnap, model *asserts.Model) string {
 	switch modSnap.SnapType {
 	case "snapd":
@@ -142,7 +105,7 @@ func (s seedSnapsByType) Less(i, j int) bool {
 // fail with an asserts.NotFoundError if it cannot find them.
 // model is used to cross check that the found snap-revision is applicable
 // on the device.
-func DeriveSideInfo(snapPath string, model *asserts.Model, rf RefAssertsFetcher, db asserts.RODatabase) (*snap.SideInfo, []*asserts.Ref, error) {
+func DeriveSideInfo(snapPath string, model *asserts.Model, sf SeedAssertionFetcher, db asserts.RODatabase) (*snap.SideInfo, []*asserts.Ref, error) {
 	digest, size, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
 		return nil, nil, err
@@ -157,13 +120,13 @@ func DeriveSideInfo(snapPath string, model *asserts.Model, rf RefAssertsFetcher,
 	if err != nil {
 		return nil, nil, err
 	}
-	prev := len(rf.Refs())
-	if err := snapasserts.FetchSnapAssertions(rf, digest, info.Provenance()); err != nil {
+	prev := len(sf.Refs())
+	if err := snapasserts.FetchSnapAssertions(sf, digest, info.Provenance()); err != nil {
 		return nil, nil, err
 	}
 	si, err := snapasserts.DeriveSideInfoFromDigestAndSize(snapPath, digest, size, model, db)
 	if err != nil {
 		return nil, nil, err
 	}
-	return si, rf.Refs()[prev:], nil
+	return si, sf.Refs()[prev:], nil
 }

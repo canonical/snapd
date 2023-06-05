@@ -104,8 +104,26 @@ func UpdateValidationSet(st *state.State, tr *ValidationSetTracking) {
 	st.Set("validation-sets", vsmap)
 }
 
+// verifyForgetAllowedByModelAssertion checks whether a validation-set is controlled by
+// the model assertion. If the validation-set is set to 'enforce', then it's not possible
+// to forget it.
+func verifyForgetAllowedByModelAssertion(st *state.State, accountID, name string) error {
+	vs, err := validationSetFromModel(st, accountID, name)
+	if err != nil {
+		return err
+	}
+	if vs == nil {
+		return nil
+	}
+	if vs.Mode == asserts.ModelValidationSetModeEnforced {
+		return fmt.Errorf("validation-set is enforced by the model")
+	}
+	return nil
+}
+
 // ForgetValidationSet deletes a validation set for the given accountID and name.
-// It is not an error to delete a non-existing one.
+// It is not an error to delete a non-existing one. If the validation-set
+// is controlled by the model assertion it may not be allowed to forget it.
 func ForgetValidationSet(st *state.State, accountID, name string) error {
 	var vsmap map[string]*json.RawMessage
 	err := st.Get("validation-sets", &vsmap)
@@ -115,9 +133,12 @@ func ForgetValidationSet(st *state.State, accountID, name string) error {
 	if len(vsmap) == 0 {
 		return nil
 	}
+	if err := verifyForgetAllowedByModelAssertion(st, accountID, name); err != nil {
+		return err
+	}
+
 	delete(vsmap, ValidationSetKey(accountID, name))
 	st.Set("validation-sets", vsmap)
-
 	return addCurrentTrackingToValidationSetsHistory(st)
 }
 

@@ -529,7 +529,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 			}
 		}
 	}
-	return addExistingSnapTasks(st, ms.newSnap)
+	return addExistingSnapTasks(st, ms.newSnap, fromChange)
 }
 
 // collect all prerequisites of a given snap from its task set

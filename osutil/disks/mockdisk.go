@@ -65,7 +65,7 @@ func (d *MockDiskMapping) FindMatchingPartitionWithFsLabel(label string) (Partit
 	osutil.MustBeTestBinary("mock disks only to be used in tests")
 
 	for _, p := range d.Structure {
-		if p.FilesystemLabel == label {
+		if p.hasFilesystemLabel(label) {
 			return p, nil
 		}
 	}

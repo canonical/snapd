@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 )
@@ -50,8 +51,12 @@ func FindDeviceForStructure(vs *VolumeStructure) (string, error) {
 			fsLabel = vs.Name
 		}
 		if fsLabel != "" {
-			byFsLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", disks.BlkIDEncodeLabel(fsLabel))
-			candidates = append(candidates, byFsLabel)
+			candLabel, err := disks.CandidateByLabelPath(fsLabel)
+			if err == nil {
+				candidates = append(candidates, candLabel)
+			} else {
+				logger.Debugf("no by-label candidate for %q: %v", fsLabel, err)
+			}
 		}
 	}
 
