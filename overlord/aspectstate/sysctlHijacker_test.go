@@ -22,13 +22,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/aspectstate"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
 
-type sysctlHijackerTestSuite struct {
-	state *state.State
-}
+type sysctlHijackerTestSuite struct{}
 
 var _ = Suite(&sysctlHijackerTestSuite{})
 
