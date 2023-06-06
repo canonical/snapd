@@ -331,6 +331,7 @@ func (iface *desktopInterface) fontconfigDirs(plug *interfaces.ConnectedPlug) ([
 	fontDirs := []string{
 		dirs.SystemFontsDir,
 		dirs.SystemLocalFontsDir,
+		dirs.SystemFontconfigDir,
 	}
 
 	shouldMountHostFontCache, err := iface.shouldMountHostFontCache(plug)

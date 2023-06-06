@@ -131,6 +131,7 @@ var (
 
 	SystemFontsDir            string
 	SystemLocalFontsDir       string
+	SystemFontconfigDir       string
 	SystemFontconfigCacheDirs []string
 
 	SnapshotsDir string
@@ -489,6 +490,7 @@ func SetRootDir(rootdir string) {
 	// These paths agree across all supported distros
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")
 	SystemLocalFontsDir = filepath.Join(rootdir, "/usr/local/share/fonts")
+	SystemFontconfigDir = filepath.Join(rootdir, "/usr/share/fontconfig")
 	// The cache path is true for Ubuntu, Debian, openSUSE, Arch
 	SystemFontconfigCacheDirs = []string{filepath.Join(rootdir, "/var/cache/fontconfig")}
 	if release.DistroLike("fedora") && !release.DistroLike("amzn") {
