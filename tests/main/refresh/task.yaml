@@ -109,6 +109,7 @@ execute: |
     #shellcheck source=tests/lib/pkgdb.sh
     if os.query is-classic && not os.query is-trusty && not os.query is-amazon-linux && not os.query is-centos 9; then
       tests.pkgs install --no-install-recommends inotify-tools
+      tests.cleanup defer "tests.pkgs remove inotify-tools"
       systemd-run \
         --unit test-snapd-watch-inhibit.service \
         -- \
