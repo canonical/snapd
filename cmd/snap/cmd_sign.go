@@ -150,9 +150,9 @@ func mustGetOneAssert(assertType string, headers map[string]string) (asserts.Ass
 		return nil, fmt.Errorf(i18n.G("cannot create assertion chain: %w"), err)
 	}
 
-	if len(asserts) == 1 {
-		return asserts[0], nil
+	if len(asserts) != 1 {
+		return nil, fmt.Errorf(i18n.G("internal error: cannot identify unique %s assertion for specified headers"), assertType)
 	}
 
-	return nil, fmt.Errorf(i18n.G("internal error: cannot identify unique %s assertion for specified headers"), assertType)
+	return asserts[0], nil
 }
