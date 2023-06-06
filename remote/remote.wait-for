@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+# The default values have been selected trying to match with most of
+# the wait times in the tests and also trying to follow common sense.
 DEFAULT_WAIT_FOR_SSH_ATTEMPTS=800
 DEFAULT_WAIT_FOR_SSH_WAIT=1
 DEFAULT_WAIT_FOR_NO_SSH_ATTEMPTS=200

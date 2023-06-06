@@ -3,6 +3,7 @@
 show_help() {
     echo "usage: os.query is-core, is-classic"
     echo "       os.query is-core16, is-core18, is-core20, is-core22, is-core24"
+    echo "       os.query is-core-gt, is-core-ge, is-core-lt, is-core-le"
     echo "       os.query is-trusty, is-xenial, is-bionic, is-focal, is-jammy"
     echo "       os.query is-ubuntu [ID], is-debian [ID], is-fedora [ID], is-amazon-linux, is-arch-linux, is-centos [ID], is-opensuse [ID]"
     echo "       os.query is-ubuntu-gt [ID], is-ubuntu-ge [ID], is-ubuntu-lt [ID], is-ubuntu-le [ID]"
@@ -69,6 +70,22 @@ is_core24() {
     else
         grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="24"' /etc/os-release
     fi
+}
+
+is_core_gt() {
+    compare_ubuntu "${1:-}" "-gt"
+}
+
+is_core_ge() {
+    compare_ubuntu "${1:-}" "-ge"
+}
+
+is_core_lt() {
+    compare_ubuntu "${1:-}" "-lt"
+}
+
+is_core_le() {
+    compare_ubuntu "${1:-}" "-le"
 }
 
 is_classic() {
