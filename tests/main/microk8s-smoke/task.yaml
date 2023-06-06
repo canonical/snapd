@@ -49,7 +49,19 @@ restore: |
         groupdel "$user" || groupdel --extrausers "$user" || true
     done
 
+debug: |
+    echo ">>> Dumping used modules:"
+    awk '{print $1}' < /proc/modules | sort > /tmp/mods
+    cat /tmp/mods
+
 execute: |
+    # Trigger error
+    MUST_EXIT="YES"
+    if [ "$MUST_EXIT" = "YES" ]; then
+        echo "Faking error..."
+        exit 1
+    fi
+    
     snap install --channel="$CHANNEL" microk8s
     microk8s status --wait-ready
     # XXX: enable dashboard etc? doing this is slow :/

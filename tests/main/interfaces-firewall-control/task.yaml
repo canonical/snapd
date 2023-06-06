@@ -63,7 +63,7 @@ execute: |
     nc -w 2 "$DESTINATION_IP" "$PORT" < "$REQUEST_FILE" | MATCH 'ok$'
 
     # Trigger error
-    MUST_EXIT="YES"
+    MUST_EXIT="NO"
     if [ "$MUST_EXIT" = "YES" ]; then
         echo "Faking error..."
         exit 1
