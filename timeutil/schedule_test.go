@@ -508,6 +508,18 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 func (ts *timeutilSuite) TestScheduleNext(c *C) {
 	const shortForm = "2006-01-02 15:04"
 
+	// force timezone for tests to UTC otherwise if run in a
+	// different timezone where there was a daylight savings
+	// transition across one of the intervals (ie in Australia in
+	// 2019 DST started on 6th October) then the result will be
+	// different and the test will fail
+	oldLocal := time.Local
+	local, _ := time.LoadLocation("UTC")
+	time.Local = local
+	defer func() {
+		time.Local = oldLocal
+	}()
+
 	for _, t := range []struct {
 		schedule   string
 		last       string
