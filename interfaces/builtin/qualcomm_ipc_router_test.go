@@ -43,23 +43,25 @@ var _ = Suite(&QrtrInterfaceSuite{
 	iface: builtin.MustInterface("qualcomm-ipc-router"),
 })
 
-const qipcrtrConsumerYaml = `name: consumer
+const qipcrtrClientYaml = `name: client
 version: 0
 apps:
  app:
   plugs: [qualcomm-ipc-router]
 `
 
-const qipcrtrCoreYaml = `name: core
+const qipcrtrServerYaml = `name: server
 version: 0
-type: os
+apps:
+ app:
+  slot: [qualcomm-ipc-router]
 slots:
   qualcomm-ipc-router:
 `
 
 func (s *QrtrInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, qipcrtrConsumerYaml, nil, "qualcomm-ipc-router")
-	s.slot, s.slotInfo = MockConnectedSlot(c, qipcrtrCoreYaml, nil, "qualcomm-ipc-router")
+	s.plug, s.plugInfo = MockConnectedPlug(c, qipcrtrClientYaml, nil, "qualcomm-ipc-router")
+	s.slot, s.slotInfo = MockConnectedSlot(c, qipcrtrServerYaml, nil, "qualcomm-ipc-router")
 }
 
 func (s *QrtrInterfaceSuite) TestName(c *C) {
@@ -67,7 +69,18 @@ func (s *QrtrInterfaceSuite) TestName(c *C) {
 }
 
 func (s *QrtrInterfaceSuite) TestSanitizeSlot(c *C) {
+	r := apparmor_sandbox.MockFeatures(nil, nil, []string{"qipcrtr-socket"}, nil)
+	defer r()
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+}
+
+func (s *QrtrInterfaceSuite) TestSanitizeSlotMissingFeature(c *C) {
+	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer r()
+	r = apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
+	defer r()
+	err := interfaces.BeforePrepareSlot(s.iface, s.slotInfo)
+	c.Assert(err, ErrorMatches, "cannot prepare slot on system without qipcrtr socket support")
 }
 
 func (s *QrtrInterfaceSuite) TestSanitizePlug(c *C) {
@@ -89,26 +102,32 @@ func (s *QrtrInterfaceSuite) TestSanitizePlugConnectionMissingAppArmorSandboxFea
 	c.Assert(err, ErrorMatches, "cannot connect plug on system without qipcrtr socket support")
 }
 
-func (s *QrtrInterfaceSuite) TestSanitizePlugConnectionMissingNoAppArmor(c *C) {
-	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Unsupported)
-	defer r()
-	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
-	c.Assert(err, IsNil)
-}
-
 func (s *QrtrInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network qipcrtr,\n")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "capability net_admin,\n")
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client.app", "snap.server.app"})
+
+	c.Assert(spec.SnippetForTag("snap.client.app"), testutil.Contains, "network qipcrtr,\n")
+	c.Assert(spec.SnippetForTag("snap.client.app"), Not(testutil.Contains), "capability net_admin,\n")
+	c.Assert(spec.SnippetForTag("snap.client.app"), testutil.Contains, `unix (connect, send, receive) type=seqpacket addr="@**" peer=(label="snap.server.app"),`)
+
+	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, "network qipcrtr,\n")
+	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, "capability net_admin,\n")
+	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, `unix (accept, send, receive) type=seqpacket addr="@**" peer=(label="snap.client.app"),`)
+	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, `unix (bind, listen) type=seqpacket addr="@**",`)
 }
 
 func (s *QrtrInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "bind\n")
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.server.app"})
+	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, "bind\n")
 }
 
 func (s *QrtrInterfaceSuite) TestStaticInfo(c *C) {
@@ -120,5 +139,97 @@ func (s *QrtrInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *QrtrInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+type QrtrInterfaceCompatSuite struct {
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
+}
+
+var _ = Suite(&QrtrInterfaceCompatSuite{
+	iface: builtin.MustInterface("qualcomm-ipc-router"),
+})
+
+const qipcrtrConsumerCompatYaml = `name: consumer
+version: 0
+apps:
+ app:
+  plugs: [qualcomm-ipc-router]
+`
+
+const qipcrtrCoreCompatYaml = `name: core
+version: 0
+type: os
+slots:
+  qualcomm-ipc-router:
+`
+
+func (s *QrtrInterfaceCompatSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, qipcrtrConsumerCompatYaml, nil, "qualcomm-ipc-router")
+	s.slot, s.slotInfo = MockConnectedSlot(c, qipcrtrCoreCompatYaml, nil, "qualcomm-ipc-router")
+}
+
+func (s *QrtrInterfaceCompatSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "qualcomm-ipc-router")
+}
+
+func (s *QrtrInterfaceCompatSuite) TestSanitizeSlot(c *C) {
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+}
+
+func (s *QrtrInterfaceCompatSuite) TestSanitizePlug(c *C) {
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
+}
+
+func (s *QrtrInterfaceCompatSuite) TestSanitizePlugConnectionFullAppArmorSandboxFeatures(c *C) {
+	r := apparmor_sandbox.MockFeatures(nil, nil, []string{"qipcrtr-socket"}, nil)
+	defer r()
+	c.Assert(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
+}
+
+func (s *QrtrInterfaceCompatSuite) TestSanitizePlugConnectionMissingAppArmorSandboxFeatures(c *C) {
+	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer r()
+	r = apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
+	defer r()
+	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
+	c.Assert(err, ErrorMatches, "cannot connect plug on system without qipcrtr socket support")
+}
+
+func (s *QrtrInterfaceCompatSuite) TestSanitizePlugConnectionMissingNoAppArmor(c *C) {
+	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Unsupported)
+	defer r()
+	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
+	c.Assert(err, IsNil)
+}
+
+func (s *QrtrInterfaceCompatSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network qipcrtr,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "capability net_admin,\n")
+}
+
+func (s *QrtrInterfaceCompatSuite) TestSecCompSpec(c *C) {
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "bind\n")
+}
+
+func (s *QrtrInterfaceCompatSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows access to the Qualcomm IPC Router sockets`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "qualcomm-ipc-router")
+}
+
+func (s *QrtrInterfaceCompatSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
