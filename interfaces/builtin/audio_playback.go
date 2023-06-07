@@ -123,8 +123,8 @@ const audioPlaybackPermanentSlotAppArmorCore = `
 # This allows to share screen in Core Desktop
 owner /run/user/[0-9]*/pipewire-[0-9] rwk,
 
-# This allows to read the wireplumber configuration if
-# pipewire runs inside the container
+# This allows wireplumber to read the pulseaudio
+# configuration if pipewire runs inside a container
 /etc/pulse/ r,
 /etc/pulse/** r,
 `
