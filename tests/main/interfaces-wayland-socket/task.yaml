@@ -10,7 +10,7 @@ details: |
     originally bound at. This test verifies that connection is
     possible.
 
-systems: [-ubuntu-14.04*]
+systems: [-ubuntu-1*, -ubuntu-core-1*]
 
 prepare: |
     tests.session -u test prepare
