@@ -156,7 +156,6 @@ func (iface *audioPlaybackInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              audioPlaybackSummary,
 		ImplicitOnClassic:    true,
-		ImplicitOnCore:       false,
 		BaseDeclarationSlots: audioPlaybackBaseDeclarationSlots,
 	}
 }
