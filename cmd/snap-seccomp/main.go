@@ -188,6 +188,23 @@ package main
 // #ifndef TIOCLINUX
 // #define TIOCLINUX 0x541C
 // #endif
+//
+//#include <linux/version.h>
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0)
+// #include <linux/kcmp.h>
+//#else  // LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0)
+// /* Define missing kcmp constants */
+// #define KCMP_FILE 0
+// #define KCMP_VM 1
+// #define KCMP_FILES 2
+// #define KCMP_FS 3
+// #define KCMP_SIGHAND 4
+// #define KCMP_IO 5
+// #define KCMP_SYSVSEM 6
+//#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0)
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
+// #define KCMP_EPOLL_TFD 7
+//#endif // LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
 import "C"
 
 import (
@@ -448,6 +465,16 @@ var seccompResolver = map[string]uint64{
 	"PTRACE_PEEKUSR":  C.PTRACE_PEEKUSER,
 	"PTRACE_PEEKUSER": C.PTRACE_PEEKUSER,
 	"PTRACE_CONT":     C.PTRACE_CONT,
+
+	// man 2 kcmp
+	"KCMP_FILE":      C.KCMP_FILE,
+	"KCMP_VM":        C.KCMP_VM,
+	"KCMP_FILES":     C.KCMP_FILES,
+	"KCMP_FS":        C.KCMP_FS,
+	"KCMP_SIGHAND":   C.KCMP_SIGHAND,
+	"KCMP_IO":        C.KCMP_IO,
+	"KCMP_SYSVSEM":   C.KCMP_SYSVSEM,
+	"KCMP_EPOLL_TFD": C.KCMP_EPOLL_TFD,
 }
 
 // DpkgArchToScmpArch takes a dpkg architecture and converts it to

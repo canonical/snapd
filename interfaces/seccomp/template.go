@@ -228,6 +228,10 @@ ioprio_get
 
 ipc
 kill
+# kcmp is guarded in the kernel via ptrace with PTRACE_MODE_READ_REALCREDS
+# such that the calling process must already be able to ptrace the target
+# processes and so this is safe.
+kcmp - - KCMP_FILE
 link
 linkat
 

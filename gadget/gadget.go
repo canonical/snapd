@@ -121,10 +121,30 @@ type Info struct {
 	KernelCmdline KernelCmdline `yaml:"kernel-cmdline"`
 }
 
+// PartialProperty is a gadget property that can be partially defined.
+type PartialProperty string
+
+// These are the different properties of the gadget that can be partially
+// defined.
+// TODO What is the exact meaning of having a partial "structure" is not yet
+// fully defined, so enforcing it has not been implemented yet.
+const (
+	PartialSize       PartialProperty = "size"
+	PartialFilesystem PartialProperty = "filesystem"
+	PartialSchema     PartialProperty = "schema"
+	PartialStructure  PartialProperty = "structure"
+)
+
+var validPartialProperties = [...]PartialProperty{PartialSize, PartialFilesystem, PartialSchema, PartialStructure}
+
 // Volume defines the structure and content for the image to be written into a
 // block device.
 type Volume struct {
-	// Schema describes the schema used for the volume
+	// Partial is a list of properties that are only only partially
+	// described in the gadget and that need to be filled by an
+	// installer.
+	Partial []PartialProperty `yaml:"partial,omitempty" json:"partial,omitempty"`
+	// Schema for the volume can be either gpt or mbr.
 	Schema string `yaml:"schema" json:"schema"`
 	// Bootloader names the bootloader used by the volume
 	Bootloader string `yaml:"bootloader" json:"bootloader"`
@@ -134,6 +154,16 @@ type Volume struct {
 	Structure []VolumeStructure `yaml:"structure" json:"structure"`
 	// Name is the name of the volume from the gadget.yaml
 	Name string `json:"-"`
+}
+
+// HasPartial checks if the volume has a partially defined part.
+func (v *Volume) HasPartial(pp PartialProperty) bool {
+	for _, vp := range v.Partial {
+		if vp == pp {
+			return true
+		}
+	}
+	return false
 }
 
 // MinSize returns the minimum size required by a volume, as implicitly
@@ -231,6 +261,19 @@ func (vs *VolumeStructure) HasFilesystem() bool {
 	return vs.Filesystem != "none" && vs.Filesystem != ""
 }
 
+// willHaveFilesystem considers also partially defined filesystem.
+func (vs *VolumeStructure) willHaveFilesystem(v *Volume) bool {
+	if vs.HasFilesystem() {
+		return true
+	}
+
+	if vs.Type == "bare" || vs.Type == "mbr" || !v.HasPartial(PartialFilesystem) {
+		return false
+	}
+
+	return true
+}
+
 // IsPartition returns true when the structure describes a partition in a block
 // device.
 func (vs *VolumeStructure) IsPartition() bool {
@@ -249,6 +292,15 @@ func (vs *VolumeStructure) HasLabel(label string) bool {
 // IsFixedSize tells us if size is fixed or if there is range.
 func (vs *VolumeStructure) IsFixedSize() bool {
 	return vs.Size == vs.MinSize
+}
+
+// hasPartialSize tells us if the structure has partially defined size.
+func (vs *VolumeStructure) hasPartialSize(v *Volume) bool {
+	if !v.HasPartial(PartialSize) {
+		return false
+	}
+
+	return vs.Size == 0
 }
 
 // minStructureOffset works out the minimum start offset of an structure, which
@@ -771,6 +823,28 @@ func orderStructuresByOffset(vss []VolumeStructure) []VolumeStructure {
 	return ordVss
 }
 
+func validatePartial(v *Volume) error {
+	var foundCache [len(validPartialProperties)]bool
+	for _, p := range v.Partial {
+		found := false
+		for vpvIdx, valid := range validPartialProperties {
+			if p == valid {
+				if foundCache[vpvIdx] == true {
+					return fmt.Errorf("partial value %q is repeated", p)
+				}
+				foundCache[vpvIdx] = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("%q is not a valid partial value", p)
+		}
+	}
+
+	return nil
+}
+
 // InfoFromGadgetYaml parses the provided gadget metadata.
 // If model is nil only self-consistency checks are performed.
 // If model is not nil implied values for filesystem labels will be set
@@ -816,6 +890,10 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		v := gi.Volumes[name]
 		if v == nil {
 			return nil, fmt.Errorf("volume %q stanza is empty", name)
+		}
+
+		if err := validatePartial(v); err != nil {
+			return nil, err
 		}
 
 		// set the VolumeName for the volume
@@ -905,7 +983,7 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 
 func setImplicitForVolume(vol *Volume, model Model) error {
 	rs := whichVolRuleset(model)
-	if vol.Schema == "" {
+	if vol.Schema == "" && !vol.HasPartial(PartialSchema) {
 		// default for schema is gpt
 		vol.Schema = schemaGPT
 	}
@@ -1084,8 +1162,8 @@ func validateVolume(vol *Volume) error {
 		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
-	// named structures, for cross-referencing relative offset-write names
-	knownStructures := make(map[string]*VolumeStructure, len(vol.Structure))
+	// named structures, to check that names are not repeated
+	knownStructures := make(map[string]bool, len(vol.Structure))
 
 	// TODO: should we also validate that if there is a system-recovery-select
 	// role there should also be at least 2 system-recovery-image roles and
@@ -1128,11 +1206,11 @@ func validateVolume(vol *Volume) error {
 				return fmt.Errorf("structure name %q is not unique", s.Name)
 			}
 			// keep track of named structures
-			knownStructures[s.Name] = &vol.Structure[idx]
+			knownStructures[s.Name] = true
 		}
 	}
 
-	return validateCrossVolumeStructure(vol.Structure, vol.MinSize())
+	return validateCrossVolumeStructure(vol)
 }
 
 // isMBR returns whether the structure is the MBR and can be used before setImplicitForVolume
@@ -1146,24 +1224,24 @@ func isMBR(vs *VolumeStructure) bool {
 	return false
 }
 
-func validateCrossVolumeStructure(structures []VolumeStructure, volSize quantity.Size) error {
+func validateCrossVolumeStructure(vol *Volume) error {
 	previousEnd := quantity.Offset(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
 	// - structure overlap
-	for pidx, ps := range structures {
+	for pidx, ps := range vol.Structure {
 		if isMBR(&ps) {
 			if ps.Offset == nil || *(ps.Offset) != 0 {
 				return fmt.Errorf(`structure %q has "mbr" role and must start at offset 0`, ps.Name)
 			}
 		}
-		if err := validateOffsetWrite(&ps, &structures[0], volSize); err != nil {
+		if err := validateOffsetWrite(&ps, &vol.Structure[0], vol.MinSize()); err != nil {
 			return err
 		}
 		// We are assuming ordered structures
 		if ps.Offset != nil {
 			if *(ps.Offset) < previousEnd {
-				return fmt.Errorf("structure %q overlaps with the preceding structure %q", ps.Name, structures[pidx-1].Name)
+				return fmt.Errorf("structure %q overlaps with the preceding structure %q", ps.Name, vol.Structure[pidx-1].Name)
 			}
 			previousEnd = *(ps.Offset) + quantity.Offset(ps.Size)
 		} else {
@@ -1203,12 +1281,14 @@ func validateOffsetWrite(s, firstStruct *VolumeStructure, volSize quantity.Size)
 }
 
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
-	if vs.Size == 0 {
-		return errors.New("missing size")
-	}
-	if vs.MinSize > vs.Size {
-		return fmt.Errorf("min-size (%d) is bigger than size (%d)",
-			vs.MinSize, vs.Size)
+	if !vs.hasPartialSize(vol) {
+		if vs.Size == 0 {
+			return errors.New("missing size")
+		}
+		if vs.MinSize > vs.Size {
+			return fmt.Errorf("min-size (%d) is bigger than size (%d)",
+				vs.MinSize, vs.Size)
+		}
 	}
 	if err := validateStructureType(vs.Type, vol); err != nil {
 		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
@@ -1228,10 +1308,10 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 
 	var contentChecker func(*VolumeContent) error
 
-	if !vs.HasFilesystem() {
-		contentChecker = validateBareContent
-	} else {
+	if vs.willHaveFilesystem(vol) {
 		contentChecker = validateFilesystemContent
+	} else {
+		contentChecker = validateBareContent
 	}
 	for i, c := range vs.Content {
 		if err := contentChecker(&c); err != nil {
@@ -1239,7 +1319,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 		}
 	}
 
-	if err := validateStructureUpdate(vs); err != nil {
+	if err := validateStructureUpdate(vs, vol); err != nil {
 		return err
 	}
 
@@ -1260,11 +1340,6 @@ func validateStructureType(s string, vol *Volume) error {
 	// Hybrid ID is 2 hex digits of MBR type, followed by 36 GUUID
 	// example: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
 
-	schema := vol.Schema
-	if schema == "" {
-		schema = schemaGPT
-	}
-
 	if s == "" {
 		return errors.New(`type is not specified`)
 	}
@@ -1279,7 +1354,7 @@ func validateStructureType(s string, vol *Volume) error {
 		return nil
 	}
 
-	var isGPT, isMBR bool
+	var isGPT, isMBR, isHybrid bool
 
 	idx := strings.IndexRune(s, ',')
 	if idx == -1 {
@@ -1294,6 +1369,7 @@ func validateStructureType(s string, vol *Volume) error {
 		}
 	} else {
 		// hybrid ID
+		isHybrid = true
 		code := s[:idx]
 		guid := s[idx+1:]
 		if len(code) != 2 || len(guid) != 36 || !validTypeID.MatchString(code) || !validGUUID.MatchString(guid) {
@@ -1301,12 +1377,22 @@ func validateStructureType(s string, vol *Volume) error {
 		}
 	}
 
-	if schema != schemaGPT && isGPT {
-		// type: <uuid> is only valid for GPT volumes
-		return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
-	}
-	if schema != schemaMBR && isMBR {
-		return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
+	if vol.HasPartial(PartialSchema) {
+		if !isHybrid {
+			return fmt.Errorf("both MBR type and GUID structure type needs to be defined on partial schemas")
+		}
+	} else {
+		schema := vol.Schema
+		if schema == "" {
+			schema = schemaGPT
+		}
+		if schema != schemaGPT && isGPT {
+			// type: <uuid> is only valid for GPT volumes
+			return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
+		}
+		if schema != schemaMBR && isMBR {
+			return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
+		}
 	}
 
 	return nil
@@ -1379,8 +1465,8 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	return nil
 }
 
-func validateStructureUpdate(vs *VolumeStructure) error {
-	if !vs.HasFilesystem() && len(vs.Update.Preserve) > 0 {
+func validateStructureUpdate(vs *VolumeStructure, v *Volume) error {
+	if !vs.willHaveFilesystem(v) && len(vs.Update.Preserve) > 0 {
 		return errors.New("preserving files during update is not supported for non-filesystem structures")
 	}
 
