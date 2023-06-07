@@ -81,9 +81,9 @@ owner /{,var/}run/user/*/pulse/pid r,
 `
 
 const audioPlaybackConnectedPlugAppArmorCore = `
-owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/pulse/ r,
-owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/pulse/native rwk,
-owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/pulse/pid r,
+owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/pulse/ r,
+owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/pulse/native rwk,
+owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/pulse/pid r,
 `
 
 const audioPlaybackConnectedPlugSecComp = `
@@ -167,7 +167,7 @@ func (iface *audioPlaybackInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		spec.AddSnippet(audioPlaybackConnectedPlugAppArmorDesktop)
 	}
 	if !implicitSystemConnectedSlot(slot) {
-		old := "###PLUG_SECURITY_TAGS###"
+		old := "###SLOT_SECURITY_TAGS###"
 		new := "snap." + slot.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
 		snippet := strings.Replace(audioPlaybackConnectedPlugAppArmorCore, old, new, -1)
 		spec.AddSnippet(snippet)
