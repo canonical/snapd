@@ -1681,7 +1681,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 		conn := conns[id]
 		// device was not unplugged, this is the case if snapd is restarted and we enumerate devices.
 		// note, the situation where device was not unplugged but has changed is handled
-		// by hotlugDeviceAdded handler - updateDevice.
+		// by hotplugDeviceAdded handler - updateDevice.
 		if !conn.HotplugGone || conn.Undesired {
 			continue
 		}

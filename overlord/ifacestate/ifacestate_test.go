@@ -5273,7 +5273,7 @@ func (s *interfaceManagerSuite) setupHotplugSlot(c *C) {
 		}})
 }
 
-func (s *interfaceManagerSuite) TestManagerDoesntReloadHotlugGoneConnection(c *C) {
+func (s *interfaceManagerSuite) TestManagerDoesntReloadHotplugGoneConnection(c *C) {
 	s.setupHotplugSlot(c)
 
 	s.state.Lock()
@@ -5288,7 +5288,7 @@ func (s *interfaceManagerSuite) TestManagerDoesntReloadHotlugGoneConnection(c *C
 	c.Assert(mgr.Repository().Interfaces().Connections, HasLen, 0)
 }
 
-func (s *interfaceManagerSuite) TestManagerReloadsHotlugConnection(c *C) {
+func (s *interfaceManagerSuite) TestManagerReloadsHotplugConnection(c *C) {
 	s.setupHotplugSlot(c)
 
 	s.state.Lock()
