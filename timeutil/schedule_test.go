@@ -517,7 +517,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 	local, _ := time.LoadLocation("UTC")
 	time.Local = local
 	defer func() {
-	    time.Local = oldLocal
+		time.Local = oldLocal
 	}()
 
 	for _, t := range []struct {
