@@ -254,7 +254,7 @@ KERNEL=="nvme[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
 	c.Assert(snippets[4], Equals, `# fwupd
 KERNEL=="tpm[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
 
-	expected := fmt.Sprintf(`TAG=="snap_uefi-fw-tools_app2", RUN+="%v/snap-device-helper $env{ACTION} snap_uefi-fw-tools_app2 $devpath $major:$minor"`, dirs.DistroLibExecDir)
+	expected := fmt.Sprintf(`TAG=="snap_uefi-fw-tools_app2", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_uefi-fw-tools_app2 $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	c.Assert(snippets[5], Equals, expected)
 
 	// The implicit slot found on classic systems does not generate any rules
