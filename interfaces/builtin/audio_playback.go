@@ -117,9 +117,7 @@ owner /{,var/}run/pulse/** rwk,
 owner /run/pulse/native/ rwk,
 owner /run/user/[0-9]*/ r,
 owner /run/user/[0-9]*/pulse/ rw,
-`
 
-const audioPlaybackPermanentSlotAppArmorCore = `
 # This allows to share screen in Core Desktop
 owner /run/user/[0-9]*/pipewire-[0-9] rwk,
 
@@ -183,10 +181,6 @@ func (iface *audioPlaybackInterface) UDevPermanentSlot(spec *udev.Specification,
 
 func (iface *audioPlaybackInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(audioPlaybackPermanentSlotAppArmor)
-	if !implicitSystemPermanentSlot(slot) {
-		// This allows to share screen in Core Desktop
-		spec.AddSnippet(audioPlaybackPermanentSlotAppArmorCore)
-	}
 	return nil
 }
 

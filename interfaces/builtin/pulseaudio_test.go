@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -121,6 +122,32 @@ func (s *PulseAudioInterfaceSuite) TestSecCompOnAllSnaps(c *C) {
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2", "snap.pulseaudio.app1"})
 	c.Assert(seccompSpec.SnippetForTag("snap.pulseaudio.app1"), testutil.Contains, "listen\n")
 	c.Assert(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "shmctl\n")
+}
+
+func (s *PulseAudioInterfaceSuite) TestApparmorOnClassic(c *C) {
+	// connected plug to classic slot
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/native rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/pid r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.pulseaudio/pulse/ r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.pulseaudio/pulse/native rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.pulseaudio/pulse/pid r,\n")
+}
+
+func (s *PulseAudioInterfaceSuite) TestApparmorOnCoreNotSnapd(c *C) {
+	// connected plug to classic slot
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/native rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/pid r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /run/user/[0-9]*/snap.pulseaudio/pulse/ r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /run/user/[0-9]*/snap.pulseaudio/pulse/native rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /run/user/[0-9]*/snap.pulseaudio/pulse/pid r,\n")
 }
 
 func (s *PulseAudioInterfaceSuite) TestUDev(c *C) {
