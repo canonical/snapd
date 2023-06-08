@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -513,12 +514,11 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 	// transition across one of the intervals (ie in Australia in
 	// 2019 DST started on 6th October) then the result will be
 	// different and the test will fail
-	oldLocal := time.Local
-	local, _ := time.LoadLocation("UTC")
+	restore := testutil.Backup(&time.Local)
+	defer restore()
+	local, err := time.LoadLocation("UTC")
+	c.Assert(err, IsNil)
 	time.Local = local
-	defer func() {
-		time.Local = oldLocal
-	}()
 
 	for _, t := range []struct {
 		schedule   string
