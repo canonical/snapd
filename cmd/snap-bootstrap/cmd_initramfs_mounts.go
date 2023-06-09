@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snapdtool"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
@@ -109,11 +110,12 @@ var (
 		Private:  true,
 	}
 
-	gadgetInstallRun                 = gadgetInstall.Run
-	bootMakeRunnableStandaloneSystem = boot.MakeRunnableStandaloneSystemFromInitrd
-	installApplyPreseededData        = install.ApplyPreseededData
-	bootEnsureNextBootToRunMode      = boot.EnsureNextBootToRunMode
-	installBuildInstallObserver      = install.BuildInstallObserver
+	gadgetInstallRun                     = gadgetInstall.Run
+	bootMakeRunnableStandaloneSystem     = boot.MakeRunnableStandaloneSystemFromInitrd
+	bootMakeRunnableSystemAfterDataReset = boot.MakeRunnableSystemAfterDataReset
+	installApplyPreseededData            = install.ApplyPreseededData
+	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
+	installBuildInstallObserver          = install.BuildInstallObserver
 )
 
 func stampedAction(stamp string, action func() error) error {
@@ -281,7 +283,54 @@ func hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
 	return ok, nil
 }
 
-func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap) error {
+var (
+	secbootStageEncryptionKeyChange = secboot.StageEncryptionKeyChange
+	secbootRemoveRecoveryKeys       = secboot.RemoveRecoveryKeys
+)
+
+func doSetupRunSystem(mst *initramfsMountsState, model *asserts.Model, factoryReset bool, sysSnaps map[snap.Type]*seed.Snap) error {
+	var disk disks.Disk
+	var err error
+	if factoryReset {
+		// get the disk that we mounted the ubuntu-seed partition from as a
+		// reference point for future mounts
+		disk, err = disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
+		if err != nil {
+			return err
+		}
+
+		// 1.5: find ubuntu-save, unlock and mount, note that factory-reset
+		// mode only cares about ubuntu-save, as ubuntu-data and ubuntu-boot
+		// will be wiped anyway so we do not even bother looking up those
+		// partitions (which may be corrupted too, hence factory-reset was
+		// invoked)
+		machine, err := func() (machine *recoverModeStateMachine, err error) {
+			allowFallback := true
+			machine = newRecoverModeStateMachine(model, disk, allowFallback)
+			// start from looking up encrypted ubuntu-save and unlocking with the fallback key
+			machine.current = machine.unlockMaybeEncryptedAloneSaveFallbackKey
+			for {
+				finished, err := machine.execute()
+				// TODO: consider whether certain errors are fatal or not
+				if err != nil {
+					return nil, err
+				}
+				if finished {
+					break
+				}
+			}
+			return machine, nil
+		}()
+
+		if err != nil {
+			return err
+		}
+
+		if err := machine.degradedState.serializeTo("factory-reset-bootstrap.json"); err != nil {
+			return err
+		}
+	}
+
 	kernelSnap, err := readSnapInfo(sysSnaps, snap.TypeKernel)
 	if err != nil {
 		return err
@@ -300,15 +349,53 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	if err != nil {
 		return err
 	}
-	encryptionSupport, err := install.CheckEncryptionSupport(model, secboot.TPMProvisionFull, kernelSnap, gadgetInfo, runFDESetupHook)
+
+	var encryptionSupport secboot.EncryptionType
+	if factoryReset {
+		encryptionSupport, err = install.CheckEncryptionSupport(model, secboot.TPMPartialReprovision, kernelSnap, gadgetInfo, runFDESetupHook)
+	} else {
+		encryptionSupport, err = install.CheckEncryptionSupport(model, secboot.TPMProvisionFull, kernelSnap, gadgetInfo, runFDESetupHook)
+	}
+
 	if err != nil {
 		return err
 	}
+
 	useEncryption := (encryptionSupport != secboot.EncryptionTypeNone)
 
-	installObserver, trustedInstallObserver, err := installBuildInstallObserver(model, gadgetMountDir, useEncryption)
-	if err != nil {
-		return err
+	if factoryReset {
+		hasMarker := device.HasEncryptedMarkerUnder(boot.InstallHostFDESaveDir)
+		// TODO verify that the same encryption mechanism is used
+		if hasMarker != useEncryption {
+			prevStatus := "encrypted"
+			if !hasMarker {
+				prevStatus = "unencrypted"
+			}
+			return fmt.Errorf("cannot perform factory reset using different encryption, the original system was %v", prevStatus)
+		}
+	}
+
+	var installObserver gadget.ContentObserver
+	var trustedInstallObserver boot.TrustedAssetsInstallObserver
+	if factoryReset {
+		// observer will be a nil interface by default
+		trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetMountDir, useEncryption)
+		if err != nil && err != boot.ErrObserverNotApplicable {
+			return fmt.Errorf("cannot setup asset install observer: %v", err)
+		}
+		if err == nil {
+			installObserver = trustedInstallObserver
+			if !useEncryption && !trustedInstallObserver.BootLoaderSupportsEfiVariables() {
+				// there will be no key sealing, so past the
+				// installation pass no other methods need to be called
+				trustedInstallObserver = nil
+			}
+		}
+	} else {
+		installObserver, trustedInstallObserver, err = installBuildInstallObserver(model, gadgetMountDir, useEncryption)
+		if err != nil && err != boot.ErrObserverNotApplicable {
+			return err
+		}
 	}
 
 	options := gadgetInstall.Options{
@@ -346,11 +433,25 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	default:
 		kernelSnapInfo.NeedsDriversTree = true
 	}
+	var installedSystem *gadgetInstall.InstalledSystemSideData
 
-	installedSystem, err := gadgetInstallRun(model, gadgetMountDir, kernelSnapInfo, bootDevice, options, installObserver, timings.New(nil))
+	if factoryReset {
+		logger.Noticef("create and deploy partitions")
+		installedSystem, err = gadgetInstall.FactoryReset(model, gadgetMountDir, kernelSnapInfo, bootDevice, options, installObserver, timings.New(nil))
+	} else {
+		logger.Noticef("Setting up file system for new system...\n")
+		installedSystem, err = gadgetInstallRun(model, gadgetMountDir, kernelSnapInfo, bootDevice, options, installObserver, timings.New(nil))
+		logger.Noticef("OK: Setting up file system for new system...DONE\n")
+		if err != nil {
+			logger.Noticef("OK: gadget install failed: %+v", err)
+		} else {
+			logger.Noticef("devs: %+v", installedSystem.DeviceForRole)
+		}
+	}
 	if err != nil {
 		return err
 	}
+	logger.Noticef("devs: %+v", installedSystem.DeviceForRole)
 
 	if trustedInstallObserver != nil {
 		// We are required to call ObserveExistingTrustedRecoveryAssets on trusted observers
@@ -360,6 +461,52 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	}
 
 	if useEncryption {
+		if factoryReset {
+			secboot.FdeKeyManagerBinary = "snap-bootstrap"
+			// at this point we removed boot and data. sealed fallback key
+			// for ubuntu-data is becoming useless
+			err := os.Remove(device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
+			if err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("cannot cleanup obsolete key file: %v", err)
+			}
+
+			// it is possible that we reached this place again where a
+			// previously running factory reset was interrupted by a reboot
+			err = os.Remove(device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
+			if err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("cannot cleanup obsolete key file: %v", err)
+			}
+
+			// it is ok if the recovery key file on disk does not exist;
+			// ubuntu-save was opened during boot, so the removal operation
+			// can be authorized with a key from the keyring
+			err = secbootRemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
+				{Mountpoint: boot.InitramfsUbuntuSaveDir}: device.RecoveryKeyUnder(boot.InstallHostFDEDataDir(model)),
+			})
+			if err != nil {
+				fmt.Printf("cannot remove recovery key: %v\n", err)
+				return fmt.Errorf("cannot remove recovery key: %v", err)
+			}
+
+			// new encryption key for save
+			saveEncryptionKey, err := keys.NewEncryptionKey()
+			if err != nil {
+				return fmt.Errorf("cannot create encryption key: %v", err)
+			}
+
+			saveNode := installedSystem.DeviceForRole[gadget.SystemSave]
+			if saveNode == "" {
+				return fmt.Errorf("internal error: no system-save device")
+			}
+
+			if err := secbootStageEncryptionKeyChange(saveNode, saveEncryptionKey); err != nil {
+				fmt.Printf("cannot change encryption keys: %v\n", err)
+				return fmt.Errorf("cannot change encryption keys: %v", err)
+			}
+			// keep track of the new ubuntu-save encryption key
+			installedSystem.KeyForRole[gadget.SystemSave] = saveEncryptionKey
+		}
+
 		if err := install.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
 			return err
 		}
@@ -368,6 +515,12 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	err = install.PrepareRunSystemData(model, gadgetMountDir, timings.New(nil))
 	if err != nil {
 		return err
+	}
+
+	if factoryReset {
+		if err := install.RestoreDeviceFromSave(model); err != nil {
+			return fmt.Errorf("cannot restore data from save: %v", err)
+		}
 	}
 
 	bootWith := &boot.BootableSet{
@@ -381,8 +534,20 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		RecoverySystemLabel: mst.recoverySystem,
 	}
 
-	if err := bootMakeRunnableStandaloneSystem(model, bootWith, trustedInstallObserver); err != nil {
-		return err
+	if factoryReset {
+		if err = bootMakeRunnableSystemAfterDataReset(model, bootWith, trustedInstallObserver); err != nil {
+			return fmt.Errorf("cannot make system runnable: %v", err)
+		}
+		// leave a marker that factory reset was performed
+		factoryResetMarker := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir(model)), "factory-reset")
+		if err := install.WriteFactoryResetMarker(factoryResetMarker, useEncryption); err != nil {
+			return fmt.Errorf("cannot write the marker file: %v", err)
+		}
+
+	} else {
+		if err := bootMakeRunnableStandaloneSystem(model, bootWith, trustedInstallObserver); err != nil {
+			return err
+		}
 	}
 
 	dataMountOpts := &systemdMountOptions{
@@ -429,7 +594,7 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 	}
 
 	if installAndRun {
-		if err := doInstall(mst, model, snaps); err != nil {
+		if err := doSetupRunSystem(mst, model, false, snaps); err != nil {
 			return err
 		}
 		return nil
@@ -1548,9 +1713,23 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 }
 
 func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
-	// steps 1 and 2 are shared with install mode
-	model, snaps, err := generateMountsCommonInstallRecover(mst)
+	// steps 1 and 2 are shared with recover mode
+	model, snaps, err := generateMountsCommonInstallRecoverStart(mst)
 	if err != nil {
+		return err
+	}
+
+	installAndRun, err := canInstallAndRunAtOnce(mst)
+	if err != nil {
+		return err
+	}
+
+	// can we factory reset and run in one step?
+	if installAndRun {
+		return doSetupRunSystem(mst, model, true, snaps)
+	}
+
+	if err := generateMountsCommonInstallRecoverContinue(mst, model, snaps); err != nil {
 		return err
 	}
 
