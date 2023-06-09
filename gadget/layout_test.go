@@ -49,7 +49,7 @@ func (p *layoutTestSuite) SetUpTest(c *C) {
 func (p *layoutTestSuite) TestVolumeSize(c *C) {
 	vol := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
-			{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB},
+			{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB, EnclosingVolume: &gadget.Volume{}},
 		},
 	}
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
@@ -59,7 +59,7 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: &gadget.Volume{
 			Structure: []gadget.VolumeStructure{
-				{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB},
+				{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB, EnclosingVolume: &gadget.Volume{}},
 			},
 		},
 		LaidOutStructure: []gadget.LaidOutStructure{{
@@ -68,8 +68,9 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 				StartOffset: 1 * quantity.OffsetMiB,
 			},
 			VolumeStructure: &gadget.VolumeStructure{
-				Offset: asOffsetPtr(quantity.OffsetMiB),
-				Size:   2 * quantity.SizeMiB,
+				Offset:          asOffsetPtr(quantity.OffsetMiB),
+				Size:            2 * quantity.SizeMiB,
+				EnclosingVolume: &gadget.Volume{},
 			},
 		}},
 	})
@@ -1382,13 +1383,15 @@ func (p *layoutTestSuite) TestLayoutWithMinSize(c *C) {
 	vol := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{
-				Offset:  asOffsetPtr(quantity.OffsetMiB),
-				MinSize: quantity.SizeMiB,
-				Size:    2 * quantity.SizeMiB,
+				Offset:          asOffsetPtr(quantity.OffsetMiB),
+				MinSize:         quantity.SizeMiB,
+				Size:            2 * quantity.SizeMiB,
+				EnclosingVolume: &gadget.Volume{},
 			},
 			{
-				MinSize: quantity.SizeMiB,
-				Size:    2 * quantity.SizeMiB,
+				MinSize:         quantity.SizeMiB,
+				Size:            2 * quantity.SizeMiB,
+				EnclosingVolume: &gadget.Volume{},
 			},
 		},
 	}

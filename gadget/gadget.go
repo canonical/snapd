@@ -249,6 +249,10 @@ type VolumeStructure struct {
 
 	// Index of the structure definition in gadget YAML, note this starts at 0.
 	YamlIndex int `yaml:"-" json:"-"`
+	// EnclosingVolume is a pointer to the enclosing Volume, and should be used
+	// exclusively to check for partial information that affects the
+	// structure properties.
+	EnclosingVolume *Volume `yaml:"-" json:"-"`
 }
 
 // IsRoleMBR tells us if v has MBR role or not.
@@ -256,22 +260,16 @@ func (v *VolumeStructure) IsRoleMBR() bool {
 	return v.Role == schemaMBR
 }
 
-// HasFilesystem returns true if the structure is using a filesystem.
+// HasFilesystem tells us if the structure definition expects a filesystem.
 func (vs *VolumeStructure) HasFilesystem() bool {
-	return vs.Filesystem != "none" && vs.Filesystem != ""
-}
-
-// willHaveFilesystem considers also partially defined filesystem.
-func (vs *VolumeStructure) willHaveFilesystem(v *Volume) bool {
-	if vs.HasFilesystem() {
+	switch {
+	case vs.Filesystem != "none" && vs.Filesystem != "":
 		return true
-	}
-
-	if vs.Type == "bare" || vs.Type == "mbr" || !v.HasPartial(PartialFilesystem) {
+	case vs.Type == "bare" || vs.Type == "mbr":
 		return false
+	default:
+		return vs.EnclosingVolume.HasPartial(PartialFilesystem)
 	}
-
-	return true
 }
 
 // IsPartition returns true when the structure describes a partition in a block
@@ -295,8 +293,8 @@ func (vs *VolumeStructure) IsFixedSize() bool {
 }
 
 // hasPartialSize tells us if the structure has partially defined size.
-func (vs *VolumeStructure) hasPartialSize(v *Volume) bool {
-	if !v.HasPartial(PartialSize) {
+func (vs *VolumeStructure) hasPartialSize() bool {
+	if !vs.EnclosingVolume.HasPartial(PartialSize) {
 		return false
 	}
 
@@ -1009,6 +1007,8 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		if vol.Structure[i].MinSize == 0 {
 			vol.Structure[i].MinSize = vol.Structure[i].Size
 		}
+		// Set the pointer to the volume
+		vol.Structure[i].EnclosingVolume = vol
 
 		// set other implicit data for the structure
 		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels, knownVfatFsLabels); err != nil {
@@ -1281,7 +1281,7 @@ func validateOffsetWrite(s, firstStruct *VolumeStructure, volSize quantity.Size)
 }
 
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
-	if !vs.hasPartialSize(vol) {
+	if !vs.hasPartialSize() {
 		if vs.Size == 0 {
 			return errors.New("missing size")
 		}
@@ -1308,7 +1308,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 
 	var contentChecker func(*VolumeContent) error
 
-	if vs.willHaveFilesystem(vol) {
+	if vs.HasFilesystem() {
 		contentChecker = validateFilesystemContent
 	} else {
 		contentChecker = validateBareContent
@@ -1466,7 +1466,7 @@ func validateFilesystemContent(vc *VolumeContent) error {
 }
 
 func validateStructureUpdate(vs *VolumeStructure, v *Volume) error {
-	if !vs.willHaveFilesystem(v) && len(vs.Update.Preserve) > 0 {
+	if !vs.HasFilesystem() && len(vs.Update.Preserve) > 0 {
 		return errors.New("preserving files during update is not supported for non-filesystem structures")
 	}
 

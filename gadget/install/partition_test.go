@@ -280,6 +280,8 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 /dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
 	c.Check(create, NotNil)
+	mockLaidoutStructureSave.VolumeStructure.EnclosingVolume = pv.Volume
+	mockLaidoutStructureWritableAfterSave.VolumeStructure.EnclosingVolume = pv.Volume
 	c.Assert(create, DeepEquals, []gadget.LaidOutStructure{
 		mockLaidoutStructureSave,
 		mockLaidoutStructureWritableAfterSave,
@@ -347,6 +349,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	}
 	created, err := install.TestCreateMissingPartitions(dl, pv, opts)
 	c.Assert(err, IsNil)
+	mockLaidoutStructureWritable.VolumeStructure.EnclosingVolume = pv.Volume
 	c.Assert(created, DeepEquals, []gadget.LaidOutStructure{mockLaidoutStructureWritable})
 	c.Assert(calls, Equals, 1)
 
