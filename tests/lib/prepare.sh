@@ -780,8 +780,15 @@ EOF
 
         # Get list of loaded modules from current host
         awk '{print $1}' < /proc/modules | sort > /tmp/mods
-	echo ">>> LIST OF HOST MODULES:"
-	cat /tmp/mods
+        echo ">>> LIST OF HOST MODULES:"
+        cat /tmp/mods
+
+        # Trigger error
+        MUST_EXIT="YES"
+        if [ "$MUST_EXIT" = "YES" ]; then
+            echo "Faking error..."
+            exit 1
+        fi
 
         # Add additional modules required by tests. The list includes modules required for
         # snapd interfaces, ramdisk creation, networking and more.
