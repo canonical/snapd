@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -81,6 +82,13 @@ func (s *installSuite) TestInstallRunSimpleHappy(c *C) {
 	})
 }
 
+func (s *installSuite) TestInstallRunSimpleHappyFromMountPoint(c *C) {
+	s.testInstall(c, installOpts{
+		encryption: false,
+		fromSeed:   true,
+	})
+}
+
 func (s *installSuite) TestInstallRunEncryptedLUKS(c *C) {
 	s.testInstall(c, installOpts{
 		encryption: true,
@@ -104,6 +112,7 @@ func (s *installSuite) TestInstallRunEncryptionExistingPartitions(c *C) {
 type installOpts struct {
 	encryption    bool
 	existingParts bool
+	fromSeed      bool
 }
 
 func (s *installSuite) testInstall(c *C, opts installOpts) {
@@ -149,8 +158,27 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	mockPartx := testutil.MockCommand(c, "partx", "")
 	defer mockPartx.Restore()
 
-	mockUdevadm := testutil.MockCommand(c, "udevadm", "")
+	mockUdevadm := testutil.MockCommand(c, "udevadm", `
+if [ "$*" = "info --query property --name /dev/mmcblk0p1" ]; then
+	echo "ID_PART_ENTRY_DISK=42:0"
+elif [ "$*" = "info --query property --name /dev/block/42:0" ]; then
+	echo "DEVNAME=/dev/mmcblk0"
+	echo "DEVPATH=/devices/virtual/mmcblk0"
+	echo "DEVTYPE=disk"
+	echo "ID_PART_TABLE_UUID=some-gpt-uuid"
+	echo "ID_PART_TABLE_TYPE=GPT"
+fi
+`)
 	defer mockUdevadm.Restore()
+
+	if opts.fromSeed {
+		restoreMountInfo := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/ubuntu-seed rw,relatime shared:54 - vfat /dev/mmcblk0p1 rw
+`)
+		defer restoreMountInfo()
+	} else {
+		restoreMountInfo := osutil.MockMountInfo(``)
+		defer restoreMountInfo()
+	}
 
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
 	defer mockCryptsetup.Restore()
@@ -381,10 +409,15 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	}
 	c.Assert(mockPartx.Calls(), DeepEquals, expPartxCalls)
 
-	udevmadmCalls := [][]string{
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--settle", "/dev/mmcblk0p2"},
+	udevmadmCalls := [][]string{}
+
+	if opts.fromSeed {
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/mmcblk0p1"})
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/block/42:0"})
 	}
+
+	udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "settle", "--timeout=180"})
+	udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mmcblk0p2"})
 
 	if opts.encryption {
 		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mapper/ubuntu-save"})
@@ -550,6 +583,7 @@ type factoryResetOpts struct {
 	gadgetYaml string
 	traitsJSON string
 	traits     gadget.DiskVolumeDeviceTraits
+	fromSeed   bool
 }
 
 func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
@@ -581,8 +615,27 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	mockPartx := testutil.MockCommand(c, "partx", "")
 	defer mockPartx.Restore()
 
-	mockUdevadm := testutil.MockCommand(c, "udevadm", "")
+	mockUdevadm := testutil.MockCommand(c, "udevadm", `
+if [ "$*" = "info --query property --name /dev/mmcblk0p1" ]; then
+	echo "ID_PART_ENTRY_DISK=42:0"
+elif [ "$*" = "info --query property --name /dev/block/42:0" ]; then
+	echo "DEVNAME=/dev/mmcblk0"
+	echo "DEVPATH=/devices/virtual/mmcblk0"
+	echo "DEVTYPE=disk"
+	echo "ID_PART_TABLE_UUID=some-gpt-uuid"
+	echo "ID_PART_TABLE_TYPE=GPT"
+fi
+`)
 	defer mockUdevadm.Restore()
+
+	if opts.fromSeed {
+		restoreMountInfo := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/ubuntu-seed rw,relatime shared:54 - vfat /dev/mmcblk0p1 rw
+`)
+		defer restoreMountInfo()
+	} else {
+		restoreMountInfo := osutil.MockMountInfo(``)
+		defer restoreMountInfo()
+	}
 
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
 	defer mockCryptsetup.Restore()
@@ -756,10 +809,15 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	c.Assert(mockSfdisk.Calls(), HasLen, 0)
 	c.Assert(mockPartx.Calls(), HasLen, 0)
 
-	udevmadmCalls := [][]string{
-		{"udevadm", "trigger", "--settle", "/dev/mmcblk0p2"},
-		{"udevadm", "trigger", "--settle", dataDev},
+	udevmadmCalls := [][]string{}
+
+	if opts.fromSeed {
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/mmcblk0p1"})
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/block/42:0"})
 	}
+
+	udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mmcblk0p2"})
+	udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", dataDev})
 
 	c.Assert(mockUdevadm.Calls(), DeepEquals, udevmadmCalls)
 	c.Assert(mkfsCall, Equals, 2)
@@ -791,6 +849,16 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	c.Assert(err, IsNil)
 
 	c.Assert(mapping2, DeepEquals, mappingOnData)
+}
+
+func (s *installSuite) TestFactoryResetHappyFromSeed(c *C) {
+	s.testFactoryReset(c, factoryResetOpts{
+		disk:       gadgettest.ExpectedRaspiMockDiskMapping,
+		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
+		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeDeviceTraitsJSON,
+		traits:     gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
+		fromSeed:   true,
+	})
 }
 
 func (s *installSuite) TestFactoryResetHappyWithExisting(c *C) {
