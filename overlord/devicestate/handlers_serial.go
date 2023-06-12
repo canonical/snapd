@@ -657,7 +657,16 @@ func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *h
 	if proxyURL != nil && svcURL != nil {
 		newEnough, err := newEnoughProxy(st, proxyURL, client)
 		if err != nil {
-			return nil, err
+			// Ignore the proxy on any error for
+			// compatibility with previous versions of
+			// snapd.
+			//
+			// TODO: provide a way for the users to specify
+			// if they want to use the proxy store for their
+			// device-service.url or not. This needs design.
+			// (see LP:#2023166)
+			logger.Noticef("cannot reach proxy store: %v; ignore the proxy", err)
+			proxyURL = nil
 		}
 		if !newEnough {
 			logger.Noticef("Proxy store does not support custom serial vault; ignoring the proxy")
