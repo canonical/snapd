@@ -204,6 +204,26 @@ func installOnePartition(laidOut *gadget.LaidOutStructure, encryptionType secboo
 	return fsDevice, encryptionKey, nil
 }
 
+// resolveBootDevice auto-detects the boot device
+// bootDevice forces the device. Device forcing is used for (spread) testing only.
+func resolveBootDevice(bootDevice string, bootVol *gadget.Volume) (string, error) {
+	if bootDevice != "" {
+		return bootDevice, nil
+	}
+	foundDisk, err := disks.DiskFromMountPoint("/run/mnt/ubuntu-seed", nil)
+	if err != nil {
+		logger.Noticef("Warning: cannot find disk from mounted seed: %s", err)
+	} else {
+		return foundDisk.KernelDeviceNode(), nil
+	}
+	bootDevice, err = diskWithSystemSeed(bootVol)
+	if err != nil {
+		return "", fmt.Errorf("cannot find device to create partitions on: %v", err)
+	}
+
+	return bootDevice, nil
+}
+
 // createPartitions creates partitions on the disk and returns the
 // volume name where partitions have been created, the on disk
 // structures after that, the laidout volumes, and the disk sector
@@ -230,13 +250,9 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 	}
 	bootVol := laidOutBootVol.Volume
 
-	// auto-detect device if no device is forced
-	// device forcing is used for (spread) testing only
-	if bootDevice == "" {
-		bootDevice, err = diskWithSystemSeed(bootVol)
-		if err != nil {
-			return "", nil, nil, 0, fmt.Errorf("cannot find device to create partitions on: %v", err)
-		}
+	bootDevice, err = resolveBootDevice(bootDevice, bootVol)
+	if err != nil {
+		return "", nil, nil, 0, err
 	}
 
 	diskVolume, err := gadget.OnDiskVolumeFromDevice(bootDevice)
@@ -703,13 +719,9 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	}
 	// TODO: resolve content paths from gadget here
 
-	// auto-detect device if no device is forced
-	// device forcing is used for (spread) testing only
-	if bootDevice == "" {
-		bootDevice, err = diskWithSystemSeed(laidOutBootVol.Volume)
-		if err != nil {
-			return nil, fmt.Errorf("cannot find device to create partitions on: %v", err)
-		}
+	bootDevice, err = resolveBootDevice(bootDevice, laidOutBootVol.Volume)
+	if err != nil {
+		return nil, err
 	}
 
 	diskLayout, err := gadget.OnDiskVolumeFromDevice(bootDevice)
