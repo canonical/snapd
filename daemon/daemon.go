@@ -99,9 +99,10 @@ type Command struct {
 	Path       string
 	PathPrefix string
 	//
-	GET  ResponseFunc
-	PUT  ResponseFunc
-	POST ResponseFunc
+	GET    ResponseFunc
+	PUT    ResponseFunc
+	POST   ResponseFunc
+	DELETE ResponseFunc
 
 	// Access control.
 	ReadAccess  accessChecker
@@ -145,6 +146,9 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		access = c.WriteAccess
 	case "POST":
 		rspf = c.POST
+		access = c.WriteAccess
+	case "DELETE":
+		rspf = c.DELETE
 		access = c.WriteAccess
 	}
 

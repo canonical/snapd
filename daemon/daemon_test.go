@@ -148,10 +148,11 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 	cmd.GET = rf
 	cmd.PUT = rf
 	cmd.POST = rf
+	cmd.DELETE = rf
 	cmd.ReadAccess = authenticatedAccess{}
 	cmd.WriteAccess = authenticatedAccess{}
 
-	for _, method := range []string{"GET", "POST", "PUT"} {
+	for _, method := range []string{"GET", "POST", "PUT", "DELETE"} {
 		req, err := http.NewRequest(method, "", nil)
 		req.Header.Add("User-Agent", fakeUserAgent)
 		c.Assert(err, check.IsNil)
@@ -191,10 +192,11 @@ func (s *daemonSuite) TestCommandMethodDispatchRoot(c *check.C) {
 	cmd.GET = rf
 	cmd.PUT = rf
 	cmd.POST = rf
+	cmd.DELETE = rf
 	cmd.ReadAccess = authenticatedAccess{}
 	cmd.WriteAccess = authenticatedAccess{}
 
-	for _, method := range []string{"GET", "POST", "PUT"} {
+	for _, method := range []string{"GET", "POST", "PUT", "DELETE"} {
 		req, err := http.NewRequest(method, "", nil)
 		req.Header.Add("User-Agent", fakeUserAgent)
 		c.Assert(err, check.IsNil)
@@ -412,6 +414,9 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
+	cmd.DELETE = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil)
+	}
 	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 		c.Fail()
 		return Forbidden("")
@@ -443,6 +448,14 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 	cmd.ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(accessCalled, check.Equals, true)
+
+	accessCalled = false
+	req = httptest.NewRequest("DELETE", "/", nil)
+	req.RemoteAddr = "pid=100;uid=42;socket=xyz;"
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(accessCalled, check.Equals, true)
 }
 
 func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
@@ -463,6 +476,9 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 		return SyncResponse(nil)
 	}
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil)
+	}
+	cmd.DELETE = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
 	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
@@ -492,6 +508,15 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 
 	accessCalled = false
 	req = httptest.NewRequest("POST", "/", nil)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, authUser.Macaroon))
+	req.RemoteAddr = "pid=100;uid=1001;socket=xyz;"
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(accessCalled, check.Equals, true)
+
+	accessCalled = false
+	req = httptest.NewRequest("DELETE", "/", nil)
 	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, authUser.Macaroon))
 	req.RemoteAddr = "pid=100;uid=1001;socket=xyz;"
 	rec = httptest.NewRecorder()
@@ -533,8 +558,8 @@ func (s *daemonSuite) TestCommandAccessSane(c *check.C) {
 	for _, cmd := range api {
 		// If Command.GET is set, ReadAccess must be set
 		c.Check(cmd.GET != nil, check.Equals, cmd.ReadAccess != nil, check.Commentf("%q ReadAccess", cmd.Path))
-		// If Command.PUT or POST are set, WriteAccess must be set
-		c.Check(cmd.PUT != nil || cmd.POST != nil, check.Equals, cmd.WriteAccess != nil, check.Commentf("%q WriteAccess", cmd.Path))
+		// If Command.PUT or POST or DELETE are set, WriteAccess must be set
+		c.Check(cmd.PUT != nil || cmd.POST != nil || cmd.DELETE != nil, check.Equals, cmd.WriteAccess != nil, check.Commentf("%q WriteAccess", cmd.Path))
 	}
 }
 
