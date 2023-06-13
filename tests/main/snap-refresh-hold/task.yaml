@@ -1,6 +1,8 @@
 summary: Check snap refresh hold and unhold
 
 prepare: |
+  # ensure no other pending refreshes can interfere with the test
+  snap refresh
   snap install test-snapd-tools
   snap set system experimental.parallel-instances=true
   snap install test-snapd-tools_instance
