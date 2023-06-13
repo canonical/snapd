@@ -1,7 +1,6 @@
 package storage_test
 
 import (
-	"reflect"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -1008,9 +1007,9 @@ func (s *storageSuite) TestSetBehaviorWithMatches(c *C) {
 		permissionEntries.AllowWithSubdirs = cloneAllowMap(testCase.initialAllowWithSubdirs)
 		req.Path = testCase.path
 		_, result := st.Set(req, testCase.decision, testCase.extras)
-		c.Check(reflect.DeepEqual(permissionEntries.Allow, testCase.finalAllow), Equals, true, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
-		c.Check(reflect.DeepEqual(permissionEntries.AllowWithDir, testCase.finalAllowWithDir), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
-		c.Check(reflect.DeepEqual(permissionEntries.AllowWithSubdirs, testCase.finalAllowWithSubdirs), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Check(permissionEntries.Allow, DeepEquals, testCase.finalAllow, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Check(permissionEntries.AllowWithDir, DeepEquals, testCase.finalAllowWithDir, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Check(permissionEntries.AllowWithSubdirs, DeepEquals, testCase.finalAllowWithSubdirs, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
 	}
 }
 
@@ -1158,9 +1157,9 @@ func (s *storageSuite) TestSetDecisionPruning(c *C) {
 		permissionEntries.AllowWithSubdirs = cloneAllowMap(testCase.initialAllowWithSubdirs)
 		req.Path = testCase.path
 		_, result := st.Set(req, testCase.decision, testCase.extras)
-		c.Check(reflect.DeepEqual(permissionEntries.Allow, testCase.finalAllow), Equals, true, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
-		c.Check(reflect.DeepEqual(permissionEntries.AllowWithDir, testCase.finalAllowWithDir), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
-		c.Check(reflect.DeepEqual(permissionEntries.AllowWithSubdirs, testCase.finalAllowWithSubdirs), Equals, true, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Check(permissionEntries.Allow, DeepEquals, testCase.finalAllow, Commentf("\nTest case %d:\n%+v\nAllow does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Check(permissionEntries.AllowWithDir, DeepEquals, testCase.finalAllowWithDir, Commentf("\nTest case %d:\n%+v\nAllowWithDir does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
+		c.Check(permissionEntries.AllowWithSubdirs, DeepEquals, testCase.finalAllowWithSubdirs, Commentf("\nTest case %d:\n%+v\nAllowWithSubdirs does not match\nActual Allow: %+v\nActual AllowWithDir: %+v\nActualAllowWithSubdirs: %+v\nSet() returned: %v\n", i, testCase, permissionEntries.Allow, permissionEntries.AllowWithDir, permissionEntries.AllowWithSubdirs, result))
 	}
 }
 
@@ -1194,7 +1193,7 @@ func (s *storageSuite) TestFindChildrenInMap(c *C) {
 	}
 	for i, testCase := range cases {
 		actualMatches := storage.FindChildrenInMap(testCase.path, testCase.origMap)
-		c.Check(reflect.DeepEqual(testCase.matches, actualMatches), Equals, true, Commentf("\nTest case %d:\n%+v\nIncorrect matches found\nActual matches: %+v", i, testCase, actualMatches))
+		c.Check(testCase.matches, DeepEquals, actualMatches, Commentf("\nTest case %d:\n%+v\nIncorrect matches found\nActual matches: %+v", i, testCase, actualMatches))
 	}
 }
 
@@ -1228,7 +1227,7 @@ func (s *storageSuite) TestFindDescendantsInMap(c *C) {
 	}
 	for i, testCase := range cases {
 		actualMatches := storage.FindDescendantsInMap(testCase.path, testCase.origMap)
-		c.Check(reflect.DeepEqual(testCase.matches, actualMatches), Equals, true, Commentf("\nTest case %d:\n%+v\nIncorrect matches found\nActual matches: %+v", i, testCase, actualMatches))
+		c.Check(testCase.matches, DeepEquals, actualMatches, Commentf("\nTest case %d:\n%+v\nIncorrect matches found\nActual matches: %+v", i, testCase, actualMatches))
 	}
 }
 
@@ -1446,18 +1445,18 @@ func (s *storageSuite) TestWhichPermissions(c *C) {
 	allow := true
 	extras := make(map[storage.ExtrasKey]string)
 
-	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"read"}), Equals, true, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
+	c.Assert(storage.WhichPermissions(req, allow, extras), DeepEquals, []string{"read"}, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
 
 	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission
-	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"write", "read"}), Equals, true, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
+	c.Assert(storage.WhichPermissions(req, allow, extras), DeepEquals, []string{"write", "read"}, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
 
 	req.Permission = apparmor.MayExecutePermission
 	extras[storage.ExtrasAllowExtraPerms] = "read,write"
-	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"execute", "read", "write"}), Equals, true, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
+	c.Assert(storage.WhichPermissions(req, allow, extras), DeepEquals, []string{"execute", "read", "write"}, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
 
 	req.Permission = apparmor.MayReadPermission | apparmor.MayWritePermission
 	extras[storage.ExtrasAllowExtraPerms] = "read,write,execute"
-	c.Assert(reflect.DeepEqual(storage.WhichPermissions(req, allow, extras), []string{"write", "read", "execute"}), Equals, true, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
+	c.Assert(storage.WhichPermissions(req, allow, extras), DeepEquals, []string{"write", "read", "execute"}, Commentf("WhichPermissions output: %q", storage.WhichPermissions(req, allow, extras)))
 }
 
 func (s *storageSuite) TestGetDoesNotCorruptPath(c *C) {
