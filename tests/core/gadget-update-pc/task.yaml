@@ -77,6 +77,8 @@ prepare: |
     EOF
 
     # prepare second update
+    # Disabling warning as we don't want the (empty) arguments
+    # shellcheck disable=SC2086
     python3 ./generate.py ./gadget.yaml.orig v2 $system_seed $system_bios > pc-snap/meta/gadget.yaml
     echo 'this is updated foo-x3' > foo-x3.img
     cp foo-x3.img pc-snap/foo.img

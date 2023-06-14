@@ -85,7 +85,7 @@ func (r *Revision) UnmarshalJSON(data []byte) error {
 	return fmt.Errorf("invalid snap revision: %q", data)
 }
 
-// ParseRevisions returns the representation in r as a revision.
+// ParseRevision returns the representation in r as a revision.
 // See R for a function more suitable for hardcoded revisions.
 func ParseRevision(s string) (Revision, error) {
 	if s == "unset" {

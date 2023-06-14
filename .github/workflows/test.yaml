@@ -181,14 +181,9 @@ jobs:
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
           # run gofmt checks only with Go 1.18
-          if ! echo "${{ matrix.gochannel }}" | grep -E '1\.13' ; then
-              # and skip with other versions
+          if [ "${{ matrix.gochannel }}" != "1.18" ]; then
               export SKIP_GOFMT=1
               echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
-          else
-              # misspell and infessassign do not build with Go 1.18
-              export SKIP_MISSPELL=1
-              export SKIP_INEFFASSIGN=1
           fi
           sudo apt-get install -y python3-yamlordereddictloader
           ./run-checks --static
@@ -339,15 +334,6 @@ jobs:
         name: coverage-files
         path: .coverage/
 
-    - name: Merge coverage results
-      run: |
-        echo "List the coverage files downloaded"
-        ls -l .coverage/
-
-        echo "Install covertool and merge the results"
-        go install github.com/makholm/covertool@latest
-        covertool merge -o .coverage/all.cov .coverage/coverage*.cov
-
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       # uploading to codecov occasionally fails, so continue running the test
@@ -357,7 +343,7 @@ jobs:
         fail_ci_if_error: true
         flags: unittests
         name: codecov-umbrella
-        files: .coverage/all.cov
+        files: .coverage/coverage-*.cov
         verbose: true
 
   spread:

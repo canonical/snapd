@@ -1532,7 +1532,7 @@ volumes:
 	}
 
 	for _, t := range tests {
-		yaml := fmt.Sprintf(string(yamlTemplate), t.label1, t.fsType1, t.label2, t.fsType2)
+		yaml := fmt.Sprintf(yamlTemplate, t.label1, t.fsType1, t.label2, t.fsType2)
 		_, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
 		if t.err == "" {
 			c.Assert(err, IsNil)
@@ -1669,29 +1669,12 @@ volumes:
         content:
           - image: pc-core.img
 `
-	gadgetYamlBadContentName := gadgetYamlHeader + `
-      - name: other-name
-        type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
-        offset: 1M
-        offset-write: my-name-is+92
-        content:
-          - image: pc-core.img
-            offset-write: bad-name+123
-`
 
 	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadStructureName), 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
-	c.Check(err, ErrorMatches, `invalid volume "pc": structure "other-name" refers to an unknown structure "bad-name"`)
-
-	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadContentName), 0644)
-	c.Assert(err, IsNil)
-
-	_, err = gadget.ReadInfo(s.dir, nil)
-	c.Check(err, ErrorMatches, `invalid volume "pc": structure "other-name", content #0 \("pc-core.img"\) refers to an unknown structure "bad-name"`)
-
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure "other-name" refers to an unexpected structure "bad-name"`)
 }
 
 func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C) {
@@ -3989,13 +3972,14 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeInternalFieldsNoJSON(c *C) {
 		// not json exported
 		Name: "should-be-ignored-by-json",
 		// exported
+		Partial:    []gadget.PartialProperty{gadget.PartialSize},
 		Schema:     "mbr",
 		Bootloader: "grub",
 		ID:         "0c",
 		Structure:  []gadget.VolumeStructure{},
 	})
 	c.Assert(err, IsNil)
-	c.Check(string(enc), Equals, `{"schema":"mbr","bootloader":"grub","id":"0c","structure":[]}`)
+	c.Check(string(enc), Equals, `{"partial":["size"],"schema":"mbr","bootloader":"grub","id":"0c","structure":[]}`)
 }
 
 func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeStructureInternalFieldsNoJSON(c *C) {
@@ -4018,7 +4002,6 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeStructureInternalFieldsNoJSON(
 				Target:           "some-target",
 				Image:            "image",
 				Offset:           asOffsetPtr(12),
-				OffsetWrite:      mustParseGadgetRelativeOffset(c, "mbr+192"),
 				Size:             321,
 				Unpack:           true,
 			},
@@ -4031,7 +4014,7 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeStructureInternalFieldsNoJSON(
 	b, err := json.Marshal(volS)
 	c.Assert(err, IsNil)
 	// ensure the json looks json-ish
-	c.Check(string(b), Equals, `{"name":"pc","filesystem-label":"ubuntu-seed","offset":123,"offset-write":{"relative-to":"mbr","offset":92},"min-size":0,"size":888,"type":"0C","role":"system-seed","id":"gpt-id","filesystem":"vfat","content":[{"source":"source","target":"some-target","image":"image","offset":12,"offset-write":{"relative-to":"mbr","offset":192},"size":321,"unpack":true}],"update":{"edition":2,"preserve":["foo"]}}`)
+	c.Check(string(b), Equals, `{"name":"pc","filesystem-label":"ubuntu-seed","offset":123,"offset-write":{"relative-to":"mbr","offset":92},"min-size":0,"size":888,"type":"0C","role":"system-seed","id":"gpt-id","filesystem":"vfat","content":[{"source":"source","target":"some-target","image":"image","offset":12,"size":321,"unpack":true}],"update":{"edition":2,"preserve":["foo"]}}`)
 
 	// check that the new structure has no volumeName
 	var newVolS *gadget.VolumeStructure
@@ -4411,4 +4394,303 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 			}
 		}
 	}
+}
+
+func (p *layoutTestSuite) TestOffsetWriteOutOfVolumeFails(c *C) {
+	var gadgetYamlStructure = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        # 1GB
+        offset-write: mbr+2097152
+`
+	gi, err := gadget.InfoFromGadgetYaml([]byte(gadgetYamlStructure), nil)
+	c.Check(gi, IsNil)
+	c.Assert(err.Error(), Equals, `invalid volume "pc": structure "foo" wants to write offset of 4 bytes to 2097152, outside of referred structure "mbr"`)
+}
+
+func (s *gadgetYamlTestSuite) TestValidateOffsetWrite(c *C) {
+	for i, tc := range []struct {
+		offWrite        *gadget.RelativeOffset
+		firstStrName    string
+		firstStrOffset  *quantity.Offset
+		firstStrMinSize quantity.Size
+		volSize         quantity.Size
+		err             string
+	}{
+		{
+			offWrite: nil,
+			err:      "",
+		}, {
+			offWrite:        &gadget.RelativeOffset{"foo", 0},
+			firstStrName:    "mbr",
+			firstStrOffset:  asOffsetPtr(0),
+			firstStrMinSize: 440,
+			volSize:         512,
+			err:             `structure "test" refers to an unexpected structure "foo"`,
+		},
+		{
+			offWrite:        &gadget.RelativeOffset{"mbr", 437},
+			firstStrName:    "mbr",
+			firstStrOffset:  asOffsetPtr(0),
+			firstStrMinSize: 440,
+			volSize:         512,
+			err:             `structure "test" wants to write offset of 4 bytes to 437, outside of referred structure "mbr"`,
+		},
+		{
+			offWrite:        &gadget.RelativeOffset{"mbr", 436},
+			firstStrName:    "mbr",
+			firstStrOffset:  asOffsetPtr(0),
+			firstStrMinSize: 440,
+			volSize:         512,
+			err:             "",
+		},
+		{
+			offWrite:        &gadget.RelativeOffset{"", 1024},
+			firstStrName:    "mbr",
+			firstStrOffset:  asOffsetPtr(0),
+			firstStrMinSize: 440,
+			volSize:         512,
+			err:             `structure "test" wants to write offset of 4 bytes to 1024, outside of volume of min size 512`,
+		},
+		{
+			offWrite:        &gadget.RelativeOffset{"", 100},
+			firstStrName:    "mbr",
+			firstStrOffset:  asOffsetPtr(0),
+			firstStrMinSize: 440,
+			volSize:         512,
+			err:             "",
+		},
+	} {
+		c.Logf("tc: %v", i)
+
+		err := gadget.ValidateOffsetWrite(
+			&gadget.VolumeStructure{Name: "test", OffsetWrite: tc.offWrite},
+			&gadget.VolumeStructure{Name: tc.firstStrName, Offset: tc.firstStrOffset, MinSize: tc.firstStrMinSize}, tc.volSize)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetValidPartials(c *C) {
+	var yamlTemplate = `
+volumes:
+  frobinator-image:
+    partial: [%s]
+    bootloader: grub
+`
+
+	tests := []struct {
+		partial string
+		err     string
+	}{
+		{"", ""},
+		{"size", ""},
+		{"filesystem", ""},
+		{"schema", ""},
+		{"structure", ""},
+		{"bootloader", `"bootloader" is not a valid partial value`},
+		{"size,structure,schema", ""},
+		{"size,structure,schema,bootloader", `"bootloader" is not a valid partial value`},
+		{"size,structure,size", `partial value "size" is repeated`},
+	}
+
+	for _, tc := range tests {
+		c.Logf("testing partial %q", tc.partial)
+		yaml := fmt.Sprintf(yamlTemplate, tc.partial)
+		_, err := gadget.InfoFromGadgetYaml([]byte(yaml), nil)
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err.Error(), Equals, tc.err)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetPartialSize(c *C) {
+	var yaml = []byte(`
+volumes:
+  frobinator-image:
+    partial: [size]
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: ubuntu-seed
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-seed
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+      - name: ubuntu-save
+        min-size: 1M
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-save
+      - name: ubuntu-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+`)
+
+	// Not defining size in a structure is fine
+	_, err := gadget.InfoFromGadgetYaml(yaml, nil)
+	c.Assert(err, IsNil)
+
+	// but if defined, things are still checked
+	yaml = append(yaml, []byte(`
+      - name: ubuntu-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+        size: 1M
+        min-size: 2M
+`)...)
+	_, err = gadget.InfoFromGadgetYaml(yaml, nil)
+	c.Assert(err.Error(), Equals, `invalid volume "frobinator-image": invalid structure #4 ("ubuntu-data"): min-size (2097152) is bigger than size (1048576)`)
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetPartialFilesystem(c *C) {
+	var yaml = []byte(`
+volumes:
+  frobinator-image:
+    partial: [filesystem]
+    bootloader: grub
+    schema: gpt
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        update:
+          edition: 1
+        content:
+          - image: mbr.img
+      - name: ubuntu-seed
+        filesystem: vfat
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-seed
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+      - name: ubuntu-save
+        size: 1M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-save
+        content:
+          - source: splash.bmp
+            target: .
+      - name: ubuntu-data
+        size: 1000M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+`)
+
+	// Not defining filesystem in a structure is fine
+	_, err := gadget.InfoFromGadgetYaml(yaml, nil)
+	c.Assert(err, IsNil)
+
+	// checks for bare still happen
+	yaml = append(yaml, []byte(`
+      - name: boot-fw
+        type: bare
+        size: 1M
+        content:
+          - source: splash.bmp
+            target: .
+`)...)
+	_, err = gadget.InfoFromGadgetYaml(yaml, nil)
+	c.Assert(err.Error(), Equals, `invalid volume "frobinator-image": invalid structure #5 ("boot-fw"): invalid content #0: cannot use non-image content for bare file system`)
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetPartialSchema(c *C) {
+	var yaml = []byte(`
+volumes:
+  frobinator-image:
+    partial: [schema]
+    bootloader: u-boot
+    structure:
+      - name: ubuntu-seed
+        filesystem: vfat
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-seed
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+      - name: ubuntu-save
+        size: 1M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-save
+      - name: ubuntu-data
+        size: 1000M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+`)
+
+	// Not defining schema is fine
+	_, err := gadget.InfoFromGadgetYaml(yaml, nil)
+	c.Assert(err, IsNil)
+
+	// but fails if type does not contain both mbr type and gpt guid
+	yamlNoGPTGuid := append(yaml, []byte(`
+      - name: data
+        type: 83
+        size: 1M
+`)...)
+	_, err = gadget.InfoFromGadgetYaml(yamlNoGPTGuid, nil)
+	c.Assert(err.Error(), Equals, `invalid volume "frobinator-image": invalid structure #4 ("data"): invalid type "83": both MBR type and GUID structure type needs to be defined on partial schemas`)
+	yamlNoMBRType := append(yaml, []byte(`
+      - name: data
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1M
+`)...)
+	_, err = gadget.InfoFromGadgetYaml(yamlNoMBRType, nil)
+	c.Assert(err.Error(), Equals, `invalid volume "frobinator-image": invalid structure #4 ("data"): invalid type "0FC63DAF-8483-4772-8E79-3D69D8477DE4": both MBR type and GUID structure type needs to be defined on partial schemas`)
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetPartialStructure(c *C) {
+	var yaml = []byte(`
+volumes:
+  frobinator-image:
+    partial: [structure]
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: ubuntu-seed
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-seed
+      # Space for some unknown structure in the middle is left around
+      - name: ubuntu-boot
+        filesystem: ext4
+        offset: 1000M
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+`)
+
+	// This test does not do a lot as this code does not check gaps
+	// between structures, but is left as a safeguard.
+	_, err := gadget.InfoFromGadgetYaml(yaml, nil)
+	c.Assert(err, IsNil)
 }

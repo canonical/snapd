@@ -4,6 +4,10 @@
 * Added a default-configure hook that exposes gadget default configuration
   options to snaps during first install before services are started
 
+# New in snapd 2.59.5:
+* Explicitly disallow the use of ioctl + TIOCLINUX
+  This fixes CVE-2023-1523.
+
 # New in snapd 2.59.4:
 * Retry when looking for disk label on non-UEFI systems
 * Fix remodel from UC20 to UC22
