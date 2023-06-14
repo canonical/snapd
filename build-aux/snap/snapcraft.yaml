@@ -172,10 +172,11 @@ parts:
     override-pull: |
       snapcraftctl pull
       # add support for mediating posix mqueue's and userns - these come from
-      # the ubuntu source package
+      # the ubuntu source package for lunar
       # https://git.launchpad.net/ubuntu/+source/apparmor/tree/debian/patches/ubuntu?h=ubuntu/lunar
-      patch -p1 < $SNAPCRAFT_PROJECT_DIR/build-aux/snap/local/apparmor/patches/add-mqueue-support.patch
-      patch -p1 < $SNAPCRAFT_PROJECT_DIR/build-aux/snap/local/apparmor/patches/add-userns-support.patch
+      for feature in mqueue userns; do
+        wget https://git.launchpad.net/ubuntu/+source/apparmor/plain/debian/patches/ubuntu/add-${feature}-support.patch?h=ubuntu/lunar -O - | patch -p1
+      done
     override-build: |
       cd $SNAPCRAFT_PART_BUILD/libraries/libapparmor
       ./autogen.sh
