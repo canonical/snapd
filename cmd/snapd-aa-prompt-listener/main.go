@@ -193,13 +193,13 @@ func (p *PromptNotifierDbus) handleReq(req *notifier.Request) {
 
 	obj := p.conn.Object(agent.uniqeName, agent.path)
 	var resAllowed bool
-	var resExtra map[string]string
+	var resExtra map[storage.ExtrasKey]string
 	if err := obj.Call("io.snapcraft.PromptAgent.Prompt", 0, req.Path, info).Store(&resAllowed, &resExtra); err != nil {
 		logger.Noticef("cannot call prompt agent for %v: %v", uid, err)
 		return
 	}
 	logger.Debugf("got result: %v (%v)", resAllowed, resExtra)
-	if err := p.decisions.Set(req, resAllowed, resExtra); err != nil {
+	if _, err := p.decisions.Set(req, resAllowed, resExtra); err != nil {
 		logger.Noticef("cannot store prompt decision: %v", err)
 	}
 	req.YesNo <- resAllowed
