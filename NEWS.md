@@ -3,6 +3,7 @@
 * Apparmor userspace is vendored inside the snapd snap
 * Added a default-configure hook that exposes gadget default configuration
   options to snaps during first install before services are started
+* Allow install from initrd to speed up the initial installation
 
 # New in snapd 2.59.5:
 * Explicitly disallow the use of ioctl + TIOCLINUX
