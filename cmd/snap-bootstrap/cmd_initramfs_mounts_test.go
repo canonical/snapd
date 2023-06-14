@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -8075,6 +8076,16 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupPresent(c *C) {
+	var efiArch string
+	switch runtime.GOARCH {
+	case "amd64":
+		efiArch = "x64"
+	case "arm64":
+		efiArch = "aa64"
+	default:
+		c.Skip("Unknown EFI arch")
+	}
+
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
 	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)
@@ -8117,10 +8128,10 @@ echo '{"features":[]}'
 	c.Assert(os.MkdirAll(filepath.Dir(grubConf), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(grubConf, nil, 0555), IsNil)
 
-	bootloader := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", "bootx64.efi")
+	bootloader := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("boot%s.efi", efiArch))
 	c.Assert(os.MkdirAll(filepath.Dir(bootloader), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(bootloader, nil, 0555), IsNil)
-	grub := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", "grubx64.efi")
+	grub := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("grub%s.efi", efiArch))
 	c.Assert(os.MkdirAll(filepath.Dir(grub), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(grub, nil, 0555), IsNil)
 
