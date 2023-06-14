@@ -41,12 +41,12 @@ const accountControlBaseDeclarationSlots = `
 const accountControlConnectedPlugAppArmor = `
 #include <abstractions/dbus-strict>
 # Introspection of org.freedesktop.Accounts
-# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     path=/org/freedesktop/Accounts{,/User[0-9]*}
     interface=org.freedesktop.DBus.Introspectable
-    member=Introspect,
+    member=Introspect
+    peer=(label=unconfined),
 dbus (send)
     bus=system
     path=/org/freedesktop/Accounts
@@ -56,12 +56,12 @@ dbus (send)
     path=/org/freedesktop/Accounts/User[0-9]*
     interface=org.freedesktop.Accounts.User,
 # Read all properties from Accounts
-# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     path=/org/freedesktop/Accounts{,/User[0-9]*}
     interface=org.freedesktop.DBus.Properties
-    member=Get{,All},
+    member=Get{,All}
+    peer=(label=unconfined),
 # Receive Accounts property changed events
 dbus (receive)
     bus=system
