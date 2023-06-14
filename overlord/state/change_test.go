@@ -1361,22 +1361,25 @@ func (cs *changeSuite) TestIsWaitingUndoTwoTasks(c *C) {
 	// for the change.
 	t3.SetToWait(state.DoneStatus)
 
-	// task1 (undo) => task2 (undo) no reboot
+	// we use <=| to denote the reverse dependence relationship
+	// followed by undo logic
+
+	// task1 (undo) <=| task2 (undo) no reboot
 	t1.SetStatus(state.UndoStatus)
 	t2.SetStatus(state.UndoStatus)
 	c.Check(chg.Status(), Equals, state.UndoStatus)
 
-	// task1 (undo) => task2 (undone) no reboot
+	// task1 (undo) <=| task2 (undone) no reboot
 	t1.SetStatus(state.UndoStatus)
 	t2.SetStatus(state.UndoneStatus)
 	c.Check(chg.Status(), Equals, state.UndoStatus)
 
-	// task1 (undo) => task2 (wait) means need a reboot
+	// task1 (undo) <=| task2 (wait) means need a reboot
 	t1.SetStatus(state.UndoStatus)
 	t2.SetToWait(state.DoneStatus)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
 
-	// task1 (wait) => task2 (undone) means need a reboot
+	// task1 (wait) <=| task2 (undone) means need a reboot
 	t1.SetToWait(state.DoneStatus)
 	t2.SetStatus(state.UndoneStatus)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
@@ -1409,13 +1412,13 @@ func (cs *changeSuite) TestIsWaitingUndoMultipleDependencies(c *C) {
 	// for the change.
 	t5.SetToWait(state.DoneStatus)
 
-	// task1 (undo) + task2 (undo) => task3 (undo) no reboot
+	// task1 (undo) + task2 (undo) <=| task3 (undo) no reboot
 	t1.SetStatus(state.UndoStatus)
 	t2.SetStatus(state.UndoStatus)
 	t3.SetStatus(state.UndoStatus)
 	c.Check(chg.Status(), Equals, state.UndoStatus)
 
-	// task1 (undo) + task2 (undo) => task3 (undone) no reboot
+	// task1 (undo) + task2 (undo) <=| task3 (undone) no reboot
 	t1.SetStatus(state.UndoStatus)
 	t2.SetStatus(state.UndoStatus)
 	t3.SetStatus(state.UndoneStatus)
@@ -1432,7 +1435,7 @@ func (cs *changeSuite) TestIsWaitingUndoMultipleDependencies(c *C) {
 	// our status ordering, Undo takes precedence above Wait and Error, so it's important
 	// that our WaitStatus logic (which actually precedes the ordering) is respecting this
 	// by determining the next two cases to be identical, and not opinionated otherwise.
-	// task1 (undo) + task2 (undo) => task3 (wait) + task4 (error) no reboot
+	// task1 (undo) + task2 (undo) <=| task3 (wait) + task4 (error) no reboot
 	t3.SetStatus(state.ErrorStatus)
 	t4.SetToWait(state.UndoneStatus)
 	c.Check(chg.Status(), Equals, state.UndoStatus)
@@ -1442,21 +1445,21 @@ func (cs *changeSuite) TestIsWaitingUndoMultipleDependencies(c *C) {
 	t4.SetStatus(state.ErrorStatus)
 	c.Check(chg.Status(), Equals, state.UndoStatus)
 
-	// task1 (wait) + task2 (wait) => task3 (undone) + task4 (undo) no reboot
+	// task1 (wait) + task2 (wait) <=| task3 (undone) + task4 (undo) no reboot
 	t1.SetToWait(state.DoneStatus)
 	t2.SetToWait(state.DoneStatus)
 	t3.SetStatus(state.UndoneStatus)
 	t4.SetStatus(state.UndoStatus)
 	c.Check(chg.Status(), Equals, state.UndoStatus)
 
-	// task1 (wait) + task2 (done) => task3 (undone) + task4 (undone) means need a reboot
+	// task1 (wait) + task2 (done) <=| task3 (undone) + task4 (undone) means need a reboot
 	t1.SetToWait(state.DoneStatus)
 	t2.SetStatus(state.DoneStatus)
 	t3.SetStatus(state.UndoneStatus)
 	t4.SetStatus(state.UndoneStatus)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
 
-	// task1 (wait) + task2 (wait) => task3 (undone) + task4 (undone) means need a reboot
+	// task1 (wait) + task2 (wait) <=| task3 (undone) + task4 (undone) means need a reboot
 	t1.SetToWait(state.DoneStatus)
 	t2.SetToWait(state.DoneStatus)
 	t3.SetStatus(state.UndoneStatus)
