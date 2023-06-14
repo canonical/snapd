@@ -317,9 +317,9 @@ depscheck:
 		switch wt.Status() {
 		case WaitStatus:
 			isWaiting = true
-		// States that can are valid when waiting
-		// - Done, Undone
-		case DoneStatus, UndoneStatus:
+		// States that can be valid when waiting
+		// - Done, Undone, ErrorStatus, HoldStatus
+		case DoneStatus, UndoneStatus, ErrorStatus, HoldStatus:
 			continue
 		// For 'Do' and 'Undo' we have to check whether the task is waiting
 		// for any dependencies. The logic is the same, but the set of tasks
@@ -359,7 +359,7 @@ func (c *Change) isChangeWaiting() bool {
 	visited := make(map[string]taskWaitComputeStatus)
 	for _, t := range c.Tasks() {
 		switch t.Status() {
-		case WaitStatus, DoneStatus, UndoneStatus:
+		case WaitStatus, DoneStatus, UndoneStatus, ErrorStatus, HoldStatus:
 			continue
 		case DoStatus:
 			if !c.isTaskWaiting(visited, t, t.WaitTasks()) {
