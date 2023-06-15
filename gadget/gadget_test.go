@@ -3597,6 +3597,78 @@ func (s *gadgetYamlTestSuite) TestCompatibilityWithMinSizePartitions(c *C) {
 	c.Assert(match, IsNil)
 }
 
+const mockPartialGadgetYaml = `volumes:
+  pc:
+    partial: [schema, structure, filesystem, size]
+    bootloader: grub
+    structure:
+      - name: ubuntu-save
+        role: system-save
+        offset: 2M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: ubuntu-data
+        role: system-data
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+`
+
+func (s *gadgetYamlTestSuite) TestDiskCompatibilityWithPartialGadget(c *C) {
+	var mockDiskVolDataAndSaveParts = gadget.OnDiskVolume{
+		Structure: []gadget.OnDiskStructure{
+			{
+				Node:        "/dev/node1",
+				Name:        "BIOS Boot",
+				Size:        1 * quantity.SizeMiB,
+				StartOffset: 1 * quantity.OffsetMiB,
+			},
+			{
+				Node:             "/dev/node2",
+				Name:             "ubuntu-save",
+				Size:             8 * quantity.SizeMiB,
+				PartitionFSType:  "ext4",
+				PartitionFSLabel: "ubuntu-save",
+				StartOffset:      2 * quantity.OffsetMiB,
+			},
+			{
+				Node:             "/dev/node3",
+				Name:             "ubuntu-data",
+				Size:             200 * quantity.SizeMiB,
+				PartitionFSType:  "ext4",
+				PartitionFSLabel: "ubuntu-data",
+				StartOffset:      10 * quantity.OffsetMiB,
+			},
+		},
+		ID:         "anything",
+		Device:     "/dev/node",
+		Schema:     "gpt",
+		Size:       2 * quantity.SizeGiB,
+		SectorSize: 512,
+
+		// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
+		// 1 sector to get the exclusive end
+		UsableSectorsEnd: uint64((2*quantity.SizeGiB/512)-33) + 1,
+	}
+
+	gadgetVolume, err := gadgettest.VolumeFromYaml(c.MkDir(),
+		mockPartialGadgetYaml, nil)
+	c.Assert(err, IsNil)
+	diskVol := mockDiskVolDataAndSaveParts
+
+	// Compatible as we have defined partial
+	match, err := gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
+	c.Assert(err, IsNil)
+	c.Assert(match, DeepEquals, map[int]*gadget.OnDiskStructure{
+		0: &mockDiskVolDataAndSaveParts.Structure[1],
+		1: &mockDiskVolDataAndSaveParts.Structure[2],
+	})
+
+	// Not compatible if no partial structure
+	gadgetVolume.Partial = []gadget.PartialProperty{gadget.PartialSchema, gadget.PartialSize, gadget.PartialFilesystem}
+	match, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
+	c.Assert(match, IsNil)
+	c.Assert(err.Error(), Equals, "cannot find disk partition /dev/node1 (starting at 1048576) in gadget")
+}
+
 var multipleUC20DisksDeviceTraitsMap = map[string]gadget.DiskVolumeDeviceTraits{
 	"foo": gadgettest.VMExtraVolumeDeviceTraits,
 	"pc":  gadgettest.VMSystemVolumeDeviceTraits,

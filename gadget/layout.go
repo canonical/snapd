@@ -126,7 +126,7 @@ func (l LaidOutStructure) Role() string {
 	return l.VolumeStructure.Role
 }
 
-// HasFilesystem returns true if the structure is using a filesystem.
+// HasFilesystem returns true if the gadget expects a filesystem.
 func (l *LaidOutStructure) HasFilesystem() bool {
 	return l.VolumeStructure.HasFilesystem()
 }
@@ -293,7 +293,7 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		// creation is needed and is safe because each volume structure
 		// has a size so even without the structure content the layout
 		// can be calculated.
-		if !opts.IgnoreContent {
+		if !opts.IgnoreContent && !structures[idx].HasFilesystem() {
 			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx])
 			if err != nil {
 				return nil, err
@@ -521,7 +521,7 @@ func isLayoutCompatible(current, new *Volume) error {
 
 	// at the structure level we expect the volume to be identical
 	for i := range current.Structure {
-		if err := canUpdateStructure(current.Structure, i, new.Structure, i, new.Schema); err != nil {
+		if err := canUpdateStructure(current, i, new, i); err != nil {
 			return fmt.Errorf("incompatible structure #%d (%q) change: %v", new.Structure[i].YamlIndex, new.Structure[i].Name, err)
 		}
 	}
