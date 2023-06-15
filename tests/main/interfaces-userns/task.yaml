@@ -54,12 +54,12 @@ execute: |
 
     # running unshare -U to create a new user namespace should be allowed
     echo "When the userns interface is connected creating a new user namespace is allowed"
+    nobody_group=nogroup
     # on arch the group is called nobody
     if os.query is-arch-linux; then
-      tests.session -u test exec sh -c "snap run test-snapd-userns.with-userns-plug -c '\\$P/unshare -U id'" 2>&1 | MATCH 'uid=65534\(nobody\) gid=65534\(nobody\) groups=65534\(nobody\)'
-    else
-      tests.session -u test exec sh -c "snap run test-snapd-userns.with-userns-plug -c '\\$P/unshare -U id'" 2>&1 | MATCH 'uid=65534\(nobody\) gid=65534\(nogroup\) groups=65534\(nogroup\)'
+      nobody_group=nobody
     fi
+    tests.session -u test exec sh -c "snap run test-snapd-userns.with-userns-plug -c '\\$P/unshare -U id'" 2>&1 | MATCH 'uid=65534\(nobody\) gid=65534\('"$nobody_group"'\) groups=65534\('"$nobody_group"'\)'
 
     # check the userns feature is supported by snapd itself - this should always
     # be the case when using the vendored apparmor
