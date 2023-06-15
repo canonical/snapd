@@ -1185,7 +1185,9 @@ EOF
         
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap ${IMAGE_HOME}/${BASE}.snap"
     fi
-    local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+    # TODO: revert this when ubuntu-image issue is fixed
+    #local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+    UBUNTU_IMAGE=/snap/bin/ubuntu-image
     if os.query is-core16 || os.query is-arm; then
         # ubuntu-image on 16.04 needs to be installed from a snap
         UBUNTU_IMAGE=/snap/bin/ubuntu-image
