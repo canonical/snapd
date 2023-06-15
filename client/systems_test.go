@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -272,6 +273,15 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/20190102")
+	vols := map[string]*gadget.Volume{
+		"pc": {
+			Schema:     "gpt",
+			Bootloader: "grub",
+			Structure: []gadget.VolumeStructure{
+				{Name: "mbr", Type: "mbr", Size: 440},
+			},
+		}}
+	gadgettest.SetEnclosingVolumeInStructs(vols)
 	c.Check(sys, check.DeepEquals, &client.SystemDetails{
 		Current: true,
 		Label:   "20200101",
@@ -295,15 +305,7 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
 			StorageSafety: "prefer-encrypted",
 			Type:          "cryptsetup",
 		},
-		Volumes: map[string]*gadget.Volume{
-			"pc": {
-				Schema:     "gpt",
-				Bootloader: "grub",
-				Structure: []gadget.VolumeStructure{
-					{Name: "mbr", Type: "mbr", Size: 440},
-				},
-			},
-		},
+		Volumes: vols,
 	})
 }
 

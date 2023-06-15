@@ -186,12 +186,21 @@ type SystemDetails struct {
 	StorageEncryption *StorageEncryption `json:"storage-encryption,omitempty"`
 }
 
+func setEnclosingVolumeInStructs(vv map[string]*gadget.Volume) {
+	for _, v := range vv {
+		for sidx := range v.Structure {
+			v.Structure[sidx].EnclosingVolume = v
+		}
+	}
+}
+
 func (client *Client) SystemDetails(systemLabel string) (*SystemDetails, error) {
 	var rsp SystemDetails
 
 	if _, err := client.doSync("GET", "/v2/systems/"+systemLabel, nil, nil, nil, &rsp); err != nil {
 		return nil, xerrors.Errorf("cannot get details for system %q: %v", systemLabel, err)
 	}
+	setEnclosingVolumeInStructs(rsp.Volumes)
 	return &rsp, nil
 }
 
