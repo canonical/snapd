@@ -933,7 +933,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 	defer unmount()
 
-	// TODO validation of onVolumes versus gadget.yaml
+	// TODO validation of onVolumes versus gadget.yaml, considering also partial
 
 	// Check if encryption is mandatory
 	if sys.Model.StorageSafety() == asserts.StorageSafetyEncrypted && encryptSetupData == nil {
@@ -959,6 +959,12 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, encType)
 	if err != nil {
 		return fmt.Errorf("on finish install: cannot layout volumes: %v", err)
+	}
+
+	// Import new information from the installer to the laid out data,
+	// so the gadget is not partially defined anymore if it was.
+	if err := gadget.ApplyInstallerVolumesToGadget(onVolumes, allLaidOutVols); err != nil {
+		return err
 	}
 
 	logger.Debugf("writing content to partitions")
