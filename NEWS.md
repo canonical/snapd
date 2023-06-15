@@ -5,7 +5,7 @@
   options to snaps during first install before services are started
 * Allow install from initrd to speed up the initial installation for
   systems that do not have a install-device hook
-* New `snap sign --chain` flag that append the account and account-key
+* New `snap sign --chain` flag that appends the account and account-key
   assertions
 * Support validation-sets in the model assertion
 * Support new "min-size" field in gadget.yaml
