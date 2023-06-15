@@ -143,6 +143,15 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 	}
 	sectorSize := uint64(dl.SectorSize)
 
+	// The partition / disk index - we find the current max number
+	// currently on the disk and we start from there for the partitions we
+	// create. This is necessary as some partitions might not be defined by
+	// the gadget if we have a gadget with PartialStructure set. Note that
+	// this condition is checked by EnsureVolumeCompatibility, which is
+	// called before this function. muinstaller also checks for
+	// PartialStructure before this is run.
+	pIndex := 0
+
 	// Keep track what partitions we already have on disk - the keys to this map
 	// is the starting sector of the structure we have seen.
 	// TODO: use quantity.SectorOffset or similar when that is available
@@ -151,6 +160,9 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 	for _, s := range dl.Structure {
 		start := uint64(s.StartOffset) / sectorSize
 		seen[start] = true
+		if s.DiskIndex > pIndex {
+			pIndex = s.DiskIndex
+		}
 	}
 
 	// Check if the last partition has a system-data role
@@ -162,10 +174,6 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 		}
 	}
 
-	// The partition / disk index - note that it will start at 1, we increment
-	// it before we use it in the loop below
-	pIndex := 0
-
 	// Write new partition data in named-fields format
 	buf := &bytes.Buffer{}
 	for _, laidOut := range lov.LaidOutStructure {
@@ -173,13 +181,13 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 			continue
 		}
 
-		pIndex++
-
-		// Skip partitions that are already in the volume
+		// Skip partitions defined in the gadget that are already in the volume
 		startInSectors := uint64(laidOut.StartOffset) / sectorSize
 		if seen[startInSectors] {
 			continue
 		}
+
+		pIndex++
 
 		// Only allow creating certain partitions, namely the ubuntu-* roles
 		if !opts.CreateAllMissingPartitions && !gadget.IsCreatableAtInstall(laidOut.VolumeStructure) {
