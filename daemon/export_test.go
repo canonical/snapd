@@ -312,3 +312,19 @@ var (
 
 	MaxReadBuflen = maxReadBuflen
 )
+
+func MockAspectstateGet(f func(st *state.State, account, bundleName, aspect, field string, value interface{}) error) (restore func()) {
+	old := aspectstateGet
+	aspectstateGet = f
+	return func() {
+		aspectstateGet = old
+	}
+}
+
+func MockAspectstateSet(f func(st *state.State, account, bundleName, aspect, field string, val interface{}) error) (restore func()) {
+	old := aspectstateSet
+	aspectstateSet = f
+	return func() {
+		aspectstateSet = old
+	}
+}

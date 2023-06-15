@@ -30,10 +30,9 @@ import (
 //
 // Existing hooks (i.e. ones defined in the YAML) are not changed; only missing
 // hooks are added.
-func addImplicitHooks(snapInfo *Info) error {
+func addImplicitHooks(snapInfo *Info, hooksDir string) error {
 	// First of all, check to ensure the hooks directory exists. If it doesn't,
 	// it's not an error-- there's just nothing to do.
-	hooksDir := snapInfo.HooksDir()
 	if !osutil.IsDirectory(hooksDir) {
 		return nil
 	}

@@ -49,7 +49,7 @@ func (p *layoutTestSuite) SetUpTest(c *C) {
 func (p *layoutTestSuite) TestVolumeSize(c *C) {
 	vol := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
-			{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB},
+			{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB, EnclosingVolume: &gadget.Volume{}},
 		},
 	}
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
@@ -59,18 +59,18 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: &gadget.Volume{
 			Structure: []gadget.VolumeStructure{
-				{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB},
+				{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB, EnclosingVolume: &gadget.Volume{}},
 			},
 		},
-		Size: 3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{{
 			OnDiskStructure: gadget.OnDiskStructure{
 				Size:        2 * quantity.SizeMiB,
 				StartOffset: 1 * quantity.OffsetMiB,
 			},
 			VolumeStructure: &gadget.VolumeStructure{
-				Offset: asOffsetPtr(quantity.OffsetMiB),
-				Size:   2 * quantity.SizeMiB,
+				Offset:          asOffsetPtr(quantity.OffsetMiB),
+				Size:            2 * quantity.SizeMiB,
+				EnclosingVolume: &gadget.Volume{},
 			},
 		}},
 	})
@@ -105,7 +105,6 @@ volumes:
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   501 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -166,7 +165,6 @@ volumes:
 	}
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   502 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -226,7 +224,6 @@ volumes:
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   1101 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -294,7 +291,6 @@ volumes:
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   1300 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -361,7 +357,6 @@ volumes:
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   1200 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -447,7 +442,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   1200 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -629,7 +623,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -684,7 +677,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -736,7 +728,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -782,7 +773,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
@@ -829,7 +819,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   2 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// MBR
@@ -889,7 +878,6 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
-		Size:   3 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// mbr
@@ -909,15 +897,11 @@ volumes:
 					StartOffset: 1 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[1],
-				// break for gofmt < 1.11
-				AbsoluteOffsetWrite: asOffsetPtr(92),
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[1].Content[0],
 						Size:          200 * quantity.SizeKiB,
 						StartOffset:   1 * quantity.OffsetMiB,
-						// offset-write: bar+10
-						AbsoluteOffsetWrite: asOffsetPtr(2*quantity.OffsetMiB + 10),
 					},
 				},
 			}, {
@@ -929,15 +913,11 @@ volumes:
 					StartOffset: 2 * quantity.OffsetMiB,
 				},
 				VolumeStructure: &vol.Structure[2],
-				// break for gofmt < 1.11
-				AbsoluteOffsetWrite: asOffsetPtr(600),
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[2].Content[0],
 						Size:          150 * quantity.SizeKiB,
 						StartOffset:   2 * quantity.OffsetMiB,
-						// offset-write: bar+10
-						AbsoluteOffsetWrite: asOffsetPtr(450),
 					},
 				},
 			},
@@ -961,97 +941,13 @@ func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteBadRelativeTo(c *C) {
 			},
 		},
 	}
-	volBadContent := gadget.Volume{
-		Structure: []gadget.VolumeStructure{
-			{
-				Name:   "foo",
-				Type:   "DA,21686148-6449-6E6F-744E-656564454649",
-				Offset: asOffsetPtr(0),
-				Size:   1 * quantity.SizeMiB,
-				Content: []gadget.VolumeContent{
-					{
-						Image: "foo.img",
-						OffsetWrite: &gadget.RelativeOffset{
-							RelativeTo: "bar",
-							Offset:     10,
-						},
-					},
-				},
-			},
-		},
-	}
 
 	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*quantity.SizeKiB, []byte(""))
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
 	v, err := gadget.LayoutVolume(&volBadStructure, opts)
 	c.Check(v, IsNil)
-	c.Check(err, ErrorMatches, `cannot resolve offset-write of structure #0 \("foo"\): refers to an unknown structure "bar"`)
-
-	v, err = gadget.LayoutVolume(&volBadContent, opts)
-	c.Check(v, IsNil)
-	c.Check(err, ErrorMatches, `cannot resolve offset-write of structure #0 \("foo"\) content "foo.img": refers to an unknown structure "bar"`)
-}
-
-func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteEnlargesVolume(c *C) {
-	var gadgetYamlStructure = `
-volumes:
-  pc:
-    bootloader: grub
-    structure:
-      - name: mbr
-        type: mbr
-        size: 440
-      - name: foo
-        type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
-        offset: 1M
-        # 1GB
-        offset-write: mbr+1073741824
-
-`
-	vol := mustParseVolume(c, gadgetYamlStructure, "pc")
-
-	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, opts)
-	c.Assert(err, IsNil)
-	// offset-write is at 1GB
-	c.Check(v.Size, Equals, 1*quantity.SizeGiB+gadget.SizeLBA48Pointer)
-
-	var gadgetYamlContent = `
-volumes:
-  pc:
-    bootloader: grub
-    structure:
-      - name: mbr
-        type: mbr
-        size: 440
-      - name: foo
-        type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
-        offset: 1M
-        content:
-          - image: foo.img
-            # 2GB
-            offset-write: mbr+2147483648
-          - image: bar.img
-            # 1GB
-            offset-write: mbr+1073741824
-          - image: baz.img
-            # 3GB
-            offset-write: mbr+3221225472
-
-`
-	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*quantity.SizeKiB, []byte(""))
-	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), 150*quantity.SizeKiB, []byte(""))
-	makeSizedFile(c, filepath.Join(p.dir, "baz.img"), 100*quantity.SizeKiB, []byte(""))
-
-	vol = mustParseVolume(c, gadgetYamlContent, "pc")
-
-	v, err = gadget.LayoutVolume(vol, opts)
-	c.Assert(err, IsNil)
-	// foo.img offset-write is at 3GB
-	c.Check(v.Size, Equals, 3*quantity.SizeGiB+gadget.SizeLBA48Pointer)
+	c.Check(err, ErrorMatches, `structure "foo" refers to an unexpected structure "bar"`)
 }
 
 func (p *layoutTestSuite) TestLayoutVolumePartialNoSuchFile(c *C) {
@@ -1487,13 +1383,15 @@ func (p *layoutTestSuite) TestLayoutWithMinSize(c *C) {
 	vol := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{
-				Offset:  asOffsetPtr(quantity.OffsetMiB),
-				MinSize: quantity.SizeMiB,
-				Size:    2 * quantity.SizeMiB,
+				Offset:          asOffsetPtr(quantity.OffsetMiB),
+				MinSize:         quantity.SizeMiB,
+				Size:            2 * quantity.SizeMiB,
+				EnclosingVolume: &gadget.Volume{},
 			},
 			{
-				MinSize: quantity.SizeMiB,
-				Size:    2 * quantity.SizeMiB,
+				MinSize:         quantity.SizeMiB,
+				Size:            2 * quantity.SizeMiB,
+				EnclosingVolume: &gadget.Volume{},
 			},
 		},
 	}
@@ -1503,7 +1401,6 @@ func (p *layoutTestSuite) TestLayoutWithMinSize(c *C) {
 	// Check StartOffset and Size is well defined even if using min-size
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: &vol,
-		Size:   5 * quantity.SizeMiB,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				OnDiskStructure: gadget.OnDiskStructure{

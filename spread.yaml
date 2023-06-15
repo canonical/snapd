@@ -543,6 +543,9 @@ debug-each: |
     echo '# Kernel information'
     uname -a
 
+    echo '# Apparmor information'
+    apparmor_parser --version || true
+
     echo '# Go information'
     go version || true
 

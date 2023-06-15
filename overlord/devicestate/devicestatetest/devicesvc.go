@@ -94,8 +94,9 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) (mockServer *httptest.S
 			}
 			if bhv.Head != nil {
 				bhv.Head(c, bhv, w, r)
+			} else {
+				w.WriteHeader(200)
 			}
-			w.WriteHeader(200)
 			return
 		case "POST":
 			// carry on

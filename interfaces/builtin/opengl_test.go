@@ -84,6 +84,7 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/dri/renderD[0-9]* rw,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/mali[0-9]* rw,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/galcore rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/usr/share/libdrm/amdgpu.ids r,`)
 }
 
 func (s *OpenglInterfaceSuite) TestUDevSpec(c *C) {
