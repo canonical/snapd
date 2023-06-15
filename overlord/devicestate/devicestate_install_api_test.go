@@ -158,24 +158,29 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 }
 
 type finishStepOpts struct {
-	encrypted bool
-	isClassic bool
+	encrypted  bool
+	isClassic  bool
+	hasPartial bool
 }
 
-func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, isClassic bool) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
+func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, isClassic, hasPartial bool) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
 	// Mock partitioned disk
 	gadgetYaml := gadgettest.SingleVolumeClassicWithModesGadgetYaml
+	seedGadget := gadgetYaml
+	if hasPartial {
+		// This is the gadget provided by the installer, that must have
+		// filled the partial information.
+		gadgetYaml = gadgettest.SingleVolumeClassicWithModesFilledPartialGadgetYaml
+		// This is the partial gadget, with parts not filled
+		seedGadget = gadgettest.SingleVolumeClassicWithModesPartialGadgetYaml
+	}
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot)
 	c.Assert(err, IsNil)
 	s.AddCleanup(restore)
 
 	// now create a label with snaps/assertions
-	// TODO This should be "gadgetYaml" instead of SingleVolumeUC20GadgetYaml,
-	// but we have to do it this way as otherwise snap pack will complain
-	// while validating, as it does not have information about the model at
-	// that time. When that is fixed this must change to gadgetYaml.
-	model := s.setupSystemSeed(c, label, gadgettest.SingleVolumeUC20GadgetYaml, isClassic)
+	model := s.setupSystemSeed(c, label, seedGadget, isClassic)
 	c.Check(model, NotNil)
 
 	// Create fake seed that will return information from the label we created
@@ -227,7 +232,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 	// Mock label
 	label := "classic"
-	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, opts.isClassic)
+	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, opts.isClassic, opts.hasPartial)
 
 	// Unpack gadget snap from seed where it would have been mounted
 	gadgetDir := filepath.Join(dirs.SnapRunDir, "snap-content/gadget")
@@ -276,6 +281,17 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	saveStorageTraitsCalls := 0
 	restore = devicestate.MockInstallSaveStorageTraits(func(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *install.EncryptionSetupData) error {
 		saveStorageTraitsCalls++
+		// This is a good point to check if things have been filled
+		if opts.hasPartial {
+			for _, v := range allLaidOutVols {
+				c.Check(v.Partial, DeepEquals, []gadget.PartialProperty{gadget.PartialStructure})
+				c.Check(v.Schema != "", Equals, true)
+				for _, vs := range v.Structure {
+					c.Check(vs.Filesystem != "", Equals, true)
+					c.Check(vs.Size != 0, Equals, true)
+				}
+			}
+		}
 		return nil
 	})
 	s.AddCleanup(restore)
@@ -391,6 +407,10 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishEncryptionHappy(c *C) {
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, isClassic: true})
 }
 
+func (s *deviceMgrInstallAPISuite) TestInstallFinishEncryptionPartialHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, isClassic: true, hasPartial: true})
+}
+
 func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
 	// Mock partitioned disk, but there will be no label in the system
 	gadgetYaml := gadgettest.SingleVolumeClassicWithModesGadgetYaml
@@ -429,7 +449,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	// Mock label
 	label := "classic"
 	isClassic := true
-	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, isClassic)
+	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, isClassic, false)
 
 	// Simulate system with TPM
 	if hasTPM {
