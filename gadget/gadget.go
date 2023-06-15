@@ -94,6 +94,10 @@ const (
 	// UnboundedStructureOffset is the maximum effective partition offset
 	// that we can handle.
 	UnboundedStructureOffset = quantity.Offset(math.MaxUint64)
+
+	// UnboundedStructureSize is the maximum effective partition size
+	// that we can handle.
+	UnboundedStructureSize = quantity.Size(math.MaxUint64)
 )
 
 var (
@@ -287,8 +291,12 @@ func (vs *VolumeStructure) HasLabel(label string) bool {
 	return vs.Label == label
 }
 
-// IsFixedSize tells us if size is fixed or if there is range.
-func (vs *VolumeStructure) IsFixedSize() bool {
+// isFixedSize tells us if size is fixed or if there is range.
+func (vs *VolumeStructure) isFixedSize() bool {
+	if vs.hasPartialSize() {
+		return false
+	}
+
 	return vs.Size == vs.MinSize
 }
 
@@ -343,6 +351,12 @@ func maxStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
 	max := quantity.Offset(0)
 	othersSz := quantity.Size(0)
 	for i := idx - 1; i >= 0; i-- {
+		if vss[i].hasPartialSize() {
+			// If a previous partition has not a defined size, the
+			// allowed offset is not really bounded.
+			max = UnboundedStructureOffset
+			break
+		}
 		othersSz += vss[i].Size
 		if vss[i].Offset != nil {
 			max = *vss[i].Offset + quantity.Offset(othersSz)
@@ -1029,7 +1043,7 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		}
 		// We know the end of the structure only if we could define an offset
 		// and the size is fixed.
-		if vol.Structure[i].Offset != nil && vol.Structure[i].IsFixedSize() {
+		if vol.Structure[i].Offset != nil && vol.Structure[i].isFixedSize() {
 			previousEnd = asOffsetPtr(*vol.Structure[i].Offset +
 				quantity.Offset(vol.Structure[i].Size))
 		} else {

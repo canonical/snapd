@@ -814,7 +814,6 @@ func checkEnclosingPointsToVolume(c *C, vols map[string]*gadget.Volume) {
 			c.Assert(v.Structure[sidx].EnclosingVolume, Equals, v)
 		}
 	}
-
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
@@ -4350,10 +4349,10 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 		{
 			vs: gadget.Volume{
 				Structure: []gadget.VolumeStructure{
-					{Offset: asOffsetPtr(0), MinSize: 10, Size: 20, EnclosingVolume: &gadget.Volume{}},
-					{Offset: nil, MinSize: 10, Size: 20, EnclosingVolume: &gadget.Volume{}},
-					{Offset: nil, MinSize: 10, Size: 20, EnclosingVolume: &gadget.Volume{}},
-					{Offset: asOffsetPtr(50), MinSize: 100, Size: 100, EnclosingVolume: &gadget.Volume{}},
+					{Offset: asOffsetPtr(0), MinSize: 10, Size: 20},
+					{Offset: nil, MinSize: 10, Size: 20},
+					{Offset: nil, MinSize: 10, Size: 20},
+					{Offset: asOffsetPtr(50), MinSize: 100, Size: 100},
 				},
 			},
 			votcs: []validOffsetTc{
@@ -4380,9 +4379,9 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 		{
 			vs: gadget.Volume{
 				Structure: []gadget.VolumeStructure{
-					{Offset: asOffsetPtr(0), MinSize: 10, Size: 100, EnclosingVolume: &gadget.Volume{}},
-					{Offset: nil, MinSize: 10, Size: 10, EnclosingVolume: &gadget.Volume{}},
-					{Offset: asOffsetPtr(80), MinSize: 100, Size: 100, EnclosingVolume: &gadget.Volume{}},
+					{Offset: asOffsetPtr(0), MinSize: 10, Size: 100},
+					{Offset: nil, MinSize: 10, Size: 10},
+					{Offset: asOffsetPtr(80), MinSize: 100, Size: 100},
 				},
 			},
 			votcs: []validOffsetTc{
@@ -4403,10 +4402,10 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 			// comments in function).
 			vs: gadget.Volume{
 				Structure: []gadget.VolumeStructure{
-					{Offset: asOffsetPtr(0), MinSize: 20, Size: 40, EnclosingVolume: &gadget.Volume{}},
-					{Offset: nil, MinSize: 20, Size: 40, EnclosingVolume: &gadget.Volume{}},
-					{Offset: nil, MinSize: 20, Size: 20, EnclosingVolume: &gadget.Volume{}},
-					{Offset: nil, MinSize: 20, Size: 20, EnclosingVolume: &gadget.Volume{}},
+					{Offset: asOffsetPtr(0), MinSize: 20, Size: 40},
+					{Offset: nil, MinSize: 20, Size: 40},
+					{Offset: nil, MinSize: 20, Size: 20},
+					{Offset: nil, MinSize: 20, Size: 20},
 					{Offset: asOffsetPtr(100), MinSize: 100, Size: 100},
 				},
 			},
@@ -4418,7 +4417,26 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 			},
 			description: "test three",
 		},
+		{
+			vs: gadget.Volume{
+				Partial: []gadget.PartialProperty{gadget.PartialSize},
+				Structure: []gadget.VolumeStructure{
+					{Offset: asOffsetPtr(0), MinSize: 20, Size: 40},
+					{Offset: nil},
+					{Offset: nil, MinSize: 20, Size: 20},
+				},
+			},
+			votcs: []validOffsetTc{
+				{structIdx: 2, offset: 19, err: gadget.NewInvalidOffsetError(19, 20, gadget.UnboundedStructureOffset)},
+				{structIdx: 2, offset: 1000, err: nil},
+			},
+			description: "test four",
+		},
 	} {
+		for sidx := range tc.vs.Structure {
+			tc.vs.Structure[sidx].EnclosingVolume = &tc.vs
+		}
+
 		for _, votc := range tc.votcs {
 			c.Logf("testing valid offset: %s (%+v)", tc.description, votc)
 			if votc.err == nil {
