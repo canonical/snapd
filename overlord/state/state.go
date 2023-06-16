@@ -100,7 +100,10 @@ type State struct {
 
 	pendingChangeByAttr map[string]func(*Change) bool
 
-	taskStatusChangedObservers []func(t *Task, old, new Status)
+	// task/changes observing
+	taskStatusChangedObservers   []func(t *Task, old, new Status)
+	changeStatusChangedObservers []func(chg *Change, old, new Status)
+	activeChanges                map[*Change]Status
 }
 
 // New returns a new empty state.
@@ -114,6 +117,7 @@ func New(backend Backend) *State {
 		modified:            true,
 		cache:               make(map[interface{}]interface{}),
 		pendingChangeByAttr: make(map[string]func(*Change) bool),
+		activeChanges:       make(map[*Change]Status),
 	}
 }
 
@@ -494,6 +498,40 @@ func (s *State) notifyTaskStatusChangedObservers(t *Task, old, new Status) {
 	for _, f := range s.taskStatusChangedObservers {
 		f(t, old, new)
 	}
+
+	// XXX: move this into a helper instead and keep state minimal?
+	// track changes
+	chg := t.Change()
+	if chg == nil {
+		return
+	}
+	newChgStatus := chg.Status()
+	oldChgStatus, ok := s.activeChanges[chg]
+	if !ok {
+		oldChgStatus = DefaultStatus
+	}
+	if newChgStatus != oldChgStatus {
+		s.notifyChangeStatusChangedObservers(chg, oldChgStatus, newChgStatus)
+	}
+	if newChgStatus.Ready() {
+		delete(s.activeChanges, chg)
+	} else {
+		s.activeChanges[chg] = newChgStatus
+	}
+}
+
+// XXX: move this into a helper instead and keep state minimal?
+// AddChangeStatusChangedObserver adds the given callback to the list of
+// callbacks that are called when a Change changes it's status.
+func (s *State) AddChangeStatusChangedObserver(cb func(chg *Change, old, new Status)) {
+	s.changeStatusChangedObservers = append(s.changeStatusChangedObservers, cb)
+}
+
+// XXX: move this into a helper instead and keep state minimal?
+func (s *State) notifyChangeStatusChangedObservers(chg *Change, old, new Status) {
+	for _, f := range s.changeStatusChangedObservers {
+		f(chg, old, new)
+	}
 }
 
 // SaveTimings implements timings.GetSaver
@@ -515,5 +553,6 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s.modified = false
 	s.cache = make(map[interface{}]interface{})
 	s.pendingChangeByAttr = make(map[string]func(*Change) bool)
+	s.activeChanges = make(map[*Change]Status)
 	return s, err
 }

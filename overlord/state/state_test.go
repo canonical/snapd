@@ -1082,7 +1082,7 @@ func (ss *stateSuite) TestNoStateErrorString(c *C) {
 	c.Assert(err.Error(), Equals, `no state entry for key "foo"`)
 }
 
-func (ss *stateSuite) TestAddTaskStatusChangedObserver(c *C) {
+func (ss *stateSuite) TestChangedObserver(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -1091,20 +1091,37 @@ func (ss *stateSuite) TestAddTaskStatusChangedObserver(c *C) {
 		t        *state.Task
 		old, new state.Status
 	}
-	observedChanges := []taskAndStatus{}
+	taskObservedChanges := []taskAndStatus{}
+	type changeAndStatus struct {
+		chg      *state.Change
+		old, new state.Status
+	}
+	changeObservedChanges := []changeAndStatus{}
 
-	cb := func(t *state.Task, old, new state.Status) {
-		observedChanges = append(observedChanges, taskAndStatus{
+	cbT := func(t *state.Task, old, new state.Status) {
+		taskObservedChanges = append(taskObservedChanges, taskAndStatus{
 			t:   t,
 			old: old,
 			new: new,
 		})
 	}
-	st.AddTaskStatusChangedObserver(cb)
+	st.AddTaskStatusChangedObserver(cbT)
+
+	cbChg := func(chg *state.Change, old, new state.Status) {
+		changeObservedChanges = append(changeObservedChanges, changeAndStatus{
+			chg: chg,
+			old: old,
+			new: new,
+		})
+	}
+	st.AddChangeStatusChangedObserver(cbChg)
 
 	t1 := st.NewTask("foo", "...")
+	chg := st.NewChange("foo-chg", "...")
+	chg.AddTask(t1)
+
 	t1.SetStatus(state.DoneStatus)
-	c.Check(observedChanges, DeepEquals, []taskAndStatus{
-		{t1, state.DefaultStatus, state.DoneStatus},
+	c.Check(changeObservedChanges, DeepEquals, []changeAndStatus{
+		{chg, state.DefaultStatus, state.DoneStatus},
 	})
 }
