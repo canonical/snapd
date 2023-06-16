@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -116,9 +116,9 @@ func (s Status) String() string {
 	panic(fmt.Sprintf("internal error: unknown task status code: %d", s))
 }
 
-// taskWaitComputeStatus is used while computing the wait status of a change. It keeps
-// track of whether a task is waiting or not waiting, and to prevent cyclic
-// dependencies.
+// taskWaitComputeStatus is used while computing the wait status of a
+// change. It keeps track of whether a task is waiting or not waiting, or the
+// computation for it is still in-progress to detect cyclic dependencies.
 type taskWaitComputeStatus int
 
 const (
@@ -374,7 +374,7 @@ func (c *Change) isChangeWaiting() bool {
 		}
 	}
 	// If we end up here, then return true as we know we
-	// have atleast one waiter in this change.
+	// have at least one waiter in this change.
 	return true
 }
 
