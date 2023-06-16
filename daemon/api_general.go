@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"os/exec"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/arch"
@@ -215,6 +216,7 @@ func getChange(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
+
 	qselect := query.Get("select")
 	if qselect == "" {
 		qselect = "in-progress"
@@ -229,6 +231,24 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 		filter = func(chg *state.Change) bool { return chg.Status().Ready() }
 	default:
 		return BadRequest("select should be one of: all,in-progress,ready")
+	}
+
+	follow := false
+	if s := query.Get("follow"); s != "" {
+		f, err := strconv.ParseBool(s)
+		if err != nil {
+			return BadRequest(`invalid value for follow: %q: %v`, s, err)
+		}
+		follow = f
+	}
+	if follow {
+		if qselect != "in-progress" {
+			return BadRequest("follow can only be used with in-progress")
+		}
+		st := c.d.overlord.State()
+		st.Lock()
+		defer st.Unlock()
+		return newFollowChangesSeqResponse(st)
 	}
 
 	if wantedName := query.Get("for"); wantedName != "" {

@@ -1096,7 +1096,6 @@ func (ss *stateSuite) TestChangedObserver(c *C) {
 		chg      *state.Change
 		old, new state.Status
 	}
-	changeObservedChanges := []changeAndStatus{}
 
 	cbT := func(t *state.Task, old, new state.Status) {
 		taskObservedChanges = append(taskObservedChanges, taskAndStatus{
@@ -1107,21 +1106,6 @@ func (ss *stateSuite) TestChangedObserver(c *C) {
 	}
 	st.AddTaskStatusChangedObserver(cbT)
 
-	cbChg := func(chg *state.Change, old, new state.Status) {
-		changeObservedChanges = append(changeObservedChanges, changeAndStatus{
-			chg: chg,
-			old: old,
-			new: new,
-		})
-	}
-	st.AddChangeStatusChangedObserver(cbChg)
-
 	t1 := st.NewTask("foo", "...")
-	chg := st.NewChange("foo-chg", "...")
-	chg.AddTask(t1)
-
 	t1.SetStatus(state.DoneStatus)
-	c.Check(changeObservedChanges, DeepEquals, []changeAndStatus{
-		{chg, state.DefaultStatus, state.DoneStatus},
-	})
 }

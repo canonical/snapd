@@ -270,6 +270,98 @@ func (f fileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, string(f))
 }
 
+type followChangeJSON struct {
+	Id      string `json:"id"`
+	Kind    string `json:"kind"`
+	Summary string `json:"summary"`
+	Ready   bool   `json:"ready"`
+	Status  string `json:"status"`
+	// XXX: do we want/need this?
+	OldStatus string `json:"old-status"`
+	// XXX: spawn/ready time?
+}
+
+type followChangesSeqResponse struct {
+	activeChanges map[*state.Change]state.Status
+
+	chgsCh chan followChangeJSON
+}
+
+func newFollowChangesSeqResponse(st *state.State) *followChangesSeqResponse {
+	rsp := &followChangesSeqResponse{
+		activeChanges: make(map[*state.Change]state.Status),
+		chgsCh:        make(chan followChangeJSON),
+	}
+	st.AddTaskStatusChangedObserver(rsp.onTaskChanged)
+
+	return rsp
+}
+
+func (fc *followChangesSeqResponse) onTaskChanged(t *state.Task, old, new state.Status) {
+	chg := t.Change()
+	if chg == nil {
+		return
+	}
+	newChgStatus := chg.Status()
+	oldChgStatus, ok := fc.activeChanges[chg]
+	if !ok {
+		oldChgStatus = state.DefaultStatus
+	}
+	if newChgStatus.Ready() {
+		delete(fc.activeChanges, chg)
+	} else {
+		fc.activeChanges[chg] = newChgStatus
+	}
+
+	// XXX: do we need more filtering here? there is a lot of
+	// Doing->Done->Doing->Done right now
+	if newChgStatus != oldChgStatus {
+		fc.chgsCh <- followChangeJSON{
+			Id:        chg.ID(),
+			Kind:      chg.Kind(),
+			Summary:   chg.Summary(),
+			Status:    new.String(),
+			OldStatus: old.String(),
+			Ready:     chg.IsReady(),
+		}
+	}
+}
+
+func (fc *followChangesSeqResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json-seq")
+
+	flusher, hasFlusher := w.(http.Flusher)
+
+	var err error
+	writer := bufio.NewWriter(w)
+	enc := json.NewEncoder(writer)
+	for {
+		chg := <-fc.chgsCh
+
+		writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
+
+		if err := enc.Encode(chg); err != nil {
+			break
+		}
+
+		if err := writer.Flush(); err != nil {
+			break
+		}
+		if hasFlusher {
+			flusher.Flush()
+		}
+	}
+
+	if err != nil && err != io.EOF {
+		fmt.Fprintf(writer, `\x1E{"error": %q}\n`, err)
+		logger.Noticef("cannot stream response; problem reading: %v", err)
+	}
+	if err := writer.Flush(); err != nil {
+		logger.Noticef("cannot stream response; problem writing: %v", err)
+	}
+
+}
+
 // A journalLineReaderSeqResponse's ServeHTTP method reads lines (presumed to
 // be, each one on its own, a JSON dump of a systemd.Log, as output by
 // journalctl -o json) from an io.ReadCloser, loads that into a client.Log, and
