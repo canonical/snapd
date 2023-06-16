@@ -209,6 +209,8 @@ func (t *Task) Status() Status {
 }
 
 func (t *Task) changeStatus(old, new Status) {
+	t.state.notifyTaskStatusChangedObservers(t, old, new)
+
 	t.status = new
 	if !old.Ready() && new.Ready() {
 		t.readyTime = timeNow()

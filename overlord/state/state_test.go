@@ -1081,3 +1081,30 @@ func (ss *stateSuite) TestNoStateErrorString(c *C) {
 	err.Key = "foo"
 	c.Assert(err.Error(), Equals, `no state entry for key "foo"`)
 }
+
+func (ss *stateSuite) TestAddTaskStatusChangedObserver(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	type taskAndStatus struct {
+		t        *state.Task
+		old, new state.Status
+	}
+	observedChanges := []taskAndStatus{}
+
+	cb := func(t *state.Task, old, new state.Status) {
+		observedChanges = append(observedChanges, taskAndStatus{
+			t:   t,
+			old: old,
+			new: new,
+		})
+	}
+	st.AddTaskStatusChangedObserver(cb)
+
+	t1 := st.NewTask("foo", "...")
+	t1.SetStatus(state.DoneStatus)
+	c.Check(observedChanges, DeepEquals, []taskAndStatus{
+		{t1, state.DefaultStatus, state.DoneStatus},
+	})
+}

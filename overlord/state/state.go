@@ -99,6 +99,8 @@ type State struct {
 	cache map[interface{}]interface{}
 
 	pendingChangeByAttr map[string]func(*Change) bool
+
+	taskStatusChangedObservers []func(t *Task, old, new Status)
 }
 
 // New returns a new empty state.
@@ -480,6 +482,18 @@ func (s *State) GetMaybeTimings(timings interface{}) error {
 		return err
 	}
 	return nil
+}
+
+// AddTaskStatusChangedObserver adds the given callback to the list of
+// callbacks that are called when a task changes it's status.
+func (s *State) AddTaskStatusChangedObserver(cb func(t *Task, old, new Status)) {
+	s.taskStatusChangedObservers = append(s.taskStatusChangedObservers, cb)
+}
+
+func (s *State) notifyTaskStatusChangedObservers(t *Task, old, new Status) {
+	for _, f := range s.taskStatusChangedObservers {
+		f(t, old, new)
+	}
 }
 
 // SaveTimings implements timings.GetSaver
