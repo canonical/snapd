@@ -1092,11 +1092,6 @@ func (ss *stateSuite) TestChangedObserver(c *C) {
 		old, new state.Status
 	}
 	taskObservedChanges := []taskAndStatus{}
-	type changeAndStatus struct {
-		chg      *state.Change
-		old, new state.Status
-	}
-
 	cbT := func(t *state.Task, old, new state.Status) {
 		taskObservedChanges = append(taskObservedChanges, taskAndStatus{
 			t:   t,

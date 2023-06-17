@@ -101,8 +101,7 @@ type State struct {
 	pendingChangeByAttr map[string]func(*Change) bool
 
 	// task/changes observing
-	taskStatusChangedObservers   []func(t *Task, old, new Status)
-	changeStatusChangedObservers []func(chg *Change, old, new Status)
+	taskStatusChangedObservers []func(t *Task, old, new Status)
 }
 
 // New returns a new empty state.
