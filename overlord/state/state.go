@@ -495,6 +495,7 @@ func (s *State) AddTaskStatusChangedObserver(cb func(t *Task, old, new Status)) 
 
 func (s *State) notifyTaskStatusChangedObservers(t *Task, old, new Status) {
 	for _, f := range s.taskStatusChangedObservers {
+		// XXX: this must not block or we cannot run changes anymore
 		f(t, old, new)
 	}
 }

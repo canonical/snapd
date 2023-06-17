@@ -284,39 +284,47 @@ type followChangeJSON struct {
 type followChangesSeqResponse struct {
 	activeChanges map[*state.Change]state.Status
 
-	chgsCh chan followChangeJSON
+	chgsCh chan *followChangeJSON
 }
 
 func newFollowChangesSeqResponse(st *state.State) *followChangesSeqResponse {
 	rsp := &followChangesSeqResponse{
 		activeChanges: make(map[*state.Change]state.Status),
-		chgsCh:        make(chan followChangeJSON),
+		// XXX: use a small buffer size
+		chgsCh: make(chan *followChangeJSON, 10),
 	}
 	st.AddTaskStatusChangedObserver(rsp.onTaskChanged)
 
 	return rsp
 }
 
-func (fc *followChangesSeqResponse) onTaskChanged(t *state.Task, old, new state.Status) {
+// XXX: better name?
+func (fc *followChangesSeqResponse) Stop() {
+	close(fc.chgsCh)
+}
+
+func (fc *followChangesSeqResponse) onTaskChanged(t *state.Task, oldTaskStatus, newTaskStatus state.Status) {
 	chg := t.Change()
 	if chg == nil {
 		return
 	}
-	newChgStatus := chg.Status()
-	oldChgStatus, ok := fc.activeChanges[chg]
+	new := chg.Status()
+	old, ok := fc.activeChanges[chg]
 	if !ok {
-		oldChgStatus = state.DefaultStatus
+		old = state.DefaultStatus
 	}
-	if newChgStatus.Ready() {
+	if new.Ready() {
 		delete(fc.activeChanges, chg)
 	} else {
-		fc.activeChanges[chg] = newChgStatus
+		fc.activeChanges[chg] = new
 	}
 
 	// XXX: do we need more filtering here? there is a lot of
 	// Doing->Done->Doing->Done right now
-	if newChgStatus != oldChgStatus {
-		fc.chgsCh <- followChangeJSON{
+	if new != old {
+		// XXX: this is fragile, if the channel blocks we would
+		//      block the state/taskrunner
+		fc.chgsCh <- &followChangeJSON{
 			Id:        chg.ID(),
 			Kind:      chg.Kind(),
 			Summary:   chg.Summary(),
@@ -336,7 +344,11 @@ func (fc *followChangesSeqResponse) ServeHTTP(w http.ResponseWriter, r *http.Req
 	writer := bufio.NewWriter(w)
 	enc := json.NewEncoder(writer)
 	for {
+		// XXX: provide a way to close this channel/exit this loop
 		chg := <-fc.chgsCh
+		if chg == nil {
+			break
+		}
 
 		writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
 

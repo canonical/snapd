@@ -248,6 +248,7 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 		st := c.d.overlord.State()
 		st.Lock()
 		defer st.Unlock()
+		// XXX: provide a way to stop these when the daemon stops
 		return newFollowChangesSeqResponse(st)
 	}
 

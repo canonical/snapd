@@ -54,5 +54,6 @@ func MockWarningsAccessors(okay func(*state.State, time.Time) int, all func(*sta
 }
 
 type (
-	ChangeInfo = changeInfo
+	ChangeInfo               = changeInfo
+	FollowChangesSeqResponse = followChangesSeqResponse
 )

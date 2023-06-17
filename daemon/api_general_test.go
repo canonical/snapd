@@ -755,3 +755,77 @@ func (s *generalSuite) TestAckWarnings(c *check.C) {
 	c.Check(calls, check.Equals, "ok")
 	c.Check(result, check.DeepEquals, 0)
 }
+
+// XXX: test invalid follow/filter combinations
+func (s *generalSuite) TestStateChangesFollowHappy(c *check.C) {
+	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
+	defer restore()
+
+	// Setup
+	d := s.daemon(c)
+	st := d.Overlord().State()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes?follow=true", nil)
+	c.Assert(err, check.IsNil)
+	rawRsp := s.req(c, req, nil)
+	rsp := rawRsp.(*daemon.FollowChangesSeqResponse)
+
+	rec := httptest.NewRecorder()
+	go func() {
+		c.Assert(rec.Code, check.Equals, 200)
+
+		st.Lock()
+		chg1 := st.NewChange("install", "install...")
+		t1 := st.NewTask("download", "1...")
+		t2 := st.NewTask("activate", "2...")
+		chg1.AddAll(state.NewTaskSet(t1, t2))
+		t1.SetStatus(state.DoingStatus)
+		st.Unlock()
+
+		var res string
+		waitRes := func() string {
+			for {
+				res1 := rec.Body.String()
+				if res != res1 {
+					return res1
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
+
+		jsonSeq1 := `{"id":"1","kind":"install","summary":"install...","ready":false,"status":"Doing","old-status":"Default"}`
+		res = waitRes()
+		c.Check(string(res), check.Equals, "\x1e"+jsonSeq1+"\n")
+
+		st.Lock()
+		t1.SetStatus(state.DoneStatus)
+		t2.SetStatus(state.DoingStatus)
+		st.Unlock()
+
+		jsonSeq2 := `{"id":"1","kind":"install","summary":"install...","ready":false,"status":"Do","old-status":"Doing"}`
+		jsonSeq3 := `{"id":"1","kind":"install","summary":"install...","ready":false,"status":"Doing","old-status":"Do"}`
+		res = waitRes()
+		c.Check(string(res), check.Equals,
+			"\x1e"+jsonSeq1+"\n"+
+				"\x1e"+jsonSeq2+"\n"+
+				"\x1e"+jsonSeq3+"\n")
+
+		st.Lock()
+		t2.SetStatus(state.DoneStatus)
+		st.Unlock()
+
+		jsonSeq4 := `{"id":"1","kind":"install","summary":"install...","ready":true,"status":"Done","old-status":"Doing"}`
+		res = waitRes()
+		c.Check(string(res), check.Equals,
+			"\x1e"+jsonSeq1+"\n"+
+				"\x1e"+jsonSeq2+"\n"+
+				"\x1e"+jsonSeq3+"\n"+
+				"\x1e"+jsonSeq4+"\n")
+
+		// finished with the test
+		rsp.Stop()
+	}()
+
+	rsp.ServeHTTP(rec, nil)
+}
