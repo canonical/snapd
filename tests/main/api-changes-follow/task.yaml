@@ -1,0 +1,22 @@
+summary: verify that the /v2/changes?follow=true works
+
+execute: |
+  snap install --edge jq
+  # devmode as the snap does not have snapd-control
+  snap install test-snapd-curl --devmode --edge
+
+  # follow the chanes
+  # XXX: use systemd-run
+  (test-snapd-curl.curl curl -s --unix-socket /run/snapd.socket http://localhost/v2/changes?follow=true > follow.json) &
+
+  snap install test-snapd-sh
+
+  # XXX: use retry instead to ensure everything is written out
+  sleep 1
+
+  # first change status is doing
+  head -1 follow.json | jq -r '.status' | MATCH "Doing"
+  # last change status is done
+  tail -1 follow.json | jq -r '.status' | MATCH "Done"
+  tail -1 follow.json | jq -r '.ready'  | MATCH true
+  tail -1 follow.json | jq -r '.kind'   | MATCH "install-snap"
