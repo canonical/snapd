@@ -1,18 +1,32 @@
 summary: verify that the /v2/changes?follow=true works
 
+debug: |
+  cat follow.json || true
+
 execute: |
+  if [ "$(command -v systemd-run)" = "" ]; then
+      echo "SKIP: no systemd-run"
+      exit 0
+  fi
   snap install --edge jq
   # devmode as the snap does not have snapd-control
   snap install test-snapd-curl --devmode --edge
 
   # follow the chanes
-  # XXX: use systemd-run
-  (test-snapd-curl.curl curl -s --unix-socket /run/snapd.socket http://localhost/v2/changes?follow=true > follow.json) &
+  HERE="$(pwd)"
+  # we cannot use curl here as it will not line-buffer
+  systemd-run --unit follow-changes.service  \
+    /bin/sh -c "/usr/bin/python3 $HERE/api-client.py /v2/changes?follow=true > $HERE/follow.json"
+  tests.cleanup defer systemctl stop follow-changes.service
 
+  # ensure it's fully started up
+  retry -n 10 systemctl is-active follow-changes.service
+
+  # install a snap to get some changes on the socket
   snap install test-snapd-sh
 
-  # XXX: use retry instead to ensure everything is written out
-  sleep 1
+  # use "retry" here to ensure that the change is fully written out
+  retry -n 20 /bin/sh -c "tail -1 follow.json | jq -r '.ready'  | MATCH true"
 
   # first change status is doing
   head -1 follow.json | jq -r '.status' | MATCH "Doing"
@@ -20,3 +34,8 @@ execute: |
   tail -1 follow.json | jq -r '.status' | MATCH "Done"
   tail -1 follow.json | jq -r '.ready'  | MATCH true
   tail -1 follow.json | jq -r '.kind'   | MATCH "install-snap"
+
+
+  # XXX: do install/remove a lot and ensure we do not block and memory
+  #      does not grow out of bounds
+
