@@ -203,11 +203,11 @@ func (t *Task) Summary() string {
 //
 // Possible state transitions:
 //
-//       /--aborting lane--Do
-//       V                 |
-//     >Hold               V
-//     |                 Doing-->Wait
-//     |                /  |  \
+//     /----aborting lane--Do
+//     |                   |
+//     V                   V
+//    Hold               Doing-->Wait
+//     ^                /  |  \
 //     |         abort /   V   V
 //   no undo          /  Done  Error
 //     |             V     |
