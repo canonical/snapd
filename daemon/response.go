@@ -322,15 +322,20 @@ func (fc *followChangesSeqResponse) onTaskChanged(t *state.Task, oldTaskStatus, 
 	// XXX: do we need more filtering here? there is a lot of
 	// Doing->Done->Doing->Done right now
 	if new != old {
-		// XXX: this is fragile, if the channel blocks we would
-		//      block the state/taskrunner
-		fc.chgsCh <- &followChangeJSON{
+		theChg := followChangeJSON{
 			Id:        chg.ID(),
 			Kind:      chg.Kind(),
 			Summary:   chg.Summary(),
 			Status:    new.String(),
 			OldStatus: old.String(),
 			Ready:     chg.IsReady(),
+		}
+
+		// ensure to not block, drop changes notifications if needed
+		select {
+		case fc.chgsCh <- &theChg:
+		default:
+			logger.Noticef("cannot write to full channel, dropping state change for id %v", chg.ID())
 		}
 	}
 }
