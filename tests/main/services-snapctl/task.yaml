@@ -12,8 +12,6 @@ restore: |
     rm -f "$SERVICEOPTIONFILE"
 
 execute: |
-    # there is wait_for_service defined in systemd.sh, use a different name to
-    # avoid redefining or being obscured by the other one
     _wait_for_service() {
         retry=5
         while ! snap services "$1" | MATCH "$2"; do
