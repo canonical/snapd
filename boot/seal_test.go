@@ -1393,7 +1393,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		}
 
 		includeTryModel := false
-		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tc.modesForSystems, tbl, modeenv, includeTryModel)
+		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tc.modesForSystems, tbl, modeenv, includeTryModel, dirs.SnapSeedDir)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			if tc.expectedBootChainsCount == 0 {

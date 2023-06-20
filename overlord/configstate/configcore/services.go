@@ -119,8 +119,8 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, d
 		//      defaults and compare with the setting and exit if
 		//      they are the same but that requires some more changes.
 		// TODO: leverage sysconfig.Device instead
-		mode, _, _ := boot.ModeAndRecoverySystemFromKernelCommandLine()
-		if mode == boot.ModeInstall {
+		modeenv, err := boot.ReadModeenv(dirs.GlobalRootDir)
+		if err == nil && modeenv.Mode == boot.ModeInstall {
 			return nil
 		}
 

@@ -238,6 +238,10 @@ execute: |
     echo "Ensure sandbox-features shows the internal apparmor_parser"
     snap debug sandbox-features --required apparmor:parser:snapd-internal
 
+    echo "Ensure we support posix mqueue and userns in the internal apparmor_parser"
+    snap debug sandbox-features --required apparmor:parser:mqueue
+    snap debug sandbox-features --required apparmor:parser:userns
+    
     echo "Then we should be able to compile policy using the internal apparmor_parser"
     /snap/snapd/current/usr/lib/snapd/apparmor_parser \
       --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf \

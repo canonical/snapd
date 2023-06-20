@@ -200,6 +200,41 @@ func (t *Task) Summary() string {
 }
 
 // Status returns the current task status.
+//
+// Possible state transitions:
+//
+//     /----aborting lane--Do
+//     |                   |
+//     V                   V
+//    Hold               Doing-->Wait
+//     ^                /  |  \
+//     |         abort /   V   V
+//   no undo          /  Done  Error
+//     |             V     |
+//     \----------Abort   aborting lane
+//     /          |        |
+//     |       finished or |
+//  running    not running |
+//     V          \------->|
+//  kill goroutine         |
+//     |                   V
+//    / \           ----->Undo
+//   /   no error  /       |
+//   |   from goroutine    |
+//  error                  |
+//  from goroutine         |
+//   |                     V
+//   |                  Undoing-->Wait
+//   V                     |   \
+//  Error                  V    V
+//                       Undone Error
+//
+// Do -> Doing -> Done is the direct succcess scenario.
+//
+// Wait can transition to its waited status,
+// usually Done|Undone or back to Doing.
+// See Wait struct, SetToWait and WaitedStatus.
+//
 func (t *Task) Status() Status {
 	t.state.reading()
 	if t.status == DefaultStatus {
