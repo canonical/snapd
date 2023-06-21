@@ -124,11 +124,16 @@ def checksection(data, env: Dict[str, str]):
         export_disabled_warnings = set()
         def replacement(match):
             if match.group(0) == '"':
+                # SC2089 and SC2090 are about quotes vs arrays
+                # We cannot have arrays in environment variables of spread
+                # So we do have to use quotes
                 disabled_warnings.add('SC2089')
                 export_disabled_warnings.add('SC2090')
                 return r'\"'
             else:
                 assert(match.group('command') is not None)
+                # "Useless" echo. This is what we get.
+                # We cannot just evaluate to please shellcheck.
                 disabled_warnings.add('SC2116')
                 return '$({})'.format(match.group('command'))
         value = re.sub(r'[$][(]HOST:(?P<command>.*)[)]|"', replacement, value)
