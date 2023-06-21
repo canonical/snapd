@@ -114,8 +114,9 @@ func mockRefreshCandidate(snapName, instanceKey, channel, version string, revisi
 			Revision: revision,
 			RealName: snapName,
 		},
+		Version: version,
 	}
-	return snapstate.MockRefreshCandidate(sup, version)
+	return snapstate.MockRefreshCandidate(sup)
 }
 
 func (s *gateAutoRefreshHookSuite) settle(c *C) {

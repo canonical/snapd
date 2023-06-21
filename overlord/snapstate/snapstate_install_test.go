@@ -1183,6 +1183,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
+		Version:   "some-snapVer",
 		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
@@ -1356,6 +1357,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		},
 		SideInfo:    snapsup.SideInfo,
 		Type:        snap.TypeApp,
+		Version:     "some-snapVer",
 		PlugsOnly:   true,
 		InstanceKey: "instance",
 	})
@@ -1704,6 +1706,7 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
+		Version:   "some-snapVer",
 		PlugsOnly: true,
 		CohortKey: "scurries",
 	})
@@ -1870,6 +1873,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
+		Version:   "some-snapVer",
 		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
@@ -2031,6 +2035,7 @@ version: 1.0`)
 		SnapPath:  mockSnap,
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
+		Version:   "1.0",
 		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
@@ -2157,6 +2162,7 @@ epoch: 1*
 		SnapPath:  mockSnap,
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
+		Version:   "1.0",
 		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
@@ -2341,6 +2347,7 @@ version: 1.0`)
 			Required: true,
 		},
 		Type:      snap.TypeApp,
+		Version:   "1.0",
 		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, si)
@@ -3494,6 +3501,11 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 		// check that tasksets are in separate lanes
 		for _, t := range ts.Tasks() {
 			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
+			if t.Kind() == "prerequisites" {
+				sup, err := snapstate.TaskSnapSetup(t)
+				c.Assert(err, IsNil)
+				c.Check(sup.Version, Equals, sup.SnapName()+"Ver")
+			}
 		}
 	}
 }
@@ -4901,6 +4913,19 @@ epoch: 1
 	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
+
+	for i, ts := range tss {
+		// check that tasksets are in separate lanes
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
+			if t.Kind() == "prerequisites" {
+				sup, err := snapstate.TaskSnapSetup(t)
+				c.Assert(err, IsNil)
+				c.Check(sup.SnapName(), Equals, snapNames[i])
+				c.Check(sup.Version, Equals, "1.0")
+			}
+		}
+	}
 
 	chg := s.state.NewChange("install", "install local snaps")
 	for _, ts := range tss {
