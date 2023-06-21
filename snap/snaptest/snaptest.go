@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/pack"
 	"github.com/snapcore/snapd/snap/snapdir"
 )
@@ -196,6 +197,53 @@ func PopulateDir(dir string, files [][]string) {
 func AssertedSnapID(snapName string) string {
 	cleanedName := strings.Replace(snapName, "-", "", -1)
 	return cleanedName + strings.Repeat("id", 16)[len(cleanedName):]
+}
+
+// MakeTestSnapWithFilesAndIntegrityDataHeaderBytes calls MakeTestSnapWithFiles
+// but also attaches the supplied integrity data header bytes at the end of the
+// snap and returns its information in an integrityData struct.
+func MakeTestSnapWithFilesAndIntegrityDataHeaderBytes(c *check.C, snapYamlContent string, files [][]string, headerBlock []byte) (string, *integrity.IntegrityData) {
+	snapPath, _, integrityData := MakeTestSnapInfoWithFilesAndIntegrityDataHeaderBytes(c, snapYamlContent, files, nil, headerBlock)
+	return snapPath, integrityData
+}
+
+// MakeTestSnapInfoWithIntegrityDataHeaderBytes calls MakeTestSnapInfoWithFiles
+// but also appends dummy integrity data at the end of the snap and returns
+// its information in an integrityData struct.
+func MakeTestSnapInfoWithFilesAndIntegrityDataHeaderBytes(c *check.C, snapYamlContent string, files [][]string, si *snap.SideInfo, headerBlock []byte) (string, *snap.Info, *integrity.IntegrityData) {
+	snapPath, snapInfo := MakeTestSnapInfoWithFiles(c, snapYamlContent, files, si)
+
+	snapFile, err := os.OpenFile(snapPath, os.O_APPEND|os.O_WRONLY, 0644)
+	c.Assert(err, check.IsNil)
+	defer snapFile.Close()
+
+	snapFileInfo, err := os.Stat(snapPath)
+	c.Assert(err, check.IsNil)
+	size := snapFileInfo.Size()
+
+	var integrityDataHeader integrity.IntegrityDataHeader
+	err = integrityDataHeader.Decode(headerBlock)
+
+	if err != nil {
+		// for test purposes, allow attaching of invalid header blocks
+		_, err = snapFile.Write(headerBlock)
+		c.Assert(err, check.IsNil)
+		return snapPath, snapInfo, nil
+	}
+
+	mockIntegrityDataBlock := make([]byte, uint64(integrity.HeaderSize))
+	integrityDataBlock := append(headerBlock, mockIntegrityDataBlock...)
+
+	_, err = snapFile.Write(integrityDataBlock)
+	c.Assert(err, check.IsNil)
+
+	integrityData := &integrity.IntegrityData{
+		SourceFilePath: snapPath,
+		Offset:         uint64(size),
+		Header:         &integrityDataHeader,
+	}
+
+	return snapPath, snapInfo, integrityData
 }
 
 // MakeTestSnapWithFiles makes a squashfs snap file with the given
