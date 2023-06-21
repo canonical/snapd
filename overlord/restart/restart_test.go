@@ -66,14 +66,20 @@ func (h *testHandler) RebootDidNotHappen(*state.State) error {
 	return nil
 }
 
+func newRestartManager(c *C, st *state.State, bootID string, h restart.Handler) *restart.RestartManager {
+	o := overlord.Mock()
+	mgr, err := restart.Manager(st, o.TaskRunner(), "boot-id-1", h)
+	c.Assert(err, IsNil)
+	return mgr
+}
+
 func (s *restartSuite) TestManager(c *C) {
 	st := state.New(nil)
 
 	st.Lock()
 	defer st.Unlock()
 
-	mgr, err := restart.Manager(st, "boot-id-1", nil)
-	c.Assert(err, IsNil)
+	mgr := newRestartManager(c, st, "boot-id-1", nil)
 	c.Check(mgr, FitsTypeOf, &restart.RestartManager{})
 }
 
@@ -90,8 +96,7 @@ func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 
 	h := &testHandler{}
 
-	_, err := restart.Manager(st, "boot-id-1", h)
-	c.Assert(err, IsNil)
+	newRestartManager(c, st, "boot-id-1", h)
 	c.Check(h.rebootAsExpected, Equals, true)
 
 	ok, t = restart.Pending(st)
@@ -113,9 +118,7 @@ func (s *restartSuite) TestRequestRestartDaemonNoHandler(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, err := restart.Manager(st, "boot-id-1", nil)
-	c.Assert(err, IsNil)
-
+	newRestartManager(c, st, "boot-id-1", nil)
 	restart.Request(st, restart.RestartDaemon, nil)
 
 	ok, t := restart.Pending(st)
@@ -129,8 +132,7 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	defer st.Unlock()
 
 	h := &testHandler{}
-	_, err := restart.Manager(st, "boot-id-1", h)
-	c.Assert(err, IsNil)
+	newRestartManager(c, st, "boot-id-1", h)
 	c.Check(h.rebootAsExpected, Equals, true)
 
 	ok, t := restart.Pending(st)
@@ -150,8 +152,7 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	c.Check(fromBootID, Equals, "boot-id-1")
 
 	h1 := &testHandler{}
-	_, err = restart.Manager(st, "boot-id-1", h1)
-	c.Assert(err, IsNil)
+	newRestartManager(c, st, "boot-id-1", h1)
 	c.Check(h1.rebootAsExpected, Equals, false)
 	c.Check(h1.rebootDidNotHappen, Equals, true)
 	fromBootID = ""
@@ -159,8 +160,7 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	c.Check(fromBootID, Equals, "boot-id-1")
 
 	h2 := &testHandler{}
-	_, err = restart.Manager(st, "boot-id-2", h2)
-	c.Assert(err, IsNil)
+	newRestartManager(c, st, "boot-id-2", h2)
 	c.Check(h2.rebootAsExpected, Equals, true)
 	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), testutil.ErrorIs, state.ErrNoState)
 }
@@ -171,8 +171,7 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	defer st.Unlock()
 
 	h := &testHandler{}
-	_, err := restart.Manager(st, "boot-id-1", h)
-	c.Assert(err, IsNil)
+	newRestartManager(c, st, "boot-id-1", h)
 	c.Check(h.rebootAsExpected, Equals, true)
 
 	ok, t := restart.Pending(st)
@@ -196,8 +195,7 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	c.Check(fromBootID, Equals, "boot-id-1")
 
 	h1 := &testHandler{}
-	_, err = restart.Manager(st, "boot-id-1", h1)
-	c.Assert(err, IsNil)
+	newRestartManager(c, st, "boot-id-1", h1)
 	c.Check(h1.rebootAsExpected, Equals, false)
 	c.Check(h1.rebootDidNotHappen, Equals, true)
 	fromBootID = ""
@@ -205,8 +203,7 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	c.Check(fromBootID, Equals, "boot-id-1")
 
 	h2 := &testHandler{}
-	_, err = restart.Manager(st, "boot-id-2", h2)
-	c.Assert(err, IsNil)
+	newRestartManager(c, st, "boot-id-2", h2)
 	c.Check(h2.rebootAsExpected, Equals, true)
 	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), testutil.ErrorIs, state.ErrNoState)
 }
@@ -219,8 +216,7 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 
 	defer release.MockOnClassic(false)()
 
-	_, err := restart.Manager(st, "boot-id-1", nil)
-	c.Assert(err, IsNil)
+	newRestartManager(c, st, "boot-id-1", nil)
 
 	tests := []struct {
 		initial, final state.Status
@@ -301,8 +297,7 @@ func (s *restartSuite) TestStartUpWaitTasks(c *C) {
 
 	defer release.MockOnClassic(true)()
 
-	rm, err := restart.Manager(st, "boot-id-1", nil)
-	c.Assert(err, IsNil)
+	rm := newRestartManager(c, st, "boot-id-1", nil)
 
 	chg := st.NewChange("chg", "...")
 	t0 := st.NewTask("todo", "...")
@@ -315,7 +310,7 @@ func (s *restartSuite) TestStartUpWaitTasks(c *C) {
 
 	t2 := st.NewTask("wait-for-reboot", "...")
 	chg.AddTask(t2)
-	err = restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	err := restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
 	c.Assert(err, FitsTypeOf, &state.Wait{WaitedStatus: state.DoneStatus})
 	t2.SetToWait(state.DoneStatus)
 
@@ -378,8 +373,7 @@ func (s *restartSuite) TestPendingForSystemRestart(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	rm, err := restart.Manager(st, "boot-id-1", nil)
-	c.Assert(err, IsNil)
+	rm := newRestartManager(c, st, "boot-id-1", nil)
 
 	chg1 := st.NewChange("not-ready", "...")
 	t1 := st.NewTask("task", "...")
@@ -395,7 +389,7 @@ func (s *restartSuite) TestPendingForSystemRestart(c *C) {
 	chg2.AddTask(t4)
 	t3.WaitFor(t2)
 	t4.WaitFor(t2)
-	err = restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	err := restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
 	c.Assert(err, FitsTypeOf, &state.Wait{WaitedStatus: state.DoneStatus})
 	t3.SetStatus(state.UndoStatus)
 	t4.SetToWait(state.DoneStatus)
@@ -462,8 +456,7 @@ func (s *notifyRebootRequiredSuite) SetUpTest(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	_, err := restart.Manager(s.st, "boot-id-1", nil)
-	c.Assert(err, IsNil)
+	newRestartManager(c, s.st, "boot-id-1", nil)
 
 	// pretend there is a snap that requires a reboot
 	chg1 := s.st.NewChange("not-ready", "...")

@@ -23,6 +23,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/standby"
@@ -34,6 +35,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 type standbySuite struct {
 	state *state.State
+	o     *overlord.Overlord
 
 	canStandby bool
 }
@@ -41,7 +43,8 @@ type standbySuite struct {
 var _ = Suite(&standbySuite{})
 
 func (s *standbySuite) SetUpTest(c *C) {
-	s.state = state.New(nil)
+	s.o = overlord.Mock()
+	s.state = s.o.State()
 }
 
 func (s *standbySuite) TestCanStandbyNoChanges(c *C) {
@@ -129,7 +132,7 @@ func (s *standbySuite) TestStartChecks(c *C) {
 
 	defer standby.MockStandbyWait(time.Millisecond)()
 	s.state.Lock()
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_, err := restart.Manager(s.state, s.o.TaskRunner(), "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		c.Check(t, Equals, restart.RestartSocket)
 		n++
 		ch2 <- struct{}{}
@@ -162,7 +165,7 @@ func (s *standbySuite) TestStartChecks(c *C) {
 func (s *standbySuite) TestStopWaits(c *C) {
 	defer standby.MockStandbyWait(time.Millisecond)()
 	s.state.Lock()
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_, err := restart.Manager(s.state, s.o.TaskRunner(), "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		c.Fatal("request restart should have not been called")
 	}))
 	s.state.Unlock()

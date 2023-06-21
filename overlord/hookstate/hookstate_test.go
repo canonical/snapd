@@ -76,7 +76,7 @@ func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.state.Lock()
-	_, err := restart.Manager(s.state, "boot-id-0", nil)
+	_, err := restart.Manager(s.state, s.o.TaskRunner(), "boot-id-0", nil)
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 	manager, err := hookstate.Manager(s.state, s.o.TaskRunner())

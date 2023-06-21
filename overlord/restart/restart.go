@@ -82,7 +82,7 @@ type RestartManager struct {
 // verify reboots and a Handler that handles the actual requests and
 // reacts to reboot happening. It must be called with the state lock
 // held.
-func Manager(st *state.State, curBootID string, h Handler) (*RestartManager, error) {
+func Manager(st *state.State, runner *state.TaskRunner, curBootID string, h Handler) (*RestartManager, error) {
 	rm := &RestartManager{
 		state:  st,
 		h:      h,
@@ -99,6 +99,7 @@ func Manager(st *state.State, curBootID string, h Handler) (*RestartManager, err
 	}
 
 	st.RegisterPendingChangeByAttr("wait-for-system-restart", rm.PendingForSystemRestart)
+	runner.AddHook(checkRebootRequiredForChange, state.TaskExhaustion)
 
 	return rm, nil
 }
@@ -114,10 +115,7 @@ func (rm *RestartManager) init(fromBootID, curBootID string) error {
 	}
 	// we rebooted alright
 	ClearReboot(rm.state)
-	if err := rm.rebootAsExpected(); err != nil {
-		return err
-	}
-	return nil
+	return rm.rebootAsExpected()
 }
 
 // ClearReboot clears state information about tracking requested reboots.
@@ -655,7 +653,20 @@ func RequestRestartForChange(chg *state.Change) error {
 	return nil
 }
 
+func checkRebootRequiredForChange(chg *state.Change) {
+	if chg.Status() != state.WaitStatus {
+		return
+	}
+	if err := RequestRestartForChange(chg); err != nil {
+		logger.Noticef("failed to request restart: %v", err)
+	}
+}
+
+// Added solely for unit test purposes that inspect the type of reboot that is
+// required by a change.
 func RestartTypePendingForChange(chg *state.Change) (RestartType, error) {
+	osutil.MustBeTestBinary("RestartTypePendingForChange is only added for test purposes.")
+
 	var rt RestartInfo
 	if err := chg.Get("restart-info", &rt); err != nil {
 		if errors.Is(err, &state.NoStateError{}) {

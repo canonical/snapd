@@ -8178,7 +8178,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	defer s.state.Unlock()
 
 	var restartRequested []restart.RestartType
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_, err := restart.Manager(s.state, s.o.TaskRunner(), "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		restartRequested = append(restartRequested, t)
 	}))
 	c.Assert(err, IsNil)
@@ -8367,7 +8367,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHa
 	defer s.state.Unlock()
 
 	var restartRequested []restart.RestartType
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_, err := restart.Manager(s.state, s.o.TaskRunner(), "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		restartRequested = append(restartRequested, t)
 	}))
 	c.Assert(err, IsNil)
@@ -8508,7 +8508,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithGadget
 	defer s.state.Unlock()
 
 	var restartRequested []restart.RestartType
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_, err := restart.Manager(s.state, s.o.TaskRunner(), "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		restartRequested = append(restartRequested, t)
 	}))
 	c.Assert(err, IsNil)
@@ -8601,7 +8601,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	defer s.state.Unlock()
 
 	var restartRequested []restart.RestartType
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_, err := restart.Manager(s.state, s.o.TaskRunner(), "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		restartRequested = append(restartRequested, t)
 	}))
 	c.Assert(err, IsNil)
@@ -8748,7 +8748,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseAndSnapdOrder(c *C) {
 	defer s.state.Unlock()
 
 	var restartRequested []restart.RestartType
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_, err := restart.Manager(s.state, s.o.TaskRunner(), "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		restartRequested = append(restartRequested, t)
 	}))
 	c.Assert(err, IsNil)

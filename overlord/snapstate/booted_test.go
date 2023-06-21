@@ -84,7 +84,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.o = overlord.Mock()
 	bs.state = bs.o.State()
 	bs.state.Lock()
-	_, err = restart.Manager(bs.state, "boot-id-0", nil)
+	_, err = restart.Manager(bs.state, bs.o.TaskRunner(), "boot-id-0", nil)
 	bs.state.Unlock()
 	c.Assert(err, IsNil)
 	bs.snapmgr, err = snapstate.Manager(bs.state, bs.o.TaskRunner())
