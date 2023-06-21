@@ -23,8 +23,7 @@ backends:
             - debian-12-64:
             - debian-sid-64:
             - fedora-37-64:
-            #Image not ready yet
-            #- fedora-38-64:
+            - fedora-38-64:
             - arch-linux-64:
             - amazon-linux-2-64:
                 storage: preserve-size
