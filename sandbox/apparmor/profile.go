@@ -295,7 +295,7 @@ var loadHomedirs = func() ([]string, error) {
 // Returns whether any modifications was made to the snap-confine snippets.
 func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 	// Create the local policy directory if it is not there.
-	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
+	if err := os.MkdirAll(SnapConfineAppArmorDir, 0755); err != nil {
 		return false, fmt.Errorf("cannot create snap-confine policy directory: %s", err)
 	}
 
@@ -349,7 +349,7 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 	}
 
 	// Ensure that generated policy is what we computed above.
-	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, "*", policy)
+	created, removed, err := osutil.EnsureDirState(SnapConfineAppArmorDir, "*", policy)
 	if err != nil {
 		return false, fmt.Errorf("cannot synchronize snap-confine policy: %s", err)
 	}
@@ -359,6 +359,6 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 // RemoveSnapConfineSnippets clears out any previously written apparmor snippets
 // for snap-confine.
 func RemoveSnapConfineSnippets() error {
-	_, _, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, "*", nil)
+	_, _, err := osutil.EnsureDirState(SnapConfineAppArmorDir, "*", nil)
 	return err
 }
