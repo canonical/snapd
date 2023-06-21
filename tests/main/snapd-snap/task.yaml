@@ -155,6 +155,9 @@ execute: |
       if ! os.query is-trusty && ! os.query is-xenial; then
         systemctl status snapd.apparmor.service
       fi
+      if os.query is-ubuntu; then
+        systemctl status apparmor.service
+      fi
       cat /var/lib/snapd/system-key
       echo "Rebooted successfully"
 
