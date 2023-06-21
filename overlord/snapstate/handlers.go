@@ -3951,6 +3951,14 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		logger.Panicf("Re-refresh task has %d tasks waiting for it.", numHaltTasks)
 	}
 
+	// Is there a restart pending for the current change? Then wait for
+	// restart to happen before proceeding, otherwise we will be blocking
+	// any restart that is waiting to occur. We handle this here as this
+	// task is dynamically added.
+	if restart.RestartIsPending(st, t.Change()) {
+		return restart.TaskWaitForRestart(t)
+	}
+
 	if !changeReadyUpToTask(t) {
 		return &state.Retry{After: reRefreshRetryTimeout, Reason: "pending refreshes"}
 	}
