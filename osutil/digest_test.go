@@ -48,3 +48,44 @@ func (ts *FileDigestSuite) TestFileDigest(c *C) {
 	h512 := sha512.Sum512(exData)
 	c.Check(digest, DeepEquals, h512[:])
 }
+
+type testPartialFileDigestData struct {
+	data   []byte
+	offset uint64
+}
+
+func (ts *FileDigestSuite) testPartialFileDigest(c *C, data *testPartialFileDigestData) error {
+	tempdir := c.MkDir()
+	fn := filepath.Join(tempdir, "ex.file")
+	err := ioutil.WriteFile(fn, data.data, 0644)
+	c.Assert(err, IsNil)
+
+	digest, size, err := osutil.PartialFileDigest(fn, crypto.SHA512, uint64(data.offset))
+	if err != nil {
+		return err
+	}
+
+	c.Check(size, Equals, uint64(len(data.data[data.offset:])))
+	h512 := sha512.Sum512(data.data[data.offset:])
+	c.Check(digest, DeepEquals, h512[:])
+
+	return nil
+}
+
+func (ts *FileDigestSuite) TestPartialFileDigest(c *C) {
+	exData := []byte("hashmeplease")
+	err := ts.testPartialFileDigest(c, &testPartialFileDigestData{
+		data:   exData,
+		offset: 1,
+	})
+	c.Assert(err, IsNil)
+}
+
+func (ts *FileDigestSuite) TestPartialFileDigestInvalidOffset(c *C) {
+	exData := []byte("hashmeplease")
+	err := ts.testPartialFileDigest(c, &testPartialFileDigestData{
+		data:   exData,
+		offset: uint64(len(exData) + 1),
+	})
+	c.Check(err, ErrorMatches, "offset exceeds file size")
+}

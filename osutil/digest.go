@@ -21,6 +21,7 @@ package osutil
 
 import (
 	"crypto"
+	"fmt"
 	"io"
 	"os"
 )
@@ -37,6 +38,36 @@ func FileDigest(filename string, hash crypto.Hash) ([]byte, uint64, error) {
 		return nil, 0, err
 	}
 	defer f.Close()
+	h := hash.New()
+	size, err := io.CopyBuffer(h, f, make([]byte, hashDigestBufSize))
+	if err != nil {
+		return nil, 0, err
+	}
+	return h.Sum(nil), uint64(size), nil
+}
+
+// PartialFileDigest computes a hash digest of the file starting from an offset using the given hash.
+// It also returns the size of the data that were hashed.
+func PartialFileDigest(filename string, hash crypto.Hash, offset uint64) ([]byte, uint64, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if offset >= uint64(fi.Size()) {
+		return nil, 0, fmt.Errorf("offset exceeds file size")
+	}
+
+	if _, err = f.Seek(int64(offset), io.SeekStart); err != nil {
+		return nil, 0, err
+	}
+
 	h := hash.New()
 	size, err := io.CopyBuffer(h, f, make([]byte, hashDigestBufSize))
 	if err != nil {
