@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/integrity/dmverity"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -82,22 +83,28 @@ func (s *IntegrityTestSuite) TestIntegrityHeaderMarshalJSON(c *C) {
 	c.Check(jsonHeader, DeepEquals, expected)
 }
 
+const (
+	zeroRootHash = "0000000000000000000000000000000000000000000000000000000000000000"
+)
+
 func (s *IntegrityTestSuite) TestIntegrityHeaderUnmarshalJSON(c *C) {
+	headerSize := uint64(integrity.HeaderSize)
 	var integrityDataHeader integrity.IntegrityDataHeader
-	integrityHeaderJSON := `{
+
+	integrityDataHeaderJSON := `{
 		"type": "integrity",
-		"size": "4096",
+		"size": "` + fmt.Sprint(headerSize) + `",
 		"dm-verity": {
-			"root-hash": "00000000000000000000000000000000"
+			"root-hash": "` + zeroRootHash + `"
 		}
 	}`
 
-	err := json.Unmarshal([]byte(integrityHeaderJSON), &integrityDataHeader)
+	err := json.Unmarshal([]byte(integrityDataHeaderJSON), &integrityDataHeader)
 	c.Assert(err, IsNil)
 
 	c.Check(integrityDataHeader.Type, Equals, "integrity")
-	c.Check(integrityDataHeader.Size, Equals, uint64(4096))
-	c.Check(integrityDataHeader.DmVerity.RootHash, Equals, "00000000000000000000000000000000")
+	c.Check(integrityDataHeader.Size, Equals, headerSize)
+	c.Check(integrityDataHeader.DmVerity.RootHash, Equals, zeroRootHash)
 }
 
 func (s *IntegrityTestSuite) TestIntegrityHeaderEncode(c *C) {
@@ -125,28 +132,30 @@ func (s *IntegrityTestSuite) TestIntegrityHeaderEncodeInvalidSize(c *C) {
 }
 
 func (s *IntegrityTestSuite) TestIntegrityHeaderDecode(c *C) {
+	headerSize := uint64(integrity.HeaderSize)
+
 	var integrityDataHeader integrity.IntegrityDataHeader
 	magic := integrity.Magic
 
-	integrityHeaderJSON := `{
+	integrityDataHeaderJSON := `{
 		"type": "integrity",
-		"size": "4096",
+		"size": "` + fmt.Sprint(headerSize) + `",
 		"dm-verity": {
-			"root-hash": "00000000000000000000000000000000"
+			"root-hash": "` + zeroRootHash + `"
 		}
 	}`
-	header := append(magic, integrityHeaderJSON...)
+	header := append(magic, integrityDataHeaderJSON...)
 	header = append(header, 0)
 
-	headerBlock := make([]byte, 4096)
-	copy(headerBlock, header)
+	integrityDataHeaderBytes := make([]byte, headerSize)
+	copy(integrityDataHeaderBytes, header)
 
-	err := integrityDataHeader.Decode(headerBlock)
+	err := integrityDataHeader.Decode(integrityDataHeaderBytes)
 	c.Assert(err, IsNil)
 
 	c.Check(integrityDataHeader.Type, Equals, "integrity")
-	c.Check(integrityDataHeader.Size, Equals, uint64(4096))
-	c.Check(integrityDataHeader.DmVerity.RootHash, Equals, "00000000000000000000000000000000")
+	c.Check(integrityDataHeader.Size, Equals, headerSize)
+	c.Check(integrityDataHeader.DmVerity.RootHash, Equals, zeroRootHash)
 }
 
 func (s *IntegrityTestSuite) TestIntegrityHeaderDecodeInvalidMagic(c *C) {
@@ -214,7 +223,7 @@ func (s *IntegrityTestSuite) TestIntegrityHeaderDecodeInvalidTermination(c *C) {
 }
 
 func (s *IntegrityTestSuite) TestGenerateAndAppendSuccess(c *C) {
-	blockSize := uint64(integrity.BlockSize)
+	headerSize := uint64(integrity.HeaderSize)
 
 	snapPath, _ := snaptest.MakeTestSnapInfoWithFiles(c, "name: foo\nversion: 1.0", nil, nil)
 
@@ -257,19 +266,183 @@ esac
 	_, err = snapFile.Seek(orig_size, io.SeekStart)
 	c.Assert(err, IsNil)
 
-	header := make([]byte, blockSize-1)
+	header := make([]byte, headerSize)
 	n, err := snapFile.Read(header)
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, int(blockSize)-1)
+	c.Assert(n, Equals, int(headerSize))
 
 	var integrityDataHeader integrity.IntegrityDataHeader
 	err = integrityDataHeader.Decode(header)
 	c.Check(err, IsNil)
 	c.Check(integrityDataHeader.Type, Equals, "integrity")
-	c.Check(integrityDataHeader.Size, Equals, uint64(2*4096))
+	c.Check(integrityDataHeader.Size, Equals, uint64(2*headerSize))
 	c.Check(integrityDataHeader.DmVerity.RootHash, HasLen, 64)
 
 	c.Assert(vscmd.Calls(), HasLen, 2)
 	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "--version"})
 	c.Check(vscmd.Calls()[1], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
+}
+
+type testFindIntegrityDataData struct {
+	snapPath  string
+	orig_size uint64
+}
+
+func (s *IntegrityTestSuite) testFindIntegrityData(c *C, data *testFindIntegrityDataData) (*integrity.IntegrityDataHeader, error) {
+	integrityData, err := integrity.FindIntegrityData(data.snapPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: this will need to change when we add support for integrity data external to the snap
+	c.Check(integrityData.SourceFilePath, Equals, data.snapPath)
+
+	snapFile, err := os.Open(data.snapPath)
+	if err != nil {
+		return nil, err
+	}
+	defer snapFile.Close()
+
+	// Read header from file
+	header := make([]byte, integrity.HeaderSize)
+	_, err = snapFile.Seek(int64(data.orig_size), io.SeekStart)
+	c.Assert(err, IsNil)
+
+	n, err := snapFile.Read(header)
+	if err != nil {
+		return nil, err
+	}
+	c.Assert(n, Equals, integrity.HeaderSize)
+
+	var integrityDataHeader integrity.IntegrityDataHeader
+	integrityDataHeader.Decode(header)
+
+	return &integrityDataHeader, nil
+}
+
+func (s *IntegrityTestSuite) TestIntegrityDataAttached(c *C) {
+	integrityDataHeaderBytes := snaptest.MockIntegrityDataHeaderBytes(c, zeroRootHash)
+	snapPath, integrityData := snaptest.MakeTestSnapWithFilesAndIntegrityDataHeaderBytes(c, "name: foo\nversion: 1.0", nil, integrityDataHeaderBytes)
+
+	integrityDataHeader, err := s.testFindIntegrityData(c, &testFindIntegrityDataData{
+		snapPath:  snapPath,
+		orig_size: integrityData.Offset,
+	})
+
+	c.Assert(err, IsNil)
+	c.Check(integrityData.Header, DeepEquals, integrityDataHeader)
+}
+
+func (s *IntegrityTestSuite) TestSnapFileNotExist(c *C) {
+	_, err := s.testFindIntegrityData(c, &testFindIntegrityDataData{
+		snapPath: "foo.snap",
+	})
+	c.Check(err, ErrorMatches, "open foo.snap: no such file or directory")
+}
+
+func (s *IntegrityTestSuite) TestIntegrityDataNotAttached(c *C) {
+	snapPath, _ := snaptest.MakeTestSnapInfoWithFiles(c, "name: foo\nversion: 1.0", nil, nil)
+
+	snapFileInfo, err := os.Stat(snapPath)
+	c.Assert(err, IsNil)
+	orig_size := snapFileInfo.Size()
+
+	_, err = s.testFindIntegrityData(c, &testFindIntegrityDataData{
+		snapPath:  snapPath,
+		orig_size: uint64(orig_size),
+	})
+	c.Check(err, ErrorMatches, "integrity data not found for snap "+snapPath)
+}
+
+func (s *IntegrityTestSuite) TestIntegrityDataAttachedWrongHeaderSmall(c *C) {
+
+	smallHeader := make([]byte, uint64(integrity.BlockSize)-1)
+
+	snapPath, _ := snaptest.MakeTestSnapWithFilesAndIntegrityDataHeaderBytes(c, "name: foo\nversion: 1.0", nil, smallHeader)
+
+	_, err := s.testFindIntegrityData(c, &testFindIntegrityDataData{
+		snapPath: snapPath,
+	})
+	c.Check(err, ErrorMatches, "cannot read integrity data: unexpected EOF")
+}
+
+func (s *IntegrityTestSuite) TestIntegrityDataAttachedWrongHeader(c *C) {
+
+	wrongHeader := make([]byte, uint64(integrity.BlockSize))
+
+	snapPath, integrityData := snaptest.MakeTestSnapWithFilesAndIntegrityDataHeaderBytes(c, "name: foo\nversion: 1.0", nil, wrongHeader)
+	c.Assert(integrityData, IsNil)
+
+	snapFileInfo, err := os.Stat(snapPath)
+	c.Assert(err, IsNil)
+	size := snapFileInfo.Size()
+
+	_, err = s.testFindIntegrityData(c, &testFindIntegrityDataData{
+		snapPath:  snapPath,
+		orig_size: uint64(size),
+	})
+	c.Check(err, ErrorMatches, "invalid integrity data header: invalid magic value")
+
+}
+
+func makeValidEncodedAssertion(extra string) string {
+	return "type: snap-revision\n" +
+		"authority-id: store-id1\n" +
+		"snap-sha3-384: QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-size: 123\n" +
+		"snap-revision: 1\n" +
+		extra +
+		"developer-id: dev-id1\n" +
+		"revision: 1\n" +
+		"timestamp: 2023-03-30T17:03:06Z\n" +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+}
+
+type testValidateIntegrityDataData struct {
+	encodedIntegrityData string
+}
+
+func (s *IntegrityTestSuite) mockSnapRevFromTemplate(c *C, integrityData *integrity.IntegrityData, template string) *asserts.SnapRevision {
+	blobSHA3_384, err := integrityData.SHA3_384()
+	c.Assert(err, IsNil)
+
+	encodedAssertion := strings.Replace(template, "XXX", blobSHA3_384, 1)
+
+	a, err := asserts.Decode([]byte(makeValidEncodedAssertion(encodedAssertion)))
+	c.Assert(err, IsNil)
+
+	return a.(*asserts.SnapRevision)
+}
+
+func (s *IntegrityTestSuite) testValidateIntegrityData(c *C, data *testValidateIntegrityDataData) error {
+	integrityDataHeaderBytes := snaptest.MockIntegrityDataHeaderBytes(c, zeroRootHash)
+	_, integrityData := snaptest.MakeTestSnapWithFilesAndIntegrityDataHeaderBytes(c, "name: foo\nversion: 1.0", nil, integrityDataHeaderBytes)
+
+	snapRev := s.mockSnapRevFromTemplate(c, integrityData, data.encodedIntegrityData)
+
+	return integrityData.Validate(*snapRev)
+}
+
+func (s *IntegrityTestSuite) TestValidateIntegrityDataOk(c *C) {
+	c.Check(s.testValidateIntegrityData(c, &testValidateIntegrityDataData{
+		encodedIntegrityData: "integrity:\n" +
+			"  sha3-384: XXX\n" +
+			"  size: 128\n",
+	}), IsNil)
+}
+
+func (s *IntegrityTestSuite) TestValidateIntegrityDataError(c *C) {
+	c.Check(s.testValidateIntegrityData(c, &testValidateIntegrityDataData{
+		encodedIntegrityData: "integrity:\n" +
+			"  sha3-384: QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL\n" +
+			"  size: 128\n",
+	}), ErrorMatches, "integrity data hash mismatch")
+}
+
+func (s *IntegrityTestSuite) TestValidateIntegrityDataInvalidAssertionMissingStanza(c *C) {
+	c.Check(s.testValidateIntegrityData(c, &testValidateIntegrityDataData{}), ErrorMatches, "Snap revision assertion does not contain an integrity stanza")
 }
