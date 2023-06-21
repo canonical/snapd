@@ -517,7 +517,7 @@ ConsiderTasks:
 	for _, chg := range r.state.changes {
 		// if there are no running tasks for this change, report
 		// task exhaustion for that change.
-		if readyChanges[chg.ID()] {
+		if !readyChanges[chg.ID()] {
 			// have we already reported exhaustion for that change?
 			if r.exhausted[chg.ID()] {
 				continue
