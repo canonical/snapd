@@ -25,6 +25,7 @@ package restart
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -171,6 +172,8 @@ func (m *RestartManager) StartUp() error {
 		if !stillSetToWait {
 			chg.Set("wait-for-system-restart", nil)
 		}
+		// Clear out the restart metadata after a reboot.
+		chg.Set("restart-info", nil)
 	}
 	return nil
 }
@@ -573,6 +576,10 @@ func RequestRestartForTask(t *state.Task, snapName string, status state.Status, 
 		Request(t.State(), restartType, rebootInfo)
 		return nil
 	}
+
+	if snapName == "" {
+		snapName = "snapd"
+	}
 	t.Logf("reboot requested by snap %q", snapName)
 
 	rt, err := changeRestartInfo(t.Change())
@@ -648,6 +655,8 @@ func RequestRestartForChange(chg *state.Change) error {
 		return nil
 	}
 
+	log.Printf("%s requesting reboot: %s", chg.Kind(), rt.SnapName)
+
 	rt.Reboot(chg.State())
 	chg.Set("restart-info", rt)
 	return nil
@@ -675,4 +684,18 @@ func RestartTypePendingForChange(chg *state.Change) (RestartType, error) {
 		return 0, err
 	}
 	return rt.RestartType, nil
+}
+
+func MockRestartForChange(chg *state.Change) {
+	osutil.MustBeTestBinary("MockRestartForChange is only added for test purposes.")
+
+	for _, t := range chg.Tasks() {
+		if t.Status() != state.WaitStatus {
+			continue
+		}
+		t.SetStatus(t.WaitedStatus())
+		t.Set("wait-for-system-restart-from-boot-id", nil)
+	}
+	chg.Set("wait-for-system-restart", nil)
+	chg.Set("restart-info", nil)
 }

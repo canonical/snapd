@@ -902,11 +902,15 @@ func FinishTaskWithRestart(t *state.Task, status state.Status, restartType resta
 	// If a task requests a reboot, then we make that task wait for the
 	// current reboot task. We must support multiple tasks waiting for this
 	// task.
-	snapsup, err := TaskSnapSetup(t)
-	if err != nil {
-		return fmt.Errorf("cannot get snap that requested a reboot: %v", err)
+	var snapName string
+	if restartType == restart.RestartSystem {
+		snapsup, err := TaskSnapSetup(t)
+		if err != nil {
+			return fmt.Errorf("cannot get snap that requested a reboot: %v", err)
+		}
+		snapName = snapsup.InstanceName()
 	}
-	return restart.RequestRestartForTask(t, snapsup.InstanceName(), status, restartType, rebootInfo)
+	return restart.RequestRestartForTask(t, snapName, status, restartType, rebootInfo)
 }
 
 // IsErrAndNotWait returns true if err is not nil and neither state.Wait, it is
