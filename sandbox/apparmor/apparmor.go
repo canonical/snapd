@@ -32,6 +32,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
@@ -400,11 +401,13 @@ func probeParserFeatures() ([]string, error) {
 func systemAppArmorLoadsSnapPolicy() bool {
 	// on older Ubuntu systems the system installed apparmor may try and
 	// load snapd generated apparmor policy (LP: #2024637)
-	f, err := os.Open("/lib/apparmor/functions")
+	f, err := os.Open(filepath.Join(dirs.GlobalRootDir, "/lib/apparmor/functions"))
 	if err != nil {
+		logger.Debugf("cannot open apparmor functions file: %v", err)
 		return false
 	}
 	defer f.Close()
+
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -412,6 +415,10 @@ func systemAppArmorLoadsSnapPolicy() bool {
 			return true
 		}
 	}
+	if scanner.Err() != nil {
+		logger.Debugf("cannot scan apparmor functions file: %v", scanner.Err())
+	}
+
 	return false
 }
 

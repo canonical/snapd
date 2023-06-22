@@ -101,6 +101,7 @@ var (
 	PreferredParserFeatures = preferredParserFeatures
 
 	SnapdAppArmorSupportsRexecImpl = snapdAppArmorSupportsReexecImpl
+	SystemAppArmorLoadsSnapPolicy  = systemAppArmorLoadsSnapPolicy
 )
 
 func FreshAppArmorAssessment() {
