@@ -4794,6 +4794,21 @@ volumes:
 	c.Assert(err.Error(), Equals, `invalid volume "frobinator-image": invalid structure #4 ("data"): invalid type "0FC63DAF-8483-4772-8E79-3D69D8477DE4": both MBR type and GUID structure type needs to be defined on partial schemas`)
 }
 
+func (s *gadgetYamlTestSuite) TestGadgetPartialSchemaButStillSet(c *C) {
+	var yaml = []byte(`
+volumes:
+  frobinator-image:
+    partial: [schema]
+    schema: gpt
+    bootloader: u-boot
+`)
+
+	// Not defining schema is fine
+	_, err := gadget.InfoFromGadgetYaml(yaml, nil)
+	c.Assert(err.Error(), Equals,
+		`invalid volume "frobinator-image": partial schema is set but schema is still specified as "gpt"`)
+}
+
 func (s *gadgetYamlTestSuite) TestGadgetPartialStructure(c *C) {
 	var yaml = []byte(`
 volumes:
