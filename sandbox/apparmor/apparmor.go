@@ -20,6 +20,7 @@
 package apparmor
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io/ioutil"
@@ -396,6 +397,24 @@ func probeParserFeatures() ([]string, error) {
 	return features, nil
 }
 
+func systemAppArmorLoadsSnapPolicy() bool {
+	// on older Ubuntu systems the system installed apparmor may try and
+	// load snapd generated apparmor policy (LP: #2024637)
+	f, err := os.Open("/lib/apparmor/functions")
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, dirs.SnapAppArmorDir) {
+			return true
+		}
+	}
+	return false
+}
+
 func snapdAppArmorSupportsReexecImpl() bool {
 	hostInfoDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
 	_, flags, err := snapdtool.SnapdVersionFromInfoFile(hostInfoDir)
@@ -413,7 +432,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	// - but only use the internal one when we know that the system
 	// installed snapd-apparmor support re-exec
 	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
-		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() {
+		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() && !systemAppArmorLoadsSnapPolicy() {
 			prefix := strings.TrimSuffix(path, "apparmor_parser")
 			// when using the internal apparmor_parser also use
 			// its own configuration and includes etc plus
