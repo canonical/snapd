@@ -1354,9 +1354,6 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHook(c *C) {
 	// Mark tasks as done.
 	ensureChange(c, r, sb, chg)
 
-	// Ensure that 'ensure' is run one more time
-	// to report exhaustion
-	r.Ensure()
 	// make sure that hook was called at the end of 'Ensure'
 	c.Check(hookCalls, Equals, 1)
 
@@ -1401,10 +1398,6 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHookResetsTracking(c *C) {
 	r.Ensure()
 	r.Wait()
 
-	// Ensure that 'ensure' is run one more time
-	// to report exhaustion
-	r.Ensure()
-
 	// Reset the foo handler to instead finish
 	r.AddHandler("foo", func(t *state.Task, tomb *tomb.Tomb) error {
 		return nil
@@ -1417,9 +1410,6 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHookResetsTracking(c *C) {
 
 	// Mark tasks as done.
 	ensureChange(c, r, sb, chg)
-
-	// Run again to ensure hook is called again
-	r.Ensure()
 	r.Stop()
 
 	st.Lock()
