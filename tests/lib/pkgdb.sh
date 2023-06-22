@@ -646,6 +646,7 @@ pkg_dependencies_ubuntu_classic(){
                 gcc-multilib
                 libc6-dev-i386
                 linux-libc-dev
+                lsof
                 net-tools
                 packagekit
                 sbuild
