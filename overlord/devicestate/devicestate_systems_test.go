@@ -1443,7 +1443,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.WaitStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
@@ -1492,6 +1492,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndRun(c, s.state, chg)
 
 	c.Assert(chg.Err(), IsNil)
 	c.Check(chg.IsReady(), Equals, true)
@@ -1618,7 +1621,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.WaitStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
@@ -1668,6 +1671,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndRun(c, s.state, chg)
 
 	c.Assert(chg.Err(), IsNil)
 	c.Check(chg.IsReady(), Equals, true)
@@ -1819,7 +1825,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.WaitStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	// validity check asserted snaps location
@@ -1870,6 +1876,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndRun(c, s.state, chg)
 
 	c.Assert(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.* provoking total undo.*")
 	c.Check(chg.IsReady(), Equals, true)
@@ -1930,7 +1939,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.WaitStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
@@ -1971,6 +1980,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndRun(c, s.state, chg)
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.* Finalize recovery system with label "1234" \(cannot promote recovery system "1234": system has not been successfully tried\)`)
 	c.Check(chg.IsReady(), Equals, true)
@@ -2113,7 +2125,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboo
 	// so far so good
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.WaitStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 2)

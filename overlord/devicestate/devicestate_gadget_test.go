@@ -391,6 +391,9 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 		c.Assert(chg.IsReady(), Equals, false)
 		c.Check(t.Status(), Equals, state.WaitStatus)
 	} else {
+		// simulate restart
+		s.mockRestartAndRun(c, s.state, chg)
+
 		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(t.Status(), Equals, state.DoneStatus)
 	}
@@ -786,6 +789,10 @@ volumes:
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate restart
+	s.mockRestartAndRun(c, s.state, chg)
+
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.restartRequests, HasLen, 1)
@@ -977,6 +984,10 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreHybridFirstboot(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate restart
+	s.mockRestartAndRun(c, s.state, chg)
+
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), IsNil)
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -1095,6 +1106,10 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernel(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate restart
+	s.mockRestartAndRun(c, s.state, chg)
+
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), IsNil)
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -1143,6 +1158,10 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate restart
+	s.mockRestartAndRun(c, s.state, chg)
+
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), IsNil)
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -1214,6 +1233,9 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 			c.Assert(chg.IsReady(), Equals, false)
 			c.Check(tsk.Status(), Equals, state.WaitStatus)
 		} else {
+			// simulate restart
+			s.mockRestartAndRun(c, s.state, chg)
+
 			c.Assert(chg.IsReady(), Equals, true)
 			c.Check(tsk.Status(), Equals, state.DoneStatus)
 		}
@@ -1231,10 +1253,10 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 				}
 			} else if opts.isClassic {
 				c.Assert(log, HasLen, 2)
-				c.Check(log[1], Matches, ".* Task set to wait until a manual system restart allows to continue")
+				c.Check(log[1], Matches, ".* System restart requested by snap .*")
 			} else {
 				c.Assert(log, HasLen, 2)
-				c.Check(log[1], Matches, ".* Requested system restart")
+				c.Check(log[1], Matches, ".* System restart requested by snap .*")
 			}
 		} else {
 			c.Check(log, HasLen, 0)
@@ -1794,17 +1816,30 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	restarting, rt := restart.Pending(s.state)
+	c.Check(restarting, Equals, true)
+	c.Check(rt, Equals, restart.RestartSystemNow)
+
+	// simulate restart for the 'do' path
+	s.mockRestartAndRun(c, s.state, chg)
+
+	restarting, rt = restart.Pending(s.state)
+	c.Check(restarting, Equals, true)
+	c.Check(rt, Equals, restart.RestartSystemNow)
+
+	// simulate restart for the 'undo' path
+	s.mockRestartAndRun(c, s.state, chg)
+
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.*total undo.*")
 	c.Check(tsk.Status(), Equals, state.UndoneStatus)
 	log := tsk.Log()
 	c.Assert(log, HasLen, 4)
 	c.Check(log[0], Matches, ".* Updated kernel command line")
-	c.Check(log[1], Matches, ".* Requested system restart")
+	c.Check(log[1], Matches, ".* System restart requested by snap \"pc\"")
 	c.Check(log[2], Matches, ".* Reverted kernel command line change")
-	c.Check(log[3], Matches, ".* Requested system restart")
+	c.Check(log[3], Matches, ".* System restart requested by snap \"pc\"")
 	// update was applied and then undone
-	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow, restart.RestartSystemNow})
 	c.Check(restartCount, Equals, 2)
 	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
 	c.Assert(err, IsNil)
@@ -1899,16 +1934,17 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineClassicWithModesUpdateUndo(c
 	defer s.state.Unlock()
 
 	// after manual reboot
-	c.Check(tsk.Status(), Equals, state.WaitStatus)
-	log := tsk.Log()
-	c.Assert(log, HasLen, 2)
-	c.Check(log[0], Matches, ".* Updated kernel command line")
-	c.Check(log[1], Matches, ".* Task set to wait until a manual system restart allows to continue")
+	c.Check(tsk.Status(), Equals, state.DoneStatus)
+	c.Check(terr.Status(), Equals, state.WaitStatus)
+	tLog := tsk.Log()
+	c.Assert(tLog, HasLen, 2)
+	c.Check(tLog[0], Matches, ".* Updated kernel command line")
+	c.Check(tLog[1], Matches, ".* System restart requested by snap .*")
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(restartCount, Equals, 0)
 
 	// simulate restart
-	tsk.SetStatus(state.DoneStatus)
+	s.mockRestartAndRun(c, s.state, chg)
 
 	s.state.Unlock()
 	defer s.state.Lock()
@@ -1922,10 +1958,11 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineClassicWithModesUpdateUndo(c
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.*total undo.*")
 	c.Check(tsk.Status(), Equals, state.UndoneStatus)
-	log = tsk.Log()
-	c.Assert(log, HasLen, 4)
-	c.Check(log[2], Matches, ".* Reverted kernel command line change")
-	c.Check(log[3], Matches, ".* Skipped automatic system restart on classic system when undoing changes back to previous state")
+	tLog = tsk.Log()
+	c.Assert(tLog, HasLen, 5)
+	c.Check(tLog[2], Matches, ".* Reverted kernel command line change")
+	c.Check(tLog[3], Matches, ".* System restart requested by snap .*")
+	c.Check(tLog[4], Matches, ".* Skipped automatic system restart on classic system when undoing changes back to previous state")
 	// update was applied and then undone, but no automatic restarts happened
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(restartCount, Equals, 0)

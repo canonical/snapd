@@ -25,7 +25,6 @@ package restart
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -427,7 +426,7 @@ func (rt *RestartInfo) Reboot(st *state.State) {
 		if err := notifyRebootRequiredClassic(rt.SnapName); err != nil {
 			logger.Noticef("cannot notify about pending reboot: %v", err)
 		}
-		logger.Debugf("Postponing restart until a manual system restart allows to continue")
+		logger.Noticef("Postponing restart until a manual system restart allows to continue")
 		return
 	}
 	Request(st, rt.RestartType, rt.RebootInfo)
@@ -512,6 +511,13 @@ func (rt *RestartInfo) doReboot(t *state.Task, status state.Status) error {
 			}
 		}
 	case state.UndoneStatus:
+		// XXX: This is logic kept from the previous restart logic. What is the reasoning here?
+		if release.OnClassic {
+			t.SetStatus(status)
+			t.Logf("Skipped automatic system restart on classic system when undoing changes back to previous state")
+			return nil
+		}
+
 		// Same goes for undoing, if there are no wait tasks, then
 		// put this into wait
 		if len(t.WaitTasks()) == 0 {
@@ -526,7 +532,14 @@ func (rt *RestartInfo) doReboot(t *state.Task, status state.Status) error {
 				rt.markTaskForRestart(wt, rt.SnapName, wt.Status())
 			}
 		}
-	case state.DoStatus, state.UndoStatus:
+	case state.UndoStatus:
+		if release.OnClassic {
+			t.SetStatus(status)
+			t.Logf("Skipped automatic system restart on classic system when undoing changes back to previous state")
+			return nil
+		}
+		fallthrough
+	case state.DoStatus:
 		rt.markTaskForRestart(t, rt.SnapName, status)
 		return &state.Wait{Reason: "Postponing reboot as long as there are tasks to run"}
 	}
@@ -580,7 +593,7 @@ func RequestRestartForTask(t *state.Task, snapName string, status state.Status, 
 	if snapName == "" {
 		snapName = "snapd"
 	}
-	t.Logf("reboot requested by snap %q", snapName)
+	t.Logf("System restart requested by snap %q", snapName)
 
 	rt, err := changeRestartInfo(t.Change())
 	if err != nil {
@@ -655,15 +668,14 @@ func RequestRestartForChange(chg *state.Change) error {
 		return nil
 	}
 
-	log.Printf("%s requesting reboot: %s", chg.Kind(), rt.SnapName)
-
 	rt.Reboot(chg.State())
 	chg.Set("restart-info", rt)
 	return nil
 }
 
 func checkRebootRequiredForChange(chg *state.Change) {
-	if chg.Status() != state.WaitStatus {
+	status := chg.Status()
+	if status != state.WaitStatus {
 		return
 	}
 	if err := RequestRestartForChange(chg); err != nil {

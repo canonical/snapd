@@ -208,6 +208,22 @@ func (r *TaskRunner) AddHook(hook HookFunc, evt HookEvent) {
 	r.hooks[evt] = append(r.hooks[evt], hook)
 }
 
+func (r *TaskRunner) checkExhaustion() {
+	for _, chg := range r.state.changes {
+		if chg.IsReady() || chg.Status() == WaitStatus {
+			// have we already reported exhaustion for that change?
+			if r.exhausted[chg.ID()] {
+				continue
+			}
+			r.exhausted[chg.ID()] = true
+
+			for _, h := range r.hooks[TaskExhaustion] {
+				h(chg)
+			}
+		}
+	}
+}
+
 // run must be called with the state lock in place
 func (r *TaskRunner) run(t *Task) {
 	var handler HandlerFunc
@@ -326,7 +342,7 @@ func (r *TaskRunner) run(t *Task) {
 				r.taskErrorCallback(err)
 			}
 		}
-
+		r.checkExhaustion()
 		return nil
 	})
 }
@@ -422,7 +438,6 @@ func (r *TaskRunner) Ensure() error {
 		}
 	}
 
-	readyChanges := make(map[string]bool)
 	ensureTime := timeNow()
 	nextTaskTime := time.Time{}
 ConsiderTasks:
@@ -499,35 +514,13 @@ ConsiderTasks:
 
 		running = append(running, t)
 
-		// Keep track of changes that have jobs ready to run.
-		chg := t.Change()
-		readyChanges[chg.ID()] = true
-
 		// If a change had jobs ready to run, reset its exhaustion status.
-		r.exhausted[chg.ID()] = false
+		r.exhausted[t.Change().ID()] = false
 	}
 
 	// schedule next Ensure no later than the next task time
 	if !nextTaskTime.IsZero() {
 		r.state.EnsureBefore(nextTaskTime.Sub(ensureTime))
-	}
-
-	// run hooks registered for task exhaustion for each change in
-	// the state.
-	for _, chg := range r.state.changes {
-		// if there are no running tasks for this change, report
-		// task exhaustion for that change.
-		if !readyChanges[chg.ID()] {
-			// have we already reported exhaustion for that change?
-			if r.exhausted[chg.ID()] {
-				continue
-			}
-			r.exhausted[chg.ID()] = true
-
-			for _, h := range r.hooks[TaskExhaustion] {
-				h(chg)
-			}
-		}
 	}
 	return nil
 }

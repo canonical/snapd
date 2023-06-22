@@ -110,6 +110,17 @@ type deviceMgrBaseSuite struct {
 	restoreProcessAutoImportAssertion func()
 }
 
+// mockRestartAndRun expects the state to be locked
+func (s *deviceMgrBaseSuite) mockRestartAndRun(c *C, st *state.State, chg *state.Change) {
+	restart.MockPending(st, restart.RestartUnset)
+	restart.MockRestartForChange(chg)
+
+	st.Unlock()
+	err := s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+}
+
 type deviceMgrSuite struct {
 	deviceMgrBaseSuite
 }

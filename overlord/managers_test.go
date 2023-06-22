@@ -511,6 +511,17 @@ func (s *baseMgrsSuite) makeSerialAssertionInState(c *C, st *state.State, brandI
 	return serial.(*asserts.Serial)
 }
 
+// mockRestartAndRun expects the state to be locked
+func (s *baseMgrsSuite) mockRestartAndRun(c *C, st *state.State, chg *state.Change) {
+	restart.MockPending(st, restart.RestartUnset)
+	restart.MockRestartForChange(chg)
+
+	st.Unlock()
+	err := s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+}
+
 // XXX: We have some very similar code in hookstate/ctlcmd/is_connected_test.go
 //
 //	should this be moved to overlord/snapstate/snapstatetest as a common
@@ -6442,13 +6453,7 @@ volumes:
 	c.Check(restarting, Equals, true)
 
 	// simulate successful restart happened
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockRestartForChange(chg)
-
-	st.Unlock()
-	err = s.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
+	s.mockRestartAndRun(c, st, chg)
 
 	// ensure tasks were run in the right order
 	tasks := chg.Tasks()
@@ -8113,13 +8118,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	c.Assert(kind, Equals, restart.RestartSystem)
 
 	// simulate successful reboot back
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockRestartForChange(chg)
-
-	st.Unlock()
-	err = s.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
+	s.mockRestartAndRun(c, st, chg)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -8148,13 +8147,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	})
 
 	// simulate successful reboot after finalizing recovery system
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockRestartForChange(chg)
-
-	st.Unlock()
-	err = s.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
+	s.mockRestartAndRun(c, st, chg)
 
 	c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("remodel change failed: %v", chg.Err()))
 
@@ -8313,13 +8306,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	c.Assert(kind, Equals, restart.RestartSystem)
 
 	// simulate successful reboot back
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockRestartForChange(chg)
-
-	st.Unlock()
-	err = s.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
+	s.mockRestartAndRun(c, st, chg)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -8348,13 +8335,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	})
 
 	// simulate successful reboot for the recovery to finalize
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockRestartForChange(chg)
-
-	st.Unlock()
-	err = s.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
+	s.mockRestartAndRun(c, st, chg)
 
 	c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("remodel change failed: %v", chg.Err()))
 
@@ -8764,14 +8745,8 @@ func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 	dumpTasks(c, "after gadget install", chg.Tasks())
 
 	// we've rebooted
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockRestartForChange(chg)
-
 	// next the gadget which updates the command line
-	st.Unlock()
-	err = s.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
+	s.mockRestartAndRun(c, st, chg)
 
 	// the gadget has updated the kernel command line
 	restarting, kind = restart.Pending(st)
@@ -11040,14 +11015,7 @@ volumes:
 	c.Assert(t, NotNil)
 	c.Assert(t.Status(), Equals, state.DoStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 	// simulate successful restart happened
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockRestartForChange(chg)
-
-	// settle again
-	st.Unlock()
-	err = ms.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
+	ms.mockRestartAndRun(c, st, chg)
 
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
@@ -11128,15 +11096,7 @@ volumes:
 
 	// update-gadget-assets has requested a reboot at this stage, pretend
 	// we restart
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockRestartForChange(chg)
-
-	// settle again
-	st.Unlock()
-	err = ms.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
-	c.Assert(chg.Err(), IsNil)
+	ms.mockRestartAndRun(c, st, chg)
 
 	// pretend we restarted
 	t := findKind(chg, "auto-connect")
@@ -11240,15 +11200,7 @@ volumes:
 	c.Assert(t.Status(), Equals, state.DoStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	// simulate successful restart happened after gadget update
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockRestartForChange(chg)
-
-	// settle again
-	st.Unlock()
-	err = ms.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
-	c.Assert(chg.Err(), IsNil)
+	ms.mockRestartAndRun(c, st, chg)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 
@@ -11373,16 +11325,9 @@ volumes:
 
 	// update-gadget-assets has requested a reboot at this stage, pretend
 	// we restart
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockRestartForChange(chg)
+	ms.mockRestartAndRun(c, st, chg)
 
-	// settle again
-	st.Unlock()
-	err = ms.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
-
-	// pretend we restarted
+	// pretend we restarted after 'link-snap'
 	ms.mockSuccessfulReboot(c, chg, ms.bloader, []snap.Type{snap.TypeKernel})
 
 	// settle again
@@ -11546,17 +11491,17 @@ volumes:
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	dumpTasks(c, "after initial run", chg.Tasks())
-	c.Assert(chg.Err(), ErrorMatches, `(?s).*\(gadget does not consume any of the kernel assets needing synced update "pidtbs"\)`)
+	// A restart request is made by 'unlink-current-snap', which needs to be handled
+	// here. This comment is added after changes to the restart system which now
+	// correctly marks changes for reboot and does not skip reboots in unit tests which
+	// the old restart code would. Only unit tests were affected as restart.Request() does
+	// not actually restart in unit tests, instead the task is marked Done/Undone and allows
+	// the change to continue executing, even though a restart was required. The new restart code
+	// works differently, and puts a change into WaitStatus instead, together with the task that asked, and
+	// these must be manually cleared by simulating a reboot.
+	ms.mockRestartAndRun(c, st, chg)
 
-	// undo unlink-current-snap triggers a reboot
-	ms.mockSuccessfulReboot(c, chg, ms.bloader, nil)
-	// let the change run until it is done
-	st.Unlock()
-	err = ms.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
-	// we already now it is considered as failed
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*\(gadget does not consume any of the kernel assets needing synced update "pidtbs"\)`)
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 
 	// but we can actually perform the full upgrade set if we first refresh
@@ -11635,6 +11580,16 @@ epoch: 1
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
+
+	// A restart request is made by 'copy-snap-data', which needs to be handled
+	// here. This comment is added after changes to the restart system which now
+	// correctly marks changes for reboot and does not skip reboots in unit tests which
+	// the old restart code would. Only unit tests were affected as restart.Request() does
+	// not actually restart in unit tests, instead the task is marked Done/Undone and allows
+	// the change to continue executing, even though a restart was required. The new restart code
+	// works differently, and puts a change into WaitStatus instead, together with the task that asked, and
+	// these must be manually cleared by simulating a reboot.
+	ms.mockRestartAndRun(c, st, chg)
 
 	// At this point the gadget and kernel are updated and the kernel
 	// required a restart. Check that *before* this restart the DTB
@@ -11999,19 +11954,10 @@ volumes:
 	//  gadget content is not updated because there is no edition update
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"), testutil.FileContains, "start.elf rev1")
 
-	// update-gadget-assets has requested a reboot at this stage, pretend
-	// we restart
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockRestartForChange(chg)
+	// A restart request is made by 'update-gadget-assets'
+	ms.mockRestartAndRun(c, st, chg)
 
-	// settle again
-	st.Unlock()
-	err = ms.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
-	c.Assert(chg.Err(), IsNil)
-
-	// pretend we restarted
+	// A restart request is made by 'link-snap'
 	ms.mockSuccessfulReboot(c, chg, ms.bloader, []snap.Type{snap.TypeKernel})
 
 	st.Unlock()
@@ -12019,16 +11965,8 @@ volumes:
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	// update-gadget-assets has requested a reboot at this stage, pretend
-	// we restart
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockRestartForChange(chg)
-
-	// settle again
-	st.Unlock()
-	err = ms.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
+	// A restart request is made by 'unlink-current-snap' (undo)
+	ms.mockRestartAndRun(c, st, chg)
 
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n- kernel failed.*`)
 

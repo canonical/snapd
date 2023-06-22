@@ -851,17 +851,19 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBase(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 	})
-	s.state.NewChange("sample", "...").AddTask(t)
+
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
 
 	s.state.Unlock()
 	s.se.Ensure()
 	s.se.Wait()
 	s.state.Lock()
 
-	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
 	c.Assert(t.Log(), HasLen, 1)
-	c.Check(t.Log()[0], Matches, `.*INFO Requested system restart.*`)
+	c.Check(t.Log()[0], Matches, `.*INFO System restart requested by snap "core18"`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *C) {
@@ -906,7 +908,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, HasLen, 0)
 	c.Assert(t.Log(), HasLen, 1)
-	c.Check(t.Log()[0], Matches, `.*INFO Task set to wait until a manual system restart allows to continue`)
+	c.Check(t.Log()[0], Matches, `.*INFO System restart requested by snap "kernel"`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmediate(c *C) {
@@ -943,10 +945,10 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmed
 	s.se.Wait()
 	s.state.Lock()
 
-	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	c.Assert(t.Log(), HasLen, 1)
-	c.Check(t.Log()[0], Matches, `.*INFO Requested system restart.*`)
+	c.Check(t.Log()[0], Matches, `.*INFO System restart requested by snap "core18"`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
@@ -1521,6 +1523,15 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCoreBase(c *C) {
 		s.se.Ensure()
 		s.se.Wait()
 	}
+	s.state.Lock()
+
+	// simulate a restart
+	restart.MockPending(s.state, restart.RestartUnset)
+	restart.MockRestartForChange(chg)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	var snapst snapstate.SnapState

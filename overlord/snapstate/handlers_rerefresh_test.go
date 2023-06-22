@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -42,6 +43,15 @@ type reRefreshSuite struct {
 }
 
 var _ = Suite(&reRefreshSuite{})
+
+func (s *reRefreshSuite) SetUpTest(c *C) {
+	s.baseHandlerSuite.SetUpTest(c)
+
+	s.state.Lock()
+	_, err := restart.Manager(s.state, s.runner, "boot-id-0", nil)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+}
 
 func logstr(task *state.Task) string {
 	return strings.Join(task.Log(), "\n")

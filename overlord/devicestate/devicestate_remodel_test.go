@@ -1597,6 +1597,10 @@ volumes:
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate restart
+	s.mockRestartAndRun(c, s.state, chg)
+
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), IsNil)
 	c.Check(gadgetUpdateCalled, Equals, true)

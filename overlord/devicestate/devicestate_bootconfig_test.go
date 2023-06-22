@@ -197,6 +197,9 @@ kernel-cmdline:
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	restarting, rt := restart.Pending(s.state)
+	s.mockRestartAndRun(c, s.state, chg)
+
 	c.Assert(chg.IsReady(), Equals, true)
 	if errMatch == "" {
 		c.Check(chg.Err(), IsNil)
@@ -212,9 +215,10 @@ kernel-cmdline:
 			log := tsk.Log()
 			c.Assert(log, HasLen, 2)
 			c.Check(log[0], Matches, ".* updated boot config assets")
-			c.Check(log[1], Matches, ".* Requested system restart")
+			c.Check(log[1], Matches, ".* System restart requested by snap .*")
 			// update was applied, thus a restart was requested
-			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+			c.Check(restarting, Equals, true)
+			c.Check(rt, Equals, restart.RestartSystemNow)
 		} else {
 			// update was not applied or failed
 			c.Check(s.restartRequests, HasLen, 0)
@@ -270,6 +274,7 @@ kernel-cmdline:
 		c.Check(chg.Err(), IsNil)
 		c.Check(tsk.Status(), Equals, state.WaitStatus)
 	} else {
+		s.mockRestartAndRun(c, s.state, chg)
 		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), ErrorMatches, errMatch)
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
@@ -281,7 +286,7 @@ kernel-cmdline:
 			log := tsk.Log()
 			c.Assert(log, HasLen, 2)
 			c.Check(log[0], Matches, ".* updated boot config assets")
-			c.Check(log[1], Matches, ".* Task set to wait until a manual system restart allows to continue")
+			c.Check(log[1], Matches, ".* System restart requested by snap .*")
 		}
 		// There must be no restart request
 		c.Check(s.restartRequests, HasLen, 0)
