@@ -517,17 +517,31 @@ func (s *apparmorSuite) TestSnapdAppArmorSupportsReexecImpl(c *C) {
 }
 
 func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicyErr(c *C) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+	fakeApparmorFunctionsPath := filepath.Join(fakeroot, "/lib/apparmor/functions")
+	err := os.MkdirAll(filepath.Dir(fakeApparmorFunctionsPath), 0750)
+	c.Assert(err, IsNil)
+
 	os.Setenv("SNAPD_DEBUG", "1")
 	defer os.Unsetenv("SNAPD_DEBUG")
 
 	log, restore := logger.MockLogger()
 	defer restore()
 
-	fakeroot := c.MkDir()
-	dirs.SetRootDir(fakeroot)
-
+	// no log output on missing file
 	c.Check(apparmor.SystemAppArmorLoadsSnapPolicy(), Equals, false)
-	c.Check(log.String(), Matches, `(?ms).* DEBUG: cannot open apparmor functions file: open .*/lib/apparmor/functions: no such file or directory`)
+	c.Check(log.String(), Equals, "")
+
+	// permissions are ignored as root
+	if os.Getuid() == 0 {
+		return
+	}
+	// log generated for errors
+	err = ioutil.WriteFile(fakeApparmorFunctionsPath, nil, 0100)
+	c.Assert(err, IsNil)
+	c.Check(apparmor.SystemAppArmorLoadsSnapPolicy(), Equals, false)
+	c.Check(log.String(), Matches, `(?ms).* DEBUG: cannot open apparmor functions file: open .*/lib/apparmor/functions: permission denied`)
 }
 
 func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicy(c *C) {

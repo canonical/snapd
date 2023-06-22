@@ -403,7 +403,9 @@ func systemAppArmorLoadsSnapPolicy() bool {
 	// load snapd generated apparmor policy (LP: #2024637)
 	f, err := os.Open(filepath.Join(dirs.GlobalRootDir, "/lib/apparmor/functions"))
 	if err != nil {
-		logger.Debugf("cannot open apparmor functions file: %v", err)
+		if !os.IsNotExist(err) {
+			logger.Debugf("cannot open apparmor functions file: %v", err)
+		}
 		return false
 	}
 	defer f.Close()
