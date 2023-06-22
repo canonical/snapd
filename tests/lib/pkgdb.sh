@@ -637,6 +637,7 @@ pkg_dependencies_ubuntu_classic(){
         debian-*)
             echo "
                 autopkgtest
+                bpftool
                 cryptsetup-bin
                 debootstrap
                 eatmydata
@@ -649,16 +650,9 @@ pkg_dependencies_ubuntu_classic(){
                 packagekit
                 sbuild
                 schroot
+                strace
+                systemd-timesyncd
                 "
-            ;;
-    esac
-    case "$SPREAD_SYSTEM" in
-        debian-11-*|debian-sid-*)
-            echo "
-                 bpftool
-                 strace
-                 systemd-timesyncd
-                 "
             ;;
     esac
 }
