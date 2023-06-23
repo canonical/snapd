@@ -78,6 +78,13 @@ func verifyUpdateTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskSe
 	c.Assert(te.Kind(), Equals, "validate-snap")
 }
 
+// mockRestartAndRun expects the state to be locked
+func (s *snapmgrTestSuite) mockRestartAndRun(c *C, chg *state.Change) {
+	restart.MockPending(s.state, restart.RestartUnset)
+	restart.MockRestartForChange(chg)
+	s.settle(c)
+}
+
 func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -8299,6 +8306,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 
+	s.mockRestartAndRun(c, chg)
+
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	// a single system restart was requested
 	c.Check(restartRequested, DeepEquals, []restart.RestartType{
@@ -8470,6 +8479,12 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHa
 
 	defer s.se.Stop()
 	s.settle(c)
+
+	// first 'auto-connect' restart here
+	s.mockRestartAndRun(c, chg)
+
+	// second 'auto-connect' restart here
+	s.mockRestartAndRun(c, chg)
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	// when updating both kernel that uses core as base, and "core" we have two reboots
@@ -8683,13 +8698,20 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 
+	// both snaps have requested a restart at 'auto-connect', handle this here
+	s.mockRestartAndRun(c, chg)
+
+	// both snaps have requested another restart along the undo path at 'unlink-current-snap'
+	// because reboots are post-poned until the change have no more tasks to run, and how the
+	// change is manipulated in this specific case, we only do one reboot along the undo-path as well now.
+	s.mockRestartAndRun(c, chg)
+
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*\(auto-connect-kernel mock error\)`)
 	c.Check(restartRequested, DeepEquals, []restart.RestartType{
 		// do path
 		restart.RestartSystem,
 		// undo
-		restart.RestartSystem,
 		restart.RestartSystem,
 	})
 	c.Check(errInjected, Equals, 1)
@@ -8812,6 +8834,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseAndSnapdOrder(c *C) {
 
 	defer s.se.Stop()
 	s.settle(c)
+
+	s.mockRestartAndRun(c, chg)
 
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.Status(), Equals, state.DoneStatus)

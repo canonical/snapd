@@ -116,9 +116,9 @@ func (s *deviceMgrBaseSuite) mockRestartAndRun(c *C, st *state.State, chg *state
 	restart.MockRestartForChange(chg)
 
 	st.Unlock()
+	defer st.Lock()
 	err := s.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 }
 
 type deviceMgrSuite struct {
