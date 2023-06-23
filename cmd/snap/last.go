@@ -33,7 +33,7 @@ type changeIDMixin struct {
 	LastChangeType string `long:"last"`
 	Positional     struct {
 		ID changeID `positional-arg-name:"<id>"`
-	} `positional-args:"yes"`
+	} `positional-args:"yes" required:"true"`
 }
 
 var changeIDMixinOptDesc = mixinDescs{
