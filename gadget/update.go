@@ -1280,10 +1280,6 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 	for volName, oldVol := range old.Info.Volumes {
 		newVol := new.Info.Volumes[volName]
 
-		if oldVol.Schema == "" || newVol.Schema == "" {
-			return fmt.Errorf("internal error: unset volume schemas: old: %q new: %q", oldVol.Schema, newVol.Schema)
-		}
-
 		// layout old partially, without going deep into the layout of structure
 		// content
 		pOld, err := LayoutVolumePartially(oldVol)
