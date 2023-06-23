@@ -295,6 +295,9 @@ func newFollowChangesSeqResponse(st *state.State) *followChangesSeqResponse {
 	}
 	st.AddTaskStatusChangedObserver(rsp.onTaskChanged)
 
+	// TODO: send existing changes that are in progress as json-seq
+	// as well (as described in the SD148 spec)
+
 	return rsp
 }
 
