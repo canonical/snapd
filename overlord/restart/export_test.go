@@ -19,6 +19,13 @@
 
 package restart
 
+import "github.com/snapcore/snapd/overlord/state"
+
 var (
+	ChangeRestartInfo       = changeRestartInfo
 	RequestRestartForChange = requestRestartForChange
 )
+
+func RestartInfoMarkTaskForRestart(rt *RestartInfo, task *state.Task, snapName string, status state.Status) {
+	rt.markTaskForRestart(task, snapName, status)
+}

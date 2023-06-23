@@ -359,10 +359,6 @@ type RestartInfo struct {
 	Requested      bool
 }
 
-func newRestartInfo() *RestartInfo {
-	return &RestartInfo{}
-}
-
 func (rt *RestartInfo) needsReboot() bool {
 	return len(rt.Waiters) > 0 && !rt.Requested
 }
@@ -513,10 +509,8 @@ func (rt *RestartInfo) doReboot(t *state.Task, status state.Status) error {
 // restart to occur. The task will then be restored to the provided status
 // after the reboot, and then re-run.
 func TaskWaitForRestart(t *state.Task) error {
-	// If a task requests a reboot, then we make that task wait for the
-	// current reboot task. We must support multiple tasks waiting for this
-	// task.
-	rt, err := changeRestartInfo(t.Change())
+	chg := t.Change()
+	rt, err := changeRestartInfo(chg)
 	if err != nil {
 		return err
 	}
@@ -524,15 +518,25 @@ func TaskWaitForRestart(t *state.Task) error {
 		return nil
 	}
 
-	t.Logf("task %q pending reboot", t.Kind())
-
-	switch t.Status() {
+	// We catch them in Undoing/Doing and restore them to
+	// Do/Undo so they are re-run as we cannot save progress mid-task.
+	status := t.Status()
+	switch status {
 	case state.UndoingStatus:
-		return rt.doUndoReboot(t, state.UndoStatus)
+		err = rt.doUndoReboot(t, state.UndoStatus)
 	case state.DoingStatus:
-		return rt.doReboot(t, state.DoStatus)
+		err = rt.doReboot(t, state.DoStatus)
+	default:
+		return fmt.Errorf("only tasks currently in progress (doing/undoing) are supported")
 	}
-	return nil
+
+	if !release.OnClassic || status != state.UndoingStatus {
+		t.Logf("Task %q is pending reboot to continue", t.Kind())
+	}
+
+	// Store updated copy of restart-info.
+	chg.Set("restart-info", rt)
+	return err
 }
 
 // RequestRestartForTask either schedules a restart for the given task or it
@@ -591,7 +595,7 @@ func RequestRestartForTask(t *state.Task, snapName string, status state.Status, 
 		// goes into 'Undo'. This is not necessary when undoing
 		// as we cannot go from undo => do.
 		err = rt.doReboot(t, state.DoneStatus)
-		if err != nil {
+		if err == nil {
 			rt.RestoreWaiters = true
 		}
 	}
@@ -604,12 +608,12 @@ func RequestRestartForTask(t *state.Task, snapName string, status state.Status, 
 func changeRestartInfo(chg *state.Change) (*RestartInfo, error) {
 	var rt RestartInfo
 	if chg == nil {
-		return nil, fmt.Errorf("no change for task")
+		return nil, fmt.Errorf("task is not bound to any change")
 	}
 
 	if err := chg.Get("restart-info", &rt); err != nil {
 		if errors.Is(err, &state.NoStateError{}) {
-			rt := newRestartInfo()
+			rt := &RestartInfo{}
 			chg.Set("restart-info", rt)
 			return rt, nil
 		}
@@ -622,7 +626,7 @@ func requestRestartForChange(chg *state.Change) error {
 	var rt RestartInfo
 	if err := chg.Get("restart-info", &rt); err != nil {
 		if errors.Is(err, &state.NoStateError{}) {
-			return fmt.Errorf("change %s needs a reboot to continue but has no info set", chg.ID())
+			return fmt.Errorf("change %s is waiting to continue but has not requested any reboots", chg.ID())
 		}
 		return err
 	}
@@ -635,9 +639,9 @@ func requestRestartForChange(chg *state.Change) error {
 	return nil
 }
 
+// checkRebootRequiredForChange callback registered for the taskrunner exhaustion hook
 func checkRebootRequiredForChange(chg *state.Change) {
-	status := chg.Status()
-	if status != state.WaitStatus {
+	if chg.Status() != state.WaitStatus {
 		return
 	}
 	if err := requestRestartForChange(chg); err != nil {
