@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -1063,7 +1062,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 			},
 		},
 	}
-	gadgettest.SetEnclosingVolumeInStructs(sd.Volumes)
+	gadget.SetEnclosingVolumeInStructs(sd.Volumes)
 	c.Assert(sys, check.DeepEquals, sd)
 }
 

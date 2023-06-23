@@ -259,6 +259,16 @@ type VolumeStructure struct {
 	EnclosingVolume *Volume `yaml:"-" json:"-"`
 }
 
+// SetEnclosingVolumeInStructs is a helper that sets the pointer to
+// the Volume in all VolumeStructure objects it contains.
+func SetEnclosingVolumeInStructs(vv map[string]*Volume) {
+	for _, v := range vv {
+		for sidx := range v.Structure {
+			v.Structure[sidx].EnclosingVolume = v
+		}
+	}
+}
+
 // IsRoleMBR tells us if v has MBR role or not.
 func (v *VolumeStructure) IsRoleMBR() bool {
 	return v.Role == schemaMBR

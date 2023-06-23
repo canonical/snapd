@@ -701,8 +701,8 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 	makeSizedFile(c, filepath.Join(newRootDir, "/second-content/foo"), quantity.SizeKiB, nil)
 	makeSizedFile(c, filepath.Join(newRootDir, "/third-content/bar"), quantity.SizeKiB, nil)
 	newData = gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
-	gadgettest.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
-	gadgettest.SetEnclosingVolumeInStructs(newData.Info.Volumes)
+	gadget.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
+	gadget.SetEnclosingVolumeInStructs(newData.Info.Volumes)
 
 	rollbackDir = c.MkDir()
 	return oldData, newData, rollbackDir
@@ -2812,11 +2812,11 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 
 	newRootDir := c.MkDir()
 	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
-	gadgettest.SetEnclosingVolumeInStructs(newData.Info.Volumes)
+	gadget.SetEnclosingVolumeInStructs(newData.Info.Volumes)
 
 	oldRootDir := c.MkDir()
 	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
-	gadgettest.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
+	gadget.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
 
 	rollbackDir := c.MkDir()
 
@@ -2870,11 +2870,11 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 
 	newRootDir := c.MkDir()
 	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
-	gadgettest.SetEnclosingVolumeInStructs(newData.Info.Volumes)
+	gadget.SetEnclosingVolumeInStructs(newData.Info.Volumes)
 
 	oldRootDir := c.MkDir()
 	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
-	gadgettest.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
+	gadget.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
 
 	rollbackDir := c.MkDir()
 
@@ -2926,11 +2926,11 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 
 	newRootDir := c.MkDir()
 	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
-	gadgettest.SetEnclosingVolumeInStructs(newData.Info.Volumes)
+	gadget.SetEnclosingVolumeInStructs(newData.Info.Volumes)
 
 	oldRootDir := c.MkDir()
 	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
-	gadgettest.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
+	gadget.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
 
 	rollbackDir := c.MkDir()
 
@@ -3006,14 +3006,14 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 	oldRootDir := c.MkDir()
 	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
-	gadgettest.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
+	gadget.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
 
 	newRootDir := c.MkDir()
 	// same volume description
 	newData := gadget.GadgetData{Info: oldInfo, RootDir: newRootDir}
 	// different content, but updates are opt in
 	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*quantity.SizeKiB, nil)
-	gadgettest.SetEnclosingVolumeInStructs(newData.Info.Volumes)
+	gadget.SetEnclosingVolumeInStructs(newData.Info.Volumes)
 
 	rollbackDir := c.MkDir()
 
@@ -3086,7 +3086,7 @@ func (u *updateTestSuite) policyDataSet(c *C) (oldData gadget.GadgetData, newDat
 	oldVol.Structure = append(oldVol.Structure, oldStructs...)
 	oldVol.Structure = append(oldVol.Structure, noPartitionStruct)
 	oldData.Info.Volumes["foo"] = oldVol
-	gadgettest.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
+	gadget.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
 
 	newVol := newData.Info.Volumes["foo"]
 	newStructs := newVol.Structure
@@ -3094,7 +3094,7 @@ func (u *updateTestSuite) policyDataSet(c *C) (oldData gadget.GadgetData, newDat
 	newVol.Structure = append(newVol.Structure, newStructs...)
 	newVol.Structure = append(newVol.Structure, noPartitionStruct)
 	newData.Info.Volumes["foo"] = newVol
-	gadgettest.SetEnclosingVolumeInStructs(newData.Info.Volumes)
+	gadget.SetEnclosingVolumeInStructs(newData.Info.Volumes)
 
 	c.Assert(oldData.Info.Volumes["foo"].Structure, HasLen, 5)
 	c.Assert(newData.Info.Volumes["foo"].Structure, HasLen, 5)
