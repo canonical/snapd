@@ -238,6 +238,9 @@ execute: |
     echo "Ensure sandbox-features shows the internal apparmor_parser"
     snap debug sandbox-features --required apparmor:parser:snapd-internal
 
+    echo "Ensure snap-confine apparmor profile points to snap-confine.internal"
+    MATCH '#include "/var/lib/snapd/apparmor/snap-confine.internal"' < /etc/apparmor.d/usr.lib.snapd.snap-confine.real
+
     echo "Ensure we support posix mqueue and userns in the internal apparmor_parser"
     snap debug sandbox-features --required apparmor:parser:mqueue
     snap debug sandbox-features --required apparmor:parser:userns
