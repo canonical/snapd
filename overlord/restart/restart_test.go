@@ -68,7 +68,7 @@ func (h *testHandler) RebootDidNotHappen(*state.State) error {
 
 func newRestartManager(c *C, st *state.State, bootID string, h restart.Handler) *restart.RestartManager {
 	o := overlord.Mock()
-	mgr, err := restart.Manager(st, o.TaskRunner(), "boot-id-1", h)
+	mgr, err := restart.Manager(st, o.TaskRunner(), bootID, h)
 	c.Assert(err, IsNil)
 	return mgr
 }
@@ -333,16 +333,14 @@ func (s *restartSuite) TestStartUpWaitTasks(c *C) {
 	t2 := st.NewTask("wait-for-reboot", "...")
 	chg.AddTask(t2)
 	err := restart.RequestRestartForTask(t2, "some-snap", state.DoneStatus, restart.RestartSystem, nil)
-	c.Assert(err, FitsTypeOf, &state.Wait{WaitedStatus: state.DoneStatus})
-	t2.SetToWait(state.DoneStatus)
+	c.Assert(err, IsNil)
 
 	restart.ReplaceBootID(st, "boot-id-2")
 
 	t3 := st.NewTask("wait-for-reboot-same-boot", "...")
 	chg.AddTask(t3)
 	err = restart.RequestRestartForTask(t3, "some-snap", state.DoneStatus, restart.RestartSystem, nil)
-	c.Assert(err, FitsTypeOf, &state.Wait{WaitedStatus: state.DoneStatus})
-	t3.SetToWait(state.DoneStatus)
+	c.Assert(err, IsNil)
 
 	t4 := st.NewTask("do-after-wait", "...")
 	t4.SetToWait(state.DoStatus)
