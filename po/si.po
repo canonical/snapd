@@ -1,0 +1,307 @@
+# Sinhalese translation for snapd
+# Copyright (c) 2022 Rosetta Contributors and Canonical Ltd 2022
+# This file is distributed under the same license as the snapd package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2022.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: snapd\n"
+"Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
+"POT-Creation-Date: 2023-06-22 15:44+0300\n"
+"PO-Revision-Date: 2022-08-22 16:38+0000\n"
+"Last-Translator: HelaBasa Group (shared) <Unknown>\n"
+"Language-Team: Sinhalese <si@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Launchpad-Export-Date: 2023-06-23 06:40+0000\n"
+"X-Generator: Launchpad (build 1a64fbf0a633b6c807613475aecca0f26ff240b3)\n"
+
+#: store/store_download.go:707
+#, c-format
+msgid "%s (delta)"
+msgstr "%s (ඩෙල්ටා)"
+
+#. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
+#: cmd/snap/error.go:209
+#, c-format
+msgid "%s (try with sudo)"
+msgstr "%s (sudo සමඟ බලන්න)"
+
+#: cmd/snap/cmd_snap_op.go:625
+#, c-format
+msgid "%s already installed\n"
+msgstr "%s දැනටමත් ස්ථාපිතයි\n"
+
+#: cmd/snap/cmd_snap_op.go:1134
+#, c-format
+msgid "%s disabled\n"
+msgstr "%s අබලයි\n"
+
+#: cmd/snap/cmd_snap_op.go:1107
+#, c-format
+msgid "%s enabled\n"
+msgstr "%s සබලයි\n"
+
+#: cmd/snap/cmd_snap_op.go:204
+#, c-format
+msgid "%s not installed\n"
+msgstr "%s ස්ථාපනය කර නැත\n"
+
+#: cmd/snap/cmd_snap_op.go:158 cmd/snap/cmd_snap_op.go:197
+#, c-format
+msgid "%s removed\n"
+msgstr "%s ඉවත් කෙරිණි\n"
+
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
+#: cmd/snap/cmd_snap_op.go:388
+#, c-format
+msgid "%s%s %s installed\n"
+msgstr "%s%s %s ස්ථාපිතයි\n"
+
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
+#: cmd/snap/cmd_snap_op.go:396
+#, c-format
+msgid "%s%s %s refreshed\n"
+msgstr "%s%s %s නැවුම් විය\n"
+
+#: cmd/snap/cmd_run.go:233
+msgid "-r can only be used with --hook"
+msgstr "--hook සමඟ පමණක් -r භාවිතා කළ හැකිය"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_unalias.go:47
+msgid "<alias-or-snap>"
+msgstr "<අපනාමය-හෝ-ස්නැප්>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_alias.go:58
+msgid "<alias>"
+msgstr "<අපනාමය>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_set.go:74
+msgid "<conf value>"
+msgstr "<වින්‍යාස අගය>"
+
+#. TRANSLATORS: This is a noun, and it needs to begin with < and end with >
+#. TRANSLATORS: This is a noun and it needs to begin with < and end with >
+#: cmd/snap/cmd_login.go:62 cmd/snap/cmd_create_user.go:65
+msgid "<email>"
+msgstr "<වි-තැපෑල>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This should retain < ... >. The file name is the name of an exported snapshot.
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_sign.go:60 cmd/snap/cmd_snapshot.go:415
+#: cmd/snap/cmd_sign_build.go:71
+msgid "<filename>"
+msgstr "<ගොනුනාමය>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_interface.go:62
+msgid "<interface>"
+msgstr "<අ.මුහුණත>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_delete_key.go:49 cmd/snap/cmd_export_key.go:53
+#: cmd/snap/cmd_create_key.go:49
+msgid "<key-name>"
+msgstr "<යතුරේ-නම>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_get.go:82 cmd/snap/cmd_wait.go:55
+msgid "<key>"
+msgstr "<යතුර>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_find.go:175
+msgid "<query>"
+msgstr "<විමසුම>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_services.go:82
+msgid "<service>"
+msgstr "<සේවාව>"
+
+#. TRANSLATORS: this is used to introduce a list of aliases that were added
+#: cmd/snap/cmd_alias.go:102
+msgid "Added"
+msgstr "එක් කෙරිණි"
+
+#: cmd/snap/cmd_snap_op.go:724 cmd/snap/cmd_snap_op.go:814
+msgid "All snaps up to date."
+msgstr "සියළු ස්නැප් යාවත්කාලීනයි."
+
+#: usersession/userd/launcher.go:287
+msgid "Allow opening file?"
+msgstr "ගොනුව ඇරීමට ඉඩදෙන්නද?"
+
+#: usersession/userd/settings.go:211
+msgid "Allow settings change?"
+msgstr "සැකසුම් සංශෝධනයට ඉඩදෙන්නද?"
+
+#: data/polkit/io.snapcraft.snapd.policy:32
+msgid "Authentication is required to connect or disconnect interfaces"
+msgstr "අ.මුහුණත් සම්බන්ධයට හෝ විසන්ධියට සත්‍යාපනය කිරීම අවශ්‍යයි"
+
+#: data/polkit/io.snapcraft.snapd.policy:22
+msgid "Authentication is required to install, update, or remove packages"
+msgstr "ඇසුරුම් ස්ථාපනය, යාවත්කාලය හෝ ඉවත් කිරීමට සත්‍යාපනය අවශ්‍යයි"
+
+#: data/polkit/io.snapcraft.snapd.policy:31
+msgid "Connect, disconnect interfaces"
+msgstr "අ.මුහුණත් සම්බන්ධය, විසන්ධිය"
+
+#: overlord/snapstate/snapstate.go:548
+#, c-format
+msgid "Copy snap %q data"
+msgstr "ස්නැප් %q දත්ත පිටපත් වීම"
+
+#: daemon/api_snaps.go:519
+#, c-format
+msgid "Disable %q snap"
+msgstr "ස්නැප් %q අබල කරන්න"
+
+#: overlord/snapstate/aliasesv2.go:614
+#, c-format
+msgid "Disable aliases for snap %q"
+msgstr "ස්නැප් %q සඳහා අපනාම අබල කරන්න"
+
+#: daemon/api_aliases.go:112
+#, c-format
+msgid "Disable all aliases for snap %q"
+msgstr "ස්නැප් %q සඳහා සියළු අපනාම අබල කරන්න"
+
+#: daemon/api_snaps.go:506
+#, c-format
+msgid "Enable %q snap"
+msgstr "ස්නැප් %q සබල කරන්න"
+
+#: cmd/snap/cmd_download.go:127
+#, c-format
+msgid "Fetching snap %q\n"
+msgstr "ස්නැප් %q ලබා ගැනෙමින්\n"
+
+#: overlord/devicestate/devicemgr.go:693
+msgid "Generate device key"
+msgstr "උපාංගයේ යතුර උත්පාදනය"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_interface.go:59
+msgid "Include unused interfaces"
+msgstr "භාවිතා නොකළ අ.මුහුණත් ඇතුළත්ව"
+
+#: daemon/api_snaps.go:422
+#, c-format
+msgid "Install %q snap"
+msgstr "ස්නැප් %q ස්ථාපනය"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:251
+msgid "Install from the beta channel"
+msgstr "බීටා නාලිකාවෙන් ස්ථාපනය"
+
+#: daemon/api_themes.go:237 daemon/api_snaps.go:715
+#, c-format
+msgid "Install snap %q"
+msgstr "ස්නැප් %q ස්ථාපනය"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: daemon/api_themes.go:240 daemon/api_snaps.go:719
+#, c-format
+msgid "Install snaps %s"
+msgstr "ස්නැප් %s ස්ථාපනය"
+
+#: data/polkit/io.snapcraft.snapd.policy:21
+msgid "Install, update, or remove packages"
+msgstr "ඇසුරුම් ස්ථාපනය, යාවත්කාලය හෝ ඉවත් කිරීම"
+
+#: cmd/snap/cmd_login.go:132
+msgid "Login successful"
+msgstr "පිවිසුම සාර්ථකයි"
+
+#: cmd/snap/cmd_disconnect.go:90
+msgid "No connections to disconnect"
+msgstr "විසන්ධි කිරීමට සම්බන්ධතා නැත"
+
+#. TRANSLATORS: the %q is the (quoted) query the user entered
+#: cmd/snap/cmd_find.go:248
+#, c-format
+msgid "No matching snaps for %q\n"
+msgstr "%q සඳහා ගැළපෙන ස්නැප් නැත\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_create_user.go:56 cmd/snap/cmd_keys.go:47
+msgid "Output results in JSON format"
+msgstr "JSON ආකෘතියෙන් ප්‍රතිදාන ප්‍රතිඵල"
+
+#: cmd/snap/main.go:327
+msgid "Print the version and exit"
+msgstr "අනුවාදය පෙන්වා පිටවන්න"
+
+#: overlord/hookstate/ctlcmd/services.go:88 cmd/snap/cmd_services.go:143
+msgid "enabled"
+msgstr "සබලයි"
+
+#: cmd/snap/error.go:42
+#, c-format
+msgid "error: %v\n"
+msgstr "දෝෂය: %v\n"
+
+#: cmd/snap/cmd_changes.go:110 cmd/snap/last.go:97
+msgid "no changes found"
+msgstr "වෙනස්කම් හමු නොවිණි"
+
+#: cmd/snap/cmd_interfaces.go:93 cmd/snap/cmd_interface.go:99
+msgid "no interfaces found"
+msgstr "අතුරුමුහුණතක් හමු නොවිණි"
+
+#: cmd/snap/cmd_interface.go:86
+msgid "no such interface"
+msgstr "එවැනි අතුරුමුහුණතක් නැත"
+
+#. TRANSLATORS: if possible, a single short word
+#: cmd/snap/notes.go:148
+msgid "private"
+msgstr "පෞද්ගලික"
+
+#: cmd/snap/error.go:215
+#, c-format
+msgid "snap %q has no updates available"
+msgstr "ස්නැප් %q සඳහා යාවත්කාල නැත"
+
+#: cmd/snap/error.go:124
+#, c-format
+msgid "snap %q not found"
+msgstr "ස්නැප් %q හමු නොවිණි"
+
+#. TRANSLATORS: free as in gratis
+#: cmd/snap/cmd_find.go:56
+msgid "snap is free"
+msgstr "ස්නැප් නොමිලේ"
+
+#: cmd/snap/error.go:228
+msgid "unable to contact snap store"
+msgstr "ස්නැප් ස්ටෝර් වෙත සබැඳුමට නොහැකිය"
+
+#: cmd/snap/cmd_version_other.go:36 cmd/snap/cmd_version_linux.go:35
+#: cmd/snap/cmd_version_linux.go:46
+msgid "unavailable"
+msgstr "නොතිබේ"
+
+#: overlord/hookstate/ctlcmd/helpers.go:73
+#: overlord/hookstate/ctlcmd/helpers.go:78
+#, c-format
+msgid "unknown service: %q"
+msgstr "නොදන්නා සේවාවකි: %q"
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "years" in e.g. 1y45d
+#: strutil/quantity/quantity.go:111
+msgid "y"
+msgstr "y"

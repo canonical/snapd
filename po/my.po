@@ -1,0 +1,79 @@
+# Burmese translation for snapd
+# Copyright (c) 2021 Rosetta Contributors and Canonical Ltd 2021
+# This file is distributed under the same license as the snapd package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: snapd\n"
+"Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
+"POT-Creation-Date: 2023-06-22 15:44+0300\n"
+"PO-Revision-Date: 2021-09-21 13:18+0000\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: Burmese <my@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Launchpad-Export-Date: 2023-06-23 06:40+0000\n"
+"X-Generator: Launchpad (build 1a64fbf0a633b6c807613475aecca0f26ff240b3)\n"
+
+#. TRANSLATORS: the first %s is a snap command (e.g. "hello-world.echo"), the second is the alias
+#: cmd/snap/cmd_alias.go:116
+#, c-format
+msgid "\t- %s as %s\n"
+msgstr "\t- %s ကို %s အဖြစ်\n"
+
+#: cmd/snap/cmd_snapshot.go:105
+msgid ""
+"\n"
+"Export a snapshot to the given filename.\n"
+msgstr ""
+"\n"
+"စနပ်ရှော့ကို ပေးထားသောဖိုင်လ်အမည်သုံး၍ တင်ပို့မည်။\n"
+
+#: cmd/snap/cmd_snapshot.go:109
+msgid ""
+"\n"
+"Import an exported snapshot set to the system. The snapshot is imported\n"
+"with a new snapshot ID and can be restored using the restore command.\n"
+msgstr ""
+"\n"
+"တင်ပို့ထားသော စနပ်ရှော့ကို စစ်စတမ်ကို တင်သွင်းမည်။ စနပ်ရှော့ကို အိုင်ဒီအသစ်နှင့်\n"
+"တင်သွင်းပြီးပြီ။ ၎င်းကို restore command သုံး၍ ပြန်ထားသိုနိုင်သည်။\n"
+
+#: cmd/snap/cmd_find.go:272
+msgid ""
+"\n"
+"Provide a search term for more specific results.\n"
+msgstr ""
+"\n"
+"ရှာဖွေမှုရလဒ်များတိကျစေရန် ပိုသေချာသော ရှာဖွေမှုစာလုံး ပေးပါ။\n"
+
+#: cmd/snap/cmd_abort.go:32
+msgid ""
+"\n"
+"The abort command attempts to abort a change that still has pending tasks.\n"
+msgstr ""
+"\n"
+"abort commandသည် လုပ်ဆောင်ရန်ကျန်သေးသော ပြောင်းလဲမှုကို ဖျက်ချရန် ကြံနေသည်။\n"
+
+#: cmd/snap/cmd_ack.go:40
+msgid ""
+"\n"
+"The ack command tries to add an assertion to the system assertion database.\n"
+"\n"
+"The assertion may also be a newer revision of a pre-existing assertion that "
+"it\n"
+"will replace.\n"
+"\n"
+"To succeed the assertion must be valid, its signature verified with a known\n"
+"public key and the assertion consistent with and its prerequisite in the\n"
+"database.\n"
+msgstr ""
+"\n"
+"ack commandသည် စစ်စတမ်အစရှင်းဒေတာဘေ့စ်သို့ အစရှင်းတစ်ခုထည့်ရန် ကြိုးစားနေသည်။\n"
+"\n"
+"အစရှင်းသည် ရှိနှင့်ပြီးဖြစ်သော အစရှင်းကို အစားထိုးမည့် ဗားရှင်းအသစ်ဖြစ်နိုင်သည်။\n"
+"\n"
+"အောင်မြင်ရန်အတွက် အစရှင်းသည် မှန်ကန်ရမည်ဖြစ်သည်။\n"

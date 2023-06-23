@@ -1,0 +1,111 @@
+# Kabyle translation for snapd
+# Copyright (c) 2020 Rosetta Contributors and Canonical Ltd 2020
+# This file is distributed under the same license as the snapd package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2020.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: snapd\n"
+"Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
+"POT-Creation-Date: 2023-06-22 15:44+0300\n"
+"PO-Revision-Date: 2020-01-28 17:26+0000\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: Kabyle <kab@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Launchpad-Export-Date: 2023-06-23 06:40+0000\n"
+"X-Generator: Launchpad (build 1a64fbf0a633b6c807613475aecca0f26ff240b3)\n"
+
+#: cmd/snap/cmd_help.go:232
+msgid "Account"
+msgstr "Amiḍan"
+
+#. TRANSLATORS: this is used to introduce a list of aliases that were added
+#: cmd/snap/cmd_alias.go:102
+msgid "Added"
+msgstr "Iţwarna"
+
+#: cmd/snap/cmd_help.go:224
+msgid "Configuration"
+msgstr "Tawila"
+
+#: cmd/snap/cmd_help.go:261
+msgid "Development"
+msgstr "Taneflit"
+
+#: cmd/snap/cmd_help.go:212
+msgid "History"
+msgstr "Amazray"
+
+#. TRANSLATORS: 'Notes' as in 'Comments'
+#: cmd/snap/cmd_snapshot.go:156
+msgid "Notes"
+msgstr "Tamawt"
+
+#: cmd/snap/cmd_help.go:220
+msgid "Permissions"
+msgstr "Tisirag"
+
+#. TRANSLATORS: 'Set' as in group or bag of things
+#: cmd/snap/cmd_snapshot.go:147
+msgid "Set"
+msgstr "Sbadu"
+
+#: cmd/snap/cmd_snapshot.go:154
+msgid "Size"
+msgstr "Teɣzi"
+
+#: cmd/snap/cmd_snapshot.go:151
+msgid "Version"
+msgstr "Lqem"
+
+#: overlord/hookstate/ctlcmd/services.go:94 cmd/snap/cmd_services.go:149
+msgid "active"
+msgstr "urmid"
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "days" in e.g. 1d20h
+#: strutil/quantity/quantity.go:109
+msgid "d"
+msgstr "d"
+
+#. TRANSLATORS: if possible, a single short word
+#: overlord/hookstate/ctlcmd/services.go:86 cmd/snap/cmd_services.go:141
+#: cmd/snap/notes.go:127
+msgid "disabled"
+msgstr "ittwasens"
+
+#: overlord/hookstate/ctlcmd/services.go:88 cmd/snap/cmd_services.go:143
+msgid "enabled"
+msgstr "irmed"
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "hours" in e.g. 1h30m
+#: strutil/quantity/quantity.go:107
+msgid "h"
+msgstr "s"
+
+#: overlord/hookstate/ctlcmd/services.go:90 cmd/snap/cmd_services.go:145
+msgid "inactive"
+msgstr "arurmid"
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "minutes" in e.g. 1m30s
+#: strutil/quantity/quantity.go:105
+msgid "m"
+msgstr "m"
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "seconds" in e.g. 1m30s
+#. (I fully expect this to always be "s", given it's a SI unit)
+#: strutil/quantity/quantity.go:103
+msgid "s"
+msgstr "s"
+
+#: cmd/snap/cmd_version_other.go:36 cmd/snap/cmd_version_linux.go:35
+#: cmd/snap/cmd_version_linux.go:46
+msgid "unavailable"
+msgstr "ulac"
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "years" in e.g. 1y45d
+#: strutil/quantity/quantity.go:111
+msgid "y"
+msgstr "y"

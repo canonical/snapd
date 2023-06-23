@@ -1,4 +1,4 @@
-# Bengali translation for snapd
+# Kurdish translation for snapd
 # Copyright (c) 2019 Rosetta Contributors and Canonical Ltd 2019
 # This file is distributed under the same license as the snapd package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
@@ -8,9 +8,9 @@ msgstr ""
 "Project-Id-Version: snapd\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
 "POT-Creation-Date: 2023-06-22 15:44+0300\n"
-"PO-Revision-Date: 2019-01-07 16:37+0000\n"
+"PO-Revision-Date: 2019-12-11 09:46+0000\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: Bengali <bn@li.org>\n"
+"Language-Team: Kurdish <ku@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -18,13 +18,7 @@ msgstr ""
 "X-Launchpad-Export-Date: 2023-06-23 06:40+0000\n"
 "X-Generator: Launchpad (build 1a64fbf0a633b6c807613475aecca0f26ff240b3)\n"
 
-#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
-#: cmd/snap/cmd_snap_op.go:388
+#: cmd/snap/cmd_snap_op.go:156
 #, c-format
-msgid "%s%s %s installed\n"
-msgstr "%s%s %s ইন্সটল করা হয়েছে\n"
-
-#. TRANSLATORS: this is used to introduce a list of aliases that were added
-#: cmd/snap/cmd_alias.go:102
-msgid "Added"
-msgstr "যোগ করা হয়েছে"
+msgid "%s (revision %s) removed\n"
+msgstr "%s (revîzyon%s) cihê\n"

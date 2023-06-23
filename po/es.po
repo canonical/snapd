@@ -7,1359 +7,44 @@ msgid ""
 msgstr ""
 "Project-Id-Version: snapd\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
-"POT-Creation-Date: 2018-04-03 12:06+0200\n"
-"PO-Revision-Date: 2018-09-27 14:02+0000\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"POT-Creation-Date: 2023-06-22 15:44+0300\n"
+"PO-Revision-Date: 2022-08-13 02:48+0000\n"
+"Last-Translator: Adolfo Jayme Barrientos <fitoschido@gmail.com>\n"
 "Language-Team: Spanish <es@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2019-11-20 06:56+0000\n"
-"X-Generator: Launchpad (build c597c3229eb023b1e626162d5947141bf7befb13)\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Launchpad-Export-Date: 2023-06-23 06:40+0000\n"
+"X-Generator: Launchpad (build 1a64fbf0a633b6c807613475aecca0f26ff240b3)\n"
 
+#. TRANSLATORS: the first %s is a snap command (e.g. "hello-world.echo"), the second is the alias
+#: cmd/snap/cmd_alias.go:116
 #, c-format
-msgid ""
-"%q does not contain an unpacked snap.\n"
-"\n"
-"Try \"snapcraft prime\" in your project directory, then \"snap try\" again."
-msgstr ""
-"%q no contiene un snap desempaquetado.\n"
-"\n"
-"Intente «snapcraft prime» en su directorio de proyecto y luego intente «snap "
-"try» nuevamente."
+msgid "\t- %s as %s\n"
+msgstr "\t- %s como %s\n"
 
-#. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
-#, c-format
-msgid "%q switched to the %q channel\n"
-msgstr "%q cambiado al canal %q\n"
-
-#. TRANSLATORS: 1. snap name, 2. snap version (keep those together please). the 3rd %s is a path (where it's mounted from).
-#, c-format
-msgid "%s %s mounted from %s\n"
-msgstr "%s %s montado desde %s\n"
-
-#, c-format
-msgid "%s (delta)"
-msgstr "%s (delta)"
-
-#. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
-#, c-format
-msgid "%s (see \"snap login --help\")"
-msgstr "%s (vea «snap login --help»)"
-
-#. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
-#, c-format
-msgid "%s (try with sudo)"
-msgstr "%s (intente con sudo)"
-
-#, c-format
-msgid "%s already installed\n"
-msgstr "%s ya instalado\n"
-
-#, c-format
-msgid "%s disabled\n"
-msgstr "%s desactivado\n"
-
-#, c-format
-msgid "%s enabled\n"
-msgstr "%s activado\n"
-
-#, c-format
-msgid "%s not installed\n"
-msgstr "%s no instalado\n"
-
-#, c-format
-msgid "%s removed\n"
-msgstr "%s eliminado\n"
-
-#. TRANSLATORS: first %s is a snap name, second %s is a revision
-#, c-format
-msgid "%s reverted to %s\n"
-msgstr "%s revertido a %s\n"
-
-#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' installed")
-#, c-format
-msgid "%s%s %s from '%s' installed\n"
-msgstr "%s%s %s de «%s» instalado\n"
-
-#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' refreshed")
-#, c-format
-msgid "%s%s %s from '%s' refreshed\n"
-msgstr "%s%s %s desde «%s» actualizado\n"
-
-#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
-#, c-format
-msgid "%s%s %s installed\n"
-msgstr "%s%s %s instalado\n"
-
-#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
-#, c-format
-msgid "%s%s %s refreshed\n"
-msgstr "%s%s %s actualizado\n"
-
-msgid "--list does not take mode nor channel flags"
-msgstr "--list no usa los indicadores modo ni canal"
-
-msgid "--time does not take mode nor channel flags"
-msgstr "--time no recibe modos o indicadores de canal"
-
-msgid "-r can only be used with --hook"
-msgstr "-r solo se puede usar con --hook"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<alias-or-snap>"
-msgstr "<alias-o-snap>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<alias>"
-msgstr "<alias>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<assertion file>"
-msgstr "<archivo de afirmación>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<assertion type>"
-msgstr "<tipo de afirmación>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<change-id>"
-msgstr "<cambiar-id>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<conf value>"
-msgstr "<valor conf>"
-
-#. TRANSLATORS: This is a noun, and it needs to begin with < and end with >
-#. TRANSLATORS: This is a noun and it needs to begin with < and end with >
-msgid "<email>"
-msgstr "<email>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<filename>"
-msgstr "<nombredearchivo>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<header filter>"
-msgstr "<filtro cabecera>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<interface>"
-msgstr "<interfaz>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-#. TRANSLATORS: This needs to begin with < and end with >
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<key-name>"
-msgstr "<nombre-clave>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<key>"
-msgstr "<clave>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<model-assertion>"
-msgstr "<afirmación-modelo>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<query>"
-msgstr "<consulta>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<root-dir>"
-msgstr "<dir-raíz>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<service>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<snap>:<plug>"
-msgstr "<snap>:<enchufe>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<snap>:<slot or plug>"
-msgstr "<snap>:<ranura o enchufe>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<snap>:<slot>"
-msgstr "<snap>:<slot>"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid ""
-"A service specification, which can be just a snap name (for all services in "
-"the snap), or <snap>.<app> for a single service."
-msgstr ""
-
-msgid "Abort a pending change"
-msgstr "Abortar un cambio pendiente"
-
-#. TRANSLATORS: this is used to introduce a list of aliases that were added
-msgid "Added"
-msgstr "Añadido"
-
-msgid "Adds an assertion to the system"
-msgstr "Añadir una aserción al sistema"
-
-msgid "Advise on available snaps."
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Advise on snaps that provide the given command"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Alias for --dangerous (DEPRECATED)"
-msgstr "Alias para --dangerous (OBSOLETO)"
-
-msgid "All snaps up to date."
-msgstr "Todos los snaps están actualizados."
-
-msgid "Allow opening file?"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Allow refresh attempt on snap unknown to the store"
-msgstr ""
-
-msgid "Allow settings change?"
-msgstr ""
-
-#, c-format
-msgid "Allow snap %q to change %q to %q ?"
-msgstr ""
-
-#, c-format
-msgid "Allow snap %q to open file %q?"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Alternative command to run"
-msgstr "Orden alternativa a ejecutar"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Always return document, even with single key"
-msgstr "Devolver siempre un documento, incluso con clave única"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Always return list, even with single key"
-msgstr "Siempre devolver la lista, incluso con una sola clave"
-
-#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com"). Also, note users on login.ubuntu.com can have multiple email addresses.
-msgid "An email of a user on login.ubuntu.com"
-msgstr "Una dirección de correo de un usuario en login.ubuntu.com"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid ""
-"As well as starting the service now, arrange for it to be started on boot."
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid ""
-"As well as stopping the service now, arrange for it to no longer be started "
-"on boot."
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Assertion file"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Assertion type name"
-msgstr "Nombre del tipo de aserción"
-
-msgid "Authenticates on snapd and the store"
-msgstr "Se autentifica en snapd y en la tienda"
-
-#, c-format
-msgid "Auto-refresh %d snaps"
-msgstr "Autorefrescar %d snaps"
-
-#, c-format
-msgid "Auto-refresh snap %q"
-msgstr "Autorefrescar el snap %q"
-
-#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
-#, c-format
-msgid "Auto-refresh snaps %s"
-msgstr "Autorefrescar los snaps %s"
-
-#, c-format
-msgid "Automatically connect eligible plugs and slots of snap %q"
-msgstr ""
-
-msgid "Bad code. Try again: "
-msgstr "Código incorrecto. Inténtelo de nuevo: "
-
-msgid "Buys a snap"
-msgstr "Compra un snap"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Change ID"
-msgstr "Cambiar ID"
-
-msgid "Changes configuration options"
-msgstr "Opciones de configuración de cambios"
-
-msgid "Command\tAlias\tNotes"
-msgstr "Orden\tAlias\tNotas"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Configuration value (key=value)"
-msgstr "Valor de configuración (clave=valor)"
-
-msgid "Confirm passphrase: "
-msgstr "Confirmar contraseña: "
-
-#, c-format
-msgid "Connect %s:%s to %s:%s"
-msgstr "Conectar %s:%s a %s:%s"
-
-msgid "Connects a plug to a slot"
-msgstr "Conectar un enchufe al zócalo"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Constrain listing to a specific snap or snap:name"
-msgstr "Restringir el listado a una snap específica o snap:nombre"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Constrain listing to specific interfaces"
-msgstr "Restringir el listado a interfaces específicas"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Constrain listing to those matching header=value"
-msgstr "Restringir el listado a aquellos que coincidan en encabezado=valor"
-
-#, c-format
-msgid "Copy snap %q data"
-msgstr "Copiar los datos del snap %q"
-
-msgid ""
-"Create a cryptographic key pair that can be used for signing assertions."
-msgstr "Crear un par de claves criptográficas para firmar aseveraciones."
-
-msgid "Create cryptographic key pair"
-msgstr "Crear un par de claves de cifrado"
-
-msgid "Create snap build assertion"
-msgstr "Crear una afirmación de construcción de snap"
-
-msgid "Create snap-build assertion for the provided snap file."
-msgstr ""
-"Crear una afirmación de construcción de snap para el archivo snap "
-"proporcionado."
-
-msgid "Creates a local system user"
-msgstr "Crear un usuario local de sistema"
-
-msgid "Delete cryptographic key pair"
-msgstr "Eliminar par de claves de cifrado"
-
-msgid "Delete the local cryptographic key pair with the given name."
-msgstr "Eliminar el par de claves criptográficas locales con el nombre dado."
-
-#, c-format
-msgid "Disable %q snap"
-msgstr "Desactivar %q snap"
-
-#, c-format
-msgid "Disable aliases for snap %q"
-msgstr "Desactivar alias para el snap %q"
-
-#, c-format
-msgid "Disable all aliases for snap %q"
-msgstr "Desactivar todos los alias para el snap %q"
-
-msgid "Disables a snap in the system"
-msgstr "Desactivar un snap en el sistema"
-
-#, c-format
-msgid "Discard interface connections for snap %q (%s)"
-msgstr "Descartar las conexiones de interfaz para el snap %q (%s)"
-
-#, c-format
-msgid "Disconnect %s:%s from %s:%s"
-msgstr "Desconectar %s:%s de %s:%s"
-
-msgid "Disconnects a plug from a slot"
-msgstr "Desconectar un enchufe del zócalo"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Do not wait for the operation to finish but just print the change id."
-msgstr ""
-"En vez de esperar a que finalice la operación, imprimir el id de cambio."
-
-#, c-format
-msgid "Download snap %q%s from channel %q"
-msgstr "Descargar snap %q%s del canal %q"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid ""
-"Download the given revision of a snap, to which you must have developer "
-"access"
-msgstr ""
-"Descargar la revisión proporcionada de un snap, para lo cual debe tener "
-"acceso de desarrollador"
-
-msgid "Downloads the given snap"
-msgstr "Descargar el snap dado"
-
-msgid "Email address: "
-msgstr "Dirección de correo electrónico: "
-
-#, c-format
-msgid "Enable %q snap"
-msgstr "Activar el snap %q"
-
-msgid "Enables a snap in the system"
-msgstr "Activa un snap en el sistema"
-
-#, c-format
-msgid "Ensure prerequisites for %q are available"
-msgstr "Garantizar que los prerequisitos para %q están disponibles"
-
-msgid ""
-"Export a public key assertion body that may be imported by other systems."
-msgstr ""
-"Exportar un cuerpo de afirmación de clave pública que podría ser importado "
-"por otros sistemas."
-
-msgid "Export cryptographic public key"
-msgstr "Exportar clave pública de cifrado"
-
-#, c-format
-msgid "Fetch and check assertions for snap %q%s"
-msgstr "Buscar y comprobar las afirmaciones para el snap %q%s"
-
-#, c-format
-msgid "Fetching assertions for %q\n"
-msgstr "Buscando afirmaciones para %q\n"
-
-#, c-format
-msgid "Fetching snap %q\n"
-msgstr "Traer snap %q\n"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Filename of the snap you want to assert a build for"
-msgstr "Nombre del archivo snap para el que desea afirmar su construcción"
-
-msgid "Finds packages to install"
-msgstr "Buscar paquetes para instalar"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Force adding the user, even if the device is already managed"
-msgstr ""
-"Forzar a añadir el usuario, incluso si el dispositivo ya está administrado"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Force import on classic systems"
-msgstr "Forzar importación en sistemas clásicos"
-
-msgid ""
-"Format public key material as a request for an account-key for this account-"
-"id"
-msgstr ""
-"Dar formato al material de clave pública como una solicitud de la clave de "
-"la cuenta para este id de cuenta"
-
-msgid "Generate device key"
-msgstr "Generar clave de dispositivo"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Generate the manpage"
-msgstr "Generar la página de manual"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Grade states the build quality of the snap (defaults to 'stable')"
-msgstr ""
-"Califica por estados la calidad de construcción del snap (por defecto es "
-"«stable»)"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Grant sudo access to the created user"
-msgstr "Garantizar acceso de sudo al usuario creado"
-
-msgid "Help"
-msgstr "Ayuda"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Hook to run"
-msgstr "Enganchar para ejecutar"
-
-msgid "ID\tStatus\tSpawn\tReady\tSummary\n"
-msgstr "ID\tEstado\tGenerado\tListo\tResumen\n"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Identifier of the signer"
-msgstr "Identificador del firmante"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Identifier of the snap package associated with the build"
-msgstr "Identificador del paquete de snap asociado con la construcción"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "If the service has a reload command, use it instead of restarting."
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Ignore validation by other snaps blocking the refresh"
-msgstr "Ignorar la validación por otras snaps bloqueando el refresco"
-
-#, c-format
-msgid ""
-"In order to buy %q, you need to agree to the latest terms and conditions. "
-"Please visit https://my.ubuntu.com/payment/edit to do this.\n"
-"\n"
-"Once completed, return here and run 'snap buy %s' again."
-msgstr ""
-"Para comprar %q, debe aceptar los últimos términos y condiciones. Para ello "
-"visite https://my.ubuntu.com/payment/edit .\n"
-"\n"
-"Una vez hecho esto, vuelva aquí y ejecute «snap buy %s» nuevamente."
-
-msgid "Include a verbose list of a snap's notes (otherwise, summarise notes)"
-msgstr ""
-"Incluir una lista amplia de notas de snap (de otra forma, resumir las notas)"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Include unused interfaces"
-msgstr "Incluir interfaces sin usar"
-
-msgid "Initialize device"
-msgstr "Inicializar dispositivo"
-
-msgid "Inspects devices for actionable information"
-msgstr "Inspecciona los dispositivos para obtener información procesable"
-
-#, c-format
-msgid "Install %q snap"
-msgstr "Instalar snap %q"
-
-#, c-format
-msgid "Install %q snap from %q channel"
-msgstr "Instalar snap %q desde el canal %q"
-
-#, c-format
-msgid "Install %q snap from file"
-msgstr "Instalar snap %q desde un archivo"
-
-#, c-format
-msgid "Install %q snap from file %q"
-msgstr "Instalar snap %q desde el archivo %q"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Install from the beta channel"
-msgstr "Instalar desde el canal beta"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Install from the candidate channel"
-msgstr "Instalar desde el canal candidato"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Install from the edge channel"
-msgstr "Instalar desde el canal vanguardia"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Install from the stable channel"
-msgstr "Instalar desde el canal estable"
-
-#, c-format
-msgid "Install snap %q"
-msgstr "Instalar snap %q"
-
-#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
-#, c-format
-msgid "Install snaps %s"
-msgstr "Instalar snaps %s"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid ""
-"Install the given revision of a snap, to which you must have developer access"
-msgstr ""
-"Instalar la revisión dada de un snap, para lo cual debe tener acceso de "
-"desarrollador"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid ""
-"Install the given snap file even if there are no pre-acknowledged signatures "
-"for it, meaning it was not verified and could be dangerous (--devmode "
-"implies this)"
-msgstr ""
-"Instalar el archivo snap dado incluso si no hay firmas preadmitidas para él, "
-"lo cual significa que no se verificó y podría ser peligroso (--devmode "
-"implica esto)"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Install the given snap without enabling its automatic aliases"
-msgstr "Instalar el snap dado sin activar sus aliases automáticos"
-
-#, c-format
-msgid ""
-"Install the snap with:\n"
-"   snap ack %s\n"
-"   snap install %s\n"
-msgstr ""
-
-msgid "Installs a snap to the system"
-msgstr "Instalar un snap en el sistema"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Key of interest within the configuration"
-msgstr "Clave de interés en la configuración"
-
-msgid "List a change's tasks"
-msgstr "Listar tareas de cambio"
-
-msgid "List cryptographic keys"
-msgstr "Listar claves de cifrado"
-
-msgid "List cryptographic keys that can be used for signing assertions."
-msgstr ""
-"Listar claves criptográficas que se pueden usar para firmar aseveraciones."
-
-msgid "List installed snaps"
-msgstr "Listar snaps instalados"
-
-msgid "List system changes"
-msgstr "Listar cambios de sistema"
-
-msgid "Lists aliases in the system"
-msgstr "Lista aliases en el sistema"
-
-msgid "Lists all repairs"
-msgstr "Lista todas las reparaciones"
-
-msgid "Lists interfaces in the system"
-msgstr "Listar interfaces en el sistema"
-
-msgid "Lists snap interfaces"
-msgstr "Lista las interfaces de snap"
-
-msgid "Log out of the store"
-msgstr "Salir de la tienda"
-
-msgid "Login successful"
-msgstr "Inicio de sesión correcto"
-
-#, c-format
-msgid "Make current revision for snap %q unavailable"
-msgstr "Hacer que la revisión actual del snap %q no esté disponible"
-
-#, c-format
-msgid "Make snap %q (%s) available to the system"
-msgstr "Hacer el snap %q (%s) disponible en el sistema"
-
-#, c-format
-msgid "Make snap %q (%s) unavailable to the system"
-msgstr "Hacer el snap %q (%s) no disponible en el sistema"
-
-#, c-format
-msgid "Make snap %q unavailable to the system"
-msgstr "Hacer el snap %q no disponible en el sistema"
-
-#, c-format
-msgid "Make snap %q%s available to the system"
-msgstr "Hacer que el snap %q%s esté disponible para el sistema"
-
-msgid "Mark system seeded"
-msgstr "Marcar el sistema como sembrado"
-
-#, c-format
-msgid "Mount snap %q%s"
-msgstr "Montar snap %q%s"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Name of key to create; defaults to 'default'"
-msgstr "Nombre de la clave a crear; el predeterminado es «default»"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Name of key to delete"
-msgstr "Nombre de la clave a eliminar"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Name of key to export"
-msgstr "Nombre de la clave a exportar"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Name of the GnuPG key to use (defaults to 'default' as key name)"
-msgstr ""
-"Nombre de la clave GnuPG a usar (el predeterminado es «default» para el "
-"nombre de clave)"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Name of the key to use, otherwise use the default key"
-msgstr ""
-"Nombre de la clave a utilizar, de otro modo usar la clave predeterminada"
-
-msgid "Name\tSHA3-384"
-msgstr "Nombre \tSHA3-384"
-
-msgid "Name\tSummary"
-msgstr "Nombre\tResumen"
-
-msgid "Name\tVersion\tDeveloper\tNotes\tSummary"
-msgstr "Nombre\tVersión\tDesarrollador\tNotas\tResumen"
-
-msgid "Name\tVersion\tRev\tDeveloper\tNotes"
-msgstr "Nombre\tVersión\tRev\tDesarrollador\tNotas"
-
-msgid "Name\tVersion\tRev\tTracking\tDeveloper\tNotes"
-msgstr ""
-
-#, c-format
-msgid "No aliases are currently defined for snap %q.\n"
-msgstr ""
-
-msgid "No aliases are currently defined."
-msgstr ""
-
-#, c-format
-msgid "No command %q found, did you mean:\n"
-msgstr ""
-
-msgid "No connections to disconnect"
-msgstr ""
-
-#. TRANSLATORS: the %q is the (quoted) name of the section the user entered
-#, c-format
-msgid "No matching section %q, use --section to list existing sections"
-msgstr ""
-
-#. TRANSLATORS: the first %q is the (quoted) query, the
-#. second %q is the (quoted) name of the section the
-#. user entered
-#, c-format
-msgid "No matching snaps for %q in section %q\n"
-msgstr ""
-
-#. TRANSLATORS: the %q is the (quoted) query the user entered
-#, c-format
-msgid "No matching snaps for %q\n"
-msgstr ""
-
-msgid ""
-"No search term specified. Here are some interesting snaps:\n"
-"\n"
-msgstr ""
-
-msgid "No section specified. Available sections:\n"
-msgstr ""
-
-msgid "No snaps are installed yet. Try \"snap install hello-world\"."
-msgstr ""
-"Aun no se han instalado snaps. Pruebe con «snap install hello-world»."
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Output results in JSON format"
-msgstr "Resultados de salida en formato JSON"
-
-msgid "Pack the given target dir as a snap"
-msgstr ""
-
-#, c-format
-msgid "Packages matching %q:\n"
-msgstr ""
-
-msgid "Passphrase: "
-msgstr "Frase de paso: "
-
-#, c-format
-msgid "Password of %q: "
-msgstr "Contraseña para %q:amp> "
-
-#. TRANSLATORS: %q, %q and %s are the snap name, developer, and price. Please wrap the translation at 80 characters.
-#, c-format
-msgid ""
-"Please re-enter your Ubuntu One password to purchase %q from %q\n"
-"for %s. Press ctrl-c to cancel."
-msgstr ""
-"Vuelva a introducir su contraseña de Ubuntu One para comprar %q de %q\n"
-"por %s. Presione ctrl-c para cancelar."
-
-msgid "Please try: snap find --section=<selected section>\n"
-msgstr ""
-
-#, c-format
-msgid "Prefer aliases for snap %q"
-msgstr "Preferir los aliases del snap %q"
-
-msgid "Prefer aliases from a snap and disable conflicts"
-msgstr "Preferir los aliases del snap y desactivar conflictos"
-
-#, c-format
-msgid "Prefer aliases of snap %q"
-msgstr "Preferir alias para el snap %q"
-
-msgid "Prepare a snappy image"
-msgstr "Preparar una imagen de snappy"
-
-#, c-format
-msgid "Prepare snap %q (%s)"
-msgstr "Preparar snap %q (%s)"
-
-#, c-format
-msgid "Prepare snap %q%s"
-msgstr "Preparar snap %q%s"
-
-msgid "Print the version and exit"
-msgstr "Imprimir la versión y salir"
-
-msgid "Prints configuration options"
-msgstr "Imprimir las opciones de configuración"
-
-msgid "Prints the confinement mode the system operates in"
-msgstr "Imprime el modo de confinamiento en el cual el sistema está operando"
-
-msgid "Prints the email the user is logged in with"
-msgstr ""
-
-msgid "Prints whether system is managed"
-msgstr "Imprime si el sistema está administrado"
-
-#, c-format
-msgid "Prune automatic aliases for snap %q"
-msgstr "Quitar los aliases automáticos del snap %q"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Put snap in classic mode and disable security confinement"
-msgstr ""
-"Poner snap en modo clásico y desactivar el confinamiento de seguridad"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Put snap in development mode and disable security confinement"
-msgstr ""
-"Poner snap en modo de desarrollo y desactivar el confinamiento de seguridad"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Put snap in enforced confinement mode"
-msgstr "Poner snap en modo de confinamiento forzado"
-
-msgid "Query the status of services"
-msgstr "Consultar el estado de los servicios"
-
-#, c-format
-msgid "Refresh %q snap"
-msgstr "Actualizar snap %q"
-
-#, c-format
-msgid "Refresh %q snap from %q channel"
-msgstr "Refrescar snap %q desde el canal %q"
-
-#, c-format
-msgid "Refresh aliases for snap %q"
-msgstr "Refrescar los aliases del snap %q"
-
-msgid "Refresh all snaps: no updates"
-msgstr "Refrescar todas las snaps: sin actualizaciones"
-
-#, c-format
-msgid "Refresh snap %q"
-msgstr "Actualizar snap %q"
-
-#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
-#, c-format
-msgid "Refresh snaps %s"
-msgstr "Actualizar snaps %s"
-
-#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
-#, c-format
-msgid "Refresh snaps %s: no updates"
-msgstr "Refrescar snaps %s: sin actualizaciones"
-
-msgid "Refresh to the given revision"
-msgstr "Actualizar a la versión dada"
-
-msgid "Refreshes a snap in the system"
-msgstr "Actualizar un snap en el sistema"
-
-#, c-format
-msgid "Remove %q snap"
-msgstr "Eliminar snap %q"
-
-#, c-format
-msgid "Remove aliases for snap %q"
-msgstr "Eliminar alias para el snap %q"
-
-#, c-format
-msgid "Remove data for snap %q (%s)"
-msgstr "Eliminar datos para el snap %q (%s)"
-
-#, c-format
-msgid "Remove manual alias %q for snap %q"
-msgstr "Eliminar alias manual %q para el snap %q"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Remove only the given revision"
-msgstr "Eliminar solo la revisión dada"
-
-#, c-format
-msgid "Remove security profile for snap %q (%s)"
-msgstr "Eliminar el prefil de seguridad del snap %q (%s)"
-
-#, c-format
-msgid "Remove security profiles of snap %q"
-msgstr "Eliminar los perfiles de seguridad del snap %q"
-
-#, c-format
-msgid "Remove snap %q"
-msgstr "Eliminar snap %q"
-
-#, c-format
-msgid "Remove snap %q (%s) from the system"
-msgstr "Eliminar el snap %q (%s) del sistema"
-
-#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
-#, c-format
-msgid "Remove snaps %s"
-msgstr "Eliminar snaps %s"
-
-#. TRANSLATORS: this is used to introduce a list of aliases that were removed
-msgid "Removed"
-msgstr "Eliminado"
-
-msgid "Removes a snap from the system"
-msgstr "Eliminar un snap del sistema"
-
-msgid "Request device serial"
-msgstr "Solicitar la serie del dispositivo"
-
-msgid "Restart services"
-msgstr "Reiniciar servicios"
-
-msgid "Restarted.\n"
-msgstr "Reiniciado.\n"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Restrict the search to a given section"
-msgstr "Restringir la búsqueda a una sección dada"
-
-msgid "Retrieve logs of services"
-msgstr "Recuperar registros de los servicios"
-
-#, c-format
-msgid "Revert %q snap"
-msgstr "Revertir snap %q"
-
-msgid "Reverts the given snap to the previous state"
-msgstr "Revierte el snap dado a su estado previo"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Run a shell instead of the command (useful for debugging)"
-msgstr ""
-"Ejecutar un intérprete de ordenes en vez de la orden (útil para depurar)"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Run as a timer service with given schedule"
-msgstr ""
-
-#, c-format
-msgid "Run configure hook of %q snap"
-msgstr "Ejecutar el enchanche de configuración del snap %q"
-
-#, c-format
-msgid "Run configure hook of %q snap if present"
-msgstr "Ejecutar el enganche de configuración del snap %q  si está presente"
-
-#, c-format
-msgid "Run hook %s of snap %q"
-msgstr "Ejecutar el enganche %s del snap %q"
-
-#, c-format
-msgid "Run install hook of %q snap if present"
-msgstr "Ejecutar el enganche de instalación del snap %q si está presente"
-
-#, c-format
-msgid "Run post-refresh hook of %q snap if present"
-msgstr "Ejecutar el enganche de post-refresco del snap %q si está presente"
-
-#, c-format
-msgid "Run pre-refresh hook of %q snap if present"
-msgstr ""
-
-msgid "Run prepare-device hook"
-msgstr "Ejecutar el enganche de preparar-dispositivo"
-
-#, c-format
-msgid "Run remove hook of %q snap if present"
-msgstr "Ejecutar el enganche de eliminación del snap %q si está presente"
-
-msgid ""
-"Run the command under strace (useful for debugging). Extra strace options "
-"can be specified as well here."
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Run the command with gdb"
-msgstr ""
-
-msgid "Run the given snap command"
-msgstr "Ejecutar la orden snap dada"
-
-msgid "Run the given snap command with the right confinement and environment"
-msgstr "Ejecutar la orden snap dada con el confinamiento y entorno apropiado"
-
-msgid "Runs debug commands"
-msgstr "Ejecuta ordenes de depurado"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Search private snaps"
-msgstr "Buscar snaps privados"
-
-msgid ""
-"Select last change of given type (install, refresh, remove, try, auto-"
-"refresh etc.)"
-msgstr ""
-"Seleccionar el último cambio de tipo dado (install, refresh, remove, try, "
-"auto-refresh, etc.)"
-
-msgid "Service\tStartup\tCurrent"
-msgstr ""
-
-#, c-format
-msgid "Set automatic aliases for snap %q"
-msgstr "Asignar aliases automáticos al snap %q"
-
-msgid "Sets up a manual alias"
-msgstr "Configurar un alias manual"
-
-#, c-format
-msgid "Setup alias %q => %q for snap %q"
-msgstr "Configurar el alias %q => %q para el snap %q"
-
-#, c-format
-msgid "Setup manual alias %q => %q for snap %q"
-msgstr "Configurar el alias manual %q => %q para el snap %q"
-
-#, c-format
-msgid "Setup snap %q (%s) security profiles"
-msgstr "Configurar los perfiles de seguridad del snap %q (%s)"
-
-#, c-format
-msgid "Setup snap %q aliases"
-msgstr "Configurar los aliases del snap %q"
-
-#, c-format
-msgid "Setup snap %q%s security profiles"
-msgstr "Configurar los perfiles de seguridad del snap %q%s"
-
-#, c-format
-msgid "Setup snap %q%s security profiles (phase 2)"
-msgstr "Configurar los perfiles de seguridad del snap %q%s (fase 2)"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Show all revisions"
-msgstr "Mostrar todas las revisiones"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Show auto refresh information but do not perform a refresh"
-msgstr "Mostrar la información de auto refresco sin realizar un refresco"
-
-msgid "Show available snaps for refresh but do not perform a refresh"
-msgstr "Mostrar snaps disponibles para refresco sin realizar un refresco"
-
-msgid "Show detailed information about a snap"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Show details of a specific interface"
-msgstr "Mostrar detalles de una interfaz específica"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Show interface attributes"
-msgstr "Mostrar atributos de la interfaz"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Show only the given number of lines, or 'all'."
-msgstr ""
-
-msgid "Shows known assertions of the provided type"
-msgstr "Mostrar afirmaciones conocidas del tipo proporcionado"
-
-msgid "Shows specific repairs"
-msgstr "Mostrar reparaciones específicas"
-
-msgid "Shows version details"
-msgstr "Mostrar los detalles de la versión"
-
-msgid "Sign an assertion"
-msgstr "Firmar una aseveración"
-
-msgid ""
-"Sign an assertion using the specified key, using the input for headers from "
-"a JSON mapping provided through stdin, the body of the assertion can be "
-"specified through a \"body\" pseudo-header.\n"
-msgstr ""
-"Firmar una aseveración utilizando la clave especificada, usando la entrada "
-"para cabeceras desde un trazado JSON proporcionado a través de stdin, el "
-"cuerpo de la afirmación se puede especificar a través de un pseudo-"
-"encabezado «body».\n"
-
-msgid "Slot\tPlug"
-msgstr "Ranura\tEnchufe"
-
-#. TRANSLATORS: first %s is a snap name, following %s is a channel name
-#, c-format
-msgid "Snap %s is no longer tracking %s.\n"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Snap name"
-msgstr "Nombre de snap"
-
-msgid ""
-"Sorry, your payment method has been declined by the issuer. Please review "
-"your\n"
-"payment details at https://my.ubuntu.com/payment/edit and try again."
-msgstr ""
-"Lo sentimos, su método de pago ha sido rechazado por el distribuidor. Revise "
-"sus\n"
-"detalles de pago en https://my.ubuntu.com/payment/edit e inténtelo de nuevo."
-
-msgid "Start services"
-msgstr "Iniciar servicios"
-
-#, c-format
-msgid "Start snap %q (%s) services"
-msgstr "Iniciar los servicios (%s) del snap %q"
-
-#, c-format
-msgid "Start snap %q%s services"
-msgstr "Iniciar los servicios %q%s del snap"
-
-msgid "Start snap services"
-msgstr "Iniciar servicios snap"
-
-msgid "Start the userd service"
-msgstr "Iniciar el servicio userd"
-
-msgid "Started.\n"
-msgstr "Iniciado.\n"
-
-msgid "Status\tSpawn\tReady\tSummary\n"
-msgstr "Estado\tGenerado\tListo\tResumen\n"
-
-msgid "Stop services"
-msgstr "Detener servicios"
-
-#, c-format
-msgid "Stop snap %q (%s) services"
-msgstr "Parar los servicios (%s) del snap %q"
-
-#, c-format
-msgid "Stop snap %q services"
-msgstr "Detener los servicios del snap %q"
-
-msgid "Stop snap services"
-msgstr "Parar los servicios de snap"
-
-msgid "Stopped.\n"
-msgstr "Detenido.\n"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Strict typing with nulls and quoted strings"
-msgstr "Escritura estricta con cadenas nulas y citadas"
-
-#, c-format
-msgid "Switch %q snap to %s"
-msgstr "Cambiar el snap %q a %s"
-
-#, c-format
-msgid "Switch snap %q from %s to %s"
-msgstr "Cambiar el snap %q de %s a %s"
-
-#, c-format
-msgid "Switch snap %q to %s"
-msgstr "Cambiar el snap %q a %s"
-
-msgid "Switches snap to a different channel"
-msgstr "Cambia el snap a un canal diferente"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Temporarily mount device before inspecting"
-msgstr "Montar el dispositivo temporalmente antes de inspeccionar"
-
-msgid "Tests a snap in the system"
-msgstr "Probar un snap en el sistema"
-
-#. TRANSLATORS: %q and %s are the same snap name. Please wrap the translation at 80 characters.
-#, c-format
-msgid ""
-"Thanks for purchasing %q. You may now install it on any of your devices\n"
-"with 'snap install %s'."
-msgstr ""
-"Gracias por comprar %q. Ahora puede instalarlo en cualquiera de sus\n"
-"dispositivos con «snap install %s»."
-
-msgid ""
-"The get command prints configuration and interface connection settings."
-msgstr ""
-"La orden get imprime los ajustes de configuración e interfaz de conexión."
-
-#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
-msgid "The login.ubuntu.com email to login as"
-msgstr "El email con el que acceder a login.ubuntu.com"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "The model assertion name"
-msgstr "El nombre de afirmación del modelo"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "The output directory"
-msgstr "DIrectorio de salida"
-
-#, c-format
-msgid "The program %q can be found in the following snaps:\n"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "The snap to configure (e.g. hello-world)"
-msgstr "El snap a configurar (p.ej.: hello-world)"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "The snap whose conf is being requested"
-msgstr "El snap para el que se solicita su conf"
-
-msgid "The userd command starts the snap user session service."
-msgstr "La orden userd inicia el servicio del snap en la sesión del usuario."
-
-msgid "This command logs the current user out of the store"
-msgstr "Esta orden cierra la sesión actual del usuario en la tienda"
-
-msgid "This dialog will close automatically after 5 minutes of inactivity."
-msgstr ""
-
-#, c-format
-msgid "Toggle snap %q flags"
-msgstr ""
-
-msgid "Tool to interact with snaps"
-msgstr "Herramienta para actuar con snaps"
-
-#, c-format
-msgid "Transition security profiles from %q to %q"
-msgstr "Transición de perfiles de seguridad de %q a %q"
-
-msgid "Transition ubuntu-core to core"
-msgstr "Transición de ubuntu-core a core"
-
-#, c-format
-msgid "Try %q snap from %s"
-msgstr "Probar snap %q desde %s"
-
-msgid "Try: snap install <selected snap>\n"
-msgstr ""
-
-msgid "Two-factor code: "
-msgstr "Código de dos factores: "
-
-msgid "Unalias a manual alias or an entire snap"
-msgstr "Desactivar un alias manual o un snap completo"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Use a specific snap revision when running hook"
-msgstr "Usar una revisión específica de un snap al ejecutar un enganche"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Use known assertions for user creation"
-msgstr "Usar afirmaciones conocidas para crear el usuario"
-
-msgid "Use the given output format (pretty or json)"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Use this channel instead of stable"
-msgstr "Usar este canal en lugar del estable"
-
-msgid ""
-"WARNING: The output of \"snap get\" will become a list with columns - use -d "
-"or -l to force the output format.\n"
-msgstr ""
-"AVISO: La salida de «snap get» se convertirá en una lista con columnas - use "
-"-d o -l para forzar el formato de salida.\n"
-
-#, c-format
-msgid "WARNING: failed to activate logging: %v\n"
-msgstr "AVISO: no se ha podido activar el registro: %v\n"
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Wait for new lines and print them as they come in."
-msgstr ""
-
-msgid "Waiting for server to restart"
-msgstr "Esperando al servidor para reiniciar"
-
-msgid "Watch a change in progress"
-msgstr "Observar un cambio en progreso"
-
-msgid "Wrong again. Once more: "
-msgstr "Incorrecto de nuevo. Una vez más: "
-
-#, c-format
-msgid "Xauthority file isn't owned by the current user %s"
-msgstr "El archivo Xauthority no pertenece al usuario actual %s"
-
-msgid "Yes, yes it does."
-msgstr "Sí, sí lo hace."
-
-msgid ""
-"You need to be logged in to purchase software. Please run 'snap login' and "
-"try again."
-msgstr ""
-"Debe iniciar sesión para comprar software. Ejecute «snap login» e intente "
-"nuevamente."
-
-#, c-format
-msgid ""
-"You need to have a payment method associated with your account in order to "
-"buy a snap, please visit https://my.ubuntu.com/payment/edit to add one.\n"
-"\n"
-"Once you’ve added your payment details, you just need to run 'snap buy %s' "
-"again."
-msgstr ""
-"Debe tener un método de pago asociado con su cuenta para comprar un snap, "
-"visite https://my.ubuntu.com/payment/edit para añadir uno.\n"
-"\n"
-"Una vez añadidos sus detalles de pago, vuelva a ejecutar «snap buy %s»."
-
-#. TRANSLATORS: the %s is the argument given by the user to "snap changes"
-#, c-format
-msgid "\"snap changes\" command expects a snap name, try: \"snap tasks %s\""
-msgstr ""
-"La orden «snap changes» espera un nombre de snap, intente: «snap tasks %s»"
-
+#: cmd/snap/cmd_snapshot.go:105
 msgid ""
 "\n"
-"Install, configure, refresh and remove snap packages. Snaps are\n"
-"'universal' packages that work across many different Linux systems,\n"
-"enabling secure distribution of the latest apps and utilities for\n"
-"cloud, servers, desktops and the internet of things.\n"
-"\n"
-"This is the CLI for snapd, a background service that takes care of\n"
-"snaps on the system. Start with 'snap list' to see installed snaps.\n"
+"Export a snapshot to the given filename.\n"
 msgstr ""
 "\n"
-"Instalar, configurar, refrescar y eliminar paquetes snap. Los Snaps\n"
-"son paquetes «universales» que trabajan sobre varios y distintos sistemas\n"
-"Linux, permitiendo la distribución segura de las últimas aplicaciones y\n"
-"utilidades para la nube, servidores, escritorios y el internet de las "
-"cosas.\n"
-"\n"
-"Este es la CLI para snapd, un servicio en segundo plano que se ocupa de\n"
-"los snaps en el sistema. Comience con «snap list» para ver los snaps "
-"instalados.\n"
+"Exportar una instantánea con el nombre de archivo proporcionado.\n"
 
+#: cmd/snap/cmd_snapshot.go:109
 msgid ""
 "\n"
-"Provide a search term for more specific results.\n"
+"Import an exported snapshot set to the system. The snapshot is imported\n"
+"with a new snapshot ID and can be restored using the restore command.\n"
 msgstr ""
+"\n"
+"Importar un conjunto de instantáneas (snapshots) exportadas al sistema. La "
+"instantánea es importada\n"
+"con un nuevo ID de instantánea y se puede restaurar mediante el comando "
+"restore.\n"
 
+#: cmd/snap/cmd_abort.go:32
 msgid ""
 "\n"
 "The abort command attempts to abort a change that still has pending tasks.\n"
@@ -1367,11 +52,12 @@ msgstr ""
 "\n"
 "La orden abort intenta abortar un cambio que aun tiene tareas pendientes.\n"
 
+#: cmd/snap/cmd_ack.go:40
 msgid ""
 "\n"
 "The ack command tries to add an assertion to the system assertion database.\n"
 "\n"
-"The assertion may also be a newer revision of a preexisting assertion that "
+"The assertion may also be a newer revision of a pre-existing assertion that "
 "it\n"
 "will replace.\n"
 "\n"
@@ -1380,89 +66,18 @@ msgid ""
 "database.\n"
 msgstr ""
 "\n"
-"La orden ack intenta añadir una afirmación a la base de datos del sistema\n"
-"de afirmaciones.\n"
+"El comando ack intenta añadir una aserción a la base de datos de\n"
+"aserciones del sistema.\n"
 "\n"
-"La afirmación también puede ser una nueva revisión de una afirmación ya\n"
-"existente que lo reemplazará.\n"
+"La aserción también puede ser una versión nueva de una aserción\n"
+"que ya existe que será reemplazada.\n"
 "\n"
-"Para tener éxito, la afirmación debe ser válida, su firma verificada con "
-"una\n"
-"clave pública conocida y la afirmación y su prerequisito consistente en la\n"
-"base de datos.\n"
+"Para tener éxito la aserción debe ser válida, su firma estar verificada con\n"
+"una clave pública conocida y la aserción consistente y con sus "
+"prerequisitos\n"
+"en la base de datos.\n"
 
-msgid ""
-"\n"
-"The advise-snap command shows what snaps with the given command are\n"
-"available.\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The alias command aliases the given snap application to the given alias.\n"
-"\n"
-"Once this manual alias is setup the respective application command can be "
-"invoked just using the alias.\n"
-msgstr ""
-"\n"
-"La orden alias asigna el alias especificado a la aplicación snap dada.\n"
-"\n"
-"Una vez que este alias manual está configurado la orden respectiva de la "
-"aplicación se puede invocar tan solo utilizando el alias.\n"
-
-msgid ""
-"\n"
-"The aliases command lists all aliases available in the system and their "
-"status.\n"
-"\n"
-"$ snap aliases <snap>\n"
-"\n"
-"Lists only the aliases defined by the specified snap.\n"
-"\n"
-"An alias noted as undefined means it was explicitly enabled or disabled but "
-"is\n"
-"not defined in the current revision of the snap; possibly temporarely (e.g\n"
-"because of a revert), if not this can be cleared with snap alias --reset.\n"
-msgstr ""
-"\n"
-"La orden aliases lista todos los aliases disponibles en el sistema y sus\n"
-"estados.\n"
-"\n"
-"$ snap aliases <snap>\n"
-"\n"
-"Lista solo los aliases definidos por el snap especificado.\n"
-"\n"
-"Un alias marcado como no definido significa que se activo o desactivó\n"
-"explicitamente pero no está definido en la revisión actual del snap;\n"
-"posiblemente temporal (p.ej. debido a una reversión), sino se puede\n"
-"borrar con snap alias --reset.\n"
-
-msgid ""
-"\n"
-"The auto-import command searches available mounted devices looking for\n"
-"assertions that are signed by trusted authorities, and potentially\n"
-"performs system changes based on them.\n"
-"\n"
-"If one or more device paths are provided via --mount, these are temporariy\n"
-"mounted to be inspected as well. Even in that case the command will still\n"
-"consider all available mounted devices for inspection.\n"
-"\n"
-"Imported assertions must be made available in the auto-import.assert file\n"
-"in the root of the filesystem.\n"
-msgstr ""
-"\n"
-"La orden auto-import busca dispositivos montados disponibles buscando\n"
-"afirmaciones firmadas por autoridades confiables, y potencialmente\n"
-"realiza cambios en el sistema basados en ellos.\n"
-"\n"
-"Si una o más rutas de dispositivos se proporcionan mediante --mount, estos\n"
-"se montan temporalmente para que también sean inspeccionados. Incluso\n"
-"en este caso la orden seguirá considerando todos los dispositivos montados\n"
-"disponibles para inspección.\n"
-"\n"
-"Las afirmaciones importadas se deben marcar como disponibles en el archivo\n"
-"auto-import.assert en la raíz del sistema de archivos.\n"
-
+#: cmd/snap/cmd_buy.go:33
 msgid ""
 "\n"
 "The buy command buys a snap from the store.\n"
@@ -1470,26 +85,39 @@ msgstr ""
 "\n"
 "La orden buy compra un snap de la tienda.\n"
 
+#: cmd/snap/cmd_snapshot.go:76
 msgid ""
 "\n"
-"The changes command displays a summary of the recent system changes "
-"performed."
+"The check-snapshot command verifies the user, system and configuration\n"
+"data of the snaps included in the specified snapshot.\n"
+"\n"
+"The check operation runs the same data integrity verification that is\n"
+"performed when a snapshot is restored.\n"
+"\n"
+"By default, this command checks all the data in a snapshot.\n"
+"Alternatively, you can specify the data of which snaps to check, or\n"
+"for which users, or a combination of these.\n"
+"\n"
+"If a snap is included in a check-snapshot operation, excluding its\n"
+"system and configuration data from the check is not currently\n"
+"possible. This restriction may be lifted in the future.\n"
 msgstr ""
 "\n"
-"La orden changes muestra un resumen de los cambios recientes realizados del "
-"sistema."
-
-msgid ""
+"El comando check-snapshot verifica los datos de usuario, sistema y\n"
+"configuración de los snaps incluidos en la instantánea especificada.\n"
 "\n"
-"The confinement command will print the confinement mode (strict, partial or "
-"none)\n"
-"the system operates in.\n"
-msgstr ""
+"La operación de verificación ejecuta la misma verificación de integridad\n"
+"de datos que se realiza cuando una instantánea es restaurada.\n"
 "\n"
-"La orden confinement imprimirá el modo de confinamiento (strict, partial o "
-"none)\n"
-"en el cual el sistema está operando.\n"
+"De manera predeterminada, este comando comprueba todos los datos\n"
+"en una instantánea. Alternativamente, puede especificar los datos de\n"
+"los snaps que se comprobarán o los usuarios o una combinación de estos.\n"
+"\n"
+"Si se incluye una snap en una operación check-snapshot, excluir los\n"
+"datos de sistema y configuración de la verificación, no es posible\n"
+"actualmente. Esta restricción podría quitarse en el futuro.\n"
 
+#: cmd/snap/cmd_connect.go:37
 msgid ""
 "\n"
 "The connect command connects a plug to a slot.\n"
@@ -1533,6 +161,95 @@ msgstr ""
 "Conecta el enchufe proporcionado a la ranura en el snap principal con un\n"
 "nombre que coincide con el nombre del enchufe.\n"
 
+#: cmd/snap/cmd_connections.go:42
+msgid ""
+"\n"
+"The connections command lists connections between plugs and slots\n"
+"in the system.\n"
+"\n"
+"Unless <snap> is provided, the listing is for connected plugs and\n"
+"slots for all snaps in the system. In this mode, pass --all to also\n"
+"list unconnected plugs and slots.\n"
+"\n"
+"$ snap connections <snap>\n"
+"\n"
+"Lists connected and unconnected plugs and slots for the specified\n"
+"snap.\n"
+msgstr ""
+"\n"
+"El comando connections lista conexiones entre ranuras y enchufes\n"
+"del sistema.\n"
+"\n"
+"A menos que se proporcione <snap>, se listan las ranuras y enchufes\n"
+"conectados de todos los snaps en el sistema. En este modo, incluya\n"
+"--all para listar también las ranuras y enchufes no conectados.\n"
+"\n"
+"$ snap connections <snap>\n"
+"\n"
+"Lista las ranuras y enchufes conectados y no conectados para el\n"
+"snap especificado.\n"
+
+#: cmd/snap/cmd_routine_console_conf.go:40
+msgid ""
+"\n"
+"The console-conf-start command starts synchronization with console-conf\n"
+"\n"
+"This command is used by console-conf when it starts up. It delays refreshes "
+"if\n"
+"there are none currently ongoing, and exits with a specific error code if "
+"there\n"
+"are ongoing refreshes which console-conf should wait for before prompting "
+"the \n"
+"user to begin configuring the device.\n"
+msgstr ""
+"\n"
+"El comando console-conf-start inicia sincronización con console-conf\n"
+"\n"
+"Este comando es utilizado por console-conf cuando inicia.  Retrasa las "
+"recargas\n"
+"si no hay ninguna actualmente en proceso y termina con un código de error\n"
+"específico si hay varias recargas en proceso con lo que console-conf "
+"esperará\n"
+"antes de solicitar al usuario para comenzar la configuración del "
+"dispositivo.\n"
+
+#: cmd/snap/cmd_create_cohort.go:30
+msgid ""
+"\n"
+"The create-cohort command creates a set of cohort keys for a given set of "
+"snaps.\n"
+"\n"
+"A cohort is a view or snapshot of a snap's \"channel map\" at a given point "
+"in\n"
+"time that fixes the set of revisions for the snap given other constraints\n"
+"(e.g. channel or architecture). The cohort is then identified by an opaque\n"
+"per-snap key that works across systems. Installations or refreshes of the "
+"snap\n"
+"using a given cohort key would use a fixed revision for up to 90 days, "
+"after\n"
+"which a new set of revisions would be fixed under that same cohort key and "
+"a\n"
+"new 90 days window started.\n"
+msgstr ""
+"\n"
+"El comando create-cohort crea un conjunto de claves de grupo para un "
+"conjunto\n"
+"de snaps dado.\n"
+"\n"
+"Un grupo es una vista o instantánea del mapa de canal de un snap en un "
+"punto\n"
+"dado en el tiempo que fija el conjunto de revisiones del snap dadas otras\n"
+"restricciones (p.ej. canal o arquitectura). El grupo se identifica con una "
+"clave por\n"
+"snap opaca que funciona a través de sistemas. Las instalaciones o refrescos "
+"del\n"
+"snap usando una clave de grupo dada usará una revisión fija de hasta 90 "
+"días,\n"
+"después de los cuales se fijará un conjunto de revisiones nuevo bajo la "
+"misma\n"
+"clave de grupo y comenzará una nueva ventana de 90 días.\n"
+
+#: cmd/snap/cmd_create_user.go:33
 msgid ""
 "\n"
 "The create-user command creates a local system user with the username and "
@@ -1551,6 +268,7 @@ msgstr ""
 "\n"
 "Puede configurar su cuenta en https://login.ubuntu.com.\n"
 
+#: cmd/snap/cmd_debug.go:29
 msgid ""
 "\n"
 "The debug command contains a selection of additional sub-commands.\n"
@@ -1564,17 +282,7 @@ msgstr ""
 "Las ordenes de depurado se pueden eliminar sin problema y podrían\n"
 "no funcionar en sistemas que no son para desarrollo.\n"
 
-msgid ""
-"\n"
-"The disable command disables a snap. The binaries and services of the\n"
-"snap will no longer be available. But all the data is still available\n"
-"and the snap can easily be enabled again.\n"
-msgstr ""
-"\n"
-"La orden disable desactiva un snap. Los binarios y servicios del snap\n"
-"ya no estarán disponibles. Pero todos los datos aun se conservan y\n"
-"el snap puede ser reactivado fácilmente.\n"
-
+#: cmd/snap/cmd_disconnect.go:41
 msgid ""
 "\n"
 "The disconnect command disconnects a plug from a slot.\n"
@@ -1588,31 +296,35 @@ msgid ""
 "\n"
 "Disconnects everything from the provided plug or slot.\n"
 "The snap name may be omitted for the core snap.\n"
+"\n"
+"When an automatic connection is manually disconnected, its disconnected "
+"state\n"
+"is retained after a snap refresh. The --forget flag can be added to the\n"
+"disconnect command to reset this behaviour, and consequently re-enable\n"
+"an automatic reconnection after a snap refresh.\n"
 msgstr ""
 "\n"
-"La orden disconnect desconecta un enchufe de una ranura.\n"
-"Se puede llamar de las siguientes maneras:\n"
+"El comando disconnect desconecta un enchufe de una ranura.\n"
+"Se puede llamar de las siguientes formas:\n"
 "\n"
-"$ snap disconnect <snap>:<enchufe> <snap>:<ranura>\n"
+"$ snap disconnect <snap>:<enchufe><snap>:<ranura>\n"
 "\n"
 "Desconecta el enchufe específico de la ranura específica.\n"
 "\n"
-"$ snap disconnect <snap>:<ranura o enchufe>\n"
+"$ snap disconnect <snap>:<enchufe o ranura>\n"
 "\n"
-"Desconecta todo del enchufe o la ranura proporcionada.\n"
-"El nombre de snap se puede omitir para el snap principal.\n"
+"Desconecta todo del enchufe o ranura proporcionado.\n"
+"El nombre del snap se podrá omitir para el snap núcleo.\n"
+"\n"
+"Cuando una conexión automática se desconecta manualmente, su estado de "
+"desconexión\n"
+"se retiene hasta refrescar los snaps. El indicador --forget se puede añadir "
+"al comando\n"
+"disconnect para restablecer este comportamiento y consecuentemente reactivar "
+"una\n"
+"reconexión automática tras refrescar los snaps.\n"
 
-msgid ""
-"\n"
-"The download command downloads the given snap and its supporting assertions\n"
-"to the current directory under .snap and .assert file extensions, "
-"respectively.\n"
-msgstr ""
-"\n"
-"La orden download descarga el snap dado y las afirmaciones que lo soportan\n"
-"al directorio actual bajo las extensiones de archivo .snap y .assert, "
-"respectivamente.\n"
-
+#: cmd/snap/cmd_snap_op.go:115
 msgid ""
 "\n"
 "The enable command enables a snap that was previously disabled.\n"
@@ -1620,88 +332,99 @@ msgstr ""
 "\n"
 "La orden enable activa un snap que ha sido desactivado previamente.\n"
 
+#: cmd/snap/cmd_export_key.go:43
 msgid ""
 "\n"
-"The find command queries the store for available packages in the stable "
-"channel.\n"
+"The export-key command exports a public key assertion body that may be\n"
+"imported by other systems.\n"
 msgstr ""
 "\n"
-"La orden find consulta la tienda sobre los paquetes disponibles en el canal "
-"estable.\n"
+"El comando export-key exporta un cuerpo de aserción de clave pública que "
+"puede ser\n"
+"importada por otros sistemas.\n"
 
+#: cmd/snap/cmd_routine_file_access.go:43
 msgid ""
 "\n"
-"The get command prints configuration options for the current snap.\n"
+"The file-access command returns information about a snap's file system "
+"access.\n"
 "\n"
-"    $ snapctl get username\n"
-"    frank\n"
+"This command is used by the xdg-document-portal service to identify\n"
+"files that do not need to be proxied to provide access within\n"
+"confinement.\n"
 "\n"
-"If multiple option names are provided, a document is returned:\n"
-"\n"
-"    $ snapctl get username password\n"
-"    {\n"
-"        \"username\": \"frank\",\n"
-"        \"password\": \"...\"\n"
-"    }\n"
-"\n"
-"Nested values may be retrieved via a dotted path:\n"
-"\n"
-"    $ snapctl get author.name\n"
-"    frank\n"
-"\n"
-"Values of interface connection settings may be printed with:\n"
-"\n"
-"    $ snapctl get :myplug usb-vendor\n"
-"    $ snapctl get :myslot path\n"
-"\n"
-"This will return the named setting from the local interface endpoint, "
-"whether a plug\n"
-"or a slot. Returning the setting from the connected snap's endpoint is also "
-"possible\n"
-"by explicitly requesting that via the --plug and --slot command line "
-"options:\n"
-"\n"
-"    $ snapctl get :myplug --slot usb-vendor\n"
-"\n"
-"This requests the \"usb-vendor\" setting from the slot that is connected to "
-"\"myplug\".\n"
+"File paths are interpreted as host file system paths.  The tool may\n"
+"return false negatives (e.g. report that a file path is unreadable,\n"
+"despite being readable under a different path).  It also does not\n"
+"check if file system permissions would render a file unreadable.\n"
 msgstr ""
 "\n"
-"La orden get imprime opciones de configuración para el snap actual.\n"
+"El comando file-access devuelve información sobre el acceso al sistema de "
+"archivos del snap.\n"
 "\n"
-"    $ snapctl get username\n"
-"    frank\n"
+"Este comando es usado por el servicio xdg-document-portal para identificar\n"
+"archivos que no necesitan proxy para proporcionar acceso dentro del\n"
+"aislamiento.\n"
 "\n"
-"Si se proporcionan múltiples nombres de opción, se devuelve un documento:\n"
-"\n"
-"    $ snapctl get username password\n"
-"    {\n"
-"        \"username\": \"frank\",\n"
-"        \"password\": \"...\"\n"
-"    }\n"
-"\n"
-"Los valores anidados se pueden recuperar mediante una ruta con puntos:\n"
-"\n"
-"    $ snapctl get author.name\n"
-"    frank\n"
-"\n"
-"Los valores de los ajustes de la interfaz de conexión se pueden imprimir "
-"con:\n"
-"\n"
-"    $ snapctl get :myplug usb-vendor\n"
-"    $ snapctl get :myslot path\n"
-"\n"
-"Esto devolverá el ajuste nombrado desde el extremo de interfaz local, ya sea "
-"un enchufe\n"
-"o una ranura. También es posible devolver el ajuste desde el extremo del "
-"snap conectado\n"
-"solicitándolo explícitamente mediante las opciones de la línea de ordenes --"
-"plug y --slot:\n"
-"\n"
-"    $ snapctl get :myplug --slot usb-vendor\n"
-"\n"
-"Esto solicita el ajuste «usb-vendor» desde la ranura conectada a «myplug».\n"
+"Las rutas de archivo son interpretadas como rutas del sistema de archivos "
+"del equipo. La herramienta puede\n"
+"devolver falsos negativos (p. ej. reportar que la ruta de un archivo no es "
+"legible,\n"
+"a pesar de ser legible desde otra ruta). Tampoco comprueba\n"
+"si los permisos sobre el sistema de archivos podrían dejar el archivo "
+"ilegible.\n"
 
+#: cmd/snap/cmd_find.go:40
+msgid ""
+"\n"
+"The find command queries the store for available packages.\n"
+"\n"
+"With the --private flag, which requires the user to be logged-in to the "
+"store\n"
+"(see 'snap help login'), it instead searches for private snaps that the "
+"user\n"
+"has developer access to, either directly or through the store's "
+"collaboration\n"
+"feature.\n"
+"\n"
+"A green check mark (given color and unicode support) after a publisher name\n"
+"indicates that the publisher has been verified.\n"
+msgstr ""
+"\n"
+"El comando find consulta en la tienda los paquetes disponibles.\n"
+"\n"
+"Con el parámetro --private, que necesita que el usuario halla iniciado\n"
+"sesión en la tienda (consulte «snap help login»), en su lugar busca snaps\n"
+"privados a los cuales el usuario tiene acceso de desarrollador, ya sea\n"
+"directamente o a través de la característica de colaboración de la tienda.\n"
+"\n"
+"La marca de comprobación verde (teniendo soporte de color y unicode)\n"
+"después del nombre del editor indica que el editor está verificado.\n"
+
+#: cmd/snap/cmd_snapshot.go:66
+msgid ""
+"\n"
+"The forget command deletes a snapshot. This operation can not be\n"
+"undone.\n"
+"\n"
+"A snapshot contains archives for the user, system and configuration\n"
+"data of each snap included in the snapshot.\n"
+"\n"
+"By default, this command forgets all the data in a snapshot.\n"
+"Alternatively, you can specify the data of which snaps to forget.\n"
+msgstr ""
+"\n"
+"El comando forget elimina una instantánea. Esta operación no se\n"
+"puede deshacer.\n"
+"\n"
+"Un instantánea contiene archivos para el usuario, el sistema y datos\n"
+"de configuración de cada snap incluido en la instantánea.\n"
+"\n"
+"De manera predeterminada, este comando olvida todos los datos\n"
+"en la instantánea. Alternativamente, puede especificar el snap\n"
+"para el que se olvidarán los datos.\n"
+
+#: cmd/snap/cmd_get.go:34
 msgid ""
 "\n"
 "The get command prints configuration options for the provided snap.\n"
@@ -1709,13 +432,13 @@ msgid ""
 "    $ snap get snap-name username\n"
 "    frank\n"
 "\n"
-"If multiple option names are provided, a document is returned:\n"
+"If multiple option names are provided, the corresponding values are "
+"returned:\n"
 "\n"
 "    $ snap get snap-name username password\n"
-"    {\n"
-"        \"username\": \"frank\",\n"
-"        \"password\": \"...\"\n"
-"    }\n"
+"    Key       Value\n"
+"    username  frank\n"
+"    password  ...\n"
 "\n"
 "Nested values may be retrieved via a dotted path:\n"
 "\n"
@@ -1723,47 +446,26 @@ msgid ""
 "    frank\n"
 msgstr ""
 "\n"
-"La orden get imprime opciones de configuración para el snap proporcionado.\n"
+"El comando get muestra opciones de configuración para el snap "
+"proporcionado.\n"
 "\n"
-"    $ snap get nombre-snap username\n"
+"    $ snap get nombre-de-snap username\n"
 "    frank\n"
 "\n"
-"Si se proporcionan varios nombre de opciones, se devuelve un documento:\n"
+"Si se proporcionan varios nombres de opciones, se devuelven los valores "
+"correspondientes:\n"
 "\n"
-"    $ snap get nombre-snap username password\n"
-"    {\n"
-"        \"username\": \"frank\",\n"
-"        \"password\": \"...\"\n"
-"    }\n"
+"    $ snap get nombre-de-snap username password\n"
+"    Clave       Valor\n"
+"    usuario  frank\n"
+"    contraseña  ...\n"
 "\n"
-"Los valores anidados se pueden recuperar mediante una ruta con puntos:\n"
+"Los valores anidados se puede recuperar mediante una ruta con puntos:\n"
 "\n"
-"    $ snap get nombre-snap author.name\n"
+"    $ snap get nombre-de-snap author.name\n"
 "    frank\n"
 
-msgid ""
-"\n"
-"The help command shows helpful information. Unlike this. ;-)\n"
-msgstr ""
-"\n"
-"La orden help muestra información útil. No como esta. ;-)\n"
-
-msgid ""
-"\n"
-"The info command shows detailed information about a snap, be it by name or "
-"by path."
-msgstr ""
-"\n"
-"La orden info muestra información detallada sobre un snap, ya sea por nombre "
-"o por ruta."
-
-msgid ""
-"\n"
-"The install command installs the named snap in the system.\n"
-msgstr ""
-"\n"
-"La orden install instala el snap nombrado en el sistema.\n"
-
+#: cmd/snap/cmd_interface.go:45
 msgid ""
 "\n"
 "The interface command shows details of snap interfaces.\n"
@@ -1778,13 +480,14 @@ msgstr ""
 "nombres de interfaces con al menos una conexión, o una lista de\n"
 "todas las interfaces si se proporciona --all.\n"
 
+#: cmd/snap/cmd_interfaces.go:40
 msgid ""
 "\n"
 "The interfaces command lists interfaces available in the system.\n"
 "\n"
 "By default all slots and plugs, used and offered by all snaps, are "
 "displayed.\n"
-" \n"
+"\n"
 "$ snap interfaces <snap>:<slot or plug>\n"
 "\n"
 "Lists only the specified slot or plug.\n"
@@ -1795,29 +498,39 @@ msgid ""
 "\n"
 "$ snap interfaces -i=<interface> [<snap>]\n"
 "\n"
-"Filters the complete output so only plugs and/or slots matching the provided "
+"Filters the complete output so only plugs and/or slots matching the "
+"provided\n"
 "details are listed.\n"
+"\n"
+"NOTE this command is deprecated and has been replaced with the "
+"'connections'\n"
+"     command.\n"
 msgstr ""
 "\n"
-"La orden interfaces lista las interfaces disponibles en el sistema.\n"
+"El comando interfaces lista interfaces disponibles en el sistema.\n"
 "\n"
-"Por defecto se muestran todas las ranuras y enchufes, utilizados y ofrecidos "
-"por todos los snaps.\n"
-" \n"
+"De manera predeterminada se muestran todos los enchufes y ranuras, "
+"utilizados\n"
+"     y ofrecidos por todos los snaps.\n"
+"\n"
 "$ snap interfaces <snap>:<ranura o enchufe>\n"
 "\n"
-"Lista solo las ranuras o enchufes especificados.\n"
+"Lista solo el enchufe o ranura especificado.\n"
 "\n"
 "$ snap interfaces <snap>\n"
 "\n"
-"Lista las ranuras ofrecidas y los enchufes utilizados por el snap "
-"especificado.\n"
+"Lista las ranuras ofrecidas y enchufes usados por el snap especificado.\n"
 "\n"
-"$ snap interfaces -i=<interfaz> [<snap>]\n"
+"$ snap interfaces -i=<interface> [<snap>]\n"
 "\n"
-"Filtra la salida completa de forma que solo se listan los enchufes y/o "
-"ranuras coincidentes con los detalles proporcionados.\n"
+"Filtra la salida completa de manera que solo se listan los enchufes y/o "
+"ranuras\n"
+"que coincidan con los detalles proporcionados.\n"
+"\n"
+"NOTE este comando está obsoleto y ha sido reemplazado con el comando\n"
+"     «connections».\n"
 
+#: cmd/snap/cmd_known.go:49
 msgid ""
 "\n"
 "The known command shows known assertions of the provided type.\n"
@@ -1825,48 +538,12 @@ msgid ""
 "shown must also have the specified headers matching the provided values.\n"
 msgstr ""
 "\n"
-"La orden known muestra afirmaciones conocidas del tipo proporcionado.\n"
-"Si se proporcionan pares encabezado=valor después del tipo de afirmación,\n"
-"las afirmaciones mostradas también deben tener los encabezados\n"
+"La orden known muestra aserciones conocidas del tipo proporcionado.\n"
+"Si se proporcionan pares encabezado=valor después del tipo de aserción,\n"
+"las aserciones mostradas también deben tener los encabezados\n"
 "especificados coincidiendo con los valores proporcionados.\n"
 
-msgid ""
-"\n"
-"The list command displays a summary of snaps installed in the current system."
-msgstr ""
-"\n"
-"La orden list muestra un resumen de snaps instaladas en el sistema actual."
-
-msgid ""
-"\n"
-"The login command authenticates on snapd and the snap store and saves "
-"credentials\n"
-"into the ~/.snap/auth.json file. Further communication with snapd will then "
-"be made\n"
-"using those credentials.\n"
-"\n"
-"Login only works for local users in the sudo, admin or wheel groups.\n"
-"\n"
-"An account can be setup at https://login.ubuntu.com\n"
-msgstr ""
-"\n"
-"La orden login autentifica en snapd y la tienda snap y guarda las "
-"credenciales\n"
-"en el archivo ~/.snap/auth.json. Las futuras comunicaciones con snapd se "
-"realizarán\n"
-"usando esas credenciales.\n"
-"\n"
-"Iniciar sesión solo funciona para usuarios locales en los grupos sudo, admin "
-"o wheel.\n"
-"\n"
-"Puede configurar su cuenta en https://login.ubuntu.com\n"
-
-msgid ""
-"\n"
-"The logs command fetches logs of the given services and displays them in "
-"chronological order.\n"
-msgstr ""
-
+#: cmd/snap/cmd_managed.go:31
 msgid ""
 "\n"
 "The managed command will print true or false informing whether\n"
@@ -1876,24 +553,87 @@ msgstr ""
 "La orden managed imprimirá verdadero o falso informando si\n"
 "snapd tiene usuarios registrados.\n"
 
+#: cmd/snap/cmd_model.go:35
 msgid ""
 "\n"
-"The pack command packs the given snap-dir as a snap."
+"The model command returns the active model assertion information for this\n"
+"device.\n"
+"\n"
+"By default, only the essential model identification information is\n"
+"included in the output, but this can be expanded to include all of an\n"
+"assertion's non-meta headers.\n"
+"\n"
+"The verbose output is presented in a structured, yaml-like format.\n"
+"\n"
+"Similarly, the active serial assertion can be used for the output instead of "
+"the\n"
+"model assertion.\n"
 msgstr ""
 "\n"
-"La orden pack empaqueta el snap-dir dado como un snap."
+"El comando model devuelve la información de la aserción modelo\n"
+"activa para este dispositivo.\n"
+"\n"
+"De manera predeterminada, solo se incluye la información esencial\n"
+"de identificación del modelo en la salida, pero se puede expandir para\n"
+"incluir todos los encabezados no-meta de la aserción.\n"
+"\n"
+"La salida extensa se presenta en un formato estructurado, como yaml.\n"
+"\n"
+"Similarmente, la aserción serial activa se puede usar para la salida en vez "
+"de\n"
+"la aserción modelo.\n"
 
+#: cmd/snap/cmd_warnings.go:60
 msgid ""
 "\n"
-"The prefer command enables all aliases of the given snap in preference\n"
-"to conflicting aliases of other snaps whose aliases will be disabled\n"
-"(removed for manual ones).\n"
+"The okay command acknowledges the warnings listed with 'snap warnings'.\n"
+"\n"
+"Once acknowledged a warning won't appear again unless it re-occurrs and\n"
+"sufficient time has passed.\n"
 msgstr ""
 "\n"
-"La orden prefer activa todos los aliases del snap dado, dando preferencia\n"
-"sobre aliases conflictivos de otros snaps cuyos aliases se desactivarán\n"
-"(se eliminan para los manuales).\n"
+"El comando okay reconoce las advertencias listadas con «snap warnings».\n"
+"\n"
+"Una vez que se reconoce una advertencia ésta no volverá a aparecer a\n"
+"menos que vuelva a suceder y pase suficiente tiempo.\n"
 
+#: cmd/snap/cmd_routine_portal_info.go:43
+msgid ""
+"\n"
+"The portal-info command returns information about a process in keyfile "
+"format.\n"
+"\n"
+"This command is used by the xdg-desktop-portal service to retrieve\n"
+"information about snap confined processes.\n"
+msgstr ""
+"\n"
+"El comando portal-info devuelve información sobre un proceso en formato "
+"keyfile.\n"
+"\n"
+"Este comando lo usa el servicio xdg-desktop-portal para recuperar\n"
+"información sobre los procesos confinados de un snap.\n"
+
+#: cmd/snap/cmd_prepare_image.go:64
+msgid ""
+"\n"
+"The prepare-image command performs some of the steps necessary for\n"
+"creating device images.\n"
+"\n"
+"For core images it is not invoked directly but usually via\n"
+"ubuntu-image.\n"
+"\n"
+"For preparing classic images it supports a --classic mode"
+msgstr ""
+"\n"
+"El comando prepare-image realiza algunos de los pasos necesarios para\n"
+"crear imágenes de dispositivo.\n"
+"\n"
+"Para imágenes de núcleo no se invoca directamente sino mediante\n"
+"ubuntu-image.\n"
+"\n"
+"Para preparar imágenes clásicas se soporta el modo --classic"
+
+#: cmd/snap/error.go:181
 #, c-format
 msgid ""
 "\n"
@@ -1927,32 +667,82 @@ msgstr ""
 "si en lugar de eso desea instalar el snap forzándolo a confinamiento\n"
 "estricto, repita la orden incluyendo --jailmode."
 
+#: cmd/snap/cmd_recovery.go:41
 msgid ""
 "\n"
-"The refresh command refreshes (updates) the named snap.\n"
+"The recovery command lists the available recovery systems.\n"
+"\n"
+"With --show-keys it displays recovery keys that can be used to unlock the "
+"encrypted partitions if the device-specific automatic unlocking does not "
+"work.\n"
 msgstr ""
 "\n"
-"La orden refresh refresca (actualiza) el snap nombrado.\n"
+"El comando recovery lista los sistemas de recuperación disponibles.\n"
+"\n"
+"Con --show-keys despliega las teclas de recuperación que puedan ser útiles "
+"para desbloquear las particiones cifradas si el desbloqueo automático del "
+"dispositivo no funciona.\n"
 
+#: cmd/snap/cmd_remodel.go:33
 msgid ""
 "\n"
-"The remove command removes the named snap from the system.\n"
+"The remodel command changes the model assertion of the device, either to a "
+"new\n"
+"revision or a full new model.\n"
 "\n"
-"By default all the snap revisions are removed, including their data and the "
-"common\n"
-"data directory. When a --revision option is passed only the specified "
-"revision is\n"
-"removed.\n"
+"In the process it applies any implied changes to the device: new required\n"
+"snaps, new kernel or gadget etc.\n"
 msgstr ""
 "\n"
-"La orden remove elimina el snap nombrado del sistema.\n"
+"El comando remodel cambia el modelo de aserción del dispositivo, ya sea a "
+"una\n"
+"revisión nueva o a un modelo completamente nuevo.\n"
 "\n"
-"Por defecto todas las revisiones de snap se eliminan, incluyendo los datos y "
-"el\n"
-"directorio de datos comunes. Cuando se incluye la opción --revision solo se "
-"elimina\n"
-"la revisión especificada.\n"
+"En el proceso se aplica cualquier cambio implicado al dispositivo: nuevos "
+"snaps\n"
+"requeridos, nuevo kernel o artefacto, etc.\n"
 
+#: cmd/snap/cmd_snap_op.go:69
+msgid ""
+"\n"
+"The remove command removes the named snap instance from the system.\n"
+"\n"
+"By default all the snap revisions are removed, including their data and the\n"
+"common data directory. When a --revision option is passed only the "
+"specified\n"
+"revision is removed.\n"
+"\n"
+"Unless automatic snapshots are disabled, a snapshot of all data for the snap "
+"is \n"
+"saved upon removal, which is then available for future restoration with "
+"snap\n"
+"restore. The --purge option disables automatically creating snapshots.\n"
+msgstr ""
+"\n"
+"El comando remove elimina la instancia de snap nombrada del sistema.\n"
+"\n"
+"De forma predeterminada, se eliminan todas las revisiones de snap, incluidos "
+"sus datos y las\n"
+"carpetas con datos relacionados. Cuando se usa la opción --revision solo la "
+"revisión\n"
+"especificada se elimina.\n"
+"\n"
+"A menos que las instantáneas automáticas estén desactivadas, se guarda una "
+"instantánea de todos los datos de la snap\n"
+"al eliminarla, la cual está disponible luego para futuras restauraciones con "
+"snap\n"
+"restore. La opción --purge desactiva la creación automática de "
+"instantáneas.\n"
+
+#: cmd/snap/cmd_remove_user.go:32
+msgid ""
+"\n"
+"The remove-user command removes a local system user.\n"
+msgstr ""
+"\n"
+"El comando remove-user quita un usuario del sistema local.\n"
+
+#: cmd/snap/cmd_repair_repairs.go:58
 msgid ""
 "\n"
 "The repair command shows the details about one or multiple repairs.\n"
@@ -1960,6 +750,7 @@ msgstr ""
 "\n"
 "La orden repair muestra los detalles sobre una o múltiples reparaciones.\n"
 
+#: cmd/snap/cmd_repair_repairs.go:82
 msgid ""
 "\n"
 "The repairs command lists all processed repairs for this device.\n"
@@ -1968,6 +759,7 @@ msgstr ""
 "La orden repairs lista todas las reparaciones procesadas para este "
 "dispositivo.\n"
 
+#: overlord/hookstate/ctlcmd/restart.go:30
 msgid ""
 "\n"
 "The restart command restarts the given services of the snap. If executed "
@@ -1979,14 +771,36 @@ msgstr ""
 "el enganche «configurar», se reiniciarán los servicios después de que\n"
 "finalice el enganche."
 
+#: cmd/snap/cmd_snapshot.go:91
 msgid ""
 "\n"
-"The restart command restarts the given services.\n"
+"The restore command replaces the current user, system and\n"
+"configuration data of included snaps, with the corresponding data from\n"
+"the specified snapshot.\n"
 "\n"
-"If the --reload option is given, for each service whose app has a reload "
-"command, a reload is performed instead of a restart.\n"
+"By default, this command restores all the data in a snapshot.\n"
+"Alternatively, you can specify the data of which snaps to restore, or\n"
+"for which users, or a combination of these.\n"
+"\n"
+"If a snap is included in a restore operation, excluding its system and\n"
+"configuration data from the restore is not currently possible. This\n"
+"restriction may be lifted in the future.\n"
 msgstr ""
+"\n"
+"El comando restore reemplaza los datos de usuario, sistema y\n"
+"configuración actuales de los snaps incluidos, con los datos\n"
+"correspondientes de la instantánea especificada.\n"
+"\n"
+"De manera predeterminada, este comando restaura todos\n"
+"los datos en una instantánea. Alternativamente, puede\n"
+"especificar los datos de los snaps que se restaurarán o para\n"
+"que usuarios o una combinación de estos.\n"
+"\n"
+"Si se incluye un snap en una operación de restauración, excluir\n"
+"sus datos de sistema y configuración de la restauración no es\n"
+"posible actualmente. Esta restricción podría quitarse en el futuro.\n"
 
+#: cmd/snap/cmd_snap_op.go:1150
 msgid ""
 "\n"
 "The revert command reverts the given snap to its state before\n"
@@ -2005,12 +819,68 @@ msgstr ""
 "el snap para compartir entre revisiones no son alterados por el\n"
 "proceso de reversión.\n"
 
+#: cmd/snap/cmd_routine.go:29
 msgid ""
 "\n"
-"The services command lists information about the services specified, or "
-"about the services in all currently installed snaps.\n"
+"The routine command contains a selection of additional sub-commands.\n"
+"\n"
+"Routine commands are not intended to be directly invoked by the user.\n"
+"Instead, they are intended to be called by other programs and produce\n"
+"machine readable output.\n"
 msgstr ""
+"\n"
+"El comando routine contiene una selección de subcomandos adicionales.\n"
+"\n"
+"Los comandos de rutina no se pensaron para ser invocados directamente\n"
+"por el usuario. En vez de eso, están destinados a ser llamados por otros\n"
+"programas y producen una salida que puede ser leída por máquinas.\n"
 
+#: cmd/snap/cmd_snapshot.go:54
+msgid ""
+"\n"
+"The save command creates a snapshot of the current user, system and\n"
+"configuration data for the given snaps.\n"
+"\n"
+"By default, this command saves the data of all snaps for all users.\n"
+"Alternatively, you can specify the data of which snaps to save, or\n"
+"for which users, or a combination of these.\n"
+"\n"
+"If a snap is included in a save operation, excluding its system and\n"
+"configuration data from the snapshot is not currently possible. This\n"
+"restriction may be lifted in the future.\n"
+msgstr ""
+"\n"
+"El comando save crea una instantánea de los datos de usuario, sistema y\n"
+"configuración actual para los snaps dados.\n"
+"\n"
+"De manera predeterminada, este comando guarda los datos de todos\n"
+"los snaps para todos los usuarios. Alternativamente, puede especificar\n"
+"los datos de los snaps que se guardarán o para que usuarios o una\n"
+"combinación de estos.\n"
+"\n"
+"Si se incluye un snap en una operación de guardado, excluir sus\n"
+"datos de sistema y configuración de la instantánea no es posible\n"
+"actualmente. Esta restricción podría quitarse en el futuro.\n"
+
+#: cmd/snap/cmd_snapshot.go:50
+msgid ""
+"\n"
+"The saved command displays a list of snapshots that have been created\n"
+"previously with the 'save' command.\n"
+msgstr ""
+"\n"
+"El comando saved muestra una lista de instantáneas que han sido creadas\n"
+"con el comando «save».\n"
+
+#: overlord/hookstate/ctlcmd/services.go:36
+msgid ""
+"\n"
+"The services command lists information about the services specified.\n"
+msgstr ""
+"\n"
+"El comando services lista información sobre los servicios especificados.\n"
+
+#: cmd/snap/cmd_set.go:33
 msgid ""
 "\n"
 "The set command changes the provided configuration options as requested.\n"
@@ -2022,60 +892,140 @@ msgid ""
 "\n"
 "Nested values may be modified via a dotted path:\n"
 "\n"
-"    $ snap set author.name=frank\n"
+"    $ snap set snap-name author.name=frank\n"
+"\n"
+"Configuration option may be unset with exclamation mark:\n"
+"    $ snap set snap-name author!\n"
 msgstr ""
 "\n"
-"La orden set cambia las opciones de configuración proporcionadas\n"
-"en la forma solicitada.\n"
+"El comando set cambia las opciones de configuración proporcionadas según se "
+"pida.\n"
 "\n"
-"    $ snap set nombre-snap username=frank password=$PASSWORD\n"
+"    $ snap set nombre-de-snap username=juan password=$CONTRASEÑA\n"
 "\n"
-"Todos los cambios en la configuración persisten a la vez, y solo después\n"
-"de que el enganche de configuración del snap devuelva con éxito.\n"
+"Todos los cambios de configuración son persistentes al mismo tiempo y solo\n"
+"después de que el enlace de configuración del snap devuelva correctamente.\n"
 "\n"
 "Los valores anidados se pueden modificar mediante una ruta con puntos:\n"
 "\n"
-"    $ snap set author.name=frank\n"
+"    $ snap set nombre-de-snap author.name=juan\n"
+"\n"
+"La opción de configuración se puede desestablecer con una marca de "
+"exclamación:\n"
+"    $ snap set nombre-de-snap author!\n"
 
+#: overlord/hookstate/ctlcmd/health.go:35
 msgid ""
 "\n"
-"The set command changes the provided configuration options as requested.\n"
+"The set-health command is called from within a snap to inform the system of "
+"the\n"
+"snap's overall health.\n"
 "\n"
-"    $ snapctl set username=frank password=$PASSWORD\n"
+"It can be called from any hook, and even from the apps themselves. A snap "
+"can\n"
+"optionally provide a 'check-health' hook to better manage these calls, which "
+"is\n"
+"then called periodically and with increased frequency while the snap is\n"
+"\"unhealthy\". Any health regression will issue a warning to the user.\n"
 "\n"
-"All configuration changes are persisted at once, and only after the hook\n"
-"returns successfully.\n"
+"Note: the health is of the snap only, not of the apps it contains; it’s up "
+"to\n"
+"      the snap developer to determine how the health of the individual apps "
+"is\n"
+"      reflected in the overall health of the snap.\n"
 "\n"
-"Nested values may be modified via a dotted path:\n"
+"status can be one of:\n"
 "\n"
-"    $ snapctl set author.name=frank\n"
+"- okay: the snap is healthy. This status takes no message and no code.\n"
 "\n"
-"Plug and slot attributes may be set in the respective prepare and connect "
-"hooks by\n"
-"naming the respective plug or slot:\n"
+"- waiting: a resource needed by the snap (e.g. a device, network, or "
+"service) is\n"
+"  not ready and the user will need to wait.  The message must explain what\n"
+"  resource is being waited for.\n"
 "\n"
-"    $ snapctl set :myplug path=/dev/ttyS0\n"
+"- blocked: something needs doing to unblock the snap (e.g. a service needs "
+"to be\n"
+"  configured); the message must be sufficient to point the user in the "
+"right\n"
+"  direction.\n"
+"\n"
+"- error: something is broken; the message must explain what.\n"
 msgstr ""
 "\n"
-"La orden set cambia las opciones de configuración proporcionadas como se "
-"solicita.\n"
+"El comando set-health se llama desde un snap para informar al sistema de la\n"
+"salud general del snap.\n"
 "\n"
-"    $ snapctl set username=frank password=$PASSWORD\n"
+"Se puede llamar desde cualquier enlace, e incluso desde las propias "
+"aplicaciones.\n"
+"Opcionalmente, un snap puede proporcionar un enlace «check-health» para\n"
+"gestionar mejor estas llamadas, que luego se llama periódicamente y con "
+"mayor\n"
+"frecuencia mientras el snap no es «saludable». Cualquier regresión de\n"
+"salud emitirá una advertencia al usuario.\n"
 "\n"
-"Todos los cambios en la configuración son persistentes al mismo tiempo, y "
-"solo después\n"
-"de que el enganche devuelva con éxito.\n"
+"Note: la salud es solo del snap, no de las aplicaciones que contiene; "
+"depende\n"
+"      del desarrollador del snap determinar como se refleja la salud de las "
+"aplicaciones\n"
+"      individuales en la salud general del snap.\n"
 "\n"
-"Los valores anidados se pueden modificar mediante una ruta con puntos:\n"
+"el estado puede ser:\n"
 "\n"
-"    $ snapctl set author.name=frank\n"
+"- okay: el snap está saludable. Este estado no requiere un mensaje ni un "
+"código.\n"
 "\n"
-"Los atributos de enchufe y ranura se pueden asignar en los enganches de "
-"preparación y\n"
-"conexión respectivos nombrando el enchufe o ranura respectivo:\n"
+"- waiting: un recurso que necesita el snap (p.ej. un dispositivo, red o "
+"servicio) no\n"
+"  está preparado y el usuario necesitará esperar.  El mensaje debe explicar "
+"cual\n"
+"  es el recurso por el que se está esperando.\n"
 "\n"
-"    $ snapctl set :myplug path=/dev/ttyS0\n"
+"- blocked: se necesita hacer algo para desbloquear el snap (p.ej. se "
+"necesita\n"
+"  configurar un servicio); el mensaje debe ser suficiente para orientar al "
+"usuario\n"
+"  en la dirección adecuada.\n"
+"\n"
+"- error: algo está roto; el mensaje debe explicar qué.\n"
 
+#: cmd/snap/cmd_sign.go:35
+msgid ""
+"\n"
+"The sign command signs an assertion using the specified key, using the\n"
+"input for headers from a JSON mapping provided through stdin. The body\n"
+"of the assertion can be specified through a \"body\" pseudo-header.\n"
+msgstr ""
+"\n"
+"El comando sign firma una aserción usando la clave especificada, usando la\n"
+"entrada para cabeceras desde una asignación JSON proporcionada a travéz de "
+"stdin.\n"
+"El cuerpo de la aserción se puede especificar a travéz de un «cuerpo» "
+"pseudocabecera.\n"
+
+#: cmd/snap/cmd_sign_build.go:49
+msgid ""
+"\n"
+"The sign-build command creates a snap-build assertion for the provided\n"
+"snap file.\n"
+msgstr ""
+"\n"
+"El comando sign-build crea una aserción de snap-build para el\n"
+"archivo de snap proporcionado.\n"
+
+#: cmd/snap/cmd_help.go:277
+msgid ""
+"\n"
+"The snap command lets you install, configure, refresh and remove snaps.\n"
+"Snaps are packages that work across many different Linux distributions,\n"
+"enabling secure delivery and operation of the latest apps and utilities.\n"
+msgstr ""
+"\n"
+"El comando snap permite instalar, configurar, actualizar y eliminar snaps.\n"
+"Los snaps son paquetes que funcionan sobre muchas distribuciones Linux\n"
+"diferentes, permitiendo la entrega y funcionamiento seguro de las\n"
+"últimas aplicaciones y utilidades.\n"
+
+#: overlord/hookstate/ctlcmd/start.go:30
 msgid ""
 "\n"
 "The start command starts the given services of the snap. If executed from "
@@ -2087,11 +1037,7 @@ msgstr ""
 "el enganche «configurar», los servicios se iniciarán después de que el\n"
 "enganche finalice."
 
-msgid ""
-"\n"
-"The start command starts, and optionally enables, the given services.\n"
-msgstr ""
-
+#: overlord/hookstate/ctlcmd/stop.go:38
 msgid ""
 "\n"
 "The stop command stops the given services of the snap. If executed from the\n"
@@ -2102,29 +1048,7 @@ msgstr ""
 "el enganche «configurar», los servicios se iniciarán después de que el\n"
 "enganche finalice."
 
-msgid ""
-"\n"
-"The stop command stops, and optionally disables, the given services.\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The switch command switches the given snap to a different channel without\n"
-"doing a refresh.\n"
-msgstr ""
-"\n"
-"La orden switch cambia el snap dado a un canal diferente sin\n"
-"hacer un refresco.\n"
-
-msgid ""
-"\n"
-"The tasks command displays a summary of tasks associated to an individual "
-"change."
-msgstr ""
-"\n"
-"La orden tasks muestra un resumen de las tareas asociadas con un cambio "
-"individual."
-
+#: cmd/snap/cmd_snap_op.go:104
 msgid ""
 "\n"
 "The try command installs an unpacked snap into the system for testing "
@@ -2149,20 +1073,67 @@ msgstr ""
 "en snap.yaml necesitan de una reinstalación para estar activos.\n"
 "\n"
 "Si se omite el argumento snap-dir, la orden try intentará inferirlo si el\n"
-"archivo snapcraft.yaml y el directorio principal o el archivo "
-"meta/snap.yaml\n"
+"archivo snapcraft.yaml y el directorio principal o el archivo meta/snap."
+"yaml\n"
 "se pueden encontrar relativos al directorio de trabajo actual.\n"
 
+#: cmd/snap/cmd_unset.go:29
 msgid ""
 "\n"
-"The unalias command tears down a manual alias when given one or disables all "
-"aliases of a snap, removing also all manual ones, when given a snap name.\n"
+"The unset command removes the provided configuration options as requested.\n"
+"\n"
+"\t$ snap unset snap-name name address\n"
+"\n"
+"All configuration changes are persisted at once, and only after the\n"
+"snap's configuration hook returns successfully.\n"
+"\n"
+"Nested values may be removed via a dotted path:\n"
+"\n"
+"\t$ snap unset snap-name user.name\n"
 msgstr ""
 "\n"
-"La orden unalias arranca un alias manual cuando se le da uno o desactiva "
-"todos los alias de un snap, eliminando también todos los manuales, cuando se "
-"le da un nombre de snap.\n"
+"El comando unset elimina las opciones de configuración proporcionadas como "
+"se especifique.\n"
+"\n"
+"\t$ snap unset nombre-de-snap name address\n"
+"\n"
+"Todos los cambios en la configuración son persistentes al mismo tiempo y "
+"solo después de\n"
+"que el enlace de configuración del snap devuelva correctamente.\n"
+"\n"
+"Los valores anidados se puede eliminar mediante una ruta con puntos:\n"
+"\n"
+"\t$ snap unset nombre-de-snap user.name\n"
 
+#: overlord/hookstate/ctlcmd/unset.go:38
+msgid ""
+"\n"
+"The unset command removes the provided configuration options as requested.\n"
+"\n"
+"$ snapctl unset name address\n"
+"\n"
+"All configuration changes are persisted at once, and only after the\n"
+"snap's configuration hook returns successfully.\n"
+"\n"
+"Nested values may be removed via a dotted path:\n"
+"\n"
+"$ snapctl unset user.name\n"
+msgstr ""
+"\n"
+"El comando unset elimina las opciones de configuración proporcionadas como "
+"se especifique.\n"
+"\n"
+"$ snapctl unset name address\n"
+"\n"
+"Todos los cambios en la configuración son persistentes al mismo tiempo y "
+"solo después de\n"
+"que el enlace de configuración del snap devuelva correctamente.\n"
+"\n"
+"Los valores anidados se puede eliminar mediante una ruta con puntos:\n"
+"\n"
+"$ snapctl unset user.name\n"
+
+#: cmd/snap/cmd_version.go:33
 msgid ""
 "\n"
 "The version command displays the versions of the running client, server,\n"
@@ -2172,6 +1143,32 @@ msgstr ""
 "La orden version muestra las versiones del cliente, servidor\n"
 "y sistema operativo en ejecución.\n"
 
+#: cmd/snap/cmd_warnings.go:49
+msgid ""
+"\n"
+"The warnings command lists the warnings that have been reported to the "
+"system.\n"
+"\n"
+"Once warnings have been listed with 'snap warnings', 'snap okay' may be used "
+"to\n"
+"silence them. A warning that's been silenced in this way will not be listed\n"
+"again unless it happens again, _and_ a cooldown time has passed.\n"
+"\n"
+"Warnings expire automatically, and once expired they are forgotten.\n"
+msgstr ""
+"\n"
+"El comando warnings lista las advertencias que se han reportado al sistema.\n"
+"\n"
+"Una vez que se listan las advertencias con «snap warnings», se puede "
+"utilizar\n"
+"«snap okay» para silenciarlas. Una advertencia que ha sido silenciada de "
+"esta\n"
+"manera no se listará nuevamente a menos que suceda otra vez y halla pasado\n"
+"un tiempo.\n"
+"\n"
+"Las advertencias caducan automáticamente y una vez caducadas se olvidan.\n"
+
+#: cmd/snap/cmd_watch.go:31
 msgid ""
 "\n"
 "The watch command waits for the given change-id to finish and shows "
@@ -2183,13 +1180,16 @@ msgstr ""
 "progreso\n"
 "(si esta disponible).\n"
 
+#: cmd/snap/cmd_whoami.go:31
 msgid ""
 "\n"
-"The whoami command prints the email the user is logged in with.\n"
+"The whoami command shows the email the user is logged in with.\n"
 msgstr ""
 "\n"
-"La orden whoami imprime el correo con el cual el usuario inició sesión.\n"
+"El comando whoami muestra el correo-e con el que el usuario ha iniciado "
+"sesión.\n"
 
+#: cmd/snap/error.go:192
 #, c-format
 msgid ""
 "\n"
@@ -2212,215 +1212,2737 @@ msgstr ""
 "\n"
 "Si lo entiende y desea continuar repita la orden incluyendo --classic.\n"
 
-msgid ""
-"\n"
-"Use snap alias --help to learn how to create aliases manually."
-msgstr ""
+#: cmd/snap/cmd_advise.go:102
+#, c-format
+msgid " command %q from snap %q\n"
+msgstr " orden %q del «snap» %q\n"
 
+#. TRANSLATORS: %d will be at least 2; the singular is only included to help gettext
+#: timeutil/human.go:66
+#, c-format
+msgid "%d day ago, at 15:04 MST"
+msgid_plural "%d days ago, at 15:04 MST"
+msgstr[0] "hace un día, a las 15:04 MST"
+msgstr[1] "hace %d días, a las 15:04 MST"
+
+#: usersession/agent/rest_api.go:257
+#, c-format
+msgid "%d day left"
+msgid_plural "%d days left"
+msgstr[0] "queda %d día"
+msgstr[1] "quedan %d días"
+
+#: usersession/agent/rest_api.go:261
+#, c-format
+msgid "%d hour left"
+msgid_plural "%d hours left"
+msgstr[0] "queda %d hora"
+msgstr[1] "quedan %d horas"
+
+#: usersession/agent/rest_api.go:265
+#, c-format
+msgid "%d minute left"
+msgid_plural "%d minutes left"
+msgstr[0] "queda %d minuto"
+msgstr[1] "quedan %d minutos"
+
+#. TRANSLATORS: %q will be the (quoted) snap name
+#: cmd/snap/cmd_snap_op.go:422
+#, c-format
+msgid "%q left the cohort"
+msgstr "%q dejó el grupo"
+
+#. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
+#: cmd/snap/cmd_snap_op.go:419
+#, c-format
+msgid "%q left the cohort, and switched to the %q channel"
+msgstr "%q dejó el grupo y se trasladó al canal %q"
+
+#. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
+#: cmd/snap/cmd_snap_op.go:416
+#, c-format
+msgid "%q switched to the %q channel\n"
+msgstr "%q se trasladó al canal %q\n"
+
+#. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel, the third an ellipted cohort string
+#: cmd/snap/cmd_snap_op.go:413
+#, c-format
+msgid "%q switched to the %q channel and the %q cohort\n"
+msgstr "%q se trasladó al canal %q y al grupo %q\n"
+
+#. TRANSLATORS: the first %q will be the (quoted) snap name, the second an ellipted cohort string
+#: cmd/snap/cmd_snap_op.go:410
+#, c-format
+msgid "%q switched to the %q cohort\n"
+msgstr "%q se trasladó al grupo %q\n"
+
+#. TRANSLATORS: 1. snap name, 2. snap version (keep those together please). the 3rd %s is a path (where it's mounted from).
+#: cmd/snap/cmd_snap_op.go:1080
+#, c-format
+msgid "%s %s mounted from %s\n"
+msgstr "%s %s montado desde %s\n"
+
+#: store/store_download.go:707
+#, c-format
+msgid "%s (delta)"
+msgstr "%s (delta)"
+
+#: cmd/snap/cmd_snap_op.go:156
+#, c-format
+msgid "%s (revision %s) removed\n"
+msgstr "%s (revisión %s) eliminado\n"
+
+#. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
+#: cmd/snap/error.go:209
+#, c-format
+msgid "%s (try with sudo)"
+msgstr "%s (intente con sudo)"
+
+#: cmd/snap/cmd_snap_op.go:625
+#, c-format
+msgid "%s already installed\n"
+msgstr "%s ya instalado\n"
+
+#: cmd/snap/cmd_snap_op.go:1134
+#, c-format
+msgid "%s disabled\n"
+msgstr "%s desactivado\n"
+
+#: cmd/snap/cmd_snap_op.go:1107
+#, c-format
+msgid "%s enabled\n"
+msgstr "%s activado\n"
+
+#: cmd/snap/cmd_snap_op.go:204
+#, c-format
+msgid "%s not installed\n"
+msgstr "%s no instalado\n"
+
+#: cmd/snap/cmd_snap_op.go:158 cmd/snap/cmd_snap_op.go:197
+#, c-format
+msgid "%s removed\n"
+msgstr "%s eliminado\n"
+
+#. TRANSLATORS: first %s is a snap name, second %s is a revision
+#: cmd/snap/cmd_snap_op.go:400
+#, c-format
+msgid "%s reverted to %s\n"
+msgstr "%s revertido a %s\n"
+
+#: cmd/snap/cmd_snap_op.go:370
+#, c-format
+msgid ""
+"%s was not found in your $PATH. If you've not restarted your session since "
+"you installed snapd, try doing that. Please see https://forum.snapcraft.io/"
+"t/9469 for more details."
+msgstr ""
+"%s no se encontró en su $PATH. Si no ha reiniciado su sesión desde que "
+"instaló snapd, intente hacer eso. Consulte https://forum.snapcraft.io/t/9469 "
+"para más detalles."
+
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
+#: cmd/snap/cmd_snap_op.go:388
+#, c-format
+msgid "%s%s %s installed\n"
+msgstr "%s%s %s instalado\n"
+
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
+#: cmd/snap/cmd_snap_op.go:396
+#, c-format
+msgid "%s%s %s refreshed\n"
+msgstr "%s%s %s actualizado\n"
+
+#. TRANSLATORS: the %s is the argument given by the user to 'snap changes'
+#: cmd/snap/cmd_changes.go:91
+#, c-format
+msgid "'snap changes' command expects a snap name, try 'snap tasks %s'"
+msgstr ""
+"La orden «snap changes» espera un nombre de snap, intente con «snap tasks %s»"
+
+#: cmd/snap/cmd_interfaces.go:77
+msgid "'snap interfaces' is deprecated; use 'snap connections'."
+msgstr "«snap interfaces» está obsoleto. Use «snap connections»."
+
+#: cmd/snap/cmd_snap_op.go:850
+msgid "--list does not accept additional arguments"
+msgstr "--list no acepta argumentos adicionales"
+
+#: cmd/snap/cmd_snap_op.go:843
+msgid "--time does not take mode or channel flags"
+msgstr "--time no acepta modo o indicadores de canal"
+
+#: cmd/snap/cmd_run.go:233
+msgid "-r can only be used with --hook"
+msgstr "-r solo se puede usar con --hook"
+
+#: cmd/snap/cmd_help.go:208
+msgid "...more"
+msgstr "...más"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_unalias.go:47
+msgid "<alias-or-snap>"
+msgstr "<alias-o-snap>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_alias.go:58
+msgid "<alias>"
+msgstr "<alias>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_ack.go:56
+msgid "<assertion file>"
+msgstr "<archivo de aserción>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_known.go:66
+msgid "<assertion type>"
+msgstr "<tipo de aserción>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/last.go:46
+msgid "<change-id>"
+msgstr "<cambiar-id>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_advise.go:78
+msgid "<command or pkg>"
+msgstr "<orden o paquete>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_unset.go:58
+msgid "<conf key>"
+msgstr "<clave conf>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_set.go:74
+msgid "<conf value>"
+msgstr "<valor conf>"
+
+#. TRANSLATORS: This is a noun, and it needs to begin with < and end with >
+#. TRANSLATORS: This is a noun and it needs to begin with < and end with >
+#: cmd/snap/cmd_login.go:62 cmd/snap/cmd_create_user.go:65
+msgid "<email>"
+msgstr "<email>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This should retain < ... >. The file name is the name of an exported snapshot.
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_sign.go:60 cmd/snap/cmd_snapshot.go:415
+#: cmd/snap/cmd_sign_build.go:71
+msgid "<filename>"
+msgstr "<nombredearchivo>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_known.go:71
+msgid "<header filter>"
+msgstr "<filtro cabecera>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_interface.go:62
+msgid "<interface>"
+msgstr "<interfaz>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_delete_key.go:49 cmd/snap/cmd_export_key.go:53
+#: cmd/snap/cmd_create_key.go:49
+msgid "<key-name>"
+msgstr "<nombre-clave>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_get.go:82 cmd/snap/cmd_wait.go:55
+msgid "<key>"
+msgstr "<clave>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_reboot.go:72
+msgid "<label>"
+msgstr "<etiqueta>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_prepare_image.go:101
+msgid "<model-assertion>"
+msgstr "<aserción-modelo>"
+
+#. TRANSLATORS: this describes the default filename for a snap, e.g. core_16-2.35.2_amd64.snap
+#: cmd/snap/cmd_pack.go:88
+msgid "<name>_<version>_<architecture>.snap"
+msgstr "<nombre>_<versión>_<arquitectura>.snap"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_remodel.go:57
+msgid "<new model file>"
+msgstr "<archivo de modelo nuevo>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_routine_file_access.go:68
+msgid "<path>"
+msgstr "<ruta>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_routine_portal_info.go:55
+msgid "<process ID>"
+msgstr "<id. de procesi>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_find.go:175
+msgid "<query>"
+msgstr "<consulta>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_routine_file_access.go:62
+msgid "<snap>"
+msgstr "<snap>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_disconnect.go:65 cmd/snap/cmd_connect.go:62
+msgid "<snap>:<plug>"
+msgstr "<snap>:<enchufe>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_interfaces.go:70
+msgid "<snap>:<slot or plug>"
+msgstr "<snap>:<ranura o enchufe>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_disconnect.go:67 cmd/snap/cmd_connect.go:64
+msgid "<snap>:<slot>"
+msgstr "<snap>:<slot>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_prepare_image.go:106
+msgid "<target-dir>"
+msgstr "<dir-objetivo>"
+
+#. TRANSLATORS: This is a noun and it needs to begin with < and end with >
+#: cmd/snap/cmd_remove_user.go:47
+msgid "<username>"
+msgstr "<nombre de usuario>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_validate.go:70
+msgid "<validation-set>"
+msgstr "<conjunto-de-validación>"
+
+#: cmd/snap/cmd_abort.go:30
+msgid "Abort a pending change"
+msgstr "Abortar un cambio pendiente"
+
+#: cmd/snap/cmd_help.go:232
+msgid "Account"
+msgstr "Cuenta"
+
+#: cmd/snap/cmd_warnings.go:59
+msgid "Acknowledge warnings"
+msgstr "Reconocer advertencias"
+
+#: cmd/snap/cmd_ack.go:39
+msgid "Add an assertion to the system"
+msgstr "Añadir una aserción al sistema"
+
+#. TRANSLATORS: this is used to introduce a list of aliases that were added
+#: cmd/snap/cmd_alias.go:102
+msgid "Added"
+msgstr "Añadido"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_advise.go:69
+msgid "Advise on snaps that provide the given command"
+msgstr "Sugerir «snaps» que proporcionan la orden indicada"
+
+#. TRANSLATORS: 'Age' as in how old something is
+#: cmd/snap/cmd_snapshot.go:150
+msgid "Age"
+msgstr "Edad"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1265
+msgid "Alias for --dangerous (DEPRECATED)"
+msgstr "Alias para --dangerous (OBSOLETO)"
+
+#: cmd/snap/cmd_snap_op.go:724 cmd/snap/cmd_snap_op.go:814
+msgid "All snaps up to date."
+msgstr "Todos los snaps están actualizados."
+
+#: usersession/userd/settings.go:212
+#, c-format
+msgid "Allow snap %q to change %s to %q ?"
+msgstr "Permitir al snap %q cambiar %s a %q ?"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_run.go:105
+msgid "Alternative command to run"
+msgstr "Orden alternativa a ejecutar"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_get.go:69
+msgid "Always return document, even with single key"
+msgstr "Devolver siempre un documento, incluso con clave única"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_get.go:71
+msgid "Always return list, even with single key"
+msgstr "Siempre devolver la lista, incluso con una sola clave"
+
+#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com"). Also, note users on login.ubuntu.com can have multiple email addresses.
+#: cmd/snap/cmd_create_user.go:67
+msgid "An email of a user on login.ubuntu.com"
+msgstr "Una dirección de correo de un usuario en login.ubuntu.com"
+
+#: cmd/snap/cmd_help.go:228
+msgid "App Aliases"
+msgstr "Alias de aplicación"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_known.go:68
+msgid "Assertion type name"
+msgstr "Nombre del tipo de aserción"
+
+#: cmd/snap/cmd_help.go:250
+msgid "Assertions"
+msgstr "Afirmaciones"
+
+#: data/polkit/io.snapcraft.snapd.policy:11
+msgid "Authenticate on snap daemon"
+msgstr "Autentificar en el demonio snap"
+
+#: data/polkit/io.snapcraft.snapd.policy:32
+msgid "Authentication is required to connect or disconnect interfaces"
+msgstr "Necesita autenticarse para conectar o desconectar interfaces"
+
+#: data/polkit/io.snapcraft.snapd.policy:22
+msgid "Authentication is required to install, update, or remove packages"
+msgstr "Necesita autenticarse para instalar, actualizar o desinstalar paquetes"
+
+#: data/polkit/io.snapcraft.snapd.policy:12
+msgid "Authorization is required to authenticate on the snap daemon"
+msgstr "Se requiere autentificación para autentificarse en el demonio snap"
+
+#: overlord/snapstate/autorefresh.go:567
+#, c-format
+msgid "Auto-refresh %d snaps"
+msgstr "Autorefrescar %d snaps"
+
+#: overlord/snapstate/autorefresh.go:561
+#, c-format
+msgid "Auto-refresh snap %q"
+msgstr "Autorefrescar el snap %q"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: overlord/snapstate/autorefresh.go:565
+#, c-format
+msgid "Auto-refresh snaps %s"
+msgstr "Autorefrescar los snaps %s"
+
+#: overlord/snapstate/snapstate.go:564 overlord/snapstate/handlers.go:4357
+#, c-format
+msgid "Automatically connect eligible plugs and slots of snap %q"
+msgstr "Conexión automática de enchufes y ranuras apropiados del «snap» %q"
+
+#: cmd/snap/cmd_login.go:74
+msgid "Bad code. Try again: "
+msgstr "Código incorrecto. Inténtelo de nuevo: "
+
+#: cmd/snap/cmd_help.go:204
+msgid "Basics"
+msgstr "Básicos"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_reboot.go:64
+msgid "Boot into install mode"
+msgstr "Arrancar en modo de instalación"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_reboot.go:66
+msgid "Boot into recover mode"
+msgstr "Arrancar en modo de recuperación"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_reboot.go:62
+msgid "Boot into run mode"
+msgstr "Arrancar en modo de ejecución"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/last.go:48
+msgid "Change ID"
+msgstr "Cambiar ID"
+
+#: cmd/snap/cmd_snapshot.go:44
+msgid "Check a snapshot"
+msgstr "Comprobar una instantánea"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:389
+msgid ""
+"Check data of only specific users (comma-separated) (default: all users)"
+msgstr ""
+"Comprobar datos unicamente de los usuarios especificados (separados por "
+"coma) (predeterminado: todos los usuarios)"
+
+#: cmd/snap/cmd_aliases.go:115
+msgid "Command\tAlias\tNotes"
+msgstr "Orden\tAlias\tNotas"
+
+#. TRANSLATORS: %q is a command name (like "gimp" or "loimpress")
+#: cmd/snap/cmd_advise.go:86
+#, c-format
+msgid "Command %q not found, but can be installed with:\n"
+msgstr "No se encuentra la orden %q, pero puede instalarse con:\n"
+
+#: cmd/snap/cmd_advise.go:99
+#, c-format
+msgid "Command %q not found, did you mean:\n"
+msgstr "No se encuentra la orden %q. Tal vez quiso decir:\n"
+
+#: cmd/snap/cmd_help.go:284
+msgid "Commands can be classified as follows:"
+msgstr "Las órdenes pueden clasificarse de esta manera:"
+
+#: cmd/snap/cmd_help.go:283
+msgid "Commonly used commands can be classified as follows:"
+msgstr "Las órdenes utilizadas habitualmente pueden clasificarse así:"
+
+#: cmd/snap/cmd_help.go:224
+msgid "Configuration"
+msgstr "Configuración"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_unset.go:60
+msgid "Configuration key to unset"
+msgstr "Clave de configuración que desactivar"
+
+#: asserts/signtool/keymgr.go:90
+msgid "Confirm passphrase: "
+msgstr "Confirmar contraseña: "
+
+#: overlord/ifacestate/ifacestate.go:148
+#, c-format
+msgid "Connect %s:%s to %s:%s"
+msgstr "Conectar %s:%s a %s:%s"
+
+#: data/polkit/io.snapcraft.snapd.policy:31
+msgid "Connect, disconnect interfaces"
+msgstr "Conectar, desconectar interfaces"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_connections.go:65
+msgid "Constrain listing to a specific snap"
+msgstr "Restringir la lista a un snap específico"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_interfaces.go:72
+msgid "Constrain listing to a specific snap or snap:name"
+msgstr "Restringir el listado a una snap específica o snap:nombre"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_interfaces.go:67
+msgid "Constrain listing to specific interfaces"
+msgstr "Restringir el listado a interfaces específicas"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_known.go:73
+msgid "Constrain listing to those matching header=value"
+msgstr "Restringir el listado a aquellos que coincidan en encabezado=valor"
+
+#: overlord/snapstate/snapstate.go:548
+#, c-format
+msgid "Copy snap %q data"
+msgstr "Copiar los datos del snap %q"
+
+#: cmd/snap/cmd_sign_build.go:48
+msgid "Create a snap-build assertion"
+msgstr "Crear un aserción snap-build"
+
+#: cmd/snap/cmd_create_cohort.go:29
+msgid "Create cohort keys for a set of snaps"
+msgstr "Crear llaves de grupo para un conjunto de snaps"
+
+#: cmd/snap/cmd_create_key.go:40
+msgid "Create cryptographic key pair"
+msgstr "Crear un par de claves de cifrado"
+
+#: cmd/snap/cmd_help.go:216
+msgid "Daemons"
+msgstr "Demonios"
+
+#: cmd/snap/cmd_snapshot.go:43
+msgid "Delete a snapshot"
+msgstr "Eliminar una instantánea"
+
+#: cmd/snap/cmd_delete_key.go:40
+msgid "Delete cryptographic key pair"
+msgstr "Eliminar par de claves de cifrado"
+
+#: cmd/snap/cmd_help.go:261
+msgid "Development"
+msgstr "Desarrollo"
+
+#: cmd/snap/cmd_help.go:241
+msgid "Device"
+msgstr "Dispositivo"
+
+#: daemon/api_snaps.go:519
+#, c-format
+msgid "Disable %q snap"
+msgstr "Desactivar %q snap"
+
+#: overlord/snapstate/aliasesv2.go:614
+#, c-format
+msgid "Disable aliases for snap %q"
+msgstr "Desactivar alias para el snap %q"
+
+#: daemon/api_aliases.go:112
+#, c-format
+msgid "Disable all aliases for snap %q"
+msgstr "Desactivar todos los alias para el snap %q"
+
+#: overlord/ifacestate/ifacestate.go:380
+#, c-format
+msgid "Disconnect %s:%s from %s:%s"
+msgstr "Desconectar %s:%s de %s:%s"
+
+#: overlord/snapstate/snapstate.go:3350
+#, c-format
+msgid "Disconnect interfaces of snap %q"
+msgstr "Desconectar interfaces del snap %q"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/times.go:55
+msgid ""
+"Display absolute times (in RFC 3339 format). Otherwise, display short "
+"relative times."
+msgstr ""
+"Mostrar tiempos absolutos (en formato RFC 3339). De otra manera, mostrar "
+"tiempos relativos cortos."
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_run.go:122
+msgid "Display exec calls timing data"
+msgstr "Mostrar datos de tiempos de llamadas exec"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/wait.go:48
+msgid "Do not wait for the operation to finish but just print the change id."
+msgstr ""
+"En vez de esperar a que finalice la operación, imprimir el id de cambio."
+
+#: cmd/snap/cmd_debug_state.go:94
+msgid "Dot (graphviz) output"
+msgstr "Salida dot (graphviz)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_download.go:63
+msgid "Download from the given cohort"
+msgstr "Descargar del gurpo asignado"
+
+#: overlord/snapstate/snapstate.go:454
+#, c-format
+msgid "Download snap %q%s from channel %q"
+msgstr "Descargar snap %q%s del canal %q"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_download.go:67
+msgid "Download to this directory (defaults to the current directory)"
+msgstr "Descargar a esta carpeta (predeterminar a la carpeta actual)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_advise.go:71
+msgid "Dump advise database for use by command-not-found."
+msgstr "Volcar base de datos de notificaciones para usar en command-not-found."
+
+#: cmd/snap/cmd_login.go:120
+msgid "Email address: "
+msgstr "Dirección de correo electrónico: "
+
+#: daemon/api_snaps.go:506
+#, c-format
+msgid "Enable %q snap"
+msgstr "Activar el snap %q"
+
+#: cmd/snap/cmd_prefer.go:35
+msgid "Enable aliases from a snap, disabling any conflicting aliases"
+msgstr ""
+"Activar aliases desde un snap, desactivando cualquier alias conflictivo"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:75
+msgid "Enable classic mode to prepare a classic model image"
+msgstr "Activar el modo clásico para preparar una imagen de modelo clásico"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_validate.go:63
+msgid "Enforce the given validation set"
+msgstr "Forzar el conjunto de validación dado"
+
+#: overlord/snapstate/snapstate.go:444
+#, c-format
+msgid "Ensure prerequisites for %q are available"
+msgstr "Garantizar que los prerequisitos para %q están disponibles"
+
+#: cmd/snap/cmd_run.go:793
+#, c-format
+msgid "Expected portal at %#v, got %#v"
+msgstr "Se esperaba un portal en %#v, se obtuvo %#v"
+
+#: cmd/snap/cmd_snapshot.go:46
+msgid "Export a snapshot"
+msgstr "Exportar una instantánea"
+
+#: cmd/snap/cmd_export_key.go:42
+msgid "Export cryptographic public key"
+msgstr "Exportar clave pública de cifrado"
+
+#. TRANSLATORS: the first argument is the identifier of the snapshot, the second one is the file name.
+#: cmd/snap/cmd_snapshot.go:484
+#, c-format
+msgid "Exported snapshot #%s into %q\n"
+msgstr "Instantánea #%s exportada a %q\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:89
+msgid "Extra snaps to be installed (DEPRECATED)"
+msgstr "Snaps adicionales que se instalarán (OBSOLETO)"
+
+#: overlord/snapstate/snapstate.go:476
+#, c-format
+msgid "Fetch and check assertions for snap %q%s"
+msgstr "Buscar y comprobar las afirmaciones para el snap %q%s"
+
+#: cmd/snap/cmd_download.go:133
+#, c-format
+msgid "Fetching assertions for %q\n"
+msgstr "Buscando afirmaciones para %q\n"
+
+#: cmd/snap/cmd_download.go:127
+#, c-format
+msgid "Fetching snap %q\n"
+msgstr "Traer snap %q\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_routine_file_access.go:70
+msgid "File path"
+msgstr "Ruta de archivo"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign.go:62
+msgid "File to sign (defaults to stdin)"
+msgstr "Archivo para firmar (el predeterminado es stdin)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign_build.go:73
+msgid "Filename of the snap you want to assert a build for"
+msgstr "Nombre del archivo snap para el que desea afirmar su construcción"
+
+#: cmd/snap/cmd_help.go:286
+msgid "For a short summary of all commands, run 'snap help --all'."
+msgstr "Para un breviario de todas las órdenes, ejecute «snap help --all»."
+
+#: cmd/snap/cmd_help.go:285
+msgid "For more information about a command, run 'snap help <command>'."
+msgstr ""
+"Para obtener más información sobre alguna orden, ejecute «snap help <orden>»."
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_create_user.go:62
+msgid "Force adding the user, even if the device is already managed"
+msgstr ""
+"Forzar a añadir el usuario, incluso si el dispositivo ya está administrado"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_auto_import.go:254
+msgid "Force import on classic systems"
+msgstr "Forzar importación en sistemas clásicos"
+
+#: overlord/ifacestate/ifacestate.go:355
+#, c-format
+msgid "Forget connection %s:%s from %s:%s"
+msgstr "Olvidar conexión %s:%s de %s:%s"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_validate.go:65
+msgid "Forget the given validation set"
+msgstr "Olvidar el conjunto de validación proporcionado"
+
+#: cmd/snap/cmd_export_key.go:50
+msgid ""
+"Format public key material as a request for an account-key for this account-"
+"id"
+msgstr ""
+"Dar formato al material de clave pública como una solicitud de la clave de "
+"la cuenta para este id de cuenta"
+
+#: overlord/devicestate/devicemgr.go:693
+msgid "Generate device key"
+msgstr "Generar clave de dispositivo"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_help.go:95
+msgid "Generate the manpage"
+msgstr "Generar la página de manual"
+
+#: overlord/hookstate/ctlcmd/model.go:43 cmd/snap/cmd_model.go:34
+msgid "Get the active model for this device"
+msgstr "Obtener el modelo activo para este dispositivo"
+
+#: cmd/snap/cmd_debug_timings.go:44
+msgid "Get the timings of the tasks of a change"
+msgstr "Obtener los tiempos de las tareas de un cambio"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign_build.go:68
+msgid "Grade states the build quality of the snap (defaults to 'stable')"
+msgstr ""
+"Califica por estados la calidad de construcción del snap (por defecto es "
+"«stable»)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_create_user.go:58
+msgid "Grant sudo access to the created user"
+msgstr "Garantizar acceso de sudo al usuario creado"
+
+#: cmd/snap/cmd_handle_link.go:44
+msgid "Handle a snap:// URI"
+msgstr "Gestionar un snap:// URI"
+
+#: data/desktop/snap-handle-link.desktop.in:3
+msgid "Handler for snap:// URIs"
+msgstr "Gestor de URI de snap://"
+
+#: data/desktop/snap-userd-autostart.desktop.in:4
+msgid ""
+"Helper program for launching snap applications that are configured to start "
+"automatically."
+msgstr ""
+"Programa de ayuda para iniciar aplicaciones snap que están configuradas para "
+"iniciar automáticamente."
+
+#: cmd/snap/cmd_help.go:212
+msgid "History"
+msgstr "Historial"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_run.go:107
+msgid "Hook to run"
+msgstr "Enganchar para ejecutar"
+
+#: cmd/snap/cmd_changes.go:118
+msgid "ID\tStatus\tSpawn\tReady\tSummary\n"
+msgstr "ID\tEstado\tGenerado\tListo\tResumen\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_debug_state.go:92
+msgid "ID of the change to inspect"
+msgstr "ID del cambio para inspeccionar"
+
+#: cmd/snap/cmd_debug_state.go:93
+msgid "ID of the task to inspect"
+msgstr "ID de la tarea a inspeccionar"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign_build.go:62
+msgid "Identifier of the signer"
+msgstr "Identificador del firmante"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign_build.go:64
+msgid "Identifier of the snap package associated with the build"
+msgstr "Identificador del paquete de snap asociado con la construcción"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_services.go:108
+msgid "If the service has a reload command, use it instead of restarting."
+msgstr "Si el servicio tiene una orden de recarga, úsela en vez de reiniciar."
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1275
+msgid "Ignore running hooks or applications blocking the installation"
+msgstr ""
+"Ignorar los enlaces en ejecución o las aplicaciones que impiden la "
+"instalación"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1294
+msgid "Ignore running hooks or applications blocking the refresh"
+msgstr ""
+"Ignorar los enlaces en ejecución o las aplicaciones que impiden la "
+"actualización"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1313
+msgid "Ignore running hooks or applications blocking the revert"
+msgstr ""
+"Ignorar los enlaces en ejecución o las aplicaciones que impiden la reversión"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1292
+msgid "Ignore validation by other snaps blocking the refresh"
+msgstr "Ignorar la validación por otras snaps bloqueando el refresco"
+
+#: cmd/snap/cmd_snapshot.go:47
+msgid "Import a snapshot"
+msgstr "Importar una instantánea"
+
+#: cmd/snap/cmd_snapshot.go:513
+#, c-format
+msgid "Imported snapshot as #%d\n"
+msgstr "Se importó una instantánea como #%d\n"
+
+#: cmd/snap/cmd_buy.go:101
+#, c-format
+msgid ""
+"In order to buy %q, you need to agree to the latest terms and conditions. "
+"Please visit https://my.ubuntu.com/payment/edit to do this.\n"
+"\n"
+"Once completed, return here and run 'snap buy %s' again."
+msgstr ""
+"Para comprar %q, debe aceptar los últimos términos y condiciones. Para ello "
+"visite https://my.ubuntu.com/payment/edit .\n"
+"\n"
+"Una vez hecho esto, vuelva aquí y ejecute «snap buy %s» nuevamente."
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:87
+msgid ""
+"Include the given snap from the store or a local file and/or specify the "
+"channel to track for the given snap"
+msgstr ""
+"Incluir el snap proporcionado desde la tienda o un archivo local y/o "
+"especificar el canal a seguir para el snap proporcionado"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_interface.go:59
+msgid "Include unused interfaces"
+msgstr "Incluir interfaces sin usar"
+
+#: overlord/devicestate/devicemgr.go:702
+msgid "Initialize device"
+msgstr "Inicializar dispositivo"
+
+#: cmd/snap/cmd_debug_state.go:66
+msgid "Inspect a snapd state file, bypassing snapd API."
+msgstr "Inspeccionar un archivo de estado de snapd, evitando la API de snapd."
+
+#: cmd/snap/cmd_debug_state.go:65
+msgid "Inspect a snapd state file."
+msgstr "Inspeccionar un archivo de estado de snapd."
+
+#: daemon/api_snaps.go:422
+#, c-format
+msgid "Install %q snap"
+msgstr "Instalar snap %q"
+
+#: daemon/api_sideload_n_try.go:291
+#, c-format
+msgid "Install %q snap from file %q"
+msgstr "Instalar snap %q desde el archivo %q"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:251
+msgid "Install from the beta channel"
+msgstr "Instalar desde el canal beta"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:255
+msgid "Install from the candidate channel"
+msgstr "Instalar desde el canal candidato"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:253
+msgid "Install from the edge channel"
+msgstr "Instalar desde el canal vanguardia"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:257
+msgid "Install from the stable channel"
+msgstr "Instalar desde el canal estable"
+
+#: daemon/api_themes.go:237 daemon/api_snaps.go:715
+#, c-format
+msgid "Install snap %q"
+msgstr "Instalar snap %q"
+
+#: cmd/snap/cmd_handle_link.go:63
+msgid "Install snap-aware Snap Store snap?"
+msgstr "¿Instalar el snap snap-aware de la Snap Store?"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: daemon/api_themes.go:240 daemon/api_snaps.go:719
+#, c-format
+msgid "Install snaps %s"
+msgstr "Instalar snaps %s"
+
+#: cmd/snap/cmd_snap_op.go:44
+msgid "Install snaps on the system"
+msgstr "Instalar snaps en el sistema"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1263
+msgid ""
+"Install the given snap file even if there are no pre-acknowledged signatures "
+"for it, meaning it was not verified and could be dangerous (--devmode "
+"implies this)"
+msgstr ""
+"Instalar el archivo snap dado incluso si no hay firmas preadmitidas para él, "
+"lo cual significa que no se verificó y podría ser peligroso (--devmode "
+"implica esto)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1267
+msgid "Install the given snap without enabling its automatic aliases"
+msgstr "Instalar el snap dado sin activar sus aliases automáticos"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1269
+msgid "Install the snap file under the given instance name"
+msgstr "Instalar el archivo de snap bajo el nombre de instancia dado"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1271
+msgid "Install the snap in the given cohort"
+msgstr "Instalar el snap en el grupo asignado"
+
+#: overlord/devicestate/devicemgr.go:1345
+msgid "Install the system"
+msgstr "Instalar el sistema"
+
+#: data/polkit/io.snapcraft.snapd.policy:21
+msgid "Install, update, or remove packages"
+msgstr "Instalar, actualizar o desinstalar paquetes"
+
+#: cmd/snap/main.go:392
+#, c-format
+msgid ""
+"Interacting with snapd is not yet supported on %s.\n"
+"This command has been left available for documentation purposes only.\n"
+msgstr ""
+"Aún no se admite la interacción con snapd en %s.\n"
+"Esta orden se conservó para propósitos de documentación únicamente.\n"
+
+#: cmd/snap/cmd_connections.go:178
+msgid "Interface\tPlug\tSlot\tNotes"
+msgstr "Interfaz\tEnchufe\tRanura\tNotas"
+
+#: cmd/snap/cmd_help.go:255
+msgid "Introspection"
+msgstr "Introspección"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_get.go:84 cmd/snap/cmd_wait.go:57
+msgid "Key of interest within the configuration"
+msgstr "Clave de interés en la configuración"
+
+#: cmd/snap/cmd_changes.go:34
+msgid "List a change's tasks"
+msgstr "Listar tareas de cambio"
+
+#: cmd/snap/cmd_debug_state.go:96
+msgid "List all changes"
+msgstr "Listar todos los cambios"
+
+#: cmd/snap/cmd_recovery.go:40
+msgid "List available recovery systems"
+msgstr "Listar los sistemas de recuperación disponibles"
+
+#: cmd/snap/cmd_keys.go:38
+msgid "List cryptographic keys"
+msgstr "Listar claves de cifrado"
+
+#: cmd/snap/cmd_snapshot.go:41
+msgid "List currently stored snapshots"
+msgstr "Listar las instantaneas actualmente almacenadas"
+
+#: cmd/snap/cmd_list.go:35
+msgid "List installed snaps"
+msgstr "Listar snaps instalados"
+
+#: cmd/snap/cmd_connections.go:41
+msgid "List interface connections"
+msgstr "Listar las conexiones de interfaz"
+
+#: cmd/snap/cmd_interfaces.go:39
+msgid "List interfaces' slots and plugs"
+msgstr "Listar interfaces' ranuras y enchufes"
+
+#: cmd/snap/cmd_validate.go:47
+msgid "List or apply validation sets"
+msgstr "Enumerar o aplicar conjuntos de validación"
+
+#: cmd/snap/cmd_changes.go:33
+msgid "List system changes"
+msgstr "Listar cambios de sistema"
+
+#: cmd/snap/cmd_warnings.go:48
+msgid "List warnings"
+msgstr "Listar avisos"
+
+#: cmd/snap/cmd_repair_repairs.go:81
+msgid "Lists all repairs"
+msgstr "Lista todas las reparaciones"
+
+#: cmd/snap/cmd_login.go:132
+msgid "Login successful"
+msgstr "Inicio de sesión correcto"
+
+#: overlord/snapstate/snapstate.go:518 overlord/snapstate/snapstate.go:2825
+#, c-format
+msgid "Make current revision for snap %q unavailable"
+msgstr "Hacer que la revisión actual del snap %q no esté disponible"
+
+#: overlord/snapstate/snapstate.go:2834 overlord/snapstate/snapstate.go:3094
+#, c-format
+msgid "Make snap %q (%s) available to the system"
+msgstr "Hacer el snap %q (%s) disponible en el sistema"
+
+#: overlord/snapstate/snapstate.go:2906 overlord/snapstate/snapstate.go:2952
+#, c-format
+msgid "Make snap %q (%s) available to the system during remodel"
+msgstr ""
+"Hacer que el snap %q (%s) esté disponible para el sistema durante el "
+"remodelado"
+
+#: overlord/snapstate/snapstate.go:3154
+#, c-format
+msgid "Make snap %q (%s) unavailable to the system"
+msgstr "Hacer el snap %q (%s) no disponible en el sistema"
+
+#: overlord/snapstate/snapstate.go:3391
+#, c-format
+msgid "Make snap %q unavailable to the system"
+msgstr "Hacer el snap %q no disponible en el sistema"
+
+#: overlord/snapstate/snapstate.go:559
+#, c-format
+msgid "Make snap %q%s available to the system"
+msgstr "Hacer que el snap %q%s esté disponible para el sistema"
+
+#: overlord/devicestate/firstboot.go:198
+msgid "Mark system pre-seeded"
+msgstr "Marcar el sistema como presembrado"
+
+#: overlord/devicestate/firstboot.go:117
+msgid "Mark system seeded"
+msgstr "Marcar el sistema como sembrado"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_validate.go:61
+msgid "Monitor the given validations set"
+msgstr "Monitorizar el conjunto de validaciones dadas"
+
+#: overlord/snapstate/snapstate.go:483
+#, c-format
+msgid "Mount snap %q%s"
+msgstr "Montar snap %q%s"
+
+#: cmd/snap/cmd_keys.go:77
+msgid "Name\tSHA3-384"
+msgstr "Nombre \tSHA3-384"
+
+#: cmd/snap/cmd_interface.go:168
+msgid "Name\tSummary"
+msgstr "Nombre\tResumen"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_create_key.go:51
+msgid "Name of key to create; defaults to 'default'"
+msgstr "Nombre de la clave a crear; el predeterminado es «default»"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_delete_key.go:51
+msgid "Name of key to delete"
+msgstr "Nombre de la clave a eliminar"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_export_key.go:55
+msgid "Name of key to export"
+msgstr "Nombre de la clave a exportar"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign_build.go:66
+msgid "Name of the GnuPG key to use (defaults to 'default' as key name)"
+msgstr ""
+"Nombre de la clave GnuPG a usar (el predeterminado es «default» para el "
+"nombre de clave)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign.go:55
+msgid "Name of the key to use, otherwise use the default key"
+msgstr ""
+"Nombre de la clave a utilizar, de otro modo usar la clave predeterminada"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:430
+msgid "Name of the snapshot export file to use"
+msgstr "Nombre del archivo de exportación de la instantánea que usar"
+
+#: cmd/snap/cmd_remodel.go:84
+#, c-format
+msgid "New model %s set\n"
+msgstr "El modelo nuevo %s  se ha establecido\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_remodel.go:59
+msgid "New model file"
+msgstr "Archivo de modelo nuevo"
+
+#: cmd/snap/cmd_warnings.go:91
+msgid "No further warnings."
+msgstr "No hay más avisos."
+
+#: cmd/snap/cmd_recovery.go:96
+msgid "No recovery systems available.\n"
+msgstr "No hay sistemas de recuperación disponibles.\n"
+
+#: cmd/snap/cmd_snapshot.go:138
+msgid "No snapshots found."
+msgstr "No se encontraron instantáneas."
+
+#: cmd/snap/cmd_validate.go:185
+msgid "No validations are available"
+msgstr "Ninguna de las validaciones está disponible"
+
+#: cmd/snap/cmd_warnings.go:89
+msgid "No warnings."
+msgstr "No hay avisos."
+
+#. TRANSLATORS: 'Notes' as in 'Comments'
+#: cmd/snap/cmd_snapshot.go:156
+msgid "Notes"
+msgstr "Notas"
+
+#: overlord/hookstate/ctlcmd/fde_setup.go:34
+msgid "Obtain full disk encryption setup request"
+msgstr "Obtener solicitud de configuración de cifrado de disco completo"
+
+#: cmd/snap/cmd_debug_state.go:95
+msgid "Omit tasks in 'Hold' state in the change output"
+msgstr "Omitir tareas en estado «Retenido» en cambiar la salida"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_find.go:170
+msgid "Only search for snaps in “stable”."
+msgstr "Solo buscar snaps en «estable»."
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_create_user.go:56 cmd/snap/cmd_keys.go:47
+msgid "Output results in JSON format"
+msgstr "Resultados de salida en formato JSON"
+
+#: cmd/snap/cmd_debug_state.go:99
+msgid "Output seeding status (true or false)"
+msgstr "Mostrar estatus de sembrado (verdadero o falso)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_pack.go:80
+msgid "Output to this filename"
+msgstr "Producir con este nombre de archivo"
+
+#: asserts/signtool/keymgr.go:84
+msgid "Passphrase: "
+msgstr "Frase de paso: "
+
+#: cmd/snap/cmd_login.go:98
+#, c-format
+msgid "Password of %q: "
+msgstr "Contraseña de %q: "
+
+#: usersession/agent/rest_api.go:248
+#, c-format
+msgid "Pending update of %q snap"
+msgstr "Actualización pendiente del snap %q"
+
+#: cmd/snap/cmd_help.go:220
+msgid "Permissions"
+msgstr "Permisos"
+
+#. TRANSLATORS: %q, %q and %s are the snap name, developer, and price. Please wrap the translation at 80 characters.
+#: cmd/snap/cmd_buy.go:110
+#, c-format
+msgid ""
+"Please re-enter your Ubuntu One password to purchase %q from %q\n"
+"for %s. Press ctrl-c to cancel."
+msgstr ""
+"Vuelva a introducir su contraseña de Ubuntu One para comprar %q de %q\n"
+"por %s. Presione ctrl-c para cancelar."
+
+#: cmd/snap/cmd_reboot.go:95
+msgid "Please specify a single mode"
+msgstr "Especifique un único modo"
+
+#: overlord/snapstate/aliasesv2.go:701
+#, c-format
+msgid "Prefer aliases for snap %q"
+msgstr "Preferir los aliases del snap %q"
+
+#: daemon/api_aliases.go:115
+#, c-format
+msgid "Prefer aliases of snap %q"
+msgstr "Preferir alias para el snap %q"
+
+#: cmd/snap/cmd_prepare_image.go:63
+msgid "Prepare a device image"
+msgstr "Preparar una imagen de dispositivo"
+
+#: overlord/devicestate/devicestate.go:946
+msgid "Prepare remodeling"
+msgstr "Preparar remodelado"
+
+#: overlord/snapstate/snapstate.go:2809 overlord/snapstate/snapstate.go:3087
+#, c-format
+msgid "Prepare snap %q (%s)"
+msgstr "Preparar snap %q (%s)"
+
+#: overlord/snapstate/snapstate.go:2893 overlord/snapstate/snapstate.go:3006
+#, c-format
+msgid "Prepare snap %q (%s) for remodel"
+msgstr "Preparar snap %q (%s) para remodelado"
+
+#: overlord/snapstate/snapstate.go:451
+#, c-format
+msgid "Prepare snap %q%s"
+msgstr "Preparar snap %q%s"
+
+#: cmd/snap/cmd_model.go:94
+msgid "Print all specific assertion fields."
+msgstr "Imprimir todos los campos de aserción específicos."
+
+#: cmd/snap/cmd_model.go:93
+msgid "Print the raw assertion."
+msgstr "Imprimir la aserción en bruto."
+
+#: cmd/snap/cmd_model.go:95
+msgid "Print the serial assertion instead of the model assertion."
+msgstr "Imprimir la aserción en serie en lugar de la aserción del modelo."
+
+#: cmd/snap/main.go:327
+msgid "Print the version and exit"
+msgstr "Imprimir la versión y salir"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_routine_portal_info.go:57
+msgid "Process ID of confined app"
+msgstr "ID de proceso de la app confinada"
+
+#: data/desktop/snap-handle-link.desktop.in:4
+msgid "Prompt the user to install gnome-software then pass control to it"
+msgstr "Sugerir al usuario instalar gnome-software y luego pasarle el control"
+
+#: overlord/snapstate/snapstate.go:2015
+#, c-format
+msgid "Prune automatic aliases for snap %q"
+msgstr "Quitar los aliases automáticos del snap %q"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:453
+msgid "Put snap in classic mode and disable security confinement"
+msgstr "Poner snap en modo clásico y desactivar el confinamiento de seguridad"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:455
+msgid "Put snap in development mode and disable security confinement"
+msgstr ""
+"Poner snap en modo de desarrollo y desactivar el confinamiento de seguridad"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:457
+msgid "Put snap in enforced confinement mode"
+msgstr "Poner snap en modo de confinamiento forzado"
+
+#: overlord/hookstate/ctlcmd/services.go:35 cmd/snap/cmd_services.go:52
+msgid "Query the status of services"
+msgstr "Consultar el estado de los servicios"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_known.go:60
+msgid "Query the store for the assertion, via snapd if possible"
+msgstr "Solicitar a la tienda la aserción, a través de snapd si es posible"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_known.go:62
+msgid "Query the store for the assertion, without attempting to go via snapd"
+msgstr ""
+"Consulta la tienda sobre la aserción, sin intentar ir a través de snapd"
+
+#: cmd/snap/cmd_reboot.go:125
+msgid "Reboot\n"
+msgstr "Reiniciar\n"
+
+#: cmd/snap/cmd_reboot.go:119
+#, c-format
+msgid "Reboot into %q %q mode.\n"
+msgstr "Reiniciar en modo %q %q.\n"
+
+#: cmd/snap/cmd_reboot.go:123
+#, c-format
+msgid "Reboot into %q mode.\n"
+msgstr "Reiniciar en modo %q.\n"
+
+#: cmd/snap/cmd_reboot.go:121
+#, c-format
+msgid "Reboot into %q.\n"
+msgstr "Reiniciar en %q.\n"
+
+#: cmd/snap/cmd_reboot.go:42
+msgid "Reboot into selected system and mode"
+msgstr "Reiniciar en el sistema y modo seleccionados"
+
+#: daemon/api_snaps.go:458
+#, c-format
+msgid "Refresh %q snap"
+msgstr "Actualizar snap %q"
+
+#: daemon/api_snaps.go:460
+#, c-format
+msgid "Refresh %q snap from %q channel"
+msgstr "Refrescar snap %q desde el canal %q"
+
+#: overlord/snapstate/snapstate.go:2012
+#, c-format
+msgid "Refresh aliases for snap %q"
+msgstr "Refrescar los aliases del snap %q"
+
+#: daemon/api_snaps.go:763
+msgid "Refresh all snaps: no updates"
+msgstr "Refrescar todas las snaps: sin actualizaciones"
+
+#: overlord/devicestate/devicestate.go:992
+#, c-format
+msgid "Refresh model assertion from revision %v to %v"
+msgstr "Refrescar el modelo de aserción para la revisión %v a la %v"
+
+#: daemon/api_snaps.go:766
+#, c-format
+msgid "Refresh snap %q"
+msgstr "Actualizar snap %q"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: daemon/api_snaps.go:770
+#, c-format
+msgid "Refresh snaps %s"
+msgstr "Actualizar snaps %s"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: daemon/api_snaps.go:761
+#, c-format
+msgid "Refresh snaps %s: no updates"
+msgstr "Refrescar snaps %s: sin actualizaciones"
+
+#: cmd/snap/cmd_snap_op.go:46
+msgid "Refresh snaps in the system"
+msgstr "Refrescar snaps en el sistema"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1296
+msgid "Refresh the snap into the given cohort"
+msgstr "Refrescar el snap en el grupo asignado"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1298
+msgid "Refresh the snap out of its cohort"
+msgstr "Refrescar el snap fuera de su grupo"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1286
+msgid "Refresh to the given revision"
+msgstr "Actualizar a la versión dada"
+
+#: overlord/devicestate/devicestate.go:994
+#, c-format
+msgid "Remodel device to %v/%v (%v)"
+msgstr "Remodelar dispositivo a %v/%v (%v)"
+
+#: cmd/snap/cmd_remodel.go:32
+msgid "Remodel this device"
+msgstr "Remodelar este dispositivo"
+
+#: daemon/api_snaps.go:472
+#, c-format
+msgid "Remove %q snap"
+msgstr "Eliminar snap %q"
+
+#: cmd/snap/cmd_remove_user.go:31
+msgid "Remove a local system user"
+msgstr "Quitar un usuario del sistema local"
+
+#: cmd/snap/cmd_unalias.go:35
+msgid "Remove a manual alias, or the aliases for an entire snap"
+msgstr "Eliminar un alias manual o todos los aliases del snap"
+
+#: overlord/snapstate/snapstate.go:514 overlord/snapstate/snapstate.go:3150
+#: overlord/snapstate/snapstate.go:3387
+#, c-format
+msgid "Remove aliases for snap %q"
+msgstr "Eliminar alias para el snap %q"
+
+#: overlord/hookstate/ctlcmd/unset.go:37 cmd/snap/cmd_unset.go:28
+msgid "Remove configuration options"
+msgstr "Eliminar opciones de configuración"
+
+#: overlord/snapstate/snapstate.go:3436
+#, c-format
+msgid "Remove data for snap %q (%s)"
+msgstr "Eliminar datos para el snap %q (%s)"
+
+#: daemon/api_aliases.go:110 overlord/snapstate/aliasesv2.go:637
+#, c-format
+msgid "Remove manual alias %q for snap %q"
+msgstr "Eliminar alias manual %q para el snap %q"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1254
+msgid "Remove only the given revision"
+msgstr "Eliminar solo la revisión dada"
+
+#: overlord/snapstate/snapstate.go:3395
+#, c-format
+msgid "Remove security profile for snap %q (%s)"
+msgstr "Eliminar el prefil de seguridad del snap %q (%s)"
+
+#: overlord/snapstate/snapstate.go:3158
+#, c-format
+msgid "Remove security profiles of snap %q"
+msgstr "Eliminar los perfiles de seguridad del snap %q"
+
+#: daemon/api_snaps.go:857
+#, c-format
+msgid "Remove snap %q"
+msgstr "Eliminar snap %q"
+
+#: overlord/snapstate/snapstate.go:3439
+#, c-format
+msgid "Remove snap %q (%s) from the system"
+msgstr "Eliminar el snap %q (%s) del sistema"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: daemon/api_snaps.go:861
+#, c-format
+msgid "Remove snaps %s"
+msgstr "Eliminar snaps %s"
+
+#: cmd/snap/cmd_snap_op.go:45
+msgid "Remove snaps from the system"
+msgstr "Eliminar snaps del sistema"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1256
+msgid "Remove the snap without saving a snapshot of its data"
+msgstr "Elimina el snap sin guardar una instantánea de sus datos"
+
+#. TRANSLATORS: this is used to introduce a list of aliases that were removed
+#: cmd/snap/cmd_alias.go:106
+msgid "Removed"
+msgstr "Eliminado"
+
+#: overlord/hookstate/ctlcmd/health.go:34
+msgid "Report the health status of a snap"
+msgstr "Informar del estado de salud de un snap"
+
+#: overlord/devicestate/devicemgr.go:698
+msgid "Request device serial"
+msgstr "Solicitar la serie del dispositivo"
+
+#: overlord/devicestate/devicestate.go:944
+msgid "Request new device serial"
+msgstr "Solicitar una nueva serie del dispositivo"
+
+#: overlord/hookstate/ctlcmd/restart.go:29 cmd/snap/cmd_services.go:70
+msgid "Restart services"
+msgstr "Reiniciar servicios"
+
+#: cmd/snap/cmd_services.go:269
+msgid "Restarted.\n"
+msgstr "Reiniciado.\n"
+
+#: cmd/snap/cmd_snapshot.go:45
+msgid "Restore a snapshot"
+msgstr "Restaurar una instantánea"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:352
+msgid ""
+"Restore data of only specific users (comma-separated) (default: all users)"
+msgstr ""
+"Restaurar datos unicamente de usuarios específicos (separados por comas) "
+"(predeterminado: todos los usuarios)"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: cmd/snap/cmd_snapshot.go:314
+#, c-format
+msgid "Restored snapshot #%s of snaps %s.\n"
+msgstr "Instantánea restaurada #%s de los snaps %s.\n"
+
+#: cmd/snap/cmd_snapshot.go:317
+#, c-format
+msgid "Restored snapshot #%s.\n"
+msgstr "Instantánea restaurada #%s.\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_find.go:172
+msgid "Restrict the search to a given section."
+msgstr "Restringir la búsqueda a una sección determinada."
+
+#: cmd/snap/cmd_services.go:57
+msgid "Retrieve logs for services"
+msgstr "Recuperar registros de servicios"
+
+#: cmd/snap/cmd_routine_portal_info.go:42
+msgid "Return information about a process"
+msgstr "Devolver información sobre un proceso"
+
+#: cmd/snap/cmd_routine_file_access.go:42
+msgid "Return information about file access by a snap"
+msgstr "Devolver información sobre acceso a un archivo por un snap"
+
+#. TRANSLATORS: 'Rev' is an abbreviation of 'Revision'
+#: cmd/snap/cmd_snapshot.go:153
+msgid "Rev"
+msgstr "Rev"
+
+#: daemon/api_snaps.go:493
+#, c-format
+msgid "Revert %q snap"
+msgstr "Revertir snap %q"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1311
+msgid "Revert to the given revision"
+msgstr "Revertir a la revisión proporcionada"
+
+#: cmd/snap/cmd_snap_op.go:1149
+msgid "Reverts the given snap to the previous state"
+msgstr "Revierte el snap dado a su estado previo"
+
+#: cmd/snap/cmd_debug_bootvars.go:53
+msgid "Root directory to look for boot variables in"
+msgstr "Carpeta raíz en la que buscar variables de arranque"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_run.go:111
+msgid "Run a shell instead of the command (useful for debugging)"
+msgstr ""
+"Ejecutar un intérprete de ordenes en vez de la orden (útil para depurar)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_advise.go:73
+msgid "Run as an apt hook"
+msgstr "Ejecutar como enganche apt"
+
+#: overlord/configstate/configstate.go:111
+#, c-format
+msgid "Run configure hook of %q snap"
+msgstr "Ejecutar el enchanche de configuración del snap %q"
+
+#: overlord/configstate/configstate.go:130
+#, c-format
+msgid "Run configure hook of %q snap if present"
+msgstr "Ejecutar el enganche de configuración del snap %q  si está presente"
+
+#: cmd/snap/cmd_debug.go:28
+msgid "Run debug commands"
+msgstr "Ejecutar órdenes de depuración"
+
+#: overlord/hookstate/hooks.go:275 overlord/ifacestate/ifacestate.go:168
+#: overlord/ifacestate/ifacestate.go:194 overlord/ifacestate/ifacestate.go:245
+#: overlord/ifacestate/ifacestate.go:268 overlord/ifacestate/ifacestate.go:440
+#: overlord/ifacestate/ifacestate.go:464
+#, c-format
+msgid "Run hook %s of snap %q"
+msgstr "Ejecutar el enganche %s del snap %q"
+
+#: overlord/hookstate/hooks.go:50
+#, c-format
+msgid "Run install hook of %q snap if present"
+msgstr "Ejecutar el enganche de instalación del snap %q si está presente"
+
+#: overlord/hookstate/hooks.go:63
+#, c-format
+msgid "Run post-refresh hook of %q snap if present"
+msgstr "Ejecutar el enganche de post-refresco del snap %q si está presente"
+
+#: overlord/devicestate/devicemgr.go:684
+msgid "Run prepare-device hook"
+msgstr "Ejecutar el enganche de preparar-dispositivo"
+
+#: overlord/hookstate/hooks.go:303
+#, c-format
+msgid "Run remove hook of %q snap if present"
+msgstr "Ejecutar el enganche de eliminación del snap %q si está presente"
+
+#: cmd/snap/cmd_routine.go:28
+msgid "Run routine commands"
+msgstr "Ejecutar órdenes de rutina"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_run.go:113
+msgid ""
+"Run the command under strace (useful for debugging). Extra strace options "
+"can be specified as well here. Pass --raw to strace early snap helpers."
+msgstr ""
+"Ejecutar la orden bajo strace (útil al depurar). Aquí también se pueden "
+"especificar opciones de strace adicionales. Incluya --raw para ejecutar "
+"strace en asistentes de snap tempranos."
+
+#: cmd/snap/cmd_run.go:96
+msgid "Run the given snap command"
+msgstr "Ejecutar la orden snap dada"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_userd.go:65
+msgid "Run the user session agent"
+msgstr "Ejecutar el agente de la sesión de usuario"
+
+#: cmd/snap/cmd_snapshot.go:42
+msgid "Save a snapshot of the current data"
+msgstr "Guardar una instantánea de los datos actuales"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_find.go:168
+msgid "Search private snaps."
+msgstr "Buscar instantáneas privadas."
+
+#: cmd/snap/cmd_advise.go:92 cmd/snap/cmd_advise.go:105
+msgid "See 'snap info <snap name>' for additional versions."
+msgstr "Consulte «snap info <nombre de snap>» para versiones adicionales."
+
+#: overlord/hookstate/ctlcmd/services.go:83 cmd/snap/cmd_services.go:138
+msgid "Service\tStartup\tCurrent\tNotes"
+msgstr "Servicio\tEncendido\tActual\tNotas"
+
+#. TRANSLATORS: 'Set' as in group or bag of things
+#: cmd/snap/cmd_snapshot.go:147
+msgid "Set"
+msgstr "Conjunto"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_set.go:76
+msgid "Set (key=value) or unset (key!) configuration value"
+msgstr "Establecer (clave=valor) o quitar (clave!) el valor de configuración"
+
+#: overlord/snapstate/snapstate.go:569
+#, c-format
+msgid "Set automatic aliases for snap %q"
+msgstr "Asignar aliases automáticos al snap %q"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:374
+msgid "Set id of snapshot to delete (see 'snap help saved')"
+msgstr ""
+"Establecer la id de la instantánea que eliminar (consulte «snap help saved»)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:411
+msgid "Set id of snapshot to export"
+msgstr "Establecer id de la instantánea que exportar"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:357
+msgid "Set id of snapshot to restore (see 'snap help saved')"
+msgstr ""
+"Establecer la id de la instantánea que restaurar (consulte «snap help saved»)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:394
+msgid "Set id of snapshot to verify (see 'snap help saved')"
+msgstr ""
+"Establecer la id de la instantánea que verificar (consulte «snap help saved»)"
+
+#: overlord/devicestate/devicestate.go:841
+msgid "Set new model assertion"
+msgstr "Definir nuevo modelo de aserción"
+
+#: overlord/hookstate/ctlcmd/fde_setup.go:100
+msgid "Set result for full disk encryption"
+msgstr "Establecer resultado para cifrado de disco completo"
+
+#: daemon/api_aliases.go:107
+#, c-format
+msgid "Setup alias %q => %q for snap %q"
+msgstr "Configurar el alias %q => %q para el snap %q"
+
+#: overlord/snapstate/aliasesv2.go:556
+#, c-format
+msgid "Setup manual alias %q => %q for snap %q"
+msgstr "Configurar el alias manual %q => %q para el snap %q"
+
+#: overlord/snapstate/snapstate.go:3090
+#, c-format
+msgid "Setup snap %q (%s) security profiles"
+msgstr "Configurar los perfiles de seguridad del snap %q (%s)"
+
+#: overlord/ifacestate/handlers.go:1180
+#, c-format
+msgid "Setup snap %q (%s) security profiles for auto-connections"
+msgstr ""
+"Configurar los perfiles de seguridad del snap %q (%s) para conexiones "
+"automáticas"
+
+#: overlord/snapstate/snapstate.go:573 overlord/snapstate/snapstate.go:3099
+#, c-format
+msgid "Setup snap %q aliases"
+msgstr "Configurar los aliases del snap %q"
+
+#: overlord/snapstate/snapstate.go:554
+#, c-format
+msgid "Setup snap %q%s security profiles"
+msgstr "Configurar los perfiles de seguridad del snap %q%s"
+
+#: overlord/devicestate/devicemgr.go:1318
+msgid "Setup system for run mode"
+msgstr "Configurar el sistema para modo ejecución"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_help.go:93
+msgid "Show a short summary of all commands"
+msgstr "Muestra un breve resumen de todas las órdenes"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_list.go:57
+msgid "Show all revisions"
+msgstr "Mostrar todas las revisiones"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_warnings.go:70
+msgid "Show all warnings"
+msgstr "Mostrar todos los avisos"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1290
+msgid "Show auto refresh information but do not perform a refresh"
+msgstr "Mostrar la información de auto refresco sin realizar un refresco"
+
+#: cmd/snap/cmd_connections.go:60
+msgid "Show connected and unconnected plugs and slots"
+msgstr "Mostrar enchufes y ranuras conectadas y no conectadas"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_interface.go:64
+msgid "Show details of a specific interface"
+msgstr "Mostrar detalles de una interfaz específica"
+
+#: cmd/snap/cmd_interface.go:44
+msgid "Show details of snap interfaces"
+msgstr "Muestra detalles de las interfaces de snaps"
+
+#: cmd/snap/cmd_help.go:35
+msgid "Show help about a command"
+msgstr "Mostrar información sobre una orden"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_interface.go:57
+msgid "Show interface attributes"
+msgstr "Mostrar atributos de la interfaz"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_debug_timings.go:53 cmd/snap/cmd_warnings.go:72
+msgid "Show more information"
+msgstr "Mostrar más información"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:331
+msgid "Show only a specific snapshot."
+msgstr "Mostrar solo una instantánea especifica."
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_recovery.go:54
+msgid "Show recovery keys (if available) to unlock encrypted partitions."
+msgstr ""
+"Mostrar teclas de recuperación (si está disponible) para desbloquear "
+"particiones cifradas."
+
+#: cmd/snap/cmd_whoami.go:30
+msgid "Show the email the user is logged in with"
+msgstr "Mostrar el correo electrónico con el que el usuario inició sesión"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1288
+msgid ""
+"Show the new versions of snaps that would be updated with the next refresh"
+msgstr ""
+"Mostrar las versiones nuevas de snaps que se actualizarán con el siguiente "
+"refresco"
+
+#: cmd/snap/cmd_debug_timings.go:49
+msgid ""
+"Show timings for a change related to the given Ensure activity (one of: auto-"
+"refresh, become-operational, refresh-catalogs, refresh-hints, seed)"
+msgstr ""
+"Muestra los tiempos para un cambio relacionado con la actividad de "
+"Aseguramiento dada (una de estas: auto-refresh, become-operational, refresh-"
+"catalogs, refresh-hints, seed)"
+
+#: cmd/snap/cmd_debug_timings.go:50
+msgid ""
+"Show timings for all executions of the given Ensure or startup activity, not "
+"just the latest"
+msgstr ""
+"Muestra los tiempos para todas las ejecuciones de la actividad de "
+"aseguramiento o arranque, no solo la última"
+
+#: cmd/snap/cmd_debug_timings.go:51
+msgid ""
+"Show timings for the startup of given subsystem (one of: load-state, "
+"ifacemgr)"
+msgstr ""
+"Muestra los tiempos para el arranque del subsistema dado (uno de estos: load-"
+"state, ifacemgr)"
+
+#: cmd/snap/cmd_sign.go:34
+msgid "Sign an assertion"
+msgstr "Firmar una aseveración"
+
+#: cmd/snap/cmd_snapshot.go:154
+msgid "Size"
+msgstr "Tamaño"
+
+#: cmd/snap/cmd_interfaces.go:100
+msgid "Slot\tPlug"
+msgstr "Ranura\tEnchufe"
+
+#: usersession/agent/rest_api.go:267
+#, c-format
+msgid "Snap %q is refreshing now!"
+msgstr "El snap %q se está refrescando"
+
+#: cmd/snap/cmd_handle_link.go:70
+msgid "Snap Store required"
+msgstr "Se necesita la Snap Store"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_buy.go:50 cmd/snap/cmd_download.go:71
+#: cmd/snap/cmd_routine_file_access.go:64
+msgid "Snap name"
+msgstr "Nombre de snap"
+
+#: data/desktop/snap-userd-autostart.desktop.in:3
+msgid "Snap user application autostart helper"
+msgstr "Ayuda de inicio automático de aplicación de usuario snap"
+
+#: data/desktop/io.snapcraft.SessionAgent.desktop.in:4
+msgid "Snapd User Session Agent"
+msgstr "Agente de sesión de usuario de snapd"
+
+#: cmd/snap/cmd_snapshot.go:239
+#, c-format
+msgid "Snapshot #%s forgotten.\n"
+msgstr "Instantánea #%s olvidada.\n"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: cmd/snap/cmd_snapshot.go:237
+#, c-format
+msgid "Snapshot #%s of snap %s forgotten.\n"
+msgid_plural "Snapshot #%s of snaps %s forgotten.\n"
+msgstr[0] "La instantánea #%s del snap %s se ha olvidado.\n"
+msgstr[1] "Las instantáneas #%s de los snaps %s se han olvidado.\n"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: cmd/snap/cmd_snapshot.go:275
+#, c-format
+msgid "Snapshot #%s of snaps %s verified successfully.\n"
+msgstr "La instantánea #%s de los snaps %s se ha verificado correctamente.\n"
+
+#: cmd/snap/cmd_snapshot.go:278
+#, c-format
+msgid "Snapshot #%s verified successfully.\n"
+msgstr "La instantánea #%s se ha verificado correctamente.\n"
+
+#: daemon/api_snapshots.go:228
+msgid "Snapshot all snaps"
+msgstr "Guardar instantáneas de todos los snaps"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:342
+msgid ""
+"Snapshot data of only specific users (comma-separated) (default: all users)"
+msgstr ""
+"Guardar instantánea unicamente de los datos de usuarios específicos "
+"(separados por comas) (predeterminado: todos los usuarios)"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: daemon/api_snapshots.go:231
+#, c-format
+msgid "Snapshot snaps %s"
+msgstr "Guardar instantánea de los snaps %s"
+
+#: cmd/snap/cmd_help.go:236
+msgid "Snapshots"
+msgstr "Instantáneas"
+
+#: cmd/snap/cmd_buy.go:124
+msgid ""
+"Sorry, your payment method has been declined by the issuer. Please review "
+"your\n"
+"payment details at https://my.ubuntu.com/payment/edit and try again."
+msgstr ""
+"Lo sentimos, su método de pago ha sido rechazado por el distribuidor. Revise "
+"sus\n"
+"detalles de pago en https://my.ubuntu.com/payment/edit e inténtelo de nuevo."
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:85
+msgid "Specify an architecture for snaps for --classic when the model does not"
+msgstr ""
+"Especificar la arquitectura de los snaps para --classic cuando el modelo no "
+"lo hace"
+
+#: cmd/snap/cmd_snap_op.go:289
+#, c-format
+msgid ""
+"Specifying a channel %q is relying on undefined behaviour. Interpreting it "
+"as %q for now, but this will be an error later.\n"
+msgstr ""
+"Especificar un canal %q depende de un comportamiento indefinido. Se "
+"interpreta como %q por ahora, pero esto será un error más adelante.\n"
+
+#: cmd/snap/cmd_routine_console_conf.go:39
+msgid "Start console-conf snapd routine"
+msgstr "Iniciar la rutina console-conf de snapd"
+
+#: overlord/hookstate/ctlcmd/start.go:29 cmd/snap/cmd_services.go:62
+msgid "Start services"
+msgstr "Iniciar servicios"
+
+#: overlord/snapstate/snapstate.go:2839 overlord/snapstate/snapstate.go:3103
+#, c-format
+msgid "Start snap %q (%s) services"
+msgstr "Iniciar los servicios (%s) del snap %q"
+
+#: overlord/snapstate/snapstate.go:620
+#, c-format
+msgid "Start snap %q%s services"
+msgstr "Iniciar los servicios %q%s del snap"
+
+#: overlord/patch/patch3.go:42
+msgid "Start snap services"
+msgstr "Iniciar servicios snap"
+
+#: cmd/snap/cmd_userd.go:50
+msgid "Start the userd service"
+msgstr "Iniciar el servicio userd"
+
+#: cmd/snap/cmd_changes.go:165
+msgid "Status\tSpawn\tReady\tSummary\n"
+msgstr "Estado\tGenerado\tListo\tResumen\n"
+
+#: overlord/hookstate/ctlcmd/stop.go:37 cmd/snap/cmd_services.go:66
+msgid "Stop services"
+msgstr "Detener servicios"
+
+#: overlord/snapstate/snapstate.go:3146
+#, c-format
+msgid "Stop snap %q (%s) services"
+msgstr "Parar los servicios (%s) del snap %q"
+
+#: overlord/snapstate/snapstate.go:509 overlord/snapstate/snapstate.go:2820
+#: overlord/snapstate/snapstate.go:3336
+#, c-format
+msgid "Stop snap %q services"
+msgstr "Detener los servicios del snap %q"
+
+#: overlord/patch/patch3.go:51
+msgid "Stop snap services"
+msgstr "Parar los servicios de snap"
+
+#: cmd/snap/cmd_services.go:240
+msgid "Stopped.\n"
+msgstr "Detenido.\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_get.go:73
+msgid "Strict typing with nulls and quoted strings"
+msgstr "Escritura estricta con cadenas nulas y citadas"
+
+#: daemon/api_snaps.go:537
+#, c-format
+msgid "Switch %q snap away from cohort"
+msgstr "Trasladar el snap %q lejos del grupo"
+
+#: daemon/api_snaps.go:539
+#, c-format
+msgid "Switch %q snap to channel %q"
+msgstr "Cambiar el snap %q al canal %q"
+
+#: daemon/api_snaps.go:535
+#, c-format
+msgid "Switch %q snap to channel %q and away from cohort"
+msgstr "Cambiar el snap %q al canal %q y lejos del grupo"
+
+#: daemon/api_snaps.go:543
+#, c-format
+msgid "Switch %q snap to channel %q and cohort %q"
+msgstr "Cambiar el snap %q al canal %q y al grupo %q"
+
+#: daemon/api_snaps.go:541
+#, c-format
+msgid "Switch %q snap to cohort %q"
+msgstr "Cambiar el snap %q al grupo %q"
+
+#: overlord/snapstate/snapstate.go:2173
+#, c-format
+msgid "Switch snap %q away from cohort %q"
+msgstr "Trasladar el snap %q lejos del grupo %q"
+
+#: overlord/snapstate/snapstate.go:2221
+#, c-format
+msgid "Switch snap %q from channel %q to %q"
+msgstr "Cambiar el snap %q del canal %q al %q"
+
+#: overlord/snapstate/snapstate.go:2181
+#, c-format
+msgid "Switch snap %q from channel %q to %q and away from cohort %q"
+msgstr "Cambiar el snap %q del canal %q al %q y lejos del grupo %q"
+
+#: overlord/snapstate/snapstate.go:2210
+#, c-format
+msgid "Switch snap %q from channel %q to %q and from cohort %q to %q"
+msgstr "Cambiar el snap %q del canal %q al %q y del grupo %q al %q"
+
+#: overlord/snapstate/snapstate.go:2197
+#, c-format
+msgid "Switch snap %q from channel %q to %q and from no cohort to %q"
+msgstr "Cambiar el snap %q del canal %q al %q y de ningún grupo al grupo %q"
+
+#: overlord/snapstate/snapstate.go:2202
+#, c-format
+msgid "Switch snap %q from cohort %q to %q"
+msgstr "Cambiar el snap %q del grupo %q al %q"
+
+#: overlord/snapstate/snapstate.go:2188
+#, c-format
+msgid "Switch snap %q from no cohort to %q"
+msgstr "Cambiar el snap %q de ningún grupo al grupo %q"
+
+#: overlord/snapstate/snapstate.go:2217
+#, c-format
+msgid "Switch snap %q to channel %q"
+msgstr "Cambiar el snap %q al canal %q"
+
+#: overlord/snapstate/snapstate.go:2177
+#, c-format
+msgid "Switch snap %q to channel %q and away from cohort %q"
+msgstr "Cambiar el snap %q al canal %q y lejos del grupo %q"
+
+#: overlord/snapstate/snapstate.go:2206
+#, c-format
+msgid "Switch snap %q to channel %q and from cohort %q to %q"
+msgstr "Cambiar el snap %q al canal %q y del grupo %q al %q"
+
+#: overlord/snapstate/snapstate.go:2192
+#, c-format
+msgid "Switch snap %q to channel %q and from no cohort to %q"
+msgstr "Cambiar el snap %q al canal %q y de ningún grupo al grupo %q"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1317
+msgid "Switch the snap into the given cohort"
+msgstr "Cambiar el snap al grupo asignado"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1319
+msgid "Switch the snap out of its cohort"
+msgstr "Cambiar el snap fuera de su grupo"
+
+#: cmd/snap/cmd_snap_op.go:1189
+msgid "Switches snap to a different channel"
+msgstr "Cambia el snap a un canal diferente"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_auto_import.go:252
+msgid "Temporarily mount device before inspecting"
+msgstr "Montar el dispositivo temporalmente antes de inspeccionar"
+
+#: cmd/snap/cmd_snap_op.go:47
+msgid "Test an unpacked snap in the system"
+msgstr "Probar un snap sin empaquetar en el sistema"
+
+#. TRANSLATORS: %q and %s are the same snap name. Please wrap the translation at 80 characters.
+#: cmd/snap/cmd_buy.go:132
+#, c-format
+msgid ""
+"Thanks for purchasing %q. You may now install it on any of your devices\n"
+"with 'snap install %s'."
+msgstr ""
+"Gracias por comprar %q. Ahora puede instalarlo en cualquiera de sus\n"
+"dispositivos con «snap install %s»."
+
+#: cmd/snap/cmd_handle_link.go:64
+msgid "The Snap Store is required to open snaps from a web browser."
+msgstr "Se necesita la Snap Store para abrir snaps desde el navegador web."
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:95
+msgid "The channel to use"
+msgstr "El canal que utilizar"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:417
+msgid "The filename of the export"
+msgstr "El nombre de archivo de la exportación"
+
+#: cmd/snap/cmd_handle_link.go:45
+msgid ""
+"The handle-link command installs the snap-store snap and then invokes it."
+msgstr "La orden handle-link instala el «snap» snap-store y luego lo invoca."
+
+#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
+#: cmd/snap/cmd_login.go:64
+msgid "The login.ubuntu.com email to login as"
+msgstr "El email con el que acceder a login.ubuntu.com"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:103
+msgid "The model assertion name"
+msgstr "El nombre de la aserción modelo"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_reboot.go:74
+msgid "The recovery system label"
+msgstr "La etiqueta del sistema de recuperación"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:378
+msgid "The snap for which data will be deleted"
+msgstr "El snap del cual se borrarán los datos"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:361
+msgid "The snap for which data will be restored"
+msgstr "El snap para el que se restaurarán los datos"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:398
+msgid "The snap for which data will be verified"
+msgstr "El snap del cual se verificarán los datos"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_unset.go:55 cmd/snap/cmd_set.go:71
+msgid "The snap to configure (e.g. hello-world)"
+msgstr "El snap a configurar (p.ej.: hello-world)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_get.go:78
+msgid "The snap whose conf is being requested"
+msgstr "El snap para el que se solicita su conf"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:108
+msgid "The target directory"
+msgstr "La carpeta objetivo"
+
+#: cmd/snap/cmd_debug_timings.go:45
+msgid "The timings command displays details about the time each task runs."
+msgstr ""
+"La orden timings muestra detalles sobre el tiempo que toma cada tarea para "
+"ejecutarse."
+
+#. TRANSLATORS: This should not start with a lowercase letter
+#: cmd/snap/cmd_remove_user.go:49
+msgid "The username to remove"
+msgstr "El nombre de usuario para eliminar"
+
+#: cmd/snap/cmd_services.go:131
+msgid "There are no services provided by installed snaps."
+msgstr "No hay servicios proporcionados por los snaps instalados."
+
+#: usersession/userd/launcher.go:291 usersession/userd/settings.go:215
+#: cmd/snap/cmd_handle_link.go:67
+msgid "This dialog will close automatically after 5 minutes of inactivity."
+msgstr ""
+"Este diálogo se cerrará automáticamente después de 5 minutos de inactividad."
+
+#: cmd/snap/main.go:322
+msgid "Tool to interact with snaps"
+msgstr "Herramienta para actuar con snaps"
+
+#: overlord/snapstate/snapstate.go:3624
+#, c-format
+msgid "Transition security profiles from %q to %q"
+msgstr "Transición de perfiles de seguridad de %q a %q"
+
+#: overlord/snapstate/snapmgr.go:932
+msgid "Transition to the snapd snap"
+msgstr "Transición al snap de snapd"
+
+#: overlord/snapstate/snapmgr.go:991
+msgid "Transition ubuntu-core to core"
+msgstr "Transición de ubuntu-core a core"
+
+#: daemon/api_sideload_n_try.go:474
+#, c-format
+msgid "Try %q snap from %s"
+msgstr "Probar snap %q desde %s"
+
+#: cmd/snap/cmd_login.go:73
+msgid "Two-factor code: "
+msgstr "Código de dos factores: "
+
+#: cmd/snap/cmd_help.go:282
+msgid "Usage: snap <command> [<options>...]"
+msgstr "Uso: snap <orden> [<opciones>...]"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_run.go:109
+msgid "Use a specific snap revision when running hook"
+msgstr "Usar una revisión específica de un snap al ejecutar un enganche"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_create_user.go:60
+msgid "Use known assertions for user creation"
+msgstr "Usar afirmaciones conocidas para crear el usuario"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_download.go:65
+msgid ""
+"Use this basename for the snap and assertion files (defaults to "
+"<snap>_<revision>)"
+msgstr ""
+"Utilice este nombre base para los archivos de snap y aserción (el valor "
+"predeterminado es <snap>_<revisión>)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:249
+msgid "Use this channel instead of stable"
+msgstr "Usar este canal en lugar del estable"
+
+#. TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
+#: cmd/snap/cmd_validate.go:193
+#, c-format
+msgid "Validation\tMode\tSeq\tCurrent\t%s\tNotes\n"
+msgstr "Validación\tModo\tSec\tActual\t%s\tNotas\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_validate.go:72
+msgid ""
+"Validation set with an optional pinned sequence point, i.e. account-id/"
+"name[=seq]"
+msgstr ""
+"Conjunto de validación con un punto secuencial fijo opcional, p. ej. id-"
+"cuenta/nombre[=sec]"
+
+#: cmd/snap/cmd_snapshot.go:151
+msgid "Version"
+msgstr "Versión"
+
+#: cmd/snap/cmd_warnings.go:226
+#, c-format
+msgid "WARNING: There is %d new warning. See 'snap warnings'.\n"
+msgid_plural "WARNING: There are %d new warnings. See 'snap warnings'.\n"
+msgstr[0] "ADVERTENCIA: hay %d advertencia nueva. Consulte «snap warnings».\n"
+msgstr[1] ""
+"ADVERTENCIA: hay %d advertencias nuevas. Consulte «snap warnings».\n"
+
+#: tests/lib/uc20-create-partitions/main.go:67 cmd/snap/main.go:405
+#, c-format
+msgid "WARNING: failed to activate logging: %v\n"
+msgstr "AVISO: no se ha podido activar el registro: %v\n"
+
+#: cmd/snap/wait.go:108
+msgid "Waiting for server to restart"
+msgstr "Esperando al servidor para reiniciar"
+
+#: cmd/snap/cmd_snap_op.go:288 cmd/snap/cmd_snap_op.go:369
+#: cmd/snap/cmd_snap_op.go:377
+msgid "Warning:"
+msgstr "Aviso:"
+
+#: cmd/snap/cmd_help.go:245
+msgid "Warnings"
+msgstr "Avisos"
+
+#: cmd/snap/cmd_watch.go:30
+msgid "Watch a change in progress"
+msgstr "Observar un cambio en progreso"
+
+#: cmd/snap/cmd_login.go:75
+msgid "Wrong again. Once more: "
+msgstr "Incorrecto de nuevo. Una vez más: "
+
+#: cmd/snap/cmd_run.go:647
+#, c-format
+msgid "Xauthority file isn't owned by the current user %s"
+msgstr "El archivo Xauthority no pertenece al usuario actual %s"
+
+#: cmd/snap/cmd_changes.go:95
+msgid "Yes, yes it does."
+msgstr "Sí, sí lo hace."
+
+#: cmd/snap/cmd_buy.go:66
+msgid ""
+"You need to be logged in to purchase software. Please run 'snap login' and "
+"try again."
+msgstr ""
+"Debe iniciar sesión para comprar software. Ejecute «snap login» e intente "
+"nuevamente."
+
+#: cmd/snap/cmd_buy.go:97
+#, c-format
+msgid ""
+"You need to have a payment method associated with your account in order to "
+"buy a snap, please visit https://my.ubuntu.com/payment/edit to add one.\n"
+"\n"
+"Once you’ve added your payment details, you just need to run 'snap buy %s' "
+"again."
+msgstr ""
+"Debe tener un método de pago asociado con su cuenta para comprar un snap, "
+"visite https://my.ubuntu.com/payment/edit para añadir uno.\n"
+"\n"
+"Una vez añadidos sus detalles de pago, vuelva a ejecutar «snap buy %s»."
+
+#: cmd/snap/cmd_snap_op.go:898
 msgid "a single snap name is needed to specify mode or channel flags"
 msgstr ""
 "se necesita un nombre de snap único para especificar modo o indicadores de "
 "canal"
 
-msgid "a single snap name is needed to specify the revision"
-msgstr "se necesita un nombre de snap único para especificar la revisión"
-
+#: cmd/snap/cmd_snap_op.go:669 cmd/snap/cmd_snap_op.go:902
 msgid "a single snap name must be specified when ignoring validation"
 msgstr "se debe especificar un nombre de snap único al ignorar la validación"
 
+#: overlord/hookstate/ctlcmd/services.go:94 cmd/snap/cmd_services.go:149
 msgid "active"
 msgstr "activo"
 
-msgid "auto-refresh: all snaps are up-to-date"
-msgstr ""
+#: cmd/snap/cmd_help.go:237
+msgid "archives of snap data"
+msgstr "archivos de datos de snap"
 
+#: cmd/snap/cmd_help.go:233
+msgid "authentication to snapd and the snap store"
+msgstr "autentificación en snapd y en la Snap Store"
+
+#: cmd/snap/cmd_help.go:205
+msgid "basic snap management"
+msgstr "administración de snap básica"
+
+#: cmd/snap/notes.go:41
 msgid "bought"
 msgstr "comprado"
 
 #. TRANSLATORS: if possible, a single short word
+#: cmd/snap/notes.go:157
 msgid "broken"
 msgstr "roto"
 
+#. TRANSLATORS: %s is the path to the built snap file
+#: cmd/snap/cmd_pack.go:129
 #, c-format
-msgid "cannot %s without a context"
-msgstr "no se puede %s sin un contexto"
+msgid "built: %s\n"
+msgstr "construido: %s\n"
 
+#: cmd/snap/cmd_buy.go:85
 #, c-format
 msgid "cannot buy snap: %v"
 msgstr "no se puede comprar el snap: %v"
 
+#: cmd/snap/cmd_buy.go:70
 msgid "cannot buy snap: invalid characters in name"
 msgstr "no se puede comprar el snap: caracteres no válidos en el nombre"
 
+#: cmd/snap/cmd_buy.go:89
 msgid "cannot buy snap: it has already been bought"
 msgstr "no se puede comprar el snap: ya se ha comprado"
 
 #. TRANSLATORS: %q is the directory whose creation failed, %v the error message
+#: cmd/snap/cmd_run.go:420
 #, c-format
 msgid "cannot create %q: %v"
 msgstr "no se puede crear %q: %v"
 
+#: cmd/snap/cmd_download.go:87
 #, c-format
 msgid "cannot create assertions file: %v"
 msgstr "no se puede crear el archivo de afirmaciones: %v"
 
 #. TRANSLATORS: %q gets the snap name, %v gets the resulting error message
+#: cmd/snap/cmd_snap_op.go:1065
 #, c-format
 msgid "cannot extract the snap-name from local file %q: %v"
 msgstr "no se puede extraer el nombre de snap del archivo local %q: %v"
 
+#: cmd/snap/cmd_run.go:498
 #, c-format
 msgid "cannot find app %q in %q"
 msgstr "no se puede encontar la app %q en %q"
 
+#: cmd/snap/cmd_run.go:523
 #, c-format
 msgid "cannot find hook %q in %q"
 msgstr "no se puede encontrar el enganche %q en %q"
 
 #. TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
+#: cmd/snap/cmd_snap_op.go:1076
 #, c-format
 msgid "cannot get data for %q: %v"
 msgstr "no se pueden obtener los datos para %q: %v"
 
 #. TRANSLATORS: %q gets what the user entered, %v gets the resulting error message
+#: cmd/snap/cmd_snap_op.go:1040
 #, c-format
 msgid "cannot get full path for %q: %v"
 msgstr "no se puede obtener la ruta completa para %q: %v"
 
+#: desktop/portal/document.go:56 cmd/snap/cmd_run.go:577
 #, c-format
 msgid "cannot get the current user: %s"
 msgstr "no se puede obtener el usuario actual: %s"
 
+#: cmd/snap/cmd_run.go:397
 #, c-format
 msgid "cannot get the current user: %v"
 msgstr "no se puede obtener el usuario actual: %v"
 
+#: cmd/snap/error.go:261
 #, c-format
-msgid "cannot mark boot successful: %s"
-msgstr "no se puede marcar el arranque con éxito: %s"
+msgid "cannot install %s due to low disk space"
+msgstr "no se puede instalar %s debido a falta de espacio en disco"
 
+#: daemon/api_snaps.go:402 daemon/api_snaps.go:701 cmd/snap/cmd_snap_op.go:657
+msgid "cannot install snap with empty name"
+msgstr "no se puede instalar un snap con un nombre vacío"
+
+#: cmd/snap/cmd_sign_build.go:115
 #, c-format
 msgid "cannot open the assertions database: %v"
 msgstr "no se puede abrir la base de datos de afirmaciones: %v"
 
+#. TRANSLATORS: the %q is the snap-dir (the first positional
+#. argument to the command); the %v is an error
+#: cmd/snap/cmd_pack.go:125
+#, c-format
+msgid "cannot pack %q: %w"
+msgstr "no se puede empaquetar %q: %w"
+
+#: cmd/snap/cmd_sign.go:85
 #, c-format
 msgid "cannot read assertion input: %v"
-msgstr "no se puede leer la entrada de afirmación: %v"
+msgstr "no se puede leer la entrada de aserción: %v"
 
 #. TRANSLATORS: %v the error message
+#: cmd/snap/cmd_run.go:351
 #, c-format
 msgid "cannot read symlink: %v"
 msgstr "no se puede leer symlink: %v"
 
+#: cmd/snap/error.go:263
+#, c-format
+msgid "cannot refresh %s due to low disk space"
+msgstr "no se puede recargar %s debido a falta de espacio en disco"
+
+#: cmd/snap/error.go:259
+#, c-format
+msgid ""
+"cannot remove %s due to low disk space for automatic snapshot, use --purge "
+"to avoid creating a snapshot"
+msgstr ""
+"no se puede eliminar %s debido a espacio bajo en el disco para instantáneas "
+"automáticas, use --purge para evitar crear una instantánea"
+
+#: cmd/snap/cmd_snapshot.go:468
+#, c-format
+msgid "cannot reserve disk space for snapshot: %v"
+msgstr "no se puede reservar espacio en disco para la instantánea: %v"
+
+#: cmd/snap/main.go:473
 #, c-format
 msgid "cannot resolve snap app %q: %v"
 msgstr "no se puede resolver la app snap %q: %v"
 
+#: cmd/snap/cmd_sign_build.go:120
 #, c-format
 msgid "cannot sign assertion: %v"
 msgstr "no se puede firmar la aseveración: %v"
 
+#: cmd/snap/cmd_download.go:157
+msgid "cannot specify a path in basename (use --target-dir for that)"
+msgstr ""
+"no se puede especificar una ruta en el nombre base (use --target-dir para "
+"eso)"
+
+#: cmd/snap/cmd_snap_op.go:1224
+msgid "cannot specify both --cohort and --leave-cohort"
+msgstr "no se pueden especificar ambos --cohort y --leave-cohort"
+
+#: cmd/snap/cmd_download.go:175
+msgid "cannot specify both cohort and revision"
+msgstr "no se pudo especificar el grupo ni la revisión"
+
+#: cmd/snap/cmd_run.go:377
 #, c-format
 msgid "cannot update the 'current' symlink of %q: %v"
 msgstr "no se puede actualizar el symlink «actual» de %q: %v"
 
 #. TRANSLATORS: %q is the key name, %v the error message
+#. TRANSLATORS: %q is the key name, %v the error message
+#. TRANSLATORS: %q is the key name, %v the error message
+#: image/preseed/preseed.go:113 cmd/snap/cmd_sign.go:95
+#: cmd/snap/cmd_sign_build.go:95
 #, c-format
 msgid "cannot use %q key: %v"
 msgstr "no se puede usar la clave %q : %v"
 
+#: cmd/snap/cmd_connections.go:147
+msgid "cannot use --all with snap name"
+msgstr "no se puede usar --all con snap name"
+
+#: cmd/snap/cmd_model.go:51
+msgid "cannot use --verbose with --assertion"
+msgstr "no se puede usar --verbose con --assertion"
+
+#: cmd/snap/last.go:61
 msgid "cannot use change ID and type together"
 msgstr "no se puede usar un ID de cambio y tipo juntos"
 
+#: cmd/snap/cmd_snap_op.go:460
 msgid "cannot use devmode and jailmode flags together"
 msgstr "no se pueden usar los indicadores devmode y jailmode juntos"
 
+#: cmd/snap/cmd_run.go:641
 #, c-format
 msgid "cannot validate owner of file %s"
 msgstr "no se puede validar el propietario del archivo %s"
 
+#: cmd/snap/cmd_run.go:701
 #, c-format
 msgid "cannot write new Xauthority file at %s: %s"
 msgstr "no se puede escribir un archivo Xauthority nuevo en %s: %s"
 
+#: cmd/snap/wait.go:170
 #, c-format
 msgid "change finished in status %q with no error message"
 msgstr "cambio finalizado en estado %q sin mensaje de error"
 
+#: overlord/snapstate/snapstate.go:370
 #, c-format
 msgid ""
 "classic confinement requires snaps under /snap or symlink from /snap to %s"
 msgstr ""
 "el confinamiento clásico requiere snaps bajo /snap o symlink desde /snap a %s"
 
+#: cmd/snap/cmd_auto_import.go:265 cmd/snap/cmd_create_user.go:113
 #, c-format
 msgid "created user %q\n"
 msgstr "usuario creado %q\n"
 
-#. TRANSLATORS: this needs to be a single rune that is understood to mean "days" in e.g. 1d20h
-msgid "d"
+#: cmd/snap/cmd_help.go:262
+msgid "developer-oriented features"
+msgstr "caracteristicas orientadas a desarrolladores"
+
+#: cmd/snap/cmd_model.go:49
+msgid "device not ready yet (no assertions found)"
+msgstr "no se puede usar --verbose con --assertion"
+
+#: cmd/snap/cmd_model.go:50
+msgid "device not registered yet (no serial assertion found)"
 msgstr ""
+"dispositivo aún no registrado (no se encontró ninguna aserción en serie)"
 
 #. TRANSLATORS: if possible, a single short word
+#: overlord/hookstate/ctlcmd/services.go:86 cmd/snap/cmd_services.go:141
+#: cmd/snap/notes.go:127
 msgid "disabled"
 msgstr "desactivado"
 
+#: cmd/snap/cmd_whoami.go:56
 msgid "email:"
 msgstr "correo electrónico:"
 
+#: overlord/hookstate/ctlcmd/services.go:88 cmd/snap/cmd_services.go:143
 msgid "enabled"
 msgstr "activado"
 
+#: cmd/snap/error.go:42
 #, c-format
 msgid "error: %v\n"
 msgstr "error: %v\n"
 
+#: cmd/snap/cmd_snap_op.go:1033
 msgid ""
 "error: the `<snap-dir>` argument was not provided and couldn't be inferred"
 msgstr ""
 "error: el argumento «<snap-dir>» no se proporcionó y no se pudo inferir"
 
+#. TRANSLATORS: the arg is a snap name (e.g. "some-snap")
+#: cmd/snap/cmd_snap_op.go:379
+#, c-format
+msgid "flag --classic ignored for strictly confined snap %s"
+msgstr "flag --classic ignored for strictly confined snap %s"
+
+#: overlord/hookstate/ctlcmd/get.go:159
+msgid "get which attribute?"
+msgstr "¿Qué atributo obtener?"
+
+#: overlord/hookstate/ctlcmd/get.go:137
 msgid "get which option?"
 msgstr "¿Cual opción desea obtener?"
 
-#. TRANSLATORS: this needs to be a single rune that is understood to mean "hours" in e.g. 1h30m
-msgid "h"
-msgstr ""
+#: cmd/snap/cmd_help.go:161
+msgid "help accepts a command, or '--all', but not both."
+msgstr "help acepta un comando o «--all», pero no ambos."
 
-msgid "ignore-validation"
-msgstr ""
+#. TRANSLATORS: %d will be at least 2; the singular is only included to help gettext
+#: timeutil/human.go:75
+#, c-format
+msgid "in %d day, at 15:04 MST"
+msgid_plural "in %d days, at 15:04 MST"
+msgstr[0] "en %d día, a las 15:04 MST"
+msgstr[1] "en %d días, a las 15:04 MST"
 
+#: cmd/snap/notes.go:165
+msgid "in-cohort"
+msgstr "en-grupo"
+
+#: overlord/hookstate/ctlcmd/services.go:90 cmd/snap/cmd_services.go:145
 msgid "inactive"
 msgstr "inactivo"
 
+#: overlord/hookstate/ctlcmd/get.go:284
 msgid ""
 "interface attributes can only be read during the execution of interface hooks"
 msgstr ""
 "los atributos de interfaz solo se pueden leer durante la ejecución de "
 "enganches de interfaz"
 
+#: overlord/hookstate/ctlcmd/set.go:178
 msgid ""
 "interface attributes can only be set during the execution of prepare hooks"
 msgstr ""
 "los atributos de interfaz solo se pueden establecer durante la ejecución de "
 "enganches de preparación"
 
+#: cmd/snap/main.go:483
 #, c-format
 msgid "internal error, please report: running %q failed: %v\n"
 msgstr "error interno, por favor repórtelo: falló al ejecutar %q : %v\n"
 
+#: overlord/hookstate/ctlcmd/get.go:274
 msgid "internal error: cannot find attrs task"
 msgstr "error interno: no se encuentra la tarea attrs"
 
+#: overlord/hookstate/ctlcmd/get.go:253
 msgid "internal error: cannot find plug or slot data in the appropriate task"
 msgstr ""
 "error interno: no se pueden encontrar los datos del enchufe o ranura en la "
 "tarea correspondiente"
 
+#: overlord/hookstate/ctlcmd/get.go:315 overlord/hookstate/ctlcmd/get.go:318
 #, c-format
 msgid "internal error: cannot get %s from appropriate task"
 msgstr "error interno: no se puede obtener %s desde la tarea correspondiente"
 
+#: cmd/snap/cmd_help.go:257
+msgid "introspection and debugging of snapd"
+msgstr "introspección y depurado de snapd"
+
+#: cmd/snap/cmd_services.go:166
 msgid ""
 "invalid argument for flag ‘-n’: expected a non-negative integer argument, or "
 "“all”."
@@ -2428,26 +3950,35 @@ msgstr ""
 "argumento no válido para el parámetro «-n»: se esperaba un entero no "
 "negativo como argumento, o «all»."
 
-#, c-format
-msgid "invalid attribute: %q (want key=value)"
-msgstr "atributo no válido: %q (quiere clave=valor)"
+#: cmd/snap/complete.go:527
+msgid ""
+"invalid argument for snapshot set id: expected a non-negative integer "
+"argument (see 'snap help saved')"
+msgstr ""
+"argumento no válido para el ID del conjunto de instantáneas: se esperaba un "
+"argumento entero no negativo (consulte «snap help saved»)"
 
+#: cmd/snap/cmd_set.go:94
 #, c-format
 msgid "invalid configuration: %q (want key=value)"
 msgstr "configuración no válida: %q (quiere clave=valor)"
 
+#: cmd/snap/cmd_known.go:114
 #, c-format
 msgid "invalid header filter: %q (want key=value)"
 msgstr "filtro de cabecera no válido: %q (quiere clave=valor)"
 
+#: overlord/hookstate/ctlcmd/set.go:118 overlord/hookstate/ctlcmd/set.go:214
 #, c-format
 msgid "invalid parameter: %q (want key=value)"
 msgstr "parámetro no válido: %q (quiere clave=valor)"
 
+#: cmd/snap/interfaces_common.go:57
 #, c-format
 msgid "invalid value: %q (want snap:name or snap)"
 msgstr "valor no válido: %q (quiere snap:nombre o snap)"
 
+#: cmd/snap/cmd_create_key.go:67
 #, c-format
 msgid ""
 "key name %q is not valid; only ASCII letters, digits, and hyphens are allowed"
@@ -2455,155 +3986,189 @@ msgstr ""
 "el nombre de clave %q no es válido; solo se permiten letras, dígitos y "
 "guiones ASCII"
 
-#, c-format
-msgid "local snap %q is unknown to the store, use --amend to proceed anyway"
-msgstr ""
+#: cmd/snap/cmd_help.go:229
+msgid "manage aliases"
+msgstr "administrar aliases"
 
-#. TRANSLATORS: this needs to be a single rune that is understood to mean "minutes" in e.g. 1m30s
-msgid "m"
-msgstr ""
+#: cmd/snap/cmd_help.go:252
+msgid "manage assertions"
+msgstr "Gestionar aseveraciones"
 
-msgid "missing snap-confine: try updating your snapd package"
-msgstr "snap-confine ausente: intente actualizar su paquete snapd"
+#: cmd/snap/cmd_help.go:242
+msgid "manage device"
+msgstr "gestionar dispositivo"
 
+#: cmd/snap/cmd_help.go:221
+msgid "manage permissions"
+msgstr "administrar permisos"
+
+#: cmd/snap/cmd_help.go:217
+msgid "manage services"
+msgstr "administrar servicios"
+
+#: cmd/snap/cmd_help.go:213
+msgid "manage system change transactions"
+msgstr "administrar negociaciones de cambios en el sistema"
+
+#: cmd/snap/cmd_help.go:247
+msgid "manage warnings"
+msgstr "Gestionar avisos"
+
+#: cmd/snap/cmd_run.go:216
 msgid "need the application to run as argument"
 msgstr "se necesita la aplicación para ejecutar como argumento"
 
+#: cmd/snap/cmd_changes.go:110 cmd/snap/last.go:97
 msgid "no changes found"
 msgstr "no se han encontrado cambios"
 
+#: cmd/snap/last.go:104
 #, c-format
 msgid "no changes of type %q found"
 msgstr "no se han encontrado cambios de tipo %q"
 
+#: cmd/snap/cmd_interface.go:101
 msgid "no interfaces currently connected"
 msgstr "no hay interfaces conectadas actualmente"
 
+#: cmd/snap/cmd_interfaces.go:93 cmd/snap/cmd_interface.go:99
 msgid "no interfaces found"
 msgstr "no mse han encontrado interfaces"
 
+#: cmd/snap/cmd_list.go:67
 msgid "no matching snaps installed"
 msgstr "no hay snaps instalados que coincidan"
 
+#: cmd/snap/cmd_interface.go:86
 msgid "no such interface"
 msgstr "no hay tal interfaz"
 
+#: cmd/snap/cmd_info.go:699
 msgid "no valid snaps given"
 msgstr "no se han proporcionado snaps validos"
 
+#: cmd/snap/cmd_snap_op.go:1227
+msgid ""
+"nothing to switch; specify --channel (and/or one of --cohort/--leave-cohort)"
+msgstr ""
+"nada que cambiar; especifique --channel (y/o uno de estos --cohort/--leave-"
+"cohort)"
+
+#: cmd/snap/last.go:56
 msgid "please provide change ID or type with --last=<type>"
 msgstr "proporcione un ID de cambio o tipo con --last=<tipo>"
 
 #. TRANSLATORS: if possible, a single short word
+#: cmd/snap/notes.go:148
 msgid "private"
 msgstr "privado"
 
-msgid ""
-"reboot scheduled to update the system - temporarily cancel with 'sudo "
-"shutdown -c'"
-msgstr ""
-"reinicio programado para actualizar el sistema - cancele temporalmente con "
-"«sudo shutdown -c»"
+#: cmd/snap/cmd_remove_user.go:72
+#, c-format
+msgid "removed user %q\n"
+msgstr "usuario eliminado %q\n"
 
+#: cmd/snap/cmd_repair_repairs.go:39
 msgid "repairs are not available on a classic system"
 msgstr "las reparaciones no están disponibles en sistemas clásicos"
 
-#. TRANSLATORS: this needs to be a single rune that is understood to mean "seconds" in e.g. 1m30s
-#. (I fully expect this to always be "s", given it's a SI unit)
-msgid "s"
-msgstr ""
-
+#: daemon/api_snapctl.go:101
 #, c-format
 msgid "set failed: %v"
 msgstr "No se ha podido establecer: %v"
 
+#: overlord/hookstate/ctlcmd/set.go:74
 msgid "set which option?"
 msgstr "¿Cual opción desea establecer?"
 
-#. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --revision=foo
-#, c-format
-msgid "snap %%q not found (at least at revision %q)"
-msgstr "snap %%q no encontrado (al menos en la revisión %q)"
+#: cmd/snap/cmd_help.go:209
+msgid "slightly more advanced snap management"
+msgstr "administración de snap un poco más avanzada"
 
-#. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --channel=foo
-#, c-format
-msgid "snap %%q not found (at least in channel %q)"
-msgstr "snap %%q no encontrado (al menos en el canal %q)"
-
+#: cmd/snap/error.go:215
 #, c-format
 msgid "snap %q has no updates available"
 msgstr "el snap %q no tiene actualizaciones disponibles"
 
+#: cmd/snap/error.go:200
 #, c-format
-msgid "snap %q is already installed, see \"snap refresh --help\""
-msgstr "snap %q ya se encuentra instalado, consulte «snap refresh --help»"
+msgid "snap %q is not compatible with --classic"
+msgstr "el snap %q no es compatible con --classic"
 
+#: cmd/snap/error.go:124
 #, c-format
 msgid "snap %q not found"
 msgstr "snap %q no encontrado"
 
+#: cmd/snap/error.go:178
+#, c-format
+msgid "snap %q requires devmode or confinement override"
+msgstr "el snap %q necesita devmode o ignorar el confinamiento"
+
 #. TRANSLATORS: free as in gratis
+#: cmd/snap/cmd_find.go:56
 msgid "snap is free"
 msgstr "snap es gratuito"
 
+#: cmd/snap/cmd_help.go:225
+msgid "system administration and configuration"
+msgstr "administración del sistema y configuración"
+
+#: cmd/snap/main.go:79
 msgid "too many arguments for command"
 msgstr "demasiados argumentos para la orden"
 
 #. TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
+#: cmd/snap/cmd_run.go:237
 #, c-format
 msgid "too many arguments for hook %q: %s"
 msgstr "demasiados argumentos para el enganche %q: %s"
 
 #. TRANSLATORS: the %s is the list of extra arguments
+#: cmd/snap/cmd_get.go:231
 #, c-format
 msgid "too many arguments: %s"
 msgstr "demasiados argumentos: %s"
 
+#: cmd/snap/error.go:228
 msgid "unable to contact snap store"
 msgstr "no se puede contactar con la Snap Store"
 
+#: cmd/snap/cmd_version_other.go:36 cmd/snap/cmd_version_linux.go:35
+#: cmd/snap/cmd_version_linux.go:46
 msgid "unavailable"
 msgstr "no disponible"
 
+#: cmd/snap/cmd_snapshot.go:476
 #, c-format
-msgid "unknown attribute %q"
-msgstr "atributo desconocido %q"
+msgid "unexpected size, got: %v but wanted %v"
+msgstr "tamaño inesperado, obtuvo: %v pero quería %v"
 
+#. TRANSLATORS: %q is the command the user entered; %s is 'snap help' or 'snap help <cmd>'
+#. TRANSLATORS: %q is the command the user entered; %s is 'snap help' or 'snap help <cmd>'
+#: cmd/snap/main.go:555 cmd/snap/cmd_help.go:176
 #, c-format
-msgid "unknown command %q, see \"snap --help\""
-msgstr "órden %q desconocida, vea «snap --help»"
+msgid "unknown command %q, see '%s'."
+msgstr "comando desconocido %q, consulte «%s»."
 
+#: overlord/hookstate/ctlcmd/get.go:256
 #, c-format
 msgid "unknown plug or slot %q"
 msgstr "enchufe o ranura desconocido %q"
 
+#: overlord/hookstate/ctlcmd/helpers.go:73
+#: overlord/hookstate/ctlcmd/helpers.go:78
 #, c-format
 msgid "unknown service: %q"
 msgstr "servicio desconocido: %q"
 
-#, c-format
-msgid "warning:\tno snap found for %q\n"
+#: overlord/hookstate/ctlcmd/unset.go:57
+msgid "unset which option?"
+msgstr "tipo no valido para la cabecera %q"
+
+#: cmd/snap/cmd_pack.go:98
+msgid ""
+"you can't specify an absolute filename while also specifying target dir."
 msgstr ""
-
-#. TRANSLATORS: this needs to be a single rune that is understood to mean "years" in e.g. 1y45d
-msgid "y"
-msgstr ""
-
-msgid "Authenticate on snap daemon"
-msgstr "Autentificar en el demonio snap"
-
-msgid "Authorization is required to authenticate on the snap daemon"
-msgstr "Se requiere autentificación para autentificarse en el demonio snap"
-
-msgid "Install, update, or remove packages"
-msgstr "Instalar, actualizar, o eliminar paquetes"
-
-msgid "Authentication is required to install, update, or remove packages"
-msgstr ""
-"Se requiere autentificación para instalar, actualizar, o eliminar paquetes"
-
-msgid "Connect, disconnect interfaces"
-msgstr "Conectar, desconectar interfaces"
-
-msgid "Authentication is required to connect or disconnect interfaces"
-msgstr "Se requiere autentificación para conectar, desconectar interfaces"
+"no puede especificar un nombre de archivo absoluto al mismo tiempo que se "
+"especifica la capeta objetivo."

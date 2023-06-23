@@ -7,1302 +7,63 @@ msgid ""
 msgstr ""
 "Project-Id-Version: snapd\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
-"POT-Creation-Date: 2018-04-03 12:06+0200\n"
+"POT-Creation-Date: 2023-06-22 15:44+0300\n"
 "PO-Revision-Date: 2018-09-27 14:02+0000\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: Chinese (Simplified) <zh_CN@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2019-11-20 06:56+0000\n"
-"X-Generator: Launchpad (build c597c3229eb023b1e626162d5947141bf7befb13)\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Launchpad-Export-Date: 2023-06-23 06:40+0000\n"
+"X-Generator: Launchpad (build 1a64fbf0a633b6c807613475aecca0f26ff240b3)\n"
 
+#. TRANSLATORS: the first %s is a snap command (e.g. "hello-world.echo"), the second is the alias
+#: cmd/snap/cmd_alias.go:116
 #, c-format
-msgid ""
-"%q does not contain an unpacked snap.\n"
-"\n"
-"Try \"snapcraft prime\" in your project directory, then \"snap try\" again."
-msgstr ""
+msgid "\t- %s as %s\n"
+msgstr "\t- %s 为 %s\n"
 
-#. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
-#, c-format
-msgid "%q switched to the %q channel\n"
-msgstr ""
-
-#. TRANSLATORS: 1. snap name, 2. snap version (keep those together please). the 3rd %s is a path (where it's mounted from).
-#, c-format
-msgid "%s %s mounted from %s\n"
-msgstr ""
-
-#, c-format
-msgid "%s (delta)"
-msgstr ""
-
-#. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
-#, c-format
-msgid "%s (see \"snap login --help\")"
-msgstr ""
-
-#. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
-#, c-format
-msgid "%s (try with sudo)"
-msgstr ""
-
-#, c-format
-msgid "%s already installed\n"
-msgstr ""
-
-#, c-format
-msgid "%s disabled\n"
-msgstr ""
-
-#, c-format
-msgid "%s enabled\n"
-msgstr ""
-
-#, c-format
-msgid "%s not installed\n"
-msgstr ""
-
-#, c-format
-msgid "%s removed\n"
-msgstr ""
-
-#. TRANSLATORS: first %s is a snap name, second %s is a revision
-#, c-format
-msgid "%s reverted to %s\n"
-msgstr ""
-
-#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' installed")
-#, c-format
-msgid "%s%s %s from '%s' installed\n"
-msgstr ""
-
-#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' refreshed")
-#, c-format
-msgid "%s%s %s from '%s' refreshed\n"
-msgstr ""
-
-#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
-#, c-format
-msgid "%s%s %s installed\n"
-msgstr ""
-
-#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
-#, c-format
-msgid "%s%s %s refreshed\n"
-msgstr ""
-
-msgid "--list does not take mode nor channel flags"
-msgstr ""
-
-msgid "--time does not take mode nor channel flags"
-msgstr ""
-
-msgid "-r can only be used with --hook"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<alias-or-snap>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<alias>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<assertion file>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<assertion type>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<change-id>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<conf value>"
-msgstr ""
-
-#. TRANSLATORS: This is a noun, and it needs to begin with < and end with >
-#. TRANSLATORS: This is a noun and it needs to begin with < and end with >
-msgid "<email>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<filename>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<header filter>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<interface>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-#. TRANSLATORS: This needs to begin with < and end with >
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<key-name>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<key>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<model-assertion>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<query>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<root-dir>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<service>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<snap>:<plug>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<snap>:<slot or plug>"
-msgstr ""
-
-#. TRANSLATORS: This needs to begin with < and end with >
-#. TRANSLATORS: This needs to begin with < and end with >
-msgid "<snap>:<slot>"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid ""
-"A service specification, which can be just a snap name (for all services in "
-"the snap), or <snap>.<app> for a single service."
-msgstr ""
-
-msgid "Abort a pending change"
-msgstr ""
-
-#. TRANSLATORS: this is used to introduce a list of aliases that were added
-msgid "Added"
-msgstr ""
-
-msgid "Adds an assertion to the system"
-msgstr ""
-
-msgid "Advise on available snaps."
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Advise on snaps that provide the given command"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Alias for --dangerous (DEPRECATED)"
-msgstr ""
-
-msgid "All snaps up to date."
-msgstr ""
-
-msgid "Allow opening file?"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Allow refresh attempt on snap unknown to the store"
-msgstr ""
-
-msgid "Allow settings change?"
-msgstr ""
-
-#, c-format
-msgid "Allow snap %q to change %q to %q ?"
-msgstr ""
-
-#, c-format
-msgid "Allow snap %q to open file %q?"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Alternative command to run"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Always return document, even with single key"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Always return list, even with single key"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com"). Also, note users on login.ubuntu.com can have multiple email addresses.
-msgid "An email of a user on login.ubuntu.com"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid ""
-"As well as starting the service now, arrange for it to be started on boot."
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid ""
-"As well as stopping the service now, arrange for it to no longer be started "
-"on boot."
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Assertion file"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Assertion type name"
-msgstr ""
-
-msgid "Authenticates on snapd and the store"
-msgstr ""
-
-#, c-format
-msgid "Auto-refresh %d snaps"
-msgstr ""
-
-#, c-format
-msgid "Auto-refresh snap %q"
-msgstr ""
-
-#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
-#, c-format
-msgid "Auto-refresh snaps %s"
-msgstr ""
-
-#, c-format
-msgid "Automatically connect eligible plugs and slots of snap %q"
-msgstr ""
-
-msgid "Bad code. Try again: "
-msgstr ""
-
-msgid "Buys a snap"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Change ID"
-msgstr ""
-
-msgid "Changes configuration options"
-msgstr ""
-
-msgid "Command\tAlias\tNotes"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Configuration value (key=value)"
-msgstr ""
-
-msgid "Confirm passphrase: "
-msgstr ""
-
-#, c-format
-msgid "Connect %s:%s to %s:%s"
-msgstr ""
-
-msgid "Connects a plug to a slot"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Constrain listing to a specific snap or snap:name"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Constrain listing to specific interfaces"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Constrain listing to those matching header=value"
-msgstr ""
-
-#, c-format
-msgid "Copy snap %q data"
-msgstr ""
-
-msgid ""
-"Create a cryptographic key pair that can be used for signing assertions."
-msgstr ""
-
-msgid "Create cryptographic key pair"
-msgstr ""
-
-msgid "Create snap build assertion"
-msgstr ""
-
-msgid "Create snap-build assertion for the provided snap file."
-msgstr ""
-
-msgid "Creates a local system user"
-msgstr ""
-
-msgid "Delete cryptographic key pair"
-msgstr ""
-
-msgid "Delete the local cryptographic key pair with the given name."
-msgstr ""
-
-#, c-format
-msgid "Disable %q snap"
-msgstr ""
-
-#, c-format
-msgid "Disable aliases for snap %q"
-msgstr ""
-
-#, c-format
-msgid "Disable all aliases for snap %q"
-msgstr ""
-
-msgid "Disables a snap in the system"
-msgstr ""
-
-#, c-format
-msgid "Discard interface connections for snap %q (%s)"
-msgstr ""
-
-#, c-format
-msgid "Disconnect %s:%s from %s:%s"
-msgstr ""
-
-msgid "Disconnects a plug from a slot"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Do not wait for the operation to finish but just print the change id."
-msgstr ""
-
-#, c-format
-msgid "Download snap %q%s from channel %q"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid ""
-"Download the given revision of a snap, to which you must have developer "
-"access"
-msgstr ""
-
-msgid "Downloads the given snap"
-msgstr ""
-
-msgid "Email address: "
-msgstr ""
-
-#, c-format
-msgid "Enable %q snap"
-msgstr ""
-
-msgid "Enables a snap in the system"
-msgstr ""
-
-#, c-format
-msgid "Ensure prerequisites for %q are available"
-msgstr ""
-
-msgid ""
-"Export a public key assertion body that may be imported by other systems."
-msgstr ""
-
-msgid "Export cryptographic public key"
-msgstr ""
-
-#, c-format
-msgid "Fetch and check assertions for snap %q%s"
-msgstr ""
-
-#, c-format
-msgid "Fetching assertions for %q\n"
-msgstr ""
-
-#, c-format
-msgid "Fetching snap %q\n"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Filename of the snap you want to assert a build for"
-msgstr ""
-
-msgid "Finds packages to install"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Force adding the user, even if the device is already managed"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Force import on classic systems"
-msgstr ""
-
-msgid ""
-"Format public key material as a request for an account-key for this account-"
-"id"
-msgstr ""
-
-msgid "Generate device key"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Generate the manpage"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Grade states the build quality of the snap (defaults to 'stable')"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Grant sudo access to the created user"
-msgstr ""
-
-msgid "Help"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Hook to run"
-msgstr ""
-
-msgid "ID\tStatus\tSpawn\tReady\tSummary\n"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Identifier of the signer"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Identifier of the snap package associated with the build"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "If the service has a reload command, use it instead of restarting."
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Ignore validation by other snaps blocking the refresh"
-msgstr ""
-
-#, c-format
-msgid ""
-"In order to buy %q, you need to agree to the latest terms and conditions. "
-"Please visit https://my.ubuntu.com/payment/edit to do this.\n"
-"\n"
-"Once completed, return here and run 'snap buy %s' again."
-msgstr ""
-
-msgid "Include a verbose list of a snap's notes (otherwise, summarise notes)"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Include unused interfaces"
-msgstr ""
-
-msgid "Initialize device"
-msgstr ""
-
-msgid "Inspects devices for actionable information"
-msgstr ""
-
-#, c-format
-msgid "Install %q snap"
-msgstr ""
-
-#, c-format
-msgid "Install %q snap from %q channel"
-msgstr ""
-
-#, c-format
-msgid "Install %q snap from file"
-msgstr ""
-
-#, c-format
-msgid "Install %q snap from file %q"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Install from the beta channel"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Install from the candidate channel"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Install from the edge channel"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Install from the stable channel"
-msgstr ""
-
-#, c-format
-msgid "Install snap %q"
-msgstr ""
-
-#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
-#, c-format
-msgid "Install snaps %s"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid ""
-"Install the given revision of a snap, to which you must have developer access"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid ""
-"Install the given snap file even if there are no pre-acknowledged signatures "
-"for it, meaning it was not verified and could be dangerous (--devmode "
-"implies this)"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Install the given snap without enabling its automatic aliases"
-msgstr ""
-
-#, c-format
-msgid ""
-"Install the snap with:\n"
-"   snap ack %s\n"
-"   snap install %s\n"
-msgstr ""
-
-msgid "Installs a snap to the system"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Key of interest within the configuration"
-msgstr ""
-
-msgid "List a change's tasks"
-msgstr ""
-
-msgid "List cryptographic keys"
-msgstr ""
-
-msgid "List cryptographic keys that can be used for signing assertions."
-msgstr ""
-
-msgid "List installed snaps"
-msgstr ""
-
-msgid "List system changes"
-msgstr ""
-
-msgid "Lists aliases in the system"
-msgstr ""
-
-msgid "Lists all repairs"
-msgstr ""
-
-msgid "Lists interfaces in the system"
-msgstr ""
-
-msgid "Lists snap interfaces"
-msgstr ""
-
-msgid "Log out of the store"
-msgstr ""
-
-msgid "Login successful"
-msgstr ""
-
-#, c-format
-msgid "Make current revision for snap %q unavailable"
-msgstr ""
-
-#, c-format
-msgid "Make snap %q (%s) available to the system"
-msgstr ""
-
-#, c-format
-msgid "Make snap %q (%s) unavailable to the system"
-msgstr ""
-
-#, c-format
-msgid "Make snap %q unavailable to the system"
-msgstr ""
-
-#, c-format
-msgid "Make snap %q%s available to the system"
-msgstr ""
-
-msgid "Mark system seeded"
-msgstr ""
-
-#, c-format
-msgid "Mount snap %q%s"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Name of key to create; defaults to 'default'"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Name of key to delete"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Name of key to export"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Name of the GnuPG key to use (defaults to 'default' as key name)"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Name of the key to use, otherwise use the default key"
-msgstr ""
-
-msgid "Name\tSHA3-384"
-msgstr ""
-
-msgid "Name\tSummary"
-msgstr ""
-
-msgid "Name\tVersion\tDeveloper\tNotes\tSummary"
-msgstr ""
-
-msgid "Name\tVersion\tRev\tDeveloper\tNotes"
-msgstr ""
-
-msgid "Name\tVersion\tRev\tTracking\tDeveloper\tNotes"
-msgstr ""
-
-#, c-format
-msgid "No aliases are currently defined for snap %q.\n"
-msgstr ""
-
-msgid "No aliases are currently defined."
-msgstr ""
-
-#, c-format
-msgid "No command %q found, did you mean:\n"
-msgstr ""
-
-msgid "No connections to disconnect"
-msgstr ""
-
-#. TRANSLATORS: the %q is the (quoted) name of the section the user entered
-#, c-format
-msgid "No matching section %q, use --section to list existing sections"
-msgstr ""
-
-#. TRANSLATORS: the first %q is the (quoted) query, the
-#. second %q is the (quoted) name of the section the
-#. user entered
-#, c-format
-msgid "No matching snaps for %q in section %q\n"
-msgstr ""
-
-#. TRANSLATORS: the %q is the (quoted) query the user entered
-#, c-format
-msgid "No matching snaps for %q\n"
-msgstr ""
-
-msgid ""
-"No search term specified. Here are some interesting snaps:\n"
-"\n"
-msgstr ""
-
-msgid "No section specified. Available sections:\n"
-msgstr ""
-
-msgid "No snaps are installed yet. Try \"snap install hello-world\"."
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Output results in JSON format"
-msgstr ""
-
-msgid "Pack the given target dir as a snap"
-msgstr ""
-
-#, c-format
-msgid "Packages matching %q:\n"
-msgstr ""
-
-msgid "Passphrase: "
-msgstr ""
-
-#, c-format
-msgid "Password of %q: "
-msgstr ""
-
-#. TRANSLATORS: %q, %q and %s are the snap name, developer, and price. Please wrap the translation at 80 characters.
-#, c-format
-msgid ""
-"Please re-enter your Ubuntu One password to purchase %q from %q\n"
-"for %s. Press ctrl-c to cancel."
-msgstr ""
-
-msgid "Please try: snap find --section=<selected section>\n"
-msgstr ""
-
-#, c-format
-msgid "Prefer aliases for snap %q"
-msgstr ""
-
-msgid "Prefer aliases from a snap and disable conflicts"
-msgstr ""
-
-#, c-format
-msgid "Prefer aliases of snap %q"
-msgstr ""
-
-msgid "Prepare a snappy image"
-msgstr ""
-
-#, c-format
-msgid "Prepare snap %q (%s)"
-msgstr ""
-
-#, c-format
-msgid "Prepare snap %q%s"
-msgstr ""
-
-msgid "Print the version and exit"
-msgstr ""
-
-msgid "Prints configuration options"
-msgstr ""
-
-msgid "Prints the confinement mode the system operates in"
-msgstr ""
-
-msgid "Prints the email the user is logged in with"
-msgstr ""
-
-msgid "Prints whether system is managed"
-msgstr ""
-
-#, c-format
-msgid "Prune automatic aliases for snap %q"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Put snap in classic mode and disable security confinement"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Put snap in development mode and disable security confinement"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Put snap in enforced confinement mode"
-msgstr ""
-
-msgid "Query the status of services"
-msgstr ""
-
-#, c-format
-msgid "Refresh %q snap"
-msgstr ""
-
-#, c-format
-msgid "Refresh %q snap from %q channel"
-msgstr ""
-
-#, c-format
-msgid "Refresh aliases for snap %q"
-msgstr ""
-
-msgid "Refresh all snaps: no updates"
-msgstr ""
-
-#, c-format
-msgid "Refresh snap %q"
-msgstr ""
-
-#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
-#, c-format
-msgid "Refresh snaps %s"
-msgstr ""
-
-#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
-#, c-format
-msgid "Refresh snaps %s: no updates"
-msgstr ""
-
-msgid "Refresh to the given revision"
-msgstr ""
-
-msgid "Refreshes a snap in the system"
-msgstr ""
-
-#, c-format
-msgid "Remove %q snap"
-msgstr ""
-
-#, c-format
-msgid "Remove aliases for snap %q"
-msgstr ""
-
-#, c-format
-msgid "Remove data for snap %q (%s)"
-msgstr ""
-
-#, c-format
-msgid "Remove manual alias %q for snap %q"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Remove only the given revision"
-msgstr ""
-
-#, c-format
-msgid "Remove security profile for snap %q (%s)"
-msgstr ""
-
-#, c-format
-msgid "Remove security profiles of snap %q"
-msgstr ""
-
-#, c-format
-msgid "Remove snap %q"
-msgstr ""
-
-#, c-format
-msgid "Remove snap %q (%s) from the system"
-msgstr ""
-
-#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
-#, c-format
-msgid "Remove snaps %s"
-msgstr ""
-
-#. TRANSLATORS: this is used to introduce a list of aliases that were removed
-msgid "Removed"
-msgstr ""
-
-msgid "Removes a snap from the system"
-msgstr ""
-
-msgid "Request device serial"
-msgstr ""
-
-msgid "Restart services"
-msgstr ""
-
-msgid "Restarted.\n"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Restrict the search to a given section"
-msgstr ""
-
-msgid "Retrieve logs of services"
-msgstr ""
-
-#, c-format
-msgid "Revert %q snap"
-msgstr ""
-
-msgid "Reverts the given snap to the previous state"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Run a shell instead of the command (useful for debugging)"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Run as a timer service with given schedule"
-msgstr ""
-
-#, c-format
-msgid "Run configure hook of %q snap"
-msgstr ""
-
-#, c-format
-msgid "Run configure hook of %q snap if present"
-msgstr ""
-
-#, c-format
-msgid "Run hook %s of snap %q"
-msgstr ""
-
-#, c-format
-msgid "Run install hook of %q snap if present"
-msgstr ""
-
-#, c-format
-msgid "Run post-refresh hook of %q snap if present"
-msgstr ""
-
-#, c-format
-msgid "Run pre-refresh hook of %q snap if present"
-msgstr ""
-
-msgid "Run prepare-device hook"
-msgstr ""
-
-#, c-format
-msgid "Run remove hook of %q snap if present"
-msgstr ""
-
-msgid ""
-"Run the command under strace (useful for debugging). Extra strace options "
-"can be specified as well here."
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Run the command with gdb"
-msgstr ""
-
-msgid "Run the given snap command"
-msgstr ""
-
-msgid "Run the given snap command with the right confinement and environment"
-msgstr ""
-
-msgid "Runs debug commands"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Search private snaps"
-msgstr ""
-
-msgid ""
-"Select last change of given type (install, refresh, remove, try, auto-"
-"refresh etc.)"
-msgstr ""
-
-msgid "Service\tStartup\tCurrent"
-msgstr ""
-
-#, c-format
-msgid "Set automatic aliases for snap %q"
-msgstr ""
-
-msgid "Sets up a manual alias"
-msgstr ""
-
-#, c-format
-msgid "Setup alias %q => %q for snap %q"
-msgstr ""
-
-#, c-format
-msgid "Setup manual alias %q => %q for snap %q"
-msgstr ""
-
-#, c-format
-msgid "Setup snap %q (%s) security profiles"
-msgstr ""
-
-#, c-format
-msgid "Setup snap %q aliases"
-msgstr ""
-
-#, c-format
-msgid "Setup snap %q%s security profiles"
-msgstr ""
-
-#, c-format
-msgid "Setup snap %q%s security profiles (phase 2)"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Show all revisions"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Show auto refresh information but do not perform a refresh"
-msgstr ""
-
-msgid "Show available snaps for refresh but do not perform a refresh"
-msgstr ""
-
-msgid "Show detailed information about a snap"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Show details of a specific interface"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Show interface attributes"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Show only the given number of lines, or 'all'."
-msgstr ""
-
-msgid "Shows known assertions of the provided type"
-msgstr ""
-
-msgid "Shows specific repairs"
-msgstr ""
-
-msgid "Shows version details"
-msgstr ""
-
-msgid "Sign an assertion"
-msgstr ""
-
-msgid ""
-"Sign an assertion using the specified key, using the input for headers from "
-"a JSON mapping provided through stdin, the body of the assertion can be "
-"specified through a \"body\" pseudo-header.\n"
-msgstr ""
-
-msgid "Slot\tPlug"
-msgstr ""
-
-#. TRANSLATORS: first %s is a snap name, following %s is a channel name
-#, c-format
-msgid "Snap %s is no longer tracking %s.\n"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Snap name"
-msgstr ""
-
-msgid ""
-"Sorry, your payment method has been declined by the issuer. Please review "
-"your\n"
-"payment details at https://my.ubuntu.com/payment/edit and try again."
-msgstr ""
-
-msgid "Start services"
-msgstr ""
-
-#, c-format
-msgid "Start snap %q (%s) services"
-msgstr ""
-
-#, c-format
-msgid "Start snap %q%s services"
-msgstr ""
-
-msgid "Start snap services"
-msgstr ""
-
-msgid "Start the userd service"
-msgstr ""
-
-msgid "Started.\n"
-msgstr ""
-
-msgid "Status\tSpawn\tReady\tSummary\n"
-msgstr ""
-
-msgid "Stop services"
-msgstr ""
-
-#, c-format
-msgid "Stop snap %q (%s) services"
-msgstr ""
-
-#, c-format
-msgid "Stop snap %q services"
-msgstr ""
-
-msgid "Stop snap services"
-msgstr ""
-
-msgid "Stopped.\n"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Strict typing with nulls and quoted strings"
-msgstr ""
-
-#, c-format
-msgid "Switch %q snap to %s"
-msgstr ""
-
-#, c-format
-msgid "Switch snap %q from %s to %s"
-msgstr ""
-
-#, c-format
-msgid "Switch snap %q to %s"
-msgstr ""
-
-msgid "Switches snap to a different channel"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Temporarily mount device before inspecting"
-msgstr ""
-
-msgid "Tests a snap in the system"
-msgstr ""
-
-#. TRANSLATORS: %q and %s are the same snap name. Please wrap the translation at 80 characters.
-#, c-format
-msgid ""
-"Thanks for purchasing %q. You may now install it on any of your devices\n"
-"with 'snap install %s'."
-msgstr ""
-
-msgid ""
-"The get command prints configuration and interface connection settings."
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
-msgid "The login.ubuntu.com email to login as"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "The model assertion name"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "The output directory"
-msgstr ""
-
-#, c-format
-msgid "The program %q can be found in the following snaps:\n"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "The snap to configure (e.g. hello-world)"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "The snap whose conf is being requested"
-msgstr ""
-
-msgid "The userd command starts the snap user session service."
-msgstr ""
-
-msgid "This command logs the current user out of the store"
-msgstr ""
-
-msgid "This dialog will close automatically after 5 minutes of inactivity."
-msgstr ""
-
-#, c-format
-msgid "Toggle snap %q flags"
-msgstr ""
-
-msgid "Tool to interact with snaps"
-msgstr ""
-
-#, c-format
-msgid "Transition security profiles from %q to %q"
-msgstr ""
-
-msgid "Transition ubuntu-core to core"
-msgstr ""
-
-#, c-format
-msgid "Try %q snap from %s"
-msgstr ""
-
-msgid "Try: snap install <selected snap>\n"
-msgstr ""
-
-msgid "Two-factor code: "
-msgstr ""
-
-msgid "Unalias a manual alias or an entire snap"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Use a specific snap revision when running hook"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Use known assertions for user creation"
-msgstr ""
-
-msgid "Use the given output format (pretty or json)"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Use this channel instead of stable"
-msgstr ""
-
-msgid ""
-"WARNING: The output of \"snap get\" will become a list with columns - use -d "
-"or -l to force the output format.\n"
-msgstr ""
-
-#, c-format
-msgid "WARNING: failed to activate logging: %v\n"
-msgstr ""
-
-#. TRANSLATORS: This should not start with a lowercase letter.
-msgid "Wait for new lines and print them as they come in."
-msgstr ""
-
-msgid "Waiting for server to restart"
-msgstr ""
-
-msgid "Watch a change in progress"
-msgstr ""
-
-msgid "Wrong again. Once more: "
-msgstr ""
-
-#, c-format
-msgid "Xauthority file isn't owned by the current user %s"
-msgstr ""
-
-msgid "Yes, yes it does."
-msgstr ""
-
-msgid ""
-"You need to be logged in to purchase software. Please run 'snap login' and "
-"try again."
-msgstr ""
-
-#, c-format
-msgid ""
-"You need to have a payment method associated with your account in order to "
-"buy a snap, please visit https://my.ubuntu.com/payment/edit to add one.\n"
-"\n"
-"Once you’ve added your payment details, you just need to run 'snap buy %s' "
-"again."
-msgstr ""
-
-#. TRANSLATORS: the %s is the argument given by the user to "snap changes"
-#, c-format
-msgid "\"snap changes\" command expects a snap name, try: \"snap tasks %s\""
-msgstr ""
-
+#: cmd/snap/cmd_snapshot.go:105
 msgid ""
 "\n"
-"Install, configure, refresh and remove snap packages. Snaps are\n"
-"'universal' packages that work across many different Linux systems,\n"
-"enabling secure distribution of the latest apps and utilities for\n"
-"cloud, servers, desktops and the internet of things.\n"
-"\n"
-"This is the CLI for snapd, a background service that takes care of\n"
-"snaps on the system. Start with 'snap list' to see installed snaps.\n"
+"Export a snapshot to the given filename.\n"
 msgstr ""
+"\n"
+"导出快照到指定文件名。\n"
 
+#: cmd/snap/cmd_snapshot.go:109
+msgid ""
+"\n"
+"Import an exported snapshot set to the system. The snapshot is imported\n"
+"with a new snapshot ID and can be restored using the restore command.\n"
+msgstr ""
+"\n"
+"将导出的快照集导入系统。将使用新的快照ID导入快照，并可以使用 restore 命令还原"
+"快照。\n"
+
+#: cmd/snap/cmd_find.go:272
 msgid ""
 "\n"
 "Provide a search term for more specific results.\n"
 msgstr ""
+"\n"
+"请提供搜索关键词以获得更具体的结果。\n"
 
+#: cmd/snap/cmd_abort.go:32
 msgid ""
 "\n"
 "The abort command attempts to abort a change that still has pending tasks.\n"
 msgstr ""
+"\n"
+"abort 命令尝试中止仍有挂起任务的更改。\n"
 
+#: cmd/snap/cmd_ack.go:40
 msgid ""
 "\n"
 "The ack command tries to add an assertion to the system assertion database.\n"
 "\n"
-"The assertion may also be a newer revision of a preexisting assertion that "
+"The assertion may also be a newer revision of a pre-existing assertion that "
 "it\n"
 "will replace.\n"
 "\n"
@@ -1310,68 +71,118 @@ msgid ""
 "public key and the assertion consistent with and its prerequisite in the\n"
 "database.\n"
 msgstr ""
+"\n"
+"ack 命令尝试向系统声明 数据库添加声明 。\n"
+"\n"
+"声明也可能是它将替换的现有声明 的更新版本。\n"
+"\n"
+"要成功，声明 必须是有效的，其签名必须使用已知的公钥进行验证，并且声明 与数据"
+"库中的声明 一致且其先决条件一致。\n"
 
+#: cmd/snap/cmd_advise.go:57
 msgid ""
 "\n"
-"The advise-snap command shows what snaps with the given command are\n"
-"available.\n"
+"The advise-snap command searches for and suggests the installation of "
+"snaps.\n"
+"\n"
+"If --command is given, it suggests snaps that provide the given command.\n"
+"Otherwise it suggests snaps with the given name.\n"
 msgstr ""
+"\n"
+"advise-snap 命令搜索并提供安装 snap 的建议。\n"
+"\n"
+"如果给出 --command，它会建议提供给定命令的 snap。\n"
+"否则，它会建议使用给定名称的 snap。\n"
 
+#: cmd/snap/cmd_alias.go:45
 msgid ""
 "\n"
 "The alias command aliases the given snap application to the given alias.\n"
 "\n"
-"Once this manual alias is setup the respective application command can be "
+"Once this manual alias is setup the respective application command can be\n"
 "invoked just using the alias.\n"
 msgstr ""
+"\n"
+"alias 命令将给定 snap 应用别名为给定别名。\n"
+"设置此手动别名后，只需使用别名即可调用相应的应用程序命令。\n"
 
-msgid ""
-"\n"
-"The aliases command lists all aliases available in the system and their "
-"status.\n"
-"\n"
-"$ snap aliases <snap>\n"
-"\n"
-"Lists only the aliases defined by the specified snap.\n"
-"\n"
-"An alias noted as undefined means it was explicitly enabled or disabled but "
-"is\n"
-"not defined in the current revision of the snap; possibly temporarely (e.g\n"
-"because of a revert), if not this can be cleared with snap alias --reset.\n"
-msgstr ""
-
+#: cmd/snap/cmd_auto_import.go:231
 msgid ""
 "\n"
 "The auto-import command searches available mounted devices looking for\n"
 "assertions that are signed by trusted authorities, and potentially\n"
 "performs system changes based on them.\n"
 "\n"
-"If one or more device paths are provided via --mount, these are temporariy\n"
+"If one or more device paths are provided via --mount, these are temporarily\n"
 "mounted to be inspected as well. Even in that case the command will still\n"
 "consider all available mounted devices for inspection.\n"
 "\n"
-"Imported assertions must be made available in the auto-import.assert file\n"
+"Assertions to be imported must be made available in the auto-import.assert "
+"file\n"
 "in the root of the filesystem.\n"
 msgstr ""
+"\n"
+"auto-import 命令搜索可用的已装载设备，查找由受信任的机构签名的 Assertion，并"
+"可能基于这些声明  执行系统更改。\n"
+"如果通过 --mount 提供了一个或多个设备路径，那么也会临时安装这些路径以进行检"
+"查。即使在这种情况下，命令仍然会考虑所有可用的安装设备进行检查。\n"
+"要导入的声明 必须在文件系统根目录下的 auto-import.assert 文件中可用。\n"
 
+#: cmd/snap/cmd_buy.go:33
 msgid ""
 "\n"
 "The buy command buys a snap from the store.\n"
 msgstr ""
+"\n"
+"buy 命令将会从商店中购买一个 snap\n"
 
+#: cmd/snap/cmd_changes.go:35
 msgid ""
 "\n"
-"The changes command displays a summary of the recent system changes "
-"performed."
+"The changes command displays a summary of system changes performed "
+"recently.\n"
 msgstr ""
+"\n"
+"changes 命令将会显示有关近期系统更改的摘要\n"
 
+#: cmd/snap/cmd_snapshot.go:76
 msgid ""
 "\n"
-"The confinement command will print the confinement mode (strict, partial or "
-"none)\n"
-"the system operates in.\n"
+"The check-snapshot command verifies the user, system and configuration\n"
+"data of the snaps included in the specified snapshot.\n"
+"\n"
+"The check operation runs the same data integrity verification that is\n"
+"performed when a snapshot is restored.\n"
+"\n"
+"By default, this command checks all the data in a snapshot.\n"
+"Alternatively, you can specify the data of which snaps to check, or\n"
+"for which users, or a combination of these.\n"
+"\n"
+"If a snap is included in a check-snapshot operation, excluding its\n"
+"system and configuration data from the check is not currently\n"
+"possible. This restriction may be lifted in the future.\n"
 msgstr ""
+"\n"
+"check-snapshot 命令验证指定快照中包含的 snap 的用户、系统和配置数据。\n"
+"\n"
+"检查操作运行的数据完整性验证与恢复快照时执行的相同。\n"
+"\n"
+"默认情况下，此命令会检查快照中的所有数据。或者，您可以指定要检查哪些快照的数"
+"据、哪些用户或这些数据的组合。\n"
+"\n"
+"如果快照包含在检查快照操作中，则当前无法从检查中排除其系统和配置数据。 \n"
+"未来可能会取消这一限制。\n"
 
+#: cmd/snap/cmd_confinement.go:31
+msgid ""
+"\n"
+"The confinement command will print the confinement mode (strict,\n"
+"partial or none) the system operates in.\n"
+msgstr ""
+"\n"
+"confinement 命令将会打印当前系统处在的隔离模式 (严格、部分或无)。\n"
+
+#: cmd/snap/cmd_connect.go:37
 msgid ""
 "\n"
 "The connect command connects a plug to a slot.\n"
@@ -1395,7 +206,103 @@ msgid ""
 "matching\n"
 "the plug name.\n"
 msgstr ""
+"\n"
+"connect 命令将一个插头连接到一个插槽，它可以用以下几种方式调用：\n"
+"\n"
+"$ snap connect <snap>:<plug> <snap>:<slot>\n"
+"\n"
+"将给定的插头连接到给定的插槽。\n"
+"\n"
+"$ snap connect <snap>:<plug> <snap>。\n"
+"\n"
+"将指定的插头连接到所提供的 snap 中唯一与已连接的接口项匹配的槽位。如果存在一"
+"个以上的潜在槽位，命令将会失败。\n"
+"\n"
+"$ snap connect <snap>:<plug>。\n"
+"\n"
+"将所提供的插头与 core snap 中与插头名相匹配的插槽连接。\n"
 
+#: cmd/snap/cmd_connections.go:42
+msgid ""
+"\n"
+"The connections command lists connections between plugs and slots\n"
+"in the system.\n"
+"\n"
+"Unless <snap> is provided, the listing is for connected plugs and\n"
+"slots for all snaps in the system. In this mode, pass --all to also\n"
+"list unconnected plugs and slots.\n"
+"\n"
+"$ snap connections <snap>\n"
+"\n"
+"Lists connected and unconnected plugs and slots for the specified\n"
+"snap.\n"
+msgstr ""
+"\n"
+"connections 命令将会列出系统中插头和插槽的连接。\n"
+"\n"
+"除非提供了 <snap>，系统中所有的插头和插槽将会被列出。在此模式中，传递 --all "
+"也可以列出未连接的插头和插槽。\n"
+"\n"
+"$ snap connections <snap>\n"
+"\n"
+"列出指定 snap 的已连接和未连接的插头与插槽。\n"
+
+#: cmd/snap/cmd_routine_console_conf.go:40
+msgid ""
+"\n"
+"The console-conf-start command starts synchronization with console-conf\n"
+"\n"
+"This command is used by console-conf when it starts up. It delays refreshes "
+"if\n"
+"there are none currently ongoing, and exits with a specific error code if "
+"there\n"
+"are ongoing refreshes which console-conf should wait for before prompting "
+"the \n"
+"user to begin configuring the device.\n"
+msgstr ""
+"\n"
+"console-conf-start命令启动了和console-conf的同步\n"
+"此命令用于console-conf的启动。如果当前没有正在进行的刷新，则会延迟刷新；如果"
+"正在进行刷新，则会以特定的错误代码退出。在提示用户开始配置设备之前，console-"
+"conf应等待该刷新。\n"
+
+#: cmd/snap/cmd_create_cohort.go:30
+msgid ""
+"\n"
+"The create-cohort command creates a set of cohort keys for a given set of "
+"snaps.\n"
+"\n"
+"A cohort is a view or snapshot of a snap's \"channel map\" at a given point "
+"in\n"
+"time that fixes the set of revisions for the snap given other constraints\n"
+"(e.g. channel or architecture). The cohort is then identified by an opaque\n"
+"per-snap key that works across systems. Installations or refreshes of the "
+"snap\n"
+"using a given cohort key would use a fixed revision for up to 90 days, "
+"after\n"
+"which a new set of revisions would be fixed under that same cohort key and "
+"a\n"
+"new 90 days window started.\n"
+msgstr ""
+"\n"
+"create-cohort 命令用于为给定的一组 snap 创建 cohort 密钥集。\n"
+"\n"
+"cohort 是 snap “频道映射”的视图或快照，它在特定时间点固定了 snap 的修订版本"
+"集，给定其他约束条件（例如频道或架构）。然后，通过对每个snap的不透明密钥标识 "
+"cohort，该标识在系统中起作用。使用给定的 cohort 密钥安装或刷新 snap 将使用固"
+"定的修订版本，最多 90 天，之后将在同一 cohort 密钥下固定一组新的修订版本，并"
+"启动一个新的 90 天窗口。\n"
+
+#: cmd/snap/cmd_create_key.go:41
+msgid ""
+"\n"
+"The create-key command creates a cryptographic key pair that can be\n"
+"used for signing assertions.\n"
+msgstr ""
+"\n"
+"create-key 命令将会创建一个加密密钥对用于签署声明 。\n"
+
+#: cmd/snap/cmd_create_user.go:33
 msgid ""
 "\n"
 "The create-user command creates a local system user with the username and "
@@ -1405,7 +312,13 @@ msgid ""
 "\n"
 "An account can be setup at https://login.ubuntu.com.\n"
 msgstr ""
+"\n"
+"create user命令创建一个本地系统用户，其用户名和 SSH 密钥注册在由提供的电子邮"
+"件地址标识的存储帐户上。\n"
+"\n"
+"可以在以下位置设置帐户：https://login.ubuntu.com.\n"
 
+#: cmd/snap/cmd_debug.go:29
 msgid ""
 "\n"
 "The debug command contains a selection of additional sub-commands.\n"
@@ -1413,14 +326,33 @@ msgid ""
 "Debug commands can be removed without notice and may not work on\n"
 "non-development systems.\n"
 msgstr ""
+"\n"
+"debug 命令包含一系列额外的子命令。\n"
+"\n"
+"请注意，debug 命令可能会在没有提前通知的情况下被删除，并且可能无法在非开发系"
+"统上工作。\n"
 
+#: cmd/snap/cmd_delete_key.go:41
+msgid ""
+"\n"
+"The delete-key command deletes the local cryptographic key pair with\n"
+"the given name.\n"
+msgstr ""
+"\n"
+"delete-key 命令将会删除给定名称所对应的本地加密密钥对。\n"
+
+#: cmd/snap/cmd_snap_op.go:119
 msgid ""
 "\n"
 "The disable command disables a snap. The binaries and services of the\n"
-"snap will no longer be available. But all the data is still available\n"
+"snap will no longer be available, but all the data is still available\n"
 "and the snap can easily be enabled again.\n"
 msgstr ""
+"\n"
+"disable 命令禁用 snap。snap 的二进制文件和服务将不再可用，但所有数据仍然可"
+"用，并且可以轻松地再次启用 snap。\n"
 
+#: cmd/snap/cmd_disconnect.go:41
 msgid ""
 "\n"
 "The disconnect command disconnects a plug from a slot.\n"
@@ -1434,101 +366,152 @@ msgid ""
 "\n"
 "Disconnects everything from the provided plug or slot.\n"
 "The snap name may be omitted for the core snap.\n"
+"\n"
+"When an automatic connection is manually disconnected, its disconnected "
+"state\n"
+"is retained after a snap refresh. The --forget flag can be added to the\n"
+"disconnect command to reset this behaviour, and consequently re-enable\n"
+"an automatic reconnection after a snap refresh.\n"
 msgstr ""
+"\n"
+"disconnect 命令用于断开插槽和插头的连接。它可以通过以下方式调用：\n"
+"\n"
+"$ snap disconnect <snap>:<plug> <snap>:<slot>\n"
+"\n"
+"断开指定插头和插槽之间的连接。\n"
+"\n"
+"$ snap disconnect <snap>:<slot or plug>\n"
+"\n"
+"断开与提供的插槽或插头相关的所有连接。对于核心 snap，可以省略 snap 名称。\n"
+"\n"
+"当手动断开自动连接时，它的断开状态在snap刷新后将保留。可以在 disconnect 命令"
+"中添加 —forget 参数来重置此行为，并在 snap 刷新后重新启用自动重新连接。\n"
 
+#: cmd/snap/cmd_download.go:51
 msgid ""
 "\n"
 "The download command downloads the given snap and its supporting assertions\n"
-"to the current directory under .snap and .assert file extensions, "
+"to the current directory with .snap and .assert file extensions, "
 "respectively.\n"
 msgstr ""
+"\n"
+"download 命令会将给定的 snap 包及其支持的声明 下载到当前目录，分别使用 .snap "
+"和 .assert 文件扩展名。\n"
 
+#: cmd/snap/cmd_snap_op.go:115
 msgid ""
 "\n"
 "The enable command enables a snap that was previously disabled.\n"
 msgstr ""
+"\n"
+"“启用”命令可启用以前禁用的 snap。\n"
 
+#: cmd/snap/cmd_export_key.go:43
 msgid ""
 "\n"
-"The find command queries the store for available packages in the stable "
-"channel.\n"
+"The export-key command exports a public key assertion body that may be\n"
+"imported by other systems.\n"
 msgstr ""
+"\n"
+"export-key 命令导出公钥 声明 主体，该主体可能由其他系统导入。\n"
 
+#: cmd/snap/cmd_routine_file_access.go:43
 msgid ""
 "\n"
-"The get command prints configuration options for the current snap.\n"
+"The file-access command returns information about a snap's file system "
+"access.\n"
 "\n"
-"    $ snapctl get username\n"
-"    frank\n"
+"This command is used by the xdg-document-portal service to identify\n"
+"files that do not need to be proxied to provide access within\n"
+"confinement.\n"
 "\n"
-"If multiple option names are provided, a document is returned:\n"
-"\n"
-"    $ snapctl get username password\n"
-"    {\n"
-"        \"username\": \"frank\",\n"
-"        \"password\": \"...\"\n"
-"    }\n"
-"\n"
-"Nested values may be retrieved via a dotted path:\n"
-"\n"
-"    $ snapctl get author.name\n"
-"    frank\n"
-"\n"
-"Values of interface connection settings may be printed with:\n"
-"\n"
-"    $ snapctl get :myplug usb-vendor\n"
-"    $ snapctl get :myslot path\n"
-"\n"
-"This will return the named setting from the local interface endpoint, "
-"whether a plug\n"
-"or a slot. Returning the setting from the connected snap's endpoint is also "
-"possible\n"
-"by explicitly requesting that via the --plug and --slot command line "
-"options:\n"
-"\n"
-"    $ snapctl get :myplug --slot usb-vendor\n"
-"\n"
-"This requests the \"usb-vendor\" setting from the slot that is connected to "
-"\"myplug\".\n"
+"File paths are interpreted as host file system paths.  The tool may\n"
+"return false negatives (e.g. report that a file path is unreadable,\n"
+"despite being readable under a different path).  It also does not\n"
+"check if file system permissions would render a file unreadable.\n"
 msgstr ""
+"\n"
+"file-access 命令返回有关 snap 的文件系统访问的信息。\n"
+"\n"
+"xdg-document-portal 服务使用此命令来识别不需要代理以提供限制内访问的文件。\n"
+"\n"
+"文件路径被解释为主机文件系统路径。本工具可能会返回错误的信息（比如，报告文\n"
+"件的路径不可读，尽管在不同路径下是可读的）。本工具也不检查文件系统权限是否\n"
+"会使文件不可读。\n"
 
+#: cmd/snap/cmd_find.go:40
 msgid ""
 "\n"
-"The get command prints configuration options for the provided snap.\n"
+"The find command queries the store for available packages.\n"
 "\n"
-"    $ snap get snap-name username\n"
-"    frank\n"
+"With the --private flag, which requires the user to be logged-in to the "
+"store\n"
+"(see 'snap help login'), it instead searches for private snaps that the "
+"user\n"
+"has developer access to, either directly or through the store's "
+"collaboration\n"
+"feature.\n"
 "\n"
-"If multiple option names are provided, a document is returned:\n"
-"\n"
-"    $ snap get snap-name username password\n"
-"    {\n"
-"        \"username\": \"frank\",\n"
-"        \"password\": \"...\"\n"
-"    }\n"
-"\n"
-"Nested values may be retrieved via a dotted path:\n"
-"\n"
-"    $ snap get snap-name author.name\n"
-"    frank\n"
+"A green check mark (given color and unicode support) after a publisher name\n"
+"indicates that the publisher has been verified.\n"
 msgstr ""
+"\n"
+"find 命令在存储中查询可用包。\n"
+"\n"
+"使用 --private 标志（要求用户登录到应用商店（请参阅“snap help login”）），\n"
+"它会直接或通过商店的协作功能搜索用户具有开发人员访问权限的专用快照。\n"
+"\n"
+"发布者名称后面的绿色复选标记（给定颜色和 unicode 支持）\n"
+"表示发布者已经过验证。\n"
 
+#: cmd/snap/cmd_snapshot.go:66
 msgid ""
 "\n"
-"The help command shows helpful information. Unlike this. ;-)\n"
+"The forget command deletes a snapshot. This operation can not be\n"
+"undone.\n"
+"\n"
+"A snapshot contains archives for the user, system and configuration\n"
+"data of each snap included in the snapshot.\n"
+"\n"
+"By default, this command forgets all the data in a snapshot.\n"
+"Alternatively, you can specify the data of which snaps to forget.\n"
 msgstr ""
+"\n"
+"forget 命令删除快照。此操作无法撤消。\n"
+"\n"
+"快照包含快照中包含的每个 snap 的用户、系统和配置数据的存档。\n"
+"\n"
+"默认情况下，此命令会忘记快照中的所有数据。\n"
+"或者，您可以指定要忘记哪些 snap 的数据。\n"
 
+#: cmd/snap/cmd_help.go:36
 msgid ""
 "\n"
-"The info command shows detailed information about a snap, be it by name or "
-"by path."
+"The help command displays information about snap commands.\n"
 msgstr ""
+"\n"
+"help 命令将会输出有关一个 snap 命令的信息\n"
 
+#: cmd/snap/cmd_info.go:59
 msgid ""
 "\n"
-"The install command installs the named snap in the system.\n"
+"The info command shows detailed information about snaps.\n"
+"\n"
+"The snaps can be specified by name or by path; names are looked for both in "
+"the\n"
+"store and in the installed snaps; paths can refer to a .snap file, or to a\n"
+"directory that contains an unpacked snap suitable for 'snap try' (an "
+"example\n"
+"of this would be the 'prime' directory snapcraft produces).\n"
 msgstr ""
+"\n"
+"info 命令显示有关 snap 的详细信息。\n"
+"\n"
+"可以通过名称或路径指定 snap ； 在商店和已安装的 snap 中查找名称； \n"
+"路径可以引用 .snap 文件，或者指向包含适合“快照尝试”的解压缩快照\n"
+"的目录（如 snapcraft 生成的 “prime” 目录）。\n"
 
+#: cmd/snap/cmd_interface.go:45
 msgid ""
 "\n"
 "The interface command shows details of snap interfaces.\n"
@@ -1536,14 +519,20 @@ msgid ""
 "If no interface name is provided, a list of interface names with at least\n"
 "one connection is shown, or a list of all interfaces if --all is provided.\n"
 msgstr ""
+"\n"
+"interface 命令显示 snap 接口的详细信息。\n"
+"\n"
+"如果未提供接口名称，则显示包含至少一个连接的接口名称列表，或者如果\n"
+"提供了 --all 参数，则显示所有接口的列表。\n"
 
+#: cmd/snap/cmd_interfaces.go:40
 msgid ""
 "\n"
 "The interfaces command lists interfaces available in the system.\n"
 "\n"
 "By default all slots and plugs, used and offered by all snaps, are "
 "displayed.\n"
-" \n"
+"\n"
 "$ snap interfaces <snap>:<slot or plug>\n"
 "\n"
 "Lists only the specified slot or plug.\n"
@@ -1554,59 +543,159 @@ msgid ""
 "\n"
 "$ snap interfaces -i=<interface> [<snap>]\n"
 "\n"
-"Filters the complete output so only plugs and/or slots matching the provided "
+"Filters the complete output so only plugs and/or slots matching the "
+"provided\n"
 "details are listed.\n"
+"\n"
+"NOTE this command is deprecated and has been replaced with the "
+"'connections'\n"
+"     command.\n"
 msgstr ""
+"\n"
+"interfaces 命令列出系统中可用的接口。\n"
+"\n"
+"默认情况下，显示所有快照使用和提供的插槽和插口。\n"
+"\n"
+"$snap interfaces <快照>:<插槽或插口>\n"
+"\n"
+"仅列出指定的插槽或插口。\n"
+"\n"
+"$snap interfaces <snap>\n"
+"\n"
+"列出指定快照提供的插槽和使用的插口。\n"
+"\n"
+"$snap interfaces -i=<接口> [<snap>]\n"
+"\n"
+"筛选完整的输出，仅列出与提供的详细信息匹配的插槽和/或插口。\n"
+"\n"
+"注意：此命令已弃用，已被“connections”命令替代。\n"
 
+#: cmd/snap/cmd_keys.go:39
+msgid ""
+"\n"
+"The keys command lists cryptographic keys that can be used for signing\n"
+"assertions.\n"
+msgstr ""
+"\n"
+"keys 命令列出可用于签署声明 的加密密钥。\n"
+
+#: cmd/snap/cmd_known.go:49
 msgid ""
 "\n"
 "The known command shows known assertions of the provided type.\n"
 "If header=value pairs are provided after the assertion type, the assertions\n"
 "shown must also have the specified headers matching the provided values.\n"
 msgstr ""
+"\n"
+"known 命令显示所提供类型的已知声明 。\n"
+"如果在声明 类型之后提供了 header=value 对，则显示的声明 还必须具有与提供的值"
+"匹配的指定标头。\n"
 
+#: cmd/snap/cmd_list.go:36
 msgid ""
 "\n"
-"The list command displays a summary of snaps installed in the current system."
+"The list command displays a summary of snaps installed in the current "
+"system.\n"
+"\n"
+"A green check mark (given color and unicode support) after a publisher name\n"
+"indicates that the publisher has been verified.\n"
 msgstr ""
+"\n"
+"list 命令显示当前系统中已经安装 snap 的摘要。\n"
+"\n"
+"发布者名称后的绿色复选标记（给定颜色和 unicode 支持）表示发布者已通过验证。\n"
 
+#: cmd/snap/cmd_logout.go:34
 msgid ""
 "\n"
-"The login command authenticates on snapd and the snap store and saves "
-"credentials\n"
-"into the ~/.snap/auth.json file. Further communication with snapd will then "
-"be made\n"
-"using those credentials.\n"
-"\n"
-"Login only works for local users in the sudo, admin or wheel groups.\n"
-"\n"
-"An account can be setup at https://login.ubuntu.com\n"
+"The logout command logs the current user out of snapd and the store.\n"
 msgstr ""
+"\n"
+"logout 命令将当前用户从 snapd 和存储中注销。\n"
 
+#: cmd/snap/cmd_services.go:58
 msgid ""
 "\n"
-"The logs command fetches logs of the given services and displays them in "
+"The logs command fetches logs of the given services and displays them in\n"
 "chronological order.\n"
 msgstr ""
+"\n"
+"logs 命令获取给定服务的日志并按时间顺序显示它们。\n"
 
+#: cmd/snap/cmd_managed.go:31
 msgid ""
 "\n"
 "The managed command will print true or false informing whether\n"
 "snapd has registered users.\n"
 msgstr ""
+"\n"
+"managed 命令将打印 true 或 false 以告知 snapd 是否存在已注册用户。\n"
 
+#: cmd/snap/cmd_warnings.go:60
 msgid ""
 "\n"
-"The pack command packs the given snap-dir as a snap."
+"The okay command acknowledges the warnings listed with 'snap warnings'.\n"
+"\n"
+"Once acknowledged a warning won't appear again unless it re-occurrs and\n"
+"sufficient time has passed.\n"
 msgstr ""
+"\n"
+"okay 命令承认与“snap warnings”一起列出的警告。\n"
+"\n"
+"一旦承认，警告将不会再次出现，除非它再次发生并且已经过了足够的时间。\n"
 
+#: cmd/snap/cmd_paths.go:32
+msgid ""
+"\n"
+"The paths command prints the list of paths detected and used by snapd.\n"
+msgstr ""
+"\n"
+"paths 命令打印 snapd 检测到和使用的路径列表。\n"
+
+#: cmd/snap/cmd_routine_portal_info.go:43
+msgid ""
+"\n"
+"The portal-info command returns information about a process in keyfile "
+"format.\n"
+"\n"
+"This command is used by the xdg-desktop-portal service to retrieve\n"
+"information about snap confined processes.\n"
+msgstr ""
+"\n"
+"portal-info 命令以密钥文件格式返回有关进程的信息。\n"
+"\n"
+"xdg-desktop-portal 服务使用此命令来检索有关 snap 受限进程的信息。\n"
+
+#: cmd/snap/cmd_prefer.go:36
 msgid ""
 "\n"
 "The prefer command enables all aliases of the given snap in preference\n"
 "to conflicting aliases of other snaps whose aliases will be disabled\n"
-"(removed for manual ones).\n"
+"(or removed, for manual ones).\n"
 msgstr ""
+"\n"
+"prefer 命令将启用给定 snap 的所有别名，而不是将禁用（或删除手动别名）其别名的"
+"其他 snap 的冲突别名。\n"
 
+#: cmd/snap/cmd_prepare_image.go:64
+msgid ""
+"\n"
+"The prepare-image command performs some of the steps necessary for\n"
+"creating device images.\n"
+"\n"
+"For core images it is not invoked directly but usually via\n"
+"ubuntu-image.\n"
+"\n"
+"For preparing classic images it supports a --classic mode"
+msgstr ""
+"\n"
+"prepare-image 命令执行创建设备映像所需的一些步骤。\n"
+"\n"
+"对于核心映像，它一般不是直接调用而是通过 ubuntu-image 调用。\n"
+"\n"
+"对于准备经典映像（classic image），它支持 --classic 模式"
+
+#: cmd/snap/error.go:181
 #, c-format
 msgid ""
 "\n"
@@ -1624,48 +713,151 @@ msgid ""
 "if instead you want to install the snap forcing it into strict confinement\n"
 "repeat the command including --jailmode."
 msgstr ""
+"\n"
+"Snap %q 的发布者指出，他们不认为此版本具有生产质量，仅用于开发或测试。因"
+"此，\n"
+"该 snap 不会自动更新，并且可能会在安全沙盒之外执行任意系统更改，这可能会使"
+"您\n"
+"的系统处于危险之中。\n"
+"\n"
+"如果您理解并希望继续，请重复命令并包括 --devmode；如果您想将 snap 安装到严"
+"格\n"
+"的限制环境中，请重复命令并包括 --jailmode。"
 
+#: cmd/snap/cmd_recovery.go:41
 msgid ""
 "\n"
-"The refresh command refreshes (updates) the named snap.\n"
+"The recovery command lists the available recovery systems.\n"
+"\n"
+"With --show-keys it displays recovery keys that can be used to unlock the "
+"encrypted partitions if the device-specific automatic unlocking does not "
+"work.\n"
 msgstr ""
+"\n"
+"recovery 命令列出了可用的恢复系统。\n"
+"\n"
+"使用 --show-keys 参数，如果设备特定的自动解锁不起作用，它会显示可用于解锁加密"
+"分区的恢复密钥。\n"
 
+#: cmd/snap/cmd_remodel.go:33
 msgid ""
 "\n"
-"The remove command removes the named snap from the system.\n"
+"The remodel command changes the model assertion of the device, either to a "
+"new\n"
+"revision or a full new model.\n"
 "\n"
-"By default all the snap revisions are removed, including their data and the "
-"common\n"
-"data directory. When a --revision option is passed only the specified "
-"revision is\n"
-"removed.\n"
+"In the process it applies any implied changes to the device: new required\n"
+"snaps, new kernel or gadget etc.\n"
 msgstr ""
+"\n"
+"remodel 命令更改设备的模型声明 ，可以更改到一个新的版本或完全新的模型声"
+"明 。\n"
+"\n"
+"在此过程中，它会将设备上的任何隐含更改应用到：新的必需的Snap、新内核或 "
+"Gadget 等。\n"
 
+#: cmd/snap/cmd_snap_op.go:69
+msgid ""
+"\n"
+"The remove command removes the named snap instance from the system.\n"
+"\n"
+"By default all the snap revisions are removed, including their data and the\n"
+"common data directory. When a --revision option is passed only the "
+"specified\n"
+"revision is removed.\n"
+"\n"
+"Unless automatic snapshots are disabled, a snapshot of all data for the snap "
+"is \n"
+"saved upon removal, which is then available for future restoration with "
+"snap\n"
+"restore. The --purge option disables automatically creating snapshots.\n"
+msgstr ""
+"\n"
+"remove 命令从系统中删除命名的 snap 实例。\n"
+"\n"
+"默认情况下，所有 snap 修订版都被删除，包括它们的数据和公共数据目录。 当传"
+"递 \n"
+"--revision 选项时，仅删除指定的修订。\n"
+"\n"
+"除非禁用自动快照，否则快照的所有数据的快照会在删除时保存，然后可用于将来\n"
+"使用快照还原进行还原。 --purge 选项禁用自动创建快照。\n"
+
+#: cmd/snap/cmd_remove_user.go:32
+msgid ""
+"\n"
+"The remove-user command removes a local system user.\n"
+msgstr ""
+"\n"
+"remove-user 命令将会删除一个本地用户。\n"
+
+#: cmd/snap/cmd_repair_repairs.go:58
 msgid ""
 "\n"
 "The repair command shows the details about one or multiple repairs.\n"
 msgstr ""
+"\n"
+"repair 命令显示有关一个或多个修复的详细信息。\n"
 
+#: cmd/snap/cmd_repair_repairs.go:82
 msgid ""
 "\n"
 "The repairs command lists all processed repairs for this device.\n"
 msgstr ""
+"\n"
+"repairs 命令列出此设备的所有已处理修复。\n"
 
+#: overlord/hookstate/ctlcmd/restart.go:30
 msgid ""
 "\n"
 "The restart command restarts the given services of the snap. If executed "
 "from the\n"
 "\"configure\" hook, the services will be restarted after the hook finishes."
 msgstr ""
+"\n"
+"restart 命令重新启动 snap 的给定服务。如果从 “configure” 钩子执行，服务将在钩"
+"子完\n"
+"成后重新启动。"
 
+#: cmd/snap/cmd_services.go:71
 msgid ""
 "\n"
 "The restart command restarts the given services.\n"
 "\n"
-"If the --reload option is given, for each service whose app has a reload "
+"If the --reload option is given, for each service whose app has a reload\n"
 "command, a reload is performed instead of a restart.\n"
 msgstr ""
+"\n"
+"restart 命令重新启动给定的服务。\n"
+"\n"
+"如果给定了 --reload 选项，对于应用中具有重新加载命令的每个服务，将执行重新加"
+"载而不是重新启动。\n"
 
+#: cmd/snap/cmd_snapshot.go:91
+msgid ""
+"\n"
+"The restore command replaces the current user, system and\n"
+"configuration data of included snaps, with the corresponding data from\n"
+"the specified snapshot.\n"
+"\n"
+"By default, this command restores all the data in a snapshot.\n"
+"Alternatively, you can specify the data of which snaps to restore, or\n"
+"for which users, or a combination of these.\n"
+"\n"
+"If a snap is included in a restore operation, excluding its system and\n"
+"configuration data from the restore is not currently possible. This\n"
+"restriction may be lifted in the future.\n"
+msgstr ""
+"\n"
+"restore 命令将当前的用户、系统和包含的 snap 的配置数据替换为指定快照中相应的"
+"数据。\n"
+"\n"
+"默认情况下，此命令会恢复快照中的所有数据。您还可以指定要恢复哪些 snap 的数"
+"据，以及要为哪些用户恢复数据，或者将它们组合起来。\n"
+"\n"
+"如果在恢复操作中包含 snap，则目前无法从恢复中排除其系统和配置数据。这个限制可"
+"能会在将来解除。\n"
+
+#: cmd/snap/cmd_snap_op.go:1150
 msgid ""
 "\n"
 "The revert command reverts the given snap to its state before\n"
@@ -1675,82 +867,233 @@ msgid ""
 "an exception, data which the snap explicitly chooses to share across\n"
 "revisions is not touched by the revert process.\n"
 msgstr ""
+"\n"
+"revert 命令将给定的 snap 还原到最近一次刷新之前的状态。这将重新激活以前\n"
+"的快照修订版本，并将使用与该修订版关联的原始数据，放弃最新修订版本所做\n"
+"的任何数据更改。作为例外，恢复过程不会触及 snap 显式选择在修订版本之间\n"
+"共享的数据。\n"
 
+#: cmd/snap/cmd_routine.go:29
+msgid ""
+"\n"
+"The routine command contains a selection of additional sub-commands.\n"
+"\n"
+"Routine commands are not intended to be directly invoked by the user.\n"
+"Instead, they are intended to be called by other programs and produce\n"
+"machine readable output.\n"
+msgstr ""
+"\n"
+"routine 命令包含一系列额外的子命令。\n"
+"\n"
+"routine 命令不打算由用户直接调用。相反，它们打算由其他程序调用，\n"
+"并产生机器可读的输出。\n"
+
+#: cmd/snap/cmd_run.go:97
+msgid ""
+"\n"
+"The run command executes the given snap command with the right confinement\n"
+"and environment.\n"
+msgstr ""
+"\n"
+"run 命令使用正确的限制和环境执行给定的 snap 命令。\n"
+
+#: cmd/snap/cmd_sandbox_features.go:33
+msgid ""
+"\n"
+"The sandbox command prints tags describing features of individual sandbox\n"
+"components used by snapd on a given system.\n"
+msgstr ""
+"\n"
+"sandbox 命令打印标签，描述 snapd 在给定系统上使用的各个沙箱组件的功能。\n"
+
+#: cmd/snap/cmd_snapshot.go:54
+msgid ""
+"\n"
+"The save command creates a snapshot of the current user, system and\n"
+"configuration data for the given snaps.\n"
+"\n"
+"By default, this command saves the data of all snaps for all users.\n"
+"Alternatively, you can specify the data of which snaps to save, or\n"
+"for which users, or a combination of these.\n"
+"\n"
+"If a snap is included in a save operation, excluding its system and\n"
+"configuration data from the snapshot is not currently possible. This\n"
+"restriction may be lifted in the future.\n"
+msgstr ""
+"\n"
+"save 命令为给定 snap 创建当前用户、系统和配置数据的快照。\n"
+"\n"
+"默认情况下，此命令为所有用户保存所有快照的数据。\n"
+"或者，您可以指定要保存哪些快照的数据，或为哪些用户保存的数据，或这些快\n"
+"照的组合。\n"
+"\n"
+"如果保存操作中包含 snap ，则当前无法从快照中排除快照的系统和配置数据。\n"
+"此限制将来可能会取消。\n"
+
+#: cmd/snap/cmd_snapshot.go:50
+msgid ""
+"\n"
+"The saved command displays a list of snapshots that have been created\n"
+"previously with the 'save' command.\n"
+msgstr ""
+"\n"
+"saved 命令显示之前使用 save 命令创建的快照列表。\n"
+
+#: cmd/snap/cmd_services.go:53
 msgid ""
 "\n"
 "The services command lists information about the services specified, or "
-"about the services in all currently installed snaps.\n"
+"about\n"
+"the services in all currently installed snaps.\n"
 msgstr ""
+"\n"
+"服务命令列出有关指定服务的信息，或有关所有当前安装的 snap 中的服务的信息。\n"
 
+#: overlord/hookstate/ctlcmd/services.go:36
 msgid ""
 "\n"
-"The set command changes the provided configuration options as requested.\n"
-"\n"
-"    $ snap set snap-name username=frank password=$PASSWORD\n"
-"\n"
-"All configuration changes are persisted at once, and only after the\n"
-"snap's configuration hook returns successfully.\n"
-"\n"
-"Nested values may be modified via a dotted path:\n"
-"\n"
-"    $ snap set author.name=frank\n"
+"The services command lists information about the services specified.\n"
 msgstr ""
+"\n"
+"services 命令将会列出有关指定服务的信息\n"
 
+#: overlord/hookstate/ctlcmd/health.go:35
 msgid ""
 "\n"
-"The set command changes the provided configuration options as requested.\n"
+"The set-health command is called from within a snap to inform the system of "
+"the\n"
+"snap's overall health.\n"
 "\n"
-"    $ snapctl set username=frank password=$PASSWORD\n"
+"It can be called from any hook, and even from the apps themselves. A snap "
+"can\n"
+"optionally provide a 'check-health' hook to better manage these calls, which "
+"is\n"
+"then called periodically and with increased frequency while the snap is\n"
+"\"unhealthy\". Any health regression will issue a warning to the user.\n"
 "\n"
-"All configuration changes are persisted at once, and only after the hook\n"
-"returns successfully.\n"
+"Note: the health is of the snap only, not of the apps it contains; it’s up "
+"to\n"
+"      the snap developer to determine how the health of the individual apps "
+"is\n"
+"      reflected in the overall health of the snap.\n"
 "\n"
-"Nested values may be modified via a dotted path:\n"
+"status can be one of:\n"
 "\n"
-"    $ snapctl set author.name=frank\n"
+"- okay: the snap is healthy. This status takes no message and no code.\n"
 "\n"
-"Plug and slot attributes may be set in the respective prepare and connect "
-"hooks by\n"
-"naming the respective plug or slot:\n"
+"- waiting: a resource needed by the snap (e.g. a device, network, or "
+"service) is\n"
+"  not ready and the user will need to wait.  The message must explain what\n"
+"  resource is being waited for.\n"
 "\n"
-"    $ snapctl set :myplug path=/dev/ttyS0\n"
+"- blocked: something needs doing to unblock the snap (e.g. a service needs "
+"to be\n"
+"  configured); the message must be sufficient to point the user in the "
+"right\n"
+"  direction.\n"
+"\n"
+"- error: something is broken; the message must explain what.\n"
 msgstr ""
+"\n"
+"set-health 命令是从 snap 内部调用的，用于向系统报告 snap 的整体健康状况。\n"
+"\n"
+"它可以从任何钩子中调用，甚至从应用程序本身调用。Snap 可以选择提供一个 “check-"
+"health” 钩子来更好地管理这些调用，当 Snap 处于“不健康”状态时，将定期调用该钩"
+"子并增加调用频率。任何健康回归都会向用户发出警告。\n"
+"\n"
+"注意：健康状态仅适用于Snap本身，而不适用于其中包含的应用程序的健康状况；Snap"
+"开发人员需要确定如何反映单个应用程序的健康状况对 Snap 整体健康状况的影响。\n"
+"\n"
+"状态可以是以下之一：\n"
+"\n"
+"- okay: Snap很健康。此状态不需要消息和代码。\n"
+"\n"
+"- waiting: Snap 需要的资源（例如设备、网络或服务）尚未准备好，用户需要等待。"
+"消息必须解释正在等待什么资源。\n"
+"\n"
+"- blocked: 有些事情需要做才能解除Snap的阻塞（例如需要配置服务）；消息必须足以"
+"指导用户朝正确的方向前进。\n"
+"\n"
+"- error: 出现了问题，消息必须解释是什么问题。\n"
 
+#: cmd/snap/cmd_sign.go:35
+msgid ""
+"\n"
+"The sign command signs an assertion using the specified key, using the\n"
+"input for headers from a JSON mapping provided through stdin. The body\n"
+"of the assertion can be specified through a \"body\" pseudo-header.\n"
+msgstr ""
+"\n"
+"sign 命令使用指定的密钥对声明 进行签名，使用 stdin 提供的 JSON 映射中的标头输"
+"入。声明 的主体可以通过 “body” 伪标头指定。\n"
+
+#: cmd/snap/cmd_sign_build.go:49
+msgid ""
+"\n"
+"The sign-build command creates a snap-build assertion for the provided\n"
+"snap file.\n"
+msgstr ""
+"\n"
+"sign-build 命令为提供的 snap 文件创建一个 Snap-build声明 。\n"
+
+#: cmd/snap/cmd_help.go:277
+msgid ""
+"\n"
+"The snap command lets you install, configure, refresh and remove snaps.\n"
+"Snaps are packages that work across many different Linux distributions,\n"
+"enabling secure delivery and operation of the latest apps and utilities.\n"
+msgstr ""
+"\n"
+"snap 命令允许您安装、配置、刷新和删除 snap。Snap 是跨许多不同 Linux 发行版工"
+"作的软件包（类型），可实现最新应用程序和实用程序的安全交付和操作。\n"
+
+#: overlord/hookstate/ctlcmd/start.go:30
 msgid ""
 "\n"
 "The start command starts the given services of the snap. If executed from "
 "the\n"
 "\"configure\" hook, the services will be started after the hook finishes."
 msgstr ""
+"\n"
+"start 命令启动 snap 的给定服务。如果从 “configure” 钩子执行，服务将在钩子完成"
+"后启动。"
 
+#: cmd/snap/cmd_services.go:63
 msgid ""
 "\n"
 "The start command starts, and optionally enables, the given services.\n"
 msgstr ""
+"\n"
+"start 命令启动并选择性地启用给定的服务。\n"
 
+#: overlord/hookstate/ctlcmd/stop.go:38
 msgid ""
 "\n"
 "The stop command stops the given services of the snap. If executed from the\n"
 "\"configure\" hook, the services will be stopped after the hook finishes."
 msgstr ""
+"\n"
+"stop 命令停止 snap 的给定服务。如果从 “configure” 钩子执行，服务将在钩子完成"
+"后停止。"
 
+#: cmd/snap/cmd_services.go:67
 msgid ""
 "\n"
 "The stop command stops, and optionally disables, the given services.\n"
 msgstr ""
+"\n"
+"stop 命令停止并选择性地禁用给定的服务。\n"
 
+#: cmd/snap/cmd_changes.go:38
 msgid ""
 "\n"
-"The switch command switches the given snap to a different channel without\n"
-"doing a refresh.\n"
+"The tasks command displays a summary of tasks associated with an individual\n"
+"change.\n"
 msgstr ""
-
-msgid ""
 "\n"
-"The tasks command displays a summary of tasks associated to an individual "
-"change."
-msgstr ""
+"tasks 命令显示与单个更改关联的任务摘要。\n"
 
+#: cmd/snap/cmd_snap_op.go:104
 msgid ""
 "\n"
 "The try command installs an unpacked snap into the system for testing "
@@ -1766,31 +1109,134 @@ msgid ""
 "be\n"
 "found relative to current working directory.\n"
 msgstr ""
+"\n"
+"try 命令将未打包的 snap 安装到系统中以进行测试。即使在安装后，未打包的 snap "
+"内容仍将继续使用，因此其中的非元数据更改将立即生效。但是，诸如在 snap.yaml 中"
+"执行的元数据更改将需要重新安装才能生效。\n"
+"\n"
+"如果省略 snap-dir 参数，则 try 命令将尝试推断出它。可以相对于当前工作目录找"
+"到 snapcraft.yaml 文件和 prime 目录或 meta/snap.yaml 文件。\n"
 
+#: cmd/snap/cmd_unalias.go:36
 msgid ""
 "\n"
-"The unalias command tears down a manual alias when given one or disables all "
-"aliases of a snap, removing also all manual ones, when given a snap name.\n"
+"The unalias command removes a single alias if the provided argument is a "
+"manual\n"
+"alias, or disables all aliases of a snap, including manual ones, if the\n"
+"argument is a snap name.\n"
 msgstr ""
+"\n"
+"如果提供的参数是手动别名， unalias 命令将删除单个别名，如果参数是 snap 名称，"
+"则将禁用 snap 的所有别名，包括手动别名。\n"
 
+#: cmd/snap/cmd_unset.go:29
+msgid ""
+"\n"
+"The unset command removes the provided configuration options as requested.\n"
+"\n"
+"\t$ snap unset snap-name name address\n"
+"\n"
+"All configuration changes are persisted at once, and only after the\n"
+"snap's configuration hook returns successfully.\n"
+"\n"
+"Nested values may be removed via a dotted path:\n"
+"\n"
+"\t$ snap unset snap-name user.name\n"
+msgstr ""
+"\n"
+"unset 命令根据请求移除提供的配置选项。\n"
+"\n"
+"\t$ snap unset snap-name name address\n"
+"\n"
+"所有配置更改将一次性持久化，只有在 snap 的配置钩子成功返回后才会生效。\n"
+"\n"
+"可以通过点分路径删除嵌套值：\n"
+"\n"
+"\t$ snap unset snap-name user.name\n"
+
+#: overlord/hookstate/ctlcmd/unset.go:38
+msgid ""
+"\n"
+"The unset command removes the provided configuration options as requested.\n"
+"\n"
+"$ snapctl unset name address\n"
+"\n"
+"All configuration changes are persisted at once, and only after the\n"
+"snap's configuration hook returns successfully.\n"
+"\n"
+"Nested values may be removed via a dotted path:\n"
+"\n"
+"$ snapctl unset user.name\n"
+msgstr ""
+"\n"
+"unset 命令将根据请求移除提供的配置选项。\n"
+"\n"
+"$ snapctl unset name address\n"
+"\n"
+"所有配置更改将一次性持久化，只有在 snap 的配置钩子成功返回之后才会持久化。\n"
+"\n"
+"可以通过点路径删除嵌套值：\n"
+"\n"
+"$ snapctl unset user.name\n"
+
+#: cmd/snap/cmd_userd.go:51
+msgid ""
+"\n"
+"The userd command starts the snap user session service.\n"
+msgstr ""
+"\n"
+"userd 命令启动 snap 用户会话服务。\n"
+
+#: cmd/snap/cmd_version.go:33
 msgid ""
 "\n"
 "The version command displays the versions of the running client, server,\n"
 "and operating system.\n"
 msgstr ""
+"\n"
+"version 命令显示正在运行的客户端、服务器和操作系统的版本。\n"
 
+#: cmd/snap/cmd_warnings.go:49
+msgid ""
+"\n"
+"The warnings command lists the warnings that have been reported to the "
+"system.\n"
+"\n"
+"Once warnings have been listed with 'snap warnings', 'snap okay' may be used "
+"to\n"
+"silence them. A warning that's been silenced in this way will not be listed\n"
+"again unless it happens again, _and_ a cooldown time has passed.\n"
+"\n"
+"Warnings expire automatically, and once expired they are forgotten.\n"
+msgstr ""
+"\n"
+"warnings 命令列出已报告给系统的警告信息。\n"
+"\n"
+"一旦通过 'snap warnings' 列出了警告信息，就可以使用 'snap okay' 将其静音。\n"
+"通过这种方式静音的警告信息将不会再次列出，除非它再次发生，并且经过冷却时"
+"间。\n"
+"\n"
+"警告信息会自动过期，一旦过期，它们就会被遗忘。\n"
+
+#: cmd/snap/cmd_watch.go:31
 msgid ""
 "\n"
 "The watch command waits for the given change-id to finish and shows "
 "progress\n"
 "(if available).\n"
 msgstr ""
+"\n"
+"watch 命令等待给定的 change-id 完成并显示进度（如果可用）。\n"
 
+#: cmd/snap/cmd_whoami.go:31
 msgid ""
 "\n"
-"The whoami command prints the email the user is logged in with.\n"
+"The whoami command shows the email the user is logged in with.\n"
 msgstr ""
+"\n"
+"whoami 命令显示用户登录时使用的电子邮件。\n"
 
+#: cmd/snap/error.go:192
 #, c-format
 msgid ""
 "\n"
@@ -1803,382 +1249,3290 @@ msgid ""
 "If you understand and want to proceed repeat the command including --"
 "classic.\n"
 msgstr ""
+"\n"
+"这个 snap %q 的版本是使用经典模式发布的，因此可能会在安全沙箱以外执行任意系统"
+"更改，这可能会对您的系统造成风险。\n"
+"\n"
+"如果您理解并希望继续，请再次运行命令并包括 --classic 参数。\n"
 
+#: cmd/snap/cmd_aliases.go:140
 msgid ""
 "\n"
-"Use snap alias --help to learn how to create aliases manually."
+"Use 'snap help alias' to learn how to create aliases manually."
 msgstr ""
+"\n"
+"使用 “snap help alias” 来了解如何手动创建别名。"
 
+#: cmd/snap/cmd_advise.go:102
+#, c-format
+msgid " command %q from snap %q\n"
+msgstr " 命令 %q 由 snap %q 提供\n"
+
+#. TRANSLATORS: %d will be at least 2; the singular is only included to help gettext
+#: timeutil/human.go:66
+#, c-format
+msgid "%d day ago, at 15:04 MST"
+msgid_plural "%d days ago, at 15:04 MST"
+msgstr[0] "%d 天前，于 15:04（美国山区标准时间）"
+
+#: usersession/agent/rest_api.go:257
+#, c-format
+msgid "%d day left"
+msgid_plural "%d days left"
+msgstr[0] "剩余 %d 天"
+
+#: usersession/agent/rest_api.go:261
+#, c-format
+msgid "%d hour left"
+msgid_plural "%d hours left"
+msgstr[0] "剩余 %d 小时"
+
+#: usersession/agent/rest_api.go:265
+#, c-format
+msgid "%d minute left"
+msgid_plural "%d minutes left"
+msgstr[0] "剩余 %d 分钟"
+
+#: cmd/snap/error.go:114
+#, c-format
+msgid ""
+"%q does not contain an unpacked snap.\n"
+"\n"
+"Try 'snapcraft prime' in your project directory, then 'snap try' again."
+msgstr ""
+"%q 不包含未打包的 snap。\n"
+"\n"
+"尝试在您的项目目录里面运行“snapcraft prime”，然后再次运行 “snap try”。"
+
+#. TRANSLATORS: %q will be the (quoted) snap name
+#: cmd/snap/cmd_snap_op.go:422
+#, c-format
+msgid "%q left the cohort"
+msgstr "%q 退出了队列"
+
+#. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
+#: cmd/snap/cmd_snap_op.go:419
+#, c-format
+msgid "%q left the cohort, and switched to the %q channel"
+msgstr "%q 退出了队列并切换到了 %q 频道"
+
+#. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
+#: cmd/snap/cmd_snap_op.go:416
+#, c-format
+msgid "%q switched to the %q channel\n"
+msgstr "%q 已切换到 %q 频道\n"
+
+#. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel, the third an ellipted cohort string
+#: cmd/snap/cmd_snap_op.go:413
+#, c-format
+msgid "%q switched to the %q channel and the %q cohort\n"
+msgstr "%q 切换到了 %q 频道，%q 队列\n"
+
+#. TRANSLATORS: the first %q will be the (quoted) snap name, the second an ellipted cohort string
+#: cmd/snap/cmd_snap_op.go:410
+#, c-format
+msgid "%q switched to the %q cohort\n"
+msgstr "%q 已切换到 %q 队列\n"
+
+#. TRANSLATORS: 1. snap name, 2. snap version (keep those together please). the 3rd %s is a path (where it's mounted from).
+#: cmd/snap/cmd_snap_op.go:1080
+#, c-format
+msgid "%s %s mounted from %s\n"
+msgstr "%s %s 装载自 %s\n"
+
+#: store/store_download.go:707
+#, c-format
+msgid "%s (delta)"
+msgstr "%s (增量更新)"
+
+#: cmd/snap/cmd_snap_op.go:156
+#, c-format
+msgid "%s (revision %s) removed\n"
+msgstr "%s (修订版本 %s) 已被移除\n"
+
+#. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
+#: cmd/snap/error.go:206
+#, c-format
+msgid "%s (see 'snap help login')"
+msgstr "%s (参阅 'snap 登录帮助' ）"
+
+#. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
+#: cmd/snap/error.go:209
+#, c-format
+msgid "%s (try with sudo)"
+msgstr "%s (尝试使用 sudo 运行)"
+
+#: cmd/snap/cmd_snap_op.go:625
+#, c-format
+msgid "%s already installed\n"
+msgstr "%s 已经安装\n"
+
+#: cmd/snap/cmd_snap_op.go:1134
+#, c-format
+msgid "%s disabled\n"
+msgstr "%s 已被禁用\n"
+
+#: cmd/snap/cmd_snap_op.go:1107
+#, c-format
+msgid "%s enabled\n"
+msgstr "%s 已启用\n"
+
+#: cmd/snap/cmd_snap_op.go:204
+#, c-format
+msgid "%s not installed\n"
+msgstr "未安装 %s\n"
+
+#: cmd/snap/cmd_snap_op.go:158 cmd/snap/cmd_snap_op.go:197
+#, c-format
+msgid "%s removed\n"
+msgstr "已删除 %s\n"
+
+#. TRANSLATORS: first %s is a snap name, second %s is a revision
+#: cmd/snap/cmd_snap_op.go:400
+#, c-format
+msgid "%s reverted to %s\n"
+msgstr "%s 还原到 %s\n"
+
+#: cmd/snap/cmd_snap_op.go:370
+#, c-format
+msgid ""
+"%s was not found in your $PATH. If you've not restarted your session since "
+"you installed snapd, try doing that. Please see https://forum.snapcraft.io/"
+"t/9469 for more details."
+msgstr ""
+"%s 不在您的 $PATH 中，如果您安装 snapd 之后没有重启启动您的会话，请尝试重启会"
+"话。 参阅 https://forum.snapcraft.io/t/9469 获取更多细节。"
+
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice installed")
+#: cmd/snap/cmd_snap_op.go:385
+#, c-format
+msgid "%s%s %s from %s installed\n"
+msgstr "%s%s %s 已从 %s 安装\n"
+
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice refreshed")
+#: cmd/snap/cmd_snap_op.go:393
+#, c-format
+msgid "%s%s %s from %s refreshed\n"
+msgstr "%s%s %s 已从 %s 刷新\n"
+
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
+#: cmd/snap/cmd_snap_op.go:388
+#, c-format
+msgid "%s%s %s installed\n"
+msgstr "%s%s %s 已安装\n"
+
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
+#: cmd/snap/cmd_snap_op.go:396
+#, c-format
+msgid "%s%s %s refreshed\n"
+msgstr "%s%s %s 已刷新\n"
+
+#. TRANSLATORS: the %s is the argument given by the user to 'snap changes'
+#: cmd/snap/cmd_changes.go:91
+#, c-format
+msgid "'snap changes' command expects a snap name, try 'snap tasks %s'"
+msgstr "'snap changes' 命令需要一个 snap 名，请尝试 'snap tasks %s'"
+
+#: cmd/snap/cmd_interfaces.go:77
+msgid "'snap interfaces' is deprecated; use 'snap connections'."
+msgstr "'snap interfaces' 已被弃用，请使用 “snap connections”。"
+
+#: cmd/snap/cmd_snap_op.go:850
+msgid "--list does not accept additional arguments"
+msgstr "--list 不接受其他参数"
+
+#: cmd/snap/cmd_snap_op.go:843
+msgid "--time does not take mode or channel flags"
+msgstr "--time 不接受模式或频道参数"
+
+#: cmd/snap/cmd_run.go:233
+msgid "-r can only be used with --hook"
+msgstr "-r 只能与 --hook 连用"
+
+#: cmd/snap/cmd_help.go:208
+msgid "...more"
+msgstr "...更多"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_unalias.go:47
+msgid "<alias-or-snap>"
+msgstr "<别名或 snap>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_alias.go:58
+msgid "<alias>"
+msgstr "<别名>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_ack.go:56
+msgid "<assertion file>"
+msgstr "<声明文件>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_known.go:66
+msgid "<assertion type>"
+msgstr "<声明类型>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/last.go:46
+msgid "<change-id>"
+msgstr "<更改序号>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_advise.go:78
+msgid "<command or pkg>"
+msgstr "<命令或软件包>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_unset.go:58
+msgid "<conf key>"
+msgstr "<配置 键>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_set.go:74
+msgid "<conf value>"
+msgstr "<配置 值>"
+
+#. TRANSLATORS: This is a noun, and it needs to begin with < and end with >
+#. TRANSLATORS: This is a noun and it needs to begin with < and end with >
+#: cmd/snap/cmd_login.go:62 cmd/snap/cmd_create_user.go:65
+msgid "<email>"
+msgstr "<电子邮件>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This should retain < ... >. The file name is the name of an exported snapshot.
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_sign.go:60 cmd/snap/cmd_snapshot.go:415
+#: cmd/snap/cmd_sign_build.go:71
+msgid "<filename>"
+msgstr "<文件名>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_known.go:71
+msgid "<header filter>"
+msgstr "<头文件过滤>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_interface.go:62
+msgid "<interface>"
+msgstr "<接口>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_delete_key.go:49 cmd/snap/cmd_export_key.go:53
+#: cmd/snap/cmd_create_key.go:49
+msgid "<key-name>"
+msgstr "<按键名称>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_get.go:82 cmd/snap/cmd_wait.go:55
+msgid "<key>"
+msgstr "<按键>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_reboot.go:72
+msgid "<label>"
+msgstr "<label>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_prepare_image.go:101
+msgid "<model-assertion>"
+msgstr "<model-assertion>"
+
+#. TRANSLATORS: this describes the default filename for a snap, e.g. core_16-2.35.2_amd64.snap
+#: cmd/snap/cmd_pack.go:88
+msgid "<name>_<version>_<architecture>.snap"
+msgstr "<名称>_<版本>_<架构>.snap"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_remodel.go:57
+msgid "<new model file>"
+msgstr "<新模式文件>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_routine_file_access.go:68
+msgid "<path>"
+msgstr "<路径>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_routine_portal_info.go:55
+msgid "<process ID>"
+msgstr "<进程 ID>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_find.go:175
+msgid "<query>"
+msgstr "<询问>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_services.go:82
+msgid "<service>"
+msgstr "<服务>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_routine_file_access.go:62
+msgid "<snap>"
+msgstr "<snap>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_disconnect.go:65 cmd/snap/cmd_connect.go:62
+msgid "<snap>:<plug>"
+msgstr "<snap>:<插头>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_interfaces.go:70
+msgid "<snap>:<slot or plug>"
+msgstr "<snap>:<插头或插槽>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_disconnect.go:67 cmd/snap/cmd_connect.go:64
+msgid "<snap>:<slot>"
+msgstr "<snap>:<插槽>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_prepare_image.go:106
+msgid "<target-dir>"
+msgstr "<目标目录>"
+
+#. TRANSLATORS: This is a noun and it needs to begin with < and end with >
+#: cmd/snap/cmd_remove_user.go:47
+msgid "<username>"
+msgstr "<用户名>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_validate.go:70
+msgid "<validation-set>"
+msgstr "<validation-set>"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_services.go:84
+msgid ""
+"A service specification, which can be just a snap name (for all services in "
+"the snap), or <snap>.<app> for a single service."
+msgstr ""
+"一个服务规格，可以只是一个 snap 包名称来包括所有在内的服务，或 <snap>.<app> "
+"来指定单个服务。"
+
+#: cmd/snap/cmd_abort.go:30
+msgid "Abort a pending change"
+msgstr "放弃更改"
+
+#: cmd/snap/cmd_help.go:232
+msgid "Account"
+msgstr "帐号"
+
+#: cmd/snap/cmd_warnings.go:59
+msgid "Acknowledge warnings"
+msgstr "确认警告"
+
+#: cmd/snap/cmd_ack.go:39
+msgid "Add an assertion to the system"
+msgstr "向系统添加一个声明"
+
+#. TRANSLATORS: this is used to introduce a list of aliases that were added
+#: cmd/snap/cmd_alias.go:102
+msgid "Added"
+msgstr "已添加"
+
+#: cmd/snap/cmd_advise.go:56
+msgid "Advise on available snaps"
+msgstr "对于可用 snap 的建议"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_advise.go:69
+msgid "Advise on snaps that provide the given command"
+msgstr "对于提供该命令的 snap 包的建议"
+
+#. TRANSLATORS: 'Age' as in how old something is
+#: cmd/snap/cmd_snapshot.go:150
+msgid "Age"
+msgstr "年龄"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1265
+msgid "Alias for --dangerous (DEPRECATED)"
+msgstr "--dangerous 的别名 (已弃用)"
+
+#: cmd/snap/cmd_snap_op.go:724 cmd/snap/cmd_snap_op.go:814
+msgid "All snaps up to date."
+msgstr "所有 snap 已是最新版本。"
+
+#: usersession/userd/launcher.go:287
+msgid "Allow opening file?"
+msgstr "允许打开文件？"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1284
+msgid "Allow refresh attempt on snap unknown to the store"
+msgstr "允许未知 snap 向商店发起的刷新请求"
+
+#: usersession/userd/settings.go:211
+msgid "Allow settings change?"
+msgstr "允许修改设置？"
+
+#: usersession/userd/settings.go:212
+#, c-format
+msgid "Allow snap %q to change %s to %q ?"
+msgstr "允许 snap %q 将 %s 更改为 %q 吗？"
+
+#: usersession/userd/launcher.go:288
+#, c-format
+msgid "Allow snap %q to open file %q?"
+msgstr "允许 snap %q 打开文件 %q？"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_run.go:105
+msgid "Alternative command to run"
+msgstr "要运行的备选命令"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_get.go:69
+msgid "Always return document, even with single key"
+msgstr "总是返回文件，即使只有一个键"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_get.go:71
+msgid "Always return list, even with single key"
+msgstr "总是返回列表，即使只有一个键"
+
+#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com"). Also, note users on login.ubuntu.com can have multiple email addresses.
+#: cmd/snap/cmd_create_user.go:67
+msgid "An email of a user on login.ubuntu.com"
+msgstr "在 login.ubuntu.com 上用户的电子邮件"
+
+#: cmd/snap/cmd_help.go:228
+msgid "App Aliases"
+msgstr "应用别名"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_services.go:98
+msgid ""
+"As well as starting the service now, arrange for it to be started on boot."
+msgstr "除了立即启动服务外，还安排在启动时启动它。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_services.go:103
+msgid ""
+"As well as stopping the service now, arrange for it to no longer be started "
+"on boot."
+msgstr "服务将立即停止，在引导时不会启动。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_ack.go:58
+msgid "Assertion file"
+msgstr "声明文件"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_known.go:68
+msgid "Assertion type name"
+msgstr "声明类型名称"
+
+#: cmd/snap/cmd_help.go:250
+msgid "Assertions"
+msgstr "声明"
+
+#: data/polkit/io.snapcraft.snapd.policy:11
+msgid "Authenticate on snap daemon"
+msgstr "在 snap 守护程序上进行身份验证"
+
+#: cmd/snap/cmd_login.go:40
+msgid "Authenticate to snapd and the store"
+msgstr "与 snapd 和 store 进行身份验证"
+
+#: data/polkit/io.snapcraft.snapd.policy:32
+msgid "Authentication is required to connect or disconnect interfaces"
+msgstr "连接或断开接口时需要认证"
+
+#: data/polkit/io.snapcraft.snapd.policy:22
+msgid "Authentication is required to install, update, or remove packages"
+msgstr "在安装、更新或移除软件包时需要认证"
+
+#: data/polkit/io.snapcraft.snapd.policy:12
+msgid "Authorization is required to authenticate on the snap daemon"
+msgstr "在 snap 守护程序上认证时需要授权"
+
+#: overlord/snapstate/autorefresh.go:567
+#, c-format
+msgid "Auto-refresh %d snaps"
+msgstr "自动刷新 %d 个 snap"
+
+#: overlord/snapstate/autorefresh.go:561
+#, c-format
+msgid "Auto-refresh snap %q"
+msgstr "自动刷新 snap %q"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: overlord/snapstate/autorefresh.go:565
+#, c-format
+msgid "Auto-refresh snaps %s"
+msgstr "自动刷新 snap %s"
+
+#: overlord/snapstate/snapstate.go:564 overlord/snapstate/handlers.go:4357
+#, c-format
+msgid "Automatically connect eligible plugs and slots of snap %q"
+msgstr "自动连接 snap %q 的符合条件的插头和插槽"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_userd.go:63
+msgid "Autostart user applications"
+msgstr "自动启动用户应用程序"
+
+#: cmd/snap/cmd_login.go:74
+msgid "Bad code. Try again: "
+msgstr "错误的代码，请重试： "
+
+#: cmd/snap/cmd_help.go:204
+msgid "Basics"
+msgstr "基本信息"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_reboot.go:64
+msgid "Boot into install mode"
+msgstr "引导至安装模式"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_reboot.go:66
+msgid "Boot into recover mode"
+msgstr "引导至恢复模式"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_reboot.go:62
+msgid "Boot into run mode"
+msgstr "引导至运行模式"
+
+#: cmd/snap/cmd_buy.go:32
+msgid "Buy a snap"
+msgstr "购买一个 snap"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/last.go:48
+msgid "Change ID"
+msgstr "修改 ID"
+
+#: cmd/snap/cmd_set.go:32
+msgid "Change configuration options"
+msgstr "修改配置选项"
+
+#. TRANSLATORS: first %s is a channel name, following %s is a snap name, last %s is a channel name again.
+#: cmd/snap/cmd_snap_op.go:432
+#, c-format
+msgid "Channel %s for %s is closed; temporarily forwarding to %s.\n"
+msgstr "频道 %s (提供了 %s) 已关闭，暂时转换到 %s，\n"
+
+#: cmd/snap/cmd_snapshot.go:44
+msgid "Check a snapshot"
+msgstr "检查快照"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:389
+msgid ""
+"Check data of only specific users (comma-separated) (default: all users)"
+msgstr "检查指定用户的数据 (用英文半角逗号隔开) (默认：全部用户)"
+
+#: cmd/snap/cmd_aliases.go:115
+msgid "Command\tAlias\tNotes"
+msgstr "命令\t别名\t注记"
+
+#. TRANSLATORS: %q is a command name (like "gimp" or "loimpress")
+#: cmd/snap/cmd_advise.go:86
+#, c-format
+msgid "Command %q not found, but can be installed with:\n"
+msgstr "找不到命令 %q ，但可以被这样安装：\n"
+
+#: cmd/snap/cmd_advise.go:99
+#, c-format
+msgid "Command %q not found, did you mean:\n"
+msgstr "找不到命令 %q ，您是不是指：\n"
+
+#: cmd/snap/cmd_help.go:284
+msgid "Commands can be classified as follows:"
+msgstr "命令可以被分类成如下："
+
+#: cmd/snap/cmd_help.go:283
+msgid "Commonly used commands can be classified as follows:"
+msgstr "常用的命令可以分类如下："
+
+#: cmd/snap/cmd_help.go:224
+msgid "Configuration"
+msgstr "配置"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_unset.go:60
+msgid "Configuration key to unset"
+msgstr "要取消设置的键"
+
+#: asserts/signtool/keymgr.go:90
+msgid "Confirm passphrase: "
+msgstr "确认密码： "
+
+#: overlord/ifacestate/ifacestate.go:148
+#, c-format
+msgid "Connect %s:%s to %s:%s"
+msgstr "将 %s:%s 连接到 %s:%s"
+
+#: cmd/snap/cmd_connect.go:36
+msgid "Connect a plug to a slot"
+msgstr "将一个插头连接到插槽"
+
+#: data/polkit/io.snapcraft.snapd.policy:31
+msgid "Connect, disconnect interfaces"
+msgstr "连接，断开接口"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_connections.go:65
+msgid "Constrain listing to a specific snap"
+msgstr "仅列出指定 snap 的"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_interfaces.go:72
+msgid "Constrain listing to a specific snap or snap:name"
+msgstr "仅列出指定 snap 或 snap:name 的"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_interfaces.go:67
+msgid "Constrain listing to specific interfaces"
+msgstr "仅列出指定接口的"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_known.go:73
+msgid "Constrain listing to those matching header=value"
+msgstr "仅列出符合 header=value 的"
+
+#: overlord/snapstate/snapstate.go:548
+#, c-format
+msgid "Copy snap %q data"
+msgstr "复制 snap %q 的数据"
+
+#: cmd/snap/cmd_create_user.go:32
+msgid "Create a local system user"
+msgstr "创建本地用户"
+
+#: cmd/snap/cmd_sign_build.go:48
+msgid "Create a snap-build assertion"
+msgstr "创建 snap-build声明"
+
+#: cmd/snap/cmd_create_key.go:40
+msgid "Create cryptographic key pair"
+msgstr "创建加密密钥对"
+
+#: cmd/snap/cmd_help.go:216
+msgid "Daemons"
+msgstr "守护程序"
+
+#: cmd/snap/cmd_snapshot.go:43
+msgid "Delete a snapshot"
+msgstr "删除一个快照"
+
+#: cmd/snap/cmd_delete_key.go:40
+msgid "Delete cryptographic key pair"
+msgstr "删除加密密钥对"
+
+#: cmd/snap/cmd_help.go:261
+msgid "Development"
+msgstr "开发"
+
+#: cmd/snap/cmd_help.go:241
+msgid "Device"
+msgstr "设备"
+
+#: daemon/api_snaps.go:519
+#, c-format
+msgid "Disable %q snap"
+msgstr "禁用 snap %q"
+
+#: cmd/snap/cmd_snap_op.go:49
+msgid "Disable a snap in the system"
+msgstr "禁用系统中的一个 snap"
+
+#: overlord/snapstate/aliasesv2.go:614
+#, c-format
+msgid "Disable aliases for snap %q"
+msgstr "禁用 snap %q 的别名"
+
+#: daemon/api_aliases.go:112
+#, c-format
+msgid "Disable all aliases for snap %q"
+msgstr "禁用 snap %q 的所有别名"
+
+#: overlord/ifacestate/ifacestate.go:380
+#, c-format
+msgid "Disconnect %s:%s from %s:%s"
+msgstr "将 %s:%s 从 %s:%s 断开"
+
+#: cmd/snap/cmd_disconnect.go:40
+msgid "Disconnect a plug from a slot"
+msgstr "将一个插头从插槽断开"
+
+#: overlord/snapstate/snapstate.go:3350
+#, c-format
+msgid "Disconnect interfaces of snap %q"
+msgstr "断开 snap %q 的接口"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/times.go:39
+msgid ""
+"Display absolute times (in RFC 3339 format). Otherwise, display relative "
+"times up to 60 days, then YYYY-MM-DD."
+msgstr "以 RFC 3339 标准显示绝对时间或在年-月-日前显示最高60天的相对时间。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/times.go:55
+msgid ""
+"Display absolute times (in RFC 3339 format). Otherwise, display short "
+"relative times."
+msgstr "以 RFC 3339 标准显示绝对时间或者显示短相对时间。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_run.go:122
+msgid "Display exec calls timing data"
+msgstr "显示运行耗时数据"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/wait.go:48
+msgid "Do not wait for the operation to finish but just print the change id."
+msgstr "不要等待操作结束，直接输出修改 id。"
+
+#: cmd/snap/cmd_debug_state.go:94
+msgid "Dot (graphviz) output"
+msgstr "以流程图的形式输出"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_download.go:63
+msgid "Download from the given cohort"
+msgstr "从给定列表中下载"
+
+#: overlord/snapstate/snapstate.go:454
+#, c-format
+msgid "Download snap %q%s from channel %q"
+msgstr "下载 snap %q%s，来自频道 %q"
+
+#: cmd/snap/cmd_download.go:50
+msgid "Download the given snap"
+msgstr "下载给定的 snap"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_download.go:67
+msgid "Download to this directory (defaults to the current directory)"
+msgstr "下载到这个目录 (默认当前目录)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_advise.go:71
+msgid "Dump advise database for use by command-not-found."
+msgstr "转储建议数据库以供 command-not-found 命令使用。"
+
+#: cmd/snap/cmd_login.go:120
+msgid "Email address: "
+msgstr "电子邮件地址： "
+
+#: daemon/api_snaps.go:506
+#, c-format
+msgid "Enable %q snap"
+msgstr "启用 %q snap"
+
+#: cmd/snap/cmd_snap_op.go:48
+msgid "Enable a snap in the system"
+msgstr "在系统中启用一个 snap"
+
+#: cmd/snap/cmd_prefer.go:35
+msgid "Enable aliases from a snap, disabling any conflicting aliases"
+msgstr "启用一个 snap 的别名并禁用所有与之冲突的别名"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:75
+msgid "Enable classic mode to prepare a classic model image"
+msgstr "启用经典模式并准备经典模型镜像"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_validate.go:63
+msgid "Enforce the given validation set"
+msgstr "强制执行给定的验证集"
+
+#: overlord/snapstate/snapstate.go:444
+#, c-format
+msgid "Ensure prerequisites for %q are available"
+msgstr "确保 %q 的先决条件可用"
+
+#: cmd/snap/cmd_sandbox_features.go:47
+msgid "Ensure that given backend:feature is available"
+msgstr "确保给定的 后端:功能 可用"
+
+#: cmd/snap/cmd_run.go:793
+#, c-format
+msgid "Expected portal at %#v, got %#v"
+msgstr "预期的门户在 %#v，获得了 %#v"
+
+#: cmd/snap/cmd_snapshot.go:46
+msgid "Export a snapshot"
+msgstr "导出一个快照"
+
+#: cmd/snap/cmd_export_key.go:42
+msgid "Export cryptographic public key"
+msgstr "导出加密密钥"
+
+#. TRANSLATORS: the first argument is the identifier of the snapshot, the second one is the file name.
+#: cmd/snap/cmd_snapshot.go:484
+#, c-format
+msgid "Exported snapshot #%s into %q\n"
+msgstr "导致快照 %s 至 %q\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:89
+msgid "Extra snaps to be installed (DEPRECATED)"
+msgstr "要安装的额外 snap (已弃用)"
+
+#: overlord/snapstate/snapstate.go:476
+#, c-format
+msgid "Fetch and check assertions for snap %q%s"
+msgstr "获取并检查 snap %q%s 的assertion"
+
+#: cmd/snap/cmd_download.go:133
+#, c-format
+msgid "Fetching assertions for %q\n"
+msgstr "获取 %q 的声明\n"
+
+#: cmd/snap/cmd_download.go:127
+#, c-format
+msgid "Fetching snap %q\n"
+msgstr "获取 snap %q\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_routine_file_access.go:70
+msgid "File path"
+msgstr "文件路径"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign.go:62
+msgid "File to sign (defaults to stdin)"
+msgstr "要签名的文件 (默认 stdin)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign_build.go:73
+msgid "Filename of the snap you want to assert a build for"
+msgstr "您想要 assert 构建的 snap 的文件名"
+
+#: cmd/snap/cmd_find.go:39
+msgid "Find packages to install"
+msgstr "找到要安装的软件包"
+
+#: cmd/snap/cmd_help.go:286
+msgid "For a short summary of all commands, run 'snap help --all'."
+msgstr "请运行 'snap help -all' 来获得所有命令的短摘要。"
+
+#: cmd/snap/cmd_help.go:285
+msgid "For more information about a command, run 'snap help <command>'."
+msgstr "请运行 'snap help <命令>' 来获得该命令的更多信息。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_create_user.go:62
+msgid "Force adding the user, even if the device is already managed"
+msgstr "即使设备已经被管理仍然强行添加用户"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_auto_import.go:254
+msgid "Force import on classic systems"
+msgstr "在经典系统上强行导入"
+
+#: overlord/ifacestate/ifacestate.go:355
+#, c-format
+msgid "Forget connection %s:%s from %s:%s"
+msgstr "忘记从 %s:%s 到 %s:%s 的连接。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_validate.go:65
+msgid "Forget the given validation set"
+msgstr "忘记给定的验证集"
+
+#: cmd/snap/cmd_export_key.go:50
+msgid ""
+"Format public key material as a request for an account-key for this account-"
+"id"
+msgstr "将公钥材料格式化为此账户 ID 的账户密钥请求"
+
+#: overlord/devicestate/devicemgr.go:693
+msgid "Generate device key"
+msgstr "生成设备密钥"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_help.go:95
+msgid "Generate the manpage"
+msgstr "生成帮助页面"
+
+#. TRANSLATORS: %s is for the snap name, will be concatenated after at the end of other error messages, possibly after a blank line
+#: cmd/snap/error.go:364
+#, c-format
+msgid "Get more information with 'snap info %s'."
+msgstr "使用 “snap info %s” 以获取更多信息。"
+
+#: overlord/hookstate/ctlcmd/model.go:43 cmd/snap/cmd_model.go:34
+msgid "Get the active model for this device"
+msgstr "得到该设备上活动的模型"
+
+#: cmd/snap/cmd_debug_timings.go:44
+msgid "Get the timings of the tasks of a change"
+msgstr "得到更改任务的时间安排"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign_build.go:68
+msgid "Grade states the build quality of the snap (defaults to 'stable')"
+msgstr "\"等级\" 表明了 snap 的构建质量 (默认为 '稳定' )"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_create_user.go:58
+msgid "Grant sudo access to the created user"
+msgstr "给予新创建的用户 sudo 权限"
+
+#: cmd/snap/cmd_handle_link.go:44
+msgid "Handle a snap:// URI"
+msgstr "处理一个 snap:// URI"
+
+#: data/desktop/snap-handle-link.desktop.in:3
+msgid "Handler for snap:// URIs"
+msgstr "snap:// URIs 的处理程序"
+
+#: data/desktop/snap-userd-autostart.desktop.in:4
+msgid ""
+"Helper program for launching snap applications that are configured to start "
+"automatically."
+msgstr "用于启动配置为自启的 snap 应用程序的帮助程序。"
+
+#: cmd/snap/cmd_help.go:212
+msgid "History"
+msgstr "历史"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_run.go:107
+msgid "Hook to run"
+msgstr "要运行的钩子"
+
+#: cmd/snap/cmd_changes.go:118
+msgid "ID\tStatus\tSpawn\tReady\tSummary\n"
+msgstr "ID\t状态\t生成\t就绪\t摘要\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_debug_state.go:92
+msgid "ID of the change to inspect"
+msgstr "要检查的更改的ID"
+
+#: cmd/snap/cmd_debug_state.go:93
+msgid "ID of the task to inspect"
+msgstr "要检查的任务的ID"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign_build.go:62
+msgid "Identifier of the signer"
+msgstr "签名者的标识符"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign_build.go:64
+msgid "Identifier of the snap package associated with the build"
+msgstr "与构建有关的 snap 包标识符"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_services.go:108
+msgid "If the service has a reload command, use it instead of restarting."
+msgstr "如果服务提供一个重载命令，请使用该命令而不是重启。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1275
+msgid "Ignore running hooks or applications blocking the installation"
+msgstr "忽略正在运行的钩子或阻止安装的应用程序"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1294
+msgid "Ignore running hooks or applications blocking the refresh"
+msgstr "忽略正在运行的钩子或阻止刷新的应用程序"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1313
+msgid "Ignore running hooks or applications blocking the revert"
+msgstr "忽略正在运行的钩子或阻止还原的应用程序"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1292
+msgid "Ignore validation by other snaps blocking the refresh"
+msgstr "忽略其他阻止刷新的 snap 的验证"
+
+#: cmd/snap/cmd_snapshot.go:47
+msgid "Import a snapshot"
+msgstr "导入一个快照"
+
+#: cmd/snap/cmd_snapshot.go:513
+#, c-format
+msgid "Imported snapshot as #%d\n"
+msgstr "导入快照为 #%d\n"
+
+#: cmd/snap/cmd_buy.go:101
+#, c-format
+msgid ""
+"In order to buy %q, you need to agree to the latest terms and conditions. "
+"Please visit https://my.ubuntu.com/payment/edit to do this.\n"
+"\n"
+"Once completed, return here and run 'snap buy %s' again."
+msgstr ""
+"为了购买 %q，您需要同意最新的条款和条件。 请访问 https://my.ubuntu.com/"
+"payment/edit \n"
+"执行此操作。\n"
+"\n"
+"完成后，返回此处并再次运行 “snap buy %s”。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_info.go:76
+msgid "Include more details on the snap (expanded notes, base, etc.)"
+msgstr "包含 snap 的更多细节 (展开注记等)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:87
+msgid ""
+"Include the given snap from the store or a local file and/or specify the "
+"channel to track for the given snap"
+msgstr "从商店或本地文件包括给定 snap 或指定跟踪给定 snap 的频道"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_interface.go:59
+msgid "Include unused interfaces"
+msgstr "包括未使用的接口"
+
+#: overlord/devicestate/devicemgr.go:702
+msgid "Initialize device"
+msgstr "初始化设备"
+
+#: cmd/snap/cmd_debug_state.go:66
+msgid "Inspect a snapd state file, bypassing snapd API."
+msgstr "检查 snapd 状态文件，绕过 snapd API。"
+
+#: cmd/snap/cmd_debug_state.go:65
+msgid "Inspect a snapd state file."
+msgstr "检查一个 snapd 状态文件。"
+
+#: cmd/snap/cmd_auto_import.go:229
+msgid "Inspect devices for actionable information"
+msgstr "检查设备已获取可行性信息"
+
+#: daemon/api_snaps.go:422
+#, c-format
+msgid "Install %q snap"
+msgstr "安装 %q snap"
+
+#: daemon/api_sideload_n_try.go:291
+#, c-format
+msgid "Install %q snap from file %q"
+msgstr "安装 %q snap (从文件 %q)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:251
+msgid "Install from the beta channel"
+msgstr "从 beta 频道安装"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:255
+msgid "Install from the candidate channel"
+msgstr "从 candidate 频道安装"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:253
+msgid "Install from the edge channel"
+msgstr "从 edge 频道安装"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:257
+msgid "Install from the stable channel"
+msgstr "从 stable 频道安装"
+
+#: daemon/api_themes.go:237 daemon/api_snaps.go:715
+#, c-format
+msgid "Install snap %q"
+msgstr "安装 snap %q"
+
+#: cmd/snap/cmd_handle_link.go:63
+msgid "Install snap-aware Snap Store snap?"
+msgstr "安装支持 snap 的 Snap Store snap 包？"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: daemon/api_themes.go:240 daemon/api_snaps.go:719
+#, c-format
+msgid "Install snaps %s"
+msgstr "安装 snap %s"
+
+#: cmd/snap/cmd_snap_op.go:44
+msgid "Install snaps on the system"
+msgstr "在系统上安装 snap"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1263
+msgid ""
+"Install the given snap file even if there are no pre-acknowledged signatures "
+"for it, meaning it was not verified and could be dangerous (--devmode "
+"implies this)"
+msgstr ""
+"在无已信任签名的情况下仍安装 snap，可能未经验证且是危险的。(--devmode 暗示了"
+"这一点)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1267
+msgid "Install the given snap without enabling its automatic aliases"
+msgstr "在不启用其自动别名的情况下安装给定的 snap"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1269
+msgid "Install the snap file under the given instance name"
+msgstr "在给定的实例名称下安装 snap 文件"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1271
+msgid "Install the snap in the given cohort"
+msgstr "从给定队列中安装 snap"
+
+#: cmd/snap/cmd_download.go:111
+#, c-format
+msgid ""
+"Install the snap with:\n"
+"   snap ack %s\n"
+"   snap install %s\n"
+msgstr ""
+"可以这样安装 snap：\n"
+"   snap ack %s\n"
+"   snap install %s\n"
+
+#: overlord/devicestate/devicemgr.go:1345
+msgid "Install the system"
+msgstr "安装系统"
+
+#: data/polkit/io.snapcraft.snapd.policy:21
+msgid "Install, update, or remove packages"
+msgstr "安装，更新，或者卸载软件包"
+
+#: cmd/snap/main.go:392
+#, c-format
+msgid ""
+"Interacting with snapd is not yet supported on %s.\n"
+"This command has been left available for documentation purposes only.\n"
+msgstr ""
+"与 snapd 的交互在 %s 上还未被支持。\n"
+"该命令仅以参考目的存在。\n"
+
+#: cmd/snap/cmd_connections.go:178
+msgid "Interface\tPlug\tSlot\tNotes"
+msgstr "接口\t插头\t插槽\t注记"
+
+#: cmd/snap/cmd_help.go:255
+msgid "Introspection"
+msgstr "自检"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_get.go:84 cmd/snap/cmd_wait.go:57
+msgid "Key of interest within the configuration"
+msgstr "配置中感兴趣的关键字"
+
+#: cmd/snap/cmd_changes.go:34
+msgid "List a change's tasks"
+msgstr "列出一个更改的任务"
+
+#: cmd/snap/cmd_aliases.go:40
+msgid "List aliases in the system"
+msgstr "列出系统中的别名"
+
+#: cmd/snap/cmd_debug_state.go:96
+msgid "List all changes"
+msgstr "列出所有更改"
+
+#: cmd/snap/cmd_recovery.go:40
+msgid "List available recovery systems"
+msgstr "列出可用的恢复系统"
+
+#: cmd/snap/cmd_keys.go:38
+msgid "List cryptographic keys"
+msgstr "列出加密密钥"
+
+#: cmd/snap/cmd_snapshot.go:41
+msgid "List currently stored snapshots"
+msgstr "列出当前存储的快照"
+
+#: cmd/snap/cmd_list.go:35
+msgid "List installed snaps"
+msgstr "列出所有已安装 snap"
+
+#: cmd/snap/cmd_connections.go:41
+msgid "List interface connections"
+msgstr "列出接口连接"
+
+#: cmd/snap/cmd_interfaces.go:39
+msgid "List interfaces' slots and plugs"
+msgstr "列出接口的插头和插槽"
+
+#: cmd/snap/cmd_validate.go:47
+msgid "List or apply validation sets"
+msgstr "列出或应用验证集"
+
+#: cmd/snap/cmd_changes.go:33
+msgid "List system changes"
+msgstr "列出系统更改"
+
+#: cmd/snap/cmd_warnings.go:48
+msgid "List warnings"
+msgstr "列出警告"
+
+#: cmd/snap/cmd_repair_repairs.go:81
+msgid "Lists all repairs"
+msgstr "列出所有修复"
+
+#: cmd/snap/cmd_logout.go:32
+msgid "Log out of snapd and the store"
+msgstr "登出 snapd 与 store"
+
+#: cmd/snap/cmd_login.go:132
+msgid "Login successful"
+msgstr "登录成功"
+
+#: overlord/snapstate/snapstate.go:518 overlord/snapstate/snapstate.go:2825
+#, c-format
+msgid "Make current revision for snap %q unavailable"
+msgstr "使 snap %q 的当前修订版本不可用"
+
+#: overlord/snapstate/snapstate.go:2834 overlord/snapstate/snapstate.go:3094
+#, c-format
+msgid "Make snap %q (%s) available to the system"
+msgstr "使 snap %q (%s) 可用于系统"
+
+#: overlord/snapstate/snapstate.go:2906 overlord/snapstate/snapstate.go:2952
+#, c-format
+msgid "Make snap %q (%s) available to the system during remodel"
+msgstr "使 snap %q (%s) 在重塑时可用"
+
+#: overlord/snapstate/snapstate.go:3154
+#, c-format
+msgid "Make snap %q (%s) unavailable to the system"
+msgstr "使 snap %q (%s) 不可用于系统"
+
+#: overlord/snapstate/snapstate.go:3391
+#, c-format
+msgid "Make snap %q unavailable to the system"
+msgstr "使 snap %q 不可用于系统"
+
+#: overlord/snapstate/snapstate.go:559
+#, c-format
+msgid "Make snap %q%s available to the system"
+msgstr "使 snap %q%s 可用于系统"
+
+#: overlord/snapstate/snapstate.go:483
+#, c-format
+msgid "Mount snap %q%s"
+msgstr "挂载 snap %q%s"
+
+#: cmd/snap/cmd_keys.go:77
+msgid "Name\tSHA3-384"
+msgstr "名称\tSHA3-384"
+
+#: cmd/snap/cmd_interface.go:168
+msgid "Name\tSummary"
+msgstr "名称\t摘要"
+
+#. TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
+#: cmd/snap/cmd_find.go:266
+#, c-format
+msgid "Name\tVersion\tPublisher%s\tNotes\tSummary\n"
+msgstr "名称\t版本\t发布者%s\t注记\t摘要\n"
+
+#. TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
+#: cmd/snap/cmd_list.go:121
+#, c-format
+msgid "Name\tVersion\tRev\tTracking\tPublisher%s\tNotes\n"
+msgstr "名称\t版本\t修订版本\t追踪\t发布者%s\t注记\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_create_key.go:51
+msgid "Name of key to create; defaults to 'default'"
+msgstr "要创建的密钥的名称；默认为 “default”"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_delete_key.go:51
+msgid "Name of key to delete"
+msgstr "要删除的密钥名"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_export_key.go:55
+msgid "Name of key to export"
+msgstr "要导出的密钥名"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign_build.go:66
+msgid "Name of the GnuPG key to use (defaults to 'default' as key name)"
+msgstr "要使用的 GnuPG 密钥名 (默认名为 'default' 的密钥)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_sign.go:55
+msgid "Name of the key to use, otherwise use the default key"
+msgstr "要使用的密钥名，否则将使用默认密钥"
+
+#: cmd/snap/cmd_remodel.go:84
+#, c-format
+msgid "New model %s set\n"
+msgstr "已设定新模型 %s\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_remodel.go:59
+msgid "New model file"
+msgstr "新模型文件"
+
+#: cmd/snap/cmd_aliases.go:136
+#, c-format
+msgid "No aliases are currently defined for snap %q.\n"
+msgstr "当前 snap %q 没有已定义的别名\n"
+
+#: cmd/snap/cmd_aliases.go:138
+msgid "No aliases are currently defined."
+msgstr "当前没有已定义的别名。"
+
+#: cmd/snap/cmd_advise.go:198
+#, c-format
+msgid "No apt package %q, but there is a snap with that name.\n"
+msgstr "无 apt 软件包 %q，但有一个同名的 snap 软件包\n"
+
+#: cmd/snap/cmd_disconnect.go:90
+msgid "No connections to disconnect"
+msgstr "没有连接可以断开"
+
+#: cmd/snap/cmd_warnings.go:91
+msgid "No further warnings."
+msgstr "没有更多警告。"
+
+#. TRANSLATORS: the %q is the (quoted) name of the section the user entered
+#: cmd/snap/cmd_find.go:222
+#, c-format
+msgid "No matching section %q, use --section to list existing sections"
+msgstr "没有与 %q 相关的部分，使用 --section 列出所有现有部分"
+
+#. TRANSLATORS: the %q is the (quoted) query the user entered
+#: cmd/snap/cmd_find.go:248
+#, c-format
+msgid "No matching snaps for %q\n"
+msgstr "未找到与 %q 相关的 snap\n"
+
+#. TRANSLATORS: the first %q is the (quoted) query, the
+#. second %q is the (quoted) name of the section the
+#. user entered
+#: cmd/snap/cmd_find.go:253
+#, c-format
+msgid "No matching snaps for %q in section %q\n"
+msgstr "没有与 %q 相关的 snap (在 %q 部分中)\n"
+
+#: cmd/snap/cmd_recovery.go:96
+msgid "No recovery systems available.\n"
+msgstr "恢复系统不可用\n"
+
+#: cmd/snap/cmd_find.go:260
+msgid ""
+"No search term specified. Here are some interesting snaps:\n"
+"\n"
+msgstr ""
+"未指定搜索词。以下是一些有意思的快照：\n"
+"\n"
+
+#: cmd/snap/cmd_find.go:144
+msgid "No section specified. Available sections:\n"
+msgstr "没有指定部分，所有可用部分：\n"
+
+#: cmd/snap/cmd_list.go:105
+msgid "No snaps are installed yet. Try 'snap install hello-world'."
+msgstr "没有安装任何 snap。请尝试 'snap install hello-world'。"
+
+#: cmd/snap/cmd_snapshot.go:138
+msgid "No snapshots found."
+msgstr "未找到快照。"
+
+#: cmd/snap/cmd_validate.go:185
+msgid "No validations are available"
+msgstr "没有可用的验证"
+
+#: cmd/snap/cmd_warnings.go:89
+msgid "No warnings."
+msgstr "无警告。"
+
+#. TRANSLATORS: 'Notes' as in 'Comments'
+#: cmd/snap/cmd_snapshot.go:156
+msgid "Notes"
+msgstr "备注"
+
+#: overlord/hookstate/ctlcmd/fde_setup.go:34
+msgid "Obtain full disk encryption setup request"
+msgstr "获取完整磁盘加密设置请求"
+
+#: cmd/snap/cmd_debug_state.go:95
+msgid "Omit tasks in 'Hold' state in the change output"
+msgstr "在输出更改时忽略处于 “Hold” 状态的任务"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_find.go:170
+msgid "Only search for snaps in “stable”."
+msgstr "仅仅在 \"stable\" 频道中搜索 snap。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_create_user.go:56 cmd/snap/cmd_keys.go:47
+msgid "Output results in JSON format"
+msgstr "将结果以 JSON 格式输出"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_pack.go:80
+msgid "Output to this filename"
+msgstr "输出到这个文件名"
+
+#: cmd/snap/cmd_pack.go:48
+msgid "Pack the given directory as a snap"
+msgstr "将给定目录打包成一个 snap"
+
+#: cmd/snap/cmd_advise.go:292
+#, c-format
+msgid "Packages matching %q:\n"
+msgstr "软件包匹配 %q：\n"
+
+#: asserts/signtool/keymgr.go:84
+msgid "Passphrase: "
+msgstr "口令： "
+
+#: cmd/snap/cmd_login.go:98
+#, c-format
+msgid "Password of %q: "
+msgstr "%q 的密码： "
+
+#: usersession/agent/rest_api.go:248
+#, c-format
+msgid "Pending update of %q snap"
+msgstr "snap %q 的挂起更新"
+
+#: cmd/snap/cmd_help.go:220
+msgid "Permissions"
+msgstr "权限"
+
+#. TRANSLATORS: after the "... at" follows a URL in the next line
+#: cmd/snap/cmd_login.go:115
+msgid "Personal information is handled as per our privacy notice at\n"
+msgstr "将按隐私权声明所述处理个人信息\n"
+
+#. TRANSLATORS: can optionally be concatenated after a blank line at the end of other error messages, together with the "Get more information ..." hint
+#: cmd/snap/error.go:360
+msgid ""
+"Please be mindful pre-release channels may include features not completely "
+"tested or implemented."
+msgstr "请注意预发布频道可能包含并未完全测试或实现的功能。"
+
+#. TRANSLATORS: %q, %q and %s are the snap name, developer, and price. Please wrap the translation at 80 characters.
+#: cmd/snap/cmd_buy.go:110
+#, c-format
+msgid ""
+"Please re-enter your Ubuntu One password to purchase %q from %q\n"
+"for %s. Press ctrl-c to cancel."
+msgstr "请重新输入您的 Ubuntu One 密码以从 %q 为 %s 购买 %q。按 ctrl-c 取消。"
+
+#: cmd/snap/cmd_find.go:148
+msgid "Please try 'snap find --section=<selected section>'\n"
+msgstr "请尝试 'snap find --section=<选择的部分>'\n"
+
+#: overlord/snapstate/aliasesv2.go:701
+#, c-format
+msgid "Prefer aliases for snap %q"
+msgstr "首选提供 snap %q 的别名"
+
+#: daemon/api_aliases.go:115
+#, c-format
+msgid "Prefer aliases of snap %q"
+msgstr "首选 snap %q 的别名"
+
+#: cmd/snap/cmd_prepare_image.go:63
+msgid "Prepare a device image"
+msgstr "准备一个设备镜像"
+
+#: overlord/devicestate/devicestate.go:946
+msgid "Prepare remodeling"
+msgstr "准备重塑"
+
+#: overlord/snapstate/snapstate.go:2809 overlord/snapstate/snapstate.go:3087
+#, c-format
+msgid "Prepare snap %q (%s)"
+msgstr "准备 snap %q (%s)"
+
+#: overlord/snapstate/snapstate.go:2893 overlord/snapstate/snapstate.go:3006
+#, c-format
+msgid "Prepare snap %q (%s) for remodel"
+msgstr "为重塑准备 snap %q (%s_"
+
+#: overlord/snapstate/snapstate.go:451
+#, c-format
+msgid "Prepare snap %q%s"
+msgstr "准备 snap %q%s"
+
+#: cmd/snap/cmd_model.go:94
+msgid "Print all specific assertion fields."
+msgstr "打印所有特定的声明 字段。"
+
+#: cmd/snap/cmd_get.go:33
+msgid "Print configuration options"
+msgstr "打印配置选项"
+
+#: cmd/snap/cmd_sandbox_features.go:32
+msgid "Print sandbox features available on the system"
+msgstr "打印系统可用的沙箱技术"
+
+#: cmd/snap/cmd_paths.go:31
+msgid "Print system paths"
+msgstr "打印系统路径"
+
+#: cmd/snap/cmd_confinement.go:30
+msgid "Print the confinement mode the system operates in"
+msgstr "打印系统处在的隔离模式"
+
+#: cmd/snap/cmd_model.go:93
+msgid "Print the raw assertion."
+msgstr "打印原生声明。"
+
+#: cmd/snap/cmd_model.go:95
+msgid "Print the serial assertion instead of the model assertion."
+msgstr "打印序列声明而不是模型声明"
+
+#: cmd/snap/main.go:327
+msgid "Print the version and exit"
+msgstr "打印版本号并退出"
+
+#: cmd/snap/cmd_managed.go:30
+msgid "Print whether the system is managed"
+msgstr "打印系统是否已被管理"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_routine_portal_info.go:57
+msgid "Process ID of confined app"
+msgstr "受限应用的进程 ID"
+
+#: data/desktop/snap-handle-link.desktop.in:4
+msgid "Prompt the user to install gnome-software then pass control to it"
+msgstr "提示用户安装 gnome-software，然后将控制权转交给它"
+
+#: overlord/snapstate/snapstate.go:2015
+#, c-format
+msgid "Prune automatic aliases for snap %q"
+msgstr "修剪 snap %q 的自动别名"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:453
+msgid "Put snap in classic mode and disable security confinement"
+msgstr "将 snap 置于经典模式并禁用安全隔离"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:455
+msgid "Put snap in development mode and disable security confinement"
+msgstr "将 snap 置于开发模式并禁用安全限制"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:457
+msgid "Put snap in enforced confinement mode"
+msgstr "将 snap 置于强制隔离模式"
+
+#: overlord/hookstate/ctlcmd/services.go:35 cmd/snap/cmd_services.go:52
+msgid "Query the status of services"
+msgstr "查询服务状态"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_known.go:60
+msgid "Query the store for the assertion, via snapd if possible"
+msgstr "如果可行的话，通过 snapd 询问商店声明"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_known.go:62
+msgid "Query the store for the assertion, without attempting to go via snapd"
+msgstr "在不尝试通过 snapd 的情况下询问商店声明"
+
+#: cmd/snap/cmd_reboot.go:125
+msgid "Reboot\n"
+msgstr "重启\n"
+
+#: cmd/snap/cmd_reboot.go:119
+#, c-format
+msgid "Reboot into %q %q mode.\n"
+msgstr "重启至 %q 模式。\n"
+
+#: cmd/snap/cmd_reboot.go:123
+#, c-format
+msgid "Reboot into %q mode.\n"
+msgstr "重启至 %q 模式。\n"
+
+#: cmd/snap/cmd_reboot.go:121
+#, c-format
+msgid "Reboot into %q.\n"
+msgstr "重启至 %q。\n"
+
+#: cmd/snap/cmd_reboot.go:42
+msgid "Reboot into selected system and mode"
+msgstr "重启至选中的系统和模式"
+
+#: daemon/api_snaps.go:458
+#, c-format
+msgid "Refresh %q snap"
+msgstr "刷新 %q snap"
+
+#: daemon/api_snaps.go:460
+#, c-format
+msgid "Refresh %q snap from %q channel"
+msgstr "从 %q 频道刷新 snap %q"
+
+#: overlord/snapstate/snapstate.go:2012
+#, c-format
+msgid "Refresh aliases for snap %q"
+msgstr "刷新 snap %q 的别名"
+
+#: daemon/api_snaps.go:763
+msgid "Refresh all snaps: no updates"
+msgstr "刷新所有 snap：无更新"
+
+#: overlord/devicestate/devicestate.go:992
+#, c-format
+msgid "Refresh model assertion from revision %v to %v"
+msgstr "将模型声明 从修订版本 %v 刷新到 %v"
+
+#: daemon/api_snaps.go:766
+#, c-format
+msgid "Refresh snap %q"
+msgstr "刷新 snap %q"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: daemon/api_snaps.go:770
+#, c-format
+msgid "Refresh snaps %s"
+msgstr "刷新 snap：%s"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: daemon/api_snaps.go:761
+#, c-format
+msgid "Refresh snaps %s: no updates"
+msgstr "刷新 snap %s：无更新"
+
+#: cmd/snap/cmd_snap_op.go:46
+msgid "Refresh snaps in the system"
+msgstr "刷新系统中的 snap"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1296
+msgid "Refresh the snap into the given cohort"
+msgstr "将 snap 刷新到给定队列"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1298
+msgid "Refresh the snap out of its cohort"
+msgstr "刷新其同类群组中的 snap"
+
+#: overlord/devicestate/devicestate.go:994
+#, c-format
+msgid "Remodel device to %v/%v (%v)"
+msgstr "重塑设备到 %v/%v (%v)"
+
+#: cmd/snap/cmd_remodel.go:32
+msgid "Remodel this device"
+msgstr "重塑这个设备"
+
+#: daemon/api_snaps.go:472
+#, c-format
+msgid "Remove %q snap"
+msgstr "移除 %q snap"
+
+#: cmd/snap/cmd_remove_user.go:31
+msgid "Remove a local system user"
+msgstr "移除一个本地用户"
+
+#: cmd/snap/cmd_unalias.go:35
+msgid "Remove a manual alias, or the aliases for an entire snap"
+msgstr "移除一个手动别名，或整个 snap 的别名"
+
+#: overlord/snapstate/snapstate.go:514 overlord/snapstate/snapstate.go:3150
+#: overlord/snapstate/snapstate.go:3387
+#, c-format
+msgid "Remove aliases for snap %q"
+msgstr "移除 snap %q 的别名"
+
+#: overlord/hookstate/ctlcmd/unset.go:37 cmd/snap/cmd_unset.go:28
+msgid "Remove configuration options"
+msgstr "移除配置选项"
+
+#: overlord/snapstate/snapstate.go:3436
+#, c-format
+msgid "Remove data for snap %q (%s)"
+msgstr "从 snap %q 中删除数据 (%s)"
+
+#: daemon/api_aliases.go:110 overlord/snapstate/aliasesv2.go:637
+#, c-format
+msgid "Remove manual alias %q for snap %q"
+msgstr "移除手动别名 %q (由 snap %q 提供)"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1254
+msgid "Remove only the given revision"
+msgstr "仅仅移除给定修订版本"
+
+#: overlord/snapstate/snapstate.go:3395
+#, c-format
+msgid "Remove security profile for snap %q (%s)"
+msgstr "移除 snap %q 的安全配置 (%s)"
+
+#: overlord/snapstate/snapstate.go:3158
+#, c-format
+msgid "Remove security profiles of snap %q"
+msgstr "移除 snap %q 的安全配置"
+
+#: daemon/api_snaps.go:857
+#, c-format
+msgid "Remove snap %q"
+msgstr "移除 snap %q"
+
+#: overlord/snapstate/snapstate.go:3439
+#, c-format
+msgid "Remove snap %q (%s) from the system"
+msgstr "从系统中移除 snap %q (%s)"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: daemon/api_snaps.go:861
+#, c-format
+msgid "Remove snaps %s"
+msgstr "移除 snap %s"
+
+#: cmd/snap/cmd_snap_op.go:45
+msgid "Remove snaps from the system"
+msgstr "从系统中移除 snap"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1256
+msgid "Remove the snap without saving a snapshot of its data"
+msgstr "在不保留快照数据的情况下移除 snap"
+
+#. TRANSLATORS: this is used to introduce a list of aliases that were removed
+#: cmd/snap/cmd_alias.go:106
+msgid "Removed"
+msgstr "已移除"
+
+#: overlord/hookstate/ctlcmd/health.go:34
+msgid "Report the health status of a snap"
+msgstr "报告一个 snap 的健康状况"
+
+#: overlord/devicestate/devicemgr.go:698
+msgid "Request device serial"
+msgstr "请求设备序列号"
+
+#: overlord/devicestate/devicestate.go:944
+msgid "Request new device serial"
+msgstr "请求新的设备序列号"
+
+#: overlord/hookstate/ctlcmd/restart.go:29 cmd/snap/cmd_services.go:70
+msgid "Restart services"
+msgstr "重启服务"
+
+#: cmd/snap/cmd_services.go:269
+msgid "Restarted.\n"
+msgstr "已重启。\n"
+
+#: cmd/snap/cmd_snapshot.go:45
+msgid "Restore a snapshot"
+msgstr "回滚一个快照"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:352
+msgid ""
+"Restore data of only specific users (comma-separated) (default: all users)"
+msgstr "仅恢复指定用户的数据 (用英文半角逗号隔开) (默认：所有用户)"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: cmd/snap/cmd_snapshot.go:314
+#, c-format
+msgid "Restored snapshot #%s of snaps %s.\n"
+msgstr "已回滚快照 #%s (来自 snap %s)。\n"
+
+#: cmd/snap/cmd_snapshot.go:317
+#, c-format
+msgid "Restored snapshot #%s.\n"
+msgstr "已回滚快照 #%s。\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_find.go:172
+msgid "Restrict the search to a given section."
+msgstr "将搜索限制在给定的部分。"
+
+#: cmd/snap/cmd_services.go:57
+msgid "Retrieve logs for services"
+msgstr "检索服务日志"
+
+#: cmd/snap/cmd_routine_portal_info.go:42
+msgid "Return information about a process"
+msgstr "返回有关进程的信息"
+
+#: cmd/snap/cmd_routine_file_access.go:42
+msgid "Return information about file access by a snap"
+msgstr "通过 snap 返回有关文件访问的信息"
+
+#. TRANSLATORS: 'Rev' is an abbreviation of 'Revision'
+#: cmd/snap/cmd_snapshot.go:153
+msgid "Rev"
+msgstr "修订版本"
+
+#: daemon/api_snaps.go:493
+#, c-format
+msgid "Revert %q snap"
+msgstr "还原 %q snap"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1311
+msgid "Revert to the given revision"
+msgstr "还原到给定修订版本"
+
+#: cmd/snap/cmd_snap_op.go:1149
+msgid "Reverts the given snap to the previous state"
+msgstr "还原给定 snap 到之前的状态"
+
+#: cmd/snap/cmd_debug_bootvars.go:53
+msgid "Root directory to look for boot variables in"
+msgstr "用于查找引导变量的根目录"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_run.go:111
+msgid "Run a shell instead of the command (useful for debugging)"
+msgstr "运行 shell 而不是命令（用于调试）"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_run.go:120
+msgid "Run as a timer service with given schedule"
+msgstr "以给定计划作为一个定时服务运行"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_advise.go:73
+msgid "Run as an apt hook"
+msgstr "作为一个 apt 钩子运行"
+
+#: overlord/configstate/configstate.go:111
+#, c-format
+msgid "Run configure hook of %q snap"
+msgstr "运行 snap %q 的配置钩子"
+
+#: overlord/configstate/configstate.go:130
+#, c-format
+msgid "Run configure hook of %q snap if present"
+msgstr "如果存在，则运行 %q snap 的配置钩子"
+
+#: cmd/snap/cmd_debug.go:28
+msgid "Run debug commands"
+msgstr "运行调试命令"
+
+#: overlord/hookstate/hooks.go:275 overlord/ifacestate/ifacestate.go:168
+#: overlord/ifacestate/ifacestate.go:194 overlord/ifacestate/ifacestate.go:245
+#: overlord/ifacestate/ifacestate.go:268 overlord/ifacestate/ifacestate.go:440
+#: overlord/ifacestate/ifacestate.go:464
+#, c-format
+msgid "Run hook %s of snap %q"
+msgstr "运行 snap %q 的钩子 %s"
+
+#: overlord/hookstate/hooks.go:50
+#, c-format
+msgid "Run install hook of %q snap if present"
+msgstr "运行 %q snap 的安装钩子"
+
+#: overlord/hookstate/hooks.go:63
+#, c-format
+msgid "Run post-refresh hook of %q snap if present"
+msgstr "如果存在，则运行 %q snap 的 post-refresh 钩子"
+
+#: overlord/hookstate/hooks.go:74
+#, c-format
+msgid "Run pre-refresh hook of %q snap if present"
+msgstr "如果存在，则运行 %q snap 的 pre-refresh 钩子"
+
+#: overlord/devicestate/devicemgr.go:684
+msgid "Run prepare-device hook"
+msgstr "运行 prepare-device 钩子"
+
+#: overlord/hookstate/hooks.go:303
+#, c-format
+msgid "Run remove hook of %q snap if present"
+msgstr "如果存在，则移除 %q snap 的钩子"
+
+#: cmd/snap/cmd_routine.go:28
+msgid "Run routine commands"
+msgstr "运行例行命令"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_run.go:113
+msgid ""
+"Run the command under strace (useful for debugging). Extra strace options "
+"can be specified as well here. Pass --raw to strace early snap helpers."
+msgstr ""
+"在 strace 下运行该命令，对软件调试非常有用， 也可以在此给出额外 strace 选"
+"项。 在 strace early snap helpers  输入 --raw。"
+
+#: cmd/snap/cmd_run.go:96
+msgid "Run the given snap command"
+msgstr "运行给定的 snap 命令"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_userd.go:65
+msgid "Run the user session agent"
+msgstr "运行用户会话代理"
+
+#: cmd/snap/cmd_snapshot.go:42
+msgid "Save a snapshot of the current data"
+msgstr "将当前数据保存成一个快照"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_find.go:168
+msgid "Search private snaps."
+msgstr "搜索私有 snap。"
+
+#: cmd/snap/cmd_advise.go:92 cmd/snap/cmd_advise.go:105
+msgid "See 'snap info <snap name>' for additional versions."
+msgstr "参阅 “snap info <snap name>” 以获取更多版本。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/last.go:41
+msgid ""
+"Select last change of given type (install, refresh, remove, try, auto-"
+"refresh, etc.). A question mark at the end of the type means to do nothing "
+"(instead of returning an error) if no change of the given type is found. "
+"Note the question mark could need protecting from the shell."
+msgstr ""
+"选择给定类型的最后变更， 如安装、刷新、删除、尝试、自动刷新等。 类型末尾的问"
+"号表示，如果没有发现给定类型显示变更，则不执行任何操作，而不是返回错误。 注"
+"意：问号表示可能需要 shell 的保护。"
+
+#: overlord/hookstate/ctlcmd/services.go:83 cmd/snap/cmd_services.go:138
+msgid "Service\tStartup\tCurrent\tNotes"
+msgstr "服务\t启动\t当前\t备注"
+
+#. TRANSLATORS: 'Set' as in group or bag of things
+#: cmd/snap/cmd_snapshot.go:147
+msgid "Set"
+msgstr "组"
+
+#: overlord/snapstate/snapstate.go:569
+#, c-format
+msgid "Set automatic aliases for snap %q"
+msgstr "设置 snap %q 的自动别名"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:374
+msgid "Set id of snapshot to delete (see 'snap help saved')"
+msgstr "设置要删除的快照 ID（请参阅“ snap help saved ”）"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:411
+msgid "Set id of snapshot to export"
+msgstr "设置要导出的快照 ID"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:357
+msgid "Set id of snapshot to restore (see 'snap help saved')"
+msgstr "设置要复原的快照 ID（请参阅“ snap help saved ”）"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:394
+msgid "Set id of snapshot to verify (see 'snap help saved')"
+msgstr "设置要验证的快照 ID（请参阅“ snap help saved ”）"
+
+#: overlord/devicestate/devicestate.go:841
+msgid "Set new model assertion"
+msgstr "设置新的模型声明"
+
+#: overlord/hookstate/ctlcmd/fde_setup.go:100
+msgid "Set result for full disk encryption"
+msgstr "为全盘加密设置结果"
+
+#: cmd/snap/cmd_alias.go:44
+msgid "Set up a manual alias"
+msgstr "设置手动别名"
+
+#: daemon/api_aliases.go:107
+#, c-format
+msgid "Setup alias %q => %q for snap %q"
+msgstr "设置别名 %q => %q (为 snap %q)"
+
+#: overlord/snapstate/aliasesv2.go:556
+#, c-format
+msgid "Setup manual alias %q => %q for snap %q"
+msgstr "设置手动别名 %q => %q (为 snap %q)"
+
+#: overlord/snapstate/snapstate.go:3090
+#, c-format
+msgid "Setup snap %q (%s) security profiles"
+msgstr "设置 snap %q（%s）安全配置文件"
+
+#: overlord/ifacestate/handlers.go:1180
+#, c-format
+msgid "Setup snap %q (%s) security profiles for auto-connections"
+msgstr "为自动连接设置 snap %q（%s）安全配置文件"
+
+#: overlord/snapstate/snapstate.go:573 overlord/snapstate/snapstate.go:3099
+#, c-format
+msgid "Setup snap %q aliases"
+msgstr "设置 snap %q 的别名"
+
+#: overlord/snapstate/snapstate.go:554
+#, c-format
+msgid "Setup snap %q%s security profiles"
+msgstr "设置 snap %q%s 的安全配置"
+
+#: overlord/devicestate/devicemgr.go:1318
+msgid "Setup system for run mode"
+msgstr "设定系统运行模式"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_help.go:93
+msgid "Show a short summary of all commands"
+msgstr "显示所有命令的短摘要"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_list.go:57
+msgid "Show all revisions"
+msgstr "显示所有修订版本"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_warnings.go:70
+msgid "Show all warnings"
+msgstr "显示所有警告"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1290
+msgid "Show auto refresh information but do not perform a refresh"
+msgstr "显示自动刷新信息，而不执行刷新"
+
+#: cmd/snap/cmd_connections.go:60
+msgid "Show connected and unconnected plugs and slots"
+msgstr "显示已连接和未连接的插头和插槽"
+
+#: cmd/snap/cmd_info.go:58
+msgid "Show detailed information about snaps"
+msgstr "显示 snap 的细节"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_interface.go:64
+msgid "Show details of a specific interface"
+msgstr "显示特定接口的详细信息"
+
+#: cmd/snap/cmd_interface.go:44
+msgid "Show details of snap interfaces"
+msgstr "显示 snap 接口的详细信息"
+
+#: cmd/snap/cmd_help.go:35
+msgid "Show help about a command"
+msgstr "显示有关命令的帮助"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_interface.go:57
+msgid "Show interface attributes"
+msgstr "显示接口属性"
+
+#: cmd/snap/cmd_known.go:48
+msgid "Show known assertions of the provided type"
+msgstr "显示所提供类型的已知声明"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_debug_timings.go:53 cmd/snap/cmd_warnings.go:72
+msgid "Show more information"
+msgstr "显示更多信息"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:331
+msgid "Show only a specific snapshot."
+msgstr "仅显示特定快照。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_services.go:90
+msgid "Show only the given number of lines, or 'all'."
+msgstr "仅显示给定的行数，或“全部”。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_recovery.go:54
+msgid "Show recovery keys (if available) to unlock encrypted partitions."
+msgstr "显示恢复密钥（如果可用）以解锁加密分区。"
+
+#: cmd/snap/cmd_repair_repairs.go:57
+msgid "Show specific repairs"
+msgstr "显示指定修复"
+
+#: cmd/snap/cmd_whoami.go:30
+msgid "Show the email the user is logged in with"
+msgstr "显示用户用于登录的 email"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1288
+msgid ""
+"Show the new versions of snaps that would be updated with the next refresh"
+msgstr "显示在下次刷新将被更新的 snap"
+
+#: cmd/snap/cmd_help.go:73
+msgid "Show this help message"
+msgstr "显示该帮助信息"
+
+#: cmd/snap/cmd_debug_timings.go:50
+msgid ""
+"Show timings for all executions of the given Ensure or startup activity, not "
+"just the latest"
+msgstr "展示给定 Ensure 或启动活动的所有执行的时间记录，而不仅仅是最新的"
+
+#: cmd/snap/cmd_debug_timings.go:51
+msgid ""
+"Show timings for the startup of given subsystem (one of: load-state, "
+"ifacemgr)"
+msgstr "显示给定子系统的启动时间（load-state，ifacemgr 其中之一）"
+
+#: cmd/snap/cmd_version.go:32
+msgid "Show version details"
+msgstr "显示版本细节"
+
+#: cmd/snap/cmd_sign.go:34
+msgid "Sign an assertion"
+msgstr "签署声明"
+
+#: cmd/snap/cmd_snapshot.go:154
+msgid "Size"
+msgstr "大小"
+
+#: cmd/snap/cmd_interfaces.go:100
+msgid "Slot\tPlug"
+msgstr "插头\t插槽"
+
+#: usersession/agent/rest_api.go:267
+#, c-format
+msgid "Snap %q is refreshing now!"
+msgstr "Snap %q 正在刷新！"
+
+#: cmd/snap/cmd_handle_link.go:70
+msgid "Snap Store required"
+msgstr "需要 Snap Store"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_buy.go:50 cmd/snap/cmd_download.go:71
+#: cmd/snap/cmd_routine_file_access.go:64
+msgid "Snap name"
+msgstr "Snap 名称"
+
+#: data/desktop/snap-userd-autostart.desktop.in:3
+msgid "Snap user application autostart helper"
+msgstr "Snap 用户应用自启帮助程序"
+
+#: data/desktop/io.snapcraft.SessionAgent.desktop.in:4
+msgid "Snapd User Session Agent"
+msgstr "Snapd 用户会话代理"
+
+#: cmd/snap/cmd_snapshot.go:239
+#, c-format
+msgid "Snapshot #%s forgotten.\n"
+msgstr "已忘记快照 #%s。\n"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: cmd/snap/cmd_snapshot.go:275
+#, c-format
+msgid "Snapshot #%s of snaps %s verified successfully.\n"
+msgstr "已成功验证快照 #%s (来自 snap %s)\n"
+
+#: cmd/snap/cmd_snapshot.go:278
+#, c-format
+msgid "Snapshot #%s verified successfully.\n"
+msgstr "已成功验证快照 #%s。\n"
+
+#: daemon/api_snapshots.go:228
+msgid "Snapshot all snaps"
+msgstr "为所有 snap 创建快照"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:342
+msgid ""
+"Snapshot data of only specific users (comma-separated) (default: all users)"
+msgstr "仅快照特定用户的数据（用逗号分隔）（默认为所有用户）"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#: daemon/api_snapshots.go:231
+#, c-format
+msgid "Snapshot snaps %s"
+msgstr "快照 snap %s"
+
+#: cmd/snap/cmd_help.go:236
+msgid "Snapshots"
+msgstr "快照"
+
+#: cmd/snap/cmd_buy.go:124
+msgid ""
+"Sorry, your payment method has been declined by the issuer. Please review "
+"your\n"
+"payment details at https://my.ubuntu.com/payment/edit and try again."
+msgstr ""
+"抱歉，您的支付方式被发行方拒绝了。请在 https://my.ubuntu.com/payment/edit \n"
+"上查看您的支付详细信息，然后再次尝试。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:85
+msgid "Specify an architecture for snaps for --classic when the model does not"
+msgstr "当模型没有说明时，您需要为 --classic 手动指定一个 snap"
+
+#: cmd/snap/cmd_snap_op.go:289
+#, c-format
+msgid ""
+"Specifying a channel %q is relying on undefined behaviour. Interpreting it "
+"as %q for now, but this will be an error later.\n"
+msgstr ""
+"指定通道 %q 是依赖于未定义的行为。现在先将其解释为 %q，但这以后将会是一个错"
+"误。\n"
+
+#: cmd/snap/cmd_routine_console_conf.go:39
+msgid "Start console-conf snapd routine"
+msgstr "启动 console-conf snapd 例行程序"
+
+#: overlord/hookstate/ctlcmd/start.go:29 cmd/snap/cmd_services.go:62
+msgid "Start services"
+msgstr "启动服务"
+
+#: overlord/snapstate/snapstate.go:2839 overlord/snapstate/snapstate.go:3103
+#, c-format
+msgid "Start snap %q (%s) services"
+msgstr "启动 snap % (%s) 服务"
+
+#: overlord/snapstate/snapstate.go:620
+#, c-format
+msgid "Start snap %q%s services"
+msgstr "启动 snap %q%s 服务"
+
+#: overlord/patch/patch3.go:42
+msgid "Start snap services"
+msgstr "启动 snap 服务"
+
+#: cmd/snap/cmd_userd.go:50
+msgid "Start the userd service"
+msgstr "启动 userd 服务"
+
+#: cmd/snap/cmd_changes.go:165
+msgid "Status\tSpawn\tReady\tSummary\n"
+msgstr "状态\t生成\t就绪\t摘要\n"
+
+#: overlord/hookstate/ctlcmd/stop.go:37 cmd/snap/cmd_services.go:66
+msgid "Stop services"
+msgstr "停止服务"
+
+#: overlord/snapstate/snapstate.go:3146
+#, c-format
+msgid "Stop snap %q (%s) services"
+msgstr "停止 snap %q (%s) 服务"
+
+#: overlord/snapstate/snapstate.go:509 overlord/snapstate/snapstate.go:2820
+#: overlord/snapstate/snapstate.go:3336
+#, c-format
+msgid "Stop snap %q services"
+msgstr "停止 snap %q 服务"
+
+#: overlord/patch/patch3.go:51
+msgid "Stop snap services"
+msgstr "停止 snap 服务"
+
+#: cmd/snap/cmd_services.go:240
+msgid "Stopped.\n"
+msgstr "已停止。\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_get.go:73
+msgid "Strict typing with nulls and quoted strings"
+msgstr "使用空值和带引号的字符串进行严格输入"
+
+#: daemon/api_snaps.go:537
+#, c-format
+msgid "Switch %q snap away from cohort"
+msgstr "将 snap %q 从队列中切出"
+
+#: daemon/api_snaps.go:539
+#, c-format
+msgid "Switch %q snap to channel %q"
+msgstr "将 %q snap 切换到频道 %q"
+
+#: daemon/api_snaps.go:535
+#, c-format
+msgid "Switch %q snap to channel %q and away from cohort"
+msgstr "将 snap %q 切换到频道 %q 并从队列中切出"
+
+#: daemon/api_snaps.go:543
+#, c-format
+msgid "Switch %q snap to channel %q and cohort %q"
+msgstr "将 snap %q 切换到频道 %q 和队列 %q"
+
+#: daemon/api_snaps.go:541
+#, c-format
+msgid "Switch %q snap to cohort %q"
+msgstr "将 snap %q 切换到队列 %q"
+
+#: overlord/snapstate/snapstate.go:2173
+#, c-format
+msgid "Switch snap %q away from cohort %q"
+msgstr "将 snap %q 从队列 %q 中切出"
+
+#: overlord/snapstate/snapstate.go:2221
+#, c-format
+msgid "Switch snap %q from channel %q to %q"
+msgstr "将 snap %q 从频道 %q 切换到 %q"
+
+#: overlord/snapstate/snapstate.go:2202
+#, c-format
+msgid "Switch snap %q from cohort %q to %q"
+msgstr "将 snap %q 从队列 %q 切换到 %q"
+
+#: overlord/snapstate/snapstate.go:2188
+#, c-format
+msgid "Switch snap %q from no cohort to %q"
+msgstr "将 snap %q 从无队列 切换到队列 %q"
+
+#: overlord/snapstate/snapstate.go:2217
+#, c-format
+msgid "Switch snap %q to channel %q"
+msgstr "将 snap %q 切换到频道 %q"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1317
+msgid "Switch the snap into the given cohort"
+msgstr "将 snap 切换到给定队列"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:1319
+msgid "Switch the snap out of its cohort"
+msgstr "将 snap 从其队列中切出"
+
+#: cmd/snap/cmd_snap_op.go:1189
+msgid "Switches snap to a different channel"
+msgstr "将 snap 切换到一个不同的频道"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_auto_import.go:252
+msgid "Temporarily mount device before inspecting"
+msgstr "在检查设备前将其临时挂载"
+
+#: cmd/snap/cmd_snap_op.go:47
+msgid "Test an unpacked snap in the system"
+msgstr "在系统中测试未打包的 snap"
+
+#. TRANSLATORS: %q and %s are the same snap name. Please wrap the translation at 80 characters.
+#: cmd/snap/cmd_buy.go:132
+#, c-format
+msgid ""
+"Thanks for purchasing %q. You may now install it on any of your devices\n"
+"with 'snap install %s'."
+msgstr ""
+"感谢您购买 %q。现在可以使用 “snap install %s” 将其安装在您的任何设备上。"
+
+#: cmd/snap/cmd_handle_link.go:64
+msgid "The Snap Store is required to open snaps from a web browser."
+msgstr "Snap Store 要求从浏览器打开 snap。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:95
+msgid "The channel to use"
+msgstr "要使用的频道"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:417
+msgid "The filename of the export"
+msgstr "导出的文件名"
+
+#: cmd/snap/cmd_handle_link.go:45
+msgid ""
+"The handle-link command installs the snap-store snap and then invokes it."
+msgstr "handle-link 命令安装 snap-store snap 然后调用它。"
+
+#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
+#: cmd/snap/cmd_login.go:64
+msgid "The login.ubuntu.com email to login as"
+msgstr "登录为 login.ubuntu.com 的邮箱"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:103
+msgid "The model assertion name"
+msgstr "模型声明 名称"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_reboot.go:74
+msgid "The recovery system label"
+msgstr "恢复系统标签"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_wait.go:52
+msgid "The snap for which configuration will be checked"
+msgstr "将检查其配置的 snap"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:378
+msgid "The snap for which data will be deleted"
+msgstr "将被删除数据的 snap"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:361
+msgid "The snap for which data will be restored"
+msgstr "将被复原数据的 snap"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snapshot.go:398
+msgid "The snap for which data will be verified"
+msgstr "将被验证数据的 snap"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_unset.go:55 cmd/snap/cmd_set.go:71
+msgid "The snap to configure (e.g. hello-world)"
+msgstr "将被配置的 snap（例如 hello-world）"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_get.go:78
+msgid "The snap whose conf is being requested"
+msgstr "正在请求其 conf 的 snap"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_prepare_image.go:108
+msgid "The target directory"
+msgstr "目标目录"
+
+#: cmd/snap/cmd_debug_timings.go:45
+msgid "The timings command displays details about the time each task runs."
+msgstr "timings 命令显示有关每个任务运行时间的详细信息。"
+
+#. TRANSLATORS: This should not start with a lowercase letter
+#: cmd/snap/cmd_remove_user.go:49
+msgid "The username to remove"
+msgstr "要删除的用户名"
+
+#: cmd/snap/cmd_services.go:131
+msgid "There are no services provided by installed snaps."
+msgstr "已安装的 snap 没有提供任何服务。"
+
+#: usersession/userd/launcher.go:291 usersession/userd/settings.go:215
+#: cmd/snap/cmd_handle_link.go:67
+msgid "This dialog will close automatically after 5 minutes of inactivity."
+msgstr "对话框将在无操作 5 分钟后自动关闭。"
+
+#: overlord/snapstate/snapstate.go:2430
+#, c-format
+msgid "Toggle snap %q flags"
+msgstr "切换 snap %q 的标志"
+
+#: cmd/snap/main.go:322
+msgid "Tool to interact with snaps"
+msgstr "与 snap 交互的工具"
+
+#: overlord/snapstate/snapstate.go:3624
+#, c-format
+msgid "Transition security profiles from %q to %q"
+msgstr "将安全配置从 %q 过渡到 %q"
+
+#: overlord/snapstate/snapmgr.go:932
+msgid "Transition to the snapd snap"
+msgstr "过渡到 snapd snap"
+
+#: overlord/snapstate/snapmgr.go:991
+msgid "Transition ubuntu-core to core"
+msgstr "将 ubuntu-core 过渡到 core"
+
+#: cmd/snap/cmd_advise.go:199
+#, c-format
+msgid "Try \"snap install %s\"\n"
+msgstr "尝试 \"snap install %s\"\n"
+
+#: daemon/api_sideload_n_try.go:474
+#, c-format
+msgid "Try %q snap from %s"
+msgstr "尝试来自 %s 的 %q snap"
+
+#: cmd/snap/cmd_advise.go:294
+msgid "Try: snap install <selected snap>\n"
+msgstr "尝试：snap install <选择的 snap>\n"
+
+#: cmd/snap/cmd_login.go:73
+msgid "Two-factor code: "
+msgstr "双重认证代码： "
+
+#: cmd/snap/cmd_help.go:282
+msgid "Usage: snap <command> [<options>...]"
+msgstr "用法：snap <命令> [<选项>...]"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/color.go:127
+msgid "Use a little bit of Unicode to improve legibility."
+msgstr "使用一点 Unicode 来提高可读性。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/color.go:121
+msgid "Use a little bit of color to highlight some things."
+msgstr "使用点色彩来突出显示某些内容。"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_run.go:109
+msgid "Use a specific snap revision when running hook"
+msgstr "运行钩子时使用特定的 snap 修订版本"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_create_user.go:60
+msgid "Use known assertions for user creation"
+msgstr "使用已知声明 创建用户"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_advise.go:75
+msgid "Use the given output format"
+msgstr "使用给定的输出格式"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_download.go:65
+msgid ""
+"Use this basename for the snap and assertion files (defaults to "
+"<snap>_<revision>)"
+msgstr "将此基名用于 snap 文件和声明 文件（默认为 <snap>_<revision>）"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_snap_op.go:249
+msgid "Use this channel instead of stable"
+msgstr "使用此频道而不是稳定频道"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_pack.go:78
+msgid "Validate snap-dir metadata only"
+msgstr "仅验证 snap-dir 元数据"
+
+#. TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
+#: cmd/snap/cmd_validate.go:193
+#, c-format
+msgid "Validation\tMode\tSeq\tCurrent\t%s\tNotes\n"
+msgstr "验证\t模式\t序列\t当前\t%s\t说明\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_validate.go:72
+msgid ""
+"Validation set with an optional pinned sequence point, i.e. account-id/"
+"name[=seq]"
+msgstr "可选的序列点固定的验证集，即 account-id/name[=seq]。"
+
+#: cmd/snap/cmd_snapshot.go:151
+msgid "Version"
+msgstr "版本"
+
+#: cmd/snap/cmd_get.go:210
+msgid ""
+"WARNING: The output of 'snap get' will become a list with columns - use -d "
+"or -l to force the output format.\n"
+msgstr ""
+"警告：“snap get” 的输出将变为一个带有列的列表 - 使用 -d 或 -l 来强制输出格"
+"式。\n"
+
+#: cmd/snap/cmd_warnings.go:226
+#, c-format
+msgid "WARNING: There is %d new warning. See 'snap warnings'.\n"
+msgid_plural "WARNING: There are %d new warnings. See 'snap warnings'.\n"
+msgstr[0] "警告：有 %d 条新警告。请查看 “snap warnings”。\n"
+
+#: tests/lib/uc20-create-partitions/main.go:67 cmd/snap/main.go:405
+#, c-format
+msgid "WARNING: failed to activate logging: %v\n"
+msgstr "警告：无法激活日志记录：%v\n"
+
+#. TRANSLATORS: This should not start with a lowercase letter.
+#: cmd/snap/cmd_services.go:92
+msgid "Wait for new lines and print them as they come in."
+msgstr "等待新的行并实时打印。"
+
+#: cmd/snap/wait.go:108
+msgid "Waiting for server to restart"
+msgstr "等待服务器重启"
+
+#: cmd/snap/cmd_snap_op.go:288 cmd/snap/cmd_snap_op.go:369
+#: cmd/snap/cmd_snap_op.go:377
+msgid "Warning:"
+msgstr "警告："
+
+#: cmd/snap/cmd_help.go:245
+msgid "Warnings"
+msgstr "警告"
+
+#: cmd/snap/cmd_watch.go:30
+msgid "Watch a change in progress"
+msgstr "查看正在进行的更改"
+
+#: cmd/snap/cmd_login.go:75
+msgid "Wrong again. Once more: "
+msgstr "又错了，请再试一遍： "
+
+#: cmd/snap/cmd_run.go:647
+#, c-format
+msgid "Xauthority file isn't owned by the current user %s"
+msgstr "Xauthority 文件不归当前用户 %s 所有"
+
+#: cmd/snap/cmd_buy.go:66
+msgid ""
+"You need to be logged in to purchase software. Please run 'snap login' and "
+"try again."
+msgstr "您需要登录才能购买软件。请运行 “snap login”，然后重试。"
+
+#: cmd/snap/cmd_buy.go:97
+#, c-format
+msgid ""
+"You need to have a payment method associated with your account in order to "
+"buy a snap, please visit https://my.ubuntu.com/payment/edit to add one.\n"
+"\n"
+"Once you’ve added your payment details, you just need to run 'snap buy %s' "
+"again."
+msgstr ""
+"您需要有与您的帐户关联的付款方式才能购买 snap，请访问 https://my.ubuntu.com/"
+"payment/edit 添加。\n"
+"\n"
+"添加付款详细信息后，您只需要再次运行 “snap buy %s” 即可。"
+
+#. TRANSLATORS: the %+q is the commandline (+q means quoted, with any non-ascii character called out). Please keep the lines to at most 80 characters.
+#: cmd/snap/main.go:568
+#, c-format
+msgid ""
+"Your command included some characters that look like dashes but are not:\n"
+"    %+q\n"
+"in some situations you might find that when copying from an online source "
+"such\n"
+"as a blog you need to replace “typographic” dashes and quotes with their "
+"ASCII\n"
+"equivalent.  Dashes in particular are homoglyphs on most terminals and in "
+"most\n"
+"fixed-width fonts, so it can be hard to tell.\n"
+"\n"
+msgstr ""
+"你的命令包含了一些看起来像破折号但实际并非破折号的字符：\n"
+"    %+q。\n"
+"在某些情况下，例如从博客等在线来源复制时，你可能需要用其 ASCII 等价物替换“印"
+"刷体”破折号和引号。在大多数终端和等宽字体中，破折号特别容易与其他字符混淆，因"
+"此很难分辨。\n"
+"\n"
+
+#: cmd/snap/cmd_snap_op.go:898
 msgid "a single snap name is needed to specify mode or channel flags"
-msgstr ""
+msgstr "需要一个 snap 名称来指定模式或频道标识"
 
-msgid "a single snap name is needed to specify the revision"
-msgstr ""
-
+#: cmd/snap/cmd_snap_op.go:669 cmd/snap/cmd_snap_op.go:902
 msgid "a single snap name must be specified when ignoring validation"
-msgstr ""
+msgstr "忽略验证时必须指定单个 snap 名称"
 
+#: overlord/hookstate/ctlcmd/services.go:94 cmd/snap/cmd_services.go:149
 msgid "active"
-msgstr ""
+msgstr "活动"
 
+#: cmd/snap/cmd_help.go:237
+msgid "archives of snap data"
+msgstr "snap 数据的归档"
+
+#: overlord/hookstate/ctlcmd/set.go:163
+#, c-format
+msgid "attribute %q cannot be overwritten"
+msgstr "属性 %q 不能被覆盖"
+
+#: cmd/snap/cmd_help.go:233
+msgid "authentication to snapd and the snap store"
+msgstr "snapd 和 snap 存储的身份验证"
+
+#: overlord/snapstate/autorefresh.go:644
 msgid "auto-refresh: all snaps are up-to-date"
-msgstr ""
+msgstr "全部刷新：所有的 snap 已是最新"
 
+#: cmd/snap/cmd_help.go:205
+msgid "basic snap management"
+msgstr "基本 snap 管理"
+
+#: cmd/snap/notes.go:41
 msgid "bought"
-msgstr ""
+msgstr "已购买"
 
 #. TRANSLATORS: if possible, a single short word
+#: cmd/snap/notes.go:157
 msgid "broken"
-msgstr ""
+msgstr "损坏的"
 
+#. TRANSLATORS: %s is the path to the built snap file
+#: cmd/snap/cmd_pack.go:129
 #, c-format
-msgid "cannot %s without a context"
-msgstr ""
+msgid "built: %s\n"
+msgstr "构建：%s\n"
 
+#: cmd/snap/cmd_buy.go:85
 #, c-format
 msgid "cannot buy snap: %v"
-msgstr ""
+msgstr "无法购买 snap：%v"
 
+#: cmd/snap/cmd_buy.go:70
 msgid "cannot buy snap: invalid characters in name"
-msgstr ""
+msgstr "无法购买 snap：名称中的字符无效"
 
+#: cmd/snap/cmd_buy.go:89
 msgid "cannot buy snap: it has already been bought"
-msgstr ""
+msgstr "无法购买 Snap：已经购买过了"
 
 #. TRANSLATORS: %q is the directory whose creation failed, %v the error message
+#: cmd/snap/cmd_run.go:420
 #, c-format
 msgid "cannot create %q: %v"
-msgstr ""
+msgstr "无法创建 %q：%v"
 
+#: cmd/snap/cmd_download.go:87
 #, c-format
 msgid "cannot create assertions file: %v"
-msgstr ""
+msgstr "无法创建声明 文件：%v"
 
 #. TRANSLATORS: %q gets the snap name, %v gets the resulting error message
+#: cmd/snap/cmd_snap_op.go:1065
 #, c-format
 msgid "cannot extract the snap-name from local file %q: %v"
-msgstr ""
+msgstr "无法从本地文件 %q 中提取 snap-name：%v"
 
+#: cmd/snap/cmd_run.go:498
 #, c-format
 msgid "cannot find app %q in %q"
-msgstr ""
+msgstr "无法从 %q 中查找应用 %q"
 
+#: cmd/snap/cmd_run.go:523
 #, c-format
 msgid "cannot find hook %q in %q"
-msgstr ""
+msgstr "无法从 %q 中查找钩子 %q"
 
 #. TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
+#: cmd/snap/cmd_snap_op.go:1076
 #, c-format
 msgid "cannot get data for %q: %v"
-msgstr ""
+msgstr "无法获取 %q 的数据：%v"
 
 #. TRANSLATORS: %q gets what the user entered, %v gets the resulting error message
+#: cmd/snap/cmd_snap_op.go:1040
 #, c-format
 msgid "cannot get full path for %q: %v"
-msgstr ""
+msgstr "无法获取 %q 的完整路径：%v"
 
+#: desktop/portal/document.go:56 cmd/snap/cmd_run.go:577
 #, c-format
 msgid "cannot get the current user: %s"
-msgstr ""
+msgstr "无法获取当前用户：%s"
 
+#: cmd/snap/cmd_run.go:397
 #, c-format
 msgid "cannot get the current user: %v"
-msgstr ""
+msgstr "无法获取当前用户：%v"
 
+#: cmd/snap/error.go:261
 #, c-format
-msgid "cannot mark boot successful: %s"
-msgstr ""
+msgid "cannot install %s due to low disk space"
+msgstr "由于磁盘空间不足，无法安装 %s"
 
+#: daemon/api_snaps.go:402 daemon/api_snaps.go:701 cmd/snap/cmd_snap_op.go:657
+msgid "cannot install snap with empty name"
+msgstr "无法使用空名称安装 snap"
+
+#: cmd/snap/cmd_sign_build.go:115
 #, c-format
 msgid "cannot open the assertions database: %v"
-msgstr ""
+msgstr "无法打开声明 数据库：%v"
 
+#. TRANSLATORS: the %q is the snap-dir (the first positional
+#. argument to the command); the %v is an error
+#: cmd/snap/cmd_pack.go:125
+#, c-format
+msgid "cannot pack %q: %w"
+msgstr "无法打包：%q：%w"
+
+#: cmd/snap/cmd_sign.go:85
 #, c-format
 msgid "cannot read assertion input: %v"
-msgstr ""
+msgstr "无法读取声明 输入：%v"
 
 #. TRANSLATORS: %v the error message
+#: cmd/snap/cmd_run.go:351
 #, c-format
 msgid "cannot read symlink: %v"
-msgstr ""
+msgstr "无法读取符号链接：%v"
 
+#: cmd/snap/error.go:263
+#, c-format
+msgid "cannot refresh %s due to low disk space"
+msgstr "无法刷新 %s，因为磁盘空间不足"
+
+#: cmd/snap/error.go:259
+#, c-format
+msgid ""
+"cannot remove %s due to low disk space for automatic snapshot, use --purge "
+"to avoid creating a snapshot"
+msgstr "由于自动快照的磁盘空间不足，无法删除 %s，请使用 —purge 避免创建快照"
+
+#: cmd/snap/cmd_snapshot.go:468
+#, c-format
+msgid "cannot reserve disk space for snapshot: %v"
+msgstr "无法为快照保留磁盘空间：%v"
+
+#: cmd/snap/main.go:473
 #, c-format
 msgid "cannot resolve snap app %q: %v"
-msgstr ""
+msgstr "无法解析 snap 应用 %q：%v"
 
+#: overlord/hookstate/ctlcmd/set.go:224
+#, c-format
+msgid "cannot set attribute: %v"
+msgstr "无法设定属性：%v"
+
+#: cmd/snap/cmd_sign_build.go:120
 #, c-format
 msgid "cannot sign assertion: %v"
-msgstr ""
+msgstr "无法签名声明 ：%v"
 
+#: cmd/snap/cmd_snap_op.go:1224
+msgid "cannot specify both --cohort and --leave-cohort"
+msgstr "不能同时指定 --cohort 和 --leave-cohort"
+
+#: cmd/snap/cmd_download.go:172
+msgid "cannot specify both channel and revision"
+msgstr "不能同时指定频道和修订版本"
+
+#: cmd/snap/cmd_download.go:175
+msgid "cannot specify both cohort and revision"
+msgstr "不能同时指定队列和修订版本"
+
+#: cmd/snap/cmd_run.go:377
 #, c-format
 msgid "cannot update the 'current' symlink of %q: %v"
-msgstr ""
+msgstr "无法更新 %q '当前的' 符号链接：%v"
 
 #. TRANSLATORS: %q is the key name, %v the error message
+#. TRANSLATORS: %q is the key name, %v the error message
+#. TRANSLATORS: %q is the key name, %v the error message
+#: image/preseed/preseed.go:113 cmd/snap/cmd_sign.go:95
+#: cmd/snap/cmd_sign_build.go:95
 #, c-format
 msgid "cannot use %q key: %v"
-msgstr ""
+msgstr "不能使用 %q 键: %v"
 
+#: cmd/snap/cmd_connections.go:147
+msgid "cannot use --all with snap name"
+msgstr "不能将 --all 与 snap 名一起使用"
+
+#: cmd/snap/cmd_model.go:51
+msgid "cannot use --verbose with --assertion"
+msgstr "不能将 --verbose 与 --声明一起使用"
+
+#: cmd/snap/last.go:61
 msgid "cannot use change ID and type together"
-msgstr ""
+msgstr "不能同时使用修改 ID 和类型"
 
+#: cmd/snap/cmd_snap_op.go:460
 msgid "cannot use devmode and jailmode flags together"
-msgstr ""
+msgstr "不能同时使用 devmode 和 jailmode 的标志"
 
+#: cmd/snap/cmd_snap_op.go:520
+msgid "cannot use explicit name when installing from store"
+msgstr "在从商店安装时不能使用显式的名称"
+
+#: cmd/snap/cmd_snap_op.go:673
+msgid "cannot use instance name when installing multiple snaps"
+msgstr "在安装多个 snap 时不能使用接口名称"
+
+#: cmd/snap/cmd_run.go:641
 #, c-format
 msgid "cannot validate owner of file %s"
-msgstr ""
+msgstr "无法验证文件 %s 的所有者"
 
+#: cmd/snap/cmd_run.go:701
 #, c-format
 msgid "cannot write new Xauthority file at %s: %s"
-msgstr ""
+msgstr "无法在 %s 写入新的 Xauthority 文件：%s"
 
+#: cmd/snap/wait.go:170
 #, c-format
 msgid "change finished in status %q with no error message"
-msgstr ""
+msgstr "在状态 %q 中完成更改，并没有报告错误"
 
-#, c-format
-msgid ""
-"classic confinement requires snaps under /snap or symlink from /snap to %s"
-msgstr ""
-
+#: cmd/snap/cmd_auto_import.go:265 cmd/snap/cmd_create_user.go:113
 #, c-format
 msgid "created user %q\n"
-msgstr ""
+msgstr "已创建用户 %q\n"
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "days" in e.g. 1d20h
+#: strutil/quantity/quantity.go:109
 msgid "d"
-msgstr ""
+msgstr "日"
+
+#: cmd/snap/cmd_help.go:262
+msgid "developer-oriented features"
+msgstr "面向开发者的功能"
+
+#: cmd/snap/cmd_model.go:49
+msgid "device not ready yet (no assertions found)"
+msgstr "设备还未就绪 (没有找到声明 )"
+
+#: cmd/snap/cmd_model.go:50
+msgid "device not registered yet (no serial assertion found)"
+msgstr "设备还未注册 (没有找到序列号断言)"
 
 #. TRANSLATORS: if possible, a single short word
+#: overlord/hookstate/ctlcmd/services.go:86 cmd/snap/cmd_services.go:141
+#: cmd/snap/notes.go:127
 msgid "disabled"
-msgstr ""
+msgstr "已禁用"
 
+#: cmd/snap/cmd_whoami.go:56
 msgid "email:"
-msgstr ""
+msgstr "电子邮箱："
 
+#: overlord/hookstate/ctlcmd/services.go:88 cmd/snap/cmd_services.go:143
 msgid "enabled"
-msgstr ""
+msgstr "已启用"
 
+#: cmd/snap/error.go:42
 #, c-format
 msgid "error: %v\n"
-msgstr ""
+msgstr "错误：%v\n"
 
-msgid ""
-"error: the `<snap-dir>` argument was not provided and couldn't be inferred"
-msgstr ""
+#: overlord/hookstate/ctlcmd/get.go:159
+msgid "get which attribute?"
+msgstr "获取哪个属性？"
 
+#: overlord/hookstate/ctlcmd/get.go:137
 msgid "get which option?"
-msgstr ""
+msgstr "获取哪个选项？"
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "hours" in e.g. 1h30m
+#: strutil/quantity/quantity.go:107
 msgid "h"
-msgstr ""
+msgstr "时"
 
-msgid "ignore-validation"
-msgstr ""
+#: cmd/snap/notes.go:165
+msgid "in-cohort"
+msgstr "队列中"
 
+#: overlord/hookstate/ctlcmd/services.go:90 cmd/snap/cmd_services.go:145
 msgid "inactive"
-msgstr ""
+msgstr "不活动"
 
+#: overlord/hookstate/ctlcmd/get.go:284
 msgid ""
 "interface attributes can only be read during the execution of interface hooks"
-msgstr ""
+msgstr "接口属性只能在执行接口钩子时被读取"
 
+#: overlord/hookstate/ctlcmd/set.go:178
 msgid ""
 "interface attributes can only be set during the execution of prepare hooks"
-msgstr ""
+msgstr "接口属性只能在准备钩子的执行期间设置。"
 
+#: cmd/snap/main.go:483
 #, c-format
 msgid "internal error, please report: running %q failed: %v\n"
-msgstr ""
+msgstr "内部错误，请报告：运行 %q 失败：%v\n"
 
-msgid "internal error: cannot find attrs task"
-msgstr ""
-
+#: overlord/hookstate/ctlcmd/get.go:253
 msgid "internal error: cannot find plug or slot data in the appropriate task"
-msgstr ""
+msgstr "内部错误：无法在适当的任务中找到插头或插槽数据"
 
+#: overlord/hookstate/ctlcmd/get.go:315 overlord/hookstate/ctlcmd/get.go:318
 #, c-format
 msgid "internal error: cannot get %s from appropriate task"
-msgstr ""
+msgstr "内部错误：无法从适当的任务获取 %s"
 
-msgid ""
-"invalid argument for flag ‘-n’: expected a non-negative integer argument, or "
-"“all”."
-msgstr ""
-
+#: overlord/hookstate/ctlcmd/set.go:203 overlord/hookstate/ctlcmd/set.go:208
 #, c-format
-msgid "invalid attribute: %q (want key=value)"
-msgstr ""
+msgid "internal error: cannot get %s from appropriate task, %s"
+msgstr "内部错误：无法从适当的任务中获取 %s，%s。"
 
+#: cmd/snap/cmd_help.go:257
+msgid "introspection and debugging of snapd"
+msgstr "snapd 的自检和调试"
+
+#: cmd/snap/complete.go:527
+msgid ""
+"invalid argument for snapshot set id: expected a non-negative integer "
+"argument (see 'snap help saved')"
+msgstr ""
+"快照设置 ID 的参数无效：需要提供非负整数参数（请参阅 “snap help saved”）。"
+
+#: cmd/snap/cmd_set.go:94
 #, c-format
 msgid "invalid configuration: %q (want key=value)"
-msgstr ""
+msgstr "无效的配置：%q (want key=value)"
 
+#: cmd/snap/cmd_known.go:114
 #, c-format
 msgid "invalid header filter: %q (want key=value)"
-msgstr ""
+msgstr "无效的标头过滤器：%q（需要 key=value）"
 
+#: overlord/hookstate/ctlcmd/set.go:118 overlord/hookstate/ctlcmd/set.go:214
 #, c-format
 msgid "invalid parameter: %q (want key=value)"
-msgstr ""
+msgstr "无效的参数：%q (需要 key=value)"
 
+#: cmd/snap/interfaces_common.go:57
 #, c-format
 msgid "invalid value: %q (want snap:name or snap)"
-msgstr ""
+msgstr "无效的值：%q (需要 snap:name 或 snap)"
 
+#: cmd/snap/cmd_create_key.go:67
 #, c-format
 msgid ""
 "key name %q is not valid; only ASCII letters, digits, and hyphens are allowed"
-msgstr ""
+msgstr "键名 %q 无效； 只允许使用 ASCII 字母、数字和连字符"
 
+#: cmd/snap/error.go:212
 #, c-format
 msgid "local snap %q is unknown to the store, use --amend to proceed anyway"
-msgstr ""
+msgstr "本地的 snap 软件包 “%q” 在商店中未知，请使用 --amend 选项继续"
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "minutes" in e.g. 1m30s
+#: strutil/quantity/quantity.go:105
 msgid "m"
-msgstr ""
+msgstr "月"
 
-msgid "missing snap-confine: try updating your snapd package"
-msgstr ""
+#: cmd/snap/cmd_help.go:229
+msgid "manage aliases"
+msgstr "管理别名"
 
+#: cmd/snap/cmd_help.go:252
+msgid "manage assertions"
+msgstr "管理声明"
+
+#: cmd/snap/cmd_help.go:242
+msgid "manage device"
+msgstr "管理设备"
+
+#: cmd/snap/cmd_help.go:221
+msgid "manage permissions"
+msgstr "管理权限"
+
+#: cmd/snap/cmd_help.go:217
+msgid "manage services"
+msgstr "管理服务"
+
+#: cmd/snap/cmd_help.go:213
+msgid "manage system change transactions"
+msgstr "管理系统更改"
+
+#: cmd/snap/cmd_help.go:247
+msgid "manage warnings"
+msgstr "管理警告"
+
+#: cmd/snap/cmd_run.go:1034
+msgid "missing snap-confine: try updating your core/snapd package"
+msgstr "缺少 snap-confine：尝试更新您的 core/snapd 软件包"
+
+#: cmd/snap/cmd_run.go:216
 msgid "need the application to run as argument"
-msgstr ""
+msgstr "需要应用作为参数运行"
 
+#: cmd/snap/cmd_changes.go:110 cmd/snap/last.go:97
 msgid "no changes found"
-msgstr ""
+msgstr "没有找到更改"
 
+#: cmd/snap/last.go:104
 #, c-format
 msgid "no changes of type %q found"
-msgstr ""
+msgstr "未找到 %q 类型的更改"
 
+#: cmd/snap/cmd_interface.go:101
 msgid "no interfaces currently connected"
-msgstr ""
+msgstr "当前没有已连接的接口"
 
+#: cmd/snap/cmd_interfaces.go:93 cmd/snap/cmd_interface.go:99
 msgid "no interfaces found"
-msgstr ""
+msgstr "没有找到接口"
 
+#: cmd/snap/cmd_list.go:67
 msgid "no matching snaps installed"
-msgstr ""
+msgstr "未找到匹配的 snap"
 
+#: cmd/snap/cmd_interface.go:86
 msgid "no such interface"
-msgstr ""
+msgstr "没有此接口"
 
+#: cmd/snap/cmd_info.go:699
 msgid "no valid snaps given"
-msgstr ""
+msgstr "没有给定有效的 snap"
 
+#: cmd/snap/last.go:56
 msgid "please provide change ID or type with --last=<type>"
-msgstr ""
+msgstr "请提供更改 ID 或类型，使用 --last=<type>"
 
 #. TRANSLATORS: if possible, a single short word
+#: cmd/snap/notes.go:148
 msgid "private"
-msgstr ""
+msgstr "私有的"
 
-msgid ""
-"reboot scheduled to update the system - temporarily cancel with 'sudo "
-"shutdown -c'"
-msgstr ""
+#: boot/reboot.go:57
+msgid "reboot scheduled to update the system"
+msgstr "系统已计划重启以更新系统"
 
+#: cmd/snap/cmd_remove_user.go:72
+#, c-format
+msgid "removed user %q\n"
+msgstr "已移除用户 %q\n"
+
+#: cmd/snap/cmd_repair_repairs.go:39
 msgid "repairs are not available on a classic system"
-msgstr ""
+msgstr "在经典系统上不支持修复"
+
+#: cmd/snap/error.go:355
+#, c-format
+msgid "requested a non-existing branch for snap %q: %s"
+msgstr "请求了 snap %q 的一个不存在的分支：%s"
+
+#. TRANSLATORS: %q is for the snap name, first %s is the full requested channel
+#: cmd/snap/error.go:351
+#, c-format
+msgid "requested a non-existing branch on %s for snap %q: %s"
+msgstr "在 %s 上请求了 snap %q 的一个不存在的分支：%s"
+
+#: cmd/snap/error.go:294
+#, c-format
+msgid "requested channel %q is not valid (see 'snap info %s' for valid ones)"
+msgstr "请求的频道 %q 不可用 (请参阅 'snap info %s' 了解可用频道)"
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "seconds" in e.g. 1m30s
 #. (I fully expect this to always be "s", given it's a SI unit)
+#: strutil/quantity/quantity.go:103
 msgid "s"
-msgstr ""
+msgstr "秒"
 
+#: daemon/api_snapctl.go:101
 #, c-format
 msgid "set failed: %v"
-msgstr ""
+msgstr "设置失败：%v"
 
+#: overlord/hookstate/ctlcmd/set.go:74
 msgid "set which option?"
-msgstr ""
+msgstr "设置哪个选项？"
 
-#. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --revision=foo
-#, c-format
-msgid "snap %%q not found (at least at revision %q)"
-msgstr ""
+#: cmd/snap/cmd_help.go:209
+msgid "slightly more advanced snap management"
+msgstr "稍微更高级的 snap 管理"
 
-#. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --channel=foo
-#, c-format
-msgid "snap %%q not found (at least in channel %q)"
-msgstr ""
-
+#: cmd/snap/error.go:215
 #, c-format
 msgid "snap %q has no updates available"
-msgstr ""
+msgstr "snap %q 没有更新可用"
 
+#: cmd/snap/error.go:175
 #, c-format
-msgid "snap %q is already installed, see \"snap refresh --help\""
-msgstr ""
+msgid "snap %q is already installed, see 'snap help refresh'"
+msgstr "snap % 已经安装，请参见 “snap help refresh”"
 
+#. TRANSLATORS: %q is for the snap name, %v is the requested channel
+#: cmd/snap/error.go:370
+#, c-format
+msgid ""
+"snap %q is not available on %v but is available to install on the following "
+"channels:\n"
+msgstr "snap %q 在频道 %v 上不可用，但可以从以下频道安装\n"
+
+#. TRANSLATORS: %q is for the snap name, %v is the requested channel, first %s is the system architecture short name, second %s is a comma separated list of available arch short names
+#: cmd/snap/error.go:332
+#, c-format
+msgid ""
+"snap %q is not available on %v for this architecture (%s) but exists on "
+"other architectures (%s)."
+msgstr "snap %q (频道 %v) 不可用于该架构 (%s)，但是可以用于其他架构 (%s)"
+
+#. TRANSLATORS: %q is for the snap name, first %s is the system architecture short name, second %s is a comma separated list of available arch short names
+#: cmd/snap/error.go:339
+#, c-format
+msgid ""
+"snap %q is not available on this architecture (%s) but exists on other "
+"architectures (%s)."
+msgstr "snap %q 不可用于该架构 (%s)，但是可以用于其他架构 (%s)"
+
+#: cmd/snap/error.go:200
+#, c-format
+msgid "snap %q is not compatible with --classic"
+msgstr "snap %q 与 --classic 参数不兼容"
+
+#: cmd/snap/error.go:124
 #, c-format
 msgid "snap %q not found"
-msgstr ""
+msgstr "没有找到 snap %q"
+
+#: cmd/snap/error.go:178
+#, c-format
+msgid "snap %q requires devmode or confinement override"
+msgstr "快照 %q 需要开发模式或限制覆盖"
 
 #. TRANSLATORS: free as in gratis
+#: cmd/snap/cmd_find.go:56
 msgid "snap is free"
-msgstr ""
+msgstr "snap 是免费的"
 
+#: cmd/snap/error.go:232
+msgid "snapd is about to reboot the system"
+msgstr "snapd 即将重启系统"
+
+#: cmd/snap/cmd_help.go:225
+msgid "system administration and configuration"
+msgstr "系统管理和配置"
+
+#: timeutil/human.go:70
+msgid "today at 15:04 MST"
+msgstr "今天 15:04（美国山区标准时间）"
+
+#: timeutil/human.go:72
+msgid "tomorrow at 15:04 MST"
+msgstr "明天 15:04（美国山区标准时间）"
+
+#: cmd/snap/main.go:79
 msgid "too many arguments for command"
-msgstr ""
+msgstr "命令的参数过多"
 
 #. TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
+#: cmd/snap/cmd_run.go:237
 #, c-format
 msgid "too many arguments for hook %q: %s"
-msgstr ""
+msgstr "钩子 %q 参数过多：%s"
 
 #. TRANSLATORS: the %s is the list of extra arguments
+#: cmd/snap/cmd_get.go:231
 #, c-format
 msgid "too many arguments: %s"
-msgstr ""
+msgstr "参数过多：%s"
 
+#: cmd/snap/error.go:228
 msgid "unable to contact snap store"
-msgstr ""
+msgstr "无法连接 snap 商店"
 
+#: cmd/snap/cmd_version_other.go:36 cmd/snap/cmd_version_linux.go:35
+#: cmd/snap/cmd_version_linux.go:46
 msgid "unavailable"
-msgstr ""
+msgstr "不可用"
 
+#. TRANSLATORS: %q is the command the user entered; %s is 'snap help' or 'snap help <cmd>'
+#. TRANSLATORS: %q is the command the user entered; %s is 'snap help' or 'snap help <cmd>'
+#: cmd/snap/main.go:555 cmd/snap/cmd_help.go:176
 #, c-format
-msgid "unknown attribute %q"
-msgstr ""
+msgid "unknown command %q, see '%s'."
+msgstr "未知命令 %q，请参阅 “%s”。"
 
-#, c-format
-msgid "unknown command %q, see \"snap --help\""
-msgstr ""
-
+#: overlord/hookstate/ctlcmd/get.go:256
 #, c-format
 msgid "unknown plug or slot %q"
-msgstr ""
+msgstr "插座和插槽未知 %q"
 
+#: overlord/hookstate/ctlcmd/helpers.go:73
+#: overlord/hookstate/ctlcmd/helpers.go:78
 #, c-format
 msgid "unknown service: %q"
-msgstr ""
+msgstr "未知的服务：%q"
 
+#: overlord/hookstate/ctlcmd/unset.go:57
+msgid "unset which option?"
+msgstr "取消设置哪个选项？"
+
+#: cmd/snap/cmd_info.go:665
 #, c-format
 msgid "warning:\tno snap found for %q\n"
-msgstr ""
+msgstr "警告：\t找不到 %q 的 snap\n"
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "years" in e.g. 1y45d
+#: strutil/quantity/quantity.go:111
 msgid "y"
-msgstr ""
+msgstr "年"
 
-msgid "Authenticate on snap daemon"
-msgstr ""
+#: timeutil/human.go:68
+msgid "yesterday at 15:04 MST"
+msgstr "昨天 15:04 美国山区标准时间"
 
-msgid "Authorization is required to authenticate on the snap daemon"
-msgstr ""
-
-msgid "Install, update, or remove packages"
-msgstr ""
-
-msgid "Authentication is required to install, update, or remove packages"
-msgstr ""
-
-msgid "Connect, disconnect interfaces"
-msgstr ""
-
-msgid "Authentication is required to connect or disconnect interfaces"
-msgstr ""
+#: cmd/snap/cmd_pack.go:98
+msgid ""
+"you can't specify an absolute filename while also specifying target dir."
+msgstr "您不能在指定目标目录的同时指定绝对文件名。"

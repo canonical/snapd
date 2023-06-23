@@ -1,16 +1,16 @@
-# Albanian translation for snapd
-# Copyright (c) 2018 Rosetta Contributors and Canonical Ltd 2018
+# Asturian translation for snapd
+# Copyright (c) 2020 Rosetta Contributors and Canonical Ltd 2020
 # This file is distributed under the same license as the snapd package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2020.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: snapd\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
 "POT-Creation-Date: 2023-06-22 15:44+0300\n"
-"PO-Revision-Date: 2018-09-27 14:02+0000\n"
+"PO-Revision-Date: 2020-01-27 10:38+0000\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: Albanian <sq@li.org>\n"
+"Language-Team: Asturian <ast@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -21,55 +21,43 @@ msgstr ""
 #: cmd/snap/cmd_advise.go:102
 #, c-format
 msgid " command %q from snap %q\n"
-msgstr " komanda %q nga snap %q\n"
-
-#: cmd/snap/error.go:114
-#, c-format
-msgid ""
-"%q does not contain an unpacked snap.\n"
-"\n"
-"Try 'snapcraft prime' in your project directory, then 'snap try' again."
-msgstr ""
-"%q nuk permban per c'paketim snap.\n"
-"\n"
-"Provo 'snapcraft prime' ne rrenjen e projektit tuaj, pastaj provoni ' snap "
-"try'."
+msgstr " comandu %q del snap %q\n"
 
 #. TRANSLATORS: %q will be the (quoted) snap name
 #: cmd/snap/cmd_snap_op.go:422
 #, c-format
 msgid "%q left the cohort"
-msgstr "%q doli nga grupi"
+msgstr "%q dexól grupu"
 
 #. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
 #: cmd/snap/cmd_snap_op.go:419
 #, c-format
 msgid "%q left the cohort, and switched to the %q channel"
-msgstr "%q doli nga grupi, dhe e nderroi ne kanalin %q"
+msgstr "%q dexó'l grupu y treslladóse a la canal %q"
 
 #. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
 #: cmd/snap/cmd_snap_op.go:416
 #, c-format
 msgid "%q switched to the %q channel\n"
-msgstr "%qe nderroi ne kanalin %q\n"
+msgstr "%q camudó a la canal %q\n"
 
 #. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel, the third an ellipted cohort string
 #: cmd/snap/cmd_snap_op.go:413
 #, c-format
 msgid "%q switched to the %q channel and the %q cohort\n"
-msgstr "%q e nderroi ne kanalin %q dhe ne grupin %q\n"
+msgstr "%q treslladóse a la canal %q y al grupu %q\n"
 
 #. TRANSLATORS: the first %q will be the (quoted) snap name, the second an ellipted cohort string
 #: cmd/snap/cmd_snap_op.go:410
 #, c-format
 msgid "%q switched to the %q cohort\n"
-msgstr "%q e nderroi ne grupin %q\n"
+msgstr "%q  treslladóse al grupu %q\n"
 
 #. TRANSLATORS: 1. snap name, 2. snap version (keep those together please). the 3rd %s is a path (where it's mounted from).
 #: cmd/snap/cmd_snap_op.go:1080
 #, c-format
 msgid "%s %s mounted from %s\n"
-msgstr "%s %s e montuar nga %s\n"
+msgstr "%s %s montáu dende %s\n"
 
 #: store/store_download.go:707
 #, c-format
@@ -79,157 +67,118 @@ msgstr "%s (delta)"
 #: cmd/snap/cmd_snap_op.go:156
 #, c-format
 msgid "%s (revision %s) removed\n"
-msgstr "%s (revision %s) e hequr\n"
+msgstr "%s (revisión %s) desaniciáu\n"
 
 #. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 #: cmd/snap/error.go:206
 #, c-format
 msgid "%s (see 'snap help login')"
-msgstr "%s (shiko 'snap ndihme ne kycje')"
-
-#. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
-#: cmd/snap/error.go:209
-#, c-format
-msgid "%s (try with sudo)"
-msgstr "%s (provoni me sudo)"
+msgstr "%s (consulta «snap help login»)"
 
 #: cmd/snap/cmd_snap_op.go:625
 #, c-format
 msgid "%s already installed\n"
-msgstr "%s e instaluar\n"
+msgstr "%s instaláu ya\n"
 
 #: cmd/snap/cmd_snap_op.go:1134
 #, c-format
 msgid "%s disabled\n"
-msgstr "%s e fikur\n"
+msgstr "%s desactiváu\n"
 
 #: cmd/snap/cmd_snap_op.go:1107
 #, c-format
 msgid "%s enabled\n"
-msgstr "%s e mundesuar\n"
+msgstr "%s activáu\n"
 
 #: cmd/snap/cmd_snap_op.go:204
 #, c-format
 msgid "%s not installed\n"
-msgstr "%s jo e instaluar\n"
+msgstr "%s ensin instalar\n"
 
 #: cmd/snap/cmd_snap_op.go:158 cmd/snap/cmd_snap_op.go:197
 #, c-format
 msgid "%s removed\n"
-msgstr "%s e hequr\n"
+msgstr "%s desaniciáu\n"
 
 #. TRANSLATORS: first %s is a snap name, second %s is a revision
 #: cmd/snap/cmd_snap_op.go:400
 #, c-format
 msgid "%s reverted to %s\n"
-msgstr "%s e kthyer ne %s\n"
-
-#: cmd/snap/cmd_snap_op.go:370
-#, c-format
-msgid ""
-"%s was not found in your $PATH. If you've not restarted your session since "
-"you installed snapd, try doing that. Please see https://forum.snapcraft.io/"
-"t/9469 for more details."
-msgstr ""
-"%s nuk eshte gjetur ne $PATH tuaj. Nese nuk e keni rifilluar sesionin tuaje "
-"qe nga instalimi i snapd, provoni ta beni. Ju lutem shikoni ttps://forum."
-"snapcraft.io/t/9469 per me shume detaje."
+msgstr "%s revertíu a %s\n"
 
 #. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice installed")
 #: cmd/snap/cmd_snap_op.go:385
 #, c-format
 msgid "%s%s %s from %s installed\n"
-msgstr "%s%s %s nga %s e instaluar\n"
+msgstr "Instalóse  %s%s %s por %s\n"
 
 #. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice refreshed")
 #: cmd/snap/cmd_snap_op.go:393
 #, c-format
 msgid "%s%s %s from %s refreshed\n"
-msgstr "%s%s %s nga %s e rifreskuar\n"
+msgstr "Refrescóse %s%s %s por %s\n"
 
 #. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 #: cmd/snap/cmd_snap_op.go:388
 #, c-format
 msgid "%s%s %s installed\n"
-msgstr "%s%s %s e instaluar\n"
+msgstr "%s%s %s instaláu\n"
 
 #. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
 #: cmd/snap/cmd_snap_op.go:396
 #, c-format
 msgid "%s%s %s refreshed\n"
-msgstr "%s%s %s  e rifreskuar\n"
-
-#. TRANSLATORS: the %s is the argument given by the user to 'snap changes'
-#: cmd/snap/cmd_changes.go:91
-#, c-format
-msgid "'snap changes' command expects a snap name, try 'snap tasks %s'"
-msgstr "'snap e ndryshuar' komanda pret nje emer snap provoni 'snap tasks %s'"
-
-#: cmd/snap/cmd_interfaces.go:77
-msgid "'snap interfaces' is deprecated; use 'snap connections'."
-msgstr "'snap ndervepruesi' eshte e papelqyer; perdor 'lidhjet snap'."
-
-#: cmd/snap/cmd_snap_op.go:850
-msgid "--list does not accept additional arguments"
-msgstr "--lista nuk pranon argumenta shtese"
-
-#: cmd/snap/cmd_snap_op.go:843
-msgid "--time does not take mode or channel flags"
-msgstr "--koha nuk merr menyre ose kanal te sinjalit"
-
-#: cmd/snap/cmd_run.go:233
-msgid "-r can only be used with --hook"
-msgstr "-r mund te perdoret vetem me --hook"
+msgstr "%s%s %s actualizáu\n"
 
 #: cmd/snap/cmd_help.go:208
 msgid "...more"
-msgstr "...me shume"
+msgstr "...más"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #: cmd/snap/cmd_unalias.go:47
 msgid "<alias-or-snap>"
-msgstr "<alias-ose-snap>"
+msgstr "<alias-o-snap>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #: cmd/snap/cmd_alias.go:58
 msgid "<alias>"
-msgstr "<alias>"
+msgstr "<alcuñu>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #: cmd/snap/cmd_ack.go:56
 msgid "<assertion file>"
-msgstr "<poho skedat>"
+msgstr "<ficheru d'afirmación>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #: cmd/snap/cmd_known.go:66
 msgid "<assertion type>"
-msgstr "<lloji i pohimit>"
+msgstr "<triba d'afirmación>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #: cmd/snap/last.go:46
 msgid "<change-id>"
-msgstr "<ndrysho-id>"
+msgstr "<camudar-id>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #: cmd/snap/cmd_advise.go:78
 msgid "<command or pkg>"
-msgstr "<komand or pkg>"
+msgstr "<comandu o pkg>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #: cmd/snap/cmd_unset.go:58
 msgid "<conf key>"
-msgstr "<conf celes>"
+msgstr "<clave conf>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #: cmd/snap/cmd_set.go:74
 msgid "<conf value>"
-msgstr "<conf vleren>"
+msgstr "<valor conf>"
 
 #. TRANSLATORS: This is a noun, and it needs to begin with < and end with >
 #. TRANSLATORS: This is a noun and it needs to begin with < and end with >
 #: cmd/snap/cmd_login.go:62 cmd/snap/cmd_create_user.go:65
 msgid "<email>"
-msgstr "<emaili>"
+msgstr "<email>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #. TRANSLATORS: This should retain < ... >. The file name is the name of an exported snapshot.
@@ -237,17 +186,12 @@ msgstr "<emaili>"
 #: cmd/snap/cmd_sign.go:60 cmd/snap/cmd_snapshot.go:415
 #: cmd/snap/cmd_sign_build.go:71
 msgid "<filename>"
-msgstr "<emri i skedes>"
+msgstr "<nomedeficheru>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #: cmd/snap/cmd_known.go:71
 msgid "<header filter>"
-msgstr "<filtruesi artikullit>"
-
-#. TRANSLATORS: This needs to begin with < and end with >
-#: cmd/snap/cmd_interface.go:62
-msgid "<interface>"
-msgstr "<ndervepruesi>"
+msgstr "<peñera testera>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #. TRANSLATORS: This needs to begin with < and end with >
@@ -255,30 +199,46 @@ msgstr "<ndervepruesi>"
 #: cmd/snap/cmd_delete_key.go:49 cmd/snap/cmd_export_key.go:53
 #: cmd/snap/cmd_create_key.go:49
 msgid "<key-name>"
-msgstr "<emri-i-celesit>"
+msgstr "<nome-clave>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #. TRANSLATORS: This needs to begin with < and end with >
 #: cmd/snap/cmd_get.go:82 cmd/snap/cmd_wait.go:55
 msgid "<key>"
-msgstr "<celesi>"
+msgstr "<clave>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #: cmd/snap/cmd_prepare_image.go:101
 msgid "<model-assertion>"
-msgstr "<modeli-i-poimit>"
+msgstr "<afirmación-modelu>"
 
 #. TRANSLATORS: this describes the default filename for a snap, e.g. core_16-2.35.2_amd64.snap
 #: cmd/snap/cmd_pack.go:88
 msgid "<name>_<version>_<architecture>.snap"
-msgstr "<emri>_<version>_<arkitektura>.snap"
+msgstr "<nome>_<versión>_<arquitectura>.snap"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #: cmd/snap/cmd_remodel.go:57
 msgid "<new model file>"
-msgstr "<moddeli i ri i skedes>"
+msgstr "<ficheru de modelu nuevu>"
 
-#. TRANSLATORS: this is used to introduce a list of aliases that were added
-#: cmd/snap/cmd_alias.go:102
-msgid "Added"
-msgstr "U Shtua"
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_find.go:175
+msgid "<query>"
+msgstr "<consulta>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_services.go:82
+msgid "<service>"
+msgstr "<serviciu>"
+
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#: cmd/snap/cmd_disconnect.go:65 cmd/snap/cmd_connect.go:62
+msgid "<snap>:<plug>"
+msgstr "<snap>:<enchufe>"
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "years" in e.g. 1y45d
+#: strutil/quantity/quantity.go:111
+msgid "y"
+msgstr "a"
