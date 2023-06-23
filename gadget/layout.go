@@ -503,9 +503,8 @@ func isLayoutCompatible(current, new *Volume) error {
 	if current.ID != new.ID {
 		return fmt.Errorf("incompatible ID change from %v to %v", current.ID, new.ID)
 	}
-	if current.Schema != new.Schema {
-		return fmt.Errorf("incompatible schema change from %v to %v",
-			current.Schema, new.Schema)
+	if err := checkCompatibleSchema(current, new); err != nil {
+		return err
 	}
 	if current.Bootloader != new.Bootloader {
 		return fmt.Errorf("incompatible bootloader change from %v to %v",

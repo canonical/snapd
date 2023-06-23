@@ -1186,7 +1186,7 @@ func validateVolume(vol *Volume) error {
 	if !validVolumeName.MatchString(vol.Name) {
 		return errors.New("invalid name")
 	}
-	if vol.Schema != "" && vol.Schema != schemaGPT && vol.Schema != schemaMBR {
+	if !vol.HasPartial(PartialSchema) && vol.Schema != schemaGPT && vol.Schema != schemaMBR {
 		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
@@ -1411,9 +1411,6 @@ func validateStructureType(s string, vol *Volume) error {
 		}
 	} else {
 		schema := vol.Schema
-		if schema == "" {
-			schema = schemaGPT
-		}
 		if schema != schemaGPT && isGPT {
 			// type: <uuid> is only valid for GPT volumes
 			return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
@@ -1600,6 +1597,22 @@ func IsCompatible(current, new *Info) error {
 
 	if err := isLayoutCompatible(currentVol, newVol); err != nil {
 		return fmt.Errorf("incompatible layout change: %v", err)
+	}
+	return nil
+}
+
+// checkCompatibleSchema checks if the schema in a new volume we are
+// updating to is compatible with the old volume.
+func checkCompatibleSchema(old, new *Volume) error {
+	// If old schema is partial, any schema in new will be fine
+	if !old.HasPartial(PartialSchema) {
+		if new.HasPartial(PartialSchema) {
+			return fmt.Errorf("new schema is partial, while old was not")
+		}
+		if old.Schema != new.Schema {
+			return fmt.Errorf("incompatible schema change from %v to %v",
+				old.Schema, new.Schema)
+		}
 	}
 	return nil
 }

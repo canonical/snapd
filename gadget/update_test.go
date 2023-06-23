@@ -521,6 +521,9 @@ func (u *updateTestSuite) TestCanUpdateOffsetRange(c *C) {
 }
 
 func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
+	mbrVol := &gadget.Volume{Schema: "mbr"}
+	mbrLaidOut := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{EnclosingVolume: mbrVol}}
 
 	for idx, tc := range []struct {
 		from gadget.PartiallyLaidOutVolume
@@ -532,9 +535,9 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 				Volume: &gadget.Volume{Schema: "gpt"},
 			},
 			to: gadget.LaidOutVolume{
-				Volume: &gadget.Volume{Schema: "mbr"},
+				Volume: mbrVol,
 			},
-			err: `cannot change volume schema from "gpt" to "mbr"`,
+			err: `incompatible schema change from gpt to mbr`,
 		}, {
 			from: gadget.PartiallyLaidOutVolume{
 				Volume: &gadget.Volume{ID: "00000000-0000-0000-0000-0000deadbeef"},
@@ -560,15 +563,15 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 		}, {
 			// valid
 			from: gadget.PartiallyLaidOutVolume{
-				Volume: &gadget.Volume{Schema: "mbr"},
+				Volume: mbrVol,
 				LaidOutStructure: []gadget.LaidOutStructure{
-					{}, {},
+					*mbrLaidOut, *mbrLaidOut,
 				},
 			},
 			to: gadget.LaidOutVolume{
-				Volume: &gadget.Volume{Schema: "mbr"},
+				Volume: mbrVol,
 				LaidOutStructure: []gadget.LaidOutStructure{
-					{}, {},
+					*mbrLaidOut, *mbrLaidOut,
 				},
 			},
 			err: ``,
