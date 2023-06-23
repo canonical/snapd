@@ -1204,7 +1204,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 		// hybrid, partially lowercase UUID
 		{"EF,aa686148-6449-6e6f-744E-656564454649", "", ""},
 		// GPT UUID, partially lowercase
-		{"aa686148-6449-6e6f-744E-656564454649", "", ""},
+		{"aa686148-6449-6e6f-744E-656564454649", "", "gpt"},
 		// no type specified
 		{"", `invalid type "": type is not specified`, ""},
 		// plain MBR type without mbr schema
@@ -1231,7 +1231,8 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 	} {
 		c.Logf("tc: %v %q", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s, Size: 123, EnclosingVolume: &gadget.Volume{}}, &gadget.Volume{Schema: tc.schema})
+		vol := &gadget.Volume{Schema: tc.schema}
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s, Size: 123, EnclosingVolume: vol}, vol)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1318,7 +1319,7 @@ size: 446`
 	legacyTypeAsMBRTooLarge := `
 type: mbr
 size: 447`
-	vol := &gadget.Volume{}
+	vol := &gadget.Volume{Schema: "gpt"}
 	mbrVol := &gadget.Volume{Schema: "mbr"}
 	for i, tc := range []struct {
 		s   *gadget.VolumeStructure
@@ -1361,6 +1362,7 @@ size: 447`
 }
 
 func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
+	vol := &gadget.Volume{Schema: "gpt"}
 	for i, tc := range []struct {
 		s   string
 		err string
@@ -1372,7 +1374,7 @@ func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649", Size: 123, EnclosingVolume: &gadget.Volume{}}, &gadget.Volume{})
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649", Size: 123, EnclosingVolume: vol}, vol)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1388,9 +1390,9 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
 	}{
 		{"gpt", ""},
 		{"mbr", ""},
-		// implicit GPT
-		{"", ""},
 		// invalid
+		// A bit redundant it is always set in setImplicitForVolume
+		{"", `invalid schema ""`},
 		{"some", `invalid schema "some"`},
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
@@ -1402,6 +1404,11 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
 			c.Check(err, IsNil)
 		}
 	}
+}
+
+func (s *gadgetYamlTestSuite) TestValidateVolumePartialSchema(c *C) {
+	err := gadget.ValidateVolume(&gadget.Volume{Name: "name", Schema: "", Partial: []gadget.PartialProperty{gadget.PartialSchema}})
+	c.Check(err, IsNil)
 }
 
 func (s *gadgetYamlTestSuite) TestValidateVolumeSchemaNotOverlapWithGPT(c *C) {
@@ -1468,7 +1475,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolume(&gadget.Volume{Name: tc.s})
+		err := gadget.ValidateVolume(&gadget.Volume{Name: tc.s, Schema: "gpt"})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1478,13 +1485,16 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
-	err := gadget.ValidateVolume(&gadget.Volume{
-		Name: "name",
+	vol := &gadget.Volume{
+		Name:   "name",
+		Schema: "gpt",
 		Structure: []gadget.VolumeStructure{
-			{Name: "duplicate", Type: "bare", Size: 1024, Offset: asOffsetPtr(24576), EnclosingVolume: &gadget.Volume{}},
-			{Name: "duplicate", Type: "21686148-6449-6E6F-744E-656564454649", Size: 2048, Offset: asOffsetPtr(24576), EnclosingVolume: &gadget.Volume{}},
+			{Name: "duplicate", Type: "bare", Size: 1024, Offset: asOffsetPtr(24576)},
+			{Name: "duplicate", Type: "21686148-6449-6E6F-744E-656564454649", Size: 2048, Offset: asOffsetPtr(24576)},
 		},
-	})
+	}
+	gadget.SetEnclosingVolumeInStructs(map[string]*gadget.Volume{"pc": vol})
+	err := gadget.ValidateVolume(vol)
 	c.Assert(err, ErrorMatches, `structure name "duplicate" is not unique`)
 }
 
@@ -1562,30 +1572,39 @@ volumes:
 }
 
 func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
-	err := gadget.ValidateVolume(&gadget.Volume{
-		Name: "name",
+	vol := &gadget.Volume{
+		Name:   "name",
+		Schema: "gpt",
 		Structure: []gadget.VolumeStructure{
-			{Type: "bare", Size: 1024, Offset: asOffsetPtr(24576), EnclosingVolume: &gadget.Volume{}},
-			{Type: "bogus", Size: 1024, Offset: asOffsetPtr(24576), EnclosingVolume: &gadget.Volume{}},
+			{Type: "bare", Size: 1024, Offset: asOffsetPtr(24576)},
+			{Type: "bogus", Size: 1024, Offset: asOffsetPtr(24576)},
 		},
-	})
+	}
+	gadget.SetEnclosingVolumeInStructs(map[string]*gadget.Volume{"pc": vol})
+	err := gadget.ValidateVolume(vol)
 	c.Assert(err, ErrorMatches, `invalid structure #1: invalid type "bogus": invalid format`)
 
-	err = gadget.ValidateVolume(&gadget.Volume{
-		Name: "name",
+	vol = &gadget.Volume{
+		Name:   "name",
+		Schema: "gpt",
 		Structure: []gadget.VolumeStructure{
-			{Type: "bare", Size: 1024, Offset: asOffsetPtr(24576), EnclosingVolume: &gadget.Volume{}},
-			{Type: "bogus", Size: 1024, Name: "foo", Offset: asOffsetPtr(24576), EnclosingVolume: &gadget.Volume{}},
+			{Type: "bare", Size: 1024, Offset: asOffsetPtr(24576)},
+			{Type: "bogus", Size: 1024, Name: "foo", Offset: asOffsetPtr(24576)},
 		},
-	})
+	}
+	gadget.SetEnclosingVolumeInStructs(map[string]*gadget.Volume{"pc": vol})
+	err = gadget.ValidateVolume(vol)
 	c.Assert(err, ErrorMatches, `invalid structure #1 \("foo"\): invalid type "bogus": invalid format`)
 
-	err = gadget.ValidateVolume(&gadget.Volume{
-		Name: "name",
+	vol = &gadget.Volume{
+		Name:   "name",
+		Schema: "gpt",
 		Structure: []gadget.VolumeStructure{
-			{Type: "bare", Name: "foo", Size: 1024, Offset: asOffsetPtr(24576), Content: []gadget.VolumeContent{{UnresolvedSource: "foo"}}, EnclosingVolume: &gadget.Volume{}},
+			{Type: "bare", Name: "foo", Size: 1024, Offset: asOffsetPtr(24576), Content: []gadget.VolumeContent{{UnresolvedSource: "foo"}}},
 		},
-	})
+	}
+	gadget.SetEnclosingVolumeInStructs(map[string]*gadget.Volume{"pc": vol})
+	err = gadget.ValidateVolume(vol)
 	c.Assert(err, ErrorMatches, `invalid structure #0 \("foo"\): invalid content #0: cannot use non-image content for bare file system`)
 }
 
@@ -1658,7 +1677,7 @@ content:
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(tc.s, &gadget.Volume{})
+		err := gadget.ValidateVolumeStructure(tc.s, &gadget.Volume{Schema: "gpt"})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1697,13 +1716,13 @@ volumes:
 }
 
 func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C) {
-	gv := &gadget.Volume{}
+	gv := &gadget.Volume{Schema: "gpt"}
 
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:            "bare",
 		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
 		Size:            512,
-		EnclosingVolume: &gadget.Volume{},
+		EnclosingVolume: gv,
 	}, gv)
 	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
 
@@ -1711,7 +1730,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C)
 		Type:            "21686148-6449-6E6F-744E-656564454649",
 		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
 		Size:            512,
-		EnclosingVolume: &gadget.Volume{},
+		EnclosingVolume: gv,
 	}, gv)
 	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
 
@@ -1720,20 +1739,20 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C)
 		Filesystem:      "vfat",
 		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
 		Size:            512,
-		EnclosingVolume: &gadget.Volume{},
+		EnclosingVolume: gv,
 	}, gv)
 	c.Check(err, IsNil)
 }
 
 func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C) {
-	gv := &gadget.Volume{}
+	gv := &gadget.Volume{Schema: "gpt"}
 
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:            "21686148-6449-6E6F-744E-656564454649",
 		Filesystem:      "vfat",
 		Update:          gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar"}},
 		Size:            512,
-		EnclosingVolume: &gadget.Volume{},
+		EnclosingVolume: gv,
 	}, gv)
 	c.Check(err, IsNil)
 
@@ -1742,19 +1761,19 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C
 		Filesystem:      "vfat",
 		Update:          gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar", "foo"}},
 		Size:            512,
-		EnclosingVolume: &gadget.Volume{},
+		EnclosingVolume: gv,
 	}, gv)
 	c.Check(err, ErrorMatches, `duplicate "preserve" entry "foo"`)
 }
 
 func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 
-	gv := &gadget.Volume{}
+	gv := &gadget.Volume{Schema: "gpt"}
 
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:            "bare",
 		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
-		EnclosingVolume: &gadget.Volume{},
+		EnclosingVolume: gv,
 	}, gv)
 	c.Check(err, ErrorMatches, "missing size")
 
@@ -1762,7 +1781,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 		Type:            "21686148-6449-6E6F-744E-656564454649",
 		Filesystem:      "vfat",
 		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
-		EnclosingVolume: &gadget.Volume{},
+		EnclosingVolume: gv,
 	}, gv)
 	c.Check(err, ErrorMatches, "missing size")
 
@@ -1771,7 +1790,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 		Filesystem:      "vfat",
 		Size:            mustParseGadgetSize(c, "123M"),
 		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
-		EnclosingVolume: &gadget.Volume{},
+		EnclosingVolume: gv,
 	}, gv)
 	c.Check(err, IsNil)
 
@@ -1781,7 +1800,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 		MinSize:         mustParseGadgetSize(c, "10M"),
 		Size:            mustParseGadgetSize(c, "123M"),
 		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
-		EnclosingVolume: &gadget.Volume{},
+		EnclosingVolume: gv,
 	}, gv)
 	c.Check(err, IsNil)
 }
@@ -4837,12 +4856,51 @@ volumes:
 	c.Assert(err, IsNil)
 }
 
-func (s *gadgetCompatibilityTestSuite) TestPartialGadgetIsCompatible(c *C) {
-	gi1, err := gadget.InfoFromGadgetYaml([]byte(mockPartialGadgetYaml), coreMod)
+func newPartialGadgetYaml(c *C) *gadget.Info {
+	gi, err := gadget.InfoFromGadgetYaml([]byte(mockPartialGadgetYaml), coreMod)
 	c.Assert(err, IsNil)
-	gi2, err := gadget.InfoFromGadgetYaml([]byte(mockPartialGadgetYaml), coreMod)
-	c.Assert(err, IsNil)
+	return gi
+}
 
+func (s *gadgetCompatibilityTestSuite) TestPartialGadgetIsCompatible(c *C) {
+	gi1 := newPartialGadgetYaml(c)
+	gi2 := newPartialGadgetYaml(c)
+
+	// self-compatible
+	err := gadget.IsCompatible(gi1, gi2)
+	c.Check(err, IsNil)
+
+	// from partial schema to defined is ok
+	gi1 = newPartialGadgetYaml(c)
+	gi2 = newPartialGadgetYaml(c)
+	gi2.Volumes["pc"].Partial = []gadget.PartialProperty{gadget.PartialStructure, gadget.PartialFilesystem, gadget.PartialSize}
+	gi2.Volumes["pc"].Schema = "gpt"
+	err = gadget.IsCompatible(gi1, gi2)
+	c.Check(err, IsNil)
+
+	// from defined to partial schema is not
+	gi1 = newPartialGadgetYaml(c)
+	gi1.Volumes["pc"].Partial = []gadget.PartialProperty{gadget.PartialStructure, gadget.PartialFilesystem, gadget.PartialSize}
+	gi1.Volumes["pc"].Schema = "gpt"
+	gi2 = newPartialGadgetYaml(c)
+	err = gadget.IsCompatible(gi1, gi2)
+	c.Check(err.Error(), Equals, "incompatible layout change: new schema is partial, while old was not")
+
+	// set filesystems in new
+	gi1 = newPartialGadgetYaml(c)
+	gi2 = newPartialGadgetYaml(c)
+	gi2.Volumes["pc"].Partial = []gadget.PartialProperty{gadget.PartialStructure, gadget.PartialSchema, gadget.PartialSize}
+	for istr := range gi2.Volumes["pc"].Structure {
+		gi2.Volumes["pc"].Structure[istr].Filesystem = "ext4"
+	}
+	err = gadget.IsCompatible(gi1, gi2)
+	c.Check(err, IsNil)
+
+	// set missing sizes in new
+	gi1 = newPartialGadgetYaml(c)
+	gi2 = newPartialGadgetYaml(c)
+	gi2.Volumes["pc"].Partial = []gadget.PartialProperty{gadget.PartialStructure, gadget.PartialFilesystem, gadget.PartialSchema}
+	gi2.Volumes["pc"].Structure[0].Size = quantity.SizeMiB
 	err = gadget.IsCompatible(gi1, gi2)
 	c.Check(err, IsNil)
 }

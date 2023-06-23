@@ -1528,8 +1528,8 @@ func canUpdateVolume(from *PartiallyLaidOutVolume, to *LaidOutVolume) error {
 	if from.ID != to.ID {
 		return fmt.Errorf("cannot change volume ID from %q to %q", from.ID, to.ID)
 	}
-	if from.Schema != to.Schema {
-		return fmt.Errorf("cannot change volume schema from %q to %q", from.Schema, to.Schema)
+	if err := checkCompatibleSchema(from.Volume, to.Volume); err != nil {
+		return err
 	}
 	if len(from.LaidOutStructure) != len(to.LaidOutStructure) {
 		return fmt.Errorf("cannot change the number of structures within volume from %v to %v", len(from.LaidOutStructure), len(to.LaidOutStructure))
