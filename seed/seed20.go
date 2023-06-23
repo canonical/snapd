@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -342,6 +343,7 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 
 	var path string
 	var sideInfo *snap.SideInfo
+	var integrityData *integrity.IntegrityData
 	if optSnap != nil && optSnap.Unasserted != "" {
 		path = filepath.Join(s.systemDir, "snaps", optSnap.Unasserted)
 		info, err := readInfo(path, nil)
@@ -366,6 +368,16 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, essType, handler, snapsDir, tm)
 			if err == nil {
 				sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
+
+				integrityData, err = integrity.FindIntegrityData(path)
+				if err == nil {
+					err = integrityData.Validate(*snapRev)
+				}
+
+				// Ignore errors when trying to find and validate integrity data if grade is not secured
+				if s.model.Grade() != asserts.ModelSecured {
+					err = nil
+				}
 			}
 		})
 		if err != nil {
@@ -387,6 +399,8 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 		SideInfo: sideInfo,
 
 		Channel: channel,
+
+		IntegrityData: integrityData,
 	}, nil
 }
 

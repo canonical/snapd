@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -56,6 +57,8 @@ type Snap struct {
 	Channel string
 	DevMode bool
 	Classic bool
+
+	IntegrityData *integrity.IntegrityData
 }
 
 func (s *Snap) SnapName() string {
