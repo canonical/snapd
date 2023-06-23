@@ -1252,6 +1252,8 @@ func (s *backendSuite) writeVanillaSnapConfineProfile(c *C, coreOrSnapdInfo *sna
 	vanillaProfilePath := filepath.Join(coreOrSnapdInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
 	vanillaProfileText := []byte(`#include <tunables/global>
 /usr/lib/snapd/snap-confine (attach_disconnected) {
+    #include "/var/lib/snapd/apparmor/snap-confine"
+
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
     /etc/ld.so.cache r,
@@ -1271,11 +1273,13 @@ func (s *backendSuite) TestSnapConfineProfile(c *C) {
 	expectedProfileGlob := "snap-confine.core.*"
 	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
 %s/usr/lib/snapd/snap-confine (attach_disconnected) {
+    #include "%s/var/lib/snapd/apparmor/snap-confine"
+
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
     /etc/ld.so.cache r,
 }
-`, coreInfo.MountDir())
+`, coreInfo.MountDir(), dirs.GlobalRootDir)
 
 	c.Assert(expectedProfileName, testutil.Contains, coreInfo.Revision.String())
 
@@ -1306,11 +1310,13 @@ func (s *backendSuite) TestSnapConfineProfileFromSnapdSnap(c *C) {
 	expectedProfileGlob := "snap-confine.snapd.222"
 	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
 %s/usr/lib/snapd/snap-confine (attach_disconnected) {
+    #include "%s/var/lib/snapd/apparmor/snap-confine"
+
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
     /etc/ld.so.cache r,
 }
-`, snapdInfo.MountDir())
+`, snapdInfo.MountDir(), dirs.GlobalRootDir)
 
 	c.Assert(expectedProfileName, testutil.Contains, snapdInfo.Revision.String())
 
@@ -1325,6 +1331,21 @@ func (s *backendSuite) TestSnapConfineProfileFromSnapdSnap(c *C) {
 			Mode:    0644,
 		},
 	})
+}
+
+func (s *backendSuite) TestSnapConfineProfileUsesSandboxSnapConfineDir(c *C) {
+	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(222)})
+	s.writeVanillaSnapConfineProfile(c, snapdInfo)
+	expectedProfileName := "snap-confine.snapd.222"
+
+	// Compute the profile and see that it replaces
+	// "/var/lib/snapd/apparmor/snap-confine" with the
+	// apparmor_sandbox.SnapConfineAppArmorDir dir
+	apparmor_sandbox.SnapConfineAppArmorDir = "/apparmor/sandbox/dir"
+	_, _, content, err := apparmor.SnapConfineFromSnapProfile(snapdInfo)
+	c.Assert(err, IsNil)
+	contentStr := string(content[expectedProfileName].(*osutil.MemoryFileState).Content)
+	c.Check(contentStr, testutil.Contains, `   #include "/apparmor/sandbox/dir"`)
 }
 
 func (s *backendSuite) TestSnapConfineFromSnapProfileCreatesAllDirs(c *C) {
@@ -1384,11 +1405,13 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	// No other changes other than that to the input
 	c.Check(newAA[0], testutil.FileEquals, fmt.Sprintf(`#include <tunables/global>
 %s/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {
+    #include "%s/var/lib/snapd/apparmor/snap-confine"
+
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
     /etc/ld.so.cache r,
 }
-`, dirs.SnapMountDir))
+`, dirs.SnapMountDir, dirs.GlobalRootDir))
 
 	c.Check(s.loadProfilesCalls, DeepEquals, []loadProfilesParams{
 		{[]string{newAA[0]}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir), 0},
