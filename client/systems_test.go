@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -281,7 +280,7 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
 				{Name: "mbr", Type: "mbr", Size: 440},
 			},
 		}}
-	gadgettest.SetEnclosingVolumeInStructs(vols)
+	gadget.SetEnclosingVolumeInStructs(vols)
 	c.Check(sys, check.DeepEquals, &client.SystemDetails{
 		Current: true,
 		Label:   "20200101",

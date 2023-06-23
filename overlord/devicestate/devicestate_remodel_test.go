@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -1545,7 +1544,7 @@ volumes:
 			},
 			RootDir: currentGadgetInfo.MountDir(),
 		}
-		gadgettest.SetEnclosingVolumeInStructs(gd.Info.Volumes)
+		gadget.SetEnclosingVolumeInStructs(gd.Info.Volumes)
 		c.Check(current, DeepEquals, gd)
 		gd = gadget.GadgetData{
 			Info: &gadget.Info{
@@ -1583,7 +1582,7 @@ volumes:
 			},
 			RootDir: newGadgetInfo.MountDir(),
 		}
-		gadgettest.SetEnclosingVolumeInStructs(gd.Info.Volumes)
+		gadget.SetEnclosingVolumeInStructs(gd.Info.Volumes)
 		c.Check(update, DeepEquals, gd)
 		return nil
 	})

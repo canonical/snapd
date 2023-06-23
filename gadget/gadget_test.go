@@ -865,7 +865,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 			},
 		},
 	}
-	gadgettest.SetEnclosingVolumeInStructs(expectedgi.Volumes)
+	gadget.SetEnclosingVolumeInStructs(expectedgi.Volumes)
 	c.Assert(ginfo, DeepEquals, expectedgi)
 	checkEnclosingPointsToVolume(c, ginfo.Volumes)
 }
@@ -937,7 +937,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 			},
 		},
 	}
-	gadgettest.SetEnclosingVolumeInStructs(expectedgi.Volumes)
+	gadget.SetEnclosingVolumeInStructs(expectedgi.Volumes)
 	c.Assert(ginfo, DeepEquals, expectedgi)
 	checkEnclosingPointsToVolume(c, ginfo.Volumes)
 }
@@ -1061,7 +1061,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 			},
 		},
 	}
-	gadgettest.SetEnclosingVolumeInStructs(expectedgi.Volumes)
+	gadget.SetEnclosingVolumeInStructs(expectedgi.Volumes)
 	c.Assert(ginfo, DeepEquals, expectedgi)
 	checkEnclosingPointsToVolume(c, ginfo.Volumes)
 }
@@ -4835,4 +4835,14 @@ volumes:
 	// between structures, but is left as a safeguard.
 	_, err := gadget.InfoFromGadgetYaml(yaml, nil)
 	c.Assert(err, IsNil)
+}
+
+func (s *gadgetCompatibilityTestSuite) TestPartialGadgetIsCompatible(c *C) {
+	gi1, err := gadget.InfoFromGadgetYaml([]byte(mockPartialGadgetYaml), coreMod)
+	c.Assert(err, IsNil)
+	gi2, err := gadget.InfoFromGadgetYaml([]byte(mockPartialGadgetYaml), coreMod)
+	c.Assert(err, IsNil)
+
+	err = gadget.IsCompatible(gi1, gi2)
+	c.Check(err, IsNil)
 }
