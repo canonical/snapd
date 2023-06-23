@@ -235,6 +235,12 @@ execute: |
     echo "Ensure we restarted into the snapd snap"
     "$TESTSTOOLS"/journal-state match-log  'restarting into "/snap/snapd/'
 
+    # see LP:2024637
+    if grep -q /var/lib/snapd/apparmor/ /lib/apparmor/functions; then
+       echo "SKIP: cannot test buildin apparmor parser until /lib/apparmor/functions stops loading the snapd profiles"
+       exit 0
+    fi
+
     echo "Ensure sandbox-features shows the internal apparmor_parser"
     snap debug sandbox-features --required apparmor:parser:snapd-internal
 
