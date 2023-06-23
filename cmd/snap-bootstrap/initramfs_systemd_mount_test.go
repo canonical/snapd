@@ -182,6 +182,18 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			isMountedReturns: []bool{true},
 			comment:          "happy ro",
 		},
+		{
+			what:  "/run/mnt/data/some.snap",
+			where: "/run/mnt/base",
+			opts: &main.SystemdMountOptions{
+				VerityHashDevice: "test.verity",
+				VerityRootHash:   "00000000000000000000000000000000",
+				VerityHashOffset: 4096,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy with attached dm-verity data",
+		},
 	}
 
 	for _, t := range tt {
@@ -263,6 +275,9 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			foundBind := false
 			foundReadOnly := false
 			foundPrivate := false
+			foundVerityHashDevice := false
+			foundVerityRootHash := false
+			foundVerityHashOffset := false
 
 			for _, arg := range call[len(args):] {
 				switch {
@@ -278,15 +293,21 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					foundBeforeInitrdfsTarget = true
 				case strings.HasPrefix(arg, "--options="):
 					for _, opt := range strings.Split(strings.TrimPrefix(arg, "--options="), ",") {
-						switch opt {
-						case "nosuid":
+						switch opt := opt; {
+						case opt == "nosuid":
 							foundNoSuid = true
-						case "bind":
+						case opt == "bind":
 							foundBind = true
-						case "ro":
+						case opt == "ro":
 							foundReadOnly = true
-						case "private":
+						case opt == "private":
 							foundPrivate = true
+						case strings.HasPrefix(opt, "verity.hashdevice"):
+							foundVerityHashDevice = true
+						case strings.HasPrefix(opt, "verity.roothash"):
+							foundVerityRootHash = true
+						case strings.HasPrefix(opt, "verity.hashoffset"):
+							foundVerityHashOffset = true
 						default:
 							c.Logf("Option '%s' unexpected", opt)
 							c.Fail()
@@ -306,6 +327,9 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			c.Assert(foundBind, Equals, opts.Bind)
 			c.Assert(foundReadOnly, Equals, opts.ReadOnly)
 			c.Assert(foundPrivate, Equals, opts.Private)
+			c.Assert(foundVerityHashDevice, Equals, len(opts.VerityHashDevice) > 0)
+			c.Assert(foundVerityRootHash, Equals, len(opts.VerityRootHash) > 0)
+			c.Assert(foundVerityHashOffset, Equals, opts.VerityHashOffset > 0)
 
 			// check that the overrides are present if opts.Ephemeral is false,
 			// or check the overrides are not present if opts.Ephemeral is true
