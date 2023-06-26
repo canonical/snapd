@@ -380,7 +380,7 @@ func TaskWaitForRestart(t *state.Task) error {
 // does an immediate restart of the snapd daemon, depending on the type of restart
 // provided.
 // For SystemRestart and friends, the restart is scheduled and postponed until the
-// change has run out of tasks to do, and is then performed in RequestRestartForChange.
+// change has run out of tasks to do, and is then performed in processRestartForChange.
 // For tasks that request restarts as a part of their undo, any tasks that previously scheduled
 // restarts as a part of their 'do' will be unscheduled.
 func FinishTaskWithRestart(t *state.Task, snapName string, status state.Status, restartType RestartType, rebootInfo *boot.RebootInfo) error {
@@ -444,7 +444,7 @@ func changeRestartInfo(chg *state.Change) (*RestartContext, error) {
 	return &rt, nil
 }
 
-func requestRestartForChange(chg *state.Change) error {
+func processRestartForChange(chg *state.Change) error {
 	var rt RestartContext
 	if err := chg.Get("restart-info", &rt); err != nil {
 		if errors.Is(err, &state.NoStateError{}) {
@@ -466,7 +466,7 @@ func checkRestartRequiredForChange(chg *state.Change) {
 	if chg.Status() != state.WaitStatus {
 		return
 	}
-	if err := requestRestartForChange(chg); err != nil {
+	if err := processRestartForChange(chg); err != nil {
 		logger.Noticef("failed to request restart: %v", err)
 	}
 }

@@ -23,7 +23,7 @@ import "github.com/snapcore/snapd/overlord/state"
 
 var (
 	ChangeRestartInfo       = changeRestartInfo
-	RequestRestartForChange = requestRestartForChange
+	ProcessRestartForChange = processRestartForChange
 )
 
 func RestartInfoMarkTaskForRestart(rt *RestartContext, task *state.Task, snapName string, status state.Status) {

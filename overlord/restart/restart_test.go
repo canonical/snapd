@@ -264,7 +264,7 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 			continue
 		}
 
-		// For system restarts, we also call the RequestRestartForChange to
+		// For system restarts, we also call the ProcessRestartForChange to
 		// make it trigger the restart.Request
 		if t.classic && t.final == state.UndoneStatus {
 			c.Check(task.Status(), Equals, state.UndoneStatus)
@@ -272,7 +272,7 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 			c.Check(task.Status(), Equals, state.WaitStatus)
 			c.Check(task.WaitedStatus(), Equals, t.final)
 		}
-		err = restart.RequestRestartForChange(chg)
+		err = restart.ProcessRestartForChange(chg)
 		c.Check(err, IsNil)
 
 		var waitBootID string
@@ -311,7 +311,7 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 	}
 }
 
-func (s *restartSuite) TestRequestRestartForChangeNoRebootInfo(c *C) {
+func (s *restartSuite) TestProcessRestartForChangeMissingRebootContext(c *C) {
 	st := state.New(nil)
 
 	st.Lock()
@@ -323,7 +323,7 @@ func (s *restartSuite) TestRequestRestartForChangeNoRebootInfo(c *C) {
 	chg.AddTask(t)
 	t.SetToWait(state.DoneStatus)
 
-	err := restart.RequestRestartForChange(chg)
+	err := restart.ProcessRestartForChange(chg)
 	c.Assert(err, ErrorMatches, `change 1 is waiting to continue but has not requested any reboots`)
 }
 
@@ -708,7 +708,7 @@ test "$DPKG_MAINTSCRIPT_NAME" = "postinst"
 	err := restart.FinishTaskWithRestart(s.t1, "some-snap", state.DoneStatus, restart.RestartSystem, nil)
 	c.Assert(err, IsNil)
 
-	err = restart.RequestRestartForChange(s.chg)
+	err = restart.ProcessRestartForChange(s.chg)
 	c.Assert(err, IsNil)
 
 	c.Check(mockNrr.Calls(), DeepEquals, [][]string{
@@ -727,7 +727,7 @@ func (s *notifyRebootRequiredSuite) TestFinishTaskWithRestartNotifiesRebootRequi
 	err := restart.FinishTaskWithRestart(s.t1, "some-snap", state.DoneStatus, restart.RestartSystem, nil)
 	c.Assert(err, IsNil)
 
-	err = restart.RequestRestartForChange(s.chg)
+	err = restart.ProcessRestartForChange(s.chg)
 	c.Assert(err, IsNil)
 
 	c.Check(mockNrr.Calls(), DeepEquals, [][]string{
