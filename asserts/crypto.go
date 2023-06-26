@@ -37,7 +37,8 @@ import (
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
-	"golang.org/x/crypto/sha3"
+	// be explicit about needing SHA3_384
+	_ "golang.org/x/crypto/sha3"
 )
 
 const (
@@ -186,7 +187,7 @@ func (opgPubKey openpgpPubKey) keyEncode(w io.Writer) error {
 }
 
 func newOpenPGPPubKey(intPubKey *packet.PublicKey) *openpgpPubKey {
-	h := sha3.New384()
+	h := crypto.SHA3_384.New()
 	h.Write(v1Header)
 	err := intPubKey.Serialize(h)
 	if err != nil {
