@@ -56,7 +56,7 @@ func (rt *RestartContext) setParameters(snapName string, restartType RestartType
 	rt.RebootInfo = rebootInfo
 }
 
-func (rt *RestartContext) Reboot(st *state.State) {
+func (rt *RestartContext) reboot(st *state.State) {
 	rt.Requested = true
 	rt.Waiters = nil
 	rt.RestoreWaiters = false

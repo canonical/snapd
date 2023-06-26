@@ -896,7 +896,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 // setting its status and requesting a restart.
 // It should usually be invoked returning its result immediately
 // from the caller.
-// It delegates the work to restart.RequestRestartForTask which decides
+// It delegates the work to restart.FinishTaskWithRestart which decides
 // on how the restart will be scheduled.
 func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.RestartType, rebootInfo *boot.RebootInfo) error {
 	var rebootRequiredSnap string
@@ -923,7 +923,7 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.Res
 			rt = restart.RestartSystemNow
 		}
 	}
-	return restart.RequestRestartForTask(task, rebootRequiredSnap, status, rt, rebootInfo)
+	return restart.FinishTaskWithRestart(task, rebootRequiredSnap, status, rt, rebootInfo)
 }
 
 // IsErrAndNotWait returns true if err is not nil and neither state.Wait, it is

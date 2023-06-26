@@ -99,7 +99,7 @@ func Manager(st *state.State, runner *state.TaskRunner, curBootID string, h Hand
 	}
 
 	st.RegisterPendingChangeByAttr("wait-for-system-restart", rm.PendingForSystemRestart)
-	runner.AddHook(checkRebootRequiredForChange, state.TaskExhaustion)
+	runner.AddHook(checkRestartRequiredForChange, state.TaskExhaustion)
 
 	return rm, nil
 }
@@ -315,7 +315,7 @@ func notifyRebootRequiredClassic(rebootRequiredSnap string) error {
 	return nil
 }
 
-// RestartIsPending checks if a restart is pending for a task using the restart manager.
+// RestartIsPending checks if a restart is pending for a change.
 func RestartIsPending(st *state.State, chg *state.Change) bool {
 	rm := restartManager(st, "internal error: cannot request a restart before RestartManager initialization")
 	return rm.PendingForSystemRestart(chg)
@@ -344,8 +344,7 @@ func ReplaceBootID(st *state.State, bootID string) {
 }
 
 // TaskWaitForRestart can be used for tasks that need to wait for a pending
-// restart to occur. The task will then be restored to the provided status
-// after the reboot, and then re-run.
+// restart to occur. The task will then be re-run after the restart has occurred.
 func TaskWaitForRestart(t *state.Task) error {
 	chg := t.Change()
 	rt, err := changeRestartInfo(chg)
@@ -377,14 +376,14 @@ func TaskWaitForRestart(t *state.Task) error {
 	return err
 }
 
-// RequestRestartForTask either schedules a restart for the given task or it
+// FinishTaskWithRestart either schedules a restart for the given task or it
 // does an immediate restart of the snapd daemon, depending on the type of restart
 // provided.
 // For SystemRestart and friends, the restart is scheduled and postponed until the
 // change has run out of tasks to do, and is then performed in RequestRestartForChange.
 // For tasks that request restarts as a part of their undo, any tasks that previously scheduled
 // restarts as a part of their 'do' will be unscheduled.
-func RequestRestartForTask(t *state.Task, snapName string, status state.Status, restartType RestartType, rebootInfo *boot.RebootInfo) error {
+func FinishTaskWithRestart(t *state.Task, snapName string, status state.Status, restartType RestartType, rebootInfo *boot.RebootInfo) error {
 	switch restartType {
 	case RestartSystem, RestartSystemNow, RestartSystemHaltNow, RestartSystemPoweroffNow:
 		break
@@ -457,13 +456,13 @@ func requestRestartForChange(chg *state.Change) error {
 		return nil
 	}
 
-	rt.Reboot(chg.State())
+	rt.reboot(chg.State())
 	chg.Set("restart-info", rt)
 	return nil
 }
 
-// checkRebootRequiredForChange callback registered for the taskrunner exhaustion hook
-func checkRebootRequiredForChange(chg *state.Change) {
+// checkRestartRequiredForChange callback registered for the taskrunner exhaustion hook
+func checkRestartRequiredForChange(chg *state.Change) {
 	if chg.Status() != state.WaitStatus {
 		return
 	}
