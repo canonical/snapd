@@ -28,16 +28,17 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-// HookFunc is the type of function that can be registered as a hook.
-type HookFunc func(chg *Change)
+// ChangeHookFunc is the type of function that can be registered as a hook, to
+// listen for change events
+type ChangeHookFunc func(chg *Change)
 
-// HookEvent are types of different hooks that can be registered handlers for.
-type HookEvent int
+// ChangeHookEvent are types of change hooks that can be registered handlers for.
+type ChangeHookEvent int
 
 const (
 	// TaskExhaustion is executed when there are no more tasks to be run for
 	// a given change.
-	TaskExhaustion HookEvent = iota
+	TaskExhaustion ChangeHookEvent = iota
 )
 
 // HandlerFunc is the type of function for the handlers
@@ -91,7 +92,7 @@ type TaskRunner struct {
 	blocked     []blockedFunc
 	someBlocked bool
 
-	hooks     map[HookEvent][]HookFunc
+	hooks     map[ChangeHookEvent][]ChangeHookFunc
 	exhausted map[string]bool
 
 	// optional callback executed on task errors
@@ -116,7 +117,7 @@ func NewTaskRunner(s *State) *TaskRunner {
 		state:     s,
 		handlers:  make(map[string]handlerPair),
 		cleanups:  make(map[string]HandlerFunc),
-		hooks:     make(map[HookEvent][]HookFunc),
+		hooks:     make(map[ChangeHookEvent][]ChangeHookFunc),
 		exhausted: make(map[string]bool),
 		tombs:     make(map[string]*tomb.Tomb),
 	}
@@ -200,8 +201,8 @@ func (r *TaskRunner) AddBlocked(pred func(t *Task, running []*Task) bool) {
 	r.blocked = append(r.blocked, pred)
 }
 
-// AddHook registers a hook function for the given hook event type.
-func (r *TaskRunner) AddHook(hook HookFunc, evt HookEvent) {
+// AddChangeHook registers a hook function for the given change hook event.
+func (r *TaskRunner) AddChangeHook(hook ChangeHookFunc, evt ChangeHookEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

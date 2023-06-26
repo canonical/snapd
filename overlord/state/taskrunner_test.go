@@ -1340,7 +1340,7 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHook(c *C) {
 
 	var hookCalls int
 	var hookChange *state.Change
-	r.AddHook(func(chg *state.Change) {
+	r.AddChangeHook(func(chg *state.Change) {
 		hookCalls++
 		hookChange = chg
 	}, state.TaskExhaustion)
@@ -1383,7 +1383,7 @@ func (ts *taskRunnerSuite) TestTaskExhaustionHookResetsTracking(c *C) {
 	}, nil)
 
 	var hookCalls int
-	r.AddHook(func(chg *state.Change) {
+	r.AddChangeHook(func(chg *state.Change) {
 		hookCalls++
 	}, state.TaskExhaustion)
 
