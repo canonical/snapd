@@ -1,0 +1,29 @@
+summary: Ensure that interfaces bad for -O no-expr-simplify work
+
+systems: [ubuntu-*]
+
+prepare: |
+    snap install yq
+
+execute: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-expensive-interfaces
+
+    for con in $(yq -r '.apps.cmd.plugs | join(" ")' < test-snapd-expensive-interfaces/meta/snap.yaml); do
+        snap connect test-snapd-expensive-interfaces:"$con"
+    done
+
+    # validate profile can *not* be compiled with "no-expr-simplify"
+    LIMIT=800M
+    OPT="no-expr-simplify"
+    not systemd-run -P --unit aa-compile --wait \
+      -pMemorySwapMax=0 -p MemoryMax="$LIMIT" -p MemoryLimit="$LIMIT" \
+       /usr/bin/time -f 'mem-kilobyte: %M' apparmor_parser -O "$OPT" \
+          -S /var/lib/snapd/apparmor/profiles/snap.test-snapd-expensive-interfaces.cmd >/dev/null
+    journalctl -u aa-compile | MATCH "OOM killer"
+
+    # but it can be without (with a much smaller limit)
+    LIMIT=400M
+    systemd-run -P --unit aa-compile-defaults --wait \
+      -pMemorySwapMax=0 -p MemoryMax="$LIMIT" -p MemoryLimit="$LIMIT" \
+       /usr/bin/time -f 'mem-kilobyte: %M' apparmor_parser \
+          -S /var/lib/snapd/apparmor/profiles/snap.test-snapd-expensive-interfaces.cmd >/dev/null

@@ -1,0 +1,28 @@
+name: test-snapd-expensive-interfaces
+summary: A snap that uses interfaces that are unfriendly to -O no-expr-simplify
+version: 1.0
+
+apps:
+ cmd:
+  command: bin/sh
+  plugs:
+    # interfaces with /sys/devices/**/../** really behave badly with
+    # -O no-expr-simplify
+    - block-devices
+    - bluetooth-control
+    - bluez
+    - browser-support
+    - camera
+    - cpu-control
+    - framebuffer
+    - device-buttons
+    - display-control
+    - joystick
+    - modem-manager
+    - network-manager
+    - opengl
+    - power-control
+    - raw-input
+    - udisks2
+    - wayland
+    - x11
