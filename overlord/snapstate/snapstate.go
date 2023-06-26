@@ -898,19 +898,33 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 // from the caller.
 // It delegates the work to restart.FinishTaskWithRestart which can decide
 // to set the task to wait returning state.Wait.
-func FinishTaskWithRestart(t *state.Task, status state.Status, restartType restart.RestartType, rebootInfo *boot.RebootInfo) error {
+func FinishTaskWithRestart(t *state.Task, status state.Status, rt restart.RestartType, rebootInfo *boot.RebootInfo) error {
 	// If a task requests a reboot, then we make that task wait for the
 	// current reboot task. We must support multiple tasks waiting for this
 	// task.
 	var snapName string
-	if restartType == restart.RestartSystem {
+	if rt == restart.RestartSystem {
 		snapsup, err := TaskSnapSetup(t)
 		if err != nil {
 			return fmt.Errorf("cannot get snap that requested a reboot: %v", err)
 		}
 		snapName = snapsup.InstanceName()
+
+		chg := t.Change()
+		var immediate bool
+		if chg != nil {
+			// ignore errors intentionally, to follow
+			// RequestRestart itself which does not
+			// return errors. If the state is corrupt
+			// something else will error
+			chg.Get("system-restart-immediate", &immediate)
+		}
+		if immediate {
+			rt = restart.RestartSystemNow
+			return fmt.Errorf("cannot get snap that requested a reboot: %v", err)
+		}
 	}
-	return restart.RequestRestartForTask(t, snapName, status, restartType, rebootInfo)
+	return restart.RequestRestartForTask(t, snapName, status, rt, rebootInfo)
 }
 
 // IsErrAndNotWait returns true if err is not nil and neither state.Wait, it is

@@ -224,14 +224,12 @@ func (s *restartSuite) TestRequestRestartForTask(c *C) {
 		classic        bool
 		restart        bool
 		wait           bool
-		immediate      bool
 		log            string
 	}{
 		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartDaemon, classic: false, restart: true},
 		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartDaemon, classic: true, restart: true},
 		{initial: state.UndoStatus, final: state.UndoneStatus, restartType: restart.RestartDaemon, classic: false, restart: true},
 		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystem, classic: false, restart: true, log: ".* INFO System restart requested by snap \"some-snap\""},
-		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystem, classic: false, restart: true, immediate: true, log: ".* INFO System restart requested by snap \"some-snap\""},
 		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystem, classic: true, restart: false, wait: true, log: ".* INFO System restart requested by snap \"some-snap\""},
 		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystemNow, classic: true, restart: false, wait: true, log: ".* INFO System restart requested by snap \"some-snap\""},
 		{initial: state.UndoStatus, final: state.UndoneStatus, restartType: restart.RestartSystem, classic: true, restart: false, log: ".* INFO Skipped automatic system restart on classic system when undoing changes back to previous state"},
@@ -247,10 +245,6 @@ func (s *restartSuite) TestRequestRestartForTask(c *C) {
 		task := st.NewTask("foo", "...")
 		chg.AddTask(task)
 		task.SetStatus(t.initial)
-
-		if t.immediate {
-			chg.Set("system-restart-immediate", true)
-		}
 
 		err := restart.RequestRestartForTask(task, "some-snap", t.final, t.restartType, nil)
 		c.Check(err, IsNil)
@@ -289,11 +283,7 @@ func (s *restartSuite) TestRequestRestartForTask(c *C) {
 		ok, rst := restart.Pending(st)
 		if t.restart {
 			c.Check(ok, Equals, true)
-			if t.immediate {
-				c.Check(rst, Equals, t.restartType+1)
-			} else {
-				c.Check(rst, Equals, t.restartType)
-			}
+			c.Check(rst, Equals, t.restartType)
 			c.Check(waitBootID, Equals, "boot-id-1")
 		} else {
 			c.Check(ok, Equals, false)
@@ -766,161 +756,4 @@ func (s *notifyRebootRequiredSuite) TestRequestRestartForTaskNotifiesRebootRequi
 	c.Check(err, IsNil)
 	c.Check(mockNrr.Calls(), HasLen, 0)
 	c.Check(s.mockLog.String(), Equals, "")
-}
-
-type rebootInfoTestSuite struct {
-	testutil.BaseTest
-	o     *overlord.Overlord
-	state *state.State
-}
-
-var _ = Suite(&rebootInfoTestSuite{})
-
-func (s *rebootInfoTestSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
-	s.o = overlord.Mock()
-	s.state = s.o.State()
-
-	s.state.Lock()
-	_, err := restart.Manager(s.state, s.o.TaskRunner(), "boot-id-1", nil)
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-}
-
-func (s *rebootInfoTestSuite) TestMarkTaskForRestart(c *C) {
-	rt := &restart.RestartInfo{}
-
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	chg := st.NewChange("test", "...")
-	t1 := st.NewTask("foo", "...")
-	chg.AddTask(t1)
-
-	restart.RestartInfoMarkTaskForRestart(rt, t1, "", state.DoneStatus)
-
-	var waitBootID string
-	if err := t1.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
-		c.Check(err, IsNil)
-	}
-	c.Check(waitBootID, Equals, "boot-id-1")
-	c.Check(t1.Status(), Equals, state.WaitStatus)
-	c.Check(t1.WaitedStatus(), Equals, state.DoneStatus)
-	c.Check(rt.Waiters, DeepEquals, []*restart.RestartWaiter{
-		{
-			TaskID: t1.ID(),
-			Status: state.DoneStatus,
-		},
-	})
-}
-
-func (s *rebootInfoTestSuite) TestTaskWaitForRestartDo(c *C) {
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	chg := st.NewChange("test", "...")
-	t1 := st.NewTask("foo", "...")
-	chg.AddTask(t1)
-
-	t1.SetStatus(state.DoingStatus)
-
-	err := restart.TaskWaitForRestart(t1)
-	c.Assert(err, FitsTypeOf, &state.Wait{Reason: "Postponing reboot as long as there are tasks to run"})
-
-	c.Check(t1.Log(), HasLen, 1)
-	c.Check(t1.Log()[0], Matches, ".* Task \"foo\" is pending reboot to continue")
-
-	var waitBootID string
-	if err := t1.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
-		c.Check(err, IsNil)
-	}
-	c.Check(waitBootID, Equals, "boot-id-1")
-	c.Check(t1.Status(), Equals, state.WaitStatus)
-	c.Check(t1.WaitedStatus(), Equals, state.DoStatus)
-
-	rt, err := restart.ChangeRestartInfo(chg)
-	c.Check(err, IsNil)
-	c.Check(rt.Waiters, DeepEquals, []*restart.RestartWaiter{
-		{
-			TaskID: t1.ID(),
-			Status: state.DoStatus,
-		},
-	})
-
-	c.Check(t1.Log(), HasLen, 1)
-	c.Check(t1.Log()[0], Matches, ".* Task \"foo\" is pending reboot to continue")
-}
-
-func (s *rebootInfoTestSuite) TestTaskWaitForRestartUndoClassic(c *C) {
-	release.MockOnClassic(true)
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	chg := st.NewChange("test", "...")
-	t1 := st.NewTask("foo", "...")
-	chg.AddTask(t1)
-
-	t1.SetStatus(state.UndoingStatus)
-
-	err := restart.TaskWaitForRestart(t1)
-	c.Assert(err, IsNil)
-
-	c.Check(t1.Log(), HasLen, 1)
-	c.Check(t1.Log()[0], Matches, ".* Skipped automatic system restart on classic system when undoing changes back to previous state")
-}
-
-func (s *rebootInfoTestSuite) TestTaskWaitForRestartUndoCore(c *C) {
-	release.MockOnClassic(false)
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	chg := st.NewChange("test", "...")
-	t1 := st.NewTask("foo", "...")
-	chg.AddTask(t1)
-
-	t1.SetStatus(state.UndoingStatus)
-
-	err := restart.TaskWaitForRestart(t1)
-	c.Assert(err, FitsTypeOf, &state.Wait{Reason: "Postponing reboot as long as there are tasks to run"})
-
-	c.Check(t1.Log(), HasLen, 1)
-	c.Check(t1.Log()[0], Matches, ".* Task \"foo\" is pending reboot to continue")
-
-	var waitBootID string
-	if err := t1.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
-		c.Check(err, IsNil)
-	}
-	c.Check(waitBootID, Equals, "boot-id-1")
-	c.Check(t1.Status(), Equals, state.WaitStatus)
-	c.Check(t1.WaitedStatus(), Equals, state.UndoStatus)
-
-	var rt restart.RestartInfo
-	err = chg.Get("restart-info", &rt)
-	c.Check(err, IsNil)
-	c.Check(rt.Waiters, DeepEquals, []*restart.RestartWaiter{
-		{
-			TaskID: t1.ID(),
-			Status: state.UndoStatus,
-		},
-	})
-
-	c.Check(t1.Log(), HasLen, 1)
-	c.Check(t1.Log()[0], Matches, ".* Task \"foo\" is pending reboot to continue")
-}
-
-func (s *rebootInfoTestSuite) TestTaskWaitForRestartInvalid(c *C) {
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	chg := st.NewChange("test", "...")
-	t1 := st.NewTask("foo", "...")
-	chg.AddTask(t1)
-
-	err := restart.TaskWaitForRestart(t1)
-	c.Assert(err, ErrorMatches, `only tasks currently in progress \(doing/undoing\) are supported`)
 }

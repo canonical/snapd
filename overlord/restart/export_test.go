@@ -26,6 +26,6 @@ var (
 	RequestRestartForChange = requestRestartForChange
 )
 
-func RestartInfoMarkTaskForRestart(rt *RestartInfo, task *state.Task, snapName string, status state.Status) {
+func RestartInfoMarkTaskForRestart(rt *RestartContext, task *state.Task, snapName string, status state.Status) {
 	rt.markTaskForRestart(task, snapName, status)
 }
