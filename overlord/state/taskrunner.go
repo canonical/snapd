@@ -92,8 +92,7 @@ type TaskRunner struct {
 	blocked     []blockedFunc
 	someBlocked bool
 
-	hooks     map[ChangeHookEvent][]ChangeHookFunc
-	exhausted map[string]bool
+	changeHooks map[ChangeHookEvent][]ChangeHookFunc
 
 	// optional callback executed on task errors
 	taskErrorCallback func(err error)
@@ -114,12 +113,11 @@ type optionalHandler struct {
 // NewTaskRunner creates a new TaskRunner
 func NewTaskRunner(s *State) *TaskRunner {
 	return &TaskRunner{
-		state:     s,
-		handlers:  make(map[string]handlerPair),
-		cleanups:  make(map[string]HandlerFunc),
-		hooks:     make(map[ChangeHookEvent][]ChangeHookFunc),
-		exhausted: make(map[string]bool),
-		tombs:     make(map[string]*tomb.Tomb),
+		state:       s,
+		handlers:    make(map[string]handlerPair),
+		cleanups:    make(map[string]HandlerFunc),
+		changeHooks: make(map[ChangeHookEvent][]ChangeHookFunc),
+		tombs:       make(map[string]*tomb.Tomb),
 	}
 }
 
@@ -206,21 +204,13 @@ func (r *TaskRunner) AddChangeHook(hook ChangeHookFunc, evt ChangeHookEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.hooks[evt] = append(r.hooks[evt], hook)
+	r.changeHooks[evt] = append(r.changeHooks[evt], hook)
 }
 
-func (r *TaskRunner) checkExhaustion() {
-	for _, chg := range r.state.changes {
-		if chg.IsReady() || chg.Status() == WaitStatus {
-			// have we already reported exhaustion for that change?
-			if r.exhausted[chg.ID()] {
-				continue
-			}
-			r.exhausted[chg.ID()] = true
-
-			for _, h := range r.hooks[TaskExhaustion] {
-				h(chg)
-			}
+func (r *TaskRunner) checkExhaustion(chg *Change) {
+	if chg.IsReady() || chg.Status() == WaitStatus {
+		for _, h := range r.changeHooks[TaskExhaustion] {
+			h(chg)
 		}
 	}
 }
@@ -343,7 +333,7 @@ func (r *TaskRunner) run(t *Task) {
 				r.taskErrorCallback(err)
 			}
 		}
-		r.checkExhaustion()
+		r.checkExhaustion(t.Change())
 		return nil
 	})
 }
@@ -514,9 +504,6 @@ ConsiderTasks:
 		r.run(t)
 
 		running = append(running, t)
-
-		// If a change had jobs ready to run, reset its exhaustion status.
-		r.exhausted[t.Change().ID()] = false
 	}
 
 	// schedule next Ensure no later than the next task time
