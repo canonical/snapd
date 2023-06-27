@@ -21,11 +21,6 @@ execute: |
             systemctl mask systemd-vconsole-setup.service
             systemctl reset-failed systemd-vconsole-setup.service
             ;;
-        debian-10-*)
-            # modules-load fails trying to modprobe lp and parallel port drivers
-            # which are not part of the cloud kernel package
-            systemctl reset-failed systemd-modules-load.service
-            ;;
         centos-8-*)
             # tries to load ipmi_si module which fails with ENODEV
             systemctl reset-failed systemd-modules-load.service
