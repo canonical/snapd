@@ -123,7 +123,7 @@ func (r *refreshHints) Ensure() error {
 	defer r.state.Unlock()
 
 	// CanAutoRefresh is a hook that is set by the devicestate
-	// code to ensure that we only AutoRefersh if the device has
+	// code to ensure that we only AutoRefresh if the device has
 	// bootstraped itself enough. This is only nil when snapstate
 	// is used in isolation (like in tests).
 	if CanAutoRefresh == nil {
@@ -168,6 +168,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 			continue
 		}
 
+		monitoring := getAbortMonitoringChan(st, update.InstanceName()) != nil
 		providerContentAttrs := defaultProviderContentAttrs(st, update)
 		snapsup := &refreshCandidate{
 			SnapSetup: SnapSetup{
@@ -191,6 +192,8 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 					Website: update.Website(),
 				},
 			},
+			Version:    update.Version,
+			Monitoring: monitoring,
 		}
 		hints[update.InstanceName()] = snapsup
 	}

@@ -72,7 +72,7 @@ func (s *agentNotifySuite) TestNotifyAgentOnLinkChange(c *C) {
 			Current: snap.R(1),
 		})
 		snapsup := &snapstate.SnapSetup{
-			Flags: snapstate.Flags{IsContinuedAutoRefresh: tc.isContinuedAutoRefresh},
+			Flags: snapstate.Flags{IsContinuedRefresh: tc.isContinuedAutoRefresh},
 			SideInfo: &snap.SideInfo{
 				RealName: "some-snap",
 			},

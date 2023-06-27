@@ -57,7 +57,7 @@ func notifyLinkSnap(snapsup *snapstate.SnapSetup) error {
 	// Note that we only show a notification here if the refresh was
 	// triggered by a "continued-auto-refresh", i.e. when the user
 	// closed an application that had a auto-refresh ready.
-	if snapsup.Flags.IsContinuedAutoRefresh {
+	if snapsup.Flags.IsContinuedRefresh {
 		logger.Debugf("notifying user client about continued refresh for %q", snapsup.InstanceName())
 		sendClientFinishRefreshNotification(snapsup)
 	}

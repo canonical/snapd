@@ -577,7 +577,7 @@ func checkIsContinuedAutoRefresh(c *C, tasks []*state.Task, expected bool) {
 			var snapsup snapstate.SnapSetup
 			err := t.Get("snap-setup", &snapsup)
 			c.Assert(err, IsNil)
-			c.Check(snapsup.IsContinuedAutoRefresh, Equals, expected)
+			c.Check(snapsup.IsContinuedRefresh, Equals, expected)
 			return
 		}
 	}
