@@ -308,6 +308,20 @@ dbus (send, receive)
       path=/org/freedesktop/IBus/InputContext_[0-9]*
       interface=org.freedesktop.IBus.InputContext
       peer=(label=unconfined),
+
+# Allow access to the Fcitx portal, supported by fcitx/fcitx5
+dbus (send)
+      bus=session
+      path=/{,org/freedesktop/portal/}inputmethod
+      interface=org.fcitx.Fcitx.InputMethod1
+      member={CreateInputContext,Version}
+      peer=(name=org.freedesktop.portal.Fcitx),
+
+dbus (send, receive)
+      bus=session
+      path=/{,org/freedesktop/portal/}inputcontext/**
+      interface=org.fcitx.Fcitx.InputContext1
+      peer=(label=unconfined),
 `
 
 type desktopInterface struct {
