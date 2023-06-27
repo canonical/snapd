@@ -243,6 +243,9 @@ func (t *Task) Status() Status {
 }
 
 func (t *Task) changeStatus(old, new Status) {
+	if old == new {
+		return
+	}
 	t.status = new
 	if !old.Ready() && new.Ready() {
 		t.readyTime = timeNow()
@@ -251,6 +254,7 @@ func (t *Task) changeStatus(old, new Status) {
 	if chg != nil {
 		chg.taskStatusChanged(t, old, new)
 	}
+	t.state.notifyTaskStatusChangedHandlers(t, old, new)
 }
 
 // SetStatus sets the task status, overriding the default behavior (see Status method).
