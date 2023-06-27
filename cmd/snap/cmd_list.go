@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var shortListHelp = i18n.G("List installed snaps")
@@ -46,7 +47,8 @@ type cmdList struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 
-	All bool `long:"all"`
+	All  bool `long:"all"`
+	Size bool `long:"size"`
 	colorMixin
 }
 
@@ -55,6 +57,9 @@ func init() {
 		colorDescs.also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"all": i18n.G("Show all revisions"),
+		}).also(map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"size": i18n.G("Show snap size"),
 		}), nil)
 }
 
@@ -117,19 +122,33 @@ func (x *cmdList) Execute(args []string) error {
 	esc := x.getEscapes()
 	w := tabWriter()
 
-	// TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
-	fmt.Fprintf(w, i18n.G("Name\tVersion\tRev\tTracking\tPublisher%s\tNotes\n"), fillerPublisher(esc))
+	headers := []string{}
+	headers = append(headers, i18n.G("Name"))
+	headers = append(headers, i18n.G("Version"))
+	headers = append(headers, i18n.G("Rev"))
+	headers = append(headers, i18n.G("Tracking"))
+	if x.Size {
+		headers = append(headers, i18n.G("Size"))
+	}
+	headers = append(headers,
+		// TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
+		fmt.Sprintf(i18n.G("Publisher%s"), fillerPublisher(esc)))
+	headers = append(headers, i18n.G("Notes"))
+
+	fmt.Fprintln(w, strings.Join(headers, "\t"))
 
 	for _, snap := range snaps {
 		// doing it this way because otherwise it's a sea of %s\t%s\t%s
-		line := []string{
-			snap.Name,
-			fmtVersion(snap.Version),
-			snap.Revision.String(),
-			fmtChannel(snap.TrackingChannel),
-			shortPublisher(esc, snap.Publisher),
-			NotesFromLocal(snap).String(),
+		line := []string{}
+		line = append(line, snap.Name)
+		line = append(line, fmtVersion(snap.Version))
+		line = append(line, snap.Revision.String())
+		line = append(line, fmtChannel(snap.TrackingChannel))
+		if x.Size {
+			line = append(line, strutil.SizeToStr(snap.InstalledSize))
 		}
+		line = append(line, shortPublisher(esc, snap.Publisher))
+		line = append(line, NotesFromLocal(snap).String())
 		fmt.Fprintln(w, strings.Join(line, "\t"))
 	}
 	w.Flush()

@@ -39,6 +39,7 @@ indicates that the publisher has been verified.
 
 [list command options]
       --all                           Show all revisions
+      --size                          Show snap size
       --color=[auto|never|always]     Use a little bit of color to highlight
                                       some things. (default: auto)
       --unicode=[auto|never|always]   Use a little bit of Unicode to improve
@@ -103,6 +104,42 @@ func (s *SnapSuite) TestListAll(c *check.C) {
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Tracking +Publisher +Notes
 foo +4.2 +17 +stable +bar +-
 `)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestListSize(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			c.Check(r.URL.RawQuery, check.Equals, "")
+			fmt.Fprintln(w, `{"type": "sync", "result": [
+{
+  "name": "foo",
+  "status": "active",
+  "version": "4.2",
+  "developer": "bar",
+  "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"},
+  "health": {"status": "blocked"},
+  "installed-size": 123000000,
+  "revision": 17,
+  "tracking-channel": "potatoes"
+}]}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"list", "--size"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `
+Name  Version  Rev  Tracking  Size   Publisher  Notes
+foo   4.2      17   potatoes  123MB  bar        blocked
+`[1:])
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
