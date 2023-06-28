@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -80,15 +81,14 @@ func (ss *SeedSnaps) SetSnapAssertionNow(t time.Time) {
 }
 
 func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
-	return ss.makeAssertedSnap(c, snapYaml, files, revision, developerID, ss.StoreSigning.SigningDB, "", nil, dbs...)
+	snapFilePath := snaptest.MakeTestSnapWithFiles(c, snapYaml, files)
+	return ss.makeAssertedSnap(c, snapYaml, snapFilePath, revision, developerID, ss.StoreSigning.SigningDB, "", nil, nil, dbs...)
 }
 
-func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, revSigning *assertstest.SigningDB, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, snapFilePath string, revision snap.Revision, developerID string, revSigning *assertstest.SigningDB, revProvenance string, revisionAuthority map[string]interface{}, integrityData *integrity.IntegrityData, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	snapName := info.SnapName()
-
-	snapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, files)
 
 	snapID := ss.AssertedSnapID(snapName)
 	headers := map[string]interface{}{
@@ -104,7 +104,7 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	declA, err := ss.StoreSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	sha3_384, size, err := asserts.SnapFileSHA3_384(snapFile)
+	sha3_384, size, err := asserts.SnapFileSHA3_384(snapFilePath)
 	c.Assert(err, IsNil)
 
 	revHeaders := map[string]interface{}{
@@ -118,6 +118,15 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	}
 	if revProvenance != "" {
 		revHeaders["provenance"] = revProvenance
+	}
+	if integrityData != nil {
+		integrity_digest, err := integrityData.SHA3_384()
+		c.Assert(err, IsNil)
+
+		revHeaders["integrity"] = map[string]interface{}{
+			"sha3-384": integrity_digest,
+			"size":     "12288",
+		}
 	}
 	revA, err := revSigning.Sign(asserts.SnapRevisionType, revHeaders, nil, "")
 	c.Assert(err, IsNil)
@@ -140,7 +149,7 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 		ss.snapRevs = make(map[string]*asserts.SnapRevision)
 	}
 
-	ss.snaps[snapName] = snapFile
+	ss.snaps[snapName] = snapFilePath
 	info.SideInfo.RealName = snapName
 	ss.infos[snapName] = info
 	snapDecl := declA.(*asserts.SnapDeclaration)
@@ -151,7 +160,8 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 }
 
 func (ss *SeedSnaps) MakeAssertedDelegatedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID, delegateID, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
-	return ss.makeAssertedSnap(c, snapYaml, files, revision, developerID, ss.Brands.Signing(delegateID), revProvenance, revisionAuthority, dbs...)
+	snapFilePath := snaptest.MakeTestSnapWithFiles(c, snapYaml, files)
+	return ss.makeAssertedSnap(c, snapYaml, snapFilePath, revision, developerID, ss.Brands.Signing(delegateID), revProvenance, revisionAuthority, nil, dbs...)
 }
 
 func (ss *SeedSnaps) AssertedSnap(snapName string) (snapFile string) {
@@ -164,6 +174,11 @@ func (ss *SeedSnaps) AssertedSnapInfo(snapName string) *snap.Info {
 
 func (ss *SeedSnaps) AssertedSnapRevision(snapName string) *asserts.SnapRevision {
 	return ss.snapRevs[snapName]
+}
+
+func (ss *SeedSnaps) MakeAssertedSnapWithFilesAndIntegrityDataHeaderBytes(c *C, snapYaml string, files [][]string, integrityDataHeaderBytes []byte, revision snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+	snapFilePath, integrityData := snaptest.MakeTestSnapWithFilesAndIntegrityDataHeaderBytes(c, snapYaml, files, integrityDataHeaderBytes)
+	return ss.makeAssertedSnap(c, snapYaml, snapFilePath, revision, developerID, ss.StoreSigning.SigningDB, "", nil, integrityData, dbs...)
 }
 
 // TestingSeed16 helps setting up a populated Core 16/18 testing seed.
