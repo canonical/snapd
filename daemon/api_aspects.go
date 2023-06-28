@@ -25,6 +25,7 @@ import (
 	"net/http"
 
 	"github.com/snapcore/snapd/aspects"
+	"github.com/snapcore/snapd/overlord/aspectstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -53,9 +54,14 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
+	tx, err := aspectstate.NewTransaction(st, account, bundleName)
+	if err != nil {
+		return toAPIError(err)
+	}
+
 	for _, field := range fields {
 		var value interface{}
-		err := aspectstateGet(c.d.state, account, bundleName, aspect, field, &value)
+		err := aspectstateGetAspect(tx, account, bundleName, aspect, field, &value)
 		if err != nil {
 			if errors.Is(err, &aspects.FieldNotFoundError{}) {
 				// keep looking; return partial result, if only some fields are found
@@ -90,11 +96,20 @@ func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
+	tx, err := aspectstate.NewTransaction(st, account, bundleName)
+	if err != nil {
+		return toAPIError(err)
+	}
+
 	for field, value := range values {
-		err := aspectstateSet(c.d.state, account, bundleName, aspect, field, value)
+		err := aspectstateSetAspect(tx, account, bundleName, aspect, field, value)
 		if err != nil {
 			return toAPIError(err)
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return toAPIError(err)
 	}
 
 	// NOTE: could be sync but this is closer to the final version and the conf API
