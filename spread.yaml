@@ -353,6 +353,12 @@ backends:
             - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
+            - ubuntu-23.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-23.10-64:
+                  username: ubuntu
+                  password: ubuntu
             - debian-11-64:
                   username: debian
                   password: debian
@@ -407,22 +413,6 @@ backends:
             - ubuntu-16.04-s390x:
                   username: ubuntu
                   password: ubuntu
-            # Artful
-            - ubuntu-17.10-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-i386:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-ppc64el:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-armhf:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-s390x:
-                  username: ubuntu
-                  password: ubuntu
             # Bionic
             - ubuntu-18.04-amd64:
                   username: ubuntu
@@ -459,6 +449,25 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-arm64:
+                  username: ubuntu
+                  password: ubuntu
+            # Jammy
+            - ubuntu-22.04-amd64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-i386:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-ppc64el:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-armhf:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-s390x:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-arm64:
                   username: ubuntu
                   password: ubuntu
 
