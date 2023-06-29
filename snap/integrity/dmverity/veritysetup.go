@@ -22,6 +22,7 @@ package dmverity
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -78,7 +79,7 @@ func getRootHashFromOutput(output []byte) (rootHash string, err error) {
 		return "", err
 	}
 
-	if len(rootHash) != 64 {
+	if len(rootHash) != sha256.BlockSize {
 		return "", errors.New("internal error: unexpected root hash length")
 	}
 
