@@ -123,6 +123,17 @@ type ContentUpdateObserver interface {
 	Canceled() error
 }
 
+func setOnDiskStructuresInLaidOutVolume(gadgetToDiskStruct map[int]*OnDiskStructure, lv *LaidOutVolume) {
+	for i := range lv.LaidOutStructure {
+		gs := lv.LaidOutStructure[i].VolumeStructure
+		if ds, ok := gadgetToDiskStruct[gs.YamlIndex]; ok {
+			logger.Debugf("partition %s (offset %d) matched to gadget structure %s",
+				ds.Node, ds.StartOffset, lv.LaidOutStructure[i].VolumeStructure.Name)
+			lv.LaidOutStructure[i].OnDiskStructure = *ds
+		}
+	}
+}
+
 // searchVolumeWithTraitsAndMatchParts searches for a disk matching the given
 // traits and assigns disk partitions data to the matching laid out partition.
 func searchVolumeWithTraitsAndMatchParts(laidOutVol *LaidOutVolume, traits DiskVolumeDeviceTraits, validateOpts *DiskVolumeValidationOptions) (disks.Disk, error) {
@@ -166,14 +177,7 @@ func searchVolumeWithTraitsAndMatchParts(laidOutVol *LaidOutVolume, traits DiskV
 		}
 
 		// Set OnDiskStructure for laidOutVol, now that we know the exact match
-		for i := range laidOutVol.LaidOutStructure {
-			gs := laidOutVol.LaidOutStructure[i].VolumeStructure
-			if ds, ok := gadgetStructToDiskStruct[gs.YamlIndex]; ok {
-				logger.Debugf("partition %s (offset %d) matched to gadget structure %s",
-					ds.Node, ds.StartOffset, laidOutVol.LaidOutStructure[i].VolumeStructure.Name)
-				laidOutVol.LaidOutStructure[i].OnDiskStructure = *ds
-			}
-		}
+		setOnDiskStructuresInLaidOutVolume(gadgetStructToDiskStruct, laidOutVol)
 
 		// success, we found it
 		return true
@@ -650,9 +654,12 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		AllowImplicitSystemData:     opts.AllowImplicitSystemData,
 		ExpectedStructureEncryption: opts.ExpectedStructureEncryption,
 	}
-	if _, err := EnsureVolumeCompatibility(vol, diskLayout, volCompatOpts); err != nil {
+	gadgetToDiskStruct, err := EnsureVolumeCompatibility(vol, diskLayout, volCompatOpts)
+	if err != nil {
 		return res, fmt.Errorf("volume %s is not compatible with disk %s: %v", vol.Name, dev, err)
 	}
+	// Set OnDiskStructure for laidOutVol, now that we know the exact match
+	setOnDiskStructuresInLaidOutVolume(gadgetToDiskStruct, expLayout)
 
 	// also get a Disk{} interface for this device
 	disk, err := disks.DiskFromDeviceName(dev)
