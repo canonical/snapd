@@ -87,6 +87,14 @@ func setupConfCacheDirs(newrootdir string) {
 		// TODO: it seems Solus has a different setup too, investigate this
 		SystemCacheDir = CacheDir
 	}
+
+	snapConfineDir := "snap-confine"
+	if _, internal, err := AppArmorParser(); err == nil {
+		if internal {
+			snapConfineDir = "snap-confine.internal"
+		}
+	}
+	SnapConfineAppArmorDir = filepath.Join(dirs.SnapdStateDir(newrootdir), "apparmor", snapConfineDir)
 }
 
 func init() {
@@ -95,9 +103,10 @@ func init() {
 }
 
 var (
-	ConfDir        string
-	CacheDir       string
-	SystemCacheDir string
+	ConfDir                string
+	CacheDir               string
+	SystemCacheDir         string
+	SnapConfineAppArmorDir string
 )
 
 func (level LevelType) String() string {

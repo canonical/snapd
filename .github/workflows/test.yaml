@@ -366,8 +366,8 @@ jobs:
         - centos-7-64
         - centos-8-64
         - centos-9-64
-        - debian-10-64
         - debian-11-64
+        - debian-12-64
         - debian-sid-64
         - fedora-36-64
         - fedora-37-64

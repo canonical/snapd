@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -161,6 +161,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 		DownloadInfo:       &update.DownloadInfo,
 		SideInfo:           &update.SideInfo,
 		Type:               update.Type(),
+		Version:            update.Version,
 		PlugsOnly:          len(update.Slots) == 0,
 		InstanceKey:        update.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
@@ -208,6 +209,7 @@ func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _
 		SnapPath:           i.path,
 		Flags:              flags.ForSnapSetup(),
 		Type:               i.Type(),
+		Version:            i.Version,
 		PlugsOnly:          len(i.Slots) == 0,
 		InstanceKey:        i.InstanceKey,
 	}
@@ -1174,6 +1176,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		Channel:            channel,
 		Flags:              flags.ForSnapSetup(),
 		Type:               info.Type(),
+		Version:            info.Version,
 		PlugsOnly:          len(info.Slots) == 0,
 		InstanceKey:        info.InstanceKey,
 	}
@@ -1272,6 +1275,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		DownloadInfo:       &info.DownloadInfo,
 		SideInfo:           &info.SideInfo,
 		Type:               info.Type(),
+		Version:            info.Version,
 		PlugsOnly:          len(info.Slots) == 0,
 		InstanceKey:        info.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
@@ -1458,6 +1462,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 			DownloadInfo:       &info.DownloadInfo,
 			SideInfo:           &info.SideInfo,
 			Type:               info.Type(),
+			Version:            info.Version,
 			PlugsOnly:          len(info.Slots) == 0,
 			InstanceKey:        info.InstanceKey,
 			ExpectedProvenance: info.SnapProvenance,
@@ -2403,7 +2408,8 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 			Flags:       snapst.Flags.ForSnapSetup(),
 			InstanceKey: snapst.InstanceKey,
 			Type:        snap.Type(snapst.SnapType),
-			CohortKey:   opts.CohortKey,
+			// no version info needed
+			CohortKey: opts.CohortKey,
 		}
 
 		if switchChannel || switchCohortKey {
@@ -2886,6 +2892,7 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 		SideInfo:    snapst.CurrentSideInfo(),
 		Flags:       snapst.Flags.ForSnapSetup(),
 		Type:        info.Type(),
+		Version:     info.Version,
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -2999,6 +3006,7 @@ func SwitchToNewGadget(st *state.State, name string, fromChange string) (*state.
 		SideInfo:    snapst.CurrentSideInfo(),
 		Flags:       snapst.Flags.ForSnapSetup(),
 		Type:        info.Type(),
+		Version:     info.Version,
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -3080,6 +3088,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 		SideInfo:    snapst.CurrentSideInfo(),
 		Flags:       snapst.Flags.ForSnapSetup(),
 		Type:        info.Type(),
+		Version:     info.Version,
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -3139,6 +3148,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 			Revision: snapst.Current,
 		},
 		Type:        info.Type(),
+		Version:     info.Version,
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -3312,7 +3322,8 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 			RealName: snap.InstanceSnap(name),
 			Revision: revision,
 		},
-		Type:        info.Type(),
+		Type: info.Type(),
+		// no version info needed
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -3431,6 +3442,7 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 		},
 		InstanceKey: instanceKey,
 		Type:        typ,
+		// no version info needed
 	}
 
 	clearData := st.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))
@@ -3569,6 +3581,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		SideInfo:    snapst.Sequence[i],
 		Flags:       flags.ForSnapSetup(),
 		Type:        info.Type(),
+		Version:     info.Version,
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -3613,6 +3626,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.Type(),
+			Version:      newInfo.Version,
 		}, 0, "", nil)
 		if err != nil {
 			return nil, err

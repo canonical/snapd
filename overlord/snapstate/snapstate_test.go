@@ -653,6 +653,7 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 	flags.setup.Revert = true
 	c.Check(snapsup.Flags, Equals, flags.setup)
 	c.Check(snapsup.Type, Equals, snap.TypeApp)
+	c.Check(snapsup.Version, Equals, "some-snapVer")
 
 	chg := s.state.NewChange("revert", "revert snap")
 	chg.AddAll(ts)
@@ -2974,6 +2975,7 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 		SideInfo:  &si,
 		Flags:     flags,
 		Type:      snap.TypeApp,
+		Version:   "some-snapVer",
 		PlugsOnly: true,
 	})
 }
@@ -3037,6 +3039,7 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 			Revision: snap.R(7),
 		},
 		Type:      snap.TypeApp,
+		Version:   "some-snapVer",
 		PlugsOnly: true,
 	})
 }
