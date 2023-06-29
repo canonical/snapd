@@ -3930,6 +3930,102 @@ volumes:
 	})
 }
 
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateMinSize(c *C) {
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": {
+			DevNode: "/dev/foo",
+			DevPath: "/sys/block/foo",
+			DevNum:  "525:1",
+			// assume 34 sectors at end for GPT headers backup
+			DiskUsableSectorEnd: 6000*1024*1024/512 - 34,
+			DiskSizeInBytes:     6000 * 1024 * 1024,
+			SectorSizeBytes:     512,
+			DiskSchema:          "gpt",
+			ID:                  "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
+			Structure: []disks.Partition{
+				{
+					PartitionLabel:   "nofspart",
+					PartitionUUID:    "C5A930DF-E86A-4BAE-A4C5-C861353796E6",
+					FilesystemType:   "",
+					Major:            525,
+					Minor:            2,
+					KernelDeviceNode: "/dev/foo1",
+					KernelDevicePath: "/sys/block/foo/foo1",
+					DiskIndex:        1,
+					StartInBytes:     1024 * 1024,
+					SizeInBytes:      4096,
+				},
+				{
+					PartitionLabel:   "some-filesystem",
+					PartitionUUID:    "DA2ADBC8-90DF-4B1D-A93F-A92516C12E01",
+					FilesystemLabel:  "some-filesystem",
+					FilesystemUUID:   "3E3D392C-5D50-4C84-8A6E-09B7A3FEA2C7",
+					FilesystemType:   "ext4",
+					Major:            525,
+					Minor:            3,
+					KernelDeviceNode: "/dev/foo2",
+					KernelDevicePath: "/sys/block/foo/foo2",
+					DiskIndex:        2,
+					StartInBytes:     1024*1024 + 4096,
+					SizeInBytes:      1024 * 1024 * 1024,
+				},
+			},
+		},
+	})
+	defer restore()
+
+	const yaml = `
+volumes:
+  foo:
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: nofspart
+        type: EBBEADAF-22C9-E33B-8F5D-0E81686A68CB
+        min-size: 4096
+        size: 8192
+      - name: some-filesystem
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
+	fmt.Println("structs", len(lvol.LaidOutStructure))
+	c.Assert(err, IsNil)
+
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	c.Assert(err, IsNil)
+	c.Assert(traits, DeepEquals, gadget.DiskVolumeDeviceTraits{
+		OriginalDevicePath: "/sys/block/foo",
+		OriginalKernelPath: "/dev/foo",
+		DiskID:             "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
+		SectorSize:         512,
+		Size:               6000 * 1024 * 1024,
+		Schema:             "gpt",
+		Structure: []gadget.DiskStructureDeviceTraits{
+			{
+				PartitionLabel:     "nofspart",
+				PartitionUUID:      "C5A930DF-E86A-4BAE-A4C5-C861353796E6",
+				OriginalDevicePath: "/sys/block/foo/foo1",
+				OriginalKernelPath: "/dev/foo1",
+				Offset:             0x100000,
+				Size:               0x1000,
+			},
+			{
+				PartitionLabel:     "some-filesystem",
+				PartitionUUID:      "DA2ADBC8-90DF-4B1D-A93F-A92516C12E01",
+				OriginalDevicePath: "/sys/block/foo/foo2",
+				OriginalKernelPath: "/dev/foo2",
+				FilesystemLabel:    "some-filesystem",
+				FilesystemUUID:     "3E3D392C-5D50-4C84-8A6E-09B7A3FEA2C7",
+				FilesystemType:     "ext4",
+				Offset:             0x101000,
+				Size:               0x40000000,
+			},
+		},
+	})
+}
+
 func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTMultiVolume(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
 		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
