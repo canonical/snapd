@@ -56,41 +56,21 @@ func newAccessType(access string) (accessType, error) {
 	return readWrite, fmt.Errorf("expected 'access' to be one of %s but was %q", strutil.Quoted(accessTypeStrings), access)
 }
 
-// AspectNotFoundError represents a failure to find an aspect.
-type AspectNotFoundError struct {
+type NotFoundError struct {
 	Account    string
 	BundleName string
 	Aspect     string
+	Field      string
+	Cause      string
 }
 
-func (e *AspectNotFoundError) Error() string {
-	return fmt.Sprintf("aspect %s/%s/%s not found", e.Account, e.BundleName, e.Aspect)
+func (e *NotFoundError) Error() string {
+	return fmt.Sprintf("cannot find field %q of aspect %s/%s/%s: %s", e.Field, e.Account, e.BundleName, e.Aspect, e.Cause)
 }
 
-func (e *AspectNotFoundError) Is(err error) bool {
-	_, ok := err.(*AspectNotFoundError)
+func (e *NotFoundError) Is(err error) bool {
+	_, ok := err.(*NotFoundError)
 	return ok
-}
-
-// FieldNotFoundError represents a failure to find a field carrying a value in
-// an aspect databag.
-type FieldNotFoundError struct {
-	Message string
-}
-
-func (e *FieldNotFoundError) Error() string {
-	return e.Message
-}
-
-func (e *FieldNotFoundError) Is(err error) bool {
-	_, ok := err.(*FieldNotFoundError)
-	return ok
-}
-
-// IsNotFound returns true if the error is some kind of aspect-related not
-// found error (e.g., aspect not found, field not found in aspect).
-func IsNotFound(err error) bool {
-	return errors.Is(err, &AspectNotFoundError{}) || errors.Is(err, &FieldNotFoundError{})
 }
 
 // InvalidAccessError represents a failure to perform a read or write due to the
@@ -126,6 +106,7 @@ type Schema interface {
 
 // Bundle holds a series of related aspects.
 type Bundle struct {
+	Account string
 	Name    string
 	schema  Schema
 	aspects map[string]*Aspect
@@ -133,13 +114,14 @@ type Bundle struct {
 
 // NewAspectBundle returns a new aspect bundle for the specified aspects
 // and access patterns.
-func NewAspectBundle(name string, aspects map[string]interface{}, schema Schema) (*Bundle, error) {
+func NewAspectBundle(account string, bundleName string, aspects map[string]interface{}, schema Schema) (*Bundle, error) {
 	if len(aspects) == 0 {
 		return nil, errors.New(`cannot define aspects bundle: no aspects`)
 	}
 
 	aspectBundle := &Bundle{
-		Name:    name,
+		Account: account,
+		Name:    bundleName,
 		schema:  schema,
 		aspects: make(map[string]*Aspect, len(aspects)),
 	}
@@ -322,7 +304,13 @@ func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
 		return a.bundle.schema.Validate(data)
 	}
 
-	return &FieldNotFoundError{fmt.Sprintf("cannot set field %q: not found", name)}
+	return &NotFoundError{
+		Account:    a.bundle.Account,
+		BundleName: a.bundle.Name,
+		Aspect:     a.Name,
+		Field:      name,
+		Cause:      "field not found",
+	}
 }
 
 // Get returns the aspect value identified by the name. If either the named aspect
@@ -345,16 +333,28 @@ func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 		}
 
 		if err := databag.Get(path, value); err != nil {
-			if errors.Is(err, &FieldNotFoundError{}) {
-				return &FieldNotFoundError{fmt.Sprintf("cannot get field %q: %v", name, err)}
+			var pathErr PathNotFoundError
+			if errors.As(err, &pathErr) {
+				return &NotFoundError{
+					Account:    a.bundle.Account,
+					BundleName: a.bundle.Name,
+					Aspect:     a.Name,
+					Field:      name,
+					Cause:      string(pathErr),
+				}
 			}
-
 			return err
 		}
 		return nil
 	}
 
-	return &FieldNotFoundError{fmt.Sprintf("cannot get field %q: not found", name)}
+	return &NotFoundError{
+		Account:    a.bundle.Account,
+		BundleName: a.bundle.Name,
+		Aspect:     a.Name,
+		Field:      name,
+		Cause:      "field not found",
+	}
 }
 
 func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
@@ -507,6 +507,17 @@ func (p literal) write(sb *strings.Builder, _ map[string]string) error {
 	return err
 }
 
+type PathNotFoundError string
+
+func (e PathNotFoundError) Error() string {
+	return string(e)
+}
+
+func (e PathNotFoundError) Is(err error) bool {
+	_, ok := err.(PathNotFoundError)
+	return ok
+}
+
 // JSONDataBag is a simple DataBag implementation that keeps JSON in-memory.
 type JSONDataBag map[string]json.RawMessage
 
@@ -529,7 +540,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 	rawLevel, ok := node[key]
 	if !ok {
 		pathPrefix := strings.Join(subKeys[:index+1], ".")
-		return &FieldNotFoundError{fmt.Sprintf("no value was found under %q", pathPrefix)}
+		return PathNotFoundError(fmt.Sprintf("no value was found under path %q", pathPrefix))
 	}
 
 	// read the final value
