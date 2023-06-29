@@ -62,7 +62,7 @@ func (s *transactionTestSuite) TestSet(c *C) {
 
 	var value interface{}
 	err = witness.writtenDatabag.Get("foo", &value)
-	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
+	c.Assert(err, FitsTypeOf, aspects.PathNotFoundError(""))
 }
 
 func (s *transactionTestSuite) TestCommit(c *C) {
@@ -236,7 +236,7 @@ func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
 	c.Assert(value, Equals, "bar")
 
 	err = databag.Get("bar", &value)
-	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
+	c.Assert(err, FitsTypeOf, aspects.PathNotFoundError(""))
 
 	err = txTwo.Commit()
 	c.Assert(err, IsNil)
@@ -311,7 +311,7 @@ func (s *transactionTestSuite) TestTransactionReadsIsolated(c *C) {
 
 	var value interface{}
 	err = tx.Get("foo", &value)
-	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
+	c.Assert(err, FitsTypeOf, aspects.PathNotFoundError(""))
 }
 
 func (s *transactionTestSuite) TestReadDatabagsAreCopiedForIsolation(c *C) {
