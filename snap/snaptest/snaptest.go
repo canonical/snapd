@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/integrity"
+	"github.com/snapcore/snapd/snap/integrity/dmverity"
 	"github.com/snapcore/snapd/snap/pack"
 	"github.com/snapcore/snapd/snap/snapdir"
 )
@@ -371,4 +372,20 @@ func MockContainer(c *check.C, files [][]string) snap.Container {
 	files = append([][]string{{"meta/snap.yaml", ""}}, files...)
 	PopulateDir(d, files)
 	return snapdir.New(d)
+}
+
+func MockIntegrityDataHeaderBytes(c *check.C, rootHash string) []byte {
+	dmVerityInfo := &dmverity.Info{
+		RootHash: rootHash,
+	}
+	integrityDataHeader := &integrity.IntegrityDataHeader{
+		Type:     "integrity",
+		Size:     integrity.HeaderSize * 2,
+		DmVerity: *dmVerityInfo,
+	}
+
+	integrityDataHeaderBytes, err := integrityDataHeader.Encode()
+	c.Assert(err, check.IsNil)
+
+	return integrityDataHeaderBytes
 }
