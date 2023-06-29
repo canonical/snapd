@@ -28,7 +28,8 @@ import (
 )
 
 var (
-	NumberOfJobsParam = numberOfJobsParam
+	NumberOfJobsParam  = numberOfJobsParam
+	SetupConfCacheDirs = setupConfCacheDirs
 )
 
 func MockRuntimeNumCPU(new func() int) (restore func()) {
