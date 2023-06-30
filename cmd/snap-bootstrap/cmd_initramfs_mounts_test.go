@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -61,6 +62,8 @@ type baseInitramfsMountsSuite struct {
 	testutil.BaseTest
 
 	isClassic bool
+
+	hasVerity bool
 
 	// makes available a bunch of helper (like MakeAssertedSnap)
 	*seedtest.TestingSeed20
@@ -237,9 +240,19 @@ var (
 	}
 
 	mockStateContent = `{"data":{"auth":{"users":[{"id":1,"name":"mvo"}],"macaroon-key":"not-a-cookie","last-id":1}},"some":{"other":"stuff"}}`
+	zeroRootHash     = "0000000000000000000000000000000000000000000000000000000000000000"
 )
 
 func (s *baseInitramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, gadgetSnapFiles [][]string) {
+	integrityDataHeaderBytes := make([]byte, 0)
+	if s.hasVerity {
+		// create a mock integrity data header for the test snaps created by setupSeedWithIntegrity
+		integrityDataHeaderBytes = snaptest.MockIntegrityDataHeaderBytes(c, zeroRootHash)
+	}
+	s.setupSeedWithIntegrity(c, modelAssertTime, gadgetSnapFiles, integrityDataHeaderBytes)
+}
+
+func (s *baseInitramfsMountsSuite) setupSeedWithIntegrity(c *C, modelAssertTime time.Time, gadgetSnapFiles [][]string, integrityDataHeaderBytes []byte) {
 
 	// pretend /run/mnt/ubuntu-seed has a valid seed
 	s.seedDir = boot.InitramfsUbuntuSeedDir
@@ -259,10 +272,10 @@ func (s *baseInitramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, ga
 	seed20.SetSnapAssertionNow(s.snapDeclAssertsTime)
 
 	// add a bunch of snaps
-	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", gadgetSnapFiles, snap.R(1), "canonical", seed20.StoreSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
+	seed20.MakeAssertedSnapWithFilesAndIntegrityDataHeaderBytes(c, "name: snapd\nversion: 1\ntype: snapd", nil, integrityDataHeaderBytes, snap.R(1), "canonical", seed20.StoreSigning.Database)
+	seed20.MakeAssertedSnapWithFilesAndIntegrityDataHeaderBytes(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", gadgetSnapFiles, integrityDataHeaderBytes, snap.R(1), "canonical", seed20.StoreSigning.Database)
+	seed20.MakeAssertedSnapWithFilesAndIntegrityDataHeaderBytes(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, integrityDataHeaderBytes, snap.R(1), "canonical", seed20.StoreSigning.Database)
+	seed20.MakeAssertedSnapWithFilesAndIntegrityDataHeaderBytes(c, "name: core20\nversion: 1\ntype: base", nil, integrityDataHeaderBytes, snap.R(1), "canonical", seed20.StoreSigning.Database)
 
 	// pretend that by default, the model uses an older timestamp than the
 	// snap assertions
@@ -638,7 +651,15 @@ func (s *baseInitramfsMountsSuite) makeSeedSnapSystemdMount(typ snap.Type) syste
 	}
 	mnt.what = filepath.Join(s.seedDir, "snaps", name+"_1.snap")
 	mnt.where = filepath.Join(boot.InitramfsRunMntDir, dir)
-	mnt.opts = snapMountOpts
+
+	opts := *snapMountOpts
+	if s.hasVerity && !s.isClassic {
+		opts.VerityHashDevice = mnt.what
+		opts.VerityRootHash = zeroRootHash
+		opts.VerityHashOffset = 4096
+	}
+
+	mnt.opts = &opts
 
 	return mnt
 }
@@ -1442,7 +1463,7 @@ Wants=%[1]s
 	// 2 IsMounted calls per mount point, so 10 total IsMounted calls
 	c.Assert(n, Equals, 12)
 
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+	mounts := [][]string{
 		{
 			"systemd-mount",
 			filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-seed"),
@@ -1452,54 +1473,57 @@ Wants=%[1]s
 			"--fsck=yes",
 			"--options=private",
 			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
-			snapdMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
-			kernelMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
-			baseMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.gadget.Filename()),
-			gadgetMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			"tmpfs",
-			boot.InitramfsDataDir,
-			"--no-pager",
-			"--no-ask-password",
-			"--type=tmpfs",
-			"--fsck=no",
-			"--options=nosuid,private",
-			"--property=Before=initrd-fs.target",
 		},
-	})
+	}
+
+	mntPaths := map[string]string{}
+	mntPaths[s.snapd.Filename()] = snapdMnt
+	mntPaths[s.kernel.Filename()] = kernelMnt
+	mntPaths[s.core20.Filename()] = baseMnt
+	mntPaths[s.gadget.Filename()] = gadgetMnt
+
+	essSnaps := []string{
+		s.snapd.Filename(),
+		s.kernel.Filename(),
+		s.core20.Filename(),
+		s.gadget.Filename(),
+	}
+
+	for _, snapName := range essSnaps {
+		opts := "--options=ro,private"
+
+		if s.hasVerity {
+			opts += ",verity.roothash=" + zeroRootHash +
+				",verity.hashdevice=" + filepath.Join(s.seedDir, "snaps", snapName) +
+				",verity.hashoffset=4096"
+		}
+
+		mntStr := []string{
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", snapName),
+			mntPaths[snapName],
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			opts,
+			"--property=Before=initrd-fs.target",
+		}
+
+		mounts = append(mounts, mntStr)
+	}
+
+	mounts = append(mounts, []string{
+		"systemd-mount",
+		"tmpfs",
+		boot.InitramfsDataDir,
+		"--no-pager",
+		"--no-ask-password",
+		"--type=tmpfs",
+		"--fsck=no",
+		"--options=nosuid,private",
+		"--property=Before=initrd-fs.target"})
+
+	c.Assert(cmd.Calls(), DeepEquals, mounts)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSystemdMount(c *C) {
@@ -1623,7 +1647,7 @@ Wants=%[1]s
 	// 2 IsMounted calls per mount point, so 14 total IsMounted calls
 	c.Assert(n, Equals, 16)
 
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+	mounts := [][]string{
 		{
 			"systemd-mount",
 			filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-seed"),
@@ -1633,43 +1657,47 @@ Wants=%[1]s
 			"--fsck=yes",
 			"--options=private",
 			"--property=Before=initrd-fs.target",
-		}, {
+		},
+	}
+
+	mntPaths := map[string]string{}
+	mntPaths[s.snapd.Filename()] = snapdMnt
+	mntPaths[s.kernel.Filename()] = kernelMnt
+	mntPaths[s.core20.Filename()] = baseMnt
+	mntPaths[s.gadget.Filename()] = gadgetMnt
+
+	essSnaps := []string{
+		s.snapd.Filename(),
+		s.kernel.Filename(),
+		s.core20.Filename(),
+		s.gadget.Filename(),
+	}
+
+	for _, snapName := range essSnaps {
+		opts := "--options=ro,private"
+
+		if s.hasVerity {
+			opts += ",verity.roothash=" + zeroRootHash +
+				",verity.hashdevice=" + filepath.Join(s.seedDir, "snaps", snapName) +
+				",verity.hashoffset=4096"
+		}
+
+		mntStr := []string{
 			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
-			snapdMnt,
+			filepath.Join(s.seedDir, "snaps", snapName),
+			mntPaths[snapName],
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro,private",
+			opts,
 			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
-			kernelMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
-			baseMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.gadget.Filename()),
-			gadgetMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
+		}
+
+		mounts = append(mounts, mntStr)
+	}
+
+	mounts = append(mounts, [][]string{
+		{
 			"systemd-mount",
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -1698,7 +1726,9 @@ Wants=%[1]s
 			"--options=nosuid,private",
 			"--property=Before=initrd-fs.target",
 		},
-	})
+	}...)
+
+	c.Assert(cmd.Calls(), DeepEquals, mounts)
 
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
@@ -1789,7 +1819,8 @@ Wants=%[1]s
 		boot.InitramfsHostUbuntuDataDir,
 		boot.InitramfsUbuntuSaveDir,
 	})
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
+
+	mounts := [][]string{
 		{
 			"systemd-mount",
 			filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-seed"),
@@ -1799,43 +1830,47 @@ Wants=%[1]s
 			"--fsck=yes",
 			"--options=private",
 			"--property=Before=initrd-fs.target",
-		}, {
+		},
+	}
+
+	mntPaths := map[string]string{}
+	mntPaths[s.snapd.Filename()] = snapdMnt
+	mntPaths[s.kernel.Filename()] = kernelMnt
+	mntPaths[s.core20.Filename()] = baseMnt
+	mntPaths[s.gadget.Filename()] = gadgetMnt
+
+	essSnaps := []string{
+		s.snapd.Filename(),
+		s.kernel.Filename(),
+		s.core20.Filename(),
+		s.gadget.Filename(),
+	}
+
+	for _, snapName := range essSnaps {
+		opts := "--options=ro,private"
+
+		if s.hasVerity {
+			opts += ",verity.roothash=" + zeroRootHash +
+				",verity.hashdevice=" + filepath.Join(s.seedDir, "snaps", snapName) +
+				",verity.hashoffset=4096"
+		}
+
+		mntStr := []string{
 			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
-			snapdMnt,
+			filepath.Join(s.seedDir, "snaps", snapName),
+			mntPaths[snapName],
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro,private",
+			opts,
 			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
-			kernelMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
-			baseMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", s.gadget.Filename()),
-			gadgetMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
+		}
+
+		mounts = append(mounts, mntStr)
+	}
+
+	mounts = append(mounts, [][]string{
+		{
 			"systemd-mount",
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -1873,7 +1908,9 @@ Wants=%[1]s
 			"--options=private",
 			"--property=Before=initrd-fs.target",
 		},
-	})
+	}...)
+
+	c.Check(cmd.Calls(), DeepEquals, mounts)
 
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
@@ -8272,4 +8309,55 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunInstallDeviceHook
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(sealedKeysLocked, Equals, true)
+}
+
+type initramfsVerityMountsSuite struct {
+	initramfsMountsSuite
+}
+
+var _ = Suite(&initramfsVerityMountsSuite{})
+
+func (s *initramfsVerityMountsSuite) SetUpTest(c *C) {
+	s.hasVerity = true
+	s.initramfsMountsSuite.SetUpTest(c)
+}
+
+func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHappy(c *C) {
+	// TODO: implement run mode verity
+}
+func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUIDHappy(c *C) {
+	// TODO: implement run mode verity
+}
+func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) {
+	// TODO: implement run mode verity
+}
+func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeUpdateBootloaderVars(c *C) {
+	// TODO: implement run mode verity
+}
+func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c *C) {
+	// TODO: implement run mode verity
+}
+func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedKeyLockingUnhappy(c *C) {
+	// TODO: implement run mode verity
+}
+func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedHappy(c *C) {
+	// TODO: implement run mode verity
+}
+func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdMount(c *C) {
+	// TODO: implement run mode verity
+}
+func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMount(c *C) {
+	// TODO: implement run mode verity
+}
+func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystemSetHappy(c *C) {
+	// TODO: implement run mode verity
+}
+func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C) {
+	// TODO: implement run mode verity
+}
+func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
+	// TODO: implement run mode verity
+}
+func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystemdMount(c *C) {
+	// TODO: implement run mode verity
 }
