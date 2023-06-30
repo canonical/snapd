@@ -22,8 +22,8 @@ package asserts_test
 import (
 	"encoding/base64"
 
+	"github.com/snapcore/snapd/internal/sha3"
 	"golang.org/x/crypto/openpgp/packet"
-	"golang.org/x/crypto/sha3"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"

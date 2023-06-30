@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"time"
 
-	"golang.org/x/crypto/sha3"
+	"github.com/snapcore/snapd/internal/sha3"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"

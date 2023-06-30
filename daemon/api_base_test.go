@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"golang.org/x/crypto/sha3"
+	"github.com/snapcore/snapd/internal/sha3"
 	"gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 

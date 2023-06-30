@@ -28,7 +28,7 @@ import (
 	"os"
 	"path/filepath"
 
-	_ "golang.org/x/crypto/sha3"
+	_ "github.com/snapcore/snapd/internal/sha3"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"

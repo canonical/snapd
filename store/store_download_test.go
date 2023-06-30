@@ -33,7 +33,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"golang.org/x/crypto/sha3"
+	"github.com/snapcore/snapd/internal/sha3"
 	. "gopkg.in/check.v1"
 	"gopkg.in/retry.v1"
 

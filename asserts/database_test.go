@@ -33,8 +33,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/snapcore/snapd/internal/sha3"
 	"golang.org/x/crypto/openpgp/packet"
-	"golang.org/x/crypto/sha3"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"

@@ -18,7 +18,7 @@ export DH_GOLANG_GO_GENERATE=1
 
 export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on xenial
-export PATH:=/usr/lib/go-1.18/bin:${PATH}
+export PATH:=/snap/bin:/usr/lib/go-1.18/bin:${PATH}
 # GOCACHE is needed by go-1.13+
 export GOCACHE:=/tmp/go-build
 

@@ -27,7 +27,7 @@ import (
 	"time"
 
 	// expected for digests
-	_ "golang.org/x/crypto/sha3"
+	_ "github.com/snapcore/snapd/internal/sha3"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
