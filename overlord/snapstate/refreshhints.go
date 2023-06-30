@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -181,6 +181,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 				DownloadInfo: &update.DownloadInfo,
 				SideInfo:     &update.SideInfo,
 				Type:         update.Type(),
+				Version:      update.Version,
 				PlugsOnly:    len(update.Slots) == 0,
 				InstanceKey:  update.InstanceKey,
 				auxStoreInfo: auxStoreInfo{
@@ -190,7 +191,6 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 					Website: update.Website(),
 				},
 			},
-			Version: update.Version,
 		}
 		hints[update.InstanceName()] = snapsup
 	}

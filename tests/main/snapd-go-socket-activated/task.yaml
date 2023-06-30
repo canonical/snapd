@@ -3,9 +3,7 @@ summary: Check that snapd goes into socket activated mode if there are no snaps
 systems: [ubuntu-18.04-64]
 
 prepare: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-    systemd_stop_units snapd.service snapd.socket
+    tests.systemd stop-unit snapd.service snapd.socket
     rm -f /var/lib/snapd/state.json
 
 execute: |

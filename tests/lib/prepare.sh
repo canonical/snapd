@@ -768,44 +768,8 @@ EOF
         rm -rf unpacked-initrd skeleton initrd repacked-initrd-* vmlinuz-*
     )
 
-    (
-        # XXX: drop ~450MB+ of firmware which should not be needed in under qemu
-        # or the cloud system
-        cd repacked-kernel
-        rm -rf firmware/*
-
-        # the code below drops the modules that are not loaded on the
-        # current host, this should work for most cases, since the image will be
-        # running on the same host
-        # TODO:UC20: enable when ready
-
-        # To avoid shellcheck unused code warning, we cannot use "exit 0" to disable
-        # the module drop code. To avoid commented out code, we use a flag instead.
-        # Strip off the check when this UC20 code is enabled.
-        uc20Ready=false
-
-        if [ "$uc20Ready" = "true" ]; then
-            # drop unnecessary modules
-            awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
-            #shellcheck disable=SC2044
-            for m in $(find modules/ -name '*.ko'); do
-                noko=$(basename "$m"); noko="${noko%.ko}"
-                if echo "$noko" | grep -f /tmp/mods -q ; then
-                    echo "keeping $m - $noko"
-                else
-                    rm -f "$m"
-                fi
-            done
-            #shellcheck disable=SC2010
-            kver=$(ls "config"-* | grep -Po 'config-\K.*')
-
-            # depmod assumes that /lib/modules/$kver is under basepath
-            mkdir -p fake/lib
-            ln -s "$PWD/modules" fake/lib/modules
-            depmod -b "$PWD/fake" -A -v "$kver"
-            rm -rf fake
-        fi
-    )
+    # drop ~450MB+ of firmware which should not be needed in qemu or the cloud system
+    rm -rf repacked-kernel/firmware/*
 
     # copy any extra files that tests may need for the kernel
     if [ -d ./extra-kernel-snap/ ]; then
@@ -814,9 +778,7 @@ EOF
     
     snap pack repacked-kernel "$TARGET"
     rm -rf repacked-kernel
-
 }
-
 
 setup_core_for_testing_by_modify_writable() {
     UNPACK_DIR="$1"
@@ -985,8 +947,14 @@ setup_reflash_magic() {
         snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
     else
         # shellcheck source=tests/lib/image.sh
-        . "$TESTSLIB/image.sh"
-        get_ubuntu_image
+        #. "$TESTSLIB/image.sh"
+        #get_ubuntu_image
+        # TODO: revert this once ubuntu-image is fixed
+        # Currently it is failing with
+        # runtime: goroutine stack exceeds 1000000000-byte limit
+        # runtime: sp=0xc0204963b0 stack=[0xc020496000, 0xc040496000]
+        # fatal error: stack overflow
+        snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
     fi
 
     # needs to be under /home because ubuntu-device-flash
@@ -1179,7 +1147,9 @@ EOF
         
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap ${IMAGE_HOME}/${BASE}.snap"
     fi
-    local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+    # TODO: revert this when ubuntu-image issue is fixed
+    #local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+    UBUNTU_IMAGE=/snap/bin/ubuntu-image
     if os.query is-core16 || os.query is-arm; then
         # ubuntu-image on 16.04 needs to be installed from a snap
         UBUNTU_IMAGE=/snap/bin/ubuntu-image

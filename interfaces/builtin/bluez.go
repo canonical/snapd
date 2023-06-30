@@ -95,6 +95,11 @@ dbus (bind)
 # Allow binding the service to the requested connection name
 dbus (bind)
     bus=system
+    name="org.bluez.obex.*",
+
+# Allow binding the service to the requested connection name
+dbus (bind)
+    bus=system
     name="org.bluez.mesh",
 
 # Allow traffic to/from our interface with any method for unconfined clients
@@ -214,6 +219,7 @@ const bluezPermanentSlotDBus = `
     <allow send_destination="org.bluez.obex"/>
     <allow send_destination="org.bluez.mesh"/>
     <allow send_interface="org.bluez.Agent1"/>
+    <allow send_interface="org.bluez.AgentManager1"/>
     <allow send_interface="org.bluez.MediaEndpoint1"/>
     <allow send_interface="org.bluez.MediaPlayer1"/>
     <allow send_interface="org.bluez.ThermometerWatcher1"/>

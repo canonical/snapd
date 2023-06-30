@@ -160,7 +160,7 @@ func CheckChangeConflictRunExclusively(st *state.State, newChangeKind string) er
 // isIrrelevantChange checks if a change is ready or it can be ignored
 // if matching the passed ID, for conflict checking purposes.
 func isIrrelevantChange(chg *state.Change, ignoreChangeID string) bool {
-	if chg == nil || chg.Status().Ready() {
+	if chg == nil || chg.IsReady() {
 		return true
 	}
 	if ignoreChangeID != "" && chg.ID() == ignoreChangeID {

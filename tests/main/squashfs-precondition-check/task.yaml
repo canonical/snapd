@@ -12,9 +12,7 @@ restore: |
 execute: |
     echo "Restart snapd so that the precondition check runs"
     systemctl restart snapd
-    # shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-    wait_for_service snapd
+    tests.systemd wait-for-service -n 30 --state active snapd
 
     "$TESTSTOOLS"/journal-state match-log -n 120 -u snapd "system does not fully support snapd: cannot mount squashfs image"
 

@@ -1119,3 +1119,334 @@ func (ts *taskRunnerSuite) TestCheckTaskDependencies(c *C) {
 		}
 	}
 }
+
+func (cs *changeSuite) TestIsWaitingStatusOrderWithWaits(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t3 := st.NewTask("task3", "...")
+	t4 := st.NewTask("wait-task", "...")
+	t1.WaitFor(t2)
+	t1.WaitFor(t3)
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+	chg.AddTask(t4)
+
+	// Set the wait-task into WaitStatus, to ensure we trigger the isWaiting
+	// logic and that it doesn't return WaitStatus for statuses which are in
+	// higher order
+	t4.SetToWait(state.DoneStatus)
+
+	// Test the following sequences:
+	// task1 (do) => task2 (done) => task3 (doing)
+	t2.SetToWait(state.DoneStatus)
+	t3.SetStatus(state.DoingStatus)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+
+	// task1 (done) => task2 (done) => task3 (undoing)
+	t1.SetToWait(state.DoneStatus)
+	t2.SetToWait(state.DoneStatus)
+	t3.SetStatus(state.UndoingStatus)
+	c.Check(chg.Status(), Equals, state.UndoingStatus)
+
+	// task1 (done) => task2 (done) => task3 (abort)
+	t1.SetToWait(state.DoneStatus)
+	t2.SetToWait(state.DoneStatus)
+	t3.SetStatus(state.AbortStatus)
+	c.Check(chg.Status(), Equals, state.AbortStatus)
+}
+
+func (cs *changeSuite) TestIsWaitingSingle(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	t1 := st.NewTask("task1", "...")
+
+	chg.AddTask(t1)
+	c.Check(chg.Status(), Equals, state.DoStatus)
+
+	t1.SetToWait(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+}
+
+func (cs *changeSuite) TestIsWaitingTwoTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t3 := st.NewTask("wait-task", "...")
+	t2.WaitFor(t1)
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+
+	// Put t3 into wait-status to trigger the isWaiting logic each time
+	// for the change.
+	t3.SetToWait(state.DoneStatus)
+
+	// task1 (do) => task2 (do) no reboot
+	c.Check(chg.Status(), Equals, state.DoStatus)
+
+	// task1 (done) => task2 (do) no reboot
+	t1.SetStatus(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.DoStatus)
+
+	// task1 (wait) => task2 (do) means need a reboot
+	t1.SetToWait(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// task1 (done) => task2 (wait) means need a reboot
+	t1.SetStatus(state.DoneStatus)
+	t2.SetToWait(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+}
+
+func (cs *changeSuite) TestIsWaitingCircularDependency(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t3 := st.NewTask("task3", "...")
+	t4 := st.NewTask("wait-task", "...")
+
+	// Setup circular dependency between t1,t2 and t3, they should
+	// still act normally.
+	t2.WaitFor(t1)
+	t3.WaitFor(t2)
+	t1.WaitFor(t3)
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+	chg.AddTask(t4)
+
+	// To trigger the cyclic dependency check, we must trigger the isWaiting logic
+	// and we do this by putting t4 into WaitStatus.
+	t4.SetToWait(state.DoneStatus)
+
+	// task1 (do) => task2 (do) => task3 (do) no reboot
+	c.Check(chg.Status(), Equals, state.DoStatus)
+
+	// task1 (done) => task2 (do) => task3 (do) no reboot
+	t1.SetStatus(state.DoneStatus)
+	t2.SetStatus(state.DoingStatus)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+
+	// task1 (wait) => task2 (do) => task3 (do) means need a reboot
+	t2.SetToWait(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// task1 (done) => task2 (wait) => task3 (do) means need a reboot
+	t1.SetStatus(state.DoneStatus)
+	t2.SetToWait(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+}
+
+func (cs *changeSuite) TestIsWaitingMultipleDependencies(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t3 := st.NewTask("task3", "...")
+	t4 := st.NewTask("wait-task", "...")
+	t3.WaitFor(t1)
+	t3.WaitFor(t2)
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+	chg.AddTask(t4)
+
+	// Put t4 into wait-status to trigger the isWaiting logic each time
+	// for the change.
+	t4.SetToWait(state.DoneStatus)
+
+	// task1 (do) + task2 (do) => task3 (do) no reboot
+	c.Check(chg.Status(), Equals, state.DoStatus)
+
+	// task1 (done) + task2 (done) => task3 (do) no reboot
+	t1.SetStatus(state.DoneStatus)
+	t2.SetStatus(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.DoStatus)
+
+	// task1 (done) + task2 (do) => task3 (do) no reboot
+	t1.SetStatus(state.DoneStatus)
+	t2.SetStatus(state.DoStatus)
+	c.Check(chg.Status(), Equals, state.DoStatus)
+
+	// For the next two cases we are testing that a task with dependencies
+	// which have completed, but in a non-successful way is handled correctly.
+	// task1 (error) + task2 (wait) => task3 (do) means need reboot
+	// to finalize task2
+	t1.SetStatus(state.ErrorStatus)
+	t2.SetToWait(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// task1 (wait) + task2 (error) => task3 (do) means need reboot
+	// to finalize task1
+	t1.SetToWait(state.DoneStatus)
+	t2.SetStatus(state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// task1 (done) + task2 (wait) => task3 (do) means need a reboot
+	t1.SetStatus(state.DoneStatus)
+	t2.SetToWait(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// task1 (wait) + task2 (wait) => task3 (do) means need a reboot
+	t1.SetToWait(state.DoneStatus)
+	t2.SetToWait(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// task1 (done) + task2 (done) => task3 (wait) means need a reboot
+	t1.SetStatus(state.DoneStatus)
+	t2.SetStatus(state.DoneStatus)
+	t3.SetToWait(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// task1 (wait) + task2 (abort) => task3 (do)
+	t1.SetToWait(state.DoneStatus)
+	t2.SetStatus(state.AbortStatus)
+	t3.SetStatus(state.DoStatus)
+	c.Check(chg.Status(), Equals, state.AbortStatus)
+}
+
+func (cs *changeSuite) TestIsWaitingUndoTwoTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t3 := st.NewTask("wait-task", "...")
+	t2.WaitFor(t1)
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+
+	// Put t3 into wait-status to trigger the isWaiting logic each time
+	// for the change.
+	t3.SetToWait(state.DoneStatus)
+
+	// we use <=| to denote the reverse dependence relationship
+	// followed by undo logic
+
+	// task1 (undo) <=| task2 (undo) no reboot
+	t1.SetStatus(state.UndoStatus)
+	t2.SetStatus(state.UndoStatus)
+	c.Check(chg.Status(), Equals, state.UndoStatus)
+
+	// task1 (undo) <=| task2 (undone) no reboot
+	t1.SetStatus(state.UndoStatus)
+	t2.SetStatus(state.UndoneStatus)
+	c.Check(chg.Status(), Equals, state.UndoStatus)
+
+	// task1 (undo) <=| task2 (wait) means need a reboot
+	t1.SetStatus(state.UndoStatus)
+	t2.SetToWait(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// task1 (wait) <=| task2 (undone) means need a reboot
+	t1.SetToWait(state.DoneStatus)
+	t2.SetStatus(state.UndoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+}
+
+func (cs *changeSuite) TestIsWaitingUndoMultipleDependencies(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t3 := st.NewTask("task3", "...")
+	t4 := st.NewTask("task4", "...")
+	t5 := st.NewTask("wait-task", "...")
+	t3.WaitFor(t1)
+	t3.WaitFor(t2)
+	t4.WaitFor(t1)
+	t4.WaitFor(t2)
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+	chg.AddTask(t4)
+	chg.AddTask(t5)
+
+	// Put t5 into wait-status to trigger the isWaiting logic each time
+	// for the change.
+	t5.SetToWait(state.DoneStatus)
+
+	// task1 (undo) + task2 (undo) <=| task3 (undo) no reboot
+	t1.SetStatus(state.UndoStatus)
+	t2.SetStatus(state.UndoStatus)
+	t3.SetStatus(state.UndoStatus)
+	c.Check(chg.Status(), Equals, state.UndoStatus)
+
+	// task1 (undo) + task2 (undo) <=| task3 (undone) no reboot
+	t1.SetStatus(state.UndoStatus)
+	t2.SetStatus(state.UndoStatus)
+	t3.SetStatus(state.UndoneStatus)
+	c.Check(chg.Status(), Equals, state.UndoStatus)
+
+	// task1 (undo) + task2 (undo) <=| task3 (wait) + task4 (error) means
+	// need reboot to continue undoing 1 and 2
+	t3.SetStatus(state.ErrorStatus)
+	t4.SetToWait(state.UndoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// task1 (undo) + task2 (undo) => task3 (error) + task4 (wait) means
+	// need reboot to continue undoing 1 and 2
+	t3.SetToWait(state.UndoneStatus)
+	t4.SetStatus(state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// task1 (wait) + task2 (wait) <=| task3 (undone) + task4 (undo) no reboot
+	t1.SetToWait(state.DoneStatus)
+	t2.SetToWait(state.DoneStatus)
+	t3.SetStatus(state.UndoneStatus)
+	t4.SetStatus(state.UndoStatus)
+	c.Check(chg.Status(), Equals, state.UndoStatus)
+
+	// task1 (wait) + task2 (done) <=| task3 (undone) + task4 (undone) means need a reboot
+	t1.SetToWait(state.DoneStatus)
+	t2.SetStatus(state.DoneStatus)
+	t3.SetStatus(state.UndoneStatus)
+	t4.SetStatus(state.UndoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// task1 (wait) + task2 (wait) <=| task3 (undone) + task4 (undone) means need a reboot
+	t1.SetToWait(state.DoneStatus)
+	t2.SetToWait(state.DoneStatus)
+	t3.SetStatus(state.UndoneStatus)
+	t4.SetStatus(state.UndoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+}

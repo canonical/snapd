@@ -23,8 +23,6 @@ prepare: |
     fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     if [ "$SERVICE" = "rsyslog" ] && os.query is-core18; then
         echo "The service to test does not exist in the core18 system, skipping..."
@@ -106,8 +104,6 @@ restore: |
     fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     SUFFIX="$(get_test_snap_suffix)"
 

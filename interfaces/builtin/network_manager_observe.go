@@ -73,31 +73,31 @@ dbus (send)
     path="/org/freedesktop/NetworkManager{,/{ActiveConnection,Devices}/*}"
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
-    peer=(name=org.freedesktop.NetworkManger,label=###PLUG_SECURITY_TAGS###),
+    peer=(name=org.freedesktop.NetworkManager,label=###PLUG_SECURITY_TAGS###),
 dbus (send)
     bus=system
     path="/org/freedesktop/NetworkManager{,/{ActiveConnection,Devices}/*}"
-    interface="org.freedesktop.NetworkManger{,.*}"
+    interface="org.freedesktop.NetworkManager{,.*}"
     member=StateChanged
-    peer=(name=org.freedesktop.NetworkManger,label=###PLUG_SECURITY_TAGS###),
+    peer=(name=org.freedesktop.NetworkManager,label=###PLUG_SECURITY_TAGS###),
 dbus (send)
     bus=system
     path="/org/freedesktop/NetworkManager"
-    interface=org.freedesktop.NetworkManger
+    interface=org.freedesktop.NetworkManager
     member="Device{Added,Removed}"
-    peer=(name=org.freedesktop.NetworkManger,label=###PLUG_SECURITY_TAGS###),
+    peer=(name=org.freedesktop.NetworkManager,label=###PLUG_SECURITY_TAGS###),
 dbus (send)
     bus=system
     path="/org/freedesktop/NetworkManager/Settings"
-    interface=org.freedesktop.NetworkManger.Settings
+    interface=org.freedesktop.NetworkManager.Settings
     member=PropertiesChanged
-    peer=(name=org.freedesktop.NetworkManger,label=###PLUG_SECURITY_TAGS###),
+    peer=(name=org.freedesktop.NetworkManager,label=###PLUG_SECURITY_TAGS###),
 dbus (send)
     bus=system
     path="/org/freedesktop/NetworkManager/Settings/*"
     interface="org.freedesktop.NetworkManager.Settings.Connection"
     member=PropertiesChanged
-    peer=(name=org.freedesktop.NetworkManger,label=###PLUG_SECURITY_TAGS###),
+    peer=(name=org.freedesktop.NetworkManager,label=###PLUG_SECURITY_TAGS###),
 `
 
 const networkManagerObserveConnectedPlugAppArmor = `
@@ -150,19 +150,19 @@ dbus (receive)
 dbus (receive)
     bus=system
     path="/org/freedesktop/NetworkManager{,/{ActiveConnection,Devices}/*}"
-    interface="org.freedesktop.NetworkManger{,.*}"
+    interface="org.freedesktop.NetworkManager{,.*}"
     member=StateChanged
     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive)
     bus=system
     path="/org/freedesktop/NetworkManager"
-    interface=org.freedesktop.NetworkManger
+    interface=org.freedesktop.NetworkManager
     member="Device{Added,Removed}"
     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive)
     bus=system
     path="/org/freedesktop/NetworkManager/Settings"
-    interface=org.freedesktop.NetworkManger.Settings
+    interface=org.freedesktop.NetworkManager.Settings
     member=PropertiesChanged
     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive)

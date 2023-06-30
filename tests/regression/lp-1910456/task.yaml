@@ -1,8 +1,12 @@
 summary: container management snaps should have special systemd unit directives
+
 details: |
     Some special interfaces have additional systemd unit directives added to 
     their systemd units, specifically container management interfaces have the
     Delegate=true snippet added to prevent CVE-2020-27352.
+
+# Docker is not supported anymore in ubuntu 14.04
+systems: [-ubuntu-14.04-64]
 
 prepare: |
     # build and install the strict test snap

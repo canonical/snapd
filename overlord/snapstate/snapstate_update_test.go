@@ -803,6 +803,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
+		Version:   "some-snapVer",
 		PlugsOnly: true,
 		Flags:     snapstate.Flags{Amend: true},
 	})
@@ -1049,6 +1050,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
+		Version:   "services-snapVer",
 		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
@@ -1403,6 +1405,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 		},
 		SideInfo:    snapsup.SideInfo,
 		Type:        snap.TypeApp,
+		Version:     "services-snapVer",
 		PlugsOnly:   true,
 		InstanceKey: "instance",
 	})
@@ -1740,6 +1743,7 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeKernel,
+		Version:   "kernelVer",
 		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{

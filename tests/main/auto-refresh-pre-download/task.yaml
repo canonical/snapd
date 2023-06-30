@@ -34,7 +34,7 @@ execute: |
     local OLD_CHANGE="$1"
     local NEW_CHANGE
 
-    for _ in $(seq 5); do
+    for _ in $(seq 30); do
       NEW_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
       if [ "$NEW_CHANGE" -gt "$OLD_CHANGE" ]; then
         break

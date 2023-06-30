@@ -41,26 +41,25 @@ var (
 
 	HiddenSnapDataHomeGlob string
 
-	SnapBlobDir            string
-	SnapDataDir            string
-	SnapDataHomeGlob       string
-	SnapDownloadCacheDir   string
-	SnapAppArmorDir        string
-	SnapConfineAppArmorDir string
-	SnapSeccompBase        string
-	SnapSeccompDir         string
-	SnapMountPolicyDir     string
-	SnapUdevRulesDir       string
-	SnapKModModulesDir     string
-	SnapKModModprobeDir    string
-	LocaleDir              string
-	SnapdSocket            string
-	SnapSocket             string
-	SnapRunDir             string
-	SnapRunNsDir           string
-	SnapRunLockDir         string
-	SnapBootstrapRunDir    string
-	SnapVoidDir            string
+	SnapBlobDir          string
+	SnapDataDir          string
+	SnapDataHomeGlob     string
+	SnapDownloadCacheDir string
+	SnapAppArmorDir      string
+	SnapSeccompBase      string
+	SnapSeccompDir       string
+	SnapMountPolicyDir   string
+	SnapUdevRulesDir     string
+	SnapKModModulesDir   string
+	SnapKModModprobeDir  string
+	LocaleDir            string
+	SnapdSocket          string
+	SnapSocket           string
+	SnapRunDir           string
+	SnapRunNsDir         string
+	SnapRunLockDir       string
+	SnapBootstrapRunDir  string
+	SnapVoidDir          string
 
 	SnapdMaintenanceFile string
 
@@ -365,7 +364,6 @@ func SetRootDir(rootdir string) {
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", UserHomeSnapDir)
 	HiddenSnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", HiddenSnapDataHomeDir)
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
-	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
 	SnapDownloadCacheDir = filepath.Join(rootdir, snappyDir, "cache")
 	SnapSeccompBase = filepath.Join(rootdir, snappyDir, "seccomp")
 	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")

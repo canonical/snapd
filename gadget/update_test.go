@@ -150,43 +150,43 @@ func (u *updateTestSuite) TestCanUpdateSize(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			// size change
-			from: gadget.VolumeStructure{MinSize: quantity.SizeMiB, Size: quantity.SizeMiB},
-			to:   gadget.VolumeStructure{MinSize: quantity.SizeMiB + quantity.SizeKiB, Size: quantity.SizeMiB + quantity.SizeKiB},
+			from: gadget.VolumeStructure{MinSize: quantity.SizeMiB, Size: quantity.SizeMiB, EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{MinSize: quantity.SizeMiB + quantity.SizeKiB, Size: quantity.SizeMiB + quantity.SizeKiB, EnclosingVolume: &gadget.Volume{}},
 			err:  `new valid structure size range \[1049600, 1049600\] is not compatible with current \(\[1048576, 1048576\]\)`,
 		}, {
 			// no size change
-			from: gadget.VolumeStructure{MinSize: quantity.SizeMiB, Size: quantity.SizeMiB},
-			to:   gadget.VolumeStructure{MinSize: quantity.SizeMiB, Size: quantity.SizeMiB},
+			from: gadget.VolumeStructure{MinSize: quantity.SizeMiB, Size: quantity.SizeMiB, EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{MinSize: quantity.SizeMiB, Size: quantity.SizeMiB, EnclosingVolume: &gadget.Volume{}},
 			err:  "",
 		}, {
 			// range ok
-			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
-			to:   gadget.VolumeStructure{MinSize: 0, Size: 10},
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20, EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{MinSize: 0, Size: 10, EnclosingVolume: &gadget.Volume{}},
 			err:  "",
 		}, {
 			// range ok
-			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
-			to:   gadget.VolumeStructure{MinSize: 0, Size: 15},
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20, EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{MinSize: 0, Size: 15, EnclosingVolume: &gadget.Volume{}},
 			err:  "",
 		}, {
 			// range ok
-			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
-			to:   gadget.VolumeStructure{MinSize: 15, Size: 18},
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20, EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{MinSize: 15, Size: 18, EnclosingVolume: &gadget.Volume{}},
 			err:  "",
 		}, {
 			// range ok
-			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
-			to:   gadget.VolumeStructure{MinSize: 15, Size: 25},
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20, EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{MinSize: 15, Size: 25, EnclosingVolume: &gadget.Volume{}},
 			err:  "",
 		}, {
 			// range out
-			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
-			to:   gadget.VolumeStructure{MinSize: 1, Size: 9},
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20, EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{MinSize: 1, Size: 9, EnclosingVolume: &gadget.Volume{}},
 			err:  `new valid structure size range \[1, 9\] is not compatible with current \(\[10, 20\]\)`,
 		}, {
 			// range out
-			from: gadget.VolumeStructure{MinSize: 10, Size: 20},
-			to:   gadget.VolumeStructure{MinSize: 21, Size: 25},
+			from: gadget.VolumeStructure{MinSize: 10, Size: 20, EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{MinSize: 21, Size: 25, EnclosingVolume: &gadget.Volume{}},
 			err:  `new valid structure size range \[21, 25\] is not compatible with current \(\[10, 20\]\)`,
 		},
 	}
@@ -200,60 +200,69 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 		{
 			// offset-write change
 			from: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{Offset: 1024}},
+				OffsetWrite: &gadget.RelativeOffset{Offset: 1024}, EnclosingVolume: &gadget.Volume{}},
 			to: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{Offset: 2048}},
+				OffsetWrite: &gadget.RelativeOffset{Offset: 2048}, EnclosingVolume: &gadget.Volume{}},
 			err: "cannot change structure offset-write from [0-9]+ to [0-9]+",
 		}, {
 			// offset-write, change in relative-to structure name
 			from: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024}},
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024}, EnclosingVolume: &gadget.Volume{}},
 			to: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024}},
+				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024}, EnclosingVolume: &gadget.Volume{}},
 			err: `cannot change structure offset-write from foo\+[0-9]+ to bar\+[0-9]+`,
 		}, {
 			// offset-write, unspecified in old
 			from: gadget.VolumeStructure{
-				OffsetWrite: nil,
+				OffsetWrite: nil, EnclosingVolume: &gadget.Volume{},
 			},
 			to: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024},
+				OffsetWrite:     &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024},
+				EnclosingVolume: &gadget.Volume{},
 			},
 			err: `cannot change structure offset-write from unspecified to bar\+[0-9]+`,
 		}, {
 			// offset-write, unspecified in new
 			from: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
+				OffsetWrite:     &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
+				EnclosingVolume: &gadget.Volume{},
 			},
 			to: gadget.VolumeStructure{
-				OffsetWrite: nil,
+				OffsetWrite:     nil,
+				EnclosingVolume: &gadget.Volume{},
 			},
 			err: `cannot change structure offset-write from foo\+[0-9]+ to unspecified`,
 		}, {
 			// all ok, both nils
 			from: gadget.VolumeStructure{
-				OffsetWrite: nil,
+				OffsetWrite:     nil,
+				EnclosingVolume: &gadget.Volume{},
 			},
 			to: gadget.VolumeStructure{
-				OffsetWrite: nil,
+				OffsetWrite:     nil,
+				EnclosingVolume: &gadget.Volume{},
 			},
 			err: ``,
 		}, {
 			// all ok, both fully specified
 			from: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
+				OffsetWrite:     &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
+				EnclosingVolume: &gadget.Volume{},
 			},
 			to: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
+				OffsetWrite:     &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
+				EnclosingVolume: &gadget.Volume{},
 			},
 			err: ``,
 		}, {
 			// all ok, both fully specified
 			from: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
+				OffsetWrite:     &gadget.RelativeOffset{Offset: 1024},
+				EnclosingVolume: &gadget.Volume{},
 			},
 			to: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
+				OffsetWrite:     &gadget.RelativeOffset{Offset: 1024},
+				EnclosingVolume: &gadget.Volume{},
 			},
 			err: ``,
 		},
@@ -295,28 +304,28 @@ func (u *updateTestSuite) TestCanUpdateRole(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			// new role
-			from: gadget.VolumeStructure{Role: ""},
-			to:   gadget.VolumeStructure{Role: "system-data"},
+			from: gadget.VolumeStructure{Role: "", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Role: "system-data", EnclosingVolume: &gadget.Volume{}},
 			err:  `cannot change structure role from "" to "system-data"`,
 		}, {
 			// explicitly set tole
-			from: gadget.VolumeStructure{Role: "mbr"},
-			to:   gadget.VolumeStructure{Role: "system-data"},
+			from: gadget.VolumeStructure{Role: "mbr", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Role: "system-data", EnclosingVolume: &gadget.Volume{}},
 			err:  `cannot change structure role from "mbr" to "system-data"`,
 		}, {
 			// implicit legacy role to proper explicit role
-			from: gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
-			to:   gadget.VolumeStructure{Type: "bare", Role: "mbr"},
+			from: gadget.VolumeStructure{Type: "mbr", Role: "mbr", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "bare", Role: "mbr", EnclosingVolume: &gadget.Volume{}},
 			err:  "",
 		}, {
 			// but not in the opposite direction
-			from: gadget.VolumeStructure{Type: "bare", Role: "mbr"},
-			to:   gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
+			from: gadget.VolumeStructure{Type: "bare", Role: "mbr", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "mbr", Role: "mbr", EnclosingVolume: &gadget.Volume{}},
 			err:  `cannot change structure type from "bare" to "mbr"`,
 		}, {
 			// start offset changed due to layout
-			from: gadget.VolumeStructure{Role: ""},
-			to:   gadget.VolumeStructure{Role: ""},
+			from: gadget.VolumeStructure{Role: "", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Role: "", EnclosingVolume: &gadget.Volume{}},
 			err:  "",
 		},
 	}
@@ -328,41 +337,41 @@ func (u *updateTestSuite) TestCanUpdateType(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			// from hybrid type to GUID
-			from: gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
-			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			from: gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
 			err:  `cannot change structure type from "0C,00000000-0000-0000-0000-dd00deadbeef" to "00000000-0000-0000-0000-dd00deadbeef"`,
 		}, {
 			// from MBR type to GUID (would be stopped at volume update checks)
-			from: gadget.VolumeStructure{Type: "0C"},
-			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			from: gadget.VolumeStructure{Type: "0C", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
 			err:  `cannot change structure type from "0C" to "00000000-0000-0000-0000-dd00deadbeef"`,
 		}, {
 			// from one MBR type to another
-			from: gadget.VolumeStructure{Type: "0C"},
-			to:   gadget.VolumeStructure{Type: "0A"},
+			from: gadget.VolumeStructure{Type: "0C", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "0A", EnclosingVolume: &gadget.Volume{}},
 			err:  `cannot change structure type from "0C" to "0A"`,
 		}, {
 			// from one MBR type to another
-			from: gadget.VolumeStructure{Type: "0C"},
-			to:   gadget.VolumeStructure{Type: "bare"},
+			from: gadget.VolumeStructure{Type: "0C", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "bare", EnclosingVolume: &gadget.Volume{}},
 			err:  `cannot change structure type from "0C" to "bare"`,
 		}, {
 			// from one GUID to another
-			from: gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadcafe"},
-			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			from: gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadcafe", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
 			err:  `cannot change structure type from "00000000-0000-0000-0000-dd00deadcafe" to "00000000-0000-0000-0000-dd00deadbeef"`,
 		}, {
-			from: gadget.VolumeStructure{Type: "bare"},
-			to:   gadget.VolumeStructure{Type: "bare"},
+			from: gadget.VolumeStructure{Type: "bare", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "bare", EnclosingVolume: &gadget.Volume{}},
 		}, {
-			from: gadget.VolumeStructure{Type: "0C"},
-			to:   gadget.VolumeStructure{Type: "0C"},
+			from: gadget.VolumeStructure{Type: "0C", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "0C", EnclosingVolume: &gadget.Volume{}},
 		}, {
-			from: gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			from: gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
 		}, {
-			from: gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
-			to:   gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
+			from: gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -384,25 +393,25 @@ func (u *updateTestSuite) TestCanUpdateBareOrFilesystem(c *C) {
 
 	cases := []canUpdateTestCase{
 		{
-			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0)},
-			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "", Offset: asOffsetPtr(0)},
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0), EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "", Offset: asOffsetPtr(0), EnclosingVolume: &gadget.Volume{}},
 			err:  `cannot change a filesystem structure to a bare one`,
 		}, {
-			from: gadget.VolumeStructure{Type: "0C", Filesystem: "", Offset: asOffsetPtr(0)},
-			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0)},
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "", Offset: asOffsetPtr(0), EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0), EnclosingVolume: &gadget.Volume{}},
 			err:  `cannot change a bare structure to filesystem one`,
 		}, {
-			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0)},
-			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "vfat", Offset: asOffsetPtr(0)},
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0), EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "vfat", Offset: asOffsetPtr(0), EnclosingVolume: &gadget.Volume{}},
 			err:  `cannot change filesystem from "ext4" to "vfat"`,
 		}, {
-			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "writable", Offset: asOffsetPtr(0)},
-			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0)},
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "writable", Offset: asOffsetPtr(0), EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Offset: asOffsetPtr(0), EnclosingVolume: &gadget.Volume{}},
 			err:  `cannot change filesystem label from "writable" to ""`,
 		}, {
 			// all ok
-			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch", Offset: asOffsetPtr(0)},
-			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch", Offset: asOffsetPtr(0)},
+			from: gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch", Offset: asOffsetPtr(0), EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch", Offset: asOffsetPtr(0), EnclosingVolume: &gadget.Volume{}},
 			err:  ``,
 		},
 	}
@@ -413,13 +422,13 @@ func (u *updateTestSuite) TestCanUpdateName(c *C) {
 
 	cases := []canUpdateTestCase{
 		{
-			from:   gadget.VolumeStructure{Name: "foo", Type: "0C"},
-			to:     gadget.VolumeStructure{Name: "mbr-ok", Type: "0C"},
+			from:   gadget.VolumeStructure{Name: "foo", Type: "0C", EnclosingVolume: &gadget.Volume{}},
+			to:     gadget.VolumeStructure{Name: "mbr-ok", Type: "0C", EnclosingVolume: &gadget.Volume{}},
 			err:    ``,
 			schema: "mbr",
 		}, {
-			from:   gadget.VolumeStructure{Name: "foo", Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			to:     gadget.VolumeStructure{Name: "gpt-unhappy", Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			from:   gadget.VolumeStructure{Name: "foo", Type: "00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
+			to:     gadget.VolumeStructure{Name: "gpt-unhappy", Type: "00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
 			err:    `cannot change structure name from "foo" to "gpt-unhappy"`,
 			schema: "gpt",
 		},
@@ -429,29 +438,29 @@ func (u *updateTestSuite) TestCanUpdateName(c *C) {
 
 func (u *updateTestSuite) TestCanUpdateOffsetRange(c *C) {
 	fromVss := []gadget.VolumeStructure{
-		{Offset: asOffsetPtr(0), MinSize: 10, Size: 20},
+		{Offset: asOffsetPtr(0), MinSize: 10, Size: 20, EnclosingVolume: &gadget.Volume{}},
 		// Valid offset range for second structure is [10, 20]
-		{MinSize: 10, Size: 10},
+		{MinSize: 10, Size: 10, EnclosingVolume: &gadget.Volume{}},
 	}
 	toVss := []gadget.VolumeStructure{
-		{Offset: asOffsetPtr(0), MinSize: 10, Size: 10},
-		{MinSize: 10, Size: 10},
+		{Offset: asOffsetPtr(0), MinSize: 10, Size: 10, EnclosingVolume: &gadget.Volume{}},
+		{MinSize: 10, Size: 10, EnclosingVolume: &gadget.Volume{}},
 	}
 
 	err := gadget.CanUpdateStructure(fromVss, 1, toVss, 1, "")
 	c.Check(err, IsNil)
 
 	toVss = []gadget.VolumeStructure{
-		{Offset: asOffsetPtr(0), MinSize: 15, Size: 21},
-		{MinSize: 10, Size: 10},
+		{Offset: asOffsetPtr(0), MinSize: 15, Size: 21, EnclosingVolume: &gadget.Volume{}},
+		{MinSize: 10, Size: 10, EnclosingVolume: &gadget.Volume{}},
 	}
 
 	err = gadget.CanUpdateStructure(fromVss, 1, toVss, 1, "")
 	c.Check(err, IsNil)
 
 	toVss = []gadget.VolumeStructure{
-		{Offset: asOffsetPtr(0), MinSize: 21, Size: 30},
-		{MinSize: 10, Size: 10},
+		{Offset: asOffsetPtr(0), MinSize: 21, Size: 30, EnclosingVolume: &gadget.Volume{}},
+		{MinSize: 10, Size: 10, EnclosingVolume: &gadget.Volume{}},
 	}
 
 	err = gadget.CanUpdateStructure(fromVss, 1, toVss, 1, "")
@@ -640,6 +649,8 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 	makeSizedFile(c, filepath.Join(newRootDir, "/second-content/foo"), quantity.SizeKiB, nil)
 	makeSizedFile(c, filepath.Join(newRootDir, "/third-content/bar"), quantity.SizeKiB, nil)
 	newData = gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
+	gadgettest.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
+	gadgettest.SetEnclosingVolumeInStructs(newData.Info.Volumes)
 
 	rollbackDir = c.MkDir()
 	return oldData, newData, rollbackDir
@@ -2749,9 +2760,11 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 
 	newRootDir := c.MkDir()
 	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
+	gadgettest.SetEnclosingVolumeInStructs(newData.Info.Volumes)
 
 	oldRootDir := c.MkDir()
 	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
+	gadgettest.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
 
 	rollbackDir := c.MkDir()
 
@@ -2805,9 +2818,11 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 
 	newRootDir := c.MkDir()
 	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
+	gadgettest.SetEnclosingVolumeInStructs(newData.Info.Volumes)
 
 	oldRootDir := c.MkDir()
 	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
+	gadgettest.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
 
 	rollbackDir := c.MkDir()
 
@@ -2859,9 +2874,11 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 
 	newRootDir := c.MkDir()
 	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
+	gadgettest.SetEnclosingVolumeInStructs(newData.Info.Volumes)
 
 	oldRootDir := c.MkDir()
 	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
+	gadgettest.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
 
 	rollbackDir := c.MkDir()
 
@@ -2937,12 +2954,14 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 	oldRootDir := c.MkDir()
 	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
+	gadgettest.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
 
 	newRootDir := c.MkDir()
 	// same volume description
 	newData := gadget.GadgetData{Info: oldInfo, RootDir: newRootDir}
 	// different content, but updates are opt in
 	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*quantity.SizeKiB, nil)
+	gadgettest.SetEnclosingVolumeInStructs(newData.Info.Volumes)
 
 	rollbackDir := c.MkDir()
 
@@ -3015,6 +3034,7 @@ func (u *updateTestSuite) policyDataSet(c *C) (oldData gadget.GadgetData, newDat
 	oldVol.Structure = append(oldVol.Structure, oldStructs...)
 	oldVol.Structure = append(oldVol.Structure, noPartitionStruct)
 	oldData.Info.Volumes["foo"] = oldVol
+	gadgettest.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
 
 	newVol := newData.Info.Volumes["foo"]
 	newStructs := newVol.Structure
@@ -3022,6 +3042,7 @@ func (u *updateTestSuite) policyDataSet(c *C) (oldData gadget.GadgetData, newDat
 	newVol.Structure = append(newVol.Structure, newStructs...)
 	newVol.Structure = append(newVol.Structure, noPartitionStruct)
 	newData.Info.Volumes["foo"] = newVol
+	gadgettest.SetEnclosingVolumeInStructs(newData.Info.Volumes)
 
 	c.Assert(oldData.Info.Volumes["foo"].Structure, HasLen, 5)
 	c.Assert(newData.Info.Volumes["foo"].Structure, HasLen, 5)
@@ -3350,8 +3371,9 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	psBare := &gadget.LaidOutStructure{
 		OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1 * quantity.OffsetMiB},
 		VolumeStructure: &gadget.VolumeStructure{
-			Filesystem: "none",
-			Size:       10 * quantity.SizeMiB,
+			Filesystem:      "none",
+			Size:            10 * quantity.SizeMiB,
+			EnclosingVolume: &gadget.Volume{},
 		},
 	}
 	updater, err := gadget.UpdaterForStructure(gadget.StructureLocation{}, psBare, gadgetRootDir, rollbackDir, nil)
@@ -3361,17 +3383,18 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	psFs := &gadget.LaidOutStructure{
 		OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1 * quantity.OffsetMiB},
 		VolumeStructure: &gadget.VolumeStructure{
-			Filesystem: "ext4",
-			Size:       10 * quantity.SizeMiB,
-			Label:      "writable",
+			Filesystem:      "ext4",
+			Size:            10 * quantity.SizeMiB,
+			Label:           "writable",
+			EnclosingVolume: &gadget.Volume{},
 		},
 	}
-	updater, err = gadget.UpdaterForStructure(gadget.StructureLocation{}, psFs, gadgetRootDir, rollbackDir, nil)
+	updater, err = gadget.UpdaterForStructure(gadget.StructureLocation{RootMountPoint: "/"}, psFs, gadgetRootDir, rollbackDir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updater, FitsTypeOf, &gadget.MountedFilesystemUpdater{})
 
 	// trigger errors
-	updater, err = gadget.UpdaterForStructure(gadget.StructureLocation{}, psBare, gadgetRootDir, "", nil)
+	updater, err = gadget.UpdaterForStructure(gadget.StructureLocation{Device: "/dev/vda"}, psBare, gadgetRootDir, "", nil)
 	c.Assert(err, ErrorMatches, "internal error: backup directory cannot be unset")
 	c.Assert(updater, IsNil)
 }

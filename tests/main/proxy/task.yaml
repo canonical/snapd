@@ -19,9 +19,7 @@ execute: |
     fi
 
     systemd-run --service-type=notify --unit tinyproxy -- python3 "$TESTSLIB/tinyproxy/tinyproxy.py"
-    # shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-    wait_for_service tinyproxy
+    tests.systemd wait-for-service -n 30 --state active tinyproxy
 
     echo "Setup proxy config"
     snap set core proxy.https=http://localhost:3128

@@ -212,7 +212,7 @@ func defaultPrereqSnapsChannel() string {
 
 func findLinkSnapTaskForSnap(st *state.State, snapName string) (*state.Task, error) {
 	for _, chg := range st.Changes() {
-		if chg.Status().Ready() {
+		if chg.IsReady() {
 			continue
 		}
 		for _, tc := range chg.Tasks() {

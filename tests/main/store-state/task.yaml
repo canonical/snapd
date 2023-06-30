@@ -1,5 +1,8 @@
 summary: smoke test for the store-state tool
 
+# cannot work with the staging store without a testing build with compiled-in staging keys
+backends: [-external]
+
 # ubuntu-14.04: systemd-run not supported
 systems: [-ubuntu-14.04-64]
 

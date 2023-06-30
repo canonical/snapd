@@ -514,3 +514,28 @@ func (s *apparmorSuite) TestSnapdAppArmorSupportsReexecImpl(c *C) {
 	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=foo\nSNAPD_APPARMOR_REEXEC=1"), 0644), IsNil)
 	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, true)
 }
+
+func (s *apparmorSuite) TestSetupConfCacheDirs(c *C) {
+	apparmor.SetupConfCacheDirs("/newdir")
+	c.Check(apparmor.SnapConfineAppArmorDir, Equals, "/newdir/var/lib/snapd/apparmor/snap-confine")
+}
+
+func (s *apparmorSuite) TestSetupConfCacheDirsWithInternalApparmor(c *C) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+
+	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
+	c.Assert(os.MkdirAll(d, 0755), IsNil)
+	p := filepath.Join(d, "apparmor_parser")
+	c.Assert(ioutil.WriteFile(p, nil, 0755), IsNil)
+	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
+		c.Assert(path, Equals, "/proc/self/exe")
+		return filepath.Join(d, "snapd"), nil
+	})
+	defer restore()
+	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
+	defer restore()
+
+	apparmor.SetupConfCacheDirs("/newdir")
+	c.Check(apparmor.SnapConfineAppArmorDir, Equals, "/newdir/var/lib/snapd/apparmor/snap-confine.internal")
+}
