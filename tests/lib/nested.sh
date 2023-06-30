@@ -57,6 +57,7 @@ nested_wait_vm_ready() {
     local log_limit=${2:-60}
 
     local output_lines=0
+    local serial_log="$NESTED_LOGS_DIR"/serial.log
     while true; do
         retry=$(( retry - 1 ))
 
@@ -73,8 +74,8 @@ nested_wait_vm_ready() {
         fi
 
         # Check during $limit seconds that the serial log is growing
-        retry -n "$log_limit" --wait 1 test "$(wc -l $NESTED_LOGS_DIR/serial.log)" gt "$output_lines"
-        output_lines="$(wc -l $NESTED_LOGS_DIR/serial.log)"
+        retry -n "$log_limit" --wait 1 test "$(wc -l "$serial_log")" gt "$output_lines"
+        output_lines="$(wc -l "$serial_log")"
 
         # Check if ssh can be stablished, and return if it is possible
         if nested_wait_for_ssh 1 1; then
@@ -82,7 +83,7 @@ nested_wait_vm_ready() {
         fi
     done
 
-    nested_check_unit_stays_active $NESTED_VM 2 1
+    nested_check_unit_stays_active "$NESTED_VM" 2 1
 }
 
 nested_wait_for_snap_command() {
@@ -1238,7 +1239,7 @@ nested_start_core_vm_unit() {
 
     if [ "$EXPECT_SHUTDOWN" != "1" ]; then
         # Wait until the vm is ready to receive connections
-        if ! nested_wait_vm_ready; then
+        if ! nested_wait_vm_ready 120 60; then
             echo "failed to wait for the vm becomes ready to receive connections"
             return 1
         fi
@@ -1486,7 +1487,10 @@ nested_start_classic_vm() {
         ${PARAM_EXTRA} \
         ${PARAM_CD} "
 
-    nested_wait_vm_ready
+    if ! nested_wait_vm_ready 60 60; then
+        echo "failed to wait for the vm becomes ready to receive connections"
+        return 1
+    fi
 
     # Copy tools to be used on tests
     nested_prepare_tools
