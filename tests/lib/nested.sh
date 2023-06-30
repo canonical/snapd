@@ -51,6 +51,40 @@ nested_wait_for_no_ssh() {
     done
 }
 
+
+nested_wait_vm_ready() {
+    local retry=${1:-120}
+    local log_limit=${2:-60}
+
+    local output_lines=0
+    while true; do
+        retry=$(( retry - 1 ))
+
+        # Check the timeout is reached
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for vm ready. Aborting!"
+            return 1
+        fi
+
+        # Check the vm is active
+        if ! systemctl is-active "$NESTED_VM"; then
+            echo "Unit $nested_unit is not active. Aborting!"
+            return 1
+        fi
+
+        # Check during $limit seconds that the serial log is growing
+        retry -n "$log_limit" --wait 1 test "$(wc -l $NESTED_LOGS_DIR/serial.log)" gt "$output_lines"
+        output_lines="$(wc -l $NESTED_LOGS_DIR/serial.log)"
+
+        # Check if ssh can be stablished, and return if it is possible
+        if nested_wait_for_ssh 1 1; then
+            return
+        fi
+    done
+
+    nested_check_unit_stays_active $NESTED_VM 2 1
+}
+
 nested_wait_for_snap_command() {
     # In this function the remote retry command cannot be used because it could
     # be executed before the tool is deployed.
@@ -1203,8 +1237,11 @@ nested_start_core_vm_unit() {
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
 
     if [ "$EXPECT_SHUTDOWN" != "1" ]; then
-        # Wait until ssh is ready
-        nested_wait_for_ssh
+        # Wait until the vm is ready to receive connections
+        if ! nested_wait_vm_ready; then
+            echo "failed to wait for the vm becomes ready to receive connections"
+            return 1
+        fi
         # Wait for the snap command to be available
         nested_wait_for_snap_command
         # Wait for snap seeding to be done
@@ -1449,7 +1486,7 @@ nested_start_classic_vm() {
         ${PARAM_EXTRA} \
         ${PARAM_CD} "
 
-    nested_wait_for_ssh
+    nested_wait_vm_ready
 
     # Copy tools to be used on tests
     nested_prepare_tools
