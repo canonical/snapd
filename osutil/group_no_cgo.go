@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !cgo
-// +build !cgo
 
 package osutil
 
