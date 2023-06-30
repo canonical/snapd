@@ -22,8 +22,8 @@ execute: |
         core_snap=core22
     fi
 
-    # There isn't an official image for lunar yet, let's use the community one
-    if os.query is-ubuntu 23.04; then
+    # There isn't an official image for mantic yet, let's use the community one
+    if os.query is-ubuntu 23.10; then
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" ubuntu
         core_snap=core22
@@ -47,9 +47,9 @@ execute: |
     DEB=$(basename "$GOHOME"/snapd_*.deb)
     
     lxd.lxc exec ubuntu -- apt update
-    # As for ubuntu lunar it is not using the official image, snapd is not installed by default
+    # As for ubuntu mantic it is not using the official image, snapd is not installed by default
     # This should be removed once the official image is released
-    if os.query is-ubuntu 23.04; then
+    if os.query is-ubuntu 23.10; then
         lxd.lxc exec ubuntu -- apt install -y snapd
         lxd.lxc exec ubuntu -- snap install "$core_snap"
     fi
