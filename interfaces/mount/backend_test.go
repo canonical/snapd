@@ -246,3 +246,107 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 		"stale-base-invalidation",
 	})
 }
+
+func (s *backendSuite) TestSetupUpdates(c *C) {
+	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry2 := osutil.MountEntry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry3 := osutil.MountEntry{Name: "/src-3", Dir: "/dst-3", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+
+	update := false
+	// Give the plug a permanent effect
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
+		return spec.AddMountEntry(fsEntry1)
+	}
+	// Give the slot a permanent effect
+	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *snap.SlotInfo) error {
+		if update {
+			if err := spec.AddMountEntry(fsEntry3); err != nil {
+				return err
+			}
+		}
+		return spec.AddMountEntry(fsEntry2)
+	}
+
+	cmd := testutil.MockCommand(c, "snap-update-ns", "")
+	defer cmd.Restore()
+	dirs.DistroLibExecDir = cmd.BinDir()
+
+	// confinement options are irrelevant to this security backend
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", mockSnapYaml, 0)
+
+	// ensure both security effects from iface/iface2 are combined
+	// (because mount profiles are global in the whole snap)
+	expected := strings.Split(fmt.Sprintf("%s\n%s\n", fsEntry1, fsEntry2), "\n")
+	sort.Strings(expected)
+	// and that we have the modern fstab file (global for snap)
+	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
+	content, err := ioutil.ReadFile(fn)
+	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
+	got := strings.Split(string(content), "\n")
+	sort.Strings(got)
+	c.Check(got, DeepEquals, expected)
+
+	update = true
+	// ensure .mnt file
+	mntFile := filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt")
+	err = ioutil.WriteFile(mntFile, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	// confinement options are irrelevant to this security backend
+	s.UpdateSnap(c, snapInfo, interfaces.ConfinementOptions{}, mockSnapYaml, 1)
+
+	// snap-update-ns was invoked
+	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-update-ns", "snap-name"}})
+
+	// ensure both security effects from iface/iface2 are combined
+	// (because mount profiles are global in the whole snap)
+	expected = strings.Split(fmt.Sprintf("%s\n%s\n%s\n", fsEntry1, fsEntry2, fsEntry3), "\n")
+	sort.Strings(expected)
+	// and that we have the modern fstab file (global for snap)
+	content, err = ioutil.ReadFile(fn)
+	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
+	got = strings.Split(string(content), "\n")
+	sort.Strings(got)
+	c.Check(got, DeepEquals, expected)
+}
+
+func (s *backendSuite) TestSetupUpdatesError(c *C) {
+	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry2 := osutil.MountEntry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry3 := osutil.MountEntry{Name: "/src-3", Dir: "/dst-3", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+
+	update := false
+	// Give the plug a permanent effect
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
+		return spec.AddMountEntry(fsEntry1)
+	}
+	// Give the slot a permanent effect
+	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *snap.SlotInfo) error {
+		if update {
+			if err := spec.AddMountEntry(fsEntry3); err != nil {
+				return err
+			}
+		}
+		return spec.AddMountEntry(fsEntry2)
+	}
+
+	cmd := testutil.MockCommand(c, "snap-update-ns", "exit 1")
+	defer cmd.Restore()
+	dirs.DistroLibExecDir = cmd.BinDir()
+
+	// confinement options are irrelevant to this security backend
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", mockSnapYaml, 0)
+
+	update = true
+	// ensure .mnt file
+	mntFile := filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt")
+	err := ioutil.WriteFile(mntFile, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	// confinement options are irrelevant to this security backend
+	_, err = s.UpdateSnapMaybeErr(c, snapInfo, interfaces.ConfinementOptions{}, mockSnapYaml, 1)
+	c.Check(err, ErrorMatches, `cannot update mount namespace of snap "snap-name":.*`)
+
+	// snap-update-ns was invoked
+	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-update-ns", "snap-name"}})
+}
