@@ -42,30 +42,12 @@ const (
 // cryptsetupCmd is a helper for running the cryptsetup command. If stdin is supplied, data read
 // from it is supplied to cryptsetup via its stdin. If callback is supplied, it will be invoked
 // after cryptsetup has started.
-func cryptsetupCmd(stdin io.Reader, callback func(cmd *exec.Cmd) error, args ...string) error {
+func cryptsetupCmd(stdin io.Reader, args ...string) error {
 	cmd := exec.Command("cryptsetup", args...)
 	cmd.Stdin = stdin
 
-	var b bytes.Buffer
-	cmd.Stdout = &b
-	cmd.Stderr = &b
-
-	if err := cmd.Start(); err != nil {
-		return xerrors.Errorf("cannot start cryptsetup: %w", err)
-	}
-
-	var cbErr error
-	if callback != nil {
-		cbErr = callback(cmd)
-	}
-
-	err := cmd.Wait()
-
-	switch {
-	case cbErr != nil:
-		return cbErr
-	case err != nil:
-		return fmt.Errorf("cryptsetup failed with: %v", osutil.OutputErr(b.Bytes(), err))
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("cryptsetup failed with: %v", osutil.OutputErr(output, err))
 	}
 
 	return nil
@@ -198,22 +180,37 @@ func AddKey(devicePath string, existingKey, key []byte, options *AddKeyOptions) 
 			cmd.Process.Kill()
 			return xerrors.Errorf("cannot close write end of FIFO: %w", err)
 		}
-
 		return nil
 	}
 
-	return cryptsetupCmd(bytes.NewReader(key), writeExistingKeyToFifo, args...)
+	cmd := exec.Command("cryptsetup", args...)
+	cmd.Stdin = bytes.NewReader(key)
+
+	var b bytes.Buffer
+	cmd.Stdout = &b
+	cmd.Stderr = &b
+
+	cbErr := writeExistingKeyToFifo(cmd)
+	err = cmd.Wait()
+	switch {
+	case cbErr != nil:
+		return cbErr
+	case err != nil:
+		return fmt.Errorf("cryptsetup failed with: %v", osutil.OutputErr(b.Bytes(), err))
+	}
+
+	return nil
 }
 
 // KillSlot erases the keyslot with the supplied slot number from the specified LUKS2 container.
 // Note that a valid key for a remaining keyslot must be supplied, in order to prevent the last
 // keyslot from being erased.
 func KillSlot(devicePath string, slot int, key []byte) error {
-	return cryptsetupCmd(bytes.NewReader(key), nil, "luksKillSlot", "--type", "luks2", "--key-file", "-", devicePath, strconv.Itoa(slot))
+	return cryptsetupCmd(bytes.NewReader(key), "luksKillSlot", "--type", "luks2", "--key-file", "-", devicePath, strconv.Itoa(slot))
 }
 
 // SetSlotPriority sets the priority of the keyslot with the supplied slot number on
 // the specified LUKS2 container.
 func SetSlotPriority(devicePath string, slot int, priority SlotPriority) error {
-	return cryptsetupCmd(nil, nil, "config", "--priority", priority.String(), "--key-slot", strconv.Itoa(slot), devicePath)
+	return cryptsetupCmd(nil, "config", "--priority", priority.String(), "--key-slot", strconv.Itoa(slot), devicePath)
 }
