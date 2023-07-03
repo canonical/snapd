@@ -85,6 +85,7 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, fsDevice string, o
 	defer func() {
 		var errUnmount error
 		if errUnmount = sysUnmount(mountpoint, 0); errUnmount != nil {
+			logger.Noticef("cannot unmount %v after writing filesystem content, trying lazy unmount next: %v", mountpoint, errUnmount)
 			// lazy umount on error, see LP:2025402
 			errUnmount = sysUnmount(mountpoint, syscall.MNT_DETACH)
 		}

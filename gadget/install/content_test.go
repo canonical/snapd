@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -238,12 +239,15 @@ func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir(dirs.GlobalRootDir)
 
+	log, restore := logger.MockLogger()
+	defer restore()
+
 	type unmountArgs struct {
 		target string
 		flags  int
 	}
 
-	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+	restore = install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
 		return nil
 	})
 	defer restore()
@@ -275,6 +279,8 @@ func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
 			errors.New("lazy umount err"),
 			`cannot unmount /dev/node2 after writing filesystem content: lazy umount err`},
 	} {
+		log.Reset()
+
 		var unmountCalls []unmountArgs
 		restore = install.MockSysUnmount(func(target string, flags int) error {
 			unmountCalls = append(unmountCalls, unmountArgs{target, flags})
@@ -298,10 +304,12 @@ func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
 		if tc.unmountErr == nil {
 			c.Check(unmountCalls, HasLen, 1)
 			c.Check(unmountCalls[0].flags, Equals, 0)
+			c.Check(log.String(), Equals, "")
 		} else {
 			c.Check(unmountCalls, HasLen, 2)
 			c.Check(unmountCalls[0].flags, Equals, 0)
 			c.Check(unmountCalls[1].flags, Equals, syscall.MNT_DETACH)
+			c.Check(log.String(), Matches, `(?sm).* cannot unmount /.*/run/snapd/gadget-install/dev-node2 after writing filesystem content, trying lazy unmount next: umount error`)
 		}
 	}
 }
