@@ -203,7 +203,7 @@ func AddKey(devicePath string, existingKey, key []byte, options *AddKeyOptions) 
 	fifoErr := <-fifoErrCh
 
 	switch {
-	case cmdErr != nil && errors.Is(fifoErr, syscall.EPIPE):
+	case cmdErr != nil && (fifoErr == nil || errors.Is(fifoErr, syscall.EPIPE)):
 		// cmdErr and EPIPE means the problem is with cmd, no
 		// need to display the EPIPE error
 		return fmt.Errorf("cryptsetup failed with: %v", osutil.OutputErr(output, err))
