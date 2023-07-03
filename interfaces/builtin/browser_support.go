@@ -61,18 +61,13 @@ owner /var/tmp/etilqs_* rw,
 
 # Chrome/Chromium should be modified to use snap.$SNAP_INSTANCE_NAME.* or
 # the snap packaging adjusted to use LD_PRELOAD technique from LP: #1577514
-owner /{dev,run}/shm/{,.}org.chromium.* mrw,
-owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
-owner /{dev,run}/shm/{,.}com.microsoft.Edge.* mrw,
-owner /{dev,run}/shm/.io.nwjs.* mrw,
+owner /{dev,run}/shm/{.io.nwjs,{,.}{org.chromium,com.{google.Chrome,microsoft.Edge}}}.* mrw,
 
 # Chrome's Singleton API sometimes causes an ouid/fsuid mismatch denial, so
 # for now, allow non-owner read on the singleton socket (LP: #1731012). See
 # https://forum.snapcraft.io/t/electron-snap-killed-when-using-app-makesingleinstance-api/2667/20
 # parallel-installs: $XDG_RUNTIME_DIR is not remapped, need to use SNAP_INSTANCE_NAME
-/run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}org.chromium.*/SS r,
-/run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}com.google.Chrome.*/SS r,
-/run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}com.microsoft.Edge.*/SS r,
+/run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}{org.chromium,com.{google.Chrome,microsoft.Edge}}.*/SS r,
 
 # Allow access to Jupyter notebooks. 
 # This is temporary and will be reverted once LP: #1959417 is fixed upstream.
@@ -89,8 +84,7 @@ owner @{HOME}/.local/share/jupyter/** rw,
 /sys/kernel/mm/{hugepages,transparent_hugepage}/{,**} r,
 
 # Chromium content api in gnome-shell reads this
-/etc/opt/chrome/{,**} r,
-/etc/chromium/{,**} r,
+/etc/{chromium,opt/chrome}/{,**} r,
 
 # Chrome/Chromium should be adjusted to not use gconf. It is only used with
 # legacy systems that don't have snapd
@@ -105,8 +99,7 @@ deny @{PROC}/@{pid}/attr/{,apparmor/}current r,
 # This is an information leak but disallowing it leads to developer confusion
 # when using the chromium content api file chooser due to a (harmless) glib
 # warning and the noisy AppArmor denial.
-owner @{PROC}/@{pid}/mounts r,
-owner @{PROC}/@{pid}/mountinfo r,
+owner @{PROC}/@{pid}/{mounts,mountinfo} r,
 
 # Since snapd still uses SECCOMP_RET_KILL, we have added a workaround rule to
 # allow mknod on character devices since chromium unconditionally performs
@@ -131,9 +124,7 @@ const browserSupportConnectedPlugAppArmorWithSandbox = `
 /usr/share/applications/xdg-open.desktop r,
 # silence noisy denials from desktop files in core* snaps that aren't usable by
 # snaps
-deny /usr/share/applications/python*.desktop r,
-deny /usr/share/applications/vim.desktop r,
-deny /usr/share/applications/snap-handle-link.desktop r,  # core16
+deny /usr/share/applications/{python*.desktop,vim.desktop,snap-handle-link.desktop} r,
 
 # Chromium content api unfortunately needs these for normal operation
 owner @{PROC}/@{pid}/fd/[0-9]* w,
@@ -141,42 +132,40 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 # Various files in /run/udev/data needed by Chrome Settings. Leaks device
 # information.
 # input
-/run/udev/data/c1:[0-9]* r,   # /dev/psaux
-/run/udev/data/c10:[0-9]* r,  # /dev/adbmouse
-/run/udev/data/c13:[0-9]* r,  # /dev/input/*
-/run/udev/data/c180:[0-9]* r, # /dev/vrbuttons
-/run/udev/data/c4:[0-9]* r,   # /dev/tty*, /dev/ttyS*
-/run/udev/data/c5:[0-9]* r,   # /dev/tty, /dev/console, etc
-/run/udev/data/c7:[0-9]* r,   # /dev/vcs*
+# /run/udev/data/c1:[0-9]* r,   # /dev/psaux
+# /run/udev/data/c10:[0-9]* r,  # /dev/adbmouse
+# /run/udev/data/c13:[0-9]* r,  # /dev/input/*
+# /run/udev/data/c180:[0-9]* r, # /dev/vrbuttons
+# /run/udev/data/c4:[0-9]* r,   # /dev/tty*, /dev/ttyS*
+# /run/udev/data/c5:[0-9]* r,   # /dev/tty, /dev/console, etc
+# /run/udev/data/c7:[0-9]* r,   # /dev/vcs*
+/run/udev/data/c{1,4,5,7,10,13,180}:[0-9]* r,
 /run/udev/data/+hid:* r,
 /run/udev/data/+input:input[0-9]* r,
 
 # screen
-/run/udev/data/c29:[0-9]* r,  # /dev/fb*
-/run/udev/data/+backlight:* r,
-/run/udev/data/+leds:* r,
+# /run/udev/data/c29:[0-9]* r,  # /dev/fb*
+# /run/udev/data/+backlight:* r,
+# /run/udev/data/+leds:* r,
+/run/udev/data/{+{backlight,leds}:,c29:[0-9]}* r,
 
 # sound
-/run/udev/data/c116:[0-9]* r, # alsa
-/run/udev/data/+sound:card[0-9]* r,
+# /run/udev/data/c116:[0-9]* r, # alsa
+# /run/udev/data/+sound:card[0-9]* r,
+/run/udev/data/{c116:,+sound:card}[0-9]* r, # alsa
 
 # miscellaneous
-/run/udev/data/c108:[0-9]* r, # /dev/ppp
-/run/udev/data/c189:[0-9]* r, # USB serial converters
-/run/udev/data/c89:[0-9]* r,  # /dev/i2c-*
-/run/udev/data/c81:[0-9]* r,  # video4linux (/dev/video*, etc)
-/run/udev/data/c202:[0-9]* r, # /dev/cpu/*/msr
-/run/udev/data/c203:[0-9]* r, # /dev/cuse
-/run/udev/data/+acpi:* r,
-/run/udev/data/+hwmon:hwmon[0-9]* r,
-/run/udev/data/+i2c:* r,
-/sys/devices/**/bConfigurationValue r,
-/sys/devices/**/descriptors r,
-/sys/devices/**/manufacturer r,
-/sys/devices/**/product r,
-/sys/devices/**/revision r,
-/sys/devices/**/serial r,
-/sys/devices/**/vendor r,
+# /run/udev/data/c108:[0-9]* r, # /dev/ppp
+# /run/udev/data/c189:[0-9]* r, # USB serial converters
+# /run/udev/data/c89:[0-9]* r,  # /dev/i2c-*
+# /run/udev/data/c81:[0-9]* r,  # video4linux (/dev/video*, etc)
+# /run/udev/data/c202:[0-9]* r, # /dev/cpu/*/msr
+# /run/udev/data/c203:[0-9]* r, # /dev/cuse
+# /run/udev/data/+acpi:* r,
+# /run/udev/data/+hwmon:hwmon[0-9]* r,
+# /run/udev/data/+i2c:* r,
+/run/udev/data/{{c{108,189,89,81,202,203}:,+hwmon:hwmon}[0-9],+{acpi,i2c}:}* r,
+/sys/devices/**/{bConfigurationValue,descriptors,manufacturer,product,revision,serial,vendor} r,
 /sys/devices/system/node/node[0-9]*/meminfo r,
 
 # Allow getting the manufacturer and model of the
@@ -184,8 +173,7 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 # This is going to be used by the upcoming Hardware Platform
 # extension API.
 # https://chromium.googlesource.com/chromium/src.git/+/84618eee98fdf7548905e883e63e4f693800fcfa
-/sys/devices/virtual/dmi/id/product_name r,
-/sys/devices/virtual/dmi/id/sys_vendor r,
+/sys/devices/virtual/dmi/id/{product_name,sys_vendor} r,
 
 # Chromium content api tries to read these. It is an information disclosure
 # since these contain the names of snaps. Chromium operates fine without the
@@ -194,26 +182,29 @@ deny /sys/devices/virtual/block/loop[0-9]*/loop/backing_file r,
 deny /sys/devices/virtual/block/dm-[0-9]*/dm/name r,
 
 # networking
-/run/udev/data/n[0-9]* r,
-/run/udev/data/+bluetooth:hci[0-9]* r,
-/run/udev/data/+rfkill:rfkill[0-9]* r,
-/run/udev/data/c241:[0-9]* r, # /dev/vhost-vsock
+# /run/udev/data/n[0-9]* r,
+# /run/udev/data/+bluetooth:hci[0-9]* r,
+# /run/udev/data/+rfkill:rfkill[0-9]* r,
+# /run/udev/data/c241:[0-9]* r, # /dev/vhost-vsock
+/run/udev/data/{n,+{bluetooth:hci,rfkill:rfkill},c241:}[0-9]* r,
 
 # storage
-/run/udev/data/b1:[0-9]* r,   # /dev/ram*
-/run/udev/data/b7:[0-9]* r,   # /dev/loop*
-/run/udev/data/b8:[0-9]* r,   # /dev/sd*
-/run/udev/data/b11:[0-9]* r,  # /dev/scd* and sr*
-/run/udev/data/b230:[0-9]* r, # /dev/zvol*
-/run/udev/data/c21:[0-9]* r,  # /dev/sg*
-/run/udev/data/+usb:[0-9]* r,
+# /run/udev/data/b1:[0-9]* r,   # /dev/ram*
+# /run/udev/data/b7:[0-9]* r,   # /dev/loop*
+# /run/udev/data/b8:[0-9]* r,   # /dev/sd*
+# /run/udev/data/b11:[0-9]* r,  # /dev/scd* and sr*
+# /run/udev/data/b230:[0-9]* r, # /dev/zvol*
+# /run/udev/data/c21:[0-9]* r,  # /dev/sg*
+# /run/udev/data/+usb:[0-9]* r,
+/run/udev/data/{b{1,7,8,11,230},c21,+usb}:[0-9]* r,
 
 # experimental
-/run/udev/data/b252:[0-9]* r,
-/run/udev/data/b253:[0-9]* r,
-/run/udev/data/b259:[0-9]* r,
-/run/udev/data/c24[0-9]:[0-9]* r,
-/run/udev/data/c25[0-4]:[0-9]* r,
+# /run/udev/data/b252:[0-9]* r,
+# /run/udev/data/b253:[0-9]* r,
+# /run/udev/data/b259:[0-9]* r,
+# /run/udev/data/c24[0-9]:[0-9]* r,
+# /run/udev/data/c25[0-4]:[0-9]* r,
+/run/udev/data/{b2{52,53,59},c24[0-9],c25[0-4]}:[0-9]* r,
 
 /sys/bus/**/devices/ r,
 
@@ -253,15 +244,11 @@ capability setuid,
 capability sys_chroot,
 
 # User namespace sandbox
-owner @{PROC}/@{pid}/setgroups rw,
-owner @{PROC}/@{pid}/uid_map rw,
-owner @{PROC}/@{pid}/gid_map rw,
+owner @{PROC}/@{pid}/{setgroups,uid_map,gid_map} rw,
 
 # Webkit uses a particular SHM names # LP: 1578217
-owner /{dev,run}/shm/WK2SharedMemory.* mrw,
-
 # Chromium content api on (at least) later versions of Ubuntu just use this
-owner /{dev,run}/shm/shmfd-* mrw,
+owner /{dev,run}/shm/{WK2SharedMemory.,shmfd-}* mrw,
 
 # Clearing the PG_Referenced and ACCESSED/YOUNG bits provides a method to
 # measure approximately how much memory a process is using via /proc/self/smaps
