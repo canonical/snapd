@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -82,9 +83,13 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, fsDevice string, o
 		return fmt.Errorf("cannot mount %q at %q: %v", fsDevice, mountpoint, err)
 	}
 	defer func() {
-		errUnmount := sysUnmount(mountpoint, 0)
-		if err == nil {
-			err = errUnmount
+		var errUnmount error
+		if errUnmount = sysUnmount(mountpoint, 0); errUnmount != nil {
+			// lazy umount on error, see LP:2025402
+			errUnmount = sysUnmount(mountpoint, syscall.MNT_DETACH)
+		}
+		if err == nil && errUnmount != nil {
+			err = fmt.Errorf("cannot unmount %v after writing filesystem content: %v", fsDevice, errUnmount)
 		}
 	}()
 	fs, err := gadget.NewMountedFilesystemWriter(laidOut, observer)
