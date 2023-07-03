@@ -273,7 +273,7 @@ func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
 		}, {
 			errors.New("umount error"),
 			nil,
-			"", // no error as lazy unmount succedded
+			"", // no error as lazy unmount succeeded
 		}, {
 			errors.New("umount error"),
 			errors.New("lazy umount err"),
