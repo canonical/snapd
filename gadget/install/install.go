@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -570,6 +571,8 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 			errUnmount := sysUnmount(mntPt, 0)
 			if errUnmount != nil {
 				logger.Noticef("cannot unmount %q: %v", mntPt, errUnmount)
+				// lazy umount on error, see LP:2025402
+				errUnmount = sysUnmount(mntPt, syscall.MNT_DETACH)
 			}
 			// Make sure we do not set err to nil if it had already an error
 			if errUnmount != nil {
