@@ -115,6 +115,22 @@ type AddKeyOptions struct {
 	Slot int
 }
 
+var writeExistingKeyToFifo = func(fifoPath string, existingKey []byte) error {
+	f, err := os.OpenFile(fifoPath, os.O_WRONLY, 0)
+	if err != nil {
+		return xerrors.Errorf("cannot open FIFO for passing existing key to cryptsetup: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := f.Write(existingKey); err != nil {
+		return xerrors.Errorf("cannot pass existing key to cryptsetup: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return xerrors.Errorf("cannot close write end of FIFO: %w", err)
+	}
+	return nil
+}
+
 // AddKey adds the supplied key in to a new keyslot for specified LUKS2 container. In order to do this,
 // an existing key must be provided. The KDF for the new keyslot will be configured to use argon2i with
 // the supplied benchmark time. The key will be added to the supplied slot.
@@ -156,22 +172,6 @@ func AddKey(devicePath string, existingKey, key []byte, options *AddKeyOptions) 
 		// in order to be able to do this.
 		"-")
 
-	writeExistingKeyToFifo := func() error {
-		f, err := os.OpenFile(fifoPath, os.O_WRONLY, 0)
-		if err != nil {
-			return xerrors.Errorf("cannot open FIFO for passing existing key to cryptsetup: %w", err)
-		}
-		defer f.Close()
-
-		if _, err := f.Write(existingKey); err != nil {
-			return xerrors.Errorf("cannot pass existing key to cryptsetup: %w", err)
-		}
-		if err := f.Close(); err != nil {
-			return xerrors.Errorf("cannot close write end of FIFO: %w", err)
-		}
-		return nil
-	}
-
 	cmd := exec.Command("cryptsetup", args...)
 	cmd.Stdin = bytes.NewReader(key)
 
@@ -180,10 +180,14 @@ func AddKey(devicePath string, existingKey, key []byte, options *AddKeyOptions) 
 	// about the cleanup.
 	fifoErrCh := make(chan error)
 	go func() {
-		fifoErr := writeExistingKeyToFifo()
+		fifoErr := writeExistingKeyToFifo(fifoPath, existingKey)
 		if fifoErr != nil {
-			// kill to ensure cmd does not wait forever on input
-			cmd.Process.Kill()
+			// kill to ensure cmd is not lingering
+			if cmd.Process != nil {
+				cmd.Process.Kill()
+			}
+			// also ensure fifo is closed
+			cleanupFifo()
 		}
 		fifoErrCh <- fifoErr
 	}()

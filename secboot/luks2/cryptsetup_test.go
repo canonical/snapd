@@ -96,3 +96,23 @@ func (s *luks2Suite) TestAddKeyBadCryptsetup(c *C) {
 	err = luks2.AddKey("/my/device", []byte("old-key"), []byte("new-key"), nil)
 	c.Check(err, ErrorMatches, "cryptsetup failed with: some-error")
 }
+
+func (s *luks2Suite) TestAddKeyBadWriteExistingKeyToFifo(c *C) {
+	err := os.MkdirAll(filepath.Join(s.tmpdir, "run"), 0755)
+	c.Assert(err, IsNil)
+
+	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", fmt.Sprintf(`
+FIFO="$5"
+cat "$FIFO" > %[1]s/fifo
+cat - > %[1]s/stdout 2>%[1]s/stderr
+`, s.tmpdir))
+	defer mockCryptsetup.Restore()
+
+	restore := luks2.MockWriteExistingKeyToFifo(func(string, []byte) error {
+		return fmt.Errorf("writeExistingKeyToFifo error")
+	})
+	defer restore()
+
+	err = luks2.AddKey("/my/device", []byte("old-key"), []byte("new-key"), nil)
+	c.Check(err, ErrorMatches, `cryptsetup failed with: .* \(fifo failed with: writeExistingKeyToFifo error\)`)
+}
