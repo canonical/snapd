@@ -79,8 +79,7 @@ const fwupdPermanentSlotAppArmor = `
   /sys/firmware/efi/esrt/entries/** r,
 
   # Allow fwupd to access system information
-  /sys/devices/virtual/dmi/id/product_name r,
-  /sys/devices/virtual/dmi/id/sys_vendor r,
+  /sys/devices/virtual/dmi/id/{product_name,sys_vendor} r,
 
   # Allow read/write access for efivarfs filesystem
   /sys/firmware/efi/efivars/ r,
