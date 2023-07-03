@@ -21,11 +21,13 @@ package luks2
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/osutil"
@@ -154,30 +156,17 @@ func AddKey(devicePath string, existingKey, key []byte, options *AddKeyOptions) 
 		// in order to be able to do this.
 		"-")
 
-	writeExistingKeyToFifo := func(cmd *exec.Cmd) error {
+	writeExistingKeyToFifo := func() error {
 		f, err := os.OpenFile(fifoPath, os.O_WRONLY, 0)
 		if err != nil {
-			// If we fail to open the write end, the read end will be blocked in open(), so
-			// kill the process.
-			cmd.Process.Kill()
 			return xerrors.Errorf("cannot open FIFO for passing existing key to cryptsetup: %w", err)
 		}
+		defer f.Close()
 
 		if _, err := f.Write(existingKey); err != nil {
-			// The read end is open and blocked inside read(). Closing our write end will result in the
-			// read end returning 0 bytes (EOF) and continuing cleanly.
-			if err := f.Close(); err != nil {
-				// If we can't close the write end, the read end will remain blocked inside read(),
-				// so kill the process.
-				cmd.Process.Kill()
-			}
 			return xerrors.Errorf("cannot pass existing key to cryptsetup: %w", err)
 		}
-
 		if err := f.Close(); err != nil {
-			// If we can't close the write end, the read end will remain blocked inside read(),
-			// so kill the process.
-			cmd.Process.Kill()
 			return xerrors.Errorf("cannot close write end of FIFO: %w", err)
 		}
 		return nil
@@ -186,17 +175,37 @@ func AddKey(devicePath string, existingKey, key []byte, options *AddKeyOptions) 
 	cmd := exec.Command("cryptsetup", args...)
 	cmd.Stdin = bytes.NewReader(key)
 
-	var b bytes.Buffer
-	cmd.Stdout = &b
-	cmd.Stderr = &b
+	// Writing to the fifo must happen in a go-routine as it may block
+	// if the other side is not connected. Special care must be taken
+	// about the cleanup.
+	fifoErrCh := make(chan error)
+	go func() {
+		fifoErr := writeExistingKeyToFifo()
+		if fifoErr != nil {
+			// kill to ensure cmd does not wait forever on input
+			cmd.Process.Kill()
+		}
+		fifoErrCh <- fifoErr
+	}()
 
-	cbErr := writeExistingKeyToFifo(cmd)
-	err = cmd.Wait()
+	output, cmdErr := cmd.CombinedOutput()
+	if cmdErr != nil {
+		// cleanupFifo will open/close the fifo to ensure the
+		// writeExistingKeyToFifo() does not leak while waiting
+		// for the other side of the fifo to connect (it may never
+		// do)
+		cleanupFifo()
+	}
+	fifoErr := <-fifoErrCh
+
 	switch {
-	case cbErr != nil:
-		return cbErr
-	case err != nil:
-		return fmt.Errorf("cryptsetup failed with: %v", osutil.OutputErr(b.Bytes(), err))
+	case cmdErr != nil && errors.Is(fifoErr, syscall.EPIPE):
+		// cmdErr and EPIPE means the problem is with cmd, no
+		// need to display the EPIPE error
+		return fmt.Errorf("cryptsetup failed with: %v", osutil.OutputErr(output, err))
+	case cmdErr != nil || fifoErr != nil:
+		// For all other cases show a generic error message
+		return fmt.Errorf("cryptsetup failed with: %v (fifo failed with: %v)", osutil.OutputErr(output, err), fifoErr)
 	}
 
 	return nil
