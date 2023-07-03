@@ -279,6 +279,23 @@ jobs:
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         ./run-checks --unit
 
+    - name: Test Go (arm, arm64)
+      if: ${{ matrix.unit-scenario == 'normal' }}
+      run: |
+        echo "Install qemu arm run support"
+        sudo apt install -y qemu-user-static jq
+
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        for arch in arm arm64; do
+          GOARCH="$arch" go test $(go list -json ./...| \
+            jq -r -c "select(.Imports | \
+               . != null and \
+               (index([\"C\"]) | not) and \
+               (index([\"github.com/snapcore/snapd/cmd/snap-bootstrap/triggerwatch\"]) | not) and \
+               (index([\"github.com/gvalkov/golang-evdev\"]) | not)   \
+             ) | .Dir  | ltrimstr(\"${PWD}\") | \".\" + . + \"/\" ")
+        done
+
     - name: Test Go (SNAPD_DEBUG=1)
       if: ${{ matrix.unit-scenario == 'snapd_debug' }}
       run: |

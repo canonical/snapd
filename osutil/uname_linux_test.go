@@ -22,6 +22,7 @@ package osutil_test
 import (
 	"bytes"
 	"errors"
+	"os"
 	"os/exec"
 	"syscall"
 
@@ -41,6 +42,10 @@ func ucmd1(c *check.C, arg string) string {
 }
 
 func (unameSuite) TestUname(c *check.C) {
+	if os.Getenv("GOARCH") != "" {
+		c.Skip("cannot test uname when GOARCH is set")
+	}
+
 	c.Check(osutil.KernelVersion(), check.Equals, ucmd1(c, "-r"))
 	c.Check(osutil.MachineName(), check.Equals, ucmd1(c, "-m"))
 }
