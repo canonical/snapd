@@ -146,13 +146,9 @@ var templateCommon = `
 
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
-  /etc/bash.bashrc r,
-  /etc/inputrc r,
-  /etc/environment r,
-  /etc/profile r,
-
   # user/group/seat lookups
-  /etc/{passwd,group,nsswitch.conf} r,  # very common
+  /etc/{bash.bashrc,inputrc,environment,profile,passwd,group,nsswitch.conf} r,
+
   /var/lib/extrausers/{passwd,group} r,
   /run/systemd/users/[0-9]* r,
   /etc/default/nss r,
@@ -166,11 +162,11 @@ var templateCommon = `
   # Allow User/Group lookups via common VarLink socket APIs. Applications need
   # to either consult all of them or the io.systemd.Multiplexer frontend.
   /run/systemd/userdb/ r,
-  /run/systemd/userdb/io.systemd.Multiplexer rw,
-  /run/systemd/userdb/io.systemd.DynamicUser rw,        # systemd-exec users
-  /run/systemd/userdb/io.systemd.Home rw,               # systemd-home dirs
-  /run/systemd/userdb/io.systemd.NameServiceSwitch rw,  # UNIX/glibc NSS
-  /run/systemd/userdb/io.systemd.Machine rw,            # systemd-machined
+  # /run/systemd/userdb/io.systemd.DynamicUser rw,        # systemd-exec users
+  # /run/systemd/userdb/io.systemd.Home rw,               # systemd-home dirs
+  # /run/systemd/userdb/io.systemd.NameServiceSwitch rw,  # UNIX/glibc NSS
+  # /run/systemd/userdb/io.systemd.Machine rw,            # systemd-machined
+  /run/systemd/userdb/{io.systemd.Multiplexer,io.systemd.DynamicUser,io.systemd.Home,io.systemd.NameServiceSwitch,io.systemd.Machine} rw,
 
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
 
@@ -178,8 +174,7 @@ var templateCommon = `
   /usr/lib/snapd/snap-exec m,
 
   # For gdb support
-  /usr/lib/snapd/snap-gdb-shim ixr,
-  /usr/lib/snapd/snap-gdbserver-shim ixr,
+  /usr/lib/snapd/{snap-gdb-shim,snap-gdbserver-shim} ixr,
 
   # For in-snap tab completion
   /etc/bash_completion.d/{,*} r,
@@ -187,8 +182,7 @@ var templateCommon = `
   /usr/share/bash-completion/bash_completion r, # user-provided completions (run in-snap) may use functions from here
 
   # uptime
-  @{PROC}/uptime r,
-  @{PROC}/loadavg r,
+  @{PROC}/{uptime,loadavg} r,
 
   # Allow reading /etc/os-release. On Ubuntu 16.04+ it is a symlink to /usr/lib
   # which is allowed by the base abstraction, but on 14.04 it is an actual file
@@ -205,8 +199,7 @@ var templateCommon = `
                                             # doesn't leak anything so allow
 
   # snapctl and its requirements
-  /usr/bin/snapctl ixr,
-  /usr/lib/snapd/snapctl ixr,
+  /usr/{bin,lib/snapd}/snapctl ixr,
   @{PROC}/sys/net/core/somaxconn r,
   /run/snapd-snap.socket rw,
 
@@ -216,22 +209,19 @@ var templateCommon = `
   #deny /{,var/}run/utmp r,
 
   # java
-  @{PROC}/@{pid}/ r,
-  @{PROC}/@{pid}/fd/ r,
+  @{PROC}/@{pid}/{,fd/} r,
   owner @{PROC}/@{pid}/auxv r,
   @{PROC}/sys/vm/zone_reclaim_mode r,
   /etc/lsb-release r,
-  /sys/devices/**/read_ahead_kb r,
+  /sys/devices/**/{,read_ahead_kb,uevent} r,
   /sys/devices/system/cpu/** r,
   /sys/devices/system/node/node[0-9]*/* r,
-  /sys/kernel/mm/transparent_hugepage/enabled r,
-  /sys/kernel/mm/transparent_hugepage/defrag r,
+  /sys/kernel/mm/transparent_hugepage/{enabled,defrag,hpage_pmd_size} r,
   # NOTE: this leaks running process but java seems to want it (even though it
   # seems to operate ok without it) and SDL apps crash without it. Allow owner
   # match until AppArmor kernel var is available to solve this properly (see
   # LP: #1546825 for details). comm is a subset of cmdline, so allow it too.
-  owner @{PROC}/@{pid}/cmdline r,
-  owner @{PROC}/@{pid}/comm r,
+  owner @{PROC}/@{pid}/c{mdline,omm} r,
 
   # Per man(5) proc, the kernel enforces that a thread may only modify its comm
   # value or those in its thread group.
@@ -248,59 +238,30 @@ var templateCommon = `
 
   # Miscellaneous accesses
   /dev/{,u}random w,
-  /etc/machine-id r,
-  /etc/mime.types r,
-  @{PROC}/ r,
-  @{PROC}/version r,
-  @{PROC}/version_signature r,
-  /etc/{,writable/}hostname r,
-  /etc/{,writable/}localtime r,
-  /etc/{,writable/}mailname r,
-  /etc/{,writable/}timezone r,
+  /etc/{machine-id,mime.types} r,
+  @{PROC}/{,version,version_signature} r,
+  /etc/{,writable/}{hostname,localtime,mailname,timezone} r,
   owner @{PROC}/@{pid}/cgroup rk,
-  @{PROC}/@{pid}/cpuset r,
-  @{PROC}/@{pid}/io r,
-  owner @{PROC}/@{pid}/limits r,
-  owner @{PROC}/@{pid}/loginuid r,
-  @{PROC}/@{pid}/smaps r,
-  @{PROC}/@{pid}/stat r,
-  @{PROC}/@{pid}/statm r,
-  @{PROC}/@{pid}/status r,
-  @{PROC}/@{pid}/task/ r,
-  @{PROC}/@{pid}/task/[0-9]*/smaps r,
-  @{PROC}/@{pid}/task/[0-9]*/stat r,
-  @{PROC}/@{pid}/task/[0-9]*/statm r,
-  @{PROC}/@{pid}/task/[0-9]*/status r,
-  @{PROC}/sys/fs/pipe-max-size r,
-  @{PROC}/sys/kernel/hostname r,
-  @{PROC}/sys/kernel/osrelease r,
-  @{PROC}/sys/kernel/ostype r,
-  @{PROC}/sys/kernel/pid_max r,
+  @{PROC}/@{pid}/{cpuset,io} r,
+  owner @{PROC}/@{pid}/{limits,loginuid} r,
+  @{PROC}/@{pid}/{smaps,stat,statm,status,task/} r,
+  @{PROC}/@{pid}/task/[0-9]*/{smaps,stat,statm,status} r,
+  @{PROC}/sys/fs/{file-{max,nr},pipe-max-size} r,
+  @{PROC}/sys/kernel/{cap_last_cap,hostname,osrelease,ostype,pid_max,shmmax} r,
   @{PROC}/sys/kernel/yama/ptrace_scope r,
-  @{PROC}/sys/kernel/shmmax r,
   # Allow apps to introspect the level of dbus mediation AppArmor implements.
   /sys/kernel/security/apparmor/features/dbus/mask r,
-  @{PROC}/sys/fs/file-max r,
-  @{PROC}/sys/fs/file-nr r,
   @{PROC}/sys/fs/inotify/max_* r,
-  @{PROC}/sys/kernel/pid_max r,
-  @{PROC}/sys/kernel/random/boot_id r,
-  @{PROC}/sys/kernel/random/entropy_avail r,
-  @{PROC}/sys/kernel/random/uuid r,
-  @{PROC}/sys/kernel/cap_last_cap r,
+  @{PROC}/sys/kernel/random/{boot_id,entropy_avail,uuid} r,
   # Allow access to the uuidd daemon (this daemon is a thin wrapper around
   # time and getrandom()/{,u}random and, when available, runs under an
   # unprivilged, dedicated user).
   /run/uuidd/request rw,
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /sys/fs/cgroup/memory/{,user.slice/}memory.limit_in_bytes r,
-  /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
-  /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.stat r,
-  /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.cfs_{period,quota}_us r,
-  /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.cfs_{period,quota}_us r,
-  /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.shares r,
-  /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.shares r,
-  /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+  /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/{memory.limit_in_bytes,memory.stat} r,
+  /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}{cpu.shares,cpu.cfs_{period,quota}_us} r,
+  /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/{cpu.shares,cpu.cfs_{period,quota}_us} r,
   /sys/module/apparmor/parameters/enabled r,
   /{,usr/}lib/ r,
 
@@ -317,10 +278,8 @@ var templateCommon = `
   # deny owner @{PROC}/@{pid}/oom_{,score_}adj w,
 
   # Eases hardware assignment (doesn't give anything away)
-  /etc/udev/udev.conf r,
-  /sys/       r,
-  /sys/bus/   r,
-  /sys/class/ r,
+  /etc/udev/udev.conf  r,
+  /sys/{,{bus,class}/} r,
 
   # this leaks interface names and stats, but not in a way that is traceable
   # to the user/device
@@ -344,23 +303,14 @@ var templateCommon = `
   @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**  mrkix,
 
   # Read-only home area for other versions
-  # bind mount *not* used here (see 'parallel installs', above)
-  owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/                  r,
-  owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/**                mrkix,
-
-  # Experimental snap folder changes
-  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/                    r,
-  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/**                  mrkix,
-  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
-  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/common/**           wl,
-
-  owner @{HOME}/Snap/@{SNAP_INSTANCE_NAME}/                          r,
-  owner @{HOME}/Snap/@{SNAP_INSTANCE_NAME}/**                        mrkixwl,
-
   # Writable home area for this version.
   # bind mount *not* used here (see 'parallel installs', above)
-  owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
-  owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/common/** wl,
+  # Also add experimental snap folder changes
+  owner @{HOME}/{.snap/data,snap,Snap}/@{SNAP_INSTANCE_NAME}/          r,
+  owner @{HOME}/{.snap/data,snap,Snap}/@{SNAP_INSTANCE_NAME}/**        mrkix,
+  owner @{HOME}/{.snap/data,snap}/@{SNAP_INSTANCE_NAME}/{common,@{SNAP_REVISION}}/** wl,
+  
+  owner @{HOME}/Snap/@{SNAP_INSTANCE_NAME}/**                        mrkixwl,
 
   # Read-only system area for other versions
   # bind mount used here (see 'parallel installs', above)
@@ -369,8 +319,7 @@ var templateCommon = `
 
   # Writable system area only for this version
   # bind mount used here (see 'parallel installs', above)
-  /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/** wl,
-  /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/** wl,
+  /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/{common,@{SNAP_REVISION}}/** wl,
 
   # The ubuntu-core-launcher creates an app-specific private restricted /tmp
   # and will fail to launch the app if something goes wrong. As such, we can
@@ -401,8 +350,7 @@ var templateCommon = `
   dbus (receive, send) peer=(label=snap.@{SNAP_INSTANCE_NAME}.*),
   # In addition to the above, dbus-run-session attempts reading these files
   # from the snap base runtime.
-  /usr/share/dbus-1/services/{,*} r,
-  /usr/share/dbus-1/system-services/{,*} r,
+  /usr/share/dbus-1/{services,system-services}/{,*} r,
   # Allow apps to perform DBus introspection on org.freedesktop.DBus for both
   # the system and session buses.
   # Note: this does not grant access to the DBus sockets of these buses, but
@@ -420,17 +368,13 @@ var templateCommon = `
 
   # Allow receiving signals from all snaps (and focus on mediating sending of
   # signals)
-  signal (receive) peer=snap.*,
-
   # Allow receiving signals from unconfined (eg, systemd)
-  signal (receive) peer=unconfined,
+  signal (receive) peer={snap.*,unconfined},
 
   # for 'udevadm trigger --verbose --dry-run --tag-match=snappy-assign'
   /{,usr/}{,s}bin/udevadm ixr,
-  /etc/udev/udev.conf r,
   /{,var/}run/udev/tags/snappy-assign/ r,
   @{PROC}/cmdline r,
-  /sys/devices/**/uevent r,
 
   # LP: #1447237: adding '--property-match=SNAPPY_APP=<pkgname>' to the above
   # requires:
@@ -448,10 +392,9 @@ var templateCommon = `
   /dev/ptmx rw,
 
   # Do the same with /sys/devices and /sys/class to help people using hw-assign
-  /sys/devices/ r,
-  /sys/devices/**/ r,
-  /sys/class/ r,
+  /sys/{class,devices}/ r,
   /sys/class/**/ r,
+  # /sys/devices/**/ r, # already enabled
 
   # Allow all snaps to chroot
   capability sys_chroot,
@@ -471,13 +414,10 @@ var templateCommon = `
 
   # Snap-specific run directory. Bind mount *not* used here
   # (see 'parallel installs', above)
-  /run/snap.@{SNAP_INSTANCE_NAME}/ rw,
-  /run/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
-
   # Snap-specific lock directory and prerequisite navigation permissions.
   /run/lock/ r,
-  /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
-  /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
+  /run/{,lock/}snap.@{SNAP_INSTANCE_NAME}/ rw,
+  /run/{,lock/}snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
   
   ###DEVMODE_SNAP_CONFINE###
 `
@@ -495,16 +435,13 @@ var defaultCoreRuntimeTemplateRules = `
 
   # The base abstraction doesn't yet have this
   /{,usr/}lib/terminfo/** rk,
-  /usr/share/terminfo/** k,
-  /usr/share/zoneinfo/** k,
+  /usr/share/{terminfo,zoneinfo}/** k,
 
   # for python apps/services
   /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
   # additional accesses needed for newer pythons in later bases
-  /usr/lib{,32,64}/python3.[0-9]*/**.{pyc,so}           mr,
-  /usr/lib{,32,64}/python3.[0-9]*/**.{egg,py,pth}       r,
-  /usr/lib{,32,64}/python3.[0-9]*/{site,dist}-packages/ r,
-  /usr/lib{,32,64}/python3.[0-9]*/lib-dynload/*.so      mr,
+  /usr/lib{,32,64}/python3.[0-9]*/{**.{pyc,so},lib-dynload/*.so}          mr,
+  /usr/lib{,32,64}/python3.[0-9]*/{**.{egg,py,pth},{site,dist}-packages/} r,
   /usr/include/python3.[0-9]*/pyconfig.h               r,
 
   # for perl apps/services
@@ -515,133 +452,13 @@ var defaultCoreRuntimeTemplateRules = `
 
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
-  /{,usr/}bin/bash ixr,
-  /{,usr/}bin/dash ixr,
+  /{,usr/}bin/{bash,dash} ixr,
   /usr/share/terminfo/** r,
 
   # Common utilities for shell scripts
-  /{,usr/}bin/arch ixr,
-  /{,usr/}bin/{,g,m}awk ixr,
-  /{,usr/}bin/base32 ixr,
-  /{,usr/}bin/base64 ixr,
-  /{,usr/}bin/basename ixr,
-  /{,usr/}bin/bunzip2 ixr,
-  /{,usr/}bin/busctl ixr,
-  /{,usr/}bin/bzcat ixr,
-  /{,usr/}bin/bzdiff ixr,
-  /{,usr/}bin/bzgrep ixr,
-  /{,usr/}bin/bzip2 ixr,
-  /{,usr/}bin/cat ixr,
-  /{,usr/}bin/chgrp ixr,
-  /{,usr/}bin/chmod ixr,
-  /{,usr/}bin/chown ixr,
-  /{,usr/}bin/clear ixr,
-  /{,usr/}bin/cmp ixr,
-  /{,usr/}bin/cp ixr,
-  /{,usr/}bin/cpio ixr,
-  /{,usr/}bin/cut ixr,
-  /{,usr/}bin/date ixr,
-  /{,usr/}bin/dbus-daemon ixr,
-  /{,usr/}bin/dbus-run-session ixr,
-  /{,usr/}bin/dbus-send ixr,
-  /{,usr/}bin/dd ixr,
-  /{,usr/}bin/diff{,3} ixr,
-  /{,usr/}bin/dir ixr,
-  /{,usr/}bin/dirname ixr,
-  /{,usr/}bin/du ixr,
-  /{,usr/}bin/echo ixr,
-  /{,usr/}bin/{,e,f,r}grep ixr,
-  /{,usr/}bin/env ixr,
-  /{,usr/}bin/expr ixr,
-  /{,usr/}bin/false ixr,
-  /{,usr/}bin/find ixr,
-  /{,usr/}bin/flock ixr,
-  /{,usr/}bin/fmt ixr,
-  /{,usr/}bin/fold ixr,
-  /{,usr/}bin/getconf ixr,
-  /{,usr/}bin/getent ixr,
-  /{,usr/}bin/getopt ixr,
-  /{,usr/}bin/groups ixr,
-  /{,usr/}bin/gzip ixr,
-  /{,usr/}bin/head ixr,
-  /{,usr/}bin/hostname ixr,
-  /{,usr/}bin/id ixr,
-  /{,usr/}bin/igawk ixr,
-  /{,usr/}bin/infocmp ixr,
-  /{,usr/}bin/kill ixr,
-  /{,usr/}bin/ldd ixr,
+  /{,usr/}bin/{arch,{,g,m}awk,base{32,64,name},bunzip2,busctl,bz{cat,diff,grep,ip2},cat,ch{grp,mod,own},clear,cmp,cp,cpio,cut,date,dbus-{daemon,run-session,send},dd,diff{,3},dir{,name},du,echo,{,e,f,r}grep,env,expr,false,find,flock,fmt,fold,get{conf,ent,opt},groups,gzip,head,hostname,id,igawk,infocmp,kill,ldd,less{,file,pipe},ln,line,link,locale,logger,ls,md5sum,mk{dir,fifo,nod,temp},more,mv,nice,nohup,numfmt,od,openssl,paste,pgrep,print{env,f},ps,pwd,rea{dlink,lpath},rev,rm{,dir},run-parts,sed,seq,sha{1,224,256,384,512}sum,shuf,sleep,sort,stat,stdbuf,stty,sync,systemd-cat,tac,tail,tar,tee,test,tempfile,tset,touch,tput,tr,true,tty,uname,un{iq,link,xz,zip},uptime,vdir,wc,which{,.debianutils},xargs,xz,yes,zcat,z{,e,f}grep,zip{,grep}} ixr,
   /{usr/,}lib{,32,64}/ld{,32,64}-*.so ix,
   /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so* ix,
-  /{,usr/}bin/less{,file,pipe} ixr,
-  /{,usr/}bin/ln ixr,
-  /{,usr/}bin/line ixr,
-  /{,usr/}bin/link ixr,
-  /{,usr/}bin/locale ixr,
-  /{,usr/}bin/logger ixr,
-  /{,usr/}bin/ls ixr,
-  /{,usr/}bin/md5sum ixr,
-  /{,usr/}bin/mkdir ixr,
-  /{,usr/}bin/mkfifo ixr,
-  /{,usr/}bin/mknod ixr,
-  /{,usr/}bin/mktemp ixr,
-  /{,usr/}bin/more ixr,
-  /{,usr/}bin/mv ixr,
-  /{,usr/}bin/nice ixr,
-  /{,usr/}bin/nohup ixr,
-  /{,usr/}bin/numfmt ixr,
-  /{,usr/}bin/od ixr,
-  /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
-  /{,usr/}bin/paste ixr,
-  /{,usr/}bin/pgrep ixr,
-  /{,usr/}bin/printenv ixr,
-  /{,usr/}bin/printf ixr,
-  /{,usr/}bin/ps ixr,
-  /{,usr/}bin/pwd ixr,
-  /{,usr/}bin/readlink ixr,
-  /{,usr/}bin/realpath ixr,
-  /{,usr/}bin/rev ixr,
-  /{,usr/}bin/rm ixr,
-  /{,usr/}bin/rmdir ixr,
-  /{,usr/}bin/run-parts ixr,
-  /{,usr/}bin/sed ixr,
-  /{,usr/}bin/seq ixr,
-  /{,usr/}bin/sha{1,224,256,384,512}sum ixr,
-  /{,usr/}bin/shuf ixr,
-  /{,usr/}bin/sleep ixr,
-  /{,usr/}bin/sort ixr,
-  /{,usr/}bin/stat ixr,
-  /{,usr/}bin/stdbuf ixr,
-  /{,usr/}bin/stty ixr,
-  /{,usr/}bin/sync ixr,
-  /{,usr/}bin/systemd-cat ixr,
-  /{,usr/}bin/tac ixr,
-  /{,usr/}bin/tail ixr,
-  /{,usr/}bin/tar ixr,
-  /{,usr/}bin/tee ixr,
-  /{,usr/}bin/test ixr,
-  /{,usr/}bin/tempfile ixr,
-  /{,usr/}bin/tset ixr,
-  /{,usr/}bin/touch ixr,
-  /{,usr/}bin/tput ixr,
-  /{,usr/}bin/tr ixr,
-  /{,usr/}bin/true ixr,
-  /{,usr/}bin/tty ixr,
-  /{,usr/}bin/uname ixr,
-  /{,usr/}bin/uniq ixr,
-  /{,usr/}bin/unlink ixr,
-  /{,usr/}bin/unxz ixr,
-  /{,usr/}bin/unzip ixr,
-  /{,usr/}bin/uptime ixr,
-  /{,usr/}bin/vdir ixr,
-  /{,usr/}bin/wc ixr,
-  /{,usr/}bin/which{,.debianutils} ixr,
-  /{,usr/}bin/xargs ixr,
-  /{,usr/}bin/xz ixr,
-  /{,usr/}bin/yes ixr,
-  /{,usr/}bin/zcat ixr,
-  /{,usr/}bin/z{,e,f}grep ixr,
-  /{,usr/}bin/zip ixr,
-  /{,usr/}bin/zipgrep ixr,
 
   # lsb-release
   /usr/bin/lsb_release ixr,
@@ -649,10 +466,8 @@ var defaultCoreRuntimeTemplateRules = `
   /usr/share/distro-info/*.csv r,
 
   # For printing the cache (we don't allow updating the cache)
-  /{,usr/}sbin/ldconfig{,.real} ixr,
-
   # Allow all snaps to chroot
-  /{,usr/}sbin/chroot ixr,
+  /{,usr/}sbin/{chroot,ldconfig{,.real}} ixr,
 `
 
 // defaultCoreRuntimeTemplate contains the default apparmor template for core* bases. It
@@ -902,11 +717,9 @@ deny capability sys_ptrace,
 var pycacheDenySnippet = `
 # explicitly deny noisy denials to read-only filesystems (see LP: #1496895
 # for details)
-deny /usr/lib/python3*/{,**/}__pycache__/ w,
-deny /usr/lib/python3*/{,**/}__pycache__/**.pyc.[0-9]* w,
+deny /usr/lib/python3*/{,**/}__pycache__/{,**.pyc.[0-9]*} w,
 # bind mount used here (see 'parallel installs', above)
-deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/             w,
-deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,
+deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/{,*.pyc.[0-9]*} w,
 `
 
 var sysModuleCapabilityDenySnippet = `
