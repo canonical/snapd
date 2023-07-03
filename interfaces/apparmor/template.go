@@ -1072,6 +1072,7 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 
   # snap checks if vendored apparmor parser should be used at startup
   /usr/lib/snapd/info r,
+  /lib/apparmor/functions r,
 
 ###SNIPPETS###
 }
