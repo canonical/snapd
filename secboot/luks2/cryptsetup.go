@@ -206,7 +206,7 @@ func AddKey(devicePath string, existingKey, key []byte, options *AddKeyOptions) 
 	case cmdErr != nil && (fifoErr == nil || errors.Is(fifoErr, syscall.EPIPE)):
 		// cmdErr and EPIPE means the problem is with cmd, no
 		// need to display the EPIPE error
-		return fmt.Errorf("cryptsetup failed with: %v", osutil.OutputErr(output, err))
+		return fmt.Errorf("cryptsetup failed with: %v", osutil.OutputErr(output, cmdErr))
 	case cmdErr != nil || fifoErr != nil:
 		// For all other cases show a generic error message
 		return fmt.Errorf("cryptsetup failed with: %v (fifo failed with: %v)", osutil.OutputErr(output, err), fifoErr)
