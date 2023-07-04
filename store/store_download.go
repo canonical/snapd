@@ -183,7 +183,7 @@ func (e HashError) Error() string {
 
 type DownloadOptions struct {
 	RateLimit           int64
-	IsAutoRefresh       bool
+	Scheduled           bool
 	LeavePartialOnError bool
 }
 
@@ -305,7 +305,7 @@ func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions)
 	if cdnHeader != "" {
 		reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
 	}
-	if opts != nil && opts.IsAutoRefresh {
+	if opts != nil && opts.Scheduled {
 		reqOptions.ExtraHeaders["Snap-Refresh-Reason"] = "scheduled"
 	}
 
