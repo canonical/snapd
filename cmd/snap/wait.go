@@ -43,7 +43,7 @@ type waitMixin struct {
 	skipAbort bool
 
 	// Wait also for tasks in the "wait" state.
-	waitWaitTasks bool
+	waitForTasksInWaitStatus bool
 }
 
 var waitDescs = mixinDescs{
@@ -161,7 +161,7 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 			break
 		}
 
-		if !wmx.waitWaitTasks && chg.Status == "Wait" {
+		if !wmx.waitForTasksInWaitStatus && chg.Status == "Wait" {
 			return chg, nil
 		}
 
