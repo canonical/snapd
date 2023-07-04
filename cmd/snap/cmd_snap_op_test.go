@@ -53,6 +53,7 @@ type snapOpTestServer struct {
 	confinement     string
 	restart         string
 	snap            string
+	chgInWaitStatus bool
 }
 
 var _ = check.Suite(&SnapOpSuite{})
@@ -71,10 +72,13 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	case 1:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
-		if t.restart == "" {
-			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
-		} else {
+		switch {
+		case t.restart != "":
 			fmt.Fprintln(w, fmt.Sprintf(`{"type": "sync", "result": {"status": "Doing"}, "maintenance": {"kind": "system-restart", "message": "system is %sing", "value": {"op": %q}}}}`, t.restart, t.restart))
+		case t.chgInWaitStatus:
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Wait", "id":"42"}}`)
+		default:
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
 		}
 	case 2:
 		t.c.Check(r.Method, check.Equals, "GET")
@@ -228,6 +232,24 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(candidate\) 1.0 from Bar installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallWithWaitStatus(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+	}
+
+	s.srv.chgInWaitStatus = true
+	s.srv.total = 2
+	s.RedirectClientToTestServer(s.srv.handle)
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*Change 42 waiting on external action to be completed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)

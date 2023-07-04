@@ -346,14 +346,14 @@ func maybeWithSudoSecurePath() bool {
 
 // show what has been done
 func showDone(cli *client.Client, chg *client.Change, names []string, op string, opts *client.SnapOptions, esc *escapes) error {
-	snaps, err := cli.List(names, nil)
-	if err != nil {
-		return err
-	}
-
 	if chg.Status == "Wait" {
 		fmt.Fprintf(Stdout, i18n.G("Change %v waiting on external action to be completed\n"), chg.ID)
 		return nil
+	}
+
+	snaps, err := cli.List(names, nil)
+	if err != nil {
+		return err
 	}
 
 	needsPathWarning := !isSnapInPath() && !maybeWithSudoSecurePath()
