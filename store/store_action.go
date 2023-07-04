@@ -40,7 +40,7 @@ type RefreshOptions struct {
 	// RefreshManaged indicates to the store that the refresh is
 	// managed via snapd-control.
 	RefreshManaged bool
-	IsAutoRefresh  bool
+	Scheduled      bool
 
 	PrivacyKey string
 }
@@ -536,7 +536,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		APILevel:    apiV2Endps,
 	}
 
-	if opts.IsAutoRefresh {
+	if opts.Scheduled {
 		logger.Debugf("Auto-refresh; adding header Snap-Refresh-Reason: scheduled")
 		reqOptions.addHeader("Snap-Refresh-Reason", "scheduled")
 	}
