@@ -339,10 +339,10 @@ func errToResponse(err error, snaps []string, fallback errorResponder, format st
 			}
 		case *store.SnapActionError:
 			// we only handle a few specific cases
-			_, _, e := err.SingleOpError()
+			_, name, e := err.SingleOpError()
 			if e != nil {
 				// 👉😎👉
-				return errToResponse(e, snaps, fallback, format)
+				return errToResponse(e, []string{name}, fallback, format)
 			}
 			handled = false
 		default:
