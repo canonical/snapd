@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -1075,6 +1076,24 @@ type encryptPartitionsOpts struct {
 	encryptType secboot.EncryptionType
 }
 
+func expectedCipher() string {
+	switch runtime.GOARCH {
+	case "arm":
+		return "aes-cbc-essiv:sha256"
+	default:
+		return "aes-xts-plain64"
+	}
+}
+
+func expectedKeysize() string {
+	switch runtime.GOARCH {
+	case "arm":
+		return "256"
+	default:
+		return "512"
+	}
+}
+
 func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
 	restore := install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
@@ -1113,10 +1132,10 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 	c.Assert(err, IsNil)
 
 	c.Assert(mockCryptsetup.Calls(), DeepEquals, [][]string{
-		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", "aes-xts-plain64", "--key-size", "512", "--label", "ubuntu-save-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda4"},
+		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", expectedCipher(), "--key-size", expectedKeysize(), "--label", "ubuntu-save-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda4"},
 		{"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/vda4"},
 		{"cryptsetup", "open", "--key-file", "-", "/dev/vda4", "ubuntu-save"},
-		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", "aes-xts-plain64", "--key-size", "512", "--label", "ubuntu-data-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda5"},
+		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", expectedCipher(), "--key-size", expectedKeysize(), "--label", "ubuntu-data-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda5"},
 		{"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/vda5"},
 		{"cryptsetup", "open", "--key-file", "-", "/dev/vda5", "ubuntu-data"},
 	})

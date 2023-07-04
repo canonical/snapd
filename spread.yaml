@@ -143,10 +143,13 @@ backends:
             - ubuntu-23.04-64:
                   storage: 12G
                   workers: 8
+            - ubuntu-23.10-64:
+                  storage: 12G
+                  workers: 8
 
-            - debian-10-64:
-                  workers: 6
             - debian-11-64:
+                  workers: 6
+            - debian-12-64:
                   workers: 6
             - debian-sid-64:
                   storage: 12G
@@ -177,12 +180,12 @@ backends:
                   storage: preserve-size
                   image: centos-9-64
 
-            # unstable systems below
             - opensuse-15.4-64:
+                  workers: 6
+            - opensuse-15.5-64:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
-                  manual: true
 
     google-arm:
         type: google
@@ -350,10 +353,16 @@ backends:
             - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
-            - debian-10-64:
+            - ubuntu-23.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-23.10-64:
+                  username: ubuntu
+                  password: ubuntu
+            - debian-11-64:
                   username: debian
                   password: debian
-            - debian-11-64:
+            - debian-12-64:
                   username: debian
                   password: debian
             - debian-sid-64:
@@ -404,22 +413,6 @@ backends:
             - ubuntu-16.04-s390x:
                   username: ubuntu
                   password: ubuntu
-            # Artful
-            - ubuntu-17.10-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-i386:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-ppc64el:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-armhf:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-s390x:
-                  username: ubuntu
-                  password: ubuntu
             # Bionic
             - ubuntu-18.04-amd64:
                   username: ubuntu
@@ -456,6 +449,25 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-arm64:
+                  username: ubuntu
+                  password: ubuntu
+            # Jammy
+            - ubuntu-22.04-amd64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-i386:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-ppc64el:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-armhf:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-s390x:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-arm64:
                   username: ubuntu
                   password: ubuntu
 

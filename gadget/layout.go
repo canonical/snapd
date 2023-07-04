@@ -75,6 +75,12 @@ type PartiallyLaidOutVolume struct {
 // LaidOutStructure describes a VolumeStructure coming from the gadget plus the
 // OnDiskStructure that describes how it would be applied to a given disk and
 // additional content used when writing/updating data in the structure.
+//
+// Note that we need to be careful while using the fields in OnDiskStructure as
+// some times LaidOutStructure is created before we have information about the
+// finally matched partition. This is especially important for StartOffset and
+// Size fields. TODO We want to eventually create LaidOutStructure only after
+// this information is available.
 type LaidOutStructure struct {
 	OnDiskStructure
 	// VolumeStructure is the volume structure defined in gadget.yaml

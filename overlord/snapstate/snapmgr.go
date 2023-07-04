@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -82,6 +82,9 @@ type SnapSetup struct {
 	// operation have only plugs (#plugs >= 0), and absolutely no
 	// slots (#slots == 0).
 	PlugsOnly bool `json:"plugs-only,omitempty"`
+
+	// Version being installed/refreshed to.
+	Version string `json:"version,omitempty"`
 
 	CohortKey string `json:"cohort-key,omitempty"`
 

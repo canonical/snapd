@@ -63,7 +63,7 @@ func (s *appArmorSuite) TestLoadProfilesRunsAppArmorParserReplace(c *C) {
 	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"}, apparmor.CacheDir, 0)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
 	})
 }
 
@@ -75,7 +75,7 @@ func (s *appArmorSuite) TestLoadProfilesMany(c *C) {
 	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd", "/path/to/another.profile"}, apparmor.CacheDir, 0)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd", "/path/to/another.profile"},
+		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd", "/path/to/another.profile"},
 	})
 }
 
@@ -99,7 +99,7 @@ func (s *appArmorSuite) TestLoadProfilesReportsErrors(c *C) {
 apparmor_parser output:
 `)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
 	})
 }
 
@@ -114,7 +114,7 @@ apparmor_parser output:
 parser error
 `)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
 	})
 }
 
@@ -128,7 +128,7 @@ func (s *appArmorSuite) TestLoadProfilesRunsAppArmorParserReplaceWithSnapdDebug(
 	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"}, apparmor.CacheDir, 0)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "/path/to/snap.samba.smbd"},
 	})
 }
 
@@ -395,7 +395,7 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsNoSnippets(c *C) {
 
 	// Because overlay/nfs is not used there are no local policy files but the
 	// directory was created.
-	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 0)
 }
@@ -427,16 +427,16 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsHomedirs(c *C) {
 
 	// Homedirs was specified, so we expect an entry for each homedir in a
 	// snippet 'homedirs'
-	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
 	c.Assert(files[0].Name(), Equals, "homedirs")
 	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
 	c.Assert(files[0].IsDir(), Equals, false)
 
-	c.Assert(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()),
+	c.Assert(filepath.Join(apparmor.SnapConfineAppArmorDir, files[0].Name()),
 		testutil.FileContains, `"/mnt/foo/" -> "/tmp/snap.rootfs_*/mnt/foo/",`)
-	c.Assert(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()),
+	c.Assert(filepath.Join(apparmor.SnapConfineAppArmorDir, files[0].Name()),
 		testutil.FileContains, `"/mnt/bar/" -> "/tmp/snap.rootfs_*/mnt/bar/",`)
 }
 
@@ -459,7 +459,7 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyWithHomedirsLoadError
 
 	// Probing apparmor_parser capabilities failed, so nothing gets written
 	// to the snap-confine policy directory
-	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 0)
 
@@ -488,14 +488,14 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsBPF(c *C) {
 
 	// Capability bpf is supported by the parser, so an extra policy file
 	// for snap-confine is present
-	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
 	c.Assert(files[0].Name(), Equals, "cap-bpf")
 	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
 	c.Assert(files[0].IsDir(), Equals, false)
 
-	c.Assert(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()),
+	c.Assert(filepath.Join(apparmor.SnapConfineAppArmorDir, files[0].Name()),
 		testutil.FileContains, "capability bpf,")
 }
 
@@ -522,7 +522,7 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyWithBPFProbeError(c *
 
 	// Probing apparmor_parser capabilities failed, so nothing gets written
 	// to the snap-confine policy directory
-	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 0)
 
@@ -547,7 +547,7 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsOverlay(c *C) {
 	c.Check(wasChanged, Equals, true)
 
 	// Because overlay is being used, we have the extra policy file.
-	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
 	c.Assert(files[0].Name(), Equals, "overlay-root")
@@ -555,7 +555,7 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsOverlay(c *C) {
 	c.Assert(files[0].IsDir(), Equals, false)
 
 	// The policy allows upperdir access.
-	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()))
+	data, err := ioutil.ReadFile(filepath.Join(apparmor.SnapConfineAppArmorDir, files[0].Name()))
 	c.Assert(err, IsNil)
 	c.Assert(string(data), testutil.Contains, "\"/upper/{,**/}\" r,")
 }
@@ -577,7 +577,7 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsNFS(c *C) {
 	c.Check(wasChanged, Equals, true)
 
 	// Because NFS is being used, we have the extra policy file.
-	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
 	c.Assert(files[0].Name(), Equals, "nfs-support")
@@ -585,7 +585,7 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsNFS(c *C) {
 	c.Assert(files[0].IsDir(), Equals, false)
 
 	// The policy allows network access.
-	fn := filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name())
+	fn := filepath.Join(apparmor.SnapConfineAppArmorDir, files[0].Name())
 	c.Assert(fn, testutil.FileContains, "network inet,")
 	c.Assert(fn, testutil.FileContains, "network inet6,")
 }
@@ -619,7 +619,7 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 
 	// While other stuff failed we created the policy directory and didn't
 	// write any files to it.
-	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
 	c.Check(err, IsNil)
 	c.Check(files, HasLen, 0)
 
@@ -633,16 +633,16 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 	defer dirs.SetRootDir("")
 
 	// Create a file where we would expect to find the local policy.
-	err := os.RemoveAll(filepath.Dir(dirs.SnapConfineAppArmorDir))
+	err := os.RemoveAll(filepath.Dir(apparmor.SnapConfineAppArmorDir))
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(dirs.SnapConfineAppArmorDir), 0755)
+	err = os.MkdirAll(filepath.Dir(apparmor.SnapConfineAppArmorDir), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapConfineAppArmorDir, []byte(""), 0644)
+	err = ioutil.WriteFile(apparmor.SnapConfineAppArmorDir, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	wasChanged, err := apparmor.SetupSnapConfineSnippets()
 	c.Check(err, ErrorMatches, fmt.Sprintf(`cannot create snap-confine policy directory: mkdir %s: not a directory`,
-		dirs.SnapConfineAppArmorDir))
+		apparmor.SnapConfineAppArmorDir))
 	c.Check(wasChanged, Equals, false)
 }
 
@@ -666,23 +666,23 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 	// Create the snap-confine directory and put a file. Because the file name
 	// matches the glob generated-* snapd will attempt to remove it but because
 	// the directory is not writable, that operation will fail.
-	err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755)
+	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0755)
 	c.Assert(err, IsNil)
-	f := filepath.Join(dirs.SnapConfineAppArmorDir, "generated-test")
+	f := filepath.Join(apparmor.SnapConfineAppArmorDir, "generated-test")
 	err = ioutil.WriteFile(f, []byte("spurious content"), 0644)
 	c.Assert(err, IsNil)
-	err = os.Chmod(dirs.SnapConfineAppArmorDir, 0555)
+	err = os.Chmod(apparmor.SnapConfineAppArmorDir, 0555)
 	c.Assert(err, IsNil)
 
 	// Make the directory writable for cleanup.
-	defer os.Chmod(dirs.SnapConfineAppArmorDir, 0755)
+	defer os.Chmod(apparmor.SnapConfineAppArmorDir, 0755)
 
 	wasChanged, err := apparmor.SetupSnapConfineSnippets()
 	c.Check(err.Error(), testutil.Contains, "cannot synchronize snap-confine policy")
 	c.Check(wasChanged, Equals, false)
 
 	// The policy directory was unchanged.
-	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
 }
@@ -692,16 +692,16 @@ func (s *appArmorSuite) TestRemoveSnapConfineSnippets(c *C) {
 	defer dirs.SetRootDir("")
 
 	// Create the snap-confine directory and put a few files.
-	err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755)
+	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0755)
 	c.Assert(err, IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapConfineAppArmorDir, "cap-test"), []byte("foo"), 0644), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapConfineAppArmorDir, "my-file"), []byte("foo"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(apparmor.SnapConfineAppArmorDir, "cap-test"), []byte("foo"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(apparmor.SnapConfineAppArmorDir, "my-file"), []byte("foo"), 0644), IsNil)
 
 	err = apparmor.RemoveSnapConfineSnippets()
 	c.Check(err, IsNil)
 
 	// The files were removed
-	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 0)
 }
@@ -711,14 +711,14 @@ func (s *appArmorSuite) TestRemoveSnapConfineSnippetsNoSnippets(c *C) {
 	defer dirs.SetRootDir("")
 
 	// Create the snap-confine directory and let it do nothing.
-	err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755)
+	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0755)
 	c.Assert(err, IsNil)
 
 	err = apparmor.RemoveSnapConfineSnippets()
 	c.Check(err, IsNil)
 
 	// Nothing happens
-	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 0)
 }
