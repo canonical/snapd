@@ -73,7 +73,7 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 	if assertQuery != nil {
 		panic("no assertion query support")
 	}
-	if !opts.IsAutoRefresh {
+	if !opts.Scheduled {
 		panic("AutoRefresh snap action did not set IsAutoRefresh flag")
 	}
 
