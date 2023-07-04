@@ -1016,7 +1016,7 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	spec.SetSuppressHomeIx()
 	// New enough docker & containers it launches appear to get
 	// denial for writing pycache inside the container... which I
-	// guess to apparor look like snaps. This is harmless, as
+	// guess to apparmor it looks like a snap. This is harmless, as
 	// docker snap no longer ships any python, and thus will not
 	// try to modify, otherwise immutable, pycache inside the
 	// snaps.
