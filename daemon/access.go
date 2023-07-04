@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -160,6 +161,30 @@ var (
 	requireThemeApiAccess = requireThemeApiAccessImpl
 )
 
+func checkIfaceConnected(d *Daemon, snapName, ifaceName string) (bool, error) {
+	st := d.state
+	st.Lock()
+	defer st.Unlock()
+	conns, err := ifacestate.ConnectionStates(st)
+	if err != nil {
+		return false, fmt.Errorf("cannot get connections: %v", err)
+	}
+
+	for refStr, connState := range conns {
+		if !connState.Active() || connState.Interface != ifaceName {
+			continue
+		}
+		connRef, err := interfaces.ParseConnRef(refStr)
+		if err != nil {
+			return false, err
+		}
+		if connRef.PlugRef.Snap == snapName {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func requireSnapdSocketOrConnectedIface(d *Daemon, ucred *ucrednet, ifaceName string) *apiError {
 	if ucred == nil {
 		return Forbidden("access denied")
@@ -182,26 +207,13 @@ func requireSnapdSocketOrConnectedIface(d *Daemon, ucred *ucrednet, ifaceName st
 		return Forbidden("could not determine snap name for pid: %s", err)
 	}
 
-	st := d.state
-	st.Lock()
-	defer st.Unlock()
-	conns, err := ifacestate.ConnectionStates(st)
+	connected, err := checkIfaceConnected(d, snapName, ifaceName)
 	if err != nil {
-		return Forbidden("internal error: cannot get connections: %s", err)
+		return Forbidden("internal error: %v", err)
+	} else if !connected {
+		return Forbidden("access denied")
 	}
-	for refStr, connState := range conns {
-		if !connState.Active() || connState.Interface != ifaceName {
-			continue
-		}
-		connRef, err := interfaces.ParseConnRef(refStr)
-		if err != nil {
-			return Forbidden("internal error: %s", err)
-		}
-		if connRef.PlugRef.Snap == snapName {
-			return nil
-		}
-	}
-	return Forbidden("access denied")
+	return nil
 }
 
 type snapdObserveOrOpenAccess struct{}

@@ -413,6 +413,9 @@ apps:
   shutdown:
     command: bin/run
     plugs: [ shutdown ]
+  snapd-observe:
+    command: bin/run
+    plugs: [ snapd-observe ]
   snapd-control:
     command: bin/run
     plugs: [ snapd-control ]
