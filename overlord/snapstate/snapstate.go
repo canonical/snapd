@@ -1694,6 +1694,17 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 		return nil, nil, err
 	}
 
+	// save the candidates so the auto-refresh can be continued if it's inhibited
+	// by a running snap.
+	if flags.IsAutoRefresh {
+		hints, err := refreshHintsFromCandidates(st, updates, ignoreValidation, deviceCtx)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		st.Set("refresh-candidates", hints)
+	}
+
 	if filter != nil {
 		actual := updates[:0]
 		for _, update := range updates {

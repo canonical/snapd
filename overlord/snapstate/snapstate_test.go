@@ -8968,3 +8968,43 @@ WantedBy=multi-user.target
 
 	c.Assert(mountFile, testutil.FileEquals, expectedContent)
 }
+
+func (s *snapmgrTestSuite) TestSaveRefreshCandidatesOnAutoRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// precondition check
+	var cands map[string]*snapstate.RefreshCandidate
+	err := s.state.Get("refresh-candidates", &cands)
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+
+	names, tss, err := snapstate.AutoRefresh(context.Background(), s.state, nil)
+	c.Assert(err, IsNil)
+	c.Assert(tss, NotNil)
+	c.Check(names, DeepEquals, []string{"some-other-snap", "some-snap"})
+
+	// check that refresh-candidates in the state were updated
+	err = s.state.Get("refresh-candidates", &cands)
+	c.Assert(err, IsNil)
+
+	c.Assert(cands, HasLen, 2)
+	c.Check(cands["some-snap"], NotNil)
+	c.Check(cands["some-other-snap"], NotNil)
+}
