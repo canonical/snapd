@@ -2,10 +2,7 @@ module github.com/snapcore/snapd/tests/lib/muinstaller
 
 go 1.18
 
-// XXX remove as soon as https://github.com/snapcore/snapd/pull/12850 is merged
-replace github.com/snapcore/snapd => github.com/alfonsosanchezbeato/snapd v0.0.0-20230609160638-1d144018c04c
-
-require github.com/snapcore/snapd v0.0.0-20230214100613-34da9d970bab
+require github.com/snapcore/snapd v0.0.0-20230705065623-befebe0d505e
 
 require (
 	github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 // indirect
@@ -16,7 +13,7 @@ require (
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/mvo5/goconfigparser v0.0.0-20200803085309-72e476556adb // indirect
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785 // indirect
-	github.com/snapcore/secboot v0.0.0-20230428184943-be3902241d8a // indirect
+	github.com/snapcore/secboot v0.0.0-20230623151406-4d331d24f830 // indirect
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1 // indirect
 	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90 // indirect
 	golang.org/x/net v0.9.0 // indirect
