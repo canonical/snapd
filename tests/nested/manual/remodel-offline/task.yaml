@@ -36,9 +36,9 @@ execute: |
   remodel_options="--no-wait"
   # Get specific revision to grab pc 22 with compatible gadget with the one
   # in 20/stable.
-  # TODO update this code to use pc from 22/stable when it is compatible
-  # (min-size, part ids...) -> for sn_name in pc pc-kernel; do ...
-  remote.exec "snap download --revision=149 --basename=pc pc"
+  # TODO update this code to use pc from 22/stable when it has min-size
+  # for the ubuntu-save partition -> for sn_name in pc pc-kernel; do ...
+  remote.exec "snap download --revision=148 --basename=pc pc"
   remodel_options="$remodel_options --snap pc.snap --assertion pc.assert"
   #shellcheck disable=SC2043
   for sn_name in pc-kernel; do
