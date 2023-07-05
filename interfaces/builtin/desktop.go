@@ -383,6 +383,12 @@ dbus (receive, send)
     interface=org.freedesktop.DBus.Properties
     peer=(label=unconfined),
 
+dbus (send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/desktop{,/**}
+    peer=(label=unconfined),
+
 # Allow access to various paths gnome-session and gnome-shell need.
 /etc/fonts{,/**} r,
 /etc/glvnd{,/**} r,
