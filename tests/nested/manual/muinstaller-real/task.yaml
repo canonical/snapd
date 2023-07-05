@@ -171,14 +171,6 @@ execute: |
       ./classic-seed/system-seed/ user1@localhost:~/install-seed
   remote.exec "sudo mv /home/user1/install-seed /var/lib/snapd/"
 
-  # XXX: the code in DeviceManager.SystemAndGadgetInfo() will only work on
-  # classic systems with modeenv right now (which is something we may need
-  # to fix to work from the classic installer).
-  # For now pretend we have a modeenv
-  # still needed??
-  #remote.exec 'echo "mode=run" | sudo tee -a /var/lib/snapd/modeenv'
-  #remote.exec 'sudo systemctl restart snapd'
-
   # shutdown the classic vm to install with a core VM that supports
   # secboot/tpm
   tests.nested vm stop
