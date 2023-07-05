@@ -349,4 +349,15 @@ func (s *backendSuite) TestSetupUpdatesError(c *C) {
 
 	// snap-update-ns was invoked
 	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-update-ns", "snap-name"}})
+
+	// no undo at this level
+	expected := strings.Split(fmt.Sprintf("%s\n%s\n%s\n", fsEntry1, fsEntry2, fsEntry3), "\n")
+	sort.Strings(expected)
+	// and that we have the modern fstab file (global for snap)
+	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
+	content, err := ioutil.ReadFile(fn)
+	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
+	got := strings.Split(string(content), "\n")
+	sort.Strings(got)
+	c.Check(got, DeepEquals, expected)
 }
