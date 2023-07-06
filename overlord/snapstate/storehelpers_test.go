@@ -495,15 +495,6 @@ func (s *snapmgrTestSuite) TestSnapHoldsSnapsOnly(c *C) {
 	mockInstalledSnap(c, st, snapByaml, false)
 	mockInstalledSnap(c, st, snapCyaml, false)
 
-	//mockLastRefreshed(c, st, "2021-05-09T10:00:00Z", "snap-a", "snap-b", "snap-c")
-
-	//now, err := time.Parse(time.RFC3339, "2021-05-10T10:00:00Z")
-	//c.Assert(err, IsNil)
-	//restore := snapstate.MockTimeNow(func() time.Time {
-	//	return now
-	//})
-	//defer restore()
-
 	_, err := snapstate.HoldRefresh(st, snapstate.HoldGeneral, "snap-c", 24*time.Hour, "snap-a", "snap-b")
 	c.Assert(err, IsNil)
 

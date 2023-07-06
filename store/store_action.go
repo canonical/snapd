@@ -26,6 +26,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -240,7 +241,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	authRefreshes := 0
 	for {
-		sars, ars, err := s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts)
+		sars, ars, err := s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts, 0)
 
 		if saErr, ok := err.(*SnapActionError); ok && authRefreshes < 2 && len(saErr.Other) > 0 {
 			// do we need to try to refresh auths?, 2 tries
@@ -309,7 +310,7 @@ type AssertionResult struct {
 	StreamURLs []string
 }
 
-func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, toResolve map[asserts.Grouping][]*asserts.AtRevision, toResolveSeq map[asserts.Grouping][]*asserts.AtSequence, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, []AssertionResult, error) {
+func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, toResolve map[asserts.Grouping][]*asserts.AtRevision, toResolveSeq map[asserts.Grouping][]*asserts.AtSequence, user *auth.UserState, opts *RefreshOptions, storeVer int) ([]SnapActionResult, []AssertionResult, error) {
 	requestSalt := ""
 	if opts != nil {
 		requestSalt = opts.PrivacyKey
@@ -353,8 +354,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			CohortKey:        curSnap.CohortKey,
 			ValidationSets:   valsetKeys,
 		}
-
-		if len(curSnap.HeldBy) > 0 {
+		// `held` field was introduced in version 55 https://api.snapcraft.io/docs/
+		if len(curSnap.HeldBy) > 0 && (storeVer <= 0 || storeVer >= 55) {
 			curSnapJSONs[i].Held = map[string][]string{"by": curSnap.HeldBy}
 		}
 	}
@@ -566,6 +567,18 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	if resp.StatusCode != 200 {
+		// some fields might not be supported on proxies with old versions.
+		// we should retry with the snap store version known as we can now
+		// get it from the response header.
+		if resp.StatusCode == 400 && storeVer <= 0 {
+			verstr := resp.Header.Get("Snap-Store-Version")
+			ver, err := strconv.Atoi(verstr)
+			if err != nil || ver <= 0 {
+				logger.Debugf("cannot parse header value of Snap-Store-Version: expected positive int got %q", verstr)
+			} else {
+				return s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts, ver)
+			}
+		}
 		return nil, nil, respToError(resp, "query the store for updates")
 	}
 
