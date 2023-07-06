@@ -162,11 +162,7 @@ var templateCommon = `
   # Allow User/Group lookups via common VarLink socket APIs. Applications need
   # to either consult all of them or the io.systemd.Multiplexer frontend.
   /run/systemd/userdb/ r,
-  # /run/systemd/userdb/io.systemd.DynamicUser rw,        # systemd-exec users
-  # /run/systemd/userdb/io.systemd.Home rw,               # systemd-home dirs
-  # /run/systemd/userdb/io.systemd.NameServiceSwitch rw,  # UNIX/glibc NSS
-  # /run/systemd/userdb/io.systemd.Machine rw,            # systemd-machined
-  /run/systemd/userdb/{io.systemd.Multiplexer,io.systemd.DynamicUser,io.systemd.Home,io.systemd.NameServiceSwitch,io.systemd.Machine} rw,
+  /run/systemd/userdb/io.systemd.{Multiplexer,DynamicUser,Home,NameServiceSwitch,Machine} rw,
 
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
 
@@ -221,7 +217,7 @@ var templateCommon = `
   # seems to operate ok without it) and SDL apps crash without it. Allow owner
   # match until AppArmor kernel var is available to solve this properly (see
   # LP: #1546825 for details). comm is a subset of cmdline, so allow it too.
-  owner @{PROC}/@{pid}/c{mdline,omm} r,
+  owner @{PROC}/@{pid}/{cmdline,comm} r,
 
   # Per man(5) proc, the kernel enforces that a thread may only modify its comm
   # value or those in its thread group.
@@ -294,8 +290,7 @@ var templateCommon = `
 
   # Read-only for the install directory
   # bind mount used here (see 'parallel installs', above)
-  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/                   r,
-  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}}/    r,
+  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}{,/@{SNAP_REVISION}}}/ r,
   @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}}/**  mrklix,
 
   # Read-only install directory for other revisions to help with bugs like
@@ -456,7 +451,7 @@ var defaultCoreRuntimeTemplateRules = `
   /usr/share/terminfo/** r,
 
   # Common utilities for shell scripts
-  /{,usr/}bin/{arch,{,g,m}awk,base{32,64,name},bunzip2,busctl,bz{cat,diff,grep,ip2},cat,ch{grp,mod,own},clear,cmp,cp,cpio,cut,date,dbus-{daemon,run-session,send},dd,diff{,3},dir{,name},du,echo,{,e,f,r}grep,env,expr,false,find,flock,fmt,fold,get{conf,ent,opt},groups,gzip,head,hostname,id,igawk,infocmp,kill,ldd,less{,file,pipe},ln,line,link,locale,logger,ls,md5sum,mk{dir,fifo,nod,temp},more,mv,nice,nohup,numfmt,od,openssl,paste,pgrep,print{env,f},ps,pwd,rea{dlink,lpath},rev,rm{,dir},run-parts,sed,seq,sha{1,224,256,384,512}sum,shuf,sleep,sort,stat,stdbuf,stty,sync,systemd-cat,tac,tail,tar,tee,test,tempfile,tset,touch,tput,tr,true,tty,uname,un{iq,link,xz,zip},uptime,vdir,wc,which{,.debianutils},xargs,xz,yes,zcat,z{,e,f}grep,zip{,grep}} ixr,
+  /{,usr/}bin/{arch,awk,gawk,mawk,base32,base64,basename,bunzip2,busctl,bzcat,bzdiff,bzgrep,bzip2,cat,chgrp,chmod,chown,clear,cmp,cp,cpio,cut,date,dbus-daemon,dbus-run-session,dbus-send,dd,diff,diff3,dir,dirname,du,echo,grep,egrep,fgrep,rgrep,env,expr,false,find,flock,fmt,fold,getconf,getent,getopt,groups,gzip,head,hostname,id,igawk,infocmp,kill,ldd,less,lessfile,lesspipe,ln,line,link,locale,logger,ls,md5sum,mkdir,mkfifo,mknod,mktemp,more,mv,nice,nohup,numfmt,od,openssl,paste,pgrep,printenv,printf,ps,pwd,readlink,realpath,rev,rm,rmdir,run-parts,sed,seq,sha1sum,sha224sum,sha256sum,sha384sum,sha512sum,shuf,sleep,sort,stat,stdbuf,stty,sync,systemd-cat,tac,tail,tar,tee,test,tempfile,tset,touch,tput,tr,true,tty,uname,uniq,unlink,unxz,unzip,uptime,vdir,wc,which,which.debianutils,xargs,xz,yes,zcat,zgrep,zegrep,zfgrep,zip,zipgrep} ixr,
   /{usr/,}lib{,32,64}/ld{,32,64}-*.so ix,
   /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so* ix,
 
@@ -496,16 +491,7 @@ var defaultOtherBaseTemplateRules = `
   #
   # Everything but /lib/firmware and /lib/modules
   /{,usr/}lib/ r,
-  /{,usr/}lib/[^fm]** mrklix,
-  /{,usr/}lib/{f[^i],m[^o]}** mrklix,
-  /{,usr/}lib/{fi[^r],mo[^d]}** mrklix,
-  /{,usr/}lib/{fir[^m],mod[^u]}** mrklix,
-  /{,usr/}lib/{firm[^w],modu[^l]}** mrklix,
-  /{,usr/}lib/{firmw[^a],modul[^e]}** mrklix,
-  /{,usr/}lib/{firmwa[^r],module[^s]}** mrklix,
-  /{,usr/}lib/modules[^/]** mrklix,
-  /{,usr/}lib/firmwar[^e]** mrklix,
-  /{,usr/}lib/firmware[^/]** mrklix,
+  /{,usr/}lib/{[^fm],{f[^i],m[^o]},{fi[^r],mo[^d]},{fir[^m],mod[^u]},{firm[^w],modu[^l]},{firmw[^a],modul[^e]},{firmwa[^r],module[^s]},modules[^/],firmwar[^e],firmware[^/]}** mrklix,
 
   # /lib64, etc
   /{,usr/}lib[^/]** mrklix,
@@ -522,19 +508,10 @@ var defaultOtherBaseTemplateRules = `
   # - /usr/src
   #
   # Everything but /usr/lib and /usr/src, which are handled elsewhere.
-  /usr/ r,
-  /usr/[^ls]** mrklix,
-  /usr/{l[^i],s[^r]}** mrklix,
-  /usr/{li[^b],sr[^c]}** mrklix,
-  /usr/{lib,src}[^/]** mrklix,
   # Everything in /usr/lib except /usr/lib/firmware, /usr/lib/modules and
   # /usr/lib/snapd, which are handled elsewhere.
-  /usr/lib/[^fms]** mrklix,
-  /usr/lib/{f[^i],m[^o],s[^n]}** mrklix,
-  /usr/lib/{fi[^r],mo[^d],sn[^a]}** mrklix,
-  /usr/lib/{fir[^m],mod[^u],sna[^p]}** mrklix,
-  /usr/lib/{firm[^w],modu[^l],snap[^d]}** mrklix,
-  /usr/lib/snapd[^/]** mrklix,
+  /usr/ r,
+  /usr/{[^ls],{l[^i],s[^r]},{li[^b],sr[^c]},{lib,src}[^/],lib/{[^fms],{f[^i],m[^o],s[^n]},{fi[^r],mo[^d],sn[^a]},{fir[^m],mod[^u],sna[^p]},{firm[^w],modu[^l],snap[^d]},snapd[^/]}}** mrklix,
 
   # /var - the mount setup may bind mount in:
   #
@@ -548,30 +525,10 @@ var defaultOtherBaseTemplateRules = `
   #
   # Everything but /var/lib, /var/log, /var/snap and /var/tmp, which are
   # handled elsewhere.
-  /var/ r,
-  /var/[^lst]** mrklix,
-  /var/{l[^io],s[^n],t[^m]}** mrklix,
-  /var/{li[^b],lo[^g],sn[^a],tm[^p]}** mrklix,
-  /var/{lib,log,tmp}[^/]** mrklix,
-  /var/sna[^p]** mrklix,
-  /var/snap[^/]** mrklix,
   # Everything in /var/lib except /var/lib/dhcp, /var/lib/extrausers,
   # /var/lib/jenkins and /var/lib/snapd which are handled elsewhere.
-  /var/lib/ r,
-  /var/lib/[^dejs]** mrklix,
-  /var/lib/{d[^h],e[^x],j[^e],s[^n]}** mrklix,
-  /var/lib/{dh[^c],ex[^t],je[^n],sn[^a]}** mrklix,
-  /var/lib/{dhc[^p],ext[^r],jen[^k],sna[^p]}** mrklix,
-  /var/lib/dhcp[^/]** mrklix,
-  /var/lib/{extr[^a],jenk[^i],snap[^d]}** mrklix,
-  /var/lib/snapd[^/]** mrklix,
-  /var/lib/{extra[^u],jenki[^n]}** mrklix,
-  /var/lib/{extrau[^s],jenkin[^s]}** mrklix,
-  /var/lib/jenkins[^/]** mrklix,
-  /var/lib/extraus[^e]** mrklix,
-  /var/lib/extrause[^r]** mrklix,
-  /var/lib/extrauser[^s]** mrklix,
-  /var/lib/extrausers[^/]** mrklix,
+  /var/{,lib/} r,
+  /var/{[^lst],{l[^io],s[^n],t[^m]},{li[^b],lo[^g],sn[^a],tm[^p]},{lib,log,tmp}[^/],sna[^p],snap[^/],lib/{[^dejs],{d[^h],e[^x],j[^e],s[^n]},{dh[^c],ex[^t],je[^n],sn[^a]},{dhc[^p],ext[^r],jen[^k],sna[^p]},dhcp[^/],{extr[^a],jenk[^i],snap[^d]},snapd[^/],{extra[^u],jenki[^n]},{extrau[^s],jenkin[^s]},jenkins[^/],extraus[^e],extrauser[^s],extrausers[^/]}}** mrklix,
 `
 
 // defaultOtherBaseTemplate contains the default apparmor template for non-core
@@ -757,10 +714,8 @@ var updateNSTemplate = `
 profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # The next four rules mirror those above. We want to be able to read
   # and map snap-update-ns into memory but it may come from a variety of places.
-  /usr/lib{,exec,64}/snapd/snap-update-ns mr,
-  /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns mr,
-  /{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-update-ns mr,
-  /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
+  /{,var/lib/snapd/hostfs/}usr/lib{,exec,64}/snapd/snap-update-ns mr,
+  /{,var/lib/snapd/hostfs/}{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
 
   # Allow reading the dynamic linker cache.
   /etc/ld.so.cache r,
@@ -768,15 +723,11 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld-*.so mrix,
   # Allow reading and mapping various parts of the standard library and
   # dynamically loaded nss modules and what not.
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}lib{c,pthread}{,-[0-9]*}.so* mr,
 
   # Common devices accesses
-  /dev/null rw,
-  /dev/full rw,
-  /dev/zero rw,
-  /dev/random r,
-  /dev/urandom r,
+  /dev/{null,full,zero} rw,
+  /dev/{,u}random r,
 
   # golang runtime variables
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
@@ -806,17 +757,14 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /{etc/,usr/lib/}os-release r,
 
   # Allow creating/grabbing global and per-snap lock files.
-  /run/snapd/lock/###SNAP_INSTANCE_NAME###.lock rwk,
-  /run/snapd/lock/.lock rwk,
+  /run/snapd/lock/{,###SNAP_INSTANCE_NAME###}.lock rwk,
 
   # Allow reading stored mount namespaces,
-  /run/snapd/ns/ r,
-  /run/snapd/ns/###SNAP_INSTANCE_NAME###.mnt r,
+  /run/snapd/ns/{,###SNAP_INSTANCE_NAME###.mnt} r,
 
   # Allow reading per-snap desired mount profiles. Those are written by
   # snapd and represent the desired layout and content connections.
-  /var/lib/snapd/mount/snap.###SNAP_INSTANCE_NAME###.fstab r,
-  /var/lib/snapd/mount/snap.###SNAP_INSTANCE_NAME###.user-fstab r,
+  /var/lib/snapd/mount/snap.###SNAP_INSTANCE_NAME###.{,user-}fstab r,
 
   # Allow reading and writing actual per-snap mount profiles. Note that
   # the wildcard in the rule to allow an atomic write + rename strategy.
@@ -848,8 +796,7 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # groups and act on each one
   /sys/fs/cgroup/ r,
   /sys/fs/cgroup/** r,
-  /sys/fs/cgroup/**/snap.###SNAP_INSTANCE_NAME###.*.scope/cgroup.freeze rw,
-  /sys/fs/cgroup/**/snap.###SNAP_INSTANCE_NAME###.*.service/cgroup.freeze rw,
+  /sys/fs/cgroup/**/snap.###SNAP_INSTANCE_NAME###.*.{scope,service}/cgroup.freeze rw,
 
   # Allow the content interface to bind fonts from the host filesystem
   mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/###SNAP_INSTANCE_NAME###/*/**,
@@ -862,11 +809,7 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Allow traversing from the root directory and several well-known places.
   # Specific directory permissions are added by snippets below.
   / r,
-  /etc/ r,
-  /snap/ r,
-  /tmp/ r,
-  /usr/ r,
-  /var/ r,
+  /{etc,snap,tmp,usr,var}/ r,
   /var/snap/ r,
 
   # Allow reading timezone data.
