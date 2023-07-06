@@ -1,3 +1,12 @@
+# New in snapd 2.60.1:
+* Bugfixes
+* Use "aes-cbc-essiv:sha256" in cryptsetup on arm 32bit devices
+  to increase speed on devices with CAAM support
+* Stop using `-O no-expr-simplify` in apparmor_parser to avoid
+  potential exponential memory use. This can lead to slower 
+  policy complication in some cases but it is much safer on
+  low memory devices.
+
 # New in snapd 2.60:
 * Support for dynamic snapshot data exclusions
 * Apparmor userspace is vendored inside the snapd snap
