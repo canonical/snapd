@@ -1,3 +1,18 @@
+snapd (2.60.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - install: fallback to lazy unmount() in writeFilesystemContent
+    - data: include "modprobe.d" and "modules-load.d" in preseeded blob
+    - gadget: fix install test on armhf
+    - interfaces: fix typo in network_manager_observe
+    - sandbox/apparmor: don't let vendored apparmor conflict with system
+    - gadget/update: set parts in laid out data from the ones matched
+    - many: move SnapConfineAppArmorDir from dirs to sandbox/apparmor
+    - many: stop using `-O no-expr-simplify` in apparmor_parser
+    - go.mod: update secboot to latest uc22 branch
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 04 Jul 2023 21:21:48 +0200
+
 snapd (2.60~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #2024007
