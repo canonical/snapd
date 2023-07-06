@@ -24,13 +24,11 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -803,23 +801,9 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 // SnapHolds returns a map of held snaps to lists of holding snaps (including
 // "system" for user holds).
 func SnapHolds(st *state.State, snaps []string) (map[string][]string, error) {
-	var allSnapsHold string
-	tr := config.NewTransaction(st)
-	err := tr.Get("core", "refresh.hold", &allSnapsHold)
-	if err != nil && !config.IsNoOption(err) {
+	allSnapsHoldTime, err := effectiveRefreshHold(st)
+	if err != nil {
 		return nil, err
-	}
-
-	var allSnapsHoldTime time.Time
-	if allSnapsHold != "" {
-		if allSnapsHold == "forever" {
-			allSnapsHoldTime = timeNow().Add(maxDuration)
-		} else {
-			allSnapsHoldTime, err = time.Parse(time.RFC3339, allSnapsHold)
-			if err != nil {
-				return nil, err
-			}
-		}
 	}
 
 	holds, err := HeldSnaps(st, HoldGeneral)

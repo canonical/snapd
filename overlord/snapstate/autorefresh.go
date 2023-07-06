@@ -153,9 +153,13 @@ func (m *autoRefresh) LastRefresh() (time.Time, error) {
 // EffectiveRefreshHold returns the time until to which refreshes are
 // held if refresh.hold configuration is set.
 func (m *autoRefresh) EffectiveRefreshHold() (time.Time, error) {
+	return effectiveRefreshHold(m.state)
+}
+
+func effectiveRefreshHold(st *state.State) (time.Time, error) {
 	var holdValue string
 
-	tr := config.NewTransaction(m.state)
+	tr := config.NewTransaction(st)
 	err := tr.Get("core", "refresh.hold", &holdValue)
 	if err != nil && !config.IsNoOption(err) {
 		return time.Time{}, err
