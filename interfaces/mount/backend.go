@@ -82,7 +82,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	if err := UpdateSnapNamespace(snapName); err != nil {
 		// try to discard the mount namespace and retry, but only if there aren't daemons in the snap
 		for _, app := range snapInfo.Apps {
-			if app.Daemon != "" {
+			if app.Daemon != "" && app.RefreshMode == "endure" {
 				return fmt.Errorf("cannot update mount namespace of snap %q when trying to update it, and cannot discard it and retry because it contains a daemon: %s", snapName, err)
 			}
 		}
