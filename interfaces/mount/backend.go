@@ -83,7 +83,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 		// try to discard the mount namespace but only if there aren't enduring daemons in the snap
 		for _, app := range snapInfo.Apps {
 			if app.Daemon != "" && app.RefreshMode == "endure" {
-				return fmt.Errorf("cannot update mount namespace of snap %q when trying to update it, and cannot discard it because it contains an enduring daemon: %s", snapName, err)
+				return fmt.Errorf("cannot update mount namespace of snap %q, and cannot discard it because it contains an enduring daemon: %s", snapName, err)
 			}
 		}
 		logger.Debugf("cannot update mount namespace of snap %q; discarding namespace", snapName)
