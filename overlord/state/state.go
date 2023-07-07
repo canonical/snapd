@@ -498,6 +498,8 @@ func (s *State) GetMaybeTimings(timings interface{}) error {
 // as quickly as possible, and should avoid the use of i/o code or blocking, as this
 // will stop the entire task system.
 func (s *State) AddTaskStatusChangedHandler(f func(t *Task, old, new Status)) (id int) {
+	// We are reading here as we want to ensure access to the state is serialized,
+	// and not writing as we are not changing the part of state that goes on the disk.
 	s.reading()
 	id = s.lastHandlerId
 	s.lastHandlerId++
@@ -524,6 +526,8 @@ func (s *State) notifyTaskStatusChangedHandlers(t *Task, old, new Status) {
 // as quickly as possible, and should avoid the use of i/o code or blocking, as this
 // will stop the entire task system.
 func (s *State) AddChangeStatusChangedHandler(f func(chg *Change, old, new Status)) (id int) {
+	// We are reading here as we want to ensure access to the state is serialized,
+	// and not writing as we are not changing the part of state that goes on the disk.
 	s.reading()
 	id = s.lastHandlerId
 	s.lastHandlerId++
