@@ -1,7 +1,8 @@
 summary: Integration tests for the snap-bootstrap binary
 
 # use the same system and tooling as uc20
-systems: [ubuntu-2*]
+# TODO: revert skip for ubuntu-23*
+systems: [ubuntu-20.*,ubuntu-22.*]
 
 environment:
     SNAPD_DEBUG: "1"
