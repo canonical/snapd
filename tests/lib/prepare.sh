@@ -215,6 +215,14 @@ update_core_snap_for_classic_reexec() {
 }
 
 prepare_memory_limit_override() {
+    # First time it is needed to save the initial env var value
+    if not tests.env is-set initial SNAPD_NO_MEMORY_LIMIT; then
+        tests.env set initial SNAPD_NO_MEMORY_LIMIT "$SNAPD_NO_MEMORY_LIMIT"
+    # Then if the new value is the same than the initial, then no new configuration needed
+    elif [ "$(tests.env get initial SNAPD_NO_MEMORY_LIMIT)" = "$SNAPD_NO_MEMORY_LIMIT" ]; then
+        return
+    fi
+
     # set up memory limits for snapd bu default unless explicit requested not to
     # or the system is known to be problematic
     local set_limit=1
@@ -232,7 +240,7 @@ prepare_memory_limit_override() {
             set_limit=0
             ;;
         *)
-            if [ -n "${SNAPD_NO_MEMORY_LIMIT:-}" ]; then
+            if [ "$SNAPD_NO_MEMORY_LIMIT" = 1 ]; then
                 set_limit=0
             fi
             ;;
@@ -254,8 +262,7 @@ prepare_memory_limit_override() {
         # systemd is backwards compatible so the limit is still set.
         cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
 [Service]
-# mvo: disabled because of many failures in restore, e.g. in PR#11014
-#MemoryLimit=100M
+MemoryLimit=150M
 EOF
     fi
     # the service setting may have changed in the service so we need
@@ -264,38 +271,31 @@ EOF
     systemctl restart snapd
 }
 
-create_reexec_file(){
-    local reexec_file=$1
-    cat <<EOF > "$reexec_file"
-[Service]
-Environment=SNAP_REEXEC=$SNAP_REEXEC
-EOF
-}
-
 prepare_reexec_override() {
     local reexec_file=/etc/systemd/system/snapd.service.d/reexec.conf
-    local updated=false
+ 
+    # First time it is needed to save the initial env var value
+    if not tests.env is-set initial SNAP_REEXEC; then
+        tests.env set initial SNAP_REEXEC "$SNAP_REEXEC"
+    # Then if the new value is the same than the initial, then no new configuration needed
+    elif [ "$(tests.env get initial SNAP_REEXEC)" = "$SNAP_REEXEC" ]; then
+        return
+    fi
 
     # Just update reexec configuration when the SNAP_REEXEC var has been updated
     # Otherwise it is used the configuration set during project preparation
     mkdir -p /etc/systemd/system/snapd.service.d
-    if [ -z "${SNAP_REEXEC:-}" ] && [ -f "$reexec_file" ] ; then
+    if [ -z "${SNAP_REEXEC:-}" ]; then
         rm -f "$reexec_file"
-        updated=true
-    elif [ -n "${SNAP_REEXEC:-}" ] && [ ! -f "$reexec_file" ]; then
-        create_reexec_file "$reexec_file"
-        updated=true
-    elif [ -n "${SNAP_REEXEC:-}" ] && NOMATCH "Environment=SNAP_REEXEC=$SNAP_REEXEC" < "$reexec_file"; then
-        create_reexec_file "$reexec_file"
-        updated=true
+    else
+        cat <<EOF > "$reexec_file"
+[Service]
+Environment=SNAP_REEXEC=$SNAP_REEXEC
+EOF
     fi
 
-    if [ "$updated" = true ]; then
-        # the re-exec setting may have changed in the service so we need
-        # to ensure snapd is reloaded
-        systemctl daemon-reload
-        systemctl restart snapd
-    fi
+    systemctl daemon-reload
+    systemctl restart snapd
 }
 
 prepare_each_classic() {
@@ -303,7 +303,9 @@ prepare_each_classic() {
         echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
         exit 1
     fi
+
     prepare_reexec_override
+    prepare_memory_limit_override
 }
 
 prepare_classic() {
@@ -360,6 +362,9 @@ prepare_classic() {
 
     # Snapshot the state including core.
     if ! is_snapd_state_saved; then
+        # Create the file with the initial environment before saving the state
+        tests.env start initial
+
         # need to be seeded to proceed with snap install
         # also make sure the captured state is seeded
         snap wait system seed.loaded
@@ -1420,6 +1425,9 @@ prepare_ubuntu_core() {
 
     # Snapshot the fresh state (including boot/bootenv)
     if ! is_snapd_state_saved; then
+        # Create the file with the initial environment before saving the state
+        tests.env start initial
+
         # important to remove disabled snaps before calling save_snapd_state
         # or restore will break
         remove_disabled_snaps
