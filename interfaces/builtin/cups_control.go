@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -162,6 +163,20 @@ func (iface *cupsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 		spec.AddSnippet(snippet)
 	}
 	return nil
+}
+
+func (iface *cupsControlInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
+	_, hostSystemHasCupsd, _ := osutil.RegularFileExists("/etc/cups/cupsd.conf")
+	if hostSystemHasCupsd {
+		// If the host system has cupsd installed, we want to
+		// direct connections to the implicit
+		// system:cups-control slot
+		return implicitSystemPermanentSlot(slot)
+	} else {
+		// If host system does not have cupsd, block
+		// auto-connect to system:cups-control slot
+		return !implicitSystemPermanentSlot(slot)
+	}
 }
 
 func init() {
