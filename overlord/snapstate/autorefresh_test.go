@@ -1166,67 +1166,6 @@ func (s *autoRefreshTestSuite) addRefreshableSnap(names ...string) {
 	}
 }
 
-func (s *autoRefreshTestSuite) TestPartiallyInhibitedAutoRefreshIsContinued(c *C) {
-	s.addRefreshableSnap("foo")
-
-	now := time.Now()
-	restore := snapstate.MockTimeNow(func() time.Time {
-		return now
-	})
-	defer restore()
-
-	af := snapstate.NewAutoRefresh(s.state)
-	s.state.Lock()
-	s.state.Cache("auto-refresh-continue-attempt", 1)
-	s.state.Unlock()
-
-	err := af.Ensure()
-	c.Check(err, IsNil)
-	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	var lastRefresh time.Time
-	err = s.state.Get("last-refresh", &lastRefresh)
-	c.Assert(err, IsNil)
-	c.Check(lastRefresh.Equal(now), Equals, true)
-	c.Check(s.state.Cached("auto-refresh-continue-attempt"), IsNil)
-
-	// check that the "IsContinuedAutoRefresh" flag is set for a
-	// continued auto-refresh
-	chgs := s.state.Changes()
-	c.Assert(chgs, HasLen, 1)
-	checkIsContinuedAutoRefresh(c, chgs[0].Tasks(), true)
-}
-
-func (s *autoRefreshTestSuite) TestContinueAutorefreshOnlyFirstOverridesDelay(c *C) {
-	// fail the auto-refresh
-	s.store.err = fmt.Errorf("random store error")
-
-	af := snapstate.NewAutoRefresh(s.state)
-	// run it once so we're in the retry delay
-	err := af.Ensure()
-	c.Assert(err, ErrorMatches, "random store error")
-
-	s.state.Lock()
-	s.state.Cache("auto-refresh-continue-attempt", 1)
-	s.state.Unlock()
-
-	err = af.Ensure()
-	c.Check(err, ErrorMatches, "random store error")
-	c.Check(s.store.ops, DeepEquals, []string{"list-refresh", "list-refresh"})
-	s.state.Lock()
-	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 2)
-	s.state.Unlock()
-
-	err = af.Ensure()
-	c.Check(err, IsNil)
-	c.Check(s.store.ops, DeepEquals, []string{"list-refresh", "list-refresh"})
-	s.state.Lock()
-	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 2)
-	s.state.Unlock()
-}
-
 func (s *autoRefreshTestSuite) TestTooSoonError(c *C) {
 	c.Check(snapstate.TooSoonError{}, testutil.ErrorIs, snapstate.TooSoonError{})
 	c.Check(snapstate.TooSoonError{}, Not(testutil.ErrorIs), errors.New(""))

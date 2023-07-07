@@ -8998,7 +8998,7 @@ func (s *snapmgrTestSuite) TestSaveRefreshCandidatesOnAutoRefresh(c *C) {
 	err := s.state.Get("refresh-candidates", &cands)
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 
-	names, tss, err := snapstate.AutoRefresh(context.Background(), s.state, nil)
+	names, tss, err := snapstate.AutoRefresh(context.Background(), s.state)
 	c.Assert(err, IsNil)
 	c.Assert(tss, NotNil)
 	c.Check(names, DeepEquals, []string{"some-other-snap", "some-snap"})
