@@ -13,8 +13,7 @@
     - `--translated` excludes untranslated messages
 - Replace old translations under `/po` with new translations
 - Commit author and message should match Launchpad automated commits
-    - Author: "Launchpad Translations on behalf of snappy-dev"
-    - Message: "Launchpad automatic translations update"
+    - git commit --author="Launchpad Translations on behalf of snappy-dev[bot]<noreply@canonical.com>" -m "po: launchpad automatic translations update"
 
 References:
 - https://help.launchpad.net/Translations
