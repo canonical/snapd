@@ -834,16 +834,10 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	targetFn := snapsup.MountFile()
-	dlOpts := &store.DownloadOptions{
-		// pre-downloads are only triggered in auto-refreshes
-		Scheduled: true,
-		RateLimit: autoRefreshRateLimited(st),
-	}
-
 	perfTimings := state.TimingsForTask(t)
 	st.Unlock()
 	timings.Run(perfTimings, "pre-download", fmt.Sprintf("pre-download snap %q", snapsup.SnapName()), func(timings.Measurer) {
-		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, nil, user, dlOpts)
+		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, nil, user, nil)
 	})
 	st.Lock()
 	if err != nil {
@@ -892,23 +886,18 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 			return err
 		}
 
-		return asyncRefreshOnSnapClose(m.state, refreshInfo)
+		return asyncRefreshOnSnapClose(m.state, snapsup, refreshInfo)
 	}
 
-	continueInhibitedAutoRefresh(st)
-	return nil
+	return continueInhibitedAutoRefresh(st, snapsup.InstanceName())
 }
 
 // asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
 // the user and then triggers an auto-refresh.
-func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) error {
-	monitoredSnaps := snapMonitoring(st)
-	if monitoredSnaps == nil {
-		monitoredSnaps = make(map[string]chan<- bool)
-	}
-
+func asyncRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, refreshInfo *userclient.PendingSnapRefreshInfo) error {
+	snapName := snapsup.InstanceName()
 	// there's already a goroutine waiting for this snap to close so just notify
-	if monitoredSnaps[refreshInfo.InstanceName] != nil {
+	if abortChan := getAbortMonitoringChan(st, snapName); abortChan != nil {
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 		return nil
 	}
@@ -916,89 +905,177 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 	// monitor the snap until it closes. Use buffered channel to prevent the sender
 	// from blocking if the receiver stops before reading from it
 	done := make(chan string, 1)
-	if err := cgroupMonitorSnapEnded(refreshInfo.InstanceName, done); err != nil {
+	if err := cgroupMonitorSnapEnded(snapName, done); err != nil {
 		return fmt.Errorf("cannot monitor for snap closure: %w", err)
 	}
 
 	// notify the user about the blocked refresh
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 
-	abort := make(chan bool, 1)
-	monitoredSnaps[refreshInfo.InstanceName] = abort
-	updateMonitoringState(st, monitoredSnaps)
+	var refreshHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
+		return fmt.Errorf("cannot get refresh-candidates: %v", err)
+	}
 
-	go continueRefreshOnSnapClose(st, refreshInfo.InstanceName, done, abort)
+	abort := make(chan bool, 1)
+	if err := addMonitoring(st, snapName, abort); err != nil {
+		return fmt.Errorf("cannot save monitoring state: %v", err)
+	}
+
+	go continueRefreshOnSnapClose(st, snapsup, done, abort)
+	return nil
+}
+
+// addMonitoring adds monitoring info to the persisted and in-memory states.
+func addMonitoring(st *state.State, snapName string, abort chan<- bool) error {
+	var refreshHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
+		return fmt.Errorf("cannot get refresh-candidates: %v", err)
+	} else if _, ok := refreshHints[snapName]; !ok {
+		return fmt.Errorf("cannot get refresh candidate for %q: not found", snapName)
+	}
+
+	refreshHints[snapName].Monitoring = true
+	st.Set("refresh-candidates", refreshHints)
+
+	storedChans := st.Cached("monitored-snaps")
+	if storedChans == nil {
+		storedChans = make(map[string]chan<- bool)
+	}
+
+	abortChans, ok := storedChans.(map[string]chan<- bool)
+	if !ok {
+		// should never happen save for programmer error
+		return fmt.Errorf(`"monitored-snaps" should be map[string]chan<- bool but got %T`, storedChans)
+	}
+
+	abortChans[snapName] = abort
+	st.Cache("monitored-snaps", abortChans)
 
 	return nil
 }
 
-func continueRefreshOnSnapClose(st *state.State, instanceName string, done <-chan string, abort <-chan bool) {
-	continueAutoRefresh := false
+// removeMonitoring removes monitoring state related to the specified snap.
+func removeMonitoring(st *state.State, snapName string) error {
+	storedChans := st.Cached("monitored-snaps")
+	if storedChans == nil {
+		storedChans = make(map[string]chan<- bool)
+	}
+
+	abortChans, ok := storedChans.(map[string]chan<- bool)
+	if !ok {
+		// should never happen save for programmer error
+		return fmt.Errorf(`"monitored-snaps" should be map[string]chan<- bool but got %T`, storedChans)
+	}
+
+	delete(abortChans, snapName)
+	if len(abortChans) == 0 {
+		st.Cache("monitored-snaps", nil)
+	} else {
+		st.Cache("monitored-snaps", abortChans)
+	}
+
+	var refreshHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
+		return fmt.Errorf("cannot get refresh-candidates: %v", err)
+	}
+
+	if _, ok := refreshHints[snapName]; !ok {
+		return fmt.Errorf("cannot reset the monitoring field for %q in \"refresh-candidates\"", snapName)
+	}
+
+	refreshHints[snapName].Monitoring = false
+	st.Set("refresh-candidates", refreshHints)
+	return nil
+}
+
+func continueRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, done <-chan string, abort <-chan bool) {
+	snapName := snapsup.InstanceName()
+
+	var aborted bool
 	select {
 	case <-done:
-		continueAutoRefresh = true
 	case <-abort:
+		aborted = true
 	}
 
 	st.Lock()
 	defer st.Unlock()
 
-	monitoredSnaps := snapMonitoring(st)
-	if monitoredSnaps == nil {
-		// shouldn't happen except for programmer error
-		logger.Noticef("cannot find monitoring state for snap %q", instanceName)
-	} else {
-		delete(monitoredSnaps, instanceName)
-
-		if len(monitoredSnaps) == 0 {
-			// use nil to delete entry but must be nil type (can't be map var set to nil)
-			updateMonitoringState(st, nil)
-		} else {
-			updateMonitoringState(st, monitoredSnaps)
+	defer func() {
+		if err := removeMonitoring(st, snapName); err != nil {
+			logger.Noticef("cannot remove monitoring information: %v", err)
 		}
-	}
+	}()
 
-	if continueAutoRefresh {
-		continueInhibitedAutoRefresh(st)
-	}
-}
-
-// continueInhibitedAutoRefresh triggers an auto-refresh so it can be continued
-func continueInhibitedAutoRefresh(st *state.State) {
-	// signal that there's an auto-refresh to be continued (for auto-refresh code)
-	st.Cache("auto-refresh-continue-attempt", 1)
-	st.EnsureBefore(0)
-}
-
-func snapMonitoring(st *state.State) map[string]chan<- bool {
-	if cachedMonitored := st.Cached("monitored-snaps"); cachedMonitored != nil {
-		if monitoredSnaps, ok := cachedMonitored.(map[string]chan<- bool); ok {
-			return monitoredSnaps
-		}
-	}
-
-	return nil
-}
-
-func updateMonitoringState(st *state.State, monitored map[string]chan<- bool) {
-	if monitored == nil {
-		st.Cache("monitored-snaps", nil)
-		st.Set("monitored-snaps", nil)
+	if aborted {
+		logger.Debugf("monitoring for pre-downloaded snap %q was aborted", snapName)
 		return
 	}
 
-	var snaps []string
-	for snap := range monitored {
-		snaps = append(snaps, snap)
+	if err := continueInhibitedAutoRefresh(st, snapName); err != nil {
+		logger.Noticef("cannot continue inhibited auto-refresh for %q: %v", snapName, err)
+		return
+	}
+}
+
+// continueInhibitedAutoRefresh refreshes the snap to continue the inhibited auto-refresh
+func continueInhibitedAutoRefresh(st *state.State, snapName string) error {
+	var refreshHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
+		return fmt.Errorf("cannot get refresh-candidates: %v", err)
 	}
 
-	st.Cache("monitored-snaps", monitored)
-	st.Set("monitored-snaps", snaps)
+	hint, ok := refreshHints[snapName]
+	if !ok {
+		return fmt.Errorf("cannot get refresh-candidates for %q: not found", snapName)
+	}
+
+	flags := &Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: true}
+	tss, err := autoRefreshPhase2(context.TODO(), st, []*refreshCandidate{hint}, flags, "")
+	if err != nil {
+		return err
+	}
+
+	// TODO: do a check so this can't happen?
+	createdPreDl, err := createPreDownloadChange(st, tss)
+	if err != nil {
+		return err
+	}
+
+	if !createdPreDl {
+		msg := fmt.Sprintf(i18n.G("Continue the inhibited auto-refresh of %q"), snapName)
+		chg := st.NewChange("continue-auto-refresh", msg)
+		for _, ts := range tss.Refresh {
+			chg.AddAll(ts)
+		}
+		chg.Set("snap-names", []string{snapName})
+
+	}
+
+	st.EnsureBefore(0)
+	return nil
+}
+
+func getAbortMonitoringChan(st *state.State, snapName string) chan<- bool {
+	storedChans := st.Cached("monitored-snaps")
+	if storedChans == nil {
+		return nil
+	}
+
+	abortChans, ok := storedChans.(map[string]chan<- bool)
+	if !ok {
+		// NOTE: should never happen save for programmer error
+		logger.Noticef(`internal error: "monitored-snap" should be map[string]chan<- bool but got %T: %v`, storedChans, storedChans)
+		return nil
+	}
+
+	return abortChans[snapName]
 }
 
 func abortMonitoring(st *state.State, snapName string) {
-	if monitored := snapMonitoring(st); monitored[snapName] != nil {
-		monitored[snapName] <- true
+	if abortChan := getAbortMonitoringChan(st, snapName); abortChan != nil {
+		abortChan <- true
 	}
 }
 
@@ -1271,7 +1348,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			if errors.As(err, &busyErr) {
 				// notify user to close the snap and trigger the auto-refresh once it's closed
 				refreshInfo := busyErr.PendingSnapRefreshInfo()
-				if err := asyncRefreshOnSnapClose(m.state, refreshInfo); err != nil {
+				if err := asyncRefreshOnSnapClose(m.state, snapsup, refreshInfo); err != nil {
 					return err
 				}
 			}
@@ -4053,7 +4130,7 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		return nil
 	}
 
-	updateTss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
+	updateTss, err := autoRefreshPhase2(context.TODO(), st, snaps, nil, t.Change().ID())
 	if err != nil {
 		return err
 	}
