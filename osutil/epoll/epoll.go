@@ -86,7 +86,9 @@ func Open() (*Epoll, error) {
 // Close closes the event monitoring descriptor.
 func (e *Epoll) Close() error {
 	runtime.SetFinalizer(e, nil)
-	return syscall.Close(e.fd)
+	fd := e.fd
+	e.fd = -1
+	return syscall.Close(fd)
 }
 
 // Fd returns the integer unix file descriptor referencing the open file.
