@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -80,18 +80,15 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
 	}
 	if err := UpdateSnapNamespace(snapName); err != nil {
-		// try to discard the mount namespace and retry, but only if there aren't daemons in the snap
+		// try to discard the mount namespace but only if there aren't enduring daemons in the snap
 		for _, app := range snapInfo.Apps {
 			if app.Daemon != "" && app.RefreshMode == "endure" {
-				return fmt.Errorf("cannot update mount namespace of snap %q when trying to update it, and cannot discard it and retry because it contains a daemon: %s", snapName, err)
+				return fmt.Errorf("cannot update mount namespace of snap %q when trying to update it, and cannot discard it because it contains an enduring daemon: %s", snapName, err)
 			}
 		}
-		logger.Debugf("cannot update mount namespace of snap %q; discarding namespace and retrying.", snapName)
+		logger.Debugf("cannot update mount namespace of snap %q; discarding namespace", snapName)
 		if err = DiscardSnapNamespace(snapName); err != nil {
 			return fmt.Errorf("cannot discard mount namespace of snap %q when trying to update it: %s", snapName, err)
-		}
-		if err = UpdateSnapNamespace(snapName); err != nil {
-			return fmt.Errorf("cannot update mount namespace of snap %q: %s", snapName, err)
 		}
 	}
 	return nil
