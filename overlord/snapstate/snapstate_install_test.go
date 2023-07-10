@@ -1360,6 +1360,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		Version:     "some-snapVer",
 		PlugsOnly:   true,
 		InstanceKey: "instance",
+		// parallel installs should implicitly pass --unaliased
+		Flags: snapstate.Flags{Unaliased: true},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
