@@ -33,7 +33,8 @@ var validAccountKeyName = regexp.MustCompile(`^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9
 type AccountKey struct {
 	assertionBase
 	sinceUntil
-	pubKey PublicKey
+	constraintMatchers []attrMatcher
+	pubKey             PublicKey
 }
 
 type sinceUntil struct {
@@ -128,6 +129,23 @@ func (ak *AccountKey) publicKey() PublicKey {
 	return ak.pubKey
 }
 
+// canSign checks whether the given assertion matches the signing constraints of the account key.
+func (ak *AccountKey) canSign(a Assertion) bool {
+	matchers := ak.constraintMatchers
+	// no constraints, everything is allowed
+	if len(matchers) == 0 {
+		return true
+	}
+	for _, m := range matchers {
+		if m.match("", a.Headers(), &attrMatchingContext{
+			attrWord: "header",
+		}) == nil {
+			return true
+		}
+	}
+	return false
+}
+
 func checkPublicKey(ab *assertionBase, keyIDName string) (PublicKey, error) {
 	pubKey, err := DecodePublicKey(ab.Body())
 	if err != nil {
@@ -216,12 +234,75 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	var matchers []attrMatcher
+	if cs, ok := assert.headers["constraints"]; ok {
+		matchers, err = checkAKConstraints(cs)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// ignore extra headers for future compatibility
 	return &AccountKey{
-		assertionBase: assert,
-		sinceUntil:    *sinceUntil,
-		pubKey:        pubk,
+		assertionBase:      assert,
+		sinceUntil:         *sinceUntil,
+		constraintMatchers: matchers,
+		pubKey:             pubk,
 	}, nil
+}
+
+func checkAKConstraints(cs interface{}) ([]attrMatcher, error) {
+	csmaps, ok := cs.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("assertions constraints must be a list of maps")
+	}
+	if len(csmaps) == 0 {
+		// there is no syntax producing this scenario but be robust
+		return nil, fmt.Errorf("assertions constraints cannot be empty")
+	}
+	matchers := make([]attrMatcher, 0, len(csmaps))
+	for _, csmap := range csmaps {
+		m, ok := csmap.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("assertions constraints must be a list of maps")
+		}
+		hm, err := checkMapWhat(m, "headers", "constraint")
+		if err != nil {
+			return nil, err
+		}
+		if hm == nil {
+			return nil, fmt.Errorf(`"headers" constraint mandatory in asserions constraints`)
+		}
+		t, ok := hm["type"]
+		if !ok {
+			return nil, fmt.Errorf("type header constraint mandatory in asserions constraints")
+		}
+		tstr, ok := t.(string)
+		if !ok {
+			return nil, fmt.Errorf("type header constraint must be a string")
+		}
+		if tstr != regexp.QuoteMeta(tstr) {
+			return nil, fmt.Errorf("type header constraint must be a precise string and not a regexp")
+		}
+		cc := compileContext{
+			opts: &compileAttrMatcherOptions{},
+		}
+		matcher, err := compileAttrMatcher(cc, hm)
+		if err != nil {
+			return nil, fmt.Errorf("cannot compile headers constraint: %v", err)
+		}
+		matchers = append(matchers, matcher)
+	}
+	return matchers, nil
+}
+
+func accountKeyFormatAnalyze(headers map[string]interface{}, body []byte) (formatnum int, err error) {
+	formatnum = 0
+	_, ok := headers["constraints"]
+	if ok {
+		formatnum = 1
+	}
+	return formatnum, nil
 }
 
 // AccountKeyRequest holds an account-key-request assertion, which is a self-signed request to prove that the requester holds the private key and wishes to create an account-key assertion for it.
@@ -308,6 +389,9 @@ func assembleAccountKeyRequest(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// XXX TODO: support constraints also in account-key-request when
+	// implementing more fully automated registration flows
 
 	// ignore extra headers for future compatibility
 	return &AccountKeyRequest{
