@@ -583,11 +583,12 @@ var (
 	errnoOnImplicitDenial int16 = C.EPERM
 )
 
-func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
+func parseLine(line string, secFilterAllow, secFilterDeny *seccomp.ScmpFilter) error {
 	// ignore comments and empty lines
 	if strings.HasPrefix(line, "#") || line == "" {
 		return nil
 	}
+	secFilter := secFilterAllow
 
 	// regular line
 	tokens := strings.Fields(line)
@@ -604,6 +605,7 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 	if strings.HasPrefix(syscallName, "~") {
 		action = seccomp.ActErrno.SetReturnCode(errnoOnExplicitDenial)
 		syscallName = syscallName[1:]
+		secFilter = secFilterDeny
 	}
 
 	secSyscall, err := seccomp.GetSyscallFromName(syscallName)
@@ -789,27 +791,44 @@ func complainAction() seccomp.ScmpAction {
 	return seccomp.ActAllow
 }
 
+func newComplainFilter(complainAct seccomp.ScmpAction) (*seccomp.ScmpFilter, error) {
+	secFilter, err := seccomp.NewFilter(complainAct)
+	if err != nil {
+		if complainAct != seccomp.ActAllow {
+			// ActLog is only supported in newer versions
+			// of the kernel, libseccomp, and
+			// libseccomp-golang. Attempt to fall back to
+			// ActAllow before erroring out.
+			complainAct = seccomp.ActAllow
+			secFilter, err = seccomp.NewFilter(complainAct)
+		}
+	}
+	return secFilter, err
+}
+
 func compile(content []byte, out string) error {
 	var err error
-	var secFilter *seccomp.ScmpFilter
+	var secFilterAllow, secFilterDeny *seccomp.ScmpFilter
 
 	unrestricted, complain := preprocess(content)
 	switch {
 	case unrestricted:
-		return osutil.AtomicWrite(out, bytes.NewBufferString("@unrestricted\n"), 0644, 0)
+		for _, ext := range []string{".allow", ".deny"} {
+			if err := osutil.AtomicWrite(out+ext, bytes.NewBufferString("@unrestricted\n"), 0644, 0); err != nil {
+				return err
+			}
+		}
+		return nil
 	case complain:
 		var complainAct seccomp.ScmpAction = complainAction()
 
-		secFilter, err = seccomp.NewFilter(complainAct)
+		secFilterAllow, err = newComplainFilter(complainAct)
 		if err != nil {
-			if complainAct != seccomp.ActAllow {
-				// ActLog is only supported in newer versions
-				// of the kernel, libseccomp, and
-				// libseccomp-golang. Attempt to fall back to
-				// ActAllow before erroring out.
-				complainAct = seccomp.ActAllow
-				secFilter, err = seccomp.NewFilter(complainAct)
-			}
+			return fmt.Errorf("cannot create seccomp filter: %s", err)
+		}
+		secFilterDeny, err = newComplainFilter(complainAct)
+		if err != nil {
+			return fmt.Errorf("cannot create seccomp filter: %s", err)
 		}
 
 		// Set unrestricted to 'true' to fallback to the pre-ActLog
@@ -819,19 +838,26 @@ func compile(content []byte, out string) error {
 			unrestricted = true
 		}
 	default:
-		secFilter, err = seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(errnoOnImplicitDenial))
+		secFilterAllow, err = seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(errnoOnImplicitDenial))
+		if err != nil {
+			return fmt.Errorf("cannot create seccomp filter: %s", err)
+		}
+		secFilterDeny, err = seccomp.NewFilter(seccomp.ActAllow)
+		if err != nil {
+			return fmt.Errorf("cannot create seccomp filter: %s", err)
+		}
 	}
-	if err != nil {
-		return fmt.Errorf("cannot create seccomp filter: %s", err)
+	if err := addSecondaryArches(secFilterAllow); err != nil {
+		return err
 	}
-	if err := addSecondaryArches(secFilter); err != nil {
+	if err := addSecondaryArches(secFilterDeny); err != nil {
 		return err
 	}
 
 	if !unrestricted {
 		scanner := bufio.NewScanner(bytes.NewBuffer(content))
 		for scanner.Scan() {
-			if err := parseLine(scanner.Text(), secFilter); err != nil {
+			if err := parseLine(scanner.Text(), secFilterAllow, secFilterDeny); err != nil {
 				return fmt.Errorf("cannot parse line: %s", err)
 			}
 		}
@@ -841,21 +867,33 @@ func compile(content []byte, out string) error {
 	}
 
 	if osutil.GetenvBool("SNAP_SECCOMP_DEBUG") {
-		secFilter.ExportPFC(os.Stdout)
+		secFilterAllow.ExportPFC(os.Stdout)
+		secFilterDeny.ExportPFC(os.Stdout)
 	}
 
 	// write atomically
-	fout, err := osutil.NewAtomicFile(out, 0644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return err
-	}
-	// Cancel once Committed is a NOP
-	defer fout.Cancel()
+	for _, ext := range []string{".allow", ".deny"} {
+		fout, err := osutil.NewAtomicFile(out+ext, 0644, 0, osutil.NoChown, osutil.NoChown)
+		if err != nil {
+			return err
+		}
+		// Cancel once Committed is a NOP
+		defer fout.Cancel()
 
-	if err := secFilter.ExportBPF(fout.File); err != nil {
-		return err
+		switch ext {
+		case ".allow":
+			err = secFilterAllow.ExportBPF(fout.File)
+		case ".deny":
+			err = secFilterDeny.ExportBPF(fout.File)
+		}
+		if err != nil {
+			return err
+		}
+		if err := fout.Commit(); err != nil {
+			return err
+		}
 	}
-	return fout.Commit()
+	return nil
 }
 
 // caches for uid and gid lookups

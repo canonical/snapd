@@ -1,8 +1,6 @@
 summary: Ensure that the snap-seccomp bpf handling works
 
-# FIXME: once $(snap debug confinment) can be used (in 2.27+) remove
-#        the systems line
-systems: [ubuntu-16*, ubuntu-18*]
+systems: [ubuntu-*]
 
 # Start early as it takes a long time.
 priority: 100
@@ -25,7 +23,7 @@ execute: |
 
     # from the old test_complain
     echo "Test that the @complain keyword works"
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin"*
     cat >"${PROFILE}.src" <<EOF
     # some comment
     @complain
@@ -35,7 +33,7 @@ execute: |
     test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
     # from the old test_complain_missed
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin"*
     cat >"${PROFILE}.src" <<EOF
     # super strict filter
     @complai
@@ -53,7 +51,7 @@ execute: |
     
     # from the old test_unrestricted
     echo "Test that the @unrestricted keyword works"
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin"*
     cat >"${PROFILE}.src" <<EOF
     # some comment
     @unrestricted
@@ -63,7 +61,7 @@ execute: |
     test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
     # from the old test_unrestricted_missed
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin"*
     cat >"${PROFILE}.src" <<EOF
     # super strict filter
     @unrestricte
@@ -80,7 +78,7 @@ execute: |
     fi
 
     # from the old test_noprofile
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin"*
     echo "Ensure the code cannot not run due to missing filter"
     if SNAP_CONFINE_MAX_PROFILE_WAIT=3 test-snapd-sh.sh -c 'echo hello'; then
         echo "filtering broken: program should have failed to run"
@@ -88,31 +86,35 @@ execute: |
     fi
 
     echo "Break snapd.test-snapd-sh.bin to ensure (kernel) validation works"
-    dd if=/dev/urandom of="${PROFILE}.bin" count=1 bs=1024
-    if output=$(test-snapd-sh.sh -c 'echo hello' 2>&1 ); then
-        echo "test-snapd-sh.sh should fail with invalid seccomp profile"
-        exit 1
-    fi
+    for ext in allow deny; do
+        dd if=/dev/urandom of="${PROFILE}.bin.$ext" count=1 bs=1024
+        if output=$(test-snapd-sh.sh -c 'echo hello' 2>&1 ); then
+            echo "test-snapd-sh.sh should fail with invalid seccomp profile"
+            exit 1
+        fi
+    done
     echo "$output" | MATCH "cannot apply seccomp profile: Invalid argument"
 
     echo "Add huge snapd.test-snapd-sh.bin to ensure size limit works"
-    dd if=/dev/zero of="${PROFILE}.bin" count=50 bs=1M
-    if output=$(test-snapd-sh.sh -c 'echo hello' 2>&1 ); then
-        echo "test-snapd-sh.sh should fail with big seccomp profile"
-        exit 1
-    fi
+    for ext in allow deny; do
+        dd if=/dev/zero of="${PROFILE}.bin.$ext" count=50 bs=1M
+        if output=$(test-snapd-sh.sh -c 'echo hello' 2>&1 ); then
+            echo "test-snapd-sh.sh should fail with big seccomp profile"
+            exit 1
+        fi
+    done
     echo "$output" | MATCH "cannot fit .* to memory buffer"
 
     
     echo "Ensure the code cannot not run with a missing .bin profile"
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin"*
     if test-snapd-sh.sh -c 'echo hello'; then
         echo "filtering broken: program should have failed to run"
         exit 1
     fi
 
     echo "Ensure the code cannot not run with an empty seccomp profile"
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin"*
     echo "" > "${PROFILE}.src"
     $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin"
     if test-snapd-sh.sh -c 'echo hello'; then
@@ -121,7 +123,7 @@ execute: |
     fi
 
     echo "Ensure snap-confine waits for security profiles to appear"
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin"*
     cat >"${PROFILE}.src" <<EOF
     @unrestricted
     EOF

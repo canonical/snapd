@@ -109,13 +109,38 @@ static void validate_bpfpath_is_safe(const char *path)
 	}
 }
 
-bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
-{
+bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag) {
 	debug("loading bpf program for security tag %s", security_tag);
 
 	char profile_path[PATH_MAX] = { 0 };
-	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin",
+
+        struct sock_fprog prog_allow = { 0 };
+	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin.allow",
 			 filter_profile_dir, security_tag);
+        if (!sc_load_seccomp_profile_path(profile_path, &prog_allow)) {
+           return false;
+        }
+
+        struct sock_fprog prog_deny  = { 0 };
+	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin.deny",
+			 filter_profile_dir, security_tag);
+        if (!sc_load_seccomp_profile_path(profile_path, &prog_deny)) {
+           return false;
+        }
+
+        sc_apply_seccomp_filter(&prog_deny);
+        sc_apply_seccomp_filter(&prog_allow);
+
+        // XXX: this is not ideal, allocation happens in
+        // sc_load_seccomp_profile but free here :(
+        free(prog_allow.filter);
+        free(prog_deny.filter);
+        return true;
+}
+
+bool sc_load_seccomp_profile_path(const char *profile_path, struct sock_fprog *prog)
+{
+	debug("loading bpf program from file %s", profile_path);
 
 	// Wait some time for the security profile to show up. When
 	// the system boots snapd will created security profiles, but
@@ -165,11 +190,12 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 	if (sc_streq(bpf, "@unrestricted\n")) {
 		return false;
 	}
-	struct sock_fprog prog = {
-		.len = num_read / sizeof(struct sock_filter),
-		.filter = (struct sock_filter *)bpf,
-	};
-	sc_apply_seccomp_filter(&prog);
+	prog->len = num_read / sizeof(struct sock_filter);
+        prog->filter = (struct sock_filter *)malloc(num_read);
+        if (prog->filter == NULL) {
+           die("cannot allocate %li bytes of memory for seccomp filter ", num_read);
+        }
+        memcpy(prog->filter, bpf, num_read);
 	return true;
 }
 

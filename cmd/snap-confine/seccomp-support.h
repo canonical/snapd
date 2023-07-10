@@ -19,6 +19,10 @@
 
 #include <stdbool.h>
 
+#include <linux/filter.h>
+
+bool sc_load_seccomp_profile_path(const char *profile_path, struct sock_fprog *prog);
+
 /** 
  * sc_apply_seccomp_profile_for_security_tag applies a seccomp profile to the
  * current process. The filter is loaded from a pre-compiled bpf bytecode

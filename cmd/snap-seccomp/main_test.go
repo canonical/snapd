@@ -71,18 +71,21 @@ var seccompBpfLoaderContent = []byte(`
 
 #define MAX_BPF_SIZE 32 * 1024
 
-int sc_apply_seccomp_bpf(const char* profile_path)
+int sc_apply_seccomp_bpf(const char* profile_path_allow, const char* profile_path_deny)
 {
-    unsigned char bpf[MAX_BPF_SIZE + 1]; // account for EOF
+    unsigned char bpf_allow[MAX_BPF_SIZE + 1]; // account for EOF
+    unsigned char bpf_deny[MAX_BPF_SIZE + 1]; // account for EOF
     FILE* fp;
-    fp = fopen(profile_path, "rb");
+
+    // allow
+    fp = fopen(profile_path_allow, "rb");
     if (fp == NULL) {
-        fprintf(stderr, "cannot read %s\n", profile_path);
+        fprintf(stderr, "cannot read %s\n", profile_path_allow);
         return -1;
     }
 
     // set 'size' to 1; to get bytes transferred
-    size_t num_read = fread(bpf, 1, sizeof(bpf), fp);
+    size_t num_read = fread(bpf_allow, 1, sizeof(bpf_allow), fp);
 
     if (ferror(fp) != 0) {
         perror("fread()");
@@ -93,9 +96,33 @@ int sc_apply_seccomp_bpf(const char* profile_path)
     }
     fclose(fp);
 
-    struct sock_fprog prog = {
+    struct sock_fprog prog_allow = {
         .len = num_read / sizeof(struct sock_filter),
-        .filter = (struct sock_filter*)bpf,
+        .filter = (struct sock_filter*)bpf_allow,
+    };
+
+    // deny
+    fp = fopen(profile_path_deny, "rb");
+    if (fp == NULL) {
+        fprintf(stderr, "cannot read %s\n", profile_path_deny);
+        return -1;
+    }
+
+    // set 'size' to 1; to get bytes transferred
+    num_read = fread(bpf_deny, 1, sizeof(bpf_deny), fp);
+
+    if (ferror(fp) != 0) {
+        perror("fread()");
+        return -1;
+    } else if (feof(fp) == 0) {
+        fprintf(stderr, "file too big\n");
+        return -1;
+    }
+    fclose(fp);
+
+    struct sock_fprog prog_deny = {
+        .len = num_read / sizeof(struct sock_filter),
+        .filter = (struct sock_filter*)bpf_deny,
     };
 
     // Set NNP to allow loading seccomp policy into the kernel without
@@ -105,10 +132,15 @@ int sc_apply_seccomp_bpf(const char* profile_path)
         return -1;
     }
 
-    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
-        perror("prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...) failed");
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog_deny)) {
+        perror("prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...) deny failed");
         return -1;
     }
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog_allow)) {
+        perror("prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...) allow failed");
+        return -1;
+    }
+
     return 0;
 }
 
@@ -116,15 +148,16 @@ int main(int argc, char* argv[])
 {
     int rc = 0;
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s <bpf file> [prog ...]\n", argv[0]);
+        fprintf(stderr, "Usage: %s <bpf file-allow> <bpf-file-deny> [prog ...]\n", argv[0]);
         return 1;
     }
 
-    rc = sc_apply_seccomp_bpf(argv[1]);
+    // allow, deny
+    rc = sc_apply_seccomp_bpf(argv[1], argv[2]);
     if (rc != 0)
         return -rc;
 
-    execv(argv[2], (char* const*)&argv[2]);
+    execv(argv[3], (char* const*)&argv[3]);
     perror("execv failed");
     return 1;
 }
@@ -333,7 +366,7 @@ mprotect
 		}
 	}
 
-	cmd := exec.Command(s.seccompBpfLoader, bpfPath, syscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
+	cmd := exec.Command(s.seccompBpfLoader, bpfPath+".allow", bpfPath+".deny", syscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -363,7 +396,8 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 	err := main.Compile([]byte(inp), outPath)
 	c.Assert(err, IsNil)
 
-	c.Check(outPath, testutil.FileEquals, inp)
+	c.Check(outPath+".allow", testutil.FileEquals, inp)
+	c.Check(outPath+".deny", testutil.FileEquals, inp)
 }
 
 // TestCompile iterates over a range of textual seccomp whitelist rules and
@@ -395,8 +429,9 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"read", "read", Allow},
 		{"read\nwrite\nexecve\n", "write", Allow},
 
-		// trivial denial
-		{"read", "ioctl", Deny},
+		// trivial denial (uses write in allow-list to ensure any
+		// errors printing is visible)
+		{"write", "ioctl", Deny},
 
 		// test argument filtering syntax, we currently support:
 		//   >=, <=, !, <, >, |
