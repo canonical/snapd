@@ -209,6 +209,9 @@ network sna,
 # For reading the address of a particular ethernet interface
 /sys/devices/{pci[0-9a-f]*,platform,virtual}/**/net/*/address r,
 
+# Some specific drivers are configured via config file
+/sys/devices/{pci[0-9a-f]*,platform,virtual}/**/config rw,
+
 # arp
 network netlink dgram,
 
