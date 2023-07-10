@@ -133,7 +133,7 @@ func (s *backendSuite) TestInstallingSnapWritesProfiles(c *C) {
 	c.Check(err, IsNil)
 	// and got compiled
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
-		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin2"},
 	})
 }
 
@@ -146,7 +146,7 @@ func (s *backendSuite) TestInstallingSnapWritesHookProfiles(c *C) {
 	c.Check(err, IsNil)
 	// and got compiled
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
-		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin2"},
 	})
 }
 
@@ -178,7 +178,7 @@ fi`)
 	// ensure the snap-seccomp from the core snap was used instead
 	c.Check(snapSeccompOnCore.Calls(), DeepEquals, [][]string{
 		{"snap-seccomp", "version-info"}, // from Initialize()
-		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin2"},
 	})
 	raw, err := ioutil.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
@@ -219,7 +219,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		// file called "snap.sambda.nmbd" was created
 		c.Check(err, IsNil)
 		// and got compiled
-		c.Check(s.snapSeccomp.Calls(), testutil.DeepContains, []string{"snap-seccomp", "compile", profile + ".src", profile + ".bin"})
+		c.Check(s.snapSeccomp.Calls(), testutil.DeepContains, []string{"snap-seccomp", "compile", profile + ".src", profile + ".bin2"})
 		s.snapSeccomp.ForgetCalls()
 
 		s.RemoveSnap(c, snapInfo)
@@ -236,7 +236,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithHooks(c *C) {
 		// Verify that profile "snap.samba.hook.configure" was created.
 		c.Check(err, IsNil)
 		// and got compiled
-		c.Check(s.snapSeccomp.Calls(), testutil.DeepContains, []string{"snap-seccomp", "compile", profile + ".src", profile + ".bin"})
+		c.Check(s.snapSeccomp.Calls(), testutil.DeepContains, []string{"snap-seccomp", "compile", profile + ".src", profile + ".bin2"})
 		s.snapSeccomp.ForgetCalls()
 
 		s.RemoveSnap(c, snapInfo)
@@ -647,7 +647,7 @@ func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
 	c.Check(profile+".src", testutil.FileEquals, s.profileHeader+"\ndefault\n")
 
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
-		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin2"},
 	})
 
 	// unchanged snap-seccomp version will not trigger a rebuild
@@ -673,7 +673,7 @@ fi`)
 	c.Check(s.snapSeccomp.Calls(), HasLen, 2)
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
 		// compilation from first Setup()
-		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin2"},
 		// initialization with new version
 		{"snap-seccomp", "version-info"},
 	})
@@ -686,11 +686,11 @@ fi`)
 	c.Check(s.snapSeccomp.Calls(), HasLen, 3)
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
 		// compilation from first Setup()
-		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin2"},
 		// initialization with new version
 		{"snap-seccomp", "version-info"},
 		// compilation of profiles with new compiler version
-		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin2"},
 	})
 }
 
@@ -914,7 +914,7 @@ func (s *backendSuite) TestParallelCompileHappy(c *C) {
 	c.Assert(m.profiles, DeepEquals, profiles)
 
 	for _, p := range profiles {
-		c.Check(filepath.Join(dirs.SnapSeccompDir, p+".bin"), testutil.FileEquals, "done "+p+".bin")
+		c.Check(filepath.Join(dirs.SnapSeccompDir, p+".bin2"), testutil.FileEquals, "done "+p+".bin2")
 	}
 }
 
@@ -940,10 +940,10 @@ func (s *backendSuite) TestParallelCompileError(c *C) {
 	}
 	m := mockedSyncedFailingCompiler{
 		// pretend compilation of those 2 fails
-		whichFail: []string{"profile-005.bin", "profile-009.bin"},
+		whichFail: []string{"profile-005.bin2", "profile-009.bin2"},
 	}
 	err = seccomp.ParallelCompile(&m, profiles)
-	c.Assert(err, ErrorMatches, "cannot compile .*/bpf/profile-00[59]: failed profile-00[59].bin")
+	c.Assert(err, ErrorMatches, "cannot compile .*/bpf/profile-00[59]: failed profile-00[59].bin2")
 
 	// make sure all compiled profiles were removed
 	d, err := os.Open(dirs.SnapSeccompDir)
@@ -957,16 +957,17 @@ func (s *backendSuite) TestParallelCompileError(c *C) {
 func (s *backendSuite) TestParallelCompileRemovesFirst(c *C) {
 	err := os.MkdirAll(dirs.SnapSeccompDir, 0755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(dirs.SnapSeccompDir, "profile-001.bin"), nil, 0755)
+	err = os.WriteFile(filepath.Join(dirs.SnapSeccompDir, "profile-001.bin2"), nil, 0755)
 	c.Assert(err, IsNil)
-
 	// make profiles directory non-accessible
 	err = os.Chmod(dirs.SnapSeccompDir, 0000)
 	c.Assert(err, IsNil)
 
+	err = os.Chmod(dirs.SnapSeccompDir, 0500)
+	c.Assert(err, IsNil)
 	defer os.Chmod(dirs.SnapSeccompDir, 0755)
 
 	m := mockedSyncedCompiler{}
 	err = seccomp.ParallelCompile(&m, []string{"profile-001"})
-	c.Assert(err, ErrorMatches, "remove .*/profile-001.bin: permission denied")
+	c.Assert(err, ErrorMatches, "remove .*/profile-001.bin2: permission denied")
 }

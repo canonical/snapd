@@ -2,7 +2,8 @@ summary: snap install a large snap from the store (bigger than tmpfs)
 
 prepare: |
     tests.systemd stop-unit snapd.service snapd.socket
-    mount -t tmpfs -o rw,nosuid,nodev,size=4 none /tmp
+    # tempfs needs to be big enough to hold the seccomp tmp file
+    mount -t tmpfs -o rw,nosuid,nodev,size=256k none /tmp
     systemctl start snapd.{socket,service}
 
 restore: |
@@ -12,6 +13,6 @@ restore: |
     systemctl start snapd.{socket,service}
 
 execute: |
-    # test-snapd-sh is about 8k, tmpfs is 4k :-)
-    snap install test-snapd-sh
-    snap remove test-snapd-sh
+    # test-snapd-go-webserver is about 1MB, tmpfs is 256k :-)
+    snap install test-snapd-go-webserver
+    snap remove test-snapd-go-webserver
