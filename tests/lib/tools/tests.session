@@ -266,7 +266,7 @@ main() {
 	if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -gt 252 ]; then
 		local selinux_context_arg=""
 		if os.query is-fedora || os.query is-centos; then
-			selinux_context_arg="--property "SELinuxContext=unconfined_u:unconfined_r:unconfined_t:s0""
+			selinux_context_arg="--property SELinuxContext=unconfined_u:unconfined_r:unconfined_t:s0"
 		fi
 
 		# It is needed to have '|| true' to make sure in case systemd-run fails,
