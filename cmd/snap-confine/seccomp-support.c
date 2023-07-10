@@ -17,11 +17,13 @@
 #include "config.h"
 #include "seccomp-support.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -44,6 +46,31 @@ static const char *filter_profile_dir = "/var/lib/snapd/seccomp/bpf/";
 #define MAX_BPF_SIZE (32 * 1024)
 
 typedef struct sock_filter bpf_instr;
+
+// keep in sync with snap-seccomp/main.go
+//
+// header of a seccomp.bin2 filter file, in network byte order (big-endian)
+//
+// Note that padding is important
+// alternatively "__attribute__((__packed__))" could be used
+struct sc_seccomp_file_header {
+	// header: "SC"
+	char header[2];
+	// version: 0x1
+	char version;
+	// flags
+	char unrestricted;
+	// unused
+	char padding[4];
+
+	// size of allow filter in byte
+	uint32_t len_allow_filter;
+	// size of deny filter in byte
+	uint32_t len_deny_filter;
+	// reserved for future use
+	char reserved2[112];
+};
+static_assert(sizeof(struct sc_seccomp_file_header) == 128,"unexpected struct size");
 
 static void validate_path_has_strict_perms(const char *path)
 {
@@ -109,12 +136,73 @@ static void validate_bpfpath_is_safe(const char *path)
 	}
 }
 
+static void sc_cleanup_sock_fprog(struct sock_fprog *prog)
+{
+	free(prog->filter);
+	prog->filter = NULL;
+}
+
+static void sc_must_read_filter_from_file(FILE *file, uint32_t len_bytes, char *what, struct sock_fprog *prog)
+{
+	prog->len = len_bytes / sizeof(struct sock_filter);
+	prog->filter = (struct sock_filter *)malloc(len_bytes);
+	if (prog->filter == NULL) {
+		die("cannot allocate %u bytes of memory for %s seccomp filter ", len_bytes, what);
+	}
+	size_t num_read = fread(prog->filter, 1, len_bytes, file);
+	if (ferror(file)) {
+		die("cannot read %s filter", what);
+	}
+	if (num_read != len_bytes) {
+		die("short read for filter %s %zu != %i", what, num_read, len_bytes);
+	}
+}
+
+static FILE* sc_must_read_header_from_file(const char *profile_path, struct sc_seccomp_file_header *hdr)
+{
+	FILE *file = fopen(profile_path, "rb");
+	if (file == NULL) {
+		die("cannot open seccomp filter %s", profile_path);
+	}
+	size_t num_read = fread(hdr, 1, sizeof(struct sc_seccomp_file_header), file);
+	if (ferror(file) != 0) {
+		die("cannot read seccomp profile %s", profile_path);
+	}
+	if (num_read < sizeof(struct sc_seccomp_file_header)) {
+		die("short read on seccomp header: %zu", num_read);
+	}
+	if (hdr->header[0] != 'S' || hdr->header[1] != 'C') {
+		die("unexpected seccomp header: %x%x", hdr->header[0], hdr->header[1]);
+	}
+	if (hdr->version != 1) {
+		die("unexpected seccomp file version: %x", hdr->version);
+	}
+	if (hdr->len_allow_filter > MAX_BPF_SIZE) {
+		die("allow filter size too big %u", hdr->len_allow_filter);
+	}
+	if (hdr->len_deny_filter > MAX_BPF_SIZE) {
+		die("deny filter size too big %u", hdr->len_deny_filter);
+	}
+	struct stat buf;
+	if (fstat(fileno(file), &buf) != 0) {
+		die("cannot fstat the seccomp file");
+	}
+	off_t expected_size = sizeof(struct sc_seccomp_file_header)+hdr->len_allow_filter+hdr->len_deny_filter;
+	if (buf.st_size != expected_size) {
+		die("unexpected filesize %ju != %ju", buf.st_size, expected_size);
+	}
+
+	return file;
+}
+
 bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 {
 	debug("loading bpf program for security tag %s", security_tag);
 
 	char profile_path[PATH_MAX] = { 0 };
-	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin",
+	struct sock_fprog SC_CLEANUP(sc_cleanup_sock_fprog) prog_allow = { 0 };
+	struct sock_fprog SC_CLEANUP(sc_cleanup_sock_fprog) prog_deny = { 0 };
+	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin2",
 			 filter_profile_dir, security_tag);
 
 	// Wait some time for the security profile to show up. When
@@ -152,24 +240,22 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 	// set on the system.
 	validate_bpfpath_is_safe(profile_path);
 
-    /* The extra space has dual purpose. First of all, it is required to detect
-     * feof() while still being able to correctly read MAX_BPF_SIZE bytes of
-     * seccomp profile.  In addition, because we treat the profile as a
-     * quasi-string and use sc_streq(), to compare it. The extra space is used
-     * as a way to ensure the result is a terminated string (though in practice
-     * it can contain embedded NULs any earlier position). Note that
-     * sc_read_seccomp_filter knows about the extra space and ensures that the
-     * buffer is never empty. */
-	char bpf[MAX_BPF_SIZE + 1] = { 0 };
-	size_t num_read = sc_read_seccomp_filter(profile_path, bpf, sizeof bpf);
-	if (sc_streq(bpf, "@unrestricted\n")) {
+	// TODO: strange init to workaround bug in gcc on 14.04 that claims:
+	//  "error: missing braces around initializer"
+	struct sc_seccomp_file_header hdr = {{0},0};
+	FILE *file SC_CLEANUP(sc_cleanup_file) = sc_must_read_header_from_file(profile_path, &hdr);
+	if (hdr.unrestricted == 0x1) {
 		return false;
 	}
-	struct sock_fprog prog = {
-		.len = num_read / sizeof(struct sock_filter),
-		.filter = (struct sock_filter *)bpf,
-	};
-	sc_apply_seccomp_filter(&prog);
+
+	// populate allow
+        sc_must_read_filter_from_file(file, hdr.len_allow_filter, "allow", &prog_allow);
+        sc_must_read_filter_from_file(file, hdr.len_deny_filter, "deny", &prog_deny);
+
+        // apply both filters
+	sc_apply_seccomp_filter(&prog_deny);
+	sc_apply_seccomp_filter(&prog_allow);
+
 	return true;
 }
 

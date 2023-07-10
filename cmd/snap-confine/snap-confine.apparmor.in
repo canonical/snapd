@@ -149,7 +149,7 @@
     # change_profile unsafe /** -> **,
 
     # reading seccomp filters
-    /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin r,
+    /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin2 r,
 
     # adding a missing bpf mount
     mount fstype=bpf options=(rw) bpf -> /sys/fs/bpf/,

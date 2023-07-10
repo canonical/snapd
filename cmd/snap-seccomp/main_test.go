@@ -37,7 +37,6 @@ import (
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -53,6 +52,7 @@ var _ = Suite(&snapSeccompSuite{})
 
 const (
 	Deny = iota
+	DenyExplicit
 	Allow
 )
 
@@ -71,31 +71,57 @@ var seccompBpfLoaderContent = []byte(`
 
 #define MAX_BPF_SIZE 32 * 1024
 
+// keep in sync with:
+//  cmd/snap-confine/seccomp-support.c
+//  main.go:scSeccompFileHeader
+struct sc_seccomp_file_header {
+   char header[2];
+   char version;
+   char unrestricted;
+   char padding[4];
+   uint32_t len_allow_filter;
+   uint32_t len_deny_filter;
+   char reserved2[112];
+};
+
 int sc_apply_seccomp_bpf(const char* profile_path)
 {
-    unsigned char bpf[MAX_BPF_SIZE + 1]; // account for EOF
+    struct sc_seccomp_file_header hdr = {{0}, 0};
+    unsigned char bpf_allow[MAX_BPF_SIZE + 1]; // account for EOF
+    unsigned char bpf_deny[MAX_BPF_SIZE + 1]; // account for EOF
     FILE* fp;
+
     fp = fopen(profile_path, "rb");
     if (fp == NULL) {
         fprintf(stderr, "cannot read %s\n", profile_path);
         return -1;
     }
-
-    // set 'size' to 1; to get bytes transferred
-    size_t num_read = fread(bpf, 1, sizeof(bpf), fp);
-
+    fread(&hdr, 1, sizeof(struct sc_seccomp_file_header), fp);
+    if (ferror(fp) != 0) {
+        perror("fread() header");
+        return -1;
+    }
+    fread(bpf_allow, 1, hdr.len_allow_filter, fp);
     if (ferror(fp) != 0) {
         perror("fread()");
         return -1;
-    } else if (feof(fp) == 0) {
-        fprintf(stderr, "file too big\n");
+    }
+    fread(bpf_deny, 1, hdr.len_deny_filter, fp);
+    if (ferror(fp) != 0) {
+        perror("fread()");
         return -1;
     }
+
     fclose(fp);
 
-    struct sock_fprog prog = {
-        .len = num_read / sizeof(struct sock_filter),
-        .filter = (struct sock_filter*)bpf,
+    struct sock_fprog prog_allow = {
+        .len = hdr.len_allow_filter / sizeof(struct sock_filter),
+        .filter = (struct sock_filter*)bpf_allow,
+    };
+
+    struct sock_fprog prog_deny = {
+        .len = hdr.len_deny_filter / sizeof(struct sock_filter),
+        .filter = (struct sock_filter*)bpf_deny,
     };
 
     // Set NNP to allow loading seccomp policy into the kernel without
@@ -105,10 +131,15 @@ int sc_apply_seccomp_bpf(const char* profile_path)
         return -1;
     }
 
-    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
-        perror("prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...) failed");
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog_deny)) {
+        perror("prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...) deny failed");
         return -1;
     }
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog_allow)) {
+        perror("prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...) allow failed");
+        return -1;
+    }
+
     return 0;
 }
 
@@ -153,8 +184,11 @@ int main(int argc, char** argv)
     syscall_ret = syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
     // 911 is our mocked errno for implicit denials via unlisted syscalls and
     // 999 is explicit denial
-    if (syscall_ret < 0 && (errno == 911 || errno == 999)) {
+    if (syscall_ret < 0 && errno == 911) {
         ret = 10;
+    }
+    if (syscall_ret < 0 && errno == 999) {
+        ret = 20;
     }
     syscall(SYS_exit, ret, 0, 0, 0, 0, 0);
     return 0;
@@ -342,13 +376,23 @@ mprotect
 	// else is unexpected (segv, strtoll failure, ...)
 	exitCode, e := osutil.ExitCode(err)
 	c.Assert(e, IsNil)
-	c.Assert(exitCode == 0 || exitCode == 10, Equals, true, Commentf("unexpected exit code: %v for %v - test setup broken", exitCode, seccompWhitelist))
+	c.Assert(exitCode == 0 || exitCode == 10 || exitCode == 20, Equals, true, Commentf("unexpected exit code: %v for %v - test setup broken", exitCode, seccompWhitelist))
 	switch expected {
 	case Allow:
 		if err != nil {
 			c.Fatalf("unexpected error for %q (failed to run %q)", seccompWhitelist, err)
 		}
 	case Deny:
+		if exitCode != 10 {
+			c.Fatalf("unexpected exit code for %q %q (%v != %v)", seccompWhitelist, bpfInput, exitCode, 10)
+		}
+		if err == nil {
+			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompWhitelist, bpfInput)
+		}
+	case DenyExplicit:
+		if exitCode != 20 {
+			c.Fatalf("unexpected exit code for %q %q (%v != %v)", seccompWhitelist, bpfInput, exitCode, 20)
+		}
 		if err == nil {
 			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompWhitelist, bpfInput)
 		}
@@ -363,7 +407,10 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 	err := main.Compile([]byte(inp), outPath)
 	c.Assert(err, IsNil)
 
-	c.Check(outPath, testutil.FileEquals, inp)
+	expected := [128]byte{'S', 'C', 0x1, 0x1}
+	fileContent, err := ioutil.ReadFile(outPath)
+	c.Assert(err, IsNil)
+	c.Check(fileContent, DeepEquals, expected[:])
 }
 
 // TestCompile iterates over a range of textual seccomp whitelist rules and
@@ -395,8 +442,9 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"read", "read", Allow},
 		{"read\nwrite\nexecve\n", "write", Allow},
 
-		// trivial denial
-		{"read", "ioctl", Deny},
+		// trivial denial (uses write in allow-list to ensure any
+		// errors printing is visible)
+		{"write", "ioctl", Deny},
 
 		// test argument filtering syntax, we currently support:
 		//   >=, <=, !, <, >, |
@@ -451,12 +499,12 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", Allow},
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", Deny},
 		{"ioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", Deny},
-		{"~ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", Deny},
+		{"ioctl\n~ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", DenyExplicit},
 		// also check we can deny multiple uses of ioctl but still allow
 		// others
-		{"~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", Deny},
-		{"~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCLINUX", Deny},
-		{"~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCGWINSZ", Allow},
+		{"ioctl\n~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", DenyExplicit},
+		{"ioctl\n~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCLINUX", DenyExplicit},
+		{"ioctl\n~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCGWINSZ", Allow},
 
 		// test_bad_seccomp_filter_args_clone
 		{"setns - CLONE_NEWNET", "setns;native;-,99", Deny},
@@ -473,6 +521,13 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		// test_bad_seccomp_filter_args_prio
 		{"setpriority PRIO_PROCESS 0 >=0", "setpriority;native;PRIO_PROCESS,0,19", Allow},
 		{"setpriority PRIO_PROCESS 0 >=0", "setpriority;native;99", Deny},
+		// negative filtering
+		{"setpriority\n~setpriority PRIO_PROCESS 0 >=0", "setpriority;native;PRIO_PROCESS,0,10", DenyExplicit},
+		// mix negative/positiv filtering
+		// allow setprioty >= 5 but explicitly deny >=10
+		{"setpriority PRIO_PROCESS 0 >=5\n~setpriority PRIO_PROCESS 0 >=10", "setpriority;native;PRIO_PROCESS,0,2", Deny},
+		{"setpriority PRIO_PROCESS 0 >=5\n~setpriority PRIO_PROCESS 0 >=10", "setpriority;native;PRIO_PROCESS,0,5", Allow},
+		{"setpriority PRIO_PROCESS 0 >=5\n~setpriority PRIO_PROCESS 0 >=10", "setpriority;native;PRIO_PROCESS,0,10", DenyExplicit},
 
 		// test_bad_seccomp_filter_args_quotactl
 		{"quotactl Q_GETQUOTA", "quotactl;native;Q_GETQUOTA", Allow},
@@ -855,4 +910,33 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 			s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 		}
 	}
+}
+
+func (s *snapSeccompSuite) TestExportBpfErrors(c *C) {
+	// invalid filter
+	_, _, err := main.ExportBPF(&seccomp.ScmpFilter{})
+	c.Check(err, ErrorMatches, "cannot export bpf filter: filter is invalid or uninitialized")
+
+	// error from temp
+	restore := main.MockOsCreateTemp(func(dir, pattern string) (*os.File, error) {
+		return nil, fmt.Errorf("boom")
+	})
+	defer restore()
+	_, _, err = main.ExportBPF(&seccomp.ScmpFilter{})
+	c.Check(err, ErrorMatches, "cannot export bpf filter: boom")
+
+	// unwritable file
+	tmpdir := c.MkDir()
+	defer os.Chmod(tmpdir, 0755)
+	restore = main.MockOsCreateTemp(func(dir, pattern string) (*os.File, error) {
+		f, err := os.Create(filepath.Join(tmpdir, "unwritable"))
+		c.Assert(err, IsNil)
+		err = os.Chmod(tmpdir, 0100)
+		c.Assert(err, IsNil)
+		return f, nil
+	})
+	defer restore()
+
+	_, _, err = main.ExportBPF(&seccomp.ScmpFilter{})
+	c.Check(err, ErrorMatches, "cannot export bpf filter: remove /.*/unwritable: permission denied")
 }

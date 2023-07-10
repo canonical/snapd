@@ -19,11 +19,18 @@
 
 package main
 
+import (
+	"os"
+
+	"github.com/snapcore/snapd/testutil"
+)
+
 var (
 	Compile           = compile
 	SeccompResolver   = seccompResolver
 	VersionInfo       = versionInfo
 	GoSeccompFeatures = goSeccompFeatures
+	ExportBPF         = exportBPF
 )
 
 func MockArchDpkgArchitecture(f func() string) (restore func()) {
@@ -64,4 +71,10 @@ func MockSeccompSyscalls(syscalls []string) (resture func()) {
 	return func() {
 		seccompSyscalls = old
 	}
+}
+
+func MockOsCreateTemp(f func(dir, pattern string) (*os.File, error)) (restore func()) {
+	restore = testutil.Backup(&osCreateTemp)
+	osCreateTemp = f
+	return restore
 }
