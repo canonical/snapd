@@ -75,6 +75,12 @@ type PartiallyLaidOutVolume struct {
 // LaidOutStructure describes a VolumeStructure coming from the gadget plus the
 // OnDiskStructure that describes how it would be applied to a given disk and
 // additional content used when writing/updating data in the structure.
+//
+// Note that we need to be careful while using the fields in OnDiskStructure as
+// some times LaidOutStructure is created before we have information about the
+// finally matched partition. This is especially important for StartOffset and
+// Size fields. TODO We want to eventually create LaidOutStructure only after
+// this information is available.
 type LaidOutStructure struct {
 	OnDiskStructure
 	// VolumeStructure is the volume structure defined in gadget.yaml
@@ -120,7 +126,7 @@ func (l LaidOutStructure) Role() string {
 	return l.VolumeStructure.Role
 }
 
-// HasFilesystem returns true if the structure is using a filesystem.
+// HasFilesystem returns true if the gadget expects a filesystem.
 func (l *LaidOutStructure) HasFilesystem() bool {
 	return l.VolumeStructure.HasFilesystem()
 }
@@ -287,7 +293,7 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		// creation is needed and is safe because each volume structure
 		// has a size so even without the structure content the layout
 		// can be calculated.
-		if !opts.IgnoreContent {
+		if !opts.IgnoreContent && !structures[idx].HasFilesystem() {
 			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx])
 			if err != nil {
 				return nil, err
@@ -497,9 +503,8 @@ func isLayoutCompatible(current, new *Volume) error {
 	if current.ID != new.ID {
 		return fmt.Errorf("incompatible ID change from %v to %v", current.ID, new.ID)
 	}
-	if current.Schema != new.Schema {
-		return fmt.Errorf("incompatible schema change from %v to %v",
-			current.Schema, new.Schema)
+	if err := checkCompatibleSchema(current, new); err != nil {
+		return err
 	}
 	if current.Bootloader != new.Bootloader {
 		return fmt.Errorf("incompatible bootloader change from %v to %v",
@@ -515,7 +520,7 @@ func isLayoutCompatible(current, new *Volume) error {
 
 	// at the structure level we expect the volume to be identical
 	for i := range current.Structure {
-		if err := canUpdateStructure(current.Structure, i, new.Structure, i, new.Schema); err != nil {
+		if err := canUpdateStructure(current, i, new, i); err != nil {
 			return fmt.Errorf("incompatible structure #%d (%q) change: %v", new.Structure[i].YamlIndex, new.Structure[i].Name, err)
 		}
 	}

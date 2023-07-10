@@ -2,9 +2,7 @@
 
 SNAPD_STATE_PATH="$TESTSTMP/snapd-state"
 SNAPD_STATE_FILE="$TESTSTMP/snapd-state/snapd-state.tar"
-RUNTIME_STATE_PATH="$TESTSTMP/runtime-state"
 SNAPD_ACTIVE_UNITS="$RUNTIME_STATE_PATH/snapd-active-units"
-
 
 delete_snapd_state() {
     rm -rf "$SNAPD_STATE_PATH"

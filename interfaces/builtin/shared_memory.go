@@ -100,7 +100,7 @@ const sharedMemoryBaseDeclarationSlots = `
 
 const sharedMemoryPrivateConnectedPlugAppArmor = `
 # Description: Allow access to everything in private /dev/shm
-"/dev/shm/*" mrwlkix,
+"/dev/shm/**" mrwlkix,
 `
 
 func validateSharedMemoryPath(path string) error {

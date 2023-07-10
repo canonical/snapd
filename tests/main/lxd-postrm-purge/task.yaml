@@ -22,8 +22,8 @@ prepare: |
     echo "Install lxd"
     "$TESTSTOOLS"/lxd-state prepare-snap
 
-    # There isn't an official image for lunar yet, let's use the community one
-    if os.query is-ubuntu 23.04; then
+    # There isn't an official image for mantic yet, let's use the community one
+    if os.query is-ubuntu 23.10; then
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
     else

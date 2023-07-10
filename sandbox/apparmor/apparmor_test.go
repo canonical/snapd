@@ -33,6 +33,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snapdtool"
@@ -538,4 +539,63 @@ func (s *apparmorSuite) TestSetupConfCacheDirsWithInternalApparmor(c *C) {
 
 	apparmor.SetupConfCacheDirs("/newdir")
 	c.Check(apparmor.SnapConfineAppArmorDir, Equals, "/newdir/var/lib/snapd/apparmor/snap-confine.internal")
+}
+
+func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicyErr(c *C) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+	fakeApparmorFunctionsPath := filepath.Join(fakeroot, "/lib/apparmor/functions")
+	err := os.MkdirAll(filepath.Dir(fakeApparmorFunctionsPath), 0750)
+	c.Assert(err, IsNil)
+
+	os.Setenv("SNAPD_DEBUG", "1")
+	defer os.Unsetenv("SNAPD_DEBUG")
+
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	// no log output on missing file
+	c.Check(apparmor.SystemAppArmorLoadsSnapPolicy(), Equals, false)
+	c.Check(log.String(), Equals, "")
+
+	// permissions are ignored as root
+	if os.Getuid() == 0 {
+		return
+	}
+	// log generated for errors
+	err = ioutil.WriteFile(fakeApparmorFunctionsPath, nil, 0100)
+	c.Assert(err, IsNil)
+	c.Check(apparmor.SystemAppArmorLoadsSnapPolicy(), Equals, false)
+	c.Check(log.String(), Matches, `(?ms).* DEBUG: cannot open apparmor functions file: open .*/lib/apparmor/functions: permission denied`)
+}
+
+func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicy(c *C) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+
+	// systemAppArmorLoadsSnapPolicy() will look at this path so it
+	// needs to be the real path, not a faked one
+	dirs.SnapAppArmorDir = dirs.SnapAppArmorDir[len(fakeroot):]
+
+	fakeApparmorFunctionsPath := filepath.Join(fakeroot, "/lib/apparmor/functions")
+	err := os.MkdirAll(filepath.Dir(fakeApparmorFunctionsPath), 0755)
+	c.Assert(err, IsNil)
+
+	for _, tc := range []struct {
+		apparmorFunctionsContent string
+		expectedResult           bool
+	}{
+		{"", false},
+		{"unrelated content", false},
+		// 16.04
+		{`PROFILES_SNAPPY="/var/lib/snapd/apparmor/profiles"`, true},
+		// 18.04
+		{`PROFILES_VAR="/var/lib/snapd/apparmor/profiles"`, true},
+	} {
+		err := ioutil.WriteFile(fakeApparmorFunctionsPath, []byte(tc.apparmorFunctionsContent), 0644)
+		c.Assert(err, IsNil)
+
+		loadsPolicy := apparmor.SystemAppArmorLoadsSnapPolicy()
+		c.Check(loadsPolicy, Equals, tc.expectedResult, Commentf("%v", tc))
+	}
 }

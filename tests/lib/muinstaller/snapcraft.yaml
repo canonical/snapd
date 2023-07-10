@@ -8,10 +8,9 @@ confinement: classic
 base: core22
 
 apps:
-  muinstaller:
+  auto:
     command: bin/muinstaller classic $SNAP/bin/mk-classic-rootfs.sh auto
-    daemon: simple
-  cli:
+  muinstaller:
     command: bin/muinstaller
 
 # TODO: add spread test that builds the muinstaller from snapd to ensure
