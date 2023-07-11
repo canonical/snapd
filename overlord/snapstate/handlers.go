@@ -736,7 +736,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st.Lock()
 	perfTimings := state.TimingsForTask(t)
 	snapsup, theStore, user, err := downloadSnapParams(st, t)
-	if snapsup != nil && snapsup.IsAutoRefresh {
+	if snapsup != nil && snapsup.IsAutoRefresh && !snapsup.IsContinuedAutoRefresh {
 		// NOTE rate is never negative
 		rate = autoRefreshRateLimited(st)
 	}
@@ -753,7 +753,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	targetFn := snapsup.MountFile()
 
 	dlOpts := &store.DownloadOptions{
-		Scheduled: snapsup.IsAutoRefresh,
+		Scheduled: snapsup.IsAutoRefresh && !snapsup.IsContinuedAutoRefresh,
 		RateLimit: rate,
 	}
 	if snapsup.DownloadInfo == nil {

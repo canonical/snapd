@@ -9368,6 +9368,9 @@ func (s *snapmgrTestSuite) TestPreDownloadTaskContinuesAutoRefreshIfSoftCheckOk(
 			Revision: snap.R(2),
 		},
 		Flags: snapstate.Flags{IsAutoRefresh: true},
+		// if there's no downloadInfo, the download goes into a fallback behaviour of requesting it from the store and
+		// makes it harder to check that we don't request refresh info form the store
+		DownloadInfo: &snap.DownloadInfo{DownloadURL: "my-url"},
 	}
 	s.state.Set("refresh-candidates", map[string]*snapstate.RefreshCandidate{
 		"foo": {SnapSetup: *snapsup},
@@ -9383,13 +9386,19 @@ func (s *snapmgrTestSuite) TestPreDownloadTaskContinuesAutoRefreshIfSoftCheckOk(
 	s.settle(c)
 
 	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
-	c.Assert(s.fakeStore.downloads, HasLen, 2)
 
 	c.Check(softChecked, Equals, true)
 	c.Check(notified, Equals, false)
 	c.Check(monitored, Equals, false)
 
-	c.Assert(findChange(s.state, "auto-refresh"), NotNil)
+	autoRefreshChg := findChange(s.state, "auto-refresh")
+	c.Assert(autoRefreshChg, NotNil)
+	c.Assert(autoRefreshChg.Status(), Equals, state.DoneStatus)
+
+	// check that the auto-refresh was completed without asking the store for refresh info
+	c.Assert(s.fakeBackend.ops.Count("storesvc-snap-action"), Equals, 0)
+	// the opts are nil because the fake store backend doesn't keep the opts if every field is empty
+	c.Assert(s.fakeStore.downloads[1].opts, IsNil)
 }
 
 func findChange(st *state.State, kind string) *state.Change {
@@ -9421,6 +9430,9 @@ func (s *snapmgrTestSuite) TestDownloadTaskMonitorsSnapStoppedAndNotifiesOnSoftC
 			Revision: snap.R(2),
 		},
 		Flags: snapstate.Flags{IsAutoRefresh: true},
+		// if there's no downloadInfo, the download goes into a fallback behaviour of requesting it from the store and
+		// makes it harder to check that we don't request refresh info form the store
+		DownloadInfo: &snap.DownloadInfo{DownloadURL: "my-url"},
 	}
 	s.state.Set("refresh-candidates", map[string]*snapstate.RefreshCandidate{
 		"foo": {SnapSetup: *snapsup},
@@ -9490,11 +9502,20 @@ func (s *snapmgrTestSuite) TestDownloadTaskMonitorsSnapStoppedAndNotifiesOnSoftC
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.settle(c)
+
+	autoRefreshChg := findChange(s.state, "auto-refresh")
+	c.Assert(autoRefreshChg, NotNil)
+	c.Assert(autoRefreshChg.Status(), Equals, state.DoneStatus)
 	c.Assert(s.state.Cached("monitored-snaps"), IsNil)
 
 	// the refresh-candidates are removed at the end of the change (see pruneRefreshCandidates)
 	err = s.state.Get("refresh-candidates", &hints)
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+
+	// check that the auto-refresh was completed without asking the store for refresh info
+	c.Assert(s.fakeBackend.ops.Count("storesvc-snap-action"), Equals, 0)
+	// the opts are nil because the fake store backend doesn't keep the opts if every field is empty
+	c.Assert(s.fakeStore.downloads[1].opts, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestDownloadTaskMonitorsRepeated(c *C) {
