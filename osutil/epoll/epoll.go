@@ -39,12 +39,12 @@ func (r Readiness) String() string {
 }
 
 // FromSys returns Readiness representation of Linux epoll events.
-func FromSys(f int) Readiness {
+func FromSys(ev int) Readiness {
 	var result Readiness
-	if f&syscall.EPOLLIN != 0 {
+	if ev&syscall.EPOLLIN != 0 {
 		result |= Readable
 	}
-	if f&syscall.EPOLLOUT != 0 {
+	if ev&syscall.EPOLLOUT != 0 {
 		result |= Writable
 	}
 	return result
