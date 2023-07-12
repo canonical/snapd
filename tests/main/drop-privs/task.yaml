@@ -1,0 +1,9 @@
+summary: Test that we can run go-code as effectively another user. 
+
+# exclude uc16 as there is no go snap
+systems: [-ubuntu-core-16-*]
+
+execute: |
+  go build ./run-as.go
+  test "$(./run-as)" = "before: 0/0, during: 12345/12345 (<nil>), after: 0/0; status: OK"
+  test "$(sudo -u '#12345' -g '#12345' ./run-as)" = "before: 12345/12345, during: 12345/12345 (<nil>), after: 12345/12345; status: OK"
