@@ -20,7 +20,9 @@
 package sys
 
 import (
+	"fmt"
 	"os"
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -106,4 +108,62 @@ func FcntlGetFl(fd int) (int, error) {
 		return 0, errno
 	}
 	return int(flags), nil
+}
+
+// UnrecoverableError is an error that flags that things have Gone Wrong, the
+// runtime is in a bad state, and you should really quit. The intention is that
+// if you're trying to recover from a panic and find that the value of the panic
+// is an UnrecoverableError, you should just exit ASAP.
+type UnrecoverableError struct {
+	Call string
+	Err  error
+}
+
+func (e UnrecoverableError) Error() string {
+	return fmt.Sprintf("%s: %v", e.Call, e.Err)
+}
+
+// RunAsUidGid starts a goroutine, pins it to the OS thread, sets euid and egid,
+// and runs the function; after the function returns, it restores euid and egid.
+//
+// If restoring the original euid and egid fails this function will panic with
+// an UnrecoverableError, and you should _not_ try to recover from it: the
+// runtime itself is going to be in trouble.
+func RunAsUidGid(uid UserID, gid GroupID, f func() error) error {
+	ch := make(chan error, 1)
+	go func() {
+		// from the docs:
+		//   until the goroutine exits or calls UnlockOSThread, it will
+		//   always execute in this thread, and no other goroutine can.
+		// that last bit means it's safe to setuid/setgid in here, as no
+		// other code will run.
+		runtime.LockOSThread()
+
+		ruid := Getuid()
+		rgid := Getgid()
+
+		if _, _, errno := syscall.RawSyscall(_SYS_SETREGID, FlagID, uintptr(gid), 0); errno == 0 {
+			if _, _, errno := syscall.RawSyscall(_SYS_SETREUID, FlagID, uintptr(uid), 0); errno == 0 {
+				ch <- f()
+				// try to restore euid
+				if _, _, errno := syscall.RawSyscall(_SYS_SETREUID, FlagID, uintptr(ruid), 0); errno != 0 {
+					// ¯\_(ツ)_/¯
+					panic(UnrecoverableError{Call: "setreuid", Err: errno})
+				}
+			} else {
+				ch <- fmt.Errorf("setreuid: %v", errno)
+			}
+
+			// try to restore egid
+			if _, _, errno := syscall.RawSyscall(_SYS_SETREGID, FlagID, uintptr(rgid), 0); errno != 0 {
+				// ¯\_(ツ)_/¯
+				panic(UnrecoverableError{Call: "setregid", Err: errno})
+			}
+		} else {
+			ch <- fmt.Errorf("setregid: %v", errno)
+		}
+
+		runtime.UnlockOSThread()
+	}()
+	return <-ch
 }
