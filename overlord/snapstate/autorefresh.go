@@ -113,7 +113,8 @@ func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, _ updateParamsFu
 
 	snapsup := &rc.SnapSetup
 	if globalFlags != nil {
-		snapsup.Flags = *globalFlags
+		snapsup.Flags.IsAutoRefresh = globalFlags.IsAutoRefresh
+		snapsup.Flags.IsContinuedAutoRefresh = globalFlags.IsContinuedAutoRefresh
 	}
 
 	return snapsup, &snapst, nil

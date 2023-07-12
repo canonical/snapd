@@ -9397,8 +9397,7 @@ func (s *snapmgrTestSuite) TestPreDownloadTaskContinuesAutoRefreshIfSoftCheckOk(
 
 	// check that the auto-refresh was completed without asking the store for refresh info
 	c.Assert(s.fakeBackend.ops.Count("storesvc-snap-action"), Equals, 0)
-	// the opts are nil because the fake store backend doesn't keep the opts if every field is empty
-	c.Assert(s.fakeStore.downloads[1].opts, IsNil)
+	c.Assert(s.fakeStore.downloads, HasLen, 2)
 }
 
 func findChange(st *state.State, kind string) *state.Change {
@@ -9514,8 +9513,7 @@ func (s *snapmgrTestSuite) TestDownloadTaskMonitorsSnapStoppedAndNotifiesOnSoftC
 
 	// check that the auto-refresh was completed without asking the store for refresh info
 	c.Assert(s.fakeBackend.ops.Count("storesvc-snap-action"), Equals, 0)
-	// the opts are nil because the fake store backend doesn't keep the opts if every field is empty
-	c.Assert(s.fakeStore.downloads[1].opts, IsNil)
+	c.Assert(s.fakeStore.downloads, HasLen, 2)
 }
 
 func (s *snapmgrTestSuite) TestDownloadTaskMonitorsRepeated(c *C) {

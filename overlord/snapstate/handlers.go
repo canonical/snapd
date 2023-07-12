@@ -736,7 +736,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st.Lock()
 	perfTimings := state.TimingsForTask(t)
 	snapsup, theStore, user, err := downloadSnapParams(st, t)
-	if snapsup != nil && snapsup.IsAutoRefresh && !snapsup.IsContinuedAutoRefresh {
+	if snapsup != nil && snapsup.IsAutoRefresh {
 		// NOTE rate is never negative
 		rate = autoRefreshRateLimited(st)
 	}
@@ -753,7 +753,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	targetFn := snapsup.MountFile()
 
 	dlOpts := &store.DownloadOptions{
-		Scheduled: snapsup.IsAutoRefresh && !snapsup.IsContinuedAutoRefresh,
+		Scheduled: snapsup.IsAutoRefresh,
 		RateLimit: rate,
 	}
 	if snapsup.DownloadInfo == nil {
@@ -834,10 +834,16 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	targetFn := snapsup.MountFile()
+	dlOpts := &store.DownloadOptions{
+		// pre-downloads are only triggered in auto-refreshes
+		Scheduled: true,
+		RateLimit: autoRefreshRateLimited(st),
+	}
+
 	perfTimings := state.TimingsForTask(t)
 	st.Unlock()
 	timings.Run(perfTimings, "pre-download", fmt.Sprintf("pre-download snap %q", snapsup.SnapName()), func(timings.Measurer) {
-		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, nil, user, nil)
+		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, nil, user, dlOpts)
 	})
 	st.Lock()
 	if err != nil {
@@ -912,14 +918,11 @@ func asyncRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, refreshInfo *u
 	// notify the user about the blocked refresh
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 
-	var refreshHints map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
-		return fmt.Errorf("cannot get refresh-candidates: %v", err)
-	}
-
 	abort := make(chan bool, 1)
 	if err := addMonitoring(st, snapName, abort); err != nil {
-		return fmt.Errorf("cannot save monitoring state: %v", err)
+		msg := "cannot save monitoring state for %q: %v"
+		logger.Noticef(msg, snapName, err)
+		return fmt.Errorf(msg, snapName, err)
 	}
 
 	go continueRefreshOnSnapClose(st, snapsup, done, abort)

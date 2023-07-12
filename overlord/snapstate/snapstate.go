@@ -1707,7 +1707,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 
 	names = strutil.Deduplicate(names)
 
-	refreshOpts := &store.RefreshOptions{Scheduled: flags.IsAutoRefresh && !flags.IsContinuedAutoRefresh}
+	refreshOpts := &store.RefreshOptions{Scheduled: flags.IsAutoRefresh}
 	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, revOpts, user, refreshOpts)
 	if err != nil {
 		return nil, nil, err
