@@ -74,7 +74,7 @@ execute: |
     snap install test-snapd-auto-aliases_foo
 
     echo "Installing test-snapd-auto-aliases after test-snapd-auto-aliases_foo"
-    echo "shouldn't conflict and it's aliases should be enabled"
+    echo "shouldn't conflict and its aliases should be enabled"
     snap install test-snapd-auto-aliases
 
     echo "Aliases should belong to test-snapd-auto-aliases"
