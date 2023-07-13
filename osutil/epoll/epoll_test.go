@@ -68,7 +68,7 @@ func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
 	c.Assert(len(events), Equals, 1)
 	c.Assert(events[0].Fd, Equals, listenerFd)
 
-	buf := make([]byte, len("foo"))
+	buf := make([]byte, len(msg))
 	_, err = unix.Read(events[0].Fd, buf)
 	c.Assert(err, IsNil)
 	c.Assert(buf, DeepEquals, msg)
