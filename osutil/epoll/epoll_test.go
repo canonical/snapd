@@ -1,13 +1,8 @@
 package epoll_test
 
 import (
-	"bytes"
-	"encoding/binary"
-	"fmt"
-	"os"
 	"testing"
 	"time"
-	"unsafe"
 
 	"golang.org/x/sys/unix"
 
@@ -41,49 +36,10 @@ func (*epollSuite) TestOpenClose(c *C) {
 	c.Assert(e.Fd(), Equals, -1)
 }
 
-const (
-	modeSetUser    uint32  = 1 << 7
-	ioctlSetFilter uintptr = 0x4008F800
-)
-
-type msgNotificationFilter struct {
-	Length  uint16
-	Version uint16
-	ModeSet uint32
-	NS      uint32
-	Filter  uint32
-}
-
-var ErrIoctl = fmt.Errorf("cannot perform IOCTL request")
-
-func prepareFdForEpollRegister(fd int) error {
-	// based on a simplified version of notifier.Register() from
-	// https://github.com/mvo5/snappy/blob/cerberus-dbus/prompting/notifier/notifier.go#L82
-	var msg msgNotificationFilter
-	msg.Length = uint16(binary.Size(msg))
-	msg.Version = 2
-	msg.ModeSet = modeSetUser
-	msg.NS = 0
-	msg.Filter = 0
-	buf := bytes.NewBuffer(make([]byte, 0, binary.Size(msg)))
-	if err := binary.Write(buf, binary.LittleEndian, msg); err != nil {
-		return err
-	}
-
-	data := buf.Bytes()
-
-	_, _, errno := unix.Syscall(uintptr(unix.SYS_IOCTL), uintptr(fd), uintptr(ioctlSetFilter), uintptr(unsafe.Pointer(&data[0])))
-	if errno != 0 {
-		return ErrIoctl
-	}
-
-	return nil
-}
-
-func waitNSecondsThenWriteToFile(n int, file *os.File) error {
+func waitNSecondsThenWriteToFile(n int, fd int, msg []byte) error {
 	time.Sleep(time.Duration(n) * time.Second)
 	data := []byte("foo")
-	_, err := file.Write(data)
+	_, err := unix.Write(fd, data)
 	return err
 }
 
@@ -91,38 +47,35 @@ func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
 	e, err := epoll.Open()
 	c.Assert(err, IsNil)
 
-	tmpFileWriter, err := os.CreateTemp("/tmp", "snapd-unittest-epoll-TestRegisterWaitDeregister-")
-	c.Assert(err, IsNil)
-	defer tmpFileWriter.Close()
-
-	tmpFileReader, err := os.Open(tmpFileWriter.Name()) // open for reading only
-	defer tmpFileReader.Close()
+	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Assert(err, IsNil)
 
-	defer os.Remove(tmpFileReader.Name())
+	listenerFd := socketFds[0]
+	senderFd := socketFds[1]
 
-	err = prepareFdForEpollRegister(int(tmpFileReader.Fd()))
-	if err == ErrIoctl {
-		// Not sure how to make this work.
-		// I believe this is required for Register() to succeed.
-		// Or, perhaps Register() just requires user to be root.
-		return
-	}
+	err = unix.SetNonblock(listenerFd, true)
 	c.Assert(err, IsNil)
 
-	err = e.Register(int(tmpFileReader.Fd()), epoll.Readable)
+	err = e.Register(listenerFd, epoll.Readable)
 	c.Assert(err, IsNil)
 
-	go waitNSecondsThenWriteToFile(3, tmpFileWriter)
+	msg := []byte("foo")
+
+	go waitNSecondsThenWriteToFile(1, senderFd, msg)
 
 	events, err := e.Wait()
 	c.Assert(err, IsNil)
 	c.Assert(len(events), Equals, 1)
-	c.Assert(events[0].Fd, Equals, tmpFileReader.Fd())
+	c.Assert(events[0].Fd, Equals, listenerFd)
 
-	err = e.Modify(int(tmpFileReader.Fd()), epoll.Readable|epoll.Writable)
+	buf := make([]byte, len("foo"))
+	_, err = unix.Read(events[0].Fd, buf)
+	c.Assert(err, IsNil)
+	c.Assert(buf, DeepEquals, msg)
+
+	err = e.Modify(listenerFd, epoll.Readable|epoll.Writable)
 	c.Assert(err, IsNil)
 
-	err = e.Deregister(int(tmpFileReader.Fd()))
+	err = e.Deregister(listenerFd)
 	c.Assert(err, IsNil)
 }
