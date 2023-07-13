@@ -339,7 +339,7 @@ func (s *backendSuite) TestSetupEndureUpdatesError(c *C) {
 
 	// confinement options are irrelevant to this security backend
 	_, err = s.UpdateSnapMaybeErr(c, snapInfo, interfaces.ConfinementOptions{}, mockEndureSnapYaml, 1)
-	c.Check(err, ErrorMatches, `cannot update mount namespace of snap "snap-name" when trying to update it, and cannot discard it because it contains an enduring daemon:.*`)
+	c.Check(err, ErrorMatches, `cannot update mount namespace of snap "snap-name", and cannot discard it because it contains an enduring daemon:.*`)
 
 	// snap-update-ns was invoked, snap-discard-ns wasn't
 	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{{"snap-update-ns", "snap-name"}})
