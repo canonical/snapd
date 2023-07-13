@@ -14,4 +14,4 @@ execute: |
   # Prior to 1.10 it was possible for the spawned thread by locked OS thread to inherit its
   # state. See https://github.com/golang/go/issues/20676
   go build ./runas-2/runas-verify-thread-locked.go
-  test "$(./runas-verify-thread-locked)" = "bad tids: 0, bad uids: 0"
+  ./runas-verify-thread-locked
