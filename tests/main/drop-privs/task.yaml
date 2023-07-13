@@ -15,3 +15,7 @@ execute: |
   # state. See https://github.com/golang/go/issues/20676
   go build ./runas-2/runas-verify-thread-locked.go
   ./runas-verify-thread-locked
+
+  # Verify error handling when restoring the uid/gid works correctly
+  go build ./runas-3/runas-errors.go
+  test "$(sudo ./runas-errors)" = "status: OK"
