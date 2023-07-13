@@ -25,19 +25,6 @@ import (
 	"syscall"
 )
 
-// UnrecoverableError is an error that flags that things have Gone Wrong, the
-// runtime is in a bad state, and you should really quit. The intention is that
-// if you're trying to recover from a panic and find that the value of the panic
-// is an UnrecoverableError, you should just exit ASAP.
-type UnrecoverableError struct {
-	Call string
-	Err  error
-}
-
-func (e UnrecoverableError) Error() string {
-	return fmt.Sprintf("%s: %v", e.Call, e.Err)
-}
-
 var mockedRestoreUidError error
 
 // MockRunAsUidGidRestoreUidError mocks an error from the calls that
