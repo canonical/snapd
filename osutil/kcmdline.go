@@ -223,6 +223,22 @@ func (ka *KernelArgument) UnmarshalYAML(unmarshal func(interface{}) error) error
 	return nil
 }
 
+func quoteIfNeeded(input string, force bool) string {
+	if force || strings.Contains(input, " ") {
+		return "\"" + input + "\""
+	} else {
+		return input
+	}
+}
+
+func (ka *KernelArgument) String() string {
+	if ka.Value == "" {
+		return quoteIfNeeded(ka.Param, false)
+	} else {
+		return fmt.Sprintf("%s=%s", quoteIfNeeded(ka.Param, false), quoteIfNeeded(ka.Value, ka.Quoted))
+	}
+}
+
 // ParseKernelCommandline parses a kernel command line, returning a
 // slice with the arguments in the same order as in cmdline. Note that
 // kernel arguments can be repeated. We follow the same algorithm as in
