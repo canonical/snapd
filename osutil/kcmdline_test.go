@@ -323,23 +323,23 @@ func (s *kcmdlineTestSuite) TestUnmarshalKernelArgument(c *C) {
 		},
 		{
 			[]string{`par1=val`, `par2=3[a-b]`, `par3=val`},
-			argsList{},
-			`\"3\[a-b\]\" contains globbing characters and is not quoted`,
+			argsList{[]osutil.KernelArgument{{"par1", "val", false}, {"par2", "3[a-b]", false}, {"par3", "val", false}}},
+			"",
 		},
 		{
 			[]string{`par=ab*`},
-			argsList{},
-			`\"ab\*\" contains globbing characters and is not quoted`,
+			argsList{[]osutil.KernelArgument{{"par", "ab*", false}}},
+			"",
 		},
 		{
 			[]string{`par=ab?`},
-			argsList{},
-			`\"ab\?\" contains globbing characters and is not quoted`,
+			argsList{[]osutil.KernelArgument{{"par", "ab?", false}}},
+			"",
 		},
 		{
 			[]string{`par=\a`},
-			argsList{},
-			`\"\\\\a\" contains globbing characters and is not quoted`,
+			argsList{[]osutil.KernelArgument{{"par", `\a`, false}}},
+			"",
 		},
 		{
 			[]string{`par="ab?g*[s-d]\q"`},
@@ -349,6 +349,80 @@ func (s *kcmdlineTestSuite) TestUnmarshalKernelArgument(c *C) {
 	} {
 		c.Logf("%v, args: %v", idx, tc.args)
 		var args argsList
+		err := yaml.Unmarshal([]byte(buildYamlArgsList(tc.args)), &args)
+		if tc.errStr == "" {
+			c.Check(err, IsNil)
+			c.Check(args, DeepEquals, tc.exp)
+		} else {
+			c.Check(err, ErrorMatches, tc.errStr)
+		}
+	}
+}
+
+type patternsList struct {
+	Args []osutil.KernelArgumentPattern `yaml:"args"`
+}
+
+func (s *kcmdlineTestSuite) TestUnmarshalKernelArgumentPattern(c *C) {
+	for idx, tc := range []struct {
+		args   []string
+		exp    patternsList
+		errStr string
+	}{
+		{
+			[]string{`par1=val1`, `par2="val2"`},
+			patternsList{[]osutil.KernelArgumentPattern{
+				osutil.NewConstantKernelArgumentPattern("par1", "val1"),
+				osutil.NewConstantKernelArgumentPattern("par2", "val2"),
+			}},
+			"",
+		},
+		{
+			[]string{`par1="*"`, `par2`},
+			patternsList{[]osutil.KernelArgumentPattern{
+				osutil.NewConstantKernelArgumentPattern("par1", "*"),
+				osutil.NewConstantKernelArgumentPattern("par2", ""),
+			}},
+			"",
+		},
+		{
+			[]string{`par1=*`, `par2`},
+			patternsList{[]osutil.KernelArgumentPattern{
+				osutil.NewAnyKernelArgumentPattern("par1"),
+				osutil.NewConstantKernelArgumentPattern("par2", ""),
+			}},
+			"",
+		},
+		{
+			[]string{`par1=val`, `par2=3[a-b]`, `par3=val`},
+			patternsList{},
+			`\"3\[a-b\]\" contains globbing characters and is not quoted`,
+		},
+		{
+			[]string{`par=ab*`},
+			patternsList{},
+			`\"ab\*\" contains globbing characters and is not quoted`,
+		},
+		{
+			[]string{`par=ab?`},
+			patternsList{},
+			`\"ab\?\" contains globbing characters and is not quoted`,
+		},
+		{
+			[]string{`par=\a`},
+			patternsList{},
+			`\"\\\\a\" contains globbing characters and is not quoted`,
+		},
+		{
+			[]string{`par="ab?g*[s-d]\q"`},
+			patternsList{[]osutil.KernelArgumentPattern{
+				osutil.NewConstantKernelArgumentPattern("par", `ab?g*[s-d]\q`),
+			}},
+			"",
+		},
+	} {
+		c.Logf("%v, args: %v", idx, tc.args)
+		var args patternsList
 		err := yaml.Unmarshal([]byte(buildYamlArgsList(tc.args)), &args)
 		if tc.errStr == "" {
 			c.Check(err, IsNil)

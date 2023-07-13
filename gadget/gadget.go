@@ -111,7 +111,7 @@ type KernelCmdline struct {
 	// files that can be included nowadays in the gadget.
 	// Allow is the list of allowed parameters for the system.kernel.cmdline-append
 	// system option
-	Allow []osutil.KernelArgument `yaml:"allow"`
+	Allow []osutil.KernelArgumentPattern `yaml:"allow"`
 }
 
 type Info struct {
