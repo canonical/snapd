@@ -1282,12 +1282,12 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 
 		// layout old partially, without going deep into the layout of structure
 		// content
-		pOld, err := LayoutVolumePartially(oldVol)
+		pOld, err := layoutVolumePartially(oldVol, nil)
 		if err != nil {
 			return fmt.Errorf("cannot lay out the old volume %s: %v", volName, err)
 		}
 
-		pNew, err := LayoutVolume(newVol, opts)
+		pNew, err := LayoutVolume(newVol, nil, opts)
 		if err != nil {
 			return fmt.Errorf("cannot lay out the new volume %s: %v", volName, err)
 		}

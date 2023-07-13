@@ -70,6 +70,7 @@ var (
 
 	SearchVolumeWithTraitsAndMatchParts = searchVolumeWithTraitsAndMatchParts
 	OrderStructuresByOffset             = orderStructuresByOffset
+	LayoutVolumePartially               = layoutVolumePartially
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
