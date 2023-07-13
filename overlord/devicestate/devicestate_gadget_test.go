@@ -1340,11 +1340,12 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExistingArgs(c *C)
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from updated gadget",
 	})
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
+	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	// bootenv was cleared
 	c.Assert(vars, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "args from updated gadget",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "console=ttyS0 console=tty1 panic=-1 args from updated gadget",
 	})
 }
 
@@ -1397,11 +1398,12 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineClassicWithModesWithEx
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from updated gadget",
 	})
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
+	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	// bootenv was cleared
 	c.Assert(vars, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "args from updated gadget",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "console=ttyS0 console=tty1 panic=-1 args from updated gadget",
 	})
 }
 
@@ -1453,11 +1455,12 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewArgs(c *C) {
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from new gadget",
 	})
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
+	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	// bootenv was cleared
 	c.Assert(vars, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "args from new gadget",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "console=ttyS0 console=tty1 panic=-1 args from new gadget",
 	})
 }
 
@@ -1479,6 +1482,7 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetCommandlineWithNewAppendedArgs(c 
 	c.Assert(m.Write(), IsNil)
 	err = s.managedbl.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "console=ttyS0 console=tty1 panic=-1",
 	})
 	c.Assert(err, IsNil)
 	s.managedbl.SetBootVarsCalls = 0
@@ -1529,7 +1533,7 @@ kernel-cmdline:
 
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, expCmdlines)
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, numSetBootVarsCalls)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
+	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	// bootenv was cleared
 	extraArgs := opts.allowedCmdline
@@ -1537,7 +1541,8 @@ kernel-cmdline:
 		extraArgs = strutil.JoinNonEmpty([]string{extraArgs, opts.cmdlineAppendDanger}, " ")
 	}
 	c.Assert(vars, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": extraArgs,
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  strutil.JoinNonEmpty([]string{"console=ttyS0 console=tty1 panic=-1", extraArgs}, " "),
 	})
 }
 
@@ -1861,10 +1866,11 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	// update was applied and then undone
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow, restart.RestartSystemNow})
 	c.Check(restartCount, Equals, 2)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
+	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "args from old gadget",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "console=ttyS0 console=tty1 panic=-1 args from old gadget",
 	})
 	// 2 calls, one to set the new arguments, and one to reset them back
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, 2)
@@ -1979,10 +1985,11 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineClassicWithModesUpdateUndo(c
 	// update was applied and then undone, but no automatic restarts happened
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(restartCount, Equals, 0)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
+	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "args from old gadget",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "console=ttyS0 console=tty1 panic=-1 args from old gadget",
 	})
 	// 2 calls, one to set the new arguments, and one to reset them back
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, 2)

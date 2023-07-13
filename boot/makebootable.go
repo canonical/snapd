@@ -300,14 +300,18 @@ func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRe
 	recoveryBlVars := map[string]string{
 		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
 	}
-	if _, ok := bl.(bootloader.TrustedAssetsBootloader); ok {
+	if tbl, ok := bl.(bootloader.TrustedAssetsBootloader); ok {
 		// Look at gadget default values for system.kernel.*cmdline-append options
 		cmdlineAppend, err := buildOptionalKernelCommandLine(model, bootWith.GadgetSnapOrDir)
 		if err != nil {
 			return fmt.Errorf("while retrieving system.kernel.*cmdline-append defaults: %v", err)
 		}
+		defaultCmdLine, err := tbl.DefaultCommandLine()
+		if err != nil {
+			return err
+		}
 		// to set cmdlineAppend.
-		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.GadgetSnapOrDir, cmdlineAppend)
+		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.GadgetSnapOrDir, cmdlineAppend, defaultCmdLine)
 		if err != nil {
 			return fmt.Errorf("cannot obtain recovery system command line: %v", err)
 		}
@@ -484,7 +488,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		return fmt.Errorf("cannot set run system environment: %v", err)
 	}
 
-	_, ok = bl.(bootloader.TrustedAssetsBootloader)
+	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 	if ok {
 		// the bootloader can manage its boot config
 
@@ -505,7 +509,13 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		if err != nil {
 			return fmt.Errorf("while retrieving system.kernel.*cmdline-append defaults: %v", err)
 		}
-		cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir, cmdlineAppend)
+
+		defaultCmdLine, err := tbl.DefaultCommandLine()
+		if err != nil {
+			return err
+		}
+
+		cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir, cmdlineAppend, defaultCmdLine)
 		if err != nil {
 			return fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
 		}
