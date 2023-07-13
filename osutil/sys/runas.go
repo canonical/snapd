@@ -67,8 +67,10 @@ func RunAsUidGid(uid UserID, gid GroupID, f func() error) error {
 		// from the docs:
 		//   until the goroutine exits or calls UnlockOSThread, it will
 		//   always execute in this thread, and no other goroutine can.
-		// that last bit means it's safe to setuid/setgid in here, as no
-		// other code will run.
+		// that last bit means it's safe to setuid/setgid in here, as
+		// on the kernel level the setuid/setgid syscalls are per-thread
+		// and because of the lock the go-runtime will not run any
+		// other code in this thread.
 		runtime.LockOSThread()
 
 		ruid := Getuid()
