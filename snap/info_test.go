@@ -107,10 +107,10 @@ func (s *infoSuite) TestContactFromEdited(c *C) {
 	}
 
 	info.SideInfo = snap.SideInfo{
-		LegacyEditedContact: "mailto:econtact",
+		LegacyEditedContact: "mailto:econtact@example.com",
 	}
 
-	c.Check(info.Contact(), Equals, "mailto:econtact")
+	c.Check(info.Contact(), Equals, "mailto:econtact@example.com")
 }
 
 func (s *infoSuite) TestNoContact(c *C) {
@@ -122,21 +122,21 @@ func (s *infoSuite) TestNoContact(c *C) {
 func (s *infoSuite) TestContactFromLinks(c *C) {
 	info := &snap.Info{
 		OriginalLinks: map[string][]string{
-			"contact": {"ocontact1", "ocontact2"},
+			"contact": {"ocontact1@example.com", "ocontact2@example.com"},
 		},
 	}
 
-	c.Check(info.Contact(), Equals, "mailto:ocontact1")
+	c.Check(info.Contact(), Equals, "mailto:ocontact1@example.com")
 }
 
 func (s *infoSuite) TestContactFromLinksMailtoAlready(c *C) {
 	info := &snap.Info{
 		OriginalLinks: map[string][]string{
-			"contact": {"mailto:ocontact1", "ocontact2"},
+			"contact": {"mailto:ocontact1@example.com", "ocontact2@example.com"},
 		},
 	}
 
-	c.Check(info.Contact(), Equals, "mailto:ocontact1")
+	c.Check(info.Contact(), Equals, "mailto:ocontact1@example.com")
 }
 
 func (s *infoSuite) TestContactFromLinksNotEmail(c *C) {
@@ -152,26 +152,26 @@ func (s *infoSuite) TestContactFromLinksNotEmail(c *C) {
 func (s *infoSuite) TestLinks(c *C) {
 	info := &snap.Info{
 		OriginalLinks: map[string][]string{
-			"contact": {"ocontact"},
+			"contact": {"ocontact@example.com"},
 			"website": {"http://owebsite"},
 		},
 	}
 
 	info.SideInfo = snap.SideInfo{
 		EditedLinks: map[string][]string{
-			"contact": {"mailto:econtact"},
+			"contact": {"mailto:econtact@example.com"},
 			"website": {"http://ewebsite"},
 		},
 	}
 
 	c.Check(info.Links(), DeepEquals, map[string][]string{
-		"contact": {"mailto:econtact"},
+		"contact": {"mailto:econtact@example.com"},
 		"website": {"http://ewebsite"},
 	})
 
 	info.EditedLinks = nil
 	c.Check(info.Links(), DeepEquals, map[string][]string{
-		"contact": {"mailto:ocontact"},
+		"contact": {"mailto:ocontact@example.com"},
 		"website": {"http://owebsite"},
 	})
 }
@@ -179,13 +179,13 @@ func (s *infoSuite) TestLinks(c *C) {
 func (s *infoSuite) TestNormalizeOriginalLinks(c *C) {
 	info := &snap.Info{
 		OriginalLinks: map[string][]string{
-			"contact": {"ocontact", "mailto:ocontact"},
+			"contact": {"ocontact@example.com", "mailto:ocontact@example.com"},
 			"website": {":", "http://owebsite", ""},
 		},
 	}
 
 	c.Check(info.Links(), DeepEquals, map[string][]string{
-		"contact": {"mailto:ocontact"},
+		"contact": {"mailto:ocontact@example.com"},
 		"website": {"http://owebsite"},
 	})
 }

@@ -282,6 +282,8 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	// needs to be set for old snapd
 	info.LegacyEditedContact = d.Contact
 	info.EditedLinks = d.Links
+	// TODO: Consider removing this when the store code is fixed and sends us valid EditedLinks
+	info.EditedLinks = info.NormalizedEditedLinks()
 	info.Architectures = d.Architectures
 	info.SnapType = d.Type
 	info.Version = d.Version
