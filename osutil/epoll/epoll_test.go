@@ -50,8 +50,6 @@ func (*epollSuite) TestOpenClose(c *C) {
 	c.Assert(e.Fd(), Equals, -1)
 }
 
-type modeSet uint32
-
 const (
 	modeSetUser    uint32  = 1 << 7
 	ioctlSetFilter uintptr = 0x4008F800
