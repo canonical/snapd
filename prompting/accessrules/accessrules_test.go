@@ -184,7 +184,7 @@ func (s *accessruleSuite) TestCreateAccessRuleSimple(c *C) {
 	snap := "lxd"
 	app := "lxc"
 	pathPattern := "/home/test/Documents/**"
-	action := "permit"
+	outcome := "allow"
 	lifespan := accessrules.Lifespan{
 		Type:     accessrules.LifespanForever,
 		Duration: 0,
@@ -195,7 +195,7 @@ func (s *accessruleSuite) TestCreateAccessRuleSimple(c *C) {
 		accessrules.PermissionExecute,
 	}
 
-	accessRule, err := ardb.CreateAccessRule(user, snap, app, pathPattern, action, lifespan, permissions)
+	accessRule, err := ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, permissions)
 	c.Assert(err, IsNil)
 
 	c.Assert(len(ardb.ById), Equals, 1)
@@ -235,7 +235,7 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 	snap := "lxd"
 	app := "lxc"
 	pathPattern := "/home/test/Documents/**"
-	action := "permit"
+	outcome := "allow"
 	lifespan := accessrules.Lifespan{
 		Type:     accessrules.LifespanForever,
 		Duration: 0,
@@ -246,7 +246,7 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 		accessrules.PermissionExecute,
 	}
 
-	accessRule := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, action, lifespan, permissions)
+	accessRule := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, permissions)
 	ardb.ById[accessRule.Id] = accessRule
 	ardb.RefreshTreeEnforceConsistency()
 

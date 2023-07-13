@@ -21,7 +21,7 @@ var ErrPermissionNotFound = errors.New("permission not found in the permissions 
 var ErrPermissionsEmpty = errors.New("all permissions have been removed from the permissions list of the given rule")
 var ErrNoPatterns = errors.New("no patterns given, cannot establish precedence")
 var ErrNoMatchingRule = errors.New("no access rules match the given path")
-var ErrInvalidAction = errors.New(`invalid rule action; must be "permit" or "deny"`)
+var ErrInvalidOutcome = errors.New(`invalid rule outcome; must be "allow" or "deny"`)
 var ErrUserNotAllowed = errors.New("the given user is not allowed to access the access rule with the given ID")
 
 type LifespanType string
@@ -70,7 +70,7 @@ type AccessRule struct {
 	Snap        string           `json:"snap"`
 	App         string           `json:"app"`
 	PathPattern string           `json:"path-pattern"`
-	Action      string           `json:"action"`
+	Outcome     string           `json:"outcome"`
 	Lifespan    Lifespan         `json:"lifespan"`
 	Permissions []PermissionType `json:"permissions"`
 }
@@ -317,7 +317,7 @@ func CurrentTimestamp() string {
 // TODO: unexport (probably, avoid confusion with CreateAccessRule)
 // Users of accessrules should probably autofill AccessRules from JSON and
 // never call this function directly.
-func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app string, pathPattern string, action string, lifespan Lifespan, permissions []PermissionType) *AccessRule {
+func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app string, pathPattern string, outcome string, lifespan Lifespan, permissions []PermissionType) *AccessRule {
 	timestamp := CurrentTimestamp()
 	newRule := AccessRule{
 		Id:          timestamp,
@@ -326,7 +326,7 @@ func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app st
 		Snap:        snap,
 		App:         app,
 		PathPattern: pathPattern,
-		Action:      action,
+		Outcome:     outcome,
 		Lifespan:    lifespan,
 		Permissions: permissions,
 	}
@@ -395,7 +395,7 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 	return shortestPattern, nil
 }
 
-func (ardb *AccessRuleDB) IsPathPermitted(user uint32, snap string, app string, path string, permission PermissionType) (bool, error) {
+func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, path string, permission PermissionType) (bool, error) {
 	pathMap := ardb.permissionDBForUserSnapAppPermission(user, snap, app, permission).PathRules
 	matchingPatterns := make([]string, 0)
 	for pathPattern := range pathMap {
@@ -420,13 +420,13 @@ func (ardb *AccessRuleDB) IsPathPermitted(user uint32, snap string, app string, 
 	if !exists {
 		return false, ErrRuleIdNotFound
 	}
-	switch matchingRule.Action {
-	case "permit":
+	switch matchingRule.Outcome {
+	case "allow":
 		return true, nil
 	case "deny":
 		return false, nil
 	default:
-		return false, ErrInvalidAction
+		return false, ErrInvalidOutcome
 	}
 }
 
@@ -441,8 +441,8 @@ func (ardb *AccessRuleDB) RuleWithId(user uint32, id string) (*AccessRule, error
 	return rule, nil
 }
 
-func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string, pathPattern string, action string, lifespan Lifespan, permissions []PermissionType) (*AccessRule, error) {
-	newRule := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, action, lifespan, permissions)
+func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string, pathPattern string, outcome string, lifespan Lifespan, permissions []PermissionType) (*AccessRule, error) {
+	newRule := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, permissions)
 	if err, _, _ := ardb.addRuleToTree(newRule); err != nil {
 		// TODO: could return the conflicting rule ID and permission
 		return nil, err
@@ -462,7 +462,7 @@ func (ardb *AccessRuleDB) DeleteAccessRule(user uint32, id string) (*AccessRule,
 	return rule, err
 }
 
-func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern string, action string, lifespan *Lifespan, permissions []PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern string, outcome string, lifespan *Lifespan, permissions []PermissionType) (*AccessRule, error) {
 	rule, err := ardb.RuleWithId(user, id)
 	if err != nil {
 		return nil, err
@@ -506,8 +506,8 @@ func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern s
 			}
 		}
 	}
-	if action != "" {
-		rule.Action = action
+	if outcome != "" {
+		rule.Outcome = outcome
 	}
 	if lifespan != nil {
 		rule.Lifespan = *lifespan
