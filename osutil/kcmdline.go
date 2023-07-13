@@ -218,14 +218,6 @@ func (ka *KernelArgument) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if len(parsed) != 1 {
 		return fmt.Errorf("%q is not a unique kernel argument", arg)
 	}
-	// To make parsing future proof in case we support full
-	// globbing in the future, do not allow unquoted globbing
-	// characters, except the currently only supported case ('*').
-	if !parsed[0].Quoted && parsed[0].Value != "*" &&
-		strings.ContainsAny(parsed[0].Value, `*?[]\{}`) {
-		return fmt.Errorf("%q contains globbing characters and is not quoted",
-			parsed[0].Value)
-	}
 	*ka = parsed[0]
 
 	return nil
@@ -344,4 +336,91 @@ func KernelCommandLine() (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(buf)), nil
+}
+
+type valuePattern interface {
+	Match(value string) bool
+}
+
+type valuePatternAny struct {
+}
+
+func (any valuePatternAny) Match(value string) bool {
+	return true
+}
+
+type valuePatternConstant struct {
+	constantValue string
+}
+
+func (constant valuePatternConstant) Match(value string) bool {
+	return constant.constantValue == value
+}
+
+// KernelArgumentPattern represents a pattern which can match a KernelArgument
+// This is intended to be used with KernelArgumentMatcher
+type KernelArgumentPattern struct {
+	param string
+	value valuePattern
+}
+
+// KernelArgumentMatcher matches a KernelArgument with multiple KernelArgumentPatterns
+type KernelArgumentMatcher struct {
+	patterns map[string]valuePattern
+}
+
+func (m *KernelArgumentMatcher) Match(arg KernelArgument) bool {
+	pattern, ok := m.patterns[arg.Param]
+	if !ok {
+		return false
+	}
+	return pattern.Match(arg.Value)
+}
+
+func NewKernelArgumentMatcher(allowed []KernelArgumentPattern) KernelArgumentMatcher {
+	patterns := map[string]valuePattern{}
+
+	for _, p := range allowed {
+		patterns[p.param] = p.value
+	}
+
+	return KernelArgumentMatcher{patterns}
+}
+
+// This constructor is needed mainly for test instead of unmarshaling from yaml
+func NewConstantKernelArgumentPattern(param string, value string) KernelArgumentPattern {
+	return KernelArgumentPattern{param, valuePatternConstant{value}}
+}
+
+// This constructor is needed mainly for test instead of unmarshaling from yaml
+func NewAnyKernelArgumentPattern(param string) KernelArgumentPattern {
+	return KernelArgumentPattern{param, valuePatternAny{}}
+}
+
+func (kap *KernelArgumentPattern) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var arg string
+	if err := unmarshal(&arg); err != nil {
+		return errors.New("cannot unmarshal kernel argument")
+	}
+
+	parsed := ParseKernelCommandline(arg)
+	if len(parsed) != 1 {
+		return fmt.Errorf("%q is not a unique kernel argument", arg)
+	}
+	// To make parsing future proof in case we support full
+	// globbing in the future, do not allow unquoted globbing
+	// characters, except the currently only supported case ('*').
+	if !parsed[0].Quoted && parsed[0].Value != "*" &&
+		strings.ContainsAny(parsed[0].Value, `*?[]\{}`) {
+		return fmt.Errorf("%q contains globbing characters and is not quoted",
+			parsed[0].Value)
+	}
+	kap.param = parsed[0].Param
+	if parsed[0].Quoted || parsed[0].Value != "*" {
+		kap.value = valuePatternConstant{parsed[0].Value}
+	} else {
+		kap.value = valuePatternAny{}
+	}
+
+	return nil
 }
