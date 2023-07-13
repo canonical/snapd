@@ -29,9 +29,10 @@ func main() {
 	N := 2 * runtime.NumCPU()
 	tids := make([]int, N)
 	uids := make([]sys.UserID, N)
+	origUid := sys.Geteuid()
 	err := sys.RunAsUidGid(12345, 12345, func() error {
 		// running in a locked os thread, get the ID
-		orig := syscall.Gettid()
+		lockedTid := syscall.Gettid()
 
 		// launch a lot of goroutines so we cover all threads with space to spare
 		for i := 0; i < N; i++ {
@@ -43,15 +44,16 @@ func main() {
 		// now verify all go-routines ran on a different thread as the one we are on
 		var badTids int
 		for _, tid := range tids {
-			if tid == orig {
+			if tid == lockedTid {
 				badTids++
 			}
 		}
 
-		// verify that uid was not inheritted
+		// verify that uid was not inheritted, and that we they were run as the
+		// original uid
 		var badUids int
 		for _, uid := range uids {
-			if uid == 12345 {
+			if uid != origUid {
 				badUids++
 			}
 		}
