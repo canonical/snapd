@@ -4,6 +4,14 @@ summary: Test that we can run go-code as effectively another user.
 systems: [-ubuntu-core-16-*]
 
 execute: |
-  go build ./run-as.go
-  test "$(./run-as)" = "before: 0/0, during: 12345/12345 (<nil>), after: 0/0; status: OK"
-  test "$(sudo -u '#12345' -g '#12345' ./run-as)" = "before: 12345/12345, during: 12345/12345 (<nil>), after: 12345/12345; status: OK"
+  # Verify that no other go-routine is run under the same GID/UID as the code who has
+  # locked the OS thread and changed GID/UID.
+  go build ./runas-1/runas-verify-uidgid.go
+  test "$(./runas-verify-uidgid)" = "before: 0/0, during: 12345/12345 (<nil>), after: 0/0; status: OK"
+  test "$(sudo -u '#12345' -g '#12345' ./runas-verify-uidgid)" = "before: 12345/12345, during: 12345/12345 (<nil>), after: 12345/12345; status: OK"
+
+  # Verify that all go-routines spawned by a locked OS thread is run on different, clean OS thread.
+  # Prior to 1.10 it was possible for the spawned thread by locked OS thread to inherit its
+  # state. See https://github.com/golang/go/issues/20676
+  go build ./runas-2/runas-verify-thread-locked.go
+  test "$(./runas-verify-thread-locked)" = "bad tids: 0, bad uids: 0"
