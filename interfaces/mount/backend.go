@@ -87,6 +87,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 			}
 		}
 		logger.Debugf("cannot update mount namespace of snap %q; discarding namespace", snapName)
+		// In some snaps, if the layout change from a version to the next by replacing a bind by a symlink,
+		// the update can fail. Discarding the namespace allows to solve this.
 		if err = DiscardSnapNamespace(snapName); err != nil {
 			return fmt.Errorf("cannot discard mount namespace of snap %q when trying to update it: %s", snapName, err)
 		}
