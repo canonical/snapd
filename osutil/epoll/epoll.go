@@ -18,13 +18,13 @@ import (
 )
 
 // Readiness is the bit mask of aspects of readiness to monitor with epoll.
-type Readiness uint32
+type Readiness int
 
 const (
 	// Readable indicates readiness for reading (EPOLLIN).
-	Readable Readiness = 1 << iota
+	Readable Readiness = unix.EPOLLIN
 	// Writable indicates readiness for writing (EPOLLOUT).
-	Writable
+	Writable Readiness = unix.EPOLLOUT
 )
 
 // String returns readable representation of the readiness flags.
@@ -37,31 +37,6 @@ func (r Readiness) String() string {
 		frags = append(frags, "Writable")
 	}
 	return strings.Join(frags, "|")
-}
-
-// FromSys returns Readiness representation of Linux epoll events.
-func FromSys(ev int) Readiness {
-	var result Readiness
-	if ev&unix.EPOLLIN != 0 {
-		result |= Readable
-	}
-	if ev&unix.EPOLLOUT != 0 {
-		result |= Writable
-	}
-	return result
-
-}
-
-// ToSys returns the Linux representation of readiness events.
-func (r Readiness) ToSys() int {
-	var result int
-	if r&Readable != 0 {
-		result |= unix.EPOLLIN
-	}
-	if r&Writable != 0 {
-		result |= unix.EPOLLOUT
-	}
-	return result
 }
 
 // Epoll wraps a file descriptor which can be used for I/O readiness notification.
@@ -102,7 +77,7 @@ func (e *Epoll) Fd() int {
 // Please refer to epoll_ctl(2) and EPOLL_CTL_ADD for details.
 func (e *Epoll) Register(fd int, mask Readiness) error {
 	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_ADD, fd, &unix.EpollEvent{
-		Events: uint32(mask.ToSys()),
+		Events: uint32(mask),
 		Fd:     int32(fd),
 	})
 	runtime.KeepAlive(e)
@@ -123,7 +98,7 @@ func (e *Epoll) Deregister(fd int) error {
 // Please refer to epoll_ctl(2) and EPOLL_CTL_MOD for details.
 func (e *Epoll) Modify(fd int, mask Readiness) error {
 	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{
-		Events: uint32(mask.ToSys()),
+		Events: uint32(mask),
 		Fd:     int32(fd),
 	})
 	runtime.KeepAlive(e)
@@ -152,7 +127,7 @@ func (e *Epoll) Wait() ([]Event, error) {
 	for i := 0; i < n; i++ {
 		event := Event{
 			Fd:        int(sysEvents[i].Fd),
-			Readiness: FromSys(int(sysEvents[i].Events)),
+			Readiness: Readiness(sysEvents[i].Events),
 		}
 		events = append(events, event)
 	}

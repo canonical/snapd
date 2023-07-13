@@ -22,16 +22,6 @@ type epollSuite struct{}
 
 var _ = Suite(&epollSuite{})
 
-func (*epollSuite) TestFlagMapping(c *C) {
-	c.Check(epoll.Readable.ToSys(), Equals, unix.EPOLLIN)
-	c.Check(epoll.Writable.ToSys(), Equals, unix.EPOLLOUT)
-	c.Check((epoll.Readable | epoll.Writable).ToSys(), Equals, unix.EPOLLIN|unix.EPOLLOUT)
-
-	c.Check(epoll.FromSys(unix.EPOLLIN), Equals, epoll.Readable)
-	c.Check(epoll.FromSys(unix.EPOLLOUT), Equals, epoll.Writable)
-	c.Check(epoll.FromSys(unix.EPOLLIN|unix.EPOLLOUT), Equals, epoll.Readable|epoll.Writable)
-}
-
 func (*epollSuite) TestString(c *C) {
 	c.Check(epoll.Readable.String(), Equals, "Readable")
 	c.Check(epoll.Writable.String(), Equals, "Writable")
