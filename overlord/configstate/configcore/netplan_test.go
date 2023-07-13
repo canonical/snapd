@@ -365,7 +365,7 @@ func (s *netplanSuite) TestNetplanWriteConfigHappyAfterSeeding(c *C) {
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigHappyDuringSeeding(c *C) {
-	s.testNetplanWriteConfigHappy(c, false, "0-snapd-defaults")
+	s.testNetplanWriteConfigHappy(c, false, "00-snapd-config")
 }
 
 func (s *netplanSuite) testNetplanWriteConfigHappy(c *C, seeded bool, expectedOriginHint string) {
