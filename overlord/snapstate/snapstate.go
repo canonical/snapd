@@ -368,7 +368,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	// Implicitly set --unaliased flag for parallel installs to avoid
 	// alias conflicts with the main snap
 	if snapsup.InstanceKey != "" {
-		logger.Noticef("implicitly setting --unaliased flag for parallel install %q", snapsup.InstanceName())
 		snapsup.Unaliased = true
 	}
 
