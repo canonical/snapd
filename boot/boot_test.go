@@ -3840,8 +3840,8 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsAdded(c *C) {
 	args, err := s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "args from gadget",
-		"snapd_full_cmdline_args":  "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1 args from gadget",
 	})
 }
 
@@ -3912,9 +3912,8 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsSwitch(c *C) {
 	args, err = s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "changed",
-		// canary has been cleared as bootenv was modified
-		"snapd_full_cmdline_args": "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1 changed",
 	})
 }
 
@@ -3957,7 +3956,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20UnencryptedArgsRem
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "",
-		"snapd_full_cmdline_args":  "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1",
 	})
 }
 
@@ -4066,9 +4065,8 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 	args, err := s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "extra args",
-		// canary has been cleared
-		"snapd_full_cmdline_args": "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1 extra args",
 	})
 	// this normally happens after booting
 	s.modeenvWithEncryption.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run static mocked panic=-1 extra args"}
@@ -4132,9 +4130,8 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 	args, err = s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		// both env variables have been cleared
 		"snapd_extra_cmdline_args": "",
-		"snapd_full_cmdline_args":  "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1",
 	})
 }
 
@@ -4269,9 +4266,8 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	args, err := s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "extra args",
-		// canary has been cleared
-		"snapd_full_cmdline_args": "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1 extra args",
 	})
 }
 
@@ -4325,9 +4321,8 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	args, err := s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "extra args",
-		// canary has been cleared
-		"snapd_full_cmdline_args": "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1 extra args",
 	})
 
 	// REBOOT; since we rebooted after updating the bootenv, the kernel
@@ -4367,8 +4362,8 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	args, err = s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "extra args",
-		"snapd_full_cmdline_args":  "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1 extra args",
 	})
 }
 

@@ -379,16 +379,16 @@ func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
 			{"cmdline.extra", "foo bar baz"},
 		},
 		expectedVars: map[string]string{
-			"snapd_extra_cmdline_args": "foo bar baz",
-			"snapd_full_cmdline_args":  "",
+			"snapd_extra_cmdline_args": "",
+			"snapd_full_cmdline_args":  "default foo bar baz",
 		},
 	}, {
 		files: [][]string{
 			{"cmdline.extra", "snapd.debug=1"},
 		},
 		expectedVars: map[string]string{
-			"snapd_extra_cmdline_args": "snapd.debug=1",
-			"snapd_full_cmdline_args":  "",
+			"snapd_extra_cmdline_args": "",
+			"snapd_full_cmdline_args":  "default snapd.debug=1",
 		},
 	}, {
 		files: [][]string{
@@ -406,8 +406,8 @@ func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
 	}, {
 		cmdlineAppend: "foo bar baz",
 		expectedVars: map[string]string{
-			"snapd_extra_cmdline_args": "foo bar baz",
-			"snapd_full_cmdline_args":  "",
+			"snapd_extra_cmdline_args": "",
+			"snapd_full_cmdline_args":  "default foo bar baz",
 		},
 	}, {
 		files: [][]string{
@@ -415,8 +415,8 @@ func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
 		},
 		cmdlineAppend: "x=y z",
 		expectedVars: map[string]string{
-			"snapd_extra_cmdline_args": "foo bar baz x=y z",
-			"snapd_full_cmdline_args":  "",
+			"snapd_extra_cmdline_args": "",
+			"snapd_full_cmdline_args":  "default foo bar baz x=y z",
 		},
 	}, {
 		files: [][]string{
@@ -432,13 +432,13 @@ func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
 		files: [][]string{},
 		expectedVars: map[string]string{
 			"snapd_extra_cmdline_args": "",
-			"snapd_full_cmdline_args":  "",
+			"snapd_full_cmdline_args":  "default",
 		},
 	}} {
 		sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, append([][]string{
 			{"meta/snap.yaml", gadgetSnapYaml},
 		}, tc.files...))
-		vars, err := boot.BootVarsForTrustedCommandLineFromGadget(sf, tc.cmdlineAppend)
+		vars, err := boot.BootVarsForTrustedCommandLineFromGadget(sf, tc.cmdlineAppend, "default")
 		if tc.errMsg == "" {
 			c.Assert(err, IsNil)
 			c.Assert(vars, DeepEquals, tc.expectedVars)

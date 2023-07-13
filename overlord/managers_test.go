@@ -9906,8 +9906,8 @@ func (s *mgrsSuiteCore) TestGadgetKernelCommandLineAddCmdline(c *C) {
 	vars, err := mabloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "args from gadget",
-		"snapd_full_cmdline_args":  "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "mock static args from gadget",
 	})
 }
 
@@ -9948,7 +9948,7 @@ func (s *mgrsSuiteCore) TestGadgetKernelCommandLineRemoveCmdline(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "",
-		"snapd_full_cmdline_args":  "",
+		"snapd_full_cmdline_args":  "mock static",
 	})
 }
 

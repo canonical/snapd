@@ -491,6 +491,13 @@ func (b *MockTrustedAssetsMixin) CandidateCommandLine(pieces bootloader.CommandL
 	return glueCommandLine(pieces, b.CandidateStaticCommandLine)
 }
 
+func (b *MockTrustedAssetsMixin) DefaultCommandLine() (string, error) {
+	if b.CommandLineErr != nil {
+		return "", b.CommandLineErr
+	}
+	return b.StaticCommandLine, nil
+}
+
 func (b *MockTrustedAssetsMixin) TrustedAssets() ([]string, error) {
 	b.TrustedAssetsCalls++
 	return b.TrustedAssetsList, b.TrustedAssetsErr

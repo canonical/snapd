@@ -365,18 +365,13 @@ func (g *grub) ManagedAssets() []string {
 }
 
 func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents) (string, error) {
-	assetName := "grub.cfg"
-	if g.recovery {
-		assetName = "grub-recovery.cfg"
-	}
-
 	if err := pieces.Validate(); err != nil {
 		return "", err
 	}
 
 	var nonSnapdCmdline string
 	if pieces.FullArgs == "" {
-		staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
+		staticCmdline := g.defaultCommandLineForEdition(edition)
 		nonSnapdCmdline = staticCmdline + " " + pieces.ExtraArgs
 	} else {
 		nonSnapdCmdline = pieces.FullArgs
@@ -397,6 +392,15 @@ func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents)
 		snapdArgs = append(snapdArgs, pieces.SystemArg)
 	}
 	return strings.Join(append(snapdArgs, args...), " "), nil
+}
+
+func (g *grub) defaultCommandLineForEdition(edition uint) string {
+	assetName := "grub.cfg"
+	if g.recovery {
+		assetName = "grub-recovery.cfg"
+	}
+
+	return staticCommandLineForGrubAssetEdition(assetName, edition)
 }
 
 // CommandLine returns the kernel command line composed of mode and
@@ -438,6 +442,24 @@ func (g *grub) CandidateCommandLine(pieces CommandLineComponents) (string, error
 		return "", err
 	}
 	return g.commandLineForEdition(edition, pieces)
+}
+
+func (g *grub) DefaultCommandLine() (string, error) {
+	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
+
+	edition, err := editionFromDiskConfigAsset(currentBootConfig)
+	if err != nil {
+		if err != errNoEdition {
+			return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
+		}
+		// we were called using the TrustedAssetsBootloader interface
+		// meaning the caller expects to us to use the managed assets,
+		// since one on disk is not managed, use the initial edition of
+		// the internal boot asset which is compatible with grub.cfg
+		// used before we started writing out the files ourselves
+		edition = 1
+	}
+	return g.defaultCommandLineForEdition(edition), nil
 }
 
 // staticCommandLineForGrubAssetEdition fetches a static command line for given

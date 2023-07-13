@@ -246,8 +246,8 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 	// recovery system bootenv was set
 	c.Check(bl.RecoverySystemDir, Equals, "/systems/1234")
 	c.Check(bl.RecoverySystemBootVars, DeepEquals, map[string]string{
-		"snapd_full_cmdline_args":  "",
-		"snapd_extra_cmdline_args": "args from gadget",
+		"snapd_full_cmdline_args":  "mock static args from gadget",
+		"snapd_extra_cmdline_args": "",
 		"snapd_recovery_kernel":    "/snaps/pc-kernel_1.snap",
 	})
 	// load the seed
@@ -417,8 +417,8 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 	// recovery system bootenv was set
 	c.Check(bl.RecoverySystemDir, Equals, "/systems/1234")
 	c.Check(bl.RecoverySystemBootVars, DeepEquals, map[string]string{
-		"snapd_full_cmdline_args":  "",
-		"snapd_extra_cmdline_args": "args from gadget",
+		"snapd_full_cmdline_args":  "args from gadget",
+		"snapd_extra_cmdline_args": "",
 		"snapd_recovery_kernel":    "/snaps/pc-kernel_1.snap",
 	})
 	// load the seed
