@@ -20,8 +20,6 @@
 package gadget
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -39,25 +37,13 @@ func FilterKernelCmdline(cmdline string, allowedSl []osutil.KernelArgumentPatter
 
 	proposed := osutil.ParseKernelCommandline(cmdline)
 
-	buildArg := func(arg osutil.KernelArgument) string {
-		if arg.Value == "" {
-			return arg.Param
-		} else {
-			val := arg.Value
-			if arg.Quoted {
-				val = "\"" + arg.Value + "\""
-			}
-			return fmt.Sprintf("%s=%s", arg.Param, val)
-		}
-	}
-
 	in := []string{}
 	out := []string{}
 	for _, p := range proposed {
 		if matcher.Match(p) {
-			in = append(in, buildArg(p))
+			in = append(in, p.String())
 		} else {
-			out = append(out, buildArg(p))
+			out = append(out, p.String())
 		}
 	}
 
