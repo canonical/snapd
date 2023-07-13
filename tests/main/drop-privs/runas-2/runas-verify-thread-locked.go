@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"syscall"
@@ -30,9 +31,17 @@ func main() {
 	tids := make([]int, N)
 	uids := make([]sys.UserID, N)
 	origUid := sys.Geteuid()
-	err := sys.RunAsUidGid(12345, 12345, func() error {
+
+	err := sys.RunAsUidGid(12345, 54321, func() error {
 		// running in a locked os thread, get the ID
 		lockedTid := syscall.Gettid()
+
+		if os.Geteuid() != 12345 {
+			return fmt.Errorf("unexpected euid %v", os.Geteuid())
+		}
+		if os.Getegid() != 54321 {
+			return fmt.Errorf("unexpected egid %v", os.Getegid())
+		}
 
 		// launch a lot of goroutines so we cover all threads with space to spare
 		for i := 0; i < N; i++ {
@@ -58,7 +67,13 @@ func main() {
 			}
 		}
 
-		return fmt.Errorf("bad tids: %d, bad uids: %d", badTids, badUids)
+		if badTids > 0 || badUids > 0 {
+			return fmt.Errorf("bad tids: %d, bad uids: %d", badTids, badUids)
+		}
+		return nil
 	})
-	fmt.Println(err)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
