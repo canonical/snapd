@@ -48,7 +48,7 @@ func main() {
 			}
 		}
 
-		// verify that uid/gid was not inheritted
+		// verify that uid was not inheritted
 		var badUids int
 		for _, uid := range uids {
 			if uid == 12345 {
