@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
@@ -1368,6 +1369,9 @@ func (s *installSuite) TestMountVolumesLazyUnmount(c *C) {
 	})
 	defer restore()
 
+	log, restore := logger.MockLogger()
+	defer restore()
+
 	seedMntDir, unmount, err := install.MountVolumes(onVolumes, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seedMntDir, Equals, seedMntPt)
@@ -1377,4 +1381,55 @@ func (s *installSuite) TestMountVolumesLazyUnmount(c *C) {
 
 	c.Assert(mountCall, Equals, 1)
 	c.Assert(umountCall, Equals, 2)
+
+	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot unmount %q: forcing lazy unmount (trying lazy unmount next)", seedMntPt))
+}
+
+func (s *installSuite) TestMountVolumesLazyUnmountError(c *C) {
+	seedMntPt := filepath.Join(s.dir, "run/mnt/ubuntu-seed")
+	onVolumes := map[string]*gadget.Volume{
+		"pc": {
+			Structure: []gadget.VolumeStructure{
+				{Name: "system-seed", Filesystem: "vfat", Role: gadget.SystemSeed},
+			},
+		},
+	}
+
+	mountCall := 0
+	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		mountCall++
+		c.Assert(flags, Equals, uintptr(0))
+		return nil
+	})
+	defer restore()
+
+	umountCall := 0
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		umountCall++
+		if umountCall == 1 {
+			c.Assert(flags, Equals, 0)
+			return fmt.Errorf("forcing lazy unmount")
+		} else {
+			// check fallback to lazy unmount, see LP:2025402
+			c.Assert(flags, Equals, syscall.MNT_DETACH)
+			return fmt.Errorf("lazy unmount failed")
+		}
+	})
+	defer restore()
+
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	seedMntDir, unmount, err := install.MountVolumes(onVolumes, nil)
+	c.Assert(err, IsNil)
+	c.Assert(seedMntDir, Equals, seedMntPt)
+
+	err = unmount()
+	c.Assert(err, ErrorMatches, "lazy unmount failed")
+
+	c.Assert(mountCall, Equals, 1)
+	c.Assert(umountCall, Equals, 2)
+
+	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot unmount %q: forcing lazy unmount (trying lazy unmount next)", seedMntPt))
+	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot lazy unmount %q: lazy unmount failed", seedMntPt))
 }
