@@ -23,20 +23,21 @@ restore: |
     snap remove --purge test-snapd-layout-change-with-daemon || true
 
 execute: |
-    echo Testing layout change
+    echo "Testing layout change"
 
-    echo "Installing snap 1"
+    echo "Installing test snap"
     snap install --beta test-snapd-layout-change
 
-    echo "Installing snap 2"
+    echo "Refreshing test snap to newer version "
     snap refresh --edge test-snapd-layout-change
 
-    echo Testing layout change with a daemon
+    echo "Testing layout change with a daemon"
 
-    echo "Installing snap 1 with daemon"
+    echo "Installing test snap with daemon"
     snap install --beta test-snapd-layout-change-with-daemon
 
-    echo "Installing snap 2 with daemon (this one must fail)"
+    echo "Refreshing test snap with daemon to newer version"
+    echo "(this one must fail because daemon snaps can't discard the namespace)"
     if snap refresh --edge test-snapd-layout-change-with-daemon ; then
         echo "ERROR: running snap refresh for test-snapd-layout-change-with-daemon did not fail as expected"
         exit 1
