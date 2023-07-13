@@ -108,7 +108,7 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 // variables that carry the command line arguments defined by the
 // gadget and some system options (cmdlineApped). This is only useful
 // if snapd is managing the boot config.
-func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineAppend string) (map[string]string, error) {
+func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineAppend string, defaultCmdline string) (map[string]string, error) {
 	extraOrFull, full, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
@@ -126,7 +126,7 @@ func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineAppend 
 	if full {
 		args["snapd_full_cmdline_args"] = extraOrFull
 	} else {
-		args["snapd_extra_cmdline_args"] = extraOrFull
+		args["snapd_full_cmdline_args"] = strutil.JoinNonEmpty([]string{defaultCmdline, extraOrFull}, " ")
 	}
 	return args, nil
 }

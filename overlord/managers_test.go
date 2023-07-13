@@ -9496,7 +9496,8 @@ func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si
 		RecoverySystem: "20191127",
 		Base:           "core20_1.snap",
 		CurrentKernelCommandLines: []string{
-			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+			// We expect bl to be a mock bootloader with no default command line"
+			"snapd_recovery_mode=run",
 		},
 	}
 	err := m.WriteTo("")
@@ -9999,8 +10000,8 @@ func (s *mgrsSuiteCore) TestGadgetKernelCommandLineAddCmdline(c *C) {
 	vars, err := mabloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "args from gadget",
-		"snapd_full_cmdline_args":  "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "mock static args from gadget",
 	})
 }
 
@@ -10041,7 +10042,7 @@ func (s *mgrsSuiteCore) TestGadgetKernelCommandLineRemoveCmdline(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "",
-		"snapd_full_cmdline_args":  "",
+		"snapd_full_cmdline_args":  "mock static",
 	})
 }
 

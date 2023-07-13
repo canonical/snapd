@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -418,8 +419,21 @@ version: 5.0
 	c.Check(systemGenv.Get("snapd_recovery_kernel"), Equals, "/snaps/pc-kernel_5.snap")
 	switch whichFile {
 	case "cmdline.extra":
-		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, content)
-		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, "")
+		blopts := &bootloader.Options{
+			Role: bootloader.RoleRecovery,
+		}
+		bl, err := bootloader.Find(s.rootdir, blopts)
+		c.Assert(err, IsNil)
+		tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
+		if ok {
+			defaultCmdLine, err := tbl.DefaultCommandLine()
+			c.Assert(err, IsNil)
+			c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
+			c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{defaultCmdLine, content}, " "))
+		} else {
+			c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, content)
+			c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, "")
+		}
 	case "cmdline.full":
 		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
 		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, content)
@@ -1386,10 +1400,25 @@ version: 5.0
 	c.Check(mockBootGrubenv, testutil.FilePresent)
 	systemGenv := grubenv.NewEnv(mockBootGrubenv)
 	c.Assert(systemGenv.Load(), IsNil)
+
 	switch whichFile {
 	case "cmdline.extra":
-		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, content)
-		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, "")
+		blopts := &bootloader.Options{
+			Role:        bootloader.RoleRunMode,
+			NoSlashBoot: true,
+		}
+		bl, err := bootloader.Find(boot.InitramfsUbuntuBootDir, blopts)
+		c.Assert(err, IsNil)
+		tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
+		if ok {
+			defaultCmdLine, err := tbl.DefaultCommandLine()
+			c.Assert(err, IsNil)
+			c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
+			c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{defaultCmdLine, content}, " "))
+		} else {
+			c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, content)
+			c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, "")
+		}
 	case "cmdline.full":
 		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
 		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, content)
@@ -2304,7 +2333,21 @@ version: 5.0
 	systemGenv := grubenv.NewEnv(filepath.Join(s.rootdir, recoverySystemDir, "grubenv"))
 	c.Assert(systemGenv.Load(), IsNil)
 	c.Check(systemGenv.Get("snapd_recovery_kernel"), Equals, "/snaps/pc-kernel_5.snap")
-	c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, expectedCmdline)
+	blopts := &bootloader.Options{
+		Role: bootloader.RoleRecovery,
+	}
+	bl, err := bootloader.Find(s.rootdir, blopts)
+	c.Assert(err, IsNil)
+	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
+	if ok {
+		defaultCmdLine, err := tbl.DefaultCommandLine()
+		c.Assert(err, IsNil)
+		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{defaultCmdLine, expectedCmdline}, " "))
+		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
+	} else {
+		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, expectedCmdline)
+		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, "")
+	}
 }
 
 func (s *makeBootable20Suite) TestMakeBootableImageOptionalKernelArgsHappy(c *C) {
