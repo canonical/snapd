@@ -41,6 +41,11 @@ func (e UnrecoverableError) Error() string {
 // RunAsUidGid starts a goroutine, pins it to the OS thread, sets euid and egid,
 // and runs the function; after the function returns, it restores euid and egid.
 //
+// Note that on the *kernel* level the user/group ID are per-thread
+// attributes. However POSIX require all thread to share the same
+// credentials. This is why this code uses RawSyscall() and not the
+// syscall.Setreuid() or similar helper.
+//
 // If restoring the original euid and egid fails this function will panic with
 // an UnrecoverableError, and you should _not_ try to recover from it: the
 // runtime itself is going to be in trouble.
