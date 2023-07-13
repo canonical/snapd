@@ -111,11 +111,7 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineAppend string) (map[string]string, error) {
 	extraOrFull, full, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath)
 	if err != nil {
-		if err != gadget.ErrNoKernelCommandline {
-			return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
-		}
-		extraOrFull = ""
-		full = false
+		return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
 	}
 	logger.Debugf("trusted command line: from gadget: %q, from options: %q",
 		extraOrFull, cmdlineAppend)
@@ -179,16 +175,14 @@ func composeCommandLine(currentOrCandidate int, mode, system, gadgetDirOrSnapPat
 	}
 	if gadgetDirOrSnapPath != "" {
 		extraOrFull, full, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath)
-		if err != nil && err != gadget.ErrNoKernelCommandline {
+		if err != nil {
 			return "", fmt.Errorf("cannot use kernel command line from gadget: %v", err)
 		}
-		if err == nil {
-			// gadget provides some part of the kernel command line
-			if full {
-				components.FullArgs = extraOrFull
-			} else {
-				components.ExtraArgs = extraOrFull
-			}
+		// gadget provides some part of the kernel command line
+		if full {
+			components.FullArgs = extraOrFull
+		} else {
+			components.ExtraArgs = extraOrFull
 		}
 	}
 	if currentOrCandidate == currentEdition {
