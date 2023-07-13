@@ -38,6 +38,31 @@ func (e UnrecoverableError) Error() string {
 	return fmt.Sprintf("%s: %v", e.Call, e.Err)
 }
 
+var mockedRestoreUidError error
+
+// MockRunAsUidGidRestoreUidError mocks an error from the calls that
+// restore the original euid/egid. Only ever use this in tests.
+func MockRunAsUidGidRestoreUidError(err error) (restore func()) {
+	oldMockedRestoreUidError := mockedRestoreUidError
+	mockedRestoreUidError = err
+	return func() {
+		mockedRestoreUidError = oldMockedRestoreUidError
+	}
+}
+
+func composeErr(prefix1 string, err1 error, prefix2 string, err2 error) error {
+	switch {
+	case err1 != nil && err2 != nil:
+		return fmt.Errorf("%v: %v and %v: %v", prefix1, err1, prefix2, err2)
+	case err1 != nil:
+		return fmt.Errorf("%v: %v", prefix1, err1)
+	case err2 != nil:
+		return fmt.Errorf("%v: %v", prefix2, err2)
+	default:
+		return nil
+	}
+}
+
 // RunAsUidGid starts a goroutine, pins it to the OS thread, sets euid and egid,
 // and runs the function; after the function returns, it restores euid and egid.
 //
@@ -58,7 +83,6 @@ func RunAsUidGid(uid UserID, gid GroupID, f func() error) error {
 		// that last bit means it's safe to setuid/setgid in here, as no
 		// other code will run.
 		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
 
 		ruid := Getuid()
 		rgid := Getgid()
@@ -69,27 +93,41 @@ func RunAsUidGid(uid UserID, gid GroupID, f func() error) error {
 			return
 		}
 
-		// make sure we restore GID again
-		defer func() {
-			if _, _, errno := syscall.RawSyscall(_SYS_SETREGID, FlagID, uintptr(rgid), 0); errno != 0 {
-				panic(UnrecoverableError{Call: "setregid", Err: errno})
-			}
-		}()
-
 		// change UID
 		if _, _, errno := syscall.RawSyscall(_SYS_SETREUID, FlagID, uintptr(uid), 0); errno != 0 {
 			ch <- fmt.Errorf("setreuid: %v", errno)
 			return
 		}
 
-		// make sure we restore UID again
-		defer func() {
-			if _, _, errno := syscall.RawSyscall(_SYS_SETREUID, FlagID, uintptr(ruid), 0); errno != 0 {
-				panic(UnrecoverableError{Call: "setreuid", Err: errno})
-			}
-		}()
+		funcErr := f()
 
-		ch <- f()
+		// only needed for integration testing
+		if mockedRestoreUidError != nil {
+			ch <- composeErr("cannot run func", funcErr, "mocked restore uid error", mockedRestoreUidError)
+			return
+		}
+
+		// make sure we restore GID again
+		if _, _, errno := syscall.RawSyscall(_SYS_SETREGID, FlagID, uintptr(rgid), 0); errno != 0 {
+			ch <- composeErr("cannot run func", funcErr, "cannot restore regid", errno)
+			return
+		}
+
+		// make sure we restore UID again
+		if _, _, errno := syscall.RawSyscall(_SYS_SETREUID, FlagID, uintptr(ruid), 0); errno != 0 {
+			ch <- composeErr("cannot run func", funcErr, "cannot restore regid", errno)
+			return
+		}
+
+		// *only* unlock if all restoring of the uid/gid
+		// worked correctly. The docs say:
+		//  If the caller made any permanent changes to the
+		//  state of the thread that would affect other
+		//  goroutines, it should not call this function and
+		//  thus leave the goroutine locked to the OS thread
+		//  until the goroutine (and hence the thread)
+		//  exits.
+		runtime.UnlockOSThread()
 	}()
 	return <-ch
 }
