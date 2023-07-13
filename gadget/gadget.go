@@ -1647,7 +1647,7 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model, encTyp
 	// find the volume with the system-boot role on it, we already validated
 	// that the system-* roles are all on the same volume
 	for name, vol := range info.Volumes {
-		lvol, err := LayoutVolume(vol, opts)
+		lvol, err := LayoutVolume(vol, nil, opts)
 		if err != nil {
 			return nil, nil, err
 		}

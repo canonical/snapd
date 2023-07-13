@@ -176,9 +176,8 @@ type ResolvedContent struct {
 	KernelUpdate bool
 }
 
-func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, err error) {
+func layoutVSFromGadget(volume *Volume) (structures []LaidOutStructure) {
 	structures = make([]LaidOutStructure, len(volume.Structure))
-
 	// Even although we do not have the final offset as that depends on the
 	// state of the installation disk and we do not know at this point, we
 	// need some value for StartOffset so we can perform some validations.
@@ -208,16 +207,52 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, err 
 		structures[idx] = ps
 	}
 
+	return structures
+}
+
+func layoutVSFromDiskData(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure) (sts []LaidOutStructure, err error) {
+	sts = make([]LaidOutStructure, len(volume.Structure))
+	for i := range volume.Structure {
+		gs := &volume.Structure[i]
+		ds, ok := gadgetToDiskStruct[gs.YamlIndex]
+		if !ok {
+			return nil, fmt.Errorf("internal error: partition %q not in disk map", gs.Name)
+		}
+		los := LaidOutStructure{
+			OnDiskStructure: *ds,
+			VolumeStructure: &volume.Structure[i],
+		}
+		sts[i] = los
+	}
+
+	return sts, nil
+}
+
+func layoutVolumeStructures(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure) (
+	structures []LaidOutStructure, err error) {
+
+	// XXX TEMPORARY - next changes will make sure we get always a valid
+	// gadgetToDiskStruct
+	if len(gadgetToDiskStruct) > 0 {
+		structures, err = layoutVSFromDiskData(volume, gadgetToDiskStruct)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		structures = layoutVSFromGadget(volume)
+	}
+
 	// Check:
 	// - No structure overlaps
 	// - offset-write meets the restrictions defined in the gadget
 	// TODO Reuse fully validateCrossVolumeStructure
 	previousEnd := quantity.Offset(0)
 	for idx, ps := range structures {
+		// XXX this check is probably not needed if using matched structures
 		if ps.StartOffset < previousEnd {
 			return nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
 		}
-		previousEnd = ps.StartOffset + quantity.Offset(ps.VolumeStructure.Size)
+		previousEnd = ps.StartOffset + quantity.Offset(ps.Size)
 
 		if err := validateOffsetWrite(ps.VolumeStructure, structures[0].VolumeStructure, volume.MinSize()); err != nil {
 			return nil, err
@@ -227,9 +262,9 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, err 
 	return structures, nil
 }
 
-// LayoutVolumePartially attempts to lay out only the structures in the volume.
-func LayoutVolumePartially(volume *Volume) (*PartiallyLaidOutVolume, error) {
-	structures, err := layoutVolumeStructures(volume)
+// layoutVolumePartially attempts to lay out only the structures in the volume.
+func layoutVolumePartially(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure) (*PartiallyLaidOutVolume, error) {
+	structures, err := layoutVolumeStructures(volume, gadgetToDiskStruct)
 	if err != nil {
 		return nil, err
 	}
@@ -256,8 +291,9 @@ func setOnDiskLabelAndTypeInLaidOuts(los []LaidOutStructure, encType secboot.Enc
 }
 
 // LayoutVolume attempts to completely lay out the volume, that is the
-// structures and their content, using provided options.
-func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
+// structures and their content, using provided map of gadget
+// structures to disk structures and options.
+func LayoutVolume(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure, opts *LayoutOptions) (*LaidOutVolume, error) {
 	var err error
 	if opts == nil {
 		opts = &LayoutOptions{}
@@ -279,7 +315,7 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		}
 	}
 
-	structures, err := layoutVolumeStructures(volume)
+	structures, err := layoutVolumeStructures(volume, gadgetToDiskStruct)
 	if err != nil {
 		return nil, err
 	}
