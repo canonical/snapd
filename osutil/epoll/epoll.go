@@ -13,7 +13,8 @@ package epoll
 import (
 	"runtime"
 	"strings"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 // Readiness is the bit mask of aspects of readiness to monitor with epoll.
@@ -41,10 +42,10 @@ func (r Readiness) String() string {
 // FromSys returns Readiness representation of Linux epoll events.
 func FromSys(ev int) Readiness {
 	var result Readiness
-	if ev&syscall.EPOLLIN != 0 {
+	if ev&unix.EPOLLIN != 0 {
 		result |= Readable
 	}
-	if ev&syscall.EPOLLOUT != 0 {
+	if ev&unix.EPOLLOUT != 0 {
 		result |= Writable
 	}
 	return result
@@ -55,10 +56,10 @@ func FromSys(ev int) Readiness {
 func (r Readiness) ToSys() int {
 	var result int
 	if r&Readable != 0 {
-		result |= syscall.EPOLLIN
+		result |= unix.EPOLLIN
 	}
 	if r&Writable != 0 {
-		result |= syscall.EPOLLOUT
+		result |= unix.EPOLLOUT
 	}
 	return result
 }
@@ -70,7 +71,7 @@ type Epoll struct {
 
 // Open opens an event monitoring descriptor.
 func Open() (*Epoll, error) {
-	fd, err := syscall.EpollCreate1(syscall.EPOLL_CLOEXEC)
+	fd, err := unix.EpollCreate1(unix.EPOLL_CLOEXEC)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +89,7 @@ func (e *Epoll) Close() error {
 	runtime.SetFinalizer(e, nil)
 	fd := e.fd
 	e.fd = -1
-	return syscall.Close(fd)
+	return unix.Close(fd)
 }
 
 // Fd returns the integer unix file descriptor referencing the open file.
@@ -100,9 +101,9 @@ func (e *Epoll) Fd() int {
 //
 // Please refer to epoll_ctl(2) and EPOLL_CTL_ADD for details.
 func (e *Epoll) Register(fd int, mask Readiness) error {
-	err := syscall.EpollCtl(e.fd, syscall.EPOLL_CTL_ADD, fd, &syscall.EpollEvent{
-		Fd:     int32(fd),
+	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_ADD, fd, &unix.EpollEvent{
 		Events: uint32(mask.ToSys()),
+		Fd:     int32(fd),
 	})
 	runtime.KeepAlive(e)
 	return err
@@ -112,7 +113,7 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 //
 // Please refer to epoll_ctl(2) and EPOLL_CTL_DEL for details.
 func (e *Epoll) Deregister(fd int) error {
-	err := syscall.EpollCtl(e.fd, syscall.EPOLL_CTL_DEL, fd, &syscall.EpollEvent{})
+	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{})
 	runtime.KeepAlive(e)
 	return err
 }
@@ -121,9 +122,9 @@ func (e *Epoll) Deregister(fd int) error {
 //
 // Please refer to epoll_ctl(2) and EPOLL_CTL_MOD for details.
 func (e *Epoll) Modify(fd int, mask Readiness) error {
-	err := syscall.EpollCtl(e.fd, syscall.EPOLL_CTL_MOD, fd, &syscall.EpollEvent{
-		Fd:     int32(fd),
+	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{
 		Events: uint32(mask.ToSys()),
+		Fd:     int32(fd),
 	})
 	runtime.KeepAlive(e)
 	return err
@@ -140,9 +141,9 @@ type Event struct {
 // Warning, using epoll from Golang explicitly is tricky.
 func (e *Epoll) Wait() ([]Event, error) {
 	// TODO: tie the event buffer to Epoll instance.
-	sysEvents := make([]syscall.EpollEvent, 10)
+	sysEvents := make([]unix.EpollEvent, 10)
 	// TODO: make timeout configurable
-	n, err := syscall.EpollWait(e.fd, sysEvents, -1)
+	n, err := unix.EpollWait(e.fd, sysEvents, -1)
 	runtime.KeepAlive(e)
 	if err != nil {
 		return nil, err

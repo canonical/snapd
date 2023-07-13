@@ -5,10 +5,11 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
-	"syscall"
 	"testing"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/osutil/epoll"
 
@@ -22,13 +23,13 @@ type epollSuite struct{}
 var _ = Suite(&epollSuite{})
 
 func (*epollSuite) TestFlagMapping(c *C) {
-	c.Check(epoll.Readable.ToSys(), Equals, syscall.EPOLLIN)
-	c.Check(epoll.Writable.ToSys(), Equals, syscall.EPOLLOUT)
-	c.Check((epoll.Readable | epoll.Writable).ToSys(), Equals, syscall.EPOLLIN|syscall.EPOLLOUT)
+	c.Check(epoll.Readable.ToSys(), Equals, unix.EPOLLIN)
+	c.Check(epoll.Writable.ToSys(), Equals, unix.EPOLLOUT)
+	c.Check((epoll.Readable | epoll.Writable).ToSys(), Equals, unix.EPOLLIN|unix.EPOLLOUT)
 
-	c.Check(epoll.FromSys(syscall.EPOLLIN), Equals, epoll.Readable)
-	c.Check(epoll.FromSys(syscall.EPOLLOUT), Equals, epoll.Writable)
-	c.Check(epoll.FromSys(syscall.EPOLLIN|syscall.EPOLLOUT), Equals, epoll.Readable|epoll.Writable)
+	c.Check(epoll.FromSys(unix.EPOLLIN), Equals, epoll.Readable)
+	c.Check(epoll.FromSys(unix.EPOLLOUT), Equals, epoll.Writable)
+	c.Check(epoll.FromSys(unix.EPOLLIN|unix.EPOLLOUT), Equals, epoll.Readable|epoll.Writable)
 }
 
 func (*epollSuite) TestString(c *C) {
@@ -81,7 +82,7 @@ func prepareFdForEpollRegister(fd int) error {
 
 	data := buf.Bytes()
 
-	_, _, errno := syscall.Syscall(uintptr(syscall.SYS_IOCTL), uintptr(fd), uintptr(ioctlSetFilter), uintptr(unsafe.Pointer(&data[0])))
+	_, _, errno := unix.Syscall(uintptr(unix.SYS_IOCTL), uintptr(fd), uintptr(ioctlSetFilter), uintptr(unsafe.Pointer(&data[0])))
 	if errno != 0 {
 		return ErrIoctl
 	}
