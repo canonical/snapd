@@ -34,18 +34,8 @@ type kernelArgsSet map[kargKey]bool
 // wild card ('*') can be used in the allow list for the
 // values. Additionally, a string with the arguments that have been
 // filtered out is also returned.
-func FilterKernelCmdline(cmdline string, allowedSl []osutil.KernelArgument) (argsAllowed, argsDenied string) {
-	// Set of allowed arguments
-	allowed := kernelArgsSet{}
-	wildcards := map[string]bool{}
-	for _, p := range allowedSl {
-		if p.Value == "*" && !p.Quoted {
-			// Currently only allowed globbing
-			wildcards[p.Param] = true
-		} else {
-			allowed[kargKey{par: p.Param, val: p.Value}] = true
-		}
-	}
+func FilterKernelCmdline(cmdline string, allowedSl []osutil.KernelArgumentPattern) (argsAllowed, argsDenied string) {
+	matcher := osutil.NewKernelArgumentMatcher(allowedSl)
 
 	proposed := osutil.ParseKernelCommandline(cmdline)
 
@@ -60,10 +50,11 @@ func FilterKernelCmdline(cmdline string, allowedSl []osutil.KernelArgument) (arg
 			return fmt.Sprintf("%s=%s", arg.Param, val)
 		}
 	}
+
 	in := []string{}
 	out := []string{}
 	for _, p := range proposed {
-		if allowed[kargKey{par: p.Param, val: p.Value}] || wildcards[p.Param] {
+		if matcher.Match(p) {
 			in = append(in, buildArg(p))
 		} else {
 			out = append(out, buildArg(p))

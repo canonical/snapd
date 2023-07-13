@@ -4232,11 +4232,12 @@ kernel-cmdline:
 			c.Assert(err, ErrorMatches, t.err)
 			c.Assert(gi, IsNil)
 		} else {
-			allowed := []osutil.KernelArgument{}
+			allowed := []osutil.KernelArgumentPattern{}
 			for _, arg := range t.allowList {
 				parsed := osutil.ParseKernelCommandline(arg)
 				c.Assert(len(parsed), Equals, 1)
-				allowed = append(allowed, parsed[0])
+				pattern := osutil.NewConstantKernelArgumentPattern(parsed[0].Param, parsed[0].Value)
+				allowed = append(allowed, pattern)
 			}
 
 			c.Assert(gi.KernelCmdline.Allow, DeepEquals, allowed)
