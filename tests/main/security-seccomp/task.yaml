@@ -25,7 +25,7 @@ details: |
 
 environment:
     SRC: /var/lib/snapd/seccomp/bpf/snap.test-snapd-setpriority.test-snapd-setpriority.src
-    BIN: /var/lib/snapd/seccomp/bpf/snap.test-snapd-setpriority.test-snapd-setpriority.bin
+    BIN: /var/lib/snapd/seccomp/bpf/snap.test-snapd-setpriority.test-snapd-setpriority
     AAP: /var/lib/snapd/apparmor/profiles/snap.test-snapd-setpriority.test-snapd-setpriority
 
 prepare: |
