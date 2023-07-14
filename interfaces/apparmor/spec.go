@@ -172,8 +172,8 @@ func (spec *Specification) AddDeduplicatedSnippet(snippet string) {
 // This function should be used whenever the apparmor template features more
 // than one use of "**" syntax (which represent arbitrary many directories or
 // files) and a variable component, like a device name or similar. Repeated
-// instances of this pattern require exponential memory when compiled with
-// apparmor_parser -O no-expr-simplify.
+// instances of this pattern slow down the apparmor parser in the default
+// "expr-simplify" mode (see PR#12943 for measurements).
 func (spec *Specification) AddParametricSnippet(templateFragment []string, value string) {
 	if len(spec.securityTags) == 0 {
 		return
