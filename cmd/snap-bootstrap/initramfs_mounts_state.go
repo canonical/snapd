@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -171,5 +172,73 @@ func (mst *initramfsMountsState) GetVerityOptionsForSeedSnap(snap *seed.Snap, mo
 	mountOptions.VerityRootHash = snap.IntegrityData.Header.DmVerity.RootHash
 	mountOptions.VerityHashOffset = snap.IntegrityData.Offset
 
+	return nil
+}
+
+func getSnapRevision(assertionDB *asserts.Database, snapInfo snap.PlaceInfo) (*asserts.SnapRevision, error) {
+	// Find snap-id from snap declaration
+	as, err := assertionDB.FindMany(asserts.SnapDeclarationType, map[string]string{
+		"snap-name": snapInfo.SnapName(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(as) > 1 {
+		/// XXX: shouldn't be reachable
+		return nil, fmt.Errorf("internal error: multiple snap-declaration assertions found for snap: %s", snapInfo.SnapName())
+	}
+
+	snapDecl, ok := as[0].(*asserts.SnapDeclaration)
+	if !ok {
+		return nil, fmt.Errorf("internal error: type assertion failed for snap declaration")
+	}
+
+	snapID := snapDecl.SnapID()
+	snapRevNum := snapInfo.SnapRevision().String()
+
+	// Searching the database with a snap-id and snap-revision.
+	as, err = assertionDB.FindMany(asserts.SnapRevisionType, map[string]string{
+		"snap-id":       snapID,
+		"snap-revision": snapRevNum,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(as) > 1 {
+		/// XXX: shouldn't be reachable
+		return nil, fmt.Errorf("internal error: multiple snap-revision assertions found for snap-id: %s and snap-revision: %s", snapID, snapRevNum)
+	}
+
+	snapRev, ok := as[0].(*asserts.SnapRevision)
+	if !ok {
+		return nil, fmt.Errorf("internal error: type assertion failed for snap revision")
+	}
+
+	return snapRev, nil
+}
+
+// GetVerityOptionsForSnap returns additional dm-verity options for a snap.
+func (mst *initramfsMountsState) GetVerityOptionsForSnap(db *asserts.Database, sn snap.PlaceInfo, snapPath string, mountOptions *systemdMountOptions) error {
+	snapRev, err := getSnapRevision(db, sn)
+	if err != nil {
+		return err
+	}
+
+	integrityData, err := integrity.FindIntegrityData(snapPath)
+	if err != nil {
+		// TODO: return error if integrity data should be required and not found for a snap
+		return nil
+	}
+
+	if err := integrityData.Validate(*snapRev); err != nil {
+		// TODO: return error if integrity data should be required and not found in snap revision or not valid
+		return nil
+	}
+
+	mountOptions.VerityHashDevice = integrityData.SourceFilePath
+	mountOptions.VerityRootHash = integrityData.Header.DmVerity.RootHash
+	mountOptions.VerityHashOffset = integrityData.Offset
 	return nil
 }

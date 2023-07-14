@@ -2064,6 +2064,15 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
+	var db *asserts.Database
+	// TODO: support snaps with verity data for classic models
+	if !isClassic {
+		db, err = initAssertionDB(dirs.SnapAssertsDBDirUnder(rootfsDir))
+		if err != nil {
+			return err
+		}
+	}
+
 	// TODO:UC20: with grade > dangerous, verify the kernel snap hash against
 	//            what we booted using the tpm log, this may need to be passed
 	//            to the function above to make decisions there, or perhaps this
@@ -2074,7 +2083,17 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]
 			snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), sn.Filename())
-			if err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
+
+			mountOptions := *mountReadOnlyOptions
+
+			if !isClassic {
+				err = mst.GetVerityOptionsForSnap(db, sn, snapPath, &mountOptions)
+				if err != nil {
+					return err
+				}
+			}
+
+			if err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), &mountOptions); err != nil {
 				return err
 			}
 		}
@@ -2108,7 +2127,13 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 		}
 		essSnaps := theSeed.EssentialSnaps()
-		if err := doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), mountReadOnlyOptions); err != nil {
+
+		mountOptions := *mountReadOnlyOptions
+		err = mst.GetVerityOptionsForSeedSnap(essSnaps[0], &mountOptions)
+		if err != nil {
+			return err
+		}
+		if err := doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), &mountOptions); err != nil {
 			return fmt.Errorf("cannot mount snapd snap: %v", err)
 		}
 	}
@@ -2156,4 +2181,24 @@ func finalizeTryRecoverySystemAndReboot(model gadget.Model, outcome boot.TryReco
 		return fmt.Errorf("cannot mark recovery system successful: %v", err)
 	}
 	return nil
+}
+
+// InitAssertionDB loads an FS-backed assertion db.
+func initAssertionDB(assertsDir string) (*asserts.Database, error) {
+
+	bs, err := asserts.OpenFSBackstore(assertsDir)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := &asserts.DatabaseConfig{
+		Backstore: bs,
+	}
+
+	db, err := asserts.OpenDatabase(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return db, nil
 }
