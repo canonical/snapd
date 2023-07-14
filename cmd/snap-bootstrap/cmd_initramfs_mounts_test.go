@@ -529,6 +529,48 @@ func (s *baseInitramfsMountsSuite) makeSnapFilesOnEarlyBootUbuntuData(c *C, snap
 	}
 }
 
+func (s *baseInitramfsMountsSuite) makeAssertedSnapFilesOnEarlyBootUbuntuData(c *C, modelAssertTime time.Time, snaps ...snap.PlaceInfo) {
+	ss := &seedtest.SeedSnaps{}
+
+	dataDir := filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")
+
+	assertsDir := dirs.SnapAssertsDBDirUnder(dataDir)
+	ss.StoreSigning = assertstest.NewFSStoreStack("canonical", nil, assertsDir)
+
+	snapDir := dirs.SnapBlobDirUnder(dataDir)
+	if s.isClassic {
+		snapDir = dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"))
+	}
+	err := os.MkdirAll(snapDir, 0755)
+	c.Assert(err, IsNil)
+
+	integrityDataHeaderBytes := make([]byte, 0)
+	if s.hasVerity {
+		// create a mock integrity data header for the test snaps created by setupSeedWithIntegrity
+		integrityDataHeaderBytes = snaptest.MockIntegrityDataHeaderBytes(c, zeroRootHash)
+	}
+
+	for _, sn := range snaps {
+		snapName := sn.SnapName()
+		snapRevision := sn.SnapRevision()
+		snapVersion := snapRevision.String()
+
+		// Setting the appropriate snap type for each snap doesn't really matter here.
+		// For the context of this file's tests, we mainly want to verify that the snaps are
+		// mounted with the correct mount options under different scenarios.
+		snapType := "kernel"
+
+		ss.MakeAssertedSnapWithFilesAndIntegrityDataHeaderBytes(c, "name: "+snapName+"\nversion: "+snapVersion+"\ntype: "+snapType, nil, integrityDataHeaderBytes, snapRevision, "canonical", ss.StoreSigning.Database)
+		snapPath := ss.AssertedSnap(snapName)
+		snapFile := sn.Filename()
+		input, err := ioutil.ReadFile(snapPath)
+		c.Assert(err, IsNil)
+
+		err = ioutil.WriteFile(filepath.Join(snapDir, snapFile), input, 0644)
+		c.Assert(err, IsNil)
+	}
+}
+
 func (s *baseInitramfsMountsSuite) mockProcCmdlineContent(c *C, newContent string) {
 	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
 	err := ioutil.WriteFile(mockProcCmdline, []byte(newContent), 0644)
@@ -684,7 +726,15 @@ func (s *baseInitramfsMountsSuite) makeRunSnapSystemdMount(typ snap.Type, sn sna
 	}
 	mnt.what = filepath.Join(dirs.SnapBlobDirUnder(snapDir), sn.Filename())
 	mnt.where = filepath.Join(boot.InitramfsRunMntDir, dir)
-	mnt.opts = snapMountOpts
+
+	opts := *snapMountOpts
+	if s.hasVerity && !s.isClassic {
+		opts.VerityHashDevice = mnt.what
+		opts.VerityRootHash = zeroRootHash
+		opts.VerityHashOffset = 4096
+	}
+
+	mnt.opts = &opts
 
 	return mnt
 }
@@ -868,7 +918,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
 		restore = bloader.SetEnabledKernel(s.kernel)
 		defer restore()
 
-		s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+		// always remove the system-data dir to clear out the FS assertion DB
+		err := os.RemoveAll(dirs.SnapAssertsDBDirUnder(filepath.Join(dirs.GlobalRootDir, "run/mnt/data/system-data")))
+		c.Assert(err, IsNil)
+		s.makeAssertedSnapFilesOnEarlyBootUbuntuData(c, time.Time{}, s.kernel, s.core20, s.gadget)
 
 		// write modeenv with boot flags
 		modeEnv := boot.Modeenv{
@@ -878,7 +931,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
 			CurrentKernels: []string{s.kernel.Filename()},
 			BootFlags:      t.bootFlags,
 		}
-		err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+		err = modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 		c.Assert(err, IsNil)
 
 		_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -1087,7 +1140,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHapp
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+	s.makeAssertedSnapFilesOnEarlyBootUbuntuData(c, time.Time{}, s.kernel, s.core20, s.gadget)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -1135,7 +1188,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMount(c *C
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+	s.makeAssertedSnapFilesOnEarlyBootUbuntuData(c, time.Time{}, s.kernel, s.core20, s.gadget)
 
 	// write modeenv, with no gadget field so the gadget is not mounted
 	modeEnv := boot.Modeenv{
@@ -1217,7 +1270,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 			restore = bloader.SetEnabledKernel(s.kernel)
 			cleanups = append(cleanups, restore)
 
-			s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+			// always remove the system-data dir to clear out the FS assertion DB
+			err = os.RemoveAll(dirs.SnapAssertsDBDirUnder(filepath.Join(dirs.GlobalRootDir, "run/mnt/data/system-data")))
+			c.Assert(err, IsNil, comment)
+			s.makeAssertedSnapFilesOnEarlyBootUbuntuData(c, tc.modelTime, s.kernel, s.core20, s.gadget)
 
 			// write modeenv
 			modeEnv := boot.Modeenv{
@@ -1286,7 +1342,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeNoSaveUnencrypted(c *C)
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+	s.makeAssertedSnapFilesOnEarlyBootUbuntuData(c, time.Time{}, s.kernel, s.core20, s.gadget)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -1489,19 +1545,19 @@ Wants=%[1]s
 		s.gadget.Filename(),
 	}
 
-	for _, snapName := range essSnaps {
+	for _, snapFile := range essSnaps {
 		opts := "--options=ro,private"
 
 		if s.hasVerity {
 			opts += ",verity.roothash=" + zeroRootHash +
-				",verity.hashdevice=" + filepath.Join(s.seedDir, "snaps", snapName) +
+				",verity.hashdevice=" + filepath.Join(s.seedDir, "snaps", snapFile) +
 				",verity.hashoffset=4096"
 		}
 
 		mntStr := []string{
 			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", snapName),
-			mntPaths[snapName],
+			filepath.Join(s.seedDir, "snaps", snapFile),
+			mntPaths[snapFile],
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
@@ -1673,19 +1729,19 @@ Wants=%[1]s
 		s.gadget.Filename(),
 	}
 
-	for _, snapName := range essSnaps {
+	for _, snapFile := range essSnaps {
 		opts := "--options=ro,private"
 
 		if s.hasVerity {
 			opts += ",verity.roothash=" + zeroRootHash +
-				",verity.hashdevice=" + filepath.Join(s.seedDir, "snaps", snapName) +
+				",verity.hashdevice=" + filepath.Join(s.seedDir, "snaps", snapFile) +
 				",verity.hashoffset=4096"
 		}
 
 		mntStr := []string{
 			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", snapName),
-			mntPaths[snapName],
+			filepath.Join(s.seedDir, "snaps", snapFile),
+			mntPaths[snapFile],
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
@@ -1846,19 +1902,19 @@ Wants=%[1]s
 		s.gadget.Filename(),
 	}
 
-	for _, snapName := range essSnaps {
+	for _, snapFile := range essSnaps {
 		opts := "--options=ro,private"
 
 		if s.hasVerity {
 			opts += ",verity.roothash=" + zeroRootHash +
-				",verity.hashdevice=" + filepath.Join(s.seedDir, "snaps", snapName) +
+				",verity.hashdevice=" + filepath.Join(s.seedDir, "snaps", snapFile) +
 				",verity.hashoffset=4096"
 		}
 
 		mntStr := []string{
 			"systemd-mount",
-			filepath.Join(s.seedDir, "snaps", snapName),
-			mntPaths[snapName],
+			filepath.Join(s.seedDir, "snaps", snapFile),
+			mntPaths[snapFile],
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
@@ -1977,7 +2033,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+	s.makeAssertedSnapFilesOnEarlyBootUbuntuData(c, time.Time{}, s.kernel, s.core20, s.gadget)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -2017,7 +2073,7 @@ Wants=%[1]s
 	// 2 IsMounted calls per mount point, so 10 total IsMounted calls
 	c.Assert(n, Equals, 12)
 
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+	mounts := [][]string{
 		{
 			"systemd-mount",
 			filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-boot"),
@@ -2045,35 +2101,44 @@ Wants=%[1]s
 			"--fsck=yes",
 			"--options=nosuid,private",
 			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.core20.Filename()),
-			baseMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.gadget.Filename()),
-			gadgetMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.kernel.Filename()),
-			kernelMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
 		},
-	})
+	}
+
+	mntPaths := map[string]string{}
+	mntPaths[s.core20.Filename()] = baseMnt
+	mntPaths[s.gadget.Filename()] = gadgetMnt
+	mntPaths[s.kernel.Filename()] = kernelMnt
+
+	essSnaps := []string{
+		s.core20.Filename(),
+		s.gadget.Filename(),
+		s.kernel.Filename(),
+	}
+
+	for _, snapFile := range essSnaps {
+		opts := "--options=ro,private"
+
+		if s.hasVerity {
+			opts += ",verity.roothash=" + zeroRootHash +
+				",verity.hashdevice=" + filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), snapFile) +
+				",verity.hashoffset=4096"
+		}
+
+		mntStr := []string{
+			"systemd-mount",
+			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), snapFile),
+			mntPaths[snapFile],
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			opts,
+			"--property=Before=initrd-fs.target",
+		}
+
+		mounts = append(mounts, mntStr)
+	}
+
+	c.Assert(cmd.Calls(), DeepEquals, mounts)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystemdMount(c *C) {
@@ -2113,7 +2178,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystem
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+	s.makeAssertedSnapFilesOnEarlyBootUbuntuData(c, time.Time{}, s.kernel, s.core20, s.gadget)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -2152,7 +2217,8 @@ Wants=%[1]s
 		gadgetMnt,
 		kernelMnt,
 	})
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
+
+	mounts := [][]string{
 		{
 			"systemd-mount",
 			filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-boot"),
@@ -2189,35 +2255,45 @@ Wants=%[1]s
 			"--fsck=yes",
 			"--options=private",
 			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.core20.Filename()),
-			baseMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.gadget.Filename()),
-			gadgetMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
-		}, {
-			"systemd-mount",
-			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.kernel.Filename()),
-			kernelMnt,
-			"--no-pager",
-			"--no-ask-password",
-			"--fsck=no",
-			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
 		},
-	})
+	}
+
+	mntPaths := map[string]string{}
+	mntPaths[s.core20.Filename()] = baseMnt
+	mntPaths[s.gadget.Filename()] = gadgetMnt
+	mntPaths[s.kernel.Filename()] = kernelMnt
+
+	essSnaps := []string{
+		s.core20.Filename(),
+		s.gadget.Filename(),
+		s.kernel.Filename(),
+	}
+
+	for _, snapFile := range essSnaps {
+		opts := "--options=ro,private"
+
+		if s.hasVerity {
+			opts += ",verity.roothash=" + zeroRootHash +
+				",verity.hashdevice=" + filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), snapFile) +
+				",verity.hashoffset=4096"
+		}
+
+		mntStr := []string{
+			"systemd-mount",
+			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), snapFile),
+			mntPaths[snapFile],
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			opts,
+			"--property=Before=initrd-fs.target",
+		}
+
+		mounts = append(mounts, mntStr)
+
+	}
+
+	c.Check(cmd.Calls(), DeepEquals, mounts)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystemSetHappy(c *C) {
@@ -2254,7 +2330,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+	s.makeAssertedSnapFilesOnEarlyBootUbuntuData(c, time.Time{}, s.kernel, s.core20, s.gadget)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -2312,7 +2388,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+	s.makeAssertedSnapFilesOnEarlyBootUbuntuData(c, time.Time{}, s.kernel, s.core20, s.gadget)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -2435,7 +2511,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+	s.makeAssertedSnapFilesOnEarlyBootUbuntuData(c, time.Time{}, s.kernel, s.core20, s.gadget)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -3147,7 +3223,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 
 		// make the snap files - no restore needed because we use a unique root
 		// dir for each test case
-		s.makeSnapFilesOnEarlyBootUbuntuData(c, t.snapFiles...)
+		s.makeAssertedSnapFilesOnEarlyBootUbuntuData(c, time.Time{}, t.snapFiles...)
 
 		if t.expRebootPanic != "" {
 			f := func() { main.Parser().ParseArgs([]string{"initramfs-mounts"}) }
@@ -3215,7 +3291,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeUpdateBootloaderVars(
 	restore = bloader.SetEnabledTryKernel(s.kernelr2)
 	defer restore()
 
-	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.core20, s.gadget, s.kernel, s.kernelr2)
+	s.makeAssertedSnapFilesOnEarlyBootUbuntuData(c, time.Time{}, s.core20, s.gadget, s.kernel, s.kernelr2)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -3238,6 +3314,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpdateBootloaderVars(c 
 	s.testInitramfsMountsRunModeUpdateBootloaderVars(c,
 		"snapd_recovery_mode=run kernel_status=trying",
 		&s.kernelr2, boot.TryingStatus)
+
+	// remove the system-data dir to clear out the FS assertion DB before the next run
+	err := os.RemoveAll(dirs.SnapAssertsDBDirUnder(filepath.Join(dirs.GlobalRootDir, "run/mnt/data/system-data")))
+	c.Assert(err, IsNil)
+
 	s.testInitramfsMountsRunModeUpdateBootloaderVars(c,
 		"snapd_recovery_mode=run",
 		&s.kernel, boot.DefaultStatus)
@@ -8320,44 +8401,4 @@ var _ = Suite(&initramfsVerityMountsSuite{})
 func (s *initramfsVerityMountsSuite) SetUpTest(c *C) {
 	s.hasVerity = true
 	s.initramfsMountsSuite.SetUpTest(c)
-}
-
-func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHappy(c *C) {
-	// TODO: implement run mode verity
-}
-func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUIDHappy(c *C) {
-	// TODO: implement run mode verity
-}
-func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) {
-	// TODO: implement run mode verity
-}
-func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeUpdateBootloaderVars(c *C) {
-	// TODO: implement run mode verity
-}
-func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c *C) {
-	// TODO: implement run mode verity
-}
-func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedKeyLockingUnhappy(c *C) {
-	// TODO: implement run mode verity
-}
-func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedHappy(c *C) {
-	// TODO: implement run mode verity
-}
-func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdMount(c *C) {
-	// TODO: implement run mode verity
-}
-func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMount(c *C) {
-	// TODO: implement run mode verity
-}
-func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystemSetHappy(c *C) {
-	// TODO: implement run mode verity
-}
-func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C) {
-	// TODO: implement run mode verity
-}
-func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
-	// TODO: implement run mode verity
-}
-func (s *initramfsVerityMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystemdMount(c *C) {
-	// TODO: implement run mode verity
 }
