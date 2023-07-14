@@ -155,6 +155,9 @@ execute: |
       if ! os.query is-trusty && ! os.query is-xenial; then
         systemctl status snapd.apparmor.service
       fi
+      if os.query is-ubuntu; then
+        systemctl status apparmor.service
+      fi
       cat /var/lib/snapd/system-key
       echo "Rebooted successfully"
 
@@ -235,9 +238,24 @@ execute: |
     echo "Ensure we restarted into the snapd snap"
     "$TESTSTOOLS"/journal-state match-log  'restarting into "/snap/snapd/'
 
+    # see LP:2024637
+    if grep -q /var/lib/snapd/apparmor/ /lib/apparmor/functions; then
+       echo "SKIP: cannot test builtin apparmor parser until /lib/apparmor/functions stops loading the snapd profiles"
+       exit 0
+    fi
+
     echo "Ensure sandbox-features shows the internal apparmor_parser"
     snap debug sandbox-features --required apparmor:parser:snapd-internal
 
+    echo "Ensure snap-confine apparmor profile points to snap-confine.internal"
+    for profile in /var/lib/snapd/apparmor/profiles/snap-confine.*; do
+        MATCH '#include "/var/lib/snapd/apparmor/snap-confine.internal"' < "$profile"
+    done
+
+    echo "Ensure we support posix mqueue and userns in the internal apparmor_parser"
+    snap debug sandbox-features --required apparmor:parser:mqueue
+    snap debug sandbox-features --required apparmor:parser:userns
+    
     echo "Then we should be able to compile policy using the internal apparmor_parser"
     /snap/snapd/current/usr/lib/snapd/apparmor_parser \
       --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf \

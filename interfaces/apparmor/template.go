@@ -1074,6 +1074,10 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # snapd logger.go checks /proc/cmdline
   @{PROC}/cmdline r,
 
+  # snap checks if vendored apparmor parser should be used at startup
+  /usr/lib/snapd/info r,
+  /lib/apparmor/functions r,
+
 ###SNIPPETS###
 }
 `

@@ -26,6 +26,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord"
@@ -312,3 +313,19 @@ var (
 
 	MaxReadBuflen = maxReadBuflen
 )
+
+func MockAspectstateGet(f func(databag aspects.DataBag, account, bundleName, aspect, field string, value interface{}) error) (restore func()) {
+	old := aspectstateGetAspect
+	aspectstateGetAspect = f
+	return func() {
+		aspectstateGetAspect = old
+	}
+}
+
+func MockAspectstateSet(f func(databag aspects.DataBag, account, bundleName, aspect, field string, val interface{}) error) (restore func()) {
+	old := aspectstateSetAspect
+	aspectstateSetAspect = f
+	return func() {
+		aspectstateSetAspect = old
+	}
+}

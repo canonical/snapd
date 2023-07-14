@@ -341,7 +341,7 @@ func (s *MountControlInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	expectedMountLine3 := `mount fstype=(` +
 		`aufs,autofs,btrfs,ext2,ext3,ext4,hfs,iso9660,jfs,msdos,ntfs,ramfs,` +
-		`reiserfs,squashfs,tmpfs,ubifs,udf,ufs,vfat,zfs,xfs` +
+		`reiserfs,squashfs,tmpfs,ubifs,udf,ufs,vfat,xfs,zfs` +
 		`) options=(ro) "/dev/sda{0,1}" -> "/var/snap/consumer/common/**{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine3)
 	expectedUmountLine3 := `umount "/var/snap/consumer/common/**{,/}",`
@@ -355,7 +355,7 @@ func (s *MountControlInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	expectedMountLine5 := `mount fstype=(` +
 		`aufs,autofs,btrfs,ext2,ext3,ext4,hfs,iso9660,jfs,msdos,ntfs,ramfs,` +
-		`reiserfs,squashfs,tmpfs,ubifs,udf,ufs,vfat,zfs,xfs` +
+		`reiserfs,squashfs,tmpfs,ubifs,udf,ufs,vfat,xfs,zfs` +
 		`) options=(rw) "/dev/sd[abc]" -> "/media/someuser/**{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine5)
 	expectedUmountLine5 := `umount "/media/someuser/**{,/}",`
@@ -398,6 +398,20 @@ func (s *MountControlInterfaceSuite) TestFunctionfsValidates(c *C) {
     where: /dev/ffs-diag
     type: [functionfs]
     options: [rw, uid=2000, gid=2000, rmode=0550, fmode=0660, no_disconnect=1]
+`
+	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
+	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
+	err := interfaces.BeforeConnectPlug(s.iface, plug)
+	c.Check(err, IsNil)
+}
+
+func (s *MountControlInterfaceSuite) TestMountDevicePathWithCommas(c *C) {
+	plugYaml := `
+  mount:
+  - persistent: true
+    what: /dev/dma_heap/qcom,qseecom
+    where: /mnt/foo,bar
+    options: [rw]
 `
 	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
 	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")

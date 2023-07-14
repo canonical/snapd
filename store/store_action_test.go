@@ -817,7 +817,7 @@ func (s *storeActionSuite) TestSnapActionAutoRefresh(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 		},
-	}, nil, nil, &store.RefreshOptions{IsAutoRefresh: true})
+	}, nil, nil, &store.RefreshOptions{Scheduled: true})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 }

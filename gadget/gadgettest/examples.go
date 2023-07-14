@@ -855,6 +855,7 @@ volumes:
         content:
           - image: pc-boot.img
       - name: BIOS Boot
+        role: system-seed-null
         type: DA,21686148-6449-6E6F-744E-656564454649
         size: 1M
         offset: 1M
@@ -897,6 +898,75 @@ volumes:
       - name: ubuntu-data
         role: system-data
         filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 4G
+`
+
+const SingleVolumeClassicWithModesPartialGadgetYaml = `
+volumes:
+  pc:
+    partial: [schema, structure, filesystem, size]
+    bootloader: grub
+    structure:
+      - name: ubuntu-seed
+        role: system-seed-null
+        filesystem: vfat
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        offset: 2M
+        size: 1200M
+      - name: ubuntu-boot
+        role: system-boot
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: ubuntu-save
+        role: system-save
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: ubuntu-data
+        role: system-data
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+
+const SingleVolumeClassicWithModesFilledPartialGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    partial: [structure]
+    schema: gpt
+    structure:
+      - name: ubuntu-seed
+        role: system-seed-null
+        filesystem: vfat
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        offset: 2M
+        size: 99M
+        update:
+          edition: 2
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        offset: 1202M
+        size: 750M
+        update:
+          edition: 1
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+      - name: ubuntu-save
+        filesystem: ext4
+        role: system-save
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        filesystem: ext4
+        role: system-data
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         size: 4G
 `

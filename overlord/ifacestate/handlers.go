@@ -1300,7 +1300,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	// snaps with not ready link-snap|setup-profiles tasks
 	defaultProviders := snap.DefaultContentProviders(m.repo.Plugs(snapName))
 	for _, chg := range st.Changes() {
-		if chg.Status().Ready() {
+		if chg.IsReady() {
 			continue
 		}
 		for _, t := range chg.Tasks() {
@@ -1912,7 +1912,7 @@ func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) erro
 	}
 
 	for _, otherChg := range st.Changes() {
-		if otherChg.Status().Ready() || otherChg.ID() == chg.ID() {
+		if otherChg.IsReady() || otherChg.ID() == chg.ID() {
 			continue
 		}
 

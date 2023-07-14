@@ -943,7 +943,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(client.SystemDetails)
 
-	c.Assert(sys, check.DeepEquals, client.SystemDetails{
+	sd := client.SystemDetails{
 		Label: "20191119",
 		Model: s.seedModelForLabel20191119.Headers(),
 		Actions: []client.SystemAction{
@@ -1061,7 +1061,9 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 				},
 			},
 		},
-	})
+	}
+	gadget.SetEnclosingVolumeInStructs(sd.Volumes)
+	c.Assert(sys, check.DeepEquals, sd)
 }
 
 func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevicestate(c *check.C) {

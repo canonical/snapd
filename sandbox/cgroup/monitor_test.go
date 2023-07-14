@@ -252,7 +252,7 @@ func (s *monitorSuite) TestMonitorSnapEndedIntegration(c *C) {
 	s.AddCleanup(restore)
 
 	// make mock cgroups.procs file
-	mockProcsFile := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/snap.firefox.firefox.fa61f25b-92e1-4316-8acb-2b95af841855.scope/cgroup.procs")
+	mockProcsFile := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/snap.firefox.firefox-fa61f25b-92e1-4316-8acb-2b95af841855.scope/cgroup.procs")
 	err := os.MkdirAll(filepath.Dir(mockProcsFile), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockProcsFile, []byte("57003\n57004"), 0644)

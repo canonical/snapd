@@ -212,7 +212,7 @@ func defaultPrereqSnapsChannel() string {
 
 func findLinkSnapTaskForSnap(st *state.State, snapName string) (*state.Task, error) {
 	for _, chg := range st.Changes() {
-		if chg.Status().Ready() {
+		if chg.IsReady() {
 			continue
 		}
 		for _, tc := range chg.Tasks() {
@@ -753,8 +753,8 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	targetFn := snapsup.MountFile()
 
 	dlOpts := &store.DownloadOptions{
-		IsAutoRefresh: snapsup.IsAutoRefresh,
-		RateLimit:     rate,
+		Scheduled: snapsup.IsAutoRefresh,
+		RateLimit: rate,
 	}
 	if snapsup.DownloadInfo == nil {
 		var storeInfo store.SnapActionResult
@@ -836,8 +836,8 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	targetFn := snapsup.MountFile()
 	dlOpts := &store.DownloadOptions{
 		// pre-downloads are only triggered in auto-refreshes
-		IsAutoRefresh: true,
-		RateLimit:     autoRefreshRateLimited(st),
+		Scheduled: true,
+		RateLimit: autoRefreshRateLimited(st),
 	}
 
 	perfTimings := state.TimingsForTask(t)

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2022 Canonical Ltd
+ * Copyright (C) 2017-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -80,7 +80,6 @@ var refreshRetryDelay = 20 * time.Minute
 // of auto-refresh.
 type refreshCandidate struct {
 	SnapSetup
-	Version string `json:"version,omitempty"`
 }
 
 func (rc *refreshCandidate) Type() snap.Type {
@@ -682,7 +681,7 @@ func createPreDownloadChange(st *state.State, updateTss *UpdateTaskSets) (bool, 
 
 func autoRefreshInFlight(st *state.State) bool {
 	for _, chg := range st.Changes() {
-		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
+		if chg.Kind() == "auto-refresh" && !chg.IsReady() {
 			return true
 		}
 	}
@@ -785,9 +784,8 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 }
 
 // for testing outside of snapstate
-func MockRefreshCandidate(snapSetup *SnapSetup, version string) interface{} {
+func MockRefreshCandidate(snapSetup *SnapSetup) interface{} {
 	return &refreshCandidate{
 		SnapSetup: *snapSetup,
-		Version:   version,
 	}
 }

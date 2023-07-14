@@ -1231,53 +1231,6 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTime(c *C) {
 	s.makeSnap(c, "required18", "developerid")
 	s.SetSnapAssertionNow(time.Time{})
 
-	snapdSnap := &seed.Snap{
-		Path:          s.expectedPath("snapd"),
-		SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
-		EssentialType: snap.TypeSnapd,
-		Essential:     true,
-		Required:      true,
-		Channel:       "latest/stable",
-	}
-	pcKernelSnap := &seed.Snap{
-		Path:          s.expectedPath("pc-kernel"),
-		SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
-		EssentialType: snap.TypeKernel,
-		Essential:     true,
-		Required:      true,
-		Channel:       "20",
-	}
-	core20Snap := &seed.Snap{Path: s.expectedPath("core20"),
-		SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
-		EssentialType: snap.TypeBase,
-		Essential:     true,
-		Required:      true,
-		Channel:       "latest/stable",
-	}
-	pcSnap := &seed.Snap{
-		Path:          s.expectedPath("pc"),
-		SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
-		EssentialType: snap.TypeGadget,
-		Essential:     true,
-		Required:      true,
-		Channel:       "20",
-	}
-
-	tests := []struct {
-		onlyTypes []snap.Type
-		expected  []*seed.Snap
-	}{
-		{[]snap.Type{snap.TypeSnapd}, []*seed.Snap{snapdSnap}},
-		{[]snap.Type{snap.TypeKernel}, []*seed.Snap{pcKernelSnap}},
-		{[]snap.Type{snap.TypeBase}, []*seed.Snap{core20Snap}},
-		{[]snap.Type{snap.TypeGadget}, []*seed.Snap{pcSnap}},
-		{[]snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase}, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap}},
-		// the order in essentialTypes is not relevant
-		{[]snap.Type{snap.TypeGadget, snap.TypeKernel}, []*seed.Snap{pcKernelSnap, pcSnap}},
-		// degenerate case
-		{[]snap.Type{}, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap}},
-	}
-
 	baseLabel := "20210315"
 
 	testReadSystemEssentialAndBetterEarliestTime := func(sysLabel string, earliestTime, modelTime, improvedTime time.Time) {
@@ -1310,17 +1263,13 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTime(c *C) {
 				}},
 		}, nil)
 
-		for _, t := range tests {
-			// test short-cut helper as well
-			mod, essSnaps, betterTime, err := seed.ReadSystemEssentialAndBetterEarliestTime(s.SeedDir, sysLabel, t.onlyTypes, earliestTime, 0, s.perfTimings)
-			c.Assert(err, IsNil)
-			c.Check(mod.BrandID(), Equals, "my-brand")
-			c.Check(mod.Model(), Equals, "my-model")
-			c.Check(mod.Timestamp().Equal(modelTime), Equals, true)
-			c.Check(essSnaps, HasLen, len(t.expected))
-			c.Check(essSnaps, DeepEquals, t.expected)
-			c.Check(betterTime.Equal(improvedTime), Equals, true, Commentf("%v expected: %v", betterTime, improvedTime))
-		}
+		// test short-cut helper as well
+		theSeed, betterTime, err := seed.ReadSeedAndBetterEarliestTime(s.SeedDir, sysLabel, earliestTime, 0, s.perfTimings)
+		c.Assert(err, IsNil)
+		c.Check(theSeed.Model().BrandID(), Equals, "my-brand")
+		c.Check(theSeed.Model().Model(), Equals, "my-model")
+		c.Check(theSeed.Model().Timestamp().Equal(modelTime), Equals, true)
+		c.Check(betterTime.Equal(improvedTime), Equals, true, Commentf("%v expected: %v", betterTime, improvedTime))
 	}
 
 	revsTime := s.AssertedSnapRevision("required18").Timestamp()
@@ -1379,7 +1328,7 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTimeParallelism(c 
 			}},
 	}, nil)
 
-	_, _, _, err := seed.ReadSystemEssentialAndBetterEarliestTime(s.SeedDir, sysLabel, nil, time.Time{}, 3, s.perfTimings)
+	_, _, err := seed.ReadSeedAndBetterEarliestTime(s.SeedDir, sysLabel, time.Time{}, 3, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(testSeed, NotNil)
 	c.Check(testSeed.Jobs, Equals, 3)

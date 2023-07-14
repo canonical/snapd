@@ -72,22 +72,22 @@ var allowedKernelMountOptions = []string{
 	"dirsync",
 	"iversion",
 	"lazytime",
-	"noiversion",
-	"nomand",
 	"noatime",
 	"nodev",
 	"nodiratime",
 	"noexec",
+	"noiversion",
 	"nolazytime",
+	"nomand",
 	"norelatime",
-	"nosuid",
 	"nostrictatime",
+	"nosuid",
 	"nouser",
 	"relatime",
-	"strictatime",
-	"sync",
 	"ro",
 	"rw",
+	"strictatime",
+	"sync",
 }
 
 // These mount options are evaluated by mount(8) only and never reach the kernel
@@ -141,6 +141,7 @@ var allowedFilesystemSpecificMountOptions = map[string][]string{
 	"vfat":       {"blocksize=", "uid=", "gid=", "umask=", "dmask=", "fmask=", "allow_utime=", "check=", "codepage=", "conv=", "cvf_format=", "cvf_option", "debug", "discard", "dos1xfloppy", "errors=", "fat=", "iocharset=", "nfs=", "tz=", "time_offset=", "quiet", "rodir", "showexec", "sys_immutable", "flush", "usefree", "dots", "uni_xlate", "posix", "nonumtail", "utf8", "shortname="},
 	"usbfs":      {"devuid=", "devgid=", "devmode=", "busiud=", "busgid=", "busmode=", "listuid=", "listgid=", "listmode="},
 	"xfs":        {"allocsize=", "attr2", "noattr2", "dax=", "discard", "nodiscard", "grpid", "bsdgroups", "nogrpid", "sysvgroups", "filestreams", "ikeep", "noikeep", "inode32", "inode64", "largeio", "nolargeio", "logbufs=", "logbsize=", "logdev=", "rtdev=", "noalign", "norecovery", "nouuid", "noquota", "unquota", "usrquota", "quota", "uqnoenforce", "qnoenforce", "gquota", "grpquota", "gqnoenforce", "pquota", "prjquota", "pqnoenforce", "sunit=", "swidth=", "sqalloc", "wsync"},
+	"zfs":        {"context=", "fscontext=", "defcontext=", "rootcontext=", "xattr", "noxattr"},
 }
 
 var filesystemsWithColonSeparatedOptions = []string{
@@ -190,8 +191,8 @@ var defaultFSTypes = []string{
 	"udf",
 	"ufs",
 	"vfat",
-	"zfs",
 	"xfs",
+	"zfs",
 }
 
 // The filesystems in the following list were considered either dangerous or
@@ -367,7 +368,8 @@ func validateWhatAttr(mountInfo *MountInfo) error {
 		return fmt.Errorf(`mount-control "what" pattern is not clean: %q`, what)
 	}
 
-	if _, err := utils.NewPathPattern(what); err != nil {
+	const allowCommas = true
+	if _, err := utils.NewPathPattern(what, allowCommas); err != nil {
 		return fmt.Errorf(`mount-control "what" setting cannot be used: %v`, err)
 	}
 
@@ -393,7 +395,8 @@ func validateWhereAttr(where string) error {
 		return fmt.Errorf(`mount-control "where" pattern is not clean: %q`, where)
 	}
 
-	if _, err := utils.NewPathPattern(where); err != nil {
+	const allowCommas = true
+	if _, err := utils.NewPathPattern(where, allowCommas); err != nil {
 		return fmt.Errorf(`mount-control "where" setting cannot be used: %v`, err)
 	}
 

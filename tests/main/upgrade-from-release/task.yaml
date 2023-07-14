@@ -23,9 +23,6 @@ execute: |
         exit
     fi
 
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-
     . /etc/os-release
     # trusty has no UBUNTU_CODENAME in /etc/os-release and we need to cheat
     # because snapd was not part of the original 14.04 release so we get
@@ -58,7 +55,7 @@ execute: |
 
     echo "install a test service and a test command"
     snap install go-example-webserver
-    wait_for_service snap.go-example-webserver.webserver.service
+    tests.systemd wait-for-service -n 30 --state active snap.go-example-webserver.webserver.service
     snap install test-snapd-tools
     test-snapd-tools.echo hello | MATCH hello
 
@@ -72,6 +69,6 @@ execute: |
     echo "snapd listens to requests"
     snap list
     echo "and ensure the snap service is still active"
-    wait_for_service snap.go-example-webserver.webserver.service
+    tests.systemd wait-for-service -n 30 --state active snap.go-example-webserver.webserver.service
     echo "and snap apps still work"
     test-snapd-tools.echo hello | MATCH hello

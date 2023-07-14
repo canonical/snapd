@@ -823,6 +823,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNoFs(c *C) {
 					Target:           "/foo-dir/",
 				},
 			},
+			EnclosingVolume: &gadget.Volume{},
 		},
 	}
 
@@ -846,6 +847,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
 					Target:           "/",
 				},
 			},
+			EnclosingVolume: &gadget.Volume{},
 		},
 	}
 	s.mustResolveVolumeContent(c, ps)
@@ -2939,7 +2941,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 			// no filesystem
-			Content: []gadget.VolumeContent{},
+			Content:         []gadget.VolumeContent{},
+			EnclosingVolume: &gadget.Volume{},
 		},
 	}
 	s.mustResolveVolumeContent(c, psNoFs)
@@ -2955,9 +2958,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size:       2048,
-			Filesystem: "ext4",
-			Content:    []gadget.VolumeContent{},
+			Size:            2048,
+			Filesystem:      "ext4",
+			Content:         []gadget.VolumeContent{},
+			EnclosingVolume: &gadget.Volume{},
 		},
 	}
 	s.mustResolveVolumeContent(c, ps)
