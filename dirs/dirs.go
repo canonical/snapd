@@ -322,6 +322,11 @@ func SnapSaveDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "save")
 }
 
+// SnapAssertsDBDirUnder returns the path to assertions directory under rootdir.
+func SnapAssertsDBDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "assertions")
+}
+
 // SnapFDEDirUnderSave returns the path to full disk encryption state directory
 // inside the given save tree dir.
 func SnapFDEDirUnderSave(savedir string) string {
