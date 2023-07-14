@@ -123,6 +123,7 @@ func RunAsUidGid(uid UserID, gid GroupID, f func() error) error {
 		//  until the goroutine (and hence the thread)
 		//  exits.
 		runtime.UnlockOSThread()
+		ch <- funcErr
 	}()
 	return <-ch
 }
