@@ -915,27 +915,40 @@ func asyncRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, refreshInfo *u
 		return fmt.Errorf("cannot monitor for snap closure: %w", err)
 	}
 
+	abort := make(chan bool, 1)
+	if ok, err := addMonitoring(st, snapName, abort); err != nil {
+		return fmt.Errorf("cannot save monitoring state for %q: %v", snapName, err)
+	} else if !ok {
+		// refresh candidate missing, no need to monitor
+		return nil
+	}
+
 	// notify the user about the blocked refresh
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
-
-	abort := make(chan bool, 1)
-	if err := addMonitoring(st, snapName, abort); err != nil {
-		msg := "cannot save monitoring state for %q: %v"
-		logger.Noticef(msg, snapName, err)
-		return fmt.Errorf(msg, snapName, err)
-	}
 
 	go continueRefreshOnSnapClose(st, snapsup, done, abort)
 	return nil
 }
 
 // addMonitoring adds monitoring info to the persisted and in-memory states.
-func addMonitoring(st *state.State, snapName string, abort chan<- bool) error {
+// Returns true if the monitoring state was saved or false if it wasn't because
+// the monitoring shouldn't proceed.
+func addMonitoring(st *state.State, snapName string, abort chan<- bool) (bool, error) {
 	var refreshHints map[string]*refreshCandidate
 	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
-		return fmt.Errorf("cannot get refresh-candidates: %v", err)
+		if errors.Is(err, &state.NoStateError{}) {
+			// the candidate may have been reverted from the channel after the
+			// auto-refresh, so it's missing here and there's nothing to refresh to
+			logger.Noticef("cannot get refresh candidate for %q (possibly reverted): nothing to refresh", snapName)
+			return false, nil
+		}
+
+		return false, fmt.Errorf("cannot get refresh-candidates: %v", err)
 	} else if _, ok := refreshHints[snapName]; !ok {
-		return fmt.Errorf("cannot get refresh candidate for %q: not found", snapName)
+		// the candidate may have been reverted from the channel after the
+		// auto-refresh, so it's missing here and there's nothing to refresh to
+		logger.Noticef("cannot get refresh candidate for %q (possibly reverted): nothing to refresh", snapName)
+		return false, nil
 	}
 
 	refreshHints[snapName].Monitored = true
@@ -948,14 +961,18 @@ func addMonitoring(st *state.State, snapName string, abort chan<- bool) error {
 
 	abortChans, ok := storedChans.(map[string]chan<- bool)
 	if !ok {
+		// reset the refresh hint since we're aborting
+		refreshHints[snapName].Monitored = false
+		st.Set("refresh-candidates", refreshHints)
+
 		// should never happen save for programmer error
-		return fmt.Errorf(`"monitored-snaps" should be map[string]chan<- bool but got %T`, storedChans)
+		return false, fmt.Errorf(`"monitored-snaps" should be map[string]chan<- bool but got %T`, storedChans)
 	}
 
 	abortChans[snapName] = abort
 	st.Cache("monitored-snaps", abortChans)
 
-	return nil
+	return true, nil
 }
 
 // removeMonitoring removes monitoring state related to the specified snap.

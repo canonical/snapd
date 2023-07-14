@@ -10006,6 +10006,82 @@ func (s *snapmgrTestSuite) TestMonitoringIsPersistedAndRestored(c *C) {
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 }
 
+func (s *snapmgrTestSuite) TestNoMonitoringIfOnlyOtherRefreshCandidates(c *C) {
+	s.testNoMonitoringWithCands(c, map[string]*snapstate.RefreshCandidate{
+		"other-snap": {},
+	})
+}
+
+func (s *snapmgrTestSuite) TestNoMonitoringIfNoRefreshCandidates(c *C) {
+	s.testNoMonitoringWithCands(c, nil)
+}
+
+func (s *snapmgrTestSuite) testNoMonitoringWithCands(c *C, cands map[string]*snapstate.RefreshCandidate) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: some-snap`, si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "some-snap",
+			Revision: snap.R(2),
+		},
+		Flags: snapstate.Flags{IsAutoRefresh: true},
+	}
+
+	// cands shouldn't include a refresh candidate for this snap so we can simulate
+	// that the candidate was reverted before the pre-download task runs
+	s.state.Set("refresh-candidates", cands)
+
+	var notified bool
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+		notified = true
+	})
+	defer restore()
+
+	var inhibited bool
+	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		inhibited = true
+		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	restore = snapstate.MockCgroupMonitorSnapEnded(func(name string, done chan<- string) error {
+		return nil
+	})
+	defer restore()
+
+	buf, restore := logger.MockLogger()
+	defer restore()
+
+	preDlChg := s.state.NewChange("pre-download", "pre-download change")
+	preDlTask := s.state.NewTask("pre-download-snap", "pre-download task")
+
+	preDlTask.Set("snap-setup", snapsup)
+	preDlTask.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "some-snap"})
+	preDlChg.AddTask(preDlTask)
+
+	s.settle(c)
+
+	// task finished without waiting for monitoring
+	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
+	c.Assert(s.state.Cached("monitored-snap"), IsNil)
+	c.Assert(buf.String(), testutil.Contains, `cannot get refresh candidate for "some-snap" (possibly reverted): nothing to refresh`)
+
+	// we didn't notify since there's no candidate to refresh to
+	c.Assert(notified, Equals, false)
+	c.Assert(inhibited, Equals, true)
+}
+
 func (s *snapmgrTestSuite) testUpdateDowngradeBlockedByOtherChanges(c *C, old, new string, revert bool) error {
 	si1 := snap.SideInfo{
 		RealName: "snapd",
