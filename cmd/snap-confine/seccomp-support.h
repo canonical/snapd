@@ -21,8 +21,6 @@
 
 #include <linux/filter.h>
 
-bool sc_load_seccomp_profile_path(const char *profile_path, struct sock_fprog *prog);
-
 /** 
  * sc_apply_seccomp_profile_for_security_tag applies a seccomp profile to the
  * current process. The filter is loaded from a pre-compiled bpf bytecode
@@ -49,6 +47,22 @@ bool sc_load_seccomp_profile_path(const char *profile_path, struct sock_fprog *p
  **/
 bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag);
 
+/** sc_apply_global_seccomp_profile applies the global seccomp profile
+ **/
 void sc_apply_global_seccomp_profile(void);
+
+/**
+ * sc_load_seccomp_profile_path loads the seccomp profile from the given
+ * profile_path into the given sock_fprog. The sock_fprog needs to be
+ * freed with sc_cleanup_seccomp_profile() later.
+ *
+ * The return value indicates if the loading was successful.
+ **/
+bool sc_load_seccomp_profile_path(const char *profile_path, struct sock_fprog *prog);
+
+/**
+ * sc_cleanup_seccomp_profile frees the dynamic memory from sock_fprog.
+ **/
+void sc_cleanup_seccomp_profile(struct sock_fprog *prog);
 
 #endif

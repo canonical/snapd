@@ -114,28 +114,29 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag) {
 
 	char profile_path[PATH_MAX] = { 0 };
 
-        struct sock_fprog prog_allow = { 0 };
+	struct sock_fprog SC_CLEANUP(sc_cleanup_seccomp_profile) prog_allow = { 0 };
 	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin.allow",
 			 filter_profile_dir, security_tag);
-        if (!sc_load_seccomp_profile_path(profile_path, &prog_allow)) {
-           return false;
-        }
+	if (!sc_load_seccomp_profile_path(profile_path, &prog_allow)) {
+	   return false;
+	}
 
-        struct sock_fprog prog_deny  = { 0 };
+	struct sock_fprog SC_CLEANUP(sc_cleanup_seccomp_profile) prog_deny  = { 0 };
 	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin.deny",
 			 filter_profile_dir, security_tag);
-        if (!sc_load_seccomp_profile_path(profile_path, &prog_deny)) {
-           return false;
-        }
+	if (!sc_load_seccomp_profile_path(profile_path, &prog_deny)) {
+	   return false;
+	}
 
-        sc_apply_seccomp_filter(&prog_deny);
-        sc_apply_seccomp_filter(&prog_allow);
+	sc_apply_seccomp_filter(&prog_deny);
+	sc_apply_seccomp_filter(&prog_allow);
 
-        // XXX: this is not ideal, allocation happens in
-        // sc_load_seccomp_profile but free here :(
-        free(prog_allow.filter);
-        free(prog_deny.filter);
-        return true;
+	return true;
+}
+
+void sc_cleanup_seccomp_profile(struct sock_fprog *prog) {
+	free(prog->filter);
+	prog->filter = NULL;
 }
 
 bool sc_load_seccomp_profile_path(const char *profile_path, struct sock_fprog *prog)
