@@ -36,8 +36,8 @@ func (*epollSuite) TestOpenClose(c *C) {
 	c.Assert(e.Fd(), Equals, -1)
 }
 
-func waitNSecondsThenWriteToFile(n int, fd int, msg []byte) error {
-	time.Sleep(time.Duration(n) * time.Second)
+func waitMillisecondsThenWriteToFile(msec int, fd int, msg []byte) error {
+	time.Sleep(time.Duration(msec) * time.Millisecond)
 	_, err := unix.Write(fd, msg)
 	return err
 }
@@ -60,7 +60,7 @@ func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
 
 	msg := []byte("foo")
 
-	go waitNSecondsThenWriteToFile(1, senderFd, msg)
+	go waitMillisecondsThenWriteToFile(1000, senderFd, msg)
 
 	events, err := e.Wait()
 	c.Assert(err, IsNil)
@@ -74,6 +74,47 @@ func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
 
 	err = e.Modify(listenerFd, epoll.Readable|epoll.Writable)
 	c.Assert(err, IsNil)
+
+	err = e.Deregister(listenerFd)
+	c.Assert(err, IsNil)
+
+	err = e.Close()
+	c.Assert(err, IsNil)
+}
+
+func (*epollSuite) TestWaitTimeout(c *C) {
+	e, err := epoll.Open()
+	c.Assert(err, IsNil)
+
+	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
+	c.Assert(err, IsNil)
+
+	listenerFd := socketFds[0]
+	senderFd := socketFds[1]
+
+	err = unix.SetNonblock(listenerFd, true)
+	c.Assert(err, IsNil)
+
+	err = e.Register(listenerFd, epoll.Readable)
+	c.Assert(err, IsNil)
+
+	msg := []byte("foo")
+
+	go waitMillisecondsThenWriteToFile(1000, senderFd, msg)
+
+	events, err := e.WaitTimeout(100)
+	c.Assert(err, IsNil)
+	c.Assert(len(events), Equals, 0)
+
+	events, err = e.WaitTimeout(3000)
+	c.Assert(err, IsNil)
+	c.Assert(len(events), Equals, 1)
+	c.Assert(events[0].Fd, Equals, listenerFd)
+
+	buf := make([]byte, len(msg))
+	_, err = unix.Read(events[0].Fd, buf)
+	c.Assert(err, IsNil)
+	c.Assert(buf, DeepEquals, msg)
 
 	err = e.Deregister(listenerFd)
 	c.Assert(err, IsNil)

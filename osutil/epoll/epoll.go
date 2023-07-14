@@ -121,12 +121,15 @@ type Event struct {
 	Readiness Readiness
 }
 
-// Wait blocks and waits for arrival of events on any of the added file descriptors.
+// WaitTimeout blocks and waits with the given timeout for arrival of events on any of the added file descriptors.
+//
+// A msec value of -1 disables timeout.
+//
+// Please refer to epoll_wait(2) and EPOLL_WAIT for details.
 //
 // Warning, using epoll from Golang explicitly is tricky.
-func (e *Epoll) Wait() ([]Event, error) {
-	// TODO: make timeout configurable
-	n, err := unix.EpollWait(e.fd, e.sysEvents, -1)
+func (e *Epoll) WaitTimeout(msec int) ([]Event, error) {
+	n, err := unix.EpollWait(e.fd, e.sysEvents, msec)
 	runtime.KeepAlive(e)
 	if err != nil {
 		return nil, err
@@ -140,4 +143,9 @@ func (e *Epoll) Wait() ([]Event, error) {
 		events = append(events, event)
 	}
 	return events, nil
+}
+
+// Wait blocks and waits for arrival of events on any of the added file descriptors.
+func (e *Epoll) Wait() ([]Event, error) {
+	return e.WaitTimeout(-1)
 }
