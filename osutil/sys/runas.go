@@ -53,14 +53,20 @@ func composeErr(prefix1 string, err1 error, prefix2 string, err2 error) error {
 // RunAsUidGid starts a goroutine, pins it to the OS thread, sets euid and egid,
 // and runs the function; after the function returns, it restores euid and egid.
 //
+// A caveat is that any go-routine started within RunAsUidGid() will
+// run with the original uid/gid and *not* with the passed uid/gid.
+//
 // Note that on the *kernel* level the user/group ID are per-thread
 // attributes. However POSIX require all thread to share the same
 // credentials. This is why this code uses RawSyscall() and not the
 // syscall.Setreuid() or similar helper.
 //
-// If restoring the original euid and egid fails this function will panic with
-// an UnrecoverableError, and you should _not_ try to recover from it: the
-// runtime itself is going to be in trouble.
+// This function does not add any security (it's not privilidge
+// dropping), but it's useful to e.g. manipulate files with the right
+// uids/gids.
+//
+// If restoring the original euid and egid fails this function will let
+// the os-thread die otherwise it will be reused by the runtime.
 func RunAsUidGid(uid UserID, gid GroupID, f func() error) error {
 	ch := make(chan error, 1)
 	go func() {
