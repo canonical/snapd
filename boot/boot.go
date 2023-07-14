@@ -461,13 +461,13 @@ func UpdateManagedBootConfigs(dev snap.Device, gadgetSnapOrDir, cmdlineAppend st
 	return updateManagedBootConfigForBootloader(dev, ModeRun, gadgetSnapOrDir, cmdlineAppend)
 }
 
-func updateCmdlineVars(tbl bootloader.TrustedAssetsBootloader, gadgetSnapOrDir, cmdlineAppend string, candidate bool) error {
+func updateCmdlineVars(tbl bootloader.TrustedAssetsBootloader, gadgetSnapOrDir, cmdlineAppend string, candidate bool, dev snap.Device) error {
 	defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
 	if err != nil {
 		return err
 	}
 
-	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineAppend, defaultCmdLine)
+	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineAppend, defaultCmdLine, dev.Model())
 	if err != nil {
 		return fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
 	}
@@ -505,7 +505,7 @@ func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir
 
 	if cmdlineChange {
 		candidate := true
-		if err := updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate); err != nil {
+		if err := updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate, dev); err != nil {
 			return false, err
 		}
 	}
@@ -557,10 +557,9 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdli
 	}
 
 	candidate := false
-	if err := updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate); err != nil {
+	if err := updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate, dev); err != nil {
 		return false, err
 	}
-
 	return cmdlineChange, nil
 }
 

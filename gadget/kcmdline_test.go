@@ -20,7 +20,10 @@
 package gadget_test
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/snap/snaptest"
 	. "gopkg.in/check.v1"
 )
 
@@ -99,5 +102,73 @@ kernel-cmdline:
 		allowed, forbidden := gadget.FilterKernelCmdline(t.cmdline, gi.KernelCmdline.Allow)
 		c.Check(allowed, Equals, t.allowed)
 		c.Check(forbidden, Equals, t.forbidden)
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestCheckCmdlineAppend(c *C) {
+	const gadgetSnapYaml = `name: gadget
+version: 1.0
+type: gadget
+`
+
+	const yamlTemplate = `
+volumes:
+  pc:
+    bootloader: grub
+kernel-cmdline:
+  append:
+    - '%s'
+`
+
+	tests := []string{
+		`par`,
+		`"par with spaces"`,
+		`par=value`,
+		`par="value with spaces"`,
+		`par=*`,
+	}
+
+	for _, t := range tests {
+		yaml := fmt.Sprintf(yamlTemplate, t)
+
+		snap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
+			{"meta/gadget.yaml", yaml},
+		})
+		cmdline, full, err := gadget.KernelCommandLineFromGadget(snap, uc20Mod)
+
+		c.Assert(err, IsNil)
+		c.Check(cmdline, Equals, t)
+		c.Check(full, Equals, false)
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestCheckCmdlineAppendForbidden(c *C) {
+	const gadgetSnapYaml = `name: gadget
+version: 1.0
+type: gadget
+`
+
+	const yamlTemplate = `
+volumes:
+  pc:
+    bootloader: grub
+kernel-cmdline:
+  append:
+    - '%s'
+`
+	tests := []string{
+		`init`,
+		`init=/myevilinit`,
+	}
+
+	for _, t := range tests {
+		yaml := fmt.Sprintf(yamlTemplate, t)
+
+		snap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
+			{"meta/gadget.yaml", yaml},
+		})
+		_, _, err := gadget.KernelCommandLineFromGadget(snap, uc20Mod)
+
+		c.Check(err, ErrorMatches, fmt.Sprintf(`kernel parameter '%s' is not allowed`, t))
 	}
 }
