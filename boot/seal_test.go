@@ -88,6 +88,25 @@ func mockNamedKernelSeedSnap(rev snap.Revision, name string) *seed.Snap {
 }
 
 func mockGadgetSeedSnap(c *C, files [][]string) *seed.Snap {
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
+	if files == nil {
+		files = [][]string{}
+	}
+
+	hasGadgetYaml := false
+	for _, entry := range files {
+		if entry[0] == "meta/gadget.yaml" {
+			hasGadgetYaml = true
+		}
+	}
+	if !hasGadgetYaml {
+		files = append(files, []string{"meta/gadget.yaml", mockGadgetYaml})
+	}
+
 	gadgetSnapFile := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, files)
 	return &seed.Snap{
 		Path: gadgetSnapFile,

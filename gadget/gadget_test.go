@@ -2754,6 +2754,15 @@ memmap=100M@2G,100M#3G,1G!1024G
 `
 
 func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
+	model := &gadgettest.ModelCharacteristics{}
+
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    schema: gpt
+    bootloader: grub
+`
+
 	for _, tc := range []struct {
 		files [][]string
 
@@ -2763,63 +2772,79 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
 	}{{
 		files: [][]string{
 			{"cmdline.extra", "   foo bar baz just-extra\n"},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		cmdline: "foo bar baz just-extra", full: false,
 	}, {
 		files: [][]string{
 			{"cmdline.full", "    foo bar baz full\n"},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		cmdline: "foo bar baz full", full: true,
 	}, {
 		files: [][]string{
 			{"cmdline.full", cmdlineMultiLineWithComments},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		cmdline: "panic=5 reserve=0x300,32 foo=bar baz=baz random=op debug snapd.debug=1 memmap=100M@2G,100M#3G,1G!1024G",
 		full:    true,
 	}, {
 		files: [][]string{
 			{"cmdline.full", ""},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		cmdline: "",
 		full:    true,
 	}, {
 		// no cmdline
-		files:   nil,
+		files: [][]string{
+			{"meta/gadget.yaml", mockGadgetYaml},
+		},
 		full:    false,
 		cmdline: "",
 	}, {
 		// not what we are looking for
 		files: [][]string{
 			{"cmdline.other", `ignored`},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		full:    false,
 		cmdline: "",
 	}, {
-		files: [][]string{{"cmdline.full", " # error"}},
-		full:  true, err: `invalid kernel command line in cmdline\.full: unexpected or invalid use of # in argument "#"`,
+		files: [][]string{
+			{"cmdline.full", " # error"},
+			{"meta/gadget.yaml", mockGadgetYaml},
+		},
+		full: true, err: `invalid kernel command line in cmdline\.full: unexpected or invalid use of # in argument "#"`,
 	}, {
-		files: [][]string{{"cmdline.full", "foo bar baz #error"}},
-		full:  true, err: `invalid kernel command line in cmdline\.full: unexpected or invalid use of # in argument "#error"`,
+		files: [][]string{
+			{"cmdline.full", "foo bar baz #error"},
+			{"meta/gadget.yaml", mockGadgetYaml},
+		},
+		full: true, err: `invalid kernel command line in cmdline\.full: unexpected or invalid use of # in argument "#error"`,
 	}, {
 		files: [][]string{
 			{"cmdline.full", "foo bad =\n"},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		full: true, err: `invalid kernel command line in cmdline\.full: unexpected assignment`,
 	}, {
 		files: [][]string{
 			{"cmdline.extra", "foo bad ="},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		full: false, err: `invalid kernel command line in cmdline\.extra: unexpected assignment`,
 	}, {
 		files: [][]string{
 			{"cmdline.extra", `extra`},
 			{"cmdline.full", `full`},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		err: "cannot support both extra and full kernel command lines",
 	}} {
 		c.Logf("files: %q", tc.files)
 		snapPath := snaptest.MakeTestSnapWithFiles(c, string(mockSnapYaml), tc.files)
-		cmdline, full, err := gadget.KernelCommandLineFromGadget(snapPath)
+		cmdline, full, err := gadget.KernelCommandLineFromGadget(snapPath, model)
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, tc.err)
 			c.Check(cmdline, Equals, "")
@@ -2833,6 +2858,8 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline string) {
+	model := &gadgettest.ModelCharacteristics{}
+
 	c.Logf("checking %v", whichCmdline)
 	// mock test snap creates a snap directory
 	info := snaptest.MockSnapWithFiles(c, string(mockSnapYaml),
@@ -2848,12 +2875,15 @@ func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline strin
 		"snapd_system_disk=somedisk",
 	}
 
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	c.Assert(err, IsNil)
+
 	for _, arg := range allowedArgs {
 		c.Logf("trying allowed arg: %q", arg)
 		err := ioutil.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
 		c.Assert(err, IsNil)
 
-		cmdline, _, err := gadget.KernelCommandLineFromGadget(info.MountDir())
+		cmdline, _, err := gadget.KernelCommandLineFromGadget(info.MountDir(), model)
 		c.Assert(err, IsNil)
 		c.Check(cmdline, Equals, arg)
 	}
@@ -2872,7 +2902,7 @@ func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline strin
 		err := ioutil.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
 		c.Assert(err, IsNil)
 
-		cmdline, _, err := gadget.KernelCommandLineFromGadget(info.MountDir())
+		cmdline, _, err := gadget.KernelCommandLineFromGadget(info.MountDir(), model)
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid kernel command line in %v: disallowed kernel argument ".*"`, whichCmdline))
 		c.Check(cmdline, Equals, "")
 	}

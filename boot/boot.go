@@ -510,7 +510,7 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdli
 	}
 	// update the bootloader environment, maybe clearing the relevant
 	// variables
-	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineAppend, defaultCmdLine)
+	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineAppend, defaultCmdLine, dev.Model())
 	if err != nil {
 		return false, fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
 	}
