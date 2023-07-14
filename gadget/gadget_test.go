@@ -3584,6 +3584,12 @@ func (s *gadgetYamlTestSuite) TestCompatibilityWithMinSizePartitions(c *C) {
 	match, err := gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
 	c.Assert(err, IsNil)
 	c.Assert(match, DeepEquals, map[int]*gadget.OnDiskStructure{
+		0: {
+			Name:        "mbr",
+			Type:        "mbr",
+			StartOffset: 0,
+			Size:        440,
+		},
 		1: &mockDiskVolDataAndSaveParts.Structure[0],
 		2: &mockDiskVolDataAndSaveParts.Structure[1],
 		3: &mockDiskVolDataAndSaveParts.Structure[2],
@@ -3594,6 +3600,12 @@ func (s *gadgetYamlTestSuite) TestCompatibilityWithMinSizePartitions(c *C) {
 	match, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
 	c.Assert(err, IsNil)
 	c.Assert(match, DeepEquals, map[int]*gadget.OnDiskStructure{
+		0: {
+			Name:        "mbr",
+			Type:        "mbr",
+			StartOffset: 0,
+			Size:        440,
+		},
 		1: &mockDiskVolDataAndSaveParts.Structure[0],
 		2: &mockDiskVolDataAndSaveParts.Structure[1],
 		3: &mockDiskVolDataAndSaveParts.Structure[2],
@@ -3616,6 +3628,101 @@ func (s *gadgetYamlTestSuite) TestCompatibilityWithMinSizePartitions(c *C) {
 	match, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
 	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/node2 (starting at 2097152) in gadget: on disk size 104857600 (100 MiB) is larger than gadget size 102760448 (98 MiB) (and the role should not be expanded)`)
 	c.Assert(match, IsNil)
+}
+
+const mockMinSizeGadgetYamlWithBare = `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        min-size: 8M
+        size: 98M
+      - name: empty-slice
+        type: bare
+        size: 1M
+      # Offset could be between 10M and 100M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+`
+
+func (s *gadgetYamlTestSuite) TestCompatibilityWithMinSizePartitionsWithBare(c *C) {
+	var mockDiskVolDataAndSaveParts = gadget.OnDiskVolume{
+		Structure: []gadget.OnDiskStructure{
+			// Note that the first ondisk structure we have is BIOS
+			// Boot, even though in reality the first ondisk
+			// structure is MBR, but the MBR doesn't actually show
+			// up in /dev at all, so we don't ever measure it as
+			// existing on the disk - the code and test accounts for
+			// the MBR structure not being present in the
+			// OnDiskVolume
+			{
+				Node:             "/dev/node2",
+				Name:             "ubuntu-save",
+				Size:             8 * quantity.SizeMiB,
+				PartitionFSType:  "ext4",
+				PartitionFSLabel: "ubuntu-save",
+				StartOffset:      quantity.OffsetMiB,
+			},
+			{
+				Node:             "/dev/node3",
+				Name:             "ubuntu-data",
+				Size:             100 * quantity.SizeMiB,
+				PartitionFSType:  "ext4",
+				PartitionFSLabel: "ubuntu-data",
+				StartOffset:      10 * quantity.OffsetMiB,
+			},
+		},
+		ID:         "anything",
+		Device:     "/dev/node",
+		Schema:     "gpt",
+		Size:       2 * quantity.SizeGiB,
+		SectorSize: 512,
+
+		// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
+		// 1 sector to get the exclusive end
+		UsableSectorsEnd: uint64((2*quantity.SizeGiB/512)-33) + 1,
+	}
+
+	gadgetVolume, err := gadgettest.VolumeFromYaml(c.MkDir(),
+		mockMinSizeGadgetYamlWithBare, nil)
+	c.Assert(err, IsNil)
+	diskVol := mockDiskVolDataAndSaveParts
+
+	match, err := gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
+	c.Assert(err, IsNil)
+	expected := map[int]*gadget.OnDiskStructure{
+		0: {
+			Name:        "mbr",
+			Type:        "mbr",
+			StartOffset: 0,
+			Size:        440,
+		},
+		1: &mockDiskVolDataAndSaveParts.Structure[0],
+		2: {
+			Name:        "empty-slice",
+			Type:        "bare",
+			StartOffset: 9 * quantity.OffsetMiB,
+			Size:        quantity.SizeMiB,
+		},
+		3: &mockDiskVolDataAndSaveParts.Structure[1],
+	}
+	c.Assert(match, DeepEquals, expected)
+
+	diskVol.Structure[0].Size = 98 * quantity.SizeMiB
+	diskVol.Structure[1].StartOffset = 100 * quantity.OffsetMiB
+	expected[2].StartOffset = 99 * quantity.OffsetMiB
+	match, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
+	c.Assert(err, IsNil)
+	c.Assert(match, DeepEquals, expected)
 }
 
 const mockPartialGadgetYaml = `volumes:
