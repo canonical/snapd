@@ -344,6 +344,7 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 	var path string
 	var sideInfo *snap.SideInfo
 	var integrityData *integrity.IntegrityData
+	var snapRev *asserts.SnapRevision
 	if optSnap != nil && optSnap.Unasserted != "" {
 		path = filepath.Join(s.systemDir, "snaps", optSnap.Unasserted)
 		info, err := readInfo(path, nil)
@@ -363,12 +364,14 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 	} else {
 		var err error
 		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
-			var snapRev *asserts.SnapRevision
 			var snapDecl *asserts.SnapDeclaration
 			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, essType, handler, snapsDir, tm)
 			if err == nil {
 				sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
-
+			}
+		})
+		timings.Run(tm, "find-integrity-data", fmt.Sprintf("search for and validate integrity data for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
+			if err == nil {
 				integrityData, err = integrity.FindIntegrityData(path)
 				if err == nil {
 					err = integrityData.Validate(*snapRev)
