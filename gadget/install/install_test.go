@@ -1382,7 +1382,7 @@ func (s *installSuite) TestMountVolumesLazyUnmount(c *C) {
 	c.Assert(mountCall, Equals, 1)
 	c.Assert(umountCall, Equals, 2)
 
-	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot unmount %q: forcing lazy unmount (trying lazy unmount next)", seedMntPt))
+	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot unmount %s after mounting volumes: forcing lazy unmount (trying lazy unmount next)", seedMntPt))
 }
 
 func (s *installSuite) TestMountVolumesLazyUnmountError(c *C) {
@@ -1430,6 +1430,6 @@ func (s *installSuite) TestMountVolumesLazyUnmountError(c *C) {
 	c.Assert(mountCall, Equals, 1)
 	c.Assert(umountCall, Equals, 2)
 
-	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot unmount %q: forcing lazy unmount (trying lazy unmount next)", seedMntPt))
+	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot unmount %s after mounting volumes: forcing lazy unmount (trying lazy unmount next)", seedMntPt))
 	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot lazy unmount %q: lazy unmount failed", seedMntPt))
 }
