@@ -86,6 +86,11 @@ func (x *cmdDesktopLaunch) Execute([]string) error {
 		return fmt.Errorf("only launching snap applications from %s is supported", dirs.SnapDesktopFilesDir)
 	}
 
+	uris, err := cmdlineArgsToUris(x.Positional.FilesOrUris)
+	if err != nil {
+		return err
+	}
+
 	// If running a desktop file from a confined snap process,
 	// then run via the privileged launcher.
 	if os.Getenv("SNAP") != "" {
@@ -100,7 +105,7 @@ func (x *cmdDesktopLaunch) Execute([]string) error {
 			return fmt.Errorf(i18n.G("unable to access privileged desktop launcher: unable to get session bus: %v"), err)
 		}
 		o := conn.Object("io.snapcraft.Launcher", "/io/snapcraft/PrivilegedDesktopLauncher")
-		call := o.Call("io.snapcraft.PrivilegedDesktopLauncher.OpenDesktopEntry", 0, desktopFile)
+		call := o.Call("io.snapcraft.PrivilegedDesktopLauncher.OpenDesktopEntry2", 0, desktopFile, x.Action, uris, map[string]string{})
 		if call.Err != nil {
 			return fmt.Errorf(i18n.G("failed to launch %s via the privileged desktop launcher: %v"), desktopFile, call.Err)
 		}
@@ -108,11 +113,6 @@ func (x *cmdDesktopLaunch) Execute([]string) error {
 	}
 
 	de, err := desktopentry.Read(x.DesktopFile)
-	if err != nil {
-		return err
-	}
-
-	uris, err := cmdlineArgsToUris(x.Positional.FilesOrUris)
 	if err != nil {
 		return err
 	}

@@ -167,12 +167,15 @@ func (s *DesktopLaunchSuite) TestDBusLaunch(c *C) {
 			dbus.FieldDestination: dbus.MakeVariant("io.snapcraft.Launcher"),
 			dbus.FieldPath:        dbus.MakeVariant(dbus.ObjectPath("/io/snapcraft/PrivilegedDesktopLauncher")),
 			dbus.FieldInterface:   dbus.MakeVariant("io.snapcraft.PrivilegedDesktopLauncher"),
-			dbus.FieldMember:      dbus.MakeVariant("OpenDesktopEntry"),
-			dbus.FieldSignature:   dbus.MakeVariant(dbus.ParseSignatureMust("s")),
+			dbus.FieldMember:      dbus.MakeVariant("OpenDesktopEntry2"),
+			dbus.FieldSignature:   dbus.MakeVariant(dbus.ParseSignatureMust("ssasa{ss}")),
 		})
 
-		c.Assert(msg.Body, HasLen, 1)
+		c.Assert(msg.Body, HasLen, 4)
 		c.Check(msg.Body[0], Equals, "foo_foo.desktop")
+		c.Check(msg.Body[1], Equals, "action1")
+		c.Check(msg.Body[2], DeepEquals, []string{"file:///test.txt"})
+		c.Check(msg.Body[3], DeepEquals, map[string]string{})
 
 		reply := &dbus.Message{
 			Type: dbus.TypeMethodReply,

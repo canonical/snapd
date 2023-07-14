@@ -34,6 +34,7 @@ func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() 
 var (
 	DesktopFileSearchPath     = desktopFileSearchPath
 	DesktopFileIDToFilename   = desktopFileIDToFilename
+	ValidateURIs              = validateURIs
 	VerifyDesktopFileLocation = verifyDesktopFileLocation
 )
 

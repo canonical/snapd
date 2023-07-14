@@ -80,7 +80,7 @@ func (s *desktopLaunchSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `Can identify and launch other snaps.`)
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `member=OpenDesktopEntry`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `member={OpenDesktopEntry,OpenDesktopEntry2}`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label=unconfined),`)
 }
 
