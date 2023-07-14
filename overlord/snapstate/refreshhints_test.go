@@ -464,6 +464,59 @@ epoch: 1
 type: app
 `
 
+func (s *refreshHintsTestSuite) TestRefreshHintsAbortsMonitoringForRemovedCandidates(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
+		},
+		Current: snap.R(1),
+	})
+	s.state.Unlock()
+
+	s.store.refreshedSnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			RealName: "some-snap",
+			Revision: snap.R(1),
+		}},
+		{
+			SideInfo: snap.SideInfo{
+				RealName: "other-snap",
+				Revision: snap.R(2),
+			},
+		}}
+
+	s.state.Lock()
+	s.state.Set("refresh-candidates", map[string]*snapstate.RefreshCandidate{
+		"some-snap":      {SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "some-snap"}}},
+		"monitored-snap": {SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "second-snap"}}},
+	})
+
+	// mock a monitoring routine for "second-snap" for which the refresh-candidate
+	// will be removed
+	abortChan := make(chan bool, 2)
+	var writeOnly chan<- bool
+	writeOnly = abortChan
+	monitored := map[string]chan<- bool{
+		"monitored-snap": writeOnly,
+		"something-else": nil,
+	}
+	s.state.Cache("monitored-snaps", monitored)
+	s.state.Unlock()
+
+	rh := snapstate.NewRefreshHints(s.state)
+	err := rh.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+
+	select {
+	case <-abortChan:
+	case <-time.After(5 * time.Second):
+		c.Fatal("test timed out before mocked monitoring was aborted")
+	}
+}
+
 func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongEpoch(c *C) {
 	s.state.Lock()
 

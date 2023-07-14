@@ -97,8 +97,33 @@ func (r *refreshHints) refresh() error {
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
 	}
+
+	stopMonitoringOutdatedCandidates(r.state, hints)
+
 	r.state.Set("refresh-candidates", hints)
 	return nil
+}
+
+// stopMonitoringOutdatedCandidates aborts the monitoring for snaps for which a
+// refresh candidate has been removed (possibly because the channel was reverted
+// to an older version)
+func stopMonitoringOutdatedCandidates(st *state.State, hints map[string]*refreshCandidate) {
+	var oldHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &oldHints); err != nil {
+		if errors.Is(err, &state.NoStateError{}) {
+			// nothing to abort
+			return
+		}
+
+		logger.Noticef("cannot abort removed refresh candidates: %v", err)
+		return
+	}
+
+	for oldCand := range oldHints {
+		if _, ok := hints[oldCand]; !ok {
+			abortMonitoring(st, oldCand)
+		}
+	}
 }
 
 // AtSeed configures hints refresh policies at end of seeding.

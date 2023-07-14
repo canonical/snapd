@@ -915,7 +915,10 @@ func asyncRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, refreshInfo *u
 		return fmt.Errorf("cannot monitor for snap closure: %w", err)
 	}
 
-	abort := make(chan bool, 1)
+	// use a buffer larger than 1 because there can be more than one writes to the channel.
+	// State locks make it unlikely but it's possible to have a second write before
+	// the reader can drain and remove the channel from the state
+	abort := make(chan bool, 16)
 	if ok, err := addMonitoring(st, snapName, abort); err != nil {
 		return fmt.Errorf("cannot save monitoring state for %q: %v", snapName, err)
 	} else if !ok {
