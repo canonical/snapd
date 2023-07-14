@@ -41,7 +41,8 @@ func (r Readiness) String() string {
 
 // Epoll wraps a file descriptor which can be used for I/O readiness notification.
 type Epoll struct {
-	fd int
+	fd        int
+	sysEvents []unix.EpollEvent
 }
 
 // Open opens an event monitoring descriptor.
@@ -50,7 +51,10 @@ func Open() (*Epoll, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := &Epoll{fd: fd}
+	e := &Epoll{
+		fd:        fd,
+		sysEvents: make([]unix.EpollEvent, 0, 10),
+	}
 	runtime.SetFinalizer(e, func(e *Epoll) {
 		if e.fd != -1 {
 			e.Close()
@@ -80,6 +84,9 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 		Events: uint32(mask),
 		Fd:     int32(fd),
 	})
+	if err == nil {
+		e.sysEvents = append(e.sysEvents, unix.EpollEvent{})
+	}
 	runtime.KeepAlive(e)
 	return err
 }
@@ -90,6 +97,9 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 func (e *Epoll) Deregister(fd int) error {
 	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{})
 	runtime.KeepAlive(e)
+	if err == nil {
+		e.sysEvents = e.sysEvents[:len(e.sysEvents)-1]
+	}
 	return err
 }
 
@@ -115,10 +125,8 @@ type Event struct {
 //
 // Warning, using epoll from Golang explicitly is tricky.
 func (e *Epoll) Wait() ([]Event, error) {
-	// TODO: tie the event buffer to Epoll instance.
-	sysEvents := make([]unix.EpollEvent, 10)
 	// TODO: make timeout configurable
-	n, err := unix.EpollWait(e.fd, sysEvents, -1)
+	n, err := unix.EpollWait(e.fd, e.sysEvents, -1)
 	runtime.KeepAlive(e)
 	if err != nil {
 		return nil, err
@@ -126,8 +134,8 @@ func (e *Epoll) Wait() ([]Event, error) {
 	events := make([]Event, 0, n)
 	for i := 0; i < n; i++ {
 		event := Event{
-			Fd:        int(sysEvents[i].Fd),
-			Readiness: Readiness(sysEvents[i].Events),
+			Fd:        int(e.sysEvents[i].Fd),
+			Readiness: Readiness(e.sysEvents[i].Events),
 		}
 		events = append(events, event)
 	}
