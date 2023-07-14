@@ -159,7 +159,7 @@ func bpfSrcPath(srcName string) string {
 }
 
 func bpfBinPath(srcName string) string {
-	return filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(srcName, ".src")+".bin")
+	return filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(srcName, ".src"))
 }
 
 func parallelCompile(compiler Compiler, profiles []string) error {
@@ -195,7 +195,7 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 				// remove the old profile first so that we are
 				// not loading it accidentally should the
 				// compilation fail
-				if err := os.Remove(out); err != nil && !os.IsNotExist(err) {
+				if err := os.RemoveAll(out); err != nil && !os.IsNotExist(err) {
 					res <- err
 					continue
 				}

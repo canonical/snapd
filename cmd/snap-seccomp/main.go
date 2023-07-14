@@ -213,9 +213,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/seccomp/libseccomp-golang"
 
@@ -791,6 +794,67 @@ func complainAction() seccomp.ScmpAction {
 	return seccomp.ActAllow
 }
 
+// XXX: find a more elegant way for this
+func atomicWriteInDir(targetDir string, f func(stageDir string) error) error {
+	stageDir := targetDir + ".new"
+	for _, d := range []string{targetDir, stageDir} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			return err
+		}
+	}
+	defer os.RemoveAll(stageDir)
+
+	if err := f(stageDir); err != nil {
+		return err
+	}
+
+	if err := unix.Renameat2(0, stageDir, 0, targetDir, unix.RENAME_EXCHANGE); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writeUnrestrictedFilter(targetDir string) error {
+	return atomicWriteInDir(targetDir, func(stageDir string) error {
+		for _, ext := range []string{"filter.allow", "filter.deny"} {
+			if err := osutil.AtomicWrite(filepath.Join(stageDir, ext), bytes.NewBufferString("@unrestricted\n"), 0644, 0); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func writeSeccompFilterFiles(targetDir string, filterAllow, filterDeny *seccomp.ScmpFilter) error {
+	return atomicWriteInDir(targetDir, func(stageDir string) error {
+		pathAllow := filepath.Join(stageDir, "filter.allow")
+		pathDeny := filepath.Join(stageDir, "filter.deny")
+
+		for _, d := range []struct {
+			outFile   string
+			outFilter *seccomp.ScmpFilter
+		}{
+			{pathAllow, filterAllow},
+			{pathDeny, filterDeny},
+		} {
+			fout, err := os.Create(d.outFile)
+			if err != nil {
+				return err
+			}
+			defer fout.Close()
+
+			if err := d.outFilter.ExportBPF(fout); err != nil {
+				return err
+			}
+			if err := fout.Sync(); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func newComplainFilter(complainAct seccomp.ScmpAction) (*seccomp.ScmpFilter, error) {
 	secFilter, err := seccomp.NewFilter(complainAct)
 	if err != nil {
@@ -813,12 +877,7 @@ func compile(content []byte, out string) error {
 	unrestricted, complain := preprocess(content)
 	switch {
 	case unrestricted:
-		for _, ext := range []string{".allow", ".deny"} {
-			if err := osutil.AtomicWrite(out+ext, bytes.NewBufferString("@unrestricted\n"), 0644, 0); err != nil {
-				return err
-			}
-		}
-		return nil
+		return writeUnrestrictedFilter(out)
 	case complain:
 		var complainAct seccomp.ScmpAction = complainAction()
 
@@ -871,27 +930,8 @@ func compile(content []byte, out string) error {
 		secFilterDeny.ExportPFC(os.Stdout)
 	}
 
-	// write atomically
-	for _, ext := range []string{".allow", ".deny"} {
-		fout, err := osutil.NewAtomicFile(out+ext, 0644, 0, osutil.NoChown, osutil.NoChown)
-		if err != nil {
-			return err
-		}
-		// Cancel once Committed is a NOP
-		defer fout.Cancel()
-
-		switch ext {
-		case ".allow":
-			err = secFilterAllow.ExportBPF(fout.File)
-		case ".deny":
-			err = secFilterDeny.ExportBPF(fout.File)
-		}
-		if err != nil {
-			return err
-		}
-		if err := fout.Commit(); err != nil {
-			return err
-		}
+	if err := writeSeccompFilterFiles(out, secFilterAllow, secFilterDeny); err != nil {
+		return err
 	}
 	return nil
 }
@@ -949,7 +989,7 @@ func main() {
 	switch cmd {
 	case "compile":
 		if len(os.Args) < 4 {
-			fmt.Println("compile needs an input and output file")
+			fmt.Println("compile needs an input file and output dir")
 			os.Exit(1)
 		}
 		content, err = ioutil.ReadFile(os.Args[2])

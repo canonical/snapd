@@ -366,7 +366,9 @@ mprotect
 		}
 	}
 
-	cmd := exec.Command(s.seccompBpfLoader, bpfPath+".allow", bpfPath+".deny", syscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
+	pathAllow := filepath.Join(bpfPath, "filter.allow")
+	pathDeny := filepath.Join(bpfPath, "filter.deny")
+	cmd := exec.Command(s.seccompBpfLoader, pathAllow, pathDeny, syscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -396,8 +398,8 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 	err := main.Compile([]byte(inp), outPath)
 	c.Assert(err, IsNil)
 
-	c.Check(outPath+".allow", testutil.FileEquals, inp)
-	c.Check(outPath+".deny", testutil.FileEquals, inp)
+	c.Check(filepath.Join(outPath, "filter.allow"), testutil.FileEquals, inp)
+	c.Check(filepath.Join(outPath, "filter.deny"), testutil.FileEquals, inp)
 }
 
 // TestCompile iterates over a range of textual seccomp whitelist rules and
