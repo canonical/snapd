@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/client"
@@ -87,7 +86,6 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 
 	var lastID string
 	lastLog := map[string]string{}
-	var waitCtrlcMsg sync.Once
 	for {
 		var rebootingErr error
 		chg, err := cli.Change(id)
@@ -138,9 +136,6 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 		for _, t := range chg.Tasks {
 			if t.Status == "Wait" {
 				maybeShowLog(t)
-				waitCtrlcMsg.Do(func() {
-					fmt.Fprintf(Stderr, i18n.G("WARNING: pressing ctrl-c will abort the running change.\n"))
-				})
 			}
 		}
 
