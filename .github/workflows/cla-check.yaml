@@ -12,3 +12,4 @@ jobs:
         uses: canonical/has-signed-canonical-cla@v1
         with:
           accept-existing-contributors: true
+          exempted-bots: 'Launchpad Translations on behalf of snappy-dev,dependabot'

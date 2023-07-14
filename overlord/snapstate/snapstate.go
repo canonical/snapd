@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -161,6 +161,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 		DownloadInfo:       &update.DownloadInfo,
 		SideInfo:           &update.SideInfo,
 		Type:               update.Type(),
+		Version:            update.Version,
 		PlugsOnly:          len(update.Slots) == 0,
 		InstanceKey:        update.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
@@ -208,6 +209,7 @@ func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _
 		SnapPath:           i.path,
 		Flags:              flags.ForSnapSetup(),
 		Type:               i.Type(),
+		Version:            i.Version,
 		PlugsOnly:          len(i.Slots) == 0,
 		InstanceKey:        i.InstanceKey,
 	}
@@ -396,6 +398,20 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, err
 		}
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
+
+		// When downgrading snapd we want to make sure that it's an exclusive change.
+		if snapsup.SnapName() == "snapd" {
+			res, err := strutil.VersionCompare(info.Version, snapsup.Version)
+			if err != nil {
+				return nil, fmt.Errorf("cannot compare versions of snapd [cur: %s, new: %s]: %v", info.Version, snapsup.Version, err)
+			}
+			// If snapsup.Version was smaller, 1 is returned.
+			if res == 1 {
+				if err := CheckChangeConflictRunExclusively(st, "snapd downgrade"); err != nil {
+					return nil, err
+				}
+			}
+		}
 
 		if experimentalRefreshAppAwareness && !excludeFromRefreshAppAwareness(snapsup.Type) && !snapsup.Flags.IgnoreRunning {
 			// Note that because we are modifying the snap state inside
@@ -1174,6 +1190,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		Channel:            channel,
 		Flags:              flags.ForSnapSetup(),
 		Type:               info.Type(),
+		Version:            info.Version,
 		PlugsOnly:          len(info.Slots) == 0,
 		InstanceKey:        info.InstanceKey,
 	}
@@ -1272,6 +1289,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		DownloadInfo:       &info.DownloadInfo,
 		SideInfo:           &info.SideInfo,
 		Type:               info.Type(),
+		Version:            info.Version,
 		PlugsOnly:          len(info.Slots) == 0,
 		InstanceKey:        info.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
@@ -1458,6 +1476,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 			DownloadInfo:       &info.DownloadInfo,
 			SideInfo:           &info.SideInfo,
 			Type:               info.Type(),
+			Version:            info.Version,
 			PlugsOnly:          len(info.Slots) == 0,
 			InstanceKey:        info.InstanceKey,
 			ExpectedProvenance: info.SnapProvenance,
@@ -1688,10 +1707,21 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 
 	names = strutil.Deduplicate(names)
 
-	refreshOpts := &store.RefreshOptions{IsAutoRefresh: flags.IsAutoRefresh}
+	refreshOpts := &store.RefreshOptions{Scheduled: flags.IsAutoRefresh}
 	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, revOpts, user, refreshOpts)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// save the candidates so the auto-refresh can be continued if it's inhibited
+	// by a running snap.
+	if flags.IsAutoRefresh {
+		hints, err := refreshHintsFromCandidates(st, updates, ignoreValidation, deviceCtx)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		st.Set("refresh-candidates", hints)
 	}
 
 	if filter != nil {
@@ -2403,7 +2433,8 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 			Flags:       snapst.Flags.ForSnapSetup(),
 			InstanceKey: snapst.InstanceKey,
 			Type:        snap.Type(snapst.SnapType),
-			CohortKey:   opts.CohortKey,
+			// no version info needed
+			CohortKey: opts.CohortKey,
 		}
 
 		if switchChannel || switchCohortKey {
@@ -2551,7 +2582,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 		return nil, nil, err
 	}
 
-	refreshOpts := &store.RefreshOptions{IsAutoRefresh: true}
+	refreshOpts := &store.RefreshOptions{Scheduled: true}
 	// XXX: should we skip refreshCandidates if forGatingSnap isn't empty (meaning we're handling proceed from a snap)?
 	candidates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, nil, user, refreshOpts)
 	if err != nil {
@@ -2886,6 +2917,7 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 		SideInfo:    snapst.CurrentSideInfo(),
 		Flags:       snapst.Flags.ForSnapSetup(),
 		Type:        info.Type(),
+		Version:     info.Version,
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -2999,6 +3031,7 @@ func SwitchToNewGadget(st *state.State, name string, fromChange string) (*state.
 		SideInfo:    snapst.CurrentSideInfo(),
 		Flags:       snapst.Flags.ForSnapSetup(),
 		Type:        info.Type(),
+		Version:     info.Version,
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -3080,6 +3113,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 		SideInfo:    snapst.CurrentSideInfo(),
 		Flags:       snapst.Flags.ForSnapSetup(),
 		Type:        info.Type(),
+		Version:     info.Version,
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -3139,6 +3173,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 			Revision: snapst.Current,
 		},
 		Type:        info.Type(),
+		Version:     info.Version,
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -3312,7 +3347,8 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 			RealName: snap.InstanceSnap(name),
 			Revision: revision,
 		},
-		Type:        info.Type(),
+		Type: info.Type(),
+		// no version info needed
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -3431,6 +3467,7 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 		},
 		InstanceKey: instanceKey,
 		Type:        typ,
+		// no version info needed
 	}
 
 	clearData := st.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))
@@ -3569,6 +3606,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		SideInfo:    snapst.Sequence[i],
 		Flags:       flags.ForSnapSetup(),
 		Type:        info.Type(),
+		Version:     info.Version,
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -3613,6 +3651,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.Type(),
+			Version:      newInfo.Version,
 		}, 0, "", nil)
 		if err != nil {
 			return nil, err

@@ -20,6 +20,7 @@
 package apparmor
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io/ioutil"
@@ -31,6 +32,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
@@ -85,6 +87,14 @@ func setupConfCacheDirs(newrootdir string) {
 		// TODO: it seems Solus has a different setup too, investigate this
 		SystemCacheDir = CacheDir
 	}
+
+	snapConfineDir := "snap-confine"
+	if _, internal, err := AppArmorParser(); err == nil {
+		if internal {
+			snapConfineDir = "snap-confine.internal"
+		}
+	}
+	SnapConfineAppArmorDir = filepath.Join(dirs.SnapdStateDir(newrootdir), "apparmor", snapConfineDir)
 }
 
 func init() {
@@ -93,9 +103,10 @@ func init() {
 }
 
 var (
-	ConfDir        string
-	CacheDir       string
-	SystemCacheDir string
+	ConfDir                string
+	CacheDir               string
+	SystemCacheDir         string
+	SnapConfineAppArmorDir string
 )
 
 func (level LevelType) String() string {
@@ -396,6 +407,32 @@ func probeParserFeatures() ([]string, error) {
 	return features, nil
 }
 
+func systemAppArmorLoadsSnapPolicy() bool {
+	// on older Ubuntu systems the system installed apparmor may try and
+	// load snapd generated apparmor policy (LP: #2024637)
+	f, err := os.Open(filepath.Join(dirs.GlobalRootDir, "/lib/apparmor/functions"))
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logger.Debugf("cannot open apparmor functions file: %v", err)
+		}
+		return false
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, dirs.SnapAppArmorDir) {
+			return true
+		}
+	}
+	if scanner.Err() != nil {
+		logger.Debugf("cannot scan apparmor functions file: %v", scanner.Err())
+	}
+
+	return false
+}
+
 func snapdAppArmorSupportsReexecImpl() bool {
 	hostInfoDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
 	_, flags, err := snapdtool.SnapdVersionFromInfoFile(hostInfoDir)
@@ -413,7 +450,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	// - but only use the internal one when we know that the system
 	// installed snapd-apparmor support re-exec
 	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
-		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() {
+		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() && !systemAppArmorLoadsSnapPolicy() {
 			prefix := strings.TrimSuffix(path, "apparmor_parser")
 			// when using the internal apparmor_parser also use
 			// its own configuration and includes etc plus

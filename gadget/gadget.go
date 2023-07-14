@@ -94,6 +94,10 @@ const (
 	// UnboundedStructureOffset is the maximum effective partition offset
 	// that we can handle.
 	UnboundedStructureOffset = quantity.Offset(math.MaxUint64)
+
+	// UnboundedStructureSize is the maximum effective partition size
+	// that we can handle.
+	UnboundedStructureSize = quantity.Size(math.MaxUint64)
 )
 
 var (
@@ -255,6 +259,16 @@ type VolumeStructure struct {
 	EnclosingVolume *Volume `yaml:"-" json:"-"`
 }
 
+// SetEnclosingVolumeInStructs is a helper that sets the pointer to
+// the Volume in all VolumeStructure objects it contains.
+func SetEnclosingVolumeInStructs(vv map[string]*Volume) {
+	for _, v := range vv {
+		for sidx := range v.Structure {
+			v.Structure[sidx].EnclosingVolume = v
+		}
+	}
+}
+
 // IsRoleMBR tells us if v has MBR role or not.
 func (v *VolumeStructure) IsRoleMBR() bool {
 	return v.Role == schemaMBR
@@ -287,8 +301,12 @@ func (vs *VolumeStructure) HasLabel(label string) bool {
 	return vs.Label == label
 }
 
-// IsFixedSize tells us if size is fixed or if there is range.
-func (vs *VolumeStructure) IsFixedSize() bool {
+// isFixedSize tells us if size is fixed or if there is range.
+func (vs *VolumeStructure) isFixedSize() bool {
+	if vs.hasPartialSize() {
+		return false
+	}
+
 	return vs.Size == vs.MinSize
 }
 
@@ -343,6 +361,12 @@ func maxStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
 	max := quantity.Offset(0)
 	othersSz := quantity.Size(0)
 	for i := idx - 1; i >= 0; i-- {
+		if vss[i].hasPartialSize() {
+			// If a previous partition has not a defined size, the
+			// allowed offset is not really bounded.
+			max = UnboundedStructureOffset
+			break
+		}
 		othersSz += vss[i].Size
 		if vss[i].Offset != nil {
 			max = *vss[i].Offset + quantity.Offset(othersSz)
@@ -981,7 +1005,11 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 
 func setImplicitForVolume(vol *Volume, model Model) error {
 	rs := whichVolRuleset(model)
-	if vol.Schema == "" && !vol.HasPartial(PartialSchema) {
+	if vol.HasPartial(PartialSchema) {
+		if vol.Schema != "" {
+			return fmt.Errorf("partial schema is set but schema is still specified as %q", vol.Schema)
+		}
+	} else if vol.Schema == "" {
 		// default for schema is gpt
 		vol.Schema = schemaGPT
 	}
@@ -1029,7 +1057,7 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		}
 		// We know the end of the structure only if we could define an offset
 		// and the size is fixed.
-		if vol.Structure[i].Offset != nil && vol.Structure[i].IsFixedSize() {
+		if vol.Structure[i].Offset != nil && vol.Structure[i].isFixedSize() {
 			previousEnd = asOffsetPtr(*vol.Structure[i].Offset +
 				quantity.Offset(vol.Structure[i].Size))
 		} else {
@@ -1158,7 +1186,7 @@ func validateVolume(vol *Volume) error {
 	if !validVolumeName.MatchString(vol.Name) {
 		return errors.New("invalid name")
 	}
-	if vol.Schema != "" && vol.Schema != schemaGPT && vol.Schema != schemaMBR {
+	if !vol.HasPartial(PartialSchema) && vol.Schema != schemaGPT && vol.Schema != schemaMBR {
 		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
@@ -1383,9 +1411,6 @@ func validateStructureType(s string, vol *Volume) error {
 		}
 	} else {
 		schema := vol.Schema
-		if schema == "" {
-			schema = schemaGPT
-		}
 		if schema != schemaGPT && isGPT {
 			// type: <uuid> is only valid for GPT volumes
 			return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
@@ -1570,12 +1595,24 @@ func IsCompatible(current, new *Info) error {
 		return err
 	}
 
-	if currentVol.Schema == "" || newVol.Schema == "" {
-		return fmt.Errorf("internal error: unset volume schemas: old: %q new: %q", currentVol.Schema, newVol.Schema)
-	}
-
 	if err := isLayoutCompatible(currentVol, newVol); err != nil {
 		return fmt.Errorf("incompatible layout change: %v", err)
+	}
+	return nil
+}
+
+// checkCompatibleSchema checks if the schema in a new volume we are
+// updating to is compatible with the old volume.
+func checkCompatibleSchema(old, new *Volume) error {
+	// If old schema is partial, any schema in new will be fine
+	if !old.HasPartial(PartialSchema) {
+		if new.HasPartial(PartialSchema) {
+			return fmt.Errorf("new schema is partial, while old was not")
+		}
+		if old.Schema != new.Schema {
+			return fmt.Errorf("incompatible schema change from %v to %v",
+				old.Schema, new.Schema)
+		}
 	}
 	return nil
 }

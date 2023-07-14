@@ -158,8 +158,8 @@ var (
 	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
 
-	aspectstateGet = aspectstate.Get
-	aspectstateSet = aspectstate.Set
+	aspectstateGetAspect = aspectstate.GetAspect
+	aspectstateSetAspect = aspectstate.SetAspect
 )
 
 func ensureStateSoonImpl(st *state.State) {

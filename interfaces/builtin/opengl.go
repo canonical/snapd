@@ -127,6 +127,8 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 # ARM Mali driver
 /dev/mali[0-9]* rw,
 /dev/dma_buf_te rw,
+/dev/dma_heap/linux,cma rw,
+/dev/dma_heap/system rw,
 
 # NXP i.MX driver
 # https://github.com/Freescale/kernel-module-imx-gpu-viv
@@ -174,6 +176,8 @@ unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 // will be added by snap-confine.
 var openglConnectedPlugUDev = []string{
 	`SUBSYSTEM=="drm", KERNEL=="card[0-9]*"`,
+	`SUBSYSTEM=="dma_heap", KERNEL=="linux,cma"`,
+	`SUBSYSTEM=="dma_heap", KERNEL=="system"`,
 	`KERNEL=="vchiq"`,
 	`KERNEL=="vcsm-cma"`,
 	`KERNEL=="renderD[0-9]*"`,

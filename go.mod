@@ -21,7 +21,7 @@ require (
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
 	github.com/snapcore/bolt v1.3.2-0.20210908134111-63c8bfcf7af8
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
-	github.com/snapcore/secboot v0.0.0-20230428184943-be3902241d8a
+	github.com/snapcore/secboot v0.0.0-20230623151406-4d331d24f830
 	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/sys v0.7.0
@@ -33,7 +33,7 @@ require (
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 	gopkg.in/tylerb/graceful.v1 v1.2.15
 	gopkg.in/yaml.v2 v2.4.0
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

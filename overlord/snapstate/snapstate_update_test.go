@@ -803,6 +803,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
+		Version:   "some-snapVer",
 		PlugsOnly: true,
 		Flags:     snapstate.Flags{Amend: true},
 	})
@@ -1049,6 +1050,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
+		Version:   "services-snapVer",
 		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
@@ -1403,6 +1405,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 		},
 		SideInfo:    snapsup.SideInfo,
 		Type:        snap.TypeApp,
+		Version:     "services-snapVer",
 		PlugsOnly:   true,
 		InstanceKey: "instance",
 	})
@@ -1740,6 +1743,7 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeKernel,
+		Version:   "kernelVer",
 		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
@@ -9920,4 +9924,204 @@ func (s *snapmgrTestSuite) TestMonitoringIsPersistedAndRestored(c *C) {
 
 	c.Assert(s.state.Cached("monitored-snaps"), IsNil)
 	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 1)
+}
+
+func (s *snapmgrTestSuite) testUpdateDowngradeBlockedByOtherChanges(c *C, old, new string, revert bool) error {
+	si1 := snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-id",
+		Channel:  "latest",
+		Revision: snap.R(1),
+	}
+	si2 := snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-id",
+		Channel:  "latest",
+		Revision: snap.R(2),
+	}
+	si3 := snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-id",
+		Channel:  "latest",
+		Revision: snap.R(3),
+	}
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		var version string
+		switch name {
+		case "snapd":
+			if (revert && si.Revision.N == 1) || (!revert && si.Revision.N == 2) {
+				version = old
+			} else if (revert && si.Revision.N == 2) || si.Revision.N == 3 {
+				version = new
+			} else {
+				return nil, fmt.Errorf("unexpected revision for test")
+			}
+		default:
+			version = "1.0"
+		}
+		return &snap.Info{
+			SuggestedName: name,
+			Version:       version,
+			Architectures: []string{"all"},
+			SideInfo:      *si,
+		}, nil
+	})
+	defer restore()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("unrelated", "...")
+	chg.AddTask(st.NewTask("task0", "..."))
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{&si1, &si2, &si3},
+		TrackingChannel: "latest/stable",
+		Current:         si2.Revision,
+	})
+
+	var err error
+	if revert {
+		_, err = snapstate.Revert(s.state, "snapd", snapstate.Flags{}, "")
+	} else {
+		_, err = snapstate.Update(s.state, "snapd", &snapstate.RevisionOptions{Revision: snap.R(3)}, s.user.ID, snapstate.Flags{})
+	}
+	return err
+}
+
+func (s *snapmgrTestSuite) TestUpdateDowngradeBlockedByOtherChanges(c *C) {
+	err := s.testUpdateDowngradeBlockedByOtherChanges(c, "2.57.1", "2.56", false)
+	c.Assert(err, ErrorMatches, `other changes in progress \(conflicting change "unrelated"\), change "snapd downgrade" not allowed until they are done`)
+}
+
+func (s *snapmgrTestSuite) TestUpdateDowngradeBlockedByOtherChangesAlsoWhenEmpty(c *C) {
+	err := s.testUpdateDowngradeBlockedByOtherChanges(c, "2.57.1", "", false)
+	c.Assert(err, ErrorMatches, `other changes in progress \(conflicting change "unrelated"\), change "snapd downgrade" not allowed until they are done`)
+}
+
+func (s *snapmgrTestSuite) TestUpdateDowngradeNotBlockedByOtherChanges(c *C) {
+	err := s.testUpdateDowngradeBlockedByOtherChanges(c, "2.57.1", "2.58", false)
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRevertBlockedByOtherChanges(c *C) {
+	// Swap values for revert case
+	err := s.testUpdateDowngradeBlockedByOtherChanges(c, "2.56", "2.57.1", true)
+	c.Assert(err, ErrorMatches, `other changes in progress \(conflicting change "unrelated"\), change "snapd downgrade" not allowed until they are done`)
+}
+
+func (s *snapmgrTestSuite) TestRevertBlockedByOtherChangesAlsoWhenEmpty(c *C) {
+	// Swap values for revert case
+	err := s.testUpdateDowngradeBlockedByOtherChanges(c, "2.58", "2.57.1", true)
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) testUpdateNotAllowedWhileDowngrading(c *C, old, new string, revert bool) error {
+	si1 := snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-id",
+		Channel:  "latest",
+		Revision: snap.R(1),
+	}
+	si2 := snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-id",
+		Channel:  "latest",
+		Revision: snap.R(2),
+	}
+	si3 := snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-id",
+		Channel:  "latest",
+		Revision: snap.R(3),
+	}
+
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+		Channel:  "channel-for-7",
+	}
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		var version string
+		switch name {
+		case "snapd":
+			if (revert && si.Revision.N == 1) || (!revert && si.Revision.N == 2) {
+				version = old
+			} else if (revert && si.Revision.N == 2) || si.Revision.N == 3 {
+				version = new
+			} else {
+				return nil, fmt.Errorf("unexpected revision for test")
+			}
+		default:
+			version = "1.0"
+		}
+		return &snap.Info{
+			SuggestedName: name,
+			Version:       version,
+			Architectures: []string{"all"},
+			SideInfo:      *si,
+		}, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{&si1, &si2, &si3},
+		TrackingChannel: "latest/stable",
+		Current:         si2.Revision,
+	})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{&si},
+		TrackingChannel: "other-chanel/stable",
+		Current:         si.Revision,
+	})
+
+	var err error
+	var ts *state.TaskSet
+	if revert {
+		ts, err = snapstate.Revert(s.state, "snapd", snapstate.Flags{}, "")
+	} else {
+		ts, err = snapstate.Update(s.state, "snapd", &snapstate.RevisionOptions{Revision: snap.R(3)}, s.user.ID, snapstate.Flags{})
+	}
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh-snap", "refresh snapd")
+	chg.AddAll(ts)
+
+	_, err = snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-7/stable"}, s.user.ID, snapstate.Flags{})
+	return err
+}
+
+func (s *snapmgrTestSuite) TestUpdateNotAllowedWhileDowngrading(c *C) {
+	err := s.testUpdateNotAllowedWhileDowngrading(c, "2.57.1", "2.56", false)
+	c.Assert(err, ErrorMatches, `snapd downgrade in progress, no other changes allowed until this is done`)
+}
+
+func (s *snapmgrTestSuite) TestUpdateNotAllowedWhileDowngradingAndWhenEmpty(c *C) {
+	err := s.testUpdateNotAllowedWhileDowngrading(c, "2.57.1", "", false)
+	c.Assert(err, ErrorMatches, `snapd downgrade in progress, no other changes allowed until this is done`)
+}
+
+func (s *snapmgrTestSuite) TestUpdateAllowedWhileUpgrading(c *C) {
+	err := s.testUpdateNotAllowedWhileDowngrading(c, "2.57.1", "2.58", false)
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUpdateNotAllowedWhileRevertDowngrading(c *C) {
+	err := s.testUpdateNotAllowedWhileDowngrading(c, "2.56", "2.57.1", true)
+	c.Assert(err, ErrorMatches, `snapd downgrade in progress, no other changes allowed until this is done`)
+}
+
+func (s *snapmgrTestSuite) TestUpdateAllowedWhileRevertUpgrading(c *C) {
+	err := s.testUpdateNotAllowedWhileDowngrading(c, "2.58", "2.57.1", true)
+	c.Assert(err, IsNil)
 }

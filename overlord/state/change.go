@@ -139,15 +139,16 @@ const (
 // while the individual Task values would track the running of
 // the hooks themselves.
 type Change struct {
-	state   *State
-	id      string
-	kind    string
-	summary string
-	status  Status
-	clean   bool
-	data    customData
-	taskIDs []string
-	ready   chan struct{}
+	state              *State
+	id                 string
+	kind               string
+	summary            string
+	status             Status
+	clean              bool
+	data               customData
+	taskIDs            []string
+	ready              chan struct{}
+	lastObservedStatus Status
 
 	spawnTime time.Time
 	readyTime time.Time
@@ -422,6 +423,14 @@ func (c *Change) Status() Status {
 	panic(fmt.Sprintf("internal error: cannot process change status: %v", statusStats))
 }
 
+func (c *Change) notifyStatusChange(new Status) {
+	if c.lastObservedStatus == new {
+		return
+	}
+	c.state.notifyChangeStatusChangedHandlers(c, c.lastObservedStatus, new)
+	c.lastObservedStatus = new
+}
+
 // SetStatus sets the change status, overriding the default behavior (see Status method).
 func (c *Change) SetStatus(s Status) {
 	c.state.writing()
@@ -429,6 +438,7 @@ func (c *Change) SetStatus(s Status) {
 	if s.Ready() {
 		c.markReady()
 	}
+	c.notifyStatusChange(c.Status())
 }
 
 func (c *Change) markReady() {
@@ -447,15 +457,10 @@ func (c *Change) Ready() <-chan struct{} {
 	return c.ready
 }
 
-// taskStatusChanged is called by tasks when their status is changed,
-// to give the opportunity for the change to close its ready channel.
-func (c *Change) taskStatusChanged(t *Task, old, new Status) {
-	if old.Ready() == new.Ready() {
-		return
-	}
+func (c *Change) detectChangeReady(excludeTask *Task) {
 	for _, tid := range c.taskIDs {
 		task := c.state.tasks[tid]
-		if task != t && !task.status.Ready() {
+		if task != excludeTask && !task.status.Ready() {
 			return
 		}
 	}
@@ -466,6 +471,21 @@ func (c *Change) taskStatusChanged(t *Task, old, new Status) {
 		panic(fmt.Errorf("change %s unexpectedly became unready (%s)", c.ID(), c.Status()))
 	}
 	c.markReady()
+}
+
+// taskStatusChanged is called by tasks when their status is changed,
+// to give the opportunity for the change to close its ready channel, and
+// notify observers of Change changes.
+func (c *Change) taskStatusChanged(t *Task, old, new Status) {
+	cs := c.Status()
+	// If the task changes from ready => unready or unready => ready,
+	// update the ready status for the change.
+	if old.Ready() == new.Ready() {
+		c.notifyStatusChange(cs)
+		return
+	}
+	c.detectChangeReady(t)
+	c.notifyStatusChange(cs)
 }
 
 // IsClean returns whether all tasks in the change have been cleaned. See SetClean.

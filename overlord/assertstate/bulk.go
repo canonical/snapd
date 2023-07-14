@@ -256,7 +256,7 @@ func resolvePool(s *state.State, pool *asserts.Pool, checkBeforeCommit func(*ass
 	unsupported := handleUnsupported(db)
 
 	for {
-		storeOpts := &store.RefreshOptions{IsAutoRefresh: opts.IsAutoRefresh}
+		storeOpts := &store.RefreshOptions{Scheduled: opts.IsAutoRefresh}
 		s.Unlock()
 		_, aresults, err := sto.SnapAction(context.TODO(), nil, nil, pool, user, storeOpts)
 		s.Lock()
