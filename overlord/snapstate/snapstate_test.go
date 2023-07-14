@@ -9011,3 +9011,36 @@ func (s *snapmgrTestSuite) TestSaveRefreshCandidatesOnAutoRefresh(c *C) {
 	c.Check(cands["some-snap"], NotNil)
 	c.Check(cands["some-other-snap"], NotNil)
 }
+
+func (s *snapmgrTestSuite) TestRefreshCandidatesMergeFlags(c *C) {
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+	}
+	cand := &snapstate.RefreshCandidate{
+		SnapSetup: snapstate.SnapSetup{
+			SideInfo: si,
+			Flags: snapstate.Flags{
+				Classic:     true,
+				NoReRefresh: true,
+			},
+		},
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{Sequence: []*snap.SideInfo{si}})
+
+	globalFlags := &snapstate.Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: true}
+	snapsup, _, err := cand.SnapSetupForUpdate(s.state, nil, 0, globalFlags)
+	c.Assert(err, IsNil)
+	c.Assert(snapsup, NotNil)
+	c.Assert(*snapsup, DeepEquals, snapstate.SnapSetup{
+		SideInfo: si,
+		Flags: snapstate.Flags{
+			Classic:                true,
+			NoReRefresh:            true,
+			IsAutoRefresh:          true,
+			IsContinuedAutoRefresh: true,
+		},
+	})
+}
