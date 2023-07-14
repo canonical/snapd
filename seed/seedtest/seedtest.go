@@ -137,8 +137,7 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, snapFilePath string
 	}
 
 	for _, db := range dbs {
-		err := db.Add(declA)
-		c.Assert(err, IsNil)
+		db.Add(declA)
 		err = db.Add(revA)
 		c.Assert(err, IsNil)
 	}
