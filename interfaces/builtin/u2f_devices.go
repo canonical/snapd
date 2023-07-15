@@ -170,7 +170,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "TOKEN2 FIDO2 key",
 		VendorIDPattern:  "349e",
-		ProductIDPattern: "0010|0012",
+		ProductIDPattern: "0010|0012|0022",
 	},
 }
 
