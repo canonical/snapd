@@ -365,12 +365,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 	}
 
-	// Implicitly set --unaliased flag for parallel installs to avoid
-	// alias conflicts with the main snap
-	if snapsup.InstanceKey != "" {
-		snapsup.Unaliased = true
-	}
-
 	if snapsup.Flags.Classic {
 		if !release.OnClassic {
 			return nil, fmt.Errorf("classic confinement is only supported on classic systems")
@@ -1094,6 +1088,12 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 	if flags.Classic && !info.NeedsClassic() {
 		// snap does not require classic confinement, silently drop the flag
 		flags.Classic = false
+	}
+
+	// Implicitly set --unaliased flag for parallel installs to avoid
+	// alias conflicts with the main snap
+	if !snapst.IsInstalled() && info.InstanceKey != "" {
+		flags.Unaliased = true
 	}
 
 	if err := validateInfoAndFlags(info, snapst, flags); err != nil {
