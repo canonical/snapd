@@ -86,7 +86,7 @@ execute: |
     fi
 
     echo "Break snapd.test-snapd-sh filters to ensure (kernel) validation works"
-    for ext in filter.allow filter.deny; do
+    for f in filter.allow filter.deny; do
         dd if=/dev/urandom of="${PROFILE}/$f" count=1 bs=1024
         if output=$(test-snapd-sh.sh -c 'echo hello' 2>&1 ); then
             echo "test-snapd-sh.sh should fail with invalid seccomp profile"
