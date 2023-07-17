@@ -309,7 +309,7 @@ func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
 			c.Check(unmountCalls, HasLen, 2)
 			c.Check(unmountCalls[0].flags, Equals, 0)
 			c.Check(unmountCalls[1].flags, Equals, syscall.MNT_DETACH)
-			c.Check(log.String(), Matches, `(?sm).* cannot unmount /.*/run/snapd/gadget-install/dev-node2 after writing filesystem content, trying lazy unmount next: umount error`)
+			c.Check(log.String(), Matches, `(?sm).* cannot unmount /.*/run/snapd/gadget-install/dev-node2 after writing filesystem content: umount error \(trying lazy unmount next\)`)
 		}
 	}
 }

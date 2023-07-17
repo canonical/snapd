@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"syscall"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -568,13 +567,7 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 	numSeedPart := 0
 	unmount = func() (err error) {
 		for _, mntPt := range mountPoints {
-			errUnmount := sysUnmount(mntPt, 0)
-			if errUnmount != nil {
-				logger.Noticef("cannot unmount %q: %v (trying lazy unmount next)", mntPt, errUnmount)
-				// lazy umount on error, see LP:2025402
-				errUnmount = sysUnmount(mntPt, syscall.MNT_DETACH)
-				logger.Noticef("cannot lazy unmount %q: %v", mntPt, errUnmount)
-			}
+			errUnmount := unmountWithFallbackToLazy(mntPt, "mounting volumes")
 			// Make sure we do not set err to nil if it had already an error
 			if errUnmount != nil {
 				err = errUnmount
