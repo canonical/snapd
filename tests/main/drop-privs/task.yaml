@@ -1,7 +1,7 @@
 summary: Test that we can run go-code as effectively another user. 
 
-# exclude uc16 as there is no go snap
-systems: [-ubuntu-core-16-*]
+# exclude core as there is no go
+systems: [-ubuntu-core-*]
 
 execute: |
   # Verify that no other go-routine is run under the same GID/UID as the code who has
