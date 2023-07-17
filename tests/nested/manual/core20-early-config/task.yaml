@@ -88,7 +88,7 @@ execute: |
         remote.exec "sudo cat /etc/netplan/00-snapd-config.yaml" | MATCH br54
         remote.exec "sudo netplan get bridges.br54.dhcp4" | MATCH true
         remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH true
-        remote.exec "sudo netplan get ethernets.ens3.dhcp4" | MATCH false
+        remote.exec "sudo netplan get ethernets.any.dhcp6" | MATCH true
         # and updating netplan works
         remote.exec "sudo snap set system system.network.netplan.network.bridges.br54.dhcp4=false"
         remote.exec "sudo netplan get bridges.br54.dhcp4" | MATCH false
