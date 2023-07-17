@@ -109,7 +109,7 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 // gadget and some system options (cmdlineApped). This is only useful
 // if snapd is managing the boot config.
 func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineAppend string, defaultCmdline string, model gadget.Model) (map[string]string, error) {
-	extraOrFull, full, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath, model)
+	extraOrFull, full, removeArgs, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath, model)
 	if err != nil {
 		return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
 	}
@@ -117,6 +117,8 @@ func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineAppend 
 		extraOrFull, cmdlineAppend)
 
 	extraOrFull = strutil.JoinNonEmpty([]string{extraOrFull, cmdlineAppend}, " ")
+
+	keepDefaultArgs := kcmdline.RemoveMatchingFilter(defaultCmdline, removeArgs)
 
 	// gadget has the kernel command line
 	args := map[string]string{
@@ -126,7 +128,12 @@ func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineAppend 
 	if full {
 		args["snapd_full_cmdline_args"] = extraOrFull
 	} else {
-		args["snapd_full_cmdline_args"] = strutil.JoinNonEmpty([]string{defaultCmdline, extraOrFull}, " ")
+		args["snapd_full_cmdline_args"] = strutil.JoinNonEmpty(append(keepDefaultArgs, extraOrFull), " ")
+	}
+	if len(args["snapd_full_cmdline_args"]) == 0 {
+		// grub.cfg tests if snapd_full_cmdline_args is set by looking if it is not empty.
+		// Here, it should be set, but empty. So adding a space will force grub.cfg to use it.
+		args["snapd_full_cmdline_args"] = " "
 	}
 	return args, nil
 }
@@ -174,7 +181,8 @@ func composeCommandLine(currentOrCandidate int, mode, system, gadgetDirOrSnapPat
 		return "", err
 	}
 	if gadgetDirOrSnapPath != "" {
-		extraOrFull, full, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath, model)
+		extraOrFull, full, removeArgs, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath, model)
+		components.RemoveArgs = removeArgs
 		if err != nil {
 			return "", fmt.Errorf("cannot use kernel command line from gadget: %v", err)
 		}

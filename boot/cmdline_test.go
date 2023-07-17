@@ -398,6 +398,7 @@ volumes:
 		cmdlineAppend string
 		expectedVars  map[string]string
 		append        []string
+		remove        []string
 	}{{
 		files: [][]string{
 			{"cmdline.extra", "foo bar baz"},
@@ -464,14 +465,35 @@ volumes:
 			"snapd_full_cmdline_args":  `default bar baz=* "with spaces"`,
 		},
 		append: []string{"bar", "baz=*", `'"with spaces"'`},
+	}, {
+		expectedVars: map[string]string{
+			"snapd_extra_cmdline_args": "",
+			"snapd_full_cmdline_args":  "nodefault",
+		},
+		append: []string{"nodefault"},
+		remove: []string{"default"},
+	}, {
+		expectedVars: map[string]string{
+			"snapd_extra_cmdline_args": "",
+			"snapd_full_cmdline_args":  " ",
+		},
+		remove: []string{"default"},
 	}} {
 		gadgetYaml := mockGadgetYaml
-		if len(tc.append) > 0 {
+		if len(tc.append) > 0 || len(tc.remove) > 0 {
 			gadgetYaml = fmt.Sprintf("%skernel-cmdline:\n", gadgetYaml)
+		}
+		if len(tc.append) > 0 {
 			gadgetYaml = fmt.Sprintf("%s  append:\n", gadgetYaml)
 		}
 		for _, append := range tc.append {
 			gadgetYaml = fmt.Sprintf("%s   - %s\n", gadgetYaml, append)
+		}
+		if len(tc.remove) > 0 {
+			gadgetYaml = fmt.Sprintf("%s  remove:\n", gadgetYaml)
+		}
+		for _, remove := range tc.remove {
+			gadgetYaml = fmt.Sprintf("%s   - %s\n", gadgetYaml, remove)
 		}
 		sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, append([][]string{
 			{"meta/snap.yaml", gadgetSnapYaml},

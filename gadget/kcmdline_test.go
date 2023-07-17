@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap/snaptest"
 	. "gopkg.in/check.v1"
 )
@@ -134,10 +135,11 @@ kernel-cmdline:
 		snap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 			{"meta/gadget.yaml", yaml},
 		})
-		cmdline, full, err := gadget.KernelCommandLineFromGadget(snap, uc20Mod)
+		cmdline, full, removeArgs, err := gadget.KernelCommandLineFromGadget(snap, uc20Mod)
 
 		c.Assert(err, IsNil)
 		c.Check(cmdline, Equals, t)
+		c.Check(len(removeArgs), Equals, 0)
 		c.Check(full, Equals, false)
 	}
 }
@@ -167,8 +169,77 @@ kernel-cmdline:
 		snap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 			{"meta/gadget.yaml", yaml},
 		})
-		_, _, err := gadget.KernelCommandLineFromGadget(snap, uc20Mod)
+		_, _, _, err := gadget.KernelCommandLineFromGadget(snap, uc20Mod)
 
 		c.Check(err, ErrorMatches, fmt.Sprintf(`kernel parameter '%s' is not allowed`, t))
+	}
+}
+
+func qka(param, value string) kcmdline.Argument {
+	return kcmdline.Argument{Param: param, Value: value, Quoted: true}
+}
+
+func ka(param, value string) kcmdline.Argument {
+	return kcmdline.Argument{Param: param, Value: value, Quoted: false}
+}
+
+func (s *gadgetYamlTestSuite) TestCheckCmdlineRemove(c *C) {
+	const gadgetSnapYaml = `name: gadget
+version: 1.0
+type: gadget
+`
+
+	const yamlTemplate = `
+volumes:
+  pc:
+    bootloader: grub
+kernel-cmdline:
+  remove:
+%s
+`
+	const yamlRemoveLineTemplate = `
+   - %s
+`
+	tests := []struct {
+		matches            []string
+		expectedRemoved    []kcmdline.Argument
+		expectedNotRemoved []kcmdline.Argument
+	}{
+		{[]string{`mock`},
+			[]kcmdline.Argument{ka(`mock`, ``)},
+			[]kcmdline.Argument{ka(`static`, ``)}},
+		{[]string{`something=*`},
+			[]kcmdline.Argument{ka(`something`, `foo`), ka(`something`, ``), qka(`something`, `*`)},
+			[]kcmdline.Argument{ka(`somethingelse`, `value`), ka(`something else`, ``)}},
+		{[]string{`something="*"`},
+			[]kcmdline.Argument{ka(`something`, `*`), qka(`something`, `*`)},
+			[]kcmdline.Argument{ka(`something`, `foo`)}},
+		{[]string{`something="something with value"`},
+			[]kcmdline.Argument{qka(`something`, `something with value`)},
+			[]kcmdline.Argument{qka(`something`, `something with other value`)}},
+	}
+
+	for _, t := range tests {
+		lines := ""
+		for _, m := range t.matches {
+			lines += fmt.Sprintf(yamlRemoveLineTemplate, m)
+		}
+		yaml := fmt.Sprintf(yamlTemplate, lines)
+
+		snap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
+			{"meta/gadget.yaml", yaml},
+		})
+		cmdline, full, removeArgs, err := gadget.KernelCommandLineFromGadget(snap, uc20Mod)
+		c.Assert(err, IsNil)
+		c.Check(cmdline, Equals, "")
+		c.Check(full, Equals, false)
+
+		matcher := kcmdline.NewMatcher(removeArgs)
+		for _, e := range t.expectedRemoved {
+			c.Check(matcher.Match(e), Equals, true)
+		}
+		for _, e := range t.expectedNotRemoved {
+			c.Check(matcher.Match(e), Equals, false)
+		}
 	}
 }

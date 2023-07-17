@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -179,6 +180,8 @@ type CommandLineComponents struct {
 	// set and ExtraArgs. Note that, it is an error if extra and full
 	// arguments are non-empty.
 	FullArgs string
+	// A list of patterns to remove arguments from the default command line
+	RemoveArgs []kcmdline.ArgumentPattern
 }
 
 func (c *CommandLineComponents) Validate() error {
