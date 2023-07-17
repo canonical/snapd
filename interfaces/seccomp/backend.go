@@ -280,7 +280,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
 	for _, c := range removed {
-		err := os.Remove(bpfBinPath(c))
+		err := os.RemoveAll(bpfBinPath(c))
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
