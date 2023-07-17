@@ -212,6 +212,7 @@ type snapInstruction struct {
 	QuotaGroupName         string                           `json:"quota-group"`
 	Time                   string                           `json:"time"`
 	HoldLevel              string                           `json:"hold-level"`
+	Prefer                 bool                             `json:"prefer"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -244,6 +245,9 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	}
 	if inst.IgnoreValidation {
 		flags.IgnoreValidation = true
+	}
+	if inst.Prefer {
+		flags.Prefer = true
 	}
 	flags.QuotaGroupName = inst.QuotaGroupName
 

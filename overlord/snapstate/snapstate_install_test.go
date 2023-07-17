@@ -103,6 +103,9 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases")
+	if opts&preferInstalled != 0 {
+		expected = append(expected, "prefer-aliases")
+	}
 	if opts&updatesBootConfig != 0 {
 		expected = append(expected, "update-managed-boot-config")
 	}
@@ -304,6 +307,19 @@ func (s *snapmgrTestSuite) TestInstallCohortTasks(c *C) {
 	c.Check(snapsup.CohortKey, Equals, "what")
 
 	verifyInstallTasks(c, snap.TypeApp, 0, 0, ts)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+}
+
+func (s *snapmgrTestSuite) TestInstallPreferTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	flags := snapstate.Flags{Prefer: true}
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, flags)
+	c.Assert(err, IsNil)
+
+	verifyInstallTasks(c, snap.TypeApp, preferInstalled, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 

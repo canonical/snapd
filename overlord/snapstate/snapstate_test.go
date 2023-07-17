@@ -502,6 +502,7 @@ const (
 	updatesBootConfig
 	noConfigure
 	noLastBeforeModificationsEdge
+	preferInstalled
 )
 
 func taskKinds(tasks []*state.Task) []string {

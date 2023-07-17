@@ -590,6 +590,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
+	if snapsup.Flags.Prefer {
+		prefer := st.NewTask("prefer-aliases", fmt.Sprintf(i18n.G("Prefer aliases for snap %q"), snapsup.InstanceName()))
+		addTask(prefer)
+		prev = prefer
+	}
+
 	if isCoreBoot && snapsup.Type == snap.TypeSnapd {
 		// make sure no other active changes are changing the kernel command line
 		if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {

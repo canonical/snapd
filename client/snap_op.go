@@ -61,6 +61,7 @@ type SnapOptions struct {
 	ValidationSets   []string        `json:"validation-sets,omitempty"`
 	Time             string          `json:"time,omitempty"`
 	HoldLevel        string          `json:"hold-level,omitempty"`
+	Prefer           bool            `json:"prefer,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -101,6 +102,7 @@ func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
 	fields := []field{
 		{"ignore-running", opts.IgnoreRunning},
 		{"unaliased", opts.Unaliased},
+		{"prefer", opts.Prefer},
 	}
 	if opts.Transaction != "" {
 		if err := mw.WriteField("transaction", string(opts.Transaction)); err != nil {

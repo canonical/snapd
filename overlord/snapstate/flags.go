@@ -108,6 +108,11 @@ type Flags struct {
 
 	// Lane is the lane that tasks should join if Transaction is set to "all-snaps".
 	Lane int `json:"lane,omitempty"`
+
+	// Prefer enables all aliases of the given snap in preference to
+	// conflicting aliases of other snaps whose aliases will be disabled
+	// (or removed, for manual ones).
+	Prefer bool `json:"prefer,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode

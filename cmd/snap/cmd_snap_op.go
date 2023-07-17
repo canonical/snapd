@@ -490,6 +490,7 @@ type cmdInstall struct {
 	ForceDangerous bool `long:"force-dangerous" hidden:"yes"`
 
 	Unaliased bool `long:"unaliased"`
+	Prefer    bool `long:"prefer"`
 
 	Name string `long:"name"`
 
@@ -648,6 +649,7 @@ func (x *cmdInstall) Execute([]string) error {
 		IgnoreRunning:    x.IgnoreRunning,
 		Transaction:      x.Transaction,
 		QuotaGroupName:   x.QuotaGroupName,
+		Prefer:           x.Prefer,
 	}
 	x.setModes(opts)
 
@@ -1277,6 +1279,8 @@ func init() {
 			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"quota-group": i18n.G("Add the snap to a quota group on install"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"prefer": i18n.G("Enable all aliases of the given snap in preference to conflicting aliases of other snaps whose aliases will be disabled (or removed, for manual ones)"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{

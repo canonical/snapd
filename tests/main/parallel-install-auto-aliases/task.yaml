@@ -84,3 +84,18 @@ execute: |
     # make sure that symlinks are in place
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown1)" = "test-snapd-auto-aliases_foo.wellknown1"
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown2)" = "test-snapd-auto-aliases_foo.wellknown2"
+
+    # prefer aliases test-snapd-auto-aliases during install
+    echo "When test-snapd-auto-aliases is installed with --prefer"
+    snap install --prefer test-snapd-auto-aliases
+
+    echo "The symlinks should be updated accordingly"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown1)" = "test-snapd-auto-aliases.wellknown1"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown2)" = "test-snapd-auto-aliases.wellknown2"
+
+    echo "And so is the list of aliases"
+    snap aliases > aliases.out
+    MATCH "test-snapd-auto-aliases_foo.wellknown1 +test_snapd_wellknown1 +disabled" < aliases.out
+    MATCH "test-snapd-auto-aliases_foo.wellknown2 +test_snapd_wellknown2 +disabled" < aliases.out
+    MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1 +-"            < aliases.out
+    MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +-"            < aliases.out
