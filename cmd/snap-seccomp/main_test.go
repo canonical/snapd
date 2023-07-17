@@ -53,6 +53,7 @@ var _ = Suite(&snapSeccompSuite{})
 
 const (
 	Deny = iota
+	DenyExplicit
 	Allow
 )
 
@@ -186,8 +187,11 @@ int main(int argc, char** argv)
     syscall_ret = syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
     // 911 is our mocked errno for implicit denials via unlisted syscalls and
     // 999 is explicit denial
-    if (syscall_ret < 0 && (errno == 911 || errno == 999)) {
+    if (syscall_ret < 0 && errno == 911) {
         ret = 10;
+    }
+    if (syscall_ret < 0 && errno == 999) {
+        ret = 20;
     }
     syscall(SYS_exit, ret, 0, 0, 0, 0, 0);
     return 0;
@@ -377,13 +381,23 @@ mprotect
 	// else is unexpected (segv, strtoll failure, ...)
 	exitCode, e := osutil.ExitCode(err)
 	c.Assert(e, IsNil)
-	c.Assert(exitCode == 0 || exitCode == 10, Equals, true, Commentf("unexpected exit code: %v for %v - test setup broken", exitCode, seccompWhitelist))
+	c.Assert(exitCode == 0 || exitCode == 10 || exitCode == 20, Equals, true, Commentf("unexpected exit code: %v for %v - test setup broken", exitCode, seccompWhitelist))
 	switch expected {
 	case Allow:
 		if err != nil {
 			c.Fatalf("unexpected error for %q (failed to run %q)", seccompWhitelist, err)
 		}
 	case Deny:
+		if exitCode != 10 {
+			c.Fatalf("unexpected exit code for %q %q (%v != %v)", seccompWhitelist, bpfInput, exitCode, 10)
+		}
+		if err == nil {
+			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompWhitelist, bpfInput)
+		}
+	case DenyExplicit:
+		if exitCode != 20 {
+			c.Fatalf("unexpected exit code for %q %q (%v != %v)", seccompWhitelist, bpfInput, exitCode, 20)
+		}
 		if err == nil {
 			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompWhitelist, bpfInput)
 		}
@@ -488,12 +502,12 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", Allow},
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", Deny},
 		{"ioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", Deny},
-		{"~ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", Deny},
+		{"ioctl\n~ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", DenyExplicit},
 		// also check we can deny multiple uses of ioctl but still allow
 		// others
-		{"~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", Deny},
-		{"~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCLINUX", Deny},
-		{"~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCGWINSZ", Allow},
+		{"ioctl\n~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", DenyExplicit},
+		{"ioctl\n~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCLINUX", DenyExplicit},
+		{"ioctl\n~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCGWINSZ", Allow},
 
 		// test_bad_seccomp_filter_args_clone
 		{"setns - CLONE_NEWNET", "setns;native;-,99", Deny},
@@ -510,6 +524,13 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		// test_bad_seccomp_filter_args_prio
 		{"setpriority PRIO_PROCESS 0 >=0", "setpriority;native;PRIO_PROCESS,0,19", Allow},
 		{"setpriority PRIO_PROCESS 0 >=0", "setpriority;native;99", Deny},
+		// negative filtering
+		{"setpriority\n~setpriority PRIO_PROCESS 0 >=0", "setpriority;native;PRIO_PROCESS,0,10", DenyExplicit},
+		// mix negative/positiv filtering
+		// allow setprioty >= 5 but explicitly deny >=10
+		{"setpriority PRIO_PROCESS 0 >=5\n~setpriority PRIO_PROCESS 0 >=10", "setpriority;native;PRIO_PROCESS,0,2", Deny},
+		{"setpriority PRIO_PROCESS 0 >=5\n~setpriority PRIO_PROCESS 0 >=10", "setpriority;native;PRIO_PROCESS,0,5", Allow},
+		{"setpriority PRIO_PROCESS 0 >=5\n~setpriority PRIO_PROCESS 0 >=10", "setpriority;native;PRIO_PROCESS,0,10", DenyExplicit},
 
 		// test_bad_seccomp_filter_args_quotactl
 		{"quotactl Q_GETQUOTA", "quotactl;native;Q_GETQUOTA", Allow},
