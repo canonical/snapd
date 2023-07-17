@@ -2874,7 +2874,7 @@ volumes:
 	}} {
 		c.Logf("files: %q", tc.files)
 		snapPath := snaptest.MakeTestSnapWithFiles(c, string(mockSnapYaml), tc.files)
-		cmdline, full, err := gadget.KernelCommandLineFromGadget(snapPath, model)
+		cmdline, full, _, err := gadget.KernelCommandLineFromGadget(snapPath, model)
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, tc.err)
 			c.Check(cmdline, Equals, "")
@@ -2913,7 +2913,7 @@ func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline strin
 		err := os.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
 		c.Assert(err, IsNil)
 
-		cmdline, _, err := gadget.KernelCommandLineFromGadget(info.MountDir(), model)
+		cmdline, _, _, err := gadget.KernelCommandLineFromGadget(info.MountDir(), model)
 		c.Assert(err, IsNil)
 		c.Check(cmdline, Equals, arg)
 	}
@@ -2932,7 +2932,7 @@ func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline strin
 		err := os.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
 		c.Assert(err, IsNil)
 
-		cmdline, _, err := gadget.KernelCommandLineFromGadget(info.MountDir(), model)
+		cmdline, _, _, err := gadget.KernelCommandLineFromGadget(info.MountDir(), model)
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid kernel command line in %v: disallowed kernel argument ".*"`, whichCmdline))
 		c.Check(cmdline, Equals, "")
 	}

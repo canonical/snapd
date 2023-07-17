@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // grub implements the required interfaces
@@ -372,7 +373,10 @@ func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents)
 	var nonSnapdCmdline string
 	if pieces.FullArgs == "" {
 		staticCmdline := g.defaultCommandLineForEdition(edition)
-		nonSnapdCmdline = staticCmdline + " " + pieces.ExtraArgs
+
+		keepDefaultArgs := kcmdline.RemoveMatchingFilter(staticCmdline, pieces.RemoveArgs)
+
+		nonSnapdCmdline = strutil.JoinNonEmpty(append(keepDefaultArgs, pieces.ExtraArgs), " ")
 	} else {
 		nonSnapdCmdline = pieces.FullArgs
 	}

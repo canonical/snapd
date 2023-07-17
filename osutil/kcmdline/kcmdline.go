@@ -473,3 +473,18 @@ func (kap *ArgumentPattern) UnmarshalYAML(unmarshal func(interface{}) error) err
 	}
 	return kap.unmarshalFromString(arg)
 }
+
+// RemoveMatchingFilter parses a kernel command line and remove arguments that
+// matches match patterns.
+func RemoveMatchingFilter(cmdline string, match []ArgumentPattern) []string {
+	parsedDefault := Parse(cmdline)
+	matcher := NewMatcher(match)
+	var keepArgs []string
+	for _, arg := range parsedDefault {
+		if !matcher.Match(arg) {
+			keepArgs = append(keepArgs, arg.String())
+		}
+	}
+
+	return keepArgs
+}
