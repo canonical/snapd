@@ -161,7 +161,8 @@ func EnsureDirStateGlobs(dir string, globs []string, content map[string]FileStat
 		if content[baseName] != nil {
 			continue
 		}
-		err := os.Remove(path)
+		// XXX: option?
+		err := os.RemoveAll(path)
 		if err != nil {
 			if firstErr == nil {
 				firstErr = err

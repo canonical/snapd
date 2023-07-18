@@ -291,10 +291,13 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 // Remove removes seccomp profiles of a given snap.
 func (b *Backend) Remove(snapName string) error {
+	if err := os.RemoveAll(bpfBinPath(snapName)); err != nil {
+		return fmt.Errorf("cannot remove bpf security files for snap %q: %s", snapName, err)
+	}
 	glob := interfaces.SecurityTagGlob(snapName)
 	_, _, err := osutil.EnsureDirState(dirs.SnapSeccompDir, glob, nil)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot remove bpf security files for snap %q: %s", snapName, err)
 	}
 	return nil
 }
