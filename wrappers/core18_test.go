@@ -217,6 +217,7 @@ WantedBy=snapd.service
 		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.service"},
 		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.socket"},
 		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.socket"},
+		{"--user", "daemon-reload"},
 	})
 }
 
