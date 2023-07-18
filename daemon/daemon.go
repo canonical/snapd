@@ -340,7 +340,7 @@ func (d *Daemon) Start() error {
 		logger.Noticef("adjusting startup timeout by %v (%s)", to, reasoning)
 		systemdSdNotify(fmt.Sprintf("EXTEND_TIMEOUT_USEC=%d", us))
 	}
-	// now perform expensive overlord/manages initiliazation
+	// now perform expensive overlord/manages initialization
 	if err := d.overlord.StartUp(); err != nil {
 		return err
 	}
