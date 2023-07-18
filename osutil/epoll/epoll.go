@@ -8,6 +8,7 @@
 package epoll
 
 import (
+	"fmt"
 	"runtime"
 	"strings"
 
@@ -46,7 +47,7 @@ type Epoll struct {
 func Open() (*Epoll, error) {
 	fd, err := unix.EpollCreate1(unix.EPOLL_CLOEXEC)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot open epoll file descriptor: %w", err)
 	}
 	e := &Epoll{
 		fd:        fd,
