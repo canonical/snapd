@@ -176,17 +176,47 @@ func (s *infoSuite) TestLinks(c *C) {
 	})
 }
 
-func (s *infoSuite) TestNormalizeOriginalLinks(c *C) {
+func (s *infoSuite) TestNormalizedEditedLinks(c *C) {
 	info := &snap.Info{
-		OriginalLinks: map[string][]string{
-			"contact": {"ocontact@example.com", "mailto:ocontact@example.com"},
-			"website": {":", "http://owebsite", ""},
+		SideInfo: snap.SideInfo{
+			EditedLinks: map[string][]string{
+				"contact": {"ocontact1@example.com", "ocontact2@example.com", "mailto:ocontact2@example.com", "ocontact"},
+				"website": {":", "http://owebsite1", "https://owebsite2", ""},
+				"":        {"ocontact2@example.com"},
+				"?":       {"ocontact3@example.com"},
+				"abc":     {},
+			},
 		},
 	}
 
+	c.Check(snap.ValidateLinks(info.EditedLinks), NotNil)
+	c.Check(snap.ValidateLinks(info.NormalizedEditedLinks()), IsNil)
+	c.Check(info.NormalizedEditedLinks(), DeepEquals, map[string][]string{
+		"contact": {"mailto:ocontact1@example.com", "mailto:ocontact2@example.com"},
+		"website": {"http://owebsite1", "https://owebsite2"},
+	})
+}
+
+func (s *infoSuite) TestNormalizeOriginalLinks(c *C) {
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			LegacyEditedContact: "ocontact1@example.com",
+		},
+		LegacyWebsite: "http://owebsite1",
+		OriginalLinks: map[string][]string{
+			"contact": {"ocontact2@example.com", "mailto:ocontact2@example.com", "ocontact"},
+			"website": {":", "https://owebsite2", ""},
+			"":        {"ocontact2@example.com"},
+			"?":       {"ocontact3@example.com"},
+			"abc":     {},
+		},
+	}
+
+	c.Check(snap.ValidateLinks(info.OriginalLinks), NotNil)
+	c.Check(snap.ValidateLinks(info.Links()), IsNil)
 	c.Check(info.Links(), DeepEquals, map[string][]string{
-		"contact": {"mailto:ocontact@example.com"},
-		"website": {"http://owebsite"},
+		"contact": {"mailto:ocontact1@example.com", "mailto:ocontact2@example.com"},
+		"website": {"http://owebsite1", "https://owebsite2"},
 	})
 }
 

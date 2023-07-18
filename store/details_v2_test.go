@@ -206,6 +206,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	info, err := infoFromStoreSnap(&snp)
 	c.Assert(err, IsNil)
 	c.Check(snap.Validate(info), IsNil)
+	c.Check(snap.ValidateLinks(info.EditedLinks), IsNil)
 
 	info2 := *info
 	// clear recursive bits
