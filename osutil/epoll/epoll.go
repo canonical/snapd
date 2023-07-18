@@ -4,10 +4,7 @@
 // normally make using it directly pointless. Epoll is strictly required for
 // unusual kernel interfaces that use event notification but don't implement
 // file descriptors that provide usual read/write semantics.
-//
-// It might be possible to remove this code and use internal/poll and
-// syscall.RawConn but the necessary interfaces require golang 1.12 that snapd
-// cannot yet depend on.
+
 package epoll
 
 import (
