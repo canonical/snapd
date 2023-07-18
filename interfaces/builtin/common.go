@@ -69,6 +69,7 @@ type commonInterface struct {
 
 	usesPtraceTrace             bool
 	suppressPtraceTrace         bool
+	suppressPycacheDeny         bool
 	suppressHomeIx              bool
 	usesSysModuleCapability     bool
 	suppressSysModuleCapability bool
@@ -109,6 +110,9 @@ func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	}
 	if iface.suppressHomeIx {
 		spec.SetSuppressHomeIx()
+	}
+	if iface.suppressPycacheDeny {
+		spec.SetSuppressPycacheDeny()
 	}
 	if iface.usesSysModuleCapability {
 		spec.SetUsesSysModuleCapability()

@@ -554,3 +554,9 @@ func (s *specSuite) TestSetSuppressHomeIx(c *C) {
 	s.spec.SetSuppressHomeIx()
 	c.Assert(s.spec.SuppressHomeIx(), Equals, true)
 }
+
+func (s *specSuite) TestSetSuppressPycacheDeny(c *C) {
+	c.Assert(s.spec.SuppressPycacheDeny(), Equals, false)
+	s.spec.SetSuppressPycacheDeny()
+	c.Assert(s.spec.SuppressPycacheDeny(), Equals, true)
+}

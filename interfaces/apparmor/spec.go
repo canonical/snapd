@@ -89,6 +89,9 @@ type Specification struct {
 	// the calling interface can be used with the home interface. Ideally,
 	// we would not need this, but we currently do (LP: #1797786)
 	suppressHomeIx bool
+
+	// Same as the above, but for the pycache deny rule which breaks docker
+	suppressPycacheDeny bool
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.
@@ -674,4 +677,16 @@ func (spec *Specification) SetSuppressHomeIx() {
 // suppressed.
 func (spec *Specification) SuppressHomeIx() bool {
 	return spec.suppressHomeIx
+}
+
+// SetSuppressPycacheDeny records suppression of the ix rules for the home
+// interface.
+func (spec *Specification) SetSuppressPycacheDeny() {
+	spec.suppressPycacheDeny = true
+}
+
+// SuppressPycacheDeny returns whether the ix rules of the home interface should be
+// suppressed.
+func (spec *Specification) SuppressPycacheDeny() bool {
+	return spec.suppressPycacheDeny
 }
