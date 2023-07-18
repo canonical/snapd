@@ -209,6 +209,47 @@ unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 /sys/devices/virtual/kfd/kfd/topology/nodes/[0-9]*/{,gpu_id,properties,io_links/[0-9]*/properties,caches/[0-9]*/properties,mem_banks/[0-9]*/properties} r,
 `
 
+const openglHybrisConnectedPlugAppArmor = `
+# Hybris support
+/{,var/}run/shm/hybris_shm_data rw, # FIXME: LP: #1226569 (make app-specific)
+/usr/lib/@{multiarch}/libtls-padding.so  mr,
+/android{,/**} r,
+/{,android/}system/build.prop r,
+/{,android/}vendor/lib{,64}/**           r,
+/{,android/}vendor/lib{,64}/**.so        m,
+/{,android/}system/lib{,64}/**           r,
+/{,android/}system/lib{,64}/**.so        m,
+/{,android/}system/vendor/lib{,64}/**    r,
+/{,android/}system/vendor/lib{,64}/**.so m,
+/{,android/}odm/lib{,64}/**    r,
+/{,android/}odm/lib{,64}/**.so m,
+/{,android/}apex/com.android.runtime/lib{,64}/**     r,
+/{,android/}apex/com.android.runtime/lib{,64}/**.so  m,
+/{,dev/}socket/property_service rw, # attach_disconnected path
+/{,dev/}socket/logdw rw, # attach_disconnected path
+/{,dev/}__properties__/** rw, # attach_disconnected path
+/dev/{,binderfs/}binder rw,
+/dev/{,binderfs/}hwbinder rw,
+/dev/ashmem rw,
+/dev/ion rw,
+/dev/kgsl-3d0 rw,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{EGL,GLESv1_CM,GLESv2}_libhybris.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris-common.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris-platformcommon.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris-eglplatformcommon.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgralloc.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libsync.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhardware.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libui.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris/** r,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris/eglplatform_*.so rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris/linker/** r,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris/linker/*.so rm,
+/var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/*hybris*.json r,
+`
+
+
+
 type openglInterface struct {
 	commonInterface
 }
@@ -241,6 +282,8 @@ var openglConnectedPlugUDev = []string{
 
 	// Kernel Fusion Driver
 	`SUBSYSTEM=="kfd", KERNEL=="kfd"`,
+	`KERNEL=="kgsl-3d0"`,
+	`KERNEL=="ion"`,
 }
 
 // Those two are the same, but in theory they are separate and can move (or
@@ -254,6 +297,10 @@ const (
 
 func (iface *openglInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(openglConnectedPlugAppArmor)
+
+	if release.OnTouch {
+		spec.AddSnippet(openglHybrisConnectedPlugAppArmor)
+	}
 
 	// Allow mounting the Nvidia driver profiles directory
 	hostNvProfilesDir := filepath.Join(dirs.GlobalRootDir, nvProfilesDirInHostNs)

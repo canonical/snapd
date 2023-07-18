@@ -18,6 +18,8 @@
 #include "mount-support.h"
 #include "mount-support-nvidia.c"
 #include "mount-support-nvidia.h"
+#include "mount-support-hybris.c"
+#include "mount-support-hybris.h"
 #include "mount-support.c"
 
 #include <glib.h>
