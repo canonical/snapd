@@ -170,6 +170,43 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 # From https://bugs.launchpad.net/snapd/+bug/1862832
 /run/nvidia-xdriver-* rw,
 unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
+
+# Hybris support
+/{,var/}run/shm/hybris_shm_data rw, # FIXME: LP: #1226569 (make app-specific)
+/usr/lib/@{multiarch}/libtls-padding.so  mr,
+/android{,/**} r,
+/{,android/}system/build.prop r,
+/{,android/}vendor/lib{,64}/**           r,
+/{,android/}vendor/lib{,64}/**.so        m,
+/{,android/}system/lib{,64}/**           r,
+/{,android/}system/lib{,64}/**.so        m,
+/{,android/}system/vendor/lib{,64}/**    r,
+/{,android/}system/vendor/lib{,64}/**.so m,
+/{,android/}odm/lib{,64}/**    r,
+/{,android/}odm/lib{,64}/**.so m,
+/{,android/}apex/com.android.runtime/lib{,64}/**     r,
+/{,android/}apex/com.android.runtime/lib{,64}/**.so  m,
+/{,dev/}socket/property_service rw, # attach_disconnected path
+/{,dev/}socket/logdw rw, # attach_disconnected path
+/{,dev/}__properties__/** rw, # attach_disconnected path
+/dev/{,binderfs/}binder rw,
+/dev/{,binderfs/}hwbinder rw,
+/dev/ashmem rw,
+/dev/ion rw,
+/dev/kgsl-3d0 rw,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{EGL,GLESv1_CM,GLESv2}_libhybris.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris-common.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris-platformcommon.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris-eglplatformcommon.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgralloc.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libsync.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhardware.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libui.so* rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris/** r,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris/eglplatform_*.so rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris/linker/** r,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris/linker/*.so rm,
+/var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/*hybris*.json r,
 `
 
 // Some nvidia modules don't use sysfs (therefore they can't be udev tagged) and
@@ -189,6 +226,8 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="mali[0-9]*"`,
 	`KERNEL=="dma_buf_te"`,
 	`KERNEL=="galcore"`,
+	`KERNEL=="kgsl-3d0"`,
+	`KERNEL=="ion"`,
 }
 
 func init() {
