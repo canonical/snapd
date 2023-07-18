@@ -69,8 +69,6 @@ func retrieveAuxStoreInfo(info *snap.Info) error {
 	}
 
 	info.Media = aux.Media
-	// TODO: This EditedLinks info comes from snap state (revision specific sequence data) which may have invalid entries. This
-	// such case the legacy website will not be populated.
 	if len(info.EditedLinks) == 0 {
 		// XXX we set this to use old snapd info if it's all we have
 		info.LegacyWebsite = aux.Website

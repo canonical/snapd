@@ -501,8 +501,8 @@ func (s *Info) Description() string {
 // Links returns the blessed set of snap-related links.
 func (s *Info) Links() map[string][]string {
 	if s.EditedLinks != nil {
-		// at this time the store sends empty links, normalization is
-		// required to avoid invalid links
+		// the store used to send empty links, normalization
+		// is required to filter out persisted invalid links
 		return s.NormalizedEditedLinks()
 	}
 	return s.normalizedOriginalLinks()
@@ -512,46 +512,37 @@ func (s *Info) Links() map[string][]string {
 // ValidateLinks errors. It also attempts to convert a link with URL scheme "" to
 // "mailto" and avoids duplicate links.
 func addLink(links map[string][]string, key, link string) {
-	// prevent errors "links key cannot be empty" and
-	// "links key is invalid"
 	if key == "" || !isValidLinksKey(key) {
 		return
 	}
-	// prevent errors "empty <links key> link"
 	if link == "" {
 		return
 	}
-	// prevent error "invalid <links key> link <link>"
 	u, err := url.Parse(link)
 	if err != nil {
 		return
 	}
-	// assume email if no scheme
 	if u.Scheme == "" {
 		link = "mailto:" + link
 		u.Scheme = "mailto"
 	}
-	// prevent error "invalid <links key> email address <link>"
 	if u.Scheme == "mailto" {
 		// minimal check
 		if !strings.Contains(link, "@") {
 			return
 		}
-	// prevent error "<links key> link must have one of http|https scheme
-	// or it must be an email address: <link>"
 	} else if !strutil.ListContains(validLinkSchemes, u.Scheme) {
 		return
 	}
-	// avoid duplicates (e.g. when merging legacy links)
 	if strutil.ListContains(links[key], link) {
 		return
 	}
 	links[key] = append(links[key], link)
 }
 
-// NormalizedEditedLinks returns the normalized edited links that adhere to
-// ValidateLinks validation criteria. Attempts to convert URL scheme "" 
-// links to "mailto" and avoids duplicate link entries.
+// NormalizedEditedLinks returns the normalized edited links. This involves
+// attempting to convert URL scheme "" links to "mailto" and removing links
+// that does not meet ValidateLinks validation criteria.
 func (s *Info) NormalizedEditedLinks() map[string][]string {
 	normalizedLinks := make(map[string][]string, len(s.EditedLinks))
 	for key, links := range s.EditedLinks {

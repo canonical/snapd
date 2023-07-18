@@ -964,10 +964,6 @@ func (s *Store) SnapInfo(ctx context.Context, snapSpec SnapSpec, user *auth.User
 	if err != nil {
 		return nil, err
 	}
-	// TODO: Consider enabling this when the store code is fixed and sends us valid snap information
-	//if snap.Validation(info); err != nil {
-	//	return nil, err
-	//}
 
 	err = s.decorateOrders([]*snap.Info{info}, user)
 	if err != nil {

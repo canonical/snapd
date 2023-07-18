@@ -399,10 +399,6 @@ func Validate(info *Info) error {
 	if err := ValidateLinks(info.OriginalLinks); err != nil {
 		return err
 	}
-	// TODO: Consider adding once cleaning of persisted invalid EditedLinks is available
-	//if err := ValidateLinks(info.EditedLinks); err != nil {
-	//        return err
-	//}
 
 	// ensure that common-id(s) are unique
 	if err := ValidateCommonIDs(info); err != nil {
