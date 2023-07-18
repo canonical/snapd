@@ -125,7 +125,8 @@ const (
   "links": {
     "contact": ["https://thingy.com","mailto:thingy@thingy.com"],
     "website": ["http://example.com/thingy"],
-    "issues": ["mailto:bugs@thingy.com"]
+    "issues": ["mailto:bugs@thingy.com"],
+    "empty": []
   },
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
