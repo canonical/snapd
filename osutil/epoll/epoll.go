@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -40,8 +41,9 @@ func (r Readiness) String() string {
 
 // Epoll wraps a file descriptor which can be used for I/O readiness notification.
 type Epoll struct {
-	fd        int
-	sysEvents []unix.EpollEvent
+	fd                int
+	registeredFdCount int
+	countMutex        sync.Mutex
 }
 
 // Open opens an event monitoring descriptor.
@@ -51,8 +53,8 @@ func Open() (*Epoll, error) {
 		return nil, fmt.Errorf("cannot open epoll file descriptor: %w", err)
 	}
 	e := &Epoll{
-		fd:        fd,
-		sysEvents: make([]unix.EpollEvent, 0, 10),
+		fd:                fd,
+		registeredFdCount: 0,
 	}
 	runtime.SetFinalizer(e, func(e *Epoll) {
 		if e.fd != -1 {
@@ -65,14 +67,23 @@ func Open() (*Epoll, error) {
 // Close closes the event monitoring descriptor.
 func (e *Epoll) Close() error {
 	runtime.SetFinalizer(e, nil)
+	e.countMutex.Lock()
 	fd := e.fd
 	e.fd = -1
+	e.registeredFdCount = 0
+	e.countMutex.Unlock()
 	return unix.Close(fd)
 }
 
 // Fd returns the integer unix file descriptor referencing the open file.
 func (e *Epoll) Fd() int {
 	return e.fd
+}
+
+// RegisteredFdCount returns the number of file descriptors which are currently
+// registered to the epoll instance.
+func (e *Epoll) RegisteredFdCount() int {
+	return e.registeredFdCount
 }
 
 // Register registers a file descriptor and allows observing speicifc I/O readiness events.
@@ -83,9 +94,12 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 		Events: uint32(mask),
 		Fd:     int32(fd),
 	})
-	if err == nil {
-		e.sysEvents = append(e.sysEvents, unix.EpollEvent{})
+	if err != nil {
+		return err
 	}
+	e.countMutex.Lock()
+	e.registeredFdCount += 1
+	e.countMutex.Unlock()
 	runtime.KeepAlive(e)
 	return err
 }
@@ -95,10 +109,13 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 // Please refer to epoll_ctl(2) and EPOLL_CTL_DEL for details.
 func (e *Epoll) Deregister(fd int) error {
 	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{})
-	runtime.KeepAlive(e)
-	if err == nil {
-		e.sysEvents = e.sysEvents[:len(e.sysEvents)-1]
+	if err != nil {
+		return err
 	}
+	e.countMutex.Lock()
+	e.registeredFdCount -= 1
+	e.countMutex.Unlock()
+	runtime.KeepAlive(e)
 	return err
 }
 
@@ -132,7 +149,8 @@ func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
 	if duration < 0 {
 		msec = -1
 	}
-	n, err := unix.EpollWait(e.fd, e.sysEvents, msec)
+	sysEvents := make([]unix.EpollEvent, e.registeredFdCount)
+	n, err := unix.EpollWait(e.fd, sysEvents, msec)
 	runtime.KeepAlive(e)
 	if err != nil {
 		return nil, err
@@ -140,8 +158,8 @@ func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
 	events := make([]Event, 0, n)
 	for i := 0; i < n; i++ {
 		event := Event{
-			Fd:        int(e.sysEvents[i].Fd),
-			Readiness: Readiness(e.sysEvents[i].Events),
+			Fd:        int(sysEvents[i].Fd),
+			Readiness: Readiness(sysEvents[i].Events),
 		}
 		events = append(events, event)
 	}
