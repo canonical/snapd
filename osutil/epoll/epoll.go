@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -126,7 +127,11 @@ type Event struct {
 // Please refer to epoll_wait(2) and EPOLL_WAIT for details.
 //
 // Warning, using epoll from Golang explicitly is tricky.
-func (e *Epoll) WaitTimeout(msec int) ([]Event, error) {
+func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
+	msec := int(duration.Milliseconds())
+	if duration < 0 {
+		msec = -1
+	}
 	n, err := unix.EpollWait(e.fd, e.sysEvents, msec)
 	runtime.KeepAlive(e)
 	if err != nil {
@@ -145,5 +150,10 @@ func (e *Epoll) WaitTimeout(msec int) ([]Event, error) {
 
 // Wait blocks and waits for arrival of events on any of the added file descriptors.
 func (e *Epoll) Wait() ([]Event, error) {
-	return e.WaitTimeout(-1)
+	duration, err := time.ParseDuration("-1ms")
+	if err != nil {
+		// should never occur (only if time package changes)
+		return nil, err
+	}
+	return e.WaitTimeout(duration)
 }
