@@ -1157,19 +1157,19 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
 		{`iface:
   allow-connection:
     slot-snap-ids:
-      - foo`, `allow-connection in plug rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `allow-connection in plug rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
 		{`iface:
   deny-connection:
     slot-snap-ids:
-      - foo`, `deny-connection in plug rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `deny-connection in plug rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
 		{`iface:
   allow-auto-connection:
     slot-snap-ids:
-      - foo`, `allow-auto-connection in plug rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `allow-auto-connection in plug rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
 		{`iface:
   deny-auto-connection:
     slot-snap-ids:
-      - foo`, `deny-auto-connection in plug rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `deny-auto-connection in plug rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
 		{`iface:
   allow-connect: true`, `plug rule for interface "iface" must specify at least one of allow-installation, deny-installation, allow-connection, deny-connection, allow-auto-connection, deny-auto-connection`},
 		{`iface:
@@ -2002,19 +2002,19 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
 		{`iface:
   allow-connection:
     plug-snap-ids:
-      - foo`, `allow-connection in slot rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `allow-connection in slot rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
 		{`iface:
   deny-connection:
     plug-snap-ids:
-      - foo`, `deny-connection in slot rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `deny-connection in slot rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
 		{`iface:
   allow-auto-connection:
     plug-snap-ids:
-      - foo`, `allow-auto-connection in slot rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `allow-auto-connection in slot rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
 		{`iface:
   deny-auto-connection:
     plug-snap-ids:
-      - foo`, `deny-auto-connection in slot rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `deny-auto-connection in slot rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
 		{`iface:
   allow-connect: true`, `slot rule for interface "iface" must specify at least one of allow-installation, deny-installation, allow-connection, deny-connection, allow-auto-connection, deny-auto-connection`},
 		{`iface:
