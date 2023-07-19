@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
@@ -105,14 +106,24 @@ func storeAuthDataFilename(homeDir string) string {
 	return filepath.Join(homeDir, ".snap", "auth.json")
 }
 
-// writeAuthData saves authentication details for later reuse through ReadAuthData
-func writeAuthData(user User) error {
+// realUidGid finds the real user when the command is run
+// via sudo. It returns the users record and uid,gid.
+func realUidGid() (*user.User, sys.UserID, sys.GroupID, error) {
 	real, err := osutil.UserMaybeSudoUser()
 	if err != nil {
-		return err
+		return nil, 0, 0, err
 	}
 
 	uid, gid, err := osutil.UidGid(real)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return real, uid, gid, err
+}
+
+// writeAuthData saves authentication details for later reuse through ReadAuthData
+func writeAuthData(user User) error {
+	real, uid, gid, err := realUidGid()
 	if err != nil {
 		return err
 	}
@@ -135,12 +146,7 @@ func writeAuthData(user User) error {
 
 // readAuthData reads previously written authentication details
 func readAuthData() (*User, error) {
-	real, err := osutil.UserMaybeSudoUser()
-	if err != nil {
-		return nil, err
-	}
-
-	uid, gid, err := osutil.UidGid(real)
+	_, uid, gid, err := realUidGid()
 	if err != nil {
 		return nil, err
 	}
@@ -167,12 +173,7 @@ func readAuthData() (*User, error) {
 
 // removeAuthData removes any previously written authentication details.
 func removeAuthData() error {
-	real, err := osutil.UserMaybeSudoUser()
-	if err != nil {
-		return err
-	}
-
-	uid, gid, err := osutil.UidGid(real)
+	_, uid, gid, err := realUidGid()
 	if err != nil {
 		return err
 	}
