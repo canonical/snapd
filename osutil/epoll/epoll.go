@@ -149,11 +149,27 @@ func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
 	if duration < 0 {
 		msec = -1
 	}
-	sysEvents := make([]unix.EpollEvent, e.registeredFdCount)
-	n, err := unix.EpollWait(e.fd, sysEvents, msec)
-	runtime.KeepAlive(e)
-	if err != nil {
-		return nil, err
+	n := 0
+	var err error
+	var sysEvents []unix.EpollEvent
+	for {
+		sysEvents = make([]unix.EpollEvent, e.registeredFdCount)
+		startTs := time.Now()
+		n, err = unix.EpollWait(e.fd, sysEvents, msec)
+		runtime.KeepAlive(e)
+		if err == nil {
+			break
+		} else if err != unix.EINTR {
+			return nil, err
+		} else if msec == -1 {
+			continue
+		}
+		elapsed := time.Since(startTs)
+		msec -= int(elapsed.Milliseconds())
+		if msec <= 0 {
+			n = 0
+			break
+		}
 	}
 	events := make([]Event, 0, n)
 	for i := 0; i < n; i++ {
