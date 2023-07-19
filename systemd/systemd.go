@@ -1429,8 +1429,8 @@ func ensureMountUnitFile(u *MountUnitOptions) (mountUnitName string, modified mo
 
 	if stateErr == osutil.ErrSameState {
 		modified = mountUnchanged
-	} else if err != nil {
-		return "", mountUnchanged, err
+	} else if stateErr != nil {
+		return "", mountUnchanged, stateErr
 	}
 
 	return filepath.Base(mu), modified, nil
