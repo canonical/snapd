@@ -20,6 +20,7 @@
 package seed_test
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -402,4 +403,30 @@ snaps:
 	err := seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
  - cannot read seed yaml: empty element in seed`)
+}
+
+func (s *validateSuite) TestValidateErrorSingle(c *C) {
+	err := seed.ValidationError{
+		SystemErrors: map[string][]error{
+			"system-1": {fmt.Errorf("err1")},
+		},
+	}
+	c.Check(err.Error(), Equals, `cannot validate seed system "system-1":
+ - err1`)
+}
+
+func (s *validateSuite) TestValidateErrorMulti(c *C) {
+	err1 := errors.New("err1")
+	err2 := errors.New("err2")
+	err := seed.ValidationError{
+		SystemErrors: map[string][]error{
+			"system-1": {err1},
+			"system-2": {err1, err2},
+		},
+	}
+	c.Check(err.Error(), Equals, `cannot validate seed system "system-1":
+ - err1
+and seed system "system-2":
+ - err1
+ - err2`)
 }
