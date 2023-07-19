@@ -315,6 +315,8 @@ func CurrentTimestamp() string {
 // Users of accessrules should probably autofill AccessRules from JSON and
 // never call this function directly.
 func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app string, pathPattern string, outcome string, lifespan LifespanType, duration string, permissions []PermissionType) *AccessRule {
+	newPermissions := make([]PermissionType, len(permissions))
+	copy(newPermissions, permissions)
 	timestamp := CurrentTimestamp()
 	newRule := AccessRule{
 		Id:          timestamp,
@@ -326,7 +328,7 @@ func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app st
 		Outcome:     outcome,
 		Lifespan:    lifespan,
 		Duration:    duration,
-		Permissions: permissions,
+		Permissions: newPermissions,
 	}
 	return &newRule
 }
@@ -480,28 +482,30 @@ func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern s
 		rule.PathPattern = pathPattern
 	}
 	preservedPermissions := make([]PermissionType, 0, len(rule.Permissions))
+	needToRefreshTree := false
 	for _, permission := range rule.Permissions {
 		// remove permissions which are no longer included
 		if PermissionsListContains(permissions, permission) {
 			preservedPermissions = append(preservedPermissions, permission)
-		} else {
-			if err = ardb.removeRulePermissionFromTree(rule, permission); err != nil {
-				// if error occurs, rule and tree are not synchronized
-				// TODO: decide whether to remove rule entirely or revert to previous (broken) state
-				return nil, err
-			}
+			continue
+		}
+		if err = ardb.removeRulePermissionFromTree(rule, permission); err != nil {
+			// if error occurs, rule and tree are not synchronized
+			// carry on removing permissions, then at the end RefreshTreeEnforceConsistency
+			needToRefreshTree = true
 		}
 	}
 	rule.Permissions = preservedPermissions
 	for _, permission := range permissions {
 		// add new permissions which were not previously included
-		if !PermissionsListContains(rule.Permissions, permission) {
-			if addingErr, _ := ardb.addRulePermissionToTree(rule, permission); err == nil {
-				// if error occurs, rule and tree are synchronized
-				err = addingErr
-			} else {
-				rule.Permissions = append(rule.Permissions, permission)
-			}
+		if PermissionsListContains(rule.Permissions, permission) {
+			continue
+		}
+		if addingErr, _ := ardb.addRulePermissionToTree(rule, permission); addingErr != nil {
+			// if error occurs, rule and tree are synchronized
+			err = addingErr
+		} else {
+			rule.Permissions = append(rule.Permissions, permission)
 		}
 	}
 	if outcome != "" {
@@ -514,6 +518,9 @@ func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern s
 		rule.Duration = duration
 	}
 	rule.Timestamp = CurrentTimestamp()
+	if needToRefreshTree {
+		ardb.RefreshTreeEnforceConsistency()
+	}
 	return rule, err
 }
 

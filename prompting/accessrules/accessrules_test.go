@@ -270,3 +270,76 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 		c.Assert(pathId, Equals, accessRule.Id)
 	}
 }
+
+func (s *accessruleSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
+	ardb, _ := accessrules.New()
+
+	var user uint32 = 1000
+	snap := "lxd"
+	app := "lxc"
+	pathPattern := "/home/test/Documents/**"
+	outcome := "allow"
+	lifespan := accessrules.LifespanForever
+	duration := ""
+	permissions := []accessrules.PermissionType{
+		accessrules.PermissionRead,
+		accessrules.PermissionWrite,
+		accessrules.PermissionExecute,
+	}
+
+	// create a rule with the earliest timestamp, which will be totally overwritten when attempting to add later
+	earliestRule := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+
+	initialRule, err := ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+	c.Assert(err, IsNil)
+	c.Assert(len(initialRule.Permissions), Equals, len(permissions))
+
+	// overwrite all but the first permission
+	newRulePermissions := permissions[1:]
+	newRule := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, newRulePermissions)
+
+	ardb.ById[newRule.Id] = newRule
+	ardb.ById[earliestRule.Id] = earliestRule
+	ardb.RefreshTreeEnforceConsistency()
+
+	c.Assert(len(ardb.ById), Equals, 2, Commentf("ardb.ById: %+v", ardb.ById))
+
+	_, exists := ardb.ById[earliestRule.Id]
+	c.Assert(exists, Equals, false)
+
+	initialRuleRet, exists := ardb.ById[initialRule.Id]
+	c.Assert(exists, Equals, true)
+	c.Assert(initialRuleRet.Permissions, DeepEquals, permissions[:1])
+
+	newRuleRet, exists := ardb.ById[newRule.Id]
+	c.Assert(exists, Equals, true)
+	c.Assert(newRuleRet.Permissions, DeepEquals, newRulePermissions, Commentf("newRulePermissions: %+v", newRulePermissions))
+
+	c.Assert(len(ardb.PerUser), Equals, 1)
+
+	userEntry, exists := ardb.PerUser[user]
+	c.Assert(exists, Equals, true)
+	c.Assert(len(userEntry.PerSnap), Equals, 1)
+
+	snapEntry, exists := userEntry.PerSnap[snap]
+	c.Assert(exists, Equals, true)
+	c.Assert(len(snapEntry.PerApp), Equals, 1)
+
+	appEntry, exists := snapEntry.PerApp[app]
+	c.Assert(exists, Equals, true)
+	c.Assert(len(appEntry.PerPermission), Equals, 3)
+
+	for i, permission := range permissions {
+		permissionEntry, exists := appEntry.PerPermission[permission]
+		c.Assert(exists, Equals, true)
+		c.Assert(len(permissionEntry.PathRules), Equals, 1)
+
+		pathId, exists := permissionEntry.PathRules[pathPattern]
+		c.Assert(exists, Equals, true)
+		if i == 0 {
+			c.Assert(pathId, Equals, initialRule.Id)
+		} else {
+			c.Assert(pathId, Equals, newRule.Id)
+		}
+	}
+}
