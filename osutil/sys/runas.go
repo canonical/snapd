@@ -110,7 +110,7 @@ func RunAsUidGid(uid UserID, gid GroupID, f func() error) error {
 
 		// make sure we restore UID again
 		if _, _, errno := syscall.RawSyscall(_SYS_SETREUID, FlagID, uintptr(ruid), 0); errno != 0 {
-			ch <- composeErr("cannot run func", funcErr, "cannot restore regid", errno)
+			ch <- composeErr("cannot run func", funcErr, "cannot restore reuid", errno)
 			return
 		}
 
