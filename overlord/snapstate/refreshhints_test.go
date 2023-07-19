@@ -495,11 +495,9 @@ func (s *refreshHintsTestSuite) TestRefreshHintsAbortsMonitoringForRemovedCandid
 
 	// mock a monitoring routine for "second-snap" for which the refresh-candidate
 	// will be removed
-	abortChan := make(chan bool, 2)
-	var writeOnly chan<- bool
-	writeOnly = abortChan
-	monitored := map[string]chan<- bool{
-		"monitored-snap": writeOnly,
+	refreshCtx, abort := context.WithCancel(context.TODO())
+	monitored := map[string]context.CancelFunc{
+		"monitored-snap": abort,
 		"something-else": nil,
 	}
 	s.state.Cache("monitored-snaps", monitored)
@@ -511,7 +509,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsAbortsMonitoringForRemovedCandid
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
 
 	select {
-	case <-abortChan:
+	case <-refreshCtx.Done():
 	case <-time.After(5 * time.Second):
 		c.Fatal("test timed out before mocked monitoring was aborted")
 	}

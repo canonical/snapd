@@ -418,7 +418,7 @@ func (m *autoRefresh) restoreMonitoring() error {
 		return nil
 	}
 
-	abortChans := make(map[string]chan<- bool, len(monitored))
+	aborts := make(map[string]context.CancelFunc, len(monitored))
 	for _, snap := range monitored {
 		done := make(chan string, 1)
 		snapName := snap.InstanceName()
@@ -427,12 +427,12 @@ func (m *autoRefresh) restoreMonitoring() error {
 			continue
 		}
 
-		abort := make(chan bool, 1)
-		abortChans[snapName] = abort
-		go continueRefreshOnSnapClose(m.state, snap, done, abort)
+		refreshCtx, abort := context.WithCancel(context.Background())
+		aborts[snapName] = abort
+		go continueRefreshOnSnapClose(m.state, snap, done, refreshCtx)
 	}
 
-	m.state.Cache("monitored-snaps", abortChans)
+	m.state.Cache("monitored-snaps", aborts)
 	return nil
 }
 

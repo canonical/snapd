@@ -9488,8 +9488,8 @@ func (s *snapmgrTestSuite) TestDownloadTaskMonitorsSnapStoppedAndNotifiesOnSoftC
 	c.Assert(hints["foo"].Monitored, Equals, true)
 
 	monitored := s.state.Cached("monitored-snaps")
-	c.Assert(monitored, FitsTypeOf, map[string]chan<- bool{})
-	c.Assert(monitored.(map[string]chan<- bool)["foo"], NotNil)
+	c.Assert(monitored, FitsTypeOf, map[string]context.CancelFunc{})
+	c.Assert(monitored.(map[string]context.CancelFunc)["foo"], NotNil)
 
 	// signal snap has stopped and wait for pending goroutine to finish
 	s.state.Unlock()
@@ -9579,8 +9579,8 @@ func (s *snapmgrTestSuite) TestDownloadTaskMonitorsRepeated(c *C) {
 	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
 	// monitoring snap
 	monitored := s.state.Cached("monitored-snaps")
-	c.Assert(monitored, FitsTypeOf, map[string]chan<- bool{})
-	c.Assert(monitored.(map[string]chan<- bool)["foo"], NotNil)
+	c.Assert(monitored, FitsTypeOf, map[string]context.CancelFunc{})
+	c.Assert(monitored.(map[string]context.CancelFunc)["foo"], NotNil)
 	c.Assert(notified, Equals, true)
 
 	// waiting for the monitoring to end
@@ -9690,8 +9690,8 @@ func (s *snapmgrTestSuite) TestUnlinkMonitorSnapOnHardCheckFailure(c *C) {
 	c.Check(monitorSignal, NotNil)
 
 	monitored := s.state.Cached("monitored-snaps")
-	c.Assert(monitored, FitsTypeOf, map[string]chan<- bool{})
-	c.Assert(monitored.(map[string]chan<- bool)["some-snap"], NotNil)
+	c.Assert(monitored, FitsTypeOf, map[string]context.CancelFunc{})
+	c.Assert(monitored.(map[string]context.CancelFunc)["some-snap"], NotNil)
 
 	// cleanup leftover routines
 	s.state.Unlock()
@@ -9864,8 +9864,8 @@ func (s *snapmgrTestSuite) TestPreDownloadWithIgnoreRunningRefresh(c *C) {
 	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
 	// check there's still a goroutine monitoring the snap
 	monitored := s.state.Cached("monitored-snaps")
-	c.Assert(monitored, FitsTypeOf, map[string]chan<- bool{})
-	c.Assert(monitored.(map[string]chan<- bool)["some-snap"], NotNil)
+	c.Assert(monitored, FitsTypeOf, map[string]context.CancelFunc{})
+	c.Assert(monitored.(map[string]context.CancelFunc)["some-snap"], NotNil)
 
 	updated, tss, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, 0, &snapstate.Flags{IgnoreRunning: true})
 	c.Assert(err, IsNil)
@@ -9920,7 +9920,7 @@ func (s *snapmgrTestSuite) TestRefreshNoRelatedMonitoring(c *C) {
 		Sequence: []*snap.SideInfo{si},
 		Current:  si.Revision,
 	})
-	s.state.Cache("monitored-snaps", map[string]chan<- bool{"other-snap": make(chan bool, 1)})
+	s.state.Cache("monitored-snaps", map[string]context.CancelFunc{"other-snap": func() {}})
 
 	_, tss, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, 0, &snapstate.Flags{IgnoreRunning: true})
 	c.Assert(err, IsNil)
@@ -9988,10 +9988,10 @@ func (s *snapmgrTestSuite) TestMonitoringIsPersistedAndRestored(c *C) {
 	c.Assert(notified, Equals, false)
 
 	s.state.Lock()
-	abortChans := s.state.Cached("monitored-snaps").(map[string]chan<- bool)
-	abortChan := abortChans["some-snap"]
+	aborts := s.state.Cached("monitored-snaps").(map[string]context.CancelFunc)
+	abort := aborts["some-snap"]
 	s.state.Unlock()
-	c.Assert(abortChan, NotNil)
+	c.Assert(abort, NotNil)
 
 	stopMonitor <- "some-snap"
 	waitForMonitoringEnd(s.state, c)

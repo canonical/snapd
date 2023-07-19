@@ -915,10 +915,7 @@ func asyncRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, refreshInfo *u
 		return fmt.Errorf("cannot monitor for snap closure: %w", err)
 	}
 
-	// use a buffer larger than 1 because there can be more than one writes to the channel.
-	// State locks make it unlikely but it's possible to have a second write before
-	// the reader can drain and remove the channel from the state
-	abort := make(chan bool, 16)
+	refreshCtx, abort := context.WithCancel(context.Background())
 	if ok, err := addMonitoring(st, snapName, abort); err != nil {
 		return fmt.Errorf("cannot save monitoring state for %q: %v", snapName, err)
 	} else if !ok {
@@ -929,14 +926,14 @@ func asyncRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, refreshInfo *u
 	// notify the user about the blocked refresh
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 
-	go continueRefreshOnSnapClose(st, snapsup, done, abort)
+	go continueRefreshOnSnapClose(st, snapsup, done, refreshCtx)
 	return nil
 }
 
 // addMonitoring adds monitoring info to the persisted and in-memory states.
 // Returns true if the monitoring state was saved or false if it wasn't because
 // the monitoring shouldn't proceed.
-func addMonitoring(st *state.State, snapName string, abort chan<- bool) (bool, error) {
+func addMonitoring(st *state.State, snapName string, abort context.CancelFunc) (bool, error) {
 	var refreshHints map[string]*refreshCandidate
 	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
 		if errors.Is(err, &state.NoStateError{}) {
@@ -954,12 +951,12 @@ func addMonitoring(st *state.State, snapName string, abort chan<- bool) (bool, e
 		return false, nil
 	}
 
-	abortChans, err := getAbortMonitoringChans(st)
+	abortChans, err := getMonitoringAborts(st)
 	if err != nil {
 		return false, err
 	}
 	if abortChans == nil {
-		abortChans = make(map[string]chan<- bool)
+		abortChans = make(map[string]context.CancelFunc)
 	}
 
 	refreshHints[snapName].Monitored = true
@@ -983,7 +980,7 @@ func removeMonitoring(st *state.State, snapName string) error {
 	refreshHints[snapName].Monitored = false
 	st.Set("refresh-candidates", refreshHints)
 
-	abortChans, err := getAbortMonitoringChans(st)
+	abortChans, err := getMonitoringAborts(st)
 	if err != nil {
 		return nil
 	}
@@ -1001,13 +998,13 @@ func removeMonitoring(st *state.State, snapName string) error {
 	return nil
 }
 
-func continueRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, done <-chan string, abort <-chan bool) {
+func continueRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, done <-chan string, refreshCtx context.Context) {
 	snapName := snapsup.InstanceName()
 
 	var aborted bool
 	select {
 	case <-done:
-	case <-abort:
+	case <-refreshCtx.Done():
 		aborted = true
 	}
 
@@ -1070,34 +1067,34 @@ func continueInhibitedAutoRefresh(st *state.State, snapName string) error {
 	return nil
 }
 
-func getAbortMonitoringChans(st *state.State) (map[string]chan<- bool, error) {
-	storedChans := st.Cached("monitored-snaps")
-	if storedChans == nil {
+func getMonitoringAborts(st *state.State) (map[string]context.CancelFunc, error) {
+	stored := st.Cached("monitored-snaps")
+	if stored == nil {
 		return nil, nil
 	}
-	abortChans, ok := storedChans.(map[string]chan<- bool)
+	aborts, ok := stored.(map[string]context.CancelFunc)
 	if !ok {
 		// NOTE: should never happen save for programmer error
-		return nil, fmt.Errorf(`internal error: "monitored-snaps" should be map[string]chan<- bool but got %T`, storedChans)
+		return nil, fmt.Errorf(`internal error: "monitored-snaps" should be map[string]context.CancelFunc but got %T`, stored)
 	}
-	return abortChans, nil
+	return aborts, nil
 }
 
-func abortMonitoringChan(st *state.State, snapName string) chan<- bool {
-	abortChans, err := getAbortMonitoringChans(st)
+func monitoringAbort(st *state.State, snapName string) context.CancelFunc {
+	aborts, err := getMonitoringAborts(st)
 	if err != nil {
 		logger.Noticef("%v", err)
 	}
-	return abortChans[snapName]
+	return aborts[snapName]
 }
 
 func isSnapMonitored(st *state.State, snapName string) bool {
-	return abortMonitoringChan(st, snapName) != nil
+	return monitoringAbort(st, snapName) != nil
 }
 
 func abortMonitoring(st *state.State, snapName string) {
-	if abortChan := abortMonitoringChan(st, snapName); abortChan != nil {
-		abortChan <- true
+	if abort := monitoringAbort(st, snapName); abort != nil {
+		abort()
 	}
 }
 
