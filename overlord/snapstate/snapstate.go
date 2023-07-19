@@ -1721,7 +1721,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 			return nil, nil, err
 		}
 
-		st.Set("refresh-candidates", hints)
+		setNewRefreshCanditates(st, hints)
 	}
 
 	if filter != nil {
@@ -2594,7 +2594,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 	if err != nil {
 		return nil, nil, err
 	}
-	st.Set("refresh-candidates", hints)
+	setNewRefreshCanditates(st, hints)
 
 	// prune affecting snaps that are not in refresh candidates from hold state.
 	if err := pruneGating(st, hints); err != nil {

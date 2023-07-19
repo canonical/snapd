@@ -22,6 +22,7 @@ package snapstate
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/snapcore/snapd/features"
@@ -98,32 +99,8 @@ func (r *refreshHints) refresh() error {
 		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
 	}
 
-	stopMonitoringOutdatedCandidates(r.state, hints)
-
-	r.state.Set("refresh-candidates", hints)
+	setNewRefreshCanditates(r.state, hints)
 	return nil
-}
-
-// stopMonitoringOutdatedCandidates aborts the monitoring for snaps for which a
-// refresh candidate has been removed (possibly because the channel was reverted
-// to an older version)
-func stopMonitoringOutdatedCandidates(st *state.State, hints map[string]*refreshCandidate) {
-	var oldHints map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &oldHints); err != nil {
-		if errors.Is(err, &state.NoStateError{}) {
-			// nothing to abort
-			return
-		}
-
-		logger.Noticef("cannot abort removed refresh candidates: %v", err)
-		return
-	}
-
-	for oldCand := range oldHints {
-		if _, ok := hints[oldCand]; !ok {
-			abortMonitoring(st, oldCand)
-		}
-	}
 }
 
 // AtSeed configures hints refresh policies at end of seeding.
@@ -233,7 +210,7 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 		return err
 	}
 	// Remove refresh-candidates from state if gate-auto-refresh-hook feature is
-	// not enabled. This acts as a workaround for the case where a snapd from
+	// not enabled and it is not a map. This acts as a workaround for the case where a snapd from
 	// edge was used and created refresh-candidates in the old format (an array)
 	// with the feature enabled, but the feature was then disabled so the new
 	// map format will never make it into the state.
@@ -241,8 +218,24 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 	// refresh-candidates in the correct format expected here.
 	// See https://forum.snapcraft.io/t/cannot-r-emove-snap-json-cannot-unmarshal-array-into-go-value-of-type-map-string-snapstate-refreshcandidate/27276
 	if !gateAutoRefreshHook {
-		st.Set("refresh-candidates", nil)
-		return nil
+		var rc interface{}
+		err = st.Get("refresh-candidates", &rc)
+		if err != nil {
+			if errors.Is(err, state.ErrNoState) {
+				// nothing to do
+				return nil
+			}
+		}
+		v := reflect.ValueOf(rc)
+		if !v.IsValid() {
+			// nothing to do
+			return nil
+		}
+		if v.Kind() != reflect.Map {
+			// just remove
+			st.Set("refresh-candidates", nil)
+			return nil
+		}
 	}
 
 	var candidates map[string]*refreshCandidate
@@ -259,6 +252,40 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 		delete(candidates, snapName)
 	}
 
-	st.Set("refresh-candidates", candidates)
+	setNewRefreshCanditates(st, candidates)
 	return nil
+}
+
+// setNewRefreshCanditates is used to set/replace "refresh-candidates" making
+// sure that any snap that is no longer a candidate has its monitoring stopped.
+// Must be always used when replacing the full "refresh-candidates"
+func setNewRefreshCanditates(st *state.State, hints map[string]*refreshCandidate) {
+	stopMonitoringOutdatedCandidates(st, hints)
+	if len(hints) == 0 {
+		st.Set("refresh-candidates", nil)
+		return
+	}
+	st.Set("refresh-candidates", hints)
+}
+
+// stopMonitoringOutdatedCandidates aborts the monitoring for snaps for which a
+// refresh candidate has been removed (possibly because the channel was reverted
+// to an older version)
+func stopMonitoringOutdatedCandidates(st *state.State, hints map[string]*refreshCandidate) {
+	var oldHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &oldHints); err != nil {
+		if errors.Is(err, &state.NoStateError{}) {
+			// nothing to abort
+			return
+		}
+
+		logger.Noticef("cannot abort removed refresh candidates: %v", err)
+		return
+	}
+
+	for oldCand := range oldHints {
+		if _, ok := hints[oldCand]; !ok {
+			abortMonitoring(st, oldCand)
+		}
+	}
 }

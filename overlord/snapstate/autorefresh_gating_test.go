@@ -2034,8 +2034,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 
 	// all snaps refreshed, all removed from refresh-candidates.
 	var candidates map[string]*snapstate.RefreshCandidate
-	c.Assert(s.state.Get("refresh-candidates", &candidates), IsNil)
-	c.Assert(candidates, HasLen, 0)
+	c.Assert(s.state.Get("refresh-candidates", &candidates), testutil.ErrorIs, &state.NoStateError{})
 }
 
 func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
