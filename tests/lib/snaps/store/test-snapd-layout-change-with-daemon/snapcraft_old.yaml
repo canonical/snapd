@@ -32,18 +32,6 @@ package-repositories:
     components: [steam]
     architectures: [amd64, i386]
     key-id: BA1816EF8E75005FCF5E27A1F24AEA9FB05498B7
-  - type: apt
-    # FIXME: We need to enable both 32-bit and 64-bit architectures
-    # for this PPA, but Snapcraft doesn't let us do that with the
-    # short syntax. So use the full version instead.
-
-    # ppa: oibaf/graphics-drivers
-    url: http://ppa.launchpad.net/oibaf/graphics-drivers/ubuntu
-    suites: [jammy]
-    components: [main]
-    architectures: [amd64, i386]
-    key-id: 5ABCE68FF4633EA42E219156957D2708A03A4626
-    key-server: keyserver.ubuntu.com
 
 layout:
   /usr/lib/steam:
@@ -130,3 +118,4 @@ apps:
   test-daemon:
     command: bin/daemon.sh
     daemon: simple
+    refresh-mode: endure

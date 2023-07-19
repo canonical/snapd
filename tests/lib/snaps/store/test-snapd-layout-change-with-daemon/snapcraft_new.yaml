@@ -129,3 +129,4 @@ apps:
   test-daemon:
     command: bin/daemon.sh
     daemon: simple
+    refresh-mode: endure
