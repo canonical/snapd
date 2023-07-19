@@ -168,10 +168,6 @@ func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
 
 // Wait blocks and waits for arrival of events on any of the added file descriptors.
 func (e *Epoll) Wait() ([]Event, error) {
-	duration, err := time.ParseDuration("-1ms")
-	if err != nil {
-		// should never occur (only if time package changes)
-		return nil, err
-	}
+	duration := time.Duration(-1)
 	return e.WaitTimeout(duration)
 }
