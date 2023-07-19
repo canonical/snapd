@@ -243,9 +243,12 @@ func (client *Client) SnapshotExport(setID uint64) (stream io.ReadCloser, conten
 		defer rsp.Body.Close()
 
 		var r response
-		specificErr := r.err(client, rsp.StatusCode)
-		if err != nil {
-			return nil, 0, specificErr
+		dec := json.NewDecoder(rsp.Body)
+		if err := dec.Decode(&r); err == nil {
+			specificErr := r.err(client, rsp.StatusCode)
+			if specificErr != nil {
+				return nil, 0, specificErr
+			}
 		}
 		return nil, 0, fmt.Errorf("unexpected status code: %v", rsp.Status)
 	}
