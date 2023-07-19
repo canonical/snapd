@@ -119,7 +119,7 @@ Now you can use remote-build with snapcraft on the snapd tree for any desired
 architectures:
 
 ```
-snapcraft remote-build --build-on=armhf,s390x,arm64
+snapcraft remote-build --build-for=armhf,s390x,arm64
 ```
 
 And to go back to building the snapd snap locally, just revert the channel back
