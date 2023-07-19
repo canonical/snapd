@@ -47,7 +47,7 @@ func concurrentlyDeregister(e *epoll.Epoll, fd int, errCh chan error) {
 	errCh <- err
 }
 
-func waitMillisecondsThenWriteToFile(msec int, fd int, msg []byte) error {
+func waitMillisecondsThenWriteToFd(msec int, fd int, msg []byte) error {
 	time.Sleep(time.Duration(msec) * time.Millisecond)
 	_, err := unix.Write(fd, msg)
 	return err
@@ -71,7 +71,7 @@ func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
 
 	msg := []byte("foo")
 
-	go waitMillisecondsThenWriteToFile(1000, senderFd, msg)
+	go waitMillisecondsThenWriteToFd(1000, senderFd, msg)
 
 	events, err := e.Wait()
 	c.Assert(err, IsNil)
@@ -111,7 +111,7 @@ func (*epollSuite) TestWaitTimeout(c *C) {
 
 	msg := []byte("foo")
 
-	go waitMillisecondsThenWriteToFile(1000, senderFd, msg)
+	go waitMillisecondsThenWriteToFd(1000, senderFd, msg)
 
 	duration, err := time.ParseDuration("100ms")
 	c.Assert(err, IsNil)
