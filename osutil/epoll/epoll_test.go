@@ -113,14 +113,12 @@ func (*epollSuite) TestWaitTimeout(c *C) {
 
 	go waitMillisecondsThenWriteToFd(1000, senderFd, msg)
 
-	duration, err := time.ParseDuration("100ms")
-	c.Assert(err, IsNil)
+	duration := time.Millisecond * 100
 	events, err := e.WaitTimeout(duration)
 	c.Assert(err, IsNil)
 	c.Assert(len(events), Equals, 0)
 
-	duration, err = time.ParseDuration("3000ms")
-	c.Assert(err, IsNil)
+	duration = time.Millisecond * 3000
 	events, err = e.WaitTimeout(duration)
 	c.Assert(err, IsNil)
 	c.Assert(len(events), Equals, 1)
