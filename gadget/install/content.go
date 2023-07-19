@@ -68,6 +68,18 @@ func mountFilesystem(fsDevice, fs, mountpoint string) error {
 	return nil
 }
 
+func unmountWithFallbackToLazy(mntPt, operationMsg string) error {
+	if err := sysUnmount(mntPt, 0); err != nil {
+		logger.Noticef("cannot unmount %s after %s: %v (trying lazy unmount next)", mntPt, operationMsg, err)
+		// lazy umount on error, see LP:2025402
+		if err = sysUnmount(mntPt, syscall.MNT_DETACH); err != nil {
+			logger.Noticef("cannot lazy unmount %q: %v", mntPt, err)
+			return err
+		}
+	}
+	return nil
+}
+
 // writeContent populates the given on-disk filesystem structure with a
 // corresponding filesystem device, according to the contents defined in the
 // gadget.
@@ -83,12 +95,7 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, fsDevice string, o
 		return fmt.Errorf("cannot mount %q at %q: %v", fsDevice, mountpoint, err)
 	}
 	defer func() {
-		var errUnmount error
-		if errUnmount = sysUnmount(mountpoint, 0); errUnmount != nil {
-			logger.Noticef("cannot unmount %v after writing filesystem content, trying lazy unmount next: %v", mountpoint, errUnmount)
-			// lazy umount on error, see LP:2025402
-			errUnmount = sysUnmount(mountpoint, syscall.MNT_DETACH)
-		}
+		errUnmount := unmountWithFallbackToLazy(mountpoint, "writing filesystem content")
 		if err == nil && errUnmount != nil {
 			err = fmt.Errorf("cannot unmount %v after writing filesystem content: %v", fsDevice, errUnmount)
 		}

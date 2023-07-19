@@ -833,6 +833,11 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 			return templateVariables(snapInfo, securityTag, cmdName)
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
+		case "###PYCACHEDENY###":
+			if spec.SuppressPycacheDeny() {
+				return ""
+			}
+			return pycacheDenySnippet
 		case "###CHANGEPROFILE_RULE###":
 			features, _ := parserFeatures()
 			if strutil.ListContains(features, "unsafe") {
