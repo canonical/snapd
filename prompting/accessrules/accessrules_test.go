@@ -343,3 +343,73 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 		}
 	}
 }
+
+func (s *accessruleSuite) TestIsPathAllowed(c *C) {
+	ardb, _ := accessrules.New()
+
+	var user uint32 = 1000
+	snap := "lxd"
+	app := "lxc"
+	lifespan := accessrules.LifespanForever
+	duration := ""
+	permissions := []accessrules.PermissionType{
+		accessrules.PermissionRead,
+		accessrules.PermissionWrite,
+		accessrules.PermissionExecute,
+	}
+
+	patterns := make(map[string]string)
+	patterns["/home/test/Documents/**"] = "allow"
+	patterns["/home/test/Documents/foo/**"] = "deny"
+	patterns["/home/test/Documents/foo/bar/**"] = "allow"
+	patterns["/home/test/Documents/foo/bar/baz**"] = "deny"
+	patterns["/home/test/**/*.png"] = "allow"
+	patterns["/home/test/**/*.jpg"] = "deny"
+
+	for pattern, outcome := range patterns {
+		_, err := ardb.CreateAccessRule(user, snap, app, pattern, outcome, lifespan, duration, permissions)
+		c.Assert(err, IsNil)
+	}
+
+	cases := make(map[string]bool)
+	cases["/home/test/Documents"] = true
+	cases["/home/test/Documents/file"] = true
+	cases["/home/test/Documents/foo"] = false
+	cases["/home/test/Documents/foo/file"] = false
+	cases["/home/test/Documents/foo/bar"] = true
+	cases["/home/test/Documents/foo/bar/file"] = true
+	cases["/home/test/Documents/foo/bar/baz"] = false
+	cases["/home/test/Documents/foo/bar/baz/file"] = false
+	cases["/home/test/file.png"] = true
+	cases["/home/test/file.jpg"] = false
+	cases["/home/test/Documents/file.png"] = true
+	cases["/home/test/Documents/file.jpg"] = false
+	cases["/home/test/Documents/foo/file.png"] = true
+	cases["/home/test/Documents/foo/file.jpg"] = false
+	cases["/home/test/Documents/foo/bar/file.png"] = true
+	cases["/home/test/Documents/foo/bar/file.jpg"] = false
+	cases["/home/test/Documents/foo/bar/baz/file.png"] = true
+	cases["/home/test/Documents/foo/bar/baz/file.jpg"] = false
+	cases["/home/test/Documents.png"] = true
+	cases["/home/test/Documents.jpg"] = false
+	cases["/home/test/Documents/foo.png"] = true
+	cases["/home/test/Documents/foo.jpg"] = false
+	cases["/home/test/Documents/foo.txt"] = true
+	cases["/home/test/Documents/foo/bar.png"] = true
+	cases["/home/test/Documents/foo/bar.jpg"] = false
+	cases["/home/test/Documents/foo/bar.txt"] = false
+	cases["/home/test/Documents/foo/bar/baz.png"] = true
+	cases["/home/test/Documents/foo/bar/baz.jpg"] = false
+	cases["/home/test/Documents/foo/bar/baz.png"] = true
+	cases["/home/test/Documents/foo/bar/baz/file.png"] = true
+	cases["/home/test/Documents/foo/bar/baz/file.jpg"] = false
+	cases["/home/test/Documents/foo/bar/baz/file.txt"] = false
+	cases["/home/test/file.jpg.png"] = true
+	cases["/home/test/file.png.jpg"] = false
+
+	for path, expected := range cases {
+		result, err := ardb.IsPathAllowed(user, snap, app, path, permissions[0])
+		c.Assert(err, IsNil, Commentf("path: %s: error: %v\nardb.ById: %+v", path, err, ardb.ById))
+		c.Assert(result, Equals, expected, Commentf("path: %s: expected %b but got %b\nardb.ById: %+v", path, expected, result, ardb.ById))
+	}
+}
