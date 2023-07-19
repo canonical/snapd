@@ -903,7 +903,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 func asyncRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, refreshInfo *userclient.PendingSnapRefreshInfo) error {
 	snapName := snapsup.InstanceName()
 	// there's already a goroutine waiting for this snap to close so just notify
-	if abortChan := getAbortMonitoringChan(st, snapName); abortChan != nil {
+	if isSnapMonitored(st, snapName) {
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 		return nil
 	}
@@ -954,23 +954,16 @@ func addMonitoring(st *state.State, snapName string, abort chan<- bool) (bool, e
 		return false, nil
 	}
 
+	abortChans, err := getAbortMonitoringChans(st)
+	if err != nil {
+		return false, err
+	}
+	if abortChans == nil {
+		abortChans = make(map[string]chan<- bool)
+	}
+
 	refreshHints[snapName].Monitored = true
 	st.Set("refresh-candidates", refreshHints)
-
-	storedChans := st.Cached("monitored-snaps")
-	if storedChans == nil {
-		storedChans = make(map[string]chan<- bool)
-	}
-
-	abortChans, ok := storedChans.(map[string]chan<- bool)
-	if !ok {
-		// reset the refresh hint since we're aborting
-		refreshHints[snapName].Monitored = false
-		st.Set("refresh-candidates", refreshHints)
-
-		// should never happen save for programmer error
-		return false, fmt.Errorf(`"monitored-snaps" should be map[string]chan<- bool but got %T`, storedChans)
-	}
 
 	abortChans[snapName] = abort
 	st.Cache("monitored-snaps", abortChans)
@@ -990,15 +983,12 @@ func removeMonitoring(st *state.State, snapName string) error {
 	refreshHints[snapName].Monitored = false
 	st.Set("refresh-candidates", refreshHints)
 
-	storedChans := st.Cached("monitored-snaps")
-	if storedChans == nil {
+	abortChans, err := getAbortMonitoringChans(st)
+	if err != nil {
 		return nil
 	}
-
-	abortChans, ok := storedChans.(map[string]chan<- bool)
-	if !ok {
-		// should never happen save for programmer error
-		return fmt.Errorf(`"monitored-snaps" should be map[string]chan<- bool but got %T`, storedChans)
+	if abortChans == nil {
+		return nil
 	}
 
 	delete(abortChans, snapName)
@@ -1080,24 +1070,33 @@ func continueInhibitedAutoRefresh(st *state.State, snapName string) error {
 	return nil
 }
 
-func getAbortMonitoringChan(st *state.State, snapName string) chan<- bool {
+func getAbortMonitoringChans(st *state.State) (map[string]chan<- bool, error) {
 	storedChans := st.Cached("monitored-snaps")
 	if storedChans == nil {
-		return nil
+		return nil, nil
 	}
-
 	abortChans, ok := storedChans.(map[string]chan<- bool)
 	if !ok {
 		// NOTE: should never happen save for programmer error
-		logger.Noticef(`internal error: "monitored-snap" should be map[string]chan<- bool but got %T: %v`, storedChans, storedChans)
-		return nil
+		return nil, fmt.Errorf(`internal error: "monitored-snaps" should be map[string]chan<- bool but got %T`, storedChans)
 	}
+	return abortChans, nil
+}
 
+func abortMonitoringChan(st *state.State, snapName string) chan<- bool {
+	abortChans, err := getAbortMonitoringChans(st)
+	if err != nil {
+		logger.Noticef("%v", err)
+	}
 	return abortChans[snapName]
 }
 
+func isSnapMonitored(st *state.State, snapName string) bool {
+	return abortMonitoringChan(st, snapName) != nil
+}
+
 func abortMonitoring(st *state.State, snapName string) {
-	if abortChan := getAbortMonitoringChan(st, snapName); abortChan != nil {
+	if abortChan := abortMonitoringChan(st, snapName); abortChan != nil {
 		abortChan <- true
 	}
 }

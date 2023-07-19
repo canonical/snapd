@@ -170,7 +170,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 			continue
 		}
 
-		monitoring := getAbortMonitoringChan(st, update.InstanceName()) != nil
+		monitoring := isSnapMonitored(st, update.InstanceName())
 		providerContentAttrs := defaultProviderContentAttrs(st, update)
 		snapsup := &refreshCandidate{
 			SnapSetup: SnapSetup{
