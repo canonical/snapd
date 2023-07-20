@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	doublestar "github.com/bmatcuk/doublestar/v4"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -399,7 +400,7 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 	pathMap := ardb.permissionDBForUserSnapAppPermission(user, snap, app, permission).PathRules
 	matchingPatterns := make([]string, 0)
 	for pathPattern := range pathMap {
-		matched, err := filepath.Match(pathPattern, path)
+		matched, err := doublestar.Match(pathPattern, path)
 		if err != nil {
 			// only possible error is ErrBadPattern, which should not occur
 			return false, err
