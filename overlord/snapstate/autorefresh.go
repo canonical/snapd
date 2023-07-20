@@ -51,9 +51,9 @@ const maxPostponementBuffer = 5 * 24 * time.Hour
 
 // cannot inhibit refreshes for more than maxInhibition;
 // deduct 1s so it doesn't look confusing initially when two notifications
-// get displayed in short period of time and it immediately goes from "14 days"
-// to "13 days" left.
-const maxInhibition = 14*24*time.Hour - time.Second
+// get displayed in short period of time and it immediately goes from "4 days"
+// to "3 days" left.
+const maxInhibition = 4*24*time.Hour - time.Second
 
 // maxDuration is used to represent "forever" internally (it's 290 years).
 const maxDuration = time.Duration(1<<63 - 1)

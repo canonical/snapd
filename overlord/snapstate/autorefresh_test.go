@@ -963,7 +963,7 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	refreshInfo := timedErr.PendingSnapRefreshInfo()
 	c.Assert(refreshInfo, NotNil)
 	c.Check(refreshInfo.InstanceName, Equals, "pkg")
-	c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24-time.Second)
+	c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*4*24-time.Second)
 }
 
 func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c *C) {
@@ -1003,7 +1003,7 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	c.Check(refreshInfo.InstanceName, Equals, "pkg")
 	// XXX: This test measures real time, with second granularity.
 	// It takes non-zero (hence the subtracted second) to execute the test.
-	c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24/2-time.Second)
+	c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*4*24/2-time.Second)
 }
 
 func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
