@@ -279,11 +279,11 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 	// Mock saving of traits
 	saveStorageTraitsCalls := 0
-	restore = devicestate.MockInstallSaveStorageTraits(func(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *install.EncryptionSetupData) error {
+	restore = devicestate.MockInstallSaveStorageTraits(func(model gadget.Model, allVols map[string]*gadget.Volume, encryptSetupData *install.EncryptionSetupData) error {
 		saveStorageTraitsCalls++
 		// This is a good point to check if things have been filled
 		if opts.hasPartial {
-			for _, v := range allLaidOutVols {
+			for _, v := range allVols {
 				c.Check(v.Partial, DeepEquals, []gadget.PartialProperty{gadget.PartialStructure})
 				c.Check(v.Schema != "", Equals, true)
 				for _, vs := range v.Structure {

@@ -984,7 +984,11 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 	defer unmountParts()
 
-	if err := installSaveStorageTraits(sys.Model, allLaidOutVols, encryptSetupData); err != nil {
+	allVols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVols {
+		allVols[name] = lov.Volume
+	}
+	if err := installSaveStorageTraits(sys.Model, allVols, encryptSetupData); err != nil {
 		return err
 	}
 

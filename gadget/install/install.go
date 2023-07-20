@@ -78,12 +78,7 @@ func roleNeedsEncryption(role string) bool {
 	return role == gadget.SystemData || role == gadget.SystemSave
 }
 
-func saveStorageTraits(mod gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, optsPerVol map[string]*gadget.DiskVolumeValidationOptions, hasSavePartition bool) error {
-	// XXXXX TEMPORARY
-	allVols := map[string]*gadget.Volume{}
-	for name, lov := range allLaidOutVols {
-		allVols[name] = lov.Volume
-	}
+func saveStorageTraits(mod gadget.Model, allVols map[string]*gadget.Volume, optsPerVol map[string]*gadget.DiskVolumeValidationOptions, hasSavePartition bool) error {
 
 	allVolTraits, err := gadget.AllDiskVolumeDeviceTraits(allVols, optsPerVol)
 	if err != nil {
@@ -382,8 +377,14 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 			ExpectedStructureEncryption: partsEncrypted,
 		},
 	}
+
 	// save the traits to ubuntu-data host and optionally to ubuntu-save if it exists
-	if err := saveStorageTraits(model, allLaidOutVols, optsPerVol, hasSavePartition); err != nil {
+	// XXX
+	allVols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVols {
+		allVols[name] = lov.Volume
+	}
+	if err := saveStorageTraits(model, allVols, optsPerVol, hasSavePartition); err != nil {
 		return nil, err
 	}
 
@@ -611,7 +612,7 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 	return seedMntDir, unmount, nil
 }
 
-func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *EncryptionSetupData) error {
+func SaveStorageTraits(model gadget.Model, vols map[string]*gadget.Volume, encryptSetupData *EncryptionSetupData) error {
 	optsPerVol := map[string]*gadget.DiskVolumeValidationOptions{}
 	if encryptSetupData != nil {
 		for name, p := range encryptSetupData.parts {
@@ -624,7 +625,7 @@ func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.Lai
 	}
 
 	// save the traits to ubuntu-data and ubuntu-save partitions
-	if err := saveStorageTraits(model, allLaidOutVols, optsPerVol, true); err != nil {
+	if err := saveStorageTraits(model, vols, optsPerVol, true); err != nil {
 		return err
 	}
 
@@ -806,7 +807,12 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		},
 	}
 	// save the traits to ubuntu-data host and optionally to ubuntu-save if it exists
-	if err := saveStorageTraits(model, allLaidOutVols, optsPerVol, hasSavePartition); err != nil {
+	// XXX
+	allVols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVols {
+		allVols[name] = lov.Volume
+	}
+	if err := saveStorageTraits(model, allVols, optsPerVol, hasSavePartition); err != nil {
 		return nil, err
 	}
 

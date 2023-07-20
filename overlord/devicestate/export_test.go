@@ -411,7 +411,7 @@ func MockInstallEncryptPartitions(f func(onVolumes map[string]*gadget.Volume, en
 	}
 }
 
-func MockInstallSaveStorageTraits(f func(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *install.EncryptionSetupData) error) (restore func()) {
+func MockInstallSaveStorageTraits(f func(model gadget.Model, allLaidOutVols map[string]*gadget.Volume, encryptSetupData *install.EncryptionSetupData) error) (restore func()) {
 	old := installSaveStorageTraits
 	installSaveStorageTraits = f
 	return func() {
