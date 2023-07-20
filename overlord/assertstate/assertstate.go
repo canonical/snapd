@@ -486,7 +486,7 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 
 			vsass, ok := as.(*asserts.ValidationSet)
 			if !ok {
-				return fmt.Errorf("internal error: unexpected assertion type %s for %s", vsass.Type().Name, ValidationSetKey(vs.AccountID, vs.Name))
+				return fmt.Errorf("internal error: unexpected assertion type %s for %s", as.Type().Name, ValidationSetKey(vs.AccountID, vs.Name))
 			}
 			if err := vsets.Add(vsass); err != nil {
 				return fmt.Errorf("internal error: cannot check validation sets conflicts: %v", err)
