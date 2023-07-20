@@ -1,6 +1,8 @@
 package epoll_test
 
 import (
+	"os"
+	"syscall"
 	"testing"
 	"time"
 
@@ -88,6 +90,42 @@ func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
 
 	err = e.Deregister(listenerFd)
 	c.Assert(err, IsNil)
+
+	err = e.Close()
+	c.Assert(err, IsNil)
+}
+
+func (*epollSuite) TestRegisterUnhappy(c *C) {
+	e, err := epoll.Open()
+	c.Assert(err, IsNil)
+
+	// attempt to register a standard file
+	newFile, err := os.CreateTemp("/tmp", "snapd-TestRegisterUnhappy-")
+	c.Assert(err, IsNil)
+	defer newFile.Close()
+	defer os.Remove(newFile.Name())
+	err = e.Register(int(newFile.Fd()), epoll.Readable)
+	c.Check(err, Equals, syscall.Errno(0x1)) // "operation not permitted"
+
+	// attempt to register nonexistent FD
+	err = e.Register(42, epoll.Readable)
+	c.Check(err, Equals, syscall.Errno(0x9)) // "bad file descriptor"
+
+	err = e.Close()
+	c.Check(err, IsNil)
+}
+
+func (*epollSuite) TestDeregisterUnhappy(c *C) {
+	e, err := epoll.Open()
+	c.Assert(err, IsNil)
+
+	// attempt to deregister an unregistered FD
+	err = e.Deregister(1)
+	c.Assert(err, Equals, syscall.Errno(0x2)) // "no such file or directory"
+
+	// attempt to deregister nonexistent FD
+	err = e.Deregister(42)
+	c.Assert(err, Equals, syscall.Errno(0x9)) // "bad file descriptor"
 
 	err = e.Close()
 	c.Assert(err, IsNil)
