@@ -358,8 +358,7 @@ type valuePattern interface {
 	Match(value string) bool
 }
 
-type valuePatternAny struct {
-}
+type valuePatternAny struct {}
 
 func (any valuePatternAny) Match(value string) bool {
 	return true
