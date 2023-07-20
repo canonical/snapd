@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -56,7 +56,7 @@ var (
 // and the recovery system label as passed in the kernel command line by the
 // bootloader.
 func ModeAndRecoverySystemFromKernelCommandLine() (mode, sysLabel string, err error) {
-	m, err := osutil.KernelCommandLineKeyValues("snapd_recovery_mode", "snapd_recovery_system")
+	m, err := kcmdline.KernelCommandLineKeyValues("snapd_recovery_mode", "snapd_recovery_system")
 	if err != nil {
 		return "", "", err
 	}
@@ -265,7 +265,7 @@ func observeSuccessfulCommandLineUpdate(m *Modeenv) (*Modeenv, error) {
 	}
 
 	// get the current command line
-	cmdlineBootedWith, err := osutil.KernelCommandLine()
+	cmdlineBootedWith, err := kcmdline.KernelCommandLine()
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +297,7 @@ func observeSuccessfulCommandLineCompatBoot(model *asserts.Model, m *Modeenv) (*
 		// not being tracked
 		return m, nil
 	}
-	cmdlineBootedWith, err := osutil.KernelCommandLine()
+	cmdlineBootedWith, err := kcmdline.KernelCommandLine()
 	if err != nil {
 		return nil, err
 	}

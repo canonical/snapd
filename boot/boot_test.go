@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
@@ -72,7 +72,7 @@ func (s *baseBootenvSuite) SetUpTest(c *C) {
 	s.bootdir = filepath.Join(s.rootdir, "boot")
 
 	s.cmdlineFile = filepath.Join(c.MkDir(), "cmdline")
-	restore = osutil.MockProcCmdline(s.cmdlineFile)
+	restore = kcmdline.MockProcCmdline(s.cmdlineFile)
 	s.AddCleanup(restore)
 }
 
@@ -4163,7 +4163,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
 	err := ioutil.WriteFile(cmdlineFile, []byte("snapd_recovery_mode=run static mocked panic=-1"), 0644)
 	c.Assert(err, IsNil)
-	restore = osutil.MockProcCmdline(cmdlineFile)
+	restore = kcmdline.MockProcCmdline(cmdlineFile)
 	s.AddCleanup(restore)
 
 	err = s.bootloader.SetBootVars(map[string]string{
@@ -4284,7 +4284,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	c.Assert(s.modeenvWithEncryption.WriteTo(""), IsNil)
 
 	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
-	restore := osutil.MockProcCmdline(cmdlineFile)
+	restore := kcmdline.MockProcCmdline(cmdlineFile)
 	s.AddCleanup(restore)
 
 	err := s.bootloader.SetBootVars(map[string]string{

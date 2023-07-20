@@ -20,7 +20,7 @@
 package gadget
 
 import (
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -32,10 +32,10 @@ type kernelArgsSet map[kargKey]bool
 // wild card ('*') can be used in the allow list for the
 // values. Additionally, a string with the arguments that have been
 // filtered out is also returned.
-func FilterKernelCmdline(cmdline string, allowedSl []osutil.KernelArgumentPattern) (argsAllowed, argsDenied string) {
-	matcher := osutil.NewKernelArgumentMatcher(allowedSl)
+func FilterKernelCmdline(cmdline string, allowedSl []kcmdline.KernelArgumentPattern) (argsAllowed, argsDenied string) {
+	matcher := kcmdline.NewKernelArgumentMatcher(allowedSl)
 
-	proposed := osutil.ParseKernelCommandline(cmdline)
+	proposed := kcmdline.ParseKernelCommandline(cmdline)
 
 	in := []string{}
 	out := []string{}
