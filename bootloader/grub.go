@@ -403,6 +403,23 @@ func (g *grub) defaultCommandLineForEdition(edition uint) string {
 	return staticCommandLineForGrubAssetEdition(assetName, edition)
 }
 
+func editionFromDiskConfigAssetFallback(bootConfig string) (uint, error) {
+	edition, err := editionFromDiskConfigAsset(bootConfig)
+	if err != nil {
+		if err != errNoEdition {
+			return 0, err
+		}
+		// we were called using the TrustedAssetsBootloader interface
+		// meaning the caller expects to us to use the managed assets,
+		// since one on disk is not managed, use the initial edition of
+		// the internal boot asset which is compatible with grub.cfg
+		// used before we started writing out the files ourselves
+		edition = 1
+	}
+
+	return edition, nil
+}
+
 // CommandLine returns the kernel command line composed of mode and
 // system arguments, followed by either a built-in bootloader specific
 // static arguments corresponding to the on-disk boot asset edition, and
@@ -413,18 +430,12 @@ func (g *grub) defaultCommandLineForEdition(edition uint) string {
 // Implements TrustedAssetsBootloader for the grub bootloader.
 func (g *grub) CommandLine(pieces CommandLineComponents) (string, error) {
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
-	edition, err := editionFromDiskConfigAsset(currentBootConfig)
+
+	edition, err := editionFromDiskConfigAssetFallback(currentBootConfig)
 	if err != nil {
-		if err != errNoEdition {
-			return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
-		}
-		// we were called using the TrustedAssetsBootloader interface
-		// meaning the caller expects to us to use the managed assets,
-		// since one on disk is not managed, use the initial edition of
-		// the internal boot asset which is compatible with grub.cfg
-		// used before we started writing out the files ourselves
-		edition = 1
+		return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
 	}
+
 	return g.commandLineForEdition(edition, pieces)
 }
 
@@ -447,18 +458,11 @@ func (g *grub) CandidateCommandLine(pieces CommandLineComponents) (string, error
 func (g *grub) DefaultCommandLine() (string, error) {
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
 
-	edition, err := editionFromDiskConfigAsset(currentBootConfig)
+	edition, err := editionFromDiskConfigAssetFallback(currentBootConfig)
 	if err != nil {
-		if err != errNoEdition {
-			return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
-		}
-		// we were called using the TrustedAssetsBootloader interface
-		// meaning the caller expects to us to use the managed assets,
-		// since one on disk is not managed, use the initial edition of
-		// the internal boot asset which is compatible with grub.cfg
-		// used before we started writing out the files ourselves
-		edition = 1
+		return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
 	}
+
 	return g.defaultCommandLineForEdition(edition), nil
 }
 
