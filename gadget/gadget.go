@@ -612,25 +612,25 @@ func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits,
 	return mapping, nil
 }
 
-// AllDiskVolumeDeviceTraits takes a mapping of volume name to LaidOutVolume and
-// produces a map of volume name to DiskVolumeDeviceTraits. Since doing so uses
-// DiskVolumeDeviceTraitsForDevice, it will also validate that disk devices
-// identified for the laid out volume are compatible and matching before
-// returning.
-func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPerVolume map[string]*DiskVolumeValidationOptions) (map[string]DiskVolumeDeviceTraits, error) {
+// AllDiskVolumeDeviceTraits takes a mapping of volume name to Volume
+// and produces a map of volume name to DiskVolumeDeviceTraits. Since
+// doing so uses DiskVolumeDeviceTraitsForDevice, it will also
+// validate that disk devices identified for the volume are compatible
+// and matching before returning.
+func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[string]*DiskVolumeValidationOptions) (map[string]DiskVolumeDeviceTraits, error) {
 	// build up the mapping of volumes to disk device traits
 
-	allVols := map[string]DiskVolumeDeviceTraits{}
+	allTraits := map[string]DiskVolumeDeviceTraits{}
 
 	// find all devices which map to volumes to save the current state of the
 	// system
-	for name, vol := range allLaidOutVols {
+	for name, vol := range allVols {
 		// try to find a device for a structure inside the volume, we have a
 		// loop to attempt to use all structures in the volume in case there are
 		// partitions we can't map to a device directly at first using the
 		// device symlinks that FindDeviceForStructure uses
 		dev := ""
-		for _, ls := range vol.LaidOutStructure {
+		for _, vs := range vol.Structure {
 			// TODO: This code works for volumes that have at least one
 			// partition (i.e. not type: bare structure), but does not work for
 			// volumes which contain only type: bare structures with no other
@@ -642,12 +642,12 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 			// at the expected locations, but that is probably fragile and very
 			// non-performant.
 
-			if !ls.IsPartition() {
+			if !vs.IsPartition() {
 				// skip trying to find non-partitions on disk, it won't work
 				continue
 			}
 
-			structureDevice, err := FindDeviceForStructure(ls.VolumeStructure)
+			structureDevice, err := FindDeviceForStructure(&vs)
 			if err != nil && err != ErrDeviceNotFound {
 				return nil, err
 			}
@@ -675,15 +675,15 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 		if opts == nil {
 			opts = &DiskVolumeValidationOptions{}
 		}
-		traits, err := DiskTraitsFromDeviceAndValidate(vol.Volume, dev, opts)
+		traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, opts)
 		if err != nil {
 			return nil, fmt.Errorf("cannot gather disk traits for device %s to use with volume %s: %v", dev, name, err)
 		}
 
-		allVols[name] = traits
+		allTraits[name] = traits
 	}
 
-	return allVols, nil
+	return allTraits, nil
 }
 
 // GadgetConnect describes an interface connection requested by the gadget

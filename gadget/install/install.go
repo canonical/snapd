@@ -79,7 +79,13 @@ func roleNeedsEncryption(role string) bool {
 }
 
 func saveStorageTraits(mod gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, optsPerVol map[string]*gadget.DiskVolumeValidationOptions, hasSavePartition bool) error {
-	allVolTraits, err := gadget.AllDiskVolumeDeviceTraits(allLaidOutVols, optsPerVol)
+	// XXXXX TEMPORARY
+	allVols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVols {
+		allVols[name] = lov.Volume
+	}
+
+	allVolTraits, err := gadget.AllDiskVolumeDeviceTraits(allVols, optsPerVol)
 	if err != nil {
 		return err
 	}

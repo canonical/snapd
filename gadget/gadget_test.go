@@ -3951,8 +3951,8 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsUnhappy(c *C) {
 	c.Assert(err, IsNil)
 
 	// don't setup the expected/needed symlinks in /dev
-	m := map[string]*gadget.LaidOutVolume{
-		"foo": vol,
+	m := map[string]*gadget.Volume{
+		"foo": vol.Volume,
 	}
 	_, err = gadget.AllDiskVolumeDeviceTraits(m, nil)
 	c.Assert(err, ErrorMatches, `cannot find disk for volume foo from gadget`)
@@ -3984,8 +3984,8 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsHappy(c *C) {
 	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
 	c.Assert(err, IsNil)
 
-	m := map[string]*gadget.LaidOutVolume{
-		"foo": vol,
+	m := map[string]*gadget.Volume{
+		"foo": vol.Volume,
 	}
 	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, nil)
 	c.Assert(err, IsNil)
@@ -4026,8 +4026,8 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsTriesAllStructures(c 
 	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
 	c.Assert(err, IsNil)
 
-	m := map[string]*gadget.LaidOutVolume{
-		"foo": vol,
+	m := map[string]*gadget.Volume{
+		"foo": vol.Volume,
 	}
 	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, nil)
 	c.Assert(err, IsNil)
@@ -4073,7 +4073,7 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c 
 	mod := &gadgettest.ModelCharacteristics{
 		HasModes: true,
 	}
-	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
+	laidOutVols, err := gadgettest.LayoutMultiVolumeFromYaml(
 		c.MkDir(),
 		"",
 		gadgettest.MultiVolumeUC20GadgetYaml,
@@ -4081,6 +4081,10 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c 
 	)
 	c.Assert(err, IsNil)
 
+	vols := map[string]*gadget.Volume{}
+	for name, lov := range laidOutVols {
+		vols[name] = lov.Volume
+	}
 	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(vols, nil)
 	c.Assert(err, IsNil)
 
@@ -4129,8 +4133,8 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsImplicitSystemDataHap
 	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, nil)
 	c.Assert(err, IsNil)
 
-	m := map[string]*gadget.LaidOutVolume{
-		"pc": vol,
+	m := map[string]*gadget.Volume{
+		"pc": vol.Volume,
 	}
 
 	// the volume cannot be found with no opts set
