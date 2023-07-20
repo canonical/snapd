@@ -157,11 +157,14 @@ func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
 		startTs := time.Now()
 		n, err = unix.EpollWait(e.fd, sysEvents, msec)
 		runtime.KeepAlive(e)
+		// unix.EpollWait can return unix.EINTR, which we want to handle by
+		// adjusting the timeout (if necessary) and restarting the syscall
 		if err == nil {
 			break
 		} else if err != unix.EINTR {
 			return nil, err
-		} else if msec == -1 {
+		}
+		if msec == -1 {
 			continue
 		}
 		elapsed := time.Since(startTs)
