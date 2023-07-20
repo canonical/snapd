@@ -211,6 +211,9 @@ type TrustedAssetsBootloader interface {
 	// edition of managed built-in boot assets as reference.
 	CandidateCommandLine(pieces CommandLineComponents) (string, error)
 
+	// DefaultCommandLine returns the default kernel command-line
+	// used by the bootloader excluding the recovery mode and
+	// system parameters.
 	DefaultCommandLine() (string, error)
 
 	// TrustedAssets returns the list of relative paths to assets inside the

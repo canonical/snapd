@@ -455,6 +455,8 @@ func (g *grub) CandidateCommandLine(pieces CommandLineComponents) (string, error
 	return g.commandLineForEdition(edition, pieces)
 }
 
+// DefaultCommandLine returns the default kernel command-line used by
+// the bootloader excluding the recovery mode and system parameters.
 func (g *grub) DefaultCommandLine() (string, error) {
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
 
