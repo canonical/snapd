@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -42,8 +42,7 @@ func (r Readiness) String() string {
 // Epoll wraps a file descriptor which can be used for I/O readiness notification.
 type Epoll struct {
 	fd                int
-	registeredFdCount int
-	countMutex        sync.Mutex
+	registeredFdCount int32 // read/modify using helper functions
 }
 
 // Open opens an event monitoring descriptor.
@@ -67,11 +66,9 @@ func Open() (*Epoll, error) {
 // Close closes the event monitoring descriptor.
 func (e *Epoll) Close() error {
 	runtime.SetFinalizer(e, nil)
-	e.countMutex.Lock()
 	fd := e.fd
 	e.fd = -1
-	e.registeredFdCount = 0
-	e.countMutex.Unlock()
+	e.zeroRegisteredFdCount()
 	return unix.Close(fd)
 }
 
@@ -83,7 +80,19 @@ func (e *Epoll) Fd() int {
 // RegisteredFdCount returns the number of file descriptors which are currently
 // registered to the epoll instance.
 func (e *Epoll) RegisteredFdCount() int {
-	return e.registeredFdCount
+	return int(atomic.LoadInt32(&e.registeredFdCount))
+}
+
+func (e *Epoll) incrementRegisteredFdCount() {
+	atomic.AddInt32(&e.registeredFdCount, 1)
+}
+
+func (e *Epoll) decrementRegisteredFdCount() {
+	atomic.AddInt32(&e.registeredFdCount, -1)
+}
+
+func (e *Epoll) zeroRegisteredFdCount() {
+	atomic.StoreInt32(&e.registeredFdCount, 0)
 }
 
 // Register registers a file descriptor and allows observing speicifc I/O readiness events.
@@ -97,9 +106,7 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 	if err != nil {
 		return err
 	}
-	e.countMutex.Lock()
-	e.registeredFdCount += 1
-	e.countMutex.Unlock()
+	e.incrementRegisteredFdCount()
 	runtime.KeepAlive(e)
 	return err
 }
@@ -112,9 +119,7 @@ func (e *Epoll) Deregister(fd int) error {
 	if err != nil {
 		return err
 	}
-	e.countMutex.Lock()
-	e.registeredFdCount -= 1
-	e.countMutex.Unlock()
+	e.decrementRegisteredFdCount()
 	runtime.KeepAlive(e)
 	return err
 }
@@ -153,7 +158,7 @@ func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
 	var err error
 	var sysEvents []unix.EpollEvent
 	for {
-		sysEvents = make([]unix.EpollEvent, e.registeredFdCount)
+		sysEvents = make([]unix.EpollEvent, e.RegisteredFdCount())
 		startTs := time.Now()
 		n, err = unix.EpollWait(e.fd, sysEvents, msec)
 		runtime.KeepAlive(e)
