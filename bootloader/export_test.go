@@ -28,8 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -175,7 +175,7 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 		// now mock the kernel command line
 		cmdLine := filepath.Join(c.MkDir(), "cmdline")
 		ioutil.WriteFile(cmdLine, []byte("snapd_lk_boot_disk=lk-boot-disk"), 0644)
-		r = osutil.MockProcCmdline(cmdLine)
+		r = kcmdline.MockProcCmdline(cmdLine)
 		cleanups = append(cleanups, r)
 	}
 
