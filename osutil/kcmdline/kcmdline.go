@@ -17,7 +17,7 @@
  *
  */
 
-package osutil
+package kcmdline
 
 import (
 	"bytes"
@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 var (
@@ -33,7 +35,7 @@ var (
 
 // MockProcCmdline overrides the path to /proc/cmdline. For use in tests.
 func MockProcCmdline(newPath string) (restore func()) {
-	MustBeTestBinary("mocking can only be done from tests")
+	osutil.MustBeTestBinary("mocking can only be done from tests")
 	oldProcCmdline := procCmdline
 	procCmdline = newPath
 	return func() {
@@ -358,7 +360,7 @@ type valuePattern interface {
 	Match(value string) bool
 }
 
-type valuePatternAny struct {}
+type valuePatternAny struct{}
 
 func (any valuePatternAny) Match(value string) bool {
 	return true
