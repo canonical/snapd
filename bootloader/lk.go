@@ -231,7 +231,7 @@ func (l *lk) devPathForPartName(partName string) (string, bool, error) {
 		// parameter "snapd_lk_boot_disk" to indicated which disk we should look
 		// for partitions on. In typical boot scenario this will be something like
 		// "snapd_lk_boot_disk=mmcblk0".
-		m, err := kcmdline.KernelCommandLineKeyValues("snapd_lk_boot_disk")
+		m, err := kcmdline.KeyValues("snapd_lk_boot_disk")
 		if err != nil {
 			// return false, since we don't have enough info to conclude there
 			// is likely a lk bootloader here or not

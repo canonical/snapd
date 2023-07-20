@@ -198,7 +198,7 @@ func SimpleSetup() error {
 // initramfs, where we want to consider the quiet kernel option.
 func BootSetup() error {
 	flags := buildFlags()
-	m, _ := kcmdline.KernelCommandLineKeyValues("quiet")
+	m, _ := kcmdline.KeyValues("quiet")
 	_, quiet := m["quiet"]
 	logger := &Log{
 		log:   log.New(os.Stderr, "", flags),
@@ -221,7 +221,7 @@ func debugEnabledOnKernelCmdline() bool {
 	if osutil.IsTestBinary() && procCmdlineUseDefaultMockInTests {
 		return false
 	}
-	m, _ := kcmdline.KernelCommandLineKeyValues("snapd.debug")
+	m, _ := kcmdline.KeyValues("snapd.debug")
 	return m["snapd.debug"] == "1"
 }
 

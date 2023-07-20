@@ -381,7 +381,7 @@ func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents)
 	} else {
 		nonSnapdCmdline = pieces.FullArgs
 	}
-	args, err := kcmdline.KernelCommandLineSplit(nonSnapdCmdline)
+	args, err := kcmdline.Split(nonSnapdCmdline)
 	if err != nil {
 		return "", fmt.Errorf("cannot use badly formatted kernel command line: %v", err)
 	}
