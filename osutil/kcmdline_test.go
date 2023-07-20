@@ -359,6 +359,33 @@ func (s *kcmdlineTestSuite) TestUnmarshalKernelArgument(c *C) {
 	}
 }
 
+func (s *kcmdlineTestSuite) TestKernelArgumentToString(c *C) {
+	for _, t := range []struct {
+		input     osutil.KernelArgument
+		expected  string
+	}{
+		{
+			osutil.KernelArgument{"has space", "", false},
+			`"has space"`,
+		},
+		{
+			osutil.KernelArgument{"param", "has space", false},
+			`param="has space"`,
+		},
+		{
+			osutil.KernelArgument{"param", "hasnospace", false},
+			`param=hasnospace`,
+		},
+		{
+			osutil.KernelArgument{"param", "forcequotes", true},
+			`param="forcequotes"`,
+		},
+	} {
+		c.Check(t.input.String(), Equals, t.expected)
+	}
+}
+
+
 type patternsList struct {
 	Args []osutil.KernelArgumentPattern `yaml:"args"`
 }
