@@ -163,7 +163,7 @@ func (*epollSuite) TestWriteBeforeWait(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	time.Sleep(time.Duration(1) * time.Second)
+	time.Sleep(time.Millisecond * 1000)
 
 	for _, msg := range msgs {
 		events, err := e.Wait()
@@ -324,54 +324,75 @@ func waitSomewhereElse(e *epoll.Epoll, eventCh chan []epoll.Event, errCh chan er
 	errCh <- err
 }
 
-func (*epollSuite) TestWaitThenRegister(c *C) {
+func waitTimeoutSomewhereElse(e *epoll.Epoll, timeout time.Duration, eventCh chan []epoll.Event, errCh chan error) {
+	events, err := e.WaitTimeout(timeout)
+	eventCh <- events
+	errCh <- err
+}
+
+func (*epollSuite) TestWaitWithoutRegistering(c *C) {
 	e, err := epoll.Open()
 	c.Assert(err, IsNil)
 
-	numSockets := 5
-
-	socketRxFds := make([]int, 0, numSockets)
-	socketTxFds := make([]int, 0, numSockets)
-
-	msg1 := []byte("foo")
-	msg2 := []byte("bar")
-
-	for i := 0; i < numSockets; i++ {
-		socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
-		c.Assert(err, IsNil)
-
-		listenerFd := socketFds[0]
-		senderFd := socketFds[1]
-
-		err = unix.SetNonblock(listenerFd, true)
-		c.Assert(err, IsNil)
-
-		err = e.Register(listenerFd, epoll.Readable)
-		c.Assert(err, IsNil)
-
-		_, err = unix.Write(senderFd, msg1)
-		c.Assert(err, IsNil)
-
-		socketRxFds = append(socketRxFds, listenerFd)
-		socketTxFds = append(socketTxFds, senderFd)
-	}
-
-	events, err := e.Wait()
+	events, err := e.WaitTimeout(time.Millisecond * 1000)
 	c.Assert(err, IsNil)
-	c.Assert(len(events), Equals, len(socketRxFds))
+	c.Assert(len(events), Equals, 0)
 
-	for i, listenerFd := range socketRxFds {
-		buf := make([]byte, len(msg1))
-		c.Assert(events[i].Fd, Equals, listenerFd)
-		_, err = unix.Read(events[i].Fd, buf)
-		c.Assert(err, IsNil)
-		c.Assert(buf, DeepEquals, msg1)
-	}
+	err = e.Close()
+	c.Assert(err, IsNil)
+}
+
+func (*epollSuite) TestWaitThenDeregister(c *C) {
+	e, err := epoll.Open()
+	c.Assert(err, IsNil)
+
+	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
+	c.Assert(err, IsNil)
+
+	listenerFd := socketFds[0]
+	senderFd := socketFds[1]
+
+	err = unix.SetNonblock(listenerFd, true)
+	c.Assert(err, IsNil)
+
+	err = e.Register(listenerFd, epoll.Readable)
+	c.Assert(err, IsNil)
+	c.Check(e.RegisteredFdCount(), Equals, 1)
+
+	eventCh := make(chan []epoll.Event)
+	errCh := make(chan error)
+
+	timeout := time.Millisecond * 1000
+	go waitTimeoutSomewhereElse(e, timeout, eventCh, errCh)
+
+	err = e.Deregister(listenerFd)
+	c.Assert(err, IsNil)
+	c.Check(e.RegisteredFdCount(), Equals, 0)
+
+	// check that deregistered FD does not trigger epoll event
+	msg := []byte("foo")
+	_, err = unix.Write(senderFd, msg)
+	c.Assert(err, IsNil)
+
+	events := <-eventCh
+	err = <-errCh
+	c.Assert(len(events), Equals, 0)
+	c.Assert(err, IsNil)
+
+	err = e.Close()
+	c.Assert(err, IsNil)
+}
+
+func (*epollSuite) TestWaitThenRegister(c *C) {
+	e, err := epoll.Open()
+	c.Assert(err, IsNil)
 
 	eventCh := make(chan []epoll.Event)
 	errCh := make(chan error)
 
 	go waitSomewhereElse(e, eventCh, errCh)
+
+	time.Sleep(time.Millisecond * 1000)
 
 	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Check(err, IsNil)
@@ -382,27 +403,25 @@ func (*epollSuite) TestWaitThenRegister(c *C) {
 	err = unix.SetNonblock(listenerFd, true)
 	c.Check(err, IsNil)
 
-	time.Sleep(time.Duration(1) * time.Second)
-
 	err = e.Register(listenerFd, epoll.Readable)
 	c.Check(err, IsNil)
-
-	c.Check(e.RegisteredFdCount(), Equals, numSockets+1)
-
-	_, err = unix.Write(senderFd, msg2)
-	c.Check(err, IsNil)
-
-	events = <-eventCh
-	err = <-errCh
-	c.Assert(err, IsNil)
+	c.Check(e.RegisteredFdCount(), Equals, 1)
 
 	// check that fd registered after Wait() began still triggers epoll event
-	buf := make([]byte, len(msg2))
+	msg := []byte("foo")
+	_, err = unix.Write(senderFd, msg)
+	c.Check(err, IsNil)
+
+	events := <-eventCh
+	err = <-errCh
+	c.Assert(err, IsNil)
 	c.Assert(len(events), Equals, 1)
+
+	buf := make([]byte, len(msg))
 	c.Assert(events[0].Fd, Equals, listenerFd)
 	_, err = unix.Read(events[0].Fd, buf)
 	c.Assert(err, IsNil)
-	c.Assert(buf, DeepEquals, msg2)
+	c.Assert(buf, DeepEquals, msg)
 
 	err = e.Close()
 	c.Assert(err, IsNil)

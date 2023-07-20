@@ -158,7 +158,11 @@ func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
 	var err error
 	var sysEvents []unix.EpollEvent
 	for {
-		sysEvents = make([]unix.EpollEvent, e.RegisteredFdCount())
+		bufLen := e.RegisteredFdCount()
+		if bufLen < 1 {
+			bufLen = 1
+		}
+		sysEvents = make([]unix.EpollEvent, bufLen)
 		startTs := time.Now()
 		n, err = unix.EpollWait(e.fd, sysEvents, msec)
 		runtime.KeepAlive(e)
