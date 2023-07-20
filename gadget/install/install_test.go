@@ -1164,7 +1164,7 @@ func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
 
 	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, secboot.EncryptionTypeLUKS, model, gadgetRoot, "", timings.New(nil))
 
-	c.Check(err, ErrorMatches, "device field for volume struct .* cannot be empty")
+	c.Check(err.Error(), Equals, `volume "pc" has no device assigned`)
 	c.Check(encryptSetup, IsNil)
 }
 

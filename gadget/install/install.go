@@ -424,6 +424,37 @@ func laidOutStructureForDiskStructure(laidVols map[string]*gadget.LaidOutVolume,
 	return nil, fmt.Errorf("cannot find laid out structure for %q", onDiskStruct.Name)
 }
 
+// OnDiskVolumeFromGadgetVol returns the disk volume matching a gadget volume
+// that has the Device field set, which implies that this should be called only
+// in the context of an installer that set the device in the gadget and
+// returned it to snapd.
+func OnDiskVolumeFromGadgetVol(vol *gadget.Volume) (*gadget.OnDiskVolume, error) {
+	var diskVol *gadget.OnDiskVolume
+	for _, vs := range vol.Structure {
+		if vs.Device == "" {
+			continue
+		}
+
+		partSysfsPath, err := sysfsPathForBlockDevice(vs.Device)
+		if err != nil {
+			return nil, err
+		}
+
+		// Volume needs to be resolved only once
+		diskVol, err = onDiskVolumeFromPartitionSysfsPath(partSysfsPath)
+		if err != nil {
+			return nil, err
+		}
+		break
+	}
+
+	if diskVol == nil {
+		return nil, fmt.Errorf("volume %q has no device assigned", vol.Name)
+	}
+
+	return diskVol, nil
+}
+
 // sysfsPathForBlockDevice returns the sysfs path for a block device.
 var sysfsPathForBlockDevice = func(device string) (string, error) {
 	syfsLink := filepath.Join("/sys/class/block", filepath.Base(device))
@@ -499,7 +530,12 @@ func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string
 
 	var onDiskVols []*gadget.OnDiskVolume
 	for volName, vol := range onVolumes {
-		var onDiskVol *gadget.OnDiskVolume
+		onDiskVol, err := OnDiskVolumeFromGadgetVol(vol)
+		if err != nil {
+			return nil, err
+		}
+		onDiskVols = append(onDiskVols, onDiskVol)
+
 		for _, volStruct := range vol.Structure {
 			// TODO write mbr?
 			if volStruct.Role == "mbr" {
@@ -510,21 +546,6 @@ func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string
 				continue
 			}
 
-			// TODO maybe some changes will be needed when we have
-			// encrypted partitions, as the device won't be directly
-			// associated with a disk.
-			partSysfsPath, err := sysfsPathForBlockDevice(volStruct.Device)
-			if err != nil {
-				return nil, err
-			}
-			// Volume needs to be resolved only once inside the loop
-			if onDiskVol == nil {
-				onDiskVol, err = onDiskVolumeFromPartitionSysfsPath(partSysfsPath)
-				if err != nil {
-					return nil, err
-				}
-				onDiskVols = append(onDiskVols, onDiskVol)
-			}
 			logger.Debugf("finding layout for %q", volStruct.Device)
 			// Obtain partition data and link with laid out information
 			// TODO: do we need to consider different
@@ -646,7 +667,10 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 		parts: make(map[string]partEncryptionData),
 	}
 	for volName, vol := range onVolumes {
-		var onDiskVol *gadget.OnDiskVolume
+		onDiskVol, err := OnDiskVolumeFromGadgetVol(vol)
+		if err != nil {
+			return nil, err
+		}
 		for _, volStruct := range vol.Structure {
 			// We will only encrypt save or data roles
 			if volStruct.Role != gadget.SystemSave && volStruct.Role != gadget.SystemData {
@@ -657,17 +681,6 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 			}
 			device := volStruct.Device
 
-			partSysfsPath, err := sysfsPathForBlockDevice(device)
-			if err != nil {
-				return nil, err
-			}
-			// Volume needs to be resolved only once inside the loop
-			if onDiskVol == nil {
-				onDiskVol, err = onDiskVolumeFromPartitionSysfsPath(partSysfsPath)
-				if err != nil {
-					return nil, err
-				}
-			}
 			// Obtain partition data and link with laid out information
 			const creatingPart = true
 			laidOut, err := applyOnDiskStructureToLaidOut(onDiskVol, device, allLaidOutVols, volName, creatingPart)
