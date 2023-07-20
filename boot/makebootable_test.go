@@ -442,7 +442,6 @@ version: 5.0
 }
 
 func (s *makeBootable20Suite) TestMakeBootableImage20CustomKernelExtraArgs(c *C) {
-	// FIXME: this is different depending on the arch
 	s.testMakeBootableImage20CustomKernelArgs(c, "cmdline.extra", "foo bar baz", "")
 }
 
