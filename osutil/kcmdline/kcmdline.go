@@ -43,12 +43,12 @@ func MockProcCmdline(newPath string) (restore func()) {
 	}
 }
 
-// KernelCommandLineSplit tries to split the string comprising full or a part
+// Split tries to split the string comprising full or a part
 // of a kernel command line into a list of individual arguments. Returns an
 // error when the input string is incorrectly formatted.
 //
 // See https://www.kernel.org/doc/html/latest/admin-guide/kernel-parameters.html for details.
-func KernelCommandLineSplit(s string) (out []string, err error) {
+func Split(s string) (out []string, err error) {
 	const (
 		argNone            int = iota // initial state
 		argName                       // looking at argument name
@@ -177,17 +177,17 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 	return out, nil
 }
 
-// KernelCommandLineKeyValues returns a map of the specified keys to the values
+// KeyValues returns a map of the specified keys to the values
 // set for them in the kernel command line (eg. panic=-1). If the key is missing
 // from the kernel command line, it is omitted from the returned map, but it is
 // added if present even if it has no value.
-func KernelCommandLineKeyValues(keys ...string) (map[string]string, error) {
+func KeyValues(keys ...string) (map[string]string, error) {
 	cmdline, err := KernelCommandLine()
 	if err != nil {
 		return nil, err
 	}
 
-	parsed := ParseKernelCommandline(cmdline)
+	parsed := Parse(cmdline)
 	m := make(map[string]string, len(keys))
 
 	for _, arg := range parsed {
@@ -202,21 +202,21 @@ func KernelCommandLineKeyValues(keys ...string) (map[string]string, error) {
 	return m, nil
 }
 
-// KernelArgument represents a parsed kernel argument.
-type KernelArgument struct {
+// Argument represents a parsed kernel argument.
+type Argument struct {
 	Param  string
 	Value  string
 	Quoted bool
 }
 
 // UnmarshalYAML implements the Unmarshaler interface.
-func (ka *KernelArgument) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (ka *Argument) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var arg string
 	if err := unmarshal(&arg); err != nil {
 		return errors.New("cannot unmarshal kernel argument")
 	}
 
-	parsed := ParseKernelCommandline(arg)
+	parsed := Parse(arg)
 	if len(parsed) != 1 {
 		return fmt.Errorf("%q is not a unique kernel argument", arg)
 	}
@@ -233,7 +233,7 @@ func quoteIfNeeded(input string, force bool) string {
 	}
 }
 
-func (ka *KernelArgument) String() string {
+func (ka *Argument) String() string {
 	if ka.Value == "" {
 		return quoteIfNeeded(ka.Param, false)
 	} else {
@@ -241,14 +241,14 @@ func (ka *KernelArgument) String() string {
 	}
 }
 
-// ParseKernelCommandline parses a kernel command line, returning a
+// Parse parses a kernel command line, returning a
 // slice with the arguments in the same order as in cmdline. Note that
 // kernel arguments can be repeated. We follow the same algorithm as in
 // linux kernel's function lib/cmdline.c:next_arg as far as possible.
-// TODO Replace KernelCommandLineSplit with this eventually
-func ParseKernelCommandline(cmdline string) (args []KernelArgument) {
+// TODO Replace Split with this eventually
+func Parse(cmdline string) (args []Argument) {
 	cmdlineBy := []byte(cmdline)
-	args = []KernelArgument{}
+	args = []Argument{}
 	start := firstNotSpace(cmdlineBy)
 	for start < len(cmdlineBy) {
 		argument, end := parseArgument(cmdlineBy[start:])
@@ -283,14 +283,14 @@ func firstNotSpace(args []byte) int {
 }
 
 // parseArgument parses a kernel argument that is known to start at
-// the beginning of args, returning a KernelArgument with the
+// the beginning of args, returning a Argument with the
 // parameter, the assigned value if any and information on whether
 // there was quoting or not, plus where the argument ends in args.
 //
 // This follows the same algorithm as the next_arg function from
 // lib/cmdline.c in the linux kernel, to make sure we handle the
 // arguments in exactly the same way.
-func parseArgument(args []byte) (argument KernelArgument, end int) {
+func parseArgument(args []byte) (argument Argument, end int) {
 	var i, equals, startArg int
 	var argQuoted, inQuote bool
 	var param, val string
@@ -343,7 +343,7 @@ func parseArgument(args []byte) (argument KernelArgument, end int) {
 	}
 
 	param = string(args[startArg : endParam-subsParam])
-	argument = KernelArgument{Param: param, Value: val, Quoted: quoted}
+	argument = Argument{Param: param, Value: val, Quoted: quoted}
 	return argument, end
 }
 
@@ -374,19 +374,19 @@ func (constant valuePatternConstant) Match(value string) bool {
 	return constant.constantValue == value
 }
 
-// KernelArgumentPattern represents a pattern which can match a KernelArgument
-// This is intended to be used with KernelArgumentMatcher
-type KernelArgumentPattern struct {
+// ArgumentPattern represents a pattern which can match a Argument
+// This is intended to be used with Matcher
+type ArgumentPattern struct {
 	param string
 	value valuePattern
 }
 
-// KernelArgumentMatcher matches a KernelArgument with multiple KernelArgumentPatterns
-type KernelArgumentMatcher struct {
+// Matcher matches a Argument with multiple ArgumentPatterns
+type Matcher struct {
 	patterns map[string]valuePattern
 }
 
-func (m *KernelArgumentMatcher) Match(arg KernelArgument) bool {
+func (m *Matcher) Match(arg Argument) bool {
 	pattern, ok := m.patterns[arg.Param]
 	if !ok {
 		return false
@@ -394,33 +394,33 @@ func (m *KernelArgumentMatcher) Match(arg KernelArgument) bool {
 	return pattern.Match(arg.Value)
 }
 
-func NewKernelArgumentMatcher(allowed []KernelArgumentPattern) KernelArgumentMatcher {
+func NewMatcher(allowed []ArgumentPattern) Matcher {
 	patterns := map[string]valuePattern{}
 
 	for _, p := range allowed {
 		patterns[p.param] = p.value
 	}
 
-	return KernelArgumentMatcher{patterns}
+	return Matcher{patterns}
 }
 
 // This constructor is needed mainly for test instead of unmarshaling from yaml
-func NewConstantKernelArgumentPattern(param string, value string) KernelArgumentPattern {
-	return KernelArgumentPattern{param, valuePatternConstant{value}}
+func NewConstantPattern(param string, value string) ArgumentPattern {
+	return ArgumentPattern{param, valuePatternConstant{value}}
 }
 
 // This constructor is needed mainly for test instead of unmarshaling from yaml
-func NewAnyKernelArgumentPattern(param string) KernelArgumentPattern {
-	return KernelArgumentPattern{param, valuePatternAny{}}
+func NewAnyPattern(param string) ArgumentPattern {
+	return ArgumentPattern{param, valuePatternAny{}}
 }
 
-func (kap *KernelArgumentPattern) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (kap *ArgumentPattern) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var arg string
 	if err := unmarshal(&arg); err != nil {
 		return errors.New("cannot unmarshal kernel argument")
 	}
 
-	parsed := ParseKernelCommandline(arg)
+	parsed := Parse(arg)
 	if len(parsed) != 1 {
 		return fmt.Errorf("%q is not a unique kernel argument", arg)
 	}

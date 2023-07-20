@@ -149,7 +149,7 @@ func updateNotScriptableBootloaderStatus(bl bootloader.NotScriptableBootloader) 
 		return nil
 	}
 
-	kVals, err := kcmdline.KernelCommandLineKeyValues("kernel_status")
+	kVals, err := kcmdline.KeyValues("kernel_status")
 	if err != nil {
 		return err
 	}

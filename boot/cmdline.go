@@ -56,7 +56,7 @@ var (
 // and the recovery system label as passed in the kernel command line by the
 // bootloader.
 func ModeAndRecoverySystemFromKernelCommandLine() (mode, sysLabel string, err error) {
-	m, err := kcmdline.KernelCommandLineKeyValues("snapd_recovery_mode", "snapd_recovery_system")
+	m, err := kcmdline.KeyValues("snapd_recovery_mode", "snapd_recovery_system")
 	if err != nil {
 		return "", "", err
 	}
