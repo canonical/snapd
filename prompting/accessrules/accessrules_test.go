@@ -362,7 +362,7 @@ func (s *accessruleSuite) TestIsPathAllowed(c *C) {
 	patterns["/home/test/Documents/**"] = "allow"
 	patterns["/home/test/Documents/foo/**"] = "deny"
 	patterns["/home/test/Documents/foo/bar/**"] = "allow"
-	patterns["/home/test/Documents/foo/bar/baz**"] = "deny"
+	patterns["/home/test/Documents/foo/bar/baz/**"] = "deny"
 	patterns["/home/test/**/*.png"] = "allow"
 	patterns["/home/test/**/*.jpg"] = "deny"
 
