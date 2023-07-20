@@ -32,10 +32,10 @@ type kernelArgsSet map[kargKey]bool
 // wild card ('*') can be used in the allow list for the
 // values. Additionally, a string with the arguments that have been
 // filtered out is also returned.
-func FilterKernelCmdline(cmdline string, allowedSl []kcmdline.KernelArgumentPattern) (argsAllowed, argsDenied string) {
-	matcher := kcmdline.NewKernelArgumentMatcher(allowedSl)
+func FilterKernelCmdline(cmdline string, allowedSl []kcmdline.ArgumentPattern) (argsAllowed, argsDenied string) {
+	matcher := kcmdline.NewMatcher(allowedSl)
 
-	proposed := kcmdline.ParseKernelCommandline(cmdline)
+	proposed := kcmdline.Parse(cmdline)
 
 	in := []string{}
 	out := []string{}

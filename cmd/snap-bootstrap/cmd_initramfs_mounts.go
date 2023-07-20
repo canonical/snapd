@@ -1573,7 +1573,7 @@ func waitForCandidateByLabelPath(label string) (string, error) {
 }
 
 func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
-	values, err := kcmdline.KernelCommandLineKeyValues("snapd_system_disk")
+	values, err := kcmdline.KeyValues("snapd_system_disk")
 	if err != nil {
 		return "", err
 	}

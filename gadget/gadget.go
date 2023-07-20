@@ -112,7 +112,7 @@ type KernelCmdline struct {
 	// files that can be included nowadays in the gadget.
 	// Allow is the list of allowed parameters for the system.kernel.cmdline-append
 	// system option
-	Allow []kcmdline.KernelArgumentPattern `yaml:"allow"`
+	Allow []kcmdline.ArgumentPattern `yaml:"allow"`
 }
 
 type Info struct {
@@ -1796,7 +1796,7 @@ func parseCommandLineFromGadget(content []byte) (string, error) {
 	if err := s.Err(); err != nil {
 		return "", err
 	}
-	kargs, err := kcmdline.KernelCommandLineSplit(filtered.String())
+	kargs, err := kcmdline.Split(filtered.String())
 	if err != nil {
 		return "", err
 	}
