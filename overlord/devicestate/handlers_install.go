@@ -71,6 +71,7 @@ var (
 	installWriteContent                  = install.WriteContent
 	installEncryptPartitions             = install.EncryptPartitions
 	installSaveStorageTraits             = install.SaveStorageTraits
+	installOnDiskVolumeFromGadgetVol     = install.OnDiskVolumeFromGadgetVol
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
@@ -949,46 +950,75 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	gi, err := gadget.ReadInfoAndValidate(mntPtForType[snap.TypeGadget], sys.Model, nil)
+	if err != nil {
+		return err
+	}
+
+	// Import new information from the installer to the laid out data, so
+	// the gadget is not partially defined anymore if it was. Note that we
+	// take from onVolumes only information marked as partial in the
+	// gadget.
+	if err := gadget.ApplyInstallerVolumesToGadget(onVolumes, gi.Volumes); err != nil {
+		return err
+	}
+
+	// Match gadget against the disk, so we make sure that the information
+	// reported by the installer is correct and that all partitions have
+	// been created.
+	volToGadgetToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{}
+	for name, vol := range gi.Volumes {
+		diskVolume, err := installOnDiskVolumeFromGadgetVol(vol)
+		if err != nil {
+			return err
+		}
+		volCompatOpts := &gadget.VolumeCompatibilityOptions{
+			// at this point all partitions should be created
+			AssumeCreatablePartitionsCreated: true,
+		}
+		if useEncryption {
+			volCompatOpts.ExpectedStructureEncryption = map[string]gadget.StructureEncryptionParameters{
+				"ubuntu-data": {Method: gadget.EncryptionLUKS},
+				"ubuntu-save": {Method: gadget.EncryptionLUKS},
+			}
+		}
+		gadgetToDiskMap, err := gadget.EnsureVolumeCompatibility(vol, diskVolume, volCompatOpts)
+		if err != nil {
+			return err
+		}
+		volToGadgetToDiskStruct[name] = gadgetToDiskMap
+	}
+
 	encType := secboot.EncryptionTypeNone
 	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
 	if useEncryption {
 		encType = secboot.EncryptionTypeLUKS
 	}
-	// TODO for partial gadgets we should also use the data from onVolumes instead of
-	// using only what comes from gadget.yaml.
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, encType)
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget2(gi.Volumes,
+		mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel],
+		sys.Model, encType, volToGadgetToDiskStruct)
 	if err != nil {
 		return fmt.Errorf("on finish install: cannot layout volumes: %v", err)
-	}
-
-	// Import new information from the installer to the laid out data,
-	// so the gadget is not partially defined anymore if it was.
-	if err := gadget.ApplyInstallerVolumesToGadget(onVolumes, allLaidOutVols); err != nil {
-		return err
 	}
 
 	logger.Debugf("writing content to partitions")
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		_, err = installWriteContent(onVolumes, allLaidOutVols, encryptSetupData, installObserver, perfTimings)
+		_, err = installWriteContent(gi.Volumes, allLaidOutVols, encryptSetupData, installObserver, perfTimings)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)
 	}
 
 	// Mount the partitions and find the system-seed{,-null} partition
-	seedMntDir, unmountParts, err := installMountVolumes(onVolumes, encryptSetupData)
+	seedMntDir, unmountParts, err := installMountVolumes(gi.Volumes, encryptSetupData)
 	if err != nil {
 		return fmt.Errorf("cannot mount partitions for installation: %v", err)
 	}
 	defer unmountParts()
 
-	allVols := map[string]*gadget.Volume{}
-	for name, lov := range allLaidOutVols {
-		allVols[name] = lov.Volume
-	}
-	if err := installSaveStorageTraits(sys.Model, allVols, encryptSetupData); err != nil {
+	if err := installSaveStorageTraits(sys.Model, gi.Volumes, encryptSetupData); err != nil {
 		return err
 	}
 

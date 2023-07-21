@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	installLogic "github.com/snapcore/snapd/overlord/install"
@@ -219,6 +220,115 @@ func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, i
 	return gadgetSnapPath, kernelSnapPath, ginfo, mountCmd
 }
 
+func mockDiskVolume(opts finishStepOpts) *gadget.OnDiskVolume {
+	if opts.hasPartial {
+		return &mockFilledPartialDiskVolume
+	}
+
+	labelPostfix := ""
+	dataPartsFs := "ext4"
+	if opts.encrypted {
+		labelPostfix = "-enc"
+		dataPartsFs = "crypto_LUKS"
+	}
+	var diskVolume = gadget.OnDiskVolume{
+		Structure: []gadget.OnDiskStructure{
+			// Note that mbr is not a partition so it is not returned
+			{
+				Node:        "/dev/vda1",
+				Name:        "BIOS Boot",
+				Size:        1 * quantity.SizeMiB,
+				StartOffset: 1 * quantity.OffsetMiB,
+			},
+			{
+				Node:            "/dev/vda2",
+				Name:            "EFI System partition",
+				Size:            99 * quantity.SizeMiB,
+				StartOffset:     2 * quantity.OffsetMiB,
+				PartitionFSType: "vfat",
+			},
+			{
+				Node:            "/dev/vda3",
+				Name:            "ubuntu-boot",
+				Size:            750 * quantity.SizeMiB,
+				StartOffset:     1202 * quantity.OffsetMiB,
+				PartitionFSType: "ext4",
+			},
+			{
+				Node:             "/dev/vda4",
+				Name:             "ubuntu-save",
+				Size:             16 * quantity.SizeMiB,
+				StartOffset:      1952 * quantity.OffsetMiB,
+				PartitionFSType:  dataPartsFs,
+				PartitionFSLabel: "ubuntu-save" + labelPostfix,
+			},
+			{
+				Node:             "/dev/vda5",
+				Name:             "ubuntu-data",
+				Size:             4 * quantity.SizeGiB,
+				StartOffset:      1968 * quantity.OffsetMiB,
+				PartitionFSType:  dataPartsFs,
+				PartitionFSLabel: "ubuntu-data" + labelPostfix,
+			},
+		},
+		ID:         "anything",
+		Device:     "/dev/vda",
+		Schema:     "gpt",
+		Size:       6 * quantity.SizeGiB,
+		SectorSize: 512,
+
+		// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
+		// 1 sector to get the exclusive end
+		UsableSectorsEnd: uint64((6*quantity.SizeGiB/512)-33) + 1,
+	}
+	return &diskVolume
+}
+
+var mockFilledPartialDiskVolume = gadget.OnDiskVolume{
+	Structure: []gadget.OnDiskStructure{
+		// Note that mbr is not a partition so it is not returned
+		{
+			Node:            "/dev/vda1",
+			Name:            "ubuntu-seed",
+			Size:            1200 * quantity.SizeMiB,
+			StartOffset:     2 * quantity.OffsetMiB,
+			PartitionFSType: "vfat",
+		},
+		{
+			Node:            "/dev/vda2",
+			Name:            "ubuntu-boot",
+			Size:            750 * quantity.SizeMiB,
+			StartOffset:     1202 * quantity.OffsetMiB,
+			PartitionFSType: "ext4",
+		},
+		{
+			Node:             "/dev/vda3",
+			Name:             "ubuntu-save",
+			Size:             16 * quantity.SizeMiB,
+			StartOffset:      1952 * quantity.OffsetMiB,
+			PartitionFSType:  "crypto_LUKS",
+			PartitionFSLabel: "ubuntu-save-enc",
+		},
+		{
+			Node:             "/dev/vda4",
+			Name:             "ubuntu-data",
+			Size:             4 * quantity.SizeGiB,
+			StartOffset:      1968 * quantity.OffsetMiB,
+			PartitionFSType:  "crypto_LUKS",
+			PartitionFSLabel: "ubuntu-data-enc",
+		},
+	},
+	ID:         "anything",
+	Device:     "/dev/vda",
+	Schema:     "gpt",
+	Size:       6 * quantity.SizeGiB,
+	SectorSize: 512,
+
+	// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
+	// 1 sector to get the exclusive end
+	UsableSectorsEnd: uint64((6*quantity.SizeGiB/512)-33) + 1,
+}
+
 // TODO encryption case for the finish step is not tested yet, it needs more mocking
 func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOpts) {
 	// TODO UC case when supported
@@ -293,6 +403,11 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			}
 		}
 		return nil
+	})
+	s.AddCleanup(restore)
+
+	restore = devicestate.MockInstallOnDiskVolumeFromGadgetVol(func(vol *gadget.Volume) (*gadget.OnDiskVolume, error) {
+		return mockDiskVolume(opts), nil
 	})
 	s.AddCleanup(restore)
 
