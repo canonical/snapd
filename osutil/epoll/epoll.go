@@ -183,6 +183,9 @@ func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
 			break
 		}
 	}
+	if n == 0 {
+		return nil, nil
+	}
 	events := make([]Event, 0, n)
 	for i := 0; i < n; i++ {
 		event := Event{
