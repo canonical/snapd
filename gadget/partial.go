@@ -25,9 +25,9 @@ import "fmt"
 // by the installer and applies it to the laid out volumes for
 // properties partially defined. After that it checks that the gadget
 // is now fully specified.
-func ApplyInstallerVolumesToGadget(installerVols map[string]*Volume, lovs map[string]*LaidOutVolume) error {
-	for volName, lov := range lovs {
-		if len(lov.Partial) == 0 {
+func ApplyInstallerVolumesToGadget(installerVols map[string]*Volume, gadgetVols map[string]*Volume) error {
+	for volName, gv := range gadgetVols {
+		if len(gv.Partial) == 0 {
 			continue
 		}
 
@@ -38,46 +38,44 @@ func ApplyInstallerVolumesToGadget(installerVols map[string]*Volume, lovs map[st
 
 		// TODO: partial structure, as it is not clear what will be possible when set
 
-		if lov.HasPartial(PartialSchema) {
+		if gv.HasPartial(PartialSchema) {
 			if insVol.Schema == "" {
 				return fmt.Errorf("installer did not provide schema for volume %q", volName)
 			}
-			lov.Schema = insVol.Schema
+			gv.Schema = insVol.Schema
 		}
 
-		if lov.HasPartial(PartialFilesystem) {
-			if err := applyPartialFilesystem(insVol, lov, volName); err != nil {
+		if gv.HasPartial(PartialFilesystem) {
+			if err := applyPartialFilesystem(insVol, gv, volName); err != nil {
 				return err
 			}
 		}
 
-		if lov.HasPartial(PartialSize) {
-			if err := applyPartialSize(insVol, lov, volName); err != nil {
+		if gv.HasPartial(PartialSize) {
+			if err := applyPartialSize(insVol, gv, volName); err != nil {
 				return err
 			}
 		}
 
 		// The only thing that can still be partial is the structure
-		if lov.HasPartial(PartialStructure) {
-			lov.Partial = []PartialProperty{PartialStructure}
+		if gv.HasPartial(PartialStructure) {
+			gv.Partial = []PartialProperty{PartialStructure}
 		} else {
-			lov.Partial = []PartialProperty{}
+			gv.Partial = []PartialProperty{}
 		}
 
 		// Now validate finalized volume
-		if err := validateVolume(lov.Volume); err != nil {
-			return fmt.Errorf("finalized volume %q is wrong: %v", lov.Name, err)
+		if err := validateVolume(gv); err != nil {
+			return fmt.Errorf("finalized volume %q is wrong: %v", gv.Name, err)
 		}
 	}
 
 	return nil
 }
 
-func applyPartialFilesystem(insVol *Volume, lov *LaidOutVolume, volName string) error {
-	for sidx := range lov.Structure {
-		// Two structures to modify due to copies inside LaidOutVolume
-		vs := &lov.Structure[sidx]
-		vsLos := lov.LaidOutStructure[sidx].VolumeStructure
+func applyPartialFilesystem(insVol *Volume, gadgetVol *Volume, volName string) error {
+	for sidx := range gadgetVol.Structure {
+		vs := &gadgetVol.Structure[sidx]
 		if vs.Filesystem != "" || !vs.HasFilesystem() {
 			continue
 		}
@@ -91,16 +89,13 @@ func applyPartialFilesystem(insVol *Volume, lov *LaidOutVolume, volName string) 
 		}
 
 		vs.Filesystem = insStr.Filesystem
-		vsLos.Filesystem = insStr.Filesystem
 	}
 	return nil
 }
 
-func applyPartialSize(insVol *Volume, lov *LaidOutVolume, volName string) error {
-	for sidx := range lov.Structure {
-		// Two structures to modify due to copies inside LaidOutVolume
-		vs := &lov.Structure[sidx]
-		vsLos := lov.LaidOutStructure[sidx].VolumeStructure
+func applyPartialSize(insVol *Volume, gadgetVol *Volume, volName string) error {
+	for sidx := range gadgetVol.Structure {
+		vs := &gadgetVol.Structure[sidx]
 		if !vs.hasPartialSize() {
 			continue
 		}
@@ -117,10 +112,7 @@ func applyPartialSize(insVol *Volume, lov *LaidOutVolume, volName string) error 
 		}
 
 		vs.Size = insStr.Size
-		vsLos.Size = insStr.Size
 		vs.Offset = insStr.Offset
-		vsLos.Offset = insStr.Offset
-		lov.LaidOutStructure[sidx].StartOffset = *insStr.Offset
 	}
 	return nil
 }

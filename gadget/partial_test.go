@@ -24,15 +24,13 @@ import (
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/secboot"
 	. "gopkg.in/check.v1"
 )
 
-func (s *gadgetYamlTestSuite) newCleanLovs(c *C) map[string]*gadget.LaidOutVolume {
-	_, lovs, err := gadget.LaidOutVolumesFromGadget(
-		s.dir, "", uc20Mod, secboot.EncryptionTypeNone)
+func (s *gadgetYamlTestSuite) newCleanVols(c *C) map[string]*gadget.Volume {
+	info, err := gadget.ReadInfoAndValidate(s.dir, uc20Mod, nil)
 	c.Assert(err, IsNil)
-	return lovs
+	return info.Volumes
 }
 
 func (s *gadgetYamlTestSuite) TestApplyInstallerVolumesToGadgetPartialSchema(c *C) {
@@ -72,20 +70,20 @@ volumes:
 	}
 
 	// New schema is set
-	lovs := s.newCleanLovs(c)
+	lovs := s.newCleanVols(c)
 	err = gadget.ApplyInstallerVolumesToGadget(installerVols, lovs)
 	c.Assert(err, IsNil)
 	c.Assert(lovs["vol0"].Schema, Equals, "gpt")
 
 	// Invalid schema is detected
 	installerVols["vol0"].Schema = "nextbigthing"
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanVols(c))
 	c.Assert(err.Error(), Equals,
 		`finalized volume "vol0" is wrong: invalid schema "nextbigthing"`)
 
 	// No schema set case
 	installerVols["vol0"].Schema = ""
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanVols(c))
 	c.Assert(err.Error(), Equals, `installer did not provide schema for volume "vol0"`)
 }
 
@@ -141,7 +139,7 @@ volumes:
 		},
 	}
 
-	lovs := s.newCleanLovs(c)
+	lovs := s.newCleanVols(c)
 	err = gadget.ApplyInstallerVolumesToGadget(installerVols, lovs)
 	c.Assert(err, IsNil)
 	c.Assert(lovs["vol0"].Structure[0].Filesystem, Equals, "vfat")
@@ -149,11 +147,11 @@ volumes:
 	c.Assert(lovs["vol0"].Structure[3].Filesystem, Equals, "ext4")
 
 	installerVols["vol0"].Structure[0].Filesystem = ""
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanVols(c))
 	c.Assert(err.Error(), Equals, `installer did not provide filesystem for structure "ubuntu-seed" in volume "vol0"`)
 
 	installerVols["vol0"].Structure[0].Filesystem = "ext44"
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanVols(c))
 	c.Assert(err.Error(), Equals, `finalized volume "vol0" is wrong: invalid structure #0 ("ubuntu-seed"): invalid filesystem "ext44"`)
 }
 
@@ -213,7 +211,7 @@ volumes:
 		},
 	}
 
-	lovs := s.newCleanLovs(c)
+	lovs := s.newCleanVols(c)
 	err = gadget.ApplyInstallerVolumesToGadget(installerVols, lovs)
 	c.Assert(err, IsNil)
 	c.Assert(*lovs["vol0"].Structure[2].Offset, Equals, 1001*quantity.OffsetMiB)
@@ -222,16 +220,16 @@ volumes:
 	c.Assert(lovs["vol0"].Structure[3].Size, Equals, 2000*quantity.SizeMiB)
 
 	installerVols["vol0"].Structure[2].Offset = nil
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanVols(c))
 	c.Assert(err.Error(), Equals, `installer did not provide offset for structure "ubuntu-save" in volume "vol0"`)
 
 	installerVols["vol0"].Structure[2].Offset = asOffsetPtr(1001 * quantity.OffsetMiB)
 	installerVols["vol0"].Structure[2].Size = 0
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanVols(c))
 	c.Assert(err.Error(), Equals, `installer did not provide size for structure "ubuntu-save" in volume "vol0"`)
 
 	installerVols["vol0"].Structure[2].Size = 500 * quantity.SizeKiB
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanVols(c))
 	c.Assert(err.Error(), Equals, `finalized volume "vol0" is wrong: invalid structure #2 ("ubuntu-save"): min-size (1048576) is bigger than size (512000)`)
 }
 
@@ -269,7 +267,7 @@ volumes:
 			Schema: "gpt",
 		},
 	}
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanVols(c))
 	c.Assert(err.Error(), Equals, `installer did not provide information for volume "vol0"`)
 
 	installerVols = map[string]*gadget.Volume{
@@ -278,6 +276,6 @@ volumes:
 			Schema: "gpt",
 		},
 	}
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanVols(c))
 	c.Assert(err.Error(), Equals, `cannot find structure "ubuntu-seed"`)
 }
