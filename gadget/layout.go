@@ -43,6 +43,9 @@ type LayoutOptions struct {
 	// created and content gets written later.
 	IgnoreContent bool
 
+	// GadgetRootDir must be used only to find assets, not to load
+	// gadget.yaml, as we might be using information provided by an
+	// installer.
 	GadgetRootDir string
 	KernelRootDir string
 
