@@ -95,6 +95,9 @@ func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
 	c.Assert(err, IsNil)
 }
 
+// need a large enough FD that it will not match any FD opened during these tests
+const arbitraryNonexistentLargeFd int = 98765
+
 func (*epollSuite) TestRegisterUnhappy(c *C) {
 	e, err := epoll.Open()
 	c.Assert(err, IsNil)
@@ -108,7 +111,7 @@ func (*epollSuite) TestRegisterUnhappy(c *C) {
 	c.Check(err, Equals, syscall.Errno(0x1)) // "operation not permitted"
 
 	// attempt to register nonexistent FD
-	err = e.Register(42, epoll.Readable)
+	err = e.Register(arbitraryNonexistentLargeFd, epoll.Readable)
 	c.Check(err, Equals, syscall.Errno(0x9)) // "bad file descriptor"
 
 	err = e.Close()
@@ -124,7 +127,7 @@ func (*epollSuite) TestDeregisterUnhappy(c *C) {
 	c.Assert(err, Equals, syscall.Errno(0x2)) // "no such file or directory"
 
 	// attempt to deregister nonexistent FD
-	err = e.Deregister(42)
+	err = e.Deregister(arbitraryNonexistentLargeFd)
 	c.Assert(err, Equals, syscall.Errno(0x9)) // "bad file descriptor"
 
 	err = e.Close()
