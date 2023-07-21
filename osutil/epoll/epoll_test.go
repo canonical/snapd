@@ -61,6 +61,8 @@ func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
 
 	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Assert(err, IsNil)
+	defer unix.Close(socketFds[0])
+	defer unix.Close(socketFds[1])
 
 	listenerFd := socketFds[0]
 	senderFd := socketFds[1]
@@ -115,7 +117,7 @@ func (*epollSuite) TestRegisterUnhappy(c *C) {
 	c.Check(err, Equals, syscall.Errno(0x9)) // "bad file descriptor"
 
 	err = e.Close()
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 }
 
 func (*epollSuite) TestDeregisterUnhappy(c *C) {
@@ -124,11 +126,11 @@ func (*epollSuite) TestDeregisterUnhappy(c *C) {
 
 	// attempt to deregister an unregistered FD
 	err = e.Deregister(1)
-	c.Assert(err, Equals, syscall.Errno(0x2)) // "no such file or directory"
+	c.Check(err, Equals, syscall.Errno(0x2)) // "no such file or directory"
 
 	// attempt to deregister nonexistent FD
 	err = e.Deregister(arbitraryNonexistentLargeFd)
-	c.Assert(err, Equals, syscall.Errno(0x9)) // "bad file descriptor"
+	c.Check(err, Equals, syscall.Errno(0x9)) // "bad file descriptor"
 
 	err = e.Close()
 	c.Assert(err, IsNil)
@@ -140,6 +142,8 @@ func (*epollSuite) TestWaitTimeout(c *C) {
 
 	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Assert(err, IsNil)
+	defer unix.Close(socketFds[0])
+	defer unix.Close(socketFds[1])
 
 	listenerFd := socketFds[0]
 	senderFd := socketFds[1]
@@ -183,6 +187,8 @@ func (*epollSuite) TestWriteBeforeWait(c *C) {
 
 	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Assert(err, IsNil)
+	defer unix.Close(socketFds[0])
+	defer unix.Close(socketFds[1])
 
 	listenerFd := socketFds[0]
 	senderFd := socketFds[1]
@@ -240,6 +246,8 @@ func (*epollSuite) TestRegisterMultiple(c *C) {
 	for i := 0; i < numSockets; i++ {
 		socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 		c.Assert(err, IsNil)
+		defer unix.Close(socketFds[0])
+		defer unix.Close(socketFds[1])
 
 		listenerFd := socketFds[0]
 		senderFd := socketFds[1]
@@ -322,6 +330,8 @@ func (epollSuite) TestRegisterDeregisterConcurrency(c *C) {
 	for i := 0; i < concurrencyCount; i++ {
 		socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 		c.Assert(err, IsNil)
+		defer unix.Close(socketFds[0])
+		defer unix.Close(socketFds[1])
 
 		listenerFd := socketFds[0]
 
@@ -389,6 +399,8 @@ func (*epollSuite) TestWaitThenDeregister(c *C) {
 
 	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Assert(err, IsNil)
+	defer unix.Close(socketFds[0])
+	defer unix.Close(socketFds[1])
 
 	listenerFd := socketFds[0]
 	senderFd := socketFds[1]
@@ -398,7 +410,7 @@ func (*epollSuite) TestWaitThenDeregister(c *C) {
 
 	err = e.Register(listenerFd, epoll.Readable)
 	c.Assert(err, IsNil)
-	c.Check(e.RegisteredFdCount(), Equals, 1)
+	c.Assert(e.RegisteredFdCount(), Equals, 1)
 
 	eventCh := make(chan []epoll.Event)
 	errCh := make(chan error)
@@ -407,13 +419,13 @@ func (*epollSuite) TestWaitThenDeregister(c *C) {
 	go waitTimeoutSomewhereElse(e, timeout, eventCh, errCh)
 
 	err = e.Deregister(listenerFd)
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 	c.Check(e.RegisteredFdCount(), Equals, 0)
 
 	// check that deregistered FD does not trigger epoll event
 	msg := []byte("foo")
 	_, err = unix.Write(senderFd, msg)
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 
 	events := <-eventCh
 	err = <-errCh
@@ -437,6 +449,8 @@ func (*epollSuite) TestWaitThenRegister(c *C) {
 
 	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Check(err, IsNil)
+	defer unix.Close(socketFds[0])
+	defer unix.Close(socketFds[1])
 
 	listenerFd := socketFds[0]
 	senderFd := socketFds[1]
