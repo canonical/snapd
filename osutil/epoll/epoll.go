@@ -99,14 +99,15 @@ func (e *Epoll) zeroRegisteredFdCount() {
 //
 // Please refer to epoll_ctl(2) and EPOLL_CTL_ADD for details.
 func (e *Epoll) Register(fd int, mask Readiness) error {
+	e.incrementRegisteredFdCount()
 	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_ADD, fd, &unix.EpollEvent{
 		Events: uint32(mask),
 		Fd:     int32(fd),
 	})
 	if err != nil {
+		e.decrementRegisteredFdCount()
 		return err
 	}
-	e.incrementRegisteredFdCount()
 	runtime.KeepAlive(e)
 	return err
 }
@@ -120,7 +121,6 @@ func (e *Epoll) Deregister(fd int) error {
 		return err
 	}
 	e.decrementRegisteredFdCount()
-	runtime.KeepAlive(e)
 	return err
 }
 
