@@ -79,7 +79,7 @@ func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
 
 	events, err := e.Wait()
 	c.Assert(err, IsNil)
-	c.Assert(len(events), Equals, 1)
+	c.Assert(events, HasLen, 1)
 	c.Assert(events[0].Fd, Equals, listenerFd)
 
 	buf := make([]byte, len(msg))
@@ -161,12 +161,12 @@ func (*epollSuite) TestWaitTimeout(c *C) {
 	duration := time.Millisecond * 100
 	events, err := e.WaitTimeout(duration)
 	c.Assert(err, IsNil)
-	c.Assert(len(events), Equals, 0)
+	c.Assert(events, HasLen, 0)
 
 	duration = time.Millisecond * 3000
 	events, err = e.WaitTimeout(duration)
 	c.Assert(err, IsNil)
-	c.Assert(len(events), Equals, 1)
+	c.Assert(events, HasLen, 1)
 	c.Assert(events[0].Fd, Equals, listenerFd)
 
 	buf := make([]byte, len(msg))
@@ -215,7 +215,7 @@ func (*epollSuite) TestWriteBeforeWait(c *C) {
 	for _, msg := range msgs {
 		events, err := e.Wait()
 		c.Assert(err, IsNil)
-		c.Assert(len(events), Equals, 1) // multiple writes to same fd appear as one event per Wait
+		c.Assert(events, HasLen, 1) // multiple writes to same fd appear as one event per Wait
 
 		c.Assert(events[0].Fd, Equals, listenerFd)
 		buf := make([]byte, len(msg))
@@ -349,7 +349,7 @@ func (epollSuite) TestRegisterDeregisterConcurrency(c *C) {
 
 	for range listenerFds {
 		err := <-errCh
-		c.Check(err, Equals, nil)
+		c.Check(err, IsNil)
 	}
 
 	c.Assert(e.RegisteredFdCount(), Equals, len(listenerFds))
@@ -360,7 +360,7 @@ func (epollSuite) TestRegisterDeregisterConcurrency(c *C) {
 
 	for range listenerFds {
 		err := <-errCh
-		c.Check(err, Equals, nil)
+		c.Check(err, IsNil)
 	}
 
 	c.Assert(e.RegisteredFdCount(), Equals, 0)
@@ -387,7 +387,7 @@ func (*epollSuite) TestWaitWithoutRegistering(c *C) {
 
 	events, err := e.WaitTimeout(time.Millisecond * 1000)
 	c.Assert(err, IsNil)
-	c.Assert(len(events), Equals, 0)
+	c.Assert(events, HasLen, 0)
 
 	err = e.Close()
 	c.Assert(err, IsNil)
@@ -429,7 +429,7 @@ func (*epollSuite) TestWaitThenDeregister(c *C) {
 
 	events := <-eventCh
 	err = <-errCh
-	c.Assert(len(events), Equals, 0)
+	c.Assert(events, HasLen, 0)
 	c.Assert(err, IsNil)
 
 	err = e.Close()
@@ -470,7 +470,7 @@ func (*epollSuite) TestWaitThenRegister(c *C) {
 	events := <-eventCh
 	err = <-errCh
 	c.Assert(err, IsNil)
-	c.Assert(len(events), Equals, 1)
+	c.Assert(events, HasLen, 1)
 
 	buf := make([]byte, len(msg))
 	c.Assert(events[0].Fd, Equals, listenerFd)
