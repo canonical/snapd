@@ -532,3 +532,73 @@ func (s *accessruleSuite) TestIsPathAllowed(c *C) {
 		c.Assert(result, Equals, expected, Commentf("path: %s: expected %b but got %b\nardb.ById: %+v", path, expected, result, ardb.ById))
 	}
 }
+
+func (s *accessruleSuite) TestRuleExpiration(c *C) {
+	ardb, _ := accessrules.New()
+
+	var user uint32 = 1000
+	snap := "lxd"
+	app := "lxc"
+	permissions := []accessrules.PermissionType{
+		accessrules.PermissionRead,
+		accessrules.PermissionWrite,
+		accessrules.PermissionExecute,
+	}
+
+	pathPattern := "/home/test/**"
+	outcome := accessrules.OutcomeAllow
+	lifespan := accessrules.LifespanSingle
+	duration := ""
+	_, err := ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+	c.Assert(err, IsNil)
+
+	pathPattern = "/home/test/Pictures/**"
+	outcome = accessrules.OutcomeDeny
+	lifespan = accessrules.LifespanTimespan
+	duration = "2s"
+	_, err = ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+	c.Assert(err, IsNil)
+
+	pathPattern = "/home/test/Pictures/**/*.png"
+	outcome = accessrules.OutcomeAllow
+	lifespan = accessrules.LifespanTimespan
+	duration = "1s"
+	_, err = ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+	c.Assert(err, IsNil)
+
+	path1 := "/home/test/Pictures/img.png"
+	path2 := "/home/test/Pictures/img.jpg"
+
+	allowed, err := ardb.IsPathAllowed(user, snap, app, path1, accessrules.PermissionRead)
+	c.Assert(err, IsNil)
+	c.Assert(allowed, Equals, true)
+	allowed, err = ardb.IsPathAllowed(user, snap, app, path2, accessrules.PermissionRead)
+	c.Assert(err, IsNil)
+	c.Assert(allowed, Equals, false)
+
+	time.Sleep(time.Second)
+
+	allowed, err = ardb.IsPathAllowed(user, snap, app, path1, accessrules.PermissionRead)
+	c.Assert(err, IsNil)
+	c.Assert(allowed, Equals, false)
+	allowed, err = ardb.IsPathAllowed(user, snap, app, path2, accessrules.PermissionRead)
+	c.Assert(err, IsNil)
+	c.Assert(allowed, Equals, false)
+
+	time.Sleep(time.Second)
+
+	allowed, err = ardb.IsPathAllowed(user, snap, app, path1, accessrules.PermissionRead)
+	c.Assert(err, Equals, nil)
+	c.Assert(allowed, Equals, true)
+
+	allowed, err = ardb.IsPathAllowed(user, snap, app, path2, accessrules.PermissionRead)
+	c.Assert(err, Equals, accessrules.ErrNoMatchingRule)
+	c.Assert(allowed, Equals, false)
+
+	allowed, err = ardb.IsPathAllowed(user, snap, app, path1, accessrules.PermissionRead)
+	c.Assert(err, Equals, accessrules.ErrNoMatchingRule)
+	c.Assert(allowed, Equals, false)
+	allowed, err = ardb.IsPathAllowed(user, snap, app, path2, accessrules.PermissionRead)
+	c.Assert(err, Equals, accessrules.ErrNoMatchingRule)
+	c.Assert(allowed, Equals, false)
+}

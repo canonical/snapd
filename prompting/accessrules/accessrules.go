@@ -464,7 +464,26 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, path string, permission PermissionType) (bool, error) {
 	pathMap := ardb.permissionDBForUserSnapAppPermission(user, snap, app, permission).PathRules
 	matchingPatterns := make([]string, 0)
-	for pathPattern := range pathMap {
+	currTime := time.Now()
+	for pathPattern, id := range pathMap {
+		matchingRule, exists := ardb.ById[id]
+		if !exists {
+			// database was left inconsistent, should not occur
+			delete(pathMap, id)
+			continue
+		}
+		if matchingRule.Lifespan == LifespanTimespan {
+			expiration, err := time.Parse(time.RFC3339, matchingRule.Expiration)
+			if err != nil {
+				// expiration is malformed, should not occur
+				return false, err
+			}
+			if currTime.After(expiration) {
+				ardb.removeRuleFromTree(matchingRule)
+				delete(ardb.ById, id)
+				continue
+			}
+		}
 		matched, err := doublestar.Match(pathPattern, path)
 		if err != nil {
 			// only possible error is ErrBadPattern, which should not occur
@@ -484,7 +503,12 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 	matchingId := pathMap[highestPrecedencePattern]
 	matchingRule, exists := ardb.ById[matchingId]
 	if !exists {
+		// database was left inconsistent, should not occur
 		return false, ErrRuleIdNotFound
+	}
+	if matchingRule.Lifespan == LifespanSingle {
+		ardb.removeRuleFromTree(matchingRule)
+		delete(ardb.ById, matchingId)
 	}
 	switch matchingRule.Outcome {
 	case "allow":
