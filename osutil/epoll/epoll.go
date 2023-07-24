@@ -160,6 +160,13 @@ func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
 	for {
 		bufLen := e.RegisteredFdCount()
 		if bufLen < 1 {
+			// Even if RegisteredFdCount is zero, it could increase after a
+			// call in a multi-threaded environment.  This ensures that there
+			// is at least one entry available in the event buffer.  The size
+			// of the buffer does not need to match the number of events, and
+			// the syscall will populate as many buffer entries as are
+			// available, up to the number of epoll events which have yet to
+			// be handled.
 			bufLen = 1
 		}
 		sysEvents = make([]unix.EpollEvent, bufLen)
