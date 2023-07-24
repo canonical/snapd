@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/syscheck"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -111,12 +112,25 @@ func run(ch chan os.Signal) error {
 	t0 := time.Now().Truncate(time.Millisecond)
 	snapdenv.SetUserAgentFromVersion(snapdtool.Version, sandbox.ForceDevMode)
 
-	d, err := daemon.New()
-	if err != nil {
-		return err
+	startDaemonTimings := timings.New(map[string]string{"ensure": "start-daemon"})
+
+	var d *daemon.Daemon
+	var loadErr error
+
+	timings.Run(startDaemonTimings, "load-daemon", "load the daemon", func(tm timings.Measurer) {
+		d, loadErr = daemon.New()
+	})
+
+	if loadErr != nil {
+		return loadErr
 	}
-	if err := d.Init(); err != nil {
-		return err
+
+	var initErr error
+	timings.Run(startDaemonTimings, "init-daemon", "initialized the daemon", func(tm timings.Measurer) {
+		initErr = d.Init()
+	})
+	if initErr != nil {
+		return initErr
 	}
 
 	// Run syscheck check now, if anything goes wrong with the
@@ -134,8 +148,12 @@ func run(ch chan os.Signal) error {
 
 	d.Version = snapdtool.Version
 
-	if err := d.Start(); err != nil {
-		return err
+	var startErr error
+	timings.Run(startDaemonTimings, "start-daemon", "start the daemon", func(tm timings.Measurer) {
+		startErr = d.Start()
+	})
+	if startErr != nil {
+		return startErr
 	}
 
 	watchdog, err := runWatchdog(d)

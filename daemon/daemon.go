@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timings"
 )
 
 var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket activation")
@@ -709,4 +710,8 @@ func New() (*Daemon, error) {
 	d.overlord = ovld
 	d.state = ovld.State()
 	return d, nil
+}
+
+func (d *Daemon) Save(t timings.Timings) {
+	t.Save(d.overlord.State())
 }
