@@ -113,11 +113,11 @@ func (*epollSuite) TestRegisterUnhappy(c *C) {
 	defer newFile.Close()
 	defer os.Remove(newFile.Name())
 	err = e.Register(int(newFile.Fd()), epoll.Readable)
-	c.Check(err, Equals, syscall.Errno(0x1)) // "operation not permitted"
+	c.Check(err, Equals, syscall.Errno(unix.EPERM)) // "operation not permitted"
 
 	// attempt to register nonexistent FD
 	err = e.Register(arbitraryNonexistentLargeFd, epoll.Readable)
-	c.Check(err, Equals, syscall.Errno(0x9)) // "bad file descriptor"
+	c.Check(err, Equals, syscall.Errno(unix.EBADF)) // "bad file descriptor"
 
 	err = e.Close()
 	c.Assert(err, IsNil)
@@ -129,11 +129,11 @@ func (*epollSuite) TestDeregisterUnhappy(c *C) {
 
 	// attempt to deregister an unregistered FD
 	err = e.Deregister(1)
-	c.Check(err, Equals, syscall.Errno(0x2)) // "no such file or directory"
+	c.Check(err, Equals, syscall.Errno(unix.ENOENT)) // "no such file or directory"
 
 	// attempt to deregister nonexistent FD
 	err = e.Deregister(arbitraryNonexistentLargeFd)
-	c.Check(err, Equals, syscall.Errno(0x9)) // "bad file descriptor"
+	c.Check(err, Equals, syscall.Errno(unix.EBADF)) // "bad file descriptor"
 
 	err = e.Close()
 	c.Assert(err, IsNil)
