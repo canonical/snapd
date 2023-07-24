@@ -99,7 +99,7 @@ func (r *refreshHints) refresh() error {
 		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
 	}
 
-	setNewRefreshCanditates(r.state, hints)
+	setNewRefreshCandidates(r.state, hints)
 	return nil
 }
 
@@ -252,14 +252,14 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 		delete(candidates, snapName)
 	}
 
-	setNewRefreshCanditates(st, candidates)
+	setNewRefreshCandidates(st, candidates)
 	return nil
 }
 
-// setNewRefreshCanditates is used to set/replace "refresh-candidates" making
+// setNewRefreshCandidates is used to set/replace "refresh-candidates" making
 // sure that any snap that is no longer a candidate has its monitoring stopped.
-// Must be always used when replacing the full "refresh-candidates"
-func setNewRefreshCanditates(st *state.State, hints map[string]*refreshCandidate) {
+// Must always be used when replacing the full "refresh-candidates"
+func setNewRefreshCandidates(st *state.State, hints map[string]*refreshCandidate) {
 	stopMonitoringOutdatedCandidates(st, hints)
 	if len(hints) == 0 {
 		st.Set("refresh-candidates", nil)
