@@ -181,6 +181,69 @@ func (*epollSuite) TestWaitTimeout(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (*epollSuite) TestEpollWaitEintrHandling(c *C) {
+	e, err := epoll.Open()
+	c.Assert(err, IsNil)
+
+	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
+	c.Assert(err, IsNil)
+	defer unix.Close(socketFds[0])
+	defer unix.Close(socketFds[1])
+
+	listenerFd := socketFds[0]
+	senderFd := socketFds[1]
+
+	err = unix.SetNonblock(listenerFd, true)
+	c.Assert(err, IsNil)
+
+	err = e.Register(listenerFd, epoll.Readable)
+	c.Assert(err, IsNil)
+	c.Assert(e.RegisteredFdCount(), Equals, 1)
+
+	mockReturnedN := 0
+	mockReturnedErr := unix.EINTR
+	restore := epoll.MockUnixEpollWait(func(epfd int, events []unix.EpollEvent, msec int) (n int, err error) {
+		time.Sleep(time.Millisecond * 10) // rate limit a bit
+		return mockReturnedN, mockReturnedErr
+	})
+
+	eventCh := make(chan []epoll.Event)
+	errCh := make(chan error)
+
+	timeout := time.Millisecond * 250
+	events, err := e.WaitTimeout(timeout)
+	c.Assert(err, IsNil)
+	c.Assert(events, HasLen, 0)
+
+	go waitSomewhereElse(e, eventCh, errCh)
+
+	startTime := time.Now()
+
+	duration := time.Millisecond * 500
+	time.AfterFunc(duration, restore)
+
+	msg := []byte("foo")
+	_, err = unix.Write(senderFd, msg)
+	c.Check(err, IsNil)
+
+	events = <-eventCh
+	err = <-errCh
+
+	// Check that WaitTimeout kept retrying until unixEpollWait was restored
+	c.Assert(time.Now().After(startTime.Add(duration)), Equals, true)
+	c.Assert(err, IsNil)
+	c.Assert(events, HasLen, 1)
+	c.Assert(events[0].Fd, Equals, listenerFd)
+
+	buf := make([]byte, len(msg))
+	_, err = unix.Read(events[0].Fd, buf)
+	c.Assert(err, IsNil)
+	c.Assert(buf, DeepEquals, msg)
+
+	err = e.Close()
+	c.Assert(err, IsNil)
+}
+
 func (*epollSuite) TestWriteBeforeWait(c *C) {
 	e, err := epoll.Open()
 	c.Assert(err, IsNil)

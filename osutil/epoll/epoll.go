@@ -142,6 +142,8 @@ type Event struct {
 	Readiness Readiness
 }
 
+var unixEpollWait = unix.EpollWait
+
 // WaitTimeout blocks and waits with the given timeout for arrival of events on any of the added file descriptors.
 //
 // A msec value of -1 disables timeout.
@@ -171,7 +173,7 @@ func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
 		}
 		sysEvents = make([]unix.EpollEvent, bufLen)
 		startTs := time.Now()
-		n, err = unix.EpollWait(e.fd, sysEvents, msec)
+		n, err = unixEpollWait(e.fd, sysEvents, msec)
 		runtime.KeepAlive(e)
 		// unix.EpollWait can return unix.EINTR, which we want to handle by
 		// adjusting the timeout (if necessary) and restarting the syscall
