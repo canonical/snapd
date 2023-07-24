@@ -322,30 +322,8 @@ func LayoutVolume(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure, o
 	}
 
 	for idx := range structures {
-		fillLaidoutStructure(&structures[idx], kernelInfo, opts)
-		// Set appropriately label and type details
-		// TODO: set this in layoutVolumeStructures in the future.
-		setOnDiskLabelAndTypeInLaidOuts(&structures[idx], opts.EncType)
-
-		// Lay out raw content. This can be skipped when only partition
-		// creation is needed and is safe because each volume structure
-		// has a size so even without the structure content the layout
-		// can be calculated.
-		if !opts.IgnoreContent && !structures[idx].HasFilesystem() {
-			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx])
-			if err != nil {
-				return nil, err
-			}
-			structures[idx].LaidOutContent = content
-		}
-
-		// resolve filesystem content
-		if doResolveContent {
-			resolvedContent, err := resolveVolumeContent(opts.GadgetRootDir, opts.KernelRootDir, kernelInfo, &structures[idx], nil)
-			if err != nil {
-				return nil, err
-			}
-			structures[idx].ResolvedContent = resolvedContent
+		if err := fillLaidoutStructure(&structures[idx], kernelInfo, opts); err != nil {
+			return nil, err
 		}
 	}
 
@@ -356,32 +334,34 @@ func LayoutVolume(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure, o
 	return vol, nil
 }
 
-func fillLaidoutStructure(los *LaidOutStructure, kernelInfo *kernel.Info, opts *LayoutOptions) (*LaidOutStructure, error) {
+func fillLaidoutStructure(los *LaidOutStructure, kernelInfo *kernel.Info, opts *LayoutOptions) (err error) {
 
 	setOnDiskLabelAndTypeInLaidOuts(los, opts.EncType)
 	// Lay out raw content. This can be skipped when only partition
 	// creation is needed and is safe because each volume structure
 	// has a size so even without the structure content the layout
 	// can be calculated.
+	var content []LaidOutContent
 	if !opts.IgnoreContent && !los.HasFilesystem() {
-		content, err := layOutStructureContent(opts.GadgetRootDir, los)
+		content, err = layOutStructureContent(opts.GadgetRootDir, los)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		los.LaidOutContent = content
 	}
 
 	// resolve filesystem content
+	var resolvedContent []ResolvedContent
 	doResolveContent := !(opts.IgnoreContent || opts.SkipResolveContent)
 	if doResolveContent {
-		resolvedContent, err := resolveVolumeContent(opts.GadgetRootDir, opts.KernelRootDir, kernelInfo, los, nil)
+		resolvedContent, err = resolveVolumeContent(opts.GadgetRootDir, opts.KernelRootDir, kernelInfo, los, nil)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		los.ResolvedContent = resolvedContent
 	}
 
-	return los, nil
+	los.LaidOutContent = content
+	los.ResolvedContent = resolvedContent
+	return nil
 }
 
 func LayoutVolumeStructure(onDisk *OnDiskStructure, vs *VolumeStructure, kernelInfo *kernel.Info, opts *LayoutOptions) (*LaidOutStructure, error) {
@@ -390,7 +370,11 @@ func LayoutVolumeStructure(onDisk *OnDiskStructure, vs *VolumeStructure, kernelI
 		VolumeStructure: vs,
 	}
 
-	return fillLaidoutStructure(los, kernelInfo, opts)
+	if err := fillLaidoutStructure(los, kernelInfo, opts); err != nil {
+		return nil, err
+	}
+
+	return los, nil
 }
 
 func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *LaidOutStructure, filter ResolvedContentFilterFunc) ([]ResolvedContent, error) {
