@@ -104,7 +104,7 @@ execute: |
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown1)" = "test-snapd-auto-aliases_bar.wellknown1"
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown2)" = "test-snapd-auto-aliases_bar.wellknown2"
 
-    # remove and install main snap with --prefer
+    # remove and install test-snapd-auto-aliases snap with --prefer
     echo "Removing test-snapd-auto-aliases and reinstalling with/without --prefer"
     snap remove --purge test-snapd-auto-aliases
 
@@ -124,6 +124,6 @@ execute: |
     MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1 +-"            < aliases.out
     MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +-"            < aliases.out
 
-    # aliases belong to test-snapd-auto-aliases_bar
+    # aliases belong to test-snapd-auto-aliases
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown1)" = "test-snapd-auto-aliases.wellknown1"
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown2)" = "test-snapd-auto-aliases.wellknown2"
