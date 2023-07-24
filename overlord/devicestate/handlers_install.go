@@ -994,7 +994,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if useEncryption {
 		encType = secboot.EncryptionTypeLUKS
 	}
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget2(gi.Volumes,
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gi.Volumes,
 		mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel],
 		sys.Model, encType, volToGadgetToDiskStruct)
 	if err != nil {

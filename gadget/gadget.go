@@ -1626,24 +1626,14 @@ func checkCompatibleSchema(old, new *Volume) error {
 	return nil
 }
 
-func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model, encType secboot.EncryptionType) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
-	// rely on the basic validation from ReadInfo to ensure that the system-*
-	// roles are all on the same volume for example
-	info, err := ReadInfoAndValidate(gadgetRoot, model, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	return LaidOutVolumesFromGadget2(info.Volumes, gadgetRoot, kernelRoot, model, encType, nil)
-}
-
-// LaidOutVolumesFromGadget takes a gadget rootdir and lays out the partitions
-// on all volumes as specified. It returns the specific volume on which system-*
-// roles/partitions exist, as well as all volumes mentioned in the gadget.yaml
-// and their laid out representations. Those volumes are assumed to already be
-// flashed and managed separately at image build/flash time, while the system
-// volume with all the system-* roles on it can be manipulated during install
-// mode.
-func LaidOutVolumesFromGadget2(vols map[string]*Volume, gadgetRoot, kernelRoot string, model Model, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*OnDiskStructure) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
+// LaidOutVolumesFromGadget takes gadget volumes, gadget and kernel rootdirs
+// and lays out the partitions on all volumes as specified. It returns the
+// specific volume on which system-* roles/partitions exist, as well as all
+// volumes mentioned in the gadget.yaml and their laid out representations.
+// Those volumes are assumed to already be flashed and managed separately at
+// image build/flash time, while the system volume with all the system-* roles
+// on it can be manipulated during install mode.
+func LaidOutVolumesFromGadget(vols map[string]*Volume, gadgetRoot, kernelRoot string, model Model, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*OnDiskStructure) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
 	all = make(map[string]*LaidOutVolume)
 	// model should never be nil here
 	if model == nil {

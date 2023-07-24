@@ -32,6 +32,16 @@ import (
 	"github.com/snapcore/snapd/secboot"
 )
 
+func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model, encType secboot.EncryptionType) (system *gadget.LaidOutVolume, all map[string]*gadget.LaidOutVolume, err error) {
+	// rely on the basic validation from ReadInfo to ensure that the system-*
+	// roles are all on the same volume for example
+	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	return gadget.LaidOutVolumesFromGadget(info.Volumes, gadgetRoot, kernelRoot, model, encType, nil)
+}
+
 // LayoutMultiVolumeFromYaml returns all LaidOutVolumes for the given
 // gadget.yaml string and works for either single or multiple volume
 // gadget.yaml's. An empty directory to use to create a gadget.yaml file should
@@ -42,7 +52,7 @@ func LayoutMultiVolumeFromYaml(newDir, kernelDir, gadgetYaml string, model gadge
 		return nil, err
 	}
 
-	_, allVolumes, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone)
+	_, allVolumes, err := LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volumes: %v", err)
 	}
@@ -172,7 +182,7 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	_, laidVols, err = gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone)
+	_, laidVols, err = LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
