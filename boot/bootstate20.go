@@ -223,22 +223,23 @@ type bootState20Kernel struct {
 	dev snap.Device
 }
 
+func (ks20 *bootState20Kernel) bootloaderOptions() *bootloader.Options {
+	if ks20.blOpts != nil {
+		return ks20.blOpts
+	}
+	// find the run-mode bootloader
+	return &bootloader.Options{
+		Role: bootloader.RoleRunMode,
+	}
+}
+
 func (ks20 *bootState20Kernel) loadBootenv() error {
 	// don't setup multiple times
 	if ks20.bks != nil {
 		return nil
 	}
 
-	// find the run-mode bootloader
-	var opts *bootloader.Options
-	if ks20.blOpts != nil {
-		opts = ks20.blOpts
-	} else {
-		opts = &bootloader.Options{
-			Role: bootloader.RoleRunMode,
-		}
-	}
-	bl, err := bootloader.Find(ks20.blDir, opts)
+	bl, err := bootloader.Find(ks20.blDir, ks20.bootloaderOptions())
 	if err != nil {
 		return err
 	}
@@ -262,13 +263,6 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 	}
 
 	return nil
-}
-
-func (ks20 *bootState20Kernel) getRebootBootloader() (bootloader.RebootBootloader, error) {
-	if err := ks20.loadBootenv(); err != nil {
-		return nil, err
-	}
-	return ks20.rbl, nil
 }
 
 func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error) {
@@ -339,13 +333,12 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo, bootCtx NextBootCont
 		if !bootCtx.BootWithoutTry {
 			nextStatus = TryStatus
 		}
-		// kernels are usually loaded directly by the bootloader, for
+		// Kernels are usually loaded directly by the bootloader, for
 		// which we may need to pass additional data to make 'try'
-		// operation more robust - that might be provided by the
-		// RebootBootloader interface
-		if rbi.RebootBootloader, err = ks20.getRebootBootloader(); err != nil {
-			return RebootInfo{RebootRequired: false}, nil, err
-		}
+		// operation more robust. Set the bootloader options so the
+		// reboot code can find the relevant bootloader and get those
+		// arguments.
+		rbi.BootloaderOptions = ks20.bootloaderOptions()
 	}
 
 	currentKernel := ks20.bks.kernel()
@@ -887,9 +880,6 @@ func (brs20 *bootState20Model) markSuccessful(update bootStateUpdate) (bootState
 	// sign key ID was not being populated in earlier versions of snapd, try
 	// to remedy that
 	if u20.modeenv.ModelSignKeyID == "" {
-		if err != nil {
-			return nil, err
-		}
 		u20.writeModeenv.ModelSignKeyID = brs20.dev.Model().SignKeyID()
 	}
 	return u20, nil

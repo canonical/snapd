@@ -2411,3 +2411,22 @@ func (s *systemdErrorSuite) TestErrorStringNoSystemctl(c *C) {
 	_, err := Version()
 	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with: exec: "systemctl": executable file not found in \$PATH`)
 }
+
+func (s *systemdErrorSuite) TestEnsureMountUnitFileEnsureFileStateErr(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	restore := osutil.MockMountInfo("")
+	defer restore()
+
+	mockSnapPath := filepath.Join(dirs.GlobalRootDir, "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	// trigger an error below by creating a directory with the
+	// same name as the mount unit file
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap-snapname-123.mount"), 0755)
+	c.Assert(err, IsNil)
+
+	_, err = New(SystemMode, nil).EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, ErrorMatches, `rename .*/etc/systemd/system/snap-snapname-123.mount.* .*/etc/systemd/system/snap-snapname-123.mount: file exists`)
+}

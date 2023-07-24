@@ -25,12 +25,14 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 )
 
 // rebootArgsPath is used so we can mock the path easily in tests
 var rebootArgsPath = "/run/systemd/reboot-param"
+var bootloaderFind = bootloader.Find
 
 type RebootAction int
 
@@ -63,6 +65,21 @@ var (
 	testingRebootItself = false
 )
 
+func getRebootArguments(rebootInfo *RebootInfo) (string, error) {
+	if rebootInfo == nil {
+		return "", nil
+	}
+
+	bl, err := bootloaderFind("", rebootInfo.BootloaderOptions)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve bootloader: %v", err)
+	}
+	if rbl, ok := bl.(bootloader.RebootBootloader); ok {
+		return rbl.GetRebootArguments()
+	}
+	return "", nil
+}
+
 func Reboot(action RebootAction, rebootDelay time.Duration, rebootInfo *RebootInfo) error {
 	if osutil.IsTestBinary() && !testingRebootItself {
 		panic("Reboot must be mocked in tests")
@@ -88,16 +105,14 @@ func Reboot(action RebootAction, rebootDelay time.Duration, rebootInfo *RebootIn
 	}
 
 	// Use reboot arguments if required by the bootloader
-	if rebootInfo != nil && rebootInfo.RebootBootloader != nil {
-		rebArgs, err := rebootInfo.RebootBootloader.GetRebootArguments()
-		if err != nil {
+	rebArgs, err := getRebootArguments(rebootInfo)
+	if err != nil {
+		return err
+	}
+	if rebArgs != "" {
+		if err := osutil.AtomicWriteFile(rebootArgsPath,
+			[]byte(rebArgs+"\n"), 0644, 0); err != nil {
 			return err
-		}
-		if rebArgs != "" {
-			if err := osutil.AtomicWriteFile(rebootArgsPath,
-				[]byte(rebArgs+"\n"), 0644, 0); err != nil {
-				return err
-			}
 		}
 	}
 

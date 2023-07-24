@@ -29,6 +29,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -39,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
@@ -1164,4 +1166,270 @@ func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
 
 	c.Check(err, ErrorMatches, "device field for volume struct .* cannot be empty")
 	c.Check(encryptSetup, IsNil)
+}
+
+type mountVolumesOpts struct {
+	encryption bool
+}
+
+func (s *installSuite) testMountVolumes(c *C, opts mountVolumesOpts) {
+	seedMntPt := filepath.Join(s.dir, "run/mnt/ubuntu-seed")
+	bootMntPt := filepath.Join(s.dir, "run/mnt/ubuntu-boot")
+	saveMntPt := filepath.Join(s.dir, "run/mnt/ubuntu-save")
+	dataMntPt := filepath.Join(s.dir, "run/mnt/ubuntu-data")
+	mountCall := 0
+	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		mountCall++
+		switch mountCall {
+		case 1:
+			c.Assert(source, Equals, "/dev/vda2")
+			c.Assert(target, Equals, seedMntPt)
+			c.Assert(fstype, Equals, "vfat")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		case 2:
+			c.Assert(source, Equals, "/dev/vda3")
+			c.Assert(target, Equals, bootMntPt)
+			c.Assert(fstype, Equals, "ext4")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		case 3:
+			if opts.encryption {
+				c.Assert(source, Equals, "/dev/mapper/ubuntu-save")
+			} else {
+				c.Assert(source, Equals, "/dev/vda4")
+			}
+			c.Assert(target, Equals, saveMntPt)
+			c.Assert(fstype, Equals, "ext4")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		case 4:
+			if opts.encryption {
+				c.Assert(source, Equals, "/dev/mapper/ubuntu-data")
+			} else {
+				c.Assert(source, Equals, "/dev/vda5")
+			}
+			c.Assert(target, Equals, dataMntPt)
+			c.Assert(fstype, Equals, "ext4")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		default:
+			c.Errorf("unexpected mount call (%d)", mountCall)
+			return fmt.Errorf("test broken")
+		}
+		return nil
+	})
+	defer restore()
+
+	umountCall := 0
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		umountCall++
+		switch umountCall {
+		case 1:
+			c.Assert(target, Equals, seedMntPt)
+		case 2:
+			c.Assert(target, Equals, bootMntPt)
+		case 3:
+			c.Assert(target, Equals, saveMntPt)
+		case 4:
+			c.Assert(target, Equals, dataMntPt)
+		default:
+			c.Errorf("unexpected umount call (%d)", umountCall)
+			return fmt.Errorf("test broken")
+		}
+		c.Assert(flags, Equals, 0)
+		return nil
+	})
+	defer restore()
+
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeUC20GadgetYaml, gadgetRoot)
+	c.Assert(err, IsNil)
+	defer restore()
+
+	// Fill in additional information about the target device as the installer does
+	partIdx := 1
+	for i, part := range ginfo.Volumes["pc"].Structure {
+		if part.Role == "mbr" {
+			continue
+		}
+		ginfo.Volumes["pc"].Structure[i].Device = "/dev/vda" + strconv.Itoa(partIdx)
+		partIdx++
+	}
+	// Fill encrypted partitions if encrypting
+	var esd *install.EncryptionSetupData
+	if opts.encryption {
+		labelToEncData := map[string]*install.MockEncryptedDeviceAndRole{
+			"ubuntu-save": {
+				Role:            "system-save",
+				EncryptedDevice: "/dev/mapper/ubuntu-save",
+			},
+			"ubuntu-data": {
+				Role:            "system-data",
+				EncryptedDevice: "/dev/mapper/ubuntu-data",
+			},
+		}
+		esd = install.MockEncryptionSetupData(labelToEncData)
+	}
+
+	// 10 million mocks later ...
+	// finally actually run MountVolumes
+	seedMntDir, unmount, err := install.MountVolumes(ginfo.Volumes, esd)
+	c.Assert(err, IsNil)
+	c.Assert(seedMntDir, Equals, seedMntPt)
+
+	err = unmount()
+	c.Assert(err, IsNil)
+
+	c.Assert(mountCall, Equals, 4)
+	c.Assert(umountCall, Equals, 4)
+}
+
+func (s *installSuite) TestMountVolumesSimpleHappy(c *C) {
+	s.testMountVolumes(c, mountVolumesOpts{
+		encryption: false,
+	})
+}
+
+func (s *installSuite) TestMountVolumesSimpleHappyEncrypted(c *C) {
+	s.testMountVolumes(c, mountVolumesOpts{
+		encryption: true,
+	})
+}
+
+func (s *installSuite) TestMountVolumesZeroSeeds(c *C) {
+	onVolumes := map[string]*gadget.Volume{}
+	_, _, err := install.MountVolumes(onVolumes, nil)
+	c.Assert(err, ErrorMatches, "there are 0 system-seed{,-null} partitions, expected one")
+}
+
+func (s *installSuite) TestMountVolumesManySeeds(c *C) {
+	onVolumes := map[string]*gadget.Volume{
+		"pc": {
+			Structure: []gadget.VolumeStructure{
+				{Name: "system-seed", Filesystem: "vfat", Role: gadget.SystemSeed},
+				{Name: "system-seed-null", Filesystem: "vfat", Role: gadget.SystemSeedNull},
+			},
+		},
+	}
+
+	mountCall := 0
+	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		mountCall++
+		c.Assert(flags, Equals, uintptr(0))
+		return nil
+	})
+	defer restore()
+
+	umountCall := 0
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		umountCall++
+		c.Assert(flags, Equals, 0)
+		return nil
+	})
+	defer restore()
+
+	_, _, err := install.MountVolumes(onVolumes, nil)
+	c.Assert(err, ErrorMatches, "there are 2 system-seed{,-null} partitions, expected one")
+
+	c.Assert(mountCall, Equals, 2)
+	// check unmount is called implicitly on error for cleanup
+	c.Assert(umountCall, Equals, 2)
+}
+
+func (s *installSuite) TestMountVolumesLazyUnmount(c *C) {
+	seedMntPt := filepath.Join(s.dir, "run/mnt/ubuntu-seed")
+	onVolumes := map[string]*gadget.Volume{
+		"pc": {
+			Structure: []gadget.VolumeStructure{
+				{Name: "system-seed", Filesystem: "vfat", Role: gadget.SystemSeed},
+			},
+		},
+	}
+
+	mountCall := 0
+	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		mountCall++
+		c.Assert(flags, Equals, uintptr(0))
+		return nil
+	})
+	defer restore()
+
+	umountCall := 0
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		umountCall++
+		if umountCall == 1 {
+			c.Assert(flags, Equals, 0)
+			return fmt.Errorf("forcing lazy unmount")
+		} else {
+			// check fallback to lazy unmount, see LP:2025402
+			c.Assert(flags, Equals, syscall.MNT_DETACH)
+			return nil
+		}
+	})
+	defer restore()
+
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	seedMntDir, unmount, err := install.MountVolumes(onVolumes, nil)
+	c.Assert(err, IsNil)
+	c.Assert(seedMntDir, Equals, seedMntPt)
+
+	err = unmount()
+	c.Assert(err, IsNil)
+
+	c.Assert(mountCall, Equals, 1)
+	c.Assert(umountCall, Equals, 2)
+
+	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot unmount %s after mounting volumes: forcing lazy unmount (trying lazy unmount next)", seedMntPt))
+}
+
+func (s *installSuite) TestMountVolumesLazyUnmountError(c *C) {
+	seedMntPt := filepath.Join(s.dir, "run/mnt/ubuntu-seed")
+	onVolumes := map[string]*gadget.Volume{
+		"pc": {
+			Structure: []gadget.VolumeStructure{
+				{Name: "system-seed", Filesystem: "vfat", Role: gadget.SystemSeed},
+			},
+		},
+	}
+
+	mountCall := 0
+	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		mountCall++
+		c.Assert(flags, Equals, uintptr(0))
+		return nil
+	})
+	defer restore()
+
+	umountCall := 0
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		umountCall++
+		if umountCall == 1 {
+			c.Assert(flags, Equals, 0)
+			return fmt.Errorf("forcing lazy unmount")
+		} else {
+			// check fallback to lazy unmount, see LP:2025402
+			c.Assert(flags, Equals, syscall.MNT_DETACH)
+			return fmt.Errorf("lazy unmount failed")
+		}
+	})
+	defer restore()
+
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	seedMntDir, unmount, err := install.MountVolumes(onVolumes, nil)
+	c.Assert(err, IsNil)
+	c.Assert(seedMntDir, Equals, seedMntPt)
+
+	err = unmount()
+	c.Assert(err, ErrorMatches, "lazy unmount failed")
+
+	c.Assert(mountCall, Equals, 1)
+	c.Assert(umountCall, Equals, 2)
+
+	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot unmount %s after mounting volumes: forcing lazy unmount (trying lazy unmount next)", seedMntPt))
+	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot lazy unmount %q: lazy unmount failed", seedMntPt))
 }
