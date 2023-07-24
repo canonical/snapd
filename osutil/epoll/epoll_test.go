@@ -49,8 +49,8 @@ func concurrentlyDeregister(e *epoll.Epoll, fd int, errCh chan error) {
 	errCh <- err
 }
 
-func waitMillisecondsThenWriteToFd(msec int, fd int, msg []byte) error {
-	time.Sleep(time.Duration(msec) * time.Millisecond)
+func waitThenWriteToFd(duration time.Duration, fd int, msg []byte) error {
+	time.Sleep(duration)
 	_, err := unix.Write(fd, msg)
 	return err
 }
@@ -75,7 +75,8 @@ func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
 
 	msg := []byte("foo")
 
-	go waitMillisecondsThenWriteToFd(1000, senderFd, msg)
+	duration := time.Millisecond * 100
+	go waitThenWriteToFd(duration, senderFd, msg)
 
 	events, err := e.Wait()
 	c.Assert(err, IsNil)
@@ -156,15 +157,16 @@ func (*epollSuite) TestWaitTimeout(c *C) {
 
 	msg := []byte("foo")
 
-	go waitMillisecondsThenWriteToFd(1000, senderFd, msg)
+	duration := time.Millisecond * 250
+	go waitThenWriteToFd(duration, senderFd, msg)
 
-	duration := time.Millisecond * 100
-	events, err := e.WaitTimeout(duration)
+	timeout := time.Millisecond * 100
+	events, err := e.WaitTimeout(timeout)
 	c.Assert(err, IsNil)
 	c.Assert(events, HasLen, 0)
 
-	duration = time.Millisecond * 3000
-	events, err = e.WaitTimeout(duration)
+	timeout = time.Millisecond * 1000
+	events, err = e.WaitTimeout(timeout)
 	c.Assert(err, IsNil)
 	c.Assert(events, HasLen, 1)
 	c.Assert(events[0].Fd, Equals, listenerFd)
@@ -210,7 +212,7 @@ func (*epollSuite) TestEpollWaitEintrHandling(c *C) {
 	eventCh := make(chan []epoll.Event)
 	errCh := make(chan error)
 
-	timeout := time.Millisecond * 250
+	timeout := time.Millisecond * 100
 	events, err := e.WaitTimeout(timeout)
 	c.Assert(err, IsNil)
 	c.Assert(events, HasLen, 0)
@@ -219,7 +221,7 @@ func (*epollSuite) TestEpollWaitEintrHandling(c *C) {
 
 	startTime := time.Now()
 
-	duration := time.Millisecond * 500
+	duration := time.Millisecond * 100
 	time.AfterFunc(duration, restore)
 
 	msg := []byte("foo")
@@ -272,8 +274,6 @@ func (*epollSuite) TestWriteBeforeWait(c *C) {
 		_, err = unix.Write(senderFd, msg)
 		c.Assert(err, IsNil)
 	}
-
-	time.Sleep(time.Millisecond * 1000)
 
 	for _, msg := range msgs {
 		events, err := e.Wait()
@@ -448,7 +448,7 @@ func (*epollSuite) TestWaitWithoutRegistering(c *C) {
 	e, err := epoll.Open()
 	c.Assert(err, IsNil)
 
-	events, err := e.WaitTimeout(time.Millisecond * 1000)
+	events, err := e.WaitTimeout(time.Millisecond * 100)
 	c.Assert(err, IsNil)
 	c.Assert(events, HasLen, 0)
 
@@ -478,7 +478,7 @@ func (*epollSuite) TestWaitThenDeregister(c *C) {
 	eventCh := make(chan []epoll.Event)
 	errCh := make(chan error)
 
-	timeout := time.Millisecond * 1000
+	timeout := time.Millisecond * 100
 	go waitTimeoutSomewhereElse(e, timeout, eventCh, errCh)
 
 	err = e.Deregister(listenerFd)
@@ -508,7 +508,7 @@ func (*epollSuite) TestWaitThenRegister(c *C) {
 
 	go waitSomewhereElse(e, eventCh, errCh)
 
-	time.Sleep(time.Millisecond * 1000)
+	time.Sleep(time.Millisecond * 100)
 
 	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Check(err, IsNil)
