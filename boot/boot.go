@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -462,6 +461,24 @@ func UpdateManagedBootConfigs(dev snap.Device, gadgetSnapOrDir, cmdlineAppend st
 	return updateManagedBootConfigForBootloader(dev, ModeRun, gadgetSnapOrDir, cmdlineAppend)
 }
 
+func updateCmdlineVars(tbl bootloader.TrustedAssetsBootloader, gadgetSnapOrDir, cmdlineAppend string, candidate bool) error {
+	defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
+	if err != nil {
+		return err
+	}
+
+	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineAppend, defaultCmdLine)
+	if err != nil {
+		return fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
+	}
+
+	if err := tbl.SetBootVars(cmdlineVars); err != nil {
+		return fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
+	}
+
+	return nil
+}
+
 func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir, cmdlineAppend string) (updated bool, err error) {
 	if mode != ModeRun {
 		return false, fmt.Errorf("internal error: updating boot config of recovery bootloader is not supported yet")
@@ -479,12 +496,26 @@ func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir
 		}
 		return false, err
 	}
+
 	// boot config update can lead to a change of kernel command line
-	_, err = observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir, cmdlineAppend)
+	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir, cmdlineAppend)
 	if err != nil {
 		return false, err
 	}
-	return tbl.UpdateBootConfig()
+
+	if cmdlineChange {
+		candidate := true
+		if err := updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate); err != nil {
+			return false, err
+		}
+	}
+
+	assetChange, err := tbl.UpdateBootConfig()
+	if err != nil {
+		return false, err
+	}
+
+	return assetChange || cmdlineChange, nil
 }
 
 // UpdateCommandLineForGadgetComponent handles the update of a gadget
@@ -520,23 +551,16 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdli
 	if err != nil {
 		return false, err
 	}
+
 	if !cmdlineChange {
 		return false, nil
 	}
-	defaultCmdLine, err := tbl.DefaultCommandLine()
-	if err != nil {
+
+	candidate := false
+	if err := updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate); err != nil {
 		return false, err
 	}
-	// update the bootloader environment, maybe clearing the relevant
-	// variables
-	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineAppend, defaultCmdLine)
-	if err != nil {
-		return false, fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
-	}
-	logger.Debugf("updating boot vars: %v", cmdlineVars)
-	if err := tbl.SetBootVars(cmdlineVars); err != nil {
-		return false, fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
-	}
+
 	return cmdlineChange, nil
 }
 

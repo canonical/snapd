@@ -394,13 +394,16 @@ func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents)
 	return strings.Join(append(snapdArgs, args...), " "), nil
 }
 
-func (g *grub) defaultCommandLineForEdition(edition uint) string {
-	assetName := "grub.cfg"
+func (g *grub) assetName() string {
 	if g.recovery {
-		assetName = "grub-recovery.cfg"
+		return "grub-recovery.cfg"
 	}
 
-	return staticCommandLineForGrubAssetEdition(assetName, edition)
+	return "grub.cfg"
+}
+
+func (g *grub) defaultCommandLineForEdition(edition uint) string {
+	return staticCommandLineForGrubAssetEdition(g.assetName(), edition)
 }
 
 func editionFromDiskConfigAssetFallback(bootConfig string) (uint, error) {
@@ -444,11 +447,7 @@ func (g *grub) CommandLine(pieces CommandLineComponents) (string, error) {
 //
 // Implements TrustedAssetsBootloader for the grub bootloader.
 func (g *grub) CandidateCommandLine(pieces CommandLineComponents) (string, error) {
-	assetName := "grub.cfg"
-	if g.recovery {
-		assetName = "grub-recovery.cfg"
-	}
-	edition, err := editionFromInternalConfigAsset(assetName)
+	edition, err := editionFromInternalConfigAsset(g.assetName())
 	if err != nil {
 		return "", err
 	}
@@ -457,12 +456,27 @@ func (g *grub) CandidateCommandLine(pieces CommandLineComponents) (string, error
 
 // DefaultCommandLine returns the default kernel command-line used by
 // the bootloader excluding the recovery mode and system parameters.
-func (g *grub) DefaultCommandLine() (string, error) {
-	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
+func (g *grub) DefaultCommandLine(candidate bool) (string, error) {
+	var edition uint
 
-	edition, err := editionFromDiskConfigAssetFallback(currentBootConfig)
-	if err != nil {
-		return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
+	// if "candidate", we look for the managed boot assets
+	// (current snapd) rather than the ones currently installed on
+	// the boot/seed disk. This is needed to know the default
+	// command line before candidate boot assets are installed
+	if candidate {
+		var err error
+		edition, err = editionFromInternalConfigAsset(g.assetName())
+		if err != nil {
+			return "", err
+		}
+	} else {
+		currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
+
+		var err error
+		edition, err = editionFromDiskConfigAssetFallback(currentBootConfig)
+		if err != nil {
+			return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
+		}
 	}
 
 	return g.defaultCommandLineForEdition(edition), nil
