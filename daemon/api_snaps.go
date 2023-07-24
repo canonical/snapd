@@ -359,6 +359,13 @@ func (inst *snapInstruction) validate() error {
 		}
 	}
 
+	if inst.Unaliased && inst.Prefer {
+		return errors.New(`cannot use unaliased and prefer at the same time`)
+	}
+	if inst.Prefer && inst.Action != "install" {
+		return fmt.Errorf("prefer can only be specified on install")
+	}
+
 	if err := inst.validateSnapshotOptions(); err != nil {
 		return err
 	}
@@ -634,7 +641,7 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	// TODO: inst.Amend, etc?
-	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Purge {
+	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Purge || inst.Prefer {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 	if err := inst.validate(); err != nil {

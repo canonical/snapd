@@ -1098,7 +1098,7 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 
 	// Implicitly set --unaliased flag for parallel installs to avoid
 	// alias conflicts with the main snap
-	if !snapst.IsInstalled() && info.InstanceKey != "" {
+	if !snapst.IsInstalled() && !flags.Prefer && info.InstanceKey != "" {
 		flags.Unaliased = true
 	}
 

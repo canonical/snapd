@@ -110,8 +110,8 @@ type Flags struct {
 	Lane int `json:"lane,omitempty"`
 
 	// Prefer enables all aliases of the given snap in preference to
-	// conflicting aliases of other snaps whose aliases will be disabled
-	// (or removed, for manual ones).
+	// conflicting aliases of other snaps whose automatic aliases will
+	// be disabled and manual aliases will be removed.
 	Prefer bool `json:"prefer,omitempty"`
 }
 

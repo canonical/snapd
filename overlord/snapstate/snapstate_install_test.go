@@ -1230,7 +1230,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(snapstate.AuxStoreInfoFilename("some-snap-id"), testutil.FilePresent)
 }
 
-func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
+func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlags, expectedFlags snapstate.Flags) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1240,7 +1240,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap_instance", opts, s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap_instance", opts, s.user.ID, inputFlags)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -1335,12 +1335,15 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		{
 			op: "update-aliases",
 		},
-		{
-			op:    "cleanup-trash",
-			name:  "some-snap_instance",
-			revno: snap.R(11),
-		},
 	}
+	if inputFlags.Prefer {
+		expected = append(expected, fakeOp{op: "update-aliases"})
+	}
+	expected = append(expected, fakeOp{
+		op:    "cleanup-trash",
+		name:  "some-snap_instance",
+		revno: snap.R(11),
+	})
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -1354,7 +1357,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap_instance" (11) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-9]
+	linkTaskOffset := 9
+	if inputFlags.Prefer {
+		linkTaskOffset = 10
+	}
+	linkTask := ta[len(ta)-linkTaskOffset]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap_instance" (11) available to the system`)
 	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap_instance" (11) services`)
@@ -1376,8 +1383,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		Version:     "some-snapVer",
 		PlugsOnly:   true,
 		InstanceKey: "instance",
-		// parallel installs should implicitly pass --unaliased
-		Flags: snapstate.Flags{Unaliased: true},
+		Flags:       expectedFlags,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -1413,6 +1419,20 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(hooksup.Snap, Equals, "some-snap_instance")
 	}
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
+	// parallel installs should implicitly pass --unaliased
+	inputFlags := snapstate.Flags{}
+	expectedFlags := snapstate.Flags{Unaliased: true}
+	s.testParallelInstanceInstallRunThrough(c, inputFlags, expectedFlags)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceInstallPreferRunThrough(c *C) {
+	// --prefer should prevent --unaliased from being passed implicitly
+	inputFlags := snapstate.Flags{Prefer: true}
+	expectedFlags := snapstate.Flags{Prefer: true, Unaliased: false}
+	s.testParallelInstanceInstallRunThrough(c, inputFlags, expectedFlags)
 }
 
 func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {

@@ -1280,7 +1280,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"quota-group": i18n.G("Add the snap to a quota group on install"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"prefer": i18n.G("Enable all aliases of the given snap in preference to conflicting aliases of other snaps whose aliases will be disabled (or removed, for manual ones)"),
+			"prefer": i18n.G("Enable all aliases of the given snap in preference to conflicting aliases of other snaps whose automatic aliases will be disabled and manual aliases will be removed"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
