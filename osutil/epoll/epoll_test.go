@@ -9,6 +9,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/osutil/epoll"
+	"github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
 )
@@ -18,6 +19,8 @@ func Test(t *testing.T) { TestingT(t) }
 type epollSuite struct{}
 
 var _ = Suite(&epollSuite{})
+
+var defaultDuration time.Duration = testutil.HostScaledTimeout(100 * time.Millisecond)
 
 func (*epollSuite) TestString(c *C) {
 	c.Check(epoll.Readable.String(), Equals, "Readable")
@@ -75,8 +78,7 @@ func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
 
 	msg := []byte("foo")
 
-	duration := time.Millisecond * 100
-	go waitThenWriteToFd(duration, senderFd, msg)
+	go waitThenWriteToFd(defaultDuration, senderFd, msg)
 
 	events, err := e.Wait()
 	c.Assert(err, IsNil)
@@ -157,16 +159,16 @@ func (*epollSuite) TestWaitTimeout(c *C) {
 
 	msg := []byte("foo")
 
-	duration := time.Millisecond * 250
-	go waitThenWriteToFd(duration, senderFd, msg)
+	longerDuration := defaultDuration * 2
+	go waitThenWriteToFd(longerDuration, senderFd, msg)
 
-	timeout := time.Millisecond * 100
-	events, err := e.WaitTimeout(timeout)
+	// timeout shorter than wait time before writing
+	events, err := e.WaitTimeout(defaultDuration)
 	c.Assert(err, IsNil)
 	c.Assert(events, HasLen, 0)
 
-	timeout = time.Millisecond * 1000
-	events, err = e.WaitTimeout(timeout)
+	evenLongerDuration := defaultDuration * 10
+	events, err = e.WaitTimeout(evenLongerDuration)
 	c.Assert(err, IsNil)
 	c.Assert(events, HasLen, 1)
 	c.Assert(events[0].Fd, Equals, listenerFd)
@@ -212,27 +214,25 @@ func (*epollSuite) TestEpollWaitEintrHandling(c *C) {
 	eventCh := make(chan []epoll.Event)
 	errCh := make(chan error)
 
-	timeout := time.Millisecond * 100
-	events, err := e.WaitTimeout(timeout)
+	events, err := e.WaitTimeout(defaultDuration)
 	c.Assert(err, IsNil)
 	c.Assert(events, HasLen, 0)
 
 	go waitSomewhereElse(e, eventCh, errCh)
 
-	startTime := time.Now()
-
-	duration := time.Millisecond * 100
-	time.AfterFunc(duration, restore)
-
 	msg := []byte("foo")
 	_, err = unix.Write(senderFd, msg)
 	c.Check(err, IsNil)
+
+	startTime := time.Now()
+
+	time.AfterFunc(defaultDuration, restore)
 
 	events = <-eventCh
 	err = <-errCh
 
 	// Check that WaitTimeout kept retrying until unixEpollWait was restored
-	c.Assert(time.Now().After(startTime.Add(duration)), Equals, true)
+	c.Assert(time.Now().After(startTime.Add(defaultDuration)), Equals, true)
 	c.Assert(err, IsNil)
 	c.Assert(events, HasLen, 1)
 	c.Assert(events[0].Fd, Equals, listenerFd)
@@ -448,7 +448,7 @@ func (*epollSuite) TestWaitWithoutRegistering(c *C) {
 	e, err := epoll.Open()
 	c.Assert(err, IsNil)
 
-	events, err := e.WaitTimeout(time.Millisecond * 100)
+	events, err := e.WaitTimeout(defaultDuration)
 	c.Assert(err, IsNil)
 	c.Assert(events, HasLen, 0)
 
@@ -478,8 +478,7 @@ func (*epollSuite) TestWaitThenDeregister(c *C) {
 	eventCh := make(chan []epoll.Event)
 	errCh := make(chan error)
 
-	timeout := time.Millisecond * 100
-	go waitTimeoutSomewhereElse(e, timeout, eventCh, errCh)
+	go waitTimeoutSomewhereElse(e, defaultDuration, eventCh, errCh)
 
 	err = e.Deregister(listenerFd)
 	c.Check(err, IsNil)
@@ -508,7 +507,7 @@ func (*epollSuite) TestWaitThenRegister(c *C) {
 
 	go waitSomewhereElse(e, eventCh, errCh)
 
-	time.Sleep(time.Millisecond * 100)
+	time.Sleep(defaultDuration)
 
 	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Check(err, IsNil)
