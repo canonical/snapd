@@ -158,99 +158,36 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 	Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
 }
 
-var mockLaidoutStructureWritable = gadget.LaidOutStructure{
-	OnDiskStructure: gadget.OnDiskStructure{
-		Node: "/dev/node3",
-		Name: "Writable",
-		//Size:        1258291200,
+func createOnDiskStructureSave(enclosing *gadget.Volume) *gadget.OnDiskStructure {
+	return &gadget.OnDiskStructure{
+		Node:             "/dev/node3",
+		Name:             "Save",
+		Size:             128 * quantity.SizeMiB,
 		Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-		PartitionFSLabel: "ubuntu-data",
+		PartitionFSLabel: "ubuntu-save",
 		PartitionFSType:  "ext4",
 		StartOffset:      1260388352,
 		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
 		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
 		// yaml structure (the MBR) that does not appear on disk
 		DiskIndex: 3,
-		// expanded to fill the disk
-		Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
-	},
-	VolumeStructure: &gadget.VolumeStructure{
-		VolumeName: "pc",
-		Name:       "Writable",
-		MinSize:    1258291200,
-		Size:       1258291200,
-		Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-		Role:       "system-data",
-		Label:      "ubuntu-data",
-		Filesystem: "ext4",
-		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
-		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
-		// yaml structure (the MBR) that does not appear on disk
-		Offset:    asOffsetPtr(1260388352),
-		YamlIndex: 3,
-	},
-}
-
-func createLaidoutStructureSave(enclosing *gadget.Volume) *gadget.LaidOutStructure {
-	return &gadget.LaidOutStructure{
-		OnDiskStructure: gadget.OnDiskStructure{
-			Node:             "/dev/node3",
-			Name:             "Save",
-			Size:             128 * quantity.SizeMiB,
-			Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			PartitionFSLabel: "ubuntu-save",
-			PartitionFSType:  "ext4",
-			StartOffset:      1260388352,
-			// Note the DiskIndex appears to be the same as the YamlIndex, but this is
-			// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
-			// yaml structure (the MBR) that does not appear on disk
-			DiskIndex: 3,
-		},
-		VolumeStructure: &gadget.VolumeStructure{
-			VolumeName:      "pc",
-			Name:            "Save",
-			Label:           "ubuntu-save",
-			MinSize:         128 * quantity.SizeMiB,
-			Size:            128 * quantity.SizeMiB,
-			Type:            "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			Role:            "system-save",
-			Filesystem:      "ext4",
-			Offset:          asOffsetPtr(1260388352),
-			YamlIndex:       3,
-			EnclosingVolume: enclosing,
-		},
 	}
 }
 
-func createLaidoutStructureWritableAfterSave(enclosing *gadget.Volume) *gadget.LaidOutStructure {
-	return &gadget.LaidOutStructure{
-		OnDiskStructure: gadget.OnDiskStructure{
-			Node: "/dev/node4",
-			Name: "Writable",
-			// expanded to fill the disk
-			Size:             2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
-			Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			PartitionFSLabel: "ubuntu-data",
-			PartitionFSType:  "ext4",
-			StartOffset:      1394606080,
-			// Note the DiskIndex appears to be the same as the YamlIndex, but this is
-			// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
-			// yaml structure (the MBR) that does not appear on disk
-			DiskIndex: 4,
-		},
-		VolumeStructure: &gadget.VolumeStructure{
-			VolumeName:      "pc",
-			Name:            "Writable",
-			MinSize:         1200 * quantity.SizeMiB,
-			Size:            1200 * quantity.SizeMiB,
-			Type:            "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			Role:            "system-data",
-			Label:           "ubuntu-data",
-			Filesystem:      "ext4",
-			Offset:          asOffsetPtr(1394606080),
-			YamlIndex:       4,
-			EnclosingVolume: enclosing,
-		},
+func createOnDiskStructureWritableAfterSave(enclosing *gadget.Volume) *gadget.OnDiskStructure {
+	return &gadget.OnDiskStructure{
+		Node: "/dev/node4",
+		Name: "Writable",
+		// expanded to fill the disk
+		Size:             2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
+		Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+		PartitionFSLabel: "ubuntu-data",
+		PartitionFSType:  "ext4",
+		StartOffset:      1394606080,
+		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
+		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
+		// yaml structure (the MBR) that does not appear on disk
+		DiskIndex: 4,
 	}
 }
 
@@ -279,16 +216,16 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 
 	// the expected expanded writable partition size is:
 	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
-	sfdiskInput, create, err := install.BuildPartitionList(dl, pv, nil)
+	sfdiskInput, create, err := install.BuildPartitionList(dl, pv.Volume, nil)
 	c.Assert(err, IsNil)
 	c.Assert(sfdiskInput.String(), Equals,
 		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
 /dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
 	c.Check(create, NotNil)
-	c.Assert(create, DeepEquals, []gadget.LaidOutStructure{
-		*createLaidoutStructureSave(pv.Volume),
-		*createLaidoutStructureWritableAfterSave(pv.Volume),
+	c.Assert(create, DeepEquals, map[int]*gadget.OnDiskStructure{
+		3: createOnDiskStructureSave(pv.Volume),
+		4: createOnDiskStructureWritableAfterSave(pv.Volume),
 	})
 }
 
@@ -312,7 +249,7 @@ func (s *partitionTestSuite) TestBuildPartitionListPartsNotInGadget(c *C) {
 	// the expected expanded writable partition size is: start
 	// offset = (2M + 1200M), expanded size in sectors =
 	// (8388575*512 - start offset)/512
-	sfdiskInput, create, err := install.BuildPartitionList(dl, pv,
+	sfdiskInput, create, err := install.BuildPartitionList(dl, pv.Volume,
 		&install.CreateOptions{})
 	c.Assert(err, IsNil)
 	c.Assert(sfdiskInput.String(), Equals,
@@ -320,13 +257,9 @@ func (s *partitionTestSuite) TestBuildPartitionListPartsNotInGadget(c *C) {
 /dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
 	c.Check(create, NotNil)
-	saveStruct := createLaidoutStructureSave(pv.Volume)
-	saveStruct.VolumeStructure.YamlIndex = 1
-	dataStruct := createLaidoutStructureWritableAfterSave(pv.Volume)
-	dataStruct.VolumeStructure.YamlIndex = 2
-	c.Assert(create, DeepEquals, []gadget.LaidOutStructure{
-		*saveStruct,
-		*dataStruct,
+	c.Assert(create, DeepEquals, map[int]*gadget.OnDiskStructure{
+		1: createOnDiskStructureSave(pv.Volume),
+		2: createOnDiskStructureWritableAfterSave(pv.Volume),
 	})
 }
 
@@ -352,7 +285,7 @@ func (s *partitionTestSuite) TestBuildPartitionListOnlyCreatablePartitions(c *C)
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	_, _, err = install.BuildPartitionList(dl, pv, nil)
+	_, _, err = install.BuildPartitionList(dl, pv.Volume, nil)
 	c.Assert(err, ErrorMatches, `cannot create partition #1 \(\"BIOS Boot\"\)`)
 }
 
@@ -389,10 +322,9 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	opts := &install.CreateOptions{
 		GadgetRootDir: s.gadgetRoot,
 	}
-	created, err := install.TestCreateMissingPartitions(dl, pv, opts)
+	created, err := install.TestCreateMissingPartitions(dl, pv.Volume, opts)
 	c.Assert(err, IsNil)
-	mockLaidoutStructureWritable.VolumeStructure.EnclosingVolume = pv.Volume
-	c.Assert(created, DeepEquals, []gadget.LaidOutStructure{mockLaidoutStructureWritable})
+	c.Assert(created, DeepEquals, map[int]*gadget.OnDiskStructure{3: &mockOnDiskStructureWritable})
 	c.Assert(calls, Equals, 1)
 
 	// Check partition table write
@@ -445,7 +377,7 @@ func (s *partitionTestSuite) TestCreatePartitionsNonRolePartitions(c *C) {
 		GadgetRootDir:              s.gadgetRoot,
 		CreateAllMissingPartitions: true,
 	}
-	created, err := install.TestCreateMissingPartitions(dl, pv, opts)
+	created, err := install.TestCreateMissingPartitions(dl, pv.Volume, opts)
 	c.Assert(err, IsNil)
 	c.Assert(created, HasLen, 3)
 	c.Assert(calls, Equals, 1)

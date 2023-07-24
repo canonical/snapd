@@ -186,7 +186,12 @@ func (v *Volume) MinSize() quantity.Size {
 	return quantity.Size(endVol)
 }
 
-func (v *Volume) yamlIdxToStructureIdx(yamlIdx int) (int, error) {
+func (v *Volume) StructFromYamlIndex(yamlIdx int) *VolumeStructure {
+	i, _ := v.YamlIdxToStructureIdx(yamlIdx)
+	return &v.Structure[i]
+}
+
+func (v *Volume) YamlIdxToStructureIdx(yamlIdx int) (int, error) {
 	for i := range v.Structure {
 		if v.Structure[i].YamlIndex == yamlIdx {
 			return i, nil
@@ -1685,6 +1690,18 @@ func LaidOutVolumesFromGadget2(vols map[string]*Volume, gadgetRoot, kernelRoot s
 	}
 
 	return system, all, nil
+}
+
+// FindBootVolume returns the volume that contains the system-boot partition.
+func FindBootVolume(vols map[string]*Volume) (*Volume, error) {
+	for _, vol := range vols {
+		for _, structure := range vol.Structure {
+			if structure.Role == SystemBoot {
+				return vol, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("no volume has system-boot role")
 }
 
 func flatten(path string, cfg interface{}, out map[string]interface{}) {

@@ -279,16 +279,14 @@ func layoutVolumePartially(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStr
 	return vol, nil
 }
 
-func setOnDiskLabelAndTypeInLaidOuts(los []LaidOutStructure, encType secboot.EncryptionType) {
-	for i := range los {
-		los[i].PartitionFSLabel = los[i].Label()
-		los[i].PartitionFSType = los[i].Filesystem()
-		if encType != secboot.EncryptionTypeNone {
-			switch los[i].Role() {
-			case SystemData, SystemSave:
-				los[i].PartitionFSLabel += "-enc"
-				los[i].PartitionFSType = "crypto_LUKS"
-			}
+func setOnDiskLabelAndTypeInLaidOuts(los *LaidOutStructure, encType secboot.EncryptionType) {
+	los.PartitionFSLabel = los.Label()
+	los.PartitionFSType = los.Filesystem()
+	if encType != secboot.EncryptionTypeNone {
+		switch los.Role() {
+		case SystemData, SystemSave:
+			los.PartitionFSLabel += "-enc"
+			los.PartitionFSType = "crypto_LUKS"
 		}
 	}
 }
@@ -324,9 +322,10 @@ func LayoutVolume(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure, o
 	}
 
 	for idx := range structures {
+		fillLaidoutStructure(&structures[idx], kernelInfo, opts)
 		// Set appropriately label and type details
 		// TODO: set this in layoutVolumeStructures in the future.
-		setOnDiskLabelAndTypeInLaidOuts(structures, opts.EncType)
+		setOnDiskLabelAndTypeInLaidOuts(&structures[idx], opts.EncType)
 
 		// Lay out raw content. This can be skipped when only partition
 		// creation is needed and is safe because each volume structure
@@ -355,6 +354,43 @@ func LayoutVolume(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure, o
 		LaidOutStructure: structures,
 	}
 	return vol, nil
+}
+
+func fillLaidoutStructure(los *LaidOutStructure, kernelInfo *kernel.Info, opts *LayoutOptions) (*LaidOutStructure, error) {
+
+	setOnDiskLabelAndTypeInLaidOuts(los, opts.EncType)
+	// Lay out raw content. This can be skipped when only partition
+	// creation is needed and is safe because each volume structure
+	// has a size so even without the structure content the layout
+	// can be calculated.
+	if !opts.IgnoreContent && !los.HasFilesystem() {
+		content, err := layOutStructureContent(opts.GadgetRootDir, los)
+		if err != nil {
+			return nil, err
+		}
+		los.LaidOutContent = content
+	}
+
+	// resolve filesystem content
+	doResolveContent := !(opts.IgnoreContent || opts.SkipResolveContent)
+	if doResolveContent {
+		resolvedContent, err := resolveVolumeContent(opts.GadgetRootDir, opts.KernelRootDir, kernelInfo, los, nil)
+		if err != nil {
+			return nil, err
+		}
+		los.ResolvedContent = resolvedContent
+	}
+
+	return los, nil
+}
+
+func LayoutVolumeStructure(onDisk *OnDiskStructure, vs *VolumeStructure, kernelInfo *kernel.Info, opts *LayoutOptions) (*LaidOutStructure, error) {
+	los := &LaidOutStructure{
+		OnDiskStructure: *onDisk,
+		VolumeStructure: vs,
+	}
+
+	return fillLaidoutStructure(los, kernelInfo, opts)
 }
 
 func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *LaidOutStructure, filter ResolvedContentFilterFunc) ([]ResolvedContent, error) {
