@@ -306,7 +306,8 @@ func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRe
 		if err != nil {
 			return fmt.Errorf("while retrieving system.kernel.*cmdline-append defaults: %v", err)
 		}
-		defaultCmdLine, err := tbl.DefaultCommandLine()
+		candidate := false
+		defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
 		if err != nil {
 			return err
 		}
@@ -509,7 +510,8 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 			return fmt.Errorf("while retrieving system.kernel.*cmdline-append defaults: %v", err)
 		}
 
-		defaultCmdLine, err := tbl.DefaultCommandLine()
+		candidate := false
+		defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
 		if err != nil {
 			return err
 		}

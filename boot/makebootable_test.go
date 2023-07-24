@@ -426,7 +426,8 @@ version: 5.0
 		c.Assert(err, IsNil)
 		tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 		if ok {
-			defaultCmdLine, err := tbl.DefaultCommandLine()
+			candidate := false
+			defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
 			c.Assert(err, IsNil)
 			c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
 			c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{defaultCmdLine, content}, " "))
@@ -1411,7 +1412,8 @@ version: 5.0
 		c.Assert(err, IsNil)
 		tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 		if ok {
-			defaultCmdLine, err := tbl.DefaultCommandLine()
+			candidate := false
+			defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
 			c.Assert(err, IsNil)
 			c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
 			c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{defaultCmdLine, content}, " "))
@@ -2340,7 +2342,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 	if ok {
-		defaultCmdLine, err := tbl.DefaultCommandLine()
+		candidate := false
+		defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
 		c.Assert(err, IsNil)
 		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{defaultCmdLine, expectedCmdline}, " "))
 		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")

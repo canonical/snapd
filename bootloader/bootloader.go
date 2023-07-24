@@ -214,7 +214,7 @@ type TrustedAssetsBootloader interface {
 	// DefaultCommandLine returns the default kernel command-line
 	// used by the bootloader excluding the recovery mode and
 	// system parameters.
-	DefaultCommandLine() (string, error)
+	DefaultCommandLine(candidate bool) (string, error)
 
 	// TrustedAssets returns the list of relative paths to assets inside the
 	// bootloader's rootdir that are measured in the boot process in the
