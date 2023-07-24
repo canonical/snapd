@@ -187,7 +187,10 @@ func (v *Volume) MinSize() quantity.Size {
 }
 
 func (v *Volume) StructFromYamlIndex(yamlIdx int) *VolumeStructure {
-	i, _ := v.YamlIdxToStructureIdx(yamlIdx)
+	i, err := v.YamlIdxToStructureIdx(yamlIdx)
+	if err != nil {
+		return nil
+	}
 	return &v.Structure[i]
 }
 

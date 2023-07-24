@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -327,30 +326,6 @@ func removeCreatedPartitions(gadgetRoot string, gv *gadget.Volume, dl *gadget.On
 	}
 
 	return nil
-}
-
-func partitionsWithRolesAndContent(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume, roles []string) []gadget.LaidOutStructure {
-	roleForOffset := map[quantity.Offset]*gadget.LaidOutStructure{}
-	for idx, los := range lv.LaidOutStructure {
-		if los.Role() != "" {
-			roleForOffset[los.StartOffset] = &lv.LaidOutStructure[idx]
-		}
-	}
-
-	var loStructures []gadget.LaidOutStructure
-	for _, part := range dl.Structure {
-		laidOut := roleForOffset[part.StartOffset]
-		if laidOut == nil || laidOut.Role() == "" || !strutil.ListContains(roles, laidOut.Role()) {
-			continue
-		}
-		// now that we have a match, set the on-disk-structure structure
-		// in the laid out structure. on-disk-structure already has the
-		// right size as read from the partition table
-		// TODO fill in construction of LaidOutStructure instead?
-		laidOut.OnDiskStructure = part
-		loStructures = append(loStructures, *laidOut)
-	}
-	return loStructures
 }
 
 // ensureNodesExistImpl makes sure that the specified device nodes are available
