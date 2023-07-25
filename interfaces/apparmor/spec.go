@@ -89,6 +89,9 @@ type Specification struct {
 	// the calling interface can be used with the home interface. Ideally,
 	// we would not need this, but we currently do (LP: #1797786)
 	suppressHomeIx bool
+
+	// Same as the above, but for the pycache deny rule which breaks docker
+	suppressPycacheDeny bool
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.
@@ -172,8 +175,8 @@ func (spec *Specification) AddDeduplicatedSnippet(snippet string) {
 // This function should be used whenever the apparmor template features more
 // than one use of "**" syntax (which represent arbitrary many directories or
 // files) and a variable component, like a device name or similar. Repeated
-// instances of this pattern require exponential memory when compiled with
-// apparmor_parser -O no-expr-simplify.
+// instances of this pattern slow down the apparmor parser in the default
+// "expr-simplify" mode (see PR#12943 for measurements).
 func (spec *Specification) AddParametricSnippet(templateFragment []string, value string) {
 	if len(spec.securityTags) == 0 {
 		return
@@ -674,4 +677,16 @@ func (spec *Specification) SetSuppressHomeIx() {
 // suppressed.
 func (spec *Specification) SuppressHomeIx() bool {
 	return spec.suppressHomeIx
+}
+
+// SetSuppressPycacheDeny records suppression of the ix rules for the home
+// interface.
+func (spec *Specification) SetSuppressPycacheDeny() {
+	spec.suppressPycacheDeny = true
+}
+
+// SuppressPycacheDeny returns whether the ix rules of the home interface should be
+// suppressed.
+func (spec *Specification) SuppressPycacheDeny() bool {
+	return spec.suppressPycacheDeny
 }

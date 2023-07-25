@@ -2307,6 +2307,47 @@ func (s *backendSuite) TestHomeIxRule(c *C) {
 	}
 }
 
+func (s *backendSuite) TestPycacheDenyRule(c *C) {
+	restoreTemplate := apparmor.MockTemplate("template\n###PYCACHEDENY###\n")
+	defer restoreTemplate()
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	for _, tc := range []struct {
+		opts     interfaces.ConfinementOptions
+		suppress bool
+		expected Checker
+	}{
+		{
+			opts:     interfaces.ConfinementOptions{},
+			suppress: true,
+			expected: Not(testutil.Contains),
+		},
+		{
+			opts:     interfaces.ConfinementOptions{},
+			suppress: false,
+			expected: testutil.Contains,
+		},
+	} {
+		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+			if tc.suppress {
+				spec.SetSuppressPycacheDeny()
+			}
+			return nil
+		}
+
+		snapInfo := s.InstallSnap(c, tc.opts, "", ifacetest.SambaYamlV1, 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		data, err := ioutil.ReadFile(profile)
+		c.Assert(err, IsNil)
+
+		c.Assert(string(data), tc.expected, "deny /usr/lib/python3*/{,**/}__pycache__/ w,")
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestSystemUsernamesPolicy(c *C) {
 	restoreTemplate := apparmor.MockTemplate("template\n###SNIPPETS###\n")
 	defer restoreTemplate()

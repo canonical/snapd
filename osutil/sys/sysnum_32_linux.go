@@ -26,8 +26,10 @@ import "syscall"
 // these are the constants for where getuid et al are already 32-bit
 
 const (
-	_SYS_GETUID  = syscall.SYS_GETUID
-	_SYS_GETGID  = syscall.SYS_GETGID
-	_SYS_GETEUID = syscall.SYS_GETEUID
-	_SYS_GETEGID = syscall.SYS_GETEGID
+	_SYS_GETUID   = syscall.SYS_GETUID
+	_SYS_GETGID   = syscall.SYS_GETGID
+	_SYS_GETEUID  = syscall.SYS_GETEUID
+	_SYS_GETEGID  = syscall.SYS_GETEGID
+	_SYS_SETREUID = syscall.SYS_SETREUID
+	_SYS_SETREGID = syscall.SYS_SETREGID
 )

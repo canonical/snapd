@@ -7,6 +7,9 @@ systems:
   # TODO: segfault on core22
   - -ubuntu-core-22-*
 
+environment:
+    STRACE_STATIC_CHANNEL: beta
+  
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local basic-run
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
@@ -31,15 +34,15 @@ execute: |
 
     # the strace on 14.04 is too old
     if os.query is-trusty; then
-        snap install strace-static --edge
+        snap install strace-static --channel="${STRACE_STATIC_CHANNEL}"
     fi
     # the strace on opensuse is too old
     if os.query is-opensuse && ! os.query is-opensuse tumbleweed; then
-        snap install strace-static --edge
+        snap install strace-static --channel="${STRACE_STATIC_CHANNEL}"
     fi
     # install the snap if no system strace is found
     if ! command -v strace; then
-        snap install strace-static --edge
+        snap install strace-static --channel="${STRACE_STATIC_CHANNEL}"
     fi
 
     echo "Test snap --strace invalid works"
