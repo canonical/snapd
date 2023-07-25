@@ -706,7 +706,7 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 		macaroon = user.StoreMacaroon
 	}
 	// only add the options if they contain anything interesting
-	if *dlOpts == (store.DownloadOptions{}) {
+	if dlOpts != nil && *dlOpts == (store.DownloadOptions{}) {
 		dlOpts = nil
 	}
 	f.downloads = append(f.downloads, fakeDownload{
