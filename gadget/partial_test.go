@@ -20,6 +20,7 @@
 package gadget_test
 
 import (
+	"fmt"
 	"io/ioutil"
 
 	"github.com/snapcore/snapd/gadget"
@@ -33,7 +34,7 @@ func (s *gadgetYamlTestSuite) newCleanVols(c *C) map[string]*gadget.Volume {
 	return info.Volumes
 }
 
-func (s *gadgetYamlTestSuite) TestApplyInstallerVolumesToGadgetPartialSchema(c *C) {
+func (s *gadgetYamlTestSuite) TestApplyInstallerVolumesToGadgetDeviceAndPartialSchema(c *C) {
 	var yaml = []byte(`
 volumes:
   vol0:
@@ -66,14 +67,35 @@ volumes:
 		"vol0": {
 			Name:   "vol0",
 			Schema: "gpt",
+			Structure: []gadget.VolumeStructure{
+				{
+					Name:   "ubuntu-seed",
+					Device: "/dev/vda1",
+				},
+				{
+					Name:   "ubuntu-boot",
+					Device: "/dev/vda2",
+				},
+				{
+					Name:   "ubuntu-save",
+					Device: "/dev/vda3",
+				},
+				{
+					Name:   "ubuntu-data",
+					Device: "/dev/vda4",
+				},
+			},
 		},
 	}
 
-	// New schema is set
+	// New schema and devices are set
 	lovs := s.newCleanVols(c)
 	err = gadget.ApplyInstallerVolumesToGadget(installerVols, lovs)
 	c.Assert(err, IsNil)
 	c.Assert(lovs["vol0"].Schema, Equals, "gpt")
+	for i, vs := range lovs["vol0"].Structure {
+		c.Assert(vs.Device, Equals, fmt.Sprintf("/dev/vda%d", i+1))
+	}
 
 	// Invalid schema is detected
 	installerVols["vol0"].Schema = "nextbigthing"

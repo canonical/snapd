@@ -355,6 +355,10 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	writeContentCalls := 0
 	restore = devicestate.MockInstallWriteContent(func(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *install.EncryptionSetupData, observer gadget.ContentObserver, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
 		writeContentCalls++
+		vol := onVolumes["pc"]
+		for sIdx, vs := range vol.Structure {
+			c.Check(vs.Device, Equals, fmt.Sprintf("/dev/vda%d", sIdx+1))
+		}
 		if opts.encrypted {
 			c.Check(encSetupData, NotNil)
 
@@ -464,6 +468,12 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	chg := s.state.NewChange("install-step-finish", "finish setup of run system")
 	finishTask := s.state.NewTask("install-finish", "install API finish step")
 	finishTask.Set("system-label", label)
+	// Set devices as an installer would
+	for _, vol := range ginfo.Volumes {
+		for sIdx := range vol.Structure {
+			vol.Structure[sIdx].Device = fmt.Sprintf("/dev/vda%d", sIdx+1)
+		}
+	}
 	finishTask.Set("on-volumes", ginfo.Volumes)
 
 	chg.AddTask(finishTask)

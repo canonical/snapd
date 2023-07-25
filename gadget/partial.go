@@ -22,18 +22,28 @@ package gadget
 import "fmt"
 
 // ApplyInstallerVolumesToGadget takes the volume information returned
-// by the installer and applies it to the laid out volumes for
-// properties partially defined. After that it checks that the gadget
-// is now fully specified.
+// by the installer and applies it to the gadget volumes for the
+// device to install to and for properties partially defined. After
+// that it checks that the gadget is now fully specified.
 func ApplyInstallerVolumesToGadget(installerVols map[string]*Volume, gadgetVols map[string]*Volume) error {
 	for volName, gv := range gadgetVols {
-		if len(gv.Partial) == 0 {
-			continue
-		}
-
 		insVol := installerVols[volName]
 		if insVol == nil {
 			return fmt.Errorf("installer did not provide information for volume %q", volName)
+		}
+
+		// First, retrieve device specified by installer
+		for i := range gv.Structure {
+			insStr, err := structureByName(insVol.Structure, gv.Structure[i].Name)
+			if err != nil {
+				return err
+			}
+			gv.Structure[i].Device = insStr.Device
+		}
+
+		// Next changes are only for partial gadgets
+		if len(gv.Partial) == 0 {
+			continue
 		}
 
 		// TODO: partial structure, as it is not clear what will be possible when set
