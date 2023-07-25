@@ -3035,5 +3035,5 @@ func (s *snapsSuite) TestOnlyAllowUnaliasedOrPrefer(c *check.C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
-	c.Assert(rspe.Error(), check.Matches, `cannot use unaliased and prefer at the same time.*`)
+	c.Assert(rspe.Error(), check.Matches, `cannot use unaliased and prefer flags together.*`)
 }

@@ -360,7 +360,7 @@ func (inst *snapInstruction) validate() error {
 	}
 
 	if inst.Unaliased && inst.Prefer {
-		return errors.New(`cannot use unaliased and prefer at the same time`)
+		return errUnaliasedPreferConflict
 	}
 	if inst.Prefer && inst.Action != "install" {
 		return fmt.Errorf("prefer can only be specified on install")
@@ -386,6 +386,7 @@ type snapInstructionResult struct {
 
 var errDevJailModeConflict = errors.New("cannot use devmode and jailmode flags together")
 var errClassicDevmodeConflict = errors.New("cannot use classic and devmode flags together")
+var errUnaliasedPreferConflict = errors.New("cannot use unaliased and prefer flags together")
 var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
 func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
