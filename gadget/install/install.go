@@ -465,7 +465,7 @@ func laidOutStructureForDiskStructure(laidVols map[string]*gadget.LaidOutVolume,
 func OnDiskVolumeFromGadgetVol(vol *gadget.Volume) (*gadget.OnDiskVolume, error) {
 	var diskVol *gadget.OnDiskVolume
 	for _, vs := range vol.Structure {
-		if vs.Device == "" {
+		if vs.Device == "" || vs.Role == "mbr" || vs.Type == "bare" {
 			continue
 		}
 
