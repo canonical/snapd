@@ -167,6 +167,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "16d0",
 		ProductIDPattern: "0e90",
 	},
+	{
+		Name:             "Swissbit iShield Key",
+		VendorIDPattern:  "1370",
+		ProductIDPattern: "0911",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `
