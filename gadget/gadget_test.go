@@ -4192,7 +4192,7 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
 	tagsValid(c, &gadget.Volume{}, nil)
 	// gadget.VolumeStructure.Device is never part of
 	// Yaml so the test checks that the yaml tag is "-"
-	noYaml := []string{"Device"}
+	noYaml := []string{"Device", "YamlIndex"}
 	tagsValid(c, &gadget.VolumeStructure{}, noYaml)
 	tagsValid(c, &gadget.VolumeContent{}, nil)
 	tagsValid(c, &gadget.RelativeOffset{}, nil)

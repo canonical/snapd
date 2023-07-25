@@ -261,7 +261,7 @@ type VolumeStructure struct {
 	Device string `yaml:"-" json:"device,omitempty"`
 
 	// Index of the structure definition in gadget YAML, note this starts at 0.
-	YamlIndex int `yaml:"-" json:"-"`
+	YamlIndex int `yaml:"-" json:"yamlindex,omitempty"`
 	// EnclosingVolume is a pointer to the enclosing Volume, and should be used
 	// exclusively to check for partial information that affects the
 	// structure properties.
