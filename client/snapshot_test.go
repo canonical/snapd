@@ -142,6 +142,7 @@ func (cs *clientSuite) TestClientCheckSnapshots(c *check.C) {
 func (cs *clientSuite) TestClientRestoreSnapshots(c *check.C) {
 	cs.testClientSnapshotAction(c, "restore", cs.cli.RestoreSnapshots)
 }
+
 func (cs *clientSuite) TestClientExportSnapshotSpecificErr(c *check.C) {
 	content := `{"type":"error","status-code":400,"result":{"message":"boom","kind":"err-kind","value":"err-value"}}`
 	cs.contentLength = int64(len(content))
