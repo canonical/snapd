@@ -536,9 +536,9 @@ func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string,
 	if err != nil {
 		return nil, err
 	}
-	if err, _, _ = ardb.addRuleToTree(newRule); err != nil {
+	if err, conflictingId, conflictingPermission := ardb.addRuleToTree(newRule); err != nil {
 		// TODO: could return the conflicting rule ID and permission
-		return nil, err
+		return nil, fmt.Errorf("%s: ID: '%s', Permission: '%s'", err, conflictingId, conflictingPermission)
 	}
 	ardb.ById[newRule.Id] = newRule
 	return newRule, nil
@@ -556,72 +556,43 @@ func (ardb *AccessRuleDB) DeleteAccessRule(user uint32, id string) (*AccessRule,
 }
 
 func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration string, permissions []PermissionType) (*AccessRule, error) {
-	rule, err := ardb.RuleWithId(user, id)
+	origRule, err := ardb.RuleWithId(user, id)
 	if err != nil {
 		return nil, err
 	}
 	if pathPattern == "" {
-		pathPattern = rule.PathPattern
+		pathPattern = origRule.PathPattern
 	}
 	if outcome == OutcomeUnset {
-		outcome = rule.Outcome
+		outcome = origRule.Outcome
 	}
 	if lifespan == LifespanUnset {
-		lifespan = rule.Lifespan
-	}
-	expiration, err := validatePatternOutcomeLifespanDuration(pathPattern, outcome, lifespan, duration)
-	if err != nil {
-		return nil, err
+		lifespan = origRule.Lifespan
 	}
 	if permissions == nil || len(permissions) == 0 {
 		// treat empty permissions list as leave permissions unchanged
 		// since go has little distinction between nil and empty list
-		permissions = rule.Permissions
+		permissions = origRule.Permissions
 	}
-	if pathPattern != rule.PathPattern {
-		// remove and re-add all permissions, since path must be changed
-		if err = ardb.removeRuleFromTree(rule); err != nil {
-			// if error occurs, rule is fully removed from tree
-			return nil, err
-		}
-		rule.Permissions = rule.Permissions[:0]
-		rule.PathPattern = pathPattern
+	if err = ardb.removeRuleFromTree(origRule); err != nil {
+		// if error occurs, rule is fully removed from tree
+		return nil, err
 	}
-	preservedPermissions := make([]PermissionType, 0, len(rule.Permissions))
-	needToRefreshTree := false
-	for _, permission := range rule.Permissions {
-		// remove permissions which are no longer included
-		if PermissionsListContains(permissions, permission) {
-			preservedPermissions = append(preservedPermissions, permission)
-			continue
-		}
-		if err = ardb.removeRulePermissionFromTree(rule, permission); err != nil {
-			// if error occurs, rule and tree are not synchronized
-			// carry on removing permissions, then at the end RefreshTreeEnforceConsistency
-			needToRefreshTree = true
-		}
+	newRule, err := ardb.PopulateNewAccessRule(user, origRule.Snap, origRule.App, pathPattern, outcome, lifespan, duration, permissions)
+	if err != nil {
+		ardb.addRuleToTree(origRule) // ignore any new error
+		// origRule was successfully removed, it should be successfully added
+		return nil, err
 	}
-	rule.Permissions = preservedPermissions
-	for _, permission := range permissions {
-		// add new permissions which were not previously included
-		if PermissionsListContains(rule.Permissions, permission) {
-			continue
-		}
-		if addingErr, _ := ardb.addRulePermissionToTree(rule, permission); addingErr != nil {
-			// if error occurs, rule and tree are synchronized
-			err = addingErr
-		} else {
-			rule.Permissions = append(rule.Permissions, permission)
-		}
+	newRule.Id = origRule.Id
+	err, conflictingId, conflictingPermission := ardb.addRuleToTree(newRule)
+	if err != nil {
+		ardb.addRuleToTree(origRule) // ignore any new error
+		// origRule was successfully removed, it should be successfully added
+		return nil, fmt.Errorf("%s: ID: '%s', Permission: '%s'", err, conflictingId, conflictingPermission)
 	}
-	rule.Outcome = outcome
-	rule.Lifespan = lifespan
-	rule.Expiration = expiration
-	rule.Timestamp = CurrentTimestamp()
-	if needToRefreshTree {
-		ardb.RefreshTreeEnforceConsistency()
-	}
-	return rule, err
+	ardb.ById[newRule.Id] = newRule
+	return newRule, nil
 }
 
 func (ardb *AccessRuleDB) Rules(user uint32) []*AccessRule {
