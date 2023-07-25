@@ -155,7 +155,7 @@ func maybeCreatePartitionTable(bootDevice, schema string) error {
 	return nil
 }
 
-func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encType secboot.EncryptionType) ([]gadget.OnDiskStructure, error) {
+func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encType secboot.EncryptionType) (map[int]*gadget.OnDiskStructure, error) {
 	vol := firstVol(volumes)
 	// snapd does not create partition tables so we have to do it here
 	// or gadget.OnDiskVolumeFromDevice() will fail
@@ -171,22 +171,16 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encT
 		return nil, fmt.Errorf("cannot yet install on a disk that has partitions")
 	}
 
-	layoutOpts := &gadget.LayoutOptions{
-		IgnoreContent: true,
-		EncType:       encType,
-	}
-
-	lvol, err := gadget.LayoutVolume(vol, nil, layoutOpts)
-	if err != nil {
-		return nil, fmt.Errorf("cannot layout volume: %v", err)
-	}
-
 	opts := &install.CreateOptions{CreateAllMissingPartitions: true}
-	created, err := install.CreateMissingPartitions(diskLayout, lvol, opts)
+	// Fill index, as it is not passed around to muinstaller
+	for i := range vol.Structure {
+		vol.Structure[i].YamlIndex = i
+	}
+	created, err := install.CreateMissingPartitions(diskLayout, vol, opts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create partitions: %v", err)
 	}
-	logger.Noticef("created %v partitions", created)
+	logger.Noticef("created %d partitions", len(created))
 
 	return created, nil
 }
@@ -197,7 +191,7 @@ func runMntFor(label string) string {
 
 func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	onDiskParts []gadget.OnDiskStructure) (map[string]string, error) {
+	onDiskParts map[int]*gadget.OnDiskStructure) (map[string]string, error) {
 
 	// We are modifiying the details struct here
 	for _, gadgetVol := range details.Volumes {
@@ -267,7 +261,7 @@ func waitChange(chgId string) error {
 // happening maybe we need to find the information differently.
 func postSystemsInstallFinish(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	onDiskParts []gadget.OnDiskStructure) error {
+	onDiskParts map[int]*gadget.OnDiskStructure) error {
 
 	vols := make(map[string]*gadget.Volume)
 	for volName, gadgetVol := range details.Volumes {
@@ -526,13 +520,13 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	if shouldEncrypt {
 		encType = secboot.EncryptionTypeLUKS
 	}
-	laidoutStructs, err := createPartitions(bootDevice, details.Volumes, encType)
+	gadgetIdxToOnDiskStruct, err := createPartitions(bootDevice, details.Volumes, encType)
 	if err != nil {
 		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
 	var encryptedDevices = make(map[string]string)
 	if shouldEncrypt {
-		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, laidoutStructs)
+		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, gadgetIdxToOnDiskStruct)
 		if err != nil {
 			return fmt.Errorf("cannot setup storage encryption: %v", err)
 		}
@@ -550,7 +544,7 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	if err := unmountFilesystems(mntPts); err != nil {
 		return fmt.Errorf("cannot unmount filesystems: %v", err)
 	}
-	if err := postSystemsInstallFinish(cli, details, bootDevice, laidoutStructs); err != nil {
+	if err := postSystemsInstallFinish(cli, details, bootDevice, gadgetIdxToOnDiskStruct); err != nil {
 		return fmt.Errorf("cannot finalize install: %v", err)
 	}
 	// TODO: reboot here automatically (optional)
