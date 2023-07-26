@@ -87,7 +87,7 @@ func storeRemodel(c *Command, r *http.Request) Response {
 	}
 	newModel, ok := rawNewModel.(*asserts.Model)
 	if !ok {
-		return BadRequest("new model is not a model assertion: %v", newModel.Type())
+		return BadRequest("new model is not a model assertion: %v", rawNewModel.Type())
 	}
 
 	st := c.d.overlord.State()

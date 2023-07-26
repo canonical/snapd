@@ -2035,3 +2035,17 @@ func (s *diskSuite) TestFindMatchingPartitionWithFsLabel(c *C) {
 		}
 	}
 }
+
+func (s *diskSuite) TestMockDisksChecking(c *C) {
+	f := func() {
+		disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+			"/dev/vda": {
+				Structure: []disks.Partition{
+					{KernelDeviceNode: "/dev/vda1"},
+					{KernelDeviceNode: "/dev/vda1"},
+				},
+			},
+		})
+	}
+	c.Check(f, Panics, "mock error: duplicated kernel device nodes for partitions in disk mapping")
+}
