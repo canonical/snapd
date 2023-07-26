@@ -1,12 +1,12 @@
 package apparmor_test
 
 import (
-	"syscall"
 	"unsafe"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/prompting/apparmor"
+	"golang.org/x/sys/unix"
 )
 
 type ioctlSuite struct{}
@@ -18,8 +18,8 @@ func (*ioctlSuite) TestIoctlHappy(c *C) {
 	req := apparmor.IoctlRequest(456)
 	buf := []byte{1, 2, 3}
 	restore := apparmor.MockSyscall(
-		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
-			c.Check(trap, Equals, uintptr(syscall.SYS_IOCTL))
+		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
+			c.Check(trap, Equals, uintptr(unix.SYS_IOCTL))
 			c.Check(a1, Equals, fd)
 			c.Check(a2, Equals, uintptr(req))
 			c.Check(a3, Equals, uintptr(unsafe.Pointer(&buf[0])))
@@ -35,7 +35,7 @@ func (*ioctlSuite) TestIoctlReturnValueSizeMismatch(c *C) {
 	req := apparmor.IoctlRequest(456)
 	buf := []byte{1, 2, 3}
 	restore := apparmor.MockSyscall(
-		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
+		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
 			// Return different size.
 			return uintptr(len(buf) * 2), 0, 0
 		})
