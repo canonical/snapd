@@ -1729,13 +1729,9 @@ func isKernelArgumentAllowed(arg string) bool {
 	return true
 }
 
-var ErrNoKernelCommandline = errors.New("no kernel command line in the gadget")
-
 // KernelCommandLineFromGadget returns the desired kernel command line provided by the
 // gadget. The full flag indicates whether the gadget provides a full command
 // line or just the extra parameters that will be appended to the static ones.
-// An ErrNoKernelCommandline is returned when thea gadget does not set any
-// kernel command line.
 func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, full bool, err error) {
 	sf, err := snapfile.Open(gadgetDirOrSnapPath)
 	if err != nil {
@@ -1756,7 +1752,7 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, fu
 	case contentExtra != nil && contentFull != nil:
 		return "", false, fmt.Errorf("cannot support both extra and full kernel command lines")
 	case contentExtra == nil && contentFull == nil:
-		return "", false, ErrNoKernelCommandline
+		return "", false, nil
 	case contentFull != nil:
 		content = contentFull
 		whichFile = "cmdline.full"

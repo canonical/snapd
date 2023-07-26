@@ -39,8 +39,17 @@ func mkFifo() (string, func(), error) {
 	if err != nil {
 		return "", nil, xerrors.Errorf("cannot create temporary directory: %w", err)
 	}
+	fifo := filepath.Join(dir, "fifo")
 
 	cleanup := func() {
+		// Cleanup any pending readers/writers of the FIFO by
+		// opening/closing (O_RDRW will not block on
+		// linux). Otherwise we may leave file
+		// descriptors/go-routine behind that are stuck in opening
+		// one side of the fifo.
+		if f, err := os.OpenFile(fifo, os.O_RDWR, 0); err == nil {
+			f.Close()
+		}
 		if err := os.RemoveAll(dir); err != nil {
 			fmt.Fprintf(stderr, "luks2.mkFifo: cannot remove fifo: %v\n", err)
 		}
@@ -54,7 +63,6 @@ func mkFifo() (string, func(), error) {
 		cleanup()
 	}()
 
-	fifo := filepath.Join(dir, "fifo")
 	if err := unix.Mkfifo(fifo, 0600); err != nil {
 		return "", nil, xerrors.Errorf("cannot create FIFO: %w", err)
 	}

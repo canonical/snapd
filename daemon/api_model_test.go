@@ -70,6 +70,24 @@ func (s *modelSuite) TestPostRemodelUnhappy(c *check.C) {
 	c.Check(rspe.Message, check.Matches, "cannot decode new model assertion: .*")
 }
 
+func (s *modelSuite) TestPostRemodelUnhappyWrongAssertion(c *check.C) {
+	s.daemon(c)
+
+	s.expectRootAccess()
+
+	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
+	buf := bytes.NewBuffer(asserts.Encode(acct))
+
+	data, err := json.Marshal(daemon.PostModelData{NewModel: buf.String()})
+	c.Check(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Matches, "new model is not a model assertion: .*")
+}
+
 func (s *modelSuite) TestPostRemodel(c *check.C) {
 	s.expectRootAccess()
 

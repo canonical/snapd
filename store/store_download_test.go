@@ -587,7 +587,7 @@ func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
 	for _, testCase := range downloadDeltaTests {
 		sto.SetDeltaFormat(testCase.format)
 		restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
-			c.Check(dlOpts, DeepEquals, &store.DownloadOptions{IsAutoRefresh: true})
+			c.Check(dlOpts, DeepEquals, &store.DownloadOptions{Scheduled: true})
 			expectedUser := s.user
 			if !testCase.withUser {
 				expectedUser = nil
@@ -608,7 +608,7 @@ func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
 			authedUser = nil
 		}
 
-		err = sto.DownloadDelta("snapname", &testCase.info, w, nil, authedUser, &store.DownloadOptions{IsAutoRefresh: true})
+		err = sto.DownloadDelta("snapname", &testCase.info, w, nil, authedUser, &store.DownloadOptions{Scheduled: true})
 
 		if testCase.expectError {
 			c.Assert(err, NotNil)

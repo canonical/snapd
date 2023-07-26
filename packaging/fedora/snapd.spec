@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.60
+Version:        2.60.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -996,6 +996,18 @@ fi
 
 
 %changelog
+* Tue Jul 04 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.1
+ - install: fallback to lazy unmount() in writeFilesystemContent
+ - data: include "modprobe.d" and "modules-load.d" in preseeded blob
+ - gadget: fix install test on armhf
+ - interfaces: fix typo in network_manager_observe
+ - sandbox/apparmor: don't let vendored apparmor conflict with system
+ - gadget/update: set parts in laid out data from the ones matched
+ - many: move SnapConfineAppArmorDir from dirs to sandbox/apparmor
+ - many: stop using `-O no-expr-simplify` in apparmor_parser
+ - go.mod: update secboot to latest uc22 branch
+
 * Thu Jun 15 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.60
  - Support for dynamic snapshot data exclusions

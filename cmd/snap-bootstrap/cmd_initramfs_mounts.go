@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/snapdtool"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -78,6 +79,8 @@ type cmdInitramfsMounts struct{}
 func (c *cmdInitramfsMounts) Execute([]string) error {
 	boot.HasFDESetupHook = hasFDESetupHook
 	boot.RunFDESetupHook = runFDESetupHook
+
+	logger.Noticef("snap-bootstrap version %v starting", snapdtool.Version)
 
 	return generateInitramfsMounts()
 }

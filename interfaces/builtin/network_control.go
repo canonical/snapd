@@ -298,7 +298,7 @@ umount /,
 capability sys_ptrace,
 
 # 'ip netns exec foo /bin/sh'
-#mount options=(rw, rslave) /, # commented out because of LP: #2023025
+mount options=(rw, rslave) /,
 mount options=(rw, rslave), # LP: #1648245
 mount fstype=sysfs,
 umount /sys/,

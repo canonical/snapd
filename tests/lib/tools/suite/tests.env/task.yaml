@@ -1,0 +1,59 @@
+summary: tests for tests.env
+
+restore: |
+    rm -f "$RUNTIME_STATE_PATH"/test1.env "$RUNTIME_STATE_PATH"/test2.env
+
+execute: |
+    # Both -h and --help are also recognized.
+    tests.env --help | MATCH "usage: tests.env start <ENV_NAME>"
+    tests.env -h | MATCH "usage: tests.env start <ENV_NAME>"
+
+    # check start env file
+    tests.env start test1
+    test -f "$RUNTIME_STATE_PATH"/test1.env
+
+    # check commands is-set and set
+    not tests.env is-set test1 var1
+    tests.env set test1 var1 val1
+    tests.env is-set test1 var1
+    tests.env set test1 var3
+    tests.env set test1 var4 ""
+
+    # check command get
+    test "$(tests.env get test1 var1)" = "val1"
+    test "$(tests.env get test1 var3)" = ""
+    test "$(tests.env get test1 var4)" = ""
+
+    # check set another value
+    not tests.env is-set test1 var2
+    tests.env set test1 var2 val2
+    tests.env is-set test1 var2
+    test "$(tests.env get test1 var2)" = "val2"
+    test "$(tests.env get test1 var1)" = "val1"
+
+    # check update the value
+    tests.env set test1 var1 val3
+    test "$(tests.env get test1 var1)" = "val3"
+
+    # create another env
+    tests.env start test2
+    tests.env set test2 var1 val1
+    test "$(tests.env get test1 var1)" = "val3"
+    test "$(tests.env get test2 var1)" = "val1"
+
+    # check errors
+    tests.env test 2>&1 | MATCH "tests.env: no such command: test"
+
+    tests.env start 2>&1 | MATCH "tests.env: name for the env file is required"
+
+    tests.env is-set 2>&1 | MATCH "tests.env: name for the env file is required"
+    tests.env is-set test1 2>&1 | MATCH "tests.env: variable to check in env file is required"
+    tests.env is-set test10 var1 2>&1 | MATCH "tests.env: env file $RUNTIME_STATE_PATH/test10.env does not exist"
+
+    tests.env get 2>&1 | MATCH "tests.env: name for the env file is required"
+    tests.env get test1 2>&1 | MATCH "tests.env: variable to check in env file is required"
+    tests.env get test10 var1 2>&1 | MATCH "tests.env: env file $RUNTIME_STATE_PATH/test10.env does not exist"
+
+    tests.env set 2>&1 | MATCH "tests.env: name for the env file is required"
+    tests.env set test1 2>&1 | MATCH "tests.env: variable to set in env file is required"
+    tests.env set test10 var1 val1 2>&1 | MATCH "tests.env: env file $RUNTIME_STATE_PATH/test10.env does not exist"

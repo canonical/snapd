@@ -1090,6 +1090,12 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 		flags.Classic = false
 	}
 
+	// Implicitly set --unaliased flag for parallel installs to avoid
+	// alias conflicts with the main snap
+	if !snapst.IsInstalled() && info.InstanceKey != "" {
+		flags.Unaliased = true
+	}
+
 	if err := validateInfoAndFlags(info, snapst, flags); err != nil {
 		return flags, err
 	}
@@ -1707,10 +1713,21 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 
 	names = strutil.Deduplicate(names)
 
-	refreshOpts := &store.RefreshOptions{IsAutoRefresh: flags.IsAutoRefresh}
+	refreshOpts := &store.RefreshOptions{Scheduled: flags.IsAutoRefresh}
 	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, revOpts, user, refreshOpts)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// save the candidates so the auto-refresh can be continued if it's inhibited
+	// by a running snap.
+	if flags.IsAutoRefresh {
+		hints, err := refreshHintsFromCandidates(st, updates, ignoreValidation, deviceCtx)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		setNewRefreshCandidates(st, hints)
 	}
 
 	if filter != nil {
@@ -2524,11 +2541,7 @@ type AutoRefreshOptions struct {
 // AutoRefresh is the wrapper that will do a refresh of all the installed
 // snaps on the system. In addition to that it will also refresh important
 // assertions.
-func AutoRefresh(ctx context.Context, st *state.State, opts *AutoRefreshOptions) ([]string, *UpdateTaskSets, error) {
-	if opts == nil {
-		opts = &AutoRefreshOptions{}
-	}
-
+func AutoRefresh(ctx context.Context, st *state.State) ([]string, *UpdateTaskSets, error) {
 	userID := 0
 
 	if AutoRefreshAssertions != nil {
@@ -2546,7 +2559,7 @@ func AutoRefresh(ctx context.Context, st *state.State, opts *AutoRefreshOptions)
 	}
 	if !gateAutoRefreshHook {
 		// old-style refresh (gate-auto-refresh-hook feature disabled)
-		return updateManyFiltered(ctx, st, nil, nil, userID, nil, &Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: opts.IsContinuedAutoRefresh}, "")
+		return updateManyFiltered(ctx, st, nil, nil, userID, nil, &Flags{IsAutoRefresh: true}, "")
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
@@ -2571,7 +2584,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 		return nil, nil, err
 	}
 
-	refreshOpts := &store.RefreshOptions{IsAutoRefresh: true}
+	refreshOpts := &store.RefreshOptions{Scheduled: true}
 	// XXX: should we skip refreshCandidates if forGatingSnap isn't empty (meaning we're handling proceed from a snap)?
 	candidates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, nil, user, refreshOpts)
 	if err != nil {
@@ -2587,7 +2600,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 	if err != nil {
 		return nil, nil, err
 	}
-	st.Set("refresh-candidates", hints)
+	setNewRefreshCandidates(st, hints)
 
 	// prune affecting snaps that are not in refresh candidates from hold state.
 	if err := pruneGating(st, hints); err != nil {
@@ -2712,8 +2725,10 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 }
 
 // autoRefreshPhase2 creates tasks for refreshing snaps from updates.
-func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate, fromChange string) (*UpdateTaskSets, error) {
-	flags := &Flags{IsAutoRefresh: true}
+func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate, flags *Flags, fromChange string) (*UpdateTaskSets, error) {
+	if flags == nil {
+		flags = &Flags{IsAutoRefresh: true}
+	}
 	userID := 0
 
 	deviceCtx, err := DeviceCtx(st, nil, nil)
