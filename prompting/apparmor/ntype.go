@@ -39,6 +39,10 @@ func (ntype NotificationType) String() string {
 
 // IsValid returns true if the notification type has a valid value.
 func (ntype NotificationType) IsValid() bool {
-	return ntype == Response || ntype == Cancel || ntype == Interrupt ||
-		ntype == Alive || ntype == Operation
+	switch ntype {
+	case Response, Cancel, Interrupt, Alive, Operation:
+		return true
+	default:
+		return false
+	}
 }
