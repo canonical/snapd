@@ -12,7 +12,7 @@ const (
 	Response NotificationType = iota
 	// Cancel corresponds to APPARMOR_NOTIF_CANCEL.
 	Cancel
-	// Interrupt corresponds to APPARMOR_NOTIF_INTERUPT.
+	// Interrupt corresponds to APPARMOR_NOTIF_INTERRUPT.
 	Interrupt
 	// Alive corresponds to APPARMOR_NOTIF_ALIVE.
 	Alive
