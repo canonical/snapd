@@ -1599,7 +1599,7 @@ func (s *snapsSuite) TestPostSnapLeaveCohortUnsupportedAction(c *check.C) {
 
 func (s *snapsSuite) TestPostSnapPreferWrongAction(c *check.C) {
 	s.daemonWithOverlordMock()
-	const expectedErr = "prefer can only be specified on install"
+	const expectedErr = "the prefer flag can only be specified on install"
 
 	for _, action := range []string{"remove", "refresh", "revert", "enable", "disable", "xyzzy"} {
 		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "prefer": true}`, action))
