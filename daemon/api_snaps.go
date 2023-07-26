@@ -202,6 +202,7 @@ type snapInstruction struct {
 	IgnoreValidation       bool                             `json:"ignore-validation"`
 	IgnoreRunning          bool                             `json:"ignore-running"`
 	Unaliased              bool                             `json:"unaliased"`
+	Prefer                 bool                             `json:"prefer"`
 	Purge                  bool                             `json:"purge,omitempty"`
 	SystemRestartImmediate bool                             `json:"system-restart-immediate"`
 	Transaction            client.TransactionType           `json:"transaction"`
@@ -212,7 +213,6 @@ type snapInstruction struct {
 	QuotaGroupName         string                           `json:"quota-group"`
 	Time                   string                           `json:"time"`
 	HoldLevel              string                           `json:"hold-level"`
-	Prefer                 bool                             `json:"prefer"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -363,7 +363,7 @@ func (inst *snapInstruction) validate() error {
 		return errUnaliasedPreferConflict
 	}
 	if inst.Prefer && inst.Action != "install" {
-		return fmt.Errorf("prefer can only be specified on install")
+		return fmt.Errorf("the prefer flag can only be specified on install")
 	}
 
 	if err := inst.validateSnapshotOptions(); err != nil {

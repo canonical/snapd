@@ -54,6 +54,7 @@ type SnapOptions struct {
 	IgnoreValidation bool            `json:"ignore-validation,omitempty"`
 	IgnoreRunning    bool            `json:"ignore-running,omitempty"`
 	Unaliased        bool            `json:"unaliased,omitempty"`
+	Prefer           bool            `json:"prefer,omitempty"`
 	Purge            bool            `json:"purge,omitempty"`
 	Amend            bool            `json:"amend,omitempty"`
 	Transaction      TransactionType `json:"transaction,omitempty"`
@@ -61,7 +62,6 @@ type SnapOptions struct {
 	ValidationSets   []string        `json:"validation-sets,omitempty"`
 	Time             string          `json:"time,omitempty"`
 	HoldLevel        string          `json:"hold-level,omitempty"`
-	Prefer           bool            `json:"prefer,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }

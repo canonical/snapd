@@ -637,7 +637,7 @@ func (cs *clientSuite) TestClientOpInstallPrefer(c *check.C) {
 
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	jsonBody := make(map[string]interface{})
+	var jsonBody map[string]interface{}
 	err = json.Unmarshal(body, &jsonBody)
 	c.Assert(err, check.IsNil, check.Commentf("body: %v", string(body)))
 	c.Check(jsonBody["prefer"], check.Equals, true, check.Commentf("body: %v", string(body)))

@@ -55,6 +55,12 @@ The install command installs the named snaps on the system.
 To install multiple instances of the same snap, append an underscore and a
 unique identifier (for each instance) to a snap's name.
 
+Parallel instances are installed with --unaliased passed implicitly to avoid
+conflicts with existing installs. This behaviour can be altered by passing
+--prefer which will enable all aliases of the given snap in preference to
+conflicting aliases of other snaps whose automatic aliases will be disabled and
+manual aliases will be removed.
+
 With no further options, the snaps are installed tracking the stable channel,
 with strict security confinement. All available channels of a snap are listed in
 its 'snap info' output.
@@ -1280,7 +1286,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"quota-group": i18n.G("Add the snap to a quota group on install"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"prefer": i18n.G("Enable all aliases of the given snap in preference to conflicting aliases of other snaps whose automatic aliases will be disabled and manual aliases will be removed"),
+			"prefer": i18n.G("Enable all aliases of the given snap in preference to conflicting aliases of other snaps"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
