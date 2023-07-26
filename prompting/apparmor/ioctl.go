@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"syscall"
 	"unsafe"
 
+	"golang.org/x/sys/unix"
 	"golang.org/x/xerrors"
 )
 
-var doSyscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
-	return syscall.Syscall(trap, a1, a2, a3)
+var doSyscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
+	return unix.Syscall(trap, a1, a2, a3)
 }
 
 type hexBuf []byte
@@ -40,7 +40,7 @@ func NotifyIoctl(fd uintptr, req IoctlRequest, msg []byte) (int, error) {
 		log.Printf(">>> ioctl %v (%d bytes) ...\n", req, len(msg))
 		log.Printf("%v\n", hexBuf(msg))
 	}
-	ret, _, errno := doSyscall(syscall.SYS_IOCTL, fd, uintptr(req), uintptr(unsafe.Pointer(&msg[0])))
+	ret, _, errno := doSyscall(unix.SYS_IOCTL, fd, uintptr(req), uintptr(unsafe.Pointer(&msg[0])))
 	if dumpIoctl {
 		log.Printf("<<< ioctl %v returns %d, errno: %v\n", req, int(ret), errno)
 		if int(ret) != -1 && int(ret) < len(msg) {
@@ -48,7 +48,7 @@ func NotifyIoctl(fd uintptr, req IoctlRequest, msg []byte) (int, error) {
 		}
 	}
 	if errno != 0 {
-		return 0, xerrors.Errorf("cannot perform IOCTL request %v: %v", req, syscall.Errno(errno))
+		return 0, xerrors.Errorf("cannot perform IOCTL request %v: %v", req, unix.Errno(errno))
 	}
 	return int(ret), nil
 }
