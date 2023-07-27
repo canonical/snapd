@@ -20,9 +20,17 @@
 package boot
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
+	"strconv"
+
+	"github.com/canonical/go-efilib"
+	"github.com/canonical/go-efilib/linux"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -91,6 +99,134 @@ func MakeBootablePartition(partDir string, opts *bootloader.Options, bootWith *B
 		return fmt.Errorf("internal error: RecoverySystemDir unexpectedly set for MakeBootablePartition")
 	}
 	return configureBootloader(partDir, opts, bootWith, bootMode, bootFlags)
+}
+
+const EfiShimFilePath string = "/EFI/ubuntu/shimx64.efi"
+
+func SetEfiBootVariables() error {
+	defaultVarGUID := efi.GlobalVariable
+	defaultVarAttrs := efi.AttributeNonVolatile | efi.AttributeBootserviceAccess | efi.AttributeRuntimeAccess
+
+	devicePath, err := linux.FilePathToDevicePath(EfiShimFilePath, linux.ShortFormPathHD)
+	if err != nil {
+		return err
+	}
+	loadOption := &efi.LoadOption{
+		Attributes:   efi.LoadOptionActive | efi.LoadOptionCategoryBoot,
+		Description:  "Ubuntu Core",
+		FilePath:     devicePath,
+		OptionalData: make([]byte, 0),
+	}
+	loadOptionSerialized, err := loadOption.Bytes()
+	if err != nil {
+		return err
+	}
+
+	variables, err := efi.ListVariables()
+	if err != nil {
+		return err
+	}
+	bootVarRegexp, err := regexp.Compile("^Boot[0-9A-F]{4}$")
+	if err != nil {
+		// error should never occur
+		return err
+	}
+	type bootVarInfo struct {
+		name  string
+		guid  efi.GUID
+		attrs efi.VariableAttributes
+	}
+	var bootNumber uint16
+	skipWritingBootVar := false
+	bootVarsToDelete := make(map[uint16]*bootVarInfo)
+	usedBootNums := make(map[uint16]bool)
+	for _, varDesc := range variables {
+		varName := varDesc.Name
+		varGUID := varDesc.GUID
+		if !bootVarRegexp.MatchString(varName) {
+			// Not a Boot#### variable, so skip it
+			continue
+		}
+		if varGUID != defaultVarGUID {
+			// Not an EFI global variable, so skip it
+			continue
+		}
+		varNumberUint64, err := strconv.ParseUint(varName[4:], 16, 16)
+		if err != nil {
+			// Should not occur, since variable matched regexp
+			return err
+		}
+		varNumber := uint16(varNumberUint64)
+		// Read the current contents of the variable
+		varData, varAttrs, err := efi.ReadVariable(varName, varGUID)
+		if err != nil {
+			// Should not occur, unless variable changed since ListVariables()
+			return err
+		}
+		if reflect.DeepEqual(varData, loadOptionSerialized) {
+			// Exact match, no need to change the variable
+			bootNumber = varNumber
+			skipWritingBootVar = true
+			continue
+		}
+		// Parse the variable data into a efi.LoadOption so it can be used
+		dataReader := bytes.NewReader(varData)
+		loadOption, err := efi.ReadLoadOption(dataReader)
+		if err != nil {
+			return err
+		}
+		varDevicePathStr := loadOption.FilePath.String()
+		if varDevicePathStr == EfiShimFilePath { // TODO: make sure this checks just path, not device ID as well
+			varInfo := &bootVarInfo{
+				name:  varName,
+				guid:  varGUID,
+				attrs: varAttrs,
+			}
+			bootVarsToDelete[varNumber] = varInfo
+		} else {
+			usedBootNums[varNumber] = true
+		}
+	}
+	for _, varInfo := range bootVarsToDelete {
+		efi.WriteVariable(varInfo.name, varInfo.guid, varInfo.attrs, nil) // delete the variable
+	}
+
+	if !skipWritingBootVar {
+		// Find first unused boot number
+		for bootNumber = 0; bootNumber < 65535; bootNumber += 1 {
+			if usedBootNums[bootNumber] == false {
+				break
+			}
+		}
+		varName := fmt.Sprintf("Boot%04X", bootNumber)
+		err = efi.WriteVariable(varName, defaultVarGUID, defaultVarAttrs, loadOptionSerialized)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Prepare the new BootOrder by reading the existing BootOrder,
+	// inserting bootNumber at the start, and preserving only the previous
+	// BootOrder entries which we did not delete above; the ones we did
+	// not delete can be found in usedBootNums
+	origData, attrs, err := efi.ReadVariable("BootOrder", defaultVarGUID)
+	if err == efi.ErrVarNotExist {
+		attrs = efi.AttributeNonVolatile | efi.AttributeBootserviceAccess | efi.AttributeRuntimeAccess
+	} else if err != nil {
+		return err
+	}
+	bootOrder := make([]byte, len(origData)+2)
+	binary.LittleEndian.PutUint16(bootOrder, bootNumber)
+	i := 2
+	for len(origData) > 1 {
+		next := binary.LittleEndian.Uint16(origData)
+		origData = origData[2:]
+		if next != bootNumber && usedBootNums[next] == true {
+			binary.LittleEndian.PutUint16(bootOrder[i:], next)
+			i += 2
+		}
+	}
+	return efi.WriteVariable("BootOrder", defaultVarGUID, attrs, bootOrder[:i])
 }
 
 // makeBootable16 setups the image filesystem for boot with UC16
