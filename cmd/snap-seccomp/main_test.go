@@ -505,6 +505,10 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl\n~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCLINUX", DenyExplicit},
 		{"ioctl\n~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCGWINSZ", Allow},
 
+		// see CVE-2019-7303
+		{"ioctl\n~ioctl - 4294967295|TIOCSTI", "ioctl;native;-,TIOCSTI", DenyExplicit},
+		{"ioctl\n~ioctl - 4294967295|TIOCLINUX", "ioctl;native;-,TIOCLINUX", DenyExplicit},
+
 		// test_bad_seccomp_filter_args_clone
 		{"setns - CLONE_NEWNET", "setns;native;-,99", Deny},
 		{"setns - CLONE_NEWNET", "setns;native;-,CLONE_NEWNET", Allow},

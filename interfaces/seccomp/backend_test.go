@@ -21,7 +21,6 @@ package seccomp_test
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -32,7 +31,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -111,12 +109,6 @@ func (s *backendSuite) TearDownTest(c *C) {
 func (s *backendSuite) TestInitialize(c *C) {
 	err := s.Backend.Initialize(nil)
 	c.Assert(err, IsNil)
-	fname := filepath.Join(dirs.SnapSeccompDir, "global.bin")
-	if arch.Endian() == binary.BigEndian {
-		c.Check(fname, testutil.FileEquals, seccomp.GlobalProfileBE)
-	} else {
-		c.Check(fname, testutil.FileEquals, seccomp.GlobalProfileLE)
-	}
 }
 
 // Tests for Setup() and Remove()
@@ -1075,8 +1067,7 @@ func (s *backendSuite) TestParallelCompileError(c *C) {
 	c.Assert(err, IsNil)
 	names, err := d.Readdirnames(-1)
 	c.Assert(err, IsNil)
-	// only global profile exists
-	c.Assert(names, DeepEquals, []string{"global.bin"})
+	c.Assert(names, HasLen, 0)
 }
 
 func (s *backendSuite) TestParallelCompileRemovesFirst(c *C) {
