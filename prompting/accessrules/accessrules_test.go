@@ -404,15 +404,41 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 		accessrules.PermissionExecute,
 	}
 
-	// create a rule with the earliest timestamp, which will be totally overwritten when attempting to add later
+	// Create two rules with bad timestamps
+	badTsRule1, err := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions[:1])
+	c.Assert(err, IsNil)
+	badTsRule1.Timestamp = "bar"
+	badTsRule2, err := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions[:1])
+	c.Assert(err, IsNil)
+	badTsRule2.Timestamp = "baz"
+	ardb.ById[badTsRule1.Id] = badTsRule1
+	ardb.ById[badTsRule2.Id] = badTsRule2
+
+	// The former should be overwritten by RefreshTreeEnforceConsistency
+	ardb.RefreshTreeEnforceConsistency()
+	c.Assert(ardb.ById, HasLen, 1, Commentf("ardb.ById: %+v", ardb.ById))
+	_, exists := ardb.ById[badTsRule2.Id]
+	c.Assert(exists, Equals, true)
+	// The latter should be overwritten by any conflicting rule which has a valid timestamp
+
+	// Create a rule with the earliest timestamp, which will be totally overwritten when attempting to add later
 	earliestRule, err := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
-	initialRule, err := ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+	// Create and add a rule which will overwrite the rule with bad timestamp
+	initialRule, err := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
-	c.Assert(initialRule.Permissions, HasLen, len(permissions))
+	ardb.ById[initialRule.Id] = initialRule
+	ardb.RefreshTreeEnforceConsistency()
 
-	// overwrite all but the first permission
+	// Check that rule with bad timestamp was overwritten
+	c.Assert(initialRule.Permissions, HasLen, len(permissions))
+	c.Assert(ardb.ById, HasLen, 1, Commentf("ardb.ById: %+v", ardb.ById))
+	initialRuleRet, exists := ardb.ById[initialRule.Id]
+	c.Assert(exists, Equals, true)
+	c.Assert(initialRuleRet.Permissions, DeepEquals, permissions)
+
+	// Create newer rule which will overwrite all but the first permission of initialRule
 	newRulePermissions := permissions[1:]
 	newRule, err := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, newRulePermissions)
 	c.Assert(err, IsNil)
@@ -423,10 +449,10 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 
 	c.Assert(ardb.ById, HasLen, 2, Commentf("ardb.ById: %+v", ardb.ById))
 
-	_, exists := ardb.ById[earliestRule.Id]
+	_, exists = ardb.ById[earliestRule.Id]
 	c.Assert(exists, Equals, false)
 
-	initialRuleRet, exists := ardb.ById[initialRule.Id]
+	initialRuleRet, exists = ardb.ById[initialRule.Id]
 	c.Assert(exists, Equals, true)
 	c.Assert(initialRuleRet.Permissions, DeepEquals, permissions[:1])
 
