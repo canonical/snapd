@@ -567,6 +567,41 @@ func snippetFromLayout(layout *snap.Layout) string {
 	return fmt.Sprintf("# Layout path: %s\n# (no extra permissions required for symlink)", mountPoint)
 }
 
+// emitEnsureDir creates an apparmor snippet that permits snap-update-ns to create
+// missing directories according to the provided ensure directory spec.
+func emitEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *interfaces.EnsureDirSpec) {
+	emit := spec.AddUpdateNSf
+	emit("  # Allow the %s interface to create potentially missing directories from after %s to %s", ifaceName, ensureDirSpec.MustExistDir, ensureDirSpec.EnsureDir)
+
+	allowPath := ensureDirSpec.MustExistDir
+	if strings.Contains(ensureDirSpec.MustExistDir, "$HOME") {
+		emit("  @{HOMEDIRS}/ r,")
+		allowPath = strings.Replace(ensureDirSpec.MustExistDir, "$HOME", "@{HOME}", -1)
+	}
+
+	emit("  %s/ rw,", allowPath)
+	ensureDirRel := strings.TrimPrefix(ensureDirSpec.EnsureDir, ensureDirSpec.MustExistDir)
+	pathElements := strings.Split(ensureDirRel, string(filepath.Separator))
+	for _, pathElement := range pathElements {
+		allowPath = filepath.Join(allowPath, pathElement)
+		emit("  %s/ rw,", allowPath)
+	}
+	emit("\n")
+}
+
+// AllowEnsureDirMounts adds snap-update-ns snippets that permit snap-update-ns to create
+// missing directories according to the provided ensure directory mount specs.
+func (spec *Specification) AllowEnsureDirMounts(ifaceName string, ensureDirSpecs []*interfaces.EnsureDirSpec) {
+	// Walk the path specs in deterministic order, by EnsureDir (the mount point).
+	sort.Slice(ensureDirSpecs, func(i, j int) bool {
+		return ensureDirSpecs[i].EnsureDir < ensureDirSpecs[j].EnsureDir
+	})
+
+	for _, ensureDirSpec := range ensureDirSpecs {
+		emitEnsureDir(spec, ifaceName, ensureDirSpec)
+	}
+}
+
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records apparmor-specific side-effects of having a connected plug.

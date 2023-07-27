@@ -27,6 +27,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 var opts struct {
@@ -89,7 +90,11 @@ func run() error {
 
 	var upCtx MountProfileUpdateContext
 	if opts.UserMounts {
-		upCtx = NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid())
+		userUpCtx, err := NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, sys.UserID(os.Getuid()), sys.GroupID(os.Getgid()))
+		if err != nil {
+			return fmt.Errorf("cannot create user profile update context: %v", err)
+		}
+		upCtx = userUpCtx
 	} else {
 		upCtx = NewSystemProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine)
 	}

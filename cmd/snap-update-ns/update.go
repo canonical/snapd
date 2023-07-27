@@ -22,6 +22,7 @@ package main
 import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 // MountProfileUpdateContext provides the context of a mount namespace update.
@@ -39,6 +40,10 @@ type MountProfileUpdateContext interface {
 	LoadCurrentProfile() (*osutil.MountProfile, error)
 	// SaveCurrentProfile saves the mount profile that is currently applied.
 	SaveCurrentProfile(*osutil.MountProfile) error
+	// UID returns the user ID of relevant user
+	UID() sys.UserID
+	// GID returns the group ID of relevant user
+	GID() sys.GroupID
 }
 
 func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
@@ -71,7 +76,7 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 
 	var changesMade []*Change
 	for _, change := range changesNeeded {
-		synthesised, err := change.Perform(as)
+		synthesised, err := change.Perform(upCtx)
 		changesMade = append(changesMade, synthesised...)
 		if err != nil {
 			// We may have done something even if Perform itself has

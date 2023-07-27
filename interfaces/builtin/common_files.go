@@ -153,6 +153,7 @@ func (iface *commonFilesInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 	_ = plug.Attr("read", &reads)
 	_ = plug.Attr("write", &writes)
 
+	// Snippet for app
 	errPrefix := fmt.Sprintf(`cannot connect plug %s: `, plug.Name())
 	buf := bytes.NewBufferString(iface.apparmorHeader)
 	if err := allowPathAccess(buf, filesRead, reads); err != nil {

@@ -585,10 +585,10 @@ type FatalError struct {
 // In the event of a failure the undo plan is executed and an error is
 // returned. If the undo plan fails the function returns a FatalError as it
 // cannot fix the system from an inconsistent state.
-func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
+func execWritableMimic(plan []*Change, upCtx MountProfileUpdateContext) ([]*Change, error) {
 	undoChanges := make([]*Change, 0, len(plan)-2)
 	for i, change := range plan {
-		if _, err := change.Perform(as); err != nil {
+		if _, err := change.Perform(upCtx); err != nil {
 			// Drat, we failed! Let's undo everything according to our own undo
 			// plan, by following it in reverse order.
 
@@ -611,7 +611,7 @@ func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
 				if recoveryUndoChange.Entry.OptBool("rbind") {
 					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, osutil.XSnapdDetach())
 				}
-				if _, err2 := recoveryUndoChange.Perform(as); err2 != nil {
+				if _, err2 := recoveryUndoChange.Perform(upCtx); err2 != nil {
 					// Drat, we failed when trying to recover from an error.
 					// We cannot do anything at this stage.
 					return nil, &FatalError{error: fmt.Errorf("cannot undo change %q while recovering from earlier error %v: %v", recoveryUndoChange, err, err2)}
@@ -659,12 +659,12 @@ func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
 	return undoChanges, nil
 }
 
-func createWritableMimic(dir, neededBy string, as *Assumptions) ([]*Change, error) {
+func createWritableMimic(dir, neededBy string, upCtx MountProfileUpdateContext) ([]*Change, error) {
 	plan, err := planWritableMimic(dir, neededBy)
 	if err != nil {
 		return nil, err
 	}
-	changes, err := execWritableMimic(plan, as)
+	changes, err := execWritableMimic(plan, upCtx)
 	if err != nil {
 		return nil, err
 	}

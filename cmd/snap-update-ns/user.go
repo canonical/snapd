@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 // UserProfileUpdateContext contains information about update to per-user mount namespace.
@@ -32,11 +33,22 @@ type UserProfileUpdateContext struct {
 	// uid is the numeric user identifier associated with the user for which
 	// the update operation is occurring. It may be the current UID but doesn't
 	// need to be.
-	uid int
+	uid sys.UserID
+	// gid is the numeric user identifier associated with the user group for which
+	// the update operation is occurring. It may be the current GID but doesn't
+	// need to be.
+	gid sys.GroupID
+	// home contains the user's real home directory
+	home string
 }
 
 // NewUserProfileUpdateContext returns encapsulated information for performing a per-user mount namespace update.
-func NewUserProfileUpdateContext(instanceName string, fromSnapConfine bool, uid int) *UserProfileUpdateContext {
+func NewUserProfileUpdateContext(instanceName string, fromSnapConfine bool, uid sys.UserID, gid sys.GroupID) (*UserProfileUpdateContext, error) {
+	realHome, err := snapEnvRealHome(uid)
+	if err != nil {
+		return nil, fmt.Errorf("cannot retrieve home directory: %v", err)
+	}
+
 	return &UserProfileUpdateContext{
 		CommonProfileUpdateContext: CommonProfileUpdateContext{
 			instanceName:       instanceName,
@@ -44,13 +56,28 @@ func NewUserProfileUpdateContext(instanceName string, fromSnapConfine bool, uid 
 			currentProfilePath: currentUserProfilePath(instanceName, uid),
 			desiredProfilePath: desiredUserProfilePath(instanceName),
 		},
-		uid: uid,
+		uid:  uid,
+		gid:  gid,
+		home: realHome,
+	}, nil
+}
+
+// UserProfileUpdateContext returns the underlying user profile update context if available
+func GetUserProfileUpdateContext(upCtx MountProfileUpdateContext) *UserProfileUpdateContext {
+	if userUpCtx, ok := upCtx.(*UserProfileUpdateContext); ok {
+		return userUpCtx
 	}
+	return nil
 }
 
 // UID returns the user ID of the mount namespace being updated.
-func (upCtx *UserProfileUpdateContext) UID() int {
+func (upCtx *UserProfileUpdateContext) UID() sys.UserID {
 	return upCtx.uid
+}
+
+// GID returns the group ID of the mount namespace being updated.
+func (upCtx *UserProfileUpdateContext) GID() sys.GroupID {
+	return upCtx.gid
 }
 
 // Lock acquires locks / freezes needed to synchronize mount namespace changes.
@@ -77,10 +104,9 @@ func (upCtx *UserProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfil
 	if err != nil {
 		return nil, err
 	}
-	// TODO: when SNAP_USER_DATA, SNAP_USER_COMMON or other variables relating
-	// to the user name and their home directory need to be expanded then
-	// handle them here.
+
 	expandXdgRuntimeDir(profile, upCtx.uid)
+	expandHomeDir(profile, upCtx.home)
 	return profile, nil
 }
 
@@ -108,6 +134,6 @@ func desiredUserProfilePath(snapName string) string {
 }
 
 // currentUserProfilePath returns the path of the fstab-like file with the applied, user-specific mount profile for a snap.
-func currentUserProfilePath(snapName string, uid int) string {
+func currentUserProfilePath(snapName string, uid sys.UserID) string {
 	return fmt.Sprintf("%s/snap.%s.%d.user-fstab", dirs.SnapRunNsDir, snapName, uid)
 }

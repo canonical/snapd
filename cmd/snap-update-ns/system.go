@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -34,12 +35,24 @@ type SystemProfileUpdateContext struct {
 
 // NewSystemProfileUpdateContext returns encapsulated information for performing a per-user mount namespace update.
 func NewSystemProfileUpdateContext(instanceName string, fromSnapConfine bool) *SystemProfileUpdateContext {
-	return &SystemProfileUpdateContext{CommonProfileUpdateContext: CommonProfileUpdateContext{
-		instanceName:       instanceName,
-		fromSnapConfine:    fromSnapConfine,
-		currentProfilePath: currentSystemProfilePath(instanceName),
-		desiredProfilePath: desiredSystemProfilePath(instanceName),
-	}}
+	return &SystemProfileUpdateContext{
+		CommonProfileUpdateContext: CommonProfileUpdateContext{
+			instanceName:       instanceName,
+			fromSnapConfine:    fromSnapConfine,
+			currentProfilePath: currentSystemProfilePath(instanceName),
+			desiredProfilePath: desiredSystemProfilePath(instanceName),
+		},
+	}
+}
+
+// UID returns the user ID of the system user
+func (upCtx *SystemProfileUpdateContext) UID() sys.UserID {
+	return 0
+}
+
+// GID returns the group ID of the system user
+func (upCtx *SystemProfileUpdateContext) GID() sys.GroupID {
+	return 0
 }
 
 // Assumptions returns information about file system mutability rules.

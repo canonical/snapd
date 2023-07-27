@@ -132,6 +132,20 @@ func (e *MountEntry) OptStr(name string) (string, bool) {
 	return "", false
 }
 
+// OptStrMod modifies and existing key=value mount option while
+// preserving the option order.
+func (e *MountEntry) OptStrMod(name string, value string) {
+	prefix := name + "="
+	option := prefix + value
+	for i, opt := range e.Options {
+		if strings.HasPrefix(opt, prefix) {
+			e.Options[i] = option
+			return
+		}
+	}
+	return
+}
+
 // OptBool returns true if a given mount option is present.
 func (e *MountEntry) OptBool(name string) bool {
 	for _, opt := range e.Options {
@@ -164,7 +178,7 @@ func (e *MountEntry) XSnapdMode() (os.FileMode, error) {
 	return 0755, nil
 }
 
-// XSnapdUID returns the user associated with x-snapd-user mount option.  If
+// XSnapdUID returns the user associated with x-snapd-user mount option. If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
 func (e *MountEntry) XSnapdUID() (uid uint64, err error) {
@@ -181,7 +195,7 @@ func (e *MountEntry) XSnapdUID() (uid uint64, err error) {
 	return 0, nil
 }
 
-// XSnapdGID returns the user associated with x-snapd-user mount option.  If
+// XSnapdGID returns the user associated with x-snapd-user mount option. If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
 func (e *MountEntry) XSnapdGID() (gid uint64, err error) {
@@ -198,7 +212,7 @@ func (e *MountEntry) XSnapdGID() (gid uint64, err error) {
 	return 0, nil
 }
 
-// XSnapdEntryID returns the identifier of a given mount enrty.
+// XSnapdEntryID returns the identifier of a given mount entry.
 //
 // Identifiers are kept in the x-snapd.id mount option. The value is a string
 // that identifies a mount entry and is stable across invocations of snapd. In
@@ -241,11 +255,15 @@ func (e *MountEntry) XSnapdSynthetic() bool {
 
 // XSnapdKind returns the kind of a given mount entry.
 //
-// There are three kinds of mount entries today: one for directories, one for
-// files and one for symlinks. The values are "", "file" and "symlink" respectively.
+// There are four kinds of mount entries today: one for directories, one for
+// files, one for symlinks and one for ensuring directories exist. The values are
+// "", "file", "symlink" and "ensure-dir respectively.
 //
 // Directories use the empty string (in fact they don't need the option at
 // all) as this was the default and is retained for backwards compatibility.
+//
+// An "ensure-dir" mount does not result in actual mounting. It creates all the
+// missing parent directories of a target directory.
 func (e *MountEntry) XSnapdKind() string {
 	val, _ := e.OptStr("x-snapd.kind")
 	return val
@@ -280,6 +298,19 @@ func (e *MountEntry) XSnapdIgnoreMissing() bool {
 	return e.OptBool("x-snapd.ignore-missing")
 }
 
+// XSnapdMustExistDir returns the path that must exist as prequisite
+// to a mount operation.
+func (e *MountEntry) XSnapdMustExistDir() string {
+	val, _ := e.OptStr("x-snapd.must-exist-dir")
+	return val
+}
+
+// XSnapdMustExistDirMod modifies the path that must exist as prequisite
+// to a mount operation, if the options exists.
+func (e *MountEntry) XSnapdMustExistDirMod(path string) {
+	e.OptStrMod("x-snapd.must-exist-dir", path)
+}
+
 // XSnapdNeededBy returns the string "x-snapd.needed-by=..." with the given path appended.
 func XSnapdNeededBy(path string) string {
 	return fmt.Sprintf("x-snapd.needed-by=%s", path)
@@ -305,9 +336,19 @@ func XSnapdKindFile() string {
 	return "x-snapd.kind=file"
 }
 
+// XSnapdKindEnsureDir returns the string "x-snapd.kind="ensure-dir".
+func XSnapdKindEnsureDir() string {
+	return "x-snapd.kind=ensure-dir"
+}
+
 // XSnapdOriginLayout returns the string "x-snapd.origin=layout"
 func XSnapdOriginLayout() string {
 	return "x-snapd.origin=layout"
+}
+
+// XSnapdOriginEnsureDir returns the string "x-snapd.origin=ensure-dir".
+func XSnapdOriginEnsureDir() string {
+	return "x-snapd.origin=ensure-dir"
 }
 
 // XSnapdOriginOvername returns the string "x-snapd.origin=overname"
@@ -333,6 +374,11 @@ func XSnapdMode(mode uint32) string {
 // XSnapdSymlink returns the string "x-snapd.symlink=%s".
 func XSnapdSymlink(oldname string) string {
 	return fmt.Sprintf("x-snapd.symlink=%s", oldname)
+}
+
+// XSnapdMustExistDir returns the string "x-snapd.must-exist-dir=%s".
+func XSnapdMustExistDir(path string) string {
+	return fmt.Sprintf("x-snapd.must-exist-dir=%s", path)
 }
 
 // XSnapdIgnoreMissing returns the string "x-snapd.ignore-missing".
