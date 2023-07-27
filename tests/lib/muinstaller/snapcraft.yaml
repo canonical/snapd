@@ -9,7 +9,7 @@ base: core22
 
 apps:
   auto:
-    command: bin/muinstaller classic $SNAP/bin/mk-classic-rootfs.sh auto
+    command: bin/muinstaller classic auto $SNAP/bin/mk-classic-rootfs.sh
   muinstaller:
     command: bin/muinstaller
 
