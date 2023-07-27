@@ -538,11 +538,7 @@ int main(int argc, char **argv)
 	}
 	// Now that we've dropped and regained SYS_ADMIN, we can load the
 	// seccomp profiles.
-	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
-		// If the process is not explicitly unconfined then load the
-		// global profile as well.
-		sc_apply_global_seccomp_profile();
-	}
+	sc_apply_seccomp_profile_for_security_tag(invocation.security_tag);
 	// Even though we set inheritable to 0, let's clear SYS_ADMIN
 	// explicitly
 	if (keep_sys_admin) {
