@@ -34,6 +34,7 @@ package seccomp
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -120,7 +121,7 @@ func (b *Backend) Initialize(*interfaces.SecurityBackendOptions) error {
 	dir := dirs.SnapSeccompDir
 	fname := "global.bin"
 	var globalProfile []byte
-	if isBigEndian() {
+	if arch.Endian() == binary.BigEndian {
 		globalProfile = globalProfileBE
 	} else {
 		globalProfile = globalProfileLE
