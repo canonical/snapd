@@ -356,32 +356,28 @@ func ValidateOutcome(outcome OutcomeType) error {
 
 // ValidateLifespanParseDuration checks that the given lifespan is valid and
 // that the given duration is valid for that lifespan.  If the lifespan is
-// LifespanTimespan, the duration must be parsable via time.ParseDuration and
-// yield a positive duration. Otherwise, it must be the empty string.
-// Returns an error if any of the above are invalid, otherwise computes the
+// LifespanTimespan, then duration must be a positive integer representing the
+// number of seconds for which the rule should be valid. Otherwise, it must be
+// 0. Returns an error if any of the above are invalid, otherwise computes the
 // expiration time of the rule based on the current time and the given duration
 // and returns it.
-func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (string, error) {
+func ValidateLifespanParseDuration(lifespan LifespanType, duration int) (string, error) {
 	expirationString := ""
 	switch lifespan {
 	case LifespanForever, LifespanSession, LifespanSingle:
-		if duration != "" {
+		if duration != 0 {
 			return "", ErrInvalidDuration
 		}
 	case LifespanTimespan:
-		parsedDuration, err := time.ParseDuration(duration)
-		if err != nil {
-			return "", fmt.Errorf("%w: %w", ErrInvalidDuration, err)
-		}
-		if parsedDuration <= time.Duration(0) {
+		if duration <= 0 {
 			return "", ErrInvalidDuration
 		}
-		expirationString = time.Now().Add(parsedDuration).Format(time.RFC3339)
+		expirationString = time.Now().Add(time.Duration(duration) * time.Second).Format(time.RFC3339)
 	}
 	return expirationString, nil
 }
 
-func validatePatternOutcomeLifespanDuration(pathPattern string, outcome OutcomeType, lifespan LifespanType, duration string) (string, error) {
+func validatePatternOutcomeLifespanDuration(pathPattern string, outcome OutcomeType, lifespan LifespanType, duration int) (string, error) {
 	if err := ValidatePathPattern(pathPattern); err != nil {
 		return "", err
 	}
@@ -394,7 +390,7 @@ func validatePatternOutcomeLifespanDuration(pathPattern string, outcome OutcomeT
 // TODO: unexport (probably, avoid confusion with CreateAccessRule)
 // Users of accessrules should probably autofill AccessRules from JSON and
 // never call this function directly.
-func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration string, permissions []PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration int, permissions []PermissionType) (*AccessRule, error) {
 	expiration, err := validatePatternOutcomeLifespanDuration(pathPattern, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
@@ -558,7 +554,7 @@ func (ardb *AccessRuleDB) RuleWithID(user uint32, id string) (*AccessRule, error
 	return ardb.ruleWithIDInternal(user, id)
 }
 
-func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration string, permissions []PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration int, permissions []PermissionType) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	newRule, err := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
@@ -587,7 +583,7 @@ func (ardb *AccessRuleDB) DeleteAccessRule(user uint32, id string) (*AccessRule,
 	return rule, err
 }
 
-func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration string, permissions []PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration int, permissions []PermissionType) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	origRule, err := ardb.ruleWithIDInternal(user, id)
