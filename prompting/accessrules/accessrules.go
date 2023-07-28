@@ -196,9 +196,11 @@ func (ardb *AccessRuleDB) removeRulePermissionFromTree(rule *AccessRule, permiss
 	pathPattern := rule.PathPattern
 	id, exists := permPaths.PathRules[pathPattern]
 	if !exists {
+		// Database was left inconsistent, should not occur
 		return ErrPathPatternMissingFromTree
 	}
 	if id != rule.Id {
+		// Database was left inconsistent, should not occur
 		return ErrRuleIdMismatch
 	}
 	delete(permPaths.PathRules, pathPattern)
@@ -223,11 +225,12 @@ func (ardb *AccessRuleDB) addRuleToTree(rule *AccessRule) (error, string, Permis
 }
 
 func (ardb *AccessRuleDB) removeRuleFromTree(rule *AccessRule) error {
-	// fully removes the rule from the tree, even if an error occurs
+	// Fully removes the rule from the tree, even if an error occurs
 	var err error
 	for _, permission := range rule.Permissions {
 		if e := ardb.removeRulePermissionFromTree(rule, permission); e != nil {
-			// store the most recent non-nil error, but keep removing
+			// Database was left inconsistent, should not occur.
+			// Store the most recent non-nil error, but keep removing.
 			err = e
 		}
 	}
@@ -235,7 +238,7 @@ func (ardb *AccessRuleDB) removeRuleFromTree(rule *AccessRule) error {
 }
 
 func getNewerRule(id1 string, ts1 string, id2 string, ts2 string) string {
-	// returns the id with the newest timestamp. If the timestamp for one id
+	// Returns the id with the newest timestamp. If the timestamp for one id
 	// cannot be parsed, return the other id. If both cannot be parsed, return
 	// the id corresponding to the timestamp which is larger lexicographically.
 	// If there is a tie, return id1.
@@ -258,13 +261,14 @@ func getNewerRule(id1 string, ts1 string, id2 string, ts2 string) string {
 
 // TODO: unexport (probably)
 func (ardb *AccessRuleDB) RefreshTreeEnforceConsistency() {
+	needToSave := false
 	newById := make(map[string]*AccessRule)
 	ardb.PerUser = make(map[uint32]*userDB)
 	for id, rule := range ardb.ById {
 		err, conflictingId, conflictingPermission := ardb.addRuleToTree(rule)
 		for err != nil {
-			// err must be ErrPathPatternConflict
-			// prioritize newer rules by pruning permission from old rule until no conflicts remain
+			// Err must be ErrPathPatternConflict.
+			// Prioritize newer rules by pruning permission from old rule until no conflicts remain.
 			conflictingRule := ardb.ById[conflictingId] // must exist
 			if getNewerRule(id, rule.Timestamp, conflictingId, conflictingRule.Timestamp) == id {
 				ardb.removeRulePermissionFromTree(conflictingRule, conflictingPermission) // must return nil
@@ -275,12 +279,18 @@ func (ardb *AccessRuleDB) RefreshTreeEnforceConsistency() {
 				rule.removePermissionFromPermissionsList(conflictingPermission) // ignore error
 			}
 			err, conflictingId, conflictingPermission = ardb.addRuleToTree(rule)
+			needToSave = true
 		}
 		if len(rule.Permissions) > 0 {
 			newById[id] = rule
+		} else {
+			needToSave = true
 		}
 	}
 	ardb.ById = newById
+	if needToSave {
+		ardb.save()
+	}
 }
 
 func (ardb *AccessRuleDB) load() error {
@@ -409,13 +419,13 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 	if len(patterns) == 0 {
 		return "", ErrNoPatterns
 	}
-	// first find rules with extensions, if any exist -- these are most specific
+	// First find rules with extensions, if any exist -- these are most specific
 	// longer file extensions are more specific than longer paths, so
 	// /foo/bar/**/*.tar.gz is more specific than /foo/bar/baz/**/*.gz
 	extensions := make(map[string][]string)
 	for _, pattern := range patterns {
 		if strings.Index(pattern, "*") == -1 {
-			// exact match, has highest precedence
+			// Exact match, has highest precedence
 			return pattern, nil
 		}
 		segments := strings.Split(pattern, "/")
@@ -433,8 +443,9 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 			patterns = extPatterns
 		}
 	}
-	// either patterns all have same extension, or patterns have no extension (but possibly trailing /* or /**)
-	// prioritize longest patterns (excluding /** or /*)
+	// Either patterns all have same extension, or patterns have no extension
+	// (but possibly trailing /* or /**).
+	// Prioritize longest patterns (excluding /** or /*).
 	longestCleanedLength := 0
 	longestCleanedPatterns := make([]string, 0)
 	for _, pattern := range patterns {
@@ -450,7 +461,7 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 		}
 		longestCleanedPatterns = append(longestCleanedPatterns, pattern)
 	}
-	// longestCleanedPatterns is all the most-specific patterns that match
+	// longestCleanedPatterns is all the most-specific patterns that match.
 	// Now, want to prioritize .../foo over .../foo/* over .../foo/**, so take shortest of these
 	shortestPattern := longestCleanedPatterns[0]
 	for _, pattern := range longestCleanedPatterns {
@@ -462,23 +473,25 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 }
 
 func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, path string, permission PermissionType) (bool, error) {
+	needToSave := false
 	pathMap := ardb.permissionDBForUserSnapAppPermission(user, snap, app, permission).PathRules
 	matchingPatterns := make([]string, 0)
 	currTime := time.Now()
 	for pathPattern, id := range pathMap {
 		matchingRule, exists := ardb.ById[id]
 		if !exists {
-			// database was left inconsistent, should not occur
+			// Database was left inconsistent, should not occur
 			delete(pathMap, id)
 			continue
 		}
 		if matchingRule.Lifespan == LifespanTimespan {
 			expiration, err := time.Parse(time.RFC3339, matchingRule.Expiration)
 			if err != nil {
-				// expiration is malformed, should not occur
+				// Expiration is malformed, should not occur
 				return false, err
 			}
 			if currTime.After(expiration) {
+				needToSave = true
 				ardb.removeRuleFromTree(matchingRule)
 				delete(ardb.ById, id)
 				continue
@@ -486,7 +499,7 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 		}
 		matched, err := doublestar.Match(pathPattern, path)
 		if err != nil {
-			// only possible error is ErrBadPattern, which should not occur
+			// Only possible error is ErrBadPattern, which should not occur
 			return false, err
 		}
 		if matched {
@@ -503,12 +516,16 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 	matchingId := pathMap[highestPrecedencePattern]
 	matchingRule, exists := ardb.ById[matchingId]
 	if !exists {
-		// database was left inconsistent, should not occur
+		// Database was left inconsistent, should not occur
 		return false, ErrRuleIdNotFound
 	}
 	if matchingRule.Lifespan == LifespanSingle {
 		ardb.removeRuleFromTree(matchingRule)
 		delete(ardb.ById, matchingId)
+		needToSave = true
+	}
+	if needToSave {
+		ardb.save()
 	}
 	switch matchingRule.Outcome {
 	case "allow":
@@ -537,10 +554,10 @@ func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string,
 		return nil, err
 	}
 	if err, conflictingId, conflictingPermission := ardb.addRuleToTree(newRule); err != nil {
-		// TODO: could return the conflicting rule ID and permission
 		return nil, fmt.Errorf("%s: ID: '%s', Permission: '%s'", err, conflictingId, conflictingPermission)
 	}
 	ardb.ById[newRule.Id] = newRule
+	ardb.save()
 	return newRule, nil
 }
 
@@ -550,8 +567,9 @@ func (ardb *AccessRuleDB) DeleteAccessRule(user uint32, id string) (*AccessRule,
 		return nil, err
 	}
 	err = ardb.removeRuleFromTree(rule)
-	// if error occurs, rule was still fully removed from tree
+	// If error occurs, rule was still fully removed from tree
 	delete(ardb.ById, id)
+	ardb.save()
 	return rule, err
 }
 
@@ -570,12 +588,12 @@ func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern s
 		lifespan = origRule.Lifespan
 	}
 	if permissions == nil || len(permissions) == 0 {
-		// treat empty permissions list as leave permissions unchanged
-		// since go has little distinction between nil and empty list
+		// Treat empty permissions list as leave permissions unchanged
+		// since go has little distinction between nil and empty list.
 		permissions = origRule.Permissions
 	}
 	if err = ardb.removeRuleFromTree(origRule); err != nil {
-		// if error occurs, rule is fully removed from tree
+		// If error occurs, rule is fully removed from tree
 		return nil, err
 	}
 	newRule, err := ardb.PopulateNewAccessRule(user, origRule.Snap, origRule.App, pathPattern, outcome, lifespan, duration, permissions)
@@ -592,6 +610,7 @@ func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern s
 		return nil, fmt.Errorf("%s: ID: '%s', Permission: '%s'", err, conflictingId, conflictingPermission)
 	}
 	ardb.ById[newRule.Id] = newRule
+	ardb.save()
 	return newRule, nil
 }
 

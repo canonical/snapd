@@ -2,6 +2,7 @@ package accessrules_test
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -260,7 +261,7 @@ func (s *accessruleSuite) TestGetHighestPrecedencePattern(c *C) {
 	}
 }
 
-func (s *accessruleSuite) TestCreateAccessRuleSimple(c *C) {
+func (s *accessruleSuite) TestCreateDeleteAccessRuleSimple(c *C) {
 	ardb, _ := accessrules.New()
 
 	var user uint32 = 1000
@@ -307,6 +308,137 @@ func (s *accessruleSuite) TestCreateAccessRuleSimple(c *C) {
 		c.Assert(exists, Equals, true)
 		c.Assert(pathId, Equals, accessRule.Id)
 	}
+
+	deletedRule, err := ardb.DeleteAccessRule(user, accessRule.Id)
+	c.Assert(err, IsNil)
+	c.Assert(deletedRule, DeepEquals, accessRule)
+
+	c.Assert(ardb.ById, HasLen, 0)
+	c.Assert(ardb.PerUser, HasLen, 1)
+
+	userEntry, exists = ardb.PerUser[user]
+	c.Assert(exists, Equals, true)
+	c.Assert(userEntry.PerSnap, HasLen, 1)
+
+	snapEntry, exists = userEntry.PerSnap[snap]
+	c.Assert(exists, Equals, true)
+	c.Assert(snapEntry.PerApp, HasLen, 1)
+
+	appEntry, exists = snapEntry.PerApp[app]
+	c.Assert(exists, Equals, true)
+	c.Assert(appEntry.PerPermission, HasLen, 3)
+
+	for _, permission := range permissions {
+		permissionEntry, exists := appEntry.PerPermission[permission]
+		c.Assert(exists, Equals, true)
+		c.Assert(permissionEntry.PathRules, HasLen, 0)
+	}
+}
+
+func (s *accessruleSuite) TestCreateAccessRuleUnhappy(c *C) {
+	ardb, _ := accessrules.New()
+
+	var user uint32 = 1000
+	snap := "lxd"
+	app := "lxc"
+	pathPattern := "/home/test/Documents/**"
+	outcome := accessrules.OutcomeAllow
+	lifespan := accessrules.LifespanForever
+	duration := ""
+	permissions := []accessrules.PermissionType{
+		accessrules.PermissionRead,
+		accessrules.PermissionWrite,
+		accessrules.PermissionExecute,
+	}
+
+	storedRule, err := ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+	c.Assert(err, IsNil)
+
+	conflictingPermissions := permissions[:1]
+	_, err = ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, conflictingPermissions)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", accessrules.ErrPathPatternConflict, storedRule.Id, conflictingPermissions[0]))
+
+	badPattern := "bad/pattern"
+	_, err = ardb.CreateAccessRule(user, snap, app, badPattern, outcome, lifespan, duration, permissions)
+	c.Assert(err, Equals, accessrules.ErrInvalidPathPattern)
+
+	badOutcome := accessrules.OutcomeType("secret third thing")
+	_, err = ardb.CreateAccessRule(user, snap, app, pathPattern, badOutcome, lifespan, duration, permissions)
+	c.Assert(err, Equals, accessrules.ErrInvalidOutcome)
+}
+
+func (s *accessruleSuite) TestModifyAccessRule(c *C) {
+	ardb, _ := accessrules.New()
+
+	var user uint32 = 1000
+	snap := "lxd"
+	app := "lxc"
+	pathPattern := "/home/test/Documents/**"
+	outcome := accessrules.OutcomeAllow
+	lifespan := accessrules.LifespanForever
+	duration := ""
+	permissions := []accessrules.PermissionType{
+		accessrules.PermissionRead,
+		accessrules.PermissionWrite,
+		accessrules.PermissionExecute,
+	}
+
+	storedRule, err := ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+	c.Assert(err, IsNil)
+	c.Assert(ardb.ById, HasLen, 1)
+
+	conflictingPermission := accessrules.PermissionRename
+
+	otherPathPattern := "/home/test/Pictures/**/*.png"
+	otherPermissions := []accessrules.PermissionType{
+		conflictingPermission,
+	}
+	otherRule, err := ardb.CreateAccessRule(user, snap, app, otherPathPattern, outcome, lifespan, duration, otherPermissions)
+	c.Assert(err, IsNil)
+	c.Assert(ardb.ById, HasLen, 2)
+
+	unchangedRule1, err := ardb.ModifyAccessRule(user, storedRule.Id, pathPattern, outcome, lifespan, duration, permissions)
+	c.Assert(err, IsNil)
+	// Timestamp should be different, the rest should be the same
+	unchangedRule1.Timestamp = storedRule.Timestamp
+	c.Assert(unchangedRule1, DeepEquals, storedRule)
+	c.Assert(ardb.ById, HasLen, 2)
+
+	unchangedRule2, err := ardb.ModifyAccessRule(user, storedRule.Id, "", accessrules.OutcomeUnset, accessrules.LifespanUnset, "", nil)
+	c.Assert(err, IsNil)
+	// Timestamp should be different, the rest should be the same
+	unchangedRule2.Timestamp = storedRule.Timestamp
+	c.Assert(unchangedRule2, DeepEquals, storedRule)
+	c.Assert(ardb.ById, HasLen, 2)
+
+	newPathPattern := otherPathPattern
+	newOutcome := accessrules.OutcomeDeny
+	newLifespan := accessrules.LifespanTimespan
+	newDuration := "1s"
+	newPermissions := []accessrules.PermissionType{accessrules.PermissionAppend}
+	modifiedRule, err := ardb.ModifyAccessRule(user, storedRule.Id, newPathPattern, newOutcome, newLifespan, newDuration, newPermissions)
+	c.Assert(err, IsNil)
+	c.Assert(ardb.ById, HasLen, 2)
+
+	badPathPattern := "bad/pattern"
+	output, err := ardb.ModifyAccessRule(user, storedRule.Id, badPathPattern, outcome, lifespan, duration, permissions)
+	c.Assert(err, Equals, accessrules.ErrInvalidPathPattern)
+	c.Assert(output, IsNil)
+	c.Assert(ardb.ById, HasLen, 2)
+
+	currentRule, exists := ardb.ById[storedRule.Id]
+	c.Assert(exists, Equals, true)
+	c.Assert(currentRule, DeepEquals, modifiedRule)
+
+	conflictingPermissions := append(newPermissions, conflictingPermission)
+	output, err = ardb.ModifyAccessRule(user, storedRule.Id, newPathPattern, newOutcome, newLifespan, newDuration, conflictingPermissions)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", accessrules.ErrPathPatternConflict, otherRule.Id, conflictingPermission))
+	c.Assert(output, IsNil)
+	c.Assert(ardb.ById, HasLen, 2)
+
+	currentRule, exists = ardb.ById[storedRule.Id]
+	c.Assert(exists, Equals, true)
+	c.Assert(currentRule, DeepEquals, modifiedRule)
 }
 
 func (s *accessruleSuite) TestRuleWithId(c *C) {
@@ -489,6 +621,34 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	}
 }
 
+func (s *accessruleSuite) TestNewSaveLoad(c *C) {
+	ardb, _ := accessrules.New()
+
+	var user uint32 = 1000
+	snap := "lxd"
+	app := "lxc"
+	pathPattern := "/home/test/Documents/**"
+	outcome := accessrules.OutcomeAllow
+	lifespan := accessrules.LifespanForever
+	duration := ""
+	permissions := []accessrules.PermissionType{
+		accessrules.PermissionRead,
+		accessrules.PermissionWrite,
+		accessrules.PermissionExecute,
+	}
+
+	_, err := ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions[:1])
+	c.Assert(err, IsNil)
+	_, err = ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions[1:2])
+	c.Assert(err, IsNil)
+	_, err = ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions[2:])
+	c.Assert(err, IsNil)
+
+	loadedArdb, err := accessrules.New()
+	c.Assert(err, IsNil)
+	c.Assert(ardb, DeepEquals, loadedArdb)
+}
+
 func (s *accessruleSuite) TestIsPathAllowed(c *C) {
 	ardb, _ := accessrules.New()
 
@@ -627,4 +787,69 @@ func (s *accessruleSuite) TestRuleExpiration(c *C) {
 	allowed, err = ardb.IsPathAllowed(user, snap, app, path2, accessrules.PermissionRead)
 	c.Assert(err, Equals, accessrules.ErrNoMatchingRule)
 	c.Assert(allowed, Equals, false)
+}
+
+func (s *accessruleSuite) TestRulesLookup(c *C) {
+	ardb, _ := accessrules.New()
+
+	var origUser uint32 = 1000
+	snap := "lxd"
+	app := "lxc"
+	pathPattern := "/home/test/Documents/**"
+	outcome := accessrules.OutcomeAllow
+	lifespan := accessrules.LifespanForever
+	duration := ""
+	permissions := []accessrules.PermissionType{
+		accessrules.PermissionRead,
+		accessrules.PermissionWrite,
+		accessrules.PermissionExecute,
+	}
+
+	rule1, err := ardb.CreateAccessRule(origUser, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+	c.Assert(err, IsNil)
+
+	user := origUser + 1
+	rule2, err := ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+	c.Assert(err, IsNil)
+
+	snap = "nextcloud"
+	app = "occ"
+	rule3, err := ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+	c.Assert(err, IsNil)
+
+	app = "export"
+	rule4, err := ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+	c.Assert(err, IsNil)
+
+	origUserRules := ardb.Rules(origUser)
+	c.Assert(origUserRules, HasLen, 1)
+	c.Assert(origUserRules[0], DeepEquals, rule1)
+
+	userRules := ardb.Rules(user)
+	c.Assert(userRules, HasLen, 3)
+OUTER_LOOP_USER:
+	for _, rule := range []*accessrules.AccessRule{rule2, rule3, rule4} {
+		for _, userRule := range userRules {
+			if reflect.DeepEqual(rule, userRule) {
+				continue OUTER_LOOP_USER
+			}
+		}
+		c.Assert(rule, DeepEquals, userRules[2])
+	}
+
+	userSnapRules := ardb.RulesForSnap(user, snap)
+	c.Assert(userSnapRules, HasLen, 2)
+OUTER_LOOP_USER_SNAP:
+	for _, rule := range []*accessrules.AccessRule{rule3, rule4} {
+		for _, userRule := range userRules {
+			if reflect.DeepEqual(rule, userRule) {
+				continue OUTER_LOOP_USER_SNAP
+			}
+		}
+		c.Assert(rule, DeepEquals, userRules[1])
+	}
+
+	userSnapAppRules := ardb.RulesForSnapApp(user, snap, app)
+	c.Assert(userSnapAppRules, HasLen, 1)
+	c.Assert(userSnapAppRules[0], DeepEquals, rule4)
 }
