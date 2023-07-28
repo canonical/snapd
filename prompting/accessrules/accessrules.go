@@ -102,6 +102,7 @@ func (rule *AccessRule) removePermissionFromPermissionsList(permission Permissio
 	return ErrPermissionNotFound
 }
 
+// Returns true if the given permissions list contains the given permission, else false.
 func PermissionsListContains(list []PermissionType, permission PermissionType) bool {
 	for _, perm := range list {
 		if perm == permission {
@@ -137,6 +138,8 @@ type AccessRuleDB struct {
 	mutex   sync.Mutex
 }
 
+// Creates a new access rule database, loads existing access rules from the
+// path given by dbpath(), and returns the populated database.
 func New() (*AccessRuleDB, error) {
 	ardb := &AccessRuleDB{
 		ByID:    make(map[string]*AccessRule),
@@ -262,7 +265,18 @@ func getNewerRule(id1 string, ts1 string, id2 string, ts2 string) string {
 }
 
 // TODO: unexport (probably)
+// This function is only required if database is left inconsistent (should not
+// occur) or when loading, in case the stored rules on disk were corrupted.
+//
+// Discards the current access rule tree, then iterates through the rules in
+// ardb.ByID and re-populates the tree.  If there are any conflicts between
+// rules (that is, rules share the same path pattern and one or more of the
+// same permissions), the conflicting permission is removed from the rule with
+// the earlier timestamp.  When the function returns, the database should be
+// fully internally consistent and without conflicting rules.
 func (ardb *AccessRuleDB) RefreshTreeEnforceConsistency() {
+	ardb.mutex.Lock()
+	defer ardb.mutex.Unlock()
 	needToSave := false
 	newByID := make(map[string]*AccessRule)
 	ardb.PerUser = make(map[uint32]*userDB)
@@ -332,12 +346,15 @@ func (ardb *AccessRuleDB) save() error {
 	return osutil.AtomicWriteFile(target, b, 0600, 0)
 }
 
+// Returns the current time in the format expected by access rule timestamps.
 func CurrentTimestamp() string {
 	return time.Now().Format(time.RFC3339Nano)
 }
 
 var allowablePathPatternRegexp = regexp.MustCompile(`^(/|(/[^/*{}]+)*(/\*|(/\*\*)?(/\*\.[^/*{}]+)?)?)$`)
 
+// Checks that the given path pattern is valid.  Returns nil if so, otherwise
+// returns ErrInvalidPathPattern.
 func ValidatePathPattern(pattern string) error {
 	if !allowablePathPatternRegexp.MatchString(pattern) {
 		return ErrInvalidPathPattern
@@ -345,6 +362,8 @@ func ValidatePathPattern(pattern string) error {
 	return nil
 }
 
+// Checks that the given outcome is valid.  Returns nil if so, otherwise
+// returns ErrInvalidOutcome.
 func ValidateOutcome(outcome OutcomeType) error {
 	switch outcome {
 	case OutcomeAllow, OutcomeDeny:
@@ -390,6 +409,12 @@ func validatePatternOutcomeLifespanDuration(pathPattern string, outcome OutcomeT
 // TODO: unexport (probably, avoid confusion with CreateAccessRule)
 // Users of accessrules should probably autofill AccessRules from JSON and
 // never call this function directly.
+//
+// Constructs a new access rule with the given parameters as values, with the
+// exception of duration.  Uses the given duration, in addition to the current
+// time, to compute the expiration time for the rule, and stores that as part
+// of the access rule which is returned.  If any of the given parameters are
+// invalid, returns a corresponding error.
 func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration int, permissions []PermissionType) (*AccessRule, error) {
 	expiration, err := validatePatternOutcomeLifespanDuration(pathPattern, outcome, lifespan, duration)
 	if err != nil {
@@ -413,6 +438,16 @@ func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app st
 	return &newRule, nil
 }
 
+// Determines which of the path patterns in the given patterns list is the
+// most specific, and thus has the highest priority.  Assumes that all of the
+// given patterns satisfy ValidatePathPattern(), so this is not verified as
+// part of this function.
+//
+// Exact matches always have the highest priority.  Then, the pattern with the
+// most specific file extension has priority.  If no matching patterns have
+// file extensions (or if multiple share the most specific file extension),
+// then the longest pattern (excluding trailing * wildcards) is the most
+// specific.  Lastly, the priority order is: .../foo > .../foo/* > .../foo/**
 func GetHighestPrecedencePattern(patterns []string) (string, error) {
 	if len(patterns) == 0 {
 		return "", ErrNoPatterns
@@ -470,6 +505,9 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 	return shortestPattern, nil
 }
 
+// Checks whether the given path with the given permission is allowed or
+// denied by existing access rules for the given user, snap, and app.  If no
+// access rule applies, returns ErrNoMatchingRule.
 func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, path string, permission PermissionType) (bool, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
@@ -533,6 +571,7 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 	case "deny":
 		return false, nil
 	default:
+		// Outcome should have been validated, so this should not occur
 		return false, ErrInvalidOutcome
 	}
 }
@@ -548,12 +587,19 @@ func (ardb *AccessRuleDB) ruleWithIDInternal(user uint32, id string) (*AccessRul
 	return rule, nil
 }
 
+// Returns the rule with the given ID.
+// If the rule is not found, returns ErrRuleNotFound.
+// If the rule does not apply to the given user, returns ErrUserNotAllowed.
 func (ardb *AccessRuleDB) RuleWithID(user uint32, id string) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	return ardb.ruleWithIDInternal(user, id)
 }
 
+// Creates an access rule with the given information and adds it to the rule
+// database.  If any of the given parameters are invalid, returns an error.
+// Otherwise, returns the newly-created access rule, and saves the database to
+// disk.
 func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration int, permissions []PermissionType) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
@@ -569,6 +615,9 @@ func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string,
 	return newRule, nil
 }
 
+// Removes the access rule with the given ID from the rules database.  If the
+// rule does not apply to the given user, returns ErrUserNotAllowed.  If
+// successful, saves the database to disk.
 func (ardb *AccessRuleDB) DeleteAccessRule(user uint32, id string) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
@@ -583,6 +632,16 @@ func (ardb *AccessRuleDB) DeleteAccessRule(user uint32, id string) (*AccessRule,
 	return rule, err
 }
 
+// Modifies the access rule with the given ID.  The rule is modified by
+// constructing a new rule based on the given parameters, and then replacing
+// the old rule with the same ID with the new rule.  Any of the parameters
+// which are equal to the default/unset value for their types are replaced by
+// the corresponding values in the existing rule.  Even if the given new rule
+// contents exactly match the existing rule contents, the timestamp of the rule
+// is updated to the current time.  If there is any error while adding the
+// modified rule to the database, rolls back to the previous unmodified rule,
+// leaving the database unchanged.  If the database is changed, it is saved to
+// disk.
 func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration int, permissions []PermissionType) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
@@ -626,6 +685,7 @@ func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern s
 	return newRule, nil
 }
 
+// Returns all access rules which apply to the given user.
 func (ardb *AccessRuleDB) Rules(user uint32) []*AccessRule {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
@@ -638,6 +698,7 @@ func (ardb *AccessRuleDB) Rules(user uint32) []*AccessRule {
 	return rules
 }
 
+// Returns all access rules which apply to the given user and the given snap.
 func (ardb *AccessRuleDB) RulesForSnap(user uint32, snap string) []*AccessRule {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
@@ -650,6 +711,7 @@ func (ardb *AccessRuleDB) RulesForSnap(user uint32, snap string) []*AccessRule {
 	return rules
 }
 
+// Returns all access rules which apply to the given user, snap, and app.
 func (ardb *AccessRuleDB) RulesForSnapApp(user uint32, snap string, app string) []*AccessRule {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
