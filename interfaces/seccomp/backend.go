@@ -102,17 +102,6 @@ var globalProfileBE = []byte{
 	0x00, 0x06, 0x00, 0x00, 0x7f, 0xff, 0x00, 0x00,
 }
 
-func isBigEndian() bool {
-	switch runtime.GOARCH {
-	case "s390x":
-		return true
-	case "ppc":
-		return true
-		// TODO: perhaps more here?
-	}
-	return false
-}
-
 // Initialize ensures that the global profile is on disk and interrogates
 // libseccomp wrapper to generate a version string that will be used to
 // determine if we need to recompile seccomp policy due to system
