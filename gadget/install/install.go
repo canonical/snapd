@@ -208,7 +208,9 @@ func installOnePartition(diskPart *gadget.OnDiskStructure, vs *gadget.VolumeStru
 		EncType:       encryptionType,
 	}
 	los, err := gadget.LayoutVolumeStructure(diskPart, vs, kernelInfo, opts)
-
+	if err != nil {
+		return "", nil, err
+	}
 	if err := writePartitionContent(los, fsDevice, observer, role, perfTimings); err != nil {
 		return "", nil, err
 	}
