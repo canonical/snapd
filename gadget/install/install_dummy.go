@@ -51,7 +51,7 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 	return "", nil, fmt.Errorf("build without secboot support")
 }
 
-func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *EncryptionSetupData) error {
+func SaveStorageTraits(model gadget.Model, vols map[string]*gadget.Volume, encryptSetupData *EncryptionSetupData) error {
 	return fmt.Errorf("build without secboot support")
 }
 
@@ -62,4 +62,8 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 
 func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
 	return nil
+}
+
+func OnDiskVolumeFromGadgetVol(vol *gadget.Volume) (*gadget.OnDiskVolume, error) {
+	return nil, fmt.Errorf("build without secboot support")
 }
