@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
@@ -133,6 +134,7 @@ type userDB struct {
 type AccessRuleDB struct {
 	ByID    map[string]*AccessRule
 	PerUser map[uint32]*userDB
+	mutex   sync.Mutex
 }
 
 func New() (*AccessRuleDB, error) {
@@ -473,6 +475,8 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 }
 
 func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, path string, permission PermissionType) (bool, error) {
+	ardb.mutex.Lock()
+	defer ardb.mutex.Unlock()
 	needToSave := false
 	pathMap := ardb.permissionDBForUserSnapAppPermission(user, snap, app, permission).PathRules
 	matchingPatterns := make([]string, 0)
@@ -537,7 +541,7 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 	}
 }
 
-func (ardb *AccessRuleDB) RuleWithID(user uint32, id string) (*AccessRule, error) {
+func (ardb *AccessRuleDB) ruleWithIDInternal(user uint32, id string) (*AccessRule, error) {
 	rule, exists := ardb.ByID[id]
 	if !exists {
 		return nil, ErrRuleIDNotFound
@@ -548,7 +552,15 @@ func (ardb *AccessRuleDB) RuleWithID(user uint32, id string) (*AccessRule, error
 	return rule, nil
 }
 
+func (ardb *AccessRuleDB) RuleWithID(user uint32, id string) (*AccessRule, error) {
+	ardb.mutex.Lock()
+	defer ardb.mutex.Unlock()
+	return ardb.ruleWithIDInternal(user, id)
+}
+
 func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration string, permissions []PermissionType) (*AccessRule, error) {
+	ardb.mutex.Lock()
+	defer ardb.mutex.Unlock()
 	newRule, err := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
 	if err != nil {
 		return nil, err
@@ -562,7 +574,9 @@ func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string,
 }
 
 func (ardb *AccessRuleDB) DeleteAccessRule(user uint32, id string) (*AccessRule, error) {
-	rule, err := ardb.RuleWithID(user, id)
+	ardb.mutex.Lock()
+	defer ardb.mutex.Unlock()
+	rule, err := ardb.ruleWithIDInternal(user, id)
 	if err != nil {
 		return nil, err
 	}
@@ -574,7 +588,9 @@ func (ardb *AccessRuleDB) DeleteAccessRule(user uint32, id string) (*AccessRule,
 }
 
 func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration string, permissions []PermissionType) (*AccessRule, error) {
-	origRule, err := ardb.RuleWithID(user, id)
+	ardb.mutex.Lock()
+	defer ardb.mutex.Unlock()
+	origRule, err := ardb.ruleWithIDInternal(user, id)
 	if err != nil {
 		return nil, err
 	}
@@ -615,6 +631,8 @@ func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern s
 }
 
 func (ardb *AccessRuleDB) Rules(user uint32) []*AccessRule {
+	ardb.mutex.Lock()
+	defer ardb.mutex.Unlock()
 	rules := make([]*AccessRule, 0)
 	for _, rule := range ardb.ByID {
 		if rule.User == user {
@@ -625,6 +643,8 @@ func (ardb *AccessRuleDB) Rules(user uint32) []*AccessRule {
 }
 
 func (ardb *AccessRuleDB) RulesForSnap(user uint32, snap string) []*AccessRule {
+	ardb.mutex.Lock()
+	defer ardb.mutex.Unlock()
 	rules := make([]*AccessRule, 0)
 	for _, rule := range ardb.ByID {
 		if rule.User == user && rule.Snap == snap {
@@ -635,6 +655,8 @@ func (ardb *AccessRuleDB) RulesForSnap(user uint32, snap string) []*AccessRule {
 }
 
 func (ardb *AccessRuleDB) RulesForSnapApp(user uint32, snap string, app string) []*AccessRule {
+	ardb.mutex.Lock()
+	defer ardb.mutex.Unlock()
 	rules := make([]*AccessRule, 0)
 	for _, rule := range ardb.ByID {
 		if rule.User == user && rule.Snap == snap && rule.App == app {
