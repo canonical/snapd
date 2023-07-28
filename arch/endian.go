@@ -27,7 +27,7 @@ import (
 
 var runtimeGOARCH = runtime.GOARCH
 
-// Endian will return the native endianes of the system
+// Endian will return the native endianness of the system
 func Endian() binary.ByteOrder {
 	switch runtimeGOARCH {
 	case "ppc", "ppc64", "s390x":
@@ -35,6 +35,6 @@ func Endian() binary.ByteOrder {
 	case "i386", "amd64", "arm", "arm64", "riscv64":
 		return binary.LittleEndian
 	default:
-		panic(fmt.Sprintf("unknown architecture %v", runtime.GOARCH))
+		panic(fmt.Sprintf("unknown architecture %s", runtimeGOARCH))
 	}
 }

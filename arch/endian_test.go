@@ -56,5 +56,5 @@ func (s *endianTestSuite) TestEndianErrors(c *C) {
 	restore := arch.MockRuntimeGOARCH("unknown-arch")
 	defer restore()
 
-	c.Check(func() { arch.Endian() }, Panics, "unknown architecture amd64")
+	c.Check(func() { arch.Endian() }, Panics, "unknown architecture unknown-arch")
 }
