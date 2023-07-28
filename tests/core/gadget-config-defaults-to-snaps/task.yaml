@@ -116,7 +116,7 @@ restore: |
     systemctl enable "$SERVICE.service" || true
     systemctl start "$SERVICE.service" || true
 
-    # remove the configure snaps before snapd lib is cleaned
+    # remove the default configure snap before snapd lib is cleaned
     if snap list "test-snapd-with-default-configure${SUFFIX}"; then
         snap remove --purge "test-snapd-with-default-configure${SUFFIX}"
     fi
@@ -151,8 +151,8 @@ restore: |
     wait_for_first_boot_change
 
     # clean leftovers of test-snapd-with-configure snap
-    rm -rf /snap/test-snapd-with-configure${SUFFIX}
-    rm -rf /var/snap/test-snapd-with-configure${SUFFIX}
+    rm -rf "/snap/test-snapd-with-configure${SUFFIX}"
+    rm -rf "/var/snap/test-snapd-with-configure${SUFFIX}"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
