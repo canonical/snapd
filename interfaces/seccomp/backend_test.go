@@ -21,6 +21,7 @@ package seccomp_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -32,6 +33,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -111,7 +113,7 @@ func (s *backendSuite) TestInitialize(c *C) {
 	err := s.Backend.Initialize(nil)
 	c.Assert(err, IsNil)
 	fname := filepath.Join(dirs.SnapSeccompDir, "global.bin")
-	if seccomp.IsBigEndian() {
+	if arch.Endian() == binary.BigEndian {
 		c.Check(fname, testutil.FileEquals, seccomp.GlobalProfileBE)
 	} else {
 		c.Check(fname, testutil.FileEquals, seccomp.GlobalProfileLE)

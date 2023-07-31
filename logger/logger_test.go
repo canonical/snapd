@@ -34,7 +34,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -112,7 +112,7 @@ func (s *LogSuite) TestBootSetup(c *C) {
 	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
 	err := ioutil.WriteFile(cmdlineFile, []byte("mocked panic=-1"), 0644)
 	c.Assert(err, IsNil)
-	restore := osutil.MockProcCmdline(cmdlineFile)
+	restore := kcmdline.MockProcCmdline(cmdlineFile)
 	defer restore()
 	os.Setenv("TERM", "dumb")
 	err = logger.BootSetup()
@@ -124,7 +124,7 @@ func (s *LogSuite) TestBootSetup(c *C) {
 	cmdlineFile = filepath.Join(c.MkDir(), "cmdline")
 	err = ioutil.WriteFile(cmdlineFile, []byte("mocked panic=-1 quiet"), 0644)
 	c.Assert(err, IsNil)
-	restore = osutil.MockProcCmdline(cmdlineFile)
+	restore = kcmdline.MockProcCmdline(cmdlineFile)
 	defer restore()
 	os.Unsetenv("TERM")
 	err = logger.BootSetup()
@@ -199,7 +199,7 @@ func (s *LogSuite) TestIntegrationDebugFromKernelCmdline(c *C) {
 	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
 	err := ioutil.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 snapd.debug=1\n"), 0644)
 	c.Assert(err, IsNil)
-	restore = osutil.MockProcCmdline(mockProcCmdline)
+	restore = kcmdline.MockProcCmdline(mockProcCmdline)
 	defer restore()
 
 	var buf bytes.Buffer

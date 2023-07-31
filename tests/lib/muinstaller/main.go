@@ -176,7 +176,7 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encT
 		EncType:       encType,
 	}
 
-	lvol, err := gadget.LayoutVolume(vol, layoutOpts)
+	lvol, err := gadget.LayoutVolume(vol, nil, layoutOpts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volume: %v", err)
 	}

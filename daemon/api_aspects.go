@@ -63,8 +63,8 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 		var value interface{}
 		err := aspectstateGetAspect(tx, account, bundleName, aspect, field, &value)
 		if err != nil {
-			if errors.Is(err, &aspects.FieldNotFoundError{}) {
-				// keep looking; return partial result, if only some fields are found
+			if errors.Is(err, &aspects.NotFoundError{}) && len(fields) > 1 {
+				// keep looking; return partial result if only some fields are found
 				continue
 			} else {
 				return toAPIError(err)
@@ -76,7 +76,8 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	// no results were found, return 404
 	if len(results) == 0 {
-		return NotFound("no fields were found")
+		errMsg := fmt.Sprintf("cannot get fields %s of aspect %s/%s/%s", strutil.Quoted(fields), account, bundleName, aspect)
+		return NotFound(errMsg)
 	}
 
 	return SyncResponse(results)
@@ -122,7 +123,7 @@ func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 func toAPIError(err error) *apiError {
 	switch {
-	case aspects.IsNotFound(err):
+	case errors.Is(err, &aspects.NotFoundError{}):
 		return NotFound(err.Error())
 
 	case errors.Is(err, &aspects.InvalidAccessError{}):

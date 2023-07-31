@@ -150,6 +150,7 @@ mount options=(rw, rbind) /oldroot/etc/group -> /newroot/etc/group,
 mount options=(rw, rbind) /oldroot/etc/passwd -> /newroot/etc/passwd,
 mount options=(rw, rbind) /oldroot/etc/host.conf -> /newroot/etc/host.conf,
 mount options=(rw, rbind) /oldroot/etc/hosts -> /newroot/etc/hosts,
+mount options=(rw, rbind) /oldroot/usr/share/zoneinfo/** -> /newroot/etc/localtime,
 mount options=(rw, rbind) /oldroot/**/*resolv.conf -> /newroot/etc/resolv.conf,
 mount options=(rw, rbind) /bindfile* -> /newroot/etc/timezone,
 

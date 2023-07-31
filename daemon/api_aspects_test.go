@@ -131,7 +131,7 @@ func (s *aspectsSuite) TestAspectGetSomeFieldNotFound(c *C) {
 		case 1:
 			*value.(*interface{}) = "foo"
 		case 2:
-			return &aspects.FieldNotFoundError{}
+			return &aspects.NotFoundError{}
 		default:
 			err := fmt.Errorf("expected 2 calls, now on %d", calls)
 			c.Error(err)
@@ -151,22 +151,42 @@ func (s *aspectsSuite) TestAspectGetSomeFieldNotFound(c *C) {
 }
 
 func (s *aspectsSuite) TestGetAspectNoFieldsFound(c *C) {
+	var calls int
 	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string, _ interface{}) error {
-		return &aspects.FieldNotFoundError{}
+		calls++
+		err := &aspects.NotFoundError{
+			Account:    "foo",
+			BundleName: "network",
+			Aspect:     "wifi-setup",
+			Cause:      "mocked",
+		}
+
+		switch calls {
+		case 1:
+			err.Field = "ssid"
+		case 2:
+			err.Field = "password"
+		default:
+			err := fmt.Errorf("expected 2 calls to Get, now on %d", calls)
+			c.Error(err)
+			return err
+		}
+
+		return err
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid", nil)
+	req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid,password", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 404)
-	c.Check(rspe.Error(), Equals, "no fields were found (api 404)")
+	c.Check(rspe.Error(), Equals, `cannot get fields "ssid", "password" of aspect system/network/wifi-setup (api 404)`)
 }
 
 func (s *aspectsSuite) TestAspectGetDatabagNotFound(c *C) {
 	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string, _ interface{}) error {
-		return &aspects.AspectNotFoundError{Account: "foo", BundleName: "network", Aspect: "wifi-setup"}
+		return &aspects.NotFoundError{Account: "foo", BundleName: "network", Aspect: "wifi-setup", Field: "ssid", Cause: "mocked"}
 	})
 	defer restore()
 
@@ -175,7 +195,7 @@ func (s *aspectsSuite) TestAspectGetDatabagNotFound(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 404)
-	c.Check(rspe.Message, Equals, "aspect foo/network/wifi-setup not found")
+	c.Check(rspe.Message, Equals, `cannot find field "ssid" of aspect foo/network/wifi-setup: mocked`)
 }
 
 func (s *aspectsSuite) TestAspectSetManyWithExistingState(c *C) {
@@ -263,7 +283,7 @@ func (s *aspectsSuite) testAspectSetMany(c *C) {
 	c.Assert(value, Equals, "foo")
 
 	err = databags["system"]["network"].Get("wifi.psk", &value)
-	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
+	c.Assert(err, FitsTypeOf, aspects.PathNotFoundError(""))
 }
 
 func (s *aspectsSuite) TestGetAspectError(c *C) {
@@ -274,7 +294,7 @@ func (s *aspectsSuite) TestGetAspectError(c *C) {
 	}
 
 	for _, t := range []test{
-		{name: "aspect not found", err: &aspects.AspectNotFoundError{}, code: 404},
+		{name: "aspect not found", err: &aspects.NotFoundError{}, code: 404},
 		{name: "internal", err: errors.New("internal"), code: 500},
 		{name: "invalid access", err: &aspects.InvalidAccessError{RequestedAccess: 1, FieldAccess: 2, Field: "foo"}, code: 403},
 	} {
@@ -420,9 +440,9 @@ func (s *aspectsSuite) TestSetAspectError(c *C) {
 	}
 
 	for _, t := range []test{
-		{name: "aspect not found", err: &aspects.AspectNotFoundError{}, code: 404},
-		{name: "field not found", err: &aspects.FieldNotFoundError{}, code: 404},
+		{name: "not found", err: &aspects.NotFoundError{}, code: 404},
 		{name: "internal", err: errors.New("internal"), code: 500},
+		{name: "invalid access", err: &aspects.InvalidAccessError{}, code: 403},
 	} {
 		restore := daemon.MockAspectstateSet(func(aspects.DataBag, string, string, string, string, interface{}) error {
 			return t.err

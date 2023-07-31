@@ -590,6 +590,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
+	if snapsup.Flags.Prefer {
+		prefer := st.NewTask("prefer-aliases", fmt.Sprintf(i18n.G("Prefer aliases for snap %q"), snapsup.InstanceName()))
+		addTask(prefer)
+		prev = prefer
+	}
+
 	if isCoreBoot && snapsup.Type == snap.TypeSnapd {
 		// make sure no other active changes are changing the kernel command line
 		if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {
@@ -1092,7 +1098,7 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 
 	// Implicitly set --unaliased flag for parallel installs to avoid
 	// alias conflicts with the main snap
-	if !snapst.IsInstalled() && info.InstanceKey != "" {
+	if !snapst.IsInstalled() && !flags.Prefer && info.InstanceKey != "" {
 		flags.Unaliased = true
 	}
 
@@ -1805,7 +1811,7 @@ func filterHeldSnaps(st *state.State, updates []minimalInstallInfo, flags *Flags
 
 	filteredUpdates := make([]minimalInstallInfo, 0, len(updates))
 	for _, update := range updates {
-		if !heldSnaps[update.InstanceName()] {
+		if _, ok := heldSnaps[update.InstanceName()]; !ok {
 			filteredUpdates = append(filteredUpdates, update)
 		}
 	}

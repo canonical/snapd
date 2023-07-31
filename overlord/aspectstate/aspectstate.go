@@ -32,14 +32,20 @@ func SetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 	accPatterns := aspecttest.MockWifiSetupAspect()
 	schema := aspects.NewJSONSchema()
 
-	aspectBundle, err := aspects.NewAspectBundle(bundleName, accPatterns, schema)
+	aspectBundle, err := aspects.NewAspectBundle(account, bundleName, accPatterns, schema)
 	if err != nil {
 		return err
 	}
 
 	asp := aspectBundle.Aspect(aspect)
 	if asp == nil {
-		return &aspects.AspectNotFoundError{Account: account, BundleName: bundleName, Aspect: aspect}
+		return &aspects.NotFoundError{
+			Account:    account,
+			BundleName: bundleName,
+			Aspect:     aspect,
+			Field:      field,
+			Cause:      "aspect not found",
+		}
 	}
 
 	if err := asp.Set(databag, field, value); err != nil {
@@ -56,14 +62,20 @@ func GetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 	accPatterns := aspecttest.MockWifiSetupAspect()
 	schema := aspects.NewJSONSchema()
 
-	aspectBundle, err := aspects.NewAspectBundle(bundleName, accPatterns, schema)
+	aspectBundle, err := aspects.NewAspectBundle(account, bundleName, accPatterns, schema)
 	if err != nil {
 		return err
 	}
 
 	asp := aspectBundle.Aspect(aspect)
 	if asp == nil {
-		return &aspects.AspectNotFoundError{Account: account, BundleName: bundleName, Aspect: aspect}
+		return &aspects.NotFoundError{
+			Account:    account,
+			BundleName: bundleName,
+			Aspect:     aspect,
+			Field:      field,
+			Cause:      "aspect not found",
+		}
 	}
 
 	if err := asp.Get(databag, field, value); err != nil {

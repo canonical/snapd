@@ -202,6 +202,7 @@ type snapInstruction struct {
 	IgnoreValidation       bool                             `json:"ignore-validation"`
 	IgnoreRunning          bool                             `json:"ignore-running"`
 	Unaliased              bool                             `json:"unaliased"`
+	Prefer                 bool                             `json:"prefer"`
 	Purge                  bool                             `json:"purge,omitempty"`
 	SystemRestartImmediate bool                             `json:"system-restart-immediate"`
 	Transaction            client.TransactionType           `json:"transaction"`
@@ -244,6 +245,9 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	}
 	if inst.IgnoreValidation {
 		flags.IgnoreValidation = true
+	}
+	if inst.Prefer {
+		flags.Prefer = true
 	}
 	flags.QuotaGroupName = inst.QuotaGroupName
 
@@ -355,6 +359,13 @@ func (inst *snapInstruction) validate() error {
 		}
 	}
 
+	if inst.Unaliased && inst.Prefer {
+		return errUnaliasedPreferConflict
+	}
+	if inst.Prefer && inst.Action != "install" {
+		return fmt.Errorf("the prefer flag can only be specified on install")
+	}
+
 	if err := inst.validateSnapshotOptions(); err != nil {
 		return err
 	}
@@ -375,6 +386,7 @@ type snapInstructionResult struct {
 
 var errDevJailModeConflict = errors.New("cannot use devmode and jailmode flags together")
 var errClassicDevmodeConflict = errors.New("cannot use classic and devmode flags together")
+var errUnaliasedPreferConflict = errors.New("cannot use unaliased and prefer flags together")
 var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
 func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
@@ -630,7 +642,7 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	// TODO: inst.Amend, etc?
-	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Purge {
+	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Purge || inst.Prefer {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 	if err := inst.validate(); err != nil {
