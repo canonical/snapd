@@ -378,7 +378,7 @@ func createClassicRootfsIfNeeded(rootfsCreator string) error {
 	return nil
 }
 
-func createSeedOnTarget(bootDevice, src, dst string) error {
+func copySeedDir(src, dst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 		return err
 	}
@@ -392,18 +392,18 @@ func createSeedOnTarget(bootDevice, src, dst string) error {
 	return nil
 }
 
-func createSeedOnSeedPartition(bootDevice string) error {
+func copySeedToSeedPartition() error {
 	dst := runMntFor("ubuntu-seed")
 	for _, subDir := range []string{"snaps", "systems"} {
 		src := filepath.Join(dirs.SnapSeedDir, subDir)
-		if err := createSeedOnTarget(bootDevice, src, dst); err != nil {
+		if err := copySeedDir(src, dst); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func createSeedOnDataPartition(bootDevice string) error {
+func copySeedToDataPartition() error {
 	src := dirs.SnapSeedDir
 	dataMnt := runMntFor("ubuntu-data")
 	dst := dirs.SnapSeedDirUnder(dataMnt)
@@ -412,7 +412,7 @@ func createSeedOnDataPartition(bootDevice string) error {
 	if err := os.RemoveAll(dst); err != nil {
 		return err
 	}
-	return createSeedOnTarget(bootDevice, src, dst)
+	return copySeedDir(src, dst)
 }
 
 func detectStorageEncryption(seedLabel string) (bool, error) {
@@ -553,7 +553,7 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
 	if isCore {
-		if err := createSeedOnSeedPartition(bootDevice); err != nil {
+		if err := copySeedToSeedPartition(); err != nil {
 			return fmt.Errorf("cannot create seed on seed partition: %v", err)
 		}
 	} else {
@@ -561,7 +561,7 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 			return fmt.Errorf("cannot create classic rootfs: %v", err)
 		}
 	}
-	if err := createSeedOnDataPartition(bootDevice); err != nil {
+	if err := copySeedToDataPartition(); err != nil {
 		return fmt.Errorf("cannot create seed on data partition: %v", err)
 	}
 	if err := unmountFilesystems(mntPts); err != nil {
