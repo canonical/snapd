@@ -227,7 +227,6 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
 			startInSectors, newSizeInSectors, ptype, vs.Name)
 
-		// TODO do a new method
 		toBeCreated[vs.YamlIndex] = &gadget.OnDiskStructure{
 			Name:             vs.Name,
 			PartitionFSLabel: vs.Label,

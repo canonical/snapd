@@ -955,10 +955,10 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// Import new information from the installer to the laid out data, so
-	// the gadget is not partially defined anymore if it was. Note that we
-	// take from onVolumes only information marked as partial in the
-	// gadget.
+	// Import new information from the installer to the gadget data,
+	// including the target devices and information marked as partial in
+	// the gadget, so the gadget is not partially defined anymore if it
+	// was.
 	if err := gadget.ApplyInstallerVolumesToGadget(onVolumes, gi.Volumes); err != nil {
 		return err
 	}
