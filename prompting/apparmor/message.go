@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-
-	"golang.org/x/xerrors"
 )
 
 // overwrite implements io.Writer that writes over an existing buffer.
@@ -52,14 +50,14 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
 	if err := binary.Read(buf, order, msg); err != nil {
-		return xerrors.Errorf("%s: %s", prefix, err)
+		return fmt.Errorf("%s: %s", prefix, err)
 	}
 
 	if msg.Version != 2 {
-		return xerrors.Errorf("%s: unsupported version: %d", prefix, msg.Version)
+		return fmt.Errorf("%s: unsupported version: %d", prefix, msg.Version)
 	}
 	if int(msg.Length) != len(data) {
-		return xerrors.Errorf("%s: length mismatch %d != %d",
+		return fmt.Errorf("%s: length mismatch %d != %d",
 			prefix, msg.Length, len(data))
 	}
 
@@ -125,18 +123,18 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	var raw msgNotificationFilter
 	if err := binary.Read(buf, order, &raw); err != nil {
-		return xerrors.Errorf("%s: cannot unpack: %s", prefix, err)
+		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
 
 	// Unpack variable length elements.
 	unpacker := stringUnpacker{Bytes: data}
 	ns, err := unpacker.UnpackString(raw.NS)
 	if err != nil {
-		return xerrors.Errorf("%s: cannot unpack namespace: %v", prefix, err)
+		return fmt.Errorf("%s: cannot unpack namespace: %v", prefix, err)
 	}
 	filter, err := unpacker.UnpackString(raw.Filter)
 	if err != nil {
-		return xerrors.Errorf("%s: cannot unpack filter: %v", prefix, err)
+		return fmt.Errorf("%s: cannot unpack filter: %v", prefix, err)
 	}
 
 	// Put everything together.
@@ -172,7 +170,7 @@ func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
 // Validate returns an error if the mssage contains invalid data.
 func (msg *MsgNotificationFilter) Validate() error {
 	if !msg.ModeSet.IsValid() {
-		return xerrors.Errorf("unsupported modeset: %d", msg.ModeSet)
+		return fmt.Errorf("unsupported modeset: %d", msg.ModeSet)
 	}
 	return nil
 }
@@ -215,7 +213,7 @@ func (msg *MsgNotification) UnmarshalBinary(data []byte) error {
 	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
 	if err := binary.Read(buf, order, msg); err != nil {
-		return xerrors.Errorf("%s: cannot unpack: %s", prefix, err)
+		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
 
 	return nil
@@ -236,7 +234,7 @@ func (msg *MsgNotification) MarshalBinary() ([]byte, error) {
 // Validate returns an error if the mssage contains invalid data.
 func (msg *MsgNotification) Validate() error {
 	if !msg.NotificationType.IsValid() {
-		return xerrors.Errorf("unsupported notification type: %d", msg.NotificationType)
+		return fmt.Errorf("unsupported notification type: %d", msg.NotificationType)
 	}
 	return nil
 }
@@ -371,14 +369,14 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	var raw msgNotificationOp
 	if err := binary.Read(buf, order, &raw); err != nil {
-		return xerrors.Errorf("%s: cannot unpack: %s", prefix, err)
+		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
 
 	// Unpack variable length elements.
 	unpacker := stringUnpacker{Bytes: data}
 	label, err := unpacker.UnpackString(raw.Label)
 	if err != nil {
-		return xerrors.Errorf("%s: cannot unpack label: %v", prefix, err)
+		return fmt.Errorf("%s: cannot unpack label: %v", prefix, err)
 	}
 
 	// Put everything together.
@@ -433,14 +431,14 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	var raw msgNotificationFile
 	if err := binary.Read(buf, order, &raw); err != nil {
-		return xerrors.Errorf("%s: cannot unpack: %s", prefix, err)
+		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
 
 	// Unpack variable length elements.
 	unpacker := stringUnpacker{Bytes: data}
 	name, err := unpacker.UnpackString(raw.Name)
 	if err != nil {
-		return xerrors.Errorf("%s: cannot unpack file name: %v", prefix, err)
+		return fmt.Errorf("%s: cannot unpack file name: %v", prefix, err)
 	}
 
 	// Put everything together.
