@@ -21,6 +21,7 @@ package arch_test
 
 import (
 	"encoding/binary"
+	"fmt"
 
 	. "gopkg.in/check.v1"
 
@@ -31,6 +32,60 @@ type endianTestSuite struct{}
 
 var _ = Suite(&endianTestSuite{})
 
+// back in 14.04/16.04 32bit powerpc was supported via gccgo
+var knownGccGoArch = map[string]bool{
+	"ppc": true,
+}
+
+// copied from:
+// https://github.com/golang/go/blob/release-branch.go1.20/src/go/build/syslist.go#L53
+// alternatively this could be done via "go tool dist list" but seems not
+// worth the extra parsing
+var knownArch = map[string]bool{
+	"386":         true,
+	"amd64":       true,
+	"amd64p32":    true,
+	"arm":         true,
+	"armbe":       true,
+	"arm64":       true,
+	"arm64be":     true,
+	"loong64":     true,
+	"mips":        true,
+	"mipsle":      true,
+	"mips64":      true,
+	"mips64le":    true,
+	"mips64p32":   true,
+	"mips64p32le": true,
+	"ppc":         true,
+	"ppc64":       true,
+	"ppc64le":     true,
+	"riscv":       true,
+	"riscv64":     true,
+	"s390":        true,
+	"s390x":       true,
+	"sparc":       true,
+	"sparc64":     true,
+	"wasm":        true,
+}
+
+func knownGoArch(arch string) error {
+	// this knownGccGoArch map can be removed after 16.04 goes EOL
+	// in 2026
+	if knownGccGoArch[arch] {
+		return nil
+	}
+
+	if knownArch[arch] {
+		return nil
+	}
+
+	return fmt.Errorf("cannot find %s in supported go arches", arch)
+}
+
+func (s *endianTestSuite) TestKnownGoArch(c *C) {
+	c.Check(knownGoArch("not-supported-arch"), ErrorMatches, "cannot find not-supported-arch in supported go arches")
+}
+
 func (s *endianTestSuite) TestEndian(c *C) {
 	for _, t := range []struct {
 		arch   string
@@ -39,7 +94,7 @@ func (s *endianTestSuite) TestEndian(c *C) {
 		{"ppc", binary.BigEndian},
 		{"ppc64", binary.BigEndian},
 		{"s390x", binary.BigEndian},
-		{"i386", binary.LittleEndian},
+		{"386", binary.LittleEndian},
 		{"amd64", binary.LittleEndian},
 		{"arm", binary.LittleEndian},
 		{"arm64", binary.LittleEndian},
@@ -50,6 +105,7 @@ func (s *endianTestSuite) TestEndian(c *C) {
 		defer restore()
 
 		c.Check(arch.Endian(), Equals, t.endian)
+		c.Check(knownGoArch(t.arch), IsNil)
 	}
 }
 
