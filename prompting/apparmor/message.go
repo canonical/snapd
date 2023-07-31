@@ -11,13 +11,12 @@ import (
 // It is used to perform in-place modifications of a larger memory buffer.
 type overwriter struct {
 	Buffer []byte
-	Offset int
 }
 
-// Write overwrites the buffer at a given offest.
+// Write overwrites the buffer, from the beginning, with the given bytes.
 func (o *overwriter) Write(p []byte) (n int, err error) {
-	if n := len(p); n+o.Offset < len(o.Buffer) {
-		copy(o.Buffer[o.Offset:o.Offset+n], p)
+	if n := len(p); n < len(o.Buffer) {
+		copy(o.Buffer[:n], p)
 		return n, nil
 	}
 	return 0, fmt.Errorf("insufficient space to write")
