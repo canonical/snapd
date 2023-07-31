@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"log"
-	"os"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
 	"golang.org/x/xerrors"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 var doSyscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
@@ -31,8 +32,7 @@ func (hb hexBuf) String() string {
 	return buf.String()
 }
 
-// TODO: move this to conditionally built file.
-var dumpIoctl bool = os.Getenv("CERBERUS_DUMP_IOCTL") == "yes"
+var dumpIoctl bool = osutil.GetenvBool("CERBERUS_DUMP_IOCTL")
 
 // NotifyIoctl performs a ioctl(2) on the apparmor .notify file.
 func NotifyIoctl(fd uintptr, req IoctlRequest, msg []byte) (int, error) {
