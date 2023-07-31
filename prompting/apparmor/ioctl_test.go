@@ -26,8 +26,9 @@ func (*ioctlSuite) TestIoctlHappy(c *C) {
 			return uintptr(len(buf)), 0, 0
 		})
 	defer restore()
-	_, err := apparmor.NotifyIoctl(fd, req, buf)
+	n, err := apparmor.NotifyIoctl(fd, req, buf)
 	c.Assert(err, IsNil)
+	c.Assert(n, Equals, len(buf))
 }
 
 func (*ioctlSuite) TestIoctlReturnValueSizeMismatch(c *C) {
@@ -40,8 +41,9 @@ func (*ioctlSuite) TestIoctlReturnValueSizeMismatch(c *C) {
 			return uintptr(len(buf) * 2), 0, 0
 		})
 	defer restore()
-	_, err := apparmor.NotifyIoctl(fd, req, buf)
+	n, err := apparmor.NotifyIoctl(fd, req, buf)
 	c.Assert(err, IsNil)
+	c.Assert(n, Equals, len(buf)*2)
 }
 
 func (*ioctlSuite) TestIoctlString(c *C) {
