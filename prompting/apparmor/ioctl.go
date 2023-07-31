@@ -7,7 +7,6 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/unix"
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -48,7 +47,7 @@ func NotifyIoctl(fd uintptr, req IoctlRequest, msg []byte) (int, error) {
 		}
 	}
 	if errno != 0 {
-		return 0, xerrors.Errorf("cannot perform IOCTL request %v: %v", req, unix.Errno(errno))
+		return 0, fmt.Errorf("cannot perform IOCTL request %v: %v", req, unix.Errno(errno))
 	}
 	return int(ret), nil
 }
