@@ -2,6 +2,9 @@
 package apparmor
 
 import (
+	"path/filepath"
+
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -12,5 +15,5 @@ func PromptingAvailable() bool {
 }
 
 func NotifyPath() string {
-	return notifyPath
+	return filepath.Join(dirs.GlobalRootDir, notifyPath)
 }
