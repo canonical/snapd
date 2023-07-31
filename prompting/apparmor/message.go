@@ -6,16 +6,16 @@ import (
 	"fmt"
 )
 
-// overwrite implements io.Writer that writes over an existing buffer.
+// overwriter implements io.Writer that writes over an existing buffer.
 //
 // It is used to perform in-place modifications of a larger memory buffer.
-type overwrite struct {
+type overwriter struct {
 	Buffer []byte
 	Offset int
 }
 
 // Write overwrites the buffer at a given offest.
-func (o *overwrite) Write(p []byte) (n int, err error) {
+func (o *overwriter) Write(p []byte) (n int, err error) {
 	if n := len(p); n+o.Offset < len(o.Buffer) {
 		copy(o.Buffer[o.Offset:o.Offset+n], p)
 		return n, nil
@@ -69,7 +69,7 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 func RequestBuffer() []byte {
 	buf := make([]byte, 0xFFFF)
 	header := MsgHeader{Version: 2, Length: uint16(len(buf))}
-	binary.Write(&overwrite{Buffer: buf}, binary.LittleEndian, &header)
+	binary.Write(&overwriter{Buffer: buf}, binary.LittleEndian, &header)
 	return buf
 }
 
