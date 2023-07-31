@@ -75,7 +75,7 @@ execute: |
   # prepare a core seed
   # TODO:
   # - repacked snapd snap
-  # (should be as simple as adding "--snap=./local-gadget.snap ...")
+  # (should be as simple as adding "--snap=./local-snapd.snap ...")
   SEED_DIR="core-seed"
   wget -q https://raw.githubusercontent.com/snapcore/models/master/ubuntu-core-22-amd64-dangerous.model -O my.model
   snap prepare-image \
@@ -152,8 +152,7 @@ execute: |
       "$NESTED_IMAGES_DIR/$(nested_get_image_name classic)" \
       "$NESTED_IMAGES_DIR/$(nested_get_image_name core)"
   # and we don't need the classic image anymore
-  # TODO: uncomment
-  #rm -f  "$NESTED_IMAGES_DIR/$(nested_get_image_name classic)"
+  rm -f  "$NESTED_IMAGES_DIR/$(nested_get_image_name classic)"
   # TODO: this prevents "nested_prepare_ssh" inside nested_start_core_vm
   #       from running, we already have a user so this is not needed
   IMAGE_NAME="$(nested_get_image_name core)"
