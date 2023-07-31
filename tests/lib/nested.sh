@@ -75,7 +75,8 @@ nested_wait_vm_ready() {
 
         # Check during $limit seconds that the serial log is growing
         # shellcheck disable=SC2016
-        retry -n "$log_limit" --wait 1 --env serial_log="$serial_log" --env output_lines="$output_lines" sh -c 'test "$(wc -l "$serial_log" | awk "{print $1;}")" -gt "$output_lines"'
+        retry -n "$log_limit" --wait 1 --env serial_log="$serial_log" --env output_lines="$output_lines" \
+            sh -c 'test "$(wc -l "$serial_log" | cut -d " " -f1)" -gt "$output_lines"'
         output_lines="$(wc -l "$serial_log" | awk '{print $1;}')"
 
         # Check if ssh can be stablished, and return if it is possible
