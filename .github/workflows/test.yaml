@@ -381,7 +381,6 @@ jobs:
         - ubuntu-20.04-64
         - ubuntu-20.04-arm-64
         - ubuntu-22.04-64
-        - ubuntu-22.10-64
         - ubuntu-23.04-64
         - ubuntu-23.10-64
         - ubuntu-core-16-64
