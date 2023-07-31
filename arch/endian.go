@@ -32,7 +32,7 @@ func Endian() binary.ByteOrder {
 	switch runtimeGOARCH {
 	case "ppc", "ppc64", "s390x":
 		return binary.BigEndian
-	case "i386", "amd64", "arm", "arm64", "ppc64le", "riscv64":
+	case "386", "amd64", "arm", "arm64", "ppc64le", "riscv64":
 		return binary.LittleEndian
 	default:
 		panic(fmt.Sprintf("unknown architecture %s", runtimeGOARCH))
