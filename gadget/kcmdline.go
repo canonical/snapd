@@ -24,9 +24,6 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-type kargKey struct{ par, val string }
-type kernelArgsSet map[kargKey]bool
-
 // FilterKernelCmdline returns a filtered command line, removing
 // arguments that are not on a list of allowed kernel arguments. A
 // wild card ('*') can be used in the allow list for the
