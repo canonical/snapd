@@ -258,7 +258,7 @@ func getNewerRule(id1 string, ts1 string, id2 string, ts2 string) string {
 		}
 		return id2
 	}
-	if time1.Compare(time2) == -1 {
+	if time1.Before(time2) {
 		return id2
 	}
 	return id1
@@ -463,10 +463,11 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 		}
 		segments := strings.Split(pattern, "/")
 		finalSegment := segments[len(segments)-1]
-		extension, exists := strings.CutPrefix(finalSegment, "*.")
-		if !exists {
+		extPrefix := "*."
+		if !strings.HasPrefix(finalSegment, extPrefix) {
 			continue
 		}
+		extension := finalSegment[len(extPrefix):]
 		extensions[extension] = append(extensions[extension], pattern)
 	}
 	longestExtension := ""
