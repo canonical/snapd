@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"strings"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -67,6 +69,12 @@ owner @{HOME}/.config/pulse/cookie rk,
 owner /{,var/}run/user/*/pulse/ r,
 owner /{,var/}run/user/*/pulse/native rwk,
 owner /{,var/}run/user/*/pulse/pid r,
+`
+
+const pulseaudioConnectedPlugAppArmorCore = `
+owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/pulse/ r,
+owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/pulse/native rwk,
+owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/pulse/pid r,
 `
 
 const pulseaudioConnectedPlugSecComp = `
@@ -150,6 +158,12 @@ func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	spec.AddSnippet(pulseaudioConnectedPlugAppArmor)
 	if release.OnClassic {
 		spec.AddSnippet(pulseaudioConnectedPlugAppArmorDesktop)
+	}
+	if !implicitSystemConnectedSlot(slot) {
+		old := "###PLUG_SECURITY_TAGS###"
+		new := "snap." + slot.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
+		snippet := strings.Replace(pulseaudioConnectedPlugAppArmorCore, old, new, -1)
+		spec.AddSnippet(snippet)
 	}
 	return nil
 }
