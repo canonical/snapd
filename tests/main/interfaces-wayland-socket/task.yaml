@@ -28,6 +28,11 @@ execute: |
     echo "Connect wayland-client to wayland-server"
     snap connect wayland-client:wayland wayland-server:wayland
 
+    # Try discarding snap namespaces to avoid disconnected mount
+    # namespace problems with the AppArmor permission checks
+    snapd.tool exec snap-discard-ns wayland-server
+    snapd.tool exec snap-discard-ns wayland-client
+
     USER_RUNTIME_DIR="/run/user/$(id -u test)"
 
     echo "Start the Wayland server and wait for its socket to appear"
