@@ -58,30 +58,25 @@ type IoctlRequest uintptr
 // Available ioctl(2) requests for .notify file.
 // Those are not documented beyond the implementeation in the kernel.
 const (
-	// IoctlSetFilter is the ioctl request for APPARMOR_NOTIF_SET_FILTER.
-	IoctlSetFilter IoctlRequest = 0x4008F800
-	// IoctlGetFilter is the ioctl request for APPARMOR_NOTIF_GET_FILTER.
-	IoctlGetFilter IoctlRequest = 0x8008F801
-	// IoctlIsIDValid is the ioctl request for APPARMOR_NOTIF_IS_ID_VALID.
-	IoctlIsIDValid IoctlRequest = 0x8008F803
-	// IoctlReceive is the ioctl request for APPARMOR_NOTIF_RECV.
-	IoctlReceive IoctlRequest = 0xC008F804
-	// IoctlSend is the ioctl request for APPARMOR_NOTIF_SEND.
-	IoctlSend IoctlRequest = 0xC008F805
+	APPARMOR_NOTIF_SET_FILTER  IoctlRequest = 0x4008F800
+	APPARMOR_NOTIF_GET_FILTER  IoctlRequest = 0x8008F801
+	APPARMOR_NOTIF_IS_ID_VALID IoctlRequest = 0x8008F803
+	APPARMOR_NOTIF_RECV        IoctlRequest = 0xC008F804
+	APPARMOR_NOTIF_SEND        IoctlRequest = 0xC008F805
 )
 
 func (req IoctlRequest) String() string {
 	switch req {
-	case IoctlSetFilter:
-		return "IoctlSetFilter"
-	case IoctlGetFilter:
-		return "IoctlGetFilter"
-	case IoctlIsIDValid:
-		return "IoctlIsIDValid"
-	case IoctlReceive:
-		return "IoctlReceive"
-	case IoctlSend:
-		return "IoctlSend"
+	case APPARMOR_NOTIF_SET_FILTER:
+		return "APPARMOR_NOTIF_SET_FILTER"
+	case APPARMOR_NOTIF_GET_FILTER:
+		return "APPARMOR_NOTIF_GET_FILTER"
+	case APPARMOR_NOTIF_IS_ID_VALID:
+		return "APPARMOR_NOTIF_IS_ID_VALID"
+	case APPARMOR_NOTIF_RECV:
+		return "APPARMOR_NOTIF_RECV"
+	case APPARMOR_NOTIF_SEND:
+		return "APPARMOR_NOTIF_SEND"
 	default:
 		return fmt.Sprintf("IoctlRequest(%x)", uintptr(req))
 	}

@@ -47,11 +47,11 @@ func (*ioctlSuite) TestIoctlReturnValueSizeMismatch(c *C) {
 }
 
 func (*ioctlSuite) TestIoctlString(c *C) {
-	c.Assert(apparmor.IoctlSetFilter.String(), Equals, "IoctlSetFilter")
-	c.Assert(apparmor.IoctlGetFilter.String(), Equals, "IoctlGetFilter")
-	c.Assert(apparmor.IoctlIsIDValid.String(), Equals, "IoctlIsIDValid")
-	c.Assert(apparmor.IoctlReceive.String(), Equals, "IoctlReceive")
-	c.Assert(apparmor.IoctlSend.String(), Equals, "IoctlSend")
+	c.Assert(apparmor.APPARMOR_NOTIF_SET_FILTER.String(), Equals, "APPARMOR_NOTIF_SET_FILTER")
+	c.Assert(apparmor.APPARMOR_NOTIF_GET_FILTER.String(), Equals, "APPARMOR_NOTIF_GET_FILTER")
+	c.Assert(apparmor.APPARMOR_NOTIF_IS_ID_VALID.String(), Equals, "APPARMOR_NOTIF_IS_ID_VALID")
+	c.Assert(apparmor.APPARMOR_NOTIF_RECV.String(), Equals, "APPARMOR_NOTIF_RECV")
+	c.Assert(apparmor.APPARMOR_NOTIF_SEND.String(), Equals, "APPARMOR_NOTIF_SEND")
 
 	arbitrary := apparmor.IoctlRequest(0xDEADBEEF)
 	c.Assert(arbitrary.String(), Equals, "IoctlRequest(deadbeef)")

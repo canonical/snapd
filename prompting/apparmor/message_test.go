@@ -28,7 +28,7 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 					Length:  0x10,
 					Version: 0x02,
 				},
-				ModeSet: apparmor.ModeSetUser,
+				ModeSet: apparmor.APPARMOR_MODESET_USER,
 			},
 		},
 		{
@@ -46,7 +46,7 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 					Length:  0x18,
 					Version: 0x02,
 				},
-				ModeSet:   apparmor.ModeSetUser,
+				ModeSet:   apparmor.APPARMOR_MODESET_USER,
 				NameSpace: "foo",
 				Filter:    "bar",
 			},
@@ -153,7 +153,7 @@ func (*messageSuite) TestMsgNotificationFilterValidate(c *C) {
 
 func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 	msg := apparmor.MsgNotification{
-		NotificationType: apparmor.Response,
+		NotificationType: apparmor.APPARMOR_NOTIF_RESP,
 		Signalled:        1,
 		Flags:            0,
 		ID:               0x1234,
@@ -190,7 +190,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 	bytes := []byte{
 		0x4c, 0x0, // Length == 76 bytes
 		0x2, 0x0, // Protocol 2
-		0x4, 0x0, // Notification type == apparmor.Operation
+		0x4, 0x0, // Notification type == apparmor.APPARMOR_NOTIF_OP
 		0x0,                                    // Signalled
 		0x0,                                    // Reserved
 		0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // ID (request #2, just a number)
@@ -219,7 +219,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 					Length:  76,
 					Version: 2,
 				},
-				NotificationType: apparmor.Operation,
+				NotificationType: apparmor.APPARMOR_NOTIF_OP,
 				ID:               2,
 				Error:            -13,
 			},
@@ -227,7 +227,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 			Deny:  4,
 			Pid:   0x819,
 			Label: "test-prompt",
-			Class: apparmor.MediationClassFile,
+			Class: apparmor.AA_CLASS_FILE,
 		},
 		Name: "/root/.ssh/",
 	})
@@ -267,13 +267,13 @@ func (*messageSuite) TestDecodeFilePermissions(c *C) {
 		MsgNotificationOp: apparmor.MsgNotificationOp{
 			Allow: 5,
 			Deny:  3,
-			Class: apparmor.MediationClassFile,
+			Class: apparmor.AA_CLASS_FILE,
 		},
 	}
 	allow, deny, err := msg.DecodeFilePermissions()
 	c.Assert(err, IsNil)
-	c.Check(allow, Equals, apparmor.MayExecutePermission|apparmor.MayReadPermission)
-	c.Check(deny, Equals, apparmor.MayExecutePermission|apparmor.MayWritePermission)
+	c.Check(allow, Equals, apparmor.AA_MAY_EXEC|apparmor.AA_MAY_READ)
+	c.Check(deny, Equals, apparmor.AA_MAY_EXEC|apparmor.AA_MAY_WRITE)
 }
 
 func (*messageSuite) TestDecodeFilePermissionsWrongClass(c *C) {
@@ -281,9 +281,9 @@ func (*messageSuite) TestDecodeFilePermissionsWrongClass(c *C) {
 		MsgNotificationOp: apparmor.MsgNotificationOp{
 			Allow: 5,
 			Deny:  3,
-			Class: apparmor.MediationClassDBus,
+			Class: apparmor.AA_CLASS_DBUS,
 		},
 	}
 	_, _, err := msg.DecodeFilePermissions()
-	c.Assert(err, ErrorMatches, "mediation class D-Bus does not describe file permissions")
+	c.Assert(err, ErrorMatches, "mediation class AA_CLASS_DBUS does not describe file permissions")
 }
