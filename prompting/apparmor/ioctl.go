@@ -31,7 +31,7 @@ func (hb hexBuf) String() string {
 	return buf.String()
 }
 
-var dumpIoctl bool = osutil.GetenvBool("CERBERUS_DUMP_IOCTL")
+var dumpIoctl bool = osutil.GetenvBool("SNAPD_DEBUG_DUMP_IOCTL")
 
 // NotifyIoctl performs a ioctl(2) on the apparmor .notify file.
 func NotifyIoctl(fd uintptr, req IoctlRequest, msg []byte) (int, error) {
