@@ -129,7 +129,7 @@ func (s *PulseAudioInterfaceSuite) TestApparmorOnClassic(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ r,\n")
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/native rwk,\n")
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/pid r,\n")
 	c.Check(spec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.pulseaudio/pulse/ r,\n")
@@ -142,7 +142,7 @@ func (s *PulseAudioInterfaceSuite) TestApparmorOnCoreNotSnapd(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ r,\n")
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/native rwk,\n")
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/pid r,\n")
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /run/user/[0-9]*/snap.pulseaudio/pulse/ r,\n")
