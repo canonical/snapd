@@ -122,10 +122,11 @@ type restartManagerKey struct{}
 
 // RestartManager takes care of restart-related state.
 type RestartManager struct {
-	state      *state.State
-	restarting RestartType
-	h          Handler
-	bootID     string
+	state            *state.State
+	restarting       RestartType
+	h                Handler
+	bootID           string
+	changeCallbackID int
 }
 
 // Manager returns a new restart manager and initializes the support
@@ -150,6 +151,7 @@ func Manager(st *state.State, curBootID string, h Handler) (*RestartManager, err
 	}
 
 	st.RegisterPendingChangeByAttr("wait-for-system-restart", rm.pendingForSystemRestart)
+	rm.changeCallbackID = st.AddChangeStatusChangedHandler(processRestartForChange)
 
 	return rm, nil
 }
@@ -225,6 +227,16 @@ func (m *RestartManager) StartUp() error {
 	return nil
 }
 
+// Stop implements StateStopper. It will unregister the change callback
+// handler from state.
+func (rm *RestartManager) Stop() {
+	st := rm.state
+	st.Lock()
+	defer st.Unlock()
+
+	st.RemoveChangeStatusChangedHandler(rm.changeCallbackID)
+}
+
 func (rm *RestartManager) handleRestart(t RestartType, rebootInfo *boot.RebootInfo) {
 	if rm.h != nil {
 		rm.h.HandleRestart(t, rebootInfo)
@@ -274,17 +286,30 @@ func (rm *RestartManager) pendingForSystemRestart(chg *state.Change) bool {
 			// but if it happens fair game for aborting
 			continue
 		}
-		// no boot intervened yet
 
-		if len(t.HaltTasks()) == 0 {
-			// no successive tasks, take the WaitStatus at face value
-			return true
-		}
-		// check if there are tasks which need doing (DoStatus)
-		// that depend on the task that is waiting for reboot
-		for _, dep := range t.HaltTasks() {
-			if dep.Status() == state.DoStatus {
+		// No boot intervened yet.
+		// Check if there are tasks which need doing
+		// that depend on the task that is waiting for reboot.
+		switch t.WaitedStatus() {
+		case state.DoStatus, state.DoneStatus:
+			if len(t.HaltTasks()) == 0 {
+				// no successive tasks, take the WaitStatus at face value.
 				return true
+			}
+			for _, dep := range t.HaltTasks() {
+				if dep.Status() == state.DoStatus {
+					return true
+				}
+			}
+		case state.UndoStatus, state.UndoneStatus:
+			if len(t.WaitTasks()) == 0 {
+				// no successive tasks, take the WaitStatus at face value.
+				return true
+			}
+			for _, dep := range t.WaitTasks() {
+				if dep.Status() == state.UndoStatus {
+					return true
+				}
 			}
 		}
 	}
@@ -350,48 +375,6 @@ func notifyRebootRequiredClassic(rebootRequiredSnap string) error {
 	return nil
 }
 
-// FinishTaskWithRestart will finish a task that needs a restart, by setting
-// its status and requesting a restart.
-// It should usually be invoked returning its result immediately from the
-// caller.
-// In some situations it might not set the desired status directly and schedule
-// the restart. If a manual restart is preferred (like on classic, where
-// automatic restarts are undesirable) it will instead set the task to
-// WaitStatus and return a marker error of type state.Wait.
-// The restart manager itself will then make sure to set the the status as
-// requested later on system restart to allow progress again.
-func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType, snapName string, rebootInfo *boot.RebootInfo) error {
-	// if a system restart is requested on classic set the task to wait
-	// instead or just log the request if we are on the undo path
-	switch rt {
-	case RestartSystem, RestartSystemNow:
-		if release.OnClassic {
-			if status == state.DoneStatus {
-				rm := restartManager(task.State(), "internal error: cannot request a restart before RestartManager initialization")
-				// notify the system that a reboot is required
-				if err := notifyRebootRequiredClassic(snapName); err != nil {
-					logger.Noticef("cannot notify about pending reboot: %v", err)
-				}
-				// store current boot id to be able to check
-				// later if we have rebooted or not
-				task.Set("wait-for-system-restart-from-boot-id", rm.bootID)
-				setWaitForSystemRestart(task.Change())
-				task.Logf("Task set to wait until a manual system restart allows to continue")
-				return &state.Wait{Reason: "waiting for manual system restart", WaitedStatus: state.DoneStatus}
-			} else {
-				task.SetStatus(status)
-				task.Logf("Skipped automatic system restart on classic system when undoing changes back to previous state")
-				return nil
-			}
-		} else {
-			task.Logf("Requested system restart")
-		}
-	}
-	task.SetStatus(status)
-	Request(task.State(), rt, rebootInfo)
-	return nil
-}
-
 // Pending returns whether a restart was requested with Request and of which type.
 func Pending(st *state.State) (bool, RestartType) {
 	cached := st.Cached(restartManagerKey{})
@@ -417,9 +400,10 @@ func ReplaceBootID(st *state.State, bootID string) {
 // markTaskForRestart sets certain properties on a task to mark it for system restart.
 // The status argument is the status that the task will have after the system restart.
 func markTaskForRestart(t *state.Task, status state.Status, setTaskToWait bool) {
-	// XXX: Preserve previous restart behaviour for classic in the undo cases, is this still
+	// XXX: Preserve previous restart behavior for classic in the undo cases, is this still
 	// necessary?
 	if release.OnClassic && (status == state.UndoStatus || status == state.UndoneStatus) {
+		t.Change().Set("pending-system-restart", nil)
 		t.SetStatus(status)
 		t.Logf("Skipped automatic system restart on classic system when undoing changes back to previous state")
 		return
@@ -484,15 +468,14 @@ func MarkTaskAsRestartBoundary(t *state.Task, dir RestartBoundaryDirection) {
 	t.Set("restart-boundary", dir)
 }
 
-// FinishTaskWithRestart2 either schedules a restart for the given task or it
+// FinishTaskWithRestart either schedules a restart for the given task or it
 // does an immediate restart of the snapd daemon, depending on the type of restart
 // provided.
 // For SystemRestart and friends, the restart is scheduled and postponed until the
 // change has run out of tasks to run.
 // For tasks that request restarts as a part of their undo, any tasks that previously scheduled
 // restarts as a part of their 'do' will be unscheduled.
-// XXX: will replace FinishTaskWithRestart
-func FinishTaskWithRestart2(t *state.Task, snapName string, status state.Status, restartType RestartType, rebootInfo *boot.RebootInfo) error {
+func FinishTaskWithRestart(t *state.Task, status state.Status, restartType RestartType, snapName string, rebootInfo *boot.RebootInfo) error {
 	switch restartType {
 	case RestartSystem, RestartSystemNow, RestartSystemHaltNow, RestartSystemPoweroffNow:
 		break
@@ -514,6 +497,10 @@ func FinishTaskWithRestart2(t *state.Task, snapName string, status state.Status,
 	}
 	rp.init(snapName, restartType, rebootInfo)
 
+	// set restart parameters before call to markTaskForRestart as that
+	// can trigger a new change status
+	chg.Set("pending-system-restart", rp)
+
 	// Either invoked with undone or done as the final status. We don't expect
 	// other uses than tasks that end their Doing/Undoing to call this. Let's
 	// only allow these for now as nothing tests with anything else.
@@ -524,8 +511,6 @@ func FinishTaskWithRestart2(t *state.Task, snapName string, status state.Status,
 	default:
 		return fmt.Errorf("internal error: unexpected task status when requesting system restart for task: %s", status)
 	}
-
-	chg.Set("pending-system-restart", rp)
 	return nil
 }
 
@@ -556,15 +541,30 @@ func TaskWaitForRestart(t *state.Task) error {
 	return nil
 }
 
+func isStatusThatCanNeedRestart(status state.Status) bool {
+	switch status {
+	case state.WaitStatus, state.DoneStatus, state.UndoneStatus, state.ErrorStatus:
+		return true
+	default:
+		return false
+	}
+}
+
 // processRestartForChange must only be called from the change status changed event
 // hook.
-func processRestartForChange(chg *state.Change) error {
+func processRestartForChange(chg *state.Change, old, new state.Status) {
+	if !isStatusThatCanNeedRestart(new) {
+		return
+	}
+
 	var rp RestartParameters
 	if err := chg.Get("pending-system-restart", &rp); err != nil {
-		if errors.Is(err, &state.NoStateError{}) {
-			return fmt.Errorf("change %s is waiting to continue but has not requested any reboots", chg.ID())
+		// Changes might need a restart when they go into DoneStatus, but it's
+		// not guaranteed, so only log a warning if the change was in WaitStatus
+		if new == state.WaitStatus {
+			logger.Noticef("change %s is waiting to continue but failed to get parameters for reboot: %v", chg.ID(), err)
 		}
-		return err
+		return
 	}
 
 	// clear out the restart context for this change before restarting
@@ -577,8 +577,22 @@ func processRestartForChange(chg *state.Change) error {
 			logger.Noticef("cannot notify about pending reboot: %v", err)
 		}
 		logger.Noticef("Postponing restart until a manual system restart allows to continue")
-		return nil
+		return
 	}
 	Request(chg.State(), rp.RestartType, &boot.RebootInfo{RebootRequired: true, BootloaderOptions: rp.BootloaderOptions})
-	return nil
+}
+
+// MockAfterRestartForChange is added solely for unit test purposes, to help simulate restarts.
+func MockAfterRestartForChange(chg *state.Change) {
+	osutil.MustBeTestBinary("MockRestartForChange is only added for test purposes.")
+
+	for _, t := range chg.Tasks() {
+		if t.Status() != state.WaitStatus {
+			continue
+		}
+		t.SetStatus(t.WaitedStatus())
+		t.Set("wait-for-system-restart-from-boot-id", nil)
+	}
+	chg.Set("wait-for-system-restart", nil)
+	chg.Set("pending-system-restart", nil)
 }
