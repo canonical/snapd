@@ -370,6 +370,14 @@ dbus (receive)
     member="{AddNotification,RemoveNotification}"
     peer=(label=unconfined),
 
+# Allow registering session with GDM, necessary for screen locking
+dbus (send)
+    bus=system
+    path=/org/gnome/DisplayManager/Manager
+    interface=org.gnome.DisplayManager.Manager
+    member=RegisterSession
+    peer=(label=unconfined),
+
 # Allow unconfined xdg-desktop-portal to communicate with impl
 # services provided by the snap.
 dbus (receive, send)
