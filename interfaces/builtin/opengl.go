@@ -22,6 +22,7 @@ package builtin
 import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -98,6 +99,8 @@ const openglConnectedPlugAppArmor = `
 @{PROC}/modules r,
 /dev/nvidia* rw,
 unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
+# driver profiles
+/usr/share/nvidia/ r,
 /usr/share/nvidia/** r,
 
 # VideoCore/EGL (shared device with VideoCore camera)
@@ -203,6 +206,24 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="galcore"`,
 }
 
+func (iface *openGlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(openglConnectedPlugAppArmor)
+
+	// Allow mounting the Nvidia driver profiles directory
+	if !osutil.IsDirectory(dirs.NvidiaProfilesDir) {
+		return nil
+	}
+
+	spec.AddUpdateNSf(`  # Read-only access to Nvidia driver profiles in %[2]s
+	mount options=(bind) /var/lib/snapd/hostfs%[1]s/ -> %[2]s/,
+	remount options=(bind, ro) %[2]s/,
+	umount %[2]s/,
+  
+  `, dirs.NvidiaProfilesDir, dirs.StripRootDir(dirs.NvidiaProfilesDir))
+
+	return nil
+}
+
 func (iface *openGlInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Do nothing if this doesn't exist on the host
 	if !osutil.IsDirectory(dirs.NvidiaProfilesDir) {
@@ -221,13 +242,12 @@ func (iface *openGlInterface) MountConnectedPlug(spec *mount.Specification, plug
 func init() {
 	registerIface(&openGlInterface{
 		commonInterface: commonInterface{
-			name:                  "opengl",
-			summary:               openglSummary,
-			implicitOnCore:        true,
-			implicitOnClassic:     true,
-			baseDeclarationSlots:  openglBaseDeclarationSlots,
-			connectedPlugAppArmor: openglConnectedPlugAppArmor,
-			connectedPlugUDev:     openglConnectedPlugUDev,
+			name:                 "opengl",
+			summary:              openglSummary,
+			implicitOnCore:       true,
+			implicitOnClassic:    true,
+			baseDeclarationSlots: openglBaseDeclarationSlots,
+			connectedPlugUDev:    openglConnectedPlugUDev,
 		},
 	})
 }
