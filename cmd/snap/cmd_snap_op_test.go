@@ -1243,6 +1243,12 @@ func (s *SnapOpSuite) TestInstallPathManyChannel(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify channel flags`)
 }
 
+func (s *SnapOpSuite) TestInstallPathManyPrefer(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--prefer", "one.snap", "two.snap"})
+	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify the prefer flag`)
+}
+
 func (s *SnapOpSuite) TestInstallPathManyMode(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--classic", "foo.snap", "bar.snap"})
@@ -2657,6 +2663,12 @@ func (s *SnapOpSuite) TestInstallManyChannel(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--beta", "one", "two"})
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify channel flags`)
+}
+
+func (s *SnapOpSuite) TestInstallManyPrefer(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--prefer", "one", "two"})
+	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify the prefer flag`)
 }
 
 func (s *SnapOpSuite) TestInstallManyMode(c *check.C) {
