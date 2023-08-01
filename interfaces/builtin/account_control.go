@@ -72,31 +72,6 @@ dbus (receive)
     member=PropertiesChanged
     peer=(label=unconfined),
 
-# Introspection of org.freedesktop.locale1
-dbus (send)
-	bus=system
-	path=/org/freedesktop/locale1
-	interface=org.freedesktop.DBus.Introspectable
-	member=Introspect,
-# Properties of org.freedesktop.locale1
-dbus (send)
-	bus=system
-	path=/org/freedesktop/locale1
-	interface=org.freedesktop.DBus.Properties
-	member=Get{,All},
-# do not use peer=(label=unconfined) here since this is DBus activated
-dbus (send)
-	bus=system
-	path=/org/freedesktop/locale1
-	interface=org.freedesktop.locale1
-	member={SetLocale,SetX11Keyboard,SetVConsoleKeyboard},
-# Receive Accounts property changed events
-dbus (receive)
-	bus=system
-	path=/org/freedesktop/locale1
-	interface=org.freedesktop.DBus.Properties
-	member=PropertiesChanged,
-
 /{,usr/}sbin/chpasswd ixr,
 /{,usr/}sbin/user{add,del} ixr,
 
