@@ -161,4 +161,5 @@ var SupportedSystemUsernames = map[string]systemUsername{
 	"snap_aziotdu": {Id: 584791, AllowedSnapIds: []string{
 		"KzF67Mv8CeQBdUdrGaKU2sZVEiICWBg1", // deviceupdate-agent
 	}},
+	"_daemon_": {Id: 584792},
 }

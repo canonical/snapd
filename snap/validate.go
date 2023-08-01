@@ -1111,7 +1111,7 @@ func ValidateCommonIDs(info *Info) error {
 
 func ValidateSystemUsernames(info *Info) error {
 	for username := range info.SystemUsernames {
-		if !osutil.IsValidUsername(username) {
+		if !osutil.IsValidSystemUsername(username) {
 			return fmt.Errorf("invalid system username %q", username)
 		}
 	}

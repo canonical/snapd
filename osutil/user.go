@@ -62,6 +62,11 @@ type AddUserOptions struct {
 // allows as valid usernames
 var IsValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+._]*$`).MatchString
 
+// Any valid username is a valid system username but unlike a normal
+// username a system usernames can be encloused in "_"
+// (e.g. _username_ is valid)
+var IsValidSystemUsername = regexp.MustCompile(`^([_][-a-z0-9+._]+[_]|[a-z0-9][-a-z0-9+._]*)$`).MatchString
+
 // EnsureUserGroup uses the standard shadow utilities' 'useradd' and 'groupadd'
 // commands for creating non-login system users and groups that is portable
 // cross-distro. It will create the group with groupname 'name' and gid 'id' as
@@ -71,7 +76,7 @@ var IsValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+._]*$`).MatchString
 // which is exactly what we want since we don't want snaps to be blocked on
 // LDAP, etc when performing lookups.
 func EnsureUserGroup(name string, id uint32, extraUsers bool) error {
-	if !IsValidUsername(name) {
+	if !IsValidSystemUsername(name) {
 		return fmt.Errorf(`cannot add user/group %q: name contains invalid characters`, name)
 	}
 

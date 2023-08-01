@@ -254,29 +254,46 @@ func (s *createUserSuite) TestAddUserUnhappy(c *check.C) {
 
 }
 
+var usernameTestCases = map[string]bool{
+	"a":       true,
+	"a-b":     true,
+	"a+b":     true,
+	"a.b":     true,
+	"a_b":     true,
+	"1":       true,
+	"1+":      true,
+	"1.":      true,
+	"1_":      true,
+	"-":       false,
+	"+":       false,
+	".":       false,
+	"_":       false,
+	"-a":      false,
+	"+a":      false,
+	".a":      false,
+	"_a":      false,
+	"a:b":     false,
+	"inval!d": false,
+}
+
 func (s *createUserSuite) TestIsValidUsername(c *check.C) {
-	for k, v := range map[string]bool{
-		"a":       true,
-		"a-b":     true,
-		"a+b":     true,
-		"a.b":     true,
-		"a_b":     true,
-		"1":       true,
-		"1+":      true,
-		"1.":      true,
-		"1_":      true,
-		"-":       false,
-		"+":       false,
-		".":       false,
-		"_":       false,
-		"-a":      false,
-		"+a":      false,
-		".a":      false,
-		"_a":      false,
-		"a:b":     false,
-		"inval!d": false,
-	} {
+	for k, v := range usernameTestCases {
 		c.Check(osutil.IsValidUsername(k), check.Equals, v)
+	}
+}
+
+func (s *createUserSuite) TestIsValidSystemUsername(c *check.C) {
+	systemUsernameTestCases := map[string]bool{
+		"_daemon_":    true,
+		"snap_daemon": true,
+		"_a_":         true,
+	}
+	for k, v := range usernameTestCases {
+		systemUsernameTestCases[k] = v
+	}
+
+	for k, v := range systemUsernameTestCases {
+		c.Check(osutil.IsValidSystemUsername(k), check.Equals, v, check.Commentf("%v not %v", k, v))
 	}
 }
 
