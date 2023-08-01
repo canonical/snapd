@@ -28,8 +28,11 @@ type DatabagWrite func(JSONDataBag) error
 // Transaction performs read and writes to a databag in an atomic way.
 type Transaction struct {
 	pristine JSONDataBag
-	deltas   []map[string]interface{}
 	schema   Schema
+
+	modified      JSONDataBag
+	deltas        []map[string]interface{}
+	appliedDeltas int
 
 	readDatabag  DatabagRead
 	writeDatabag DatabagWrite
@@ -65,17 +68,26 @@ func (t *Transaction) Get(path string, value interface{}) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	// if there are changes, create a copy before applying (for isolation)
-	bag := t.pristine
-	if len(t.deltas) != 0 {
-		bag = t.pristine.Copy()
-
-		if err := applyDeltas(bag, t.deltas); err != nil {
-			return err
-		}
+	// if there aren't any changes, just use the pristine bag
+	if len(t.deltas) == 0 {
+		return t.pristine.Get(path, value)
 	}
 
-	return bag.Get(path, value)
+	// if there are changes, use a cached bag with modifications to do the Get
+	if t.modified == nil {
+		t.modified = t.pristine.Copy()
+		t.appliedDeltas = 0
+	}
+
+	// apply new changes since the last get
+	if err := applyDeltas(t.modified, t.deltas[t.appliedDeltas:]); err != nil {
+		t.modified = nil
+		t.appliedDeltas = 0
+		return err
+	}
+	t.appliedDeltas = len(t.deltas)
+
+	return t.modified.Get(path, value)
 }
 
 // Commit applies the previous writes and validates the final databag. If any
@@ -113,7 +125,9 @@ func (t *Transaction) Commit() error {
 	}
 
 	t.pristine = pristine
+	t.modified = nil
 	t.deltas = nil
+	t.appliedDeltas = 0
 	return nil
 }
 

@@ -34,7 +34,7 @@ restore: |
       echo "tc fail to add a device in arm architecture with error: 'Cannot find device ens4'"
       exit
   fi
-  # We need to skip this step in 22.10 because it fails with error:
+  # We need to skip this step in 23+ because it fails with error:
   # Error: Qdisc not classful. We have an error talking to the kernel
   # The test works well even after skipping this
   if os.query is-ubuntu-le 22.04; then

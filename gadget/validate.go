@@ -404,7 +404,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 		if kernelSnapRootDir == "" {
 			opts.SkipResolveContent = true
 		}
-		lv, err := LayoutVolume(vol, opts)
+		lv, err := LayoutVolume(vol, nil, opts)
 		if err != nil {
 			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}

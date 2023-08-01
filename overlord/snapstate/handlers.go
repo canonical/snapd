@@ -3440,14 +3440,15 @@ func (m *SnapManager) doSetAutoAliases(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// --unaliased
-	if snapsup.Unaliased {
+	// --unaliased/--prefer
+	// auto aliased is disabled for --prefer to avoid conflicting with
+	// existing installs
+	if snapsup.Unaliased || snapsup.Prefer {
 		t.Set("old-auto-aliases-disabled", snapst.AutoAliasesDisabled)
 		snapst.AutoAliasesDisabled = true
 	}
 
 	curAliases := snapst.Aliases
-	// TODO: implement --prefer logic
 	newAliases, err := refreshAliases(st, curInfo, curAliases)
 	if err != nil {
 		return err

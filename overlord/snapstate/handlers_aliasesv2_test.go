@@ -1950,3 +1950,107 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesConflict(c *C) {
 		"alias3": {Manual: "cmd5", Auto: "cmd3"},
 	})
 }
+
+func (s *snapmgrTestSuite) TestDoSetAutoAliasesFirstInstallPrefer(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
+		c.Check(info.InstanceName(), Equals, "alias-snap")
+		return map[string]string{
+			"alias1": "cmd1",
+			"alias2": "cmd2",
+			"alias4": "cmd4",
+		}, nil
+	}
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	t := s.state.NewTask("set-auto-aliases", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
+		Flags:    snapstate.Flags{Prefer: true},
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+
+	c.Check(t.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "alias-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Check(snapst.AutoAliasesDisabled, Equals, true)
+	c.Check(snapst.AliasesPending, Equals, true)
+	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"alias1": {Auto: "cmd1"},
+		"alias2": {Auto: "cmd2"},
+		"alias4": {Auto: "cmd4"},
+	})
+}
+
+func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesFirstInstallPrefer(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
+		c.Check(info.InstanceName(), Equals, "alias-snap")
+		return map[string]string{
+			"alias1": "cmd1",
+			"alias2": "cmd2",
+			"alias4": "cmd4",
+		}, nil
+	}
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	t := s.state.NewTask("set-auto-aliases", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
+		Flags:    snapstate.Flags{Prefer: true},
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(t.Status(), Equals, state.UndoneStatus, Commentf("%v", chg.Err()))
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "alias-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, true)
+	c.Check(snapst.Aliases, HasLen, 0)
+}

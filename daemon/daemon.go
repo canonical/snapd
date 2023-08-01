@@ -79,7 +79,7 @@ type Daemon struct {
 	// set to what kind of restart was requested (if any)
 	requestedRestart restart.RestartType
 	// reboot info needed to handle reboots
-	rebootInfo boot.RebootInfo
+	rebootInfo *boot.RebootInfo
 	// set to remember that we need to exit the daemon in a way that
 	// prevents systemd from restarting it
 	restartSocket bool
@@ -397,10 +397,7 @@ func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInf
 			logger.Noticef("%s", err)
 		}
 	}
-	d.rebootInfo = boot.RebootInfo{}
-	if rebootInfo != nil {
-		d.rebootInfo = *rebootInfo
-	}
+	d.rebootInfo = rebootInfo
 
 	// die when asked to restart (systemd should get us back up!) etc
 	switch t {
@@ -578,7 +575,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if needsFullShutdown {
-		return d.doReboot(sigCh, d.requestedRestart, &rebootInfo, immediateShutdown, rebootWaitTimeout)
+		return d.doReboot(sigCh, d.requestedRestart, rebootInfo, immediateShutdown, rebootWaitTimeout)
 	}
 
 	if d.restartSocket {
