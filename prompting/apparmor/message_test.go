@@ -72,17 +72,17 @@ func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
 		{
 			comment: "header short of one byte",
 			bytes:   []byte{0x10, 0x00, 0x02},
-			errMsg:  `cannot unmarshal apparmor message header: unexpected EOF`,
+			errMsg:  `cannot unmarshal apparmor notification filter message: cannot unmarshal apparmor message header: unexpected EOF`,
 		},
 		{
 			comment: "header without the remaining data",
 			bytes:   []byte{0x10, 0x00, 0x02, 0x00},
-			errMsg:  `cannot unmarshal apparmor message header: length mismatch 16 != 4`,
+			errMsg:  `cannot unmarshal apparmor notification filter message: cannot unmarshal apparmor message header: length mismatch 16 != 4`,
 		},
 		{
 			comment: "unsupported protocol version",
 			bytes:   []byte{0x04, 0x0, 0x3, 0x0},
-			errMsg:  `cannot unmarshal apparmor message header: unsupported version: 3`,
+			errMsg:  `cannot unmarshal apparmor notification filter message: cannot unmarshal apparmor message header: unsupported version: 3`,
 		},
 		{
 			comment: "message with truncated mode set",
@@ -91,7 +91,7 @@ func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
 				0x2, 0x0, // Protocol
 				0x80, 0x0, 0x0, // Mode Set, short of one byte
 			},
-			errMsg: `cannot unmarshal apparmor message header: length mismatch 16 != 7`,
+			errMsg: `cannot unmarshal apparmor notification filter message: cannot unmarshal apparmor message header: length mismatch 16 != 7`,
 		},
 		{
 			comment: "message with truncated namespace",
@@ -101,7 +101,7 @@ func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
 				0x80, 0x0, 0x0, 0x0, // Mode Set
 				0x0, 0x0, 0x0, // Namespace, short of one byte
 			},
-			errMsg: `cannot unmarshal apparmor message header: length mismatch 16 != 11`,
+			errMsg: `cannot unmarshal apparmor notification filter message: cannot unmarshal apparmor message header: length mismatch 16 != 11`,
 		},
 		{
 			comment: "message with truncated filter",
@@ -112,7 +112,7 @@ func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
 				0x0, 0x0, 0x0, 0x0, // Namespace
 				0x0, 0x0, 0x0, // Filter, short of one byte
 			},
-			errMsg: `cannot unmarshal apparmor message header: length mismatch 16 != 15`,
+			errMsg: `cannot unmarshal apparmor notification filter message: cannot unmarshal apparmor message header: length mismatch 16 != 15`,
 		},
 		{
 			comment: "message with namespace address pointing beyond message body",
