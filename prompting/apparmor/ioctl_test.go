@@ -31,6 +31,9 @@ func (*ioctlSuite) TestIoctlHappy(c *C) {
 	c.Assert(n, Equals, len(buf))
 }
 
+// XXX: there is no checking by the syscall return value in NotifyIoctl for
+// historical reasons.  We may need to re-evaluate this at some point and add
+// sanity checks that the syscall behaved as expected.
 func (*ioctlSuite) TestIoctlReturnValueSizeMismatch(c *C) {
 	fd := uintptr(123)
 	req := apparmor.IoctlRequest(456)
