@@ -75,6 +75,11 @@ prepare: |
         echo "canary-32-legacy" >> /usr/lib32/nvidia-123/vdpau/libvdpau_nvidia.so."$NV_VERSION"
     fi
 
+    mkdir -p /usr/share/nvidia/
+    touch /usr/share/nvidia/nvoptix.bin
+    touch /usr/share/nvidia/nvidia-application-profiles-535.54.03-rc
+    touch /usr/share/nvidia/nvidia-application-profiles-535.54.03-key-documentation
+
 restore: |
     umount /sys/module
     rm -rf /usr/share/vulkan
@@ -98,6 +103,7 @@ restore: |
     fi
     rm -rf /usr/lib/nvidia-123
     rm -rf /usr/lib32/nvidia-123
+    rm -rf /usr/share/nvidia
 
 execute: |
     "$TESTSTOOLS"/snaps-state install-local gl-core16
@@ -152,3 +158,8 @@ execute: |
             gl-core20 cat /var/lib/snapd/lib/gl32/libGLX_nvidia.so.0.0.1 | MATCH canary-32-triplet
         fi
     fi
+
+    echo "Can we access nvidia driver profiles in /usr/share/nvidia?"
+    test -r /usr/share/nvidia/nvidia-application-profiles-535.54.03-rc 
+    test -r /usr/share/nvidia/nvidia-application-profiles-535.54.03-documentation
+    test -r /usr/share/nvidia/nvoptix.bin
