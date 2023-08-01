@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 )
 
 // A Logger is a fairly minimal logging tool.
@@ -197,7 +198,7 @@ func SimpleSetup() error {
 // initramfs, where we want to consider the quiet kernel option.
 func BootSetup() error {
 	flags := buildFlags()
-	m, _ := osutil.KernelCommandLineKeyValues("quiet")
+	m, _ := kcmdline.KeyValues("quiet")
 	_, quiet := m["quiet"]
 	logger := &Log{
 		log:   log.New(os.Stderr, "", flags),
@@ -220,7 +221,7 @@ func debugEnabledOnKernelCmdline() bool {
 	if osutil.IsTestBinary() && procCmdlineUseDefaultMockInTests {
 		return false
 	}
-	m, _ := osutil.KernelCommandLineKeyValues("snapd.debug")
+	m, _ := kcmdline.KeyValues("snapd.debug")
 	return m["snapd.debug"] == "1"
 }
 

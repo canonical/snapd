@@ -116,7 +116,7 @@ func MustLayOutSingleVolumeFromGadget(gadgetRoot, kernelRoot string, model gadge
 	}
 	for _, vol := range info.Volumes {
 		// we know info.Volumes map has size 1 so we can return here
-		return gadget.LayoutVolume(vol, opts)
+		return gadget.LayoutVolume(vol, nil, opts)
 	}
 
 	// this is impossible to reach, we already checked that info.Volumes has a
@@ -228,14 +228,4 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 	restore = disks.MockDevicePathToDiskMapping(diskMapping)
 
 	return ginfo, laidVols, model, restore, nil
-}
-
-// SetEnclosingVolumeInStructs is a helper that sets the pointer to
-// the Volume in all VolumeStructure objects it contains.
-func SetEnclosingVolumeInStructs(vv map[string]*gadget.Volume) {
-	for _, v := range vv {
-		for sidx := range v.Structure {
-			v.Structure[sidx].EnclosingVolume = v
-		}
-	}
 }

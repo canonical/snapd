@@ -225,6 +225,12 @@ func MockRebootArgsPath(argsPath string) (restore func()) {
 	return func() { rebootArgsPath = oldRebootArgsPath }
 }
 
+func MockBootloaderFind(f func(rootdir string, opts *bootloader.Options) (bootloader.Bootloader, error)) (restore func()) {
+	r := testutil.Backup(&bootloaderFind)
+	bootloaderFind = f
+	return r
+}
+
 func MockHasFDESetupHook(f func(*snap.Info) (bool, error)) (restore func()) {
 	oldHasFDESetupHook := HasFDESetupHook
 	HasFDESetupHook = f

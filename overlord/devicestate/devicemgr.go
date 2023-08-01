@@ -482,7 +482,7 @@ func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
 
 func (m *DeviceManager) changeInFlight(kind string) bool {
 	for _, chg := range m.state.Changes() {
-		if chg.Kind() == kind && !chg.Status().Ready() {
+		if chg.Kind() == kind && !chg.IsReady() {
 			// change already in motion
 			return true
 		}

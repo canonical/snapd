@@ -169,6 +169,21 @@ slots:
 				{(*apparmor.Specification).SuppressHomeIx, true},
 			},
 		},
+		// PycacheDeny
+		{
+			// setting nothing
+			&commonInterface{name: "common", suppressPycacheDeny: false},
+			Checks{
+				{(*apparmor.Specification).SuppressPycacheDeny, false},
+			},
+		},
+		{
+			// setting suppress
+			&commonInterface{name: "common", suppressPycacheDeny: true},
+			Checks{
+				{(*apparmor.Specification).SuppressPycacheDeny, true},
+			},
+		},
 		// sys_module capability
 		{
 			// setting nothing

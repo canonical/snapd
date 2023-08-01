@@ -22,11 +22,13 @@ package snapstate_test
 import (
 	"context"
 	"fmt"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -482,4 +484,66 @@ func (s *snapmgrTestSuite) TestInstallSizeRemotePrereq(c *C) {
 	// the prereq's size info is fetched from the store
 	op := s.fakeStore.fakeBackend.ops.MustFindOp(c, "storesvc-snap-action:action")
 	c.Assert(op.action.InstanceName, Equals, "snap-content-slot")
+}
+
+func (s *snapmgrTestSuite) TestSnapHoldsSnapsOnly(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+	mockInstalledSnap(c, st, snapByaml, false)
+	mockInstalledSnap(c, st, snapCyaml, false)
+
+	_, err := snapstate.HoldRefresh(st, snapstate.HoldGeneral, "snap-c", 24*time.Hour, "snap-a", "snap-b")
+	c.Assert(err, IsNil)
+
+	snapHolds, err := snapstate.SnapHolds(st, []string{"snap-a", "snap-b", "snap-c"})
+	c.Assert(err, IsNil)
+	c.Check(snapHolds, DeepEquals, map[string][]string{
+		"snap-a": {"snap-c"},
+		"snap-b": {"snap-c"},
+	})
+}
+
+func (s *snapmgrTestSuite) TestSnapHoldsSystemOnly(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+	mockInstalledSnap(c, st, snapByaml, false)
+
+	mockLastRefreshed(c, st, "2021-05-09T10:00:00Z", "snap-a", "snap-b")
+
+	now, err := time.Parse(time.RFC3339, "2021-05-10T10:00:00Z")
+	c.Assert(err, IsNil)
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	tr := config.NewTransaction(st)
+	err = tr.Set("core", "refresh.hold", "2021-05-10T11:00:00Z")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	snapHolds, err := snapstate.SnapHolds(st, []string{"snap-a", "snap-b"})
+	c.Assert(err, IsNil)
+	c.Check(snapHolds, DeepEquals, map[string][]string{
+		"snap-a": {"system"},
+		"snap-b": {"system"},
+	})
+
+	tr = config.NewTransaction(st)
+	err = tr.Set("core", "refresh.hold", "forever")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	snapHolds, err = snapstate.SnapHolds(st, []string{"snap-a", "snap-b"})
+	c.Assert(err, IsNil)
+	c.Check(snapHolds, DeepEquals, map[string][]string{
+		"snap-a": {"system"},
+		"snap-b": {"system"},
+	})
 }

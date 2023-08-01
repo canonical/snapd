@@ -45,6 +45,8 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/kcmdline"
+	"github.com/snapcore/snapd/snapdtool"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -78,6 +80,8 @@ type cmdInitramfsMounts struct{}
 func (c *cmdInitramfsMounts) Execute([]string) error {
 	boot.HasFDESetupHook = hasFDESetupHook
 	boot.RunFDESetupHook = runFDESetupHook
+
+	logger.Noticef("snap-bootstrap version %v starting", snapdtool.Version)
 
 	return generateInitramfsMounts()
 }
@@ -1569,7 +1573,7 @@ func waitForCandidateByLabelPath(label string) (string, error) {
 }
 
 func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
-	values, err := osutil.KernelCommandLineKeyValues("snapd_system_disk")
+	values, err := kcmdline.KeyValues("snapd_system_disk")
 	if err != nil {
 		return "", err
 	}

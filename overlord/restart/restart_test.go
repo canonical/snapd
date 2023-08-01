@@ -28,7 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
@@ -180,12 +180,13 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	c.Check(t, Equals, restart.RestartUnset)
 
 	restart.Request(st, restart.RestartSystem, &boot.RebootInfo{
-		RebootRequired:   true,
-		RebootBootloader: &bootloadertest.MockRebootBootloader{}})
+		RebootRequired:    true,
+		BootloaderOptions: &bootloader.Options{},
+	})
 
 	c.Check(h.restartRequested, Equals, true)
 	c.Check(h.rebootInfo.RebootRequired, Equals, true)
-	c.Check(h.rebootInfo.RebootBootloader, NotNil)
+	c.Check(h.rebootInfo.BootloaderOptions, NotNil)
 
 	ok, t = restart.Pending(st)
 	c.Check(ok, Equals, true)

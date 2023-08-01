@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -49,7 +49,7 @@ func (s *kernelCommandLineSuite) SetUpTest(c *C) {
 
 	err := os.MkdirAll(filepath.Join(s.rootDir, "proc"), 0755)
 	c.Assert(err, IsNil)
-	restore := osutil.MockProcCmdline(filepath.Join(s.rootDir, "proc/cmdline"))
+	restore := kcmdline.MockProcCmdline(filepath.Join(s.rootDir, "proc/cmdline"))
 	s.AddCleanup(restore)
 }
 

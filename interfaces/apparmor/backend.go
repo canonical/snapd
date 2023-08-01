@@ -176,6 +176,10 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	patchedProfileText := bytes.Replace(
 		vanillaProfileText, []byte("/usr/lib/snapd/snap-confine"), []byte(snapConfineInCore), -1)
 
+	// Replace the path to the vanilla snap-confine apparmor snippets
+	patchedProfileText = bytes.Replace(
+		patchedProfileText, []byte("/var/lib/snapd/apparmor/snap-confine"), []byte(apparmor_sandbox.SnapConfineAppArmorDir), -1)
+
 	// Also replace the test providing access to verbatim
 	// /usr/lib/snapd/snap-confine, which is necessary because to execute snaps
 	// from strict snaps, we need to be able read and map
@@ -232,7 +236,7 @@ func snapConfineProfileName(snapName string, rev snap.Revision) string {
 //
 // Additionally it will cleanup stale apparmor profiles it created.
 func (b *Backend) setupSnapConfineReexec(info *snap.Info) error {
-	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
+	if err := os.MkdirAll(apparmor_sandbox.SnapConfineAppArmorDir, 0755); err != nil {
 		return fmt.Errorf("cannot create snap-confine policy directory: %s", err)
 	}
 	dir, glob, content, err := snapConfineFromSnapProfile(info)
@@ -829,6 +833,11 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 			return templateVariables(snapInfo, securityTag, cmdName)
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
+		case "###PYCACHEDENY###":
+			if spec.SuppressPycacheDeny() {
+				return ""
+			}
+			return pycacheDenySnippet
 		case "###CHANGEPROFILE_RULE###":
 			features, _ := parserFeatures()
 			if strutil.ListContains(features, "unsafe") {

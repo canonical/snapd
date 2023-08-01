@@ -186,7 +186,7 @@ check_cgroup_scopes() {
 check_segmentation_violations() {
 	n="$1" # invariant name
 
-	"$TESTSTOOLS"/journal-state get-log -unit snapd | grep "segmentation violation" > "$TESTSTMP/tests.invariant.$n"
+	"$TESTSTOOLS"/journal-state get-log -u snapd | grep "segmentation violation" > "$TESTSTMP/tests.invariant.$n"
 	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
 		echo "tests.invariant: segmentation violation found" >&2
 		cat "$TESTSTMP/tests.invariant.$n" >&2

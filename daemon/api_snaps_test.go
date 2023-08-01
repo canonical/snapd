@@ -465,6 +465,7 @@ func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
 			"cohort-key":   `"what"`,
 			"leave-cohort": "true",
 			"purge":        "true",
+			"prefer":       "true",
 		} {
 			buf := strings.NewReader(fmt.Sprintf(`{"action": "%s","snaps":["foo","bar"], "%s": %s}`, action, weird, v))
 			req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -1587,6 +1588,21 @@ func (s *snapsSuite) TestPostSnapLeaveCohortUnsupportedAction(c *check.C) {
 
 	for _, action := range []string{"install", "remove", "revert", "enable", "disable", "xyzzy"} {
 		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "leave-cohort": true}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
+func (s *snapsSuite) TestPostSnapPreferWrongAction(c *check.C) {
+	s.daemonWithOverlordMock()
+	const expectedErr = "the prefer flag can only be specified on install"
+
+	for _, action := range []string{"remove", "refresh", "revert", "enable", "disable", "xyzzy"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "prefer": true}`, action))
 		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
 		c.Assert(err, check.IsNil)
 
@@ -3008,4 +3024,16 @@ func (s *snapsSuite) TestHoldAllSnapsGeneralRefreshesNotSupported(c *check.C) {
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Assert(rspe.Error(), check.Matches, `cannot hold: holding general refreshes for all snaps is not supported.*`)
+}
+
+func (s *snapsSuite) TestOnlyAllowUnaliasedOrPrefer(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "install", "unaliased": true, "prefer": true}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/foo", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `cannot use unaliased and prefer flags together.*`)
 }

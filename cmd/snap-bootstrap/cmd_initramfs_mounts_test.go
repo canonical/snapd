@@ -45,11 +45,13 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -520,7 +522,7 @@ func (s *baseInitramfsMountsSuite) mockProcCmdlineContent(c *C, newContent strin
 	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
 	err := ioutil.WriteFile(mockProcCmdline, []byte(newContent), 0644)
 	c.Assert(err, IsNil)
-	restore := osutil.MockProcCmdline(mockProcCmdline)
+	restore := kcmdline.MockProcCmdline(mockProcCmdline)
 	s.AddCleanup(restore)
 }
 
@@ -693,6 +695,12 @@ func (s *baseInitramfsMountsSuite) mockSystemdMountSequence(c *C, mounts []syste
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	restore = snapdtool.MockVersion("1.2.3")
+	defer restore()
+
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
 	// ensure that we check that access to sealed keys were locked
@@ -702,7 +710,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 		return nil
 	})()
 
-	restore := s.mockSystemdMountSequence(c, []systemdMount{
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
@@ -732,6 +740,8 @@ grade=signed
 	c.Check(cloudInitDisable, testutil.FilePresent)
 
 	c.Check(sealedKeysLocked, Equals, true)
+
+	c.Check(logbuf.String(), testutil.Contains, "snap-bootstrap version 1.2.3 starting\n")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) {

@@ -2,7 +2,10 @@ module github.com/snapcore/snapd/tests/lib/muinstaller
 
 go 1.18
 
-require github.com/snapcore/snapd v0.0.0-20230214100613-34da9d970bab
+// XXX remove as soon as https://github.com/snapcore/snapd/pull/12985 is merged
+replace github.com/snapcore/snapd => github.com/alfonsosanchezbeato/snapd v0.0.0-20230727071725-a26d74a3caa7
+
+require github.com/snapcore/snapd v0.0.0-20230705065623-befebe0d505e
 
 require (
 	github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 // indirect
@@ -13,11 +16,11 @@ require (
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/mvo5/goconfigparser v0.0.0-20200803085309-72e476556adb // indirect
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785 // indirect
-	github.com/snapcore/secboot v0.0.0-20230119174011-57239c9f324a // indirect
+	github.com/snapcore/secboot v0.0.0-20230623151406-4d331d24f830 // indirect
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1 // indirect
 	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90 // indirect
-	golang.org/x/net v0.7.0 // indirect
-	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/net v0.9.0 // indirect
+	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
 	gopkg.in/retry.v1 v1.0.3 // indirect
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637 // indirect

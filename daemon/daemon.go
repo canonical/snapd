@@ -76,10 +76,10 @@ type Daemon struct {
 	router          *mux.Router
 	standbyOpinions *standby.StandbyOpinions
 
-	// set to what kind of restart was requested if any
+	// set to what kind of restart was requested (if any)
 	requestedRestart restart.RestartType
 	// reboot info needed to handle reboots
-	rebootInfo boot.RebootInfo
+	rebootInfo *boot.RebootInfo
 	// set to remember that we need to exit the daemon in a way that
 	// prevents systemd from restarting it
 	restartSocket bool
@@ -94,7 +94,7 @@ type Daemon struct {
 // A ResponseFunc handles one of the individual verbs for a method
 type ResponseFunc func(*Command, *http.Request, *auth.UserState) Response
 
-// A Command routes a request to an individual per-verb ResponseFUnc
+// A Command routes a request to an individual per-verb ResponseFunc
 type Command struct {
 	Path       string
 	PathPrefix string
@@ -227,7 +227,7 @@ func (d *Daemon) Init() error {
 		return err
 	}
 
-	// The SnapdSocket is required-- without it, die.
+	// The SnapdSocket is required -- without it, die.
 	if listener, err := netutil.GetListener(dirs.SnapdSocket, listenerMap); err == nil {
 		d.snapdListener = &ucrednetListener{Listener: listener}
 	} else {
@@ -249,15 +249,15 @@ func (d *Daemon) Init() error {
 	return nil
 }
 
-// SetDegradedMode puts the daemon into an degraded mode which will the
-// error given in the "err" argument for commands that are not marked
-// as readonlyOK.
+// SetDegradedMode puts the daemon into a degraded mode. In this mode
+// it will return the error given in the "err" argument for commands
+// that are not pure HTTP GETs.
 //
 // This is useful to report errors to the client when the daemon
 // cannot work because e.g. a snapd squashfs precondition check failed
 // or the system is out of diskspace.
 //
-// When the system is fine again calling "DegradedMode(nil)" is enough
+// When the system is fine again, calling "SetDegradedMode(nil)" is enough
 // to put the daemon into full operation again.
 func (d *Daemon) SetDegradedMode(err error) {
 	d.degradedErr = err
@@ -340,7 +340,7 @@ func (d *Daemon) Start() error {
 		logger.Noticef("adjusting startup timeout by %v (%s)", to, reasoning)
 		systemdSdNotify(fmt.Sprintf("EXTEND_TIMEOUT_USEC=%d", us))
 	}
-	// now perform expensive overlord/manages initiliazation
+	// now perform expensive overlord/manages initialization
 	if err := d.overlord.StartUp(); err != nil {
 		return err
 	}
@@ -397,10 +397,7 @@ func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInf
 			logger.Noticef("%s", err)
 		}
 	}
-	d.rebootInfo = boot.RebootInfo{}
-	if rebootInfo != nil {
-		d.rebootInfo = *rebootInfo
-	}
+	d.rebootInfo = rebootInfo
 
 	// die when asked to restart (systemd should get us back up!) etc
 	switch t {
@@ -578,7 +575,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if needsFullShutdown {
-		return d.doReboot(sigCh, d.requestedRestart, &rebootInfo, immediateShutdown, rebootWaitTimeout)
+		return d.doReboot(sigCh, d.requestedRestart, rebootInfo, immediateShutdown, rebootWaitTimeout)
 	}
 
 	if d.restartSocket {

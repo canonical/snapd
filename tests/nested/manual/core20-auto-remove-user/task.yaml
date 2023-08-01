@@ -178,7 +178,7 @@ execute: |
   teardown_ramdisk
 
   # lets put the system time ahead by 1h
-  remote.exec "sudo timedatectl set-ntp false"
+  retry -n 3 --wait 5 remote.exec "sudo timedatectl set-ntp false"
   remote.exec "sudo date -s 'next hour'"
 
   # run ensure state to have the user removed
