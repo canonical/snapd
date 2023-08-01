@@ -149,7 +149,7 @@ static bool is_octal_digit(char c)
 
 static char *parse_next_string_field_ex(sc_mountinfo_entry * entry,
 					const char *line, size_t *offset,
-					bool last)
+					bool allow_spaces_in_field)
 {
 	const char *input = &line[*offset];
 	char *output = &entry->line_buf[*offset];
@@ -175,7 +175,7 @@ static char *parse_next_string_field_ex(sc_mountinfo_entry * entry,
 			// NOTE: we must not advance the reading index since we
 			// reached the end of the buffer.
 			break;
-		} else if (c == ' ' && !last) {
+		} else if (c == ' ' && !allow_spaces_in_field) {
 			// Fields are space delimited or end-of-string terminated.
 			// Represent either as the end-of-string marker, skip over it,
 			// and stop parsing by terminating the output, then
@@ -229,12 +229,15 @@ static char *parse_next_string_field_ex(sc_mountinfo_entry * entry,
 	return output;
 }
 
+// Return the next space separated string field in the given line
 static char *parse_next_string_field(sc_mountinfo_entry * entry,
 				     const char *line, size_t *offset)
 {
 	return parse_next_string_field_ex(entry, line, offset, false);
 }
 
+// Return the last string field in the given line, this means the field
+// is allowed to contain spaces (' ', 0x20)
 static char *parse_last_string_field(sc_mountinfo_entry * entry,
 				     const char *line, size_t *offset)
 {
