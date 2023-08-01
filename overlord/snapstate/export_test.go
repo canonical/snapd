@@ -128,9 +128,16 @@ var (
 
 	AffectedByRefresh = affectedByRefresh
 
-	GetDirMigrationOpts = getDirMigrationOpts
-	WriteSeqFile        = writeSeqFile
-	TriggeredMigration  = triggeredMigration
+	GetDirMigrationOpts             = getDirMigrationOpts
+	WriteSeqFile                    = writeSeqFile
+	TriggeredMigration              = triggeredMigration
+	TaskSetsByTypeForEssentialSnaps = taskSetsByTypeForEssentialSnaps
+	SetDefaultRestartBoundaries     = setDefaultRestartBoundaries
+	DeviceModelBootBase             = deviceModelBootBase
+)
+
+const (
+	NoRestartBoundaries = noRestartBoundaries
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {

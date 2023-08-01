@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -936,6 +937,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	}
 	tss = append(tss, state.NewTaskSet(setModel))
 
+	// Ensure correct restart boundaries are set on the new task-set.
+	if err := snapstate.SetEssentialSnapsRestartBoundaries(st, deviceCtx, tss); err != nil {
+		return nil, err
+	}
 	return tss, nil
 }
 
@@ -1167,6 +1172,8 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 		// IDs of the tasks carrying snap-setup
 		SnapSetupTasks: snapSetupTasks,
 	})
+	// Create recovery system requires us to boot into it before finalize
+	restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
 
 	finalize := st.NewTask("finalize-recovery-system", fmt.Sprintf("Finalize recovery system with label %q", label))
 	finalize.WaitFor(create)

@@ -366,7 +366,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 	}
 	new := s.brands.Model("canonical", "pc-model", headers)
 
-	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
 
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
 	c.Assert(err, IsNil)
@@ -549,7 +549,7 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 	new.KernelSnap().SnapID = "pckernelidididididididididididid"
 	new.GadgetSnap().SnapID = "pcididididididididididididididid"
 
-	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
 
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, localSnaps, paths, testDeviceCtx, "99")
 	if expectedErr == "" {
@@ -1747,6 +1747,10 @@ volumes:
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate restart
+	s.mockRestartAndSettle(c, s.state, chg)
+
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), IsNil)
 	c.Check(gadgetUpdateCalled, Equals, true)
@@ -1886,7 +1890,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 		"revision":     "1",
 	})
 
-	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
 
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
 	c.Assert(err, IsNil)

@@ -82,6 +82,13 @@ func verifyUpdateTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskSe
 	}
 }
 
+// mockRestartAndSettle expects the state to be locked
+func (s *snapmgrTestSuite) mockRestartAndSettle(c *C, chg *state.Change) {
+	restart.MockPending(s.state, restart.RestartUnset)
+	restart.MockAfterRestartForChange(chg)
+	s.settle(c)
+}
+
 func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -8401,6 +8408,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 
+	// mock restart for the 'link-snap' step and run change to
+	// completion.
+	s.mockRestartAndSettle(c, chg)
+
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	// a single system restart was requested
 	c.Check(restartRequested, DeepEquals, []restart.RestartType{
@@ -8572,6 +8583,12 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHa
 
 	defer s.se.Stop()
 	s.settle(c)
+
+	// first 'auto-connect' restart here
+	s.mockRestartAndSettle(c, chg)
+
+	// second 'auto-connect' restart here
+	s.mockRestartAndSettle(c, chg)
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	// when updating both kernel that uses core as base, and "core" we have two reboots
@@ -8785,13 +8802,20 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 
+	// both snaps have requested a restart at 'auto-connect', handle this here
+	s.mockRestartAndSettle(c, chg)
+
+	// both snaps have requested another restart along the undo path at 'unlink-current-snap'
+	// because reboots are post-poned until the change have no more tasks to run, and how the
+	// change is manipulated in this specific case, we only do one reboot along the undo-path as well now.
+	s.mockRestartAndSettle(c, chg)
+
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*\(auto-connect-kernel mock error\)`)
 	c.Check(restartRequested, DeepEquals, []restart.RestartType{
 		// do path
 		restart.RestartSystem,
 		// undo
-		restart.RestartSystem,
 		restart.RestartSystem,
 	})
 	c.Check(errInjected, Equals, 1)
@@ -8914,6 +8938,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseAndSnapdOrder(c *C) {
 
 	defer s.se.Stop()
 	s.settle(c)
+
+	// mock restart for the 'link-snap' step and run change to
+	// completion.
+	s.mockRestartAndSettle(c, chg)
 
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.Status(), Equals, state.DoneStatus)
@@ -10376,4 +10404,52 @@ func (s *snapmgrTestSuite) TestUpdateNotAllowedWhileRevertDowngrading(c *C) {
 func (s *snapmgrTestSuite) TestUpdateAllowedWhileRevertUpgrading(c *C) {
 	err := s.testUpdateNotAllowedWhileDowngrading(c, "2.58", "2.57.1", true)
 	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUpdateSetsRestartBoundaries(c *C) {
+	siGadget := snap.SideInfo{
+		RealName: "brand-gadget",
+		SnapID:   "brand-gadget-id",
+		Revision: snap.R(7),
+	}
+	siSomeSnap := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r := snapstatetest.MockDeviceModel(DefaultModel())
+	defer r()
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&siGadget},
+		Current:  siGadget.Revision,
+	})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&siSomeSnap},
+		Current:  siSomeSnap.Revision,
+	})
+
+	ts1, err := snapstate.Update(s.state, "brand-gadget", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// only ensure that SetEssentialSnapsRestartBoundaries was actually called, we don't
+	// test that all restart boundaries were set, one is enough
+	linkSnap1 := ts1.MaybeEdge(snapstate.MaybeRebootEdge)
+	c.Assert(linkSnap1, NotNil)
+
+	var boundary restart.RestartBoundaryDirection
+	c.Check(linkSnap1.Get("restart-boundary", &boundary), IsNil)
+
+	// also ensure that it's not set for normal snaps
+	ts2, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	linkSnap2 := ts2.MaybeEdge(snapstate.MaybeRebootEdge)
+	c.Assert(linkSnap2, NotNil)
+	c.Check(linkSnap2.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
 }
