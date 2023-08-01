@@ -137,6 +137,13 @@ mount options=(rw, rbind) /oldroot/run/udev/ -> /newroot/run/udev/,
 mount options=(rw, rbind) /oldroot/home/{,**} -> /newroot/home/{,**},
 mount options=(rw, rbind) /oldroot/snap/** -> /newroot/snap/**,
 mount options=(rw, rbind) /oldroot/home/**/usr/ -> /newroot/usr/,
+
+mount options=(rw, rbind) /oldroot/media/**/steamapps/common/**/usr/ -> /newroot/usr/,
+mount options=(rw, rbind) /oldroot/mnt/**/steamapps/common/**/usr/ -> /newroot/usr/,
+mount options=(rw, rbind) /oldroot/run/media/**/steamapps/common/**/usr/ -> /newroot/usr/,
+mount options=(rw, rbind) /oldroot/opt/**/steamapps/common/**/usr/ -> /newroot/usr/,
+mount options=(rw, rbind) /oldroot/srv/**/steamapps/common/**/usr/ -> /newroot/usr/,
+
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/** -> /newroot/etc/**,
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.cache -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.cache,
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.conf -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.conf,
