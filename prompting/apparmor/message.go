@@ -100,7 +100,7 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 
 	// Unpack the base structure.
 	if err := msg.MsgHeader.UnmarshalBinary(data); err != nil {
-		return err
+		return fmt.Errorf("%s: %v", prefix, err)
 	}
 
 	// Unpack fixed-size elements.
