@@ -6,22 +6,6 @@ import (
 	"fmt"
 )
 
-// overwriter implements io.Writer that writes over an existing buffer.
-//
-// It is used to perform in-place modifications of a larger memory buffer.
-type overwriter struct {
-	Buffer []byte
-}
-
-// Write overwrites the buffer, from the beginning, with the given bytes.
-func (o *overwriter) Write(p []byte) (n int, err error) {
-	if n := len(p); n < len(o.Buffer) {
-		copy(o.Buffer[:n], p)
-		return n, nil
-	}
-	return 0, fmt.Errorf("insufficient space to write")
-}
-
 // Message fields are defined as raw sized integer types as the same type may be
 // packed as 16 bit or 32 bit integer, to accommodate other fields in the
 // structure.
@@ -66,10 +50,12 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 // RequestBuffer returns a new buffer for communication with the kernel.
 // The buffer contains encoded information about its size and protocol version.
 func RequestBuffer() []byte {
-	buf := make([]byte, 0xFFFF)
-	header := MsgHeader{Version: 2, Length: uint16(len(buf))}
-	binary.Write(&overwriter{Buffer: buf}, binary.LittleEndian, &header)
-	return buf
+	bufSize := 0xFFFF
+	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
+	header := MsgHeader{Version: 2, Length: uint16(bufSize)}
+	binary.Write(buf, binary.LittleEndian, &header)
+	buf.Write(make([]byte, bufSize-buf.Len()))
+	return buf.Bytes()
 }
 
 // msgNotificationFilter describes the configuration of kernel-side message filtering.
