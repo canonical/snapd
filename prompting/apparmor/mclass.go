@@ -6,18 +6,16 @@ import "fmt"
 type MediationClass uint16
 
 const (
-	// MediationClassFile corresponds to AA_CLASS_FILE.
-	MediationClassFile MediationClass = 2
-	// MediationClassDBus corresponds to AA_CLASS_DBUS.
-	MediationClassDBus MediationClass = 32
+	AA_CLASS_FILE MediationClass = 2
+	AA_CLASS_DBUS MediationClass = 32
 )
 
 func (mcls MediationClass) String() string {
 	switch mcls {
-	case MediationClassFile:
-		return "file"
-	case MediationClassDBus:
-		return "D-Bus"
+	case AA_CLASS_FILE:
+		return "AA_CLASS_FILE"
+	case AA_CLASS_DBUS:
+		return "AA_CLASS_DBUS"
 	default:
 		return fmt.Sprintf("MediationClass(%#x)", uint16(mcls))
 	}

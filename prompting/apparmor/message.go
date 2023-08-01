@@ -85,8 +85,8 @@ type msgNotificationFilter struct {
 // IoctlSetFilter.
 type MsgNotificationFilter struct {
 	MsgHeader
-	// ModeSet is a bitmask. Specifying ModeSetUser allows to receive notification
-	// messages in userspace.
+	// ModeSet is a bitmask. Specifying APPARMOR_MODESET_USER allows to
+	// receive notification messages in userspace.
 	ModeSet ModeSet
 	// XXX: This is currently unused by the kernel and the value is ignored.
 	NameSpace string
@@ -176,7 +176,7 @@ func (msg *MsgNotificationFilter) Validate() error {
 type MsgNotification struct {
 	MsgHeader
 	// NotificationType describes the kind of notification message used.
-	// Currently the kernel only sends Operation messages.
+	// Currently the kernel only sends APPARMOR_NOTIF_OP messages.
 	NotificationType NotificationType
 	// XXX: Signaled seems to be unused.
 	Signalled uint8
@@ -260,10 +260,10 @@ type MsgNotificationResponse struct {
 func ResponseForRequest(req *MsgNotification) MsgNotificationResponse {
 	return MsgNotificationResponse{
 		MsgNotification: MsgNotification{
-			NotificationType: Response,
+			NotificationType: APPARMOR_NOTIF_RESP,
 			// XXX: should Signalled be copied?
 			Signalled: req.Signalled,
-			// XXX: should Reserved be copied?
+			// XXX: should Flags be copied?
 			Flags: req.Flags,
 			ID:    req.ID,
 			// XXX: should Error be copied?
@@ -314,18 +314,18 @@ type MsgNotificationOp struct {
 	MsgNotification
 	// Allow describes the permissions the process, attempting to perform some
 	// an operation, already possessed. Use DecodeFilePermissions to decode it,
-	// if the mediation class is MediationClassFile.
+	// if the mediation class is AA_CLASS_FILE.
 	Allow uint32
 	// Deny describes the permissions the process, attempting to perform some
 	// operation, currently lacks. Use DecodeFilePermissions to decode it, if
-	// the mediation class is MediationClassFile.
+	// the mediation class is AA_CLASS_FILE.
 	Deny uint32
 	// Pid of the process triggering the notification.
 	Pid uint32
 	// Label is the apparmor label of the process triggering the notification.
 	Label string
 	// Class of the mediation operation.
-	// Currently only MediationClassFile is implemented in the kernel.
+	// Currently only AA_CLASS_FILE is implemented in the kernel.
 	Class MediationClass
 	// XXX: This is unused.
 	Op uint16
@@ -334,7 +334,7 @@ type MsgNotificationOp struct {
 // DecodeFilePermissions returns a pair of permissions describing the state of a
 // process attempting to perform an operation.
 func (msg *MsgNotificationOp) DecodeFilePermissions() (allow, deny FilePermission, err error) {
-	if msg.Class != MediationClassFile {
+	if msg.Class != AA_CLASS_FILE {
 		return 0, 0, fmt.Errorf("mediation class %s does not describe file permissions", msg.Class)
 	}
 	return FilePermission(msg.Allow), FilePermission(msg.Deny), nil

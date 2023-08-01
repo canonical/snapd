@@ -8,31 +8,26 @@ import (
 type NotificationType uint16
 
 const (
-	// Response corresponds to APPARMOR_NOTIF_RESP.
-	Response NotificationType = iota
-	// Cancel corresponds to APPARMOR_NOTIF_CANCEL.
-	Cancel
-	// Interrupt corresponds to APPARMOR_NOTIF_INTERRUPT.
-	Interrupt
-	// Alive corresponds to APPARMOR_NOTIF_ALIVE.
-	Alive
-	// Operation corresponds to APPARMOR_NOTIF_OP.
-	Operation
+	APPARMOR_NOTIF_RESP NotificationType = iota
+	APPARMOR_NOTIF_CANCEL
+	APPARMOR_NOTIF_INTERRUPT
+	APPARMOR_NOTIF_ALIVE
+	APPARMOR_NOTIF_OP
 )
 
 // String returns readable representation of a notification type.
 func (ntype NotificationType) String() string {
 	switch ntype {
-	case Response:
-		return "response"
-	case Cancel:
-		return "cancel"
-	case Interrupt:
-		return "interrupt"
-	case Alive:
-		return "alive"
-	case Operation:
-		return "operation"
+	case APPARMOR_NOTIF_RESP:
+		return "APPARMOR_NOTIF_RESP"
+	case APPARMOR_NOTIF_CANCEL:
+		return "APPARMOR_NOTIF_CANCEL"
+	case APPARMOR_NOTIF_INTERRUPT:
+		return "APPARMOR_NOTIF_INTERRUPT"
+	case APPARMOR_NOTIF_ALIVE:
+		return "APPARMOR_NOTIF_ALIVE"
+	case APPARMOR_NOTIF_OP:
+		return "APPARMOR_NOTIF_OP"
 	}
 	return fmt.Sprintf("NotificationType(%d)", ntype)
 }
@@ -40,7 +35,7 @@ func (ntype NotificationType) String() string {
 // IsValid returns true if the notification type has a valid value.
 func (ntype NotificationType) IsValid() bool {
 	switch ntype {
-	case Response, Cancel, Interrupt, Alive, Operation:
+	case APPARMOR_NOTIF_RESP, APPARMOR_NOTIF_CANCEL, APPARMOR_NOTIF_INTERRUPT, APPARMOR_NOTIF_ALIVE, APPARMOR_NOTIF_OP:
 		return true
 	default:
 		return false
