@@ -161,5 +161,5 @@ execute: |
 
     echo "Can we access nvidia driver profiles in /usr/share/nvidia?"
     gl-core16 cat /usr/share/nvidia/nvidia-application-profiles-535.54.03-rc | MATCH rc
-    gl-core16 cat /usr/share/nvidia/nvidia-application-profiles-535.54.03-documentation | MATCH documentation
+    gl-core16 cat /usr/share/nvidia/nvidia-application-profiles-535.54.03-key-documentation | MATCH documentation
     gl-core16 cat /usr/share/nvidia/nvoptix.bin | MATCH nvoptix
