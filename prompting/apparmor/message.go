@@ -115,7 +115,7 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack variable length elements.
-	unpacker := stringUnpacker{Bytes: data}
+	unpacker := newStringUnpacker(data)
 	ns, err := unpacker.UnpackString(raw.NS)
 	if err != nil {
 		return fmt.Errorf("%s: cannot unpack namespace: %v", prefix, err)
@@ -136,23 +136,21 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 // MarshalBinary marshals the message into binary form.
 func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
 	var raw msgNotificationFilter
-	var packer stringPacker
-	packer.BaseOffset = uint16(binary.Size(raw))
-	raw.Length = packer.BaseOffset
+	packer := newStringPacker(raw)
 	raw.Version = 2
 	raw.ModeSet = uint32(msg.ModeSet)
 	raw.NS = packer.PackString(msg.NameSpace)
 	raw.Filter = packer.PackString(msg.Filter)
-	raw.Length += uint16(packer.Buffer.Len())
-	buf := bytes.NewBuffer(make([]byte, 0, int(packer.BaseOffset)+packer.Buffer.Len()))
+	raw.Length = packer.TotalLen()
+	msgBuf := bytes.NewBuffer(make([]byte, 0, raw.Length))
 	order := arch.Endian() // ioctl messages are native byte order, but others might not be
-	if err := binary.Write(buf, order, raw); err != nil {
+	if err := binary.Write(msgBuf, order, raw); err != nil {
 		return nil, err
 	}
-	if _, err := buf.Write(packer.Buffer.Bytes()); err != nil {
+	if _, err := msgBuf.Write(packer.Bytes()); err != nil {
 		return nil, err
 	}
-	return buf.Bytes(), nil
+	return msgBuf.Bytes(), nil
 }
 
 // Validate returns an error if the mssage contains invalid data.
@@ -361,7 +359,7 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack variable length elements.
-	unpacker := stringUnpacker{Bytes: data}
+	unpacker := newStringUnpacker(data)
 	label, err := unpacker.UnpackString(raw.Label)
 	if err != nil {
 		return fmt.Errorf("%s: cannot unpack label: %v", prefix, err)
@@ -423,7 +421,7 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack variable length elements.
-	unpacker := stringUnpacker{Bytes: data}
+	unpacker := newStringUnpacker(data)
 	name, err := unpacker.UnpackString(raw.Name)
 	if err != nil {
 		return fmt.Errorf("%s: cannot unpack file name: %v", prefix, err)
