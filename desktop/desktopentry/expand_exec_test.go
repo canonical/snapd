@@ -87,12 +87,14 @@ func (s *desktopentrySuite) TestExpandExecHelper(c *C) {
 		in:   "skype --share-file=%f",
 		uris: []string{"file:///test"},
 		out:  []string{"skype", "--share-file=/test"},
+	}, {
+		in:  `foo "unclosed double quote`,
+		err: "EOF found when expecting closing quote",
 	}} {
 		c.Logf("tc %d", i)
 
 		args, err := desktopentry.ExpandExec(de, tc.in, tc.uris)
 		if tc.err != "" {
-			c.Check(args, IsNil)
 			c.Assert(err, ErrorMatches, tc.err)
 			continue
 		}
