@@ -704,14 +704,13 @@ func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 	s.markSeeded(d)
 	expectedFlags := &snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionAllSnaps}
 
-	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
+	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, tmpPaths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
 		c.Check(flags, check.DeepEquals, expectedFlags)
 		c.Check(userID, check.Not(check.Equals), 0)
 
 		var tss []*state.TaskSet
-		for i, path := range paths {
-			si := infos[i]
-			c.Check(path, testutil.FileEquals, si.RealName)
+		for i, si := range infos {
+			c.Check(tmpPaths[i], testutil.FileEquals, si.RealName)
 
 			ts := state.NewTaskSet(s.NewTask("fake-install-snap", fmt.Sprintf("Doing a fake install of %q", si.RealName)))
 			tss = append(tss, ts)
@@ -882,7 +881,7 @@ func (s *sideloadSuite) TestSideloadManySnapsAsserted(c *check.C) {
 
 		var tss []*state.TaskSet
 		for i, si := range infos {
-			c.Check(si, check.DeepEquals, &snap.SideInfo{
+			c.Check(*si, check.DeepEquals, snap.SideInfo{
 				RealName: snaps[i],
 				SnapID:   snaps[i] + "-id",
 				Revision: snap.R(41),
