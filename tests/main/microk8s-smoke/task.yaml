@@ -17,6 +17,8 @@ systems:
 
 environment:
     CHANNEL/edge: 1.25-strict/edge
+    # apparmor profile of microk8s can make snapd exceed its spread memory limit
+    SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
     # ensure curl is available (needed for Ubuntu Core)
