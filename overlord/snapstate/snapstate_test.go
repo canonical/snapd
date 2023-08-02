@@ -503,6 +503,7 @@ const (
 	noConfigure
 	noLastBeforeModificationsEdge
 	preferInstalled
+	localSnap
 )
 
 func taskKinds(tasks []*state.Task) []string {

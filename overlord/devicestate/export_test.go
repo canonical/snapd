@@ -161,19 +161,27 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 }
 
 func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
-	old := snapstateInstallWithDeviceContext
+	r := testutil.Backup(&snapstateInstallWithDeviceContext)
 	snapstateInstallWithDeviceContext = f
-	return func() {
-		snapstateInstallWithDeviceContext = old
-	}
+	return r
+}
+
+func MockSnapstateInstallPathWithDeviceContext(f func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
+	r := testutil.Backup(&snapstateInstallPathWithDeviceContext)
+	snapstateInstallPathWithDeviceContext = f
+	return r
 }
 
 func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
-	old := snapstateUpdateWithDeviceContext
+	r := testutil.Backup(&snapstateUpdateWithDeviceContext)
 	snapstateUpdateWithDeviceContext = f
-	return func() {
-		snapstateUpdateWithDeviceContext = old
-	}
+	return r
+}
+
+func MockSnapstateUpdatePathWithDeviceContext(f func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
+	r := testutil.Backup(&snapstateUpdatePathWithDeviceContext)
+	snapstateUpdatePathWithDeviceContext = f
+	return r
 }
 
 func EnsureSeeded(m *DeviceManager) error {
