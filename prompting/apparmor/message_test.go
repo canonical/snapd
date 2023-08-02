@@ -1,6 +1,9 @@
 package apparmor_test
 
 import (
+	"encoding/binary"
+
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/prompting/apparmor"
 
 	. "gopkg.in/check.v1"
@@ -11,6 +14,9 @@ type messageSuite struct{}
 var _ = Suite(&messageSuite{})
 
 func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
 	for _, t := range []struct {
 		bytes []byte
 		msg   apparmor.MsgNotificationFilter
@@ -64,6 +70,9 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 }
 
 func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
 	for _, t := range []struct {
 		comment string
 		bytes   []byte
@@ -152,6 +161,9 @@ func (*messageSuite) TestMsgNotificationFilterValidate(c *C) {
 }
 
 func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
 	msg := apparmor.MsgNotification{
 		NotificationType: apparmor.APPARMOR_NOTIF_RESP,
 		Signalled:        1,
@@ -186,6 +198,9 @@ func (*messageSuite) TestRequestBuffer(c *C) {
 }
 
 func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
 	// Notification for accessing a the /root/.ssh/ file.
 	bytes := []byte{
 		0x4c, 0x0, // Length == 76 bytes
@@ -234,6 +249,9 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 }
 
 func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
 	msg := apparmor.MsgNotificationResponse{
 		MsgNotification: apparmor.MsgNotification{
 			NotificationType: 0x11,

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+
+	"github.com/snapcore/snapd/arch"
 )
 
 // Message fields are defined as raw sized integer types as the same type may be
@@ -30,7 +32,7 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 	const prefix = "cannot unmarshal apparmor message header"
 
 	// Unpack fixed-size elements.
-	order := binary.LittleEndian
+	order := arch.Endian() // ioctl messages are native byte order, but others might not be
 	buf := bytes.NewBuffer(data)
 	if err := binary.Read(buf, order, msg); err != nil {
 		return fmt.Errorf("%s: %s", prefix, err)
@@ -53,7 +55,8 @@ func RequestBuffer() []byte {
 	bufSize := 0xFFFF
 	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
 	header := MsgHeader{Version: 2, Length: uint16(bufSize)}
-	binary.Write(buf, binary.LittleEndian, &header)
+	order := arch.Endian() // ioctl requests are native byte order, but others might not be
+	binary.Write(buf, order, &header)
 	buf.Write(make([]byte, bufSize-buf.Len()))
 	return buf.Bytes()
 }
@@ -104,9 +107,9 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack fixed-size elements.
-	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
 	var raw msgNotificationFilter
+	order := arch.Endian() // ioctl messages are native byte order, but others might not be
 	if err := binary.Read(buf, order, &raw); err != nil {
 		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
@@ -142,8 +145,8 @@ func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
 	raw.Filter = packer.PackString(msg.Filter)
 	raw.Length += uint16(packer.Buffer.Len())
 	buf := bytes.NewBuffer(make([]byte, 0, int(packer.BaseOffset)+packer.Buffer.Len()))
-	// FIXME: encoding should be native
-	if err := binary.Write(buf, binary.LittleEndian, raw); err != nil {
+	order := arch.Endian() // ioctl messages are native byte order, but others might not be
+	if err := binary.Write(buf, order, raw); err != nil {
 		return nil, err
 	}
 	if _, err := buf.Write(packer.Buffer.Bytes()); err != nil {
@@ -195,8 +198,8 @@ func (msg *MsgNotification) UnmarshalBinary(data []byte) error {
 	const prefix = "cannot unmarshal apparmor notification message"
 
 	// Unpack fixed-size elements.
-	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
+	order := arch.Endian() // ioctl messages are native byte order, but others might not be
 	if err := binary.Read(buf, order, msg); err != nil {
 		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
@@ -209,8 +212,8 @@ func (msg *MsgNotification) MarshalBinary() ([]byte, error) {
 	msg.Version = 2
 	msg.Length = uint16(binary.Size(*msg))
 	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
-	// FIXME: encoding should be native
-	if err := binary.Write(buf, binary.LittleEndian, msg); err != nil {
+	order := arch.Endian() // ioctl messages are native byte order, but others might not be
+	if err := binary.Write(buf, order, msg); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -277,8 +280,8 @@ func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
 	msg.Version = 2
 	msg.Length = uint16(binary.Size(*msg))
 	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
-	// FIXME: encoding should be native
-	if err := binary.Write(buf, binary.LittleEndian, msg); err != nil {
+	order := arch.Endian() // ioctl messages are native byte order, but others might not be
+	if err := binary.Write(buf, order, msg); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -350,9 +353,9 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack fixed-size elements.
-	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
 	var raw msgNotificationOp
+	order := arch.Endian() // ioctl messages are native byte order, but others might not be
 	if err := binary.Read(buf, order, &raw); err != nil {
 		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
@@ -412,9 +415,9 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack fixed-size elements.
-	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
 	var raw msgNotificationFile
+	order := arch.Endian() // ioctl messages are native byte order, but others might not be
 	if err := binary.Read(buf, order, &raw); err != nil {
 		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
