@@ -221,6 +221,12 @@ func (iface *openGlInterface) AppArmorConnectedPlug(spec *apparmor.Specification
   
   `, dirs.NvidiaProfilesDir, dirs.StripRootDir(dirs.NvidiaProfilesDir))
 
+	apparmor.GenWritableProfile(
+		spec.AddUpdateNSf,
+		dirs.StripRootDir(dirs.NvidiaProfilesDir),
+		3,
+	)
+
 	return nil
 }
 
