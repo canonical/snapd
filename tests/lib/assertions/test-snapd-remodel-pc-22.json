@@ -4,10 +4,10 @@
     "authority-id": "test-snapd",
     "brand-id": "test-snapd",
     "store": "CQvkdMjgbapk821Po2cF",
-    "model": "test-snapd-remodel-pc-just-model",
+    "model": "test-snapd-remodel-pc",
     "system-user-authority": "*",
     "architecture": "amd64",
-    "timestamp": "2023-06-11T01:00:00+00:00",
+    "timestamp": "2023-06-11T12:18:12+00:00",
     "grade": "dangerous",
     "base": "core22",
     "snaps": [
@@ -34,17 +34,6 @@
             "id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
             "name": "snapd",
             "type": "snapd"
-        },
-        {
-            "default-channel": "latest/stable",
-            "id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
-            "name": "hello-world"
-        },
-        {
-            "default-channel": "latest/stable",
-            "id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
-            "name": "core",
-            "type": "core"
         }
     ]
 }

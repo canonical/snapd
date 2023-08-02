@@ -1,0 +1,90 @@
+summary: verify UC20 to UC22 offline remodel
+details: |
+  Execute transition from UC20 to UC22 remodel in an offline scenario.
+
+systems: [ubuntu-20.04-64]
+
+environment:
+  NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/test-snapd-remodel-auto-import.assert
+  NESTED_ENABLE_TPM: false
+  NESTED_ENABLE_SECURE_BOOT: false
+  NESTED_USE_CLOUD_INIT: false
+  NESTED_REPACK_KERNEL_SNAP: false
+  NESTED_REPACK_GADGET_SNAP: false
+  NESTED_REPACK_BASE_SNAP: false
+  SNAPD_TEST_BRAND: test-snapd
+  GADGET_NAME: test-snapd-remodel-pc
+  NEW_GADGET_NAME: test-snapd-remodel-pc-min-size
+
+prepare: |
+  export NESTED_CUSTOM_MODEL="$TESTSLIB/assertions/test-snapd-remodel-offline-rev0.model"
+  tests.nested build-image core
+  tests.nested create-vm core
+
+execute: |
+  boot_id="$(tests.nested boot-id)"
+
+  # wait until device is initialized and has a serial
+  remote.wait-for device-initialized
+
+  remote.exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
+  remote.exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc$'
+  remote.exec "snap model --assertion --serial" | MATCH "^authority-id: generic$"
+
+  new_model_rev=test-snapd-remodel-offline-rev1.model
+  remote.push "$TESTSLIB/assertions/$new_model_rev"
+  remodel_options="--no-wait"
+  # Get specific revision to grab pc 22 with compatible gadget with the one
+  # in 20/stable.
+  # TODO update this code to use pc from 22/stable when it is compatible
+  # (min-size, part ids...) -> for sn_name in pc pc-kernel; do ...
+  remote.exec "snap download --revision=149 --basename=pc pc"
+  remodel_options="$remodel_options --snap pc.snap --assertion pc.assert"
+  #shellcheck disable=SC2043
+  for sn_name in pc-kernel; do
+      remote.exec "snap download --channel=22/stable --basename=$sn_name $sn_name"
+      remodel_options="$remodel_options --snap $sn_name.snap --assertion $sn_name.assert"
+  done
+  remote.exec "snap download --basename=core22 core22"
+  remodel_options="$remodel_options --snap core22.snap --assertion core22.assert"
+
+  # Make sure we cannot access the store
+  netplan_cfg=50-bad-gw.yaml
+  cat << 'EOF' > "$netplan_cfg"
+  network:
+    ethernets:
+      any:
+        match:
+          name: e*
+        dhcp4: true
+        routes:
+          - to: default
+            via: 10.10.10.100
+            metric: 10
+  EOF
+  remote.push "$netplan_cfg"
+  remote.exec 'sudo rm /etc/netplan/*'
+  remote.exec sudo cp "$netplan_cfg" /etc/netplan/
+  remote.exec sudo netplan apply
+
+  CHANGE_ID=$(remote.exec "sudo snap remodel $remodel_options $new_model_rev")
+  test -n "$CHANGE_ID"
+  # very long retry wait for the change to be in stable state, where stable
+  # means that it's done or failed in which case we fail the test on the next
+  # check just below
+  retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${CHANGE_ID}\s+(Done|Undone|Error)'"
+  # check that the change was successful
+  remote.exec "sudo snap changes" | MATCH "^${CHANGE_ID}\s+Done"
+
+  current_boot_id="$( tests.nested boot-id )"
+  # we should have rebooted a couple of times (at least twice for the recovery
+  # system and the base), so boot-id should be different
+  test "$boot_id" != "$current_boot_id"
+
+  # the new base is installed
+  remote.exec snap list core22
+
+  # we are remodeling within the same brand
+  remote.exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
+  # new model revision
+  remote.exec "snap model --assertion" | MATCH '^revision: 1$'
