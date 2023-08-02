@@ -21,6 +21,8 @@ package desktopentry_test
 
 import (
 	"bytes"
+	"io/ioutil"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -115,6 +117,17 @@ NoEqualsSign
 		c.Check(de, IsNil)
 		c.Check(err, ErrorMatches, tc.err)
 	}
+}
+
+func (s *desktopentrySuite) TestLoad(c *C) {
+	path := filepath.Join(c.MkDir(), "foo.desktop")
+	err := ioutil.WriteFile(path, []byte(browserDesktopEntry), 0o644)
+	c.Assert(err, IsNil)
+
+	de, err := desktopentry.Load(path)
+	c.Assert(err, IsNil)
+	c.Check(de.Filename, Equals, path)
+	c.Check(de.Name, Equals, "Web Browser")
 }
 
 func (s *desktopentrySuite) TestShouldAutostart(c *C) {
