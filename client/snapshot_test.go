@@ -143,6 +143,16 @@ func (cs *clientSuite) TestClientRestoreSnapshots(c *check.C) {
 	cs.testClientSnapshotAction(c, "restore", cs.cli.RestoreSnapshots)
 }
 
+func (cs *clientSuite) TestClientExportSnapshotSpecificErr(c *check.C) {
+	content := `{"type":"error","status-code":400,"result":{"message":"boom","kind":"err-kind","value":"err-value"}}`
+	cs.contentLength = int64(len(content))
+	cs.rsp = content
+	cs.status = 400
+	cs.header = http.Header{"Content-Type": []string{"application/json"}}
+	_, _, err := cs.cli.SnapshotExport(42)
+	c.Check(err, check.ErrorMatches, "boom")
+}
+
 func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 	type tableT struct {
 		content     string

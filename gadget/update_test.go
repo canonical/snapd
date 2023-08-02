@@ -56,8 +56,8 @@ func (s *updateTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
-		return nil, fmt.Errorf("unmocked volume structure to loc map")
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return nil, nil, fmt.Errorf("unmocked volume structure to loc map")
 	})
 	restoreDoer := sync.Once{}
 	s.restoreVolumeStructureToLocationMap = func() {
@@ -675,7 +675,8 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 
 	// reasonably default volume structure to location map - individual tests
 	// can override this
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		// XXX return something that we'll check
 		return map[string]map[int]gadget.StructureLocation{
 			"foo": {
 				0: {
@@ -689,7 +690,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 					RootMountPoint: "/foo",
 				},
 			},
-		}, nil
+		}, nil, nil
 	})
 	u.AddCleanup(r)
 
@@ -2115,7 +2116,10 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
 
-	// don't need to mock anything as we don't get that far
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"pc": {}, "foo": {}}, nil, nil
+	})
+	defer r()
 
 	// change the new nofspart structure size which is an incompatible change
 
@@ -2812,6 +2816,10 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 			},
 		},
 	}
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"foo": {}}, nil, nil
+	})
+	defer r()
 
 	newRootDir := c.MkDir()
 	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
@@ -2870,6 +2878,10 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 			},
 		},
 	}
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"foo": {}}, nil, nil
+	})
+	defer r()
 
 	newRootDir := c.MkDir()
 	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
@@ -2926,6 +2938,10 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 			},
 		},
 	}
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"foo": {}}, nil, nil
+	})
+	defer r()
 
 	newRootDir := c.MkDir()
 	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
@@ -3028,6 +3044,11 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 	})
 	defer restore()
 
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"foo": {}}, nil, nil
+	})
+	defer r()
+
 	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 
@@ -3057,7 +3078,8 @@ func (u *updateTestSuite) policyDataSet(c *C) (oldData gadget.GadgetData, newDat
 		Offset:     asOffsetPtr(0),
 	}
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		// XXX map
 		return map[string]map[int]gadget.StructureLocation{
 			"foo": {
 				0: {
@@ -3079,7 +3101,7 @@ func (u *updateTestSuite) policyDataSet(c *C) (oldData gadget.GadgetData, newDat
 					Offset: 0,
 				},
 			},
-		}, nil
+		}, nil, nil
 	})
 	u.AddCleanup(r)
 
@@ -3192,7 +3214,7 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 			"foo": {
 				0: {
@@ -3206,7 +3228,7 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 					RootMountPoint: "/foo",
 				},
 			},
-		}, nil
+		}, nil, nil
 	})
 	defer r()
 
@@ -3753,14 +3775,14 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesWithKernelPolicy(c *C) {
 		},
 	}
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 			"foo": {
 				0: {
 					RootMountPoint: "/foo",
 				},
 			},
-		}, nil
+		}, nil, nil
 	})
 	defer r()
 
@@ -3870,6 +3892,11 @@ assets:
 	})
 	defer restore()
 
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"foo": {}}, nil, nil
+	})
+	defer r()
+
 	// exercise KernelUpdatePolicy here
 	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
 	c.Assert(err, ErrorMatches, `gadget does not consume any of the kernel assets needing synced update "ref"`)
@@ -3887,7 +3914,7 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateWithBareStructure(c
 	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
 	c.Assert(err, IsNil)
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(traits, DeepEquals, gadgettest.MockExtraVolumeDeviceTraits)
@@ -3954,7 +3981,7 @@ volumes:
 	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
 	c.Assert(err, IsNil)
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
 	c.Assert(err, IsNil)
 	c.Assert(traits, DeepEquals, gadget.DiskVolumeDeviceTraits{
 		OriginalDevicePath: "/sys/block/foo",
@@ -4047,10 +4074,9 @@ volumes:
         size: 1G
 `
 	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
-	fmt.Println("structs", len(lvol.LaidOutStructure))
 	c.Assert(err, IsNil)
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
 	c.Assert(err, IsNil)
 	c.Assert(traits, DeepEquals, gadget.DiskVolumeDeviceTraits{
 		OriginalDevicePath: "/sys/block/foo",
@@ -4098,11 +4124,11 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTMultiVolume(c *C
 	)
 	c.Assert(err, IsNil)
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(vols["pc"], "/dev/vda", nil)
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(vols["pc"].Volume, "/dev/vda", nil)
 	c.Assert(err, IsNil)
 	c.Assert(traits, DeepEquals, gadgettest.VMSystemVolumeDeviceTraits)
 
-	traitsExtra, err := gadget.DiskTraitsFromDeviceAndValidate(vols["foo"], "/dev/vdb", nil)
+	traitsExtra, err := gadget.DiskTraitsFromDeviceAndValidate(vols["foo"].Volume, "/dev/vdb", nil)
 	c.Assert(err, IsNil)
 	c.Assert(traitsExtra, DeepEquals, gadgettest.VMExtraVolumeDeviceTraits)
 }
@@ -4130,7 +4156,7 @@ volumes:
 	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
 	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1053696\) in gadget`)
 }
 
@@ -4191,7 +4217,7 @@ volumes:
 	// install mode and thus be "compatible" in some contexts, but
 	// DiskTraitsFromDeviceAndValidate is more strict and requires all
 	// structures to exist and to match
-	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
 	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find gadget structure "ubuntu-data" on disk`)
 
 	// if we add a structure to the mock disk which is smaller than the ondisk
@@ -4215,7 +4241,7 @@ volumes:
 	})
 	defer restore()
 
-	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
 	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1052672\) in gadget: on disk size 4096 \(4 KiB\) is smaller than gadget min size 1572864000 \(1.46 GiB\)`)
 
 	// same size is okay though
@@ -4225,7 +4251,7 @@ volumes:
 	})
 	defer restore()
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
 	c.Assert(err, IsNil)
 
 	// it has the right size
@@ -4238,7 +4264,7 @@ volumes:
 	})
 	defer restore()
 
-	traits, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	traits, err = gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
 	c.Assert(err, IsNil)
 
 	// and it has the on disk size
@@ -4259,7 +4285,7 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateDOSSingleVolume(c *
 		// gadgettest/examples.go
 		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{},
 	}
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", opts)
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/mmcblk0", opts)
 	c.Assert(err, IsNil)
 	c.Assert(traits, DeepEquals, gadgettest.ExpectedRaspiDiskVolumeDeviceTraits)
 }
@@ -4275,7 +4301,7 @@ func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataH
 	c.Assert(err, IsNil)
 
 	// the volume cannot be found with no opts set
-	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/sda", nil)
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/sda", nil)
 	c.Assert(err, ErrorMatches, `volume pc is not compatible with disk /dev/sda: cannot find disk partition /dev/sda3 \(starting at 54525952\) in gadget`)
 
 	// with opts for pc then it can be found
@@ -4283,7 +4309,7 @@ func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataH
 		AllowImplicitSystemData: true,
 	}
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/sda", opts)
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/sda", opts)
 	c.Assert(err, IsNil)
 
 	c.Assert(traits, DeepEquals, gadgettest.UC16ImplicitSystemDataDeviceTraits)
@@ -4300,7 +4326,7 @@ func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataR
 	c.Assert(err, IsNil)
 
 	// the volume cannot be found with no opts set
-	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", nil)
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/mmcblk0", nil)
 	c.Assert(err.Error(), Equals, `volume pi is not compatible with disk /dev/mmcblk0: cannot find disk partition /dev/mmcblk0p2 (starting at 269484032) in gadget: disk partition "" offset 269484032 (257 MiB) is not in the valid gadget interval (min: 1048576 (1 MiB): max: 1048576 (1 MiB))`)
 
 	// with opts for pc then it can be found
@@ -4308,7 +4334,7 @@ func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataR
 		AllowImplicitSystemData: true,
 	}
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", opts)
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/mmcblk0", opts)
 	c.Assert(err, IsNil)
 
 	c.Assert(traits, DeepEquals, gadgettest.ExpectedRaspiUC18DiskVolumeDeviceTraits)
@@ -4357,7 +4383,7 @@ func (s *updateTestSuite) TestSearchForVolumeWithTraitsFails(c *C) {
 		AllowImplicitSystemData: true,
 	}
 
-	_, err = gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol, gadgettest.UC16ImplicitSystemDataDeviceTraits, allowImplicitDataOpts)
+	_, _, err = gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol.Volume, gadgettest.UC16ImplicitSystemDataDeviceTraits, allowImplicitDataOpts)
 	c.Assert(err, ErrorMatches, "cannot find physical disk laid out to map with volume pc")
 }
 
@@ -4423,7 +4449,7 @@ func testSearchForVolumeWithTraits(c *C,
 	})
 	defer r()
 
-	d, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol, traits, validateOpts)
+	d, _, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol.Volume, traits, validateOpts)
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, realMapping.DevNum)
 
@@ -4436,7 +4462,7 @@ func testSearchForVolumeWithTraits(c *C,
 
 	// we still find it because we fall back on the device name from the traits
 	// (/dev/sda)
-	d2, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol, traits, validateOpts)
+	d2, _, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol.Volume, traits, validateOpts)
 	c.Assert(err, IsNil)
 	c.Assert(d2.Dev(), Equals, realMapping.DevNum)
 
@@ -4472,7 +4498,7 @@ func testSearchForVolumeWithTraits(c *C,
 	r = disks.MockDevicePathToDiskMapping(devicePathMapping)
 	defer r()
 
-	d3, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol, traits, validateOpts)
+	d3, _, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol.Volume, traits, validateOpts)
 	c.Assert(err, IsNil)
 	c.Assert(d3.Dev(), Equals, realMapping.DevNum)
 }
@@ -4511,7 +4537,11 @@ volumes:
 		"volume-id": lvol,
 	}
 
-	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, allLaidOutVolumes)
+	vols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVolumes {
+		vols[name] = lov.Volume
+	}
+	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
 	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
 }
 
@@ -4550,7 +4580,11 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC1
 	})
 	defer restore()
 
-	m, err := gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, allLaidOutVolumes)
+	vols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVolumes {
+		vols[name] = lov.Volume
+	}
+	m, err := gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
 	c.Assert(err, IsNil)
 
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
@@ -4617,7 +4651,11 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSin
 		"pc": laidOutVolume,
 	}
 
-	m, err := gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, allLaidOutVolumes)
+	vols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVolumes {
+		vols[name] = lov.Volume
+	}
+	m, err := gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
 	c.Assert(err, IsNil)
 
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
@@ -4667,7 +4705,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMul
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: gadgetRoot}
 	for volName, vol := range info.Volumes {
-		lvol, err := gadget.LayoutVolume(vol, opts)
+		lvol, err := gadget.LayoutVolume(vol, nil, opts)
 		c.Assert(err, IsNil)
 		allLaidOutVolumes[volName] = lvol
 	}
@@ -4678,7 +4716,11 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMul
 
 	// we fail with the error that skips the asset update but proceeds with the
 	// rest of the refresh
-	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, allLaidOutVolumes)
+	vols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVolumes {
+		vols[name] = lov.Volume
+	}
+	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
 	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
 }
 
@@ -4699,11 +4741,15 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(
 	// don't mock any symlinks so that it fails to find any disk matching the
 	// system-boot volume
 
-	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, allLaidOutVolumes)
+	vols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVolumes {
+		vols[name] = lov.Volume
+	}
+	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
 	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
 
 	// it's a fatal error on UC20 though
-	_, err = gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, allLaidOutVolumes)
+	_, err = gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols)
 	c.Assert(err, Not(Equals), gadget.ErrSkipUpdateProceedRefresh)
 }
 
@@ -4742,7 +4788,11 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 	})
 	defer restore()
 
-	m, err := gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, allLaidOutVolumes)
+	vols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVolumes {
+		vols[name] = lov.Volume
+	}
+	m, err := gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols)
 	c.Assert(err, IsNil)
 
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
@@ -4793,7 +4843,11 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 	err = ioutil.WriteFile(markerFile, nil, 0644)
 	c.Assert(err, IsNil)
 
-	m, err := gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, allLaidOutVolumes)
+	vols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVolumes {
+		vols[name] = lov.Volume
+	}
+	m, err := gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols)
 	c.Assert(err, IsNil)
 
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
@@ -5088,7 +5142,11 @@ func (s *updateTestSuite) testBuildVolumeStructureToLocation(c *C,
 	)
 
 	missingInitialMappingNo := false
-	structureMap, err := gadget.BuildVolumeStructureToLocation(model, old, allLaidOutVolumes, traits, missingInitialMappingNo)
+	vols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVolumes {
+		vols[name] = lov.Volume
+	}
+	structureMap, _, err := gadget.BuildVolumeStructureToLocation(model, old, vols, traits, missingInitialMappingNo)
 	c.Assert(err, IsNil)
 	c.Assert(structureMap, DeepEquals, expMapping)
 }
@@ -5221,7 +5279,11 @@ func (s *updateTestSuite) testVolumeStructureToLocationMap(c *C,
 		expMapping,
 	)
 
-	structureMap, err := gadget.VolumeStructureToLocationMap(old, model, allLaidOutVolumes)
+	vols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVolumes {
+		vols[name] = lov.Volume
+	}
+	structureMap, _, err := gadget.VolumeStructureToLocationMap(old, model, vols)
 	c.Assert(err, IsNil)
 	c.Assert(structureMap, DeepEquals, expMapping)
 }

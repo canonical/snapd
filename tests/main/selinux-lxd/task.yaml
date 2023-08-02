@@ -55,9 +55,11 @@ execute: |
     # there is a known problem with the reference policy that disallows systemd
     # from creating a BPF map for unconfined_service_t, see:
     # https://bugzilla.redhat.com/show_bug.cgi?id=1694115
+    # also network manager dispatcher service is raising a denial
     #
     # ausearch exits with 1 when there are no denials, which we expect on
     # centos-8, but not on centos-7
     ausearch --checkpoint stamp --start checkpoint -m AVC > avc-after 2>&1 || true
     grep -v -E 'avc:  denied  { map_create } for  pid=[0-9]+ comm="systemd"' < avc-after | \
+    grep -v -E 'avc:  denied  { getattr } for  pid=[0-9]+ comm="which" path="/usr/bin/hostname" .*NetworkManager_dispatcher_dhclient_t' | \
         NOMATCH 'type=AVC'

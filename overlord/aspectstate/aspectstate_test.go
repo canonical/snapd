@@ -57,14 +57,20 @@ func (s *aspectTestSuite) TestGetNotFound(c *C) {
 
 	var res interface{}
 	err := aspectstate.GetAspect(databag, "system", "network", "other-aspect", "ssid", &res)
-	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
-	c.Assert(err, ErrorMatches, `aspect system/network/other-aspect not found`)
+	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "ssid" of aspect system/network/other-aspect: aspect not found`)
 	c.Check(res, IsNil)
 
 	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid", &res)
-	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get field "ssid": no value was found under "wifi"`)
+	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "ssid" of aspect system/network/wifi-setup: no value was found under path "wifi"`)
 	c.Check(res, IsNil)
+
+	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "other-field", &res)
+	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "other-field" of aspect system/network/wifi-setup: field not found`)
+	c.Check(res, IsNil)
+
 }
 
 func (s *aspectTestSuite) TestSetAspect(c *C) {
@@ -80,11 +86,13 @@ func (s *aspectTestSuite) TestSetAspect(c *C) {
 
 func (s *aspectTestSuite) TestSetNotFound(c *C) {
 	databag := aspects.NewJSONDataBag()
-	err := aspectstate.SetAspect(databag, "system", "other-bundle", "other-aspect", "foo", "bar")
-	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
+	err := aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "foo", "bar")
+	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "foo" of aspect system/network/wifi-setup: field not found`)
 
 	err = aspectstate.SetAspect(databag, "system", "network", "other-aspect", "foo", "bar")
-	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
+	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "foo" of aspect system/network/other-aspect: aspect not found`)
 }
 
 func (s *aspectTestSuite) TestSetAccessError(c *C) {
@@ -103,7 +111,7 @@ func (s *aspectTestSuite) TestUnsetAspect(c *C) {
 
 	var val string
 	err = databag.Get("wifi.ssid", &val)
-	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
+	c.Assert(err, FitsTypeOf, aspects.PathNotFoundError(""))
 	c.Assert(val, Equals, "")
 }
 
