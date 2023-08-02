@@ -19,4 +19,7 @@
 
 package desktopentry
 
-var Parse = parse
+var (
+	ExpandExec = expandExec
+	Parse      = parse
+)
