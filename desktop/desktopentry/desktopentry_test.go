@@ -35,8 +35,7 @@ type desktopentrySuite struct{}
 
 var _ = Suite(&desktopentrySuite{})
 
-func (s *desktopentrySuite) TestParse(c *C) {
-	r := bytes.NewBufferString(`
+const browserDesktopEntry = `
 [Desktop Entry]
 Version=1.0
 Type=Application
@@ -54,7 +53,10 @@ Exec=browser -new-window
 Name=Open a New Private Window
 Exec=browser -private-window
 Icon=${SNAP}/private.png
-`)
+`
+
+func (s *desktopentrySuite) TestParse(c *C) {
+	r := bytes.NewBufferString(browserDesktopEntry)
 	de, err := desktopentry.Parse("/path/browser.desktop", r)
 	c.Assert(err, IsNil)
 
@@ -217,4 +219,43 @@ X-GNOME-Autostart-enabled=true
 		currentDesktop := strings.Split(tc.current, ":")
 		c.Check(de.ShouldAutostart(currentDesktop), Equals, tc.autostart)
 	}
+}
+
+func (s *desktopentrySuite) TestExpandExec(c *C) {
+	r := bytes.NewBufferString(browserDesktopEntry)
+	de, err := desktopentry.Parse("/path/browser.desktop", r)
+	c.Assert(err, IsNil)
+
+	args, err := de.ExpandExec([]string{"http://example.org"})
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"browser", "http://example.org"})
+
+	// When called with no URIs, the %U code expands to nothing
+	args, err = de.ExpandExec(nil)
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"browser"})
+
+	// If the Exec line is missing, an error is returned
+	de.Exec = ""
+	_, err = de.ExpandExec(nil)
+	c.Check(err, ErrorMatches, `desktop file "/path/browser.desktop" has no Exec line`)
+}
+
+func (s *desktopentrySuite) TestExpandActionExec(c *C) {
+	r := bytes.NewBufferString(browserDesktopEntry)
+	de, err := desktopentry.Parse("/path/browser.desktop", r)
+	c.Assert(err, IsNil)
+
+	args, err := de.ExpandActionExec("NewWindow", nil)
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"browser", "-new-window"})
+
+	// Expanding a non-existent action, an error is returned
+	_, err = de.ExpandActionExec("UnknownAction", nil)
+	c.Check(err, ErrorMatches, `desktop file "/path/browser.desktop" does not have action "UnknownAction"`)
+
+	// If the action is missing its Exec line, an error is returned
+	de.Actions["NewWindow"].Exec = ""
+	_, err = de.ExpandActionExec("NewWindow", nil)
+	c.Check(err, ErrorMatches, `desktop file "/path/browser.desktop" action "NewWindow" has no Exec line`)
 }

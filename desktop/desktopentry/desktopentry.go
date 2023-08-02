@@ -196,3 +196,20 @@ func (de *DesktopEntry) ShouldAutostart(currentDesktop []string) bool {
 	}
 	return true
 }
+
+func (de *DesktopEntry) ExpandExec(uris []string) ([]string, error) {
+	if de.Exec == "" {
+		return nil, fmt.Errorf("desktop file %q has no Exec line", de.Filename)
+	}
+	return expandExec(de, de.Exec, uris)
+}
+
+func (de *DesktopEntry) ExpandActionExec(action string, uris []string) ([]string, error) {
+	if de.Actions[action] == nil {
+		return nil, fmt.Errorf("desktop file %q does not have action %q", de.Filename, action)
+	}
+	if de.Actions[action].Exec == "" {
+		return nil, fmt.Errorf("desktop file %q action %q has no Exec line", de.Filename, action)
+	}
+	return expandExec(de, de.Actions[action].Exec, uris)
+}
