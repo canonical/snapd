@@ -960,3 +960,59 @@ func (s *storeDownloadSuite) TestDownloadTimeoutOnHeaders(c *C) {
 	close(quit)
 	c.Assert(err, ErrorMatches, `.*net/http: timeout awaiting response headers`)
 }
+
+func (s *storeDownloadSuite) TestDownloadRedirectHideAuthHeaders(c *C) {
+	var mockStoreServer, mockCdnServer *httptest.Server
+
+	mockStoreServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Authorization"), Equals, expectedAuthorization(c, s.user))
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+		http.Redirect(w, r, mockCdnServer.URL, 302)
+	}))
+	c.Assert(mockStoreServer, NotNil)
+	defer mockStoreServer.Close()
+
+	mockCdnServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, exists := r.Header["Authorization"]
+		c.Check(exists, Equals, false)
+		_, exists = r.Header["X-Device-Authorization"]
+		c.Check(exists, Equals, false)
+		io.WriteString(w, "test-download")
+	}))
+	c.Assert(mockCdnServer, NotNil)
+	defer mockCdnServer.Close()
+
+	snap := &snap.Info{}
+	snap.DownloadURL = mockStoreServer.URL
+
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
+	sto := store.New(&store.Config{}, dauthCtx)
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := sto.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, s.user, nil)
+	c.Assert(err, Equals, nil)
+	c.Assert(targetFn, testutil.FileEquals, "test-download")
+}
+
+func (s *storeDownloadSuite) TestDownloadInfiniteRedirect(c *C) {
+	n := 0
+	var mockServer *httptest.Server
+
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// n = 0  -> initial request
+		// n = 10 -> max redirects
+		// n = 11 -> exceeded max redirects
+		c.Assert(n, testutil.IntNotEqual, 11)
+		n++
+		http.Redirect(w, r, mockServer.URL, 302)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := &snap.Info{}
+	snap.DownloadURL = mockServer.URL
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, s.user, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("Get %q: stopped after 10 redirects", mockServer.URL))
+}
