@@ -9,12 +9,14 @@ systems: [-amazon-linux-2-*, -centos-7-*, -ubuntu-14.04-*, -ubuntu-core-*]
 environment:
     SNAP_USER/snap_daemon: snap_daemon
     SNAP_USER/_daemon_: _daemon_
+    SNAP_USER_UID/snap_daemon: 584788
+    SNAP_USER_UID/_daemon_: 584792
 
 prepare: |
     cp daemon-user/meta/snap.yaml.in daemon-user/meta/snap.yaml
     cat <<EOF >> daemon-user/meta/snap.yaml
     system-usernames:
-      _daemon_: shared
+      $SNAP_USER: shared
     EOF
     
 restore: |
@@ -22,7 +24,7 @@ restore: |
     snap remove --purge daemon-user || true
     # ensure clean system
     userdel  "$SNAP_USER" || true
-    not getent user "$SNAP_USER"
+    not getent passwd "$SNAP_USER"
     groupdel "$SNAP_USER" || true
     not getent group "$SNAP_USER"
 
@@ -30,6 +32,6 @@ execute: |
     echo "When the snap is installed"
     "$TESTSTOOLS"/snaps-state install-local daemon-user
     echo "The user is available"
-    getent user "$SNAP_USER"
-    getent group "$SNAP_USER"
-    daemon-user.sh -c "id $SNAP_USER"
+    getent passwd "$SNAP_USER" | MATCH "$SNAP_USER_UID"
+    getent group "$SNAP_USER" | MATCH "$SNAP_USER_UID"
+    daemon-user.sh -c "id $SNAP_USER" | MATCH "$SNAP_USER_UID"

@@ -3,5 +3,5 @@ summary: Snap requesting snap system users
 version: '1.0'
 
 apps:
-  test-app:
+  sh:
     command: bin/sh
