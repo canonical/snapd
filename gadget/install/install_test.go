@@ -992,7 +992,7 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 	defer restore()
 
 	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
-	restore = install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+	restore = gadget.MockSysfsPathForBlockDevice(func(device string) (string, error) {
 		c.Assert(strings.HasPrefix(device, "/dev/vda"), Equals, true)
 		return filepath.Join(vdaSysPath, filepath.Base(device)), nil
 	})
@@ -1098,7 +1098,7 @@ func expectedKeysize() string {
 
 func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
-	restore := install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+	restore := gadget.MockSysfsPathForBlockDevice(func(device string) (string, error) {
 		c.Assert(strings.HasPrefix(device, "/dev/vda"), Equals, true)
 		return filepath.Join(vdaSysPath, filepath.Base(device)), nil
 	})
@@ -1151,7 +1151,7 @@ func (s *installSuite) TestInstallEncryptPartitionsLUKSHappy(c *C) {
 
 func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
 	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
-	restore := install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+	restore := gadget.MockSysfsPathForBlockDevice(func(device string) (string, error) {
 		c.Assert(strings.HasPrefix(device, "/dev/vda"), Equals, true)
 		return filepath.Join(vdaSysPath, filepath.Base(device)), nil
 	})
@@ -1436,7 +1436,7 @@ func (s *installSuite) TestMountVolumesLazyUnmountError(c *C) {
 
 func (s *installSuite) TestOnDiskVolumeFromGadgetVol(c *C) {
 	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
-	restore := install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+	restore := gadget.MockSysfsPathForBlockDevice(func(device string) (string, error) {
 		if strings.HasPrefix(device, "/dev/vda") == true {
 			return filepath.Join(vdaSysPath, filepath.Base(device)), nil
 		}
@@ -1458,7 +1458,7 @@ func (s *installSuite) TestOnDiskVolumeFromGadgetVol(c *C) {
 		}
 	}
 
-	diskVol, err := install.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
+	diskVol, err := gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
 	c.Check(err, IsNil)
 	expectedDiskVol := &gadget.OnDiskVolume{
 		Device: "/dev/vda",
@@ -1494,13 +1494,13 @@ func (s *installSuite) TestOnDiskVolumeFromGadgetVol(c *C) {
 
 	// Now setting it for the mbr
 	ginfo.Volumes["pc"].Structure[0].Device = "/dev/vda"
-	diskVol, err = install.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
+	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
 	c.Check(err, IsNil)
 	c.Check(diskVol, DeepEquals, expectedDiskVol)
 
 	// Setting a wrong partition name
 	ginfo.Volumes["pc"].Structure[1].Device = "/dev/mmcblk0p1"
-	diskVol, err = install.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
+	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
 	c.Check(err.Error(), Equals, "bad disk")
 	c.Check(diskVol, IsNil)
 }

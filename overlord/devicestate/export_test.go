@@ -420,10 +420,10 @@ func MockInstallSaveStorageTraits(f func(model gadget.Model, allLaidOutVols map[
 }
 
 func MockInstallOnDiskVolumeFromGadgetVol(f func(vol *gadget.Volume) (*gadget.OnDiskVolume, error)) (restore func()) {
-	old := installOnDiskVolumeFromGadgetVol
-	installOnDiskVolumeFromGadgetVol = f
+	old := gadgetOnDiskVolumeFromGadgetVol
+	gadgetOnDiskVolumeFromGadgetVol = f
 	return func() {
-		installOnDiskVolumeFromGadgetVol = old
+		gadgetOnDiskVolumeFromGadgetVol = old
 	}
 }
 

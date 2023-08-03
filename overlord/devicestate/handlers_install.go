@@ -71,7 +71,7 @@ var (
 	installWriteContent                  = install.WriteContent
 	installEncryptPartitions             = install.EncryptPartitions
 	installSaveStorageTraits             = install.SaveStorageTraits
-	installOnDiskVolumeFromGadgetVol     = install.OnDiskVolumeFromGadgetVol
+	gadgetOnDiskVolumeFromGadgetVol      = gadget.OnDiskVolumeFromGadgetVol
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
@@ -968,7 +968,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	// been created.
 	volToGadgetToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{}
 	for name, vol := range gi.Volumes {
-		diskVolume, err := installOnDiskVolumeFromGadgetVol(vol)
+		diskVolume, err := gadgetOnDiskVolumeFromGadgetVol(vol)
 		if err != nil {
 			return err
 		}
