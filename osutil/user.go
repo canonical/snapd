@@ -57,13 +57,17 @@ type AddUserOptions struct {
 	ForcePasswordChange bool
 }
 
-// we check the (user)name ourselves, adduser is a bit too
+// We check the (user)name ourselves, adduser is a bit too
 // strict (i.e. no `.`) - this regexp is in sync with that SSO
-// allows as valid usernames
+// allows as valid usernames.
+//
+// IsValidUsername define what is valid for a "system-user" assertion.
 var IsValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+._]*$`).MatchString
 
-// Any valid username is a valid system username but unlike a normal
-// username a system usernames can be encloused in "_"
+// IsValidSystemUsername defines what is valid for the
+// "system-usernames" stanza in the snap.yaml.
+//
+// Unlike a normal username a system usernames can be encloused in "_"
 // (e.g. _username_ is valid)
 var IsValidSystemUsername = regexp.MustCompile(`^([_][-a-z0-9+._]+[_]|[a-z0-9][-a-z0-9+._]*)$`).MatchString
 

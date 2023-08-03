@@ -151,6 +151,7 @@ type systemUsername struct {
 // https://docs.docker.com/engine/security/userns-remap/
 // https://github.com/lxc/lxd/blob/master/doc/userns-idmap.md
 var SupportedSystemUsernames = map[string]systemUsername{
+	// deprecated: snaps should use the "_daemon_" name below
 	"snap_daemon": {Id: 584788},
 	"snap_microk8s": {Id: 584789, AllowedSnapIds: []string{
 		"EaXqgt1lyCaxKaQCU349mlodBkDCXRcg", // microk8s
