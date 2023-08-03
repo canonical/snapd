@@ -215,6 +215,10 @@ const steamSupportConnectedPlugSecComp = `
 mount
 umount2
 pivot_root
+
+# Native games using QtWebEngineProcess -
+# https://forum.snapcraft.io/t/autoconnect-request-steam-network-control/34267
+unshare CLONE_NEWNS
 `
 
 const steamSupportSteamInputUDevRules = `
