@@ -1,0 +1,328 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2023 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package aspects
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+)
+
+type parser interface {
+	Schema
+
+	// parseConstraints parses constraints for a type defined as a JSON object.
+	// Shouldn't be used with non-object/map type definitions.
+	parseConstraints(json.RawMessage) error
+}
+
+func ParseSchema(raw []byte) (*StorageSchema, error) {
+	var schemaDef map[string]json.RawMessage
+	err := json.Unmarshal(raw, &schemaDef)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse top level schema: must be a map")
+	}
+
+	schema := &StorageSchema{}
+	// TODO: check "types" here and parse the user-defined types
+
+	if _, ok := schemaDef["schema"]; !ok {
+		return nil, fmt.Errorf(`cannot parse top level schema: must have a "schema" constraint`)
+	}
+
+	schema.topLevel, err = schema.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	return schema, nil
+}
+
+type StorageSchema struct {
+	// topLevel is the schema for the top level map.
+	topLevel Schema
+}
+
+// Validate validates the provided JSON object
+func (s *StorageSchema) Validate(raw []byte) error {
+	return s.topLevel.Validate(raw)
+}
+
+func (s *StorageSchema) Parse(raw json.RawMessage) (parser, error) {
+	var typ string
+	var schemaDef map[string]json.RawMessage
+	var hasConstraints bool
+	if err := json.Unmarshal(raw, &schemaDef); err != nil {
+		var typeErr *json.UnmarshalTypeError
+		if !errors.As(err, &typeErr) {
+			return nil, err
+		}
+
+		if err := json.Unmarshal(raw, &typ); err != nil {
+			return nil, err
+		}
+	} else {
+		// schema definition is a map, we must process its constraints
+		hasConstraints = true
+
+		rawType, ok := schemaDef["type"]
+		if !ok {
+			typ = "map"
+		} else {
+			if err := json.Unmarshal(rawType, &typ); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	schema, err := s.newTypeSchema(typ)
+	if err != nil {
+		return nil, err
+	}
+
+	// only parse the schema if it's a map definition w/ constraints
+	if hasConstraints {
+		if err := schema.parseConstraints(raw); err != nil {
+			return nil, err
+		}
+	}
+
+	return schema, nil
+}
+
+func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
+	// TODO: add any, int, number, bool, array and user-defined types
+	switch typ {
+	case "map":
+		return &mapSchema{topSchema: s}, nil
+	case "string":
+		return &stringSchema{}, nil
+	default:
+		return nil, fmt.Errorf("cannot parse type %q: unknown", typ)
+	}
+}
+
+type mapSchema struct {
+	// topSchema is the schema for the top-level schema which contains the user types.
+	topSchema *StorageSchema
+
+	// entrySchemas map keys that can the map can contain to their expected types.
+	// Alternatively, the schema can instead key and/or value types.
+	entrySchemas map[string]Schema
+
+	// valueSchema validates that the map's values match a certain type.
+	valueSchema Schema
+
+	// keySchema validates that the map's key match a certain type.
+	keySchema Schema
+
+	// requiredCombs holds combinations of keys that an instance of the map is
+	// allowed to have.
+	requiredCombs [][]string
+}
+
+func (v *mapSchema) Validate(raw []byte) error {
+	var mapValue map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &mapValue); err != nil {
+		return err
+	}
+
+	var missing bool
+	for _, required := range v.requiredCombs {
+		missing = false
+		for _, key := range required {
+			if _, ok := mapValue[key]; !ok {
+				missing = true
+				break
+			}
+		}
+
+		if !missing {
+			// matched possible combination of required keys so we can stop
+			break
+		}
+	}
+
+	if missing {
+		return fmt.Errorf(`cannot find required combinations of keys`)
+	}
+
+	if v.entrySchemas != nil {
+		for key, val := range mapValue {
+			if validator, ok := v.entrySchemas[key]; ok {
+				if err := validator.Validate(val); err != nil {
+					return err
+				}
+			}
+		}
+
+		// all required entries are present and validated
+		return nil
+	}
+
+	if v.keySchema != nil {
+		for k := range mapValue {
+			rawKey, err := json.Marshal(k)
+			if err != nil {
+				return err
+			}
+
+			if err := v.keySchema.Validate(rawKey); err != nil {
+				return err
+			}
+
+		}
+	}
+
+	if v.valueSchema != nil {
+		for _, val := range mapValue {
+			if err := v.valueSchema.Validate(val); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (v *mapSchema) parseConstraints(raw json.RawMessage) error {
+	var constraints map[string]json.RawMessage
+	err := json.Unmarshal(raw, &constraints)
+	if err != nil {
+		return err
+	}
+
+	rawRequired, ok := constraints["required"]
+	if ok {
+		var requiredCombs [][]string
+		if err := json.Unmarshal(rawRequired, &requiredCombs); err != nil {
+			var typeErr *json.UnmarshalTypeError
+			if !errors.As(err, &typeErr) {
+				return fmt.Errorf(`cannot unmarshal map's "required" constraint: %v`, err)
+			}
+
+			var required []string
+			if err := json.Unmarshal(rawRequired, &required); err != nil {
+				return fmt.Errorf(`cannot unmarshal map's "required" constraint: %v`, err)
+			}
+
+			v.requiredCombs = [][]string{required}
+		} else {
+			v.requiredCombs = requiredCombs
+		}
+	}
+
+	// maps can have a "schema" constraint with types for specific entries
+	if rawEntries, ok := constraints["schema"]; ok {
+		var entries map[string]json.RawMessage
+		if err := json.Unmarshal(rawEntries, &entries); err != nil {
+			return fmt.Errorf(`cannot unmarshal map's "schema" constraint: %v`, err)
+		}
+
+		v.entrySchemas = make(map[string]Schema, len(entries))
+		for key, value := range entries {
+			entrySchema, err := v.topSchema.Parse(value)
+			if err != nil {
+				return err
+			}
+
+			v.entrySchemas[key] = entrySchema
+		}
+
+		return nil
+	}
+
+	// alternatively, they can constrain the type of keys and values
+	rawKeyDef, ok := constraints["keys"]
+	if ok {
+		if v.keySchema, err = v.parseMapKeyType(rawKeyDef); err != nil {
+			return fmt.Errorf(`cannot parse "keys" constraint: %w`, err)
+		}
+	}
+
+	rawValuesDef, ok := constraints["values"]
+	if ok {
+		v.valueSchema, err = v.topSchema.Parse(rawValuesDef)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
+	var typ string
+	if err := json.Unmarshal(raw, &typ); err != nil {
+		var typeErr *json.UnmarshalTypeError
+		if !errors.As(err, &typeErr) {
+			return nil, err
+		}
+
+		var schemaDef map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &schemaDef); err != nil {
+			return nil, err
+		}
+
+		if rawType, ok := schemaDef["type"]; ok {
+			if err := json.Unmarshal(rawType, &typ); err != nil {
+				return nil, err
+			}
+
+			if typ != "string" {
+				return nil, fmt.Errorf(`must be based on string but got %q`, typ)
+			}
+		}
+
+		schema := &stringSchema{}
+		if err := schema.parseConstraints(raw); err != nil {
+			return nil, err
+		}
+
+		return schema, nil
+	}
+
+	if typ == "string" {
+		return &stringSchema{}, nil
+	}
+	// TODO: if type starts with $, check against user-defined types
+
+	return nil, fmt.Errorf(`must be based on string but got %q`, typ)
+}
+
+type stringSchema struct{}
+
+func (v *stringSchema) Validate(raw []byte) error {
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		var typeErr *json.UnmarshalTypeError
+		if !errors.As(err, &typeErr) {
+			return err
+		}
+
+		return fmt.Errorf("cannot parse string: unexpected %s type", typeErr.Value)
+	}
+
+	return nil
+}
+
+func (v *stringSchema) parseConstraints(raw json.RawMessage) error {
+	return nil
+}
