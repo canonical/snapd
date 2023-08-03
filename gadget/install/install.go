@@ -365,9 +365,9 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	// Note that all partitions here will have a role (see
 	// gadget.IsCreatableAtInstall() which defines the list). We do it in
 	// the order in which partitions were specified in the gadget.
+	vol := info.Volumes[bootVolGadgetName]
 	for _, yamlIdx := range onDiskStructsSortedIdx(created) {
 		diskPart := created[yamlIdx]
-		vol := info.Volumes[bootVolGadgetName]
 		vs := vol.StructFromYamlIndex(yamlIdx)
 		logger.Noticef("created new partition %v for structure %v (size %v) with role %s",
 			diskPart.Node, vs, diskPart.Size.IECString(), vs.Role)
