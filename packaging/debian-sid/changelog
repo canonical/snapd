@@ -1,3 +1,67 @@
+snapd (2.60.1-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - install: fallback to lazy unmount() in writeFilesystemContent
+    - data: include "modprobe.d" and "modules-load.d" in preseeded blob
+    - gadget: fix install test on armhf
+    - interfaces: fix typo in network_manager_observe
+    - sandbox/apparmor: don't let vendored apparmor conflict with system
+    - gadget/update: set parts in laid out data from the ones matched
+    - many: move SnapConfineAppArmorDir from dirs to sandbox/apparmor
+    - many: stop using `-O no-expr-simplify` in apparmor_parser
+    - go.mod: update secboot to latest uc22 branch
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 04 Jul 2023 21:21:48 +0200
+
+snapd (2.60-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - Support for dynamic snapshot data exclusions
+    - Apparmor userspace is vendored inside the snapd snap
+    - Added a default-configure hook that exposes gadget default
+      configuration options to snaps during first install before
+      services are started
+    - Allow install from initrd to speed up the initial installation
+      for systems that do not have a install-device hook
+    - New `snap sign --chain` flag that appends the account and
+      account-key assertions
+    - Support validation-sets in the model assertion
+    - Support new "min-size" field in gadget.yaml
+    - New interface: "userns"
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 15 Jun 2023 17:14:31 +0200
+
+snapd (2.59.5-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Explicitly disallow the use of ioctl + TIOCLINUX
+      This fixes CVE-2023-1523.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Sat, 27 May 2023 09:44:43 +0200
+
+snapd (2.59.4-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Retry when looking for disk label on non-UEFI systems
+      (LP: #2018977)
+    - Fix remodel from UC20 to UC22
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 12 May 2023 10:15:57 +0200
+
+snapd (2.59.3-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Fix quiet boot
+    - i/b/physical_memory_observe: allow reading virt-phys page mappings
+    - gadget: warn instead of returning error if overlapping with GPT
+      header
+    - overlord,wrappers: restart always enabled units
+    - go.mod: update github.com/snapcore/secboot to latest uc22
+    - boot: make sure we update assets for the system-seed-null role
+    - many: ignore case for vfat partitions when validating
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 03 May 2023 12:31:00 +0200
+
 snapd (2.59.2-1) unstable; urgency=medium
 
   * New upstream release, LP: #2009946

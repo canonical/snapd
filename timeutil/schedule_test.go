@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -507,6 +508,17 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 
 func (ts *timeutilSuite) TestScheduleNext(c *C) {
 	const shortForm = "2006-01-02 15:04"
+
+	// force timezone for tests to UTC otherwise if run in a
+	// different timezone where there was a daylight savings
+	// transition across one of the intervals (ie in Australia in
+	// 2019 DST started on 6th October) then the result will be
+	// different and the test will fail
+	restore := testutil.Backup(&time.Local)
+	defer restore()
+	local, err := time.LoadLocation("UTC")
+	c.Assert(err, IsNil)
+	time.Local = local
 
 	for _, t := range []struct {
 		schedule   string

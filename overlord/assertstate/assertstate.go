@@ -486,7 +486,7 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 
 			vsass, ok := as.(*asserts.ValidationSet)
 			if !ok {
-				return fmt.Errorf("internal error: unexpected assertion type %s for %s", vsass.Type().Name, ValidationSetKey(vs.AccountID, vs.Name))
+				return fmt.Errorf("internal error: unexpected assertion type %s for %s", as.Type().Name, ValidationSetKey(vs.AccountID, vs.Name))
 			}
 			if err := vsets.Add(vsass); err != nil {
 				return fmt.Errorf("internal error: cannot check validation sets conflicts: %v", err)
@@ -1012,11 +1012,66 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
+func validationSetFromModel(st *state.State, accountID, name string) (*asserts.ModelValidationSet, error) {
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	model := deviceCtx.Model()
+	for _, vs := range model.ValidationSets() {
+		if vs.AccountID == accountID && vs.Name == name {
+			return vs, nil
+		}
+	}
+	return nil, nil
+}
+
+func sequenceSetByModelAssertion(st *state.State, accountID, name string) (int, error) {
+	vs, err := validationSetFromModel(st, accountID, name)
+	if err != nil {
+		return 0, err
+	}
+	if vs == nil {
+		return 0, nil
+	}
+	return vs.Sequence, nil
+}
+
+func validateSequenceAgainstModel(st *state.State, accountID, name string, sequence int) (int, error) {
+	modelSeq, err := sequenceSetByModelAssertion(st, accountID, name)
+	if err != nil {
+		return 0, err
+	}
+
+	// Verify the sequence requested does not differ from the one specified by the model
+	// in case one is set.
+	if sequence > 0 {
+		// Sequence was set, it must match any requirements set by model.
+		if modelSeq > 0 && modelSeq != sequence {
+			return 0, fmt.Errorf("only sequence %d allowed by model", modelSeq)
+		}
+	} else if modelSeq > 0 {
+		// Sequence was set by model, use that specifically.
+		sequence = modelSeq
+	}
+	return sequence, nil
+}
+
 // FetchAndApplyEnforcedValidationSet tries to fetch the given validation set and enforce it.
 // If all validation sets constrains are satisfied, the current validation sets
 // tracking state is saved in validation sets history.
 func FetchAndApplyEnforcedValidationSet(st *state.State, accountID, name string, sequence, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*ValidationSetTracking, error) {
-	vs, err := validationSetAssertionForEnforce(st, accountID, name, sequence, userID, snaps, ignoreValidation)
+	// If the model has a specific sequence specified, then either we may
+	// need to use the correct sequence (if no specific is requested)
+	// or we may need to throw a validation error if the user is requesting a
+	// different sequence than is allowed by the model.
+	modelSeq, err := validateSequenceAgainstModel(st, accountID, name, sequence)
+	if err != nil {
+		return nil, fmt.Errorf("cannot enforce sequence %d of validation set %v: %v", sequence, ValidationSetKey(accountID, name), err)
+	}
+
+	vs, err := validationSetAssertionForEnforce(st, accountID, name, modelSeq, userID, snaps, ignoreValidation)
 	if err != nil {
 		return nil, err
 	}
@@ -1025,8 +1080,8 @@ func FetchAndApplyEnforcedValidationSet(st *state.State, accountID, name string,
 		AccountID: accountID,
 		Name:      name,
 		Mode:      Enforce,
-		// note, sequence may be 0, meaning not pinned.
-		PinnedAt: sequence,
+		// note, modelSeq may be 0, meaning not pinned.
+		PinnedAt: modelSeq,
 		Current:  vs.Sequence(),
 	}
 
@@ -1038,9 +1093,18 @@ func FetchAndApplyEnforcedValidationSet(st *state.State, accountID, name string,
 // MonitorValidationSet tries to fetch the given validation set and monitor it.
 // The current validation sets tracking state is saved in validation sets history.
 func MonitorValidationSet(st *state.State, accountID, name string, sequence int, userID int) (*ValidationSetTracking, error) {
-	pinned := sequence > 0
+	// If the model has a specific sequence specified, then either we may
+	// need to use the correct sequence (if no specific is requested)
+	// or we may need to throw a validation error if the user is requesting a
+	// different sequence than is allowed by the model.
+	modelSeq, err := validateSequenceAgainstModel(st, accountID, name, sequence)
+	if err != nil {
+		return nil, fmt.Errorf("cannot monitor sequence %d of validation set %v: %v", sequence, ValidationSetKey(accountID, name), err)
+	}
+
+	pinned := modelSeq > 0
 	opts := ResolveOptions{AllowLocalFallback: true}
-	as, local, err := validationSetAssertionForMonitor(st, accountID, name, sequence, pinned, userID, &opts)
+	as, local, err := validationSetAssertionForMonitor(st, accountID, name, modelSeq, pinned, userID, &opts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get validation set assertion for %v: %v", ValidationSetKey(accountID, name), err)
 	}
@@ -1049,8 +1113,8 @@ func MonitorValidationSet(st *state.State, accountID, name string, sequence int,
 		AccountID: accountID,
 		Name:      name,
 		Mode:      Monitor,
-		// note, Sequence may be 0, meaning not pinned.
-		PinnedAt:  sequence,
+		// note, modelSeq may be 0, meaning not pinned.
+		PinnedAt:  modelSeq,
 		Current:   as.Sequence(),
 		LocalOnly: local,
 	}

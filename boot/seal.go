@@ -119,6 +119,9 @@ type sealKeyToModeenvFlags struct {
 	// SnapsDir is set to provide a non-default directory to find
 	// run mode snaps in.
 	SnapsDir string
+	// SeedDir is the path where to find mounted seed with
+	// essential snaps.
+	SeedDir string
 }
 
 // sealKeyToModeenvImpl seals the supplied keys to the parameters specified
@@ -228,7 +231,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, model *assert
 		// tested, hence allow both recover and factory reset modes
 		modeenv.RecoverySystem: {ModeRecover, ModeFactoryReset},
 	}
-	recoveryBootChains, err := recoveryBootChainsForSystems(systems, modes, tbl, modeenv, includeTryModel)
+	recoveryBootChains, err := recoveryBootChainsForSystems(systems, modes, tbl, modeenv, includeTryModel, flags.SeedDir)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
@@ -473,7 +476,7 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 	// accommodate the dynamics of a remodel
 	includeTryModel := true
 	recoveryBootChainsForRunKey, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, modes, tbl,
-		modeenv, includeTryModel)
+		modeenv, includeTryModel, dirs.SnapSeedDir)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains for run key: %v", err)
 	}
@@ -491,7 +494,7 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 	// use the current model as the recovery keys are not expected to be
 	// used during a remodel
 	includeTryModel = false
-	recoveryBootChains, err := recoveryBootChainsForSystems(testedRecoverySystems, modes, tbl, modeenv, includeTryModel)
+	recoveryBootChains, err := recoveryBootChainsForSystems(testedRecoverySystems, modes, tbl, modeenv, includeTryModel, dirs.SnapSeedDir)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
@@ -648,13 +651,13 @@ func modesForSystems(modeenv *Modeenv) map[string][]string {
 
 // TODO:UC20: this needs to take more than one model to accommodate the remodel
 // scenario
-func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][]string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv, includeTryModel bool) (chains []bootChain, err error) {
+func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][]string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv, includeTryModel bool, seedDir string) (chains []bootChain, err error) {
 	chainsForModel := func(model secboot.ModelForSealing) error {
 		modelID := modelUniqueID(model)
 		for _, system := range systems {
 			// get kernel and gadget information from seed
 			perf := timings.New(nil)
-			seedSystemModel, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel, snap.TypeGadget}, perf)
+			seedSystemModel, snaps, err := seedReadSystemEssential(seedDir, system, []snap.Type{snap.TypeKernel, snap.TypeGadget}, perf)
 			if err != nil {
 				return fmt.Errorf("cannot read system %q seed: %v", system, err)
 			}

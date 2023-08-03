@@ -174,199 +174,196 @@ execute: |
     # TODO:Snap-folder: no automatic migration for core22 snaps to
     # ~/Snap folder for now
     #
-    echo "SKIP this part of the test"
-    exit 0
-    
-    echo "Update snap to core22"
-    # write a file in a default XDG dir so we can check it's migrated
-    mkdir "$HOME/snap/$NAME/x2/.config"
-    echo "conf-x2" > "$HOME/snap/$NAME/x2/.config/file"
+    #echo "Update snap to core22"
+    ## write a file in a default XDG dir so we can check it's migrated
+    #mkdir "$HOME/snap/$NAME/x2/.config"
+    #echo "conf-x2" > "$HOME/snap/$NAME/x2/.config/file"
 
-    snap install --edge core22
-    cp -rf "$TESTSLIB/snaps/$NAME" "$PWD/$NAME"
-    echo -e "\nbase: core22" >> "$PWD/$NAME/meta/snap.yaml"
-    snap pack "$PWD/$NAME"
-    snap install --dangerous "$NAME"_1.0_all.snap
+    #snap install --edge core22
+    #cp -rf "$TESTSLIB/snaps/$NAME" "$PWD/$NAME"
+    #echo -e "\nbase: core22" >> "$PWD/$NAME/meta/snap.yaml"
+    #snap pack "$PWD/$NAME"
+    #snap install --dangerous "$NAME"_1.0_all.snap
 
-    check_env --with-exposed-home x3
-    check_dirs --with-exposed-home x3
-    check_data --with-exposed-home x3 "$data"
+    #check_env --with-exposed-home x3
+    #check_dirs --with-exposed-home x3
+    #check_data --with-exposed-home x3 "$data"
 
-    # the XDG dirs shouldn't be copied to the new HOME (they stay under the rev dir)
-    not test -d "$HOME/Snap/$NAME/.config"
+    ## the XDG dirs shouldn't be copied to the new HOME (they stay under the rev dir)
+    #not test -d "$HOME/Snap/$NAME/.config"
 
-    # check data in a default XDG dir was migrated
-    MATCH "conf-x2" < "$HOME/.snap/data/$NAME/x3/xdg-config/file"
+    ## check data in a default XDG dir was migrated
+    #MATCH "conf-x2" < "$HOME/.snap/data/$NAME/x3/xdg-config/file"
 
-    # write some new data so we can check it's still there after reverting back
-    #shellcheck disable=SC2016
-    "$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_DATA"/file'
-    #shellcheck disable=SC2016
-    "$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_COMMON"/file'
-    #shellcheck disable=SC2016
-    "$NAME".cmd sh -c 'echo "x3" > "$HOME"/file'
+    ## write some new data so we can check it's still there after reverting back
+    ##shellcheck disable=SC2016
+    #"$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_DATA"/file'
+    ##shellcheck disable=SC2016
+    #"$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_COMMON"/file'
+    ##shellcheck disable=SC2016
+    #"$NAME".cmd sh -c 'echo "x3" > "$HOME"/file'
 
-    echo "Check that revert moves ~/.snap back and disables HOME migration"
-    snap revert "$NAME"
+    #echo "Check that revert moves ~/.snap back and disables HOME migration"
+    #snap revert "$NAME"
 
-    snapEnv=$("$NAME".env)
-    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/snap/$NAME/x2"
-    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/snap/$NAME/common"
-    echo "$snapEnv" | MATCH "HOME=$HOME/snap/$NAME/x2"
+    #snapEnv=$("$NAME".env)
+    #echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/snap/$NAME/x2"
+    #echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/snap/$NAME/common"
+    #echo "$snapEnv" | MATCH "HOME=$HOME/snap/$NAME/x2"
 
-    MATCH "$data" < "$HOME/snap/$NAME/x2/file"
-    test -d "$HOME/snap/$NAME/x2"
-    test -d "$HOME/snap/$NAME/common"
-    test -L "$HOME/snap/$NAME/current"
-    not test -d "$HOME/.snap/data/$NAME"
+    #MATCH "$data" < "$HOME/snap/$NAME/x2/file"
+    #test -d "$HOME/snap/$NAME/x2"
+    #test -d "$HOME/snap/$NAME/common"
+    #test -L "$HOME/snap/$NAME/current"
+    #not test -d "$HOME/.snap/data/$NAME"
 
-    if [ "$(readlink "$HOME/snap/$NAME/current")" != "x2" ]; then
-      echo "expected 'current' to be symlink to x2"
-      exit 1
-    fi
+    #if [ "$(readlink "$HOME/snap/$NAME/current")" != "x2" ]; then
+    #  echo "expected 'current' to be symlink to x2"
+    #  exit 1
+    #fi
 
-    # the revision x3 data is still there
-    test "$HOME/snap/$NAME/x3/file"
-    test "$HOME/snap/$NAME/common/file"
-    test "$HOME/Snap/$NAME/file"
+    ## the revision x3 data is still there
+    #test "$HOME/snap/$NAME/x3/file"
+    #test "$HOME/snap/$NAME/common/file"
+    #test "$HOME/Snap/$NAME/file"
 
-    echo "Revert forward"
-    snap revert "$NAME" --revision="x3"
+    #echo "Revert forward"
+    #snap revert "$NAME" --revision="x3"
 
-    # check everything is restored after reverting back to x3
-    check_env --with-exposed-home x3
-    check_dirs --with-exposed-home x3
-    check_data --with-exposed-home x3 x3
+    ## check everything is restored after reverting back to x3
+    #check_env --with-exposed-home x3
+    #check_dirs --with-exposed-home x3
+    #check_data --with-exposed-home x3 x3
 
-    # write something to the new XDG dirs so we can check that a refresh always
-    # re-initializes them from the default XDG (even if refreshing after a revert)
-    #shellcheck disable=SC2016
-    "$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_DATA"/xdg-config/file'
-    #shellcheck disable=SC2016
-    "$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_DATA"/xdg-data/file'
-    #shellcheck disable=SC2016
-    "$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_DATA"/xdg-cache/file'
+    ## write something to the new XDG dirs so we can check that a refresh always
+    ## re-initializes them from the default XDG (even if refreshing after a revert)
+    ##shellcheck disable=SC2016
+    #"$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_DATA"/xdg-config/file'
+    ##shellcheck disable=SC2016
+    #"$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_DATA"/xdg-data/file'
+    ##shellcheck disable=SC2016
+    #"$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_DATA"/xdg-cache/file'
 
-    echo "Check that revert w/ experimental flag set disable the ~/Snap migration"
-    snap set system experimental.hidden-snap-folder=true
-    snap revert "$NAME"
+    #echo "Check that revert w/ experimental flag set disable the ~/Snap migration"
+    #snap set system experimental.hidden-snap-folder=true
+    #snap revert "$NAME"
 
-    snapEnv=$("$NAME".env)
-    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/.snap/data/$NAME/x2"
-    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/.snap/data/$NAME/common"
-    echo "$snapEnv" | MATCH "HOME=$HOME/.snap/data/$NAME/x2"
+    #snapEnv=$("$NAME".env)
+    #echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/.snap/data/$NAME/x2"
+    #echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/.snap/data/$NAME/common"
+    #echo "$snapEnv" | MATCH "HOME=$HOME/.snap/data/$NAME/x2"
 
-    MATCH "$data" < "$HOME/.snap/data/$NAME/x2/file"
-    test -d "$HOME/.snap/data/$NAME/x2"
-    test -d "$HOME/.snap/data/$NAME/common"
-    test -L "$HOME/.snap/data/$NAME/current"
+    #MATCH "$data" < "$HOME/.snap/data/$NAME/x2/file"
+    #test -d "$HOME/.snap/data/$NAME/x2"
+    #test -d "$HOME/.snap/data/$NAME/common"
+    #test -L "$HOME/.snap/data/$NAME/current"
 
-    test  "$HOME/Snap/$NAME/file"
-    not test -d "$HOME/snap/$NAME"
+    #test  "$HOME/Snap/$NAME/file"
+    #not test -d "$HOME/snap/$NAME"
 
-    if [ "$(readlink "$HOME/.snap/data/$NAME/current")" != "x2" ]; then
-      echo "expected 'current' to be symlink to x2"
-      exit 1
-    fi
+    #if [ "$(readlink "$HOME/.snap/data/$NAME/current")" != "x2" ]; then
+    #  echo "expected 'current' to be symlink to x2"
+    #  exit 1
+    #fi
 
-    # when we refresh again, the new XDG dirs should be initialized (again) with
-    # this instead what's currently there ("x3")
-    mkdir -p "$HOME/.snap/data/$NAME/x4/.config"
-    echo "x4" > "$HOME/.snap/data/$NAME/x4/.config/file"
-    mkdir -p "$HOME/.snap/data/$NAME/x4/.cache"
-    echo "x4" > "$HOME/.snap/data/$NAME/x4/.cache/file"
-    mkdir -p "$HOME/.snap/data/$NAME/x4/.local/share"
-    echo "x4" > "$HOME/.snap/data/$NAME/x4/.local/share/file"
-    rm -rf "$HOME/Snap/$NAME/*"
-    echo "already_there" > "$HOME/Snap/$NAME/file"
+    ## when we refresh again, the new XDG dirs should be initialized (again) with
+    ## this instead what's currently there ("x3")
+    #mkdir -p "$HOME/.snap/data/$NAME/x4/.config"
+    #echo "x4" > "$HOME/.snap/data/$NAME/x4/.config/file"
+    #mkdir -p "$HOME/.snap/data/$NAME/x4/.cache"
+    #echo "x4" > "$HOME/.snap/data/$NAME/x4/.cache/file"
+    #mkdir -p "$HOME/.snap/data/$NAME/x4/.local/share"
+    #echo "x4" > "$HOME/.snap/data/$NAME/x4/.local/share/file"
+    #rm -rf "$HOME/Snap/$NAME/*"
+    #echo "already_there" > "$HOME/Snap/$NAME/file"
 
-    snap install --dangerous "$NAME"_1.0_all.snap
+    #snap install --dangerous "$NAME"_1.0_all.snap
 
-    check_env --with-exposed-home x4
-    check_dirs --with-exposed-home x4
+    #check_env --with-exposed-home x4
+    #check_dirs --with-exposed-home x4
 
-    MATCH "$data" < "$HOME/.snap/data/$NAME/x4/file"
-    # data under ~/Snap isn't rewritten
-    MATCH "already_there" < "$HOME/Snap/$NAME/file"
+    #MATCH "$data" < "$HOME/.snap/data/$NAME/x4/file"
+    ## data under ~/Snap isn't rewritten
+    #MATCH "already_there" < "$HOME/Snap/$NAME/file"
 
-    # the config XDG dir was re-initialized w/ revision "x2"'s .config dir
-    MATCH "conf-x2" < "$HOME/.snap/data/$NAME/x4/xdg-config/file"
+    ## the config XDG dir was re-initialized w/ revision "x2"'s .config dir
+    #MATCH "conf-x2" < "$HOME/.snap/data/$NAME/x4/xdg-config/file"
 
-    # the other XDG dirs were re-created (x2 didn't have corresponding dirs)
-    if [[ -n "$(ls -A "$HOME/.snap/data/$NAME/x4/xdg-cache")" ]]; then
-       echo "expected xdg-cache dir to be empty but wasn't"
-       exit 1
-    fi
+    ## the other XDG dirs were re-created (x2 didn't have corresponding dirs)
+    #if [[ -n "$(ls -A "$HOME/.snap/data/$NAME/x4/xdg-cache")" ]]; then
+    #   echo "expected xdg-cache dir to be empty but wasn't"
+    #   exit 1
+    #fi
 
-    if [[ -n "$(ls -A "$HOME/.snap/data/$NAME/x4/xdg-data")" ]]; then
-       echo "expected xdg-data dir to be empty but wasn't"
-       exit 1
-    fi
+    #if [[ -n "$(ls -A "$HOME/.snap/data/$NAME/x4/xdg-data")" ]]; then
+    #   echo "expected xdg-data dir to be empty but wasn't"
+    #   exit 1
+    #fi
 
-    echo "Check migration after remove works"
-    # ensure dirs under ~/.snap/data are created
-    "$NAME".cmd 'true'
-    test -d "$HOME/.snap/data/$NAME"
+    #echo "Check migration after remove works"
+    ## ensure dirs under ~/.snap/data are created
+    #"$NAME".cmd 'true'
+    #test -d "$HOME/.snap/data/$NAME"
 
-    echo "Remove snap"
-    snap remove --purge "$NAME"
-    # dir is leftover
-    test -d "$HOME/.snap/data/$NAME"
+    #echo "Remove snap"
+    #snap remove --purge "$NAME"
+    ## dir is leftover
+    #test -d "$HOME/.snap/data/$NAME"
 
-    echo "Install snap with data under ~/snap"
-    snap pack "$TESTSLIB/snaps/$NAME"
-    snap unset system experimental.hidden-snap-folder
-    "$TESTSTOOLS"/snaps-state install-local "$NAME"
-    # create dirs under ~/snap to be migrated
-    "$NAME".cmd 'true'
-    test -d "$HOME/snap/$NAME"
+    #echo "Install snap with data under ~/snap"
+    #snap pack "$TESTSLIB/snaps/$NAME"
+    #snap unset system experimental.hidden-snap-folder
+    #"$TESTSTOOLS"/snaps-state install-local "$NAME"
+    ## create dirs under ~/snap to be migrated
+    #"$NAME".cmd 'true'
+    #test -d "$HOME/snap/$NAME"
 
-    echo "Migration to ~/.snap/data works"
-    snap set system experimental.hidden-snap-folder=true
-    "$TESTSTOOLS"/snaps-state install-local "$NAME"
-    test -d "$HOME/.snap/data/$NAME"
-    not test -e "$HOME/snap/$NAME"
+    #echo "Migration to ~/.snap/data works"
+    #snap set system experimental.hidden-snap-folder=true
+    #"$TESTSTOOLS"/snaps-state install-local "$NAME"
+    #test -d "$HOME/.snap/data/$NAME"
+    #not test -e "$HOME/snap/$NAME"
 
-    echo "Refresh from core22 base to another core22 base revision"
-    # reset everything
-    snap unset system experimental.hidden-snap-folder
-    snap remove --purge "$NAME"
-    rm -rf ~/.snap ~/snap ~/Snap
+    #echo "Refresh from core22 base to another core22 base revision"
+    ## reset everything
+    #snap unset system experimental.hidden-snap-folder
+    #snap remove --purge "$NAME"
+    #rm -rf ~/.snap ~/snap ~/Snap
 
-    snap pack "$PWD/$NAME"
-    snap install --dangerous "$NAME"_1.0_all.snap
-    data="fresh"
-    #shellcheck disable=SC2016
-    "$NAME".cmd sh -c 'echo fresh > "$SNAP_USER_DATA/file"'
-    #shellcheck disable=SC2016
-    "$NAME".cmd sh -c 'echo fresh > "$SNAP_USER_COMMON/file"'
-    #shellcheck disable=SC2016
-    "$NAME".cmd sh -c 'echo fresh > "$HOME/file"'
-    snap install --dangerous "$NAME"_1.0_all.snap
+    #snap pack "$PWD/$NAME"
+    #snap install --dangerous "$NAME"_1.0_all.snap
+    #data="fresh"
+    ##shellcheck disable=SC2016
+    #"$NAME".cmd sh -c 'echo fresh > "$SNAP_USER_DATA/file"'
+    ##shellcheck disable=SC2016
+    #"$NAME".cmd sh -c 'echo fresh > "$SNAP_USER_COMMON/file"'
+    ##shellcheck disable=SC2016
+    #"$NAME".cmd sh -c 'echo fresh > "$HOME/file"'
+    #snap install --dangerous "$NAME"_1.0_all.snap
 
-    check_env --with-exposed-home x2
-    check_dirs --with-exposed-home x2
-    check_data --with-exposed-home x2 "$data"
+    #check_env --with-exposed-home x2
+    #check_dirs --with-exposed-home x2
+    #check_data --with-exposed-home x2 "$data"
 
-    echo "Check fresh install of core22 based snap"
-    snap remove --purge "$NAME"
-    rm -rf "$HOME"/Snap "$HOME"/.snap/data "$HOME/snap/$NAME"
+    #echo "Check fresh install of core22 based snap"
+    #snap remove --purge "$NAME"
+    #rm -rf "$HOME"/Snap "$HOME"/.snap/data "$HOME/snap/$NAME"
 
-    snap install --dangerous "$NAME"_1.0_all.snap
+    #snap install --dangerous "$NAME"_1.0_all.snap
 
-    check_env --with-exposed-home x1
-    check_dirs --with-exposed-home x1
+    #check_env --with-exposed-home x1
+    #check_dirs --with-exposed-home x1
 
-    "$NAME".cmd sh -c 'true'
+    #"$NAME".cmd sh -c 'true'
 
-    echo "Check remove of freshly installed core22 based snap"
-    snap remove --purge "$NAME"
-    not test -e "$HOME/.snap/data/$NAME/x1"
-    not test -e "$HOME/.snap/data/$NAME/common"
+    #echo "Check remove of freshly installed core22 based snap"
+    #snap remove --purge "$NAME"
+    #not test -e "$HOME/.snap/data/$NAME/x1"
+    #not test -e "$HOME/.snap/data/$NAME/common"
 
-    echo "Now re-install"
-    snap install --dangerous "$NAME"_1.0_all.snap
-    "$NAME".cmd sh -c 'true'
+    #echo "Now re-install"
+    #snap install --dangerous "$NAME"_1.0_all.snap
+    #"$NAME".cmd sh -c 'true'
 
-    check_env --with-exposed-home x1
-    check_dirs --with-exposed-home x1
+    #check_env --with-exposed-home x1
+    #check_dirs --with-exposed-home x1

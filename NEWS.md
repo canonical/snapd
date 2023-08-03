@@ -1,6 +1,37 @@
+# New in snapd 2.60.1:
+* Bugfixes
+* Use "aes-cbc-essiv:sha256" in cryptsetup on arm 32bit devices
+  to increase speed on devices with CAAM support
+* Stop using `-O no-expr-simplify` in apparmor_parser to avoid
+  potential exponential memory use. This can lead to slower 
+  policy complication in some cases but it is much safer on
+  low memory devices.
+
 # New in snapd 2.60:
 * Support for dynamic snapshot data exclusions
 * Apparmor userspace is vendored inside the snapd snap
+* Added a default-configure hook that exposes gadget default configuration
+  options to snaps during first install before services are started
+* Allow install from initrd to speed up the initial installation for
+  systems that do not have a install-device hook
+* New `snap sign --chain` flag that appends the account and account-key
+  assertions
+* Support validation-sets in the model assertion
+* Support new "min-size" field in gadget.yaml
+* New interface: "userns"
+
+# New in snapd 2.59.5:
+* Explicitly disallow the use of ioctl + TIOCLINUX
+  This fixes CVE-2023-1523.
+
+# New in snapd 2.59.4:
+* Retry when looking for disk label on non-UEFI systems
+* Fix remodel from UC20 to UC22
+
+# New in snapd 2.59.3:
+* Fix quiet boot
+* Ignore case for vfat paritions when validating
+* Restart always enabled units
 
 # New in snapd 2.59.2:
 * Notify users when a user triggered auto refresh finished

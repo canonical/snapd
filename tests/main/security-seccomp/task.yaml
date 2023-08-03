@@ -7,6 +7,7 @@ details: |
     - use of a bare syscall (ie, no arguments) is allowed
     - use of a syscall with arg filtering is allowed with matching arguments
     - use of a syscall with arg filtering is denied with unmatching arguments
+    - explicit denial of a syscall with matching arguments is denied
     .
     We choose the setpriority syscall for these tests since it is available on
     all architectures and can be easily used to test all of the above. As part of
@@ -43,7 +44,7 @@ prepare: |
         if snap debug sandbox-features --required apparmor:parser:snapd-internal; then
           APPARMOR_PARSER="/snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/3.0"
         fi
-        $APPARMOR_PARSER -r "$AAP"
+        $APPARMOR_PARSER -K -r "$AAP"
     fi
 
 restore: |
@@ -58,7 +59,7 @@ restore: |
         if snap debug sandbox-features --required apparmor:parser:snapd-internal; then
           APPARMOR_PARSER="/snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/3.0"
         fi
-        $APPARMOR_PARSER -r "$AAP"
+        $APPARMOR_PARSER -K -r "$AAP"
     fi
 
 execute: |
@@ -90,4 +91,12 @@ execute: |
     echo "and check that positive nice succeeds"
     test-snapd-setpriority 10  | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, 10\)'
     echo "and check that negative nice fails"
+    test-snapd-setpriority -10 | MATCH 'Operation not permitted \(EPERM\)'
+
+    echo "Explicitly deny arg filtered setpriority rule"
+    sed 's/^\(setpriority.*\)/~\1/g' "$SRC".orig > "$SRC"
+    snapd.tool exec snap-seccomp compile "$SRC" "$BIN"
+    echo "and check that positive nice fails with explicit denial"
+    test-snapd-setpriority 10  | MATCH 'Insufficient privileges \(EACCES\)'
+    echo "and check that negative nice still fails with implicit denial"
     test-snapd-setpriority -10 | MATCH 'Operation not permitted \(EPERM\)'

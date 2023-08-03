@@ -118,9 +118,9 @@ var u2fDevices = []u2fDevice{
 		ProductIDPattern: "5026",
 	},
 	{
-		Name:             "Tomu board + chopstx U2F + SoloKeys",
+		Name:             "Tomu board + chopstx U2F + SoloKeys + Flipper zero",
 		VendorIDPattern:  "0483",
-		ProductIDPattern: "cdab|a2ca",
+		ProductIDPattern: "cdab|a2ca|5741",
 	},
 	{
 		Name:             "SoloKeys",

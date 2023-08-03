@@ -104,7 +104,7 @@ func (iface *kvmInterface) KModConnectedPlug(spec *kmod.Specification, plug *int
 	}
 
 	if err := spec.AddModule(m); err != nil {
-		return nil
+		return err
 	}
 	return nil
 }

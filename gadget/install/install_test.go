@@ -26,8 +26,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -38,6 +40,8 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -81,6 +85,13 @@ func (s *installSuite) TestInstallRunSimpleHappy(c *C) {
 	})
 }
 
+func (s *installSuite) TestInstallRunSimpleHappyFromMountPoint(c *C) {
+	s.testInstall(c, installOpts{
+		encryption: false,
+		fromSeed:   true,
+	})
+}
+
 func (s *installSuite) TestInstallRunEncryptedLUKS(c *C) {
 	s.testInstall(c, installOpts{
 		encryption: true,
@@ -104,6 +115,7 @@ func (s *installSuite) TestInstallRunEncryptionExistingPartitions(c *C) {
 type installOpts struct {
 	encryption    bool
 	existingParts bool
+	fromSeed      bool
 }
 
 func (s *installSuite) testInstall(c *C, opts installOpts) {
@@ -149,8 +161,27 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	mockPartx := testutil.MockCommand(c, "partx", "")
 	defer mockPartx.Restore()
 
-	mockUdevadm := testutil.MockCommand(c, "udevadm", "")
+	mockUdevadm := testutil.MockCommand(c, "udevadm", `
+if [ "$*" = "info --query property --name /dev/mmcblk0p1" ]; then
+	echo "ID_PART_ENTRY_DISK=42:0"
+elif [ "$*" = "info --query property --name /dev/block/42:0" ]; then
+	echo "DEVNAME=/dev/mmcblk0"
+	echo "DEVPATH=/devices/virtual/mmcblk0"
+	echo "DEVTYPE=disk"
+	echo "ID_PART_TABLE_UUID=some-gpt-uuid"
+	echo "ID_PART_TABLE_TYPE=GPT"
+fi
+`)
 	defer mockUdevadm.Restore()
+
+	if opts.fromSeed {
+		restoreMountInfo := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/ubuntu-seed rw,relatime shared:54 - vfat /dev/mmcblk0p1 rw
+`)
+		defer restoreMountInfo()
+	} else {
+		restoreMountInfo := osutil.MockMountInfo(``)
+		defer restoreMountInfo()
+	}
 
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
 	defer mockCryptsetup.Restore()
@@ -381,10 +412,15 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	}
 	c.Assert(mockPartx.Calls(), DeepEquals, expPartxCalls)
 
-	udevmadmCalls := [][]string{
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--settle", "/dev/mmcblk0p2"},
+	udevmadmCalls := [][]string{}
+
+	if opts.fromSeed {
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/mmcblk0p1"})
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/block/42:0"})
 	}
+
+	udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "settle", "--timeout=180"})
+	udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mmcblk0p2"})
 
 	if opts.encryption {
 		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mapper/ubuntu-save"})
@@ -550,6 +586,7 @@ type factoryResetOpts struct {
 	gadgetYaml string
 	traitsJSON string
 	traits     gadget.DiskVolumeDeviceTraits
+	fromSeed   bool
 }
 
 func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
@@ -581,8 +618,27 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	mockPartx := testutil.MockCommand(c, "partx", "")
 	defer mockPartx.Restore()
 
-	mockUdevadm := testutil.MockCommand(c, "udevadm", "")
+	mockUdevadm := testutil.MockCommand(c, "udevadm", `
+if [ "$*" = "info --query property --name /dev/mmcblk0p1" ]; then
+	echo "ID_PART_ENTRY_DISK=42:0"
+elif [ "$*" = "info --query property --name /dev/block/42:0" ]; then
+	echo "DEVNAME=/dev/mmcblk0"
+	echo "DEVPATH=/devices/virtual/mmcblk0"
+	echo "DEVTYPE=disk"
+	echo "ID_PART_TABLE_UUID=some-gpt-uuid"
+	echo "ID_PART_TABLE_TYPE=GPT"
+fi
+`)
 	defer mockUdevadm.Restore()
+
+	if opts.fromSeed {
+		restoreMountInfo := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/ubuntu-seed rw,relatime shared:54 - vfat /dev/mmcblk0p1 rw
+`)
+		defer restoreMountInfo()
+	} else {
+		restoreMountInfo := osutil.MockMountInfo(``)
+		defer restoreMountInfo()
+	}
 
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
 	defer mockCryptsetup.Restore()
@@ -756,10 +812,15 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	c.Assert(mockSfdisk.Calls(), HasLen, 0)
 	c.Assert(mockPartx.Calls(), HasLen, 0)
 
-	udevmadmCalls := [][]string{
-		{"udevadm", "trigger", "--settle", "/dev/mmcblk0p2"},
-		{"udevadm", "trigger", "--settle", dataDev},
+	udevmadmCalls := [][]string{}
+
+	if opts.fromSeed {
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/mmcblk0p1"})
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/block/42:0"})
 	}
+
+	udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mmcblk0p2"})
+	udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", dataDev})
 
 	c.Assert(mockUdevadm.Calls(), DeepEquals, udevmadmCalls)
 	c.Assert(mkfsCall, Equals, 2)
@@ -791,6 +852,16 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	c.Assert(err, IsNil)
 
 	c.Assert(mapping2, DeepEquals, mappingOnData)
+}
+
+func (s *installSuite) TestFactoryResetHappyFromSeed(c *C) {
+	s.testFactoryReset(c, factoryResetOpts{
+		disk:       gadgettest.ExpectedRaspiMockDiskMapping,
+		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
+		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeDeviceTraitsJSON,
+		traits:     gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
+		fromSeed:   true,
+	})
 }
 
 func (s *installSuite) TestFactoryResetHappyWithExisting(c *C) {
@@ -1007,6 +1078,24 @@ type encryptPartitionsOpts struct {
 	encryptType secboot.EncryptionType
 }
 
+func expectedCipher() string {
+	switch runtime.GOARCH {
+	case "arm":
+		return "aes-cbc-essiv:sha256"
+	default:
+		return "aes-xts-plain64"
+	}
+}
+
+func expectedKeysize() string {
+	switch runtime.GOARCH {
+	case "arm":
+		return "256"
+	default:
+		return "512"
+	}
+}
+
 func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
 	restore := install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
@@ -1045,10 +1134,10 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 	c.Assert(err, IsNil)
 
 	c.Assert(mockCryptsetup.Calls(), DeepEquals, [][]string{
-		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", "aes-xts-plain64", "--key-size", "512", "--label", "ubuntu-save-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda4"},
+		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", expectedCipher(), "--key-size", expectedKeysize(), "--label", "ubuntu-save-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda4"},
 		{"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/vda4"},
 		{"cryptsetup", "open", "--key-file", "-", "/dev/vda4", "ubuntu-save"},
-		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", "aes-xts-plain64", "--key-size", "512", "--label", "ubuntu-data-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda5"},
+		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", expectedCipher(), "--key-size", expectedKeysize(), "--label", "ubuntu-data-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda5"},
 		{"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/vda5"},
 		{"cryptsetup", "open", "--key-file", "-", "/dev/vda5", "ubuntu-data"},
 	})
@@ -1077,4 +1166,270 @@ func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
 
 	c.Check(err, ErrorMatches, "device field for volume struct .* cannot be empty")
 	c.Check(encryptSetup, IsNil)
+}
+
+type mountVolumesOpts struct {
+	encryption bool
+}
+
+func (s *installSuite) testMountVolumes(c *C, opts mountVolumesOpts) {
+	seedMntPt := filepath.Join(s.dir, "run/mnt/ubuntu-seed")
+	bootMntPt := filepath.Join(s.dir, "run/mnt/ubuntu-boot")
+	saveMntPt := filepath.Join(s.dir, "run/mnt/ubuntu-save")
+	dataMntPt := filepath.Join(s.dir, "run/mnt/ubuntu-data")
+	mountCall := 0
+	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		mountCall++
+		switch mountCall {
+		case 1:
+			c.Assert(source, Equals, "/dev/vda2")
+			c.Assert(target, Equals, seedMntPt)
+			c.Assert(fstype, Equals, "vfat")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		case 2:
+			c.Assert(source, Equals, "/dev/vda3")
+			c.Assert(target, Equals, bootMntPt)
+			c.Assert(fstype, Equals, "ext4")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		case 3:
+			if opts.encryption {
+				c.Assert(source, Equals, "/dev/mapper/ubuntu-save")
+			} else {
+				c.Assert(source, Equals, "/dev/vda4")
+			}
+			c.Assert(target, Equals, saveMntPt)
+			c.Assert(fstype, Equals, "ext4")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		case 4:
+			if opts.encryption {
+				c.Assert(source, Equals, "/dev/mapper/ubuntu-data")
+			} else {
+				c.Assert(source, Equals, "/dev/vda5")
+			}
+			c.Assert(target, Equals, dataMntPt)
+			c.Assert(fstype, Equals, "ext4")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		default:
+			c.Errorf("unexpected mount call (%d)", mountCall)
+			return fmt.Errorf("test broken")
+		}
+		return nil
+	})
+	defer restore()
+
+	umountCall := 0
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		umountCall++
+		switch umountCall {
+		case 1:
+			c.Assert(target, Equals, seedMntPt)
+		case 2:
+			c.Assert(target, Equals, bootMntPt)
+		case 3:
+			c.Assert(target, Equals, saveMntPt)
+		case 4:
+			c.Assert(target, Equals, dataMntPt)
+		default:
+			c.Errorf("unexpected umount call (%d)", umountCall)
+			return fmt.Errorf("test broken")
+		}
+		c.Assert(flags, Equals, 0)
+		return nil
+	})
+	defer restore()
+
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeUC20GadgetYaml, gadgetRoot)
+	c.Assert(err, IsNil)
+	defer restore()
+
+	// Fill in additional information about the target device as the installer does
+	partIdx := 1
+	for i, part := range ginfo.Volumes["pc"].Structure {
+		if part.Role == "mbr" {
+			continue
+		}
+		ginfo.Volumes["pc"].Structure[i].Device = "/dev/vda" + strconv.Itoa(partIdx)
+		partIdx++
+	}
+	// Fill encrypted partitions if encrypting
+	var esd *install.EncryptionSetupData
+	if opts.encryption {
+		labelToEncData := map[string]*install.MockEncryptedDeviceAndRole{
+			"ubuntu-save": {
+				Role:            "system-save",
+				EncryptedDevice: "/dev/mapper/ubuntu-save",
+			},
+			"ubuntu-data": {
+				Role:            "system-data",
+				EncryptedDevice: "/dev/mapper/ubuntu-data",
+			},
+		}
+		esd = install.MockEncryptionSetupData(labelToEncData)
+	}
+
+	// 10 million mocks later ...
+	// finally actually run MountVolumes
+	seedMntDir, unmount, err := install.MountVolumes(ginfo.Volumes, esd)
+	c.Assert(err, IsNil)
+	c.Assert(seedMntDir, Equals, seedMntPt)
+
+	err = unmount()
+	c.Assert(err, IsNil)
+
+	c.Assert(mountCall, Equals, 4)
+	c.Assert(umountCall, Equals, 4)
+}
+
+func (s *installSuite) TestMountVolumesSimpleHappy(c *C) {
+	s.testMountVolumes(c, mountVolumesOpts{
+		encryption: false,
+	})
+}
+
+func (s *installSuite) TestMountVolumesSimpleHappyEncrypted(c *C) {
+	s.testMountVolumes(c, mountVolumesOpts{
+		encryption: true,
+	})
+}
+
+func (s *installSuite) TestMountVolumesZeroSeeds(c *C) {
+	onVolumes := map[string]*gadget.Volume{}
+	_, _, err := install.MountVolumes(onVolumes, nil)
+	c.Assert(err, ErrorMatches, "there are 0 system-seed{,-null} partitions, expected one")
+}
+
+func (s *installSuite) TestMountVolumesManySeeds(c *C) {
+	onVolumes := map[string]*gadget.Volume{
+		"pc": {
+			Structure: []gadget.VolumeStructure{
+				{Name: "system-seed", Filesystem: "vfat", Role: gadget.SystemSeed},
+				{Name: "system-seed-null", Filesystem: "vfat", Role: gadget.SystemSeedNull},
+			},
+		},
+	}
+
+	mountCall := 0
+	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		mountCall++
+		c.Assert(flags, Equals, uintptr(0))
+		return nil
+	})
+	defer restore()
+
+	umountCall := 0
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		umountCall++
+		c.Assert(flags, Equals, 0)
+		return nil
+	})
+	defer restore()
+
+	_, _, err := install.MountVolumes(onVolumes, nil)
+	c.Assert(err, ErrorMatches, "there are 2 system-seed{,-null} partitions, expected one")
+
+	c.Assert(mountCall, Equals, 2)
+	// check unmount is called implicitly on error for cleanup
+	c.Assert(umountCall, Equals, 2)
+}
+
+func (s *installSuite) TestMountVolumesLazyUnmount(c *C) {
+	seedMntPt := filepath.Join(s.dir, "run/mnt/ubuntu-seed")
+	onVolumes := map[string]*gadget.Volume{
+		"pc": {
+			Structure: []gadget.VolumeStructure{
+				{Name: "system-seed", Filesystem: "vfat", Role: gadget.SystemSeed},
+			},
+		},
+	}
+
+	mountCall := 0
+	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		mountCall++
+		c.Assert(flags, Equals, uintptr(0))
+		return nil
+	})
+	defer restore()
+
+	umountCall := 0
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		umountCall++
+		if umountCall == 1 {
+			c.Assert(flags, Equals, 0)
+			return fmt.Errorf("forcing lazy unmount")
+		} else {
+			// check fallback to lazy unmount, see LP:2025402
+			c.Assert(flags, Equals, syscall.MNT_DETACH)
+			return nil
+		}
+	})
+	defer restore()
+
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	seedMntDir, unmount, err := install.MountVolumes(onVolumes, nil)
+	c.Assert(err, IsNil)
+	c.Assert(seedMntDir, Equals, seedMntPt)
+
+	err = unmount()
+	c.Assert(err, IsNil)
+
+	c.Assert(mountCall, Equals, 1)
+	c.Assert(umountCall, Equals, 2)
+
+	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot unmount %s after mounting volumes: forcing lazy unmount (trying lazy unmount next)", seedMntPt))
+}
+
+func (s *installSuite) TestMountVolumesLazyUnmountError(c *C) {
+	seedMntPt := filepath.Join(s.dir, "run/mnt/ubuntu-seed")
+	onVolumes := map[string]*gadget.Volume{
+		"pc": {
+			Structure: []gadget.VolumeStructure{
+				{Name: "system-seed", Filesystem: "vfat", Role: gadget.SystemSeed},
+			},
+		},
+	}
+
+	mountCall := 0
+	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		mountCall++
+		c.Assert(flags, Equals, uintptr(0))
+		return nil
+	})
+	defer restore()
+
+	umountCall := 0
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		umountCall++
+		if umountCall == 1 {
+			c.Assert(flags, Equals, 0)
+			return fmt.Errorf("forcing lazy unmount")
+		} else {
+			// check fallback to lazy unmount, see LP:2025402
+			c.Assert(flags, Equals, syscall.MNT_DETACH)
+			return fmt.Errorf("lazy unmount failed")
+		}
+	})
+	defer restore()
+
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	seedMntDir, unmount, err := install.MountVolumes(onVolumes, nil)
+	c.Assert(err, IsNil)
+	c.Assert(seedMntDir, Equals, seedMntPt)
+
+	err = unmount()
+	c.Assert(err, ErrorMatches, "lazy unmount failed")
+
+	c.Assert(mountCall, Equals, 1)
+	c.Assert(umountCall, Equals, 2)
+
+	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot unmount %s after mounting volumes: forcing lazy unmount (trying lazy unmount next)", seedMntPt))
+	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot lazy unmount %q: lazy unmount failed", seedMntPt))
 }

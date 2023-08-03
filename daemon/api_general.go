@@ -224,9 +224,9 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "all":
 		filter = func(*state.Change) bool { return true }
 	case "in-progress":
-		filter = func(chg *state.Change) bool { return !chg.Status().Ready() }
+		filter = func(chg *state.Change) bool { return !chg.IsReady() }
 	case "ready":
-		filter = func(chg *state.Change) bool { return chg.Status().Ready() }
+		filter = func(chg *state.Change) bool { return chg.IsReady() }
 	default:
 		return BadRequest("select should be one of: all,in-progress,ready")
 	}
@@ -295,7 +295,7 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("change action %q is unsupported", reqData.Action)
 	}
 
-	if chg.Status().Ready() {
+	if chg.IsReady() {
 		return BadRequest("cannot abort change %s with nothing pending", chID)
 	}
 

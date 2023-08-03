@@ -151,8 +151,9 @@ int main(int argc, char** argv)
     // There might be architecture-specific requirements. see "man syscall"
     // for details.
     syscall_ret = syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
-    // 911 is our mocked errno
-    if (syscall_ret < 0 && errno == 911) {
+    // 911 is our mocked errno for implicit denials via unlisted syscalls and
+    // 999 is explicit denial
+    if (syscall_ret < 0 && (errno == 911 || errno == 999)) {
         ret = 10;
     }
     syscall(SYS_exit, ret, 0, 0, 0, 0, 0);
@@ -161,7 +162,8 @@ int main(int argc, char** argv)
 `)
 
 func (s *snapSeccompSuite) SetUpSuite(c *C) {
-	main.MockErrnoOnDenial(911)
+	main.MockErrnoOnImplicitDenial(911)
+	main.MockErrnoOnExplicitDenial(999)
 
 	// build seccomp-load helper
 	s.seccompBpfLoader = filepath.Join(c.MkDir(), "seccomp_bpf_loader")
@@ -449,6 +451,12 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", Allow},
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", Deny},
 		{"ioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", Deny},
+		{"~ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", Deny},
+		// also check we can deny multiple uses of ioctl but still allow
+		// others
+		{"~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", Deny},
+		{"~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCLINUX", Deny},
+		{"~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCGWINSZ", Allow},
 
 		// test_bad_seccomp_filter_args_clone
 		{"setns - CLONE_NEWNET", "setns;native;-,99", Deny},

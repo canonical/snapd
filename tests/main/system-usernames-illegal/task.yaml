@@ -3,7 +3,7 @@ summary: ensure unapproved user cannot be used with system-usernames
 # List of expected snap install failures due to libseccomp/golang-seccomp being
 # too old. Since the illegal name check happens after verifying system support,
 # we can ignore these.
-systems: [-amazon-linux-2-*, -centos-7-*, -debian-10-*, -ubuntu-14.04-*]
+systems: [-amazon-linux-2-*, -centos-7-*, -ubuntu-14.04-*]
 
 execute: |
     snap_path=$("$TESTSTOOLS"/snaps-state pack-local test-snapd-illegal-system-username)

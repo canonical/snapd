@@ -50,11 +50,9 @@ func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
 	}
 }
 
-func MockRandomUUID(uuid string) func() {
+func MockRandomUUID(f func() (string, error)) func() {
 	old := randomUUID
-	randomUUID = func() (string, error) {
-		return uuid, nil
-	}
+	randomUUID = f
 	return func() {
 		randomUUID = old
 	}

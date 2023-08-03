@@ -261,7 +261,7 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 	for _, disk := range mockedDisks {
 		sendDevNodes := map[string]bool{}
 		for _, p := range disk.Structure {
-			if p.KernelDevicePath == "" {
+			if p.KernelDeviceNode == "" {
 				continue
 			}
 

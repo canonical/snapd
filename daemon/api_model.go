@@ -22,6 +22,7 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
+	"mime"
 	"net/http"
 
 	"github.com/snapcore/snapd/asserts"
@@ -56,19 +57,37 @@ type postModelData struct {
 }
 
 func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
-	defer r.Body.Close()
+	contentType := r.Header.Get("Content-Type")
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		// assume json body, as type was not enforced in the past
+		mediaType = "application/json"
+	}
+
+	switch mediaType {
+	case "application/json":
+		return storeRemodel(c, r)
+	case "multipart/form-data":
+		return BadRequest("media type %q not implemented yet", mediaType)
+	default:
+		return BadRequest("unexpected media type %q", mediaType)
+	}
+}
+
+func storeRemodel(c *Command, r *http.Request) Response {
 	var data postModelData
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&data); err != nil {
 		return BadRequest("cannot decode request body into remodel operation: %v", err)
 	}
+
 	rawNewModel, err := asserts.Decode([]byte(data.NewModel))
 	if err != nil {
 		return BadRequest("cannot decode new model assertion: %v", err)
 	}
 	newModel, ok := rawNewModel.(*asserts.Model)
 	if !ok {
-		return BadRequest("new model is not a model assertion: %v", newModel.Type())
+		return BadRequest("new model is not a model assertion: %v", rawNewModel.Type())
 	}
 
 	st := c.d.overlord.State()
@@ -82,7 +101,6 @@ func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	ensureStateSoon(st)
 
 	return AsyncResponse(nil, chg.ID())
-
 }
 
 // getModel gets the current model assertion using the DeviceManager

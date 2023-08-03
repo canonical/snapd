@@ -1373,7 +1373,7 @@ volumes:
         type: 00000000-0000-0000-0000-0000deadbeef
 `
 
-	errMatch := `cannot remodel to an incompatible gadget: incompatible layout change: incompatible structure #0 \("foo"\) change: cannot change structure size from 10485760 to 20971520`
+	errMatch := `cannot remodel to an incompatible gadget: incompatible layout change: incompatible structure #0 \("foo"\) change: new valid structure size range \[20971520, 20971520\] is not compatible with current \(\[10485760, 10485760\]\)`
 	s.testCheckGadgetRemodelCompatibleWithYaml(c, compatibleTestMockOkGadget, mockBadGadgetYaml, errMatch)
 }
 
@@ -1506,7 +1506,7 @@ volumes:
 		gadgetUpdateCalled = true
 		c.Check(policy, NotNil)
 		c.Check(reflect.ValueOf(policy).Pointer(), Equals, reflect.ValueOf(gadget.RemodelUpdatePolicy).Pointer())
-		c.Check(current, DeepEquals, gadget.GadgetData{
+		gd := gadget.GadgetData{
 			Info: &gadget.Info{
 				Volumes: map[string]*gadget.Volume{
 					"pc": {
@@ -1518,29 +1518,35 @@ volumes:
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
 							Offset:     asOffsetPtr(gadget.NonMBRStartOffset),
+							MinSize:    10 * quantity.SizeMiB,
 							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
 								{UnresolvedSource: "foo-content", Target: "/"},
 							},
-							YamlIndex: 0,
+							YamlIndex:       0,
+							EnclosingVolume: &gadget.Volume{},
 						}, {
 							VolumeName: "pc",
 							Name:       "bare-one",
 							Type:       "bare",
 							Offset:     asOffsetPtr(gadget.NonMBRStartOffset + 10*quantity.OffsetMiB),
+							MinSize:    quantity.SizeMiB,
 							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "bare.img"},
 							},
-							YamlIndex: 1,
+							YamlIndex:       1,
+							EnclosingVolume: &gadget.Volume{},
 						}},
 					},
 				},
 			},
 			RootDir: currentGadgetInfo.MountDir(),
-		})
-		c.Check(update, DeepEquals, gadget.GadgetData{
+		}
+		gadget.SetEnclosingVolumeInStructs(gd.Info.Volumes)
+		c.Check(current, DeepEquals, gd)
+		gd = gadget.GadgetData{
 			Info: &gadget.Info{
 				Volumes: map[string]*gadget.Volume{
 					"pc": {
@@ -1552,6 +1558,7 @@ volumes:
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
 							Offset:     asOffsetPtr(gadget.NonMBRStartOffset),
+							MinSize:    10 * quantity.SizeMiB,
 							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
@@ -1563,6 +1570,7 @@ volumes:
 							Name:       "bare-one",
 							Type:       "bare",
 							Offset:     asOffsetPtr(gadget.NonMBRStartOffset + 10*quantity.OffsetMiB),
+							MinSize:    quantity.SizeMiB,
 							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "new-bare-content.img"},
@@ -1573,7 +1581,9 @@ volumes:
 				},
 			},
 			RootDir: newGadgetInfo.MountDir(),
-		})
+		}
+		gadget.SetEnclosingVolumeInStructs(gd.Info.Volumes)
+		c.Check(update, DeepEquals, gd)
 		return nil
 	})
 	defer restore()

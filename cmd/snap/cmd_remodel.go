@@ -36,29 +36,40 @@ revision or a full new model.
 
 In the process it applies any implied changes to the device: new required
 snaps, new kernel or gadget etc.
+
+Snaps and assertions are downloaded from the store unless they are provided as
+local files specified by --snap and --assertion options. If using these
+options, it is expected that all the needed snaps and assertions are provided
+locally, otherwise the remodel will fail.
 `)
 )
 
 type cmdRemodel struct {
 	waitMixin
+	SnapFiles      []string `long:"snap"`
+	AssertionFiles []string `long:"assertion"`
 	RemodelOptions struct {
 		NewModelFile flags.Filename
 	} `positional-args:"true" required:"true"`
 }
 
 func init() {
-	cmd := addCommand("remodel",
+	addCommand("remodel",
 		shortRemodelHelp,
 		longRemodelHelp,
 		func() flags.Commander {
 			return &cmdRemodel{}
-		}, nil, []argDesc{{
+		},
+		waitDescs.also(map[string]string{
+			"snap":      i18n.G("Use one or more locally available snaps."),
+			"assertion": i18n.G("Use one or more locally available assertion files."),
+		}),
+		[]argDesc{{
 			// TRANSLATORS: This needs to begin with < and end with >
 			name: i18n.G("<new model file>"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("New model file"),
 		}})
-	cmd.hidden = true
 }
 
 func (x *cmdRemodel) Execute(args []string) error {
@@ -70,9 +81,20 @@ func (x *cmdRemodel) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	changeID, err := x.client.Remodel(modelData)
-	if err != nil {
-		return fmt.Errorf("cannot remodel: %v", err)
+
+	var changeID string
+	if len(x.SnapFiles) > 0 || len(x.AssertionFiles) > 0 {
+		// don't log the request's body as it will be large
+		x.client.SetMayLogBody(false)
+		changeID, err = x.client.RemodelOffline(modelData, x.SnapFiles, x.AssertionFiles)
+		if err != nil {
+			return fmt.Errorf("cannot do offline remodel: %v", err)
+		}
+	} else {
+		changeID, err = x.client.Remodel(modelData)
+		if err != nil {
+			return fmt.Errorf("cannot remodel: %v", err)
+		}
 	}
 
 	if _, err := x.wait(changeID); err != nil {

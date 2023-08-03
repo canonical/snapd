@@ -424,7 +424,7 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedSlot(s.iface, s.privatePlug, s.privateSlot), IsNil)
 	privateSlotSnippet := spec.SnippetForTag("snap.core.app")
 
-	c.Check(privatePlugSnippet, testutil.Contains, `"/dev/shm/*" mrwlkix`)
+	c.Check(privatePlugSnippet, testutil.Contains, `"/dev/shm/**" mrwlkix`)
 	c.Check(privateSlotSnippet, Equals, "")
 	c.Check(strings.Join(privateUpdateNS, ""), Equals, `  # Private /dev/shm
   /dev/ r,

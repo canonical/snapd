@@ -204,6 +204,26 @@ func installOnePartition(laidOut *gadget.LaidOutStructure, encryptionType secboo
 	return fsDevice, encryptionKey, nil
 }
 
+// resolveBootDevice auto-detects the boot device
+// bootDevice forces the device. Device forcing is used for (spread) testing only.
+func resolveBootDevice(bootDevice string, bootVol *gadget.Volume) (string, error) {
+	if bootDevice != "" {
+		return bootDevice, nil
+	}
+	foundDisk, err := disks.DiskFromMountPoint("/run/mnt/ubuntu-seed", nil)
+	if err != nil {
+		logger.Noticef("Warning: cannot find disk from mounted seed: %s", err)
+	} else {
+		return foundDisk.KernelDeviceNode(), nil
+	}
+	bootDevice, err = diskWithSystemSeed(bootVol)
+	if err != nil {
+		return "", fmt.Errorf("cannot find device to create partitions on: %v", err)
+	}
+
+	return bootDevice, nil
+}
+
 // createPartitions creates partitions on the disk and returns the
 // volume name where partitions have been created, the on disk
 // structures after that, the laidout volumes, and the disk sector
@@ -230,13 +250,9 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 	}
 	bootVol := laidOutBootVol.Volume
 
-	// auto-detect device if no device is forced
-	// device forcing is used for (spread) testing only
-	if bootDevice == "" {
-		bootDevice, err = diskWithSystemSeed(bootVol)
-		if err != nil {
-			return "", nil, nil, 0, fmt.Errorf("cannot find device to create partitions on: %v", err)
-		}
+	bootDevice, err = resolveBootDevice(bootDevice, bootVol)
+	if err != nil {
+		return "", nil, nil, 0, err
 	}
 
 	diskVolume, err := gadget.OnDiskVolumeFromDevice(bootDevice)
@@ -246,7 +262,7 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
-	if err := gadget.EnsureVolumeCompatibility(bootVol, diskVolume, nil); err != nil {
+	if _, err := gadget.EnsureVolumeCompatibility(bootVol, diskVolume, nil); err != nil {
 		return "", nil, nil, 0, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
 	}
 
@@ -551,10 +567,7 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 	numSeedPart := 0
 	unmount = func() (err error) {
 		for _, mntPt := range mountPoints {
-			errUnmount := sysUnmount(mntPt, 0)
-			if errUnmount != nil {
-				logger.Noticef("cannot unmount %q: %v", mntPt, errUnmount)
-			}
+			errUnmount := unmountWithFallbackToLazy(mntPt, "mounting volumes")
 			// Make sure we do not set err to nil if it had already an error
 			if errUnmount != nil {
 				err = errUnmount
@@ -703,13 +716,9 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	}
 	// TODO: resolve content paths from gadget here
 
-	// auto-detect device if no device is forced
-	// device forcing is used for (spread) testing only
-	if bootDevice == "" {
-		bootDevice, err = diskWithSystemSeed(laidOutBootVol.Volume)
-		if err != nil {
-			return nil, fmt.Errorf("cannot find device to create partitions on: %v", err)
-		}
+	bootDevice, err = resolveBootDevice(bootDevice, laidOutBootVol.Volume)
+	if err != nil {
+		return nil, err
 	}
 
 	diskLayout, err := gadget.OnDiskVolumeFromDevice(bootDevice)
@@ -739,7 +748,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	}
 	// factory reset is done on a system that was once installed, so this
 	// should be always successful unless the partition table has changed
-	if err := gadget.EnsureVolumeCompatibility(laidOutBootVol.Volume, diskLayout, layoutCompatOps); err != nil {
+	if _, err := gadget.EnsureVolumeCompatibility(laidOutBootVol.Volume, diskLayout, layoutCompatOps); err != nil {
 		return nil, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
 	}
 

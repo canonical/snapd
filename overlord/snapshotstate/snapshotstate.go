@@ -287,7 +287,7 @@ func checkSnapshotConflict(st *state.State, setID uint64, conflictingKinds ...st
 		}
 	}
 	for _, task := range st.Tasks() {
-		if task.Change().Status().Ready() {
+		if task.Change().IsReady() {
 			continue
 		}
 		if !strutil.ListContains(conflictingKinds, task.Kind()) {

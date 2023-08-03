@@ -69,13 +69,18 @@ build_deb(){
 
     if os.query is-debian sid; then
         # ensure we really build without vendored packages
-        rm -rf vendor/*/*
+        mv ./vendor /tmp
     fi
 
     unshare -n -- \
             su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
+
+    if os.query is-debian sid; then
+        # restore vendor dir, it's needed by e.g. fakestore
+        mv /tmp/vendor ./
+    fi
 }
 
 build_rpm() {
@@ -516,20 +521,6 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             best_golang=golang-1.18
-            if [[ "$SPREAD_SYSTEM" == debian-10-* ]]; then
-                # debian-10 needs backports for dh-golang
-		# TODO: drop when we drop debian-10 support fully
-		echo "deb http://deb.debian.org/debian buster-backports-sloppy main" >> /etc/apt/sources.list
-                # debian-10 needs backports for golang-1.18, there is no
-		# buser-backports anymore so we can only use a PPA
-                echo "deb https://ppa.launchpadcontent.net/snappy-dev/image/ubuntu xenial main" >> /etc/apt/sources.list
-		curl 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x78e1918602959b9c59103100f1831ddafc42e99d' | apt-key add -
-                apt update
-                # dh-golang must come from backports, gdebi/apt cannot
-                # resolve this on their own
-                apt install -y -t buster-backports-sloppy dh-golang
-                sed -i -e "s/golang-go (>=2:1.18~).*,/${best_golang},/" ./debian/control
-            fi
             # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
             gdebi --quiet --apt-line ./debian/control >deps.txt
             quiet xargs -r eatmydata apt-get install -y < deps.txt

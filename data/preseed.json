@@ -3,6 +3,8 @@
         "etc/udev/rules.d",
         "etc/systemd",
         "etc/dbus-1",
+        "etc/modprobe.d",
+        "etc/modules-load.d",
         "snap",
         "var/lib/extrausers",
         "var/lib/snapd/state.json",

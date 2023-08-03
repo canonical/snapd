@@ -119,7 +119,7 @@ Now you can use remote-build with snapcraft on the snapd tree for any desired
 architectures:
 
 ```
-snapcraft remote-build --build-on=armhf,s390x,arm64
+snapcraft remote-build --build-for=armhf,s390x,arm64
 ```
 
 And to go back to building the snapd snap locally, just revert the channel back
@@ -432,6 +432,21 @@ with the same values and behaviour as `SNAPD_DEBUG_HTTP`.
 maybe you need to replace system installed snap-seccomp with the one aligned to the snapd that 
 you are testing. To do this, simply backup `/usr/lib/snapd/snap-seccomp` and overwrite it with 
 the testing one. Don't forget to roll back to the original, after you finish testing.
+
+### Testing the snap userd agent
+
+To test the `snap userd --agent` command, you must first stop the current process, if it is
+running, and then stop the dbus activation part. To do so, just run:
+
+    systemctl --user disable snapd.session-agent.socket
+    systemctl --user stop snapd.session-agent.socket
+
+After that, it's now possible to launch the daemon with `snapd userd --agent` from a command
+line.
+
+To re-enable the dbus activation, kill that process and run:
+
+    systemctl --user enable snapd.session-agent.socket
 
 ### Running nested tests
 
