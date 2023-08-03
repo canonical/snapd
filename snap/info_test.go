@@ -176,7 +176,7 @@ func (s *infoSuite) TestLinks(c *C) {
 	})
 }
 
-func (s *infoSuite) TestNormalizedEditedLinks(c *C) {
+func (s *infoSuite) TestNormalizeEditedLinks(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			EditedLinks: map[string][]string{
@@ -190,8 +190,8 @@ func (s *infoSuite) TestNormalizedEditedLinks(c *C) {
 	}
 
 	c.Check(snap.ValidateLinks(info.EditedLinks), NotNil)
-	c.Check(snap.ValidateLinks(info.NormalizedEditedLinks()), IsNil)
-	c.Check(info.NormalizedEditedLinks(), DeepEquals, map[string][]string{
+	c.Check(snap.ValidateLinks(info.Links()), IsNil)
+	c.Check(info.Links(), DeepEquals, map[string][]string{
 		"contact": {"mailto:ocontact1@example.com", "mailto:ocontact2@example.com"},
 		"website": {"http://owebsite1", "https://owebsite2"},
 	})
