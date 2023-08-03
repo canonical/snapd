@@ -150,6 +150,13 @@ mount options=(rw, rbind) /oldroot/run/media/**/steamapps/common/**/usr/etc/** -
 
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.cache -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.cache,
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.conf -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.conf,
+mount options=(rw, rbind) /oldroot/media/**/steamapps/common/**/usr/etc/ld.so.cache -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.cache,
+mount options=(rw, rbind) /oldroot/media/**/steamapps/common/**/usr/etc/ld.so.conf -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.conf,
+mount options=(rw, rbind) /oldroot/mnt/**/steamapps/common/**/usr/etc/ld.so.cache -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.cache,
+mount options=(rw, rbind) /oldroot/mnt/**/steamapps/common/**/usr/etc/ld.so.conf -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.conf,
+mount options=(rw, rbind) /oldroot/run/media/**/steamapps/common/**/usr/etc/ld.so.cache -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.cache,
+mount options=(rw, rbind) /oldroot/run/media/**/steamapps/common/**/usr/etc/ld.so.conf -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.conf,
+
 mount options=(rw, rbind) /oldroot/mnt/{,**} -> /newroot/mnt/{,**},
 mount options=(rw, rbind) /oldroot/media/{,**} -> /newroot/media/{,**},
 mount options=(rw, rbind) /oldroot/run/media/ -> /newroot/run/media/,
