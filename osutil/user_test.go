@@ -282,7 +282,7 @@ func (s *createUserSuite) TestIsValidUsername(c *check.C) {
 	}
 }
 
-func (s *createUserSuite) TestIsValidSystemUsername(c *check.C) {
+func (s *createUserSuite) TestIsValidSnapSystemUsername(c *check.C) {
 	systemUsernameTestCases := map[string]bool{
 		"_daemon_":    true,
 		"snap_daemon": true,
@@ -293,7 +293,7 @@ func (s *createUserSuite) TestIsValidSystemUsername(c *check.C) {
 	}
 
 	for k, v := range systemUsernameTestCases {
-		c.Check(osutil.IsValidSystemUsername(k), check.Equals, v, check.Commentf("%v not %v", k, v))
+		c.Check(osutil.IsValidSnapSystemUsername(k), check.Equals, v, check.Commentf("%v not %v", k, v))
 	}
 }
 

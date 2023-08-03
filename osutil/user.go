@@ -64,12 +64,12 @@ type AddUserOptions struct {
 // IsValidUsername define what is valid for a "system-user" assertion.
 var IsValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+._]*$`).MatchString
 
-// IsValidSystemUsername defines what is valid for the
+// IsValidSnapSystemUsername defines what is valid for the
 // "system-usernames" stanza in the snap.yaml.
 //
 // Unlike a normal username a system usernames can be encloused in "_"
 // (e.g. _username_ is valid)
-var IsValidSystemUsername = regexp.MustCompile(`^([_][-a-z0-9+._]+[_]|[a-z0-9][-a-z0-9+._]*)$`).MatchString
+var IsValidSnapSystemUsername = regexp.MustCompile(`^([_][-a-z0-9+._]+[_]|[a-z0-9][-a-z0-9+._]*)$`).MatchString
 
 // EnsureUserGroup uses the standard shadow utilities' 'useradd' and 'groupadd'
 // commands for creating non-login system users and groups that is portable
@@ -79,8 +79,11 @@ var IsValidSystemUsername = regexp.MustCompile(`^([_][-a-z0-9+._]+[_]|[a-z0-9][-
 // (so LDAP, etc are consulted), but will themselves only add to local files,
 // which is exactly what we want since we don't want snaps to be blocked on
 // LDAP, etc when performing lookups.
+//
+// The username created by this function will be checked against
+// IsValidSnapSystemUsername().
 func EnsureUserGroup(name string, id uint32, extraUsers bool) error {
-	if !IsValidSystemUsername(name) {
+	if !IsValidSnapSystemUsername(name) {
 		return fmt.Errorf(`cannot add user/group %q: name contains invalid characters`, name)
 	}
 
@@ -188,6 +191,9 @@ func sudoersFile(name string) string {
 // AddUser uses the Debian/Ubuntu/derivative 'adduser' command for creating
 // regular login users on Ubuntu Core. 'adduser' is not portable cross-distro
 // but is convenient for creating regular login users.
+//
+// The username created by this function will be checked against
+// IsValidUsername().
 func AddUser(name string, opts *AddUserOptions) error {
 	if opts == nil {
 		opts = &AddUserOptions{}
