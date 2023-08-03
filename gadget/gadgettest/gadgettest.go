@@ -32,14 +32,14 @@ import (
 	"github.com/snapcore/snapd/secboot"
 )
 
-func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model, encType secboot.EncryptionType) (system *gadget.LaidOutVolume, all map[string]*gadget.LaidOutVolume, err error) {
+func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*gadget.OnDiskStructure) (system *gadget.LaidOutVolume, all map[string]*gadget.LaidOutVolume, err error) {
 	// rely on the basic validation from ReadInfo to ensure that the system-*
 	// roles are all on the same volume for example
 	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
 	if err != nil {
 		return nil, nil, err
 	}
-	return gadget.LaidOutVolumesFromGadget(info.Volumes, gadgetRoot, kernelRoot, model, encType, nil)
+	return gadget.LaidOutVolumesFromGadget(info.Volumes, gadgetRoot, kernelRoot, model, encType, volToGadgetToDiskStruct)
 }
 
 // LayoutMultiVolumeFromYaml returns all LaidOutVolumes for the given
@@ -52,7 +52,7 @@ func LayoutMultiVolumeFromYaml(newDir, kernelDir, gadgetYaml string, model gadge
 		return nil, err
 	}
 
-	_, allVolumes, err := LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone)
+	_, allVolumes, err := LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volumes: %v", err)
 	}
@@ -182,7 +182,7 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	_, laidVols, err = LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone)
+	_, laidVols, err = LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone, nil)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
