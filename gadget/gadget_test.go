@@ -5018,3 +5018,20 @@ func (s *gadgetCompatibilityTestSuite) TestPartialGadgetIsCompatible(c *C) {
 	err = gadget.IsCompatible(gi1, gi2)
 	c.Check(err, IsNil)
 }
+
+func (s *gadgetCompatibilityTestSuite) TestStructFromYamlIndex(c *C) {
+	gi, err := gadget.InfoFromGadgetYaml(gadgetYamlUC20PC, nil)
+	c.Assert(err, IsNil)
+
+	vol := gi.Volumes["pc"]
+	for _, st := range vol.Structure {
+		stFromIdx := vol.StructFromYamlIndex(st.YamlIndex)
+		c.Check(stFromIdx, DeepEquals, &st)
+	}
+
+	// Error cases
+	c.Check(vol.StructFromYamlIndex(100), IsNil)
+	idx, err := vol.YamlIdxToStructureIdx(100)
+	c.Check(idx, Equals, -1)
+	c.Check(err.Error(), Equals, "structure with yaml index 100 not found")
+}
