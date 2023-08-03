@@ -559,6 +559,42 @@ func (s *restartSuite) TestMarkTaskForRestartClassicUndo(c *C) {
 	c.Check(t1.Log()[0], Matches, `.* Skipped automatic system restart on classic system when undoing changes back to previous state`)
 }
 
+func (s *restartSuite) TestMarkTaskForRestartDeferredRestartUnsupportedStatus(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg1 := st.NewChange("test", "...")
+	t1 := st.NewTask("restarting-task", "...")
+	chg1.AddTask(t1)
+
+	restart.SetDeferredRestartForTask(t1)
+
+	err = restart.MarkTaskForRestart(t1, state.DoingStatus)
+	c.Assert(err, ErrorMatches, `internal error: cannot mark restarting-task for restart: deferred restarting is only supported for task statuses Done/Undone`)
+}
+
+func (s *restartSuite) TestMarkTaskForRestartDeferredRestartNoDescendants(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg1 := st.NewChange("test", "...")
+	t1 := st.NewTask("restarting-task", "...")
+	chg1.AddTask(t1)
+
+	restart.SetDeferredRestartForTask(t1)
+
+	err = restart.MarkTaskForRestart(t1, state.DoneStatus)
+	c.Assert(err, ErrorMatches, `internal error: cannot mark restarting-task for restart: deferred restarting is only supported for tasks with descendants`)
+}
+
 func (s *restartSuite) TestTaskWaitForRestartDo(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -682,6 +718,55 @@ func (s *restartSuite) TestFinishTaskWithRestart2Done(c *C) {
 	c.Check(rt.SnapName, Equals, "some-snap")
 	c.Check(rt.RestartType, Equals, restart.RestartSystemNow)
 	c.Check(rt.BootloaderOptions, IsNil)
+}
+
+func (s *restartSuite) TestFinishTaskWithRestart2DeferredRestart(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg1 := st.NewChange("test", "...")
+	t1 := st.NewTask("restarting-task", "...")
+	t2 := st.NewTask("descending-task", "...")
+	chg1.AddTask(t1)
+	chg1.AddTask(t2)
+	t2.WaitFor(t1)
+
+	restart.SetDeferredRestartForTask(t1)
+
+	err = restart.FinishTaskWithRestart2(t1, "some-snap", state.DoneStatus, restart.RestartSystemNow, nil)
+	c.Assert(err, IsNil)
+	c.Check(t1.Status(), Equals, state.DoneStatus)
+	c.Check(t2.Status(), Equals, state.WaitStatus)
+	c.Check(t2.WaitedStatus(), Equals, state.DoStatus)
+
+	rt, err := restart.RestartParametersFromChange(chg1)
+	c.Assert(err, IsNil)
+	c.Check(rt.SnapName, Equals, "some-snap")
+	c.Check(rt.RestartType, Equals, restart.RestartSystemNow)
+	c.Check(rt.BootloaderOptions, IsNil)
+
+	chg2 := st.NewChange("test", "...")
+	t3 := st.NewTask("descending-task", "...")
+	t4 := st.NewTask("restarting-task", "...")
+	chg2.AddTask(t3)
+	chg2.AddTask(t4)
+	t4.WaitFor(t3)
+
+	t3.SetStatus(state.UndoStatus)
+	restart.SetDeferredRestartForTask(t4)
+
+	err = restart.FinishTaskWithRestart2(t4, "some-snap", state.UndoneStatus, restart.RestartSystemNow, nil)
+	c.Assert(err, IsNil)
+	c.Check(t4.Status(), Equals, state.UndoneStatus)
+	c.Check(t3.Status(), Equals, state.WaitStatus)
+	c.Check(t3.WaitedStatus(), Equals, state.UndoStatus)
 }
 
 func (s *restartSuite) TestFinishTaskWithRestart2WithArguments(c *C) {

@@ -363,18 +363,81 @@ func ReplaceBootID(st *state.State, bootID string) {
 	rm.bootID = bootID
 }
 
+func taskInSlice(t *state.Task, ts []*state.Task) bool {
+	for _, tt := range ts {
+		if tt == t {
+			return true
+		}
+	}
+	return false
+}
+
+func taskIsDeferredRestart(t *state.Task) bool {
+	var deferred bool
+	if err := t.Get("defer-task-restart", &deferred); err != nil {
+		return false
+	}
+	return deferred
+}
+
+// markDescendantsForRestart marks direct descendants of a task for restart. The direct
+// descendants may either be the WaitTasks or HaltTasks based on the resulting status, and
+// they are the tasks in the same lane only.
+func markDescendantsForRestart(t *state.Task, status state.Status) error {
+	var tasks []*state.Task
+	switch status {
+	case state.DoneStatus:
+		tasks = t.HaltTasks()
+	case state.UndoneStatus:
+		tasks = t.WaitTasks()
+	default:
+		return fmt.Errorf("deferred restarting is only supported for task statuses Done/Undone")
+	}
+
+	chg := t.Change()
+	laneTasks := chg.LaneTasks(t.Lanes()...)
+	var marked int
+	for _, wt := range tasks {
+		if taskInSlice(wt, laneTasks) {
+			if err := markTaskForRestart(wt, wt.Status()); err != nil {
+				return err
+			}
+			marked++
+		}
+	}
+
+	if marked == 0 {
+		return fmt.Errorf("deferred restarting is only supported for tasks with descendants")
+	}
+	return nil
+}
+
 // markTaskForRestart sets certain properties on a task to mark it for system restart.
 // The status argument is the status that the task will have after the system restart.
-func markTaskForRestart(t *state.Task, status state.Status) {
+func markTaskForRestart(t *state.Task, status state.Status) error {
 	// XXX: Preserve previous restart behaviour for classic in the undo cases, is this still
 	// necessary?
 	if release.OnClassic && (status == state.UndoStatus || status == state.UndoneStatus) {
 		t.SetStatus(status)
 		t.Logf("Skipped automatic system restart on classic system when undoing changes back to previous state")
-		return
+		return nil
 	}
 
 	rm := restartManager(t.State(), "internal error: cannot request a restart before RestartManager initialization")
+
+	// Has task deferred restart set?
+	if taskIsDeferredRestart(t) {
+		// If this is true, then it means that the restart should not block the current
+		// task, but rather the direct descendants. The use-case for this is specifically
+		// for single-reboot support when doing kernel/gadget/core updates, where we need
+		// to aggregate reboots across link-snap tasks. This can be used for other things
+		// as well.
+		if err := markDescendantsForRestart(t, status); err != nil {
+			return fmt.Errorf("internal error: cannot mark %s for restart: %v", t.Kind(), err)
+		}
+		t.SetStatus(status)
+		return nil
+	}
 
 	// store current boot id to be able to check later if we have rebooted or not
 	t.Set("wait-for-system-restart-from-boot-id", rm.bootID)
@@ -382,6 +445,15 @@ func markTaskForRestart(t *state.Task, status state.Status) {
 	setWaitForSystemRestart(t.Change())
 
 	t.Logf("Task set to wait until a system restart allows to continue")
+	return nil
+}
+
+// SetDeferredRestartForTask marks the task for deferred restart. This means instead of
+// the normal behavior of blocking the task that needs to restart, it will set the
+// task completed, and instead block descendants. This will allow tasks that depend
+// on the restarting task to continue as long as they are not part of the same task lane.
+func SetDeferredRestartForTask(t *state.Task) {
+	t.Set("defer-task-restart", true)
 }
 
 // restartParametersFromChange returns either existing restart parameters from a
@@ -437,7 +509,9 @@ func FinishTaskWithRestart2(t *state.Task, snapName string, status state.Status,
 	// only allow these for now as nothing tests with anything else.
 	switch status {
 	case state.DoneStatus, state.UndoneStatus:
-		markTaskForRestart(t, status)
+		if err := markTaskForRestart(t, status); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("internal error: unexpected task status when requesting system restart for task: %s", status)
 	}
@@ -463,13 +537,12 @@ func TaskWaitForRestart(t *state.Task) error {
 	// Do/Undo so they are re-run as we cannot save progress mid-task.
 	switch t.Status() {
 	case state.UndoingStatus:
-		markTaskForRestart(t, state.UndoStatus)
+		return markTaskForRestart(t, state.UndoStatus)
 	case state.DoingStatus:
-		markTaskForRestart(t, state.DoStatus)
+		return markTaskForRestart(t, state.DoStatus)
 	default:
 		return fmt.Errorf("internal error: only tasks currently in progress (doing/undoing) are supported")
 	}
-	return nil
 }
 
 // processRestartForChange must only be called from the change status changed event
