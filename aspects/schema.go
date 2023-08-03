@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,10 +24,12 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 type validator interface {
-	Validate(json.RawMessage) error
+	Validate([]byte) error
 }
 
 type stringValidator struct {
@@ -39,8 +41,20 @@ type stringValidator struct {
 	// TODO: JSON schema formats? which ones and how will they be defined?
 }
 
-func (*stringValidator) Validate(json.RawMessage) error {
-	// TODO: implement validation
+func (v *stringValidator) Validate(raw []byte) error {
+	var val string
+	if err := json.Unmarshal(raw, &val); err != nil {
+		return err
+	}
+
+	if len(v.choices) != 0 && !strutil.ListContains(v.choices, val) {
+		return fmt.Errorf(`string %q is not one of the allowed choices`, val)
+	}
+
+	if v.pattern != nil && !v.pattern.Match([]byte(val)) {
+		return fmt.Errorf(`string %q doesn't match schema pattern %s`, val, v.pattern.String())
+	}
+
 	return nil
 }
 
@@ -108,20 +122,76 @@ type mapValidator struct {
 	// keyType validates that the map's key match a certain type.
 	keyType validator
 
-	// required holds combinations of keys that an instance of the map is allowed
-	// to have.
-	required [][]string
+	// requiredCombs holds combinations of keys that an instance of the map is
+	// allowed to have.
+	requiredCombs [][]string
 }
 
-func (v *mapValidator) Validate(json.RawMessage) error {
-	// TODO: implement validation
+func (v *mapValidator) Validate(raw []byte) error {
+	var level map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &level); err != nil {
+		return err
+	}
+
+	var missing bool
+	for _, required := range v.requiredCombs {
+		missing = false
+		for _, key := range required {
+			if _, ok := level[key]; !ok {
+				missing = true
+				break
+			}
+		}
+
+		// met one combination of required keys so we can stop
+		if !missing {
+			break
+		}
+	}
+
+	if missing {
+		return fmt.Errorf(`cannot find required combinations of keys`)
+	}
+
+	if v.entryTypes != nil {
+		for key, val := range level {
+			if validator, ok := v.entryTypes[key]; ok {
+				if err := validator.Validate(val); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	if v.keyType != nil {
+		for k := range level {
+			rawKey, err := json.Marshal(k)
+			if err != nil {
+				return err
+			}
+
+			if err := v.keyType.Validate(rawKey); err != nil {
+				return err
+			}
+
+		}
+	}
+
+	if v.valueType != nil {
+		for _, val := range level {
+			if err := v.valueType.Validate(val); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
 func (v *mapValidator) parse(level map[string]json.RawMessage) error {
 	requiredRaw, ok := level["required"]
 	if ok {
-		if err := json.Unmarshal(requiredRaw, &v.required); err != nil {
+		if err := json.Unmarshal(requiredRaw, &v.requiredCombs); err != nil {
 			return fmt.Errorf(`cannot unmarshal map's "required" field: %v`, err)
 		}
 	}

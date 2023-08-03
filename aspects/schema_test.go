@@ -50,8 +50,7 @@ func (*schemaSuite) TestParseSchema(c *C) {
   }
 }`
 
-	_ = `
-{
+	input := `{
   "snaps": {
     "core20": {
       "name": "core20",
@@ -69,4 +68,7 @@ func (*schemaSuite) TestParseSchema(c *C) {
 	schema, err := aspects.ParseSchema([]byte(schemaStr))
 	c.Assert(err, IsNil)
 	c.Assert(schema, NotNil)
+
+	err = schema.Validate([]byte(input))
+	c.Assert(err, IsNil)
 }
