@@ -104,6 +104,13 @@ func (a *deviceAuthorizer) Authorize(r *http.Request, dauthCtx DeviceAndAuthCont
 	return firstError
 }
 
+func dropAuthorization(r *http.Request, opts *AuthorizeOptions) {
+	if opts.deviceAuth {
+		r.Header.Del(hdrSnapDeviceAuthorization[opts.apiLevel])
+	}
+	r.Header.Del("Authorization")
+}
+
 func (a *deviceAuthorizer) EnsureDeviceSession(dauthCtx DeviceAndAuthContext, client *http.Client) error {
 	if dauthCtx == nil {
 		return fmt.Errorf("internal error: no authContext")

@@ -473,15 +473,14 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		var resp *http.Response
 		cli := s.newHTTPClient(nil)
 		oldCheckRedirect := cli.CheckRedirect
+		if oldCheckRedirect == nil {
+			panic("internal error: CheckRedirect cannot be nil")
+		}
 		cli.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			// remove user/device auth headers from being sent in "CDN" redirects
 			// see also: https://bugs.launchpad.net/snapd/+bug/2027993
 			// TODO: do we need to remove other identifying headers?
-			req.Header.Del("Authorization")
-			req.Header.Del(hdrSnapDeviceAuthorization[reqOptions.APILevel])
-			if oldCheckRedirect == nil {
-				return nil
-			}
+			dropAuthorization(req, &AuthorizeOptions{deviceAuth: true, apiLevel: reqOptions.APILevel})
 			return oldCheckRedirect(req, via)
 		}
 		resp, finalErr = s.doRequest(downloadCtx, cli, reqOptions, user)
