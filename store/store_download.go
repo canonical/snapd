@@ -474,7 +474,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		cli := s.newHTTPClient(nil)
 		oldCheckRedirect := cli.CheckRedirect
 		if oldCheckRedirect == nil {
-			panic("internal error: CheckRedirect cannot be nil")
+			panic("internal error: the httputil.NewHTTPClient-produced http.Client must have CheckRedirect defined")
 		}
 		cli.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			// remove user/device auth headers from being sent in "CDN" redirects

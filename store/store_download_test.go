@@ -1006,7 +1006,7 @@ func (s *storeDownloadSuite) TestDownloadNoCheckRedirectPanic(c *C) {
 	downloadFunc := func() {
 		s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo{}, nil, nil, nil)
 	}
-	c.Assert(downloadFunc, PanicMatches, "internal error: CheckRedirect cannot be nil")
+	c.Assert(downloadFunc, PanicMatches, "internal error: the httputil.NewHTTPClient-produced http.Client must have CheckRedirect defined")
 }
 
 func (s *storeDownloadSuite) TestDownloadInfiniteRedirect(c *C) {
