@@ -2,14 +2,19 @@ package apparmor
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"log"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/osutil"
 )
+
+var ErrIoctlReturnInvalid = errors.New("IOCTL request returned invalid bufsize")
 
 var doSyscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
 	return unix.Syscall(trap, a1, a2, a3)
@@ -31,37 +36,76 @@ func (hb hexBuf) String() string {
 	return buf.String()
 }
 
+type IoctlRequestBuffer struct {
+	bytes []byte
+}
+
+// NewIoctlRequestBuffer returns a new buffer for communication with the kernel.
+// The buffer contains encoded information about its size and protocol version.
+func NewIoctlRequestBuffer() *IoctlRequestBuffer {
+	bufSize := 0xFFFF
+	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
+	header := MsgHeader{Version: 2, Length: uint16(bufSize)}
+	order := arch.Endian()
+	binary.Write(buf, order, &header)
+	buf.Write(make([]byte, bufSize-buf.Len()))
+	return &IoctlRequestBuffer{
+		bytes: buf.Bytes(),
+	}
+}
+
+func (b *IoctlRequestBuffer) Bytes() []byte {
+	return b.bytes
+}
+
+func (b *IoctlRequestBuffer) Len() int {
+	return len(b.bytes)
+}
+
+func (b *IoctlRequestBuffer) Pointer() uintptr {
+	return uintptr(unsafe.Pointer(&b.bytes[0]))
+}
+
 var dumpIoctl bool = osutil.GetenvBool("SNAPD_DEBUG_DUMP_IOCTL")
 
 // NotifyIoctl performs a ioctl(2) on the given file descriptor.
-func NotifyIoctl(fd uintptr, req IoctlRequest, msg []byte) (int, error) {
+// Sets the length of buf.Bytes() to be equal to the return value of the
+// syscall, indicating how many bytes were written to the buffer.
+func NotifyIoctl(fd uintptr, req IoctlRequest, buf *IoctlRequestBuffer) (int, error) {
+	var err error
 	if dumpIoctl {
-		log.Printf(">>> ioctl %v (%d bytes) ...\n", req, len(msg))
-		log.Printf("%v\n", hexBuf(msg))
+		log.Printf(">>> ioctl %v (%d bytes) ...\n", req, buf.Len())
+		log.Printf("%v\n", hexBuf(buf.Bytes()))
 	}
-	ret, _, errno := doSyscall(unix.SYS_IOCTL, fd, uintptr(req), uintptr(unsafe.Pointer(&msg[0])))
+	ret, _, errno := doSyscall(unix.SYS_IOCTL, fd, uintptr(req), buf.Pointer())
+	size := int(ret)
+	if size >= 0 && size <= buf.Len() {
+		buf.bytes = buf.bytes[:size]
+	} else {
+		err = ErrIoctlReturnInvalid
+	}
 	if dumpIoctl {
-		log.Printf("<<< ioctl %v returns %d, errno: %v\n", req, int(ret), errno)
-		if int(ret) != -1 && int(ret) < len(msg) {
-			log.Printf("%v\n", hexBuf(msg[:int(ret)]))
+		log.Printf("<<< ioctl %v returns %d, errno: %v\n", req, size, errno)
+		if size != -1 && size < buf.Len() {
+			log.Printf("%v\n", hexBuf(buf.Bytes()))
 		}
 	}
 	if errno != 0 {
 		return 0, fmt.Errorf("cannot perform IOCTL request %v: %v", req, unix.Errno(errno))
 	}
-	return int(ret), nil
+	return size, err
 }
 
 // ReceiveApparmorMessage uses ioctl(2) to receive a message from apparmor.
 // The ioctl(2) syscall is performed on the given file descriptor.
 // Returns a buffer containing the received message.
 func ReceiveApparmorMessage(fd uintptr) ([]byte, error) {
-	buf := PrepareIoctlRequestBuffer()
-	size, err := NotifyIoctl(fd, APPARMOR_NOTIF_RECV, buf)
+	buf := NewIoctlRequestBuffer()
+	_, err := NotifyIoctl(fd, APPARMOR_NOTIF_RECV, buf)
 	if err != nil {
 		return nil, err
 	}
-	return buf[:size], nil
+	return buf.Bytes(), nil
 }
 
 // IoctlRequest is the type of ioctl(2) request numbers used by apparmor .notify file.

@@ -49,18 +49,6 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// PrepareIoctlRequestBuffer returns a new buffer for communication with the kernel.
-// The buffer contains encoded information about its size and protocol version.
-func PrepareIoctlRequestBuffer() []byte {
-	bufSize := 0xFFFF
-	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
-	header := MsgHeader{Version: 2, Length: uint16(bufSize)}
-	order := arch.Endian() // ioctl requests are native byte order, but others might not be
-	binary.Write(buf, order, &header)
-	buf.Write(make([]byte, bufSize-buf.Len()))
-	return buf.Bytes()
-}
-
 // msgNotificationFilter describes the configuration of kernel-side message filtering.
 //
 // This structure corresponds to the kernel type struct apparmor_notif_filter
