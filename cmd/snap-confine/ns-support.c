@@ -594,24 +594,10 @@ static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent);
 static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent);
 
-int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
-			 *apparmor, const sc_invocation * inv,
-			 int snap_discard_ns_fd)
+// is_nsfs_or_profs_fd will return true if the given file descriptor is
+// a nsfs or procfs file.
+static bool is_nsfs_or_procfs_fd(int mnt_fd)
 {
-	// Open the mount namespace file.
-	char mnt_fname[PATH_MAX] = { 0 };
-	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s.mnt", group->name);
-	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	// NOTE: There is no O_EXCL here because the file can be around but
-	// doesn't have to be a mounted namespace.
-	mnt_fd = openat(group->dir_fd, mnt_fname,
-			O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
-	if (mnt_fd < 0 && errno == ENOENT) {
-		return ESRCH;
-	}
-	if (mnt_fd < 0) {
-		die("cannot open preserved mount namespace %s", group->name);
-	}
 	// Check if we got an nsfs-based or procfs file or a regular file. This can
 	// be reliably tested because nsfs has an unique filesystem type
 	// NSFS_MAGIC.  On older kernels that don't support nsfs yet we can look
@@ -632,9 +618,43 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 // Account for kernel headers old enough to not know about NSFS_MAGIC.
 #define NSFS_MAGIC 0x6e736673
 #endif
-	if (ns_statfs_buf.f_type == NSFS_MAGIC
-	    || ns_statfs_buf.f_type == PROC_SUPER_MAGIC) {
+	return (ns_statfs_buf.f_type == NSFS_MAGIC || ns_statfs_buf.f_type == PROC_SUPER_MAGIC);
+}
 
+// open_mnt_fd will open the given mnt_fname in the group directory and
+// set out_fd to the opened file descriptor.
+//
+// Any non-zero return value is an errno.
+static int open_mnt_fd(struct sc_mount_ns *group, char *mnt_fname, int *out_fd)
+{
+	// NOTE: There is no O_EXCL here because the file can be around but
+	// doesn't have to be a mounted namespace.
+        int mnt_fd = openat(group->dir_fd, mnt_fname,
+			O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (mnt_fd < 0 && errno == ENOENT) {
+		return ESRCH;
+	}
+	if (mnt_fd < 0) {
+		die("cannot open preserved mount namespace %s", group->name);
+	}
+        *out_fd = mnt_fd;
+        return 0;
+}
+
+int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
+			 *apparmor, const sc_invocation * inv,
+			 int snap_discard_ns_fd)
+{
+	// Open the mount namespace file.
+	char mnt_fname[PATH_MAX] = { 0 };
+	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s.mnt", group->name);
+
+	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	int res = open_mnt_fd(group, mnt_fname, &mnt_fd);
+        if (res != 0) {
+                return res;
+        }
+        if (is_nsfs_or_procfs_fd(mnt_fd)) {
 		// Inspect and perhaps discard the preserved mount namespace.
 		if (sc_inspect_and_maybe_discard_stale_ns
 		    (mnt_fd, inv, snap_discard_ns_fd) == EAGAIN) {
@@ -655,33 +675,18 @@ int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
 				  const char *snap_name)
 {
 	uid_t uid = getuid();
+
+        // Open the user mount namespace file.
 	char mnt_fname[PATH_MAX] = { 0 };
 	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s.%d.mnt", group->name,
 			 (int)uid);
 
 	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	mnt_fd = openat(group->dir_fd, mnt_fname,
-			O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
-	if (mnt_fd < 0 && errno == ENOENT) {
-		return ESRCH;
-	}
-	if (mnt_fd < 0) {
-		die("cannot open preserved mount namespace %s", group->name);
-	}
-	struct statfs ns_statfs_buf;
-	if (fstatfs(mnt_fd, &ns_statfs_buf) < 0) {
-		die("cannot inspect filesystem of preserved mount namespace file");
-	}
-	struct stat ns_stat_buf;
-	if (fstat(mnt_fd, &ns_stat_buf) < 0) {
-		die("cannot inspect preserved mount namespace file");
-	}
-#ifndef NSFS_MAGIC
-	/* Define NSFS_MAGIC for Ubuntu 14.04 and other older systems. */
-#define NSFS_MAGIC 0x6e736673
-#endif
-	if (ns_statfs_buf.f_type == NSFS_MAGIC
-	    || ns_statfs_buf.f_type == PROC_SUPER_MAGIC) {
+        int res = open_mnt_fd(group, mnt_fname, &mnt_fd);
+        if (res != 0) {
+                return res;
+        }
+        if (is_nsfs_or_procfs_fd(mnt_fd)) {
 		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
 			die("cannot join preserved per-user mount namespace %s",
 			    group->name);
