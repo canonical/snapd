@@ -410,8 +410,19 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	})
 	s.AddCleanup(restore)
 
-	restore = devicestate.MockInstallOnDiskVolumeFromGadgetVol(func(vol *gadget.Volume) (*gadget.OnDiskVolume, error) {
-		return mockDiskVolume(opts), nil
+	restore = devicestate.MockMatchDisksToGadgetVolumes(func(gVols map[string]*gadget.Volume, volCompatOpts *gadget.VolumeCompatibilityOptions) (map[string]map[int]*gadget.OnDiskStructure, error) {
+		volToGadgetToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{}
+		for name, vol := range gVols {
+			diskVolume := mockDiskVolume(opts)
+			gadgetToDiskMap, err := gadget.EnsureVolumeCompatibility(
+				vol, diskVolume, volCompatOpts)
+			if err != nil {
+				return nil, err
+			}
+			volToGadgetToDiskStruct[name] = gadgetToDiskMap
+		}
+
+		return volToGadgetToDiskStruct, nil
 	})
 	s.AddCleanup(restore)
 

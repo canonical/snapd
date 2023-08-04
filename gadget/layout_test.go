@@ -1476,3 +1476,48 @@ func (p *layoutTestSuite) TestLayoutWithDiskDataFails(c *C) {
 	c.Assert(v, IsNil)
 	c.Assert(err.Error(), Equals, `internal error: partition "second" not in disk map`)
 }
+
+func (p *layoutTestSuite) TestLayoutVolumeStructure(c *C) {
+	type test struct {
+		pair gadget.OnDiskAndGadgetStructurePair
+		err  string
+	}
+	for _, tc := range []test{
+		{
+			pair: gadget.OnDiskAndGadgetStructurePair{
+				DiskStructure: &gadget.OnDiskStructure{Name: "part1"},
+				GadgetStructure: &gadget.VolumeStructure{
+					Name:            "part1",
+					EnclosingVolume: &gadget.Volume{}},
+			},
+		},
+		{
+			pair: gadget.OnDiskAndGadgetStructurePair{
+				DiskStructure: &gadget.OnDiskStructure{Name: "part1"},
+				GadgetStructure: &gadget.VolumeStructure{
+					Name: "part1",
+					Content: []gadget.VolumeContent{
+						{
+							// single file in target directory
+							UnresolvedSource: "foo",
+							Target:           "/foo-dir/",
+						},
+					},
+					EnclosingVolume: &gadget.Volume{}},
+			},
+			err: `cannot lay out structure #0 ("part1"): content "": stat : no such file or directory`,
+		},
+	} {
+		los, err := gadget.LayoutVolumeStructure(&tc.pair, nil, &gadget.LayoutOptions{})
+		if tc.err == "" {
+			c.Check(err, IsNil)
+			c.Check(los, DeepEquals, &gadget.LaidOutStructure{
+				OnDiskStructure: *tc.pair.DiskStructure,
+				VolumeStructure: tc.pair.GadgetStructure,
+			})
+		} else {
+			c.Check(err.Error(), Equals, tc.err)
+			c.Check(los, IsNil)
+		}
+	}
+}

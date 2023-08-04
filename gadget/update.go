@@ -323,6 +323,7 @@ type VolumeCompatibilityOptions struct {
 // EnsureVolumeCompatibility checks compatibility between a gadget volume and a
 // real disk. It returns a map of the gadget structures yaml indexes to disk
 // structures that was possible to match.
+// TODO change to returning OnDiskAndGadgetStructurePair
 func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, opts *VolumeCompatibilityOptions) (map[int]*OnDiskStructure, error) {
 	gadgetStructIdxToOnDiskStruct := map[int]*OnDiskStructure{}
 	if opts == nil {

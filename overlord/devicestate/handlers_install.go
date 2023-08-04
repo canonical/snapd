@@ -71,7 +71,7 @@ var (
 	installWriteContent                  = install.WriteContent
 	installEncryptPartitions             = install.EncryptPartitions
 	installSaveStorageTraits             = install.SaveStorageTraits
-	gadgetOnDiskVolumeFromGadgetVol      = gadget.OnDiskVolumeFromGadgetVol
+	installMatchDisksToGadgetVolumes     = install.MatchDisksToGadgetVolumes
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
@@ -967,27 +967,19 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	// Match gadget against the disk, so we make sure that the information
 	// reported by the installer is correct and that all partitions have
 	// been created.
-	volToGadgetToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{}
-	for name, vol := range mergedVols {
-		diskVolume, err := gadgetOnDiskVolumeFromGadgetVol(vol)
-		if err != nil {
-			return err
+	volCompatOpts := &gadget.VolumeCompatibilityOptions{
+		// at this point all partitions should be created
+		AssumeCreatablePartitionsCreated: true,
+	}
+	if useEncryption {
+		volCompatOpts.ExpectedStructureEncryption = map[string]gadget.StructureEncryptionParameters{
+			"ubuntu-data": {Method: gadget.EncryptionLUKS},
+			"ubuntu-save": {Method: gadget.EncryptionLUKS},
 		}
-		volCompatOpts := &gadget.VolumeCompatibilityOptions{
-			// at this point all partitions should be created
-			AssumeCreatablePartitionsCreated: true,
-		}
-		if useEncryption {
-			volCompatOpts.ExpectedStructureEncryption = map[string]gadget.StructureEncryptionParameters{
-				"ubuntu-data": {Method: gadget.EncryptionLUKS},
-				"ubuntu-save": {Method: gadget.EncryptionLUKS},
-			}
-		}
-		gadgetToDiskMap, err := gadget.EnsureVolumeCompatibility(vol, diskVolume, volCompatOpts)
-		if err != nil {
-			return err
-		}
-		volToGadgetToDiskStruct[name] = gadgetToDiskMap
+	}
+	volToGadgetToDiskStruct, err := installMatchDisksToGadgetVolumes(mergedVols, volCompatOpts)
+	if err != nil {
+		return err
 	}
 
 	encType := secboot.EncryptionTypeNone

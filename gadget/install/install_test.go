@@ -1460,47 +1460,69 @@ func (s *installSuite) TestOnDiskVolumeFromGadgetVol(c *C) {
 
 	diskVol, err := gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
 	c.Check(err, IsNil)
-	expectedDiskVol := &gadget.OnDiskVolume{
-		Device: "/dev/vda",
-		Structure: []gadget.OnDiskStructure{
-			{
-				Name:      "BIOS Boot",
-				Node:      "/dev/vda1",
-				DiskIndex: 1,
-			},
-			{
-				Name:      "EFI System partition",
-				Node:      "/dev/vda2",
-				DiskIndex: 2,
-			},
-			{
-				Name:      "ubuntu-boot",
-				Node:      "/dev/vda3",
-				DiskIndex: 3,
-			},
-			{
-				Name:      "ubuntu-save",
-				Node:      "/dev/vda4",
-				DiskIndex: 4,
-			},
-			{
-				Name:      "ubuntu-data",
-				Node:      "/dev/vda5",
-				DiskIndex: 5,
-			},
-		},
-	}
-	c.Check(diskVol, DeepEquals, expectedDiskVol)
+	c.Check(diskVol, DeepEquals, &gadgettest.MockGadgetPartitionedOnDiskVolume)
 
 	// Now setting it for the mbr
 	ginfo.Volumes["pc"].Structure[0].Device = "/dev/vda"
 	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
 	c.Check(err, IsNil)
-	c.Check(diskVol, DeepEquals, expectedDiskVol)
+	c.Check(diskVol, DeepEquals, &gadgettest.MockGadgetPartitionedOnDiskVolume)
 
 	// Setting a wrong partition name
 	ginfo.Volumes["pc"].Structure[1].Device = "/dev/mmcblk0p1"
 	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
 	c.Check(err.Error(), Equals, "bad disk")
 	c.Check(diskVol, IsNil)
+}
+
+func (s *installSuite) TestMatchDisksToGadgetVolumes(c *C) {
+	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
+	restore := gadget.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+		if strings.HasPrefix(device, "/dev/vda") == true {
+			return filepath.Join(vdaSysPath, filepath.Base(device)), nil
+		}
+		return "", fmt.Errorf("bad disk")
+	})
+	defer restore()
+
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
+	c.Assert(err, IsNil)
+	defer restore()
+	// Set devices as an installer would
+	for _, vol := range ginfo.Volumes {
+		for sIdx := range vol.Structure {
+			if vol.Structure[sIdx].Type == "mbr" {
+				continue
+			}
+			vol.Structure[sIdx].Device = fmt.Sprintf("/dev/vda%d", sIdx+1)
+		}
+	}
+
+	volCompatOpts := &gadget.VolumeCompatibilityOptions{
+		// at this point all partitions should be created
+		AssumeCreatablePartitionsCreated: true,
+	}
+	mapStructToDisk, err := install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts)
+	c.Assert(err, IsNil)
+	expectedMap := map[string]map[int]*gadget.OnDiskStructure{
+		"pc": {
+			0: {
+				Name:             "mbr",
+				Node:             "",
+				PartitionFSLabel: "",
+				PartitionFSType:  "",
+				Type:             "mbr",
+				StartOffset:      0,
+				DiskIndex:        0,
+				Size:             440,
+			},
+			1: &gadgettest.MockGadgetPartitionedOnDiskVolume.Structure[0],
+			2: &gadgettest.MockGadgetPartitionedOnDiskVolume.Structure[1],
+			3: &gadgettest.MockGadgetPartitionedOnDiskVolume.Structure[2],
+			4: &gadgettest.MockGadgetPartitionedOnDiskVolume.Structure[3],
+			5: &gadgettest.MockGadgetPartitionedOnDiskVolume.Structure[4],
+		},
+	}
+	c.Check(mapStructToDisk, DeepEquals, expectedMap)
 }

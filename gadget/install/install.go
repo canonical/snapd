@@ -100,7 +100,9 @@ func saveStorageTraits(mod gadget.Model, allVols map[string]*gadget.Volume, opts
 	return nil
 }
 
-func maybeEncryptPartition(diskPart *gadget.OnDiskStructure, volStruct *gadget.VolumeStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, encryptionKey keys.EncryptionKey, err error) {
+func maybeEncryptPartition(pair *gadget.OnDiskAndGadgetStructurePair, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, encryptionKey keys.EncryptionKey, err error) {
+	diskPart := pair.DiskStructure
+	volStruct := pair.GadgetStructure
 	mustEncrypt := (encryptionType != secboot.EncryptionTypeNone)
 	// fsParams.Device is the kernel device that carries the
 	// filesystem, which is either the raw /dev/<partition>, or
@@ -187,10 +189,12 @@ func writePartitionContent(laidOut *gadget.LaidOutStructure, fsDevice string, ob
 	return nil
 }
 
-func installOnePartition(diskPart *gadget.OnDiskStructure, vs *gadget.VolumeStructure, kernelInfo *kernel.Info, gadgetRoot, kernelRoot string, encryptionType secboot.EncryptionType, sectorSize quantity.Size, observer gadget.ContentObserver, perfTimings timings.Measurer) (fsDevice string, encryptionKey keys.EncryptionKey, err error) {
+func installOnePartition(pair *gadget.OnDiskAndGadgetStructurePair, kernelInfo *kernel.Info, gadgetRoot, kernelRoot string, encryptionType secboot.EncryptionType, sectorSize quantity.Size, observer gadget.ContentObserver, perfTimings timings.Measurer) (fsDevice string, encryptionKey keys.EncryptionKey, err error) {
 	// 1. Encrypt
+	diskPart := pair.DiskStructure
+	vs := pair.GadgetStructure
 	role := vs.Role
-	fsParams, encryptionKey, err := maybeEncryptPartition(diskPart, vs, encryptionType, sectorSize, perfTimings)
+	fsParams, encryptionKey, err := maybeEncryptPartition(pair, encryptionType, sectorSize, perfTimings)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot encrypt partition %s: %v", role, err)
 	}
@@ -207,7 +211,7 @@ func installOnePartition(diskPart *gadget.OnDiskStructure, vs *gadget.VolumeStru
 		KernelRootDir: kernelRoot,
 		EncType:       encryptionType,
 	}
-	los, err := gadget.LayoutVolumeStructure(diskPart, vs, kernelInfo, opts)
+	los, err := gadget.LayoutVolumeStructure(pair, kernelInfo, opts)
 	if err != nil {
 		return "", nil, err
 	}
@@ -385,7 +389,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 
 		// for encrypted device the filesystem device it will point to
 		// the mapper device otherwise it's the raw device node
-		fsDevice, encryptionKey, err := installOnePartition(diskPart, vs,
+		fsDevice, encryptionKey, err := installOnePartition(pair,
 			kernelInfo, gadgetRoot, kernelRoot, options.EncryptionType,
 			bootVolSectorSize, observer, perfTimings)
 		if err != nil {
@@ -655,8 +659,11 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 
 			logger.Debugf("encrypting partition %s", device)
 
-			fsParams, encryptionKey, err :=
-				maybeEncryptPartition(onDiskStruct, &volStruct, encryptionType, onDiskVol.SectorSize, perfTimings)
+			fsParams, encryptionKey, err := maybeEncryptPartition(
+				&gadget.OnDiskAndGadgetStructurePair{
+					DiskStructure:   onDiskStruct,
+					GadgetStructure: &volStruct},
+				encryptionType, onDiskVol.SectorSize, perfTimings)
 			if err != nil {
 				return nil, fmt.Errorf("cannot encrypt %q: %v", device, err)
 			}
@@ -770,7 +777,9 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		// device) for each role
 		deviceForRole[vs.Role] = onDiskStruct.Node
 
-		fsDevice, encryptionKey, err := installOnePartition(onDiskStruct, vs,
+		fsDevice, encryptionKey, err := installOnePartition(
+			&gadget.OnDiskAndGadgetStructurePair{
+				DiskStructure: onDiskStruct, GadgetStructure: vs},
 			kernelInfo, gadgetRoot, kernelRoot, options.EncryptionType,
 			diskLayout.SectorSize, observer, perfTimings)
 		if err != nil {
@@ -809,4 +818,24 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		KeyForRole:    keyForRole,
 		DeviceForRole: deviceForRole,
 	}, nil
+}
+
+// MatchDisksToGadgetVolumes matches gadget volumes with disks present in the
+// system, taking into account the provided compatibility options.
+func MatchDisksToGadgetVolumes(gVols map[string]*gadget.Volume,
+	volCompatOpts *gadget.VolumeCompatibilityOptions) (map[string]map[int]*gadget.OnDiskStructure, error) {
+	volToGadgetToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{}
+	for name, vol := range gVols {
+		diskVolume, err := gadget.OnDiskVolumeFromGadgetVol(vol)
+		if err != nil {
+			return nil, err
+		}
+		gadgetToDiskMap, err := gadget.EnsureVolumeCompatibility(vol, diskVolume, volCompatOpts)
+		if err != nil {
+			return nil, err
+		}
+		volToGadgetToDiskStruct[name] = gadgetToDiskMap
+	}
+
+	return volToGadgetToDiskStruct, nil
 }

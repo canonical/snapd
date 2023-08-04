@@ -335,7 +335,6 @@ func LayoutVolume(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure, o
 }
 
 func fillLaidoutStructure(los *LaidOutStructure, kernelInfo *kernel.Info, opts *LayoutOptions) (err error) {
-
 	setOnDiskLabelAndTypeInLaidOuts(los, opts.EncType)
 	// Lay out raw content. This can be skipped when only partition
 	// creation is needed and is safe because each volume structure
@@ -364,10 +363,12 @@ func fillLaidoutStructure(los *LaidOutStructure, kernelInfo *kernel.Info, opts *
 	return nil
 }
 
-func LayoutVolumeStructure(onDisk *OnDiskStructure, vs *VolumeStructure, kernelInfo *kernel.Info, opts *LayoutOptions) (*LaidOutStructure, error) {
+// LayoutVolumeStructure lays out a structure given disk, gadget and kernel
+// snaps information, and some options.
+func LayoutVolumeStructure(pair *OnDiskAndGadgetStructurePair, kernelInfo *kernel.Info, opts *LayoutOptions) (*LaidOutStructure, error) {
 	los := &LaidOutStructure{
-		OnDiskStructure: *onDisk,
-		VolumeStructure: vs,
+		OnDiskStructure: *pair.DiskStructure,
+		VolumeStructure: pair.GadgetStructure,
 	}
 
 	if err := fillLaidoutStructure(los, kernelInfo, opts); err != nil {
