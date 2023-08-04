@@ -259,6 +259,8 @@ func (v *mapSchema) Validate(raw []byte) error {
 				if err := validator.Validate(val); err != nil {
 					return err
 				}
+			} else {
+				return fmt.Errorf(`unexpected field %q in map`, key)
 			}
 		}
 	}
