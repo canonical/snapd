@@ -125,7 +125,8 @@ const (
   "links": {
     "contact": ["https://thingy.com","mailto:thingy@thingy.com"],
     "website": ["http://example.com/thingy"],
-    "issues": ["mailto:bugs@thingy.com"]
+    "issues": ["mailto:bugs@thingy.com"],
+    "empty": []
   },
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
@@ -206,6 +207,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	info, err := infoFromStoreSnap(&snp)
 	c.Assert(err, IsNil)
 	c.Check(snap.Validate(info), IsNil)
+	c.Check(snap.ValidateLinks(info.EditedLinks), IsNil)
 
 	info2 := *info
 	// clear recursive bits
