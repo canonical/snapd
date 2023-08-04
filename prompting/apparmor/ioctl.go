@@ -33,7 +33,7 @@ func (hb hexBuf) String() string {
 
 var dumpIoctl bool = osutil.GetenvBool("SNAPD_DEBUG_DUMP_IOCTL")
 
-// NotifyIoctl performs a ioctl(2) on the apparmor .notify file.
+// NotifyIoctl performs a ioctl(2) on the given file descriptor.
 func NotifyIoctl(fd uintptr, req IoctlRequest, msg []byte) (int, error) {
 	if dumpIoctl {
 		log.Printf(">>> ioctl %v (%d bytes) ...\n", req, len(msg))
@@ -50,6 +50,18 @@ func NotifyIoctl(fd uintptr, req IoctlRequest, msg []byte) (int, error) {
 		return 0, fmt.Errorf("cannot perform IOCTL request %v: %v", req, unix.Errno(errno))
 	}
 	return int(ret), nil
+}
+
+// ReceiveApparmorMessage uses ioctl(2) to receive a message from apparmor.
+// The ioctl(2) syscall is performed on the given file descriptor.
+// Returns a buffer containing the received message.
+func ReceiveApparmorMessage(fd uintptr) ([]byte, error) {
+	buf := PrepareIoctlRequestBuffer()
+	size, err := NotifyIoctl(fd, APPARMOR_NOTIF_RECV, buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:size], nil
 }
 
 // IoctlRequest is the type of ioctl(2) request numbers used by apparmor .notify file.

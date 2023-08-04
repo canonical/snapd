@@ -31,6 +31,24 @@ func (*ioctlSuite) TestIoctlHappy(c *C) {
 	c.Assert(n, Equals, len(buf))
 }
 
+func (*ioctlSuite) TestReceiveApparmorMessage(c *C) {
+	fd := uintptr(123)
+	req := apparmor.APPARMOR_NOTIF_RECV
+	restore := apparmor.MockSyscall(
+		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
+			c.Check(trap, Equals, uintptr(unix.SYS_IOCTL))
+			c.Check(a1, Equals, fd)
+			c.Check(a2, Equals, uintptr(req))
+			return 0, 0, 0
+		})
+	defer restore()
+	buf, err := apparmor.ReceiveApparmorMessage(fd)
+	c.Assert(err, IsNil)
+	preparedBuf := apparmor.PrepareIoctlRequestBuffer()
+	buf = buf[:len(preparedBuf)]
+	c.Assert(buf, DeepEquals, preparedBuf)
+}
+
 // XXX: there is no checking by the syscall return value in NotifyIoctl for
 // historical reasons.  We may need to re-evaluate this at some point and add
 // sanity checks that the syscall behaved as expected.
