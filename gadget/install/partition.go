@@ -69,7 +69,7 @@ type CreateOptions struct {
 // CreateMissingPartitions calls createMissingPartitions but returns only
 // OnDiskStructure, as it is meant to be used externally (i.e. by
 // muinstaller).
-func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.Volume, opts *CreateOptions) (map[int]*gadget.OnDiskStructure, error) {
+func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.Volume, opts *CreateOptions) ([]*gadget.OnDiskAndGadgetStructurePair, error) {
 	onDiskStructs, err := createMissingPartitions(dl, pv, opts)
 	if err != nil {
 		return nil, err
@@ -80,7 +80,7 @@ func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.Volume, opts *C
 // createMissingPartitions creates the partitions listed in the laid out volume
 // pv that are missing from the existing device layout, returning a list of
 // structures that have been created.
-func createMissingPartitions(dl *gadget.OnDiskVolume, gv *gadget.Volume, opts *CreateOptions) (map[int]*gadget.OnDiskStructure, error) {
+func createMissingPartitions(dl *gadget.OnDiskVolume, gv *gadget.Volume, opts *CreateOptions) ([]*gadget.OnDiskAndGadgetStructurePair, error) {
 	if opts == nil {
 		opts = &CreateOptions{}
 	}
@@ -120,7 +120,7 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, gv *gadget.Volume, opts *C
 	// Make sure the devices for the partitions we created are available
 	nodes := []string{}
 	for _, ls := range created {
-		nodes = append(nodes, ls.Node)
+		nodes = append(nodes, ls.DiskStructure.Node)
 	}
 	// do it in deterministic order
 	sort.Strings(nodes)
@@ -135,7 +135,7 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, gv *gadget.Volume, opts *C
 // device contents and gadget structure list, in sfdisk dump format, and
 // returns a partitioning description suitable for sfdisk input and a
 // list of the partitions to be created.
-func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *CreateOptions) (sfdiskInput *bytes.Buffer, toBeCreated map[int]*gadget.OnDiskStructure, err error) {
+func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *CreateOptions) (sfdiskInput *bytes.Buffer, toBeCreated []*gadget.OnDiskAndGadgetStructurePair, err error) {
 	if opts == nil {
 		opts = &CreateOptions{}
 	}
@@ -175,7 +175,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 	// Write new partition data in named-fields format
 	buf := &bytes.Buffer{}
 	lastEnd := quantity.Offset(0)
-	toBeCreated = map[int]*gadget.OnDiskStructure{}
+	toBeCreated = []*gadget.OnDiskAndGadgetStructurePair{}
 	for _, vs := range vol.Structure {
 		if !vs.IsPartition() {
 			continue
@@ -217,17 +217,12 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 
 		// synthesize the node name and on disk structure
 		node := deviceName(dl.Device, pIndex)
-		// Change bits that depend on the disk, which includes
-		// overriding the size from the gadget as we might be
-		// expanding the data partition.
-		vs.Device = node
-		vs.Size = quantity.Size(newSizeInSectors * sectorSize)
 
 		// format sfdisk input for creating this partition
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
 			startInSectors, newSizeInSectors, ptype, vs.Name)
 
-		toBeCreated[vs.YamlIndex] = &gadget.OnDiskStructure{
+		diskSt := &gadget.OnDiskStructure{
 			Name:             vs.Name,
 			PartitionFSLabel: vs.Label,
 			Type:             vs.Type,
@@ -235,8 +230,13 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 			StartOffset:      offset,
 			Node:             node,
 			DiskIndex:        pIndex,
-			Size:             vs.Size,
+			Size:             quantity.Size(newSizeInSectors * sectorSize),
 		}
+		// Make per-iter pointer (vs is per-loop)
+		newVs := vs
+		toBeCreated = append(toBeCreated,
+			&gadget.OnDiskAndGadgetStructurePair{
+				DiskStructure: diskSt, GadgetStructure: &newVs})
 	}
 
 	return buf, toBeCreated, nil

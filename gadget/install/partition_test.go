@@ -223,9 +223,15 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 /dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
 	c.Check(create, NotNil)
-	c.Assert(create, DeepEquals, map[int]*gadget.OnDiskStructure{
-		3: createOnDiskStructureSave(pv.Volume),
-		4: createOnDiskStructureWritableAfterSave(pv.Volume),
+	c.Assert(create, DeepEquals, []*gadget.OnDiskAndGadgetStructurePair{
+		{
+			DiskStructure:   createOnDiskStructureSave(pv.Volume),
+			GadgetStructure: &pv.Volume.Structure[3],
+		},
+		{
+			DiskStructure:   createOnDiskStructureWritableAfterSave(pv.Volume),
+			GadgetStructure: &pv.Volume.Structure[4],
+		},
 	})
 }
 
@@ -257,9 +263,15 @@ func (s *partitionTestSuite) TestBuildPartitionListPartsNotInGadget(c *C) {
 /dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
 	c.Check(create, NotNil)
-	c.Assert(create, DeepEquals, map[int]*gadget.OnDiskStructure{
-		1: createOnDiskStructureSave(pv.Volume),
-		2: createOnDiskStructureWritableAfterSave(pv.Volume),
+	c.Assert(create, DeepEquals, []*gadget.OnDiskAndGadgetStructurePair{
+		{
+			DiskStructure:   createOnDiskStructureSave(pv.Volume),
+			GadgetStructure: &pv.Volume.Structure[1],
+		},
+		{
+			DiskStructure:   createOnDiskStructureWritableAfterSave(pv.Volume),
+			GadgetStructure: &pv.Volume.Structure[2],
+		},
 	})
 }
 
@@ -324,7 +336,13 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	}
 	created, err := install.TestCreateMissingPartitions(dl, pv.Volume, opts)
 	c.Assert(err, IsNil)
-	c.Assert(created, DeepEquals, map[int]*gadget.OnDiskStructure{3: &mockOnDiskStructureWritable})
+	c.Assert(created, DeepEquals, []*gadget.OnDiskAndGadgetStructurePair{
+		{
+			DiskStructure:   &mockOnDiskStructureWritable,
+			GadgetStructure: &pv.Volume.Structure[3],
+		},
+	})
+
 	c.Assert(calls, Equals, 1)
 
 	// Check partition table write

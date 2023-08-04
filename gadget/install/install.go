@@ -244,7 +244,7 @@ func resolveBootDevice(bootDevice string, bootVol *gadget.Volume) (string, error
 // size.
 func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options,
 	perfTimings timings.Measurer) (
-	bootVolGadgetName string, created map[int]*gadget.OnDiskStructure, bootVolSectorSize quantity.Size, err error) {
+	bootVolGadgetName string, created []*gadget.OnDiskAndGadgetStructurePair, bootVolSectorSize quantity.Size, err error) {
 
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
@@ -365,10 +365,9 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	// Note that all partitions here will have a role (see
 	// gadget.IsCreatableAtInstall() which defines the list). We do it in
 	// the order in which partitions were specified in the gadget.
-	vol := info.Volumes[bootVolGadgetName]
-	for _, yamlIdx := range onDiskStructsSortedIdx(created) {
-		diskPart := created[yamlIdx]
-		vs := vol.StructFromYamlIndex(yamlIdx)
+	for _, pair := range created {
+		diskPart := pair.DiskStructure
+		vs := pair.GadgetStructure
 		logger.Noticef("created new partition %v for structure %v (size %v) with role %s",
 			diskPart.Node, vs, diskPart.Size.IECString(), vs.Role)
 		if vs.Role == gadget.SystemSave {

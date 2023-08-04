@@ -95,6 +95,11 @@ type OnDiskVolume struct {
 	SectorSize quantity.Size
 }
 
+type OnDiskAndGadgetStructurePair struct {
+	DiskStructure   *OnDiskStructure
+	GadgetStructure *VolumeStructure
+}
+
 // OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
 // the block device.
 func OnDiskVolumeFromDevice(device string) (*OnDiskVolume, error) {
