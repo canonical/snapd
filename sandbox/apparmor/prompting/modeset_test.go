@@ -52,6 +52,8 @@ func (*modeSetSuite) TestModeSetString(c *C) {
 	c.Check(m.String(), Equals, "audit|allowed|enforce|hint|status|error|kill")
 	m |= prompting.APPARMOR_MODESET_USER
 	c.Check(m.String(), Equals, "audit|allowed|enforce|hint|status|error|kill|user")
+	c.Check(m.IsValid(), Equals, true)
 	m |= 256
 	c.Check(m.String(), Equals, "audit|allowed|enforce|hint|status|error|kill|user|0x100")
+	c.Check(m.IsValid(), Equals, false)
 }
