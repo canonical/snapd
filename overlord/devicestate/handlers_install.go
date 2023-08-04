@@ -959,7 +959,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	// including the target devices and information marked as partial in
 	// the gadget, so the gadget is not partially defined anymore if it
 	// was.
-	if err := gadget.ApplyInstallerVolumesToGadget(onVolumes, gi.Volumes); err != nil {
+	mergedVols, err := gadget.ApplyInstallerVolumesToGadget(onVolumes, gi.Volumes)
+	if err != nil {
 		return err
 	}
 
@@ -967,7 +968,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	// reported by the installer is correct and that all partitions have
 	// been created.
 	volToGadgetToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{}
-	for name, vol := range gi.Volumes {
+	for name, vol := range mergedVols {
 		diskVolume, err := gadgetOnDiskVolumeFromGadgetVol(vol)
 		if err != nil {
 			return err
@@ -994,7 +995,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if useEncryption {
 		encType = secboot.EncryptionTypeLUKS
 	}
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gi.Volumes,
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mergedVols,
 		mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel],
 		sys.Model, encType, volToGadgetToDiskStruct)
 	if err != nil {
@@ -1005,20 +1006,20 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		_, err = installWriteContent(gi.Volumes, allLaidOutVols, encryptSetupData, installObserver, perfTimings)
+		_, err = installWriteContent(mergedVols, allLaidOutVols, encryptSetupData, installObserver, perfTimings)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)
 	}
 
 	// Mount the partitions and find the system-seed{,-null} partition
-	seedMntDir, unmountParts, err := installMountVolumes(gi.Volumes, encryptSetupData)
+	seedMntDir, unmountParts, err := installMountVolumes(mergedVols, encryptSetupData)
 	if err != nil {
 		return fmt.Errorf("cannot mount partitions for installation: %v", err)
 	}
 	defer unmountParts()
 
-	if err := installSaveStorageTraits(sys.Model, gi.Volumes, encryptSetupData); err != nil {
+	if err := installSaveStorageTraits(sys.Model, mergedVols, encryptSetupData); err != nil {
 		return err
 	}
 

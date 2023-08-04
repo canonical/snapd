@@ -23,64 +23,69 @@ import "fmt"
 
 // ApplyInstallerVolumesToGadget takes the volume information returned
 // by the installer and applies it to the gadget volumes for the
-// device to install to and for properties partially defined. After
-// that it checks that the gadget is now fully specified.
-func ApplyInstallerVolumesToGadget(installerVols map[string]*Volume, gadgetVols map[string]*Volume) error {
+// device to install to and for properties partially defined,
+// returning the result in a new Volume map. After that it checks that
+// the gadget is now fully specified.
+func ApplyInstallerVolumesToGadget(installerVols map[string]*Volume, gadgetVols map[string]*Volume) (map[string]*Volume, error) {
+	newVols := map[string]*Volume{}
 	for volName, gv := range gadgetVols {
+		newV := gv.Copy()
+		newVols[volName] = newV
+
 		insVol := installerVols[volName]
 		if insVol == nil {
-			return fmt.Errorf("installer did not provide information for volume %q", volName)
+			return nil, fmt.Errorf("installer did not provide information for volume %q", volName)
 		}
 
 		// First, retrieve device specified by installer
-		for i := range gv.Structure {
-			insStr, err := structureByName(insVol.Structure, gv.Structure[i].Name)
+		for i := range newV.Structure {
+			insStr, err := structureByName(insVol.Structure, newV.Structure[i].Name)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			gv.Structure[i].Device = insStr.Device
+			newV.Structure[i].Device = insStr.Device
 		}
 
 		// Next changes are only for partial gadgets
-		if len(gv.Partial) == 0 {
+		if len(newV.Partial) == 0 {
 			continue
 		}
 
 		// TODO: partial structure, as it is not clear what will be possible when set
 
-		if gv.HasPartial(PartialSchema) {
+		if newV.HasPartial(PartialSchema) {
 			if insVol.Schema == "" {
-				return fmt.Errorf("installer did not provide schema for volume %q", volName)
+				return nil, fmt.Errorf("installer did not provide schema for volume %q", volName)
 			}
-			gv.Schema = insVol.Schema
+			newV.Schema = insVol.Schema
 		}
 
-		if gv.HasPartial(PartialFilesystem) {
-			if err := applyPartialFilesystem(insVol, gv, volName); err != nil {
-				return err
+		if newV.HasPartial(PartialFilesystem) {
+			if err := applyPartialFilesystem(insVol, newV, volName); err != nil {
+				return nil, err
 			}
 		}
 
-		if gv.HasPartial(PartialSize) {
-			if err := applyPartialSize(insVol, gv, volName); err != nil {
-				return err
+		if newV.HasPartial(PartialSize) {
+			if err := applyPartialSize(insVol, newV, volName); err != nil {
+				return nil, err
 			}
 		}
 
 		// The only thing that can still be partial is the structure
-		if gv.HasPartial(PartialStructure) {
-			gv.Partial = []PartialProperty{PartialStructure}
+		if newV.HasPartial(PartialStructure) {
+			newV.Partial = []PartialProperty{PartialStructure}
 		} else {
-			gv.Partial = []PartialProperty{}
+			newV.Partial = []PartialProperty{}
 		}
 
 		// Now validate finalized volume
-		if err := validateVolume(gv); err != nil {
-			return fmt.Errorf("finalized volume %q is wrong: %v", gv.Name, err)
+		if err := validateVolume(newV); err != nil {
+			return nil, fmt.Errorf("finalized volume %q is wrong: %v", newV.Name, err)
 		}
 	}
 
-	return nil
+	return newVols, nil
 }
 
 func applyPartialFilesystem(insVol *Volume, gadgetVol *Volume, volName string) error {
