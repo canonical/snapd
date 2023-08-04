@@ -186,7 +186,7 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 }
 
 func (*messageSuite) TestRequestBuffer(c *C) {
-	buf := apparmor.RequestBuffer()
+	buf := apparmor.PrepareIoctlRequestBuffer()
 	c.Assert(buf, HasLen, 0xFFFF)
 	var header apparmor.MsgHeader
 	err := header.UnmarshalBinary(buf)

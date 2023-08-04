@@ -49,9 +49,9 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// RequestBuffer returns a new buffer for communication with the kernel.
+// PrepareIoctlRequestBuffer returns a new buffer for communication with the kernel.
 // The buffer contains encoded information about its size and protocol version.
-func RequestBuffer() []byte {
+func PrepareIoctlRequestBuffer() []byte {
 	bufSize := 0xFFFF
 	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
 	header := MsgHeader{Version: 2, Length: uint16(bufSize)}
