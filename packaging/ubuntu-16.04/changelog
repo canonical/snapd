@@ -1,3 +1,22 @@
+snapd (2.60.2) xenial; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - i/builtin: allow directories in private /dev/shm
+    - i/builtin: add read access to /proc/task/schedstat in system-
+      observe
+    - snap-bootstrap: print version information at startup
+    - go.mod: update gopkg.in/yaml.v3 to v3.0.1 to fix CVE-2022-28948
+    - snap, store: filter out invalid snap edited links from store info
+      and persisted state
+    - o/configcore: write netplan defaults to 00-snapd-config on seeding
+    - snapcraft.yaml: pull in apparmor_parser optimization patches from
+      https://gitlab.com/apparmor/apparmor/-/merge_requests/711
+    - snap-confine: fix missing \0 after readlink
+    - cmd/snap: hide append-integrity-data
+    - interfaces/opengl: add support for ARM Mali
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 04 Aug 2023 12:14:04 +0200
+
 snapd (2.60.1) xenial; urgency=medium
 
   * New upstream release, LP: #2024007
