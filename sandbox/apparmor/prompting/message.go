@@ -32,7 +32,7 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 	const prefix = "cannot unmarshal apparmor message header"
 
 	// Unpack fixed-size elements.
-	order := arch.Endian() // ioctl messages are native byte order, but others might not be
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	buf := bytes.NewBuffer(data)
 	if err := binary.Read(buf, order, msg); err != nil {
 		return fmt.Errorf("%s: %s", prefix, err)
@@ -49,7 +49,7 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// msgNotificationFilter describes the configuration of kernel-side message filtering.
+// msgNotificationFilterKernel describes the configuration of kernel-side message filtering.
 //
 // This structure corresponds to the kernel type struct apparmor_notif_filter
 // described below. This type is only used for message marshaling and
@@ -62,7 +62,7 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 //	  __u32 filter;       /* offset into data, relative to start of the structure */
 //	  __u8 data[];
 //	} __attribute__((packed));
-type msgNotificationFilter struct {
+type msgNotificationFilterKernel struct {
 	MsgHeader
 	ModeSet uint32
 	NS      uint32
@@ -96,8 +96,8 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 
 	// Unpack fixed-size elements.
 	buf := bytes.NewBuffer(data)
-	var raw msgNotificationFilter
-	order := arch.Endian() // ioctl messages are native byte order, but others might not be
+	var raw msgNotificationFilterKernel
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
 		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
@@ -123,7 +123,7 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 
 // MarshalBinary marshals the message into binary form.
 func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
-	var raw msgNotificationFilter
+	var raw msgNotificationFilterKernel
 	packer := newStringPacker(raw)
 	raw.Version = 2
 	raw.ModeSet = uint32(msg.ModeSet)
@@ -131,7 +131,7 @@ func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
 	raw.Filter = packer.PackString(msg.Filter)
 	raw.Length = packer.TotalLen()
 	msgBuf := bytes.NewBuffer(make([]byte, 0, raw.Length))
-	order := arch.Endian() // ioctl messages are native byte order, but others might not be
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Write(msgBuf, order, raw); err != nil {
 		return nil, err
 	}
@@ -185,7 +185,7 @@ func (msg *MsgNotification) UnmarshalBinary(data []byte) error {
 
 	// Unpack fixed-size elements.
 	buf := bytes.NewBuffer(data)
-	order := arch.Endian() // ioctl messages are native byte order, but others might not be
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, msg); err != nil {
 		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
@@ -198,7 +198,7 @@ func (msg *MsgNotification) MarshalBinary() ([]byte, error) {
 	msg.Version = 2
 	msg.Length = uint16(binary.Size(*msg))
 	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
-	order := arch.Endian() // ioctl messages are native byte order, but others might not be
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Write(buf, order, msg); err != nil {
 		return nil, err
 	}
@@ -266,14 +266,14 @@ func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
 	msg.Version = 2
 	msg.Length = uint16(binary.Size(*msg))
 	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
-	order := arch.Endian() // ioctl messages are native byte order, but others might not be
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Write(buf, order, msg); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
 }
 
-// MsgNotificationOp (TBD, document me).
+// msgNotificationOpKernel (TBD, document me).
 //
 //	struct apparmor_notif_op {
 //	  struct apparmor_notif base;
@@ -284,7 +284,7 @@ func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
 //	  __u16 class;
 //	  __u16 op;
 //	} __attribute__((packed));
-type msgNotificationOp struct {
+type msgNotificationOpKernel struct {
 	MsgNotification
 	Allow uint32
 	Deny  uint32
@@ -340,8 +340,8 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 
 	// Unpack fixed-size elements.
 	buf := bytes.NewBuffer(data)
-	var raw msgNotificationOp
-	order := arch.Endian() // ioctl messages are native byte order, but others might not be
+	var raw msgNotificationOpKernel
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
 		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
@@ -364,7 +364,7 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// msgNotificationFile (TBD, document me).
+// msgNotificationFileKernel (TBD, document me).
 //
 //	struct apparmor_notif_file {
 //	  struct apparmor_notif_op base;
@@ -372,8 +372,8 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 //	  __u32 name;         /* offset into data */
 //	  __u8 data[];
 //	} __attribute__((packed));
-type msgNotificationFile struct {
-	msgNotificationOp
+type msgNotificationFileKernel struct {
+	msgNotificationOpKernel
 	SUID uint32
 	OUID uint32
 	Name uint32
@@ -402,8 +402,8 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 
 	// Unpack fixed-size elements.
 	buf := bytes.NewBuffer(data)
-	var raw msgNotificationFile
-	order := arch.Endian() // ioctl messages are native byte order, but others might not be
+	var raw msgNotificationFileKernel
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
 		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
