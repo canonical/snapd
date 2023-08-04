@@ -281,7 +281,12 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.Private = d.Private
 	// needs to be set for old snapd
 	info.LegacyEditedContact = d.Contact
-	info.EditedLinks = d.Links
+	// info.EditedLinks should contain normalized edited links. info.Links() normalizes
+	// non-empty edited links, otherwise it returns normalized original links.
+	if len(d.Links) != 0 {
+		info.EditedLinks = d.Links
+		info.EditedLinks = info.Links()
+	}
 	info.Architectures = d.Architectures
 	info.SnapType = d.Type
 	info.Version = d.Version
