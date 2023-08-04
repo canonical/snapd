@@ -91,7 +91,8 @@ func deriveIconContent(instanceName string, rootDir string, icons []string) (con
 	return content, nil
 }
 
-func AddSnapIcons(s *snap.Info) error {
+func EnsureSnapIcons(s *snap.Info) error {
+	// TODO: Add nil check?
 	if err := os.MkdirAll(dirs.SnapDesktopIconsDir, 0755); err != nil {
 		return err
 	}

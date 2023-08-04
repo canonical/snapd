@@ -232,7 +232,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDesktopFiles)
 
 	// add the desktop icons
-	if err = wrappers.AddSnapIcons(s); err != nil {
+	if err = wrappers.EnsureSnapIcons(s); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapIcons)
