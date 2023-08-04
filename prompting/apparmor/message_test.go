@@ -185,18 +185,6 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 	})
 }
 
-func (*messageSuite) TestRequestBuffer(c *C) {
-	buf := apparmor.PrepareIoctlRequestBuffer()
-	c.Assert(buf, HasLen, 0xFFFF)
-	var header apparmor.MsgHeader
-	err := header.UnmarshalBinary(buf)
-	c.Assert(err, IsNil)
-	c.Check(header, Equals, apparmor.MsgHeader{
-		Length:  0xFFFF,
-		Version: 2,
-	})
-}
-
 func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 	if arch.Endian() == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
