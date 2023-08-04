@@ -226,7 +226,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDBusActivationFiles)
 
 	// add the desktop files
-	if err = wrappers.AddSnapDesktopFiles(s); err != nil {
+	if err = wrappers.EnsureSnapDesktopFiles(s); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDesktopFiles)
