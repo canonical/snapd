@@ -994,6 +994,21 @@ func (s *storeDownloadSuite) TestDownloadRedirectHideAuthHeaders(c *C) {
 	c.Assert(targetFn, testutil.FileEquals, "test-download")
 }
 
+func (s *storeDownloadSuite) TestDownloadNoCheckRedirectPanic(c *C) {
+	restore := store.MockHttputilNewHTTPClient(func(opts *httputil.ClientOptions) *http.Client {
+		client := httputil.NewHTTPClient(opts)
+		client.CheckRedirect = nil
+		return client
+	})
+	defer restore()
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	downloadFunc := func() {
+		s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo{}, nil, nil, nil)
+	}
+	c.Assert(downloadFunc, PanicMatches, "internal error: CheckRedirect cannot be nil")
+}
+
 func (s *storeDownloadSuite) TestDownloadInfiniteRedirect(c *C) {
 	n := 0
 	var mockServer *httptest.Server
