@@ -1,4 +1,4 @@
-package apparmor_test
+package prompting_test
 
 import (
 	"testing"

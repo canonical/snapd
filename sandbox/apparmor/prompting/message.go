@@ -1,4 +1,4 @@
-package apparmor
+package prompting
 
 import (
 	"bytes"
