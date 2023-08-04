@@ -34,14 +34,14 @@ func (*promptingSuite) TestNotifyPathBehavior(c *C) {
 	c.Assert(prompting.NotifyPath, Equals, newNotifyPath)
 }
 
-func (*promptingSuite) TestPromptingAvailable(c *C) {
+func (*promptingSuite) TestPromptingSupportAvailable(c *C) {
 	newRoot := c.MkDir()
 	dirs.SetRootDir(newRoot)
-	c.Assert(prompting.PromptingAvailable(), Equals, false)
+	c.Assert(prompting.PromptingSupportAvailable(), Equals, false)
 	err := os.MkdirAll(filepath.Dir(prompting.NotifyPath), 0755)
 	c.Assert(err, IsNil)
-	c.Assert(prompting.PromptingAvailable(), Equals, false)
+	c.Assert(prompting.PromptingSupportAvailable(), Equals, false)
 	_, err = os.Create(prompting.NotifyPath)
 	c.Assert(err, IsNil)
-	c.Assert(prompting.PromptingAvailable(), Equals, true)
+	c.Assert(prompting.PromptingSupportAvailable(), Equals, true)
 }
