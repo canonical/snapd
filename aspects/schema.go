@@ -93,25 +93,30 @@ func (s *CustomSchema) Parse(raw json.RawMessage) (Schema, error) {
 		}
 	}
 
-	var val Schema
+	var schema Schema
 	switch typ {
 	case "map":
-		mapVal := &mapSchema{
-			schema: s,
+		mapSchema := &mapSchema{
+			baseSchema: s,
 		}
 
-		if err := mapVal.Parse(raw); err != nil {
+		if err := mapSchema.Parse(raw); err != nil {
 			return nil, err
 		}
-		val = mapVal
+		schema = mapSchema
 	case "int":
-		return nil, nil
-	case "string":
-		strVal := &stringSchema{}
-		if err := strVal.Parse(raw); err != nil {
+		intSchema := &intSchema{}
+
+		if err := intSchema.Parse(raw); err != nil {
 			return nil, err
 		}
-		val = strVal
+		schema = intSchema
+	case "string":
+		strSchema := &stringSchema{}
+		if err := strSchema.Parse(raw); err != nil {
+			return nil, err
+		}
+		schema = strSchema
 	case "number":
 		return nil, nil
 	case "bool":
@@ -126,10 +131,10 @@ func (s *CustomSchema) Parse(raw json.RawMessage) (Schema, error) {
 		if !ok {
 			return nil, fmt.Errorf(`cannot find referenced user-defined type %q`, typ)
 		}
-		val = userType
+		schema = userType
 	}
 
-	return val, nil
+	return schema, nil
 }
 
 type stringSchema struct {
@@ -142,42 +147,26 @@ type stringSchema struct {
 }
 
 func (v *stringSchema) Validate(raw []byte) error {
-	var val string
-	if err := json.Unmarshal(raw, &val); err != nil {
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
 		return err
 	}
 
-	if len(v.choices) != 0 && !strutil.ListContains(v.choices, val) {
-		return fmt.Errorf(`string %q is not one of the allowed choices`, val)
+	if len(v.choices) != 0 && !strutil.ListContains(v.choices, value) {
+		return fmt.Errorf(`string %q is not one of the allowed choices`, value)
 	}
 
-	if v.pattern != nil && !v.pattern.Match([]byte(val)) {
-		return fmt.Errorf(`string %q doesn't match schema pattern %s`, val, v.pattern.String())
+	if v.pattern != nil && !v.pattern.Match([]byte(value)) {
+		return fmt.Errorf(`string %q doesn't match schema pattern %s`, value, v.pattern.String())
 	}
 
 	return nil
 }
 
 func (v *stringSchema) Parse(raw json.RawMessage) error {
-	var constraints map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &constraints); err != nil {
-		var typeErr *json.UnmarshalTypeError
-		if !errors.As(err, &typeErr) {
-			return err
-		}
-
-		var typ string
-		if err := json.Unmarshal(raw, &typ); err != nil {
-			return err
-		}
-
-		if typ != "string" {
-			// NOTE: shouldn't happen save for a bug in parseSchema
-			return fmt.Errorf(`cannot parse type %q as string`, typ)
-		}
-
-		// a simple "string" type with no constraints
-		return nil
+	constraints, err := getTypeConstraints(raw, "string")
+	if err != nil {
+		return err
 	}
 
 	if rawPattern, ok := constraints["pattern"]; ok {
@@ -210,7 +199,7 @@ func (v *stringSchema) Parse(raw json.RawMessage) error {
 }
 
 type mapSchema struct {
-	schema *CustomSchema
+	baseSchema *CustomSchema
 
 	// entries map keys that can the map can contain to their expected types.
 	// Alternatively, the schema can instead key and/or value types.
@@ -312,7 +301,7 @@ func (v *mapSchema) Parse(raw json.RawMessage) error {
 
 		v.entryTypes = make(map[string]Schema, len(nextLevel))
 		for key, value := range nextLevel {
-			validator, err := v.schema.Parse(value)
+			validator, err := v.baseSchema.Parse(value)
 			if err != nil {
 				return fmt.Errorf(`cannot parse constraint for key %q: %w`, key, err)
 			}
@@ -327,7 +316,7 @@ func (v *mapSchema) Parse(raw json.RawMessage) error {
 	keyDescription, ok := level["keys"]
 	if ok {
 		var err error
-		v.keyType, err = v.schema.Parse(keyDescription)
+		v.keyType, err = v.baseSchema.Parse(keyDescription)
 		if err != nil {
 			return fmt.Errorf(`cannot parse "keys" constraint in map schema: %w`, err)
 		}
@@ -336,11 +325,113 @@ func (v *mapSchema) Parse(raw json.RawMessage) error {
 	valuesDescriptor, ok := level["values"]
 	if ok {
 		var err error
-		v.valueType, err = v.schema.Parse(valuesDescriptor)
+		v.valueType, err = v.baseSchema.Parse(valuesDescriptor)
 		if err != nil {
 			return fmt.Errorf(`cannot parse "values" constraint in map schema: %w`, err)
 		}
 	}
 
 	return nil
+}
+
+type intSchema struct {
+	min     *int
+	max     *int
+	choices []int
+}
+
+func (v *intSchema) Validate(raw []byte) error {
+	var num int
+	if err := json.Unmarshal(raw, &num); err != nil {
+		return err
+	}
+
+	if v.min != nil && num < *v.min {
+		return fmt.Errorf(`integer %d is less than allowed minimum %d`, num, *v.min)
+	}
+
+	if v.max != nil && num > *v.max {
+		return fmt.Errorf(`integer %d is greater than allowed maximum %d`, num, *v.max)
+	}
+
+	if len(v.choices) != 0 {
+		var found bool
+		for _, choice := range v.choices {
+			if num == choice {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return fmt.Errorf(`integer %d is not one of the allowed choices`, num)
+		}
+	}
+
+	return nil
+}
+
+func (v *intSchema) Parse(raw json.RawMessage) error {
+	constraints, err := getTypeConstraints(raw, "int")
+	if err != nil {
+		return err
+	} else if constraints == nil {
+		return nil
+	}
+
+	if rawChoices, ok := constraints["choices"]; ok {
+		var choices []int
+		err := json.Unmarshal(rawChoices, &choices)
+		if err != nil {
+			return err
+		}
+
+		if len(choices) == 0 {
+			return fmt.Errorf(`cannot have "choices" constraint with empty list: field must be populated or not exist`)
+		}
+
+		v.choices = choices
+	}
+
+	if minRaw, ok := constraints["min"]; ok {
+		var min int
+		if err := json.Unmarshal(minRaw, &min); err != nil {
+			return err
+		}
+		v.min = &min
+	}
+
+	if maxRaw, ok := constraints["max"]; ok {
+		var max int
+		if err := json.Unmarshal(maxRaw, &max); err != nil {
+			return err
+		}
+		v.max = &max
+	}
+
+	return nil
+}
+
+func getTypeConstraints(raw json.RawMessage, expectedType string) (map[string]json.RawMessage, error) {
+	var constraints map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &constraints); err != nil {
+		var typeErr *json.UnmarshalTypeError
+		if !errors.As(err, &typeErr) {
+			return nil, err
+		}
+
+		var typ string
+		if err := json.Unmarshal(raw, &typ); err != nil {
+			return nil, fmt.Errorf("cannot parse type description as map or string: %w", err)
+		}
+
+		if typ != expectedType {
+			return nil, fmt.Errorf(`cannot parse type %q as expected %s`, typ, expectedType)
+		}
+
+		// simple type declaration without any constraints
+		return nil, nil
+	}
+
+	return constraints, nil
 }
