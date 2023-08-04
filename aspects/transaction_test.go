@@ -19,7 +19,9 @@
 package aspects_test
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 
 	. "gopkg.in/check.v1"
 
@@ -117,6 +119,11 @@ type failingSchema struct {
 
 func (f *failingSchema) Validate([]byte) error {
 	return f.err
+}
+
+func (f *failingSchema) Parse(json.RawMessage) error {
+	// TODO: JSONSchema will be removed; this is just to re-use the Schema interface
+	return fmt.Errorf(`not implemented`)
 }
 
 func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {

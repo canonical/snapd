@@ -102,6 +102,7 @@ type DataBag interface {
 // be committed.
 type Schema interface {
 	Validate(data []byte) error
+	Parse(raw json.RawMessage) error
 }
 
 // Bundle holds a series of related aspects.
@@ -694,4 +695,9 @@ func (s JSONSchema) Validate(jsonData []byte) error {
 	// the top-level is always an object
 	var data map[string]json.RawMessage
 	return json.Unmarshal(jsonData, &data)
+}
+
+func (s JSONSchema) Parse(json.RawMessage) error {
+	// TODO: JSONSchema will be removed; this is just to re-use the Schema interface
+	return fmt.Errorf(`not implemented`)
 }
