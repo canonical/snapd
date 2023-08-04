@@ -247,10 +247,6 @@ func (s *CustomSchema) Validate(raw json.RawMessage) error {
 	return s.validator.Validate(raw)
 }
 
-func (s *CustomSchema) userTypeValidator(typeName string) validator {
-	return s.userTypes[typeName]
-}
-
 func ParseSchema(raw []byte) (*CustomSchema, error) {
 	var level map[string]json.RawMessage
 	err := json.Unmarshal(raw, &level)
