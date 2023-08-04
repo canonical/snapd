@@ -208,6 +208,41 @@ func (v *Volume) YamlIdxToStructureIdx(yamlIdx int) (int, error) {
 	return -1, fmt.Errorf("structure with yaml index %d not found", yamlIdx)
 }
 
+// Copy makes a deep copy of the volume.
+func (v *Volume) Copy() *Volume {
+	newV := *v
+	if v.Partial != nil {
+		newV.Partial = make([]PartialProperty, len(v.Partial))
+		copy(newV.Partial, v.Partial)
+	}
+	if v.Structure != nil {
+		newV.Structure = make([]VolumeStructure, len(v.Structure))
+		copy(newV.Structure, v.Structure)
+		for i, vs := range v.Structure {
+			newVs := &newV.Structure[i]
+			if vs.Offset != nil {
+				newVs.Offset = asOffsetPtr(*vs.Offset)
+			}
+			if vs.OffsetWrite != nil {
+				offsetWr := *vs.OffsetWrite
+				newVs.OffsetWrite = &offsetWr
+			}
+			if vs.Content != nil {
+				newVs.Content = make([]VolumeContent, len(vs.Content))
+				copy(newVs.Content, vs.Content)
+				for i, c := range vs.Content {
+					if c.Offset != nil {
+						newC := &newVs.Content[i]
+						newC.Offset = asOffsetPtr(*c.Offset)
+					}
+				}
+			}
+			newVs.EnclosingVolume = &newV
+		}
+	}
+	return &newV
+}
+
 const GPTPartitionGUIDESP = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
 
 // VolumeStructure describes a single structure inside a volume. A structure can

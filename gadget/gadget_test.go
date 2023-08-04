@@ -5124,3 +5124,19 @@ func (s *gadgetYamlTestSuite) TestFindBootVolumeFail(c *C) {
 	c.Assert(err.Error(), Equals, "no volume has system-boot role")
 	c.Assert(bootVol, IsNil)
 }
+
+func (s *gadgetYamlTestSuite) TestVolumeCopy(c *C) {
+	for _, yaml := range [][]byte{
+		mockMultiVolumeUC20GadgetYaml,
+		[]byte(mockPartialGadgetYaml),
+		gadgetYamlUC20PC} {
+
+		gi, err := gadget.InfoFromGadgetYaml(yaml, nil)
+		c.Assert(err, IsNil)
+
+		for _, v := range gi.Volumes {
+			newV := v.Copy()
+			c.Assert(newV, DeepEquals, v)
+		}
+	}
+}
