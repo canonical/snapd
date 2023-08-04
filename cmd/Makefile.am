@@ -8,7 +8,8 @@ noinst_PROGRAMS =
 noinst_LIBRARIES =
 
 CHECK_CFLAGS = -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes \
-	-Wno-missing-field-initializers -Wno-unused-parameter
+	-Wno-missing-field-initializers -Wno-unused-parameter \
+	-Wmissing-field-initializers
 
 # Make all warnings errors when building for unit tests
 if WITH_UNIT_TESTS
