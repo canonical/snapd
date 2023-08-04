@@ -1,3 +1,10 @@
+# New in snapd 2.60.2:
+* Performance improvements for apparmor_parser to compensate for
+  the slower `-O expr-simplify` default used. This should bring
+  the performance back to the 2.60 level and even increase it
+  for many use-cases.
+* Bugfixes
+
 # New in snapd 2.60.1:
 * Bugfixes
 * Use "aes-cbc-essiv:sha256" in cryptsetup on arm 32bit devices
