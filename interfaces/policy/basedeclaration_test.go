@@ -171,7 +171,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"ubuntu-download-manager": true,
 		"unity7":                  true,
 		"unity8":                  true,
-		"upower-observe":          true,
 		"wayland":                 true,
 		"x11":                     true,
 	}
@@ -192,6 +191,33 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		} else {
 			c.Check(err, NotNil, comm)
 		}
+	}
+}
+
+func (s *baseDeclSuite) TestAutoConnectionImplicitSlotOnly(c *C) {
+	all := builtin.Interfaces()
+
+	// these auto-connect only with an implicit slot
+	autoconnect := map[string]bool{
+		"upower-observe": true,
+	}
+
+	for _, iface := range all {
+		if !autoconnect[iface.Name()] {
+			continue
+		}
+		comm := Commentf(iface.Name())
+
+		// check base declaration
+		cand := s.connectCand(c, iface.Name(), fmt.Sprintf(`name: snapd
+type: snapd
+version: 0
+slots:
+  %s:
+`, iface.Name()), "")
+		arity, err := cand.CheckAutoConnect()
+		c.Check(err, IsNil, comm)
+		c.Check(arity.SlotsPerPlugAny(), Equals, false)
 	}
 }
 
@@ -1057,6 +1083,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"ubuntu-download-manager":   true,
 		"unity8-calendar":           true,
 		"unity8-contacts":           true,
+		"upower-observe":            true,
 	}
 
 	for _, iface := range all {
@@ -1075,6 +1102,32 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	}
 }
 
+func (s *baseDeclSuite) TestConnectionImplicitSlotOnly(c *C) {
+	all := builtin.Interfaces()
+
+	// these allow connect only with an implicit slot
+	autoconnect := map[string]bool{
+		"upower-observe": true,
+	}
+
+	for _, iface := range all {
+		if !autoconnect[iface.Name()] {
+			continue
+		}
+		comm := Commentf(iface.Name())
+
+		// check base declaration
+		cand := s.connectCand(c, iface.Name(), fmt.Sprintf(`name: snapd
+type: snapd
+version: 0
+slots:
+  %s:
+`, iface.Name()), "")
+		err := cand.Check()
+		c.Check(err, IsNil, comm)
+	}
+}
+
 func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -1089,7 +1142,6 @@ func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 		"network-manager": true,
 		"ofono":           true,
 		"pulseaudio":      true,
-		"upower-observe":  true,
 	}
 
 	for _, onClassic := range []bool{true, false} {
