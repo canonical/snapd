@@ -10,7 +10,9 @@ import (
 
 var NotifyPath string
 
-func PromptingAvailable() bool {
+// PromptingSupportAvailable returns true if NotifyPath exists, indicating that
+// apparmor prompting messages may be received from NotifyPath.
+func PromptingSupportAvailable() bool {
 	return osutil.FileExists(NotifyPath)
 }
 
