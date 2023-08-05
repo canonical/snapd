@@ -26,9 +26,9 @@ func newStringPacker(rawStruct any) stringPacker {
 // The return value is the offset of the beginning of the string relative to
 // the start of the fixed portion of the structure, captured by baseOffset.
 //
-// Empty strings use a special encoding that requires no space and used a fixed
-// dummy offset of zero. The actual string is always nil-terminated, for
-// compatibility with C.
+// Empty strings use a special encoding that requires no space and always return
+// a fixed offset of zero to indicate that the string is empty. The actual
+// string is always nil-terminated, for compatibility with C.
 func (sp *stringPacker) PackString(s string) uint32 {
 	if s == "" {
 		return 0
