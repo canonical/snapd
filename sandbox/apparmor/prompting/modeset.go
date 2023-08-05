@@ -23,7 +23,7 @@ const modeSetMask = APPARMOR_MODESET_AUDIT | APPARMOR_MODESET_ALLOWED | APPARMOR
 
 // String returns readable representation of the mode set value.
 func (m ModeSet) String() string {
-	frags := make([]string, 0, 8)
+	frags := make([]string, 0, 9)
 	if m&APPARMOR_MODESET_AUDIT != 0 {
 		frags = append(frags, "audit")
 	}
@@ -48,8 +48,8 @@ func (m ModeSet) String() string {
 	if m&APPARMOR_MODESET_USER != 0 {
 		frags = append(frags, "user")
 	}
-	if residue := m &^ modeSetMask; residue != 0 {
-		frags = append(frags, fmt.Sprintf("%#x", uint(residue)))
+	if unaccounted := m &^ modeSetMask; unaccounted != 0 {
+		frags = append(frags, fmt.Sprintf("%#x", uint(unaccounted)))
 	}
 	if len(frags) == 0 {
 		return "none"
