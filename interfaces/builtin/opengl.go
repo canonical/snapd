@@ -218,8 +218,7 @@ func (iface *openGlInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	mount options=(bind) /var/lib/snapd/hostfs%[1]s/ -> %[2]s/,
 	remount options=(bind, ro) %[2]s/,
 	umount %[2]s/,
-  
-  `, dirs.NvidiaProfilesDir, dirs.StripRootDir(dirs.NvidiaProfilesDir))
+`, dirs.NvidiaProfilesDir, dirs.StripRootDir(dirs.NvidiaProfilesDir))
 
 	apparmor.GenWritableProfile(
 		spec.AddUpdateNSf,
