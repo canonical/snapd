@@ -504,10 +504,9 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		logger.Noticef("error writing maintenance file: %v", err)
 	}
 
-	// take a timestamp before shutting down the snap listener, and
-	// use the time we may spend on waiting for hooks against the shutdown
-	// delay.
-	ts := time.Now()
+	d.snapdListener.Close()
+	d.standbyOpinions.Stop()
+
 	if d.snapListener != nil {
 		// stop running hooks first
 		// and do it more gracefully if we are restarting
@@ -523,18 +522,11 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		hookMgr.StopHooks()
 		d.snapListener.Close()
 	}
-	timeSpent := time.Since(ts)
 
-	// When shutting down the snapd listener wait until the rebootNoticeWait
-	// period has passed before snapdListener is closed to allow polling
-	// clients to access the daemon. For testing we disable this unless SNAPD_SHUTDOWN_DELAY
-	// has been set, to avoid incurring this wait for every daemon restart which happens
-	// quite often in testing.
-	if !snapdenv.Testing() || osutil.GetenvBool("SNAPD_SHUTDOWN_DELAY") {
-		time.Sleep(rebootNoticeWait - timeSpent)
+	if needsFullShutdown {
+		// give time to polling clients to notice restart
+		time.Sleep(rebootNoticeWait)
 	}
-	d.snapdListener.Close()
-	d.standbyOpinions.Stop()
 
 	// We're using the background context here because the tomb's
 	// context will likely already have been cancelled when we are
