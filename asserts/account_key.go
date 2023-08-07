@@ -298,8 +298,7 @@ func checkAKConstraints(cs interface{}) ([]attrMatcher, error) {
 
 func accountKeyFormatAnalyze(headers map[string]interface{}, body []byte) (formatnum int, err error) {
 	formatnum = 0
-	_, ok := headers["constraints"]
-	if ok {
+	if _, ok := headers["constraints"]; ok {
 		formatnum = 1
 	}
 	return formatnum, nil

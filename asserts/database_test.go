@@ -1631,6 +1631,9 @@ func (safs *signAddFindSuite) TestCheckConstraints(c *C) {
 	mfoo, err := asserts.AssembleAndSignInTest(asserts.ModelType, headers, nil, testPrivKey1)
 	c.Assert(err, IsNil)
 
+	err = safs.db.Add(mfoo)
+	c.Check(err, IsNil)
+
 	headers = map[string]interface{}{
 		"type":         "model",
 		"authority-id": "my-brand",
@@ -1642,9 +1645,6 @@ func (safs *signAddFindSuite) TestCheckConstraints(c *C) {
 	}
 	mnotfoo, err := asserts.AssembleAndSignInTest(asserts.ModelType, headers, nil, testPrivKey1)
 	c.Assert(err, IsNil)
-
-	err = safs.db.Add(mfoo)
-	c.Check(err, IsNil)
 
 	err = safs.db.Add(mnotfoo)
 	c.Check(err, ErrorMatches, `assertion does not match signing constraints for public key ".*" from "my-brand"`)
