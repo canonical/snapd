@@ -94,6 +94,11 @@ var (
 		//   - scheme: http(s)://example.com
 		"http",
 		"https",
+		// jetbrains: the scheme allows specifying a link for Jetbrains Toolbox
+		//   for e.g. installing a plugin from a webpage or joining a remote IDE session
+        //   - scheme: jetbrains:...
+        //   - https://github.com/snapcore/snapd/pull/13070
+        "jetbrains",
 		// mailto: the scheme allows for specifying an email address
 		//   - scheme: mailto:foo@example.com
 		"mailto",
