@@ -285,7 +285,7 @@ func getGadgetDiskMapping(st *state.State) Response {
 
 	info, err := gadget.ReadInfoAndValidate(gadgetDir, mod, nil)
 	if err != nil {
-		return InternalError("cannot get all disk volume device traits: while reading gadget: %v", err)
+		return InternalError("cannot get all disk volume device traits: cannot read gadget: %v", err)
 	}
 
 	// TODO: allow passing in encrypted options info here

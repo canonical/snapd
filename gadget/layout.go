@@ -279,7 +279,7 @@ func layoutVolumePartially(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStr
 	return vol, nil
 }
 
-func setOnDiskLabelAndTypeInLaidOuts(los *LaidOutStructure, encType secboot.EncryptionType) {
+func setOnDiskLabelAndTypeInLaidOut(los *LaidOutStructure, encType secboot.EncryptionType) {
 	los.PartitionFSLabel = los.Label()
 	los.PartitionFSType = los.Filesystem()
 	if encType != secboot.EncryptionTypeNone {
@@ -335,7 +335,7 @@ func LayoutVolume(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure, o
 }
 
 func fillLaidoutStructure(los *LaidOutStructure, kernelInfo *kernel.Info, opts *LayoutOptions) (err error) {
-	setOnDiskLabelAndTypeInLaidOuts(los, opts.EncType)
+	setOnDiskLabelAndTypeInLaidOut(los, opts.EncType)
 	// Lay out raw content. This can be skipped when only partition
 	// creation is needed and is safe because each volume structure
 	// has a size so even without the structure content the layout
@@ -365,10 +365,10 @@ func fillLaidoutStructure(los *LaidOutStructure, kernelInfo *kernel.Info, opts *
 
 // LayoutVolumeStructure lays out a structure given disk, gadget and kernel
 // snaps information, and some options.
-func LayoutVolumeStructure(pair *OnDiskAndGadgetStructurePair, kernelInfo *kernel.Info, opts *LayoutOptions) (*LaidOutStructure, error) {
+func LayoutVolumeStructure(dgpair *OnDiskAndGadgetStructurePair, kernelInfo *kernel.Info, opts *LayoutOptions) (*LaidOutStructure, error) {
 	los := &LaidOutStructure{
-		OnDiskStructure: *pair.DiskStructure,
-		VolumeStructure: pair.GadgetStructure,
+		OnDiskStructure: *dgpair.DiskStructure,
+		VolumeStructure: dgpair.GadgetStructure,
 	}
 
 	if err := fillLaidoutStructure(los, kernelInfo, opts); err != nil {

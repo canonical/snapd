@@ -70,11 +70,11 @@ type CreateOptions struct {
 // OnDiskStructure, as it is meant to be used externally (i.e. by
 // muinstaller).
 func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.Volume, opts *CreateOptions) ([]*gadget.OnDiskAndGadgetStructurePair, error) {
-	onDiskStructs, err := createMissingPartitions(dl, pv, opts)
+	dgpairs, err := createMissingPartitions(dl, pv, opts)
 	if err != nil {
 		return nil, err
 	}
-	return onDiskStructs, nil
+	return dgpairs, nil
 }
 
 // createMissingPartitions creates the partitions listed in the laid out volume

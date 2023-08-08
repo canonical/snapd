@@ -1479,12 +1479,12 @@ func (p *layoutTestSuite) TestLayoutWithDiskDataFails(c *C) {
 
 func (p *layoutTestSuite) TestLayoutVolumeStructure(c *C) {
 	type test struct {
-		pair gadget.OnDiskAndGadgetStructurePair
-		err  string
+		dgpair gadget.OnDiskAndGadgetStructurePair
+		err    string
 	}
 	for _, tc := range []test{
 		{
-			pair: gadget.OnDiskAndGadgetStructurePair{
+			dgpair: gadget.OnDiskAndGadgetStructurePair{
 				DiskStructure: &gadget.OnDiskStructure{Name: "part1"},
 				GadgetStructure: &gadget.VolumeStructure{
 					Name:            "part1",
@@ -1492,7 +1492,7 @@ func (p *layoutTestSuite) TestLayoutVolumeStructure(c *C) {
 			},
 		},
 		{
-			pair: gadget.OnDiskAndGadgetStructurePair{
+			dgpair: gadget.OnDiskAndGadgetStructurePair{
 				DiskStructure: &gadget.OnDiskStructure{Name: "part1"},
 				GadgetStructure: &gadget.VolumeStructure{
 					Name: "part1",
@@ -1508,12 +1508,12 @@ func (p *layoutTestSuite) TestLayoutVolumeStructure(c *C) {
 			err: `cannot lay out structure #0 ("part1"): content "": stat : no such file or directory`,
 		},
 	} {
-		los, err := gadget.LayoutVolumeStructure(&tc.pair, nil, &gadget.LayoutOptions{})
+		los, err := gadget.LayoutVolumeStructure(&tc.dgpair, nil, &gadget.LayoutOptions{})
 		if tc.err == "" {
 			c.Check(err, IsNil)
 			c.Check(los, DeepEquals, &gadget.LaidOutStructure{
-				OnDiskStructure: *tc.pair.DiskStructure,
-				VolumeStructure: tc.pair.GadgetStructure,
+				OnDiskStructure: *tc.dgpair.DiskStructure,
+				VolumeStructure: tc.dgpair.GadgetStructure,
 			})
 		} else {
 			c.Check(err.Error(), Equals, tc.err)
