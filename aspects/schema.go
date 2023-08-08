@@ -73,6 +73,7 @@ func (s *CustomSchema) Validate(raw []byte) error {
 func (s *CustomSchema) Parse(raw json.RawMessage) (Schema, error) {
 	var typ string
 	var schemaDef map[string]json.RawMessage
+	var hasConstraints bool
 	if err := json.Unmarshal(raw, &schemaDef); err != nil {
 		var typeErr *json.UnmarshalTypeError
 		if !errors.As(err, &typeErr) {
@@ -83,6 +84,9 @@ func (s *CustomSchema) Parse(raw json.RawMessage) (Schema, error) {
 			return nil, err
 		}
 	} else {
+		// schema definition is a map, we might have constraints to process
+		hasConstraints = true
+
 		rawType, ok := schemaDef["type"]
 		if !ok {
 			typ = "map"
@@ -96,27 +100,13 @@ func (s *CustomSchema) Parse(raw json.RawMessage) (Schema, error) {
 	var schema Schema
 	switch typ {
 	case "map":
-		mapSchema := &mapSchema{
+		schema = &mapSchema{
 			baseSchema: s,
 		}
-
-		if err := mapSchema.Parse(raw); err != nil {
-			return nil, err
-		}
-		schema = mapSchema
 	case "int":
-		intSchema := &intSchema{}
-
-		if err := intSchema.Parse(raw); err != nil {
-			return nil, err
-		}
-		schema = intSchema
+		schema = &intSchema{}
 	case "string":
-		strSchema := &stringSchema{}
-		if err := strSchema.Parse(raw); err != nil {
-			return nil, err
-		}
-		schema = strSchema
+		schema = &stringSchema{}
 	case "number":
 		return nil, nil
 	case "bool":
@@ -132,6 +122,13 @@ func (s *CustomSchema) Parse(raw json.RawMessage) (Schema, error) {
 			return nil, fmt.Errorf(`cannot find referenced user-defined type %q`, typ)
 		}
 		schema = userType
+	}
+
+	// only parse the schema if it's a map definition w/ constraints
+	if hasConstraints {
+		if err := schema.Parse(raw); err != nil {
+			return nil, err
+		}
 	}
 
 	return schema, nil
@@ -164,8 +161,8 @@ func (v *stringSchema) Validate(raw []byte) error {
 }
 
 func (v *stringSchema) Parse(raw json.RawMessage) error {
-	constraints, err := getTypeConstraints(raw, "string")
-	if err != nil {
+	var constraints map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &constraints); err != nil {
 		return err
 	}
 
@@ -372,11 +369,9 @@ func (v *intSchema) Validate(raw []byte) error {
 }
 
 func (v *intSchema) Parse(raw json.RawMessage) error {
-	constraints, err := getTypeConstraints(raw, "int")
-	if err != nil {
+	var constraints map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &constraints); err != nil {
 		return err
-	} else if constraints == nil {
-		return nil
 	}
 
 	if rawChoices, ok := constraints["choices"]; ok {
@@ -410,28 +405,4 @@ func (v *intSchema) Parse(raw json.RawMessage) error {
 	}
 
 	return nil
-}
-
-func getTypeConstraints(raw json.RawMessage, expectedType string) (map[string]json.RawMessage, error) {
-	var constraints map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &constraints); err != nil {
-		var typeErr *json.UnmarshalTypeError
-		if !errors.As(err, &typeErr) {
-			return nil, err
-		}
-
-		var typ string
-		if err := json.Unmarshal(raw, &typ); err != nil {
-			return nil, fmt.Errorf("cannot parse type description as map or string: %w", err)
-		}
-
-		if typ != expectedType {
-			return nil, fmt.Errorf(`cannot parse type %q as expected %s`, typ, expectedType)
-		}
-
-		// simple type declaration without any constraints
-		return nil, nil
-	}
-
-	return constraints, nil
 }
