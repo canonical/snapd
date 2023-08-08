@@ -3,7 +3,7 @@ module github.com/snapcore/snapd/tests/lib/muinstaller
 go 1.18
 
 // TODO get this back to snapcore repo after changes are merged
-replace github.com/snapcore/snapd => github.com/alfonsosanchezbeato/snapd v0.0.0-20230725103421-6fe399d62d55
+replace github.com/snapcore/snapd => github.com/alfonsosanchezbeato/snapd v0.0.0-20230808084524-9a40cc044dcd
 
 require github.com/snapcore/snapd v0.0.0-20230705065623-befebe0d505e
 

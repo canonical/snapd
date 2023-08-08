@@ -155,7 +155,7 @@ func maybeCreatePartitionTable(bootDevice, schema string) error {
 	return nil
 }
 
-func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encType secboot.EncryptionType) (map[int]*gadget.OnDiskStructure, error) {
+func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encType secboot.EncryptionType) ([]*gadget.OnDiskAndGadgetStructurePair, error) {
 	vol := firstVol(volumes)
 	// snapd does not create partition tables so we have to do it here
 	// or gadget.OnDiskVolumeFromDevice() will fail
@@ -191,7 +191,7 @@ func runMntFor(label string) string {
 
 func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	onDiskParts map[int]*gadget.OnDiskStructure) (map[string]string, error) {
+	dgpairs []*gadget.OnDiskAndGadgetStructurePair) (map[string]string, error) {
 
 	// We are modifiying the details struct here
 	for _, gadgetVol := range details.Volumes {
@@ -202,12 +202,7 @@ func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 			default:
 				continue
 			}
-			for _, part := range onDiskParts {
-				if part.Name == gadgetVol.Structure[i].Name {
-					gadgetVol.Structure[i].Device = part.Node
-					break
-				}
-			}
+			gadgetVol.Structure[i].Device = nodeForPartLabel(dgpairs, gadgetVol.Structure[i].Name)
 		}
 	}
 
@@ -257,11 +252,22 @@ func waitChange(chgId string) error {
 	}
 }
 
+// nodeForPartLabel returns the node where a gadget structure is expected to be.
+func nodeForPartLabel(dgpairs []*gadget.OnDiskAndGadgetStructurePair, name string) string {
+	for _, pair := range dgpairs {
+		// Same partition label
+		if pair.GadgetStructure.Name == name {
+			return pair.DiskStructure.Node
+		}
+	}
+	return ""
+}
+
 // TODO laidoutStructs is used to get the devices, when encryption is
 // happening maybe we need to find the information differently.
 func postSystemsInstallFinish(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	onDiskParts map[int]*gadget.OnDiskStructure) error {
+	dgpairs []*gadget.OnDiskAndGadgetStructurePair) error {
 
 	vols := make(map[string]*gadget.Volume)
 	for volName, gadgetVol := range details.Volumes {
@@ -271,15 +277,8 @@ func postSystemsInstallFinish(cli *client.Client,
 				gadgetVol.Structure[i].Device = bootDevice
 				continue
 			}
-			for _, part := range onDiskParts {
-				// Same partition label
-				if part.Name == gadgetVol.Structure[i].Name {
-					node := part.Node
-					logger.Debugf("partition to install: %q", node)
-					gadgetVol.Structure[i].Device = node
-					break
-				}
-			}
+			gadgetVol.Structure[i].Device = nodeForPartLabel(dgpairs, gadgetVol.Structure[i].Name)
+			logger.Debugf("partition to install: %q", gadgetVol.Structure[i].Device)
 		}
 		vols[volName] = gadgetVol
 	}
@@ -520,13 +519,13 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	if shouldEncrypt {
 		encType = secboot.EncryptionTypeLUKS
 	}
-	gadgetIdxToOnDiskStruct, err := createPartitions(bootDevice, details.Volumes, encType)
+	dgpairs, err := createPartitions(bootDevice, details.Volumes, encType)
 	if err != nil {
 		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
 	var encryptedDevices = make(map[string]string)
 	if shouldEncrypt {
-		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, gadgetIdxToOnDiskStruct)
+		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, dgpairs)
 		if err != nil {
 			return fmt.Errorf("cannot setup storage encryption: %v", err)
 		}
@@ -544,7 +543,7 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	if err := unmountFilesystems(mntPts); err != nil {
 		return fmt.Errorf("cannot unmount filesystems: %v", err)
 	}
-	if err := postSystemsInstallFinish(cli, details, bootDevice, gadgetIdxToOnDiskStruct); err != nil {
+	if err := postSystemsInstallFinish(cli, details, bootDevice, dgpairs); err != nil {
 		return fmt.Errorf("cannot finalize install: %v", err)
 	}
 	// TODO: reboot here automatically (optional)
