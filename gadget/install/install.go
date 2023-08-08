@@ -246,28 +246,10 @@ func resolveBootDevice(bootDevice string, bootVol *gadget.Volume) (string, error
 // volume name where partitions have been created, the on disk
 // structures after that, the laidout volumes, and the disk sector
 // size.
-func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options,
+func createPartitions(model gadget.Model, info *gadget.Info, gadgetRoot, kernelRoot, bootDevice string, options Options,
 	perfTimings timings.Measurer) (
 	bootVolGadgetName string, created []*gadget.OnDiskAndGadgetStructurePair, bootVolSectorSize quantity.Size, err error) {
-
-	logger.Noticef("installing a new system")
-	logger.Noticef("        gadget data from: %v", gadgetRoot)
-	logger.Noticef("        encryption: %v", options.EncryptionType)
-
-	if gadgetRoot == "" {
-		return "", nil, 0, fmt.Errorf("cannot use empty gadget root directory")
-	}
-
-	if model.Grade() == asserts.ModelGradeUnset {
-		return "", nil, 0,
-			fmt.Errorf("cannot run install mode on pre-UC20 system")
-	}
-
 	// Find boot volume
-	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
-	if err != nil {
-		return "", nil, 0, err
-	}
 	bootVol, err := gadget.FindBootVolume(info.Volumes)
 	if err != nil {
 		return "", nil, 0, err
@@ -342,9 +324,25 @@ func onDiskStructsSortedIdx(vss map[int]*gadget.OnDiskStructure) []int {
 // Run creates partitions, encrypts them when expected, creates
 // filesystems, and finally writes content on them.
 func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
+	logger.Noticef("installing a new system")
+	logger.Noticef("        gadget data from: %v", gadgetRoot)
+	logger.Noticef("        encryption: %v", options.EncryptionType)
+
+	if gadgetRoot == "" {
+		return nil, fmt.Errorf("cannot use empty gadget root directory")
+	}
+	if model.Grade() == asserts.ModelGradeUnset {
+		return nil, fmt.Errorf("cannot run install mode on pre-UC20 system")
+	}
+
+	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	// Step 1: create partitions
 	bootVolGadgetName, created, bootVolSectorSize, err :=
-		createPartitions(model, gadgetRoot, kernelRoot, bootDevice, options, perfTimings)
+		createPartitions(model, info, gadgetRoot, kernelRoot, bootDevice, options, perfTimings)
 	if err != nil {
 		return nil, err
 	}
@@ -352,20 +350,12 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	// Step 2: layout content in the created partitions
 	var keyForRole map[string]keys.EncryptionKey
 	devicesForRoles := map[string]string{}
-
 	partsEncrypted := map[string]gadget.StructureEncryptionParameters{}
-
-	hasSavePartition := false
-	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	kernelInfo, err := kernel.ReadInfo(kernelRoot)
 	if err != nil {
 		return nil, err
 	}
-
+	hasSavePartition := false
 	// Note that all partitions here will have a role (see
 	// gadget.IsCreatableAtInstall() which defines the list). We do it in
 	// the order in which partitions were specified in the gadget.
