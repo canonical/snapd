@@ -218,17 +218,6 @@ func (msg *MsgNotification) Validate() error {
 	return nil
 }
 
-// MsgNotificationUpdate (TBD, document me)
-//
-//	struct apparmor_notif_update {
-//	  struct apparmor_notif base;
-//	  __u16 ttl;          /* max keep alives left */
-//	} __attribute__((packed));
-type MsgNotificationUpdate struct {
-	MsgNotification
-	TTL uint16
-}
-
 // MsgNotificationResponse describes a response to a MsgNotification.
 //
 // This structure corresponds to the kernel type struct apparmor_notif
