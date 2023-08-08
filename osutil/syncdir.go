@@ -29,17 +29,9 @@ import (
 	"sort"
 )
 
-type FileStateType string
-
-const (
-	RegularFileStateType FileStateType = "regular"
-	SymlinkFileStateType FileStateType = "symlink"
-)
-
 // FileState is an interface for conveying the desired state of a some file.
 type FileState interface {
 	State() (reader io.ReadCloser, size int64, mode os.FileMode, err error)
-	Type() FileStateType
 }
 
 type SymlinkFileState struct {
@@ -48,10 +40,6 @@ type SymlinkFileState struct {
 
 func (sym SymlinkFileState) State() (io.ReadCloser, int64, os.FileMode, error) {
 	return ioutil.NopCloser(bytes.NewReader([]byte(sym.Target))), int64(len(sym.Target)), os.ModeSymlink, nil
-}
-
-func (sym SymlinkFileState) Type() FileStateType {
-	return SymlinkFileStateType
 }
 
 // FileReference describes the desired content by referencing an existing file.
@@ -69,11 +57,7 @@ func (fref FileReference) State() (io.ReadCloser, int64, os.FileMode, error) {
 	if err != nil {
 		return nil, 0, os.FileMode(0), err
 	}
-	return file, fi.Size(), fi.Mode(), nil
-}
-
-func (fref FileReference) Type() FileStateType {
-	return RegularFileStateType
+	return file, fi.Size(), fi.Mode().Perm(), nil
 }
 
 // FileReferencePlusMode describes the desired content by referencing an existing file and providing custom mode.
@@ -88,11 +72,7 @@ func (fcref FileReferencePlusMode) State() (io.ReadCloser, int64, os.FileMode, e
 	if err != nil {
 		return nil, 0, os.FileMode(0), err
 	}
-	return reader, size, fcref.Mode, nil
-}
-
-func (fcref FileReferencePlusMode) Type() FileStateType {
-	return RegularFileStateType
+	return reader, size, fcref.Mode.Perm(), nil
 }
 
 // MemoryFileState describes the desired content by providing an in-memory copy.
@@ -103,11 +83,7 @@ type MemoryFileState struct {
 
 // State returns a reader of the in-memory contents of a file, along with other meta-data.
 func (blob *MemoryFileState) State() (io.ReadCloser, int64, os.FileMode, error) {
-	return ioutil.NopCloser(bytes.NewReader(blob.Content)), int64(len(blob.Content)), blob.Mode, nil
-}
-
-func (blob *MemoryFileState) Type() FileStateType {
-	return RegularFileStateType
+	return ioutil.NopCloser(bytes.NewReader(blob.Content)), int64(len(blob.Content)), blob.Mode.Perm(), nil
 }
 
 // ErrSameState is returned when the state of a file has not changed.
@@ -140,7 +116,6 @@ var ErrSameState = fmt.Errorf("file state has not changed")
 //
 // In all cases, the function returns the first error it has encountered.
 func EnsureDirStateGlobs(dir string, globs []string, content map[string]FileState) (changed, removed []string, err error) {
-	// TODO: add tests for symlinks
 	// Check syntax before doing anything.
 	if _, index, err := matchAny(globs, "foo"); err != nil {
 		return nil, nil, fmt.Errorf("internal error: EnsureDirState got invalid pattern %q: %s", globs[index], err)
@@ -328,11 +303,15 @@ func ensureSymlinkFileState(filePath string, state FileState) error {
 // EnsureFileState ensures that the file is in the expected state. It will not
 // attempt to remove the file if no content is provided.
 func EnsureFileState(filePath string, state FileState) error {
-	switch state.Type() {
-	case RegularFileStateType:
+	_, _, mode, err := state.State()
+	if err != nil {
+		return err
+	}
+	switch mode.Type() {
+	case 0:
 		return ensureRegularFileState(filePath, state)
-	case SymlinkFileStateType:
+	case os.ModeSymlink:
 		return ensureSymlinkFileState(filePath, state)
 	}
-	return fmt.Errorf("internal error: unknown FileStateType %q", state.Type())
+	return fmt.Errorf("internal error: EnsureFileState does not support type: %q", mode.Type())
 }
