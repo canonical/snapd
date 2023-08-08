@@ -59,3 +59,8 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
 	return nil
 }
+
+func MatchDisksToGadgetVolumes(gVols map[string]*gadget.Volume,
+	volCompatOpts *gadget.VolumeCompatibilityOptions) (map[string]map[int]*gadget.OnDiskStructure, error) {
+	return nil, fmt.Errorf("build without secboot support")
+}
