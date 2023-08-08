@@ -23,6 +23,7 @@ package wrappers
 import (
 	"bufio"
 	"os"
+	"path/filepath"
 	"regexp"
 
 	"github.com/snapcore/snapd/dirs"
@@ -103,42 +104,69 @@ func detectCompletion(base string) (string, completionMode) {
 	}
 }
 
-// AddSnapBinaries writes the wrapper binaries for the applications from the snap which aren't services.
-func AddSnapBinaries(s *snap.Info) (err error) {
-	var created []string
-	defer func() {
-		if err == nil {
-			return
+func findSnapBinaryGlobs(s *snap.Info) (dirToGlobs map[string][]string) {
+	dirToGlobs = make(map[string][]string)
+	if s == nil {
+		return dirToGlobs
+	}
+	for _, app := range s.Apps {
+		binDir := filepath.Dir(app.WrapperPath())
+		binBase := filepath.Base(app.WrapperPath())
+		dirToGlobs[binDir] = append(dirToGlobs[binDir], binBase)
+		if app.Completer == "" {
+			continue
 		}
-		for _, fn := range created {
-			os.Remove(fn)
-		}
-	}()
 
+		compDir := filepath.Dir(app.CompleterPath())
+		compBase := filepath.Base(app.CompleterPath())
+		if dirs.IsCompleteShSymlink(app.CompleterPath()) {
+			dirToGlobs[compDir] = append(dirToGlobs[compDir], compBase)
+		}
+
+		legacyCompDir := filepath.Dir(app.LegacyCompleterPath())
+		legacyCompBase := filepath.Base(app.LegacyCompleterPath())
+		if dirs.IsCompleteShSymlink(app.LegacyCompleterPath()) {
+			dirToGlobs[legacyCompDir] = append(dirToGlobs[legacyCompDir], legacyCompBase)
+		}
+	}
+	return dirToGlobs
+}
+
+func EnsureSnapBinaries(oldInfo, newInfo *snap.Info) (err error) {
+	dirToContent := make(map[string]map[string]osutil.FileState)
+	// Initialize globs with old binaries to mark for removal
+	// Removal => Present in glob set without a content entry
+	dirToGlobs := findSnapBinaryGlobs(oldInfo)
+	addEntry := func(dir, base string, state osutil.FileState) {
+		if dirToContent[dir] == nil {
+			dirToContent[dir] = make(map[string]osutil.FileState)
+		}
+		dirToGlobs[dir] = append(dirToGlobs[dir], base)
+		if state != nil {
+			dirToContent[dir][base] = state
+		}
+	}
 	if err := os.MkdirAll(dirs.SnapBinariesDir, 0755); err != nil {
 		return err
 	}
+	completeSh, completion := detectCompletion(newInfo.Base)
 
-	completeSh, completion := detectCompletion(s.Base)
-
-	for _, app := range s.Apps {
+	for _, app := range newInfo.Apps {
 		if app.IsService() {
 			continue
 		}
 
-		wrapperPath := app.WrapperPath()
-		if err := os.Remove(wrapperPath); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		if err := os.Symlink("/usr/bin/snap", wrapperPath); err != nil {
-			return err
-		}
-		created = append(created, wrapperPath)
+		binDir := filepath.Dir(app.WrapperPath())
+		binBase := filepath.Base(app.WrapperPath())
+		addEntry(binDir, binBase, &osutil.SymlinkFileState{Target: "/usr/bin/snap"})
 
 		if completion == normalCompletion {
 			legacyCompPath := app.LegacyCompleterPath()
+			legacyCompDir := filepath.Dir(legacyCompPath)
+			legacyCompBase := filepath.Base(legacyCompPath)
 			if dirs.IsCompleteShSymlink(legacyCompPath) {
-				os.Remove(legacyCompPath)
+				// Mark legacy completion for removal
+				addEntry(legacyCompDir, legacyCompBase, nil)
 			}
 		}
 
@@ -157,32 +185,33 @@ func AddSnapBinaries(s *snap.Info) (err error) {
 		if completion == legacyCompletion {
 			compPath = app.LegacyCompleterPath()
 		}
-		if err := os.Symlink(completeSh, compPath); err == nil {
-			created = append(created, compPath)
-		} else if !os.IsExist(err) {
+		if osutil.FileExists(compPath) && !dirs.IsCompleteShSymlink(compPath) {
+			// Don't remove existing completer
+			continue
+		}
+		compBase := filepath.Base(compPath)
+		addEntry(compDir, compBase, &osutil.SymlinkFileState{Target: completeSh})
+	}
+	for dir, content := range dirToContent {
+		globs := dirToGlobs[dir]
+		_, _, err := osutil.EnsureDirStateGlobs(dir, globs, content)
+		if err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
 // RemoveSnapBinaries removes the wrapper binaries for the applications from the snap which aren't services from.
 func RemoveSnapBinaries(s *snap.Info) error {
-	for _, app := range s.Apps {
-		os.Remove(app.WrapperPath())
-		if app.Completer == "" {
-			continue
-		}
-		compPath := app.CompleterPath()
-		if dirs.IsCompleteShSymlink(compPath) {
-			os.Remove(compPath)
-		}
-		legacyCompPath := app.LegacyCompleterPath()
-		if dirs.IsCompleteShSymlink(legacyCompPath) {
-			os.Remove(legacyCompPath)
+	// Initialize globs with old binaries to mark for removal
+	// Removal => Present in glob set without a content entry
+	dirToGlobs := findSnapBinaryGlobs(s)
+	for dir, globs := range dirToGlobs {
+		_, _, err := osutil.EnsureDirStateGlobs(dir, globs, nil)
+		if err != nil {
+			return err
 		}
 	}
-
 	return nil
 }
