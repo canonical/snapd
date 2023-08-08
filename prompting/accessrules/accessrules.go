@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +13,7 @@ import (
 	doublestar "github.com/bmatcuk/doublestar/v4"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
 )
 
 var ErrPathPatternMissingFromTree = errors.New("path pattern was not found in the access rule tree")
@@ -22,94 +22,32 @@ var ErrRuleIDNotFound = errors.New("access rule ID is not found")
 var ErrPathPatternConflict = errors.New("a rule with the same path pattern already exists in the tree")
 var ErrPermissionNotFound = errors.New("permission not found in the permissions list for the given rule")
 var ErrPermissionsEmpty = errors.New("all permissions have been removed from the permissions list of the given rule")
-var ErrNoPatterns = errors.New("no patterns given, cannot establish precedence")
 var ErrNoMatchingRule = errors.New("no access rules match the given path")
-var ErrInvalidPathPattern = errors.New("the given path pattern is not allowed")
-var ErrInvalidOutcome = errors.New(`invalid rule outcome; must be "allow" or "deny"`)
-var ErrInvalidLifespan = errors.New("invalid lifespan")
-var ErrInvalidDuration = errors.New("invalid duration for accompanying lifespan")
 var ErrUserNotAllowed = errors.New("the given user is not allowed to access the access rule with the given ID")
 
-type OutcomeType string
-
-const (
-	OutcomeUnset OutcomeType = ""
-	OutcomeAllow OutcomeType = "allow"
-	OutcomeDeny  OutcomeType = "deny"
-)
-
-type LifespanType string
-
-const (
-	LifespanUnset    LifespanType = ""
-	LifespanForever  LifespanType = "forever"
-	LifespanSession  LifespanType = "session"
-	LifespanSingle   LifespanType = "single"
-	LifespanTimespan LifespanType = "timespan"
-)
-
-type PermissionType string
-
-const (
-	PermissionExecute             PermissionType = "execute"
-	PermissionWrite               PermissionType = "write"
-	PermissionRead                PermissionType = "read"
-	PermissionAppend              PermissionType = "append"
-	PermissionCreate              PermissionType = "create"
-	PermissionDelete              PermissionType = "delete"
-	PermissionOpen                PermissionType = "open"
-	PermissionRename              PermissionType = "rename"
-	PermissionSetAttr             PermissionType = "set-attr"
-	PermissionGetAttr             PermissionType = "get-attr"
-	PermissionSetCred             PermissionType = "set-cred"
-	PermissionGetCred             PermissionType = "get-cred"
-	PermissionChangeMode          PermissionType = "change-mode"
-	PermissionChangeOwner         PermissionType = "change-owner"
-	PermissionChangeGroup         PermissionType = "change-group"
-	PermissionLock                PermissionType = "lock"
-	PermissionExecuteMap          PermissionType = "execute-map"
-	PermissionLink                PermissionType = "link"
-	PermissionChangeProfile       PermissionType = "change-profile"
-	PermissionChangeProfileOnExec PermissionType = "change-profile-on-exec"
-)
-
 type AccessRule struct {
-	ID          string           `json:"id"`
-	Timestamp   string           `json:"timestamp"`
-	User        uint32           `json:"user"`
-	Snap        string           `json:"snap"`
-	App         string           `json:"app"`
-	PathPattern string           `json:"path-pattern"`
-	Outcome     OutcomeType      `json:"outcome"`
-	Lifespan    LifespanType     `json:"lifespan"`
-	Expiration  string           `json:"expiration"`
-	Permissions []PermissionType `json:"permissions"`
+	ID          string                  `json:"id"`
+	Timestamp   string                  `json:"timestamp"`
+	User        uint32                  `json:"user"`
+	Snap        string                  `json:"snap"`
+	App         string                  `json:"app"`
+	PathPattern string                  `json:"path-pattern"`
+	Outcome     common.OutcomeType      `json:"outcome"`
+	Lifespan    common.LifespanType     `json:"lifespan"`
+	Expiration  string                  `json:"expiration"`
+	Permissions []common.PermissionType `json:"permissions"`
 }
 
-func (rule *AccessRule) removePermissionFromPermissionsList(permission PermissionType) error {
-	if len(rule.Permissions) == 0 {
+func (rule *AccessRule) removePermissionFromPermissionsList(permission common.PermissionType) error {
+	newList, err := common.RemovePermissionFromList(rule.Permissions, permission)
+	if err != nil {
+		return err
+	}
+	rule.Permissions = newList
+	if len(newList) == 0 {
 		return ErrPermissionsEmpty
 	}
-	for i, perm := range rule.Permissions {
-		if perm == permission {
-			rule.Permissions = append(rule.Permissions[:i], rule.Permissions[i+1:]...)
-			if len(rule.Permissions) == 0 {
-				return ErrPermissionsEmpty
-			}
-			return nil
-		}
-	}
-	return ErrPermissionNotFound
-}
-
-// Returns true if the given permissions list contains the given permission, else false.
-func PermissionsListContains(list []PermissionType, permission PermissionType) bool {
-	for _, perm := range list {
-		if perm == permission {
-			return true
-		}
-	}
-	return false
+	return nil
 }
 
 type permissionDB struct {
@@ -119,7 +57,7 @@ type permissionDB struct {
 
 type appDB struct {
 	// appDB contains a map from permission to permissionDB for a particular app
-	PerPermission map[PermissionType]*permissionDB
+	PerPermission map[common.PermissionType]*permissionDB
 }
 
 type snapDB struct {
@@ -152,7 +90,7 @@ func (ardb *AccessRuleDB) dbpath() string {
 	return filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "access-rules.json")
 }
 
-func (ardb *AccessRuleDB) permissionDBForUserSnapAppPermission(user uint32, snap string, app string, permission PermissionType) *permissionDB {
+func (ardb *AccessRuleDB) permissionDBForUserSnapAppPermission(user uint32, snap string, app string, permission common.PermissionType) *permissionDB {
 	userSnaps := ardb.PerUser[user]
 	if userSnaps == nil {
 		userSnaps = &userDB{
@@ -170,7 +108,7 @@ func (ardb *AccessRuleDB) permissionDBForUserSnapAppPermission(user uint32, snap
 	appPerms := snapApps.PerApp[app]
 	if appPerms == nil {
 		appPerms = &appDB{
-			PerPermission: make(map[PermissionType]*permissionDB),
+			PerPermission: make(map[common.PermissionType]*permissionDB),
 		}
 		snapApps.PerApp[app] = appPerms
 	}
@@ -184,7 +122,7 @@ func (ardb *AccessRuleDB) permissionDBForUserSnapAppPermission(user uint32, snap
 	return permPaths
 }
 
-func (ardb *AccessRuleDB) addRulePermissionToTree(rule *AccessRule, permission PermissionType) (error, string) {
+func (ardb *AccessRuleDB) addRulePermissionToTree(rule *AccessRule, permission common.PermissionType) (error, string) {
 	// If there is a conflicting path pattern from another rule, returns an
 	// error along with the ID of the conflicting rule.
 	permPaths := ardb.permissionDBForUserSnapAppPermission(rule.User, rule.Snap, rule.App, permission)
@@ -196,7 +134,7 @@ func (ardb *AccessRuleDB) addRulePermissionToTree(rule *AccessRule, permission P
 	return nil, ""
 }
 
-func (ardb *AccessRuleDB) removeRulePermissionFromTree(rule *AccessRule, permission PermissionType) error {
+func (ardb *AccessRuleDB) removeRulePermissionFromTree(rule *AccessRule, permission common.PermissionType) error {
 	permPaths := ardb.permissionDBForUserSnapAppPermission(rule.User, rule.Snap, rule.App, permission)
 	pathPattern := rule.PathPattern
 	id, exists := permPaths.PathRules[pathPattern]
@@ -212,11 +150,11 @@ func (ardb *AccessRuleDB) removeRulePermissionFromTree(rule *AccessRule, permiss
 	return nil
 }
 
-func (ardb *AccessRuleDB) addRuleToTree(rule *AccessRule) (error, string, PermissionType) {
+func (ardb *AccessRuleDB) addRuleToTree(rule *AccessRule) (error, string, common.PermissionType) {
 	// If there is a conflicting path pattern from another rule, returns an
 	// error along with the ID of the conflicting rule and the permission for
 	// which the conflict occurred
-	addedPermissions := make([]PermissionType, 0, len(rule.Permissions))
+	addedPermissions := make([]common.PermissionType, 0, len(rule.Permissions))
 	for _, permission := range rule.Permissions {
 		if err, conflictingID := ardb.addRulePermissionToTree(rule, permission); err != nil {
 			for _, prevPerm := range addedPermissions {
@@ -247,8 +185,8 @@ func getNewerRule(id1 string, ts1 string, id2 string, ts2 string) string {
 	// cannot be parsed, return the other id. If both cannot be parsed, return
 	// the id corresponding to the timestamp which is larger lexicographically.
 	// If there is a tie, return id1.
-	time1, err1 := time.Parse(time.RFC3339Nano, ts1)
-	time2, err2 := time.Parse(time.RFC3339Nano, ts2)
+	time1, err1 := common.TimestampToTime(ts1)
+	time2, err2 := common.TimestampToTime(ts2)
 	if err1 != nil {
 		if err2 != nil {
 			if strings.Compare(ts1, ts2) == -1 {
@@ -346,64 +284,14 @@ func (ardb *AccessRuleDB) save() error {
 	return osutil.AtomicWriteFile(target, b, 0600, 0)
 }
 
-// Returns the current time in the format expected by access rule timestamps.
-func CurrentTimestamp() string {
-	return time.Now().Format(time.RFC3339Nano)
-}
-
-var allowablePathPatternRegexp = regexp.MustCompile(`^(/|(/[^/*{}]+)*(/\*|(/\*\*)?(/\*\.[^/*{}]+)?)?)$`)
-
-// Checks that the given path pattern is valid.  Returns nil if so, otherwise
-// returns ErrInvalidPathPattern.
-func ValidatePathPattern(pattern string) error {
-	if !allowablePathPatternRegexp.MatchString(pattern) {
-		return ErrInvalidPathPattern
-	}
-	return nil
-}
-
-// Checks that the given outcome is valid.  Returns nil if so, otherwise
-// returns ErrInvalidOutcome.
-func ValidateOutcome(outcome OutcomeType) error {
-	switch outcome {
-	case OutcomeAllow, OutcomeDeny:
-		return nil
-	default:
-		return ErrInvalidOutcome
-	}
-}
-
-// ValidateLifespanParseDuration checks that the given lifespan is valid and
-// that the given duration is valid for that lifespan.  If the lifespan is
-// LifespanTimespan, then duration must be a positive integer representing the
-// number of seconds for which the rule should be valid. Otherwise, it must be
-// 0. Returns an error if any of the above are invalid, otherwise computes the
-// expiration time of the rule based on the current time and the given duration
-// and returns it.
-func ValidateLifespanParseDuration(lifespan LifespanType, duration int) (string, error) {
-	expirationString := ""
-	switch lifespan {
-	case LifespanForever, LifespanSession, LifespanSingle:
-		if duration != 0 {
-			return "", ErrInvalidDuration
-		}
-	case LifespanTimespan:
-		if duration <= 0 {
-			return "", ErrInvalidDuration
-		}
-		expirationString = time.Now().Add(time.Duration(duration) * time.Second).Format(time.RFC3339)
-	}
-	return expirationString, nil
-}
-
-func validatePatternOutcomeLifespanDuration(pathPattern string, outcome OutcomeType, lifespan LifespanType, duration int) (string, error) {
-	if err := ValidatePathPattern(pathPattern); err != nil {
+func validatePatternOutcomeLifespanDuration(pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int) (string, error) {
+	if err := common.ValidatePathPattern(pathPattern); err != nil {
 		return "", err
 	}
-	if err := ValidateOutcome(outcome); err != nil {
+	if err := common.ValidateOutcome(outcome); err != nil {
 		return "", err
 	}
-	return ValidateLifespanParseDuration(lifespan, duration)
+	return common.ValidateLifespanParseDuration(lifespan, duration)
 }
 
 // TODO: unexport (probably, avoid confusion with CreateAccessRule)
@@ -415,16 +303,16 @@ func validatePatternOutcomeLifespanDuration(pathPattern string, outcome OutcomeT
 // time, to compute the expiration time for the rule, and stores that as part
 // of the access rule which is returned.  If any of the given parameters are
 // invalid, returns a corresponding error.
-func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration int, permissions []PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
 	expiration, err := validatePatternOutcomeLifespanDuration(pathPattern, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
 	}
-	newPermissions := make([]PermissionType, len(permissions))
+	newPermissions := make([]common.PermissionType, len(permissions))
 	copy(newPermissions, permissions)
-	timestamp := CurrentTimestamp()
+	id, timestamp := common.NewIDAndTimestamp()
 	newRule := AccessRule{
-		ID:          timestamp,
+		ID:          id,
 		Timestamp:   timestamp,
 		User:        user,
 		Snap:        snap,
@@ -438,78 +326,10 @@ func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app st
 	return &newRule, nil
 }
 
-// Determines which of the path patterns in the given patterns list is the
-// most specific, and thus has the highest priority.  Assumes that all of the
-// given patterns satisfy ValidatePathPattern(), so this is not verified as
-// part of this function.
-//
-// Exact matches always have the highest priority.  Then, the pattern with the
-// most specific file extension has priority.  If no matching patterns have
-// file extensions (or if multiple share the most specific file extension),
-// then the longest pattern (excluding trailing * wildcards) is the most
-// specific.  Lastly, the priority order is: .../foo > .../foo/* > .../foo/**
-func GetHighestPrecedencePattern(patterns []string) (string, error) {
-	if len(patterns) == 0 {
-		return "", ErrNoPatterns
-	}
-	// First find rules with extensions, if any exist -- these are most specific
-	// longer file extensions are more specific than longer paths, so
-	// /foo/bar/**/*.tar.gz is more specific than /foo/bar/baz/**/*.gz
-	extensions := make(map[string][]string)
-	for _, pattern := range patterns {
-		if strings.Index(pattern, "*") == -1 {
-			// Exact match, has highest precedence
-			return pattern, nil
-		}
-		segments := strings.Split(pattern, "/")
-		finalSegment := segments[len(segments)-1]
-		extPrefix := "*."
-		if !strings.HasPrefix(finalSegment, extPrefix) {
-			continue
-		}
-		extension := finalSegment[len(extPrefix):]
-		extensions[extension] = append(extensions[extension], pattern)
-	}
-	longestExtension := ""
-	for extension, extPatterns := range extensions {
-		if len(extension) > len(longestExtension) {
-			longestExtension = extension
-			patterns = extPatterns
-		}
-	}
-	// Either patterns all have same extension, or patterns have no extension
-	// (but possibly trailing /* or /**).
-	// Prioritize longest patterns (excluding /** or /*).
-	longestCleanedLength := 0
-	longestCleanedPatterns := make([]string, 0)
-	for _, pattern := range patterns {
-		cleanedPattern := strings.ReplaceAll(pattern, "/**", "")
-		cleanedPattern = strings.ReplaceAll(cleanedPattern, "/*", "")
-		length := len(cleanedPattern)
-		if length < longestCleanedLength {
-			continue
-		}
-		if length > longestCleanedLength {
-			longestCleanedLength = length
-			longestCleanedPatterns = longestCleanedPatterns[:0] // clear but preserve allocated memory
-		}
-		longestCleanedPatterns = append(longestCleanedPatterns, pattern)
-	}
-	// longestCleanedPatterns is all the most-specific patterns that match.
-	// Now, want to prioritize .../foo over .../foo/* over .../foo/**, so take shortest of these
-	shortestPattern := longestCleanedPatterns[0]
-	for _, pattern := range longestCleanedPatterns {
-		if len(pattern) < len(shortestPattern) {
-			shortestPattern = pattern
-		}
-	}
-	return shortestPattern, nil
-}
-
 // Checks whether the given path with the given permission is allowed or
 // denied by existing access rules for the given user, snap, and app.  If no
 // access rule applies, returns ErrNoMatchingRule.
-func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, path string, permission PermissionType) (bool, error) {
+func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, path string, permission common.PermissionType) (bool, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	needToSave := false
@@ -523,7 +343,7 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 			delete(pathMap, id)
 			continue
 		}
-		if matchingRule.Lifespan == LifespanTimespan {
+		if matchingRule.Lifespan == common.LifespanTimespan {
 			expiration, err := time.Parse(time.RFC3339, matchingRule.Expiration)
 			if err != nil {
 				// Expiration is malformed, should not occur
@@ -548,7 +368,7 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 	if len(matchingPatterns) == 0 {
 		return false, ErrNoMatchingRule
 	}
-	highestPrecedencePattern, err := GetHighestPrecedencePattern(matchingPatterns)
+	highestPrecedencePattern, err := common.GetHighestPrecedencePattern(matchingPatterns)
 	if err != nil {
 		return false, err
 	}
@@ -558,7 +378,7 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 		// Database was left inconsistent, should not occur
 		return false, ErrRuleIDNotFound
 	}
-	if matchingRule.Lifespan == LifespanSingle {
+	if matchingRule.Lifespan == common.LifespanSingle {
 		ardb.removeRuleFromTree(matchingRule)
 		delete(ardb.ByID, matchingID)
 		needToSave = true
@@ -573,7 +393,7 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 		return false, nil
 	default:
 		// Outcome should have been validated, so this should not occur
-		return false, ErrInvalidOutcome
+		return false, common.ErrInvalidOutcome
 	}
 }
 
@@ -601,7 +421,7 @@ func (ardb *AccessRuleDB) RuleWithID(user uint32, id string) (*AccessRule, error
 // database.  If any of the given parameters are invalid, returns an error.
 // Otherwise, returns the newly-created access rule, and saves the database to
 // disk.
-func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration int, permissions []PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	newRule, err := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
@@ -643,7 +463,7 @@ func (ardb *AccessRuleDB) DeleteAccessRule(user uint32, id string) (*AccessRule,
 // modified rule to the database, rolls back to the previous unmodified rule,
 // leaving the database unchanged.  If the database is changed, it is saved to
 // disk.
-func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern string, outcome OutcomeType, lifespan LifespanType, duration int, permissions []PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	origRule, err := ardb.ruleWithIDInternal(user, id)
@@ -653,10 +473,10 @@ func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern s
 	if pathPattern == "" {
 		pathPattern = origRule.PathPattern
 	}
-	if outcome == OutcomeUnset {
+	if outcome == common.OutcomeUnset {
 		outcome = origRule.Outcome
 	}
-	if lifespan == LifespanUnset {
+	if lifespan == common.LifespanUnset {
 		lifespan = origRule.Lifespan
 	}
 	if permissions == nil || len(permissions) == 0 {
