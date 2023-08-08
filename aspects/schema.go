@@ -320,10 +320,10 @@ func (v *mapSchema) Parse(raw json.RawMessage) error {
 	// alternatively, it can constrain the type of its keys and/or values
 	keyDescription, ok := schemaDef["keys"]
 	if ok {
-		var err error
-		v.keyType, err = v.topSchema.Parse(keyDescription)
-		if err != nil {
-			return fmt.Errorf(`cannot parse "keys" constraint in map schema: %w`, err)
+		if keyType, err := v.parseMapKeyType(keyDescription); err != nil {
+			return err
+		} else {
+			v.keyType = keyType
 		}
 	}
 
@@ -337,6 +337,49 @@ func (v *mapSchema) Parse(raw json.RawMessage) error {
 	}
 
 	return nil
+}
+
+func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
+	var typ string
+	if err := json.Unmarshal(raw, &typ); err != nil {
+		var typeErr *json.UnmarshalTypeError
+		if !errors.As(err, &typeErr) {
+			return nil, err
+		}
+
+		var schemaDef map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &schemaDef); err != nil {
+			return nil, err
+		}
+
+		if rawType, ok := schemaDef["type"]; ok {
+			if err := json.Unmarshal(rawType, &typ); err != nil {
+				return nil, err
+			}
+
+			if typ != "string" {
+				return nil, fmt.Errorf(`cannot parse map key: must be of type string (with optional constraints)`)
+			}
+		}
+
+		schema := &stringSchema{}
+		if err := schema.Parse(raw); err != nil {
+			return nil, err
+		}
+		return schema, nil
+	}
+
+	if typ == "string" {
+		return &stringSchema{}, nil
+	} else if typ != "" && typ[0] == '$' {
+		if userType, ok := v.topSchema.userTypes[typ[1:]]; ok {
+			return userType, nil
+		}
+
+		return nil, fmt.Errorf(`cannot parse map key: unknown user-defined typed %q`, typ[1:])
+	}
+
+	return nil, fmt.Errorf(`cannot parse map key: must be of type string (with optional constraints) got %q`, typ)
 }
 
 type intSchema struct {

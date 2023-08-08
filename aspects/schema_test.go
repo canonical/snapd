@@ -108,6 +108,43 @@ func (*schemaSuite) TestParseAndValidateSchemaWithStringsHappy(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (*schemaSuite) TestMapKeysStringBased(c *C) {
+	schemaStr := []byte(`{
+  "types": {
+    "patt": {
+      "type": "string",
+      "pattern": "[fb]oo"
+    }
+  },
+  "schema": {
+    "pattern": {
+      "keys": {
+        "pattern": "[fb]oo"
+      }
+    },
+    "userType": {
+      "keys": "$patt"
+    }
+  }
+}`)
+
+	input := []byte(`{
+  "pattern": {
+    "foo": 1
+  },
+  "userType": {
+    "boo": 2
+  }
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+	c.Assert(schema, NotNil)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
 func (*schemaSuite) TestUnknownFieldInMap(c *C) {
 	schemaStr := []byte(`{
   "schema": {
@@ -117,7 +154,7 @@ func (*schemaSuite) TestUnknownFieldInMap(c *C) {
 
 	input := []byte(`{
   "foo": "bar",
-	"oof": "baz"
+  "oof": "baz"
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -132,9 +169,9 @@ func (*schemaSuite) TestFieldNoMatch(c *C) {
 	schemaStr := []byte(`{
   "schema": {
     "foo": {
-			"type": "string",
-			"pattern": "[fb]00"
-		}
+      "type": "string",
+      "pattern": "[fb]00"
+    }
   }
 }`)
 
@@ -154,18 +191,18 @@ func (*schemaSuite) TestParseAndValidateSchemaWithInts(c *C) {
 	schemaStr := []byte(`{
   "schema": {
     "foo": "int",
-		"bar": {
-			"type": "int",
-			"min": 0,
-			"max": 100,
-			"choices": [1, 2, 3]
-		}
+    "bar": {
+      "type": "int",
+      "min": 0,
+      "max": 100,
+      "choices": [1, 2, 3]
+    }
   }
 }`)
 
 	input := []byte(`{
   "foo": 5,
-	"bar": 3
+  "bar": 3
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -179,12 +216,12 @@ func (*schemaSuite) TestParseAndValidateSchemaWithInts(c *C) {
 func (*schemaSuite) TestIntegerMustMatchConstraints(c *C) {
 	schemaStr := []byte(`{
   "schema": {
-		"foo": {
-			"type": "int",
-			"min": 0,
-			"max": 100,
-			"choices": [1, 2, 3]
-		}
+    "foo": {
+      "type": "int",
+      "min": 0,
+      "max": 100,
+      "choices": [1, 2, 3]
+    }
   }
 }`)
 
