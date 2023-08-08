@@ -41,7 +41,7 @@ func (*ioctlSuite) TestIoctlHappy(c *C) {
 	c.Assert(n, Equals, buf.Len())
 }
 
-func (*ioctlSuite) TestReceiveApparmorMessage(c *C) {
+func (*ioctlSuite) TestReadNotifyMessage(c *C) {
 	fd := uintptr(123)
 	req := notify.APPARMOR_NOTIF_RECV
 	restore := notify.MockSyscall(
@@ -52,7 +52,7 @@ func (*ioctlSuite) TestReceiveApparmorMessage(c *C) {
 			return 0, 0, 0
 		})
 	defer restore()
-	buf, err := notify.ReceiveApparmorMessage(fd)
+	buf, err := notify.ReadNotifyMessage(fd)
 	c.Assert(err, IsNil)
 	preparedBuf := notify.NewIoctlRequestBuffer()
 	buf = buf[:preparedBuf.Len()]
