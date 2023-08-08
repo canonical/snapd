@@ -183,6 +183,11 @@ type MsgNotification struct {
 func (msg *MsgNotification) UnmarshalBinary(data []byte) error {
 	const prefix = "cannot unmarshal apparmor notification message"
 
+	// Unpack the base structure.
+	if err := msg.MsgHeader.UnmarshalBinary(data); err != nil {
+		return err
+	}
+
 	// Unpack fixed-size elements.
 	buf := bytes.NewBuffer(data)
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
