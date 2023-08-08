@@ -1,4 +1,4 @@
-package prompting
+package notify
 
 import (
 	"bytes"
@@ -386,7 +386,7 @@ type MsgNotificationFile struct {
 	OUID uint32
 	// Name of the file being accessed.
 	// XXX: is this path valid from the point of view of the accessing process
-	// or the prompting process? The name is insufficient to correctly identify
+	// or the notify process? The name is insufficient to correctly identify
 	// the actual object being accessed in some cases.
 	Name string
 }
