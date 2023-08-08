@@ -9,8 +9,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/accessrules"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
-	"github.com/snapcore/snapd/prompting/accessrules"
 )
 
 func Test(t *testing.T) { TestingT(t) }
