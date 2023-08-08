@@ -101,7 +101,7 @@ func (s *CustomSchema) Parse(raw json.RawMessage) (Schema, error) {
 	switch typ {
 	case "map":
 		schema = &mapSchema{
-			baseSchema: s,
+			topSchema: s,
 		}
 	case "int":
 		schema = &intSchema{}
@@ -166,18 +166,6 @@ func (v *stringSchema) Parse(raw json.RawMessage) error {
 		return err
 	}
 
-	if rawPattern, ok := constraints["pattern"]; ok {
-		var patt string
-		err := json.Unmarshal(rawPattern, &patt)
-		if err != nil {
-			return err
-		}
-
-		if v.pattern, err = regexp.Compile(patt); err != nil {
-			return err
-		}
-	}
-
 	if rawChoices, ok := constraints["choices"]; ok {
 		var choices []string
 		err := json.Unmarshal(rawChoices, &choices)
@@ -192,11 +180,28 @@ func (v *stringSchema) Parse(raw json.RawMessage) error {
 		v.choices = choices
 	}
 
+	if rawPattern, ok := constraints["pattern"]; ok {
+		if v.choices != nil {
+			return fmt.Errorf(`cannot have "choices" and "pattern" constraints`)
+		}
+
+		var patt string
+		err := json.Unmarshal(rawPattern, &patt)
+		if err != nil {
+			return err
+		}
+
+		if v.pattern, err = regexp.Compile(patt); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 type mapSchema struct {
-	baseSchema *CustomSchema
+	// topSchema is the schema for the top-level schema which contains the user types.
+	topSchema *CustomSchema
 
 	// entries map keys that can the map can contain to their expected types.
 	// Alternatively, the schema can instead key and/or value types.
@@ -249,6 +254,9 @@ func (v *mapSchema) Validate(raw []byte) error {
 				return fmt.Errorf(`unexpected field %q in map`, key)
 			}
 		}
+
+		// all required types are present and validated
+		return nil
 	}
 
 	if v.keyType != nil {
@@ -298,7 +306,7 @@ func (v *mapSchema) Parse(raw json.RawMessage) error {
 
 		v.entryTypes = make(map[string]Schema, len(nextLevel))
 		for key, value := range nextLevel {
-			validator, err := v.baseSchema.Parse(value)
+			validator, err := v.topSchema.Parse(value)
 			if err != nil {
 				return fmt.Errorf(`cannot parse constraint for key %q: %w`, key, err)
 			}
@@ -313,7 +321,7 @@ func (v *mapSchema) Parse(raw json.RawMessage) error {
 	keyDescription, ok := schemaDef["keys"]
 	if ok {
 		var err error
-		v.keyType, err = v.baseSchema.Parse(keyDescription)
+		v.keyType, err = v.topSchema.Parse(keyDescription)
 		if err != nil {
 			return fmt.Errorf(`cannot parse "keys" constraint in map schema: %w`, err)
 		}
@@ -322,7 +330,7 @@ func (v *mapSchema) Parse(raw json.RawMessage) error {
 	valuesDescriptor, ok := schemaDef["values"]
 	if ok {
 		var err error
-		v.valueType, err = v.baseSchema.Parse(valuesDescriptor)
+		v.valueType, err = v.topSchema.Parse(valuesDescriptor)
 		if err != nil {
 			return fmt.Errorf(`cannot parse "values" constraint in map schema: %w`, err)
 		}
@@ -343,14 +351,6 @@ func (v *intSchema) Validate(raw []byte) error {
 		return err
 	}
 
-	if v.min != nil && num < *v.min {
-		return fmt.Errorf(`integer %d is less than allowed minimum %d`, num, *v.min)
-	}
-
-	if v.max != nil && num > *v.max {
-		return fmt.Errorf(`integer %d is greater than allowed maximum %d`, num, *v.max)
-	}
-
 	if len(v.choices) != 0 {
 		var found bool
 		for _, choice := range v.choices {
@@ -363,6 +363,14 @@ func (v *intSchema) Validate(raw []byte) error {
 		if !found {
 			return fmt.Errorf(`integer %d is not one of the allowed choices`, num)
 		}
+	}
+
+	if v.min != nil && num < *v.min {
+		return fmt.Errorf(`integer %d is less than allowed minimum %d`, num, *v.min)
+	}
+
+	if v.max != nil && num > *v.max {
+		return fmt.Errorf(`integer %d is greater than allowed maximum %d`, num, *v.max)
 	}
 
 	return nil
@@ -389,6 +397,10 @@ func (v *intSchema) Parse(raw json.RawMessage) error {
 	}
 
 	if minRaw, ok := constraints["min"]; ok {
+		if v.choices != nil {
+			return fmt.Errorf(`cannot have "choices" and "min" constraints`)
+		}
+
 		var min int
 		if err := json.Unmarshal(minRaw, &min); err != nil {
 			return err
@@ -397,6 +409,10 @@ func (v *intSchema) Parse(raw json.RawMessage) error {
 	}
 
 	if maxRaw, ok := constraints["max"]; ok {
+		if v.choices != nil {
+			return fmt.Errorf(`cannot have "choices" and "max" constraints`)
+		}
+
 		var max int
 		if err := json.Unmarshal(maxRaw, &max); err != nil {
 			return err
