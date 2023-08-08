@@ -1,10 +1,10 @@
-package prompting_test
+package notify_test
 
 import (
 	"encoding/binary"
 
 	"github.com/snapcore/snapd/arch"
-	"github.com/snapcore/snapd/sandbox/apparmor/prompting"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 
 	. "gopkg.in/check.v1"
 )
@@ -19,7 +19,7 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 	}
 	for _, t := range []struct {
 		bytes []byte
-		msg   prompting.MsgNotificationFilter
+		msg   notify.MsgNotificationFilter
 	}{
 		{
 			bytes: []byte{
@@ -29,12 +29,12 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 				0x0, 0x0, 0x0, 0x0, // Namespace
 				0x0, 0x0, 0x0, 0x0, // Filter
 			},
-			msg: prompting.MsgNotificationFilter{
-				MsgHeader: prompting.MsgHeader{
+			msg: notify.MsgNotificationFilter{
+				MsgHeader: notify.MsgHeader{
 					Length:  0x10,
 					Version: 0x02,
 				},
-				ModeSet: prompting.APPARMOR_MODESET_USER,
+				ModeSet: notify.APPARMOR_MODESET_USER,
 			},
 		},
 		{
@@ -47,12 +47,12 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 				'f', 'o', 'o', 0x0, // Packed namespace string.
 				'b', 'a', 'r', 0x0, // Packed namespace string.
 			},
-			msg: prompting.MsgNotificationFilter{
-				MsgHeader: prompting.MsgHeader{
+			msg: notify.MsgNotificationFilter{
+				MsgHeader: notify.MsgHeader{
 					Length:  0x18,
 					Version: 0x02,
 				},
-				ModeSet:   prompting.APPARMOR_MODESET_USER,
+				ModeSet:   notify.APPARMOR_MODESET_USER,
 				NameSpace: "foo",
 				Filter:    "bar",
 			},
@@ -62,7 +62,7 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(bytes, DeepEquals, t.bytes)
 
-		var msg prompting.MsgNotificationFilter
+		var msg notify.MsgNotificationFilter
 		err = msg.UnmarshalBinary(t.bytes)
 		c.Assert(err, IsNil)
 		c.Assert(msg, DeepEquals, t.msg)
@@ -147,16 +147,16 @@ func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
 			errMsg: `cannot unmarshal apparmor notification filter message: cannot unpack namespace: unterminated string at address 16`,
 		},
 	} {
-		var msg prompting.MsgNotificationFilter
+		var msg notify.MsgNotificationFilter
 		err := msg.UnmarshalBinary(t.bytes)
 		c.Assert(err, ErrorMatches, t.errMsg, Commentf("%s", t.comment))
 	}
 }
 
 func (*messageSuite) TestMsgNotificationFilterValidate(c *C) {
-	msg := prompting.MsgNotificationFilter{}
+	msg := notify.MsgNotificationFilter{}
 	c.Check(msg.Validate(), IsNil)
-	msg = prompting.MsgNotificationFilter{ModeSet: 10000}
+	msg = notify.MsgNotificationFilter{ModeSet: 10000}
 	c.Check(msg.Validate(), ErrorMatches, "unsupported modeset: 10000")
 }
 
@@ -164,8 +164,8 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 	if arch.Endian() == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
-	msg := prompting.MsgNotification{
-		NotificationType: prompting.APPARMOR_NOTIF_RESP,
+	msg := notify.MsgNotification{
+		NotificationType: notify.APPARMOR_NOTIF_RESP,
 		Signalled:        1,
 		Flags:            0,
 		ID:               0x1234,
@@ -193,7 +193,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 	bytes := []byte{
 		0x4c, 0x0, // Length == 76 bytes
 		0x2, 0x0, // Protocol 2
-		0x4, 0x0, // Notification type == prompting.APPARMOR_NOTIF_OP
+		0x4, 0x0, // Notification type == notify.APPARMOR_NOTIF_OP
 		0x0,                                    // Signalled
 		0x0,                                    // Reserved
 		0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // ID (request #2, just a number)
@@ -212,17 +212,17 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 	}
 	c.Assert(bytes, HasLen, 76)
 
-	var msg prompting.MsgNotificationFile
+	var msg notify.MsgNotificationFile
 	err := msg.UnmarshalBinary(bytes)
 	c.Assert(err, IsNil)
-	c.Check(msg, DeepEquals, prompting.MsgNotificationFile{
-		MsgNotificationOp: prompting.MsgNotificationOp{
-			MsgNotification: prompting.MsgNotification{
-				MsgHeader: prompting.MsgHeader{
+	c.Check(msg, DeepEquals, notify.MsgNotificationFile{
+		MsgNotificationOp: notify.MsgNotificationOp{
+			MsgNotification: notify.MsgNotification{
+				MsgHeader: notify.MsgHeader{
 					Length:  76,
 					Version: 2,
 				},
-				NotificationType: prompting.APPARMOR_NOTIF_OP,
+				NotificationType: notify.APPARMOR_NOTIF_OP,
 				ID:               2,
 				Error:            -13,
 			},
@@ -230,7 +230,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 			Deny:  4,
 			Pid:   0x819,
 			Label: "test-prompt",
-			Class: prompting.AA_CLASS_FILE,
+			Class: notify.AA_CLASS_FILE,
 		},
 		Name: "/root/.ssh/",
 	})
@@ -240,8 +240,8 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 	if arch.Endian() == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
-	msg := prompting.MsgNotificationResponse{
-		MsgNotification: prompting.MsgNotification{
+	msg := notify.MsgNotificationResponse{
+		MsgNotification: notify.MsgNotification{
 			NotificationType: 0x11,
 			Signalled:        0x22,
 			Flags:            0x33,
@@ -269,25 +269,25 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 }
 
 func (*messageSuite) TestDecodeFilePermissions(c *C) {
-	msg := prompting.MsgNotificationFile{
-		MsgNotificationOp: prompting.MsgNotificationOp{
+	msg := notify.MsgNotificationFile{
+		MsgNotificationOp: notify.MsgNotificationOp{
 			Allow: 5,
 			Deny:  3,
-			Class: prompting.AA_CLASS_FILE,
+			Class: notify.AA_CLASS_FILE,
 		},
 	}
 	allow, deny, err := msg.DecodeFilePermissions()
 	c.Assert(err, IsNil)
-	c.Check(allow, Equals, prompting.AA_MAY_EXEC|prompting.AA_MAY_READ)
-	c.Check(deny, Equals, prompting.AA_MAY_EXEC|prompting.AA_MAY_WRITE)
+	c.Check(allow, Equals, notify.AA_MAY_EXEC|notify.AA_MAY_READ)
+	c.Check(deny, Equals, notify.AA_MAY_EXEC|notify.AA_MAY_WRITE)
 }
 
 func (*messageSuite) TestDecodeFilePermissionsWrongClass(c *C) {
-	msg := prompting.MsgNotificationFile{
-		MsgNotificationOp: prompting.MsgNotificationOp{
+	msg := notify.MsgNotificationFile{
+		MsgNotificationOp: notify.MsgNotificationOp{
 			Allow: 5,
 			Deny:  3,
-			Class: prompting.AA_CLASS_DBUS,
+			Class: notify.AA_CLASS_DBUS,
 		},
 	}
 	_, _, err := msg.DecodeFilePermissions()

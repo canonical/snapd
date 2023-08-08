@@ -1,5 +1,5 @@
-// Package prompting implements high-level prompting interface to a subset of AppArmor features
-package prompting
+// Package notify implements high-level notify interface to a subset of AppArmor features
+package notify
 
 import (
 	"path/filepath"
