@@ -96,10 +96,10 @@ func NotifyIoctl(fd uintptr, req IoctlRequest, buf *IoctlRequestBuffer) (int, er
 	return size, err
 }
 
-// ReceiveApparmorMessage uses ioctl(2) to receive a message from apparmor.
+// ReadNotifyMessage uses ioctl(2) to receive a message from apparmor.
 // The ioctl(2) syscall is performed on the given file descriptor.
 // Returns a buffer containing the received message.
-func ReceiveApparmorMessage(fd uintptr) ([]byte, error) {
+func ReadNotifyMessage(fd uintptr) ([]byte, error) {
 	buf := NewIoctlRequestBuffer()
 	_, err := NotifyIoctl(fd, APPARMOR_NOTIF_RECV, buf)
 	if err != nil {
