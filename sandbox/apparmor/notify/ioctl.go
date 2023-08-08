@@ -25,12 +25,12 @@ type hexBuf []byte
 func (hb hexBuf) String() string {
 	var buf bytes.Buffer
 	for i, b := range hb {
+		if i%16 == 0 && i > 0 {
+			fmt.Fprintf(&buf, "\n")
+		}
 		fmt.Fprintf(&buf, "%#02x", b)
 		if i != len(hb)-1 {
 			fmt.Fprintf(&buf, ", ")
-		}
-		if i > 0 && (i+1)%16 == 0 {
-			fmt.Fprintf(&buf, "\n")
 		}
 	}
 	return buf.String()
@@ -71,6 +71,9 @@ var dumpIoctl bool = osutil.GetenvBool("SNAPD_DEBUG_DUMP_IOCTL")
 // NotifyIoctl performs a ioctl(2) on the given file descriptor.
 // Sets the length of buf.Bytes() to be equal to the return value of the
 // syscall, indicating how many bytes were written to the buffer.
+// If the ioctl syscall returns an error, the buffer contents are those filled
+// by the syscall, but the size of the buffer is unchanged, and NotifySyscall
+// returns the size and error returned by the syscall.
 func NotifyIoctl(fd uintptr, req IoctlRequest, buf *IoctlRequestBuffer) (int, error) {
 	var err error
 	if dumpIoctl {
@@ -79,19 +82,19 @@ func NotifyIoctl(fd uintptr, req IoctlRequest, buf *IoctlRequestBuffer) (int, er
 	}
 	ret, _, errno := doSyscall(unix.SYS_IOCTL, fd, uintptr(req), buf.Pointer())
 	size := int(ret)
+	if dumpIoctl {
+		log.Printf("<<< ioctl %v returns %d, errno: %v\n", req, size, errno)
+		if size != -1 && size < buf.Len() {
+			log.Printf("%v\n", hexBuf(buf.Bytes()[:size]))
+		}
+	}
+	if errno != 0 {
+		return size, fmt.Errorf("cannot perform IOCTL request %v: %v", req, unix.Errno(errno))
+	}
 	if size >= 0 && size <= buf.Len() {
 		buf.bytes = buf.bytes[:size]
 	} else {
 		err = ErrIoctlReturnInvalid
-	}
-	if dumpIoctl {
-		log.Printf("<<< ioctl %v returns %d, errno: %v\n", req, size, errno)
-		if size != -1 && size < buf.Len() {
-			log.Printf("%v\n", hexBuf(buf.Bytes()))
-		}
-	}
-	if errno != 0 {
-		return 0, fmt.Errorf("cannot perform IOCTL request %v: %v", req, unix.Errno(errno))
 	}
 	return size, err
 }

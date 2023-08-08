@@ -1,6 +1,8 @@
 package notify_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
@@ -72,6 +74,22 @@ func (*ioctlSuite) TestIoctlReturnValueSizeMismatch(c *C) {
 	n, err := notify.NotifyIoctl(fd, req, buf)
 	c.Assert(err, Equals, notify.ErrIoctlReturnInvalid)
 	c.Assert(n, Equals, buf.Len()*2)
+}
+
+func (*ioctlSuite) TestIoctlReturnError(c *C) {
+	fd := uintptr(123)
+	req := notify.IoctlRequest(456)
+	buf := notify.NewIoctlRequestBuffer()
+	restore := notify.MockSyscall(
+		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
+			// return size of -1
+			var zero uintptr = 0
+			return ^zero, 0, unix.EBADF
+		})
+	defer restore()
+	n, err := notify.NotifyIoctl(fd, req, buf)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot perform IOCTL request .*"))
+	c.Assert(n, Equals, -1)
 }
 
 func (*ioctlSuite) TestIoctlString(c *C) {
