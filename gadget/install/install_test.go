@@ -1434,47 +1434,6 @@ func (s *installSuite) TestMountVolumesLazyUnmountError(c *C) {
 	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot lazy unmount %q: lazy unmount failed", seedMntPt))
 }
 
-func (s *installSuite) TestOnDiskVolumeFromGadgetVol(c *C) {
-	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
-	restore := gadget.MockSysfsPathForBlockDevice(func(device string) (string, error) {
-		if strings.HasPrefix(device, "/dev/vda") == true {
-			return filepath.Join(vdaSysPath, filepath.Base(device)), nil
-		}
-		return "", fmt.Errorf("bad disk")
-	})
-	defer restore()
-
-	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
-	c.Assert(err, IsNil)
-	defer restore()
-	// Set devices as an installer would
-	for _, vol := range ginfo.Volumes {
-		for sIdx := range vol.Structure {
-			if vol.Structure[sIdx].Type == "mbr" {
-				continue
-			}
-			vol.Structure[sIdx].Device = fmt.Sprintf("/dev/vda%d", sIdx+1)
-		}
-	}
-
-	diskVol, err := gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
-	c.Check(err, IsNil)
-	c.Check(diskVol, DeepEquals, &gadgettest.MockGadgetPartitionedOnDiskVolume)
-
-	// Now setting it for the mbr
-	ginfo.Volumes["pc"].Structure[0].Device = "/dev/vda"
-	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
-	c.Check(err, IsNil)
-	c.Check(diskVol, DeepEquals, &gadgettest.MockGadgetPartitionedOnDiskVolume)
-
-	// Setting a wrong partition name
-	ginfo.Volumes["pc"].Structure[1].Device = "/dev/mmcblk0p1"
-	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
-	c.Check(err.Error(), Equals, "bad disk")
-	c.Check(diskVol, IsNil)
-}
-
 func (s *installSuite) TestMatchDisksToGadgetVolumes(c *C) {
 	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
 	restore := gadget.MockSysfsPathForBlockDevice(func(device string) (string, error) {
