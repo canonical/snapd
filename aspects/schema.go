@@ -29,14 +29,14 @@ import (
 )
 
 func ParseSchema(raw []byte) (*CustomSchema, error) {
-	var level map[string]json.RawMessage
-	err := json.Unmarshal(raw, &level)
+	var schemaDef map[string]json.RawMessage
+	err := json.Unmarshal(raw, &schemaDef)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse top level schema: top level must be a map")
 	}
 
 	schema := &CustomSchema{}
-	if val, ok := level["types"]; ok {
+	if val, ok := schemaDef["types"]; ok {
 		var userTypes map[string]json.RawMessage
 		if err := json.Unmarshal(val, &userTypes); err != nil {
 			return nil, fmt.Errorf(`cannot parse user-defined types at top level (must be a map): %w`, err)
@@ -72,8 +72,8 @@ func (s *CustomSchema) Validate(raw []byte) error {
 
 func (s *CustomSchema) Parse(raw json.RawMessage) (Schema, error) {
 	var typ string
-	var level map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &level); err != nil {
+	var schemaDef map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &schemaDef); err != nil {
 		var typeErr *json.UnmarshalTypeError
 		if !errors.As(err, &typeErr) {
 			return nil, err
@@ -83,7 +83,7 @@ func (s *CustomSchema) Parse(raw json.RawMessage) (Schema, error) {
 			return nil, err
 		}
 	} else {
-		rawType, ok := level["type"]
+		rawType, ok := schemaDef["type"]
 		if !ok {
 			typ = "map"
 		} else {
@@ -217,8 +217,8 @@ type mapSchema struct {
 }
 
 func (v *mapSchema) Validate(raw []byte) error {
-	var level map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &level); err != nil {
+	var schemaDef map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &schemaDef); err != nil {
 		return err
 	}
 
@@ -226,7 +226,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 	for _, required := range v.requiredCombs {
 		missing = false
 		for _, key := range required {
-			if _, ok := level[key]; !ok {
+			if _, ok := schemaDef[key]; !ok {
 				missing = true
 				break
 			}
@@ -243,7 +243,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 	}
 
 	if v.entryTypes != nil {
-		for key, val := range level {
+		for key, val := range schemaDef {
 			if validator, ok := v.entryTypes[key]; ok {
 				if err := validator.Validate(val); err != nil {
 					return err
@@ -255,7 +255,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 	}
 
 	if v.keyType != nil {
-		for k := range level {
+		for k := range schemaDef {
 			rawKey, err := json.Marshal(k)
 			if err != nil {
 				return err
@@ -269,7 +269,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 	}
 
 	if v.valueType != nil {
-		for _, val := range level {
+		for _, val := range schemaDef {
 			if err := v.valueType.Validate(val); err != nil {
 				return err
 			}
@@ -280,12 +280,12 @@ func (v *mapSchema) Validate(raw []byte) error {
 }
 
 func (v *mapSchema) Parse(raw json.RawMessage) error {
-	var level map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &level); err != nil {
+	var schemaDef map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &schemaDef); err != nil {
 		return err
 	}
 
-	requiredRaw, ok := level["required"]
+	requiredRaw, ok := schemaDef["required"]
 	if ok {
 		if err := json.Unmarshal(requiredRaw, &v.requiredCombs); err != nil {
 			return fmt.Errorf(`cannot unmarshal map's "required" field: %v`, err)
@@ -293,7 +293,7 @@ func (v *mapSchema) Parse(raw json.RawMessage) error {
 	}
 
 	// a map can have a "schema" constrain with specific values
-	if schema, ok := level["schema"]; ok {
+	if schema, ok := schemaDef["schema"]; ok {
 		var nextLevel map[string]json.RawMessage
 		if err := json.Unmarshal(schema, &nextLevel); err != nil {
 			return fmt.Errorf(`cannot unmarshal map's "schema" field: %v`, err)
@@ -313,7 +313,7 @@ func (v *mapSchema) Parse(raw json.RawMessage) error {
 	}
 
 	// alternatively, it can constrain the type of its keys and/or values
-	keyDescription, ok := level["keys"]
+	keyDescription, ok := schemaDef["keys"]
 	if ok {
 		var err error
 		v.keyType, err = v.baseSchema.Parse(keyDescription)
@@ -322,7 +322,7 @@ func (v *mapSchema) Parse(raw json.RawMessage) error {
 		}
 	}
 
-	valuesDescriptor, ok := level["values"]
+	valuesDescriptor, ok := schemaDef["values"]
 	if ok {
 		var err error
 		v.valueType, err = v.baseSchema.Parse(valuesDescriptor)
