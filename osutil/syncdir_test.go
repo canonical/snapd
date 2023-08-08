@@ -241,3 +241,69 @@ func (s *EnsureDirStateSuite) TestRemovesAllManagedFilesOnError(c *C) {
 	_, err = os.Stat(clash)
 	c.Assert(os.IsNotExist(err), Equals, true)
 }
+
+func (s *EnsureDirStateSuite) TestRemovesSymlink(c *C) {
+	original := filepath.Join(s.dir, "original.snap")
+	err := ioutil.WriteFile(original, []byte("data"), 0600)
+	c.Assert(err, IsNil)
+
+	symlink := filepath.Join(s.dir, "symlink.snap")
+	err = os.Symlink(original, symlink)
+	c.Assert(err, IsNil)
+
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
+		"original.snap": &osutil.FileReference{Path: original},
+	})
+	c.Assert(err, IsNil)
+	c.Check(len(changed), Equals, 0)
+	c.Check(len(removed), Equals, 1)
+	c.Check(removed[0], Equals, "symlink.snap")
+	c.Check(symlink, testutil.FileAbsent)
+	c.Check(original, testutil.FileEquals, "data")
+}
+
+func (s *EnsureDirStateSuite) TestCreatesMissingSymlink(c *C) {
+	original := filepath.Join(s.dir, "original.snap")
+	err := ioutil.WriteFile(original, []byte("data"), 0600)
+	c.Assert(err, IsNil)
+
+	missingSymlink := filepath.Join(s.dir, "missing-symlink.snap")
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
+		"original.snap":        &osutil.FileReference{Path: original},
+		"missing-symlink.snap": &osutil.SymlinkFileState{Target: original},
+	})
+	c.Assert(err, IsNil)
+	// Created file is reported
+	c.Assert(changed, DeepEquals, []string{"missing-symlink.snap"})
+	c.Assert(removed, HasLen, 0)
+	// The symlinks points to original
+	c.Assert(missingSymlink, testutil.FileEquals, "data")
+	c.Assert(osutil.IsSymlink(missingSymlink), Equals, true)
+	link, err := os.Readlink(missingSymlink)
+	c.Assert(err, IsNil)
+	c.Assert(link, Equals, original)
+}
+
+func (s *EnsureDirStateSuite) TestReplaceFileWithSymlink(c *C) {
+	original := filepath.Join(s.dir, "original.snap")
+	err := ioutil.WriteFile(original, []byte("data"), 0600)
+	c.Assert(err, IsNil)
+
+	missingSymlink := filepath.Join(s.dir, "missing-symlink.snap")
+	err = ioutil.WriteFile(missingSymlink, []byte("old-data"), 0600)
+	c.Assert(err, IsNil)
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
+		"original.snap":        &osutil.FileReference{Path: original},
+		"missing-symlink.snap": &osutil.SymlinkFileState{Target: original},
+	})
+	c.Assert(err, IsNil)
+	// Changed file is reported
+	c.Assert(changed, DeepEquals, []string{"missing-symlink.snap"})
+	c.Assert(removed, HasLen, 0)
+	// The symlinks points to original
+	c.Assert(missingSymlink, testutil.FileEquals, "data")
+	c.Assert(osutil.IsSymlink(missingSymlink), Equals, true)
+	link, err := os.Readlink(missingSymlink)
+	c.Assert(err, IsNil)
+	c.Assert(link, Equals, original)
+}
