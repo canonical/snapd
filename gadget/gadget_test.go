@@ -5125,11 +5125,32 @@ func (s *gadgetYamlTestSuite) TestFindBootVolumeFail(c *C) {
 	c.Assert(bootVol, IsNil)
 }
 
+var yamlContentWithOffset = []byte(`
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        content:
+          - image: pc-core.img
+            offset: 1M
+`)
+
 func (s *gadgetYamlTestSuite) TestVolumeCopy(c *C) {
 	for _, yaml := range [][]byte{
 		mockMultiVolumeUC20GadgetYaml,
 		[]byte(mockPartialGadgetYaml),
-		gadgetYamlUC20PC} {
+		gadgetYamlUC20PC,
+		yamlContentWithOffset} {
 
 		gi, err := gadget.InfoFromGadgetYaml(yaml, nil)
 		c.Assert(err, IsNil)
