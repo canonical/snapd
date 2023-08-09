@@ -56,11 +56,11 @@ func expandMacro(r rune, buf *bytes.Buffer, de *DesktopEntry, uris []string) ([]
 	case 'U':
 		first := true
 		for _, u := range uris {
-			buf.WriteString(shellQuote(u))
-			if first {
+			if !first {
 				buf.WriteRune(' ')
-				first = false
 			}
+			first = false
+			buf.WriteString(shellQuote(u))
 		}
 		uris = nil
 	case 'f':
@@ -79,11 +79,11 @@ func expandMacro(r rune, buf *bytes.Buffer, de *DesktopEntry, uris []string) ([]
 			if err != nil {
 				return nil, err
 			}
-			buf.WriteString(shellQuote(f))
-			if first {
+			if !first {
 				buf.WriteRune(' ')
-				first = false
 			}
+			first = false
+			buf.WriteString(shellQuote(f))
 		}
 		uris = nil
 	case 'i':

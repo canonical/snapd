@@ -52,21 +52,33 @@ func (s *desktopentrySuite) TestExpandExecHelper(c *C) {
 		uris: []string{"http://example.org"},
 		err:  `"http://example.org" is not a file URI`,
 	}, {
-		in:   "foo %f",
-		uris: []string{"file:///test1", "file:///test2"},
-		out:  []string{"foo", "/test1"},
+		in:  "foo %f",
+		out: []string{"foo"},
 	}, {
-		in:   "foo %F",
-		uris: []string{"file:///test1", "file:///test2"},
-		out:  []string{"foo", "/test1", "/test2"},
+		in:  "foo %F",
+		out: []string{"foo"},
 	}, {
-		in:   "foo %u",
-		uris: []string{"file:///test1", "file:///test2"},
-		out:  []string{"foo", "file:///test1"},
+		in:  "foo %u",
+		out: []string{"foo"},
 	}, {
-		in:   "foo %U",
+		in:  "foo %U",
+		out: []string{"foo"},
+	}, {
+		in:   "foo %f bar",
 		uris: []string{"file:///test1", "file:///test2"},
-		out:  []string{"foo", "file:///test1", "file:///test2"},
+		out:  []string{"foo", "/test1", "bar"},
+	}, {
+		in:   "foo %F bar",
+		uris: []string{"file:///test1", "file:///test2", "file:///test3"},
+		out:  []string{"foo", "/test1", "/test2", "/test3", "bar"},
+	}, {
+		in:   "foo %u bar",
+		uris: []string{"file:///test1", "file:///test2"},
+		out:  []string{"foo", "file:///test1", "bar"},
+	}, {
+		in:   "foo %U bar",
+		uris: []string{"file:///test1", "file:///test2", "file:///test3"},
+		out:  []string{"foo", "file:///test1", "file:///test2", "file:///test3", "bar"},
 	}, {
 		in:   "foo %U",
 		uris: []string{"http://example.org"},
