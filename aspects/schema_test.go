@@ -69,7 +69,6 @@ func (*schemaSuite) TestParseSchemaExample(c *C) {
 
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
-	c.Assert(schema, NotNil)
 
 	err = schema.Validate(input)
 	c.Assert(err, IsNil)
@@ -102,10 +101,94 @@ func (*schemaSuite) TestParseAndValidateSchemaWithStringsHappy(c *C) {
 
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
-	c.Assert(schema, NotNil)
 
 	err = schema.Validate(input)
 	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestStringChoicesHappy(c *C) {
+	schemaStr := []byte(`{
+  "schema": {
+		"snaps": {
+			"keys": {
+				"type": "string",
+				"choices": ["foo", "bar"]
+			}
+		}
+  }
+}`)
+
+	input := []byte(`{
+		"snaps": {
+			"foo": 1,
+			"bar": 2
+		}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestStringNotAllowedChoice(c *C) {
+	schemaStr := []byte(`{
+  "schema": {
+		"snaps": {
+			"keys": {
+				"type": "string",
+				"choices": ["foo", "bar"]
+			}
+		}
+  }
+}`)
+
+	input := []byte(`{
+		"snaps": {
+			"foo": 1,
+			"boo": 2
+		}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `string "boo" is not one of the allowed choices`)
+}
+
+func (*schemaSuite) TestStringBadChoices(c *C) {
+	schemaStr := []byte(`{
+  "schema": {
+		"snaps": {
+			"keys": {
+				"type": "string",
+				"choices": []
+			}
+		}
+  }
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `.*cannot have "choices" constraint with empty list: field must be populated or not exist`)
+}
+
+func (*schemaSuite) TestStringChoicesAndPatternsFail(c *C) {
+	schemaStr := []byte(`{
+  "schema": {
+		"snaps": {
+			"keys": {
+				"type": "string",
+				"pattern": "foo",
+				"choices": ["foo"]
+			}
+		}
+  }
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `.*cannot use "choices" and "pattern" constraints in same schema`)
 }
 
 func (*schemaSuite) TestMapKeysStringBased(c *C) {
@@ -139,7 +222,6 @@ func (*schemaSuite) TestMapKeysStringBased(c *C) {
 
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
-	c.Assert(schema, NotNil)
 
 	err = schema.Validate(input)
 	c.Assert(err, IsNil)
@@ -159,7 +241,6 @@ func (*schemaSuite) TestUnknownFieldInMap(c *C) {
 
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
-	c.Assert(schema, NotNil)
 
 	err = schema.Validate(input)
 	c.Assert(err, ErrorMatches, `unexpected field "oof" in map`)
@@ -181,7 +262,6 @@ func (*schemaSuite) TestFieldNoMatch(c *C) {
 
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
-	c.Assert(schema, NotNil)
 
 	err = schema.Validate(input)
 	c.Assert(err, ErrorMatches, `string "F00" doesn't match schema pattern \[fb\]00`)
@@ -199,7 +279,6 @@ func (*schemaSuite) TestIntegerMustMatchChoices(c *C) {
 
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
-	c.Assert(schema, NotNil)
 
 	for _, num := range []int{0, 1, 2, 3, 4} {
 		input := []byte(fmt.Sprintf(`{
@@ -229,7 +308,6 @@ func (*schemaSuite) TestIntegerMustMatchMinMax(c *C) {
 
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
-	c.Assert(schema, NotNil)
 
 	for _, num := range []int{0, 1, 2, 3, 4} {
 		input := []byte(fmt.Sprintf(`{
@@ -248,7 +326,7 @@ func (*schemaSuite) TestIntegerMustMatchMinMax(c *C) {
 	}
 }
 
-func (*schemaSuite) TestIntegerMinMaxIsMutexWithChoices(c *C) {
+func (*schemaSuite) TestIntegerMinMaxAndChoicesFail(c *C) {
 	schemaStr := []byte(`{
   "schema": {
     "foo": {

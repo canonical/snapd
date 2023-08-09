@@ -164,8 +164,7 @@ func (v *stringSchema) Parse(raw json.RawMessage) error {
 
 	if rawChoices, ok := constraints["choices"]; ok {
 		var choices []string
-		err := json.Unmarshal(rawChoices, &choices)
-		if err != nil {
+		if err := json.Unmarshal(rawChoices, &choices); err != nil {
 			return err
 		}
 
@@ -178,7 +177,7 @@ func (v *stringSchema) Parse(raw json.RawMessage) error {
 
 	if rawPattern, ok := constraints["pattern"]; ok {
 		if v.choices != nil {
-			return fmt.Errorf(`cannot have "choices" and "pattern" constraints`)
+			return fmt.Errorf(`cannot use "choices" and "pattern" constraints in same schema`)
 		}
 
 		var patt string
