@@ -233,9 +233,9 @@ func layoutVSFromDiskData(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStru
 
 func layoutVolumeStructures(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure) (
 	structures []LaidOutStructure, err error) {
-
 	// XXX TEMPORARY - next changes will make sure we get always a valid
-	// gadgetToDiskStruct
+	// gadgetToDiskStruct. Remaining cases are calls from ValidateContent
+	// and writeResolvedContentImpl (image build time, initramfs).
 	if len(gadgetToDiskStruct) > 0 {
 		structures, err = layoutVSFromDiskData(volume, gadgetToDiskStruct)
 		if err != nil {
@@ -252,6 +252,7 @@ func layoutVolumeStructures(volume *Volume, gadgetToDiskStruct map[int]*OnDiskSt
 	previousEnd := quantity.Offset(0)
 	for idx, ps := range structures {
 		// XXX this check is probably not needed if using matched structures
+		// and will be removed when we always have a gadgetToDiskStruct.
 		if ps.StartOffset < previousEnd {
 			return nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
 		}

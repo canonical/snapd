@@ -359,9 +359,9 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	// Note that all partitions here will have a role (see
 	// gadget.IsCreatableAtInstall() which defines the list). We do it in
 	// the order in which partitions were specified in the gadget.
-	for _, pair := range created {
-		diskPart := pair.DiskStructure
-		vs := pair.GadgetStructure
+	for _, dgpair := range created {
+		diskPart := dgpair.DiskStructure
+		vs := dgpair.GadgetStructure
 		logger.Noticef("created new partition %v for structure %v (size %v) with role %s",
 			diskPart.Node, vs, diskPart.Size.IECString(), vs.Role)
 		if vs.Role == gadget.SystemSave {
@@ -379,7 +379,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 
 		// for encrypted device the filesystem device it will point to
 		// the mapper device otherwise it's the raw device node
-		fsDevice, encryptionKey, err := installOnePartition(pair,
+		fsDevice, encryptionKey, err := installOnePartition(dgpair,
 			kernelInfo, gadgetRoot, kernelRoot, options.EncryptionType,
 			bootVolSectorSize, observer, perfTimings)
 		if err != nil {

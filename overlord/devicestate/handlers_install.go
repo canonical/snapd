@@ -934,8 +934,6 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 	defer unmount()
 
-	// TODO validation of onVolumes versus gadget.yaml, considering also partial
-
 	// Check if encryption is mandatory
 	if sys.Model.StorageSafety() == asserts.StorageSafetyEncrypted && encryptSetupData == nil {
 		return fmt.Errorf("storage encryption required by model but has not been set up")
@@ -959,6 +957,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	// including the target devices and information marked as partial in
 	// the gadget, so the gadget is not partially defined anymore if it
 	// was.
+	// TODO validation of onVolumes versus gadget.yaml, needs to happen here.
 	mergedVols, err := gadget.ApplyInstallerVolumesToGadget(onVolumes, gi.Volumes)
 	if err != nil {
 		return err
