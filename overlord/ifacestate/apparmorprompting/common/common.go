@@ -88,11 +88,15 @@ func RemovePermissionFromList(list []PermissionType, permission PermissionType) 
 	return newList, nil
 }
 
-// Converts the given timestamp string to a time.Time.
+// Converts the given timestamp string to a time.Time in Local time.
 // The timestamp string is expected to be of the format time.RFC3999Nano.
 // If it cannot be parsed as such, returns an error.
 func TimestampToTime(timestamp string) (time.Time, error) {
-	return time.Parse(time.RFC3339Nano, timestamp)
+	t, err := time.Parse(time.RFC3339Nano, timestamp)
+	if err != nil {
+		return t, err
+	}
+	return t.Local(), nil
 }
 
 // Returns the current time as a string in time.RFC3999Nano format.
