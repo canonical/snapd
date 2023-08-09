@@ -102,6 +102,8 @@ type DataBag interface {
 // be committed.
 type Schema interface {
 	Validate(data []byte) error
+	// Parse parses type constraints for a type, defined as a JSON object. It shouldn't
+	// be used if the type schema isn't defined as a JSON object (e.g., a string or list).
 	Parse(raw json.RawMessage) error
 }
 

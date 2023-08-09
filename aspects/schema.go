@@ -100,9 +100,7 @@ func (s *CustomSchema) Parse(raw json.RawMessage) (Schema, error) {
 	var schema Schema
 	switch typ {
 	case "map":
-		schema = &mapSchema{
-			topSchema: s,
-		}
+		schema = &mapSchema{topSchema: s}
 	case "int":
 		schema = &intSchema{}
 	case "string":
@@ -139,8 +137,6 @@ type stringSchema struct {
 	pattern *regexp.Regexp
 	// choices holds the possible values the string can take, if non-empty.
 	choices []string
-
-	// TODO: JSON schema formats? which ones and how will they be defined?
 }
 
 func (v *stringSchema) Validate(raw []byte) error {
@@ -255,7 +251,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 			}
 		}
 
-		// all required types are present and validated
+		// all required entries are present and validated
 		return nil
 	}
 
@@ -286,7 +282,8 @@ func (v *mapSchema) Validate(raw []byte) error {
 
 func (v *mapSchema) Parse(raw json.RawMessage) error {
 	var schemaDef map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &schemaDef); err != nil {
+	err := json.Unmarshal(raw, &schemaDef)
+	if err != nil {
 		return err
 	}
 
@@ -320,16 +317,13 @@ func (v *mapSchema) Parse(raw json.RawMessage) error {
 	// alternatively, it can constrain the type of its keys and/or values
 	rawKeyDef, ok := schemaDef["keys"]
 	if ok {
-		if keyType, err := v.parseMapKeyType(rawKeyDef); err != nil {
-			return err
-		} else {
-			v.keyType = keyType
+		if v.keyType, err = v.parseMapKeyType(rawKeyDef); err != nil {
+			return fmt.Errorf(`cannot parse "keys" constraint in map schema: %w`, err)
 		}
 	}
 
 	rawValuesDef, ok := schemaDef["values"]
 	if ok {
-		var err error
 		v.valueType, err = v.topSchema.Parse(rawValuesDef)
 		if err != nil {
 			return fmt.Errorf(`cannot parse "values" constraint in map schema: %w`, err)
