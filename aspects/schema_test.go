@@ -187,40 +187,12 @@ func (*schemaSuite) TestFieldNoMatch(c *C) {
 	c.Assert(err, ErrorMatches, `string "F00" doesn't match schema pattern \[fb\]00`)
 }
 
-func (*schemaSuite) TestParseAndValidateSchemaWithInts(c *C) {
-	schemaStr := []byte(`{
-  "schema": {
-    "foo": "int",
-    "bar": {
-      "type": "int",
-      "min": 0,
-      "max": 100,
-      "choices": [1, 2, 3]
-    }
-  }
-}`)
-
-	input := []byte(`{
-  "foo": 5,
-  "bar": 3
-}`)
-
-	schema, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, IsNil)
-	c.Assert(schema, NotNil)
-
-	err = schema.Validate(input)
-	c.Assert(err, IsNil)
-}
-
-func (*schemaSuite) TestIntegerMustMatchConstraints(c *C) {
+func (*schemaSuite) TestIntegerMustMatchChoices(c *C) {
 	schemaStr := []byte(`{
   "schema": {
     "foo": {
       "type": "int",
-      "min": 0,
-      "max": 100,
-      "choices": [1, 2, 3]
+      "choices": [1,  3]
     }
   }
 }`)
@@ -229,35 +201,66 @@ func (*schemaSuite) TestIntegerMustMatchConstraints(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(schema, NotNil)
 
-	type testcase struct {
-		name string
-		num  int
-		err  string
-	}
-	tcs := []testcase{
-		{
-			name: "less than min",
-			num:  -1,
-			err:  `integer -1 is less than allowed minimum 0`,
-		},
-		{
-			name: "greater than max",
-			num:  101,
-			err:  `integer 101 is greater than allowed maximum 100`,
-		},
-		{
-			name: "not one of allowed choices",
-			num:  4,
-			err:  `integer 4 is not one of the allowed choices`,
-		},
-	}
-	for _, tc := range tcs {
+	for _, num := range []int{0, 1, 2, 3, 4} {
 		input := []byte(fmt.Sprintf(`{
   "foo": %d
-}`, tc.num))
+}`, num))
 
-		cmt := Commentf("subtest: %s", tc.name)
-		err = schema.Validate(input)
-		c.Assert(err, ErrorMatches, tc.err, cmt)
+		err := schema.Validate(input)
+		if num == 1 || num == 3 {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`integer %d is not one of the allowed choices`, num))
+		}
 	}
+}
+
+func (*schemaSuite) TestIntegerMustMatchMinMax(c *C) {
+	min, max := 1, 3
+	schemaStr := []byte(fmt.Sprintf(`{
+  "schema": {
+    "foo": {
+      "type": "int",
+			"min": %d,
+			"max": %d
+    }
+  }
+}`, min, max))
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+	c.Assert(schema, NotNil)
+
+	for _, num := range []int{0, 1, 2, 3, 4} {
+		input := []byte(fmt.Sprintf(`{
+  "foo": %d
+}`, num))
+
+		err := schema.Validate(input)
+		if num < 1 {
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`integer %d is less than allowed minimum %d`, num, min))
+		} else if num > max {
+
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`integer %d is greater than allowed maximum %d`, num, max))
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
+
+func (*schemaSuite) TestIntegerMinMaxIsMutexWithChoices(c *C) {
+	schemaStr := []byte(`{
+  "schema": {
+    "foo": {
+      "type": "int",
+			"min": 0,
+			"max": 100,
+			"choices": [1, 2]
+    }
+  }
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `.*cannot have "choices" and "min" constraints`)
+	c.Assert(schema, IsNil)
 }
