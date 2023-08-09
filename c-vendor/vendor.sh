@@ -13,7 +13,18 @@ fi
 # It contains bug fixes and adds multithreading support to squashfuse_ll.
 # It still should work with both "libfuse-dev" and "libfuse3-dev" which
 # is important as 16.04 only has libfuse-dev and 21.10 only has libfuse3-dev
+SQUASHFUSE_REF=7ce9d15f4b0a7a76ddf08e662abde4a3e340bb41
+
 if [ -d ./squashfuse/.git ]; then
-    (cd squashfuse && git checkout 7ce9d15f4b0a7a76ddf08e662abde4a3e340bb41)
+		cd squashfuse
+
+		# shellcheck disable=SC1083
+		if ! git rev-parse --verify $SQUASHFUSE_REF^{commit}; then
+			# if the pinned commit isn't known, update the repo
+			git checkout master
+			git pull
+		fi
+
+		git checkout "$SQUASHFUSE_REF"
 fi
 
