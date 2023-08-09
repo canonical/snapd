@@ -198,7 +198,7 @@ func PermissionMaskToPermissionsList(p apparmor.FilePermission) ([]PermissionTyp
 	if p&apparmor.MayChangeProfilePermission != 0 {
 		perms = append(perms, PermissionChangeProfile)
 	}
-	if p&^apparmor.AllFilePermissionMask != 0 {
+	if !p.IsValid() {
 		return perms, ErrUnrecognizedFilePermission
 	}
 	return perms, nil
