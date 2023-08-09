@@ -189,16 +189,16 @@ func (v *Volume) MinSize() quantity.Size {
 // StructFromYamlIndex returns the structure defined at a given yaml index from
 // the original yaml file.
 func (v *Volume) StructFromYamlIndex(yamlIdx int) *VolumeStructure {
-	i, err := v.YamlIdxToStructureIdx(yamlIdx)
+	i, err := v.yamlIdxToStructureIdx(yamlIdx)
 	if err != nil {
 		return nil
 	}
 	return &v.Structure[i]
 }
 
-// YamlIdxToStructureIdx returns the index to Volume.Structure that matches the
+// yamlIdxToStructureIdx returns the index to Volume.Structure that matches the
 // yaml index from the original yaml file.
-func (v *Volume) YamlIdxToStructureIdx(yamlIdx int) (int, error) {
+func (v *Volume) yamlIdxToStructureIdx(yamlIdx int) (int, error) {
 	for i := range v.Structure {
 		if v.Structure[i].YamlIndex == yamlIdx {
 			return i, nil

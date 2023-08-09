@@ -1356,11 +1356,11 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 
 		// can update old layout to new layout
 		for _, update := range updates {
-			fromIdx, err := oldVol.YamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
+			fromIdx, err := oldVol.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
 			if err != nil {
 				return err
 			}
-			toIdx, err := oldVol.YamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
+			toIdx, err := oldVol.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
 			if err != nil {
 				return err
 			}
