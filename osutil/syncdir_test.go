@@ -20,6 +20,8 @@
 package osutil_test
 
 import (
+	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -276,7 +278,7 @@ func (s *EnsureDirStateSuite) TestCreatesMissingSymlink(c *C) {
 	// Created file is reported
 	c.Assert(changed, DeepEquals, []string{"missing-symlink.snap"})
 	c.Assert(removed, HasLen, 0)
-	// The symlinks points to original
+	// The symlink points to original
 	c.Assert(missingSymlink, testutil.FileEquals, "data")
 	c.Assert(osutil.IsSymlink(missingSymlink), Equals, true)
 	link, err := os.Readlink(missingSymlink)
@@ -289,21 +291,86 @@ func (s *EnsureDirStateSuite) TestReplaceFileWithSymlink(c *C) {
 	err := ioutil.WriteFile(original, []byte("data"), 0600)
 	c.Assert(err, IsNil)
 
-	missingSymlink := filepath.Join(s.dir, "missing-symlink.snap")
-	err = ioutil.WriteFile(missingSymlink, []byte("old-data"), 0600)
+	symlink := filepath.Join(s.dir, "symlink.snap")
+	err = ioutil.WriteFile(symlink, []byte("old-data"), 0600)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
-		"original.snap":        &osutil.FileReference{Path: original},
-		"missing-symlink.snap": &osutil.SymlinkFileState{Target: original},
+		"original.snap": &osutil.FileReference{Path: original},
+		"symlink.snap":  &osutil.SymlinkFileState{Target: original},
 	})
 	c.Assert(err, IsNil)
 	// Changed file is reported
-	c.Assert(changed, DeepEquals, []string{"missing-symlink.snap"})
+	c.Assert(changed, DeepEquals, []string{"symlink.snap"})
 	c.Assert(removed, HasLen, 0)
 	// The symlinks points to original
-	c.Assert(missingSymlink, testutil.FileEquals, "data")
-	c.Assert(osutil.IsSymlink(missingSymlink), Equals, true)
-	link, err := os.Readlink(missingSymlink)
+	c.Assert(symlink, testutil.FileEquals, "data")
+	c.Assert(osutil.IsSymlink(symlink), Equals, true)
+	link, err := os.Readlink(symlink)
 	c.Assert(err, IsNil)
 	c.Assert(link, Equals, original)
+}
+
+func (s *EnsureDirStateSuite) TestReplaceSymlinkWithSymlink(c *C) {
+	symlink := filepath.Join(s.dir, "symlink.snap")
+	err := os.Symlink("old-target", symlink)
+	c.Assert(err, IsNil)
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
+		"symlink.snap": &osutil.SymlinkFileState{Target: "new-target"},
+	})
+	c.Assert(err, IsNil)
+	// Changed file is reported
+	c.Assert(changed, DeepEquals, []string{"symlink.snap"})
+	c.Assert(removed, HasLen, 0)
+	// The symlink points to new target
+	c.Assert(osutil.IsSymlink(symlink), Equals, true)
+	link, err := os.Readlink(symlink)
+	c.Assert(err, IsNil)
+	c.Assert(link, Equals, "new-target")
+}
+
+func (s *EnsureDirStateSuite) TestSameSymlink(c *C) {
+	symlink := filepath.Join(s.dir, "symlink.snap")
+	err := os.Symlink("target", symlink)
+	c.Assert(err, IsNil)
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
+		"symlink.snap": &osutil.SymlinkFileState{Target: "target"},
+	})
+	c.Assert(err, IsNil)
+	// Changed file is reported
+	c.Assert(changed, HasLen, 0)
+	c.Assert(removed, HasLen, 0)
+	// The symlink doesn't change
+	c.Assert(osutil.IsSymlink(symlink), Equals, true)
+	link, err := os.Readlink(symlink)
+	c.Assert(err, IsNil)
+	c.Assert(link, Equals, "target")
+}
+
+type mockFileState struct {
+	reader io.ReadCloser
+	size   int64
+	mode   os.FileMode
+	err    error
+}
+
+func (mock *mockFileState) State() (io.ReadCloser, int64, os.FileMode, error) {
+	return mock.reader, mock.size, mock.mode, mock.err
+}
+
+func (s *EnsureDirStateSuite) TestUnsupportedFileMode(c *C) {
+	unsupportedModeTypes := []os.FileMode{
+		os.ModeDir,
+		os.ModeNamedPipe,
+		os.ModeSocket,
+		os.ModeDevice,
+		os.ModeCharDevice,
+		os.ModeIrregular,
+	}
+	filePath := filepath.Join(s.dir, "test.snap")
+	for _, modeType := range unsupportedModeTypes {
+		fileState := &mockFileState{mode: modeType, err: nil}
+		err := osutil.EnsureFileState(filePath, fileState)
+		expectedErr := fmt.Sprintf("internal error: EnsureFileState does not support type: %q", modeType)
+		c.Check(err.Error(), Equals, expectedErr)
+	}
 }
