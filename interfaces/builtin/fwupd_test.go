@@ -268,7 +268,7 @@ KERNEL=="wmi/dell-smbios", TAG+="snap_uefi-fw-tools_app2"`)
 	c.Assert(snippets[11], Equals, `# fwupd
 SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", TAG+="snap_uefi-fw-tools_app2"`)
 
-	expected := fmt.Sprintf(`TAG=="snap_uefi-fw-tools_app2", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_uefi-fw-tools_app2 $devpath $major:$minor"`, dirs.DistroLibExecDir)
+	expected := fmt.Sprintf(`TAG=="snap_uefi-fw-tools_app2", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_uefi-fw-tools_app2"`, dirs.DistroLibExecDir)
 	c.Assert(snippets[12], Equals, expected)
 
 	// The implicit slot found on classic systems does not generate any rules

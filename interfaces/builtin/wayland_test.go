@@ -184,7 +184,7 @@ KERNEL=="mouse[0-9]*", TAG+="snap_wayland_app1"`)
 KERNEL=="ts[0-9]*", TAG+="snap_wayland_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# wayland
 KERNEL=="tty[0-9]*", TAG+="snap_wayland_app1"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_wayland_app1", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_wayland_app1 $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_wayland_app1", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_wayland_app1"`, dirs.DistroLibExecDir))
 	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 }
 

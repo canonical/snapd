@@ -107,7 +107,7 @@ func (s *BluetoothControlInterfaceSuite) TestUDevSpec(c *C) {
 SUBSYSTEM=="bluetooth", TAG+="snap_other_app2"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# bluetooth-control
 SUBSYSTEM=="BT_chrdev", TAG+="snap_other_app2"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_other_app2", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_other_app2 $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_other_app2", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_other_app2"`, dirs.DistroLibExecDir))
 }
 
 func (s *BluetoothControlInterfaceSuite) TestInterfaces(c *C) {

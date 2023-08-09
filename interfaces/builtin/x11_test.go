@@ -253,7 +253,7 @@ KERNEL=="mouse[0-9]*", TAG+="snap_x11_app"`)
 KERNEL=="ts[0-9]*", TAG+="snap_x11_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# x11
 KERNEL=="tty[0-9]*", TAG+="snap_x11_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_x11_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_x11_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_x11_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_x11_app"`, dirs.DistroLibExecDir))
 	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 
 	// on a classic system with x11 slot coming from the core snap.
