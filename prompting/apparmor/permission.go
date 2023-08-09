@@ -81,7 +81,7 @@ const (
 	MayChangeProfilePermission FilePermission = 1 << 30
 )
 
-const AllFilePermissionMask = (MayExecutePermission | MayWritePermission | MayReadPermission |
+const filePermissionMask = (MayExecutePermission | MayWritePermission | MayReadPermission |
 	MayAppendPermission | MayCreatePermission | MayDeletePermission |
 	MayOpenPermission | MayRenamePermission | MaySetAttrPermission |
 	MayGetAttrPermission | MaySetCredentialPermission | MayGetCredentialPermission |
@@ -152,7 +152,7 @@ func (p FilePermission) String() string {
 	if p&MayChangeProfileOnExecPermission != 0 {
 		frags = append(frags, "change-profile-on-exec")
 	}
-	if residue := p &^ AllFilePermissionMask; residue != 0 {
+	if residue := p &^ filePermissionMask; residue != 0 {
 		frags = append(frags, fmt.Sprintf("%#x", uint(residue)))
 	}
 	if len(frags) == 0 {
@@ -163,5 +163,5 @@ func (p FilePermission) String() string {
 
 // IsValid returns true if the given file permission contains only known bits set.
 func (p FilePermission) IsValid() bool {
-	return p & ^AllFilePermissionMask == 0
+	return p & ^filePermissionMask == 0
 }
