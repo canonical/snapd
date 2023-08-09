@@ -122,34 +122,37 @@ func parse(filename string, r io.Reader) (*DesktopEntry, error) {
 		if len(split) != 2 {
 			return nil, fmt.Errorf("desktop file %q badly formed", filename)
 		}
+		// Trim whitespace around the equals sign
+		key := strings.TrimRight(split[0], "\t\n\v\f\r ")
+		value := strings.TrimLeft(split[1], "\t\n\v\f\r ")
 		switch currentGroup {
 		case desktopEntryGroup:
-			switch split[0] {
+			switch key {
 			case "Name":
-				de.Name = split[1]
+				de.Name = value
 			case "Icon":
-				de.Icon = split[1]
+				de.Icon = value
 			case "Exec":
-				de.Exec = split[1]
+				de.Exec = value
 			case "Hidden":
-				de.Hidden = split[1] == "true"
+				de.Hidden = value == "true"
 			case "OnlyShowIn":
-				de.OnlyShowIn = splitStringList(split[1])
+				de.OnlyShowIn = splitStringList(value)
 			case "NotShownIn":
-				de.NotShownIn = splitStringList(split[1])
+				de.NotShownIn = splitStringList(value)
 			case "X-GNOME-Autostart-enabled":
-				de.GnomeAutostartEnabled = split[1] == "true"
+				de.GnomeAutostartEnabled = value == "true"
 			case "Actions":
-				actions = splitStringList(split[1])
+				actions = splitStringList(value)
 			}
 		case desktopActionGroup:
-			switch split[0] {
+			switch key {
 			case "Name":
-				currentAction.Name = split[1]
+				currentAction.Name = value
 			case "Icon":
-				currentAction.Icon = split[1]
+				currentAction.Icon = value
 			case "Exec":
-				currentAction.Exec = split[1]
+				currentAction.Exec = value
 			}
 		}
 	}

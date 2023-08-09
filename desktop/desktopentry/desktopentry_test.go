@@ -43,12 +43,12 @@ Version=1.0
 Type=Application
 Name=Web Browser
 Exec=browser %u
-Icon=${SNAP}/default256.png
+Icon = ${SNAP}/default256.png
 Actions=NewWindow;NewPrivateWindow;
 
 # A comment
 [Desktop Action NewWindow]
-Name=Open a New Window
+Name = Open a New Window
 Exec=browser -new-window
 
 [Desktop Action NewPrivateWindow]
