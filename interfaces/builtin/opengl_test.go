@@ -79,6 +79,10 @@ func (s *OpenglInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
+func (s *OpenglInterfaceSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
+}
+
 func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
