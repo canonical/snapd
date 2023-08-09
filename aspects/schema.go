@@ -318,19 +318,19 @@ func (v *mapSchema) Parse(raw json.RawMessage) error {
 	}
 
 	// alternatively, it can constrain the type of its keys and/or values
-	keyDescription, ok := schemaDef["keys"]
+	rawKeyDef, ok := schemaDef["keys"]
 	if ok {
-		if keyType, err := v.parseMapKeyType(keyDescription); err != nil {
+		if keyType, err := v.parseMapKeyType(rawKeyDef); err != nil {
 			return err
 		} else {
 			v.keyType = keyType
 		}
 	}
 
-	valuesDescriptor, ok := schemaDef["values"]
+	rawValuesDef, ok := schemaDef["values"]
 	if ok {
 		var err error
-		v.valueType, err = v.topSchema.Parse(valuesDescriptor)
+		v.valueType, err = v.topSchema.Parse(rawValuesDef)
 		if err != nil {
 			return fmt.Errorf(`cannot parse "values" constraint in map schema: %w`, err)
 		}
