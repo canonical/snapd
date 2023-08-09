@@ -93,6 +93,9 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/usr/share/nvidia/ r,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/usr/share/nvidia/** r,`)
 
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/nvidia"), 0777), IsNil)
 	updateNS := spec.UpdateNS()
 
 	// This all gets added as one giant snippet so just testing for the comment fails
