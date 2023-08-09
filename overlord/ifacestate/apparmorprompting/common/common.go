@@ -70,7 +70,10 @@ const (
 // If the given permission is not found in the list, returns an error, along
 // with the original list.
 func RemovePermissionFromList(list []PermissionType, permission PermissionType) ([]PermissionType, error) {
-	newList := make([]PermissionType, 0, len(list))
+	if len(list) == 0 {
+		return list, ErrPermissionNotInList
+	}
+	newList := make([]PermissionType, 0, len(list)-1)
 	found := false
 	for _, perm := range list {
 		if perm == permission {
