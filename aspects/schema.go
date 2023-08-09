@@ -53,6 +53,10 @@ func ParseSchema(raw []byte) (*CustomSchema, error) {
 		}
 	}
 
+	if _, ok := schemaDef["schema"]; !ok {
+		return nil, fmt.Errorf(`cannot parse top level schema: must have a "schema" constraint`)
+	}
+
 	schema.topLevel, err = schema.Parse(raw)
 	if err != nil {
 		return nil, err

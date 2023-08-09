@@ -74,6 +74,24 @@ func (*schemaSuite) TestParseSchemaExample(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (*schemaSuite) TestTopLevelMustHaveSchema(c *C) {
+	schemaStr := []byte(`{
+  "schema": {
+    "foo": "string"
+  }
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	schemaStr = []byte(`{
+  "keys": "string"
+}`)
+
+	_, err = aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse top level schema: must have a "schema" constraint`)
+}
+
 func (*schemaSuite) TestParseAndValidateSchemaWithStringsHappy(c *C) {
 	schemaStr := []byte(`{
   "schema": {
