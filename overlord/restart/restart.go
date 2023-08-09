@@ -23,6 +23,7 @@
 package restart
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 type RestartType int
@@ -299,6 +301,15 @@ func notifyRebootRequiredClassic(rebootRequiredSnap string) error {
 	return nil
 }
 
+func asyncNotifyRebootRequiredCoreDesktop(context context.Context, client *userclient.Client, rebootRequiredInfo *userclient.RebootRequiredInfo) {
+	logger.Debugf("notifying agents about reboot required")
+	go func() {
+		if err := client.RebootRequiredNotification(context, rebootRequiredInfo); err != nil {
+			logger.Noticef("Cannot send notification about reboot required: %v", err)
+		}
+	}()
+}
+
 // FinishTaskWithRestart will finish a task that needs a restart, by setting
 // its status and requesting a restart.
 // It should usually be invoked returning its result immediately from the
@@ -320,6 +331,10 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType
 				// notify the system that a reboot is required
 				if err := notifyRebootRequiredClassic(snapName); err != nil {
 					logger.Noticef("cannot notify about pending reboot: %v", err)
+				}
+				if release.OnCoreDesktop {
+					rebootRequiredInfo := userclient.RebootRequiredInfo{InstanceName: snapName}
+					asyncNotifyRebootRequiredCoreDesktop(context.TODO(), userclient.New(), &rebootRequiredInfo)
 				}
 				// store current boot id to be able to check
 				// later if we have rebooted or not

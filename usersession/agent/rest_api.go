@@ -44,6 +44,7 @@ var restApi = []*Command{
 	serviceControlCmd,
 	pendingRefreshNotificationCmd,
 	finishRefreshNotificationCmd,
+	rebootRequiredNotificationCmd,
 }
 
 var (
@@ -70,6 +71,11 @@ var (
 	finishRefreshNotificationCmd = &Command{
 		Path: "/v1/notifications/finish-refresh",
 		POST: postRefreshFinishedNotification,
+	}
+
+	rebootRequiredNotificationCmd = &Command{
+		Path: "/v1/notifications/reboot-required",
+		POST: postRebootRequiredNotification,
 	}
 )
 
@@ -339,6 +345,48 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		Hints: hints,
 	}
 	if err := c.s.notificationMgr.SendNotification(notification.ID(finishRefresh.InstanceName), msg); err != nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: fmt.Sprintf("cannot send notification message: %v", err),
+			},
+		})
+	}
+	return SyncResponse(nil)
+}
+
+func postRebootRequiredNotification(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	var rebootRequired client.RebootRequiredInfo
+	if err := decoder.Decode(&rebootRequired); err != nil {
+		return BadRequest("cannot decode request body into reboot required notification info: %v", err)
+	}
+
+	// Note that since the connection is shared, we are not closing it.
+	if c.s.bus == nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "cannot connect to the session bus",
+			},
+		})
+	}
+
+	summary := fmt.Sprintf(i18n.G("Update available for %q."), rebootRequired.InstanceName)
+	body := i18n.G("Restart the system to update now.")
+
+	msg := &notification.Message{
+		Title: summary,
+		Body:  body,
+	}
+	if err := c.s.notificationMgr.SendNotification("reboot-"+notification.ID(rebootRequired.InstanceName), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,

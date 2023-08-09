@@ -341,3 +341,19 @@ func (client *Client) FinishRefreshNotification(ctx context.Context, closeInfo *
 	_, err = client.doMany(ctx, "POST", "/v1/notifications/finish-refresh", nil, headers, reqBody)
 	return err
 }
+
+// RebootRequiredInfo holds information about reboot required provided to the session agent.
+type RebootRequiredInfo struct {
+	InstanceName string `json:"instance-name"`
+}
+
+// RebootRequiredNotification broadcasts information about a required reboot.
+func (client *Client) RebootRequiredNotification(ctx context.Context, rebootInfo *RebootRequiredInfo) error {
+	headers := map[string]string{"Content-Type": "application/json"}
+	reqBody, err := json.Marshal(rebootInfo)
+	if err != nil {
+		return err
+	}
+	_, err = client.doMany(ctx, "POST", "/v1/notifications/reboot-required", nil, headers, reqBody)
+	return err
+}
