@@ -124,12 +124,12 @@ func (s *specSuite) testTagDevice(c *C, helperDir string) {
 kernel="voodoo", TAG+="snap_snap1_foo"`,
 		`# iface-2
 kernel="hoodoo", TAG+="snap_snap1_foo"`,
-		fmt.Sprintf(`TAG=="snap_snap1_foo", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%s/snap-device-helper $env{ACTION} snap_snap1_foo $devpath $major:$minor"`, helperDir),
+		fmt.Sprintf(`TAG=="snap_snap1_foo", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%s/snap-device-helper snap_snap1_foo"`, helperDir),
 		`# iface-1
 kernel="voodoo", TAG+="snap_snap1_hook_configure"`,
 		`# iface-2
 kernel="hoodoo", TAG+="snap_snap1_hook_configure"`,
-		fmt.Sprintf(`TAG=="snap_snap1_hook_configure", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%[1]s/snap-device-helper $env{ACTION} snap_snap1_hook_configure $devpath $major:$minor"`, helperDir),
+		fmt.Sprintf(`TAG=="snap_snap1_hook_configure", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%[1]s/snap-device-helper snap_snap1_hook_configure"`, helperDir),
 	})
 }
 

@@ -20,14 +20,19 @@
 #include "snap-device-helper.h"
 
 int main(int argc, char *argv[]) {
-    if (argc < 5) {
+    int old_invocation_detected = (argc >= 5);
+
+    if ((argc != 2) && !old_invocation_detected)  {
         die("incorrect number of arguments");
     }
+
     struct sdh_invocation inv = {
-        .action = argv[1],
-        .tagname = argv[2],
-        .devpath = argv[3],
-        .majmin = argv[4],
+        .action = getenv("ACTION"),
+        .tagname = old_invocation_detected?argv[2]:argv[1],
+        .major = getenv("MAJOR"),
+        .minor = getenv("MINOR"),
+        .subsystem = getenv("SUBSYSTEM"),
     };
+
     return snap_device_helper_run(&inv);
 }

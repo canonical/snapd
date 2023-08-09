@@ -92,7 +92,7 @@ func (s *ScsiGenericInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(udevSpec.Snippets(), HasLen, 2)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# scsi-generic
 KERNEL=="sg[0-9]*", TAG+="snap_other_app"`)
-	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_other_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_other_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_other_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_other_app"`, dirs.DistroLibExecDir))
 }
 
 func (s *ScsiGenericInterfaceSuite) TestInterfaces(c *C) {
