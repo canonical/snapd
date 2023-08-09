@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	doublestar "github.com/bmatcuk/doublestar/v4"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
@@ -356,7 +355,7 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 				continue
 			}
 		}
-		matched, err := doublestar.Match(pathPattern, path)
+		matched, err := common.PathPatternMatches(pathPattern, path)
 		if err != nil {
 			// Only possible error is ErrBadPattern, which should not occur
 			return false, err

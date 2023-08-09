@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	doublestar "github.com/bmatcuk/doublestar/v4"
 	"github.com/snapcore/snapd/prompting/apparmor"
 )
 
@@ -68,7 +69,7 @@ const (
 // If the given permission is not found in the list, returns an error, along
 // with the original list.
 func RemovePermissionFromList(list []PermissionType, permission PermissionType) ([]PermissionType, error) {
-	newList := make([]PermissionType, 0, len(list)-1)
+	newList := make([]PermissionType, 0, len(list))
 	found := false
 	for _, perm := range list {
 		if perm == permission {
@@ -325,4 +326,8 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 		}
 	}
 	return shortestPattern, nil
+}
+
+func PathPatternMatches(pathPattern string, path string) (bool, error) {
+	return doublestar.Match(pathPattern, path)
 }
