@@ -1435,15 +1435,6 @@ func (s *installSuite) TestMountVolumesLazyUnmountError(c *C) {
 }
 
 func (s *installSuite) TestMatchDisksToGadgetVolumes(c *C) {
-	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
-	restore := gadget.MockSysfsPathForBlockDevice(func(device string) (string, error) {
-		if strings.HasPrefix(device, "/dev/vda") == true {
-			return filepath.Join(vdaSysPath, filepath.Base(device)), nil
-		}
-		return "", fmt.Errorf("bad disk")
-	})
-	defer restore()
-
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
 	c.Assert(err, IsNil)
@@ -1462,7 +1453,23 @@ func (s *installSuite) TestMatchDisksToGadgetVolumes(c *C) {
 		// at this point all partitions should be created
 		AssumeCreatablePartitionsCreated: true,
 	}
+
+	// No disk found
 	mapStructToDisk, err := install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts)
+	c.Assert(mapStructToDisk, IsNil)
+	c.Assert(err.Error(), Equals, `cannot read link "/sys/class/block/vda2": readlink /sys/class/block/vda2: no such file or directory`)
+
+	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
+	restore = gadget.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+		if strings.HasPrefix(device, "/dev/vda") == true {
+			return filepath.Join(vdaSysPath, filepath.Base(device)), nil
+		}
+		return "", fmt.Errorf("bad disk")
+	})
+	defer restore()
+
+	// Happy case
+	mapStructToDisk, err = install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts)
 	c.Assert(err, IsNil)
 	expectedMap := map[string]map[int]*gadget.OnDiskStructure{
 		"pc": {
@@ -1484,4 +1491,10 @@ func (s *installSuite) TestMatchDisksToGadgetVolumes(c *C) {
 		},
 	}
 	c.Check(mapStructToDisk, DeepEquals, expectedMap)
+
+	// Now use an incompatible gadget
+	ginfo.Volumes["pc"].Structure[1].Size = quantity.SizeKiB
+	mapStructToDisk, err = install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts)
+	c.Assert(mapStructToDisk, IsNil)
+	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/vda1 (starting at 1048576) in gadget: on disk size 1048576 (1 MiB) is larger than gadget size 1024 (1 KiB) (and the role should not be expanded)`)
 }
