@@ -173,3 +173,97 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 	c.Check(err, Equals, common.ErrNoPatterns)
 	c.Check(empty, Equals, "")
 }
+
+func (*commonSuite) TestPathPatternMatches(c *C) {
+	cases := []struct {
+		pattern string
+		path    string
+		matches bool
+	}{
+		{
+			"/home/test/Documents/foo.txt",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		{
+			"/home/test/Documents/foo",
+			"/home/test/Documents/foo.txt",
+			false,
+		},
+		{
+			"/home/test/Documents/*",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		{
+			"/home/test/Documents/**",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		{
+			"/home/test/Documents/**/*.txt",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		{
+			"/home/test/Documents/**/*.txt",
+			"/home/test/Documents/foo/bar.tar.gz",
+			false,
+		},
+		{
+			"/home/test/Documents/**",
+			"/home/test/Documents/foo/bar.tar.gz",
+			true,
+		},
+		{
+			"/home/test/Documents/**/*.gz",
+			"/home/test/Documents/foo/bar.tar.gz",
+			true,
+		},
+		{
+			"/home/test/Documents/**/*.tar.gz",
+			"/home/test/Documents/foo/bar.tar.gz",
+			true,
+		},
+		{
+			"/home/test/Documents/*.tar.gz",
+			"/home/test/Documents/foo/bar.tar.gz",
+			false,
+		},
+		{
+			"/home/test/Documents/*",
+			"/home/test/Documents/foo/bar.tar.gz",
+			false,
+		},
+		{
+			"/home/test/**",
+			"/home/test/Documents/foo/bar.tar.gz",
+			true,
+		},
+		{
+			"/home/test/*",
+			"/home/test/Documents/foo/bar.tar.gz",
+			false,
+		},
+		{
+			"/home/test/**/*.tar.gz",
+			"/home/test/Documents/foo/bar.tar.gz",
+			true,
+		},
+		{
+			"/home/test/**/*.gz",
+			"/home/test/Documents/foo/bar.tar.gz",
+			true,
+		},
+		{
+			"/home/test/**/*.txt",
+			"/home/test/Documents/foo/bar.tar.gz",
+			false,
+		},
+	}
+	for _, testCase := range cases {
+		result, err := common.PathPatternMatches(testCase.pattern, testCase.path)
+		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
+		c.Check(result, Equals, testCase.matches, Commentf("test case: %+v", testCase))
+	}
+}

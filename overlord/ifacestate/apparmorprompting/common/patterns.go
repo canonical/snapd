@@ -4,6 +4,8 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+
+	doublestar "github.com/bmatcuk/doublestar/v4"
 )
 
 var ErrInvalidPathPattern = errors.New("the given path pattern is not allowed")
@@ -86,4 +88,8 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 		}
 	}
 	return shortestPattern, nil
+}
+
+func PathPatternMatches(pathPattern string, path string) (bool, error) {
+	return doublestar.Match(pathPattern, path)
 }
