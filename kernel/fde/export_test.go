@@ -19,9 +19,9 @@
 
 package fde
 
-import (
-	"time"
-)
+import "time"
+
+var RevealPrng = revealPrng
 
 func MockFdeInitramfsHelperCommandExtra(args []string) (restore func()) {
 	oldFdeRevealKeyCommandExtra := fdeInitramfsHelperCommandExtra

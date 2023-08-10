@@ -48,14 +48,16 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 var (
-	snapdTransitionDelayWithRandomess = 3*time.Hour + randutil.RandomDuration(4*time.Hour)
-)
+	ssPrng                            = randutil.NewPseudoRand(nil)
+	snapdTransitionDelayWithRandomess = 3*time.Hour + timeutil.RandomDuration(4*time.Hour)
 
-// overridden in the tests
-var errtrackerReport = errtracker.Report
+	// overridden in the tests
+	errtrackerReport = errtracker.Report
+)
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
@@ -596,7 +598,7 @@ func genRefreshRequestSalt(st *state.State) error {
 		return nil
 	}
 
-	refreshPrivacyKey = randutil.RandomString(16)
+	refreshPrivacyKey = ssPrng.RandomString(16)
 	st.Set("refresh-privacy-key", refreshPrivacyKey)
 
 	return nil

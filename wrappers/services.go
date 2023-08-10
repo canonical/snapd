@@ -39,7 +39,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/strutil"
@@ -1760,7 +1759,7 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 						// directly one after another
 						length -= 5 * time.Minute
 					}
-					when = when.Add(randutil.RandomDuration(length))
+					when = when.Add(timeutil.RandomDuration(length))
 				}
 				if when.Hour == 24 {
 					// 24:00 for us means the other end of

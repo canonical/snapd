@@ -39,6 +39,7 @@ var (
 	FilesAreEqualChunked = filesAreEqualChunked
 	SudoersFile          = sudoersFile
 	DoCopyFile           = doCopyFile
+	AtomicFilePrng       = atomicFilePrng
 )
 
 type Fileish = fileish

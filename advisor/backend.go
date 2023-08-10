@@ -37,6 +37,8 @@ var (
 	pkgBucketKey = []byte("Snaps")
 )
 
+var advisorPrng = randutil.NewPseudoRand(nil)
+
 type writer struct {
 	fn        string
 	db        *bolt.DB
@@ -65,7 +67,7 @@ type CommandDB interface {
 func Create() (CommandDB, error) {
 	var err error
 	t := &writer{
-		fn: dirs.SnapCommandsDB + "." + randutil.RandomString(12) + "~",
+		fn: dirs.SnapCommandsDB + "." + advisorPrng.RandomString(12) + "~",
 	}
 
 	t.db, err = bolt.Open(t.fn, 0644, &bolt.Options{Timeout: 1 * time.Second})

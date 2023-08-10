@@ -28,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/randutil"
 )
 
+var bePrng = randutil.NewPseudoRand(nil)
+
 // RestoreState stores information that can be used to cleanly revert (or finish
 // cleaning up) a snapshot Restore.
 //
@@ -56,7 +58,7 @@ func (rs *RestoreState) Cleanup() {
 }
 
 func restoreStateFilename(fn string) string {
-	return fmt.Sprintf("%s.~%s~", fn, randutil.RandomString(9))
+	return fmt.Sprintf("%s.~%s~", fn, bePrng.RandomString(9))
 }
 
 var restoreStateRx = regexp.MustCompile(`\.~[a-zA-Z0-9]{9}~$`)

@@ -41,12 +41,12 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -1369,7 +1369,7 @@ func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revisi
 		return nil, err
 	}
 
-	return &backend.UndoInfo{Created: []string{randutil.RandomString(10)}}, nil
+	return &backend.UndoInfo{Created: []string{testutil.RandomString(10)}}, nil
 }
 
 func (f *fakeSnappyBackend) UndoInitExposedSnapHome(snapName string, undoInfo *backend.UndoInfo) error {

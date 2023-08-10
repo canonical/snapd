@@ -33,15 +33,15 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
 )
 
 var (
 	catalogRefreshDelayBase      = 24 * time.Hour
-	catalogRefreshDelayWithDelta = 24*time.Hour + 1 + randutil.RandomDuration(6*time.Hour)
+	catalogRefreshDelayWithDelta = 24*time.Hour + 1 + timeutil.RandomDuration(6*time.Hour)
 )
 
 type catalogRefresh struct {
