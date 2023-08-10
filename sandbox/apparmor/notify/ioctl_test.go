@@ -1,12 +1,18 @@
 package notify_test
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
+	"log"
+	"unsafe"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"golang.org/x/sys/unix"
+
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
 
 type ioctlSuite struct{}
@@ -41,6 +47,33 @@ func (*ioctlSuite) TestIoctlHappy(c *C) {
 	n, err := notify.NotifyIoctl(fd, req, buf)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, buf.Len())
+}
+
+func (ioctlSuite) TestNotifyIoctlBuffer(c *C) {
+	fd := uintptr(123)
+	req := notify.IoctlRequest(456)
+	buf := notify.NewIoctlRequestBuffer()
+	bufAddr := uintptr(unsafe.Pointer(&buf.Bytes()[0]))
+
+	contents := []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01, 0x23, 0x45, 0x67, 0x89, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
+
+	restore := notify.MockSyscall(
+		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
+			c.Assert(a3, Equals, bufAddr)
+			raw := buf.Bytes()
+
+			for i, b := range contents {
+				raw[i] = b
+			}
+
+			return (uintptr)(len(contents)), 0, 0
+		})
+	defer restore()
+
+	n, err := notify.NotifyIoctl(fd, req, buf)
+	c.Assert(err, Equals, nil)
+	c.Assert(n, Equals, len(contents))
+	c.Assert(buf.Bytes(), DeepEquals, contents)
 }
 
 func (*ioctlSuite) TestReadNotifyMessage(c *C) {
@@ -90,6 +123,77 @@ func (*ioctlSuite) TestIoctlReturnError(c *C) {
 	n, err := notify.NotifyIoctl(fd, req, buf)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot perform IOCTL request .*"))
 	c.Assert(n, Equals, -1)
+}
+
+func (ioctlSuite) TestIoctlDump(c *C) {
+	var logBuf bytes.Buffer
+	origLog := log.Writer()
+	log.SetOutput(&logBuf)
+	defer log.SetOutput(origLog)
+
+	origDump := notify.SetIoctlDump(true)
+	defer notify.SetIoctlDump(origDump)
+
+	fd := uintptr(123)
+	req := notify.IoctlRequest(456)
+	buf := notify.NewIoctlRequestBuffer()
+	bufAddr := uintptr(unsafe.Pointer(&buf.Bytes()[0]))
+
+	contents := []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01, 0x23, 0x45, 0x67, 0x89, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
+	contentsString := "0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01, 0x23, 0x45, 0x67, 0x89, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, \n0xff"
+
+	restore := notify.MockSyscall(
+		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
+			c.Assert(a3, Equals, bufAddr)
+			raw := buf.Bytes()
+
+			for i, b := range contents {
+				raw[i] = b
+			}
+
+			return (uintptr)(len(contents)), 0, 0
+		})
+	defer restore()
+
+	sendHeader := fmt.Sprintf(">>> ioctl %v (%d bytes) ...\n", req, buf.Len())
+	sendDataStr := "0xff, 0xff, 0x02, 0x00, "
+	if arch.Endian() == binary.BigEndian {
+		sendDataStr = "0xff, 0xff, 0x00, 0x02, "
+	}
+
+	n, err := notify.NotifyIoctl(fd, req, buf)
+	c.Assert(err, Equals, nil)
+	c.Assert(n, Equals, len(contents))
+	c.Assert(buf.Bytes(), HasLen, len(contents))
+	c.Assert(buf.Bytes(), DeepEquals, contents)
+
+	recvHeader := fmt.Sprintf("<<< ioctl %v returns %d, errno: %v\n", req, n, unix.Errno(0))
+
+	logBufStr := logBuf.String()
+
+	logTsLen := 20
+	logBufStr = logBufStr[logTsLen:]
+
+	// Check that each log component occurs in the log, in order.
+	// Since there are timestamps between each message (and 0xFFFB arbitrary
+	// bytes after the initial message header), can't construct and search for
+	// a complete string.
+	l := len(sendHeader)
+	c.Assert(logBufStr[:l], Equals, sendHeader, Commentf("Next %d chars of buffer: `%s`", l, logBufStr[:l]))
+	logBufStr = logBufStr[l+logTsLen:]
+	l = len(sendDataStr)
+	c.Assert(logBufStr[:l], Equals, sendDataStr, Commentf("Next %d chars of buffer: `%s`", l, logBufStr[:l]))
+	// There should then be 0xFFFB bytes formatted via hexBuf.String().
+	// Each byte is of the form "0xnn, ", with newlines every 16 bytes.
+	// So, 0xFFF newlines, and 6 bytes per char otherwise, though the final
+	// byte is lacking the trailing ", ", and there is a trailing "\n".
+	otherBytesLen := 0xFFFB*6 + 0xFFF - 2 + 1
+	logBufStr = logBufStr[l+otherBytesLen+logTsLen:]
+	l = len(recvHeader)
+	c.Assert(logBufStr[:l], Equals, recvHeader, Commentf("Next %d chars of buffer: `%s`", l, logBufStr[:l]))
+	logBufStr = logBufStr[l+logTsLen:]
+	l = len(contentsString)
+	c.Assert(logBufStr[:l], Equals, contentsString, Commentf("Next %d chars of buffer: `%s`", l, logBufStr[:l]))
 }
 
 func (*ioctlSuite) TestIoctlString(c *C) {
