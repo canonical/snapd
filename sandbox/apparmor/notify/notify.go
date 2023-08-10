@@ -8,19 +8,19 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-var NotifyPath string
+var SysPath string
 
-// PromptingSupportAvailable returns true if NotifyPath exists, indicating that
-// apparmor prompting messages may be received from NotifyPath.
+// PromptingSupportAvailable returns true if SysPath exists, indicating that
+// apparmor prompting messages may be received from SysPath.
 func PromptingSupportAvailable() bool {
-	return osutil.FileExists(NotifyPath)
+	return osutil.FileExists(SysPath)
 }
 
-func setupNotifyPath(newrootdir string) {
-	NotifyPath = filepath.Join(newrootdir, "/sys/kernel/security/apparmor/.notify")
+func setupSysPath(newrootdir string) {
+	SysPath = filepath.Join(newrootdir, "/sys/kernel/security/apparmor/.notify")
 }
 
 func init() {
-	dirs.AddRootDirCallback(setupNotifyPath)
-	setupNotifyPath(dirs.GlobalRootDir)
+	dirs.AddRootDirCallback(setupSysPath)
+	setupSysPath(dirs.GlobalRootDir)
 }

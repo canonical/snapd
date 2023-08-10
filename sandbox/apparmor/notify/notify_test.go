@@ -27,21 +27,21 @@ func (s *notifySuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 }
 
-func (*notifySuite) TestNotifyPathBehavior(c *C) {
+func (*notifySuite) TestSysPathBehavior(c *C) {
 	newRoot := c.MkDir()
-	newNotifyPath := filepath.Join(newRoot, "/sys/kernel/security/apparmor/.notify")
+	newSysPath := filepath.Join(newRoot, "/sys/kernel/security/apparmor/.notify")
 	dirs.SetRootDir(newRoot)
-	c.Assert(notify.NotifyPath, Equals, newNotifyPath)
+	c.Assert(notify.SysPath, Equals, newSysPath)
 }
 
 func (*notifySuite) TestPromptingSupportAvailable(c *C) {
 	newRoot := c.MkDir()
 	dirs.SetRootDir(newRoot)
 	c.Assert(notify.PromptingSupportAvailable(), Equals, false)
-	err := os.MkdirAll(filepath.Dir(notify.NotifyPath), 0755)
+	err := os.MkdirAll(filepath.Dir(notify.SysPath), 0755)
 	c.Assert(err, IsNil)
 	c.Assert(notify.PromptingSupportAvailable(), Equals, false)
-	_, err = os.Create(notify.NotifyPath)
+	_, err = os.Create(notify.SysPath)
 	c.Assert(err, IsNil)
 	c.Assert(notify.PromptingSupportAvailable(), Equals, true)
 }

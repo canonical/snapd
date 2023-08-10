@@ -72,7 +72,7 @@ type msgNotificationFilterKernel struct {
 // MsgNotificationFilter describes the configuration of kernel-side message filtering.
 //
 // This structure can be marshaled and unmarshaled to binary form and
-// transmitted to the kernel using NotifyIoctl along with IoctlGetFilter and
+// transmitted to the kernel using Ioctl along with IoctlGetFilter and
 // IoctlSetFilter.
 type MsgNotificationFilter struct {
 	MsgHeader

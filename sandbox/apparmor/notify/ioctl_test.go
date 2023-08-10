@@ -44,12 +44,12 @@ func (*ioctlSuite) TestIoctlHappy(c *C) {
 			return uintptr(buf.Len()), 0, 0
 		})
 	defer restore()
-	n, err := notify.NotifyIoctl(fd, req, buf)
+	n, err := notify.Ioctl(fd, req, buf)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, buf.Len())
 }
 
-func (ioctlSuite) TestNotifyIoctlBuffer(c *C) {
+func (ioctlSuite) TestIoctlBuffer(c *C) {
 	fd := uintptr(123)
 	req := notify.IoctlRequest(456)
 	buf := notify.NewIoctlRequestBuffer()
@@ -70,13 +70,13 @@ func (ioctlSuite) TestNotifyIoctlBuffer(c *C) {
 		})
 	defer restore()
 
-	n, err := notify.NotifyIoctl(fd, req, buf)
+	n, err := notify.Ioctl(fd, req, buf)
 	c.Assert(err, Equals, nil)
 	c.Assert(n, Equals, len(contents))
 	c.Assert(buf.Bytes(), DeepEquals, contents)
 }
 
-func (*ioctlSuite) TestReadNotifyMessage(c *C) {
+func (*ioctlSuite) TestReadMessage(c *C) {
 	fd := uintptr(123)
 	req := notify.APPARMOR_NOTIF_RECV
 	restore := notify.MockSyscall(
@@ -87,7 +87,7 @@ func (*ioctlSuite) TestReadNotifyMessage(c *C) {
 			return 0, 0, 0
 		})
 	defer restore()
-	buf, err := notify.ReadNotifyMessage(fd)
+	buf, err := notify.ReadMessage(fd)
 	c.Assert(err, IsNil)
 	preparedBuf := notify.NewIoctlRequestBuffer()
 	buf = buf[:preparedBuf.Len()]
@@ -104,7 +104,7 @@ func (*ioctlSuite) TestIoctlReturnValueSizeMismatch(c *C) {
 			return uintptr(buf.Len() * 2), 0, 0
 		})
 	defer restore()
-	n, err := notify.NotifyIoctl(fd, req, buf)
+	n, err := notify.Ioctl(fd, req, buf)
 	c.Assert(err, Equals, notify.ErrIoctlReturnInvalid)
 	c.Assert(n, Equals, buf.Len()*2)
 }
@@ -120,7 +120,7 @@ func (*ioctlSuite) TestIoctlReturnError(c *C) {
 			return ^zero, 0, unix.EBADF
 		})
 	defer restore()
-	n, err := notify.NotifyIoctl(fd, req, buf)
+	n, err := notify.Ioctl(fd, req, buf)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot perform IOCTL request .*"))
 	c.Assert(n, Equals, -1)
 }
@@ -161,7 +161,7 @@ func (ioctlSuite) TestIoctlDump(c *C) {
 		sendDataStr = "0xff, 0xff, 0x00, 0x02, "
 	}
 
-	n, err := notify.NotifyIoctl(fd, req, buf)
+	n, err := notify.Ioctl(fd, req, buf)
 	c.Assert(err, Equals, nil)
 	c.Assert(n, Equals, len(contents))
 	c.Assert(buf.Bytes(), HasLen, len(contents))
