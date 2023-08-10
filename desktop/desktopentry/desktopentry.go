@@ -61,7 +61,7 @@ func splitStringList(value string) []string {
 	return strings.FieldsFunc(value, func(r rune) bool { return r == ';' })
 }
 
-func Load(filename string) (*DesktopEntry, error) {
+func Read(filename string) (*DesktopEntry, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err

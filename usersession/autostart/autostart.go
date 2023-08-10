@@ -60,7 +60,7 @@ func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("cannot match desktop file with snap %s applications", snapName)
 	}
 
-	de, err := desktopentry.Load(desktopFilePath)
+	de, err := desktopentry.Read(desktopFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse desktop file for application %s in snap %s: %v", app.Name, snapName, err)
 	}

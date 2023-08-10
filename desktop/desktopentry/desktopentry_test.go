@@ -119,20 +119,20 @@ NoEqualsSign
 	}
 }
 
-func (s *desktopentrySuite) TestLoad(c *C) {
+func (s *desktopentrySuite) TestRead(c *C) {
 	path := filepath.Join(c.MkDir(), "foo.desktop")
 	err := ioutil.WriteFile(path, []byte(browserDesktopEntry), 0o644)
 	c.Assert(err, IsNil)
 
-	de, err := desktopentry.Load(path)
+	de, err := desktopentry.Read(path)
 	c.Assert(err, IsNil)
 	c.Check(de.Filename, Equals, path)
 	c.Check(de.Name, Equals, "Web Browser")
 }
 
-func (s *desktopentrySuite) TestLoadNotFound(c *C) {
+func (s *desktopentrySuite) TestReadNotFound(c *C) {
 	path := filepath.Join(c.MkDir(), "foo.desktop")
-	_, err := desktopentry.Load(path)
+	_, err := desktopentry.Read(path)
 	c.Check(err, ErrorMatches, `open .*: no such file or directory`)
 }
 

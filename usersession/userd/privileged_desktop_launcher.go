@@ -84,7 +84,7 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 		return dbus.MakeFailedError(err)
 	}
 
-	de, err := desktopentry.Load(desktopFile)
+	de, err := desktopentry.Read(desktopFile)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
