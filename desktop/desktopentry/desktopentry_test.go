@@ -46,6 +46,10 @@ Exec=browser %u
 Icon = ${SNAP}/default256.png
 Actions=NewWindow;NewPrivateWindow;
 
+[Something else]
+Name=Not the app name
+Exec=not-the-executable
+
 # A comment
 [Desktop Action NewWindow]
 Name = Open a New Window
