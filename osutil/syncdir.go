@@ -34,7 +34,7 @@ type FileState interface {
 	State() (reader io.ReadCloser, size int64, mode os.FileMode, err error)
 }
 
-// SymlinkFileState describes the desired symlink by providing a target
+// SymlinkFileState describes the desired symlink by providing its target.
 type SymlinkFileState struct {
 	Target string
 }
