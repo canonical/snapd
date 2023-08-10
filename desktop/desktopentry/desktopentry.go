@@ -29,6 +29,10 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// DesktopEntry represents a freedesktop.org desktop entry file
+//
+// The various fields are as defined in the specification:
+// https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html
 type DesktopEntry struct {
 	Filename string
 	Name     string
@@ -43,6 +47,7 @@ type DesktopEntry struct {
 	Actions map[string]*Action
 }
 
+// Action represents an application action defined in a desktop entry file
 type Action struct {
 	Name string
 	Icon string
@@ -57,10 +62,11 @@ const (
 	desktopActionGroup
 )
 
-func splitStringList(value string) []string {
+func splitList(value string) []string {
 	return strings.FieldsFunc(value, func(r rune) bool { return r == ';' })
 }
 
+// Read parses a desktop entry file
 func Read(filename string) (*DesktopEntry, error) {
 	f, err := os.Open(filename)
 	if err != nil {
@@ -126,6 +132,8 @@ func parse(filename string, r io.Reader) (*DesktopEntry, error) {
 		key := strings.TrimRight(split[0], "\t\n\v\f\r ")
 		value := strings.TrimLeft(split[1], "\t\n\v\f\r ")
 		switch currentGroup {
+		case unknownGroup:
+			// Ignore keys in unknown groups
 		case desktopEntryGroup:
 			switch key {
 			case "Name":
@@ -137,13 +145,13 @@ func parse(filename string, r io.Reader) (*DesktopEntry, error) {
 			case "Hidden":
 				de.Hidden = value == "true"
 			case "OnlyShowIn":
-				de.OnlyShowIn = splitStringList(value)
+				de.OnlyShowIn = splitList(value)
 			case "NotShownIn":
-				de.NotShownIn = splitStringList(value)
+				de.NotShownIn = splitList(value)
 			case "X-GNOME-Autostart-enabled":
 				de.GnomeAutostartEnabled = value == "true"
 			case "Actions":
-				actions = splitStringList(value)
+				actions = splitList(value)
 			}
 		case desktopActionGroup:
 			switch key {
@@ -200,6 +208,10 @@ func (de *DesktopEntry) ShouldAutostart(currentDesktop []string) bool {
 	return true
 }
 
+// ExpandExec returns the command line used to launch this desktop entry
+//
+// Macros will be expanded, with the %f, %F, %u, and %U macros using
+// the provided list of URIs
 func (de *DesktopEntry) ExpandExec(uris []string) ([]string, error) {
 	if de.Exec == "" {
 		return nil, fmt.Errorf("desktop file %q has no Exec line", de.Filename)
@@ -207,6 +219,8 @@ func (de *DesktopEntry) ExpandExec(uris []string) ([]string, error) {
 	return expandExec(de, de.Exec, uris)
 }
 
+// ExpandActionExec returns the command line used to launch the named
+// action of the desktop entry
 func (de *DesktopEntry) ExpandActionExec(action string, uris []string) ([]string, error) {
 	if de.Actions[action] == nil {
 		return nil, fmt.Errorf("desktop file %q does not have action %q", de.Filename, action)
