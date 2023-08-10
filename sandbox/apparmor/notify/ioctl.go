@@ -68,6 +68,14 @@ func (b *IoctlRequestBuffer) Pointer() uintptr {
 
 var dumpIoctl bool = osutil.GetenvBool("SNAPD_DEBUG_DUMP_IOCTL")
 
+// SetIoctlDump enables or disables dumping the return value and buffer from ioctl(2).
+// Returns the previous ioctl dump value.
+func SetIoctlDump(value bool) bool {
+	prev := dumpIoctl
+	dumpIoctl = value
+	return prev
+}
+
 // NotifyIoctl performs a ioctl(2) on the given file descriptor.
 // Sets the length of buf.Bytes() to be equal to the return value of the
 // syscall, indicating how many bytes were written to the buffer.
