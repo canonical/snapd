@@ -22,6 +22,7 @@ var doSyscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) 
 
 type hexBuf []byte
 
+// String returns a string representation of a hexBuf.
 func (hb hexBuf) String() string {
 	var buf bytes.Buffer
 	for i, b := range hb {
@@ -36,11 +37,14 @@ func (hb hexBuf) String() string {
 	return buf.String()
 }
 
+// IoctlRequestBuffer is a buffer with a constructor method which prepares a
+// buffer to be passed into ioctl(2), along with other useful methods.
 type IoctlRequestBuffer struct {
 	bytes []byte
 }
 
 // NewIoctlRequestBuffer returns a new buffer for communication with the kernel.
+//
 // The buffer contains encoded information about its size and protocol version.
 func NewIoctlRequestBuffer() *IoctlRequestBuffer {
 	bufSize := 0xFFFF
@@ -54,14 +58,19 @@ func NewIoctlRequestBuffer() *IoctlRequestBuffer {
 	}
 }
 
+// Bytes returns the underlying byte slice of an IoctlRequestBuffer.
 func (b *IoctlRequestBuffer) Bytes() []byte {
 	return b.bytes
 }
 
+// Len returns the length of the underlying byte slice of an IoctlRequestBuffer.
 func (b *IoctlRequestBuffer) Len() int {
 	return len(b.bytes)
 }
 
+// Pointer returns a pointer to the first element of an IoctlRequestBuffer.
+//
+// This is intended to be used to simplify passing the buffer into ioctl(2).
 func (b *IoctlRequestBuffer) Pointer() uintptr {
 	return uintptr(unsafe.Pointer(&b.bytes[0]))
 }
@@ -69,6 +78,7 @@ func (b *IoctlRequestBuffer) Pointer() uintptr {
 var dumpIoctl bool = osutil.GetenvBool("SNAPD_DEBUG_DUMP_IOCTL")
 
 // SetIoctlDump enables or disables dumping the return value and buffer from ioctl(2).
+//
 // Returns the previous ioctl dump value.
 func SetIoctlDump(value bool) bool {
 	prev := dumpIoctl
@@ -76,13 +86,14 @@ func SetIoctlDump(value bool) bool {
 	return prev
 }
 
-// NotifyIoctl performs a ioctl(2) on the given file descriptor.
+// Ioctl performs a ioctl(2) on the given file descriptor.
+//
 // Sets the length of buf.Bytes() to be equal to the return value of the
 // syscall, indicating how many bytes were written to the buffer.
 // If the ioctl syscall returns an error, the buffer contents are those filled
 // by the syscall, but the size of the buffer is unchanged, and NotifySyscall
 // returns the size and error returned by the syscall.
-func NotifyIoctl(fd uintptr, req IoctlRequest, buf *IoctlRequestBuffer) (int, error) {
+func Ioctl(fd uintptr, req IoctlRequest, buf *IoctlRequestBuffer) (int, error) {
 	var err error
 	if dumpIoctl {
 		log.Printf(">>> ioctl %v (%d bytes) ...\n", req, buf.Len())
@@ -107,12 +118,13 @@ func NotifyIoctl(fd uintptr, req IoctlRequest, buf *IoctlRequestBuffer) (int, er
 	return size, err
 }
 
-// ReadNotifyMessage uses ioctl(2) to receive a message from apparmor.
+// ReadMessage uses ioctl(2) to receive a message from apparmor.
+//
 // The ioctl(2) syscall is performed on the given file descriptor.
 // Returns a buffer containing the received message.
-func ReadNotifyMessage(fd uintptr) ([]byte, error) {
+func ReadMessage(fd uintptr) ([]byte, error) {
 	buf := NewIoctlRequestBuffer()
-	_, err := NotifyIoctl(fd, APPARMOR_NOTIF_RECV, buf)
+	_, err := Ioctl(fd, APPARMOR_NOTIF_RECV, buf)
 	if err != nil {
 		return nil, err
 	}
@@ -132,6 +144,7 @@ const (
 	APPARMOR_NOTIF_SEND        IoctlRequest = 0xC008F805
 )
 
+// String returns the string representation of an IoctlRequest.
 func (req IoctlRequest) String() string {
 	switch req {
 	case APPARMOR_NOTIF_SET_FILTER:
