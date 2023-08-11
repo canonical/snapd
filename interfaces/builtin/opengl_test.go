@@ -104,12 +104,11 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 	updateNS := spec.UpdateNS()
 
 	// This all gets added as one giant snippet so just testing for the comment fails
-	// We also can't use a multiline raw string for `Sprintf` if we want to use %s,
-	// so easier to concat regular strings
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("\t# Read-only access to Nvidia driver profiles in /usr/share/nvidia\n"+
-		"\tmount options=(bind) /var/lib/snapd/hostfs%s/usr/share/nvidia/ -> /usr/share/nvidia/,\n"+
-		"\tremount options=(bind, ro) /usr/share/nvidia/,\n"+
-		"\tumount /usr/share/nvidia/,\n", tmpdir))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf(`	# Read-only access to Nvidia driver profiles in /usr/share/nvidia
+	mount options=(bind) /var/lib/snapd/hostfs%s/usr/share/nvidia/ -> /usr/share/nvidia/,\n"+
+	remount options=(bind, ro) /usr/share/nvidia/,\n"
+	umount /usr/share/nvidia/,
+`, tmpdir))
 }
 
 func (s *OpenglInterfaceSuite) TestUDevSpec(c *C) {
