@@ -105,8 +105,8 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// This all gets added as one giant snippet so just testing for the comment fails
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf(`	# Read-only access to Nvidia driver profiles in /usr/share/nvidia
-	mount options=(bind) /var/lib/snapd/hostfs%s/usr/share/nvidia/ -> /usr/share/nvidia/,\n"+
-	remount options=(bind, ro) /usr/share/nvidia/,\n"
+	mount options=(bind) /var/lib/snapd/hostfs%s/usr/share/nvidia/ -> /usr/share/nvidia/,
+	remount options=(bind, ro) /usr/share/nvidia/,
 	umount /usr/share/nvidia/,
 `, tmpdir))
 }
