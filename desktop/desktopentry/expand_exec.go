@@ -133,7 +133,8 @@ func expandExec(de *DesktopEntry, exec string, uris []string) (args []string, er
 			buf.WriteRune(r)
 		}
 	}
-	// If no URI substitutions have happened, add an implicit %f argument
+	// If no URI substitutions have happened, add a single
+	// implicit %f argument
 	if len(uris) > 0 && len(uris) == nUris {
 		buf.WriteRune(' ')
 		if _, err = expandMacro('f', &buf, de, uris); err != nil {
