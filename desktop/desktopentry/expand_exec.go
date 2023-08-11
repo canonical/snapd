@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/strutil/shlex"
@@ -42,6 +43,9 @@ func toFilePath(uri string) (string, error) {
 	}
 	if u.Scheme != "file" {
 		return "", fmt.Errorf("%q is not a file URI", uri)
+	}
+	if !filepath.IsAbs(u.Path) {
+		return "", fmt.Errorf("%q does not have an absolute file path", uri)
 	}
 	return u.Path, nil
 }
