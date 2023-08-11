@@ -3507,6 +3507,4 @@ func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
 	preseedAs2, err := preseedSeed.LoadPreseedAssertion()
 	c.Assert(err, IsNil)
 	c.Check(preseedAs2, DeepEquals, preseedAs)
-
-	preseedAs2 = nil
 }
