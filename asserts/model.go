@@ -674,7 +674,7 @@ func checkAuthorityMatchesBrand(a Assertion) error {
 	return nil
 }
 
-func checkOptionalAuthority(name string, acceptsAny bool, headers map[string]interface{}, brandID string) ([]string, error) {
+func checkOptionalAuthority(headers map[string]interface{}, name string, brandID string, acceptsAny bool) ([]string, error) {
 	ids := []string{brandID}
 	v, ok := headers[name]
 	if !ok {
@@ -703,15 +703,18 @@ func checkOptionalAuthority(name string, acceptsAny bool, headers map[string]int
 }
 
 func checkOptionalSerialAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
-	return checkOptionalAuthority("serial-authority", false, headers, brandID)
+	const acceptsAny = false
+	return checkOptionalAuthority(headers, "serial-authority", brandID, acceptsAny)
 }
 
 func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
-	return checkOptionalAuthority("system-user-authority", true, headers, brandID)
+	const acceptsAny = true
+	return checkOptionalAuthority(headers, "system-user-authority", brandID, acceptsAny)
 }
 
 func checkOptionalPreseedAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
-	return checkOptionalAuthority("preseed-authority", false, headers, brandID)
+	const acceptsAny = false
+	return checkOptionalAuthority(headers, "preseed-authority", brandID, acceptsAny)
 }
 
 func checkModelValidationSetAccountID(headers map[string]interface{}, what, brandID string) (string, error) {
