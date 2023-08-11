@@ -253,6 +253,7 @@ func (s *EnsureDirStateSuite) TestRemovesSymlink(c *C) {
 	err = os.Symlink(original, symlink)
 	c.Assert(err, IsNil)
 
+	// Removed file is reported
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
 		"original.snap": &osutil.FileReference{Path: original},
 	})
@@ -260,6 +261,7 @@ func (s *EnsureDirStateSuite) TestRemovesSymlink(c *C) {
 	c.Check(len(changed), Equals, 0)
 	c.Check(len(removed), Equals, 1)
 	c.Check(removed[0], Equals, "symlink.snap")
+
 	c.Check(symlink, testutil.FileAbsent)
 	c.Check(original, testutil.FileEquals, "data")
 }
@@ -269,18 +271,20 @@ func (s *EnsureDirStateSuite) TestCreatesMissingSymlink(c *C) {
 	err := ioutil.WriteFile(original, []byte("data"), 0600)
 	c.Assert(err, IsNil)
 
-	missingSymlink := filepath.Join(s.dir, "missing-symlink.snap")
+	// Created file is reported
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
 		"original.snap":        &osutil.FileReference{Path: original},
 		"missing-symlink.snap": &osutil.SymlinkFileState{Target: original},
 	})
 	c.Assert(err, IsNil)
-	// Created file is reported
 	c.Assert(changed, DeepEquals, []string{"missing-symlink.snap"})
 	c.Assert(removed, HasLen, 0)
-	// The symlink points to original
+
+	// The symlink is created
+	missingSymlink := filepath.Join(s.dir, "missing-symlink.snap")
 	c.Assert(missingSymlink, testutil.FileEquals, "data")
 	c.Assert(osutil.IsSymlink(missingSymlink), Equals, true)
+	// and points to original
 	link, err := os.Readlink(missingSymlink)
 	c.Assert(err, IsNil)
 	c.Assert(link, Equals, original)
@@ -294,17 +298,20 @@ func (s *EnsureDirStateSuite) TestReplaceFileWithSymlink(c *C) {
 	symlink := filepath.Join(s.dir, "symlink.snap")
 	err = ioutil.WriteFile(symlink, []byte("old-data"), 0600)
 	c.Assert(err, IsNil)
+
+	// Changed file is reported
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
 		"original.snap": &osutil.FileReference{Path: original},
 		"symlink.snap":  &osutil.SymlinkFileState{Target: original},
 	})
 	c.Assert(err, IsNil)
-	// Changed file is reported
 	c.Assert(changed, DeepEquals, []string{"symlink.snap"})
 	c.Assert(removed, HasLen, 0)
-	// The symlinks points to original
+
+	// The symlink is created
 	c.Assert(symlink, testutil.FileEquals, "data")
 	c.Assert(osutil.IsSymlink(symlink), Equals, true)
+	// and points to original
 	link, err := os.Readlink(symlink)
 	c.Assert(err, IsNil)
 	c.Assert(link, Equals, original)
@@ -314,15 +321,16 @@ func (s *EnsureDirStateSuite) TestReplaceSymlinkWithSymlink(c *C) {
 	symlink := filepath.Join(s.dir, "symlink.snap")
 	err := os.Symlink("old-target", symlink)
 	c.Assert(err, IsNil)
+
+	// Changed file is reported
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
 		"symlink.snap": &osutil.SymlinkFileState{Target: "new-target"},
 	})
 	c.Assert(err, IsNil)
-	// Changed file is reported
 	c.Assert(changed, DeepEquals, []string{"symlink.snap"})
 	c.Assert(removed, HasLen, 0)
+
 	// The symlink points to new target
-	c.Assert(osutil.IsSymlink(symlink), Equals, true)
 	link, err := os.Readlink(symlink)
 	c.Assert(err, IsNil)
 	c.Assert(link, Equals, "new-target")
@@ -332,15 +340,16 @@ func (s *EnsureDirStateSuite) TestSameSymlink(c *C) {
 	symlink := filepath.Join(s.dir, "symlink.snap")
 	err := os.Symlink("target", symlink)
 	c.Assert(err, IsNil)
+
+	// Changed file is reported
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
 		"symlink.snap": &osutil.SymlinkFileState{Target: "target"},
 	})
 	c.Assert(err, IsNil)
-	// Changed file is reported
 	c.Assert(changed, HasLen, 0)
 	c.Assert(removed, HasLen, 0)
+
 	// The symlink doesn't change
-	c.Assert(osutil.IsSymlink(symlink), Equals, true)
 	link, err := os.Readlink(symlink)
 	c.Assert(err, IsNil)
 	c.Assert(link, Equals, "target")
@@ -368,9 +377,9 @@ func (s *EnsureDirStateSuite) TestUnsupportedFileMode(c *C) {
 	}
 	filePath := filepath.Join(s.dir, "test.snap")
 	for _, modeType := range unsupportedModeTypes {
-		fileState := &mockFileState{mode: modeType, err: nil}
+		fileState := &mockFileState{mode: modeType}
 		err := osutil.EnsureFileState(filePath, fileState)
-		expectedErr := fmt.Sprintf("internal error: EnsureFileState does not support type: %q", modeType)
+		expectedErr := fmt.Sprintf("internal error: EnsureFileState does not support type %q", modeType)
 		c.Check(err.Error(), Equals, expectedErr)
 	}
 }

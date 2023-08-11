@@ -308,11 +308,11 @@ func EnsureFileState(filePath string, state FileState) error {
 	if err != nil {
 		return err
 	}
-	switch mode.Type() {
-	case 0:
+	switch {
+	case mode.IsRegular():
 		return ensureRegularFileState(filePath, state)
-	case os.ModeSymlink:
+	case mode.Type() == os.ModeSymlink:
 		return ensureSymlinkFileState(filePath, state)
 	}
-	return fmt.Errorf("internal error: EnsureFileState does not support type: %q", mode.Type())
+	return fmt.Errorf("internal error: EnsureFileState does not support type %q", mode.Type())
 }
