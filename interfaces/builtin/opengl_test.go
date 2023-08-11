@@ -84,6 +84,10 @@ func (s *OpenglInterfaceSuite) TearDownTest(c *C) {
 }
 
 func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/nvidia"), 0777), IsNil)
+
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -97,17 +101,15 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/usr/share/nvidia/ r,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/usr/share/nvidia/** r,`)
 
-	tmpdir := c.MkDir()
-	dirs.SetRootDir(tmpdir)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/nvidia"), 0777), IsNil)
 	updateNS := spec.UpdateNS()
 
 	// This all gets added as one giant snippet so just testing for the comment fails
-	c.Check(updateNS, testutil.Contains, `  # Read-only access to Nvidia driver profiles in /usr/share/nvidia
-	mount options=(bind) /var/lib/snapd/hostfs/usr/share/nvidia/ -> /usr/share/nvidia/,
-	remount options=(bind, ro) /usr/share/nvidia/,
-	umount /usr/share/nvidia/,
-`)
+	// We also can't use a multiline raw string for `Sprintf` if we want to use %s,
+	// so easier to concat regular strings
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("\t# Read-only access to Nvidia driver profiles in /usr/share/nvidia\n"+
+		"\tmount options=(bind) /var/lib/snapd/hostfs%s/usr/share/nvidia/ -> /usr/share/nvidia/,\n"+
+		"\tremount options=(bind, ro) /usr/share/nvidia/,\n"+
+		"\tumount /usr/share/nvidia/,\n", tmpdir))
 }
 
 func (s *OpenglInterfaceSuite) TestUDevSpec(c *C) {

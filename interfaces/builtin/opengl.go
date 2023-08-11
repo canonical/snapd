@@ -214,7 +214,7 @@ func (iface *openGlInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 		return nil
 	}
 
-	spec.AddUpdateNSf(`  # Read-only access to Nvidia driver profiles in %[2]s
+	spec.AddUpdateNSf(`	# Read-only access to Nvidia driver profiles in %[2]s
 	mount options=(bind) /var/lib/snapd/hostfs%[1]s/ -> %[2]s/,
 	remount options=(bind, ro) %[2]s/,
 	umount %[2]s/,
