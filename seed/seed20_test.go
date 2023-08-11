@@ -3322,7 +3322,7 @@ func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
 		{overrides: map[string]interface{}{"system-label": "other-label"}, err: `preseed assertion system label "other-label" doesn't match system label "20230406"`},
 		{overrides: map[string]interface{}{"model": "other-model"}, err: `preseed assertion model "other-model" doesn't match the model "my-model"`},
 		{overrides: map[string]interface{}{"series": "other-series"}, err: `preseed assertion series "other-series" doesn't match model series "16"`},
-		{overrides: map[string]interface{}{"authority-id": "other-brand"}, asserts: s.Brands.AccountsAndKeys("other-brand"), err: `authority id "other-brand" is not allowed by the model`},
+		{overrides: map[string]interface{}{"authority-id": "other-brand"}, asserts: s.Brands.AccountsAndKeys("other-brand"), err: `preseed authority-id "other-brand" is not allowed by the model`},
 		{overrides: map[string]interface{}{"brand-id": "other-brand", "authority-id": "other-brand"}, err: `cannot resolve prerequisite assertion:.*`},
 	}
 
