@@ -38,7 +38,7 @@ func toFilePath(uri string) (string, error) {
 		return "", err
 	}
 	if !u.IsAbs() {
-		return "", fmt.Errorf("%q is not absolute", uri)
+		return "", fmt.Errorf("%q is not an absolute URI", uri)
 	}
 	if u.Scheme != "file" {
 		return "", fmt.Errorf("%q is not a file URI", uri)

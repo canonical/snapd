@@ -102,6 +102,14 @@ func (s *desktopentrySuite) TestExpandExecHelper(c *C) {
 	}, {
 		in:  `foo "unclosed double quote`,
 		err: "EOF found when expecting closing quote",
+	}, {
+		in:   `foo %f`,
+		uris: []string{"/foo"},
+		err:  `"/foo" is not an absolute URI`,
+	}, {
+		in:   `foo %f`,
+		uris: []string{"foo/bar"},
+		err:  `"foo/bar" is not an absolute URI`,
 	}} {
 		c.Logf("tc %d", i)
 
