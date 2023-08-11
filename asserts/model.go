@@ -627,7 +627,7 @@ func (mod *Model) SystemUserAuthority() []string {
 	return mod.sysUserAuthority
 }
 
-// SystemUserAuthority returns the authority ids that are accepted as
+// PreseedAuthority returns the authority ids that are accepted as
 // signers of the preseed binary blob for this model. It always includes the
 // brand of the model.
 func (mod *Model) PreseedAuthority() []string {
