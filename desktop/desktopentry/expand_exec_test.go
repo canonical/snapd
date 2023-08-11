@@ -110,6 +110,20 @@ func (s *desktopentrySuite) TestExpandExecHelper(c *C) {
 		in:   `foo %f`,
 		uris: []string{"foo/bar"},
 		err:  `"foo/bar" is not an absolute URI`,
+	}, {
+		in:   `foo %f`,
+		uris: []string{"file:foo/bar"},
+		err:  `"file:foo/bar" does not have an absolute file path`,
+	}, {
+		// Environment variables are not expanded.
+		in:  `foo $PATH`,
+		out: []string{"foo", "$PATH"},
+	}, {
+		// Special characters within URIs are preserved in the
+		// final command line.
+		in:   `foo %f`,
+		uris: []string{"file:///special%20chars%27%22%25%20%24foo"},
+		out:  []string{"foo", `/special chars'"% $foo`},
 	}} {
 		c.Logf("tc %d", i)
 
