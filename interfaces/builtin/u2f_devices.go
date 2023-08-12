@@ -75,7 +75,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "JaCarta U2F",
 		VendorIDPattern:  "24dc",
-		ProductIDPattern: "0101",
+		ProductIDPattern: "0101|0501",
 	},
 	{
 		Name:             "U2F Zero",
