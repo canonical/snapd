@@ -913,30 +913,10 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 }
 
 func (s *snapSeccompSuite) TestExportBpfErrors(c *C) {
+	fout, err := os.Create(filepath.Join(c.MkDir(), "filter"))
+	c.Assert(err, IsNil)
+
 	// invalid filter
-	_, _, err := main.ExportBPF(&seccomp.ScmpFilter{})
+	_, err = main.ExportBPF(fout, &seccomp.ScmpFilter{})
 	c.Check(err, ErrorMatches, "cannot export bpf filter: filter is invalid or uninitialized")
-
-	// error from temp
-	restore := main.MockOsCreateTemp(func(dir, pattern string) (*os.File, error) {
-		return nil, fmt.Errorf("boom")
-	})
-	defer restore()
-	_, _, err = main.ExportBPF(&seccomp.ScmpFilter{})
-	c.Check(err, ErrorMatches, "cannot export bpf filter: boom")
-
-	// unwritable file
-	tmpdir := c.MkDir()
-	defer os.Chmod(tmpdir, 0755)
-	restore = main.MockOsCreateTemp(func(dir, pattern string) (*os.File, error) {
-		f, err := os.Create(filepath.Join(tmpdir, "unwritable"))
-		c.Assert(err, IsNil)
-		err = os.Chmod(tmpdir, 0100)
-		c.Assert(err, IsNil)
-		return f, nil
-	})
-	defer restore()
-
-	_, _, err = main.ExportBPF(&seccomp.ScmpFilter{})
-	c.Check(err, ErrorMatches, "cannot export bpf filter: remove /.*/unwritable: permission denied")
 }
