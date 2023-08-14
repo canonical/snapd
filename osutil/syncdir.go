@@ -58,7 +58,10 @@ func (fref FileReference) State() (io.ReadCloser, int64, os.FileMode, error) {
 	if err != nil {
 		return nil, 0, os.FileMode(0), err
 	}
-	return file, fi.Size(), fi.Mode().Perm(), nil
+	if err := checkFileType(fi.Mode()); err != nil {
+		return nil, 0, os.FileMode(0), err
+	}
+	return file, fi.Size(), fi.Mode(), nil
 }
 
 // FileReferencePlusMode describes the desired content by referencing an existing file and providing custom mode.
@@ -73,7 +76,10 @@ func (fcref FileReferencePlusMode) State() (io.ReadCloser, int64, os.FileMode, e
 	if err != nil {
 		return nil, 0, os.FileMode(0), err
 	}
-	return reader, size, fcref.Mode.Perm(), nil
+	if err := checkFileType(fcref.Mode); err != nil {
+		return nil, 0, os.FileMode(0), err
+	}
+	return reader, size, fcref.Mode, nil
 }
 
 // MemoryFileState describes the desired content by providing an in-memory copy.
@@ -84,7 +90,17 @@ type MemoryFileState struct {
 
 // State returns a reader of the in-memory contents of a file, along with other meta-data.
 func (blob *MemoryFileState) State() (io.ReadCloser, int64, os.FileMode, error) {
-	return ioutil.NopCloser(bytes.NewReader(blob.Content)), int64(len(blob.Content)), blob.Mode.Perm(), nil
+	if err := checkFileType(blob.Mode); err != nil {
+		return nil, 0, os.FileMode(0), err
+	}
+	return ioutil.NopCloser(bytes.NewReader(blob.Content)), int64(len(blob.Content)), blob.Mode, nil
+}
+
+func checkFileType(mode os.FileMode) error {
+	if !mode.IsRegular() {
+		return fmt.Errorf("internal error: only regular files are supported, got %q instead", mode.Type())
+	}
+	return nil
 }
 
 // ErrSameState is returned when the state of a file has not changed.

@@ -26,6 +26,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -381,5 +382,70 @@ func (s *EnsureDirStateSuite) TestUnsupportedFileMode(c *C) {
 		err := osutil.EnsureFileState(filePath, fileState)
 		expectedErr := fmt.Sprintf("internal error: EnsureFileState does not support type %q", modeType)
 		c.Check(err.Error(), Equals, expectedErr)
+	}
+}
+
+func (s *EnsureDirStateSuite) TestFileReferenceUnsupportedFileMode(c *C) {
+	// Directories are unsupported
+	testPath := filepath.Join(s.dir, "test.dir")
+	c.Assert(os.MkdirAll(testPath, 0755), IsNil)
+	fref := osutil.FileReference{Path: testPath}
+	_, _, _, err := fref.State()
+	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: only regular files are supported, got %q instead", os.ModeDir))
+
+	// Pipes are unsupported
+	testPath = filepath.Join(s.dir, "test.pipe")
+	c.Assert(syscall.Mkfifo(testPath, 0600), IsNil)
+	// We need to open a writer to avoid getting stuck opening file
+	file, err := os.OpenFile(testPath, os.O_RDWR, 0)
+	c.Assert(err, IsNil)
+	defer file.Close()
+	fref = osutil.FileReference{Path: testPath}
+	_, _, _, err = fref.State()
+	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: only regular files are supported, got %q instead", os.ModeNamedPipe))
+}
+
+func (s *EnsureDirStateSuite) TestFileReferencePlusModeUnsupportedFileMode(c *C) {
+	testPath := filepath.Join(s.dir, "test.dir")
+	c.Assert(os.WriteFile(testPath, []byte("test"), 0600), IsNil)
+
+	unsupportedModeTypes := []os.FileMode{
+		os.ModeDir,
+		os.ModeNamedPipe,
+		os.ModeSocket,
+		os.ModeDevice,
+		os.ModeCharDevice,
+		os.ModeIrregular,
+	}
+
+	for _, modeType := range unsupportedModeTypes {
+		fref := osutil.FileReferencePlusMode{
+			FileReference: osutil.FileReference{Path: testPath},
+			Mode:          modeType,
+		}
+		_, _, _, err := fref.State()
+		c.Check(err.Error(), Equals, fmt.Sprintf("internal error: only regular files are supported, got %q instead", modeType))
+	}
+}
+
+func (s *EnsureDirStateSuite) TestMemoryFileStateUnsupportedFileMode(c *C) {
+	testPath := filepath.Join(s.dir, "test.dir")
+	c.Assert(os.WriteFile(testPath, []byte("test"), 0600), IsNil)
+
+	unsupportedModeTypes := []os.FileMode{
+		os.ModeDir,
+		os.ModeNamedPipe,
+		os.ModeSocket,
+		os.ModeDevice,
+		os.ModeCharDevice,
+		os.ModeIrregular,
+	}
+
+	for _, modeType := range unsupportedModeTypes {
+		blob := osutil.MemoryFileState{
+			Mode: modeType,
+		}
+		_, _, _, err := blob.State()
+		c.Check(err.Error(), Equals, fmt.Sprintf("internal error: only regular files are supported, got %q instead", modeType))
 	}
 }

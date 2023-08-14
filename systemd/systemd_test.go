@@ -2428,5 +2428,5 @@ func (s *systemdErrorSuite) TestEnsureMountUnitFileEnsureFileStateErr(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = New(SystemMode, nil).EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
-	c.Assert(err, ErrorMatches, `rename .*/etc/systemd/system/snap-snapname-123.mount.* .*/etc/systemd/system/snap-snapname-123.mount: file exists`)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("internal error: only regular files are supported, got %q instead", os.ModeDir))
 }
