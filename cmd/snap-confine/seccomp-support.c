@@ -155,7 +155,7 @@ static void sc_must_read_filter_from_file(FILE *file, uint32_t len_bytes, char *
 	}
 }
 
-static FILE* sc_must_read_header_from_file(const char *profile_path, struct sc_seccomp_file_header *hdr)
+static FILE* sc_must_read_and_validate_header_from_file(const char *profile_path, struct sc_seccomp_file_header *hdr)
 {
 	FILE *file = fopen(profile_path, "rb");
 	if (file == NULL) {
@@ -240,7 +240,7 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 	// Double {{}} struct init to workaround bug in gcc on 14.04
 	// that claims: "error: missing braces around initializer"
 	struct sc_seccomp_file_header hdr = {{0}};
-	FILE *file SC_CLEANUP(sc_cleanup_file) = sc_must_read_header_from_file(profile_path, &hdr);
+	FILE *file SC_CLEANUP(sc_cleanup_file) = sc_must_read_and_validate_header_from_file(profile_path, &hdr);
 	if (hdr.unrestricted == 0x1) {
 		return false;
 	}
