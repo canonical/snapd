@@ -9,7 +9,7 @@ import (
 	"time"
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
-	"github.com/snapcore/snapd/prompting/apparmor"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
 
 var ErrPermissionNotInList = errors.New("permission not found in permissions list")
@@ -142,68 +142,68 @@ func LabelToSnapApp(label string) (snap string, app string, err error) {
 // Converts the given aparmor file permission mask into a list of permissions.
 // If the mask contains an unrecognized file permission, returns an error,
 // along with the list of all recognized permissions in the mask.
-func PermissionMaskToPermissionsList(p apparmor.FilePermission) ([]PermissionType, error) {
+func PermissionMaskToPermissionsList(p notify.FilePermission) ([]PermissionType, error) {
 	perms := make([]PermissionType, 0, 1)
 	// Want to be memory efficient, as this list could be stored for a long time.
 	// Most of the time, only one permission bit will be set anyway.
-	if p&apparmor.MayExecutePermission != 0 {
+	if p&notify.AA_MAY_EXEC != 0 {
 		perms = append(perms, PermissionExecute)
 	}
-	if p&apparmor.MayWritePermission != 0 {
+	if p&notify.AA_MAY_WRITE != 0 {
 		perms = append(perms, PermissionWrite)
 	}
-	if p&apparmor.MayReadPermission != 0 {
+	if p&notify.AA_MAY_READ != 0 {
 		perms = append(perms, PermissionRead)
 	}
-	if p&apparmor.MayAppendPermission != 0 {
+	if p&notify.AA_MAY_APPEND != 0 {
 		perms = append(perms, PermissionAppend)
 	}
-	if p&apparmor.MayCreatePermission != 0 {
+	if p&notify.AA_MAY_CREATE != 0 {
 		perms = append(perms, PermissionCreate)
 	}
-	if p&apparmor.MayDeletePermission != 0 {
+	if p&notify.AA_MAY_DELETE != 0 {
 		perms = append(perms, PermissionDelete)
 	}
-	if p&apparmor.MayOpenPermission != 0 {
+	if p&notify.AA_MAY_OPEN != 0 {
 		perms = append(perms, PermissionOpen)
 	}
-	if p&apparmor.MayRenamePermission != 0 {
+	if p&notify.AA_MAY_RENAME != 0 {
 		perms = append(perms, PermissionRename)
 	}
-	if p&apparmor.MaySetAttrPermission != 0 {
+	if p&notify.AA_MAY_SETATTR != 0 {
 		perms = append(perms, PermissionSetAttr)
 	}
-	if p&apparmor.MayGetAttrPermission != 0 {
+	if p&notify.AA_MAY_GETATTR != 0 {
 		perms = append(perms, PermissionGetAttr)
 	}
-	if p&apparmor.MaySetCredentialPermission != 0 {
+	if p&notify.AA_MAY_SETCRED != 0 {
 		perms = append(perms, PermissionSetCred)
 	}
-	if p&apparmor.MayGetCredentialPermission != 0 {
+	if p&notify.AA_MAY_GETCRED != 0 {
 		perms = append(perms, PermissionGetCred)
 	}
-	if p&apparmor.MayChangeModePermission != 0 {
+	if p&notify.AA_MAY_CHMOD != 0 {
 		perms = append(perms, PermissionChangeMode)
 	}
-	if p&apparmor.MayChangeOwnerPermission != 0 {
+	if p&notify.AA_MAY_CHOWN != 0 {
 		perms = append(perms, PermissionChangeOwner)
 	}
-	if p&apparmor.MayChangeGroupPermission != 0 {
+	if p&notify.AA_MAY_CHGRP != 0 {
 		perms = append(perms, PermissionChangeGroup)
 	}
-	if p&apparmor.MayLockPermission != 0 {
+	if p&notify.AA_MAY_LOCK != 0 {
 		perms = append(perms, PermissionLock)
 	}
-	if p&apparmor.MayExecuteMapPermission != 0 {
+	if p&notify.AA_EXEC_MMAP != 0 {
 		perms = append(perms, PermissionExecuteMap)
 	}
-	if p&apparmor.MayLinkPermission != 0 {
+	if p&notify.AA_MAY_LINK != 0 {
 		perms = append(perms, PermissionLink)
 	}
-	if p&apparmor.MayChangeProfileOnExecPermission != 0 {
+	if p&notify.AA_MAY_ONEXEC != 0 {
 		perms = append(perms, PermissionChangeProfileOnExec)
 	}
-	if p&apparmor.MayChangeProfilePermission != 0 {
+	if p&notify.AA_MAY_CHANGE_PROFILE != 0 {
 		perms = append(perms, PermissionChangeProfile)
 	}
 	if !p.IsValid() {

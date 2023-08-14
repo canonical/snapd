@@ -21,11 +21,11 @@ Contributors can help us by observing the following guidelines:
 
 - Commit messages should be well structured.
 - Commit emails should not include non-ASCII characters.
-- Try to open several smaller PRs, rather than one large PR.
+- Several smaller PRs are better than one large PR.
 - Try not to mix potentially controversial and trivial changes together.
   (Proposing trivial changes separately makes landing them easier and 
   makes reviewing controversial changes simpler)
-- Try not to [force push][git-force] to a PR after it has received reviews. It is
+- Do not [force push][git-force] a PR after it has received reviews. It is
   acceptable to force push when a PR is ready to merge, however.
 - Try to write tests to cover the contributed changes (see below)
 
@@ -144,8 +144,9 @@ Two approvals are required for a PR to be merged. A PR can then be merged into t
 
 On merging, you can rework the branch history as you see fit. Consider
 squashing commits from the original PR with those made during the review
-process, for example. A [force push][git-force] will be required if you do
-this.
+process, for example. Commit messages should follow the format described in
+[CODING.md](CODING.md). A [force push][git-force] will be required if you
+rework the history.
 
 Start a [rebase][github-rebase] from the original parent commit of your first
 commit. Ensure you do not rebase on top of the current main as this means

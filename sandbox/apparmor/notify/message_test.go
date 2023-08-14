@@ -1,7 +1,10 @@
-package apparmor_test
+package notify_test
 
 import (
-	"github.com/snapcore/snapd/prompting/apparmor"
+	"encoding/binary"
+
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 
 	. "gopkg.in/check.v1"
 )
@@ -11,9 +14,12 @@ type messageSuite struct{}
 var _ = Suite(&messageSuite{})
 
 func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
 	for _, t := range []struct {
 		bytes []byte
-		msg   apparmor.MsgNotificationFilter
+		msg   notify.MsgNotificationFilter
 	}{
 		{
 			bytes: []byte{
@@ -23,12 +29,12 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 				0x0, 0x0, 0x0, 0x0, // Namespace
 				0x0, 0x0, 0x0, 0x0, // Filter
 			},
-			msg: apparmor.MsgNotificationFilter{
-				MsgHeader: apparmor.MsgHeader{
+			msg: notify.MsgNotificationFilter{
+				MsgHeader: notify.MsgHeader{
 					Length:  0x10,
 					Version: 0x02,
 				},
-				ModeSet: apparmor.ModeSetUser,
+				ModeSet: notify.APPARMOR_MODESET_USER,
 			},
 		},
 		{
@@ -41,12 +47,12 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 				'f', 'o', 'o', 0x0, // Packed namespace string.
 				'b', 'a', 'r', 0x0, // Packed namespace string.
 			},
-			msg: apparmor.MsgNotificationFilter{
-				MsgHeader: apparmor.MsgHeader{
+			msg: notify.MsgNotificationFilter{
+				MsgHeader: notify.MsgHeader{
 					Length:  0x18,
 					Version: 0x02,
 				},
-				ModeSet:   apparmor.ModeSetUser,
+				ModeSet:   notify.APPARMOR_MODESET_USER,
 				NameSpace: "foo",
 				Filter:    "bar",
 			},
@@ -56,7 +62,7 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(bytes, DeepEquals, t.bytes)
 
-		var msg apparmor.MsgNotificationFilter
+		var msg notify.MsgNotificationFilter
 		err = msg.UnmarshalBinary(t.bytes)
 		c.Assert(err, IsNil)
 		c.Assert(msg, DeepEquals, t.msg)
@@ -64,6 +70,9 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 }
 
 func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
 	for _, t := range []struct {
 		comment string
 		bytes   []byte
@@ -138,22 +147,25 @@ func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
 			errMsg: `cannot unmarshal apparmor notification filter message: cannot unpack namespace: unterminated string at address 16`,
 		},
 	} {
-		var msg apparmor.MsgNotificationFilter
+		var msg notify.MsgNotificationFilter
 		err := msg.UnmarshalBinary(t.bytes)
 		c.Assert(err, ErrorMatches, t.errMsg, Commentf("%s", t.comment))
 	}
 }
 
 func (*messageSuite) TestMsgNotificationFilterValidate(c *C) {
-	msg := apparmor.MsgNotificationFilter{}
+	msg := notify.MsgNotificationFilter{}
 	c.Check(msg.Validate(), IsNil)
-	msg = apparmor.MsgNotificationFilter{ModeSet: 10000}
+	msg = notify.MsgNotificationFilter{ModeSet: 10000}
 	c.Check(msg.Validate(), ErrorMatches, "unsupported modeset: 10000")
 }
 
 func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
-	msg := apparmor.MsgNotification{
-		NotificationType: apparmor.Response,
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
+	msg := notify.MsgNotification{
+		NotificationType: notify.APPARMOR_NOTIF_RESP,
 		Signalled:        1,
 		Flags:            0,
 		ID:               0x1234,
@@ -173,24 +185,15 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 	})
 }
 
-func (*messageSuite) TestRequestBuffer(c *C) {
-	buf := apparmor.RequestBuffer()
-	c.Assert(buf, HasLen, 0xFFFF)
-	var header apparmor.MsgHeader
-	err := header.UnmarshalBinary(buf)
-	c.Assert(err, IsNil)
-	c.Check(header, Equals, apparmor.MsgHeader{
-		Length:  0xFFFF,
-		Version: 2,
-	})
-}
-
 func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
 	// Notification for accessing a the /root/.ssh/ file.
 	bytes := []byte{
 		0x4c, 0x0, // Length == 76 bytes
 		0x2, 0x0, // Protocol 2
-		0x4, 0x0, // Notification type == apparmor.Operation
+		0x4, 0x0, // Notification type == notify.APPARMOR_NOTIF_OP
 		0x0,                                    // Signalled
 		0x0,                                    // Reserved
 		0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // ID (request #2, just a number)
@@ -209,17 +212,17 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 	}
 	c.Assert(bytes, HasLen, 76)
 
-	var msg apparmor.MsgNotificationFile
+	var msg notify.MsgNotificationFile
 	err := msg.UnmarshalBinary(bytes)
 	c.Assert(err, IsNil)
-	c.Check(msg, DeepEquals, apparmor.MsgNotificationFile{
-		MsgNotificationOp: apparmor.MsgNotificationOp{
-			MsgNotification: apparmor.MsgNotification{
-				MsgHeader: apparmor.MsgHeader{
+	c.Check(msg, DeepEquals, notify.MsgNotificationFile{
+		MsgNotificationOp: notify.MsgNotificationOp{
+			MsgNotification: notify.MsgNotification{
+				MsgHeader: notify.MsgHeader{
 					Length:  76,
 					Version: 2,
 				},
-				NotificationType: apparmor.Operation,
+				NotificationType: notify.APPARMOR_NOTIF_OP,
 				ID:               2,
 				Error:            -13,
 			},
@@ -227,15 +230,18 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 			Deny:  4,
 			Pid:   0x819,
 			Label: "test-prompt",
-			Class: apparmor.MediationClassFile,
+			Class: notify.AA_CLASS_FILE,
 		},
 		Name: "/root/.ssh/",
 	})
 }
 
 func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
-	msg := apparmor.MsgNotificationResponse{
-		MsgNotification: apparmor.MsgNotification{
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
+	msg := notify.MsgNotificationResponse{
+		MsgNotification: notify.MsgNotification{
 			NotificationType: 0x11,
 			Signalled:        0x22,
 			Flags:            0x33,
@@ -263,27 +269,27 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 }
 
 func (*messageSuite) TestDecodeFilePermissions(c *C) {
-	msg := apparmor.MsgNotificationFile{
-		MsgNotificationOp: apparmor.MsgNotificationOp{
+	msg := notify.MsgNotificationFile{
+		MsgNotificationOp: notify.MsgNotificationOp{
 			Allow: 5,
 			Deny:  3,
-			Class: apparmor.MediationClassFile,
+			Class: notify.AA_CLASS_FILE,
 		},
 	}
 	allow, deny, err := msg.DecodeFilePermissions()
 	c.Assert(err, IsNil)
-	c.Check(allow, Equals, apparmor.MayExecutePermission|apparmor.MayReadPermission)
-	c.Check(deny, Equals, apparmor.MayExecutePermission|apparmor.MayWritePermission)
+	c.Check(allow, Equals, notify.AA_MAY_EXEC|notify.AA_MAY_READ)
+	c.Check(deny, Equals, notify.AA_MAY_EXEC|notify.AA_MAY_WRITE)
 }
 
 func (*messageSuite) TestDecodeFilePermissionsWrongClass(c *C) {
-	msg := apparmor.MsgNotificationFile{
-		MsgNotificationOp: apparmor.MsgNotificationOp{
+	msg := notify.MsgNotificationFile{
+		MsgNotificationOp: notify.MsgNotificationOp{
 			Allow: 5,
 			Deny:  3,
-			Class: apparmor.MediationClassDBus,
+			Class: notify.AA_CLASS_DBUS,
 		},
 	}
 	_, _, err := msg.DecodeFilePermissions()
-	c.Assert(err, ErrorMatches, "mediation class D-Bus does not describe file permissions")
+	c.Assert(err, ErrorMatches, "mediation class AA_CLASS_DBUS does not describe file permissions")
 }

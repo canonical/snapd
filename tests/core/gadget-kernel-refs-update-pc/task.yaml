@@ -85,6 +85,12 @@ prepare: |
     p=$(fakestore new-snap-revision --dir "$BLOB_DIR" pc_x1.snap --snap-rev-json rev-headers.json)
     snap ack "$p"
     cp -av pc_x1.snap "$BLOB_DIR/"
+
+    # make sure that the snapd daemon gives us time for comms before
+    # closing the socket
+    sed -i '/^Environment=/ s/$/ SNAPD_SHUTDOWN_DELAY=1/' /etc/systemd/system/snapd.service.d/local.conf
+    systemctl restart snapd
+    
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -97,6 +103,10 @@ restore: |
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     # XXX: ideally we would restore the kernel/gadget here but the kernel
     #      restore requires a reboot :/
+
+    # remove SNAPD_SHUTDOWN_DELAY again
+    sed -i 's/SNAPD_SHUTDOWN_DELAY=1//g' /etc/systemd/system/snapd.service.d/local.conf
+    systemctl restart snapd
     
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

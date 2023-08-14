@@ -10,7 +10,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
-	"github.com/snapcore/snapd/prompting/apparmor"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -163,95 +163,95 @@ func (s *commonSuite) TestLabelToSnapAppUnhappy(c *C) {
 
 func (s *commonSuite) TestPermissionMaskToPermissionsList(c *C) {
 	cases := []struct {
-		mask apparmor.FilePermission
+		mask notify.FilePermission
 		list []common.PermissionType
 	}{
 		{
-			apparmor.FilePermission(0),
+			notify.FilePermission(0),
 			[]common.PermissionType{},
 		},
 		{
-			apparmor.MayExecutePermission,
+			notify.AA_MAY_EXEC,
 			[]common.PermissionType{common.PermissionExecute},
 		},
 		{
-			apparmor.MayWritePermission,
+			notify.AA_MAY_WRITE,
 			[]common.PermissionType{common.PermissionWrite},
 		},
 		{
-			apparmor.MayReadPermission,
+			notify.AA_MAY_READ,
 			[]common.PermissionType{common.PermissionRead},
 		},
 		{
-			apparmor.MayAppendPermission,
+			notify.AA_MAY_APPEND,
 			[]common.PermissionType{common.PermissionAppend},
 		},
 		{
-			apparmor.MayCreatePermission,
+			notify.AA_MAY_CREATE,
 			[]common.PermissionType{common.PermissionCreate},
 		},
 		{
-			apparmor.MayDeletePermission,
+			notify.AA_MAY_DELETE,
 			[]common.PermissionType{common.PermissionDelete},
 		},
 		{
-			apparmor.MayOpenPermission,
+			notify.AA_MAY_OPEN,
 			[]common.PermissionType{common.PermissionOpen},
 		},
 		{
-			apparmor.MayRenamePermission,
+			notify.AA_MAY_RENAME,
 			[]common.PermissionType{common.PermissionRename},
 		},
 		{
-			apparmor.MaySetAttrPermission,
+			notify.AA_MAY_SETATTR,
 			[]common.PermissionType{common.PermissionSetAttr},
 		},
 		{
-			apparmor.MayGetAttrPermission,
+			notify.AA_MAY_GETATTR,
 			[]common.PermissionType{common.PermissionGetAttr},
 		},
 		{
-			apparmor.MaySetCredentialPermission,
+			notify.AA_MAY_SETCRED,
 			[]common.PermissionType{common.PermissionSetCred},
 		},
 		{
-			apparmor.MayGetCredentialPermission,
+			notify.AA_MAY_GETCRED,
 			[]common.PermissionType{common.PermissionGetCred},
 		},
 		{
-			apparmor.MayChangeModePermission,
+			notify.AA_MAY_CHMOD,
 			[]common.PermissionType{common.PermissionChangeMode},
 		},
 		{
-			apparmor.MayChangeOwnerPermission,
+			notify.AA_MAY_CHOWN,
 			[]common.PermissionType{common.PermissionChangeOwner},
 		},
 		{
-			apparmor.MayChangeGroupPermission,
+			notify.AA_MAY_CHGRP,
 			[]common.PermissionType{common.PermissionChangeGroup},
 		},
 		{
-			apparmor.MayLockPermission,
+			notify.AA_MAY_LOCK,
 			[]common.PermissionType{common.PermissionLock},
 		},
 		{
-			apparmor.MayExecuteMapPermission,
+			notify.AA_EXEC_MMAP,
 			[]common.PermissionType{common.PermissionExecuteMap},
 		},
 		{
-			apparmor.MayLinkPermission,
+			notify.AA_MAY_LINK,
 			[]common.PermissionType{common.PermissionLink},
 		},
 		{
-			apparmor.MayChangeProfileOnExecPermission,
+			notify.AA_MAY_ONEXEC,
 			[]common.PermissionType{common.PermissionChangeProfileOnExec},
 		},
 		{
-			apparmor.MayChangeProfilePermission,
+			notify.AA_MAY_CHANGE_PROFILE,
 			[]common.PermissionType{common.PermissionChangeProfile},
 		},
 		{
-			apparmor.MayReadPermission | apparmor.MayWritePermission | apparmor.MayExecutePermission,
+			notify.AA_MAY_READ | notify.AA_MAY_WRITE | notify.AA_MAY_EXEC,
 			[]common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead},
 		},
 	}
@@ -261,12 +261,12 @@ func (s *commonSuite) TestPermissionMaskToPermissionsList(c *C) {
 		c.Assert(perms, DeepEquals, testCase.list)
 	}
 
-	unrecognizedFilePerm := apparmor.FilePermission(1 << 17)
+	unrecognizedFilePerm := notify.FilePermission(1 << 17)
 	perms, err := common.PermissionMaskToPermissionsList(unrecognizedFilePerm)
 	c.Assert(err, Equals, common.ErrUnrecognizedFilePermission)
 	c.Assert(perms, HasLen, 0)
 
-	mixed := unrecognizedFilePerm | apparmor.MayReadPermission | apparmor.MayWritePermission
+	mixed := unrecognizedFilePerm | notify.AA_MAY_READ | notify.AA_MAY_WRITE
 	expected := []common.PermissionType{common.PermissionWrite, common.PermissionRead}
 	perms, err = common.PermissionMaskToPermissionsList(mixed)
 	c.Assert(err, Equals, common.ErrUnrecognizedFilePermission)

@@ -1,29 +1,12 @@
-package apparmor
+package notify
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
 
-	"golang.org/x/xerrors"
+	"github.com/snapcore/snapd/arch"
 )
-
-// overwrite implements io.Writer that writes over an existing buffer.
-//
-// It is used to perform in-place modifications of a larger memory buffer.
-type overwrite struct {
-	Buffer []byte
-	Offset int
-}
-
-// Write overwrites the buffer at a given offest.
-func (o *overwrite) Write(p []byte) (n int, err error) {
-	if n := len(p); n+o.Offset < len(o.Buffer) {
-		copy(o.Buffer[o.Offset:o.Offset+n], p)
-		return n, nil
-	}
-	return 0, fmt.Errorf("insufficient space to write")
-}
 
 // Message fields are defined as raw sized integer types as the same type may be
 // packed as 16 bit or 32 bit integer, to accommodate other fields in the
@@ -49,33 +32,24 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 	const prefix = "cannot unmarshal apparmor message header"
 
 	// Unpack fixed-size elements.
-	order := binary.LittleEndian
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	buf := bytes.NewBuffer(data)
 	if err := binary.Read(buf, order, msg); err != nil {
-		return xerrors.Errorf("%s: %s", prefix, err)
+		return fmt.Errorf("%s: %s", prefix, err)
 	}
 
 	if msg.Version != 2 {
-		return xerrors.Errorf("%s: unsupported version: %d", prefix, msg.Version)
+		return fmt.Errorf("%s: unsupported version: %d", prefix, msg.Version)
 	}
 	if int(msg.Length) != len(data) {
-		return xerrors.Errorf("%s: length mismatch %d != %d",
+		return fmt.Errorf("%s: length mismatch %d != %d",
 			prefix, msg.Length, len(data))
 	}
 
 	return nil
 }
 
-// RequestBuffer returns a new buffer for communication with the kernel.
-// The buffer contains encoded information about its size and protocol version.
-func RequestBuffer() []byte {
-	buf := make([]byte, 0xFFFF)
-	header := MsgHeader{Version: 2, Length: uint16(len(buf))}
-	binary.Write(&overwrite{Buffer: buf}, binary.LittleEndian, &header)
-	return buf
-}
-
-// msgNotificationFilter describes the configuration of kernel-side message filtering.
+// msgNotificationFilterKernel describes the configuration of kernel-side message filtering.
 //
 // This structure corresponds to the kernel type struct apparmor_notif_filter
 // described below. This type is only used for message marshaling and
@@ -88,7 +62,7 @@ func RequestBuffer() []byte {
 //	  __u32 filter;       /* offset into data, relative to start of the structure */
 //	  __u8 data[];
 //	} __attribute__((packed));
-type msgNotificationFilter struct {
+type msgNotificationFilterKernel struct {
 	MsgHeader
 	ModeSet uint32
 	NS      uint32
@@ -98,12 +72,12 @@ type msgNotificationFilter struct {
 // MsgNotificationFilter describes the configuration of kernel-side message filtering.
 //
 // This structure can be marshaled and unmarshaled to binary form and
-// transmitted to the kernel using NotifyIoctl along with IoctlGetFilter and
-// IoctlSetFilter.
+// transmitted to the kernel using Ioctl along with APPARMOR_NOTIF_GET_FILTER
+// and APPARMOR_NOTIF_SET_FILTER.
 type MsgNotificationFilter struct {
 	MsgHeader
-	// ModeSet is a bitmask. Specifying ModeSetUser allows to receive notification
-	// messages in userspace.
+	// ModeSet is a bitmask. Specifying APPARMOR_MODESET_USER allows to
+	// receive notification messages in userspace.
 	ModeSet ModeSet
 	// XXX: This is currently unused by the kernel and the value is ignored.
 	NameSpace string
@@ -121,22 +95,22 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack fixed-size elements.
-	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
-	var raw msgNotificationFilter
+	var raw msgNotificationFilterKernel
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
-		return xerrors.Errorf("%s: cannot unpack: %s", prefix, err)
+		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
 
 	// Unpack variable length elements.
-	unpacker := stringUnpacker{Bytes: data}
+	unpacker := newStringUnpacker(data)
 	ns, err := unpacker.UnpackString(raw.NS)
 	if err != nil {
-		return xerrors.Errorf("%s: cannot unpack namespace: %v", prefix, err)
+		return fmt.Errorf("%s: cannot unpack namespace: %v", prefix, err)
 	}
 	filter, err := unpacker.UnpackString(raw.Filter)
 	if err != nil {
-		return xerrors.Errorf("%s: cannot unpack filter: %v", prefix, err)
+		return fmt.Errorf("%s: cannot unpack filter: %v", prefix, err)
 	}
 
 	// Put everything together.
@@ -149,30 +123,28 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 
 // MarshalBinary marshals the message into binary form.
 func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
-	var raw msgNotificationFilter
-	var packer stringPacker
-	packer.BaseOffset = uint16(binary.Size(raw))
-	raw.Length = packer.BaseOffset
+	var raw msgNotificationFilterKernel
+	packer := newStringPacker(raw)
 	raw.Version = 2
 	raw.ModeSet = uint32(msg.ModeSet)
 	raw.NS = packer.PackString(msg.NameSpace)
 	raw.Filter = packer.PackString(msg.Filter)
-	raw.Length += uint16(packer.Buffer.Len())
-	buf := bytes.NewBuffer(make([]byte, 0, int(packer.BaseOffset)+packer.Buffer.Len()))
-	// FIXME: encoding should be native
-	if err := binary.Write(buf, binary.LittleEndian, raw); err != nil {
+	raw.Length = packer.TotalLen()
+	msgBuf := bytes.NewBuffer(make([]byte, 0, raw.Length))
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	if err := binary.Write(msgBuf, order, raw); err != nil {
 		return nil, err
 	}
-	if _, err := buf.Write(packer.Buffer.Bytes()); err != nil {
+	if _, err := msgBuf.Write(packer.Bytes()); err != nil {
 		return nil, err
 	}
-	return buf.Bytes(), nil
+	return msgBuf.Bytes(), nil
 }
 
 // Validate returns an error if the mssage contains invalid data.
 func (msg *MsgNotificationFilter) Validate() error {
 	if !msg.ModeSet.IsValid() {
-		return xerrors.Errorf("unsupported modeset: %d", msg.ModeSet)
+		return fmt.Errorf("unsupported modeset: %d", msg.ModeSet)
 	}
 	return nil
 }
@@ -193,7 +165,7 @@ func (msg *MsgNotificationFilter) Validate() error {
 type MsgNotification struct {
 	MsgHeader
 	// NotificationType describes the kind of notification message used.
-	// Currently the kernel only sends Operation messages.
+	// Currently the kernel only sends APPARMOR_NOTIF_OP messages.
 	NotificationType NotificationType
 	// XXX: Signaled seems to be unused.
 	Signalled uint8
@@ -211,11 +183,16 @@ type MsgNotification struct {
 func (msg *MsgNotification) UnmarshalBinary(data []byte) error {
 	const prefix = "cannot unmarshal apparmor notification message"
 
+	// Unpack the base structure.
+	if err := msg.MsgHeader.UnmarshalBinary(data); err != nil {
+		return err
+	}
+
 	// Unpack fixed-size elements.
-	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, msg); err != nil {
-		return xerrors.Errorf("%s: cannot unpack: %s", prefix, err)
+		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
 
 	return nil
@@ -226,8 +203,8 @@ func (msg *MsgNotification) MarshalBinary() ([]byte, error) {
 	msg.Version = 2
 	msg.Length = uint16(binary.Size(*msg))
 	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
-	// FIXME: encoding should be native
-	if err := binary.Write(buf, binary.LittleEndian, msg); err != nil {
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	if err := binary.Write(buf, order, msg); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -236,20 +213,9 @@ func (msg *MsgNotification) MarshalBinary() ([]byte, error) {
 // Validate returns an error if the mssage contains invalid data.
 func (msg *MsgNotification) Validate() error {
 	if !msg.NotificationType.IsValid() {
-		return xerrors.Errorf("unsupported notification type: %d", msg.NotificationType)
+		return fmt.Errorf("unsupported notification type: %d", msg.NotificationType)
 	}
 	return nil
-}
-
-// MsgNotificationUpdate (TBD, document me)
-//
-//	struct apparmor_notif_update {
-//	  struct apparmor_notif base;
-//	  __u16 ttl;          /* max keep alives left */
-//	} __attribute__((packed));
-type MsgNotificationUpdate struct {
-	MsgNotification
-	TTL uint16
 }
 
 // MsgNotificationResponse describes a response to a MsgNotification.
@@ -277,10 +243,10 @@ type MsgNotificationResponse struct {
 func ResponseForRequest(req *MsgNotification) MsgNotificationResponse {
 	return MsgNotificationResponse{
 		MsgNotification: MsgNotification{
-			NotificationType: Response,
+			NotificationType: APPARMOR_NOTIF_RESP,
 			// XXX: should Signalled be copied?
 			Signalled: req.Signalled,
-			// XXX: should Reserved be copied?
+			// XXX: should Flags be copied?
 			Flags: req.Flags,
 			ID:    req.ID,
 			// XXX: should Error be copied?
@@ -294,14 +260,14 @@ func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
 	msg.Version = 2
 	msg.Length = uint16(binary.Size(*msg))
 	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
-	// FIXME: encoding should be native
-	if err := binary.Write(buf, binary.LittleEndian, msg); err != nil {
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	if err := binary.Write(buf, order, msg); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
 }
 
-// MsgNotificationOp (TBD, document me).
+// msgNotificationOpKernel (TBD, document me).
 //
 //	struct apparmor_notif_op {
 //	  struct apparmor_notif base;
@@ -312,7 +278,7 @@ func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
 //	  __u16 class;
 //	  __u16 op;
 //	} __attribute__((packed));
-type msgNotificationOp struct {
+type msgNotificationOpKernel struct {
 	MsgNotification
 	Allow uint32
 	Deny  uint32
@@ -331,18 +297,18 @@ type MsgNotificationOp struct {
 	MsgNotification
 	// Allow describes the permissions the process, attempting to perform some
 	// an operation, already possessed. Use DecodeFilePermissions to decode it,
-	// if the mediation class is MediationClassFile.
+	// if the mediation class is AA_CLASS_FILE.
 	Allow uint32
 	// Deny describes the permissions the process, attempting to perform some
 	// operation, currently lacks. Use DecodeFilePermissions to decode it, if
-	// the mediation class is MediationClassFile.
+	// the mediation class is AA_CLASS_FILE.
 	Deny uint32
 	// Pid of the process triggering the notification.
 	Pid uint32
 	// Label is the apparmor label of the process triggering the notification.
 	Label string
 	// Class of the mediation operation.
-	// Currently only MediationClassFile is implemented in the kernel.
+	// Currently only AA_CLASS_FILE is implemented in the kernel.
 	Class MediationClass
 	// XXX: This is unused.
 	Op uint16
@@ -351,7 +317,7 @@ type MsgNotificationOp struct {
 // DecodeFilePermissions returns a pair of permissions describing the state of a
 // process attempting to perform an operation.
 func (msg *MsgNotificationOp) DecodeFilePermissions() (allow, deny FilePermission, err error) {
-	if msg.Class != MediationClassFile {
+	if msg.Class != AA_CLASS_FILE {
 		return 0, 0, fmt.Errorf("mediation class %s does not describe file permissions", msg.Class)
 	}
 	return FilePermission(msg.Allow), FilePermission(msg.Deny), nil
@@ -367,18 +333,18 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack fixed-size elements.
-	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
-	var raw msgNotificationOp
+	var raw msgNotificationOpKernel
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
-		return xerrors.Errorf("%s: cannot unpack: %s", prefix, err)
+		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
 
 	// Unpack variable length elements.
-	unpacker := stringUnpacker{Bytes: data}
+	unpacker := newStringUnpacker(data)
 	label, err := unpacker.UnpackString(raw.Label)
 	if err != nil {
-		return xerrors.Errorf("%s: cannot unpack label: %v", prefix, err)
+		return fmt.Errorf("%s: cannot unpack label: %v", prefix, err)
 	}
 
 	// Put everything together.
@@ -392,7 +358,7 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// msgNotificationFile (TBD, document me).
+// msgNotificationFileKernel (TBD, document me).
 //
 //	struct apparmor_notif_file {
 //	  struct apparmor_notif_op base;
@@ -400,8 +366,8 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 //	  __u32 name;         /* offset into data */
 //	  __u8 data[];
 //	} __attribute__((packed));
-type msgNotificationFile struct {
-	msgNotificationOp
+type msgNotificationFileKernel struct {
+	msgNotificationOpKernel
 	SUID uint32
 	OUID uint32
 	Name uint32
@@ -414,7 +380,7 @@ type MsgNotificationFile struct {
 	OUID uint32
 	// Name of the file being accessed.
 	// XXX: is this path valid from the point of view of the accessing process
-	// or the prompting process? The name is insufficient to correctly identify
+	// or the notify process? The name is insufficient to correctly identify
 	// the actual object being accessed in some cases.
 	Name string
 }
@@ -429,18 +395,18 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack fixed-size elements.
-	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
-	var raw msgNotificationFile
+	var raw msgNotificationFileKernel
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Read(buf, order, &raw); err != nil {
-		return xerrors.Errorf("%s: cannot unpack: %s", prefix, err)
+		return fmt.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
 
 	// Unpack variable length elements.
-	unpacker := stringUnpacker{Bytes: data}
+	unpacker := newStringUnpacker(data)
 	name, err := unpacker.UnpackString(raw.Name)
 	if err != nil {
-		return xerrors.Errorf("%s: cannot unpack file name: %v", prefix, err)
+		return fmt.Errorf("%s: cannot unpack file name: %v", prefix, err)
 	}
 
 	// Put everything together.
