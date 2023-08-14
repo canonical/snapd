@@ -40,7 +40,7 @@ func (s *promptrequestsSuite) TestAddRequests(c *C) {
 	defer restore()
 
 	rdb := promptrequests.New()
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -82,7 +82,7 @@ func (s *promptrequestsSuite) TestRequestWithIDErrors(c *C) {
 	defer restore()
 
 	rdb := promptrequests.New()
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -116,7 +116,7 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 	defer restore()
 
 	rdb := promptrequests.New()
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -127,8 +127,9 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 	req := rdb.Add(user, snap, app, path, permissions, listenerReq)
 
 	outcome := common.OutcomeAllow
-	err := rdb.Reply(user, req.ID, outcome)
+	repliedReq, err := rdb.Reply(user, req.ID, outcome)
 	c.Check(err, IsNil)
+	c.Check(repliedReq, Equals, req)
 	receivedReq := <-listenerReqChan
 	c.Check(receivedReq, Equals, listenerReq)
 	result := <-replyChan
@@ -141,8 +142,9 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 	req = rdb.Add(user, snap, app, path, permissions, listenerReq)
 
 	outcome = common.OutcomeDeny
-	err = rdb.Reply(user, req.ID, outcome)
+	repliedReq, err = rdb.Reply(user, req.ID, outcome)
 	c.Check(err, IsNil)
+	c.Check(repliedReq, Equals, req)
 	receivedReq = <-listenerReqChan
 	c.Check(receivedReq, Equals, listenerReq)
 	result = <-replyChan
@@ -159,7 +161,7 @@ func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 	defer restore()
 
 	rdb := promptrequests.New()
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -171,16 +173,16 @@ func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 
 	outcome := common.OutcomeAllow
 
-	err := rdb.Reply(user, "foo", outcome)
+	_, err := rdb.Reply(user, "foo", outcome)
 	c.Check(err, Equals, promptrequests.ErrRequestIDNotFound)
 
-	err = rdb.Reply(user+1, "foo", outcome)
+	_, err = rdb.Reply(user+1, "foo", outcome)
 	c.Check(err, Equals, promptrequests.ErrUserNotFound)
 
-	err = rdb.Reply(user, req.ID, common.OutcomeUnset)
+	_, err = rdb.Reply(user, req.ID, common.OutcomeUnset)
 	c.Check(err, Equals, common.ErrInvalidOutcome)
 
-	err = rdb.Reply(user, req.ID, outcome)
+	_, err = rdb.Reply(user, req.ID, outcome)
 	c.Check(err, Equals, fakeError)
 }
 
@@ -196,7 +198,7 @@ func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	rdb := promptrequests.New()
 
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -260,7 +262,7 @@ func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 
 	rdb := promptrequests.New()
 
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -332,7 +334,7 @@ func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
 
 	rdb := promptrequests.New()
 
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"

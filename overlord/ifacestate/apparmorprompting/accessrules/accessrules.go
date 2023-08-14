@@ -27,7 +27,7 @@ var ErrUserNotAllowed = errors.New("the given user is not allowed to access the 
 type AccessRule struct {
 	ID          string                  `json:"id"`
 	Timestamp   string                  `json:"timestamp"`
-	User        uint32                  `json:"user"`
+	User        int                     `json:"user"`
 	Snap        string                  `json:"snap"`
 	App         string                  `json:"app"`
 	PathPattern string                  `json:"path-pattern"`
@@ -71,7 +71,7 @@ type userDB struct {
 
 type AccessRuleDB struct {
 	ByID    map[string]*AccessRule
-	PerUser map[uint32]*userDB
+	PerUser map[int]*userDB
 	mutex   sync.Mutex
 }
 
@@ -80,7 +80,7 @@ type AccessRuleDB struct {
 func New() (*AccessRuleDB, error) {
 	ardb := &AccessRuleDB{
 		ByID:    make(map[string]*AccessRule),
-		PerUser: make(map[uint32]*userDB),
+		PerUser: make(map[int]*userDB),
 	}
 	return ardb, ardb.load()
 }
@@ -89,7 +89,7 @@ func (ardb *AccessRuleDB) dbpath() string {
 	return filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "access-rules.json")
 }
 
-func (ardb *AccessRuleDB) permissionDBForUserSnapAppPermission(user uint32, snap string, app string, permission common.PermissionType) *permissionDB {
+func (ardb *AccessRuleDB) permissionDBForUserSnapAppPermission(user int, snap string, app string, permission common.PermissionType) *permissionDB {
 	userSnaps := ardb.PerUser[user]
 	if userSnaps == nil {
 		userSnaps = &userDB{
@@ -216,7 +216,7 @@ func (ardb *AccessRuleDB) RefreshTreeEnforceConsistency() {
 	defer ardb.mutex.Unlock()
 	needToSave := false
 	newByID := make(map[string]*AccessRule)
-	ardb.PerUser = make(map[uint32]*userDB)
+	ardb.PerUser = make(map[int]*userDB)
 	for id, rule := range ardb.ByID {
 		err, conflictingID, conflictingPermission := ardb.addRuleToTree(rule)
 		for err != nil {
@@ -302,7 +302,7 @@ func validatePatternOutcomeLifespanDuration(pathPattern string, outcome common.O
 // time, to compute the expiration time for the rule, and stores that as part
 // of the access rule which is returned.  If any of the given parameters are
 // invalid, returns a corresponding error.
-func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) PopulateNewAccessRule(user int, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
 	expiration, err := validatePatternOutcomeLifespanDuration(pathPattern, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
@@ -328,7 +328,7 @@ func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app st
 // Checks whether the given path with the given permission is allowed or
 // denied by existing access rules for the given user, snap, and app.  If no
 // access rule applies, returns ErrNoMatchingRule.
-func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, path string, permission common.PermissionType) (bool, error) {
+func (ardb *AccessRuleDB) IsPathAllowed(user int, snap string, app string, path string, permission common.PermissionType) (bool, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	needToSave := false
@@ -396,7 +396,7 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 	}
 }
 
-func (ardb *AccessRuleDB) ruleWithIDInternal(user uint32, id string) (*AccessRule, error) {
+func (ardb *AccessRuleDB) ruleWithIDInternal(user int, id string) (*AccessRule, error) {
 	rule, exists := ardb.ByID[id]
 	if !exists {
 		return nil, ErrRuleIDNotFound
@@ -410,7 +410,7 @@ func (ardb *AccessRuleDB) ruleWithIDInternal(user uint32, id string) (*AccessRul
 // Returns the rule with the given ID.
 // If the rule is not found, returns ErrRuleNotFound.
 // If the rule does not apply to the given user, returns ErrUserNotAllowed.
-func (ardb *AccessRuleDB) RuleWithID(user uint32, id string) (*AccessRule, error) {
+func (ardb *AccessRuleDB) RuleWithID(user int, id string) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	return ardb.ruleWithIDInternal(user, id)
@@ -420,7 +420,7 @@ func (ardb *AccessRuleDB) RuleWithID(user uint32, id string) (*AccessRule, error
 // database.  If any of the given parameters are invalid, returns an error.
 // Otherwise, returns the newly-created access rule, and saves the database to
 // disk.
-func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) CreateAccessRule(user int, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	newRule, err := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
@@ -438,7 +438,7 @@ func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string,
 // Removes the access rule with the given ID from the rules database.  If the
 // rule does not apply to the given user, returns ErrUserNotAllowed.  If
 // successful, saves the database to disk.
-func (ardb *AccessRuleDB) DeleteAccessRule(user uint32, id string) (*AccessRule, error) {
+func (ardb *AccessRuleDB) DeleteAccessRule(user int, id string) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	rule, err := ardb.ruleWithIDInternal(user, id)
@@ -462,7 +462,7 @@ func (ardb *AccessRuleDB) DeleteAccessRule(user uint32, id string) (*AccessRule,
 // modified rule to the database, rolls back to the previous unmodified rule,
 // leaving the database unchanged.  If the database is changed, it is saved to
 // disk.
-func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) ModifyAccessRule(user int, id string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	origRule, err := ardb.ruleWithIDInternal(user, id)
@@ -506,7 +506,7 @@ func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern s
 }
 
 // Returns all access rules which apply to the given user.
-func (ardb *AccessRuleDB) Rules(user uint32) []*AccessRule {
+func (ardb *AccessRuleDB) Rules(user int) []*AccessRule {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	rules := make([]*AccessRule, 0)
@@ -519,7 +519,7 @@ func (ardb *AccessRuleDB) Rules(user uint32) []*AccessRule {
 }
 
 // Returns all access rules which apply to the given user and the given snap.
-func (ardb *AccessRuleDB) RulesForSnap(user uint32, snap string) []*AccessRule {
+func (ardb *AccessRuleDB) RulesForSnap(user int, snap string) []*AccessRule {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	rules := make([]*AccessRule, 0)
@@ -532,7 +532,7 @@ func (ardb *AccessRuleDB) RulesForSnap(user uint32, snap string) []*AccessRule {
 }
 
 // Returns all access rules which apply to the given user, snap, and app.
-func (ardb *AccessRuleDB) RulesForSnapApp(user uint32, snap string, app string) []*AccessRule {
+func (ardb *AccessRuleDB) RulesForSnapApp(user int, snap string, app string) []*AccessRule {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	rules := make([]*AccessRule, 0)
