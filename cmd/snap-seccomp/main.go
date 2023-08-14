@@ -883,8 +883,6 @@ func writeSeccompFilter(outFile string, filterAllow, filterDeny *seccomp.ScmpFil
 	}
 	hdr.lenAllowFilter = uint32(allowSize)
 	hdr.lenDenyFilter = uint32(denySize)
-	// silly go does not give an easy way to use native endian so just
-	// write big endian and use ntohl() in the C code
 	if err := binary.Write(fout, arch.Endian(), hdr); err != nil {
 		return err
 	}
