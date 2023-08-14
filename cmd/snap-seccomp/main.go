@@ -212,7 +212,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -798,30 +797,22 @@ func complainAction() seccomp.ScmpAction {
 
 var osCreateTemp = os.CreateTemp
 
-func exportBPF(filter *seccomp.ScmpFilter) (io.ReadCloser, int64, error) {
+func exportBPF(fout *os.File, filter *seccomp.ScmpFilter) (bpfLen int64, err error) {
 	errPrefixFmt := "cannot export bpf filter: %w"
 
-	filterFile, err := osCreateTemp("", "filter-file")
+	oldPos, err := fout.Seek(0, os.SEEK_CUR)
 	if err != nil {
-		return nil, 0, fmt.Errorf(errPrefixFmt, err)
+		return 0, fmt.Errorf(errPrefixFmt, err)
 	}
-	if err := os.Remove(filterFile.Name()); err != nil {
-		return nil, 0, fmt.Errorf(errPrefixFmt, err)
+	if err := filter.ExportBPF(fout); err != nil {
+		return 0, fmt.Errorf(errPrefixFmt, err)
 	}
-	// XXX: would be nice if ExportBPF would support an io.Writer
-	// but it requires a os.File
-	if err := filter.ExportBPF(filterFile); err != nil {
-		return nil, 0, fmt.Errorf(errPrefixFmt, err)
-	}
-	if _, err := filterFile.Seek(0, 0); err != nil {
-		return nil, 0, fmt.Errorf(errPrefixFmt, err)
-	}
-	stat, err := filterFile.Stat()
+	nowPos, err := fout.Seek(0, os.SEEK_CUR)
 	if err != nil {
-		return nil, 0, fmt.Errorf(errPrefixFmt, err)
+		return 0, fmt.Errorf(errPrefixFmt, err)
 	}
 
-	return filterFile, stat.Size(), nil
+	return nowPos - oldPos, nil
 }
 
 // keep in sync with seccomp-support.c
@@ -859,37 +850,38 @@ func writeUnrestrictedFilter(out string) error {
 }
 
 func writeSeccompFilter(outFile string, filterAllow, filterDeny *seccomp.ScmpFilter) error {
-	allowBpf, allowSize, err := exportBPF(filterAllow)
-	if err != nil {
-		return err
-	}
-	defer allowBpf.Close()
-
-	denyBpf, denySize, err := exportBPF(filterDeny)
-	if err != nil {
-		return err
-	}
-	defer denyBpf.Close()
-
 	fout, err := osutil.NewAtomicFile(outFile, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return err
 	}
 	defer fout.Cancel()
 
+	// Write preliminary header because we don't know the sizes of the
+	// seccomp filters yet and the only way to know is to export to
+	// a file (until seccomp_export_bpf_mem() becomes available)
 	hdr := scSeccompFileHeader{
 		header:  [2]byte{'S', 'C'},
 		version: 0x1,
 	}
-	hdr.lenAllowFilter = uint32(allowSize)
-	hdr.lenDenyFilter = uint32(denySize)
 	if err := binary.Write(fout, arch.Endian(), hdr); err != nil {
 		return err
 	}
-	if _, err := io.Copy(fout, allowBpf); err != nil {
+	allowSize, err := exportBPF(fout.File, filterAllow)
+	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(fout, denyBpf); err != nil {
+	denySize, err := exportBPF(fout.File, filterDeny)
+	if err != nil {
+		return err
+	}
+
+	// now write final header
+	hdr.lenAllowFilter = uint32(allowSize)
+	hdr.lenDenyFilter = uint32(denySize)
+	if _, err := fout.Seek(0, 0); err != nil {
+		return err
+	}
+	if err := binary.Write(fout, arch.Endian(), hdr); err != nil {
 		return err
 	}
 
