@@ -177,8 +177,14 @@ static FILE* sc_must_read_and_validate_header_from_file(const char *profile_path
 	if (hdr->len_allow_filter > MAX_BPF_SIZE) {
 		die("allow filter size too big %u", hdr->len_allow_filter);
 	}
+	if (hdr->len_allow_filter % sizeof(struct sock_filter) != 0) {
+		die("allow filter size not multiple of sock_filter");
+	}
 	if (hdr->len_deny_filter > MAX_BPF_SIZE) {
 		die("deny filter size too big %u", hdr->len_deny_filter);
+	}
+	if (hdr->len_deny_filter % sizeof(struct sock_filter) != 0) {
+		die("deny filter size not multiple of sock_filter");
 	}
 	struct stat stat_buf;
 	if (fstat(fileno(file), &stat_buf) != 0) {
