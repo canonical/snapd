@@ -95,7 +95,7 @@ type managerBackend interface {
 	RemoveSnapData(info *snap.Info, opts *dirs.SnapDirOptions) error
 	RemoveSnapCommonData(info *snap.Info, opts *dirs.SnapDirOptions) error
 	RemoveSnapSaveData(info *snap.Info, dev snap.Device) error
-	RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) error
+	RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool, opts *dirs.SnapDirOptions) error
 	RemoveSnapMountUnits(s snap.PlaceInfo, meter progress.Meter) error
 	DiscardSnapNamespace(snapName string) error
 	RemoveSnapInhibitLock(snapName string) error

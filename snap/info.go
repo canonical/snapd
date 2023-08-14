@@ -188,6 +188,11 @@ func BaseDataDir(name string) string {
 	return filepath.Join(dirs.SnapDataDir, name)
 }
 
+// BaseDataHomeDir returns the per user base directory for snap data locations.
+func BaseDataHomeDir(name string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(DataHomeGlob(opts), name)
+}
+
 // DataDir returns the data directory for given snap name and revision. The name
 // can be
 // either a snap name or snap instance name.
@@ -225,10 +230,15 @@ func snapDataDir(opts *dirs.SnapDirOptions) string {
 	return dirs.UserHomeSnapDir
 }
 
+// BaseUserDataDir returns the user-specific base data directory for given snap name.
+func BaseUserDataDir(home string, name string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts), name)
+}
+
 // UserDataDir returns the user-specific data directory for given snap name. The
 // name can be either a snap name or snap instance name.
 func UserDataDir(home string, name string, revision Revision, opts *dirs.SnapDirOptions) string {
-	return filepath.Join(home, snapDataDir(opts), name, revision.String())
+	return filepath.Join(BaseUserDataDir(home, name, opts), revision.String())
 }
 
 // UserCommonDataDir returns the user-specific common data directory for given
@@ -654,9 +664,9 @@ func DataHomeGlob(opts *dirs.SnapDirOptions) string {
 	return dirs.SnapDataHomeGlob
 }
 
-// DataHomeDir returns the per user data directory of the snap.
+// DataHomeDir returns the per user data directory of the snap revision.
 func (s *Info) DataHomeDir(opts *dirs.SnapDirOptions) string {
-	return filepath.Join(DataHomeGlob(opts), s.InstanceName(), s.Revision.String())
+	return filepath.Join(BaseDataHomeDir(s.InstanceName(), opts), s.Revision.String())
 }
 
 // CommonDataHomeDir returns the per user data directory common across revisions

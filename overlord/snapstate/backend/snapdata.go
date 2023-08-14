@@ -68,19 +68,27 @@ func (b Backend) RemoveSnapSaveData(snapInfo *snap.Info, dev snap.Device) error 
 	return os.RemoveAll(saveDir)
 }
 
-// RemoveSnapDataDir removes base snap data directory
-func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) error {
+// RemoveSnapDataDir removes base snap data directories.
+func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool, opts *dirs.SnapDirOptions) error {
 	if info.InstanceKey != "" {
 		// data directories of snaps with instance key are never used by
 		// other instances
-		if err := os.Remove(snap.BaseDataDir(info.InstanceName())); err != nil && !os.IsNotExist(err) {
+		dirs, err := snapBaseDataDirs(info.InstanceName(), opts)
+		if err != nil {
+			return err
+		}
+		if err = removeDirs(dirs); err != nil {
 			return fmt.Errorf("failed to remove snap %q base directory: %v", info.InstanceName(), err)
 		}
 	}
 	if !hasOtherInstances {
 		// remove the snap base directory only if there are no other
 		// snap instances using it
-		if err := os.Remove(snap.BaseDataDir(info.SnapName())); err != nil && !os.IsNotExist(err) {
+		dirs, err := snapBaseDataDirs(info.SnapName(), opts)
+		if err != nil {
+			return err
+		}
+		if err = removeDirs(dirs); err != nil {
 			return fmt.Errorf("failed to remove snap %q base directory: %v", info.SnapName(), err)
 		}
 	}
@@ -111,6 +119,21 @@ func removeDirs(dirs []string) error {
 	}
 
 	return nil
+}
+
+// snapDataDirs returns the list of base data directories for the given snap name
+func snapBaseDataDirs(name string, opts *dirs.SnapDirOptions) ([]string, error) {
+	// collect the directories, homes first
+	found, err := filepath.Glob(snap.BaseDataHomeDir(name, opts))
+	if err != nil {
+		return nil, err
+	}
+	// then the /root user (including GlobalRootDir for tests)
+	found = append(found, snap.BaseUserDataDir(filepath.Join(dirs.GlobalRootDir, "/root/"), name, opts))
+	// then system data
+	found = append(found, snap.BaseDataDir(name))
+
+	return found, nil
 }
 
 // snapDataDirs returns the list of data directories for the given snap version
