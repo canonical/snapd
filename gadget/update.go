@@ -1440,16 +1440,6 @@ func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
 	return oldV, newV, nil
 }
 
-func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
-	if one == nil && two == nil {
-		return true
-	}
-	if one != nil && two != nil {
-		return *one == *two
-	}
-	return false
-}
-
 func isLegacyMBRTransition(from *VolumeStructure, to *VolumeStructure) bool {
 	// legacy MBR could have been specified by setting type: mbr, with no
 	// role
