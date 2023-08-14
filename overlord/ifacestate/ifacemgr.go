@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -58,6 +59,9 @@ type InterfaceManager struct {
 	enumerationDone      bool
 	// maps sysfs path -> [(interface name, device key)...]
 	hotplugDevicePaths map[string][]deviceData
+
+	promptingMu sync.Mutex
+	prompting   apparmorprompting.Interface
 
 	// extras
 	extraInterfaces []interfaces.Interface
@@ -135,6 +139,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
+func (m *InterfaceManager) Prompting() *apparmorprompting.Prompting {
+	return (m.prompting).(*apparmorprompting.Prompting)
+}
+
 // StartUp implements StateStarterUp.Startup.
 func (m *InterfaceManager) StartUp() error {
 	s := m.state
@@ -193,7 +201,21 @@ Run "systemctl enable --now snapd.apparmor" to correct this.`)
 }
 
 // Ensure implements StateManager.Ensure.
-func (m *InterfaceManager) Ensure() error {
+func (m *InterfaceManager) Ensure() (err error) {
+	if udevMonErr := m.ensureUDevMon(); udevMonErr != nil {
+		defer func() {
+			if err != nil {
+				err = fmt.Errorf("%w; %v", udevMonErr, err)
+			} else {
+				err = udevMonErr
+			}
+		}()
+	}
+	err = m.ensurePrompting()
+	return err
+}
+
+func (m *InterfaceManager) ensureUDevMon() error {
 	// do not worry about udev monitor in preseeding mode
 	if m.preseed {
 		return nil
@@ -227,9 +249,37 @@ func (m *InterfaceManager) Ensure() error {
 	return nil
 }
 
-// Stop implements StateStopper. It stops the udev monitor,
+func (m *InterfaceManager) ensurePrompting() error {
+	if !apparmorprompting.PromptingEnabled() {
+		m.stopPrompting()
+		return nil
+	}
+	m.promptingMu.Lock()
+	prompting := m.prompting
+	m.promptingMu.Unlock()
+	if prompting != nil {
+		// Prompting is already running, so stop it, in case an internal error
+		// has occurred, which we have no way of checking since we can only
+		// define/use methods which match the apparmorprompting.Interface type.
+		prompting.Stop()
+		// XXX: this throws away pending prompting requests, so we probably want
+		// to figure out a way to either:
+		// 1. tell whether the prompting instance has actually encountered an
+		// error, and let it happily continue if not; or
+		// 2. gracefully transfer pending prompting requests from the old
+		// listener to the new one, likely by writing to and reading from disk.
+	}
+	return m.initPrompting()
+}
+
+// Stop implements StateStopper. It stops the udev monitor and prompting,
 // if running.
 func (m *InterfaceManager) Stop() {
+	m.stopUDevMon()
+	m.stopPrompting()
+}
+
+func (m *InterfaceManager) stopUDevMon() {
 	m.udevMonMu.Lock()
 	udevMon := m.udevMon
 	m.udevMonMu.Unlock()
@@ -242,6 +292,22 @@ func (m *InterfaceManager) Stop() {
 	m.udevMonMu.Lock()
 	defer m.udevMonMu.Unlock()
 	m.udevMon = nil
+}
+
+func (m *InterfaceManager) stopPrompting() {
+	m.promptingMu.Lock()
+	defer m.promptingMu.Unlock()
+	// May as well hold the prompting lock while stopping prompting, so that
+	// we don't try to use or overwrite this prompting instance while it is
+	// stopping.
+	prompting := m.prompting
+	if prompting == nil {
+		return
+	}
+	if err := prompting.Stop(); err != nil {
+		logger.Noticef("Cannot stop prompting: %s", err)
+	}
+	m.prompting = nil
 }
 
 // Repository returns the interface repository used internally by the manager.
@@ -453,6 +519,7 @@ func (m *InterfaceManager) DisableUDevMonitor() {
 var (
 	udevInitRetryTimeout = time.Minute * 5
 	createUDevMonitor    = udevmonitor.New
+	createPrompting      = apparmorprompting.New
 )
 
 func (m *InterfaceManager) initUDevMonitor() error {
@@ -467,6 +534,24 @@ func (m *InterfaceManager) initUDevMonitor() error {
 	m.udevMonMu.Lock()
 	defer m.udevMonMu.Unlock()
 	m.udevMon = mon
+	return nil
+}
+
+// initPrompting should only be called if prompting is supported and enabled,
+// and any existing prompting instance should already be stopped, as it will be
+// overridden.
+func (m *InterfaceManager) initPrompting() error {
+	prompt := createPrompting()
+	if err := prompt.Connect(); err != nil {
+		return err
+	}
+	if err := prompt.Run(); err != nil {
+		return err
+	}
+
+	m.promptingMu.Lock()
+	defer m.promptingMu.Unlock()
+	m.prompting = prompt
 	return nil
 }
 

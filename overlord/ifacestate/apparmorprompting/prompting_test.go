@@ -45,8 +45,12 @@ func (s *apparmorPromptingSuite) SetUpTest(c *C) {
 }
 
 func (s *apparmorPromptingSuite) TestSmoke(c *C) {
-	restore := apparmorprompting.MockListener()
-	defer restore()
+	restorePromptingEnabled := apparmorprompting.MockPromptingEnabled(func() bool {
+		return true
+	})
+	defer restorePromptingEnabled()
+	restoreListener := apparmorprompting.MockListener()
+	defer restoreListener()
 	p := apparmorprompting.New()
 	c.Assert(p, NotNil)
 	c.Assert(p.Connect(), IsNil)

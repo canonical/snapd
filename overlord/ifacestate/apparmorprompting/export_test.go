@@ -24,6 +24,12 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+func MockPromptingEnabled(f func() bool) (restore func()) {
+	restore = testutil.Backup(&PromptingEnabled)
+	PromptingEnabled = f
+	return restore
+}
+
 func MockNotifySupportAvailable(f func() bool) (restore func()) {
 	restore = testutil.Backup(&notifySupportAvailable)
 	notifySupportAvailable = f

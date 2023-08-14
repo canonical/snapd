@@ -5,6 +5,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/accessrules"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
@@ -12,6 +13,10 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 )
+
+var PromptingEnabled = func() bool {
+	return features.AppArmorPrompting.IsEnabled() && notify.SupportAvailable()
+}
 
 type Interface interface {
 	Connect() error
@@ -32,7 +37,7 @@ func New() Interface {
 }
 
 func (p *Prompting) Connect() error {
-	if !notifySupportAvailable() {
+	if !PromptingEnabled() {
 		return nil
 	}
 	if p.requests != nil {
@@ -57,6 +62,9 @@ func (p *Prompting) disconnect() error {
 	if p.listener == nil {
 		return nil
 	}
+	defer func() {
+		p.listener = nil
+	}()
 	if err := listenerClose(p.listener); err != nil {
 		return err
 	}
@@ -68,11 +76,14 @@ var listenerClose = func(l *listener.Listener) error {
 }
 
 func (p *Prompting) Run() error {
-	if p.listener == nil {
-		logger.Noticef("listener is nil, exiting Prompting.Run() early")
-		return fmt.Errorf("listener is nil, cannot run apparmor prompting")
+	if !PromptingEnabled() {
+		return nil
 	}
 	p.tomb.Go(func() error {
+		if p.listener == nil {
+			logger.Noticef("listener is nil, exiting Prompting.Run() early")
+			return fmt.Errorf("listener is nil, cannot run apparmor prompting")
+		}
 		p.tomb.Go(func() error {
 			logger.Noticef("starting listener")
 			if err := listenerRun(p.listener); err != listener.ErrClosed {
@@ -151,9 +162,7 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 
 func (p *Prompting) Stop() error {
 	p.tomb.Kill(nil)
-	err := p.tomb.Wait()
-	p.listener = nil
-	return err
+	return p.tomb.Wait()
 }
 
 func (p *Prompting) GetRequests(userID int) ([]*promptrequests.PromptRequest, error) {
