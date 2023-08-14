@@ -1165,16 +1165,9 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 
 	// It is ok do open the snap file here because we either
 	// have side info or the user passed --dangerous
-	info, container, err := backend.OpenSnapFile(path, si)
+	info, err := validatedInfoFromPathAndSideInfo(instanceName, path, si)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	if err := validateContainer(container, info, logger.Noticef); err != nil {
-		return nil, nil, err
-	}
-	if err := snap.ValidateInstanceName(instanceName); err != nil {
-		return nil, nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
@@ -1230,14 +1223,48 @@ func Install(ctx context.Context, st *state.State, name string, opts *RevisionOp
 	return InstallWithDeviceContext(ctx, st, name, opts, userID, flags, nil, "")
 }
 
+type snapInfoForInstall func(DeviceContext, *RevisionOptions) (si *snap.Info, snapPath, redirectChannel string, e error)
+
 // InstallWithDeviceContext returns a set of tasks for installing a snap.
-// It will query for the snap with the given deviceCtx.
+// It will query the store for the snap with the given deviceCtx.
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a LastBeforeLocalModificationsEdge
 // identifying the last task before the first task that introduces system
 // modifications.
 func InstallWithDeviceContext(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+	logger.Debugf("installing with device context %s", name)
+	snapInstallInfo := func(dc DeviceContext, ro *RevisionOptions) (si *snap.Info, snapPath, redirectChannel string, e error) {
+		sar, err := installInfo(ctx, st, name, ro, userID, flags, dc)
+		if err != nil {
+			return nil, "", "", err
+		}
+		return sar.Info, "", sar.RedirectChannel, nil
+	}
+	return installWithDeviceContext(st, name, opts, userID, flags, deviceCtx, fromChange, snapInstallInfo)
+}
+
+// InstallPathWithDeviceContext returns a set of tasks for installing a local snap.
+// Note that the state must be locked by the caller.
+//
+// The returned TaskSet will contain a LastBeforeLocalModificationsEdge
+// identifying the last task before the first task that introduces system
+// modifications.
+func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string,
+	opts *RevisionOptions, userID int, flags Flags,
+	deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+	logger.Debugf("installing from local file with device context %s", name)
+	snapInstallInfo := func(DeviceContext, *RevisionOptions) (info *snap.Info, snapPath, redirectChannel string, e error) {
+		info, err := validatedInfoFromPathAndSideInfo(name, path, si)
+		if err != nil {
+			return nil, "", "", err
+		}
+		return info, path, "", nil
+	}
+	return installWithDeviceContext(st, name, opts, userID, flags, deviceCtx, fromChange, snapInstallInfo)
+}
+
+func installWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string, snapInstallInfo snapInfoForInstall) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -1261,21 +1288,21 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	if snapst.IsInstalled() {
 		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
-	// need to have a model set before trying to talk the store
-	deviceCtx, err = DevicePastSeeding(st, deviceCtx)
-	if err != nil {
-		return nil, err
-	}
 
 	if err := snap.ValidateInstanceName(name); err != nil {
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	sar, err := installInfo(ctx, st, name, opts, userID, flags, deviceCtx)
+	// make sure to have a model set
+	devPastSeedCtx, err := DevicePastSeeding(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
-	info := sar.Info
+
+	info, snapPath, redirectChannel, err := snapInstallInfo(devPastSeedCtx, opts)
+	if err != nil {
+		return nil, err
+	}
 
 	if flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
@@ -1313,11 +1340,33 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		ExpectedProvenance: info.SnapProvenance,
 	}
 
-	if sar.RedirectChannel != "" {
-		snapsup.Channel = sar.RedirectChannel
+	// If we don't have a local snap we need to download it.
+	if snapPath != "" {
+		snapsup.SnapPath = snapPath
+	} else {
+		snapsup.DownloadInfo = &info.DownloadInfo
+	}
+
+	if redirectChannel != "" {
+		snapsup.Channel = redirectChannel
 	}
 
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
+}
+
+func validatedInfoFromPathAndSideInfo(snapName, path string, si *snap.SideInfo) (*snap.Info, error) {
+	var info *snap.Info
+	info, cont, err := backend.OpenSnapFile(path, si)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open snap file: %v", err)
+	}
+	if err := validateContainer(cont, info, logger.Noticef); err != nil {
+		return nil, err
+	}
+	if err := snap.ValidateInstanceName(snapName); err != nil {
+		return nil, fmt.Errorf("invalid instance name: %v", err)
+	}
+	return info, nil
 }
 
 // InstallPathMany returns a set of tasks for installing snaps from a file paths
@@ -1339,23 +1388,15 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 
 	var updates []minimalInstallInfo
 	var names []string
-	stateByInstanceName := make(map[string]*SnapState, len(paths))
-	flagsByInstanceName := make(map[string]Flags, len(paths))
+	stateByInstanceName := make(map[string]*SnapState, len(sideInfos))
+	flagsByInstanceName := make(map[string]Flags, len(sideInfos))
 
-	for i, path := range paths {
-		si := sideInfos[i]
+	for i, si := range sideInfos {
 		name := si.RealName
 
-		info, container, err := backend.OpenSnapFile(path, si)
+		info, err := validatedInfoFromPathAndSideInfo(name, paths[i], si)
 		if err != nil {
 			return nil, err
-		}
-
-		if err := validateContainer(container, info, logger.Noticef); err != nil {
-			return nil, err
-		}
-		if err := snap.ValidateInstanceName(name); err != nil {
-			return nil, fmt.Errorf("invalid instance name: %v", err)
 		}
 
 		var snapst SnapState
@@ -1372,7 +1413,7 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 			flags.Classic = flags.Classic || snapst.Flags.Classic
 		}
 
-		updates = append(updates, pathInfo{Info: info, path: path, sideInfo: si})
+		updates = append(updates, pathInfo{Info: info, path: paths[i], sideInfo: si})
 		names = append(names, name)
 		stateByInstanceName[name] = &snapst
 		flagsByInstanceName[name] = flags
@@ -2343,8 +2384,10 @@ func Update(st *state.State, name string, opts *RevisionOptions, userID int, fla
 	return UpdateWithDeviceContext(st, name, opts, userID, flags, nil, "")
 }
 
+type snapInfoForUpdate func(dc DeviceContext, ro *RevisionOptions, fl Flags, snapst *SnapState) ([]minimalInstallInfo, error)
+
 // UpdateWithDeviceContext initiates a change updating a snap.
-// It will query for the snap with the given deviceCtx.
+// It will query the store for the snap with the given deviceCtx.
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet can contain a LastBeforeLocalModificationsEdge
@@ -2352,6 +2395,53 @@ func Update(st *state.State, name string, opts *RevisionOptions, userID int, fla
 // modifications. If no such edge is set, then none of the tasks introduce
 // system modifications.
 func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+	snapUpdateInfo := func(dc DeviceContext, ro *RevisionOptions, fl Flags, snapst *SnapState) ([]minimalInstallInfo, error) {
+		toUpdate := []minimalInstallInfo{}
+		info, infoErr := infoForUpdate(st, snapst, name, ro, userID, fl, dc)
+		switch infoErr {
+		case nil:
+			toUpdate = append(toUpdate, installSnapInfo{info})
+		case store.ErrNoUpdateAvailable:
+			// there may be some new auto-aliases
+			return toUpdate, infoErr
+		default:
+			return nil, infoErr
+		}
+		return toUpdate, infoErr
+	}
+
+	return updateWithDeviceContext(st, name, opts, userID, flags, deviceCtx, fromChange, snapUpdateInfo)
+}
+
+// UpdatePathWithDeviceContext initiates a change updating a snap from a local file.
+// Note that the state must be locked by the caller.
+//
+// The returned TaskSet can contain a LastBeforeLocalModificationsEdge
+// identifying the last task before the first task that introduces system
+// modifications. If no such edge is set, then none of the tasks introduce
+// system modifications.
+func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+	snapUpdateInfo := func(dc DeviceContext, ro *RevisionOptions, fl Flags, snapst *SnapState) ([]minimalInstallInfo, error) {
+		toUpdate := []minimalInstallInfo{}
+		info, err := validatedInfoFromPathAndSideInfo(name, path, si)
+		if err != nil {
+			return nil, err
+		}
+		// Trying to update to the same revision that is already installed.
+		// We abuse here store.ErrNoUpdateAvailable to keep behavior
+		// consistent with when we try to update from the store.
+		if snapst.CurrentSideInfo().Revision == info.Revision {
+			return toUpdate, store.ErrNoUpdateAvailable
+		}
+		installInfo := pathInfo{Info: info, path: path, sideInfo: si}
+		toUpdate = append(toUpdate, installInfo)
+		return toUpdate, nil
+	}
+
+	return updateWithDeviceContext(st, name, opts, userID, flags, deviceCtx, fromChange, snapUpdateInfo)
+}
+
+func updateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string, snapUpdateInfo snapInfoForUpdate) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -2370,7 +2460,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return nil, fmt.Errorf("refreshing disabled snap %q not supported", name)
 	}
 
-	// need to have a model set before trying to talk the store
+	// make sure we have a model set
 	deviceCtx, err = DevicePastSeeding(st, deviceCtx)
 	if err != nil {
 		return nil, err
@@ -2399,20 +2489,9 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		flags.Classic = flags.Classic || snapst.Flags.Classic
 	}
 
-	var updates []*snap.Info
-	info, infoErr := infoForUpdate(st, &snapst, name, opts, userID, flags, deviceCtx)
-	switch infoErr {
-	case nil:
-		updates = append(updates, info)
-	case store.ErrNoUpdateAvailable:
-		// there may be some new auto-aliases
-	default:
+	toUpdate, infoErr := snapUpdateInfo(deviceCtx, opts, flags, &snapst)
+	if infoErr != nil && infoErr != store.ErrNoUpdateAvailable {
 		return nil, infoErr
-	}
-
-	toUpdate := make([]minimalInstallInfo, len(updates))
-	for i, up := range updates {
-		toUpdate[i] = installSnapInfo{up}
 	}
 
 	if err = checkDiskSpace(st, "refresh", toUpdate, userID); err != nil {
@@ -2481,12 +2560,12 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		}
 	}
 
-	if len(tts) == 0 && len(updates) == 0 {
+	if len(tts) == 0 && len(toUpdate) == 0 {
 		// really nothing to do, return the original no-update-available error
 		return nil, infoErr
 	}
 
-	tts = finalizeUpdate(st, tts, len(updates) > 0, []string{name}, userID, &flags)
+	tts = finalizeUpdate(st, tts, len(toUpdate) > 0, []string{name}, userID, &flags)
 
 	flat := state.NewTaskSet()
 	for _, ts := range tts {
