@@ -58,6 +58,15 @@ func NewIoctlRequestBuffer() *IoctlRequestBuffer {
 	}
 }
 
+// BytesToIoctlRequestBuffer creates a new IoctlRequestBuffer built around the
+// given buffer.  The buffer should the output of a valid ioctl message struct
+// being marshalled into bytes.
+func BytesToIoctlRequestBuffer(buf []byte) *IoctlRequestBuffer {
+	return &IoctlRequestBuffer{
+		bytes: buf,
+	}
+}
+
 // Bytes returns the underlying byte slice of an IoctlRequestBuffer.
 func (b *IoctlRequestBuffer) Bytes() []byte {
 	return b.bytes

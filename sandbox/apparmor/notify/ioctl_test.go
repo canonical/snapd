@@ -19,7 +19,7 @@ type ioctlSuite struct{}
 
 var _ = Suite(&ioctlSuite{})
 
-func (*messageSuite) TestIoctlRequestBuffer(c *C) {
+func (*ioctlSuite) TestIoctlRequestBuffer(c *C) {
 	buf := notify.NewIoctlRequestBuffer()
 	c.Assert(buf.Bytes(), HasLen, 0xFFFF)
 	var header notify.MsgHeader
@@ -29,6 +29,12 @@ func (*messageSuite) TestIoctlRequestBuffer(c *C) {
 		Length:  0xFFFF,
 		Version: 2,
 	})
+}
+
+func (*ioctlSuite) TestBytesToIoctlRequestBuffer(c *C) {
+	buf := []byte{'f', 'o', 'o'}
+	ioctlBuf := notify.BytesToIoctlRequestBuffer(buf)
+	c.Assert(ioctlBuf.Bytes(), DeepEquals, buf)
 }
 
 func (*ioctlSuite) TestIoctlHappy(c *C) {
@@ -49,7 +55,7 @@ func (*ioctlSuite) TestIoctlHappy(c *C) {
 	c.Assert(n, Equals, buf.Len())
 }
 
-func (ioctlSuite) TestIoctlBuffer(c *C) {
+func (*ioctlSuite) TestIoctlBuffer(c *C) {
 	fd := uintptr(123)
 	req := notify.IoctlRequest(456)
 	buf := notify.NewIoctlRequestBuffer()
@@ -125,7 +131,7 @@ func (*ioctlSuite) TestIoctlReturnError(c *C) {
 	c.Assert(n, Equals, -1)
 }
 
-func (ioctlSuite) TestIoctlDump(c *C) {
+func (*ioctlSuite) TestIoctlDump(c *C) {
 	var logBuf bytes.Buffer
 	origLog := log.Writer()
 	log.SetOutput(&logBuf)
