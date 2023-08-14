@@ -47,28 +47,25 @@ static const char *filter_profile_dir = "/var/lib/snapd/seccomp/bpf/";
 
 typedef struct sock_filter bpf_instr;
 
-// keep in sync with snap-seccomp/main.go
+// Keep in sync with snap-seccomp/main.go
 //
-// header of a seccomp.bin2 filter file, in network byte order (big-endian)
-//
-// Note that padding is important
-// alternatively "__attribute__((__packed__))" could be used
-struct sc_seccomp_file_header {
+// Header of a seccomp.bin2 filter file in native byte order.
+struct __attribute__((__packed__)) sc_seccomp_file_header {
 	// header: "SC"
 	char header[2];
 	// version: 0x1
-	char version;
+	uint8_t version;
 	// flags
-	char unrestricted;
+	uint8_t unrestricted;
 	// unused
-	char padding[4];
+	uint8_t padding[4];
 
 	// size of allow filter in byte
 	uint32_t len_allow_filter;
 	// size of deny filter in byte
 	uint32_t len_deny_filter;
 	// reserved for future use
-	char reserved2[112];
+	uint8_t reserved2[112];
 };
 static_assert(sizeof(struct sc_seccomp_file_header) == 128,"unexpected struct size");
 
