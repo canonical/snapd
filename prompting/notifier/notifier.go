@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 
+	"gopkg.in/tomb.v2"
+
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/prompting/apparmor"
 )
@@ -54,7 +56,7 @@ func newRequest(n *Notifier, msg *apparmor.MsgNotificationFile) *Request {
 		perm = deny
 	}
 	return &Request{
-		n: n,
+		n: n, // why is this needed?
 
 		Pid:        msg.Pid,
 		Label:      msg.Label,
@@ -124,7 +126,7 @@ func Register() (*Notifier, error) {
 	return notifier, nil
 }
 
-func (n *Notifier) decodeAndDispatchRequest(buf []byte) error {
+func (n *Notifier) decodeAndDispatchRequest(buf []byte, tomb *tomb.Tomb) error {
 	var nmsg apparmor.MsgNotification
 	if err := nmsg.UnmarshalBinary(buf); err != nil {
 		return err
@@ -146,7 +148,10 @@ func (n *Notifier) decodeAndDispatchRequest(buf []byte) error {
 			// log.Printf("notification request: %#v\n", fmsg)
 			req := newRequest(n, &fmsg)
 			n.R <- req
-			go n.waitAndRespond(req, &fmsg)
+			tomb.Go(func() error {
+				n.waitAndRespond(req, &fmsg)
+				return nil
+			})
 		default:
 			return fmt.Errorf("unsupported mediation class : %v", omsg.Class)
 		}
@@ -186,7 +191,7 @@ func (n *Notifier) encodeAndSendResponse(resp *apparmor.MsgNotificationResponse)
 	return err
 }
 
-func (n *Notifier) runOnce() error {
+func (n *Notifier) runOnce(tomb *tomb.Tomb) error {
 	// XXX: Wait must return immediately once epoll is closed.
 	events, err := n.poll.Wait()
 	if err != nil {
@@ -205,7 +210,7 @@ func (n *Notifier) runOnce() error {
 				if err != nil {
 					return err
 				}
-				if err := n.decodeAndDispatchRequest(buf[:size]); err != nil {
+				if err := n.decodeAndDispatchRequest(buf[:size], tomb); err != nil {
 					return err
 				}
 			}
@@ -215,10 +220,10 @@ func (n *Notifier) runOnce() error {
 }
 
 // Run reads and dispatches kernel requests until stopped.
-func (n *Notifier) Run() {
+func (n *Notifier) Run(tomb *tomb.Tomb) {
 	// TODO: allow the run to stop
 	for {
-		if err := n.runOnce(); err != nil {
+		if err := n.runOnce(tomb); err != nil {
 			n.fail(err)
 			break
 		}
