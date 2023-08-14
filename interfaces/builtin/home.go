@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
-	apparmor_prompting "github.com/snapcore/snapd/prompting/apparmor"
+	apparmor_prompting "github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -112,7 +112,7 @@ func (iface *homeInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 
 func evalPrompting(s string) string {
 	repl := ""
-	if features.AppArmorPrompting.IsEnabled() && apparmor_prompting.PromptingAvailable() {
+	if features.AppArmorPrompting.IsEnabled() && apparmor_prompting.PromptingSupportAvailable() {
 		repl = "prompt "
 	}
 	return strings.Replace(s, "###PROMPT###", repl, -1)
