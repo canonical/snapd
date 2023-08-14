@@ -180,13 +180,13 @@ static FILE* sc_must_read_and_validate_header_from_file(const char *profile_path
 	if (hdr->len_deny_filter > MAX_BPF_SIZE) {
 		die("deny filter size too big %u", hdr->len_deny_filter);
 	}
-	struct stat buf;
-	if (fstat(fileno(file), &buf) != 0) {
+	struct stat stat_buf;
+	if (fstat(fileno(file), &stat_buf) != 0) {
 		die("cannot fstat the seccomp file");
 	}
 	off_t expected_size = sizeof(struct sc_seccomp_file_header)+hdr->len_allow_filter+hdr->len_deny_filter;
-	if (buf.st_size != expected_size) {
-		die("unexpected filesize %ju != %ju", buf.st_size, expected_size);
+	if (stat_buf.st_size != expected_size) {
+		die("unexpected filesize %ju != %ju", stat_buf.st_size, expected_size);
 	}
 
 	return file;
