@@ -72,8 +72,8 @@ type msgNotificationFilterKernel struct {
 // MsgNotificationFilter describes the configuration of kernel-side message filtering.
 //
 // This structure can be marshaled and unmarshaled to binary form and
-// transmitted to the kernel using Ioctl along with IoctlGetFilter and
-// IoctlSetFilter.
+// transmitted to the kernel using Ioctl along with APPARMOR_NOTIF_GET_FILTER
+// and APPARMOR_NOTIF_SET_FILTER.
 type MsgNotificationFilter struct {
 	MsgHeader
 	// ModeSet is a bitmask. Specifying APPARMOR_MODESET_USER allows to
