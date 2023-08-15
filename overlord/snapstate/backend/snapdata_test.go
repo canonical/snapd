@@ -126,7 +126,7 @@ func mockSnapDir(baseDir string) error {
 	return nil
 }
 
-func (s *snapdataSuite) testRemoveSnapDataDir(c *C, hiddenSnapDataDir bool) {
+func (s *snapdataSuite) testRemoveSnapDataDir(c *C, opts *dirs.SnapDirOptions) {
 	// create system data dirs
 	dataDir := filepath.Join(dirs.SnapDataDir, "hello")
 	c.Assert(mockSnapDir(dataDir), IsNil)
@@ -134,10 +134,9 @@ func (s *snapdataSuite) testRemoveSnapDataDir(c *C, hiddenSnapDataDir bool) {
 	c.Assert(mockSnapDir(instanceDataDir), IsNil)
 
 	snapHomeDir := "snap"
-	if hiddenSnapDataDir {
+	if opts.HiddenSnapDataDir {
 		snapHomeDir = ".snap/data"
 	}
-	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: hiddenSnapDataDir}
 
 	// create user home data dirs
 	homeDataDir := filepath.Join(s.tempdir, "home", "user1", snapHomeDir, "hello")
@@ -186,9 +185,11 @@ func (s *snapdataSuite) testRemoveSnapDataDir(c *C, hiddenSnapDataDir bool) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapDataDir(c *C) {
-	s.testRemoveSnapDataDir(c, false)
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: false}
+	s.testRemoveSnapDataDir(c, opts)
 }
 
 func (s *snapdataSuite) TestRemoveSnapDataDirWithHiddenDataDir(c *C) {
-	s.testRemoveSnapDataDir(c, true)
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	s.testRemoveSnapDataDir(c, opts)
 }
