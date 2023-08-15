@@ -32,7 +32,7 @@ func (s *promptrequestsSuite) TestNew(c *C) {
 
 func (s *promptrequestsSuite) TestAddRequests(c *C) {
 	rdb := promptrequests.New()
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -67,7 +67,7 @@ func (s *promptrequestsSuite) TestAddRequests(c *C) {
 
 func (s *promptrequestsSuite) TestRequestWithIdErrors(c *C) {
 	rdb := promptrequests.New()
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -91,7 +91,7 @@ func (s *promptrequestsSuite) TestRequestWithIdErrors(c *C) {
 
 func (s *promptrequestsSuite) TestReply(c *C) {
 	rdb := promptrequests.New()
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -115,7 +115,7 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 
 func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 	rdb := promptrequests.New()
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -126,17 +126,17 @@ func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 
 	outcome := common.OutcomeAllow
 
-	err := rdb.Reply(user, "foo", outcome)
+	_, err := rdb.Reply(user, "foo", outcome)
 	c.Assert(err, Equals, promptrequests.ErrRequestIdNotFound)
 
-	err = rdb.Reply(user+1, "foo", outcome)
+	_, err = rdb.Reply(user+1, "foo", outcome)
 	c.Assert(err, Equals, promptrequests.ErrUserNotFound)
 }
 
 func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	rdb := promptrequests.New()
 
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -182,7 +182,7 @@ func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	rdb := promptrequests.New()
 
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -236,7 +236,7 @@ func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
 	rdb := promptrequests.New()
 
-	var user uint32 = 1000
+	var user int = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"

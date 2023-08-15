@@ -26,18 +26,18 @@ type userRequestDB struct {
 }
 
 type RequestDB struct {
-	PerUser map[uint32]*userRequestDB
+	PerUser map[int]*userRequestDB
 	mutex   sync.Mutex
 }
 
 func New() *RequestDB {
 	return &RequestDB{
-		PerUser: make(map[uint32]*userRequestDB),
+		PerUser: make(map[int]*userRequestDB),
 	}
 }
 
 // Creates, adds, and returns a new prompt request from the given parameters.
-func (rdb *RequestDB) Add(user uint32, snap string, app string, path string, permissions []common.PermissionType, replyChan chan bool) *PromptRequest {
+func (rdb *RequestDB) Add(user int, snap string, app string, path string, permissions []common.PermissionType, replyChan chan bool) *PromptRequest {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	userEntry, exists := rdb.PerUser[user]
@@ -61,7 +61,7 @@ func (rdb *RequestDB) Add(user uint32, snap string, app string, path string, per
 	return req
 }
 
-func (rdb *RequestDB) Requests(user uint32) []*PromptRequest {
+func (rdb *RequestDB) Requests(user int) []*PromptRequest {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	userEntry, exists := rdb.PerUser[user]
@@ -75,7 +75,7 @@ func (rdb *RequestDB) Requests(user uint32) []*PromptRequest {
 	return requests
 }
 
-func (rdb *RequestDB) RequestWithId(user uint32, id string) (*PromptRequest, error) {
+func (rdb *RequestDB) RequestWithId(user int, id string) (*PromptRequest, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	userEntry, exists := rdb.PerUser[user]
@@ -89,16 +89,17 @@ func (rdb *RequestDB) RequestWithId(user uint32, id string) (*PromptRequest, err
 	return req, nil
 }
 
-func (rdb *RequestDB) Reply(user uint32, id string, outcome common.OutcomeType) error {
+// Reply resolves the request with the given ID using the given outcome.
+func (rdb *RequestDB) Reply(user int, id string, outcome common.OutcomeType) (*PromptRequest, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	userEntry, exists := rdb.PerUser[user]
 	if !exists || len(userEntry.ById) == 0 {
-		return ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
 	req, exists := userEntry.ById[id]
 	if !exists {
-		return ErrRequestIdNotFound
+		return nil, ErrRequestIdNotFound
 	}
 	switch outcome {
 	case common.OutcomeAllow:
@@ -109,12 +110,12 @@ func (rdb *RequestDB) Reply(user uint32, id string, outcome common.OutcomeType) 
 		// should never occur
 	}
 	delete(userEntry.ById, id)
-	return nil
+	return req, nil
 }
 
 // If any existing requests are satisfied by the given rule, send the decision
 // along their respective channels, and return their IDs.
-func (rdb *RequestDB) HandleNewRule(user uint32, snap string, app string, pathPattern string, outcome common.OutcomeType, permissions []common.PermissionType) ([]string, error) {
+func (rdb *RequestDB) HandleNewRule(user int, snap string, app string, pathPattern string, outcome common.OutcomeType, permissions []common.PermissionType) ([]string, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	var satisfiedReqIds []string

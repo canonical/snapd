@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -58,6 +59,9 @@ type InterfaceManager struct {
 	enumerationDone      bool
 	// maps sysfs path -> [(interface name, device key)...]
 	hotplugDevicePaths map[string][]deviceData
+
+	promptingMu sync.Mutex
+	prompting   apparmorprompting.Interface
 
 	// extras
 	extraInterfaces []interfaces.Interface
@@ -135,6 +139,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
+func (m *InterfaceManager) Prompting() *apparmorprompting.Prompting {
+	return (m.prompting).(*apparmorprompting.Prompting)
+}
+
 // StartUp implements StateStarterUp.Startup.
 func (m *InterfaceManager) StartUp() error {
 	s := m.state
@@ -192,8 +200,7 @@ Run "systemctl enable --now snapd.apparmor" to correct this.`)
 	return nil
 }
 
-// Ensure implements StateManager.Ensure.
-func (m *InterfaceManager) Ensure() error {
+func (m *InterfaceManager) ensureUDevMon() error {
 	// do not worry about udev monitor in preseeding mode
 	if m.preseed {
 		return nil
@@ -227,21 +234,68 @@ func (m *InterfaceManager) Ensure() error {
 	return nil
 }
 
-// Stop implements StateStopper. It stops the udev monitor,
+func (m *InterfaceManager) ensurePrompting() error {
+	m.promptingMu.Lock()
+	prompting := m.prompting
+	m.promptingMu.Unlock()
+	if prompting != nil {
+		return nil
+	}
+	if err := m.initPrompting(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Ensure implements StateManager.Ensure.
+func (m *InterfaceManager) Ensure() error {
+	ensureErrors := make([]error, 0, 2)
+	if err := m.ensureUDevMon(); err != nil {
+		ensureErrors = append(ensureErrors, err)
+	}
+	if err := m.ensurePrompting(); err != nil {
+		ensureErrors = append(ensureErrors, err)
+	}
+	switch len(ensureErrors) {
+	case 0:
+		return nil
+	case 1:
+		return ensureErrors[0]
+	default:
+		err := ensureErrors[0]
+		for _, e := range ensureErrors[1:] {
+			err = fmt.Errorf("%w; %v", err, e)
+		}
+		return err
+	}
+}
+
+// Stop implements StateStopper. It stops the udev monitor and prompting,
 // if running.
 func (m *InterfaceManager) Stop() {
 	m.udevMonMu.Lock()
 	udevMon := m.udevMon
 	m.udevMonMu.Unlock()
-	if udevMon == nil {
-		return
-	}
-	if err := udevMon.Stop(); err != nil {
-		logger.Noticef("Cannot stop udev monitor: %s", err)
+	if udevMon != nil {
+		if err := udevMon.Stop(); err != nil {
+			logger.Noticef("Cannot stop udev monitor: %s", err)
+		}
 	}
 	m.udevMonMu.Lock()
-	defer m.udevMonMu.Unlock()
 	m.udevMon = nil
+	m.udevMonMu.Unlock()
+
+	m.promptingMu.Lock()
+	prompting := m.prompting
+	m.promptingMu.Unlock()
+	if prompting != nil {
+		if err := prompting.Stop(); err != nil {
+			logger.Noticef("Cannot stop prompting: %s", err)
+		}
+	}
+	m.promptingMu.Lock()
+	m.prompting = nil
+	m.promptingMu.Unlock()
 }
 
 // Repository returns the interface repository used internally by the manager.
@@ -453,6 +507,7 @@ func (m *InterfaceManager) DisableUDevMonitor() {
 var (
 	udevInitRetryTimeout = time.Minute * 5
 	createUDevMonitor    = udevmonitor.New
+	createPrompting      = apparmorprompting.New
 )
 
 func (m *InterfaceManager) initUDevMonitor() error {
@@ -467,6 +522,21 @@ func (m *InterfaceManager) initUDevMonitor() error {
 	m.udevMonMu.Lock()
 	defer m.udevMonMu.Unlock()
 	m.udevMon = mon
+	return nil
+}
+
+func (m *InterfaceManager) initPrompting() error {
+	prompt := createPrompting()
+	if err := prompt.Connect(); err != nil {
+		return err
+	}
+	if err := prompt.Run(); err != nil {
+		return err
+	}
+
+	m.promptingMu.Lock()
+	defer m.promptingMu.Unlock()
+	m.prompting = prompt
 	return nil
 }
 

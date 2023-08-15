@@ -1,4 +1,4 @@
-package notifier_test
+package listener_test
 
 import (
 	"testing"
@@ -8,6 +8,6 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type notifierSuite struct{}
+type listenerSuite struct{}
 
-var _ = Suite(&notifierSuite{})
+var _ = Suite(&listenerSuite{})
