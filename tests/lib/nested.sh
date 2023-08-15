@@ -24,8 +24,8 @@
 
 nested_wait_for_ssh() {
     # TODO:UC20: the retry count should be lowered to something more reasonable.
-    local retry=800
-    local wait=1
+    local retry=${1:-800}
+    local wait=${2:-1}
 
     until remote.exec "true"; do
         retry=$(( retry - 1 ))
@@ -38,8 +38,8 @@ nested_wait_for_ssh() {
 }
 
 nested_wait_for_no_ssh() {
-    local retry=200
-    local wait=1
+    local retry=${1:-200}
+    local wait=${2:-1}
 
     while remote.exec "true"; do
         retry=$(( retry - 1 ))
@@ -51,10 +51,10 @@ nested_wait_for_no_ssh() {
     done
 }
 
-
 nested_wait_vm_ready() {
+    echo "Waiting the vm is ready to be used"
     local retry=${1:-120}
-    local log_limit=${2:-60}
+    local log_limit=${2:-30}
 
     local output_lines=0
     local serial_log="$NESTED_LOGS_DIR"/serial.log
@@ -89,8 +89,11 @@ nested_wait_vm_ready() {
 
         # Check if ssh can be stablished, and return if it is possible
         if nested_wait_for_ssh 1 1; then
+            echo "SSH connection ready"
             return
         fi
+
+        sleep 3
     done
 
     nested_check_unit_stays_active "$NESTED_VM" 2 1
@@ -99,8 +102,8 @@ nested_wait_vm_ready() {
 nested_wait_for_snap_command() {
     # In this function the remote retry command cannot be used because it could
     # be executed before the tool is deployed.
-    local retry=200
-    local wait=1
+    local retry=${1:-200}
+    local wait=${2:-1}
 
     while ! remote.exec "command -v snap"; do
         retry=$(( retry - 1 ))
@@ -1249,7 +1252,7 @@ nested_start_core_vm_unit() {
 
     if [ "$EXPECT_SHUTDOWN" != "1" ]; then
         # Wait until the vm is ready to receive connections
-        if ! nested_wait_vm_ready 120 60; then
+        if ! nested_wait_vm_ready 120 40; then
             echo "failed to wait for the vm becomes ready to receive connections"
             return 1
         fi
