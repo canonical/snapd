@@ -58,8 +58,8 @@ func (fref FileReference) State() (io.ReadCloser, int64, os.FileMode, error) {
 	if err != nil {
 		return nil, 0, os.FileMode(0), err
 	}
-	if err := checkFileType(fi.Mode()); err != nil {
-		return nil, 0, os.FileMode(0), err
+	if !fi.Mode().IsRegular() {
+		return nil, 0, os.FileMode(0), fmt.Errorf("internal error: only regular files are supported, got %q instead", fi.Mode().Type())
 	}
 	return file, fi.Size(), fi.Mode(), nil
 }
@@ -76,8 +76,8 @@ func (fcref FileReferencePlusMode) State() (io.ReadCloser, int64, os.FileMode, e
 	if err != nil {
 		return nil, 0, os.FileMode(0), err
 	}
-	if err := checkFileType(fcref.Mode); err != nil {
-		return nil, 0, os.FileMode(0), err
+	if !fcref.Mode.IsRegular() {
+		return nil, 0, os.FileMode(0), fmt.Errorf("internal error: only regular files are supported, got %q instead", fcref.Mode.Type())
 	}
 	return reader, size, fcref.Mode, nil
 }
@@ -90,8 +90,8 @@ type MemoryFileState struct {
 
 // State returns a reader of the in-memory contents of a file, along with other meta-data.
 func (blob *MemoryFileState) State() (io.ReadCloser, int64, os.FileMode, error) {
-	if err := checkFileType(blob.Mode); err != nil {
-		return nil, 0, os.FileMode(0), err
+	if !blob.Mode.IsRegular() {
+		return nil, 0, os.FileMode(0), fmt.Errorf("internal error: only regular files are supported, got %q instead", blob.Mode.Type())
 	}
 	return ioutil.NopCloser(bytes.NewReader(blob.Content)), int64(len(blob.Content)), blob.Mode, nil
 }
