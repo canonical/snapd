@@ -342,6 +342,130 @@ snaps:
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
+func (s *firstbootPreseedingClassic16Suite) TestPreseedOnClassicHappyNew(c *C) {     // <========================= 1
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	// precondition
+	c.Assert(release.OnClassic, Equals, true)
+
+	coreFname, _, _ := s.makeCoreSnaps(c, "")
+
+	// put a firstboot snap into the SnapBlobDir
+	snapYaml := `name: foo
+version: 1.0
+`
+	fooFname, fooDecl, fooRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+	s.WriteAssertions("foo.asserts", s.devAcct, fooRev, fooDecl)
+
+	// put a firstboot snap into the SnapBlobDir
+	snapYaml2 := `name: bar
+version: 1.0
+`
+	barFname, barDecl, barRev := s.MakeAssertedSnap(c, snapYaml2, nil, snap.R(33), "developerid")
+	s.WriteAssertions("bar.asserts", s.devAcct, barRev, barDecl)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
+	s.WriteAssertions("model.asserts", assertsChain...)
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: foo
+   file: %s
+ - name: bar
+   file: %s
+ - name: core
+   file: %s
+`, fooFname, barFname, coreFname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	s.startOverlord(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
+	c.Assert(err, IsNil)
+        for _, ts := range tsAll {
+        	for _, t := range ts.Tasks() {
+                        fmt.Printf("[%s] %s\n", t.ID(), t.Summary())
+                                fmt.Printf("    Waiting for:\n")
+                        for _, wt := range t.WaitTasks() {
+                                fmt.Printf("    -> %s\n", wt.ID())
+                        }
+                }
+        }
+
+}
+
+func (s *firstbootPreseedingClassic16Suite) TestPreseedOnClassicHappyComplete(c *C) {     // <========================= 2
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	s.WriteAssertions("developer.account", s.devAcct)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model", map[string]interface{}{"base": "core18"})
+	s.WriteAssertions("model.asserts", assertsChain...)
+
+	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c, nil)
+	
+        snapYaml := `name: snap-req-other-base
+version: 1.0
+base: other-base
+`
+        snapFname, snapDecl, snapRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+        s.WriteAssertions("snap-req-other-base.asserts", s.devAcct, snapRev, snapDecl)
+        baseYaml := `name: other-base
+version: 1.0
+type: base
+`
+        baseFname, baseDecl, baseRev := s.MakeAssertedSnap(c, baseYaml, nil, snap.R(127), "developerid")
+        s.WriteAssertions("other-base.asserts", s.devAcct, baseRev, baseDecl)
+
+        // create a seed.yaml
+        content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: core18
+   file: %s
+ - name: pc-kernel
+   file: %s
+ - name: pc
+   file: %s
+ - name: snap-req-other-base
+   file: %s
+ - name: other-base
+   file: %s
+`, snapdFname, core18Fname, kernelFname, gadgetFname, snapFname, baseFname))
+        err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+        c.Assert(err, IsNil)
+
+        // run the firstboot stuff
+        s.startOverlord(c)
+        st := s.overlord.State()
+        st.Lock()
+        defer st.Unlock()
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
+	c.Assert(err, IsNil)
+        for _, ts := range tsAll {
+        	for _, t := range ts.Tasks() {
+                        fmt.Printf("[%s] %s\n", t.ID(), t.Summary())
+                                fmt.Printf("    Waiting for:\n")
+                        for _, wt := range t.WaitTasks() {
+                                fmt.Printf("    -> %s\n", wt.ID())
+                        }
+                }
+	}
+}
+
+
 func (s *firstbootPreseedingClassic16Suite) TestPreseedClassicWithSnapdOnlyHappy(c *C) {
 	restorePreseedMode := snapdenv.MockPreseeding(true)
 	defer restorePreseedMode()
