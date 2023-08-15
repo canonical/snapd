@@ -85,6 +85,10 @@ var api = []*Command{
 	aspectsCmd,
 	noticesCmd,
 	noticeCmd,
+	promptRequestsCmd,
+	promptRequestCmd,
+	accessRulesCmd,
+	accessRuleCmd,
 }
 
 const (
