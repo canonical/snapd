@@ -79,6 +79,14 @@ nested_wait_vm_ready() {
             sh -c 'test "$(wc -l "$serial_log" | cut -d " " -f1)" -gt "$output_lines"'
         output_lines="$(wc -l "$serial_log" | awk '{print $1;}')"
 
+        # Check no infinit loops during boot
+        if nested_is_core_20_system || nested_is_core_22_system; then
+            test "$(grep -c -E "Command line:.*snapd_recovery_mode=install" "$serial_log")" -le 1
+            test "$(grep -c -E "Command line:.*snapd_recovery_mode=run" "$serial_log")" -le 1
+        elif nested_is_core_16_system || nested_is_core_18_system; then
+            test "$(grep -c -E "Command line:.*BOOT_IMAGE=\(loop\)/kernel.img" "$serial_log")" -le 1
+        fi
+
         # Check if ssh can be stablished, and return if it is possible
         if nested_wait_for_ssh 1 1; then
             return
