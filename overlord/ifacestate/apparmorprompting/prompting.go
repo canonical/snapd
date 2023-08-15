@@ -9,8 +9,8 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/accessrules"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/promptrequests"
-	"github.com/snapcore/snapd/prompting/apparmor"
-	"github.com/snapcore/snapd/prompting/notifier"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 )
 
 type Interface interface {
@@ -21,7 +21,7 @@ type Interface interface {
 
 type Prompting struct {
 	tomb     tomb.Tomb
-	notifier *notifier.Notifier
+	listener *listener.Listener
 	requests *promptrequests.RequestDB
 	rules    *accessrules.AccessRuleDB
 }
@@ -32,30 +32,30 @@ func New() Interface {
 }
 
 func (p *Prompting) Connect() error {
-	if !apparmor.PromptingAvailable() {
+	if !notify.PromptingSupportAvailable() {
 		return nil
 	}
-	n, err := notifier.Register()
+	l, err := listener.Register()
 	if err != nil {
 		return err
 	}
-	p.notifier = n
+	p.listener = l
 	p.requests = promptrequests.New()
 	p.rules, _ = accessrules.New() // ignore error (failed to load existing rules)
 	return nil
 }
 
 func (p *Prompting) disconnect() error {
-	if p.notifier == nil {
+	if p.listener == nil {
 		return nil
 	}
-	if err := p.notifier.Close(); err != nil {
+	if err := p.listener.Close(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (p *Prompting) handleNotifierReq(req *notifier.Request) error {
+func (p *Prompting) handleListenerReq(req *listener.Request) error {
 	user := int(req.SubjectUid)
 	snap, app, err := common.LabelToSnapApp(req.Label)
 	if err != nil {
@@ -64,7 +64,7 @@ func (p *Prompting) handleNotifierReq(req *notifier.Request) error {
 
 	path := req.Path
 
-	permissions, err := common.PermissionMaskToPermissionsList(req.Permission.(apparmor.FilePermission))
+	permissions, err := common.PermissionMaskToPermissionsList(req.Permission.(notify.FilePermission))
 	if err != nil {
 		// some permission bits were unrecognized, ignore them
 	}
@@ -76,7 +76,7 @@ func (p *Prompting) handleNotifierReq(req *notifier.Request) error {
 				req.YesNo <- false
 				// TODO: the response puts all original permissions in the
 				// Deny field, do we want to differentiate the denied bits from
-				// the others? Also, do we want to use the waiting notifier
+				// the others? Also, do we want to use the waiting listener
 				// thread to reply, or construct and send the reply directly?
 				return nil
 			}
@@ -95,13 +95,13 @@ func (p *Prompting) handleNotifierReq(req *notifier.Request) error {
 
 func (p *Prompting) Run() error {
 	p.tomb.Go(func() error {
-		if p.notifier == nil {
-			logger.Noticef("notifier is nil, exiting Prompting.Run() early")
+		if p.listener == nil {
+			logger.Noticef("listener is nil, exiting Prompting.Run() early")
 			return nil
 		}
 		p.tomb.Go(func() error {
-			p.notifier.Run(&p.tomb)
-			logger.Noticef("started notifier")
+			p.listener.Run(&p.tomb)
+			logger.Noticef("started listener")
 			return nil
 		})
 
@@ -109,10 +109,10 @@ func (p *Prompting) Run() error {
 		for {
 			logger.Debugf("waiting prompt loop")
 			select {
-			case req := <-p.notifier.R:
+			case req := <-p.listener.R:
 				logger.Noticef("Got from kernel req chan: %v", req)
-				p.handleNotifierReq(req) // no use multithreading, since IsPathAllowed locks
-			case err := <-p.notifier.E:
+				p.handleListenerReq(req) // no use multithreading, since IsPathAllowed locks
+			case err := <-p.listener.E:
 				logger.Noticef("Got from kernel error chan: %v", err)
 				return err
 			case <-p.tomb.Dying():
@@ -127,7 +127,7 @@ func (p *Prompting) Run() error {
 func (p *Prompting) Stop() error {
 	p.tomb.Kill(nil)
 	err := p.tomb.Wait()
-	p.notifier = nil
+	p.listener = nil
 	p.requests = nil
 	p.rules = nil
 	return err

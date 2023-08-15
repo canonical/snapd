@@ -20,15 +20,12 @@
 package apparmorprompting_test
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
-	"github.com/snapcore/snapd/prompting/apparmor"
 	"github.com/snapcore/snapd/testutil"
 )
 

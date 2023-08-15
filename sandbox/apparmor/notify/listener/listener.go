@@ -1,7 +1,7 @@
-// Package notifier implements a high-level interface to the apparmor
+// Package listener implements a high-level interface to the apparmor
 // notification mechanism. It can be used to build userspace applications
 // which respond to apparmor prompting profiles.
-package notifier
+package listener
 
 import (
 	"errors"
@@ -14,14 +14,14 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
 
-// Notifier contains low-level components for receiving notification requests
+// Listener contains low-level components for receiving notification requests
 // and responding with notification responses.
-type Notifier struct {
+type Listener struct {
 	// R is a channel with incoming requests. Each request is asynchronous
 	// and needs to be replied to.
 	R chan *Request
 	// E is a channel for receiving asynchronous error messages from
-	// concurrently running parts of the notifier system.
+	// concurrently running parts of the listener system.
 	E chan error
 
 	notifyFile *os.File
@@ -32,7 +32,7 @@ type Notifier struct {
 //
 // Each request must be replied to by writing a boolean to the YesNo channel.
 type Request struct {
-	n *Notifier
+	l *Listener
 
 	// Pid is the identifier of the process triggering the request.
 	Pid uint32
@@ -49,14 +49,14 @@ type Request struct {
 	YesNo chan bool
 }
 
-func newRequest(n *Notifier, msg *notify.MsgNotificationFile) *Request {
+func newRequest(l *Listener, msg *notify.MsgNotificationFile) *Request {
 	var perm interface{}
 	if msg.Class == notify.AA_CLASS_FILE {
 		_, deny, _ := msg.DecodeFilePermissions()
 		perm = deny
 	}
 	return &Request{
-		n: n, // why is this needed?
+		l: l, // why is this needed?
 
 		Pid:        msg.Pid,
 		Label:      msg.Label,
@@ -70,14 +70,14 @@ func newRequest(n *Notifier, msg *notify.MsgNotificationFile) *Request {
 }
 
 var (
-	// ErrNotifierNotSupported indicates that the kernel does not support apparmor prompting
-	ErrNotifierNotSupported = errors.New("kernel does not support apparmor notifications")
+	// ErrListenerNotSupported indicates that the kernel does not support apparmor prompting
+	ErrListenerNotSupported = errors.New("kernel does not support apparmor notifications")
 )
 
 // Register opens and configures the apparmor notification interface.
 //
 // If the kernel does not support the notification mechanism the error is ErrNotSupported.
-func Register() (*Notifier, error) {
+func Register() (*Listener, error) {
 	path := notify.SysPath
 	if override := os.Getenv("PROMPT_NOTIFY_PATH"); override != "" {
 		path = override
@@ -86,7 +86,7 @@ func Register() (*Notifier, error) {
 	notifyFile, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, ErrNotifierNotSupported
+			return nil, ErrListenerNotSupported
 		}
 		return nil, err
 	}
@@ -117,18 +117,18 @@ func Register() (*Notifier, error) {
 		return nil, fmt.Errorf("cannot register poll on %q: %v", path, err)
 	}
 
-	notifier := &Notifier{
+	listener := &Listener{
 		R: make(chan *Request),
 		E: make(chan error),
 
 		notifyFile: notifyFile,
 		poll:       poll,
 	}
-	return notifier, nil
+	return listener, nil
 }
 
-func (n *Notifier) decodeAndDispatchRequest(buf []byte, tomb *tomb.Tomb) error {
-	var nmsg apparmor.MsgNotification
+func (l *Listener) decodeAndDispatchRequest(buf []byte, tomb *tomb.Tomb) error {
+	var nmsg notify.MsgNotification
 	if err := nmsg.UnmarshalBinary(buf); err != nil {
 		return err
 	}
@@ -147,10 +147,10 @@ func (n *Notifier) decodeAndDispatchRequest(buf []byte, tomb *tomb.Tomb) error {
 				return err
 			}
 			// log.Printf("notification request: %#v\n", fmsg)
-			req := newRequest(n, &fmsg)
-			n.R <- req
+			req := newRequest(l, &fmsg)
+			l.R <- req
 			tomb.Go(func() error {
-				n.waitAndRespond(req, &fmsg)
+				l.waitAndRespond(req, &fmsg)
 				return nil
 			})
 		default:
@@ -162,7 +162,7 @@ func (n *Notifier) decodeAndDispatchRequest(buf []byte, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func (n *Notifier) waitAndRespond(req *Request, msg *notify.MsgNotificationFile) {
+func (l *Listener) waitAndRespond(req *Request, msg *notify.MsgNotificationFile) {
 	resp := notify.ResponseForRequest(&msg.MsgNotification)
 	// XXX: should both error fields be zeroed?
 	resp.MsgNotification.Error = 0
@@ -178,40 +178,40 @@ func (n *Notifier) waitAndRespond(req *Request, msg *notify.MsgNotificationFile)
 		resp.Error = msg.Error
 	}
 	//log.Printf("notification response: %#v\n", resp)
-	if err := n.encodeAndSendResponse(&resp); err != nil {
-		n.fail(err)
+	if err := l.encodeAndSendResponse(&resp); err != nil {
+		l.fail(err)
 	}
 }
 
-func (n *Notifier) encodeAndSendResponse(resp *notify.MsgNotificationResponse) error {
+func (l *Listener) encodeAndSendResponse(resp *notify.MsgNotificationResponse) error {
 	buf, err := resp.MarshalBinary()
 	if err != nil {
 		return err
 	}
 	ioctlBuf := notify.BytesToIoctlRequestBuffer(buf)
-	_, err = notify.Ioctl(n.notifyFile.Fd(), notify.APPARMOR_NOTIF_SEND, ioctlBuf)
+	_, err = notify.Ioctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_SEND, ioctlBuf)
 	return err
 }
 
-func (n *Notifier) runOnce(tomb *tomb.Tomb) error {
+func (l *Listener) runOnce(tomb *tomb.Tomb) error {
 	// XXX: Wait must return immediately once epoll is closed.
-	events, err := n.poll.Wait()
+	events, err := l.poll.Wait()
 	if err != nil {
 		return err
 	}
 	for _, event := range events {
 		switch event.Fd {
-		case int(n.notifyFile.Fd()):
+		case int(l.notifyFile.Fd()):
 			if event.Readiness&epoll.Readable != 0 {
 				// Prepare a receive buffer for incoming request. The buffer is of the
 				// maximum allowed size and will contain one kernel request upon return.
 				// Note that the actually occupied buffer is indicated by the Length field
 				// in the header.
-				buf, err := notify.ReadMessage(n.notifyFile.Fd())
+				buf, err := notify.ReadMessage(l.notifyFile.Fd())
 				if err != nil {
 					return err
 				}
-				if err := n.decodeAndDispatchRequest(buf, tomb); err != nil {
+				if err := l.decodeAndDispatchRequest(buf, tomb); err != nil {
 					return err
 				}
 			}
@@ -221,26 +221,26 @@ func (n *Notifier) runOnce(tomb *tomb.Tomb) error {
 }
 
 // Run reads and dispatches kernel requests until stopped.
-func (n *Notifier) Run(tomb *tomb.Tomb) {
+func (l *Listener) Run(tomb *tomb.Tomb) {
 	// TODO: allow the run to stop
 	for {
-		if err := n.runOnce(tomb); err != nil {
-			n.fail(err)
+		if err := l.runOnce(tomb); err != nil {
+			l.fail(err)
 			break
 		}
 	}
 }
 
-func (n *Notifier) fail(err error) {
-	n.E <- err
-	close(n.E)
-	close(n.R)
+func (l *Listener) fail(err error) {
+	l.E <- err
+	close(l.E)
+	close(l.R)
 }
 
 // Close closes the kernel communication file.
-func (n *Notifier) Close() error {
-	err1 := n.notifyFile.Close()
-	err2 := n.poll.Close()
+func (l *Listener) Close() error {
+	err1 := l.notifyFile.Close()
+	err2 := l.poll.Close()
 	if err1 != nil {
 		return err1
 	}
