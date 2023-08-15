@@ -40,6 +40,9 @@ const desktopBaseDeclarationSlots = `
       slot-snap-type:
         - app
         - core
+    deny-installation:
+      slot-snap-type:
+        - app
     deny-connection:
       on-classic: false
     deny-auto-connection:
