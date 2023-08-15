@@ -339,8 +339,16 @@ dbus (receive, send)
     interface=org.freedesktop.DBus.Properties
     peer=(label=unconfined),
 
+# Allow access to various paths gnome-session and gnome-shell need.
+/etc/fonts{,/**} r,
+/etc/glvnd{,/**} r,
+/etc/gnome/defaults.list r,
+/etc/gtk-3.0{,/**} r,
+/etc/shells r,
+/etc/xdg/autostart{,/**} r,
 /etc/xdg/user-dirs.conf r,
 /etc/xdg/user-dirs.defaults r,
+/run/udev/tags/seat{,/**} r,
 `
 
 type desktopInterface struct {
