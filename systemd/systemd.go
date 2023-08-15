@@ -441,6 +441,7 @@ type RunOptions struct {
 	//      and let the caller do the keyring setup but feels a bit loose
 	KeyringMode KeyringMode
 	Stdin       io.Reader
+	Properties  []string
 }
 
 // A Log is a single entry in the systemd journal.
@@ -1730,8 +1731,14 @@ func (s *systemd) Run(command []string, opts *RunOptions) ([]byte, error) {
 		"--service-type=exec",
 		"--quiet",
 	}
+	if s.mode == UserMode {
+		runArgs = append(runArgs, "--user")
+	}
 	if opts.KeyringMode != "" {
 		runArgs = append(runArgs, fmt.Sprintf("--property=KeyringMode=%v", opts.KeyringMode))
+	}
+	for _, p := range opts.Properties {
+		runArgs = append(runArgs, fmt.Sprintf("--property=%v", p))
 	}
 	runArgs = append(runArgs, "--")
 	runArgs = append(runArgs, command...)
