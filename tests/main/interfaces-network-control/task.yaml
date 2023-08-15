@@ -121,6 +121,12 @@ execute: |
     echo "And a command can be executed in the context of the namespace"
     network-control-consumer.cmd ip netns exec test-ns ip link list | MATCH "veth1"
 
+    # xdp is only support by apparmor in 20.04+
+    if [ "$(snap debug confinement)" = strict ] && ! os.query is-xenial && ! os.query is-bionic && ! os.query is-core16 && ! os.query is-core18; then
+        echo "Check that AF_XDP can be used"
+        network-control-consumer.cmd python3 -c 'import socket; AF_XDP=44; socket.socket(AF_XDP, socket.SOCK_RAW)'
+    fi
+
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "And the policy has the ptrace suppression rule"
         MATCH '^deny ptrace \(trace\),' < /var/lib/snapd/apparmor/profiles/snap.network-control-consumer.cmd
@@ -150,4 +156,14 @@ execute: |
             exit 1
         fi
         MATCH "Permission denied" < ns-exec.output
+
+
+        echo "And AF_XDP can no longer be used"
+        if [ "$(snap debug confinement)" = strict ] && ! os.query is-xenial && ! os.query is-bionic && ! os.query is-core16 && ! os.query is-core18; then
+            if network-control-consumer.cmd python3 -c 'import socket; AF_XDP=44; socket.socket(AF_XDP, socket.SOCK_RAW)' 2> python-af-xdp.output; then
+                echo "Expected error trying to open AF_XDP socket"
+                exit 1
+            fi
+            MATCH "Permission denied" < python-af-xdp.output
+        fi
     fi

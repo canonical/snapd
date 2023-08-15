@@ -121,7 +121,7 @@ func (am *AssertsMock) MockSnapDecl(c *C, name, publisher string, extraHeaders m
 	_, err := am.Db.Find(asserts.AccountType, map[string]string{
 		"account-id": publisher,
 	})
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		acct := assertstest.NewAccount(am.storeSigning, publisher, map[string]interface{}{
 			"account-id": publisher,
 		}, "")
@@ -2100,7 +2100,7 @@ func (s *interfaceManagerSuite) mockSnapInstance(c *C, instanceName, yamlText st
 		decl := a[0].(*asserts.SnapDeclaration)
 		snapInfo.SnapID = decl.SnapID()
 		sideInfo.SnapID = decl.SnapID()
-	} else if asserts.IsNotFound(err) {
+	} else if errors.Is(err, &asserts.NotFoundError{}) {
 		err = nil
 	}
 	c.Assert(err, IsNil)
@@ -2170,7 +2170,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 			})
 		}
 		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
-		c.Check(ifacestate.OnSnapLinkageChanged(s.state, snapsup.InstanceName()), IsNil)
+		c.Check(ifacestate.OnSnapLinkageChanged(s.state, snapsup), IsNil)
 		return nil
 	}, func(task *state.Task, tomb *tomb.Tomb) error { // undo handler
 		s.state.Lock()
@@ -2191,7 +2191,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 		// on undo already to the previous revision, this should
 		// not be a problem because that is eventually the revision
 		// we want when the snap is activated again
-		c.Check(ifacestate.OnSnapLinkageChanged(s.state, snapsup.InstanceName()), IsNil)
+		c.Check(ifacestate.OnSnapLinkageChanged(s.state, snapsup), IsNil)
 		if !opts.install {
 			// perturb things to make sure undo-setup-profiles
 			// sets the right value
@@ -4082,7 +4082,7 @@ slots:
 		c.Assert(snapstate.Get(s.state, "consumer", &snapst), IsNil)
 		snapst.Active = false
 		snapstate.Set(s.state, "consumer", &snapst)
-		c.Check(ifacestate.OnSnapLinkageChanged(s.state, "consumer"), IsNil)
+		c.Check(ifacestate.OnSnapLinkageChanged(s.state, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "consumer"}}), IsNil)
 	}()
 
 	// Run the remove-security task
@@ -9260,7 +9260,7 @@ func (s *interfaceManagerSuite) TestOnSnapLinkageChanged(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := ifacestate.OnSnapLinkageChanged(s.state, "not-installed")
+	err := ifacestate.OnSnapLinkageChanged(s.state, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "not-installed"}})
 	c.Assert(err, IsNil)
 
 	var snapst snapstate.SnapState
@@ -9271,7 +9271,7 @@ func (s *interfaceManagerSuite) TestOnSnapLinkageChanged(c *C) {
 	snapst.Active = false
 	snapstate.Set(s.state, "producer", &snapst)
 
-	err = ifacestate.OnSnapLinkageChanged(s.state, "producer")
+	err = ifacestate.OnSnapLinkageChanged(s.state, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "producer"}})
 	c.Assert(err, IsNil)
 
 	err = snapstate.Get(s.state, "producer", &snapst)
@@ -9291,7 +9291,7 @@ func (s *interfaceManagerSuite) TestOnSnapLinkageChanged(c *C) {
 	snapst.Active = true
 	snapstate.Set(s.state, "producer", &snapst)
 
-	err = ifacestate.OnSnapLinkageChanged(s.state, "producer")
+	err = ifacestate.OnSnapLinkageChanged(s.state, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "producer"}})
 	c.Assert(err, IsNil)
 
 	var snapst1 snapstate.SnapState

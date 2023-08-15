@@ -36,24 +36,26 @@ var timeNow = time.Now
 // to the above, nested measurements need to be finished by calling Stop on them.
 //
 // Typical usage:
-//   troot := timings.New(map[string]string{"task-id": task.ID(), "change-id": task.Change().ID()})
-//   t1 := troot.StartSpan("computation", "...")
-//   ....
-//   nestedTiming := t1.StartSpan("sub-computation", "...")
-//   ....
-//   nestedTiming.Stop()
-//   t1.Stop()
-//   troot.Save()
+//
+//	troot := timings.New(map[string]string{"task-id": task.ID(), "change-id": task.Change().ID()})
+//	t1 := troot.StartSpan("computation", "...")
+//	....
+//	nestedTiming := t1.StartSpan("sub-computation", "...")
+//	....
+//	nestedTiming.Stop()
+//	t1.Stop()
+//	troot.Save()
 //
 // In addition, a few helpers exist to simplify typical use cases, for example the above example
 // can be reduced to:
-//   troot := state.TimingsForTask(task) // tags set automatically from task
-//   t1 := troot.StartSpan("computation", "...")
-//   timings.Run(t1, "sub-computation", "...", func(nested *Span) {
-//          ... expensive computation
-//   })
-//   t1.Stop()
-//   troot.Save(task.State())
+//
+//	troot := state.TimingsForTask(task) // tags set automatically from task
+//	t1 := troot.StartSpan("computation", "...")
+//	timings.Run(t1, "sub-computation", "...", func(nested *Span) {
+//	       ... expensive computation
+//	})
+//	t1.Stop()
+//	troot.Save(task.State())
 type Timings struct {
 	tags    map[string]string
 	timings []*Span

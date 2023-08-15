@@ -32,7 +32,7 @@ restore: |
 execute: |
     echo "The test executables files have the expected mode and ownership"
     #shellcheck disable=SC2012
-    ls -l "$P" | MATCH -- '-rwxr-xr-x(.|) 1 root root [0-9]+ [A-Z][a-z]+ +[0-9]+ [0-9]+:[0-9]+ has-sys-admin'
+    stat -c "%U %G %a" "$P" | MATCH "root root 755"
 
     echo "Running outside of snap-confine"
     # Spread runs all tests as root so we're using su to switch to the "test"

@@ -1,0 +1,6 @@
+[Unit]
+Description=Mounted snaps
+Before=local-fs.target
+Wants=snapd.mounts-pre.target
+# Started from snapd.service
+# X-Snapd-Snap: do-not-start

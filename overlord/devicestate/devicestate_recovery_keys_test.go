@@ -31,9 +31,12 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 var _ = Suite(&deviceMgrRecoveryKeysSuite{})
@@ -87,7 +90,42 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeysBackwardCompat(c *C) 
 	})
 }
 
-func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
+func (s *deviceMgrBaseSuite) setClassicWithModesModelInState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.makeModelAssertionInState(c, "canonical", "pc-22", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core22",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "22",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "22",
+			},
+		},
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-22",
+		Serial: "serialserialserial",
+	})
+}
+
+func (s *deviceMgrRecoveryKeysSuite) testEnsureRecoveryKey(c *C, classic bool) {
+	if classic {
+		s.setClassicWithModesModelInState(c)
+	}
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -98,11 +136,15 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
 	c.Assert(err, IsNil)
 	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, rkeyDevs []secboot.RecoveryKeyDevice) (keys.RecoveryKey, error) {
 		c.Check(keyFile, Equals, filepath.Join(dirs.SnapFDEDir, "recovery.key"))
+		keyFilePath := "var/lib/snapd/device/fde/ubuntu-save.key"
+		if !classic {
+			keyFilePath = filepath.Join("system-data", keyFilePath)
+		}
 		c.Check(rkeyDevs, DeepEquals, []secboot.RecoveryKeyDevice{
 			{Mountpoint: boot.InitramfsDataDir},
 			{
 				Mountpoint:         boot.InitramfsUbuntuSaveDir,
-				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, "system-data/var/lib/snapd/device/fde/ubuntu-save.key"),
+				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, keyFilePath),
 			},
 		})
 
@@ -118,6 +160,16 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
 	c.Assert(keys, DeepEquals, &client.SystemRecoveryKeysResponse{
 		RecoveryKey: "61665-00531-54469-09783-47273-19035-40077-28287",
 	})
+}
+
+func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
+	classic := false
+	s.testEnsureRecoveryKey(c, classic)
+}
+
+func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyOnClassic(c *C) {
+	classic := true
+	s.testEnsureRecoveryKey(c, classic)
 }
 
 func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
@@ -169,7 +221,10 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyRecoverMode(c *C) {
 	c.Check(err, ErrorMatches, `cannot ensure recovery keys from system mode "recover"`)
 }
 
-func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
+func (s *deviceMgrRecoveryKeysSuite) testRemoveRecoveryKeys(c *C, classic bool) {
+	if classic {
+		s.setClassicWithModesModelInState(c)
+	}
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -180,11 +235,15 @@ func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
 	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
 	defer devicestate.MockSecbootRemoveRecoveryKeys(func(r2k map[secboot.RecoveryKeyDevice]string) error {
 		called = true
+		keyFilePath := "var/lib/snapd/device/fde/ubuntu-save.key"
+		if !classic {
+			keyFilePath = filepath.Join("system-data", keyFilePath)
+		}
 		c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
 			{Mountpoint: boot.InitramfsDataDir}: rkey,
 			{
 				Mountpoint:         boot.InitramfsUbuntuSaveDir,
-				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, "system-data/var/lib/snapd/device/fde/ubuntu-save.key"),
+				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, keyFilePath),
 			}: rkey,
 		})
 		return nil
@@ -194,6 +253,16 @@ func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
 	err = s.mgr.RemoveRecoveryKeys()
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, true)
+}
+
+func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
+	classic := false
+	s.testRemoveRecoveryKeys(c, classic)
+}
+
+func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysOnClassic(c *C) {
+	classic := true
+	s.testRemoveRecoveryKeys(c, classic)
 }
 
 func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysBackwardCompat(c *C) {

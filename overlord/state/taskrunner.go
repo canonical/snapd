@@ -46,15 +46,21 @@ func (r *Retry) Error() string {
 	return "task should be retried"
 }
 
-// Hold is returned from a handler to signal that the task cannot
+// Wait is returned from a handler to signal that the task cannot
 // proceed at the moment maybe because some manual action from the
-// user required at this point or because of errors.
-type Hold struct {
+// user required at this point or because of errors. The task
+// will be set to WaitStatus, and it's wait complete status will be
+// set to WaitedStatus.
+type Wait struct {
 	Reason string
+	// If not explicitly set, then WaitedStatus will default to
+	// DoneStatus, meaning that the task will be set to DoneStatus
+	// after the wait has resolved.
+	WaitedStatus Status
 }
 
-func (r *Hold) Error() string {
-	return "task held, manual action required"
+func (r *Wait) Error() string {
+	return "task set to wait, manual action required"
 }
 
 type blockedFunc func(t *Task, running []*Task) bool
@@ -233,7 +239,7 @@ func (r *TaskRunner) run(t *Task) {
 		switch err.(type) {
 		case nil:
 			// we are ok
-		case *Retry, *Hold:
+		case *Retry, *Wait:
 			// preserve
 		default:
 			if r.stopped {
@@ -246,15 +252,24 @@ func (r *TaskRunner) run(t *Task) {
 		switch x := err.(type) {
 		case *Retry:
 			// Handler asked to be called again later.
-			// TODO Allow postponing retries past the next Ensure.
 			if t.Status() == AbortStatus {
 				// Would work without it but might take two ensures.
 				r.tryUndo(t)
 			} else if x.After != 0 {
 				t.At(timeNow().Add(x.After))
 			}
-		case *Hold:
-			t.SetStatus(HoldStatus)
+		case *Wait:
+			if t.Status() == AbortStatus {
+				// Would work without it but might take two ensures.
+				r.tryUndo(t)
+			} else {
+				// Default to DoneStatus if no status is set in Wait
+				waitedStatus := x.WaitedStatus
+				if waitedStatus == DefaultStatus {
+					waitedStatus = DoneStatus
+				}
+				t.SetToWait(waitedStatus)
+			}
 		case nil:
 			var next []*Task
 			switch t.Status() {
@@ -412,6 +427,10 @@ ConsiderTasks:
 			if !t.IsClean() {
 				r.clean(t)
 			}
+			continue
+		}
+		if status == WaitStatus {
+			// nothing more to run
 			continue
 		}
 

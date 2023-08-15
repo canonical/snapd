@@ -115,17 +115,20 @@ func (p *piboot) Present() (bool, error) {
 }
 
 // Variables stored in ubuntu-seed:
-//   snapd_recovery_system
-//   snapd_recovery_mode
-//   snapd_recovery_kernel
+//
+//	snapd_recovery_system
+//	snapd_recovery_mode
+//	snapd_recovery_kernel
+//
 // Variables stored in ubuntu-boot:
-//   kernel_status
-//   snap_kernel
-//   snap_try_kernel
-//   snapd_extra_cmdline_args
-//   snapd_full_cmdline_args
-//   recovery_system_status
-//   try_recovery_system
+//
+//	kernel_status
+//	snap_kernel
+//	snap_try_kernel
+//	snapd_extra_cmdline_args
+//	snapd_full_cmdline_args
+//	recovery_system_status
+//	try_recovery_system
 func (p *piboot) SetBootVars(values map[string]string) error {
 	env, err := ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort)
 	if err != nil {
@@ -333,7 +336,7 @@ func (p *piboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 	}
 
 	// TODO: what's a reasonable size for this file?
-	env, err := ubootenv.Create(p.envFile(), 4096)
+	env, err := ubootenv.Create(p.envFile(), 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
 	if err != nil {
 		return err
 	}

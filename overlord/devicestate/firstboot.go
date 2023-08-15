@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -75,6 +74,45 @@ func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge
 	return beginEdge, beforeHooksEdge, hooksEdge, nil
 }
 
+// maybeEnforceValidationSetsTask returns a task for tracking validation-sets. This may
+// return nil if no validation-sets are present.
+func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model) (*state.Task, error) {
+	vsKey := func(accountID, name string) string {
+		return fmt.Sprintf("%s/%s", accountID, name)
+	}
+
+	// Encode validation-sets included in the seed
+	db := assertstate.DB(st)
+	as, err := db.FindMany(asserts.ValidationSetType, nil)
+	if err != nil {
+		// If none are included, then skip this
+		if errors.Is(err, &asserts.NotFoundError{}) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	vsKeys := make(map[string][]string)
+	for _, a := range as {
+		vsa := a.(*asserts.ValidationSet)
+		vsKeys[vsKey(vsa.AccountID(), vsa.Name())] = a.Ref().PrimaryKey
+	}
+
+	// Set up pins from the model
+	pins := make(map[string]int)
+	for _, vs := range model.ValidationSets() {
+		key := vsKey(vs.AccountID, vs.Name)
+		if vs.Sequence > 0 {
+			pins[key] = vs.Sequence
+		}
+	}
+
+	t := st.NewTask("enforce-validation-sets", i18n.G("Track validation sets"))
+	t.Set("validation-set-keys", vsKeys)
+	t.Set("pinned-sequence-numbers", pins)
+	return t, nil
+}
+
 func markSeededTask(st *state.State) *state.Task {
 	return st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 }
@@ -88,26 +126,8 @@ func trivialSeeding(st *state.State) []*state.TaskSet {
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
 }
 
-type populateStateFromSeedOptions struct {
-	Label   string
-	Mode    string
-	Preseed bool
-}
-
-func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
-	mode := "run"
-	sysLabel := ""
-	preseed := false
-	hasModeenv := false
-	if opts != nil {
-		if opts.Mode != "" {
-			mode = opts.Mode
-			hasModeenv = true
-		}
-		sysLabel = opts.Label
-		preseed = opts.Preseed
-	}
-
+func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state.TaskSet, error) {
+	st := m.state
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
@@ -118,11 +138,23 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, fmt.Errorf("cannot populate state: already seeded")
 	}
 
+	preseed := m.preseed
+	sysLabel, mode, err := m.seedLabelAndMode()
+	if err != nil {
+		return nil, err
+	}
+	hasModeenv := false
+	if mode != "" {
+		hasModeenv = true
+	} else {
+		mode = "run"
+	}
+
 	var deviceSeed seed.Seed
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
 		isCoreBoot := hasModeenv || !release.OnClassic
-		deviceSeed, err = importAssertionsFromSeed(st, sysLabel, isCoreBoot)
+		deviceSeed, err = m.importAssertionsFromSeed(isCoreBoot)
 	})
 	if err != nil && err != errNothingToDo {
 		return nil, err
@@ -132,16 +164,11 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return trivialSeeding(st), nil
 	}
 
-	commitTo := func(batch *asserts.Batch) error {
-		return assertstate.AddBatch(st, batch, nil)
-	}
-	db := assertstate.DB(st)
-	processAutoImportAssertions(st, deviceSeed, db, commitTo)
-
 	timings.Run(tm, "load-verified-snap-metadata", "load verified snap metadata from seed", func(nested timings.Measurer) {
 		err = deviceSeed.LoadMeta(mode, nil, nested)
 	})
-	if release.OnClassic && err == seed.ErrNoMeta {
+	// ErrNoMeta can happen only with Core 16/18-style seeds
+	if err == seed.ErrNoMeta && release.OnClassic {
 		if preseed {
 			return nil, fmt.Errorf("no snaps to preseed")
 		}
@@ -159,9 +186,6 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	if err != nil {
 		return nil, err
 	}
-
-	// optimistically forget the deviceSeed here
-	unloadDeviceSeed(st)
 
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
@@ -319,10 +343,18 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	ts := tsAll[len(tsAll)-1]
 	endTs := state.NewTaskSet()
 
+	// Start tracking any validation sets included in the seed after
+	// installing the included snaps.
+	if trackVss, err := maybeEnforceValidationSetsTask(st, model); err != nil {
+		return nil, err
+	} else if trackVss != nil {
+		trackVss.WaitAll(ts)
+		endTs.AddTask(trackVss)
+	}
+
 	markSeeded := markSeededTask(st)
 	if preseed {
 		endTs.AddTask(preseedDoneTask)
-		markSeeded.WaitFor(preseedDoneTask)
 	}
 	whatSeeds := &seededSystem{
 		System:    sysLabel,
@@ -333,15 +365,19 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	}
 	markSeeded.Set("seed-system", whatSeeds)
 
-	// mark-seeded waits for the taskset of last snap
+	// mark-seeded waits for the taskset of last snap, and
+	// for all the tasks in the endTs as well.
 	markSeeded.WaitAll(ts)
+	markSeeded.WaitAll(endTs)
 	endTs.AddTask(markSeeded)
 	tsAll = append(tsAll, endTs)
 
 	return tsAll, nil
 }
 
-func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool) (seed.Seed, error) {
+func (m *DeviceManager) importAssertionsFromSeed(isCoreBoot bool) (seed.Seed, error) {
+	st := m.state
+
 	// TODO: use some kind of context fo Device/SetDevice?
 	device, err := internal.Device(st)
 	if err != nil {
@@ -350,7 +386,7 @@ func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool)
 
 	// collect and
 	// set device,model from the model assertion
-	deviceSeed, err := loadDeviceSeed(st, sysLabel)
+	_, deviceSeed, err := m.earlyLoadDeviceSeed(nil)
 	if err == seed.ErrNoAssertions && !isCoreBoot {
 		// if classic boot seeding is optional
 		// set the fallback model
@@ -388,60 +424,30 @@ func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool)
 
 // processAutoImportAssertions attempts to load the auto import assertions
 // and create all knows system users, if and only if the model grade is dangerous.
-// Processing of the auto-import assertion is opportunistic and should not fail
-func processAutoImportAssertions(st *state.State, deviceSeed seed.Seed, db asserts.RODatabase, commitTo func(batch *asserts.Batch) error) {
+// Processing of the auto-import assertion is opportunistic and can fail
+// for example if system-user-as is serial bound and there is no serial-as yet
+func processAutoImportAssertions(st *state.State, deviceSeed seed.Seed, db asserts.RODatabase, commitTo func(batch *asserts.Batch) error) error {
 	// only proceed for dangerous model
 	if deviceSeed.Model().Grade() != asserts.ModelDangerous {
-		return
+		return nil
 	}
 	seed20AssertionsLoader, ok := deviceSeed.(seed.AutoImportAssertionsLoaderSeed)
 	if !ok {
-		logger.Noticef("failed to auto-import assertions, invalid loader")
-		return
+		return fmt.Errorf("failed to auto-import assertions, invalid loader")
 	}
 	err := seed20AssertionsLoader.LoadAutoImportAssertions(commitTo)
 	if err != nil {
-		logger.Noticef("failed to auto-import assertions: %v", err)
-		return
+		return err
 	}
 	// automatic user creation is meant to imply sudoers
 	const sudoer = true
 	_, err = createAllKnownSystemUsers(st, db, deviceSeed.Model(), nil, sudoer)
-	if err != nil {
-		logger.Noticef("failed to create known users: %v", err)
-	}
+	return err
 }
 
-// loadDeviceSeed loads and caches the device seed based on sysLabel,
-// it is meant to be used before and during seeding.
-// It is an error to call it with different sysLabel values once one
-// seed has been loaded and cached.
-//
-// TODO consider making this into a method of DeviceManager to simplify caching
-// and unifying it partly with seedStart and earlyLoadDeviceSeed. Mocking will
-// be a bit more cumbersome as other things will need to move there as well,
-// but the baroque cache logic is not great either.
-// TODO the name of this doesn't make it very clear that it is committing
-// the assertions to the device database
+// loadDeviceSeed loads the seed based on sysLabel,
+// It is meant to be called by DeviceManager.earlyLoadDeviceSeed.
 var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.Seed, err error) {
-	cached := st.Cached(loadedDeviceSeedKey{})
-	if cached != nil {
-		loaded := cached.(*loadedDeviceSeed)
-		if loaded.sysLabel != sysLabel {
-			return nil, fmt.Errorf("internal error: requested inconsistent device seed: %s (was %s)", sysLabel, loaded.sysLabel)
-		}
-		return loaded.seed, loaded.err
-	}
-
-	// cache the outcome, both success and errors
-	defer func() {
-		st.Cache(loadedDeviceSeedKey{}, &loadedDeviceSeed{
-			sysLabel: sysLabel,
-			seed:     deviceSeed,
-			err:      err,
-		})
-	}()
-
 	deviceSeed, err = seed.Open(dirs.SnapSeedDir, sysLabel)
 	if err != nil {
 		return nil, err
@@ -464,18 +470,4 @@ var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.See
 	}
 
 	return deviceSeed, nil
-}
-
-// unloadDeviceSeed forgets the cached outcomes of loadDeviceSeed.
-// Its main reason is to avoid using memory past the point where the deviceSeed
-// isn't needed anymore.
-func unloadDeviceSeed(st *state.State) {
-	st.Cache(loadedDeviceSeedKey{}, nil)
-}
-
-type loadedDeviceSeedKey struct{}
-type loadedDeviceSeed struct {
-	sysLabel string
-	seed     seed.Seed
-	err      error
 }

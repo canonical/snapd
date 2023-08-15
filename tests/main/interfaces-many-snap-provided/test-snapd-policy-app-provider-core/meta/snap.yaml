@@ -34,6 +34,7 @@ slots:
   maliit: null
   media-hub: null
   microceph: null
+  microovn: null
   mir: null
   modem-manager: null
   network-manager: null
@@ -107,6 +108,9 @@ apps:
   microceph:
     command: bin/run
     slots: [ microceph ]
+  microovn:
+    command: bin/run
+    slots: [ microovn ]
   mir:
     command: bin/run
     slots: [ mir ]

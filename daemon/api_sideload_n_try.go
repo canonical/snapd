@@ -214,16 +214,22 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 	return AsyncResponse(nil, chg.ID())
 }
 
-func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
+// sideloadedInfo contains information from a bunch of sideloaded snaps
+type sideloadedInfo struct {
+	sideInfos                  []*snap.SideInfo
+	names, origPaths, tmpPaths []string
+}
+
+func sideloadInfo(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags) (*sideloadedInfo, *apiError) {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
 		return nil, InternalError(err.Error())
 	}
 
-	sideInfos := make([]*snap.SideInfo, len(snapFiles))
 	names := make([]string, len(snapFiles))
-	tempPaths := make([]string, len(snapFiles))
 	origPaths := make([]string, len(snapFiles))
+	tmpPaths := make([]string, len(snapFiles))
+	sideInfos := make([]*snap.SideInfo, len(snapFiles))
 
 	for i, snapFile := range snapFiles {
 		si, apiError := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
@@ -233,8 +239,18 @@ func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloa
 
 		sideInfos[i] = si
 		names[i] = si.RealName
-		tempPaths[i] = snapFile.tmpPath
 		origPaths[i] = snapFile.filename
+		tmpPaths[i] = snapFile.tmpPath
+	}
+
+	return &sideloadedInfo{sideInfos: sideInfos, names: names,
+		origPaths: origPaths, tmpPaths: tmpPaths}, nil
+}
+
+func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
+	slInfo, apiErr := sideloadInfo(st, snapFiles, flags)
+	if apiErr != nil {
+		return nil, apiErr
 	}
 
 	var userID int
@@ -242,14 +258,14 @@ func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloa
 		userID = user.ID
 	}
 
-	tss, err := snapstateInstallPathMany(context.TODO(), st, sideInfos, tempPaths, userID, &flags.Flags)
+	tss, err := snapstateInstallPathMany(context.TODO(), st, slInfo.sideInfos, slInfo.tmpPaths, userID, &flags.Flags)
 	if err != nil {
-		return nil, errToResponse(err, tempPaths, InternalError, "cannot install snap files: %v")
+		return nil, errToResponse(err, slInfo.names, InternalError, "cannot install snap files: %v")
 	}
 
-	msg := fmt.Sprintf(i18n.G("Install snaps %s from files %s"), strutil.Quoted(names), strutil.Quoted(origPaths))
-	chg := newChange(st, "install-snap", msg, tss, names)
-	chg.Set("api-data", map[string][]string{"snap-names": names})
+	msg := fmt.Sprintf(i18n.G("Install snaps %s from files %s"), strutil.Quoted(slInfo.names), strutil.Quoted(slInfo.origPaths))
+	chg := newChange(st, "install-snap", msg, tss, slInfo.names)
+	chg.Set("api-data", map[string][]string{"snap-names": slInfo.names})
 
 	return chg, nil
 }
@@ -303,7 +319,7 @@ func readSideInfo(st *state.State, tempPath string, origPath string, flags sidel
 		switch {
 		case err == nil:
 			sideInfo = si
-		case asserts.IsNotFound(err):
+		case errors.Is(err, &asserts.NotFoundError{}):
 			// with devmode we try to find assertions but it's ok
 			// if they are not there (implies --dangerous)
 			if !flags.DevMode {

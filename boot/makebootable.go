@@ -27,10 +27,15 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/strutil"
 )
+
+var sealKeyToModeenv = sealKeyToModeenvImpl
 
 // BootableSet represents the boot snaps of a system to be made bootable.
 type BootableSet struct {
@@ -75,7 +80,7 @@ func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableS
 	if !bootWith.Recovery {
 		return fmt.Errorf("internal error: MakeBootableImage called at runtime, use MakeRunnableSystem instead")
 	}
-	return makeBootable20(rootdir, bootWith, bootFlags)
+	return makeBootable20(model, rootdir, bootWith, bootFlags)
 }
 
 // MakeBootablePartition configures a partition mounted on rootdir
@@ -90,10 +95,10 @@ func MakeBootablePartition(partDir string, opts *bootloader.Options, bootWith *B
 
 // makeBootable16 setups the image filesystem for boot with UC16
 // and UC18 models. This entails:
-//  - installing the bootloader configuration from the gadget
-//  - creating symlinks for boot snaps from seed to the runtime blob dir
-//  - setting boot env vars pointing to the revisions of the boot snaps to use
-//  - extracting kernel assets as needed by the bootloader
+//   - installing the bootloader configuration from the gadget
+//   - creating symlinks for boot snaps from seed to the runtime blob dir
+//   - setting boot env vars pointing to the revisions of the boot snaps to use
+//   - extracting kernel assets as needed by the bootloader
 func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
 	opts := &bootloader.Options{
 		PrepareImageTime: true,
@@ -202,7 +207,7 @@ func configureBootloader(rootdir string, opts *bootloader.Options, bootWith *Boo
 	return nil
 }
 
-func makeBootable20(rootdir string, bootWith *BootableSet, bootFlags []string) error {
+func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet, bootFlags []string) error {
 	// we can only make a single recovery system bootable right now
 	recoverySystems, err := filepath.Glob(filepath.Join(rootdir, "systems/*"))
 	if err != nil {
@@ -225,7 +230,7 @@ func makeBootable20(rootdir string, bootWith *BootableSet, bootFlags []string) e
 		return fmt.Errorf("cannot install bootloader: %v", err)
 	}
 
-	return MakeRecoverySystemBootable(rootdir, bootWith.RecoverySystemDir, &RecoverySystemBootableSet{
+	return MakeRecoverySystemBootable(model, rootdir, bootWith.RecoverySystemDir, &RecoverySystemBootableSet{
 		Kernel:           bootWith.Kernel,
 		KernelPath:       bootWith.KernelPath,
 		GadgetSnapOrDir:  bootWith.UnpackedGadgetDir,
@@ -246,7 +251,7 @@ type RecoverySystemBootableSet struct {
 
 // MakeRecoverySystemBootable prepares a recovery system under a path relative
 // to recovery bootloader's rootdir for booting.
-func MakeRecoverySystemBootable(rootdir string, relativeRecoverySystemDir string, bootWith *RecoverySystemBootableSet) error {
+func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRecoverySystemDir string, bootWith *RecoverySystemBootableSet) error {
 	opts := &bootloader.Options{
 		// XXX: this is only needed by LK, it is unclear whether LK does
 		// too much when extracting recovery kernel assets, in the end
@@ -296,7 +301,13 @@ func MakeRecoverySystemBootable(rootdir string, relativeRecoverySystemDir string
 		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
 	}
 	if _, ok := bl.(bootloader.TrustedAssetsBootloader); ok {
-		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.GadgetSnapOrDir)
+		// Look at gadget default values for system.kernel.*cmdline-append options
+		cmdlineAppend, err := buildOptionalKernelCommandLine(model, bootWith.GadgetSnapOrDir)
+		if err != nil {
+			return fmt.Errorf("while retrieving system.kernel.*cmdline-append defaults: %v", err)
+		}
+		// to set cmdlineAppend.
+		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.GadgetSnapOrDir, cmdlineAppend)
 		if err != nil {
 			return fmt.Errorf("cannot obtain recovery system command line: %v", err)
 		}
@@ -314,6 +325,7 @@ func MakeRecoverySystemBootable(rootdir string, relativeRecoverySystemDir string
 type makeRunnableOptions struct {
 	Standalone     bool
 	AfterDataReset bool
+	SeedDir        string
 }
 
 func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error {
@@ -395,7 +407,6 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		// installed
 		CurrentKernelCommandLines: nil,
 		// keep this comment to make gofmt 1.9 happy
-		Base:           bootWith.Base.Filename(),
 		Gadget:         bootWith.Gadget.Filename(),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 		BrandID:        model.BrandID(),
@@ -404,6 +415,11 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		Classic:        model.Classic(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+	}
+	// Note on classic systems there is no boot base, the system boots
+	// from debs.
+	if !model.Classic() {
+		modeenv.Base = bootWith.Base.Filename()
 	}
 
 	// get the ubuntu-boot bootloader and extract the kernel there
@@ -481,7 +497,12 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		}
 		modeenv.CurrentKernelCommandLines = bootCommandLines{cmdline}
 
-		cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir)
+		// Look at gadget default values for system.kernel.*cmdline-append options
+		cmdlineAppend, err := buildOptionalKernelCommandLine(model, bootWith.UnpackedGadgetDir)
+		if err != nil {
+			return fmt.Errorf("while retrieving system.kernel.*cmdline-append defaults: %v", err)
+		}
+		cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir, cmdlineAppend)
 		if err != nil {
 			return fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
 		}
@@ -505,6 +526,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		flags := sealKeyToModeenvFlags{
 			HasFDESetupHook: hasHook,
 			FactoryReset:    makeOpts.AfterDataReset,
+			SeedDir:         makeOpts.SeedDir,
 		}
 		if makeOpts.Standalone {
 			flags.SnapsDir = snapBlobDir
@@ -523,6 +545,48 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	return nil
 }
 
+func buildOptionalKernelCommandLine(model *asserts.Model, gadgetSnapOrDir string) (string, error) {
+	sf, err := snapfile.Open(gadgetSnapOrDir)
+	if err != nil {
+		return "", fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	gadgetInfo, err := gadget.ReadInfoFromSnapFile(sf, nil)
+	if err != nil {
+		return "", fmt.Errorf("cannot read gadget data: %v", err)
+	}
+
+	defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
+
+	var cmdlineAppend, cmdlineAppendDangerous string
+
+	if cmdlineAppendIf, ok := defaults["system.kernel.cmdline-append"]; ok {
+		cmdlineAppend, ok = cmdlineAppendIf.(string)
+		if !ok {
+			return "", fmt.Errorf("system.kernel.cmdline-append is not a string")
+		}
+	}
+
+	if cmdlineAppendIf, ok := defaults["system.kernel.dangerous-cmdline-append"]; ok {
+		cmdlineAppendDangerous, ok = cmdlineAppendIf.(string)
+		if !ok {
+			return "", fmt.Errorf("system.kernel.dangerous-cmdline-append is not a string")
+		}
+		if model.Grade() != asserts.ModelDangerous {
+			// Print a warning and ignore
+			logger.Noticef("WARNING: system.kernel.dangerous-cmdline-append ignored by non-dangerous models")
+			return "", nil
+		}
+	}
+
+	if cmdlineAppend != "" {
+		// TODO perform validation against what is allowed by the gadget
+	}
+
+	cmdlineAppend = strutil.JoinNonEmpty([]string{cmdlineAppend, cmdlineAppendDangerous}, " ")
+
+	return cmdlineAppend, nil
+}
+
 // MakeRunnableSystem is like MakeBootableImage in that it sets up a system to
 // be able to boot, but is unique in that it is intended to be called from UC20
 // install mode and makes the run system bootable (hence it is called
@@ -533,7 +597,9 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 // setting up a run system and actually transitioning to it, with hooks, etc.
 // running in between.
 func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
-	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{})
+	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
+		SeedDir: dirs.SnapSeedDir,
+	})
 }
 
 // MakeRunnableStandaloneSystem operates like MakeRunnableSystem but does
@@ -544,6 +610,18 @@ func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, s
 	// to consider the properties of the different input used for sealing
 	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
 		Standalone: true,
+		SeedDir:    dirs.SnapSeedDir,
+	})
+}
+
+// MakeRunnableStandaloneSystemFromInitrd is the same as MakeRunnableStandaloneSystem
+// but uses seed dir path expected in initrd.
+func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+	// TODO consider merging this back into MakeRunnableSystem but need
+	// to consider the properties of the different input used for sealing
+	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
+		Standalone: true,
+		SeedDir:    filepath.Join(InitramfsRunMntDir, "ubuntu-seed"),
 	})
 }
 
@@ -553,5 +631,6 @@ func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, s
 func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
 		AfterDataReset: true,
+		SeedDir:        dirs.SnapSeedDir,
 	})
 }

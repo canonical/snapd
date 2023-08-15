@@ -20,15 +20,10 @@ prepare: |
         apt autoremove -y lxd
     fi
     echo "Install lxd"
-    snap install lxd --channel="$LXD_SNAP_CHANNEL"
+    "$TESTSTOOLS"/lxd-state prepare-snap
 
-    echo "Create a trivial container using the lxd snap"
-    snap set lxd waitready.timeout=240
-    lxd waitready
-    lxd init --auto
-
-    # There isn't an official image for kinetic yet, let's use the community one
-    if os.query is-ubuntu 22.10; then
+    # There isn't an official image for mantic yet, let's use the community one
+    if os.query is-ubuntu 23.10; then
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
     else

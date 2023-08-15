@@ -444,8 +444,9 @@ func pruneSnapsHold(st *state.State, snapName string) error {
 }
 
 // HeldSnaps returns all snaps that are held at the given level or at more
-// restricting ones and shouldn't be refreshed.
-func HeldSnaps(st *state.State, level HoldLevel) (map[string]bool, error) {
+// restricting ones and shouldn't be refreshed. The snaps are mapped to a list
+// of snaps with currently effective holds on them.
+func HeldSnaps(st *state.State, level HoldLevel) (map[string][]string, error) {
 	gating, err := refreshGating(st)
 	if err != nil {
 		return nil, err
@@ -456,8 +457,7 @@ func HeldSnaps(st *state.State, level HoldLevel) (map[string]bool, error) {
 
 	now := timeNow()
 
-	held := make(map[string]bool)
-Loop:
+	held := make(map[string][]string)
 	for heldSnap, holds := range gating {
 		lastRefresh, err := lastRefreshed(st, heldSnap)
 		if err != nil {
@@ -479,11 +479,49 @@ Loop:
 			if hold.HoldUntil.Before(now) {
 				continue
 			}
-			held[heldSnap] = true
-			continue Loop
+
+			held[heldSnap] = append(held[heldSnap], holdingSnap)
 		}
 	}
 	return held, nil
+}
+
+// SystemHold returns the time until which the snap's refreshes have been held
+// by the sysadmin. If no such hold exists, returns a zero time.Time value.
+func SystemHold(st *state.State, snap string) (time.Time, error) {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	holds := gating[snap]
+	for holdingSnap, hold := range holds {
+		if holdingSnap == "system" {
+			return hold.HoldUntil, nil
+		}
+	}
+
+	return time.Time{}, nil
+}
+
+// LongestGatingHold returns the time until which the snap's refreshes have been held
+// by a gating snap. If no such hold exists, returns a zero time.Time value.
+func LongestGatingHold(st *state.State, snap string) (time.Time, error) {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	holds := gating[snap]
+
+	var lastHold time.Time
+	for holdingSnap, timeRange := range holds {
+		if holdingSnap != "system" && timeRange.HoldUntil.After(lastHold) {
+			lastHold = timeRange.HoldUntil
+		}
+	}
+
+	return lastHold, nil
 }
 
 type AffectedSnapInfo struct {
@@ -728,7 +766,7 @@ var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
 	var skipped []string
 	var candidates []*refreshCandidate
 	for _, s := range snaps {
-		if !held[s.InstanceName()] {
+		if _, ok := held[s.InstanceName()]; !ok {
 			candidates = append(candidates, s)
 		} else {
 			skipped = append(skipped, s.InstanceName())

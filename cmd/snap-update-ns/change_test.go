@@ -518,6 +518,32 @@ func (s *changeSuite) TestNeededChangesParallelInstancesInsideMount(c *C) {
 	})
 }
 
+func (s *changeSuite) TestNeededChangesRepeatedDir(c *C) {
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Name: "tmpfs", Dir: "/foo/mytmp", Type: "tmpfs", Options: []string{osutil.XSnapdOriginLayout()}},
+	}}
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Name: "/foo/bar", Dir: "/foo/bar", Type: "none",
+			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/foo/mytmp")}},
+		{Name: "tmpfs", Dir: "/foo/mytmp", Type: "tmpfs", Options: []string{osutil.XSnapdOriginLayout()}},
+		{Name: "tmpfs", Dir: "/foo/bar", Type: "tmpfs",
+			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/foo/bar/two")}},
+	}}
+	changes := update.NeededChanges(current, desired)
+
+	// Make sure that we unmount the one that is needed by an entry
+	// not desired anymore (even though it is in the same mountpoint
+	// as the one needed by /foo/mytmp).
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo/bar", Type: "tmpfs",
+			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/foo/bar/two"), osutil.XSnapdDetach()}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo/mytmp", Type: "tmpfs",
+			Options: []string{osutil.XSnapdOriginLayout()}}, Action: update.Keep},
+		{Entry: osutil.MountEntry{Name: "/foo/bar", Dir: "/foo/bar", Type: "none",
+			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/foo/mytmp")}}, Action: update.Keep},
+	})
+}
+
 func (s *changeSuite) TestRuntimeUsingSymlinks(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() {

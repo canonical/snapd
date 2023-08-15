@@ -452,6 +452,12 @@ allow snappy_t unconfined_service_t:process { getpgid sigkill };
 # not transition to a separate type and has no interface policy
 kernel_read_xen_state(snappy_t)
 
+# Allow snapd to read upowerd binary requiered by upower-observe interface
+gen_require(`
+    type devicekit_power_exec_t;
+')
+allow snappy_t devicekit_power_exec_t:file { getattr };
+
 ########################################
 #
 # snap-update-ns, snap-dicsard-ns local policy
@@ -496,6 +502,15 @@ userdom_delete_user_tmp_files(snappy_mount_t)
 # when the host's /tmp is not a tmpfs
 files_manage_generic_tmp_dirs(snappy_mount_t)
 files_manage_generic_tmp_files(snappy_mount_t)
+
+# Allow snap-{update,discard}-ns to manipulate /etc/
+allow snappy_mount_t etc_t:dir { mounton write rmdir remove_name };
+
+# Allow snap-{update,discard}-ns to mount /boot/
+gen_require(`
+	type boot_t;
+')
+allow snappy_mount_t boot_t:dir { mounton };
 
 # Allow snap-{update,discard}-ns to manage mounts
 gen_require(`
@@ -547,6 +562,9 @@ allow snappy_mount_t lib_t:dir mounton;
 # when supporting interfaces such as appstream-metadata, snap-update-ns will
 # mount things labeled usr_t from the host
 allow snappy_mount_t usr_t:dir mounton;
+
+# allow mounting on top of /var/lib
+allow snappy_mount_t var_lib_t:dir mounton;
 
 # mount and unmount on top of snaps
 allow snappy_mount_t snappy_snap_t:dir mounton;
@@ -661,7 +679,8 @@ dev_getattr_all(snappy_confine_t)
 fs_getattr_cgroup(snappy_confine_t)
 fs_getattr_hugetlbfs(snappy_confine_t)
 fs_getattr_tmpfs(snappy_confine_t)
-# some locations that snap-confine unmounts, eg. /dev, are actually tmpfs
+# some locations that snap-confine mounts, eg. /, are actually tmpfs
+fs_mount_tmpfs(snappy_confine_t)
 fs_unmount_tmpfs(snappy_confine_t)
 fs_getattr_xattr_fs(snappy_confine_t)
 fs_manage_cgroup_dirs(snappy_confine_t)
@@ -712,6 +731,9 @@ allow snappy_confine_t snappy_var_run_t:dir mounton;
 allow snappy_confine_t snappy_var_run_t:file mounton;
 allow snappy_confine_t snappy_var_t:dir { getattr mounton search };
 allow snappy_confine_t tmp_t:dir { add_name create mounton remove_name rmdir setattr write read };
+allow snappy_confine_t tmpfs_t:dir { add_name create mounton read setattr write };
+allow snappy_confine_t tmpfs_t:file { create mounton open read };
+allow snappy_confine_t tmpfs_t:lnk_file create;
 allow snappy_confine_t usr_t:dir mounton;
 allow snappy_confine_t var_log_t:dir mounton;
 allow snappy_confine_t var_run_t:dir mounton;

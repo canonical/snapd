@@ -76,6 +76,29 @@ func (cs *clientSuite) TestClientFindWithSectionSetsQuery(c *check.C) {
 	})
 }
 
+func (cs *clientSuite) TestClientFindRefreshSetsQueryWithCategory(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{
+		Refresh:  true,
+		Category: "mycategory",
+	})
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
+		"category": []string{"mycategory"}, "select": []string{"refresh"},
+	})
+}
+
+func (cs *clientSuite) TestClientFindWithCategorySetsQuery(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{
+		Category: "mycategory",
+	})
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
+		"category": []string{"mycategory"},
+	})
+}
+
 func (cs *clientSuite) TestClientFindPrivateSetsQuery(c *check.C) {
 	_, _, _ = cs.cli.Find(&client.FindOptions{
 		Private: true,
@@ -274,6 +297,10 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	c.Assert(cs.req.Method, check.Equals, "GET")
 	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName))
 	c.Assert(err, check.IsNil)
+
+	c.Assert(pkg.InstallDate.Equal(time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC)), check.Equals, true)
+	pkg.InstallDate = nil
+
 	c.Assert(pkg, check.DeepEquals, &client.Snap{
 		ID:            "funky-snap-id",
 		Summary:       "bla bla",
@@ -282,7 +309,6 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		DownloadSize:  6930947,
 		Icon:          "/v2/icons/chatroom.ogra/icon",
 		InstalledSize: 18976651,
-		InstallDate:   time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC),
 		License:       "GPL-3.0",
 		Name:          "chatroom",
 		Developer:     "ogra",
@@ -374,6 +400,13 @@ func (cs *clientSuite) TestAppInfoDaemonIsService(c *check.C) {
 func (cs *clientSuite) TestClientSectionsErrIsWrapped(c *check.C) {
 	cs.err = errors.New("boom")
 	_, err := cs.cli.Sections()
+	var e xerrors.Wrapper
+	c.Assert(err, check.Implements, &e)
+}
+
+func (cs *clientSuite) TestClientCategoriesErrIsWrapped(c *check.C) {
+	cs.err = errors.New("boom")
+	_, err := cs.cli.Categories()
 	var e xerrors.Wrapper
 	c.Assert(err, check.Implements, &e)
 }

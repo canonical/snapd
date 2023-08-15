@@ -14,9 +14,7 @@ prepare: |
         exit
     fi
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    setup_fake_store "$STORE_DIR"
+    "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
     mkdir "$ROOT"
     chown -R test:test "$ROOT"
@@ -27,9 +25,7 @@ restore: |
         exit
     fi
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$STORE_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
     rm -rf "$ROOT"
 
 execute: |
@@ -57,6 +53,8 @@ execute: |
 
     # prepare-image ran as user so it warns about the ownership
     MATCH 'WARNING: ensure that the contents under .* are owned by root:root in the \(final\) image' < stderr
+    # But there are not other warnings/errors on stderr
+    wc -l < stderr | MATCH "^1$"
 
     echo Verifying the result
     systemid="$(date +%Y%m%d)"

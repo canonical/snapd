@@ -28,7 +28,8 @@ import (
 )
 
 var (
-	NumberOfJobsParam = numberOfJobsParam
+	NumberOfJobsParam  = numberOfJobsParam
+	SetupConfCacheDirs = setupConfCacheDirs
 )
 
 func MockRuntimeNumCPU(new func() int) (restore func()) {
@@ -63,6 +64,12 @@ func MockSnapConfineDistroProfilePath(f func() string) func() {
 	return r
 }
 
+func MockLoadHomedirs(f func() ([]string, error)) func() {
+	r := testutil.Backup(&loadHomedirs)
+	loadHomedirs = f
+	return r
+}
+
 // MockProfilesPath mocks the file read by LoadedProfiles()
 func MockProfilesPath(t *testutil.BaseTest, profiles string) {
 	profilesPath = profiles
@@ -79,12 +86,10 @@ func MockFsRootPath(path string) (restorer func()) {
 	}
 }
 
-func MockParserSearchPath(new string) (restore func()) {
-	oldAppArmorParserSearchPath := parserSearchPath
-	parserSearchPath = new
-	return func() {
-		parserSearchPath = oldAppArmorParserSearchPath
-	}
+func MockSnapdAppArmorSupportsReexec(new func() bool) (restore func()) {
+	restore = testutil.Backup(&snapdAppArmorSupportsReexec)
+	snapdAppArmorSupportsReexec = new
+	return restore
 }
 
 var (
@@ -95,6 +100,9 @@ var (
 	RequiredParserFeatures  = requiredParserFeatures
 	PreferredKernelFeatures = preferredKernelFeatures
 	PreferredParserFeatures = preferredParserFeatures
+
+	SnapdAppArmorSupportsRexecImpl = snapdAppArmorSupportsReexecImpl
+	SystemAppArmorLoadsSnapPolicy  = systemAppArmorLoadsSnapPolicy
 )
 
 func FreshAppArmorAssessment() {

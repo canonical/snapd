@@ -412,3 +412,26 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(ok, Equals, true, Commentf("key1:%#v key2:%#v", key1, key2))
 }
+
+func (s *systemKeySuite) TestRemoveSystemKey(c *C) {
+	systemKeyJSON := `{}`
+
+	// write the mocked system key to disk
+	restore := interfaces.MockSystemKey(systemKeyJSON)
+	defer restore()
+	err := interfaces.WriteSystemKey()
+	c.Assert(err, IsNil)
+
+	c.Check(dirs.SnapSystemKeyFile, testutil.FilePresent)
+
+	// remove the system key
+	err = interfaces.RemoveSystemKey()
+	c.Assert(err, IsNil)
+
+	c.Check(dirs.SnapSystemKeyFile, testutil.FileAbsent)
+
+	// also check that no error is returned when trying to remove system key
+	// when it does not exist in the first place
+	err = interfaces.RemoveSystemKey()
+	c.Assert(err, IsNil)
+}

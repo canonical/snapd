@@ -61,6 +61,10 @@ capability sys_admin,
 /run/udev/data/b[0-9]*:[0-9]* r,
 /sys/block/ r,
 /sys/devices/**/block/** r,
+
+# Allow to use mkfs utils to format partitions
+/{,usr/}sbin/mke2fs ixr,
+/{,usr/}sbin/mkfs.fat ixr,
 `
 
 // The type for this interface

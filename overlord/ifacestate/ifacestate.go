@@ -88,7 +88,6 @@ type connectOpts struct {
 }
 
 // Connect returns a set of tasks for connecting an interface.
-//
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
 	if err := snapstate.CheckChangeConflictMany(st, []string{plugSnap, slotSnap}, ""); err != nil {
 		return nil, err
@@ -486,7 +485,7 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info, deviceCtx snapstate.D
 	if modelAs.Store() != "" {
 		var err error
 		storeAs, err = assertstate.Store(st, modelAs.Store())
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return err
 		}
 	}
@@ -552,7 +551,9 @@ func MockConnectRetryTimeout(d time.Duration) (restore func()) {
 // snapstate.LinkSnapParticipant follow activation changes for snaps
 // so that we can track revisions with security profiles on disk for
 // temporarily inactive snaps.
-func OnSnapLinkageChanged(st *state.State, instanceName string) error {
+func OnSnapLinkageChanged(st *state.State, snapsup *snapstate.SnapSetup) error {
+	instanceName := snapsup.InstanceName()
+
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err

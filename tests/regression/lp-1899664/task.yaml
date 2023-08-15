@@ -16,5 +16,4 @@ execute: |
   # wrappers to be recreated.
   current="$(readlink /snap/snapd/current)"
   snap install --dangerous "/var/lib/snapd/seed/snaps/snapd_${current}.snap"
-  journalctl -u snapd | MATCH "appears to be read-only, could not write snapd dbus config files"
-
+  "$TESTSTOOLS"/journal-state get-log -u snapd | MATCH "appears to be read-only, could not write snapd dbus config files"

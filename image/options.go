@@ -19,6 +19,8 @@
 
 package image
 
+import "github.com/snapcore/snapd/seed/seedwriter"
+
 type Options struct {
 	ModelFile string
 	Classic   bool
@@ -34,11 +36,26 @@ type Options struct {
 	// (only for UC20)
 	AppArmorKernelFeaturesDir string
 
+	// SysfsOverlay is the optional sysfs overlay to be used for
+	// preseeding.
+	// Directories from /sys/class/* and /sys/devices/platform
+	// will be bind-mounted to the chroot when preseeding.
+	SysfsOverlay string
+
 	Channel string
 
 	// TODO: use OptionsSnap directly here?
 	Snaps        []string
 	SnapChannels map[string]string
+
+	// SeedManifest is a pre-provided seed manifest, to allow for
+	// creating reproducible seeds. If provided, the snap revisions and
+	// validation-sets specified in the seed manifest will be used to
+	// (re-)create the image seed.
+	SeedManifest *seedwriter.Manifest
+	// SeedManifestPath if set, specifies the file path where the
+	// seed.manifest file should be written.
+	SeedManifestPath string
 
 	// WideCohortKey can be used to supply a cohort covering all
 	// the snaps in the image, there is no generally suppported API

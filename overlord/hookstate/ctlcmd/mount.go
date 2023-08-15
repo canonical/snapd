@@ -68,7 +68,8 @@ func matchMountPathAttribute(path string, attribute interface{}, snapInfo *snap.
 
 	expandedPattern := snapInfo.ExpandSnapVariables(pattern)
 
-	pp, err := utils.NewPathPattern(expandedPattern)
+	const allowCommas = true
+	pp, err := utils.NewPathPattern(expandedPattern, allowCommas)
 	return err == nil && pp.Matches(path)
 }
 
@@ -187,7 +188,7 @@ func (m *mountCommand) createMountUnit(sysd systemd.Systemd) (string, error) {
 	if m.Persistent {
 		lifetime = systemd.Persistent
 	}
-	return sysd.AddMountUnitFileWithOptions(&systemd.MountUnitOptions{
+	return sysd.EnsureMountUnitFileWithOptions(&systemd.MountUnitOptions{
 		Lifetime: lifetime,
 		SnapName: snapName,
 		Revision: revision,

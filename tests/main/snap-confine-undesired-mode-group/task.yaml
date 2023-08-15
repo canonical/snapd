@@ -15,7 +15,7 @@ prepare: |
 
 restore: |
     tests.session -u test restore
-    rm -rf /tmp/snap.test-snapd-app
+    rm -rf /tmp/snap-private-tmp/snap.test-snapd-app
 
 execute: |
     # Run the snap as a non-root user.
@@ -26,7 +26,7 @@ execute: |
     # trees. Such files may indicate that parts of code invomed from
     # snap-confine (which includes snap-update-ns and snap-discard-ns) ran as
     # the group of the calling user and did not manage that properly.
-    for dname in /run/snapd /sys/fs/cgroup /tmp/snap.*; do
+    for dname in /run/snapd /sys/fs/cgroup /tmp/snap-private-tmp/snap.*; do
         # Filter out cgroups that are expected to be owned by the test user.
         # Since we are a looking at sysfs, which is modified asynchronously,
         # ignore errors of the kind where readdir and stat race with a
@@ -46,7 +46,7 @@ execute: |
         # - symbolic links, those are always 777
         # - the file cgroup.event_control which is ugo+w for some reason
         # - the per-snap tmp directory as it is meant to be world-writable
-        find "$dname" -ignore_readdir_race ! -type s ! -type l ! -name cgroup.event_control ! -path '/tmp/snap.*/tmp' -perm /o+w >> world-writable.txt
+        find "$dname" -ignore_readdir_race ! -type s ! -type l ! -name cgroup.event_control ! -path '/tmp/snap-private-tmp/snap.*/tmp' -perm /o+w >> world-writable.txt
     done
 
     # The test fails if any such file is detected

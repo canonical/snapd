@@ -34,7 +34,7 @@ var (
 	RunUC20PreseedMode       = runUC20PreseedMode
 )
 
-type PreseedOpts = preseedOpts
+type PreseedCoreOptions = preseedCoreOptions
 
 func MockSeedOpen(f func(rootDir, label string) (seed.Seed, error)) (restore func()) {
 	oldSeedOpen := seedOpen
@@ -60,4 +60,10 @@ func MockNewToolingStoreFromModel(f func(model *asserts.Model, fallbackArchitect
 	return func() {
 		newToolingStoreFromModel = old
 	}
+}
+
+func MockResetPreseededChroot(f func(preseedChroot string) error) (restore func()) {
+	r := testutil.Backup(&ResetPreseededChroot)
+	ResetPreseededChroot = f
+	return r
 }

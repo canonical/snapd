@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -148,7 +149,7 @@ func updateNotScriptableBootloaderStatus(bl bootloader.NotScriptableBootloader) 
 		return nil
 	}
 
-	kVals, err := osutil.KernelCommandLineKeyValues("kernel_status")
+	kVals, err := kcmdline.KeyValues("kernel_status")
 	if err != nil {
 		return err
 	}

@@ -34,7 +34,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -90,6 +90,50 @@ func (s *LogSuite) TestDefault(c *C) {
 	c.Check(logger.GetLoggerFlags(), Equals, log.Lshortfile)
 }
 
+func (s *LogSuite) TestBootSetup(c *C) {
+	// env shenanigans
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	oldTerm, hadTerm := os.LookupEnv("TERM")
+	defer func() {
+		if hadTerm {
+			os.Setenv("TERM", oldTerm)
+		} else {
+			os.Unsetenv("TERM")
+		}
+	}()
+
+	if logger.GetLogger() != nil {
+		logger.SetLogger(nil)
+	}
+	c.Check(logger.GetLogger(), IsNil)
+
+	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
+	err := ioutil.WriteFile(cmdlineFile, []byte("mocked panic=-1"), 0644)
+	c.Assert(err, IsNil)
+	restore := kcmdline.MockProcCmdline(cmdlineFile)
+	defer restore()
+	os.Setenv("TERM", "dumb")
+	err = logger.BootSetup()
+	c.Assert(err, IsNil)
+	c.Check(logger.GetLogger(), NotNil)
+	c.Check(logger.GetLoggerFlags(), Equals, logger.DefaultFlags)
+	c.Check(logger.GetQuiet(), Equals, false)
+
+	cmdlineFile = filepath.Join(c.MkDir(), "cmdline")
+	err = ioutil.WriteFile(cmdlineFile, []byte("mocked panic=-1 quiet"), 0644)
+	c.Assert(err, IsNil)
+	restore = kcmdline.MockProcCmdline(cmdlineFile)
+	defer restore()
+	os.Unsetenv("TERM")
+	err = logger.BootSetup()
+	c.Assert(err, IsNil)
+	c.Check(logger.GetLogger(), NotNil)
+	c.Check(logger.GetLoggerFlags(), Equals, log.Lshortfile)
+	c.Check(logger.GetQuiet(), Equals, true)
+}
+
 func (s *LogSuite) TestNew(c *C) {
 	var buf bytes.Buffer
 	l, err := logger.New(&buf, logger.DefaultFlags)
@@ -131,6 +175,19 @@ func (s *LogSuite) TestWithLoggerLock(c *C) {
 	c.Check(called, Equals, true)
 }
 
+func (s *LogSuite) TestNoGuardDebug(c *C) {
+	debugValue, ok := os.LookupEnv("SNAPD_DEBUG")
+	if ok {
+		defer func() {
+			os.Setenv("SNAPD_DEBUG", debugValue)
+		}()
+		os.Unsetenv("SNAPD_DEBUG")
+	}
+
+	logger.NoGuardDebugf("xyzzy")
+	c.Check(s.logbuf.String(), testutil.Contains, `DEBUG: xyzzy`)
+}
+
 func (s *LogSuite) TestIntegrationDebugFromKernelCmdline(c *C) {
 	// must enable actually checking the command line, because by default the
 	// logger package will skip checking for the kernel command line parameter
@@ -142,7 +199,7 @@ func (s *LogSuite) TestIntegrationDebugFromKernelCmdline(c *C) {
 	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
 	err := ioutil.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 snapd.debug=1\n"), 0644)
 	c.Assert(err, IsNil)
-	restore = osutil.MockProcCmdline(mockProcCmdline)
+	restore = kcmdline.MockProcCmdline(mockProcCmdline)
 	defer restore()
 
 	var buf bytes.Buffer

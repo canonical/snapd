@@ -273,9 +273,9 @@ func (p4 patch4T) addRevertFlag(task *state.Task) error {
 }
 
 // patch4:
-//  - add Revert flag to in-progress revert-snap changes
-//  - move from had-candidate to old-candidate-index in link-snap tasks
-//  - add cleanup task to in-progress changes that have a copy-snap-data task
+//   - add Revert flag to in-progress revert-snap changes
+//   - move from had-candidate to old-candidate-index in link-snap tasks
+//   - add cleanup task to in-progress changes that have a copy-snap-data task
 func patch4(s *state.State) error {
 	p4 := patch4T{}
 	for _, change := range s.Changes() {

@@ -88,7 +88,7 @@ func (s *emulation) Restart(services []string) error {
 	return nil
 }
 
-func (s *emulation) ReloadOrRestart(service string) error {
+func (s *emulation) ReloadOrRestart(services []string) error {
 	return &notImplementedError{"ReloadOrRestart"}
 }
 
@@ -124,7 +124,7 @@ func (s *emulation) LogReader(services []string, n int, follow, namespaces bool)
 	return nil, fmt.Errorf("LogReader")
 }
 
-func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
+func (s *emulation) EnsureMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
 	if osutil.IsDirectory(what) {
 		return "", fmt.Errorf("bind-mounted directory is not supported in emulation mode")
 	}
@@ -134,7 +134,7 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 	// This means that when preseeding in a lxd container, the snap will be
 	// mounted with fuse, but mount unit will use squashfs.
 	mountUnitOptions := append(fsMountOptions(fstype), squashfs.StandardOptions()...)
-	mountUnitName, err := writeMountUnitFile(&MountUnitOptions{
+	mountUnitName, modified, err := ensureMountUnitFile(&MountUnitOptions{
 		Lifetime: Persistent,
 		SnapName: snapName,
 		Revision: revision,
@@ -147,28 +147,28 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		return "", err
 	}
 
+	if modified == mountUnchanged {
+		return mountUnitName, nil
+	}
+
 	hostFsType, actualOptions := hostFsTypeAndMountOptions(fstype)
+	if modified == mountUpdated {
+		actualOptions = append(actualOptions, "remount")
+	}
 	cmd := exec.Command("mount", "-t", hostFsType, what, where, "-o", strings.Join(actualOptions, ","))
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("cannot mount %s (%s) at %s in preseed mode: %s; %s", what, hostFsType, where, err, string(out))
 	}
 
-	multiUserTargetWantsDir := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants")
-	if err := os.MkdirAll(multiUserTargetWantsDir, 0755); err != nil {
+	if err := s.EnableNoReload([]string{mountUnitName}); err != nil {
 		return "", err
 	}
 
-	// cannot call systemd, so manually enable the unit by symlinking into multi-user.target.wants
-	mu := MountUnitPath(where)
-	enableUnitPath := filepath.Join(multiUserTargetWantsDir, mountUnitName)
-	if err := os.Symlink(mu, enableUnitPath); err != nil {
-		return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
-	}
 	return mountUnitName, nil
 }
 
-func (s *emulation) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
-	return "", &notImplementedError{"AddMountUnitFileWithOptions"}
+func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
+	return "", &notImplementedError{"EnsureMountUnitFileWithOptions"}
 }
 
 func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
@@ -188,9 +188,7 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 		}
 	}
 
-	multiUserTargetWantsDir := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants")
-	enableUnitPathSymlink := filepath.Join(multiUserTargetWantsDir, filepath.Base(unit))
-	if err := os.Remove(enableUnitPathSymlink); err != nil {
+	if err := s.DisableNoReload([]string{filepath.Base(unit)}); err != nil {
 		return err
 	}
 

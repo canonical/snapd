@@ -169,7 +169,7 @@ func MockSbMeasureSnapModelToTPM(f func(tpm *sb_tpm2.Connection, pcrIndex int, m
 	}
 }
 
-func MockRandomKernelUUID(f func() string) (restore func()) {
+func MockRandomKernelUUID(f func() (string, error)) (restore func()) {
 	old := randutilRandomKernelUUID
 	randutilRandomKernelUUID = f
 	return func() {
@@ -229,5 +229,11 @@ func MockSbReadSealedKeyObjectFromFile(f func(string) (*sb_tpm2.SealedKeyObject,
 func MockSbTPMDictionaryAttackLockReset(f func(tpm *sb_tpm2.Connection, lockContext tpm2.ResourceContext, lockContextAuthSession tpm2.SessionContext, sessions ...tpm2.SessionContext) error) (restore func()) {
 	restore = testutil.Backup(&sbTPMDictionaryAttackLockReset)
 	sbTPMDictionaryAttackLockReset = f
+	return restore
+}
+
+func MockSbLockoutAuthSet(f func(tpm *sb_tpm2.Connection) bool) (restore func()) {
+	restore = testutil.Backup(&lockoutAuthSet)
+	lockoutAuthSet = f
 	return restore
 }

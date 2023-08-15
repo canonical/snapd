@@ -11,7 +11,7 @@ execute: |
 
   current_boot_id=$(tests.nested boot-id)
   remote.exec "sudo reboot" || true
-  tests.nested wait-for reboot "$current_boot_id"
+  remote.wait-for reboot "$current_boot_id"
 
   echo "Enabling systemd-resolved service back"
   remote.exec "systemctl status systemd-resolved.service" | MATCH "Active: +inactive"

@@ -95,7 +95,7 @@ network netlink raw,
 # hwinfo --short
 @{PROC}/ioports r,
 @{PROC}/dma r,
-@{PROC}/tty/driver/serial r,
+@{PROC}/tty/driver/{,*} r,
 @{PROC}/sys/dev/cdrom/info r,
 
 # status of hugepages and transparent_hugepage, but not the pages themselves

@@ -26,9 +26,6 @@ restore: |
     rm -f /root/.wget-hsts
 
 execute: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-
     echo "download snapd 2.15.2ubuntu1 and the matching ubuntu-core-launcher"
     wget https://launchpad.net/ubuntu/+source/snap-confine/1.0.38-0ubuntu0.16.04.8/+build/10606388/+files/ubuntu-core-launcher_1.0.38-0ubuntu0.16.04.8_amd64.deb
     wget https://launchpad.net/ubuntu/+source/snap-confine/1.0.38-0ubuntu0.16.04.8/+build/10606388/+files/snap-confine_1.0.38-0ubuntu0.16.04.8_amd64.deb
@@ -51,7 +48,7 @@ execute: |
         apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.go-example-webserver.webserver
         systemctl start snap.go-example-webserver.webserver
     fi
-    wait_for_service snap.go-example-webserver.webserver.service
+    tests.systemd wait-for-service -n 30 --state active snap.go-example-webserver.webserver.service
 
     echo "Install a test snap"
     snap install test-snapd-sh
@@ -60,7 +57,7 @@ execute: |
     apt install -y "$GOHOME"/snapd*.deb
 
     echo "and ensure the snap service is still active"
-    wait_for_service snap.go-example-webserver.webserver.service
+    tests.systemd wait-for-service -n 30 --state active snap.go-example-webserver.webserver.service
 
     echo "wait for ubuntu-core->core transition"
     snap debug ensure-state-soon

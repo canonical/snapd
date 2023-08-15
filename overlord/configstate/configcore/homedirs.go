@@ -20,9 +20,9 @@
 package configcore
 
 import (
-	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/snap/sysparams"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -38,8 +39,9 @@ var (
 	osutilEnsureFileState = osutil.EnsureFileState
 	osutilDirExists       = osutil.DirExists
 
-	apparmorUpdateHomedirsTunable = apparmor.UpdateHomedirsTunable
-	apparmorReloadAllSnapProfiles = apparmor.ReloadAllSnapProfiles
+	apparmorUpdateHomedirsTunable    = apparmor.UpdateHomedirsTunable
+	apparmorReloadAllSnapProfiles    = apparmor.ReloadAllSnapProfiles
+	apparmorSetupSnapConfineSnippets = apparmor.SetupSnapConfineSnippets
 )
 
 var (
@@ -59,14 +61,6 @@ var (
 		"/sys/",
 		"/tmp/",
 	}
-
-	// TODO: remove this once we mount the root FS of a snap as tmpfs and
-	// become able to create any mount points. But for the time being, let's
-	// allow only those locations that can be supported without creating a
-	// mimic of "/".
-	validPrefixes = []string{
-		"/home/",
-	}
 )
 
 func init() {
@@ -74,22 +68,52 @@ func init() {
 	supportedConfigurations["core.homedirs"] = true
 }
 
-func updateHomedirsConfig(config string) error {
-	snapStateDir := dirs.SnapdStateDir(dirs.GlobalRootDir)
-	if err := os.MkdirAll(snapStateDir, 0755); err != nil {
+func configureHomedirsInAppArmorAndReload(homedirs []string, opts *fsOnlyContext) error {
+	// important to note here that when a configure hook is invoked, handlers are invoked,
+	// so they are not *just* invoked by user-interaction, and we do not want to break those
+	// actions. So no-op on systems that do not support apparmor.
+	if apparmor.ProbedLevel() != apparmor.Full && apparmor.ProbedLevel() != apparmor.Partial {
+		return nil
+	}
+
+	if err := apparmorUpdateHomedirsTunable(homedirs); err != nil {
 		return err
 	}
 
-	configPath := filepath.Join(snapStateDir, "system-params")
-	contents := fmt.Sprintf("homedirs=%s\n", config)
-	desiredState := &osutil.MemoryFileState{
-		Content: []byte(contents),
-		Mode:    0644,
+	// Only update snap-confine apparmor snippets and reload profiles
+	// if it's during runtime
+	if opts == nil {
+		if _, err := apparmorSetupSnapConfineSnippets(); err != nil {
+			return err
+		}
+
+		// We must reload the apparmor profiles in order for our changes to become
+		// effective. In theory, all profiles are affected; in practice, we are a
+		// bit egoist and only care about snapd.
+		if err := apparmorReloadAllSnapProfiles(); err != nil {
+			return err
+		}
 	}
-	if err := osutilEnsureFileState(configPath, desiredState); errors.Is(err, osutil.ErrSameState) {
-		// The state is unchanged, nothing to do
-		return nil
-	} else if err != nil {
+	return nil
+}
+
+func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
+	// if opts is not nil this is image build time
+	rootDir := dirs.GlobalRootDir
+	if opts != nil {
+		rootDir = opts.RootDir
+	}
+	sspPath := dirs.SnapSystemParamsUnder(rootDir)
+	if err := os.MkdirAll(path.Dir(sspPath), 0755); err != nil {
+		return err
+	}
+
+	ssp, err := sysparams.Open(rootDir)
+	if err != nil {
+		return err
+	}
+	ssp.Homedirs = config
+	if err := ssp.Write(); err != nil {
 		return err
 	}
 
@@ -97,30 +121,39 @@ func updateHomedirsConfig(config string) error {
 	if len(config) > 0 {
 		homedirs = strings.Split(config, ",")
 	}
-	if err := apparmorUpdateHomedirsTunable(homedirs); err != nil {
-		return err
-	}
-
-	// We must reload the apparmor profiles in order for our changes to become
-	// effective. In theory, all profiles are affected; in practice, we are a
-	// bit egoist and only care about snapd.
-	return apparmorReloadAllSnapProfiles()
+	return configureHomedirsInAppArmorAndReload(homedirs, opts)
 }
 
-func handleHomedirsConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
-	config, err := coreCfg(tr, "homedirs")
+func handleHomedirsConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
+	conf, err := coreCfg(tr, "homedirs")
 	if err != nil {
 		return err
 	}
+	var prevConfig string
+	if err := tr.GetPristine("core", "homedirs", &prevConfig); err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if conf == prevConfig {
+		return nil
+	}
 
-	if err := updateHomedirsConfig(config); err != nil {
+	// XXX: Check after verifying no change is done to the actual option as the handler
+	// is still invoked.
+	if !dev.Classic() {
+		// There is no specific reason this can not be supported on core, but to
+		// remove this check, we need a spread test verifying this does indeed work
+		// on core as well.
+		return fmt.Errorf("configuration of homedir locations on Ubuntu Core is currently unsupported. Please report a bug if you need it")
+	}
+
+	if err := updateHomedirsConfig(conf, opts); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func validateHomedirsConfiguration(tr config.ConfGetter) error {
+func validateHomedirsConfiguration(tr ConfGetter) error {
 	config, err := coreCfg(tr, "homedirs")
 	if err != nil {
 		return err
@@ -151,19 +184,6 @@ func validateHomedirsConfiguration(tr config.ConfGetter) error {
 			if strings.HasPrefix(dir, prefix) {
 				return fmt.Errorf("path %q uses reserved root directory %q", dir, prefix)
 			}
-		}
-
-		// Temporary: see the comment on validPrefixes
-		isValid := false
-		for _, prefix := range validPrefixes {
-			if strings.HasPrefix(dir, prefix) {
-				isValid = true
-				break
-			}
-		}
-		if !isValid {
-			formattedList := strings.Join(validPrefixes, ", ")
-			return fmt.Errorf("path %q unsupported: must start with one of: %s", dir, formattedList)
 		}
 
 		exists, isDir, err := osutilDirExists(dir)

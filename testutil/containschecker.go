@@ -179,39 +179,63 @@ func (c *deepUnsortedMatchChecker) Check(params []interface{}, _ []string) (bool
 		return false, fmt.Sprintf("containers are of different types: %s != %s", container1.Kind(), container2.Kind())
 	}
 
-	if container1.Kind() != reflect.Map && container1.Kind() != reflect.Slice && container1.Kind() != reflect.Array {
-		return false, fmt.Sprintf("'%s' is not a supported type: must be slice, array, map or nil", container1.Kind().String())
-	}
-
-	if container1.Type().Comparable() && params[0] == params[1] {
-		return true, ""
-	}
-
-	if container1.Len() != container2.Len() {
-		return false, fmt.Sprintf("containers have different lengths: %d != %d", container1.Len(), container2.Len())
-	}
-
 	switch container1.Kind() {
 	case reflect.Array, reflect.Slice:
 		return deepSequenceMatch(container1, container2)
-
 	case reflect.Map:
-		map1 := container1.Interface()
-		map2 := container2.Interface()
-		if !reflect.DeepEqual(map1, map2) {
-			return false, "maps don't match"
-		}
-
-		return true, ""
-
+		return deepMapMatch(container1, container2)
 	default:
-		return false, fmt.Sprintf("%T is not a supported container. Must be a slice, an array or a map", container1)
+		return false, fmt.Sprintf("'%s' is not a supported type: must be slice, array or map", container1.Kind().String())
 	}
 }
 
-func deepSequenceMatch(container1 reflect.Value, container2 reflect.Value) (bool, string) {
-	matched := make([]bool, container1.Len())
+func deepMapMatch(container1, container2 reflect.Value) (bool, string) {
+	if valid, output := validateContainerTypesAndLengths(container1, container2); !valid {
+		return false, output
+	}
 
+	switch container1.Type().Elem().Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map:
+	// only run the unsorted match if the map values are containers
+	default:
+		if !reflect.DeepEqual(container1.Interface(), container2.Interface()) {
+			return false, "maps don't match"
+		}
+		return true, ""
+	}
+
+	for _, key := range container1.MapKeys() {
+		el1 := container1.MapIndex(key)
+		el2 := container2.MapIndex(key)
+
+		absent := el2 == reflect.Value{}
+		if absent {
+			return false, fmt.Sprintf("key %q from one map is absent from the other map", key)
+		}
+
+		var ok bool
+		var msg string
+		switch el1.Kind() {
+		case reflect.Array, reflect.Slice:
+			ok, msg = deepSequenceMatch(el1, el2)
+		case reflect.Map:
+			ok, msg = deepMapMatch(el1, el2)
+		}
+
+		if !ok {
+			return false, msg
+		}
+	}
+
+	return true, ""
+}
+
+func deepSequenceMatch(container1, container2 reflect.Value) (bool, string) {
+	if valid, output := validateContainerTypesAndLengths(container1, container2); !valid {
+		return false, output
+	}
+
+	matched := make([]bool, container1.Len())
 out:
 	for i := 0; i < container1.Len(); i++ {
 		el1 := container1.Index(i).Interface()
@@ -228,6 +252,23 @@ out:
 		}
 
 		return false, fmt.Sprintf("element [%d]=%s was unmatched in the second container", i, el1)
+	}
+
+	return true, ""
+}
+
+func validateContainerTypesAndLengths(container1, container2 reflect.Value) (bool, string) {
+	if container1.Len() != container2.Len() {
+		return false, fmt.Sprintf("containers have different lengths: %d != %d", container1.Len(), container2.Len())
+	} else if container1.Type().Elem() != container2.Type().Elem() {
+		return false, fmt.Sprintf("containers have different element types: %s != %s", container1.Type().Elem(), container2.Type().Elem())
+	}
+
+	if container1.Kind() == reflect.Map && container2.Kind() == reflect.Map {
+		keyType1, keyType2 := container1.Type().Key(), container2.Type().Key()
+		if keyType1 != keyType2 {
+			return false, fmt.Sprintf("maps have different key types: %s != %s", keyType1, keyType2)
+		}
 	}
 
 	return true, ""

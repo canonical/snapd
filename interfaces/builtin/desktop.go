@@ -377,7 +377,6 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 		// Extra rules that have not been ported to work with
 		// a desktop slot provided by a snap.
 		spec.AddSnippet(desktopConnectedPlugAppArmorClassic)
-
 	}
 
 	// Allow mounting document portal

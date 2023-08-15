@@ -24,7 +24,7 @@ SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
 # prefix will not be installed on the host!
 SYSTEMD_UNITS_GENERATED := $(wildcard *.in)
 # NOTE: sort removes duplicates so this gives us all the units, generated or otherwise
-SYSTEMD_UNITS = $(sort $(SYSTEMD_UNITS_GENERATED:.in=) $(wildcard *.service) $(wildcard *.timer) $(wildcard *.socket))
+SYSTEMD_UNITS = $(sort $(SYSTEMD_UNITS_GENERATED:.in=) $(wildcard *.service) $(wildcard *.timer) $(wildcard *.socket) $(wildcard *.target))
 
 .PHONY: all
 all: $(SYSTEMD_UNITS) check

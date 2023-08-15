@@ -26,6 +26,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord"
@@ -254,9 +255,46 @@ func MockConfigstateConfigureInstalled(f func(st *state.State, name string, patc
 	}
 }
 
+func MockSystemHold(f func(st *state.State, name string) (time.Time, error)) (restore func()) {
+	old := snapstateSystemHold
+	snapstateSystemHold = f
+	return func() {
+		snapstateSystemHold = old
+	}
+}
+
+func MockLongestGatingHold(f func(st *state.State, name string) (time.Time, error)) (restore func()) {
+	old := snapstateLongestGatingHold
+	snapstateLongestGatingHold = f
+	return func() {
+		snapstateLongestGatingHold = old
+	}
+}
+
 func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error) func() {
 	reboot = f
 	return func() { reboot = boot.Reboot }
+}
+
+func MockSideloadSnapsInfo(sis []*snap.SideInfo) (restore func()) {
+	r := testutil.Backup(&sideloadSnapsInfo)
+	sideloadSnapsInfo = func(st *state.State, snapFiles []*uploadedSnap,
+		flags sideloadFlags) (*sideloadedInfo, *apiError) {
+
+		names := make([]string, len(snapFiles))
+		sideInfos := make([]*snap.SideInfo, len(snapFiles))
+		origPaths := make([]string, len(snapFiles))
+		tmpPaths := make([]string, len(snapFiles))
+		for i, snapFile := range snapFiles {
+			sideInfos[i] = sis[i]
+			names[i] = sis[i].RealName
+			origPaths[i] = snapFile.filename
+			tmpPaths[i] = snapFile.tmpPath
+		}
+		return &sideloadedInfo{sideInfos: sideInfos, names: names,
+			origPaths: origPaths, tmpPaths: tmpPaths}, nil
+	}
+	return r
 }
 
 type (
@@ -296,3 +334,25 @@ var (
 
 	MaxReadBuflen = maxReadBuflen
 )
+
+func MockAspectstateGet(f func(databag aspects.DataBag, account, bundleName, aspect, field string, value interface{}) error) (restore func()) {
+	old := aspectstateGetAspect
+	aspectstateGetAspect = f
+	return func() {
+		aspectstateGetAspect = old
+	}
+}
+
+func MockAspectstateSet(f func(databag aspects.DataBag, account, bundleName, aspect, field string, val interface{}) error) (restore func()) {
+	old := aspectstateSetAspect
+	aspectstateSetAspect = f
+	return func() {
+		aspectstateSetAspect = old
+	}
+}
+
+func MockRebootNoticeWait(d time.Duration) (restore func()) {
+	restore = testutil.Backup(&rebootNoticeWait)
+	rebootNoticeWait = d
+	return restore
+}

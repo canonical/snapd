@@ -777,13 +777,13 @@ func (safs *signAddFindSuite) TestNotFoundError(c *C) {
 			"snap-id": "snap-id",
 		},
 	}
-	c.Check(asserts.IsNotFound(err1), Equals, true)
+	c.Check(errors.Is(err1, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err1.Error(), Equals, "snap-declaration (snap-id; series:16) not found")
 
 	err2 := &asserts.NotFoundError{
 		Type: asserts.SnapRevisionType,
 	}
-	c.Check(asserts.IsNotFound(err1), Equals, true)
+	c.Check(errors.Is(err2, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err2.Error(), Equals, "snap-revision assertion not found")
 }
 
@@ -995,7 +995,7 @@ func (safs *signAddFindSuite) TestFindTrusted(c *C) {
 	_, err = safs.db.FindTrusted(asserts.AccountType, map[string]string{
 		"account-id": "predefined",
 	})
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (safs *signAddFindSuite) TestFindPredefined(c *C) {
@@ -1148,7 +1148,7 @@ func (safs *signAddFindSuite) TestFindManyPredefined(c *C) {
 		"account-id":          acct1.AccountID(),
 		"public-key-sha3-384": acct1Key.PublicKeyID(),
 	})
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrustedOnes(c *C) {
@@ -1403,7 +1403,7 @@ func (safs *signAddFindSuite) TestWithStackedBackstore(c *C) {
 	_, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
 		"primary-key": "two",
 	})
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	_, err = stacked.Find(asserts.AccountKeyType, map[string]string{
 		"public-key-sha3-384": safs.signingKeyID,
@@ -1574,6 +1574,80 @@ func (safs *signAddFindSuite) TestFindSequence(c *C) {
 		Type: asserts.TestOnlySeqType, Headers: seqHeaders,
 	})
 
+}
+
+func (safs *signAddFindSuite) TestCheckConstraints(c *C) {
+	headers := map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "my-brand",
+		"display-name": "My Brand",
+		"validation":   "verified",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	acct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(acct)
+	c.Check(err, IsNil)
+
+	pubKey1 := testPrivKey1.PublicKey()
+	pubKey1Encoded, err := asserts.EncodePublicKey(pubKey1)
+	c.Assert(err, IsNil)
+
+	now := time.Now().UTC()
+	headers = map[string]interface{}{
+		"authority-id":        "canonical",
+		"format":              "1",
+		"account-id":          "my-brand",
+		"public-key-sha3-384": pubKey1.ID(),
+		"name":                "default",
+		"since":               now.Format(time.RFC3339),
+		"until":               now.AddDate(1, 0, 0).Format(time.RFC3339),
+		"constraints": []interface{}{
+			map[string]interface{}{
+				"headers": map[string]interface{}{
+					"type":  "model",
+					"model": "foo-.*",
+				},
+			},
+		},
+	}
+	accKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, []byte(pubKey1Encoded), safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(accKey)
+	c.Check(err, IsNil)
+
+	headers = map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"series":       "16",
+		"model":        "foo-200",
+		"classic":      "true",
+		"timestamp":    now.Format(time.RFC3339),
+	}
+	mfoo, err := asserts.AssembleAndSignInTest(asserts.ModelType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(mfoo)
+	c.Check(err, IsNil)
+
+	headers = map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"series":       "16",
+		"model":        "goo-200",
+		"classic":      "true",
+		"timestamp":    now.Format(time.RFC3339),
+	}
+	mnotfoo, err := asserts.AssembleAndSignInTest(asserts.ModelType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(mnotfoo)
+	c.Check(err, ErrorMatches, `assertion does not match signing constraints for public key ".*" from "my-brand"`)
 }
 
 type revisionErrorSuite struct{}

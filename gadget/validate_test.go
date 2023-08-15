@@ -47,20 +47,23 @@ func (s *validateGadgetTestSuite) SetUpTest(c *C) {
 
 func (s *validateGadgetTestSuite) TestRuleValidateStructureReservedLabels(c *C) {
 	for _, tc := range []struct {
-		role, label, err string
-		model            gadget.Model
+		role, label, fs, err string
+		model                gadget.Model
 	}{
-		{label: "ubuntu-seed", err: `label "ubuntu-seed" is reserved`},
-		{label: "ubuntu-data", err: `label "ubuntu-data" is reserved`},
+		{label: "ubuntu-seed", fs: "vfat", err: `label "ubuntu-seed" is reserved`},
+		{label: "UBUNTU-SEED", fs: "vfat", err: `label "UBUNTU-SEED" is reserved`},
+		{label: "ubuntu-data", fs: "ext4", err: `label "ubuntu-data" is reserved`},
+		// not reserved as it os not vfat and case is enforced
+		{label: "UBUNTU-DATA", fs: "ext4"},
 		// ok to allow hybrid 20-ready devices
-		{label: "ubuntu-boot"},
-		{label: "ubuntu-save"},
+		{label: "ubuntu-boot", fs: "ext4"},
+		{label: "ubuntu-save", fs: "ext4"},
 		// reserved only if seed present/expected
-		{label: "ubuntu-boot", err: `label "ubuntu-boot" is reserved`, model: uc20Mod},
-		{label: "ubuntu-save", err: `label "ubuntu-save" is reserved`, model: uc20Mod},
+		{label: "ubuntu-boot", fs: "ext4", err: `label "ubuntu-boot" is reserved`, model: uc20Mod},
+		{label: "ubuntu-save", fs: "ext4", err: `label "ubuntu-save" is reserved`, model: uc20Mod},
 		// these are ok
-		{role: "system-boot", label: "ubuntu-boot"},
-		{label: "random-ubuntu-label"},
+		{role: "system-boot", fs: "ext4", label: "ubuntu-boot"},
+		{label: "random-ubuntu-label", fs: "ext4"},
 	} {
 		gi := &gadget.Info{
 			Volumes: map[string]*gadget.Volume{
@@ -68,7 +71,7 @@ func (s *validateGadgetTestSuite) TestRuleValidateStructureReservedLabels(c *C) 
 					Structure: []gadget.VolumeStructure{{
 						Type:       "21686148-6449-6E6F-744E-656564454649",
 						Role:       tc.role,
-						Filesystem: "ext4",
+						Filesystem: tc.fs,
 						Label:      tc.label,
 						Size:       10 * 1024,
 					}},
@@ -111,6 +114,7 @@ func rolesYaml(c *C, data, seed, save string) *gadget.Info {
         size: 1G
         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
         role: system-seed
+        filesystem: vfat
 `
 		if seed != "" {
 			h += fmt.Sprintf("        filesystem-label: %s\n", seed)
@@ -142,6 +146,9 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 		}
 		return rolesYaml(c, dataLabel, seed, "-")
 	}
+	ginfoSeed := func(seedLabel string) *gadget.Info {
+		return rolesYaml(c, "", seedLabel, "-")
+	}
 
 	for i, tc := range []struct {
 		gi  *gadget.Info
@@ -159,6 +166,11 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 		{ginfo(false, "foobar"), `.* must have an implicit label or "writable", not "foobar"`},
 		{ginfo(false, "writable"), ""},
 		{ginfo(false, "ubuntu-data"), `.* must have an implicit label or "writable", not "ubuntu-data"`},
+		{ginfo(false, "WRITABLE"), `.* must have an implicit label or "writable", not "WRITABLE"`},
+		{ginfoSeed("ubuntu-seed"), ""},
+		// It is a vfat partition so this is fine
+		{ginfoSeed("UBUNTU-SEED"), ""},
+		{ginfoSeed("ubuntu-foo"), `.* must have an implicit label or "ubuntu-seed", not "ubuntu-foo"`},
 	} {
 		c.Logf("tc: %d %v", i, tc.gi.Volumes["roles"])
 
@@ -457,7 +469,7 @@ volumes:
 
 func (s *validateGadgetTestSuite) TestValidateRoleDuplicated(c *C) {
 
-	for _, role := range []string{"system-seed", "system-data", "system-boot", "system-save"} {
+	for _, role := range []string{"system-seed", "system-seed-null", "system-data", "system-boot", "system-save"} {
 		gadgetYamlContent := fmt.Sprintf(`
 volumes:
   pc:
@@ -483,7 +495,7 @@ volumes:
 
 func (s *validateGadgetTestSuite) TestValidateSystemSeedRoleTwiceAcrossVolumes(c *C) {
 
-	for _, role := range []string{"system-seed", "system-data", "system-boot", "system-save"} {
+	for _, role := range []string{"system-seed", "system-seed-null", "system-data", "system-boot", "system-save"} {
 		gadgetYamlContent := fmt.Sprintf(`
 volumes:
   pc:
@@ -507,6 +519,31 @@ volumes:
 		err = gadget.Validate(ginfo, nil, nil)
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot have more than one partition with %s role across volumes`, role))
 	}
+}
+
+func (s *validateGadgetTestSuite) TestValidateSystemSeedAndSeedNullRolesAcrossVolumes(c *C) {
+	gadgetYamlContent := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        role: system-seed
+  other:
+    structure:
+      - name: bar
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        role: system-seed-null
+`
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
+
+	ginfo, err := gadget.ReadInfo(s.dir, nil)
+	c.Assert(err, IsNil)
+	err = gadget.Validate(ginfo, nil, nil)
+	c.Assert(err, ErrorMatches, "cannot have more than one partition with system-seed/system-seed-null role across volumes")
 }
 
 func (s *validateGadgetTestSuite) TestRuleValidateHybridGadget(c *C) {
@@ -1185,4 +1222,54 @@ volumes:
 
 	err = gadget.Validate(giMeta, mod, nil)
 	c.Check(err, ErrorMatches, `system-boot and system-save are expected to share the same volume`)
+}
+
+func (s *validateGadgetTestSuite) TestValidateClassicWithModesNoEncryptHappy(c *C) {
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgettest.SingleVolumeClassicwithModesNoEncryptGadgetYaml))
+	mod := &gadgettest.ModelCharacteristics{HasModes: true, IsClassic: true}
+	ginfo, err := gadget.ReadInfo(s.dir, mod)
+	c.Assert(err, IsNil)
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, ErrorMatches, `gadget does not support encrypted data: required partition with system-save role is missing`)
+
+	// Now validate without model
+	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, ErrorMatches, `gadget does not support encrypted data: required partition with system-save role is missing`)
+
+	// Should be fine if no encryption
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{})
+	c.Assert(err, IsNil)
+
+	// Now validate without model
+	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{})
+	c.Assert(err, IsNil)
+}
+
+func (s *validateGadgetTestSuite) TestValidateClassicWithModesEncryptHappy(c *C) {
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgettest.SingleVolumeClassicwithModesEncryptGadgetYaml))
+	mod := &gadgettest.ModelCharacteristics{HasModes: true, IsClassic: true}
+	ginfo, err := gadget.ReadInfo(s.dir, mod)
+	c.Assert(err, IsNil)
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, IsNil)
+
+	// Now validate without model
+	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, IsNil)
+
+	// Should be fine if no encryption
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{})
+	c.Assert(err, IsNil)
+
+	// Now validate without model
+	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{})
+	c.Assert(err, IsNil)
 }

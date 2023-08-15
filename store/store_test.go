@@ -148,6 +148,7 @@ const (
 	snapActionPath  = "/v2/snaps/refresh"
 	infoPathPattern = "/v2/snaps/info/.*"
 	cohortsPath     = "/v2/cohorts"
+	categoriesPath  = "/v2/snaps/categories"
 )
 
 // Build details path for a snap name.
@@ -1069,34 +1070,35 @@ const mockSingleOrderJSON = `{
   ]
 }`
 
-/* acquired via
-
-http --pretty=format --print b https://api.snapcraft.io/v2/snaps/info/hello-world architecture==amd64 fields==architectures,base,confinement,links,contact,created-at,description,download,epoch,license,name,prices,private,publisher,revision,snap-id,snap-yaml,summary,title,type,version,media,common-ids,website Snap-Device-Series:16 | xsel -b
-
-on 2022-10-20. Then, by hand:
-- set prices to {"EUR": "0.99", "USD": "1.23"},
-- set base in first channel-map entry to "bogus-base",
-- set snap-yaml in first channel-map entry to the one from the 'edge', plus the following pastiche:
-apps:
-  content-plug:
-    command: bin/content-plug
-    plugs: [shared-content-plug]
-plugs:
-  shared-content-plug:
-    interface: content
-    target: import
-    content: mylib
-    default-provider: test-snapd-content-slot
-slots:
-  shared-content-slot:
-    interface: content
-    content: mylib
-    read:
-      - /
-
-- change edge entry to have different revision, version and "released-at" to something randomish
-
-*/
+// acquired via:
+// http --pretty=format --print b https://api.snapcraft.io/v2/snaps/info/hello-world architecture==amd64 fields==architectures,base,confinement,links,contact,created-at,description,download,epoch,license,name,prices,private,publisher,revision,snap-id,snap-yaml,summary,title,type,version,media,common-ids,website Snap-Device-Series:16 | xsel -b
+// on 2022-10-20. Then, by hand:
+// set prices to {"EUR": "0.99", "USD": "1.23"},
+// set base in first channel-map entry to "bogus-base",
+// set snap-yaml in first channel-map entry to the one from the 'edge', plus the following pastiche:
+// apps:
+//
+//	  content-plug:
+//		   command: bin/content-plug
+//		   plugs: [shared-content-plug]
+//
+// plugs:
+//
+//	  shared-content-plug:
+//		   interface: content
+//		   target: import
+//		   content: mylib
+//		   default-provider: test-snapd-content-slot
+//
+// slots:
+//
+//	  shared-content-slot:
+//		   interface: content
+//		   content: mylib
+//		   read:
+//		     - /
+//
+// Then change edge entry to have different revision, version and "released-at" to something randomish
 const mockInfoJSON = `{
     "channel-map": [
         {
@@ -1265,6 +1267,16 @@ const mockInfoJSON = `{
                 "width": null
             }
         ],
+        "categories": [
+            {
+                "featured": true,
+                "name": "featured"
+            },
+            {
+                "featured": false,
+                "name": "productivity"
+            }
+        ],
         "name": "hello-world",
         "prices": {"EUR": "0.99", "USD": "1.23"},
         "private": true,
@@ -1358,6 +1370,15 @@ func (s *storeTestSuite) TestInfo(c *C) {
 		}, {
 			Type: "video",
 			URL:  "https://vimeo.com/194577403",
+		},
+	})
+	c.Check(result.Categories, DeepEquals, []snap.CategoryInfo{
+		{
+			Featured: true,
+			Name:     "featured",
+		}, {
+			Featured: false,
+			Name:     "productivity",
 		},
 	})
 	c.Check(result.MustBuy, Equals, true)
@@ -1977,14 +1998,11 @@ func (s *storeTestSuite) TestExistsNotFound(c *C) {
 	c.Assert(ch, IsNil)
 }
 
-/*
-acquired via
-
-http --pretty=format --print b https://api.snapcraft.io/v2/snaps/info/no:such:package architecture==amd64 fields==architectures,base,confinement,contact,created-at,description,download,epoch,license,name,prices,private,publisher,revision,snap-id,snap-yaml,summary,title,type,version,media,common-ids Snap-Device-Series:16 | xsel -b
-
-on 2018-06-14
-
-*/
+// acquired via:
+//
+// http --pretty=format --print b https://api.snapcraft.io/v2/snaps/info/no:such:package architecture==amd64 fields==architectures,base,confinement,contact,created-at,description,download,epoch,license,name,prices,private,publisher,revision,snap-id,snap-yaml,summary,title,type,version,media,common-ids Snap-Device-Series:16 | xsel -b
+//
+// on 2018-06-14
 const MockNoDetailsJSON = `{
     "error-list": [
         {
@@ -2021,7 +2039,9 @@ func (s *storeTestSuite) TestNoInfo(c *C) {
 	c.Assert(result, IsNil)
 }
 
-/* acquired via looking at the query snapd does for "snap find 'hello-world of snaps' --narrow" (on core) and adding size=1:
+/*
+	acquired via looking at the query snapd does for "snap find 'hello-world of snaps' --narrow" (on core) and adding size=1:
+
 curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64" 'https://api.snapcraft.io/api/v1/snaps/search?confinement=strict&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Clicense%2Cbase%2Cmedia%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cdeveloper_name%2Cdeveloper_validation%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello-world+of+snaps&size=1' | python -m json.tool | xsel -b
 
 And then add base and prices, increase title's length, and remove the _links dict
@@ -2057,6 +2077,16 @@ const mockSearchJSON = `{
                     {
                         "type": "screenshot",
                         "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
+                    }
+                ],
+                "categories": [
+                    {
+                        "featured": true,
+                        "name": "featured"
+                    },
+                    {
+                        "featured": false,
+                        "name": "productivity"
                     }
                 ],
                 "origin": "canonical",
@@ -2115,6 +2145,16 @@ const mockSearchJSONv2 = `
                   {
                     "type": "screenshot",
                     "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
+                  }
+                ],
+                "categories": [
+                  {
+                    "featured": true,
+                    "name": "featured"
+                  },
+                  {
+                    "featured": false,
+                    "name": "productivity"
                   }
                 ],
                 "prices": {"EUR": "2.99", "USD": "3.49"},
@@ -2218,7 +2258,9 @@ func (s *storeTestSuite) TestFindV1Queries(c *C) {
 	c.Check(v1Fallback, Equals, true)
 }
 
-/* acquired via:
+/*
+	acquired via:
+
 curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://api.snapcraft.io/api/v1/snaps/sections'
 */
 const MockSectionsJSON = `{
@@ -2361,6 +2403,57 @@ func (s *storeTestSuite) TestSectionsQueryErrors(c *C) {
 
 	_, err := sto.Sections(s.ctx, s.user)
 	c.Assert(err, ErrorMatches, `cannot retrieve sections: got unexpected HTTP status code 500 via GET to.*`)
+}
+
+/*
+	acquired via:
+
+curl -s -H "accept: application/json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://api.snapcraft.io/v2/snaps/categories'
+*/
+const MockCategoriesJSON = `{
+    "categories": [
+        {
+            "name": "featured"
+        },
+        {
+            "name": "database"
+        }
+    ]
+}
+`
+
+func (s *storeTestSuite) TestCategoriesQuery(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", categoriesPath)
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
+		switch n {
+		case 0:
+			// All good.
+		default:
+			c.Fatalf("unexpected request to %q", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		io.WriteString(w, MockCategoriesJSON)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: serverURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	categories, err := sto.Categories(s.ctx, s.user)
+	c.Check(err, IsNil)
+	c.Check(categories, DeepEquals, []store.CategoryDetails{{Name: "featured"}, {Name: "database"}})
+	c.Check(n, Equals, 1)
 }
 
 const mockNamesJSON = `
@@ -2636,6 +2729,15 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 		c.Check(snp.Website(), Equals, "https://ubuntu.com")
 		c.Check(snp.StoreURL, Equals, "https://snapcraft.io/hello-world")
 		c.Check(snp.CommonIDs, DeepEquals, []string{"aaa", "bbb"})
+		c.Check(snp.Categories, DeepEquals, []snap.CategoryInfo{
+			{
+				Featured: true,
+				Name:     "featured",
+			}, {
+				Featured: false,
+				Name:     "productivity",
+			},
+		})
 		c.Check(v2Hit, Equals, true)
 	}
 }
@@ -2656,7 +2758,7 @@ func (s *storeTestSuite) TestFindV2FindFields(c *C) {
 	findFields := sto.FindFields()
 	sort.Strings(findFields)
 	c.Assert(findFields, DeepEquals, []string{
-		"base", "channel", "common-ids", "confinement", "contact",
+		"base", "categories", "channel", "common-ids", "confinement", "contact",
 		"description", "download", "license", "links", "media", "prices", "private",
 		"publisher", "revision", "store-url", "summary", "title", "type",
 		"version", "website"})

@@ -38,7 +38,8 @@ var (
 	RemoveCreatedPartitions = removeCreatedPartitions
 	EnsureNodesExist        = ensureNodesExist
 
-	CreatedDuringInstall = createdDuringInstall
+	CreatedDuringInstall        = createdDuringInstall
+	TestCreateMissingPartitions = createMissingPartitions
 )
 
 func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
@@ -57,7 +58,7 @@ func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
 	}
 }
 
-func MockEnsureNodesExist(f func(dss []gadget.OnDiskStructure, timeout time.Duration) error) (restore func()) {
+func MockEnsureNodesExist(f func(nodes []string, timeout time.Duration) error) (restore func()) {
 	old := ensureNodesExist
 	ensureNodesExist = f
 	return func() {
@@ -79,17 +80,6 @@ func MockSysfsPathForBlockDevice(f func(device string) (string, error)) (restore
 	return func() {
 		sysfsPathForBlockDevice = old
 	}
-}
-
-func BuildEncryptionSetupData(labelToEncDevice map[string]string) *EncryptionSetupData {
-	esd := &EncryptionSetupData{
-		parts: map[string]partEncryptionData{}}
-	for label, encryptDev := range labelToEncDevice {
-		esd.parts[label] = partEncryptionData{
-			encryptedDevice: encryptDev,
-		}
-	}
-	return esd
 }
 
 func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevice map[string]string) error {

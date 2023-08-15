@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -59,6 +59,21 @@ func (pol *policy20) checkDefaultChannel(channel.Channel) error {
 
 func (pol *policy20) checkSnapChannel(ch channel.Channel, whichSnap string) error {
 	return pol.checkAllowedDangerous()
+}
+
+func (pol *policy20) checkClassicSnap(sn *SeedSnap) error {
+	if pol.model.Grade() == asserts.ModelDangerous {
+		// implicit classic snaps are accepted
+		return nil
+	}
+	modSnap, ok := sn.SnapRef.(*asserts.ModelSnap)
+	if !ok {
+		return fmt.Errorf("internal error: extra snap with non-dangerous grade")
+	}
+	if !modSnap.Classic {
+		return fmt.Errorf("cannot use classic snap %q with a model of grade higher than dangerous that does not allow it explicitly (missing classic: true in snap stanza)", modSnap.Name)
+	}
+	return nil
 }
 
 func (pol *policy20) systemSnap() *asserts.ModelSnap {
@@ -139,6 +154,20 @@ func (pol *policy20) implicitSnaps(map[string]*naming.SnapSet) []*asserts.ModelS
 
 func (pol *policy20) implicitExtraSnaps(map[string]*naming.SnapSet) []*OptionsSnap {
 	return nil
+}
+
+func (pol *policy20) recordSnapNameUsage(_ string) {}
+
+func (pol *policy20) isSystemSnapCandidate(sn *SeedSnap) bool {
+	if sn.modelSnap != nil {
+		return sn.modelSnap.SnapType == "snapd"
+	}
+	return false
+}
+
+func (pol *policy20) ignoreUndeterminedSystemSnap() bool {
+	// a system snap should always be known
+	return false
 }
 
 type tree20 struct {
@@ -285,7 +314,7 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 			refs := make(chan *asserts.Ref)
 			go func() {
 				for _, sn := range snaps {
-					for _, aRef := range sn.ARefs {
+					for _, aRef := range sn.aRefs {
 						if !pushRef(refs, aRef, stop) {
 							return
 						}

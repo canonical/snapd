@@ -27,6 +27,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/snapcore/snapd/overlord/aspectstate"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -58,6 +59,7 @@ var api = []*Command{
 	snapctlCmd,
 	usersCmd,
 	sectionsCmd,
+	categoriesCmd,
 	aliasesCmd,
 	appsCmd,
 	logsCmd,
@@ -80,6 +82,7 @@ var api = []*Command{
 	systemRecoveryKeysCmd,
 	quotaGroupsCmd,
 	quotaGroupInfoCmd,
+	aspectsCmd,
 }
 
 const (
@@ -147,11 +150,16 @@ var (
 	snapstateSwitch                         = snapstate.Switch
 	snapstateProceedWithRefresh             = snapstate.ProceedWithRefresh
 	snapstateHoldRefreshesBySystem          = snapstate.HoldRefreshesBySystem
+	snapstateLongestGatingHold              = snapstate.LongestGatingHold
+	snapstateSystemHold                     = snapstate.SystemHold
 
 	configstateConfigureInstalled = configstate.ConfigureInstalled
 
 	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
+
+	aspectstateGetAspect = aspectstate.GetAspect
+	aspectstateSetAspect = aspectstate.SetAspect
 )
 
 func ensureStateSoonImpl(st *state.State) {

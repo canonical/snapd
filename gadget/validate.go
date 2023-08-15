@@ -56,10 +56,11 @@ type roleInstance struct {
 
 func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *ValidationConstraints) error {
 	roles := map[string]*roleInstance{
-		SystemSeed: nil,
-		SystemBoot: nil,
-		SystemData: nil,
-		SystemSave: nil,
+		SystemSeed:     nil,
+		SystemSeedNull: nil,
+		SystemBoot:     nil,
+		SystemData:     nil,
+		SystemSave:     nil,
 	}
 
 	xvols := ""
@@ -82,6 +83,9 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 			}
 		}
 	}
+	if roles[SystemSeed] != nil && roles[SystemSeedNull] != nil {
+		return fmt.Errorf("cannot have more than one partition with %s/%s role%s", SystemSeed, SystemSeedNull, xvols)
+	}
 
 	hasModes := false
 	// Classic with gadget + kernel snaps
@@ -95,6 +99,13 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 		// if system-seed role is mentioned assume the uc20
 		// consistency rules
 		hasModes = roles[SystemSeed] != nil
+		// if system-seed-null, this is classic with modes
+		// Note that this will not be true if we use this role in
+		// the future for UC cloud images.
+		if roles[SystemSeedNull] != nil {
+			hasModes = true
+			isClassicWithModes = true
+		}
 	}
 
 	for name, v := range vols {
@@ -178,9 +189,10 @@ func validateReservedLabels(vs *VolumeStructure, reservedLabels []string) error 
 	if vs.Label == "" {
 		return nil
 	}
-	if strutil.ListContains(reservedLabels, vs.Label) {
-		// a structure without a role uses one of reserved labels
-		return fmt.Errorf("label %q is reserved", vs.Label)
+	for _, reservedLabel := range reservedLabels {
+		if vs.HasLabel(reservedLabel) {
+			return fmt.Errorf("label %q is reserved", vs.Label)
+		}
 	}
 	return nil
 }
@@ -250,7 +262,7 @@ func ensureRolesConsistencyClassicWithModes(roles map[string]*roleInstance) erro
 
 	// Make sure labels are as expected - save is optional
 	roleLabelToCheck := []roleLabel{roleLabelBoot, roleLabelData}
-	roleLabelOptional := []roleLabel{roleLabelSeed, roleLabelSave}
+	roleLabelOptional := []roleLabel{roleLabelSeed, roleLabelSeedNull, roleLabelSave}
 	for _, rlLb := range roleLabelOptional {
 		if roles[rlLb.role] != nil {
 			roleLabelToCheck = append(roleLabelToCheck, rlLb)
@@ -260,11 +272,11 @@ func ensureRolesConsistencyClassicWithModes(roles map[string]*roleInstance) erro
 		return err
 	}
 
-	// Check that boot/seed/save are in the same volume
+	// Check that boot/seed/seed-null/save are in the same volume
 	bootVolName := roles[SystemBoot].volName
-	for _, rlLb := range roleLabelOptional {
-		if roles[rlLb.role] != nil && roles[rlLb.role].volName != bootVolName {
-			return fmt.Errorf("system-boot and %s are expected to share the same volume", rlLb.role)
+	for _, role := range []string{SystemSeed, SystemSeedNull, SystemSave} {
+		if roles[role] != nil && roles[role].volName != bootVolName {
+			return fmt.Errorf("system-boot and %s are expected to share the same volume", role)
 		}
 	}
 	return nil
@@ -288,10 +300,11 @@ type roleLabel struct {
 }
 
 var (
-	roleLabelSeed = roleLabel{role: SystemSeed, label: ubuntuSeedLabel}
-	roleLabelBoot = roleLabel{role: SystemBoot, label: ubuntuBootLabel}
-	roleLabelSave = roleLabel{role: SystemSave, label: ubuntuSaveLabel}
-	roleLabelData = roleLabel{role: SystemData, label: ubuntuDataLabel}
+	roleLabelSeed     = roleLabel{role: SystemSeed, label: ubuntuSeedLabel}
+	roleLabelSeedNull = roleLabel{role: SystemSeedNull, label: ubuntuSeedLabel}
+	roleLabelBoot     = roleLabel{role: SystemBoot, label: ubuntuBootLabel}
+	roleLabelSave     = roleLabel{role: SystemSave, label: ubuntuSaveLabel}
+	roleLabelData     = roleLabel{role: SystemData, label: ubuntuDataLabel}
 )
 
 func checkImplicitLabels(roles map[string]*roleInstance, roleLabels ...roleLabel) error {
@@ -300,7 +313,7 @@ func checkImplicitLabels(roles map[string]*roleInstance, roleLabels ...roleLabel
 		if volStruct == nil {
 			return fmt.Errorf("internal error: %q not in volume", rlLb.role)
 		}
-		if volStruct.Label != "" && volStruct.Label != rlLb.label {
+		if volStruct.Label != "" && !volStruct.HasLabel(rlLb.label) {
 			return fmt.Errorf("%s structure must have an implicit label or %q, not %q", rlLb.role, rlLb.label, volStruct.Label)
 		}
 	}
@@ -347,7 +360,7 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 		if !s.HasFilesystem() {
 			continue
 		}
-		for _, c := range s.Content {
+		for _, c := range s.VolumeStructure.Content {
 			// TODO: detect and skip Content with "$kernel:" style
 			// refs if there is no kernelSnapRootDir passed in as
 			// well
@@ -391,7 +404,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 		if kernelSnapRootDir == "" {
 			opts.SkipResolveContent = true
 		}
-		lv, err := LayoutVolume(vol, DefaultConstraints, opts)
+		lv, err := LayoutVolume(vol, nil, opts)
 		if err != nil {
 			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}

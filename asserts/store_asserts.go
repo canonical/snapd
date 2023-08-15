@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -76,7 +77,7 @@ func (store *Store) checkConsistency(db RODatabase, acck *AccountKey) error {
 
 	_, err := db.Find(AccountType, map[string]string{"account-id": store.OperatorID()})
 	if err != nil {
-		if IsNotFound(err) {
+		if errors.Is(err, &NotFoundError{}) {
 			return fmt.Errorf(
 				"store assertion %q does not have a matching account assertion for the operator %q",
 				store.Store(), store.OperatorID())

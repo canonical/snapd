@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -206,13 +207,39 @@ func (s *usersSuite) TestUserActionRemoveDelUserErr(c *check.C) {
 	})()
 
 	s.state.Lock()
-	userState, userErr := devicestate.RemoveUser(s.state, "some-user")
+	userState, userErr := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{})
 	s.state.Unlock()
 	c.Check(userErr, check.NotNil)
 	c.Check(s.errorIsInternal(err), check.Equals, true)
 	c.Check(userErr.Error(), check.Matches, "wat")
 	c.Assert(userState, check.IsNil)
 	c.Check(called, check.Equals, 1)
+}
+
+func (s *usersSuite) TestUserActionRemoveDelUserForce(c *check.C) {
+	s.state.Lock()
+	_, err := auth.NewUser(s.state, auth.NewUserParams{
+		Username:   "some-user",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	s.state.Unlock()
+	c.Check(err, check.IsNil)
+
+	calls := 0
+	defer devicestate.MockOsutilDelUser(func(username string, opts *osutil.DelUserOptions) error {
+		calls++
+		c.Check(username, check.Equals, "some-user")
+		c.Check(opts.Force, check.Equals, true)
+		return nil
+	})()
+
+	s.state.Lock()
+	_, err = devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{Force: true})
+	s.state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(calls, check.Equals, 1)
 }
 
 func (s *usersSuite) TestUserActionRemoveStateErr(c *check.C) {
@@ -227,7 +254,7 @@ func (s *usersSuite) TestUserActionRemoveStateErr(c *check.C) {
 	})()
 
 	s.state.Lock()
-	userState, err := devicestate.RemoveUser(s.state, "some-user")
+	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{})
 	s.state.Unlock()
 
 	c.Check(err, check.NotNil)
@@ -246,7 +273,7 @@ func (s *usersSuite) TestUserActionRemoveNoUserInState(c *check.C) {
 	})
 
 	s.state.Lock()
-	userState, err := devicestate.RemoveUser(s.state, "some-user")
+	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{})
 	s.state.Unlock()
 
 	c.Check(err, check.NotNil)
@@ -275,7 +302,7 @@ func (s *usersSuite) TestUserActionRemove(c *check.C) {
 	})()
 
 	s.state.Lock()
-	userState, err := devicestate.RemoveUser(s.state, "some-user")
+	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{})
 	s.state.Unlock()
 
 	c.Check(err, check.IsNil)
@@ -293,7 +320,7 @@ func (s *usersSuite) TestUserActionRemove(c *check.C) {
 
 func (s *usersSuite) TestUserActionRemoveNoUsername(c *check.C) {
 
-	userState, err := devicestate.RemoveUser(s.state, "")
+	userState, err := devicestate.RemoveUser(s.state, "", &devicestate.RemoveUserOptions{})
 	c.Check(err, check.NotNil)
 	c.Check(err.Error(), check.Matches, "need a username to remove")
 	c.Check(s.errorIsInternal(err), check.Equals, false)
@@ -718,24 +745,16 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownNoModelError(c *check.C)
 	c.Assert(createdUsers, check.IsNil)
 }
 
-func (s *usersSuite) TestCreateUserFromAssertionNoModel(c *check.C) {
+func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
-	model := s.brands.Model("my-brand", "other-model", map[string]interface{}{
-		"architecture":          "amd64",
-		"gadget":                "pc",
-		"kernel":                "pc-kernel",
-		"system-user-authority": []interface{}{"my-brand", "partner"},
-	})
 
 	s.state.Lock()
-	assertstatetest.AddMany(s.state, model)
 	err := devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand:  "my-brand",
-		Model:  "my-model",
-		Serial: "other-serial-assertion",
+		Brand: "my-brand",
+		Model: "my-model",
 	})
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
@@ -749,6 +768,34 @@ func (s *usersSuite) TestCreateUserFromAssertionNoModel(c *check.C) {
 	c.Check(userErr.Error(), check.Matches, `cannot create user "serial@bar.com": bound to serial assertion but device not yet registered`)
 	c.Check(s.errorIsInternal(userErr), check.Equals, false)
 	c.Assert(createdUsers, check.IsNil)
+}
+
+func (s *usersSuite) TestCreateAllKnownUsersFromAssertionNoSerial(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
+
+	s.state.Lock()
+	err := devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+	})
+	s.state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// create user
+	s.state.Lock()
+	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "")
+	s.state.Unlock()
+
+	c.Check(userErr, check.IsNil)
+	c.Assert(createdUsers, check.IsNil)
+
+	c.Check(logbuf.String(), check.Matches, `(?s).*ignoring system-user assertion for "serial@bar\.com": bound to serial assertion but device not yet registered.*`)
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {

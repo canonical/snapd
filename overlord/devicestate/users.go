@@ -53,6 +53,10 @@ func (e *UserError) Error() string {
 	return e.Err.Error()
 }
 
+type RemoveUserOptions struct {
+	Force bool
+}
+
 // CreatedUser holds the results from a create user operation.
 type CreatedUser struct {
 	Username string
@@ -111,8 +115,11 @@ func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUse
 }
 
 // RemoveUser removes linux user account of passed username.
-func RemoveUser(st *state.State, username string) (*auth.UserState, error) {
+func RemoveUser(st *state.State, username string, opts *RemoveUserOptions) (*auth.UserState, error) {
 	// TODO: allow to remove user entries by email as well
+	if opts == nil {
+		opts = &RemoveUserOptions{}
+	}
 
 	// catch silly errors
 	if username == "" {
@@ -129,7 +136,11 @@ func RemoveUser(st *state.State, username string) (*auth.UserState, error) {
 	}
 
 	// first remove the system user
-	if err := osutilDelUser(username, &osutil.DelUserOptions{ExtraUsers: !release.OnClassic}); err != nil {
+	delUseropts := &osutil.DelUserOptions{
+		ExtraUsers: !release.OnClassic,
+		Force:      opts.Force,
+	}
+	if err := osutilDelUser(username, delUseropts); err != nil {
 		return nil, err
 	}
 
@@ -174,6 +185,9 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	// the assertion against the current brand/model/time
 	username, expiration, addUserOpts, err := getUserDetailsFromAssertion(assertDb, model, serial, email)
 	if err != nil {
+		if err == errSystemUserBoundToSerialButTooEarly {
+			// TODO retry later once we have acquired a device serial
+		}
 		logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
 		return nil, nil
 	}
@@ -193,7 +207,7 @@ var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.ROData
 	}
 
 	assertions, err := assertDb.FindMany(asserts.SystemUserType, headers)
-	if err != nil && !asserts.IsNotFound(err) {
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, &UserError{Err: fmt.Errorf("cannot find system-user assertion: %s", err)}
 	}
 
@@ -211,6 +225,8 @@ var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.ROData
 
 	return createdUsers, nil
 }
+
+var errSystemUserBoundToSerialButTooEarly = errors.New("bound to serial assertion but device not yet registered")
 
 func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.Model, serialAs *asserts.Serial, email string) (string, time.Time, *osutil.AddUserOptions, error) {
 	brandID := modelAs.BrandID()
@@ -241,7 +257,7 @@ func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.M
 	}
 	if len(su.Serials()) > 0 {
 		if serialAs == nil {
-			return "", time.Time{}, nil, fmt.Errorf("bound to serial assertion but device not yet registered")
+			return "", time.Time{}, nil, errSystemUserBoundToSerialButTooEarly
 		}
 		serial := serialAs.Serial()
 		if !strutil.ListContains(su.Serials(), serial) {

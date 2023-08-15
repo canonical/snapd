@@ -47,7 +47,7 @@ func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string
 	return nil, fmt.Errorf("build without secboot support")
 }
 
-func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionSetupData) (espMntDir string, unmount func() error, err error) {
+func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionSetupData) (seedMntDir string, unmount func() error, err error) {
 	return "", nil, fmt.Errorf("build without secboot support")
 }
 

@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -105,11 +106,11 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 // wrapped for unit tests
-var deviceManagerSystemAndGadgetAndEncryptionInfo = func(dm *devicestate.DeviceManager, systemLabel string) (*devicestate.System, *gadget.Info, *devicestate.EncryptionSupportInfo, error) {
+var deviceManagerSystemAndGadgetAndEncryptionInfo = func(dm *devicestate.DeviceManager, systemLabel string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 	return dm.SystemAndGadgetAndEncryptionInfo(systemLabel)
 }
 
-func storageEncryption(encInfo *devicestate.EncryptionSupportInfo) *client.StorageEncryption {
+func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEncryption {
 	if encInfo.Disabled {
 		return &client.StorageEncryption{
 			Support: client.StorageEncryptionSupportDisabled,
@@ -203,9 +204,8 @@ func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Respon
 	}
 }
 
-// XXX: should deviceManager return more sensible errors here?
-//      E.g. UnsupportedActionError{systemLabel, mode}
-//           SystemDoesNotExistError{systemLabel}
+// XXX: should deviceManager return more sensible errors here? e.g.:
+// UnsupportedActionError{systemLabel, mode}, SystemDoesNotExistError{systemLabel}
 func handleSystemActionErr(err error, systemLabel string) Response {
 	if os.IsNotExist(err) {
 		return NotFound("requested seed system %q does not exist", systemLabel)

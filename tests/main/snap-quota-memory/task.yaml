@@ -21,8 +21,6 @@ systems:
 prepare: |
   snap install go-example-webserver jq remarshal hello-world
   snap install test-snapd-curl --edge --devmode
-  snap set system experimental.quota-groups=true
-  tests.cleanup defer snap unset system experimental.quota-groups
 
 execute: |
   echo "Create a group with a snap in it"
@@ -119,7 +117,7 @@ execute: |
   # the unit will jump between SubState=running and SubState=auto-restart while
   # trying to restart it in a loop, but after systemd has hit the limit it will
   # give up and mark the unit as failed
-  retry --wait 1 -n 10 sh -c "systemctl show --property=SubState snap.go-example-webserver.webserver.service | MATCH 'SubState=failed'"
+  retry --wait 1 -n 30 sh -c "systemctl show --property=SubState snap.go-example-webserver.webserver.service | MATCH 'SubState=failed'"
 
   # clear "oom-killer" messages from dmesg or prepare-restore.sh will fail due
   # to the oom-killer messages from go-example-webserver
@@ -178,7 +176,7 @@ execute: |
   # minimum amount of accounting memory for an empty cgroup, which is observed
   # to be up to 12KiB due to cached memory.
   case "$snapdSaysMemUsage" in
-      null|0|4096|12288)
+      null|0|4096|8192|12288)
           # expected
           ;; 
       *)
@@ -188,7 +186,7 @@ execute: |
 
   snapdSaysMemUsage="$(sudo snap run test-snapd-curl.curl --unix-socket /run/snapd.socket http://localhost/v2/quotas/group-four | jq -r '.result.current.memory')"
   case "$snapdSaysMemUsage" in
-      null|0|4096|12288)
+      null|0|4096|8192|12288)
           # expected
           ;; 
       *)

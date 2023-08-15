@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 )
 
 // A Logger is a fairly minimal logging tool.
@@ -37,6 +38,9 @@ type Logger interface {
 	Notice(msg string)
 	// Debug is for messages that the user should be able to find if they're debugging something
 	Debug(msg string)
+	// NoGuardDebug is for messages that we always want to print (e.g., configurations
+	// were checked by the caller, etc)
+	NoGuardDebug(msg string)
 }
 
 const (
@@ -46,8 +50,9 @@ const (
 
 type nullLogger struct{}
 
-func (nullLogger) Notice(string) {}
-func (nullLogger) Debug(string)  {}
+func (nullLogger) Notice(string)       {}
+func (nullLogger) Debug(string)        {}
+func (nullLogger) NoGuardDebug(string) {}
 
 // NullLogger is a logger that does nothing
 var NullLogger = nullLogger{}
@@ -88,7 +93,17 @@ func Debugf(format string, v ...interface{}) {
 	logger.Debug(msg)
 }
 
-// MockLogger replaces the exiting logger with a buffer and returns
+// NoGuardDebugf records something in the debug log
+func NoGuardDebugf(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+
+	lock.Lock()
+	defer lock.Unlock()
+
+	logger.NoGuardDebug(msg)
+}
+
+// MockLogger replaces the existing logger with a buffer and returns
 // the log buffer and a restore function.
 func MockLogger() (buf *bytes.Buffer, restore func()) {
 	buf = &bytes.Buffer{}
@@ -124,18 +139,31 @@ type Log struct {
 	log *log.Logger
 
 	debug bool
+	quiet bool
+}
+
+func (l *Log) debugEnabled() bool {
+	return l.debug || osutil.GetenvBool("SNAPD_DEBUG")
 }
 
 // Debug only prints if SNAPD_DEBUG is set
 func (l *Log) Debug(msg string) {
-	if l.debug || osutil.GetenvBool("SNAPD_DEBUG") {
-		l.log.Output(3, "DEBUG: "+msg)
+	if l.debugEnabled() {
+		l.NoGuardDebug(msg)
 	}
 }
 
-// Notice alerts the user about something, as well as putting it syslog
+// Notice alerts the user about something, as well as putting in syslog
 func (l *Log) Notice(msg string) {
-	l.log.Output(3, msg)
+	if !l.quiet || l.debugEnabled() {
+		l.log.Output(3, msg)
+	}
+}
+
+// NoGuardDebug always prints the message, w/o gating it based on environment
+// variables or other configurations.
+func (l *Log) NoGuardDebug(msg string) {
+	l.log.Output(3, "DEBUG: "+msg)
 }
 
 // New creates a log.Logger using the given io.Writer and flag.
@@ -147,18 +175,39 @@ func New(w io.Writer, flag int) (Logger, error) {
 	return logger, nil
 }
 
-// SimpleSetup creates the default (console) logger
-func SimpleSetup() error {
+func buildFlags() int {
 	flags := log.Lshortfile
 	if term := os.Getenv("TERM"); term != "" {
 		// snapd is probably not running under systemd
 		flags = DefaultFlags
 	}
+	return flags
+}
+
+// SimpleSetup creates the default (console) logger
+func SimpleSetup() error {
+	flags := buildFlags()
 	l, err := New(os.Stderr, flags)
 	if err == nil {
 		SetLogger(l)
 	}
 	return err
+}
+
+// BootSetup creates a logger meant to be used when running from
+// initramfs, where we want to consider the quiet kernel option.
+func BootSetup() error {
+	flags := buildFlags()
+	m, _ := kcmdline.KeyValues("quiet")
+	_, quiet := m["quiet"]
+	logger := &Log{
+		log:   log.New(os.Stderr, "", flags),
+		debug: debugEnabledOnKernelCmdline(),
+		quiet: quiet,
+	}
+	SetLogger(logger)
+
+	return nil
 }
 
 // used to force testing of the kernel command line parsing
@@ -172,7 +221,7 @@ func debugEnabledOnKernelCmdline() bool {
 	if osutil.IsTestBinary() && procCmdlineUseDefaultMockInTests {
 		return false
 	}
-	m, _ := osutil.KernelCommandLineKeyValues("snapd.debug")
+	m, _ := kcmdline.KeyValues("snapd.debug")
 	return m["snapd.debug"] == "1"
 }
 

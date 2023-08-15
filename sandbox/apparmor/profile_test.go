@@ -21,14 +21,17 @@ package apparmor_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/testutil"
@@ -47,6 +50,7 @@ func (s *appArmorSuite) SetUpTest(c *C) {
 	s.profilesFilename = path.Join(c.MkDir(), "profiles")
 	apparmor.MockProfilesPath(&s.BaseTest, s.profilesFilename)
 	dirs.SetRootDir("")
+	s.AddCleanup(apparmor.MockFeatures(nil, nil, nil, nil))
 }
 
 // Tests for LoadProfiles()
@@ -54,26 +58,32 @@ func (s *appArmorSuite) SetUpTest(c *C) {
 func (s *appArmorSuite) TestLoadProfilesRunsAppArmorParserReplace(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
+	restore := apparmor.MockParserSearchPath(cmd.BinDir())
+	defer restore()
 	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"}, apparmor.CacheDir, 0)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
 	})
 }
 
 func (s *appArmorSuite) TestLoadProfilesMany(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
+	restore := apparmor.MockParserSearchPath(cmd.BinDir())
+	defer restore()
 	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd", "/path/to/another.profile"}, apparmor.CacheDir, 0)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd", "/path/to/another.profile"},
+		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd", "/path/to/another.profile"},
 	})
 }
 
 func (s *appArmorSuite) TestLoadProfilesNone(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
+	restore := apparmor.MockParserSearchPath(cmd.BinDir())
+	defer restore()
 	err := apparmor.LoadProfiles([]string{}, apparmor.CacheDir, 0)
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), HasLen, 0)
@@ -82,12 +92,29 @@ func (s *appArmorSuite) TestLoadProfilesNone(c *C) {
 func (s *appArmorSuite) TestLoadProfilesReportsErrors(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "exit 42")
 	defer cmd.Restore()
+	restore := apparmor.MockParserSearchPath(cmd.BinDir())
+	defer restore()
 	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"}, apparmor.CacheDir, 0)
 	c.Assert(err.Error(), Equals, `cannot load apparmor profiles: exit status 42
 apparmor_parser output:
 `)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
+	})
+}
+
+func (s *appArmorSuite) TestLoadProfilesReportsErrorWithZeroExitStatus(c *C) {
+	cmd := testutil.MockCommand(c, "apparmor_parser", "echo parser error; exit 0")
+	defer cmd.Restore()
+	restore := apparmor.MockParserSearchPath(cmd.BinDir())
+	defer restore()
+	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"}, apparmor.CacheDir, 0)
+	c.Assert(err.Error(), Equals, `cannot load apparmor profiles: exit status 0 with parser error
+apparmor_parser output:
+parser error
+`)
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
 	})
 }
 
@@ -96,28 +123,32 @@ func (s *appArmorSuite) TestLoadProfilesRunsAppArmorParserReplaceWithSnapdDebug(
 	defer os.Unsetenv("SNAPD_DEBUG")
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
+	restore := apparmor.MockParserSearchPath(cmd.BinDir())
+	defer restore()
 	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"}, apparmor.CacheDir, 0)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "/path/to/snap.samba.smbd"},
 	})
 }
 
-// Tests for Profile.Unload()
+// Tests for Profile.RemoveCachedProfiles()
 
-func (s *appArmorSuite) TestUnloadProfilesMany(c *C) {
-	err := apparmor.UnloadProfiles([]string{"/path/to/snap.samba.smbd", "/path/to/another.profile"}, apparmor.CacheDir)
+func (s *appArmorSuite) TestRemoveCachedProfilesMany(c *C) {
+	err := apparmor.RemoveCachedProfiles([]string{"/path/to/snap.samba.smbd", "/path/to/another.profile"}, apparmor.CacheDir)
 	c.Assert(err, IsNil)
 }
 
-func (s *appArmorSuite) TestUnloadProfilesNone(c *C) {
-	err := apparmor.UnloadProfiles([]string{}, apparmor.CacheDir)
+func (s *appArmorSuite) TestRemoveCachedProfilesNone(c *C) {
+	err := apparmor.RemoveCachedProfiles([]string{}, apparmor.CacheDir)
 	c.Assert(err, IsNil)
 }
 
-func (s *appArmorSuite) TestUnloadRemovesCachedProfile(c *C) {
+func (s *appArmorSuite) TestRemoveCachedProfiles(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
+	restore := apparmor.MockParserSearchPath(cmd.BinDir())
+	defer restore()
 
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
@@ -126,15 +157,17 @@ func (s *appArmorSuite) TestUnloadRemovesCachedProfile(c *C) {
 
 	fname := filepath.Join(apparmor.CacheDir, "profile")
 	ioutil.WriteFile(fname, []byte("blob"), 0600)
-	err = apparmor.UnloadProfiles([]string{"profile"}, apparmor.CacheDir)
+	err = apparmor.RemoveCachedProfiles([]string{"profile"}, apparmor.CacheDir)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fname)
 	c.Check(os.IsNotExist(err), Equals, true)
 }
 
-func (s *appArmorSuite) TestUnloadRemovesCachedProfileInForest(c *C) {
+func (s *appArmorSuite) TestRemoveCachedProfilesInForest(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
+	restore := apparmor.MockParserSearchPath(cmd.BinDir())
+	defer restore()
 
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
@@ -149,7 +182,7 @@ func (s *appArmorSuite) TestUnloadRemovesCachedProfileInForest(c *C) {
 
 	fname := filepath.Join(subdir, "profile")
 	ioutil.WriteFile(fname, []byte("blob"), 0600)
-	err = apparmor.UnloadProfiles([]string{"profile"}, apparmor.CacheDir)
+	err = apparmor.RemoveCachedProfiles([]string{"profile"}, apparmor.CacheDir)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fname)
 	c.Check(os.IsNotExist(err), Equals, true)
@@ -342,4 +375,350 @@ func (s *appArmorSuite) TestSnapConfineDistroProfilePath(c *C) {
 		path := apparmor.SnapConfineDistroProfilePath()
 		c.Check(path, Equals, expectedPath, Commentf("Existing: %q", existingFiles))
 	}
+}
+
+func (s *appArmorSuite) TestSetupSnapConfineSnippetsNoSnippets(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	restore := osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
+	defer restore()
+
+	// No features, no NFS, no Overlay, no homedirs
+	wasChanged, err := apparmor.SetupSnapConfineSnippets()
+	c.Check(err, IsNil)
+	c.Check(wasChanged, Equals, false)
+
+	// Because overlay/nfs is not used there are no local policy files but the
+	// directory was created.
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 0)
+}
+
+func (s *appArmorSuite) writeSystemParams(c *C, homedirs []string) {
+	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
+	conents := fmt.Sprintf("homedirs=%s\n", strings.Join(homedirs, ","))
+
+	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(sspPath, []byte(conents), 0644), IsNil)
+}
+
+func (s *appArmorSuite) TestSetupSnapConfineSnippetsHomedirs(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	restore := osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	// Setup the system-params which is read by loadHomedirs in SetupSnapConfineSnippets
+	// to verify it's correctly read and loaded.
+	s.writeSystemParams(c, []string{"/mnt/foo", "/mnt/bar"})
+
+	wasChanged, err := apparmor.SetupSnapConfineSnippets()
+	c.Check(err, IsNil)
+	c.Check(wasChanged, Equals, true)
+
+	// Homedirs was specified, so we expect an entry for each homedir in a
+	// snippet 'homedirs'
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 1)
+	c.Assert(files[0].Name(), Equals, "homedirs")
+	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
+	c.Assert(files[0].IsDir(), Equals, false)
+
+	c.Assert(filepath.Join(apparmor.SnapConfineAppArmorDir, files[0].Name()),
+		testutil.FileContains, `"/mnt/foo/" -> "/tmp/snap.rootfs_*/mnt/foo/",`)
+	c.Assert(filepath.Join(apparmor.SnapConfineAppArmorDir, files[0].Name()),
+		testutil.FileContains, `"/mnt/bar/" -> "/tmp/snap.rootfs_*/mnt/bar/",`)
+}
+
+func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyWithHomedirsLoadError(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	log, restore := logger.MockLogger()
+	defer restore()
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, fmt.Errorf("failed to load") })
+	defer restore()
+
+	wasChanged, err := apparmor.SetupSnapConfineSnippets()
+	c.Check(err, IsNil)
+	c.Check(wasChanged, Equals, false)
+
+	// Probing apparmor_parser capabilities failed, so nothing gets written
+	// to the snap-confine policy directory
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 0)
+
+	// But an error was logged
+	c.Assert(log.String(), testutil.Contains, "cannot determine if any homedirs are set: failed to load")
+}
+
+func (s *appArmorSuite) TestSetupSnapConfineSnippetsBPF(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	restore := osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
+	defer restore()
+
+	// Pretend apparmor_parser supports bpf capability
+	restore = apparmor.MockFeatures(nil, nil, []string{"cap-bpf"}, nil)
+	defer restore()
+
+	wasChanged, err := apparmor.SetupSnapConfineSnippets()
+	c.Check(err, IsNil)
+	c.Check(wasChanged, Equals, true)
+
+	// Capability bpf is supported by the parser, so an extra policy file
+	// for snap-confine is present
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 1)
+	c.Assert(files[0].Name(), Equals, "cap-bpf")
+	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
+	c.Assert(files[0].IsDir(), Equals, false)
+
+	c.Assert(filepath.Join(apparmor.SnapConfineAppArmorDir, files[0].Name()),
+		testutil.FileContains, "capability bpf,")
+}
+
+func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyWithBPFProbeError(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	log, restore := logger.MockLogger()
+	defer restore()
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
+	defer restore()
+
+	// Probing for apparmor_parser features failed
+	restore = apparmor.MockFeatures(nil, nil, nil, fmt.Errorf("mock probe error"))
+	defer restore()
+
+	wasChanged, err := apparmor.SetupSnapConfineSnippets()
+	c.Check(err, IsNil)
+	c.Check(wasChanged, Equals, false)
+
+	// Probing apparmor_parser capabilities failed, so nothing gets written
+	// to the snap-confine policy directory
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 0)
+
+	// But an error was logged
+	c.Assert(log.String(), testutil.Contains, "cannot determine apparmor_parser features: mock probe error")
+}
+
+func (s *appArmorSuite) TestSetupSnapConfineSnippetsOverlay(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Make it appear as if overlay workaround was needed.
+	restore := osutil.MockIsRootWritableOverlay(func() (string, error) { return "/upper", nil })
+	defer restore()
+	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
+	defer restore()
+
+	wasChanged, err := apparmor.SetupSnapConfineSnippets()
+	c.Check(err, IsNil)
+	c.Check(wasChanged, Equals, true)
+
+	// Because overlay is being used, we have the extra policy file.
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 1)
+	c.Assert(files[0].Name(), Equals, "overlay-root")
+	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
+	c.Assert(files[0].IsDir(), Equals, false)
+
+	// The policy allows upperdir access.
+	data, err := ioutil.ReadFile(filepath.Join(apparmor.SnapConfineAppArmorDir, files[0].Name()))
+	c.Assert(err, IsNil)
+	c.Assert(string(data), testutil.Contains, "\"/upper/{,**/}\" r,")
+}
+
+func (s *appArmorSuite) TestSetupSnapConfineSnippetsNFS(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Make it appear as if NFS workaround was needed.
+	restore := osutil.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
+	defer restore()
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
+	defer restore()
+
+	wasChanged, err := apparmor.SetupSnapConfineSnippets()
+	c.Check(err, IsNil)
+	c.Check(wasChanged, Equals, true)
+
+	// Because NFS is being used, we have the extra policy file.
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 1)
+	c.Assert(files[0].Name(), Equals, "nfs-support")
+	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
+	c.Assert(files[0].IsDir(), Equals, false)
+
+	// The policy allows network access.
+	fn := filepath.Join(apparmor.SnapConfineAppArmorDir, files[0].Name())
+	c.Assert(fn, testutil.FileContains, "network inet,")
+	c.Assert(fn, testutil.FileContains, "network inet6,")
+}
+
+// Test behavior when isHomeUsingNFS fails.
+func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	// Make it appear as if NFS detection was broken.
+	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, fmt.Errorf("broken") })
+	defer restore()
+
+	// Make it appear as if overlay was not used.
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
+	// No homedirs
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
+	defer restore()
+
+	wasChanged, err := apparmor.SetupSnapConfineSnippets()
+	// NOTE: Errors in determining NFS are non-fatal to prevent snapd from
+	// failing to operate. A warning message is logged but system operates as
+	// if NFS was not active.
+	c.Check(err, IsNil)
+	c.Check(wasChanged, Equals, false)
+
+	// While other stuff failed we created the policy directory and didn't
+	// write any files to it.
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
+	c.Check(err, IsNil)
+	c.Check(files, HasLen, 0)
+
+	// But an error was logged
+	c.Check(log.String(), testutil.Contains, "cannot determine if NFS is in use: broken")
+}
+
+// Test behavior when MkdirAll fails
+func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Create a file where we would expect to find the local policy.
+	err := os.RemoveAll(filepath.Dir(apparmor.SnapConfineAppArmorDir))
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Dir(apparmor.SnapConfineAppArmorDir), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(apparmor.SnapConfineAppArmorDir, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	wasChanged, err := apparmor.SetupSnapConfineSnippets()
+	c.Check(err, ErrorMatches, fmt.Sprintf(`cannot create snap-confine policy directory: mkdir %s: not a directory`,
+		apparmor.SnapConfineAppArmorDir))
+	c.Check(wasChanged, Equals, false)
+}
+
+// Test behavior when EnsureDirState fails
+func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Make it appear as if NFS workaround was not needed.
+	restore := osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	// Make it appear as if overlay was not used.
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
+	// No homedirs
+	restore = apparmor.MockLoadHomedirs(func() ([]string, error) { return nil, nil })
+	defer restore()
+
+	// Create the snap-confine directory and put a file. Because the file name
+	// matches the glob generated-* snapd will attempt to remove it but because
+	// the directory is not writable, that operation will fail.
+	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0755)
+	c.Assert(err, IsNil)
+	f := filepath.Join(apparmor.SnapConfineAppArmorDir, "generated-test")
+	err = ioutil.WriteFile(f, []byte("spurious content"), 0644)
+	c.Assert(err, IsNil)
+	err = os.Chmod(apparmor.SnapConfineAppArmorDir, 0555)
+	c.Assert(err, IsNil)
+
+	// Make the directory writable for cleanup.
+	defer os.Chmod(apparmor.SnapConfineAppArmorDir, 0755)
+
+	wasChanged, err := apparmor.SetupSnapConfineSnippets()
+	c.Check(err.Error(), testutil.Contains, "cannot synchronize snap-confine policy")
+	c.Check(wasChanged, Equals, false)
+
+	// The policy directory was unchanged.
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 1)
+}
+
+func (s *appArmorSuite) TestRemoveSnapConfineSnippets(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Create the snap-confine directory and put a few files.
+	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0755)
+	c.Assert(err, IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(apparmor.SnapConfineAppArmorDir, "cap-test"), []byte("foo"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(apparmor.SnapConfineAppArmorDir, "my-file"), []byte("foo"), 0644), IsNil)
+
+	err = apparmor.RemoveSnapConfineSnippets()
+	c.Check(err, IsNil)
+
+	// The files were removed
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 0)
+}
+
+func (s *appArmorSuite) TestRemoveSnapConfineSnippetsNoSnippets(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Create the snap-confine directory and let it do nothing.
+	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0755)
+	c.Assert(err, IsNil)
+
+	err = apparmor.RemoveSnapConfineSnippets()
+	c.Check(err, IsNil)
+
+	// Nothing happens
+	files, err := ioutil.ReadDir(apparmor.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 0)
 }

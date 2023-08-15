@@ -29,7 +29,7 @@ execute: |
     change_id="$(remote.exec 'sudo snap install --no-wait test-snapd-sh')"
 
     echo "Wait for system reboot"
-    tests.nested wait-for reboot "$boot_id"
+    remote.wait-for reboot "$boot_id"
 
     echo "Ensure that stamp file is present"
     remote.exec "test -e /var/lib/snapd/faults/link-snap:reboot"

@@ -91,15 +91,16 @@ const sharedMemoryBaseDeclarationSlots = `
         - app
         - gadget
         - core
-      slot-snap-id:
-        - PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
-        - 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+    deny-installation:
+      slot-snap-type:
+        - app
+        - gadget
     deny-auto-connection: true
 `
 
 const sharedMemoryPrivateConnectedPlugAppArmor = `
 # Description: Allow access to everything in private /dev/shm
-"/dev/shm/*" mrwlkix,
+"/dev/shm/**" mrwlkix,
 `
 
 func validateSharedMemoryPath(path string) error {

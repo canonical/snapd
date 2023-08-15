@@ -44,7 +44,7 @@ execute: |
     echo "Install newly created gadget (which will trigger a reboot)"
     remote.push ./pc_*.snap
     REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous ./pc_*.snap --no-wait)
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
     echo "Check that the gadget asset was changed"

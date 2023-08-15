@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -99,9 +100,12 @@ type DeviceManager struct {
 	bootRevisionsUpdated bool
 
 	seedTimings *timings.Timings
-	// these are used as needed as cache during StartUp and cleared after
-	earlyDeviceCtx  snapstate.DeviceContext
-	earlyDeviceSeed seed.Seed
+	// this is used during early phases until seeding is under way
+	earlyDeviceSeed     seed.Seed
+	seedLabel, seedMode string
+	seedChosen          bool
+
+	populateStateFromSeed func(timings.Measurer) ([]*state.TaskSet, error)
 
 	ensureSeedInConfigRan bool
 
@@ -138,6 +142,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		reg:      make(chan struct{}),
 		preseed:  snapdenv.Preseeding(),
 	}
+	m.populateStateFromSeed = m.populateStateFromSeedImpl
 
 	if !m.preseed {
 		modeenv, err := maybeReadModeenv()
@@ -293,7 +298,6 @@ func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
 func (m *DeviceManager) StartUp() error {
 	m.state.Lock()
 	defer m.state.Unlock()
-	defer m.earlyCleanup()
 
 	dev, err := m.earlyDeviceContext()
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -378,11 +382,11 @@ func (m *DeviceManager) ensureUbuntuSaveIsMounted() error {
 // /var/lib/snapd/save/snap/<snap>. This is normally done during installation
 // of a snap, but there are two cases where this can be insufficient.
 //
-// 1. When migrating to a newer snapd, folders are not automatically created for
-//    snaps that are already installed. They will only be created during a refresh of
-//    the snap itself, whereas we want to cover all the cases.
-// 2. During install mode for the gadget/kernel/etc, the folders are not created.
-//    So this function can be invoked as a part of system-setup.
+//  1. When migrating to a newer snapd, folders are not automatically created for
+//     snaps that are already installed. They will only be created during a refresh of
+//     the snap itself, whereas we want to cover all the cases.
+//  2. During install mode for the gadget/kernel/etc, the folders are not created.
+//     So this function can be invoked as a part of system-setup.
 func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
 	snaps, err := snapstate.All(m.state)
 	if err != nil {
@@ -478,7 +482,7 @@ func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
 
 func (m *DeviceManager) changeInFlight(kind string) bool {
 	for _, chg := range m.state.Changes() {
-		if chg.Kind() == kind && !chg.Status().Ready() {
+		if chg.Kind() == kind && !chg.IsReady() {
 			// change already in motion
 			return true
 		}
@@ -715,7 +719,7 @@ func (m *DeviceManager) maybeRestoreAfterReset(device *auth.DeviceState) (*asser
 		"model":    device.Model,
 	})
 	if err != nil {
-		if asserts.IsNotFound(err) {
+		if errors.Is(err, &asserts.NotFoundError{}) {
 			// no serial assertion
 			return nil, nil
 		}
@@ -807,38 +811,58 @@ func (m *DeviceManager) earlyDeviceContext() (snapstate.DeviceContext, error) {
 	if !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
-	dev, _, err := m.earlyLoadDeviceSeed()
+	dev, _, err := m.earlyLoadDeviceSeed(state.ErrNoState)
 	return dev, err
 }
 
-func (m *DeviceManager) earlyCleanup() {
-	// clear things cached in StartUp
-	m.earlyDeviceCtx = nil
-	m.earlyDeviceSeed = nil
-}
-
-func (m *DeviceManager) earlyLoadDeviceSeed() (snapstate.DeviceContext, seed.Seed, error) {
-	// consider whether we were called already
-	if m.seedTimings != nil {
-		if m.earlyDeviceCtx != nil {
-			return m.earlyDeviceCtx, m.earlyDeviceSeed, nil
+// seedLabelAndMode finds out the label and mode under which to seed the system.
+// Only to use if not yet seeded.
+// TODO: can it be unified with the code in Manager?
+func (m *DeviceManager) seedLabelAndMode() (seedLabel, seedMode string, err error) {
+	if m.seedChosen {
+		return m.seedLabel, m.seedMode, nil
+	}
+	if m.preseed {
+		if !release.OnClassic {
+			seedMode = "run"
+			seedLabel = m.systemForPreseeding()
 		}
-		return nil, nil, state.ErrNoState
-	}
-
-	var sysLabel string
-	if m.preseed && !release.OnClassic {
-		sysLabel = m.systemForPreseeding()
-	}
-
-	if !m.preseed {
+	} else {
 		modeenv, err := maybeReadModeenv()
 		if err != nil {
-			return nil, nil, err
+			return "", "", err
 		}
 		if modeenv != nil {
-			sysLabel = modeenv.RecoverySystem
+			logger.Debugf("modeenv read, mode %q label %q",
+				modeenv.Mode, modeenv.RecoverySystem)
+			seedMode = modeenv.Mode
+			seedLabel = modeenv.RecoverySystem
 		}
+	}
+	m.seedLabel = seedLabel
+	m.seedMode = seedMode
+	m.seedChosen = true
+	return seedLabel, seedMode, nil
+}
+
+func (m *DeviceManager) earlyLoadDeviceSeed(seedLoadErr error) (snapstate.DeviceContext, seed.Seed, error) {
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, nil, err
+	}
+	if seeded {
+		return nil, nil, fmt.Errorf("internal error: loading device seed after being seeded already")
+	}
+
+	// consider whether we were called already
+	if m.earlyDeviceSeed != nil {
+		return newModelDeviceContext(m, m.earlyDeviceSeed.Model()), m.earlyDeviceSeed, nil
+	}
+
+	sysLabel, _, err := m.seedLabelAndMode()
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// we time StartUp/earlyPreloadGadget + first ensureSeeded together
@@ -855,19 +879,17 @@ func (m *DeviceManager) earlyLoadDeviceSeed() (snapstate.DeviceContext, seed.See
 		deviceSeed, err = loadDeviceSeed(m.state, sysLabel)
 	})
 	if err != nil {
-		// this same error will be resurfaced in ensureSeed later
-		if err != seed.ErrNoAssertions {
-			logger.Debugf("early import assertions from seed failed: %v", err)
+		// use seedLoadErr if specified
+		if seedLoadErr != nil {
+			err = seedLoadErr
 		}
-		return nil, nil, state.ErrNoState
+		return nil, nil, err
 	}
 
 	dev := newModelDeviceContext(m, deviceSeed.Model())
 
 	// cache
-	m.earlyDeviceCtx = dev
 	m.earlyDeviceSeed = deviceSeed
-
 	return dev, deviceSeed, nil
 }
 
@@ -884,7 +906,7 @@ func (m *DeviceManager) earlyPreloadGadget() (sysconfig.Device, *gadget.Info, er
 	// just by option flags. For example automatic user creation
 	// also requires the model to be known/set. Otherwise ignoring
 	// errors here would be problematic.
-	dev, deviceSeed, err := m.earlyLoadDeviceSeed()
+	dev, deviceSeed, err := m.earlyLoadDeviceSeed(state.ErrNoState)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -894,6 +916,7 @@ func (m *DeviceManager) earlyPreloadGadget() (sysconfig.Device, *gadget.Info, er
 		return nil, nil, state.ErrNoState
 	}
 	var gi *gadget.Info
+
 	timings.Run(m.seedTimings, "preload-verified-gadget-metadata", "preload verified gadget metadata from seed", func(nested timings.Measurer) {
 		gi, err = func() (*gadget.Info, error) {
 			if err := deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, nested); err != nil {
@@ -917,8 +940,6 @@ func (m *DeviceManager) earlyPreloadGadget() (sysconfig.Device, *gadget.Info, er
 
 	return dev, gi, nil
 }
-
-var populateStateFromSeed = populateStateFromSeedImpl
 
 // ensureSeeded makes sure that the snaps from seed.yaml get installed
 // with the matching assertions
@@ -947,31 +968,9 @@ func (m *DeviceManager) ensureSeeded() error {
 	// succcessive ensureSeeded should be timed separately
 	m.seedTimings = nil
 
-	var opts *populateStateFromSeedOptions
-	if m.preseed {
-		opts = &populateStateFromSeedOptions{Preseed: true}
-		if !release.OnClassic {
-			opts.Mode = "run"
-			opts.Label = m.systemForPreseeding()
-		}
-	} else {
-		modeenv, err := maybeReadModeenv()
-		if err != nil {
-			return err
-		}
-		if modeenv != nil {
-			logger.Debugf("modeenv read, mode %q label %q",
-				modeenv.Mode, modeenv.RecoverySystem)
-			opts = &populateStateFromSeedOptions{
-				Mode:  modeenv.Mode,
-				Label: modeenv.RecoverySystem,
-			}
-		}
-	}
-
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
-		tsAll, err = populateStateFromSeed(m.state, opts, tm)
+		tsAll, err = m.populateStateFromSeed(tm)
 	})
 	if err != nil {
 		return err
@@ -988,6 +987,57 @@ func (m *DeviceManager) ensureSeeded() error {
 
 	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
+	return nil
+}
+
+var processAutoImportAssertionsImpl = processAutoImportAssertions
+
+// ensureAutoImportAssertions makes sure that auto import assertions
+// get processed. Assertion should be processed while seeding is in progress.
+func (m *DeviceManager) ensureAutoImportAssertions() error {
+	if release.OnClassic {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.earlyDeviceSeed == nil {
+		// we have no seed cached yet, no point to check further
+		return nil
+	}
+
+	var seeded bool
+	if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	// if system is seeded, stop trying
+	if seeded {
+		return nil
+	}
+
+	// check if we have processed auto-import asssertions already
+	var autoImported bool
+	if err := m.state.Get("asserts-early-auto-imported", &autoImported); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if autoImported {
+		return nil
+	}
+
+	commitTo := func(batch *asserts.Batch) error {
+		return assertstate.AddBatch(m.state, batch, nil)
+	}
+	db := assertstate.DB(m.state)
+	// Set asserts-early-auto-imported as processed, even if it fails,
+	// it should not be re-run. State should not be altered once
+	// processAutoImportAssertionsImpl is called.
+	m.state.Set("asserts-early-auto-imported", true)
+	err := processAutoImportAssertionsImpl(m.state, m.earlyDeviceSeed, db, commitTo)
+	if err != nil {
+		// best effort
+		logger.Noticef("cannot process auto import assertion: %v", err)
+	}
 	return nil
 }
 
@@ -1618,7 +1668,9 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 		if !user.HasExpired() {
 			continue
 		}
-		if _, err := RemoveUser(st, user.Username); err != nil {
+		// Force the removal of the user as it's possible to block this expiration
+		// otherwise by the user having left a process or service running.
+		if _, err := RemoveUser(st, user.Username, &RemoveUserOptions{Force: true}); err != nil {
 			return err
 		}
 	}
@@ -1655,6 +1707,15 @@ func (m *DeviceManager) Ensure() error {
 	}
 
 	if !m.preseed {
+		if err := m.ensureAutoImportAssertions(); err != nil {
+			errs = append(errs, err)
+		}
+
+		// code below should not need the early loaded device seed
+		// optimistically forget the earlyDeviceSeed here
+		// to free the corresponding memory usage
+		m.earlyDeviceSeed = nil
+
 		if err := m.ensureCloudInitRestricted(); err != nil {
 			errs = append(errs, err)
 		}
@@ -2005,7 +2066,7 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 // SystemAndGadgetAndEncryptionInfo return the system details
 // including the model assertion, gadget details and encryption info
 // for the given system label.
-func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel string) (*System, *gadget.Info, *EncryptionSupportInfo, error) {
+func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel string) (*System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 	// TODO check that the system is not a classic boot one when the
 	// installer is not anymore.
 
@@ -2026,7 +2087,7 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	}
 
 	// Encryption details
-	encInfo, err := m.encryptionSupportInfo(sys.Model, snapInfos[snap.TypeKernel], gadgetInfo)
+	encInfo, err := m.encryptionSupportInfo(sys.Model, secboot.TPMProvisionFull, snapInfos[snap.TypeKernel], gadgetInfo)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -2332,7 +2393,8 @@ func (m *DeviceManager) hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
 			return false, fmt.Errorf("cannot get kernel info: %v", err)
 		}
 	}
-	return hasFDESetupHookInKernel(kernelInfo), nil
+	_, ok := kernelInfo.Hooks["fde-setup"]
+	return ok, nil
 }
 
 func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
@@ -2377,29 +2439,6 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 		return nil, fmt.Errorf("cannot get result from fde-setup hook %q: %v", req.Op, err)
 	}
 	return hookOutput, nil
-}
-
-func (m *DeviceManager) checkFDEFeatures() (et secboot.EncryptionType, err error) {
-	// Run fde-setup hook with "op":"features". If the hook
-	// returns any {"features":[...]} reply we consider the
-	// hardware supported. If the hook errors or if it returns
-	// {"error":"hardware-unsupported"} we don't.
-	features, err := fde.CheckFeatures(m.runFDESetupHook)
-	if err != nil {
-		return et, err
-	}
-	if strutil.ListContains(features, "device-setup") {
-		et = secboot.EncryptionTypeDeviceSetupHook
-	} else {
-		et = secboot.EncryptionTypeLUKS
-	}
-
-	return et, nil
-}
-
-func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
-	_, ok := kernelInfo.Hooks["fde-setup"]
-	return ok
 }
 
 type fdeSetupHandler struct {
@@ -2474,6 +2513,10 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 		// shouldn't happen as the marker file is under ubuntu-data
 		return nil, fmt.Errorf("cannot ensure recovery keys without any ubuntu-data mount points")
 	}
+	authKeyDir := dataMountPoints[0]
+	if !model.Classic() {
+		authKeyDir = filepath.Join(authKeyDir, "system-data")
+	}
 	recoveryKeyDevices := []secboot.RecoveryKeyDevice{
 		{
 			Mountpoint: dataMountPoints[0],
@@ -2482,7 +2525,7 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 		},
 		{
 			Mountpoint:         boot.InitramfsUbuntuSaveDir,
-			AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data"))),
+			AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(authKeyDir)),
 		},
 	}
 	rkey, err := secbootEnsureRecoveryKey(device.RecoveryKeyUnder(fdeDir), recoveryKeyDevices)
@@ -2523,48 +2566,22 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	if !osutil.FileExists(reinstallKeyFile) {
 		reinstallKeyFile = rkey
 	}
+	authKeyDir := dataMountPoints[0]
+	if !model.Classic() {
+		authKeyDir = filepath.Join(authKeyDir, "system-data")
+	}
 	recoveryKeyDevices[secboot.RecoveryKeyDevice{
 		Mountpoint:         boot.InitramfsUbuntuSaveDir,
-		AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data"))),
+		AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(authKeyDir)),
 	}] = reinstallKeyFile
 
 	return secbootRemoveRecoveryKeys(recoveryKeyDevices)
 }
 
-// EncryptionSupportInfo describes what encryption is available and needed
-// for the current device.
-type EncryptionSupportInfo struct {
-	// Disabled is set if to true encryption was forcefully
-	// disabled (e.g. via the seed partition), if set the rest
-	// of the struct content is not relevant.
-	Disabled bool
-
-	// StorageSafety describes the level safety properties
-	// requested by the model
-	StorageSafety asserts.StorageSafety
-	// Available is set to true if encryption is available on this device
-	// with the used gadget.
-	Available bool
-
-	// Type is set to the EncryptionType that can be used if
-	// Available is true.
-	Type secboot.EncryptionType
-
-	// UnvailableErr is set if the encryption support availability of
-	// the this device and used gadget do not match the
-	// storage safety requirements.
-	UnavailableErr error
-	// UnavailbleWarning describes why encryption support is not
-	// available in case it is optional.
-	UnavailableWarning string
-}
-
-var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
-
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
-func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (secboot.EncryptionType, error) {
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext, tpmMode secboot.TPMProvisionMode) (secboot.EncryptionType, error) {
 	model := deviceCtx.Model()
 
 	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
@@ -2580,88 +2597,9 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		return "", err
 	}
 
-	res, err := m.encryptionSupportInfo(model, kernelInfo, gadgetInfo)
-	if err != nil {
-		return "", err
-	}
-	if res.UnavailableWarning != "" {
-		logger.Noticef("%s", res.UnavailableWarning)
-	}
-	// encryption disabled or preferred unencrypted: follow the model preferences here even if encryption would be available
-	if res.Disabled || res.StorageSafety == asserts.StorageSafetyPreferUnencrypted {
-		res.Type = secboot.EncryptionTypeNone
-	}
-
-	return res.Type, res.UnavailableErr
+	return install.CheckEncryptionSupport(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
 }
 
-func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
-	secured := model.Grade() == asserts.ModelSecured
-	dangerous := model.Grade() == asserts.ModelDangerous
-	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
-
-	res := EncryptionSupportInfo{
-		StorageSafety: model.StorageSafety(),
-	}
-
-	// check if we should disable encryption non-secured devices
-	// TODO:UC20: this is not the final mechanism to bypass encryption
-	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
-		res.Disabled = true
-		return res, nil
-	}
-
-	// check encryption: this can either be provided by the fde-setup
-	// hook mechanism or by the built-in secboot based encryption
-	checkFDESetupHookEncryption := hasFDESetupHookInKernel(kernelInfo)
-	// Note that having a fde-setup hook will disable the internal
-	// secboot based encryption
-	checkSecbootEncryption := !checkFDESetupHookEncryption
-	var checkEncryptionErr error
-	switch {
-	case checkFDESetupHookEncryption:
-		res.Type, checkEncryptionErr = m.checkFDEFeatures()
-	case checkSecbootEncryption:
-		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
-		if checkEncryptionErr == nil {
-			res.Type = secboot.EncryptionTypeLUKS
-		}
-	default:
-		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
-	}
-	res.Available = (checkEncryptionErr == nil)
-
-	if checkEncryptionErr != nil {
-		switch {
-		case secured:
-			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
-		case encrypted:
-			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
-		case checkFDESetupHookEncryption:
-			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
-		case checkSecbootEncryption:
-			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
-		default:
-			return res, fmt.Errorf("internal error: checkEncryptionErr is set but not handled by the code")
-		}
-	}
-
-	// If encryption is available check if the gadget is
-	// compatible with encryption.
-	if res.Available {
-		opts := &gadget.ValidationConstraints{
-			EncryptedData: true,
-		}
-		if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
-			if secured || encrypted {
-				res.UnavailableErr = fmt.Errorf("cannot use encryption with the gadget: %v", err)
-			} else {
-				res.UnavailableWarning = fmt.Sprintf("cannot use encryption with the gadget, disabling encryption: %v", err)
-			}
-			res.Available = false
-			res.Type = secboot.EncryptionTypeNone
-		}
-	}
-
-	return res, nil
+func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (install.EncryptionSupportInfo, error) {
+	return install.GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
 }

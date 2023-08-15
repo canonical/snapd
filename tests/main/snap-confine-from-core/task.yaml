@@ -14,18 +14,16 @@ restore: |
     chmod 4755 /usr/lib/snapd/snap-confine
 
 execute: |
-    # shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-
     if [ "${SNAP_REEXEC:-}" = "0" ]; then
         echo "skipping test when SNAP_REEXEC is disabled"
         exit 0
     fi
 
     echo "Ensure we re-exec by default"
-    snap list
-
-    "$TESTSTOOLS"/journal-state match-log "DEBUG: restarting into"
+    # It is not possible to check by using journal-state tools because the
+    # reexec "DEBUG: restarting into" line appears before the snapd state is
+    # saved, which is outside the scope of this test
+    /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into"
 
     echo "Ensure snap-confine from the core snap is run"
     test-snapd-sh.sh -c 'echo hello'
@@ -52,11 +50,11 @@ execute: |
     fi
 
     echo "Force system-key change"
-    systemd_stop_units snapd.service snapd.socket
+    tests.systemd stop-unit snapd.service snapd.socket
     printf '{"version":1}' > /var/lib/snapd/system-key
     rm -f /var/lib/snapd/apparmor/profiles/snap-confine.*
     systemctl start snapd.service snapd.socket
-    wait_for_service snapd.service
+    tests.systemd wait-for-service -n 30 --state active snapd.service
 
     echo "Ensure this also re-generates the snap-confine from core profile"
     PROFILES="$(find /var/lib/snapd/apparmor/profiles/ -maxdepth 1 -name "snap-confine.*")"

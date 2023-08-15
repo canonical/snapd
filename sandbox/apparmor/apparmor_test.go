@@ -24,15 +24,19 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -48,12 +52,58 @@ var _ = Suite(&apparmorSuite{})
 
 func (s *apparmorSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
 	s.AddCleanup(func() {
 		configFile := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/tunables/home.d/snapd")
-		if err := os.Remove(configFile); err != nil {
-			c.Assert(os.IsNotExist(err), Equals, true)
+		if err := os.RemoveAll(configFile); err != nil {
+			panic(err)
 		}
 	})
+}
+
+func (*apparmorSuite) TestAppArmorParser(c *C) {
+	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer mockParserCmd.Restore()
+	restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
+	defer restore()
+	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return false })
+	defer restore()
+	cmd, internal, err := apparmor.AppArmorParser()
+	c.Check(cmd.Path, Equals, mockParserCmd.Exe())
+	c.Check(cmd.Args, DeepEquals, []string{mockParserCmd.Exe()})
+	c.Check(internal, Equals, false)
+	c.Check(err, Equals, nil)
+}
+
+func (*apparmorSuite) TestAppArmorInternalAppArmorParser(c *C) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+
+	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
+	c.Assert(os.MkdirAll(d, 0755), IsNil)
+	p := filepath.Join(d, "apparmor_parser")
+	c.Assert(ioutil.WriteFile(p, nil, 0755), IsNil)
+	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
+		c.Assert(path, Equals, "/proc/self/exe")
+		return filepath.Join(d, "snapd"), nil
+	})
+	defer restore()
+	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
+	defer restore()
+
+	cmd, internal, err := apparmor.AppArmorParser()
+	c.Check(err, IsNil)
+	c.Check(cmd.Path, Equals, p)
+	c.Check(cmd.Args, DeepEquals, []string{
+		p,
+		"--config-file", filepath.Join(d, "/apparmor/parser.conf"),
+		"--base", filepath.Join(d, "/apparmor.d"),
+		"--policy-features", filepath.Join(d, "/apparmor.d/abi/3.0"),
+	})
+	c.Check(internal, Equals, true)
 }
 
 func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
@@ -208,42 +258,25 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 }
 
 func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
-
-	var testcases = []struct {
-		exitCodes   []int
-		expFeatures []string
-	}{
-		{
-			exitCodes: []int{1, 1, 1, 1, 1},
-		},
-		{
-			exitCodes:   []int{1, 0, 1, 1, 1},
-			expFeatures: []string{"qipcrtr-socket"},
-		},
-		{
-			exitCodes:   []int{0, 1, 1, 1, 1},
-			expFeatures: []string{"unsafe"},
-		},
-		{
-			exitCodes:   []int{1, 1, 1, 0, 1},
-			expFeatures: []string{"cap-audit-read"},
-		},
-		{
-			exitCodes:   []int{0, 0, 1, 1, 1},
-			expFeatures: []string{"qipcrtr-socket", "unsafe"},
-		},
-		{
-			exitCodes:   []int{0, 0, 0, 0, 0},
-			expFeatures: []string{"cap-audit-read", "cap-bpf", "mqueue", "qipcrtr-socket", "unsafe"},
-		},
-	}
-
-	for _, t := range testcases {
+	var features = []string{"unsafe", "include-if-exists", "qipcrtr-socket", "mqueue", "cap-bpf", "cap-audit-read", "xdp", "userns"}
+	// test all combinations of features
+	for i := 0; i < int(math.Pow(2, float64(len(features)))); i++ {
+		expFeatures := []string{}
 		d := c.MkDir()
 		contents := ""
-		for _, code := range t.exitCodes {
+		var expectedCalls [][]string
+		for j, f := range features {
+			code := 0
+			if i&(1<<j) == 0 {
+				expFeatures = append([]string{f}, expFeatures...)
+			} else {
+				code = 1
+			}
+			expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--preprocess"})
 			contents += fmt.Sprintf("%d ", code)
 		}
+		// probeParserFeatures() sorts the features
+		sort.Strings(expFeatures)
 		err := ioutil.WriteFile(filepath.Join(d, "codes"), []byte(contents), 0755)
 		c.Assert(err, IsNil)
 		mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf(`
@@ -261,16 +294,12 @@ exit "$EXIT_CODE"
 
 		features, err := apparmor.ProbeParserFeatures()
 		c.Assert(err, IsNil)
-		if len(t.expFeatures) == 0 {
+		if len(expFeatures) == 0 {
 			c.Check(features, HasLen, 0)
 		} else {
-			c.Check(features, DeepEquals, t.expFeatures)
+			c.Check(features, DeepEquals, expFeatures)
 		}
 
-		var expectedCalls [][]string
-		for range t.exitCodes {
-			expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--preprocess"})
-		}
 		c.Check(mockParserCmd.Calls(), DeepEquals, expectedCalls)
 		data, err := ioutil.ReadFile(filepath.Join(d, "stdin"))
 		c.Assert(err, IsNil)
@@ -278,7 +307,13 @@ exit "$EXIT_CODE"
  change_profile unsafe /**,
 }
 profile snap-test {
+ #include if exists "/foo"
+}
+profile snap-test {
  network qipcrtr dgram,
+}
+profile snap-test {
+ mqueue,
 }
 profile snap-test {
  capability bpf,
@@ -287,7 +322,10 @@ profile snap-test {
  capability audit_read,
 }
 profile snap-test {
- mqueue,
+ network xdp,
+}
+profile snap-test {
+ userns,
 }
 `)
 	}
@@ -298,6 +336,25 @@ profile snap-test {
 	features, err := apparmor.ProbeParserFeatures()
 	c.Check(err, Equals, os.ErrNotExist)
 	c.Check(features, DeepEquals, []string{})
+
+	// pretend we have an internal apparmor_parser
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+
+	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
+	c.Assert(os.MkdirAll(d, 0755), IsNil)
+	p := filepath.Join(d, "apparmor_parser")
+	c.Assert(ioutil.WriteFile(p, nil, 0755), IsNil)
+	restore = snapdtool.MockOsReadlink(func(path string) (string, error) {
+		c.Assert(path, Equals, "/proc/self/exe")
+		return filepath.Join(d, "snapd"), nil
+	})
+	defer restore()
+	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
+	defer restore()
+	features, err = apparmor.ProbeParserFeatures()
+	c.Check(err, Equals, nil)
+	c.Check(features, DeepEquals, []string{"snapd-internal"})
 }
 
 func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
@@ -321,7 +378,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "mqueue", "qipcrtr-socket", "unsafe"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unsafe", "userns", "xdp"})
 }
 
 func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
@@ -361,7 +418,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "mqueue", "qipcrtr-socket", "unsafe"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unsafe", "userns", "xdp"})
 
 	// this makes probing fails but is not done again
 	err = os.RemoveAll(d)
@@ -420,13 +477,16 @@ func (s *apparmorSuite) TestUpdateHomedirsTunableWriteFail(c *C) {
 }
 
 func (s *apparmorSuite) TestUpdateHomedirsTunableHappy(c *C) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+
 	err := apparmor.UpdateHomedirsTunable([]string{"/home/a", "/dir2"})
 	c.Assert(err, IsNil)
 	configFile := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/tunables/home.d/snapd")
 	fileContents, err := ioutil.ReadFile(configFile)
 	c.Assert(err, IsNil)
 	c.Check(string(fileContents), Equals,
-		`# Generated by snapd -- DO NOT EDIT!`+"\n"+`@{HOMEDIRS}+="/home/a" "/dir2"`)
+		`# Generated by snapd -- DO NOT EDIT!`+"\n"+`@{HOMEDIRS}+="/home/a" "/dir2"`+"\n")
 }
 
 func (s *apparmorSuite) TestUpdateHomedirsTunableHappyNoDirs(c *C) {
@@ -434,4 +494,108 @@ func (s *apparmorSuite) TestUpdateHomedirsTunableHappyNoDirs(c *C) {
 	c.Check(err, IsNil)
 	configFile := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/tunables/home.d/snapd")
 	c.Check(osutil.FileExists(configFile), Equals, false)
+}
+
+func (s *apparmorSuite) TestSnapdAppArmorSupportsReexecImpl(c *C) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+
+	// with no info file should indicate it does not support reexec
+	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
+
+	d := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
+	c.Assert(os.MkdirAll(d, 0755), IsNil)
+	infoFile := filepath.Join(d, "info")
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=foo"), 0644), IsNil)
+	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=foo\nSNAPD_APPARMOR_REEXEC=0"), 0644), IsNil)
+	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=foo\nSNAPD_APPARMOR_REEXEC=foo"), 0644), IsNil)
+	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=foo\nSNAPD_APPARMOR_REEXEC=1"), 0644), IsNil)
+	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, true)
+}
+
+func (s *apparmorSuite) TestSetupConfCacheDirs(c *C) {
+	apparmor.SetupConfCacheDirs("/newdir")
+	c.Check(apparmor.SnapConfineAppArmorDir, Equals, "/newdir/var/lib/snapd/apparmor/snap-confine")
+}
+
+func (s *apparmorSuite) TestSetupConfCacheDirsWithInternalApparmor(c *C) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+
+	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
+	c.Assert(os.MkdirAll(d, 0755), IsNil)
+	p := filepath.Join(d, "apparmor_parser")
+	c.Assert(ioutil.WriteFile(p, nil, 0755), IsNil)
+	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
+		c.Assert(path, Equals, "/proc/self/exe")
+		return filepath.Join(d, "snapd"), nil
+	})
+	defer restore()
+	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
+	defer restore()
+
+	apparmor.SetupConfCacheDirs("/newdir")
+	c.Check(apparmor.SnapConfineAppArmorDir, Equals, "/newdir/var/lib/snapd/apparmor/snap-confine.internal")
+}
+
+func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicyErr(c *C) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+	fakeApparmorFunctionsPath := filepath.Join(fakeroot, "/lib/apparmor/functions")
+	err := os.MkdirAll(filepath.Dir(fakeApparmorFunctionsPath), 0750)
+	c.Assert(err, IsNil)
+
+	os.Setenv("SNAPD_DEBUG", "1")
+	defer os.Unsetenv("SNAPD_DEBUG")
+
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	// no log output on missing file
+	c.Check(apparmor.SystemAppArmorLoadsSnapPolicy(), Equals, false)
+	c.Check(log.String(), Equals, "")
+
+	// permissions are ignored as root
+	if os.Getuid() == 0 {
+		return
+	}
+	// log generated for errors
+	err = ioutil.WriteFile(fakeApparmorFunctionsPath, nil, 0100)
+	c.Assert(err, IsNil)
+	c.Check(apparmor.SystemAppArmorLoadsSnapPolicy(), Equals, false)
+	c.Check(log.String(), Matches, `(?ms).* DEBUG: cannot open apparmor functions file: open .*/lib/apparmor/functions: permission denied`)
+}
+
+func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicy(c *C) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+
+	// systemAppArmorLoadsSnapPolicy() will look at this path so it
+	// needs to be the real path, not a faked one
+	dirs.SnapAppArmorDir = dirs.SnapAppArmorDir[len(fakeroot):]
+
+	fakeApparmorFunctionsPath := filepath.Join(fakeroot, "/lib/apparmor/functions")
+	err := os.MkdirAll(filepath.Dir(fakeApparmorFunctionsPath), 0755)
+	c.Assert(err, IsNil)
+
+	for _, tc := range []struct {
+		apparmorFunctionsContent string
+		expectedResult           bool
+	}{
+		{"", false},
+		{"unrelated content", false},
+		// 16.04
+		{`PROFILES_SNAPPY="/var/lib/snapd/apparmor/profiles"`, true},
+		// 18.04
+		{`PROFILES_VAR="/var/lib/snapd/apparmor/profiles"`, true},
+	} {
+		err := ioutil.WriteFile(fakeApparmorFunctionsPath, []byte(tc.apparmorFunctionsContent), 0644)
+		c.Assert(err, IsNil)
+
+		loadsPolicy := apparmor.SystemAppArmorLoadsSnapPolicy()
+		c.Check(loadsPolicy, Equals, tc.expectedResult, Commentf("%v", tc))
+	}
 }

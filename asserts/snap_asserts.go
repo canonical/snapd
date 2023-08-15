@@ -22,6 +22,7 @@ package asserts
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"fmt"
 	"time"
 
@@ -122,7 +123,7 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 	_, err := db.Find(AccountType, map[string]string{
 		"account-id": snapdcl.PublisherID(),
 	})
-	if IsNotFound(err) {
+	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("snap-declaration assertion for %q (id %q) does not have a matching account assertion for the publisher %q", snapdcl.SnapName(), snapdcl.SnapID(), snapdcl.PublisherID())
 	}
 	if err != nil {
@@ -444,6 +445,13 @@ func (ra *RevisionAuthority) Check(rev *SnapRevision, model *Model, store *Store
 	return nil
 }
 
+// SnapIntegrity holds information about integrity data included in a revision
+// for a given snap.
+type SnapIntegrity struct {
+	SHA3_384 string
+	Size     uint64
+}
+
 // SnapFileSHA3_384 computes the SHA3-384 digest of the given snap file.
 // It also returns its size.
 func SnapFileSHA3_384(snapPath string) (digest string, size uint64, err error) {
@@ -533,6 +541,8 @@ type SnapRevision struct {
 	snapSize     uint64
 	snapRevision int
 	timestamp    time.Time
+
+	snapIntegrity *SnapIntegrity
 }
 
 // SnapSHA3_384 returns the SHA3-384 digest of the snap.
@@ -572,6 +582,11 @@ func (snaprev *SnapRevision) Timestamp() time.Time {
 	return snaprev.timestamp
 }
 
+// SnapIntegrity returns the snap integrity data associated with the snap revision if any.
+func (snaprev *SnapRevision) SnapIntegrity() *SnapIntegrity {
+	return snaprev.snapIntegrity
+}
+
 // Implement further consistency checks.
 func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
 	otherProvenance := snaprev.Provenance() != naming.DefaultProvenance
@@ -582,7 +597,7 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 	_, err := db.Find(AccountType, map[string]string{
 		"account-id": snaprev.DeveloperID(),
 	})
-	if IsNotFound(err) {
+	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("snap-revision assertion for snap id %q does not have a matching account assertion for the developer %q", snaprev.SnapID(), snaprev.DeveloperID())
 	}
 	if err != nil {
@@ -593,7 +608,7 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 		"series":  release.Series,
 		"snap-id": snaprev.SnapID(),
 	})
-	if IsNotFound(err) {
+	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("snap-revision assertion for snap id %q does not have a matching snap-declaration assertion", snaprev.SnapID())
 	}
 	if err != nil {
@@ -678,11 +693,36 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	integrityMap, err := checkMap(assert.headers, "integrity")
+	if err != nil {
+		return nil, err
+	}
+
+	var snapIntegrity *SnapIntegrity
+
+	if integrityMap != nil {
+		_, err := checkDigestWhat(integrityMap, "sha3-384", crypto.SHA3_384, "of integrity header")
+		if err != nil {
+			return nil, err
+		}
+
+		size, err := checkUintWhat(integrityMap, "size", 64, "of integrity header")
+		if err != nil {
+			return nil, err
+		}
+
+		snapIntegrity = &SnapIntegrity{
+			SHA3_384: integrityMap["sha3-384"].(string),
+			Size:     size,
+		}
+	}
+
 	return &SnapRevision{
 		assertionBase: assert,
 		snapSize:      snapSize,
 		snapRevision:  snapRevision,
 		timestamp:     timestamp,
+		snapIntegrity: snapIntegrity,
 	}, nil
 }
 
@@ -733,7 +773,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 		"series":  validation.Series(),
 		"snap-id": validation.ApprovedSnapID(),
 	})
-	if IsNotFound(err) {
+	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion for approved-snap-id %q", validation.SnapID(), validation.ApprovedSnapID())
 	}
 	if err != nil {
@@ -743,7 +783,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 		"series":  validation.Series(),
 		"snap-id": validation.SnapID(),
 	})
-	if IsNotFound(err) {
+	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion", validation.SnapID())
 	}
 	if err != nil {
@@ -976,7 +1016,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 		"snap-id": snapdev.SnapID(),
 	})
 	if err != nil {
-		if IsNotFound(err) {
+		if errors.Is(err, &NotFoundError{}) {
 			return fmt.Errorf("snap-developer assertion for snap id %q does not have a matching snap-declaration assertion", snapdev.SnapID())
 		}
 		return err
@@ -985,7 +1025,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 	// check there's an account for the publisher-id
 	_, err = db.Find(AccountType, map[string]string{"account-id": publisherID})
 	if err != nil {
-		if IsNotFound(err) {
+		if errors.Is(err, &NotFoundError{}) {
 			return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the publisher %q", snapdev.SnapID(), publisherID)
 		}
 		return err
@@ -998,7 +1038,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 		}
 		_, err = db.Find(AccountType, map[string]string{"account-id": developerID})
 		if err != nil {
-			if IsNotFound(err) {
+			if errors.Is(err, &NotFoundError{}) {
 				return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the developer %q", snapdev.SnapID(), developerID)
 			}
 			return err

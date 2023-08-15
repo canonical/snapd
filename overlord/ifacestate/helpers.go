@@ -189,8 +189,14 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
 			logger.Noticef("cannot get state of snap %q: %s", snapName, err)
+			return interfaces.ConfinementOptions{}
 		}
-		opts, err := buildConfinementOptions(m.state, snapst.InstanceName(), snapst.Flags)
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			logger.Noticef("cannot get current info for snap %q: %s", snapName, err)
+			return interfaces.ConfinementOptions{}
+		}
+		opts, err := buildConfinementOptions(m.state, snapInfo, snapst.Flags)
 		if err != nil {
 			logger.Noticef("cannot get confinement options for snap %q: %s", snapName, err)
 		}
@@ -714,7 +720,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 	if modelAs.Store() != "" {
 		var err error
 		storeAs, err = assertstate.Store(c.st, modelAs.Store())
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return false, nil, err
 		}
 	}
@@ -875,7 +881,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 	if modelAs.Store() != "" {
 		var err error
 		storeAs, err = assertstate.Store(c.st, modelAs.Store())
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return false, err
 		}
 	}
@@ -1074,7 +1080,7 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 		return mapper.RemapSnapFromRequest(snapID), nil
 	}
 	decl, err := assertstate.SnapDeclaration(st, snapID)
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return "", nil
 	}
 	if err != nil {

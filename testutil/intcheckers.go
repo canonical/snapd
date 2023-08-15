@@ -64,35 +64,41 @@ func (checker *intChecker) Check(params []interface{}, names []string) (result b
 // IntLessThan checker verifies that one integer is less than other integer.
 //
 // For example:
-//     c.Assert(1, IntLessThan, 2)
+//
+//	c.Assert(1, IntLessThan, 2)
 var IntLessThan = &intChecker{CheckerInfo: &check.CheckerInfo{Name: "IntLessThan", Params: []string{"a", "b"}}, rel: "<"}
 
 // IntLessEqual checker verifies that one integer is less than or equal to other integer.
 //
 // For example:
-//     c.Assert(1, IntLessEqual, 1)
+//
+//	c.Assert(1, IntLessEqual, 1)
 var IntLessEqual = &intChecker{CheckerInfo: &check.CheckerInfo{Name: "IntLessEqual", Params: []string{"a", "b"}}, rel: "<="}
 
 // IntEqual checker verifies that one integer is equal to other integer.
 //
 // For example:
-//     c.Assert(1, IntEqual, 1)
+//
+//	c.Assert(1, IntEqual, 1)
 var IntEqual = &intChecker{CheckerInfo: &check.CheckerInfo{Name: "IntEqual", Params: []string{"a", "b"}}, rel: "=="}
 
 // IntNotEqual checker verifies that one integer is not equal to other integer.
 //
 // For example:
-//     c.Assert(1, IntNotEqual, 2)
+//
+//	c.Assert(1, IntNotEqual, 2)
 var IntNotEqual = &intChecker{CheckerInfo: &check.CheckerInfo{Name: "IntNotEqual", Params: []string{"a", "b"}}, rel: "!="}
 
 // IntGreaterThan checker verifies that one integer is greater than other integer.
 //
 // For example:
-//     c.Assert(2, IntGreaterThan, 1)
+//
+//	c.Assert(2, IntGreaterThan, 1)
 var IntGreaterThan = &intChecker{CheckerInfo: &check.CheckerInfo{Name: "IntGreaterThan", Params: []string{"a", "b"}}, rel: ">"}
 
 // IntGreaterEqual checker verifies that one integer is greater than or equal to other integer.
 //
 // For example:
-//     c.Assert(1, IntGreaterEqual, 2)
+//
+//	c.Assert(1, IntGreaterEqual, 2)
 var IntGreaterEqual = &intChecker{CheckerInfo: &check.CheckerInfo{Name: "IntGreaterEqual", Params: []string{"a", "b"}}, rel: ">="}

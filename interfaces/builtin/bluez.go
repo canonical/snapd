@@ -95,6 +95,11 @@ dbus (bind)
 # Allow binding the service to the requested connection name
 dbus (bind)
     bus=system
+    name="org.bluez.obex.*",
+
+# Allow binding the service to the requested connection name
+dbus (bind)
+    bus=system
     name="org.bluez.mesh",
 
 # Allow traffic to/from our interface with any method for unconfined clients
@@ -147,6 +152,9 @@ const bluezConnectedSlotAppArmor = `
 dbus (receive, send)
     bus=system
     peer=(label=###PLUG_SECURITY_TAGS###),
+
+# Allow sharing file descriptors (via DBus)
+unix (send,receive) type="seqpacket" addr=none peer=(addr=none label=###PLUG_SECURITY_TAGS###),
 `
 
 const bluezConnectedPlugAppArmor = `
@@ -186,6 +194,9 @@ dbus (receive)
 
 # Allow access to bluetooth audio streams
 network bluetooth,
+
+# Allow use of shared (via DBus) file descriptors
+unix (send, receive) type="seqpacket" addr=none peer=(addr=none label=###SLOT_SECURITY_TAGS###),
 `
 
 const bluezPermanentSlotSecComp = `
@@ -208,6 +219,7 @@ const bluezPermanentSlotDBus = `
     <allow send_destination="org.bluez.obex"/>
     <allow send_destination="org.bluez.mesh"/>
     <allow send_interface="org.bluez.Agent1"/>
+    <allow send_interface="org.bluez.AgentManager1"/>
     <allow send_interface="org.bluez.MediaEndpoint1"/>
     <allow send_interface="org.bluez.MediaPlayer1"/>
     <allow send_interface="org.bluez.ThermometerWatcher1"/>

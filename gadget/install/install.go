@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -42,12 +41,12 @@ import (
 // diskWithSystemSeed will locate a disk that has the partition corresponding
 // to a structure with SystemSeed role of the specified gadget volume and return
 // the device node.
-func diskWithSystemSeed(lv *gadget.LaidOutVolume) (device string, err error) {
-	for _, vs := range lv.LaidOutStructure {
+func diskWithSystemSeed(gv *gadget.Volume) (device string, err error) {
+	for _, gs := range gv.Structure {
 		// XXX: this part of the finding maybe should be a
 		// method on gadget.*Volume
-		if vs.Role == gadget.SystemSeed {
-			device, err = gadget.FindDeviceForStructure(&vs)
+		if gs.Role == gadget.SystemSeed {
+			device, err = gadget.FindDeviceForStructure(&gs)
 			if err != nil {
 				return "", fmt.Errorf("cannot find device for role system-seed: %v", err)
 			}
@@ -62,12 +61,12 @@ func diskWithSystemSeed(lv *gadget.LaidOutVolume) (device string, err error) {
 	return "", fmt.Errorf("cannot find role system-seed in gadget")
 }
 
-func roleOrLabelOrName(part *gadget.OnDiskStructure) string {
+func roleOrLabelOrName(role string, part *gadget.OnDiskStructure) string {
 	switch {
-	case part.Role != "":
-		return part.Role
-	case part.Label != "":
-		return part.Label
+	case role != "":
+		return role
+	case part.PartitionFSLabel != "":
+		return part.PartitionFSLabel
 	case part.Name != "":
 		return part.Name
 	default:
@@ -97,24 +96,25 @@ func saveStorageTraits(mod gadget.Model, allLaidOutVols map[string]*gadget.LaidO
 	return nil
 }
 
-func maybeEncryptPartition(part *gadget.OnDiskStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, encryptionKey keys.EncryptionKey, err error) {
+func maybeEncryptPartition(laidOut *gadget.LaidOutStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, encryptionKey keys.EncryptionKey, err error) {
 	mustEncrypt := (encryptionType != secboot.EncryptionTypeNone)
-	partDisp := roleOrLabelOrName(part)
 	// fsParams.Device is the kernel device that carries the
 	// filesystem, which is either the raw /dev/<partition>, or
 	// the mapped LUKS device if the structure is encrypted (if
 	// the latter, it will be filled below in this function).
 	fsParams = &mkfsParams{
-		Type:       part.Filesystem,
-		Device:     part.Node,
-		Label:      part.Label,
-		Size:       part.Size,
+		// Filesystem and label are as specified in the gadget
+		Type:  laidOut.Filesystem(),
+		Label: laidOut.Label(),
+		// Rest come from disk data
+		Device:     laidOut.Node,
+		Size:       laidOut.Size,
 		SectorSize: sectorSize,
 	}
 
-	if mustEncrypt && roleNeedsEncryption(part.Role) {
-		timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", partDisp),
-			fmt.Sprintf("Create encryption key set for %s", partDisp),
+	if mustEncrypt && roleNeedsEncryption(laidOut.Role()) {
+		timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", laidOut.Role()),
+			fmt.Sprintf("Create encryption key set for %s", laidOut.Role()),
 			func(timings.Measurer) {
 				encryptionKey, err = keys.NewEncryptionKey()
 				if err != nil {
@@ -124,28 +124,20 @@ func maybeEncryptPartition(part *gadget.OnDiskStructure, encryptionType secboot.
 		if err != nil {
 			return nil, nil, err
 		}
-		logger.Noticef("encrypting partition device %v", part.Node)
+		logger.Noticef("encrypting partition device %v", laidOut.Node)
 		var dataPart encryptedDevice
 		switch encryptionType {
-		case secboot.EncryptionTypeLUKS:
-			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", partDisp),
-				fmt.Sprintf("Create encryption device for %s", partDisp),
+		case secboot.EncryptionTypeLUKS, secboot.EncryptionTypeLUKSWithICE:
+			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s] (%v)", laidOut.Role(), encryptionType),
+				fmt.Sprintf("Create encryption device for %s (%s)", laidOut.Role(), encryptionType),
 				func(timings.Measurer) {
-					dataPart, err = newEncryptedDeviceLUKS(part, encryptionKey, part.Label)
+					dataPart, err = newEncryptedDeviceLUKS(&laidOut.OnDiskStructure, encryptionType, encryptionKey, laidOut.PartitionFSLabel, laidOut.Name())
 				})
 			if err != nil {
 				return nil, nil, err
 			}
-
-		case secboot.EncryptionTypeDeviceSetupHook:
-			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device-setup-hook[%s]", partDisp),
-				fmt.Sprintf("Create encryption device for %s using device-setup-hook", partDisp),
-				func(timings.Measurer) {
-					dataPart, err = createEncryptedDeviceWithSetupHook(part, encryptionKey, part.Name)
-				})
-			if err != nil {
-				return nil, nil, err
-			}
+		default:
+			return nil, nil, fmt.Errorf("internal error: unknown encryption type: %v", encryptionType)
 		}
 
 		// update the encrypted device node, such that subsequent steps
@@ -162,9 +154,8 @@ func maybeEncryptPartition(part *gadget.OnDiskStructure, encryptionType secboot.
 	return fsParams, encryptionKey, nil
 }
 
-func createFilesystem(part *gadget.OnDiskStructure, fsParams *mkfsParams, perfTimings timings.Measurer) error {
-	partDisp := roleOrLabelOrName(part)
-
+// TODO probably we won't need to pass partDisp when we include storage in laidOut
+func createFilesystem(part *gadget.OnDiskStructure, fsParams *mkfsParams, partDisp string, perfTimings timings.Measurer) error {
 	var err error
 	timings.Run(perfTimings, fmt.Sprintf("make-filesystem[%s]", partDisp),
 		fmt.Sprintf("Create filesystem for %s", fsParams.Device),
@@ -177,13 +168,13 @@ func createFilesystem(part *gadget.OnDiskStructure, fsParams *mkfsParams, perfTi
 	return nil
 }
 
-func writePartitionContent(part *gadget.OnDiskStructure, fsDevice string, observer gadget.ContentObserver, perfTimings timings.Measurer) error {
-	partDisp := roleOrLabelOrName(part)
+// TODO probably we won't need to pass partDisp when we include storage in laidOut
+func writePartitionContent(laidOut *gadget.LaidOutStructure, fsDevice string, observer gadget.ContentObserver, partDisp string, perfTimings timings.Measurer) error {
 	var err error
 	timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", partDisp),
 		fmt.Sprintf("Write content for %s", partDisp),
 		func(timings.Measurer) {
-			err = writeFilesystemContent(part, fsDevice, observer)
+			err = writeFilesystemContent(laidOut, fsDevice, observer)
 		})
 	if err != nil {
 		return err
@@ -191,26 +182,46 @@ func writePartitionContent(part *gadget.OnDiskStructure, fsDevice string, observ
 	return nil
 }
 
-func installOnePartition(part *gadget.OnDiskStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, observer gadget.ContentObserver, perfTimings timings.Measurer) (fsDevice string, encryptionKey keys.EncryptionKey, err error) {
+func installOnePartition(laidOut *gadget.LaidOutStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, observer gadget.ContentObserver, perfTimings timings.Measurer) (fsDevice string, encryptionKey keys.EncryptionKey, err error) {
 	// 1. Encrypt
-	partDisp := roleOrLabelOrName(part)
-	fsParams, encryptionKey, err := maybeEncryptPartition(part, encryptionType, sectorSize, perfTimings)
+	role := laidOut.Role()
+	fsParams, encryptionKey, err := maybeEncryptPartition(laidOut, encryptionType, sectorSize, perfTimings)
 	if err != nil {
-		return "", nil, fmt.Errorf("cannot encrypt partition %s: %v", partDisp, err)
+		return "", nil, fmt.Errorf("cannot encrypt partition %s: %v", role, err)
 	}
 	fsDevice = fsParams.Device
 
 	// 2. Create filesystem
-	if err := createFilesystem(part, fsParams, perfTimings); err != nil {
+	if err := createFilesystem(&laidOut.OnDiskStructure, fsParams, role, perfTimings); err != nil {
 		return "", nil, err
 	}
 
 	// 3. Write content
-	if err := writePartitionContent(part, fsDevice, observer, perfTimings); err != nil {
+	if err := writePartitionContent(laidOut, fsDevice, observer, role, perfTimings); err != nil {
 		return "", nil, err
 	}
 
 	return fsDevice, encryptionKey, nil
+}
+
+// resolveBootDevice auto-detects the boot device
+// bootDevice forces the device. Device forcing is used for (spread) testing only.
+func resolveBootDevice(bootDevice string, bootVol *gadget.Volume) (string, error) {
+	if bootDevice != "" {
+		return bootDevice, nil
+	}
+	foundDisk, err := disks.DiskFromMountPoint("/run/mnt/ubuntu-seed", nil)
+	if err != nil {
+		logger.Noticef("Warning: cannot find disk from mounted seed: %s", err)
+	} else {
+		return foundDisk.KernelDeviceNode(), nil
+	}
+	bootDevice, err = diskWithSystemSeed(bootVol)
+	if err != nil {
+		return "", fmt.Errorf("cannot find device to create partitions on: %v", err)
+	}
+
+	return bootDevice, nil
 }
 
 // createPartitions creates partitions on the disk and returns the
@@ -218,46 +229,45 @@ func installOnePartition(part *gadget.OnDiskStructure, encryptionType secboot.En
 // structures after that, the laidout volumes, and the disk sector
 // size.
 func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options,
-	perfTimings timings.Measurer) (bootVolGadgetName string, created []gadget.OnDiskStructure, allLaidOutVols map[string]*gadget.LaidOutVolume, bootVolSectorSize quantity.Size, err error) {
+	perfTimings timings.Measurer) (bootVolGadgetName string, created []gadget.LaidOutStructure, allLaidOutVols map[string]*gadget.LaidOutVolume, bootVolSectorSize quantity.Size, err error) {
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	logger.Noticef("        encryption: %v", options.EncryptionType)
+
 	if gadgetRoot == "" {
 		return "", nil, nil, 0, fmt.Errorf("cannot use empty gadget root directory")
 	}
 
 	if model.Grade() == asserts.ModelGradeUnset {
-		return "", nil, nil, 0, fmt.Errorf("cannot run install mode on pre-UC20 system")
+		return "", nil, nil, 0,
+			fmt.Errorf("cannot run install mode on pre-UC20 system")
 	}
 
-	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
+	// Find boot laid out data
+	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model, options.EncryptionType)
 	if err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot layout volumes: %v", err)
 	}
-	// TODO: resolve content paths from gadget here
+	bootVol := laidOutBootVol.Volume
 
-	// auto-detect device if no device is forced
-	// device forcing is used for (spread) testing only
-	if bootDevice == "" {
-		bootDevice, err = diskWithSystemSeed(laidOutBootVol)
-		if err != nil {
-			return "", nil, nil, 0, fmt.Errorf("cannot find device to create partitions on: %v", err)
-		}
+	bootDevice, err = resolveBootDevice(bootDevice, bootVol)
+	if err != nil {
+		return "", nil, nil, 0, err
 	}
 
-	diskLayout, err := gadget.OnDiskVolumeFromDevice(bootDevice)
+	diskVolume, err := gadget.OnDiskVolumeFromDevice(bootDevice)
 	if err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
 
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
-	if err := gadget.EnsureLayoutCompatibility(laidOutBootVol, diskLayout, nil); err != nil {
+	if _, err := gadget.EnsureVolumeCompatibility(bootVol, diskVolume, nil); err != nil {
 		return "", nil, nil, 0, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
 	}
 
 	// remove partitions added during a previous install attempt
-	if err := removeCreatedPartitions(gadgetRoot, laidOutBootVol, diskLayout); err != nil {
+	if err := removeCreatedPartitions(gadgetRoot, bootVol, diskVolume); err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
@@ -274,26 +284,23 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 		opts := &CreateOptions{
 			GadgetRootDir: gadgetRoot,
 		}
-		created, err = CreateMissingPartitions(diskLayout, laidOutBootVol, opts)
+		created, err = createMissingPartitions(diskVolume, laidOutBootVol, opts)
 	})
 	if err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
-	bootVolGadgetName = laidOutBootVol.Name
-	bootVolSectorSize = diskLayout.SectorSize
+	bootVolGadgetName = bootVol.Name
+	bootVolSectorSize = diskVolume.SectorSize
 	return bootVolGadgetName, created, allLaidOutVols, bootVolSectorSize, nil
 }
 
 func createEncryptionParams(encTyp secboot.EncryptionType) gadget.StructureEncryptionParameters {
 	switch encTyp {
-	case secboot.EncryptionTypeLUKS:
+	case secboot.EncryptionTypeLUKS, secboot.EncryptionTypeLUKSWithICE:
 		return gadget.StructureEncryptionParameters{
+			// TODO:ICE: remove "Method" entirely, there is only LUKS
 			Method: gadget.EncryptionLUKS,
-		}
-	case secboot.EncryptionTypeDeviceSetupHook:
-		return gadget.StructureEncryptionParameters{
-			Method: gadget.EncryptionICE,
 		}
 	}
 	logger.Noticef("internal error: unknown encryption parameter %q", encTyp)
@@ -318,21 +325,17 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 
 	hasSavePartition := false
 
-	for _, part := range created {
-		roleFmt := ""
-		if part.Role != "" {
-			roleFmt = fmt.Sprintf("role %v", part.Role)
-		}
-		logger.Noticef("created new partition %v for structure %v (size %v) %s",
-			part.Node, part, part.Size.IECString(), roleFmt)
-		if part.Role == gadget.SystemSave {
+	// Note that all partitions here will have a role (see
+	// gadget.IsCreatableAtInstall() which defines the list)
+	for _, laidOut := range created {
+		logger.Noticef("created new partition %v for structure %v (size %v) with role %s",
+			laidOut.Node, laidOut, laidOut.Size.IECString(), laidOut.Role())
+		if laidOut.Role() == gadget.SystemSave {
 			hasSavePartition = true
 		}
-		if part.Role != "" {
-			// keep track of the /dev/<partition> (actual raw
-			// device) for each role
-			devicesForRoles[part.Role] = part.Node
-		}
+		// keep track of the /dev/<partition> (actual raw
+		// device) for each role
+		devicesForRoles[laidOut.Role()] = laidOut.Node
 
 		// use the diskLayout.SectorSize here instead of lv.SectorSize, we check
 		// that if there is a sector-size specified in the gadget that it
@@ -342,7 +345,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 
 		// for encrypted device the filesystem device it will point to
 		// the mapper device otherwise it's the raw device node
-		fsDevice, encryptionKey, err := installOnePartition(&part, options.EncryptionType,
+		fsDevice, encryptionKey, err := installOnePartition(&laidOut, options.EncryptionType,
 			bootVolSectorSize, observer, perfTimings)
 		if err != nil {
 			return nil, err
@@ -352,11 +355,13 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 			if keyForRole == nil {
 				keyForRole = map[string]keys.EncryptionKey{}
 			}
-			keyForRole[part.Role] = encryptionKey
-			partsEncrypted[part.Name] = createEncryptionParams(options.EncryptionType)
+			keyForRole[laidOut.Role()] = encryptionKey
+			partsEncrypted[laidOut.Name()] = createEncryptionParams(options.EncryptionType)
 		}
-		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := mountFilesystem(fsDevice, part.Filesystem, filepath.Join(boot.InitramfsRunMntDir, part.Label)); err != nil {
+		if options.Mount && laidOut.Label() != "" && laidOut.HasFilesystem() {
+			// fs is taken from gadget, as on disk one might be displayed as
+			// crypto_LUKS, which is not useful for formatting.
+			if err := mountFilesystem(fsDevice, laidOut.VolumeStructure.Filesystem, getMntPointForPart(laidOut.VolumeStructure)); err != nil {
 				return nil, err
 			}
 		}
@@ -403,7 +408,7 @@ func laidOutStructureForDiskStructure(laidVols map[string]*gadget.LaidOutVolume,
 			continue
 		}
 		for _, laidStruct := range laidVol.LaidOutStructure {
-			if onDiskStruct.Name == laidStruct.Name {
+			if onDiskStruct.Name == laidStruct.Name() {
 				return &laidStruct, nil
 			}
 		}
@@ -440,10 +445,10 @@ func onDiskVolumeFromPartitionSysfsPath(partPath string) (*gadget.OnDiskVolume, 
 	return onDiskVol, nil
 }
 
-// applyLayoutToOnDiskStructure finds the on disk structure from a
+// applyOnDiskStructureToLaidOut finds the on disk structure from a
 // partition node and takes the laid out information from laidOutVols
 // and inserts it there.
-func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode string, laidOutVols map[string]*gadget.LaidOutVolume, gadgetVolName string) (*gadget.OnDiskStructure, error) {
+func applyOnDiskStructureToLaidOut(onDiskVol *gadget.OnDiskVolume, partNode string, laidOutVols map[string]*gadget.LaidOutVolume, gadgetVolName string, creatingPart bool) (*gadget.LaidOutStructure, error) {
 	onDiskStruct, err := structureFromPartDevice(onDiskVol, partNode)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find partition %q: %v", partNode, err)
@@ -453,10 +458,19 @@ func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode strin
 	if err != nil {
 		return nil, err
 	}
-	// This fills LaidOutStructure, including (importantly) the ResolvedContent field
-	onDiskStruct.LaidOutStructure = *laidOutStruct
+	logger.Debugf("when applying layout to disk structure: laidOutStruct.OnDiskStructure: %+v, *onDiskStruct: %+v",
+		laidOutStruct.OnDiskStructure, *onDiskStruct)
 
-	return onDiskStruct, nil
+	// Keep wanted filesystem label and type, as that is what we actually want
+	// on the disk.
+	if creatingPart {
+		onDiskStruct.PartitionFSType = laidOutStruct.PartitionFSType
+		onDiskStruct.PartitionFSLabel = laidOutStruct.PartitionFSLabel
+	}
+	// This fills LaidOutStructure, including (importantly) the ResolvedContent field
+	laidOutStruct.OnDiskStructure = *onDiskStruct
+
+	return laidOutStruct, nil
 }
 
 func deviceForMaybeEncryptedVolume(volStruct *gadget.VolumeStructure, encSetupData *EncryptionSetupData) string {
@@ -509,14 +523,16 @@ func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string
 			// TODO: do we need to consider different
 			// sector sizes for the encrypted/unencrypted
 			// cases here?
-			onDiskStruct, err := applyLayoutToOnDiskStructure(onDiskVol, volStruct.Device, allLaidOutVols, volName)
+			const creatingPart = false
+			laidOut, err := applyOnDiskStructureToLaidOut(onDiskVol, volStruct.Device, allLaidOutVols, volName, creatingPart)
 			if err != nil {
 				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", volStruct.Device, err)
 			}
 
 			device := deviceForMaybeEncryptedVolume(&volStruct, encSetupData)
 			logger.Debugf("writing content on partition %s", device)
-			if err := writePartitionContent(onDiskStruct, device, observer, perfTimings); err != nil {
+			partDisp := roleOrLabelOrName(laidOut.Role(), &laidOut.OnDiskStructure)
+			if err := writePartitionContent(laidOut, device, observer, partDisp, perfTimings); err != nil {
 				return nil, err
 			}
 		}
@@ -525,18 +541,33 @@ func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string
 	return onDiskVols, nil
 }
 
+// getMntPointForPart tells us where to mount a given structure so we
+// match what the functions that write something expect.
+func getMntPointForPart(part *gadget.VolumeStructure) (mntPt string) {
+	switch part.Role {
+	case gadget.SystemSeed, gadget.SystemSeedNull:
+		mntPt = boot.InitramfsUbuntuSeedDir
+	case gadget.SystemBoot:
+		mntPt = boot.InitramfsUbuntuBootDir
+	case gadget.SystemSave:
+		mntPt = boot.InitramfsUbuntuSaveDir
+	case gadget.SystemData:
+		mntPt = boot.InstallUbuntuDataDir
+	default:
+		mntPt = filepath.Join(boot.InitramfsRunMntDir, part.Name)
+	}
+	return mntPt
+}
+
 // MountVolumes mounts partitions for the volumes specified by
-// onVolumes. It returns the ESP partition and a function that needs
-// to be called for unmounting them.
-func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionSetupData) (espMntDir string, unmount func() error, err error) {
+// onVolumes. It returns the partition with the system-seed{,-null}
+// role and a function that needs to be called for unmounting them.
+func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionSetupData) (seedMntDir string, unmount func() error, err error) {
 	var mountPoints []string
-	numEsp := 0
+	numSeedPart := 0
 	unmount = func() (err error) {
 		for _, mntPt := range mountPoints {
-			errUnmount := sysUnmount(mntPt, 0)
-			if errUnmount != nil {
-				logger.Noticef("cannot unmount %q: %v", mntPt, errUnmount)
-			}
+			errUnmount := unmountWithFallbackToLazy(mntPt, "mounting volumes")
 			// Make sure we do not set err to nil if it had already an error
 			if errUnmount != nil {
 				err = errUnmount
@@ -549,7 +580,13 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 			if part.Filesystem == "" {
 				continue
 			}
-			mntPt := filepath.Join(boot.InitramfsRunMntDir, part.Name)
+
+			mntPt := getMntPointForPart(&part)
+			switch part.Role {
+			case gadget.SystemSeed, gadget.SystemSeedNull:
+				seedMntDir = mntPt
+				numSeedPart++
+			}
 			// Device might have been encrypted
 			device := deviceForMaybeEncryptedVolume(&part, encSetupData)
 
@@ -558,19 +595,14 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 				return "", nil, fmt.Errorf("cannot mount %q at %q: %v", device, mntPt, err)
 			}
 			mountPoints = append(mountPoints, mntPt)
-
-			if strings.Contains(strings.ToUpper(part.Type), gadget.GPTPartitionGUIDESP) {
-				espMntDir = mntPt
-				numEsp++
-			}
 		}
 	}
-	if numEsp != 1 {
+	if numSeedPart != 1 {
 		defer unmount()
-		return "", nil, fmt.Errorf("there are %d ESP partitions, expected one", numEsp)
+		return "", nil, fmt.Errorf("there are %d system-seed{,-null} partitions, expected one", numSeedPart)
 	}
 
-	return espMntDir, unmount, nil
+	return seedMntDir, unmount, nil
 }
 
 func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *EncryptionSetupData) error {
@@ -598,7 +630,7 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 	// TODO for partial gadgets we should use the data from onVolumes instead of
 	// what using only what comes from gadget.yaml.
 	// we might not want to take onVolumes as such as input at that point
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model, encryptionType)
 	if err != nil {
 		return nil, fmt.Errorf("when encrypting partitions: cannot layout volumes: %v", err)
 	}
@@ -630,7 +662,8 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 				}
 			}
 			// Obtain partition data and link with laid out information
-			onDiskStruct, err := applyLayoutToOnDiskStructure(onDiskVol, device, allLaidOutVols, volName)
+			const creatingPart = true
+			laidOut, err := applyOnDiskStructureToLaidOut(onDiskVol, device, allLaidOutVols, volName, creatingPart)
 			if err != nil {
 				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", device, err)
 			}
@@ -638,11 +671,11 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 			logger.Debugf("encrypting partition %s", device)
 
 			fsParams, encryptionKey, err :=
-				maybeEncryptPartition(onDiskStruct, encryptionType, onDiskVol.SectorSize, perfTimings)
+				maybeEncryptPartition(laidOut, encryptionType, onDiskVol.SectorSize, perfTimings)
 			if err != nil {
 				return nil, fmt.Errorf("cannot encrypt %q: %v", device, err)
 			}
-			setupData.parts[onDiskStruct.Name] = partEncryptionData{
+			setupData.parts[laidOut.Name()] = partEncryptionData{
 				role:   volStruct.Role,
 				device: device,
 				// EncryptedDevice will be /dev/mapper/ubuntu-data, etc.
@@ -654,7 +687,6 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 			}
 		}
 	}
-
 	return setupData, nil
 }
 
@@ -678,19 +710,15 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		return nil, fmt.Errorf("cannot run factory-reset mode on pre-UC20 system")
 	}
 
-	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
+	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model, options.EncryptionType)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volumes: %v", err)
 	}
 	// TODO: resolve content paths from gadget here
 
-	// auto-detect device if no device is forced
-	// device forcing is used for (spread) testing only
-	if bootDevice == "" {
-		bootDevice, err = diskWithSystemSeed(laidOutBootVol)
-		if err != nil {
-			return nil, fmt.Errorf("cannot find device to create partitions on: %v", err)
-		}
+	bootDevice, err = resolveBootDevice(bootDevice, laidOutBootVol.Volume)
+	if err != nil {
+		return nil, err
 	}
 
 	diskLayout, err := gadget.OnDiskVolumeFromDevice(bootDevice)
@@ -698,29 +726,29 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		return nil, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
 
-	layoutCompatOps := &gadget.EnsureLayoutCompatibilityOptions{
+	layoutCompatOps := &gadget.VolumeCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
 		ExpectedStructureEncryption:      map[string]gadget.StructureEncryptionParameters{},
 	}
 	if options.EncryptionType != secboot.EncryptionTypeNone {
 		var encryptionParam gadget.StructureEncryptionParameters
 		switch options.EncryptionType {
-		case secboot.EncryptionTypeLUKS:
+		case secboot.EncryptionTypeLUKS, secboot.EncryptionTypeLUKSWithICE:
 			encryptionParam = gadget.StructureEncryptionParameters{Method: gadget.EncryptionLUKS}
 		default:
 			// XXX what about ICE?
 			return nil, fmt.Errorf("unsupported encryption type %v", options.EncryptionType)
 		}
 		for _, volStruct := range laidOutBootVol.LaidOutStructure {
-			if !roleNeedsEncryption(volStruct.Role) {
+			if !roleNeedsEncryption(volStruct.Role()) {
 				continue
 			}
-			layoutCompatOps.ExpectedStructureEncryption[volStruct.Name] = encryptionParam
+			layoutCompatOps.ExpectedStructureEncryption[volStruct.Name()] = encryptionParam
 		}
 	}
 	// factory reset is done on a system that was once installed, so this
 	// should be always successful unless the partition table has changed
-	if err := gadget.EnsureLayoutCompatibility(laidOutBootVol, diskLayout, layoutCompatOps); err != nil {
+	if _, err := gadget.EnsureVolumeCompatibility(laidOutBootVol.Volume, diskLayout, layoutCompatOps); err != nil {
 		return nil, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
 	}
 
@@ -734,17 +762,15 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	}
 	rolesToReset := []string{gadget.SystemBoot, gadget.SystemData}
 	partsToReset := partitionsWithRolesAndContent(laidOutBootVol, diskLayout, rolesToReset)
-	for _, part := range partsToReset {
+	for _, laidOut := range partsToReset {
 		logger.Noticef("resetting %v structure %v (size %v) role %v",
-			part.Node, part, part.Size.IECString(), part.Role)
+			laidOut.Node, laidOut, laidOut.Size.IECString(), laidOut.Role())
 
-		if part.Role != "" {
-			// keep track of the /dev/<partition> (actual raw
-			// device) for each role
-			deviceForRole[part.Role] = part.Node
-		}
+		// keep track of the /dev/<partition> (actual raw
+		// device) for each role
+		deviceForRole[laidOut.Role()] = laidOut.Node
 
-		fsDevice, encryptionKey, err := installOnePartition(&part, options.EncryptionType,
+		fsDevice, encryptionKey, err := installOnePartition(&laidOut, options.EncryptionType,
 			diskLayout.SectorSize, observer, perfTimings)
 		if err != nil {
 			return nil, err
@@ -753,10 +779,12 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 			if keyForRole == nil {
 				keyForRole = map[string]keys.EncryptionKey{}
 			}
-			keyForRole[part.Role] = encryptionKey
+			keyForRole[laidOut.Role()] = encryptionKey
 		}
-		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := mountFilesystem(fsDevice, part.Filesystem, filepath.Join(boot.InitramfsRunMntDir, part.Label)); err != nil {
+		if options.Mount && laidOut.Label() != "" && laidOut.HasFilesystem() {
+			// fs is taken from gadget, as on disk one might be displayed as
+			// crypto_LUKS, which is not useful for formatting.
+			if err := mountFilesystem(fsDevice, laidOut.VolumeStructure.Filesystem, getMntPointForPart(laidOut.VolumeStructure)); err != nil {
 				return nil, err
 			}
 		}

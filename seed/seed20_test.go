@@ -20,6 +20,7 @@
 package seed_test
 
 import (
+	"crypto"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -112,6 +113,10 @@ type seed20Suite struct {
 
 var _ = Suite(&seed20Suite{})
 
+var (
+	otherbrandPrivKey, _ = assertstest.GenerateKey(752)
+)
+
 func (s *seed20Suite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
@@ -121,6 +126,7 @@ func (s *seed20Suite) SetUpTest(c *C) {
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})
+	s.Brands.Register("other-brand", otherbrandPrivKey, nil)
 	// needed by TestingSeed20.MakeSeed (to work with makeSnap)
 
 	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]interface{}{
@@ -1225,53 +1231,6 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTime(c *C) {
 	s.makeSnap(c, "required18", "developerid")
 	s.SetSnapAssertionNow(time.Time{})
 
-	snapdSnap := &seed.Snap{
-		Path:          s.expectedPath("snapd"),
-		SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
-		EssentialType: snap.TypeSnapd,
-		Essential:     true,
-		Required:      true,
-		Channel:       "latest/stable",
-	}
-	pcKernelSnap := &seed.Snap{
-		Path:          s.expectedPath("pc-kernel"),
-		SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
-		EssentialType: snap.TypeKernel,
-		Essential:     true,
-		Required:      true,
-		Channel:       "20",
-	}
-	core20Snap := &seed.Snap{Path: s.expectedPath("core20"),
-		SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
-		EssentialType: snap.TypeBase,
-		Essential:     true,
-		Required:      true,
-		Channel:       "latest/stable",
-	}
-	pcSnap := &seed.Snap{
-		Path:          s.expectedPath("pc"),
-		SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
-		EssentialType: snap.TypeGadget,
-		Essential:     true,
-		Required:      true,
-		Channel:       "20",
-	}
-
-	tests := []struct {
-		onlyTypes []snap.Type
-		expected  []*seed.Snap
-	}{
-		{[]snap.Type{snap.TypeSnapd}, []*seed.Snap{snapdSnap}},
-		{[]snap.Type{snap.TypeKernel}, []*seed.Snap{pcKernelSnap}},
-		{[]snap.Type{snap.TypeBase}, []*seed.Snap{core20Snap}},
-		{[]snap.Type{snap.TypeGadget}, []*seed.Snap{pcSnap}},
-		{[]snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase}, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap}},
-		// the order in essentialTypes is not relevant
-		{[]snap.Type{snap.TypeGadget, snap.TypeKernel}, []*seed.Snap{pcKernelSnap, pcSnap}},
-		// degenerate case
-		{[]snap.Type{}, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap}},
-	}
-
 	baseLabel := "20210315"
 
 	testReadSystemEssentialAndBetterEarliestTime := func(sysLabel string, earliestTime, modelTime, improvedTime time.Time) {
@@ -1304,17 +1263,13 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTime(c *C) {
 				}},
 		}, nil)
 
-		for _, t := range tests {
-			// test short-cut helper as well
-			mod, essSnaps, betterTime, err := seed.ReadSystemEssentialAndBetterEarliestTime(s.SeedDir, sysLabel, t.onlyTypes, earliestTime, 0, s.perfTimings)
-			c.Assert(err, IsNil)
-			c.Check(mod.BrandID(), Equals, "my-brand")
-			c.Check(mod.Model(), Equals, "my-model")
-			c.Check(mod.Timestamp().Equal(modelTime), Equals, true)
-			c.Check(essSnaps, HasLen, len(t.expected))
-			c.Check(essSnaps, DeepEquals, t.expected)
-			c.Check(betterTime.Equal(improvedTime), Equals, true, Commentf("%v expected: %v", betterTime, improvedTime))
-		}
+		// test short-cut helper as well
+		theSeed, betterTime, err := seed.ReadSeedAndBetterEarliestTime(s.SeedDir, sysLabel, earliestTime, 0, s.perfTimings)
+		c.Assert(err, IsNil)
+		c.Check(theSeed.Model().BrandID(), Equals, "my-brand")
+		c.Check(theSeed.Model().Model(), Equals, "my-model")
+		c.Check(theSeed.Model().Timestamp().Equal(modelTime), Equals, true)
+		c.Check(betterTime.Equal(improvedTime), Equals, true, Commentf("%v expected: %v", betterTime, improvedTime))
 	}
 
 	revsTime := s.AssertedSnapRevision("required18").Timestamp()
@@ -1373,7 +1328,7 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTimeParallelism(c 
 			}},
 	}, nil)
 
-	_, _, _, err := seed.ReadSystemEssentialAndBetterEarliestTime(s.SeedDir, sysLabel, nil, time.Time{}, 3, s.perfTimings)
+	_, _, err := seed.ReadSeedAndBetterEarliestTime(s.SeedDir, sysLabel, time.Time{}, 3, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(testSeed, NotNil)
 	c.Check(testSeed.Jobs, Equals, 3)
@@ -3230,4 +3185,235 @@ func (s *seed20Suite) findAutoImportAssertion(seed20 seed.Seed) ([]asserts.Asser
 	})
 
 	return assertions, err
+}
+
+func (s *seed20Suite) TestPreseedCapableSeed(c *C) {
+	r := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer r()
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	sysLabel := "20230406"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, nil)
+
+	preseedArtifact := filepath.Join(s.SeedDir, "systems", sysLabel, "preseed.tgz")
+	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
+	c.Assert(err, IsNil)
+	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
+	c.Assert(err, IsNil)
+
+	snaps := []interface{}{
+		map[string]interface{}{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
+		map[string]interface{}{"name": "core20", "id": s.AssertedSnapID("core20"), "revision": "1"},
+		map[string]interface{}{"name": "pc-kernel", "id": s.AssertedSnapID("pc-kernel"), "revision": "1"},
+		map[string]interface{}{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
+	}
+	headers := map[string]interface{}{
+		"type":              "preseed",
+		"series":            "16",
+		"brand-id":          "my-brand",
+		"model":             "my-model",
+		"system-label":      sysLabel,
+		"artifact-sha3-384": digest,
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+		"snaps":             snaps,
+	}
+
+	signer := s.Brands.Signing("my-brand")
+	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
+	c.Assert(err, IsNil)
+	seedtest.WriteAssertions(filepath.Join(s.SeedDir, "systems", sysLabel, "preseed"), preseedAs)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	preseedSeed := seed20.(seed.PreseedCapable)
+
+	c.Check(preseedSeed.HasArtifact("preseed.tgz"), Equals, true)
+	c.Check(preseedSeed.HasArtifact("other.tgz"), Equals, false)
+
+	err = preseedSeed.LoadAssertions(nil, nil)
+	c.Assert(err, IsNil)
+
+	err = preseedSeed.LoadEssentialMeta(nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	preesedAs2, err := preseedSeed.LoadPreseedAssertion()
+	c.Assert(err, IsNil)
+	c.Check(preesedAs2, DeepEquals, preseedAs)
+}
+
+func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
+	r := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer r()
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	sysLabel := "20230406"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, nil)
+
+	preseedArtifact := filepath.Join(s.SeedDir, "systems", sysLabel, "preseed.tgz")
+	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
+	c.Assert(err, IsNil)
+	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
+	c.Assert(err, IsNil)
+
+	snaps := []interface{}{
+		map[string]interface{}{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
+		map[string]interface{}{"name": "core20", "id": s.AssertedSnapID("core20"), "revision": "1"},
+		map[string]interface{}{"name": "pc-kernel", "id": s.AssertedSnapID("pc-kernel"), "revision": "1"},
+		map[string]interface{}{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
+	}
+
+	tests := []struct {
+		omitPreseedAssert bool
+		dupPreseedAssert  bool
+
+		overrides map[string]interface{}
+		asserts   []asserts.Assertion
+		err       string
+	}{
+		{omitPreseedAssert: true, asserts: s.Brands.AccountsAndKeys("my-brand"), err: `system preseed assertion file must contain a preseed assertion`},
+		// this works for contrast
+		{asserts: s.Brands.AccountsAndKeys("my-brand"), err: ""},
+		{dupPreseedAssert: true, err: `system preseed assertion file cannot contain multiple preseed assertions`},
+		{overrides: map[string]interface{}{"system-label": "other-label"}, err: `preseed assertion system label "other-label" doesn't match system label "20230406"`},
+		{overrides: map[string]interface{}{"model": "other-model"}, err: `preseed assertion model "other-model" doesn't match the model "my-model"`},
+		{overrides: map[string]interface{}{"series": "other-series"}, err: `preseed assertion series "other-series" doesn't match model series "16"`},
+		{overrides: map[string]interface{}{"brand-id": "other-brand"}, asserts: s.Brands.AccountsAndKeys("other-brand"), err: `preseed assertion brand "other-brand" doesn't match model brand "my-brand"`},
+		{overrides: map[string]interface{}{"brand-id": "other-brand"}, err: `cannot resolve prerequisite assertion:.*`},
+	}
+
+	for _, tc := range tests {
+		headers := map[string]interface{}{
+			"type":              "preseed",
+			"series":            "16",
+			"brand-id":          "my-brand",
+			"model":             "my-model",
+			"system-label":      sysLabel,
+			"artifact-sha3-384": digest,
+			"timestamp":         time.Now().UTC().Format(time.RFC3339),
+			"snaps":             snaps,
+		}
+		as := tc.asserts
+		if !tc.omitPreseedAssert {
+			for h, v := range tc.overrides {
+				headers[h] = v
+			}
+			signer := s.Brands.Signing(headers["brand-id"].(string))
+			preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
+			c.Assert(err, IsNil)
+			as = append(as, preseedAs)
+		}
+		if tc.dupPreseedAssert {
+			headers["system-label"] = "other-label"
+			signer := s.Brands.Signing(headers["brand-id"].(string))
+			preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
+			c.Assert(err, IsNil)
+			as = append(as, preseedAs)
+		}
+		seedtest.WriteAssertions(filepath.Join(s.SeedDir, "systems", sysLabel, "preseed"), as...)
+		seed20, err := seed.Open(s.SeedDir, sysLabel)
+		c.Assert(err, IsNil)
+		preseedSeed := seed20.(seed.PreseedCapable)
+		err = preseedSeed.LoadAssertions(nil, nil)
+		c.Assert(err, IsNil)
+
+		_, err = preseedSeed.LoadPreseedAssertion()
+		if tc.err == "" {
+			// contrast happy cases
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, tc.err)
+		}
+	}
+}
+
+func (s *seed20Suite) TestPreseedCapableSeedNoPreseedAssertion(c *C) {
+	r := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer r()
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	sysLabel := "20230406"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, nil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	preseedSeed := seed20.(seed.PreseedCapable)
+
+	c.Check(preseedSeed.HasArtifact("preseed.tgz"), Equals, false)
+	c.Check(preseedSeed.HasArtifact("other.tgz"), Equals, false)
+
+	err = preseedSeed.LoadAssertions(nil, nil)
+	c.Assert(err, IsNil)
+
+	err = preseedSeed.LoadEssentialMeta(nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	_, err = preseedSeed.LoadPreseedAssertion()
+	c.Assert(err, Equals, seed.ErrNoPreseedAssertion)
 }

@@ -235,7 +235,7 @@ func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	u, err := deviceStateRemoveUser(st, username)
+	u, err := deviceStateRemoveUser(st, username, &devicestate.RemoveUserOptions{})
 	if err != nil {
 		if _, ok := err.(*devicestate.UserError); ok {
 			return BadRequest(err.Error())

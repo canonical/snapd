@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -55,16 +55,19 @@ The install command installs the named snaps on the system.
 To install multiple instances of the same snap, append an underscore and a
 unique identifier (for each instance) to a snap's name.
 
+Parallel instances are installed with --unaliased passed implicitly to avoid
+conflicts with existing installs. This behaviour can be altered by passing
+--prefer which will enable all aliases of the given snap in preference to
+conflicting aliases of other snaps whose automatic aliases will be disabled and
+manual aliases will be removed.
+
 With no further options, the snaps are installed tracking the stable channel,
 with strict security confinement. All available channels of a snap are listed in
 its 'snap info' output.
 
-Revision choice via the --revision override requires the user to
-have developer access to the snap, either directly or through the
-store's collaboration feature, and to be logged in (see 'snap help login').
-
-Note that a later refresh will typically undo a revision override, taking the snap
-back to the current revision of the channel it's tracking.
+When --revision is used, a later refresh will typically undo the revision
+override, taking the snap back to the current revision of the channel it's
+tracking.
 
 Use --name to set the instance name when installing from snap file.
 `)
@@ -89,11 +92,8 @@ With no further options, the snaps are refreshed to the current revision of the
 channel they're tracking, preserving their confinement options. All available
 channels of a snap are listed in its 'snap info' output.
 
-Revision choice via the --revision override requires the user to
-have developer access to the snap, either directly or through the
-store's collaboration feature, and to be logged in (see 'snap help login').
-
-Note a later refresh will typically undo a revision override.
+When --revision is used, a later refresh will typically undo the revision
+override.
 
 Hold (--hold) is used to postpone snap refresh updates for all snaps when no
 snaps are specified, or for the specified snaps.
@@ -351,7 +351,12 @@ func maybeWithSudoSecurePath() bool {
 }
 
 // show what has been done
-func showDone(cli *client.Client, names []string, op string, opts *client.SnapOptions, esc *escapes) error {
+func showDone(cli *client.Client, chg *client.Change, names []string, op string, opts *client.SnapOptions, esc *escapes) error {
+	if chg.Status == "Wait" {
+		fmt.Fprintf(Stdout, i18n.G("Change %v waiting on external action to be completed\n"), chg.ID)
+		return nil
+	}
+
 	snaps, err := cli.List(names, nil)
 	if err != nil {
 		return err
@@ -496,6 +501,7 @@ type cmdInstall struct {
 	ForceDangerous bool `long:"force-dangerous" hidden:"yes"`
 
 	Unaliased bool `long:"unaliased"`
+	Prefer    bool `long:"prefer"`
 
 	Name string `long:"name"`
 
@@ -516,6 +522,8 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	var path string
 
 	if isLocalSnap(nameOrPath) {
+		// don't log the request's body because the encoded snap is large.
+		x.client.SetMayLogBody(false)
 		path = nameOrPath
 		changeID, err = x.client.InstallPath(path, x.Name, opts)
 	} else {
@@ -550,7 +558,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	}
 
 	// TODO: mention details of the install (e.g. like switch does)
-	return showDone(x.client, []string{snapName}, "install", opts, x.getEscapes())
+	return showDone(x.client, chg, []string{snapName}, "install", opts, x.getEscapes())
 }
 
 func isLocalSnap(name string) bool {
@@ -569,6 +577,8 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	var err error
 
 	if isLocal {
+		// don't log the request's body because the encoded snap is large
+		x.client.SetMayLogBody(false)
 		changeID, err = x.client.InstallPathMany(names, opts)
 	} else {
 		if x.asksForMode() {
@@ -605,7 +615,7 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	}
 
 	if len(installed) > 0 {
-		if err := showDone(x.client, installed, "install", opts, x.getEscapes()); err != nil {
+		if err := showDone(x.client, chg, installed, "install", opts, x.getEscapes()); err != nil {
 			return err
 		}
 	}
@@ -650,6 +660,7 @@ func (x *cmdInstall) Execute([]string) error {
 		IgnoreRunning:    x.IgnoreRunning,
 		Transaction:      x.Transaction,
 		QuotaGroupName:   x.QuotaGroupName,
+		Prefer:           x.Prefer,
 	}
 	x.setModes(opts)
 
@@ -669,6 +680,9 @@ func (x *cmdInstall) Execute([]string) error {
 	}
 	if x.IgnoreValidation {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
+	}
+	if x.Prefer {
+		return errors.New(i18n.G("a single snap name is needed to specify the prefer flag"))
 	}
 
 	if x.Name != "" {
@@ -720,7 +734,7 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 	}
 
 	if len(refreshed) > 0 {
-		return showDone(x.client, refreshed, "refresh", opts, x.getEscapes())
+		return showDone(x.client, chg, refreshed, "refresh", opts, x.getEscapes())
 	}
 
 	fmt.Fprintln(Stderr, i18n.G("All snaps up to date."))
@@ -739,7 +753,8 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 		return nil
 	}
 
-	if _, err := x.wait(changeID); err != nil {
+	chg, err := x.wait(changeID)
+	if err != nil {
 		if err == noWait {
 			return nil
 		}
@@ -748,7 +763,7 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 
 	// TODO: this doesn't really tell about all the things you
 	// could set while refreshing (something switch does)
-	return showDone(x.client, []string{name}, "refresh", opts, x.getEscapes())
+	return showDone(x.client, chg, []string{name}, "refresh", opts, x.getEscapes())
 }
 
 func parseSysinfoTime(s string) time.Time {
@@ -782,7 +797,13 @@ func (x *cmdRefresh) showRefreshTimes() error {
 		fmt.Fprintf(Stdout, "last: n/a\n")
 	}
 	if !hold.IsZero() {
-		fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
+		// show holds over 100 years as "forever", like in the input of 'snap refresh
+		// --hold', instead of as a distant time (how they're internally represented)
+		if hold.After(timeNow().Add(100 * 365 * 24 * time.Hour)) {
+			fmt.Fprintf(Stdout, "hold: forever\n")
+		} else {
+			fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
+		}
 	}
 	// only show "next" if its after "hold" to not confuse users
 	if !next.IsZero() {
@@ -909,7 +930,9 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 	} else {
 		dur, err := time.ParseDuration(x.Hold)
 		if err != nil {
-			return fmt.Errorf("hold value must be a number of hours or minutes (e.g., 72h): %v", err)
+			return fmt.Errorf("hold value must be a number of hours, minutes or seconds, or \"forever\": %v", err)
+		} else if dur < time.Second {
+			return fmt.Errorf("cannot hold refreshes for less than a second: %s", x.Hold)
 		}
 
 		opts.Time = timeNow().Add(dur).Format(time.RFC3339)
@@ -938,10 +961,17 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 		return err
 	}
 
-	if len(names) == 0 {
-		fmt.Fprintf(Stdout, i18n.G("Auto-refresh of all snaps held until %s\n"), opts.Time)
+	var timeStr string
+	if opts.Time == "forever" {
+		timeStr = i18n.G("indefinitely")
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("General refreshes of %s held until %s\n"), strutil.Quoted(names), opts.Time)
+		timeStr = fmt.Sprintf(i18n.G("until %s"), opts.Time)
+	}
+
+	if len(names) == 0 {
+		fmt.Fprintf(Stdout, i18n.G("Auto-refresh of all snaps held %s\n"), timeStr)
+	} else {
+		fmt.Fprintf(Stdout, i18n.G("General refreshes of %s held %s\n"), strutil.Quoted(names), timeStr)
 	}
 
 	return nil
@@ -1163,14 +1193,15 @@ func (x *cmdRevert) Execute(args []string) error {
 		return err
 	}
 
-	if _, err := x.wait(changeID); err != nil {
+	chg, err := x.wait(changeID)
+	if err != nil {
 		if err == noWait {
 			return nil
 		}
 		return err
 	}
 
-	return showDone(x.client, []string{name}, "revert", nil, nil)
+	return showDone(x.client, chg, []string{name}, "revert", nil, nil)
 }
 
 var shortSwitchHelp = i18n.G("Switches snap to a different channel")
@@ -1224,14 +1255,15 @@ func (x cmdSwitch) Execute(args []string) error {
 		return err
 	}
 
-	if _, err := x.wait(changeID); err != nil {
+	chg, err := x.wait(changeID)
+	if err != nil {
 		if err == noWait {
 			return nil
 		}
 		return err
 	}
 
-	return showDone(x.client, []string{name}, "switch", opts, nil)
+	return showDone(x.client, chg, []string{name}, "switch", opts, nil)
 }
 
 func init() {
@@ -1245,7 +1277,7 @@ func init() {
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"revision": i18n.G("Install the given revision of a snap, to which you must have developer access"),
+			"revision": i18n.G("Install the given revision of a snap"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"dangerous": i18n.G("Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -1264,13 +1296,15 @@ func init() {
 			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"quota-group": i18n.G("Add the snap to a quota group on install"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"prefer": i18n.G("Enable all aliases of the given snap in preference to conflicting aliases of other snaps"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"amend": i18n.G("Allow refresh attempt on snap unknown to the store"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"revision": i18n.G("Refresh to the given revision, to which you must have developer access"),
+			"revision": i18n.G("Refresh to the given revision"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"list": i18n.G("Show the new versions of snaps that would be updated with the next refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -1286,7 +1320,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"hold": i18n.G("Hold refreshes for a specified duration (or indefinitely, if none is specified)"),
+			"hold": i18n.G("Hold refreshes for a specified duration (or forever, if no value is specified)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"unhold": i18n.G("Remove refresh hold"),
 		}), nil)

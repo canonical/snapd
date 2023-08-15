@@ -183,8 +183,8 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	 **/
 
 	/* Read the target of symlink at /proc/self/fd/<fd-of-orig-cwd> */
-	char fd_path[PATH_MAX];
-	char orig_cwd[PATH_MAX];
+	char fd_path[PATH_MAX] = {0};
+	char orig_cwd[PATH_MAX] = {0};
 	ssize_t nread;
 	/* If the original working directory cannot be used for whatever reason then
 	 * move the process to a special void directory. */
@@ -200,6 +200,7 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	if (nread == sizeof orig_cwd) {
 		die("cannot fit symbolic link target %s", fd_path);
 	}
+	orig_cwd[nread] = 0;
 
 	/* Open path corresponding to the original working directory in the
 	 * execution environment. This may normally fail if the path no longer
@@ -679,6 +680,12 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	sc_distro distro = sc_classify_distro();
 	inv->is_normal_mode = distro != SC_DISTRO_CORE16 ||
 	    !sc_streq(inv->orig_base_snap_name, "core");
+
+	/* Read the homedirs configuration: this information is needed both by our
+	 * namespace helper (in order to detect if the homedirs are mounted) and by
+	 * snap-confine itself to mount the homedirs.
+	 */
+	sc_invocation_init_homedirs(inv);
 
 	/* Stale mount namespace discarded or no mount namespace to
 	   join. We need to construct a new mount namespace ourselves.

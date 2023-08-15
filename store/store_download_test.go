@@ -587,7 +587,7 @@ func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
 	for _, testCase := range downloadDeltaTests {
 		sto.SetDeltaFormat(testCase.format)
 		restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
-			c.Check(dlOpts, DeepEquals, &store.DownloadOptions{IsAutoRefresh: true})
+			c.Check(dlOpts, DeepEquals, &store.DownloadOptions{Scheduled: true})
 			expectedUser := s.user
 			if !testCase.withUser {
 				expectedUser = nil
@@ -608,7 +608,7 @@ func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
 			authedUser = nil
 		}
 
-		err = sto.DownloadDelta("snapname", &testCase.info, w, nil, authedUser, &store.DownloadOptions{IsAutoRefresh: true})
+		err = sto.DownloadDelta("snapname", &testCase.info, w, nil, authedUser, &store.DownloadOptions{Scheduled: true})
 
 		if testCase.expectError {
 			c.Assert(err, NotNil)
@@ -699,16 +699,15 @@ type cacheObserver struct {
 	puts []string
 }
 
-func (co *cacheObserver) Get(cacheKey, targetPath string) error {
+func (co *cacheObserver) Get(cacheKey, targetPath string) bool {
 	co.gets = append(co.gets, fmt.Sprintf("%s:%s", cacheKey, targetPath))
-	if !co.inCache[cacheKey] {
-		return fmt.Errorf("cannot find %s in cache", cacheKey)
-	}
-	return nil
+	return co.inCache[cacheKey]
 }
+
 func (co *cacheObserver) GetPath(cacheKey string) string {
 	return ""
 }
+
 func (co *cacheObserver) Put(cacheKey, sourcePath string) error {
 	co.puts = append(co.puts, fmt.Sprintf("%s:%s", cacheKey, sourcePath))
 	return nil
@@ -960,4 +959,75 @@ func (s *storeDownloadSuite) TestDownloadTimeoutOnHeaders(c *C) {
 	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	close(quit)
 	c.Assert(err, ErrorMatches, `.*net/http: timeout awaiting response headers`)
+}
+
+func (s *storeDownloadSuite) TestDownloadRedirectHideAuthHeaders(c *C) {
+	var mockStoreServer, mockCdnServer *httptest.Server
+
+	mockStoreServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Authorization"), Equals, expectedAuthorization(c, s.user))
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+		http.Redirect(w, r, mockCdnServer.URL, 302)
+	}))
+	c.Assert(mockStoreServer, NotNil)
+	defer mockStoreServer.Close()
+
+	mockCdnServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, exists := r.Header["Authorization"]
+		c.Check(exists, Equals, false)
+		_, exists = r.Header["X-Device-Authorization"]
+		c.Check(exists, Equals, false)
+		io.WriteString(w, "test-download")
+	}))
+	c.Assert(mockCdnServer, NotNil)
+	defer mockCdnServer.Close()
+
+	snap := &snap.Info{}
+	snap.DownloadURL = mockStoreServer.URL
+
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
+	sto := store.New(&store.Config{}, dauthCtx)
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := sto.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, s.user, nil)
+	c.Assert(err, Equals, nil)
+	c.Assert(targetFn, testutil.FileEquals, "test-download")
+}
+
+func (s *storeDownloadSuite) TestDownloadNoCheckRedirectPanic(c *C) {
+	restore := store.MockHttputilNewHTTPClient(func(opts *httputil.ClientOptions) *http.Client {
+		client := httputil.NewHTTPClient(opts)
+		client.CheckRedirect = nil
+		return client
+	})
+	defer restore()
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	downloadFunc := func() {
+		s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo{}, nil, nil, nil)
+	}
+	c.Assert(downloadFunc, PanicMatches, "internal error: the httputil.NewHTTPClient-produced http.Client must have CheckRedirect defined")
+}
+
+func (s *storeDownloadSuite) TestDownloadInfiniteRedirect(c *C) {
+	n := 0
+	var mockServer *httptest.Server
+
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// n = 0  -> initial request
+		// n = 10 -> max redirects
+		// n = 11 -> exceeded max redirects
+		c.Assert(n, testutil.IntNotEqual, 11)
+		n++
+		http.Redirect(w, r, mockServer.URL, 302)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := &snap.Info{}
+	snap.DownloadURL = mockServer.URL
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, s.user, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("Get %q: stopped after 10 redirects", mockServer.URL))
 }

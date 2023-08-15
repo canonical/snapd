@@ -14,27 +14,16 @@ restore: |
 
 execute: |
     echo "Install lxd"
-    snap install lxd
-
-    lxd waitready
-    lxd init --auto
+    "$TESTSTOOLS"/lxd-state prepare-snap
 
     # Define the core snap for the current system
     core_snap=core20
-    if os.query is-ubuntu 22.10; then
+    if os.query is-ubuntu-gt 22.04; then
         core_snap=core22
     fi
 
-    echo "Setting up proxy for lxc"
-    if [ -n "${http_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_http "$http_proxy"
-    fi
-    if [ -n "${https_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_https "$http_proxy"
-    fi
-
-    # There isn't an official image for kinetic yet, let's use the community one
-    if os.query is-ubuntu 22.10; then
+    # There isn't an official image for mantic yet, let's use the community one
+    if os.query is-ubuntu 23.10; then
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" ubuntu
         core_snap=core22
@@ -58,9 +47,9 @@ execute: |
     DEB=$(basename "$GOHOME"/snapd_*.deb)
     
     lxd.lxc exec ubuntu -- apt update
-    # As for ubuntu kinetic it is not using the official image, snapd is not installed by default
+    # As for ubuntu mantic it is not using the official image, snapd is not installed by default
     # This should be removed once the official image is released
-    if os.query is-ubuntu 22.10; then
+    if os.query is-ubuntu 23.10; then
         lxd.lxc exec ubuntu -- apt install -y snapd
         lxd.lxc exec ubuntu -- snap install "$core_snap"
     fi
@@ -70,7 +59,11 @@ execute: |
 
     echo "Precondition check that mount overrides were generated inside the container"
     lxd.lxc exec ubuntu -- find /var/run/systemd/generator/ -name container.conf | MATCH "/var/run/systemd/generator/snap-${core_snap}.*mount.d/container.conf"
-    lxd.lxc exec ubuntu -- test -f /var/run/systemd/generator/snap.mount
+
+    # On older LXD, we work around / with private propagation by
+    # creating a shared /snap mount point with snapd-generator (LP#1668659).
+    # The unit does not exist in newer LXD images where root is shared.
+    lxd.lxc exec ubuntu -- findmnt / -o PROPAGATION --noheadings | MATCH shared || lxd.lxc exec ubuntu -- test -f /var/run/systemd/generator/snap.mount
 
     echo "Precondition check that $core_snap snap is mounted correctly"
     # Make sure $core_snap is mounted and readable for a regular user

@@ -89,6 +89,9 @@ type Specification struct {
 	// the calling interface can be used with the home interface. Ideally,
 	// we would not need this, but we currently do (LP: #1797786)
 	suppressHomeIx bool
+
+	// Same as the above, but for the pycache deny rule which breaks docker
+	suppressPycacheDeny bool
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.
@@ -161,19 +164,19 @@ func (spec *Specification) AddDeduplicatedSnippet(snippet string) {
 //
 // For example the code:
 //
-// 		AddParametricSnippet([]string{"/dev/", "rw,"}, "sda1")
-//		AddParametricSnippet([]string{"/dev/", "rw,"}, "sda3")
-//		AddParametricSnippet([]string{"/dev/", "rw,"}, "sdb2")
+//	AddParametricSnippet([]string{"/dev/", "rw,"}, "sda1")
+//	AddParametricSnippet([]string{"/dev/", "rw,"}, "sda3")
+//	AddParametricSnippet([]string{"/dev/", "rw,"}, "sdb2")
 //
 // Results in a single apparmor rule:
 //
-//		"/dev/{sda1,sda3,sdb2} rw,"
+//	"/dev/{sda1,sda3,sdb2} rw,"
 //
 // This function should be used whenever the apparmor template features more
 // than one use of "**" syntax (which represent arbitrary many directories or
 // files) and a variable component, like a device name or similar. Repeated
-// instances of this pattern require exponential memory when compiled with
-// apparmor_parser -O no-expr-simplify.
+// instances of this pattern slow down the apparmor parser in the default
+// "expr-simplify" mode (see PR#12943 for measurements).
 func (spec *Specification) AddParametricSnippet(templateFragment []string, value string) {
 	if len(spec.securityTags) == 0 {
 		return
@@ -276,17 +279,18 @@ func (spec *Specification) emitLayout(si *snap.Info, layout *snap.Layout) {
 //
 // The per-snap snap-update-ns profiles are composed via a template and
 // snippets for the snap. The snippets may allow (depending on the snippet):
-// - mount profiles via the content interface
-// - creating missing mount point directories under $SNAP* (the 'tree'
-//   of permissions is needed for SecureMkDirAll that uses
-//   open(..., O_NOFOLLOW) and mkdirat() using the resulting file descriptor)
-// - creating a placeholder directory in /tmp/.snap/ in the per-snap mount
-//   namespace to support writable mimic which uses tmpfs and bind mount to
-//   poke holes in arbitrary read-only locations
-// - mounting/unmounting any part of $SNAP into placeholder directory
-// - mounting/unmounting tmpfs over the original $SNAP/** location
-// - mounting/unmounting from placeholder back to $SNAP/** (for reconstructing
-//   the data)
+//   - mount profiles via the content interface
+//   - creating missing mount point directories under $SNAP* (the 'tree'
+//     of permissions is needed for SecureMkDirAll that uses
+//     open(..., O_NOFOLLOW) and mkdirat() using the resulting file descriptor)
+//   - creating a placeholder directory in /tmp/.snap/ in the per-snap mount
+//     namespace to support writable mimic which uses tmpfs and bind mount to
+//     poke holes in arbitrary read-only locations
+//   - mounting/unmounting any part of $SNAP into placeholder directory
+//   - mounting/unmounting tmpfs over the original $SNAP/** location
+//   - mounting/unmounting from placeholder back to $SNAP/** (for reconstructing
+//     the data)
+//
 // Importantly, the above mount operations are happening within the per-snap
 // mount namespace.
 func (spec *Specification) AddLayout(snapInfo *snap.Info) {
@@ -673,4 +677,16 @@ func (spec *Specification) SetSuppressHomeIx() {
 // suppressed.
 func (spec *Specification) SuppressHomeIx() bool {
 	return spec.suppressHomeIx
+}
+
+// SetSuppressPycacheDeny records suppression of the ix rules for the home
+// interface.
+func (spec *Specification) SetSuppressPycacheDeny() {
+	spec.suppressPycacheDeny = true
+}
+
+// SuppressPycacheDeny returns whether the ix rules of the home interface should be
+// suppressed.
+func (spec *Specification) SuppressPycacheDeny() bool {
+	return spec.suppressPycacheDeny
 }

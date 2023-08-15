@@ -52,8 +52,8 @@ boot.img1 : start=        2048, size=        2048, type=21686148-6449-6E6F-744E-
 ##### no ubuntu-seed on the initial version but we need a EFI system
 boot.img2 : start=        4096, size=     202752, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, uuid=21A0079F-3E45-4669-8FF2-B3917819279F, name="EFI System partition"
 boot.img3 : start=     2461696, size=     1536000, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=338DD9E7-CFE1-524A-A8B6-7D87DA8A4B34, name="ubuntu-boot"
-boot.img4 : start=     3997696, size=       32768, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=1144DFB5-DFC2-0745-A1F2-AD311FEBE0DB, name="ubuntu-save"
-boot.img5 : start=     4030464, size=     8423391, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=B84565A3-E9F8-8A40-AB04-810A4B891F8C, name="ubuntu-data"
+boot.img4 : start=     3997696, size=       65536, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=1144DFB5-DFC2-0745-A1F2-AD311FEBE0DB, name="ubuntu-save"
+boot.img5 : start=     4063232, size=     8388608, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=B84565A3-E9F8-8A40-AB04-810A4B891F8C, name="ubuntu-data"
 EOF
 }
 
@@ -93,7 +93,7 @@ install_data_partition() {
     echo "nameserver 8.8.8.8" | sudo tee -a "$DESTDIR"/etc/resolv.conf
     # install additional packages
     sudo chroot "$DESTDIR" /usr/bin/sh -c "DEBIAN_FRONTEND=noninteractive apt update"
-    local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init jq"
+    local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init jq update-notifier-common"
     sudo chroot "$DESTDIR" /usr/bin/sh -c \
          "DEBIAN_FRONTEND=noninteractive apt install --no-install-recommends -y $pkgs"
     # netplan config
@@ -138,7 +138,7 @@ current_kernels=${SNAP_F[kernel]}
 model=canonical/ubuntu-core-22-pc-amd64
 grade=dangerous
 model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
-current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 quiet splash"]
+current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"]
 EOF
     sudo cp modeenv "$DESTDIR"/var/lib/snapd/
     # needed from the beginning in ubuntu-data as these are mounted by snap-bootstrap
@@ -178,7 +178,7 @@ populate_image() {
     loop_save="${loop}"p4
     loop_data="${loop}"p5
     # XXX: on a real UC device this the ESP is "ubuntu-seed"
-    sudo mkfs.fat /dev/mapper/"$loop_esp"
+    sudo mkfs.fat -n ubuntu-seed /dev/mapper/"$loop_esp"
     sudo mkfs.ext4 -L ubuntu-boot -q /dev/mapper/"$loop_boot"
     sudo mkfs.ext4 -L ubuntu-save -q /dev/mapper/"$loop_save"
     sudo mkfs.ext4 -L ubuntu-data -q /dev/mapper/"$loop_data"
