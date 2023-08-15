@@ -83,6 +83,10 @@ var api = []*Command{
 	quotaGroupsCmd,
 	quotaGroupInfoCmd,
 	aspectsCmd,
+	promptRequestsCmd,
+	promptRequestCmd,
+	accessRulesCmd,
+	accessRuleCmd,
 }
 
 const (
