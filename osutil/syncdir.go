@@ -96,13 +96,6 @@ func (blob *MemoryFileState) State() (io.ReadCloser, int64, os.FileMode, error) 
 	return ioutil.NopCloser(bytes.NewReader(blob.Content)), int64(len(blob.Content)), blob.Mode, nil
 }
 
-func checkFileType(mode os.FileMode) error {
-	if !mode.IsRegular() {
-		return fmt.Errorf("internal error: only regular files are supported, got %q instead", mode.Type())
-	}
-	return nil
-}
-
 // ErrSameState is returned when the state of a file has not changed.
 var ErrSameState = fmt.Errorf("file state has not changed")
 
