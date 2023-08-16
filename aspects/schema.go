@@ -337,7 +337,7 @@ func (v *stringSchema) Validate(raw []byte) error {
 			return err
 		}
 
-		return fmt.Errorf("cannot parse string: unexpected %s type", typeErr.Value)
+		return fmt.Errorf("cannot validate string: unexpected %s type", typeErr.Value)
 	}
 
 	return nil

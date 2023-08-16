@@ -189,7 +189,7 @@ func (*schemaSuite) TestMapWithUnmetValuesConstraint(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, "cannot parse string: unexpected object type")
+	c.Assert(err, ErrorMatches, "cannot validate string: unexpected object type")
 }
 
 func (*schemaSuite) TestMapSchemaMetConstraintsWithMissingEntry(c *C) {
@@ -235,7 +235,7 @@ func (*schemaSuite) TestMapSchemaUnmetConstraint(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot parse string: unexpected object type`)
+	c.Assert(err, ErrorMatches, `cannot validate string: unexpected object type`)
 }
 
 func (*schemaSuite) TestMapSchemaWithMetRequiredConstraint(c *C) {
