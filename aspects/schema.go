@@ -213,27 +213,11 @@ func (v *mapSchema) parseConstraints(raw json.RawMessage) error {
 		return err
 	}
 
-	rawRequired, ok := constraints["required"]
-	if ok {
-		var requiredCombs [][]string
-		if err := json.Unmarshal(rawRequired, &requiredCombs); err != nil {
-			var typeErr *json.UnmarshalTypeError
-			if !errors.As(err, &typeErr) {
-				return fmt.Errorf(`cannot parse map's "required" constraint: %v`, err)
-			}
-
-			var required []string
-			if err := json.Unmarshal(rawRequired, &required); err != nil {
-				return fmt.Errorf(`cannot parse map's "required" constraint: %v`, err)
-			}
-
-			v.requiredCombs = [][]string{required}
-		} else {
-			v.requiredCombs = requiredCombs
-		}
+	if err := checkExclusiveConstraints(constraints); err != nil {
+		return fmt.Errorf(`cannot parse map: %w`, err)
 	}
 
-	// maps can have a "schema" constraint with types for specific entries
+	// maps can "schemas" with types for specific entries and optional "required" constraints
 	if rawEntries, ok := constraints["schema"]; ok {
 		var entries map[string]json.RawMessage
 		if err := json.Unmarshal(rawEntries, &entries); err != nil {
@@ -250,10 +234,30 @@ func (v *mapSchema) parseConstraints(raw json.RawMessage) error {
 			v.entrySchemas[key] = entrySchema
 		}
 
+		// "required" can be a list of keys or many lists of alternative combinations
+		if rawRequired, ok := constraints["required"]; ok {
+			var requiredCombs [][]string
+			if err := json.Unmarshal(rawRequired, &requiredCombs); err != nil {
+				var typeErr *json.UnmarshalTypeError
+				if !errors.As(err, &typeErr) {
+					return fmt.Errorf(`cannot parse map's "required" constraint: %v`, err)
+				}
+
+				var required []string
+				if err := json.Unmarshal(rawRequired, &required); err != nil {
+					return fmt.Errorf(`cannot parse map's "required" constraint: %v`, err)
+				}
+
+				v.requiredCombs = [][]string{required}
+			} else {
+				v.requiredCombs = requiredCombs
+			}
+		}
+
 		return nil
 	}
 
-	// alternatively, they can constrain the type of keys and values
+	// map can not specify "schemas" and constrain the type of keys and values instead
 	rawKeyDef, ok := constraints["keys"]
 	if ok {
 		if v.keySchema, err = v.parseMapKeyType(rawKeyDef); err != nil {
@@ -267,6 +271,26 @@ func (v *mapSchema) parseConstraints(raw json.RawMessage) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// checkExclusiveConstraints checks if the map contains mutually exclusive constraints.
+func checkExclusiveConstraints(obj map[string]json.RawMessage) error {
+	has := func(k string) bool {
+		_, ok := obj[k]
+		return ok
+	}
+
+	if has("required") && !has("schema") {
+		return fmt.Errorf(`cannot use "required" without "schema" constraint`)
+	}
+	if has("schema") && has("keys") {
+		return fmt.Errorf(`cannot use "schema" and "keys" constraints simultaneously`)
+	}
+	if has("schema") && has("values") {
+		return fmt.Errorf(`cannot use "schema" and "values" constraints simultaneously`)
 	}
 
 	return nil

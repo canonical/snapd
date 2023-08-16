@@ -20,6 +20,8 @@
 package aspects_test
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/aspects"
 	. "gopkg.in/check.v1"
 )
@@ -341,6 +343,55 @@ func (*schemaSuite) TestMapSchemaWithUnmetAlternativeOfRequiredEntries(c *C) {
 
 	err = schema.Validate(input)
 	c.Assert(err, ErrorMatches, "cannot find required combinations of keys")
+}
+
+func (*schemaSuite) TestMapInvalidConstraintCombos(c *C) {
+	type testcase struct {
+		name    string
+		snippet string
+		err     string
+	}
+
+	tcs := []testcase{
+		{
+			name: "schema and keys",
+			snippet: `
+{
+	"schema": { "foo": "bar" },
+	"keys": "string"
+}`,
+			err: `cannot parse map: cannot use "schema" and "keys" constraints simultaneously`,
+		},
+		{
+			name: "schema and values",
+			snippet: `
+{
+	"schema": { "foo": "bar" },
+	"values": "string"
+}`,
+			err: `cannot parse map: cannot use "schema" and "values" constraints simultaneously`,
+		},
+		{
+			name: "required w/o schema",
+			snippet: `
+{
+	"required": ["foo"]
+}`,
+			err: `cannot parse map: cannot use "required" without "schema" constraint`,
+		},
+	}
+
+	for _, tc := range tcs {
+		schemaStr := []byte(fmt.Sprintf(`{
+  "schema": {
+    "top": %s
+  }
+}`, tc.snippet))
+
+		_, err := aspects.ParseSchema(schemaStr)
+		cmt := Commentf("subtest %q", tc.name)
+		c.Assert(err, ErrorMatches, tc.err, cmt)
+	}
 }
 
 func (*schemaSuite) TestSchemaWithUnknownType(c *C) {
