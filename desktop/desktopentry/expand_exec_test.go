@@ -84,14 +84,14 @@ func (s *desktopentrySuite) TestExpandExecHelper(c *C) {
 		uris: []string{"http://example.org"},
 		out:  []string{"foo", "http://example.org"},
 	}, {
-		in:  "foo %i",
-		out: []string{"foo", "--icon", "/path/icon.png"},
+		in:  "foo %i bar",
+		out: []string{"foo", "--icon", "/path/icon.png", "bar"},
 	}, {
-		in:  "foo %c",
-		out: []string{"foo", "App Name"},
+		in:  "foo %c bar",
+		out: []string{"foo", "App Name", "bar"},
 	}, {
-		in:  "foo %k",
-		out: []string{"foo", "/path/file.desktop"},
+		in:  "foo %k bar",
+		out: []string{"foo", "/path/file.desktop", "bar"},
 	}, {
 		in:  `foo --bar "%%p" %U %D +%s %%`,
 		out: []string{"foo", "--bar", "%p", "+", "%"},
@@ -99,6 +99,9 @@ func (s *desktopentrySuite) TestExpandExecHelper(c *C) {
 		in:   "skype --share-file=%f",
 		uris: []string{"file:///test"},
 		out:  []string{"skype", "--share-file=/test"},
+	}, {
+		in:  `foo "double quotes" 'single quotes'`,
+		out: []string{"foo", "double quotes", "single quotes"},
 	}, {
 		in:  `foo "unclosed double quote`,
 		err: "EOF found when expecting closing quote",
