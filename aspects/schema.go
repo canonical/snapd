@@ -30,7 +30,7 @@ type parser interface {
 
 	// parseConstraints parses constraints for a type defined as a JSON object.
 	// Shouldn't be used with non-object/map type definitions.
-	parseConstraints(json.RawMessage) error
+	parseConstraints(map[string]json.RawMessage) error
 }
 
 // ParseSchema parses a JSON aspect schema and returns a Schema that can be
@@ -70,7 +70,6 @@ func (s *StorageSchema) Validate(raw []byte) error {
 func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 	var typ string
 	var schemaDef map[string]json.RawMessage
-	var hasConstraints bool
 	if err := json.Unmarshal(raw, &schemaDef); err != nil {
 		var typeErr *json.UnmarshalTypeError
 		if !errors.As(err, &typeErr) {
@@ -81,9 +80,6 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 			return nil, err
 		}
 	} else {
-		// schema definition is a map, we must process its constraints
-		hasConstraints = true
-
 		rawType, ok := schemaDef["type"]
 		if !ok {
 			typ = "map"
@@ -100,8 +96,8 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 	}
 
 	// only parse the schema if it's a map definition w/ constraints
-	if hasConstraints {
-		if err := schema.parseConstraints(raw); err != nil {
+	if schemaDef != nil {
+		if err := schema.parseConstraints(schemaDef); err != nil {
 			return nil, err
 		}
 	}
@@ -206,14 +202,9 @@ func (v *mapSchema) Validate(raw []byte) error {
 	return nil
 }
 
-func (v *mapSchema) parseConstraints(raw json.RawMessage) error {
-	var constraints map[string]json.RawMessage
-	err := json.Unmarshal(raw, &constraints)
+func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	err := checkExclusiveConstraints(constraints)
 	if err != nil {
-		return err
-	}
-
-	if err := checkExclusiveConstraints(constraints); err != nil {
 		return fmt.Errorf(`cannot parse map: %w`, err)
 	}
 
@@ -320,7 +311,7 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 		}
 
 		schema := &stringSchema{}
-		if err := schema.parseConstraints(raw); err != nil {
+		if err := schema.parseConstraints(schemaDef); err != nil {
 			return nil, err
 		}
 
@@ -352,6 +343,6 @@ func (v *stringSchema) Validate(raw []byte) error {
 	return nil
 }
 
-func (v *stringSchema) parseConstraints(raw json.RawMessage) error {
+func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) error {
 	return nil
 }
