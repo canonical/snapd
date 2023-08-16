@@ -170,6 +170,17 @@ Foo=bar
 	c.Assert(err, ErrorMatches, `invalid application startup command: desktop file ".*" has no Exec line`)
 }
 
+func (s *autostartSuite) TestTryAutostartInvalid(c *C) {
+	snaptest.MockSnapCurrent(c, mockYaml, &snap.SideInfo{Revision: snap.R("x2")})
+
+	// If we don't write anything, the desktopentry.Read() call will fail
+	fooDesktopFile := filepath.Join(s.autostartDir, "foo-stable.desktop")
+
+	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
+	c.Check(cmd, IsNil)
+	c.Check(err, ErrorMatches, `cannot parse desktop file for application foo in snap snapname: .*`)
+}
+
 func writeFile(c *C, path string, content []byte) {
 	err := os.MkdirAll(filepath.Dir(path), 0755)
 	c.Assert(err, IsNil)
