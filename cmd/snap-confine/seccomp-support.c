@@ -243,9 +243,12 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 	// set on the system.
 	validate_bpfpath_is_safe(profile_path);
 
-	// Double {{}} struct init to workaround bug in gcc on 14.04
-	// that claims: "error: missing braces around initializer"
-	struct sc_seccomp_file_header hdr = {{0}};
+	// workaround bug in gcc from 14.04, the pragma can be removed when
+	// we stop supporting 14.04
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-braces"
+	struct sc_seccomp_file_header hdr = {0};
+#pragma GCC diagnostic pop
 	FILE *file SC_CLEANUP(sc_cleanup_file) = sc_must_read_and_validate_header_from_file(profile_path, &hdr);
 	if (hdr.unrestricted == 0x1) {
 		return false;
