@@ -78,7 +78,7 @@ nested_wait_vm_ready() {
             sh -c 'test "$(wc -l "$serial_log" | cut -d " " -f1)" -gt "$output_lines"'
         output_lines="$(wc -l "$serial_log" | awk '{print $1;}')"
 
-        # Check no infinit loops during boot
+        # Check no infinite loops during boot
         if nested_is_core_20_system || nested_is_core_22_system; then
             test "$(grep -c -E "Command line:.*snapd_recovery_mode=install" "$serial_log")" -le 1
             test "$(grep -c -E "Command line:.*snapd_recovery_mode=run" "$serial_log")" -le 1
