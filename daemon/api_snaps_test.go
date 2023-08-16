@@ -464,7 +464,6 @@ func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
 			"jailmode":     "true",
 			"cohort-key":   `"what"`,
 			"leave-cohort": "true",
-			"purge":        "true",
 			"prefer":       "true",
 		} {
 			buf := strings.NewReader(fmt.Sprintf(`{"action": "%s","snaps":["foo","bar"], "%s": %s}`, action, weird, v))
@@ -525,6 +524,31 @@ func (s *snapsSuite) TestPostSnapsOptionsOtherErrors(c *check.C) {
 		c.Check(rspe.Status, check.Equals, 400)
 		c.Check(rspe.Message, testutil.Contains, test.expectedError, check.Commentf("test: %q", name))
 	}
+}
+
+func (s *snapsSuite) TestPostSnapsRemoveManyWithPurge(c *check.C) {
+	d := s.daemonWithOverlordMockAndStore()
+
+	defer daemon.MockSnapstateRemoveMany(func(s *state.State, names []string, opts *snapstate.RemoveFlags) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		c.Check(opts.Purge, check.Equals, true)
+		t := s.NewTask("fake-remove-2", "Remove two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	buf := strings.NewReader(fmt.Sprintf(`{"action": "remove", "snaps":["foo", "bar"], "purge":true}`))
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := s.jsonReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 202)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Check(chg.Summary(), check.Equals, `Remove snaps "foo", "bar"`)
 }
 
 func (s *snapsSuite) TestPostSnapsOptionsClean(c *check.C) {
