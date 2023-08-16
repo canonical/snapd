@@ -867,7 +867,7 @@ func findUid(username string) (uint64, error) {
 	if uid, ok := uidCache[username]; ok {
 		return uid, nil
 	}
-	if !osutil.IsValidUsername(username) {
+	if !osutil.IsValidSnapSystemUsername(username) {
 		return 0, fmt.Errorf("%q must be a valid username", username)
 	}
 	uid, err := osutil.FindUid(username)
@@ -882,7 +882,7 @@ func findGid(group string) (uint64, error) {
 	if gid, ok := gidCache[group]; ok {
 		return gid, nil
 	}
-	if !osutil.IsValidUsername(group) {
+	if !osutil.IsValidSnapSystemUsername(group) {
 		return 0, fmt.Errorf("%q must be a valid group name", group)
 	}
 	gid, err := osutil.FindGid(group)

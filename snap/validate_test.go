@@ -1930,6 +1930,22 @@ system-usernames:
 	c.Assert(err, ErrorMatches, `invalid system username "b@d"`)
 }
 
+func (s *ValidateSuite) TestValidateSystemUsernamesHappy(c *C) {
+	const yaml1 = `name: binary
+version: 1.0
+system-usernames:
+  "snap_daemon": shared
+  "_daemon_": shared
+`
+
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil, strk)
+	c.Assert(err, IsNil)
+	c.Assert(info.SystemUsernames, HasLen, 2)
+	err = Validate(info)
+	c.Assert(err, IsNil)
+}
+
 const yamlNeedDf = `name: need-df
 version: 1.0
 plugs:
