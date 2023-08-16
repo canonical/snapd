@@ -34,6 +34,13 @@ import (
 
 const desktopSummary = `allows access to basic graphical desktop resources`
 
+// The weird allow-installation/deny-installation construct is
+// intended to prevent app snaps from the store that provide this slot
+// from installing without an override, while allowing an unpublished
+// snap to still be installed.
+//
+// The deny-connection and deny-auto-connection rules should ideally
+// use a slot-snap-type constraint when that is supported.
 const desktopBaseDeclarationSlots = `
   desktop:
     allow-installation:
