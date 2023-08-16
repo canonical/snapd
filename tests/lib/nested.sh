@@ -23,7 +23,6 @@
 : "${NESTED_DISK_LOGICAL_BLOCK_SIZE:=512}"
 
 nested_wait_for_ssh() {
-    # TODO:UC20: the retry count should be lowered to something more reasonable.
     local retry=${1:-800}
     local wait=${2:-1}
 
@@ -369,8 +368,8 @@ nested_refresh_to_new_core() {
             remote.exec "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
             CHANGE_ID=$(remote.exec "sudo snap refresh core --${NEW_CHANNEL} --no-wait")
-            nested_wait_for_no_ssh
-            nested_wait_for_ssh
+            nested_wait_for_no_ssh 200 1
+            nested_wait_for_ssh 300 1
             # wait for the refresh to be done before checking, if we check too
             # quickly then operations on the core snap like reverting, etc. may
             # fail because it will have refresh-snap change in progress
@@ -1257,7 +1256,7 @@ nested_start_core_vm_unit() {
             return 1
         fi
         # Wait for the snap command to be available
-        nested_wait_for_snap_command
+        nested_wait_for_snap_command 120 1
         # Wait for snap seeding to be done
         # retry this wait command up to 3 times since we sometimes see races 
         # where the snap command appears, then immediately disappears and then 
@@ -1343,7 +1342,7 @@ nested_shutdown() {
     # least can't hurt anything
     remote.exec "sync"
     remote.exec "sudo shutdown now" || true
-    nested_wait_for_no_ssh
+    nested_wait_for_no_ssh 120 1
     nested_force_stop_vm
     tests.systemd wait-for-service -n 30 --wait 1 --state inactive "$NESTED_VM"
     sync
@@ -1353,7 +1352,7 @@ nested_start() {
     nested_save_serial_log
     nested_force_start_vm
     tests.systemd wait-for-service -n 30 --wait 1 --state active "$NESTED_VM"
-    nested_wait_for_ssh
+    nested_wait_for_ssh 300 1
     nested_prepare_tools
 }
 
