@@ -127,6 +127,21 @@ func (s *desktopentrySuite) TestExpandExecHelper(c *C) {
 		in:   `foo %f`,
 		uris: []string{"file:///special%20chars%5c%27%22%25%20%24foo"},
 		out:  []string{"foo", `/special chars\'"% $foo`},
+	}, {
+		// Undefined behaviour: macro within a single quoted string
+		in:   `foo '-f %U %%bar'`,
+		uris: []string{"http://example.org"},
+		out:  []string{"foo", "-f http://example.org %bar"},
+	}, {
+		// Undefined behaviour: macro within a double quoted string
+		in:   `foo "-f %f %%bar"`,
+		uris: []string{"file:///test%27.txt"},
+		out:  []string{"foo", "-f '/test'''.txt' %bar"},
+	}, {
+		// Undefined behaviour: macro within a double quoted string
+		in:   `foo "-f %f %%bar"`,
+		uris: []string{"file:///test%22.txt"},
+		err:  `EOF found when expecting closing quote`,
 	}} {
 		c.Logf("tc %d", i)
 
