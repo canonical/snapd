@@ -79,7 +79,7 @@ type Daemon struct {
 	// set to what kind of restart was requested (if any)
 	requestedRestart restart.RestartType
 	// reboot info needed to handle reboots
-	rebootInfo boot.RebootInfo
+	rebootInfo *boot.RebootInfo
 	// set to remember that we need to exit the daemon in a way that
 	// prevents systemd from restarting it
 	restartSocket bool
@@ -397,10 +397,7 @@ func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInf
 			logger.Noticef("%s", err)
 		}
 	}
-	d.rebootInfo = boot.RebootInfo{}
-	if rebootInfo != nil {
-		d.rebootInfo = *rebootInfo
-	}
+	d.rebootInfo = rebootInfo
 
 	// die when asked to restart (systemd should get us back up!) etc
 	switch t {
@@ -507,9 +504,10 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		logger.Noticef("error writing maintenance file: %v", err)
 	}
 
-	d.snapdListener.Close()
-	d.standbyOpinions.Stop()
-
+	// take a timestamp before shutting down the snap listener, and
+	// use the time we may spend on waiting for hooks against the shutdown
+	// delay.
+	ts := time.Now()
 	if d.snapListener != nil {
 		// stop running hooks first
 		// and do it more gracefully if we are restarting
@@ -525,11 +523,18 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		hookMgr.StopHooks()
 		d.snapListener.Close()
 	}
+	timeSpent := time.Since(ts)
 
-	if needsFullShutdown {
-		// give time to polling clients to notice restart
-		time.Sleep(rebootNoticeWait)
+	// When shutting down the snapd listener wait until the rebootNoticeWait
+	// period has passed before snapdListener is closed to allow polling
+	// clients to access the daemon. For testing we disable this unless SNAPD_SHUTDOWN_DELAY
+	// has been set, to avoid incurring this wait for every daemon restart which happens
+	// quite often in testing.
+	if !snapdenv.Testing() || osutil.GetenvBool("SNAPD_SHUTDOWN_DELAY") {
+		time.Sleep(rebootNoticeWait - timeSpent)
 	}
+	d.snapdListener.Close()
+	d.standbyOpinions.Stop()
 
 	// We're using the background context here because the tomb's
 	// context will likely already have been cancelled when we are
@@ -578,7 +583,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if needsFullShutdown {
-		return d.doReboot(sigCh, d.requestedRestart, &rebootInfo, immediateShutdown, rebootWaitTimeout)
+		return d.doReboot(sigCh, d.requestedRestart, rebootInfo, immediateShutdown, rebootWaitTimeout)
 	}
 
 	if d.restartSocket {

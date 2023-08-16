@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -111,7 +112,7 @@ type KernelCmdline struct {
 	// files that can be included nowadays in the gadget.
 	// Allow is the list of allowed parameters for the system.kernel.cmdline-append
 	// system option
-	Allow []osutil.KernelArgument `yaml:"allow"`
+	Allow []kcmdline.ArgumentPattern `yaml:"allow"`
 }
 
 type Info struct {
@@ -1795,7 +1796,7 @@ func parseCommandLineFromGadget(content []byte) (string, error) {
 	if err := s.Err(); err != nil {
 		return "", err
 	}
-	kargs, err := osutil.KernelCommandLineSplit(filtered.String())
+	kargs, err := kcmdline.Split(filtered.String())
 	if err != nil {
 		return "", err
 	}

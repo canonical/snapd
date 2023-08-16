@@ -38,8 +38,8 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -4339,11 +4339,12 @@ kernel-cmdline:
 			c.Assert(err, ErrorMatches, t.err)
 			c.Assert(gi, IsNil)
 		} else {
-			allowed := []osutil.KernelArgument{}
+			allowed := []kcmdline.ArgumentPattern{}
 			for _, arg := range t.allowList {
-				parsed := osutil.ParseKernelCommandline(arg)
+				parsed := kcmdline.Parse(arg)
 				c.Assert(len(parsed), Equals, 1)
-				allowed = append(allowed, parsed[0])
+				pattern := kcmdline.NewConstantPattern(parsed[0].Param, parsed[0].Value)
+				allowed = append(allowed, pattern)
 			}
 
 			c.Assert(gi.KernelCmdline.Allow, DeepEquals, allowed)

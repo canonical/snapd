@@ -1440,16 +1440,6 @@ func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
 	return oldV, newV, nil
 }
 
-func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
-	if one == nil && two == nil {
-		return true
-	}
-	if one != nil && two != nil {
-		return *one == *two
-	}
-	return false
-}
-
 func isLegacyMBRTransition(from *VolumeStructure, to *VolumeStructure) bool {
 	// legacy MBR could have been specified by setting type: mbr, with no
 	// role
@@ -1482,6 +1472,23 @@ func arePossibleOffsetsCompatible(vss1 []VolumeStructure, idx1 int, vss2 []Volum
 		minStructureOffset(vss1, idx1) <= maxStructureOffset(vss2, idx2)
 }
 
+func arePartitionTypesCompatible(from, to *VolumeStructure) bool {
+	// As far as there is an intersection on the possible types we are fine
+	fromTs := strings.Split(from.Type, ",")
+	toTs := strings.Split(to.Type, ",")
+	for _, tp := range fromTs {
+		if strutil.ListContains(toTs, tp) {
+			return true
+		}
+	}
+
+	if isLegacyMBRTransition(from, to) {
+		return true
+	}
+
+	return false
+}
+
 // canUpdateStructure checks gadget compatibility on updates, looking only at
 // features that are not reflected on the installed disk (for this we check
 // elsewhere the new gadget against the actual disk content).
@@ -1505,19 +1512,13 @@ func canUpdateStructure(fromV *Volume, fromIdx int, toV *Volume, toIdx int) erro
 		return fmt.Errorf("new valid structure offset range [%v, %v] is not compatible with current ([%v, %v])",
 			minStructureOffset(toV.Structure, toIdx), maxStructureOffset(toV.Structure, toIdx), minStructureOffset(fromV.Structure, fromIdx), maxStructureOffset(fromV.Structure, fromIdx))
 	}
-	// TODO: should this limitation be lifted?
-	if !isSameRelativeOffset(from.OffsetWrite, to.OffsetWrite) {
-		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.OffsetWrite, to.OffsetWrite)
-	}
 	if from.Role != to.Role {
 		return fmt.Errorf("cannot change structure role from %q to %q",
 			from.Role, to.Role)
 	}
-	if from.Type != to.Type {
-		if !isLegacyMBRTransition(from, to) {
-			return fmt.Errorf("cannot change structure type from %q to %q",
-				from.Type, to.Type)
-		}
+	if !arePartitionTypesCompatible(from, to) {
+		return fmt.Errorf("cannot change structure type from %q to %q",
+			from.Type, to.Type)
 	}
 	if from.ID != to.ID {
 		return fmt.Errorf("cannot change structure ID from %q to %q", from.ID, to.ID)

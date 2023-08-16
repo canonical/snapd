@@ -681,6 +681,9 @@ func (x *cmdInstall) Execute([]string) error {
 	if x.IgnoreValidation {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
 	}
+	if x.Prefer {
+		return errors.New(i18n.G("a single snap name is needed to specify the prefer flag"))
+	}
 
 	if x.Name != "" {
 		return errors.New(i18n.G("cannot use instance name when installing multiple snaps"))

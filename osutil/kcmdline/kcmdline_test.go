@@ -17,18 +17,21 @@
  *
  */
 
-package osutil_test
+package kcmdline_test
 
 import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 type kcmdlineTestSuite struct{}
 
@@ -84,7 +87,7 @@ func (s *kcmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
 		{cmd: `foo ==a`, errStr: "unexpected assignment"},
 	} {
 		c.Logf("%v: cmd: %q", idx, tc.cmd)
-		out, err := osutil.KernelCommandLineSplit(tc.cmd)
+		out, err := kcmdline.Split(tc.cmd)
 		if tc.errStr != "" {
 			c.Assert(err, ErrorMatches, tc.errStr)
 			c.Check(out, IsNil)
@@ -182,9 +185,9 @@ func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 		cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
 		err := ioutil.WriteFile(cmdlineFile, []byte(t.cmdline), 0644)
 		c.Assert(err, IsNil)
-		r := osutil.MockProcCmdline(cmdlineFile)
+		r := kcmdline.MockProcCmdline(cmdlineFile)
 		defer r()
-		res, err := osutil.KernelCommandLineKeyValues(t.keys...)
+		res, err := kcmdline.KeyValues(t.keys...)
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, Commentf(t.comment))
 		} else {
@@ -201,16 +204,16 @@ func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 func (s *kcmdlineTestSuite) TestKernelCommandLine(c *C) {
 	d := c.MkDir()
 	newProcCmdline := filepath.Join(d, "cmdline")
-	restore := osutil.MockProcCmdline(newProcCmdline)
+	restore := kcmdline.MockProcCmdline(newProcCmdline)
 	defer restore()
 
-	cmd, err := osutil.KernelCommandLine()
+	cmd, err := kcmdline.KernelCommandLine()
 	c.Assert(err, ErrorMatches, `.*/cmdline: no such file or directory`)
 	c.Check(cmd, Equals, "")
 
 	err = ioutil.WriteFile(newProcCmdline, []byte("foo bar baz panic=-1\n"), 0644)
 	c.Assert(err, IsNil)
-	cmd, err = osutil.KernelCommandLine()
+	cmd, err = kcmdline.KernelCommandLine()
 	c.Assert(err, IsNil)
 	c.Check(cmd, Equals, "foo bar baz panic=-1")
 }
@@ -222,33 +225,33 @@ func (s *kcmdlineTestSuite) TestKernelCommandLine(c *C) {
 func (s *kcmdlineTestSuite) TestKernelParseCommandLine(c *C) {
 	for idx, tc := range []struct {
 		cmd string
-		exp []osutil.KernelArgument
+		exp []kcmdline.Argument
 	}{
-		{cmd: ``, exp: []osutil.KernelArgument{}},
-		{cmd: `foo bar baz`, exp: []osutil.KernelArgument{
+		{cmd: ``, exp: []kcmdline.Argument{}},
+		{cmd: `foo bar baz`, exp: []kcmdline.Argument{
 			{"foo", "", false}, {"bar", "", false}, {"baz", "", false}}},
-		{cmd: `"foo"=" many   spaces  " bar`, exp: []osutil.KernelArgument{
+		{cmd: `"foo"=" many   spaces  " bar`, exp: []kcmdline.Argument{
 			{`foo"`, " many   spaces  ", true}, {"bar", "", false}}},
-		{cmd: `"foo=bar" foo="bar"`, exp: []osutil.KernelArgument{
+		{cmd: `"foo=bar" foo="bar"`, exp: []kcmdline.Argument{
 			{"foo", "bar", true}, {"foo", "bar", true}}},
-		{cmd: `foo=* baz=bar`, exp: []osutil.KernelArgument{
+		{cmd: `foo=* baz=bar`, exp: []kcmdline.Argument{
 			{"foo", "*", false}, {"baz", "bar", false}}},
-		{cmd: `foo-dev-mode`, exp: []osutil.KernelArgument{
+		{cmd: `foo-dev-mode`, exp: []kcmdline.Argument{
 			{"foo-dev-mode", "", false}}},
-		{cmd: `foo_bar-tee=bar_aa-bb`, exp: []osutil.KernelArgument{
+		{cmd: `foo_bar-tee=bar_aa-bb`, exp: []kcmdline.Argument{
 			{"foo_bar-tee", "bar_aa-bb", false}}},
-		{cmd: `foo="1$2"`, exp: []osutil.KernelArgument{{"foo", "1$2", true}}},
-		{cmd: `foo=1$2`, exp: []osutil.KernelArgument{{"foo", "1$2", false}}},
-		{cmd: `foo= bar`, exp: []osutil.KernelArgument{{"foo", "", false}, {"bar", "", false}}},
-		{cmd: `foo=""`, exp: []osutil.KernelArgument{{"foo", "", true}}},
+		{cmd: `foo="1$2"`, exp: []kcmdline.Argument{{"foo", "1$2", true}}},
+		{cmd: `foo=1$2`, exp: []kcmdline.Argument{{"foo", "1$2", false}}},
+		{cmd: `foo= bar`, exp: []kcmdline.Argument{{"foo", "", false}, {"bar", "", false}}},
+		{cmd: `foo=""`, exp: []kcmdline.Argument{{"foo", "", true}}},
 		{cmd: `   cpu=1,2,3   mem=0x2000;0x4000:$2  `,
-			exp: []osutil.KernelArgument{{"cpu", "1,2,3", false}, {"mem", "0x2000;0x4000:$2", false}}},
+			exp: []kcmdline.Argument{{"cpu", "1,2,3", false}, {"mem", "0x2000;0x4000:$2", false}}},
 		{cmd: "isolcpus=1,2,10-20,100-2000:2/25",
-			exp: []osutil.KernelArgument{{"isolcpus", "1,2,10-20,100-2000:2/25", false}}},
+			exp: []kcmdline.Argument{{"isolcpus", "1,2,10-20,100-2000:2/25", false}}},
 		// something more realistic
 		{
 			cmd: `BOOT_IMAGE=/vmlinuz-linux root=/dev/mapper/linux-root rw quiet loglevel=3 rd.udev.log_priority=3 vt.global_cursor_default=0 rd.luks.uuid=1a273f76-3118-434b-8597-a3b12a59e017 rd.luks.uuid=775e4582-33c1-423b-ac19-f734e0d5e21c rd.luks.options=discard,timeout=0 root=/dev/mapper/linux-root apparmor=1 security=apparmor`,
-			exp: []osutil.KernelArgument{
+			exp: []kcmdline.Argument{
 				{"BOOT_IMAGE", "/vmlinuz-linux", false},
 				{"root", "/dev/mapper/linux-root", false},
 				{"rw", "", false},
@@ -265,31 +268,31 @@ func (s *kcmdlineTestSuite) TestKernelParseCommandLine(c *C) {
 			},
 		},
 		// this is actually ok, eg. rd.luks.options=discard,timeout=0
-		{cmd: `a=b=`, exp: []osutil.KernelArgument{{"a", "b=", false}}},
+		{cmd: `a=b=`, exp: []kcmdline.Argument{{"a", "b=", false}}},
 		// bad quoting, or otherwise malformed command line
-		{cmd: `foo="1$2`, exp: []osutil.KernelArgument{{"foo", "1$2", true}}},
-		{cmd: `"foo"`, exp: []osutil.KernelArgument{{"foo", "", true}}},
-		{cmd: `foo"foo"`, exp: []osutil.KernelArgument{{`foo"foo"`, "", false}}},
-		{cmd: `foo=foo"`, exp: []osutil.KernelArgument{{"foo", `foo"`, false}}},
-		{cmd: `foo=bar=baz`, exp: []osutil.KernelArgument{{"foo", `bar=baz`, false}}},
-		{cmd: `"f"o"o"="b"a"r"`, exp: []osutil.KernelArgument{{`f"o"o"`, `b"a"r`, true}}},
-		{cmd: `foo="a""b"`, exp: []osutil.KernelArgument{{"foo", `a""b`, true}}},
-		{cmd: `foo="a foo="b`, exp: []osutil.KernelArgument{{"foo", `a foo="b`, true}}},
-		{cmd: `foo="a"="b"`, exp: []osutil.KernelArgument{{"foo", `a"="b`, true}}},
-		{cmd: `=`, exp: []osutil.KernelArgument{{"=", "", false}}},
-		{cmd: `a =`, exp: []osutil.KernelArgument{{"a", "", false}, {"=", "", false}}},
-		{cmd: `="foo"`, exp: []osutil.KernelArgument{{`="foo"`, "", false}}},
-		{cmd: `a==`, exp: []osutil.KernelArgument{{"a", "=", false}}},
-		{cmd: `foo ==a`, exp: []osutil.KernelArgument{{"foo", "", false}, {"=", "a", false}}},
+		{cmd: `foo="1$2`, exp: []kcmdline.Argument{{"foo", "1$2", true}}},
+		{cmd: `"foo"`, exp: []kcmdline.Argument{{"foo", "", true}}},
+		{cmd: `foo"foo"`, exp: []kcmdline.Argument{{`foo"foo"`, "", false}}},
+		{cmd: `foo=foo"`, exp: []kcmdline.Argument{{"foo", `foo"`, false}}},
+		{cmd: `foo=bar=baz`, exp: []kcmdline.Argument{{"foo", `bar=baz`, false}}},
+		{cmd: `"f"o"o"="b"a"r"`, exp: []kcmdline.Argument{{`f"o"o"`, `b"a"r`, true}}},
+		{cmd: `foo="a""b"`, exp: []kcmdline.Argument{{"foo", `a""b`, true}}},
+		{cmd: `foo="a foo="b`, exp: []kcmdline.Argument{{"foo", `a foo="b`, true}}},
+		{cmd: `foo="a"="b"`, exp: []kcmdline.Argument{{"foo", `a"="b`, true}}},
+		{cmd: `=`, exp: []kcmdline.Argument{{"=", "", false}}},
+		{cmd: `a =`, exp: []kcmdline.Argument{{"a", "", false}, {"=", "", false}}},
+		{cmd: `="foo"`, exp: []kcmdline.Argument{{`="foo"`, "", false}}},
+		{cmd: `a==`, exp: []kcmdline.Argument{{"a", "=", false}}},
+		{cmd: `foo ==a`, exp: []kcmdline.Argument{{"foo", "", false}, {"=", "a", false}}},
 	} {
 		c.Logf("%v, cmd: %q", idx, tc.cmd)
-		out := osutil.ParseKernelCommandline(tc.cmd)
+		out := kcmdline.Parse(tc.cmd)
 		c.Check(out, DeepEquals, tc.exp)
 	}
 }
 
 type argsList struct {
-	Args []osutil.KernelArgument `yaml:"args"`
+	Args []kcmdline.Argument `yaml:"args"`
 }
 
 func buildYamlArgsList(list []string) string {
@@ -308,47 +311,147 @@ func (s *kcmdlineTestSuite) TestUnmarshalKernelArgument(c *C) {
 	}{
 		{
 			[]string{`par1=val1`, `par2="val2"`},
-			argsList{[]osutil.KernelArgument{{"par1", "val1", false}, {"par2", "val2", true}}},
+			argsList{[]kcmdline.Argument{{"par1", "val1", false}, {"par2", "val2", true}}},
 			"",
 		},
 		{
 			[]string{`par1="*"`, `par2`},
-			argsList{[]osutil.KernelArgument{{"par1", "*", true}, {"par2", "", false}}},
+			argsList{[]kcmdline.Argument{{"par1", "*", true}, {"par2", "", false}}},
 			"",
 		},
 		{
 			[]string{`par1=*`, `par2`},
-			argsList{[]osutil.KernelArgument{{"par1", "*", false}, {"par2", "", false}}},
+			argsList{[]kcmdline.Argument{{"par1", "*", false}, {"par2", "", false}}},
 			"",
 		},
 		{
 			[]string{`par1=val`, `par2=3[a-b]`, `par3=val`},
-			argsList{},
-			`\"3\[a-b\]\" contains globbing characters and is not quoted`,
+			argsList{[]kcmdline.Argument{{"par1", "val", false}, {"par2", "3[a-b]", false}, {"par3", "val", false}}},
+			"",
 		},
 		{
 			[]string{`par=ab*`},
-			argsList{},
-			`\"ab\*\" contains globbing characters and is not quoted`,
+			argsList{[]kcmdline.Argument{{"par", "ab*", false}}},
+			"",
 		},
 		{
 			[]string{`par=ab?`},
-			argsList{},
-			`\"ab\?\" contains globbing characters and is not quoted`,
+			argsList{[]kcmdline.Argument{{"par", "ab?", false}}},
+			"",
 		},
 		{
 			[]string{`par=\a`},
-			argsList{},
-			`\"\\\\a\" contains globbing characters and is not quoted`,
+			argsList{[]kcmdline.Argument{{"par", `\a`, false}}},
+			"",
 		},
 		{
 			[]string{`par="ab?g*[s-d]\q"`},
-			argsList{[]osutil.KernelArgument{{"par", `ab?g*[s-d]\q`, true}}},
+			argsList{[]kcmdline.Argument{{"par", `ab?g*[s-d]\q`, true}}},
 			"",
 		},
 	} {
 		c.Logf("%v, args: %v", idx, tc.args)
 		var args argsList
+		err := yaml.Unmarshal([]byte(buildYamlArgsList(tc.args)), &args)
+		if tc.errStr == "" {
+			c.Check(err, IsNil)
+			c.Check(args, DeepEquals, tc.exp)
+		} else {
+			c.Check(err, ErrorMatches, tc.errStr)
+		}
+	}
+}
+
+func (s *kcmdlineTestSuite) TestKernelArgumentToString(c *C) {
+	for _, t := range []struct {
+		input    kcmdline.Argument
+		expected string
+	}{
+		{
+			kcmdline.Argument{"has space", "", false},
+			`"has space"`,
+		},
+		{
+			kcmdline.Argument{"param", "has space", false},
+			`param="has space"`,
+		},
+		{
+			kcmdline.Argument{"param", "hasnospace", false},
+			`param=hasnospace`,
+		},
+		{
+			kcmdline.Argument{"param", "forcequotes", true},
+			`param="forcequotes"`,
+		},
+	} {
+		c.Check(t.input.String(), Equals, t.expected)
+	}
+}
+
+type patternsList struct {
+	Args []kcmdline.ArgumentPattern `yaml:"args"`
+}
+
+func (s *kcmdlineTestSuite) TestUnmarshalKernelArgumentPattern(c *C) {
+	for idx, tc := range []struct {
+		args   []string
+		exp    patternsList
+		errStr string
+	}{
+		{
+			[]string{`par1=val1`, `par2="val2"`},
+			patternsList{[]kcmdline.ArgumentPattern{
+				kcmdline.NewConstantPattern("par1", "val1"),
+				kcmdline.NewConstantPattern("par2", "val2"),
+			}},
+			"",
+		},
+		{
+			[]string{`par1="*"`, `par2`},
+			patternsList{[]kcmdline.ArgumentPattern{
+				kcmdline.NewConstantPattern("par1", "*"),
+				kcmdline.NewConstantPattern("par2", ""),
+			}},
+			"",
+		},
+		{
+			[]string{`par1=*`, `par2`},
+			patternsList{[]kcmdline.ArgumentPattern{
+				kcmdline.NewAnyPattern("par1"),
+				kcmdline.NewConstantPattern("par2", ""),
+			}},
+			"",
+		},
+		{
+			[]string{`par1=val`, `par2=3[a-b]`, `par3=val`},
+			patternsList{},
+			`\"3\[a-b\]\" contains globbing characters and is not quoted`,
+		},
+		{
+			[]string{`par=ab*`},
+			patternsList{},
+			`\"ab\*\" contains globbing characters and is not quoted`,
+		},
+		{
+			[]string{`par=ab?`},
+			patternsList{},
+			`\"ab\?\" contains globbing characters and is not quoted`,
+		},
+		{
+			[]string{`par=\a`},
+			patternsList{},
+			`\"\\\\a\" contains globbing characters and is not quoted`,
+		},
+		{
+			[]string{`par="ab?g*[s-d]\q"`},
+			patternsList{[]kcmdline.ArgumentPattern{
+				kcmdline.NewConstantPattern("par", `ab?g*[s-d]\q`),
+			}},
+			"",
+		},
+	} {
+		c.Logf("%v, args: %v", idx, tc.args)
+		var args patternsList
 		err := yaml.Unmarshal([]byte(buildYamlArgsList(tc.args)), &args)
 		if tc.errStr == "" {
 			c.Check(err, IsNil)

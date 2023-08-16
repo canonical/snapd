@@ -260,6 +260,10 @@ func init() {
 	maxSupportedFormat[TestOnlySeqType.Name] = 2
 }
 
+func (ak *AccountKey) CanSign(a Assertion) bool {
+	return ak.canSign(a)
+}
+
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
 func AccountKeyIsKeyValidAt(ak *AccountKey, when time.Time) bool {
 	return ak.isValidAt(when)
