@@ -122,8 +122,8 @@ func (s *desktopentrySuite) TestExpandExecHelper(c *C) {
 		// Special characters within URIs are preserved in the
 		// final command line.
 		in:   `foo %f`,
-		uris: []string{"file:///special%20chars%27%22%25%20%24foo"},
-		out:  []string{"foo", `/special chars'"% $foo`},
+		uris: []string{"file:///special%20chars%5c%27%22%25%20%24foo"},
+		out:  []string{"foo", `/special chars\'"% $foo`},
 	}} {
 		c.Logf("tc %d", i)
 
