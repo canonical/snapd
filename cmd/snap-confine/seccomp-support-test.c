@@ -69,7 +69,12 @@ static void must_read_and_validate_header_from_file_dies_with(struct sc_seccomp_
 
 static void test_must_read_and_validate_header_from_file__invalid_header(void)
 {
+	// workaround bug in gcc from 14.04, the pragma can be removed when
+	// we stop supporting 14.04
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-braces"
 	struct sc_seccomp_file_header hdr = { 0 };
+#pragma GCC diagnostic pop
 	const char *expected_err = "unexpected seccomp header: 00\n";
 	must_read_and_validate_header_from_file_dies_with(hdr, expected_err);
 }
