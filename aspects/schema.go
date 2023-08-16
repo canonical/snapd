@@ -33,6 +33,8 @@ type parser interface {
 	parseConstraints(json.RawMessage) error
 }
 
+// ParseSchema parses a JSON aspect schema and returns a Schema that can be
+// used to validate aspects.
 func ParseSchema(raw []byte) (*StorageSchema, error) {
 	var schemaDef map[string]json.RawMessage
 	err := json.Unmarshal(raw, &schemaDef)
@@ -47,7 +49,7 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 		return nil, fmt.Errorf(`cannot parse top level schema: must have a "schema" constraint`)
 	}
 
-	schema.topLevel, err = schema.Parse(raw)
+	schema.topLevel, err = schema.parse(raw)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +67,7 @@ func (s *StorageSchema) Validate(raw []byte) error {
 	return s.topLevel.Validate(raw)
 }
 
-func (s *StorageSchema) Parse(raw json.RawMessage) (parser, error) {
+func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 	var typ string
 	var schemaDef map[string]json.RawMessage
 	var hasConstraints bool
@@ -138,6 +140,8 @@ type mapSchema struct {
 	requiredCombs [][]string
 }
 
+// Validate that raw is a valid aspect map and meets the constraints set by the
+// aspect schema.
 func (v *mapSchema) Validate(raw []byte) error {
 	var mapValue map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &mapValue); err != nil {
@@ -215,12 +219,12 @@ func (v *mapSchema) parseConstraints(raw json.RawMessage) error {
 		if err := json.Unmarshal(rawRequired, &requiredCombs); err != nil {
 			var typeErr *json.UnmarshalTypeError
 			if !errors.As(err, &typeErr) {
-				return fmt.Errorf(`cannot unmarshal map's "required" constraint: %v`, err)
+				return fmt.Errorf(`cannot parse map's "required" constraint: %v`, err)
 			}
 
 			var required []string
 			if err := json.Unmarshal(rawRequired, &required); err != nil {
-				return fmt.Errorf(`cannot unmarshal map's "required" constraint: %v`, err)
+				return fmt.Errorf(`cannot parse map's "required" constraint: %v`, err)
 			}
 
 			v.requiredCombs = [][]string{required}
@@ -233,12 +237,12 @@ func (v *mapSchema) parseConstraints(raw json.RawMessage) error {
 	if rawEntries, ok := constraints["schema"]; ok {
 		var entries map[string]json.RawMessage
 		if err := json.Unmarshal(rawEntries, &entries); err != nil {
-			return fmt.Errorf(`cannot unmarshal map's "schema" constraint: %v`, err)
+			return fmt.Errorf(`cannot parse map's "schema" constraint: %v`, err)
 		}
 
 		v.entrySchemas = make(map[string]Schema, len(entries))
 		for key, value := range entries {
-			entrySchema, err := v.topSchema.Parse(value)
+			entrySchema, err := v.topSchema.parse(value)
 			if err != nil {
 				return err
 			}
@@ -259,7 +263,7 @@ func (v *mapSchema) parseConstraints(raw json.RawMessage) error {
 
 	rawValuesDef, ok := constraints["values"]
 	if ok {
-		v.valueSchema, err = v.topSchema.Parse(rawValuesDef)
+		v.valueSchema, err = v.topSchema.parse(rawValuesDef)
 		if err != nil {
 			return err
 		}
@@ -309,6 +313,7 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 
 type stringSchema struct{}
 
+// Validate that raw is a valid aspect string.
 func (v *stringSchema) Validate(raw []byte) error {
 	var value string
 	if err := json.Unmarshal(raw, &value); err != nil {
