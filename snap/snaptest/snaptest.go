@@ -250,7 +250,7 @@ func MakeTestSnapInfoWithFiles(c *check.C, snapYamlContent string, files [][]str
 	}
 	err = osutil.ChDir(snapSource, func() error {
 		var err error
-		snapFilePath, err = pack.Snap(snapSource, nil)
+		snapFilePath, err = pack.Pack(snapSource, nil)
 		return err
 	})
 	c.Assert(err, check.IsNil)
@@ -267,7 +267,7 @@ func MakeSnapFileAndDir(c *check.C, snapYamlContent string, files [][]string, si
 	defer restoreSanitize()
 
 	err := osutil.ChDir(info.MountDir(), func() error {
-		snapName, err := pack.Snap(info.MountDir(), &pack.Options{
+		snapName, err := pack.Pack(info.MountDir(), &pack.Options{
 			SnapName: info.MountFile(),
 		})
 		c.Check(snapName, check.Equals, info.MountFile())
