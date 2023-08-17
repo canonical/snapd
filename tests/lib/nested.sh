@@ -26,10 +26,9 @@ nested_wait_for_ssh() {
     local retry=${1:-800}
     local wait=${2:-1}
 
-    until remote.exec "true"; do
+    until remote.exec "true" &>/dev/null; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command 'true' to succeed. Aborting!"
             return 1
         fi
         sleep "$wait"
@@ -40,10 +39,9 @@ nested_wait_for_no_ssh() {
     local retry=${1:-200}
     local wait=${2:-1}
 
-    while remote.exec "true"; do
+    while remote.exec "true" &>/dev/null; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command 'true' to fail. Aborting!"
             return 1
         fi
         sleep "$wait"
@@ -74,8 +72,8 @@ nested_wait_vm_ready() {
 
         # Check during $limit seconds that the serial log is growing
         # shellcheck disable=SC2016
-        retry -n "$log_limit" --wait 1 --env serial_log="$serial_log" --env output_lines="$output_lines" \
-            sh -c 'test "$(wc -l "$serial_log" | cut -d " " -f1)" -gt "$output_lines"'
+        retry -n "$log_limit" --wait 1 --quiet --env serial_log="$serial_log" --env output_lines="$output_lines" \
+            sh -c 'test "$(wc -l <"$serial_log")" -gt "$output_lines"'
         output_lines="$(wc -l "$serial_log" | awk '{print $1;}')"
 
         # Check no infinite loops during boot
@@ -104,7 +102,7 @@ nested_wait_for_snap_command() {
     local retry=${1:-200}
     local wait=${2:-1}
 
-    while ! remote.exec "command -v snap"; do
+    while ! remote.exec "command -v snap" &>/dev/null; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for command 'command -v snap' to success. Aborting!"
