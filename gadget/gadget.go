@@ -208,6 +208,29 @@ func (v *Volume) yamlIdxToStructureIdx(yamlIdx int) (int, error) {
 	return -1, fmt.Errorf("structure with yaml index %d not found", yamlIdx)
 }
 
+// Copy makes a deep copy of the volume structure.
+func (vs *VolumeStructure) Copy() *VolumeStructure {
+	newVs := *vs
+	if vs.Offset != nil {
+		newVs.Offset = asOffsetPtr(*vs.Offset)
+	}
+	if vs.OffsetWrite != nil {
+		offsetWr := *vs.OffsetWrite
+		newVs.OffsetWrite = &offsetWr
+	}
+	if vs.Content != nil {
+		newVs.Content = make([]VolumeContent, len(vs.Content))
+		copy(newVs.Content, vs.Content)
+		for i, c := range vs.Content {
+			if c.Offset != nil {
+				newC := &newVs.Content[i]
+				newC.Offset = asOffsetPtr(*c.Offset)
+			}
+		}
+	}
+	return &newVs
+}
+
 // Copy makes a deep copy of the volume.
 func (v *Volume) Copy() *Volume {
 	newV := *v
@@ -217,27 +240,10 @@ func (v *Volume) Copy() *Volume {
 	}
 	if v.Structure != nil {
 		newV.Structure = make([]VolumeStructure, len(v.Structure))
-		copy(newV.Structure, v.Structure)
 		for i, vs := range v.Structure {
-			newVs := &newV.Structure[i]
-			if vs.Offset != nil {
-				newVs.Offset = asOffsetPtr(*vs.Offset)
-			}
-			if vs.OffsetWrite != nil {
-				offsetWr := *vs.OffsetWrite
-				newVs.OffsetWrite = &offsetWr
-			}
-			if vs.Content != nil {
-				newVs.Content = make([]VolumeContent, len(vs.Content))
-				copy(newVs.Content, vs.Content)
-				for i, c := range vs.Content {
-					if c.Offset != nil {
-						newC := &newVs.Content[i]
-						newC.Offset = asOffsetPtr(*c.Offset)
-					}
-				}
-			}
+			newVs := vs.Copy()
 			newVs.EnclosingVolume = &newV
+			newV.Structure[i] = *newVs
 		}
 	}
 	return &newV

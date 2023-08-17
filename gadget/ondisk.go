@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // TODO: consider looking into merging LaidOutVolume/Structure OnDiskVolume/Structure
@@ -256,9 +257,7 @@ func onDiskVolumeFromPartitionSysfsPath(partPath string) (*OnDiskVolume, error) 
 }
 
 func MockSysfsPathForBlockDevice(f func(device string) (string, error)) (restore func()) {
-	old := sysfsPathForBlockDevice
+	restore = testutil.Backup(&sysfsPathForBlockDevice)
 	sysfsPathForBlockDevice = f
-	return func() {
-		sysfsPathForBlockDevice = old
-	}
+	return restore
 }

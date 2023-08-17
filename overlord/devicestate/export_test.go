@@ -421,11 +421,9 @@ func MockInstallSaveStorageTraits(f func(model gadget.Model, allLaidOutVols map[
 
 func MockMatchDisksToGadgetVolumes(f func(gVols map[string]*gadget.Volume,
 	volCompatOpts *gadget.VolumeCompatibilityOptions) (map[string]map[int]*gadget.OnDiskStructure, error)) (restore func()) {
-	old := installMatchDisksToGadgetVolumes
+	restore = testutil.Backup(&installMatchDisksToGadgetVolumes)
 	installMatchDisksToGadgetVolumes = f
-	return func() {
-		installMatchDisksToGadgetVolumes = old
-	}
+	return restore
 }
 
 func MockSecbootStageEncryptionKeyChange(f func(node string, key keys.EncryptionKey) error) (restore func()) {
