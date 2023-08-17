@@ -17,10 +17,16 @@ environment:
 prepare: |
     echo "Install helper snaps with default confinement"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
-    echo "Prepare test-snapd-daemon-user for have $SNAP_USER system-username"
+    echo "Downloading test-snapd-daemon-user snap"
     snap download --edge test-snapd-daemon-user
     unsquashfs -d test-snapd-daemon-user ./test-snapd-daemon-user_*.snap
-    sed -i "s/snap_daemon: shared/$SNAP_USER: shared/" test-snapd-daemon-user/meta/snap.yaml
+    # The "test-snapd-daemon-user" snap uses the (old) snap_daemon user
+    # for historic reasons. To test other daemon users we need to modify
+    # the yaml.
+    if [ "$SNAP_USER" != "snap_daemon" ]; then
+        echo "Prepare test-snapd-daemon-user for have $SNAP_USER system-username"
+        sed -i "s/snap_daemon: shared/$SNAP_USER: shared/" test-snapd-daemon-user/meta/snap.yaml
+    fi
 
 restore: |
     # make sure this snap is removed in case it was installed
