@@ -7,6 +7,7 @@ execute: |
     snap list | MATCH test-snapd-control-consumer
 
     echo "Remove of multiple snaps works with --purge"
+    snap set core snapshots.automatic.retention=30h
     snap remove --purge test-snapd-sh test-snapd-control-consumer
     not snap list test-snapd-sh
     not snap list test-snapd-control-consumer
@@ -20,6 +21,7 @@ execute: |
     snap list | MATCH test-snapd-control-consumer
 
     echo "Remove of multiple snaps works without --purge"
+    snap set core snapshots.automatic.retention=30h
     snap remove test-snapd-sh test-snapd-control-consumer
     not snap list test-snapd-sh
     not snap list test-snapd-control-consumer
