@@ -42,13 +42,21 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 		return nil, fmt.Errorf("cannot parse top level schema: must be a map")
 	}
 
-	schema := &StorageSchema{}
-	// TODO: check "types" here and parse the user-defined types
+	if rawType, ok := schemaDef["type"]; ok {
+		var typ string
+		if err := json.Unmarshal(rawType, &typ); err != nil {
+			return nil, fmt.Errorf(`cannot parse top level schema's "type" entry: %w`, err)
+		}
+
+		return nil, fmt.Errorf(`cannot parse top level schema: expected map but got %s`, typ)
+	}
 
 	if _, ok := schemaDef["schema"]; !ok {
 		return nil, fmt.Errorf(`cannot parse top level schema: must have a "schema" constraint`)
 	}
 
+	// TODO: check "types" here and parse the user-defined types
+	schema := &StorageSchema{}
 	schema.topLevel, err = schema.parse(raw)
 	if err != nil {
 		return nil, err

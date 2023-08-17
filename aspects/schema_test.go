@@ -46,6 +46,26 @@ func (*schemaSuite) TestSchemaMustBeMap(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse top level schema: must be a map`)
 }
 
+func (*schemaSuite) TestTopLevelMustBeMapType(c *C) {
+	schemaStr := []byte(`{
+	"type": "string"
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse top level schema: expected map but got string`)
+}
+
+func (*schemaSuite) TestTopLevelTypeWrongFormat(c *C) {
+	schemaStr := []byte(`{
+	"type": {
+		"type": "string"
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse top level schema's "type" entry: .*`)
+}
+
 func (*schemaSuite) TestMapWithSchemaConstraint(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
