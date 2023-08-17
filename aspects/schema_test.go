@@ -32,7 +32,7 @@ var _ = Suite(&schemaSuite{})
 
 func (*schemaSuite) TestTopLevelFailsWithoutSchema(c *C) {
 	schemaStr := []byte(`{
-  "keys": "string"
+	"keys": "string"
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
@@ -48,22 +48,22 @@ func (*schemaSuite) TestSchemaMustBeMap(c *C) {
 
 func (*schemaSuite) TestMapWithSchemaConstraint(c *C) {
 	schemaStr := []byte(`{
-  "schema": {
-    "snaps": {
+	"schema": {
+		"snaps": {
 			"type": "map",
 			"schema": {
 				"foo": "string",
 				"bar": "string"
 			}
-    }
-  }
+		}
+	}
 }`)
 
 	input := []byte(`{
-  "snaps": {
-    "foo": "abc",
+	"snaps": {
+		"foo": "abc",
 		"bar": "cba"
-  }
+	}
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -75,17 +75,17 @@ func (*schemaSuite) TestMapWithSchemaConstraint(c *C) {
 
 func (*schemaSuite) TestMapWithKeysStringConstraintHappy(c *C) {
 	schemaStr := []byte(`{
-  "schema": {
-    "snaps": {
-      "keys": "string"
-    }
-  }
+	"schema": {
+		"snaps": {
+			"keys": "string"
+		}
+	}
 }`)
 
 	input := []byte(`{
-  "snaps": {
-    "foo": "bar"
-  }
+	"snaps": {
+		"foo": "bar"
+	}
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -98,18 +98,18 @@ func (*schemaSuite) TestMapWithKeysStringConstraintHappy(c *C) {
 func (*schemaSuite) TestMapWithKeysConstraintAsMap(c *C) {
 	// the map constraining "keys" is assumed to be based on type string
 	schemaStr := []byte(`{
-  "schema": {
-    "snaps": {
-      "keys": {
+	"schema": {
+		"snaps": {
+			"keys": {
 			}
-    }
-  }
+		}
+	}
 }`)
 
 	input := []byte(`{
-  "snaps": {
-    "foo": "bar"
-  }
+	"snaps": {
+		"foo": "bar"
+	}
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -121,24 +121,24 @@ func (*schemaSuite) TestMapWithKeysConstraintAsMap(c *C) {
 
 func (*schemaSuite) TestMapKeysConstraintMustBeStringBased(c *C) {
 	schemaStr := []byte(`{
-  "schema": {
-    "snaps": {
-      "keys": {
+	"schema": {
+		"snaps": {
+			"keys": {
 				"type": "map"
 			}
-    }
-  }
+		}
+	}
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: must be based on string but got "map"`)
 
 	schemaStr = []byte(`{
-  "schema": {
-    "snaps": {
-      "keys": "int"
+	"schema": {
+		"snaps": {
+			"keys": "int"
 		}
-  }
+	}
 }`)
 
 	_, err = aspects.ParseSchema(schemaStr)
@@ -150,17 +150,17 @@ func (*schemaSuite) TestMapKeysConstraintMustBeStringBased(c *C) {
 
 func (*schemaSuite) TestMapWithValuesStringConstraintHappy(c *C) {
 	schemaStr := []byte(`{
-  "schema": {
-    "snaps": {
-      "values": "string"
-    }
-  }
+	"schema": {
+		"snaps": {
+			"values": "string"
+		}
+	}
 }`)
 
 	input := []byte(`{
-  "snaps": {
-    "foo": "bar"
-  }
+	"snaps": {
+		"foo": "bar"
+	}
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -172,17 +172,17 @@ func (*schemaSuite) TestMapWithValuesStringConstraintHappy(c *C) {
 
 func (*schemaSuite) TestMapWithUnmetValuesConstraint(c *C) {
 	schemaStr := []byte(`{
-  "schema": {
-    "snaps": {
-      "values": "string"
-    }
-  }
+	"schema": {
+		"snaps": {
+			"values": "string"
+		}
+	}
 }`)
 
 	input := []byte(`{
-  "snaps": {
-    "foo": {}
-  }
+	"snaps": {
+		"foo": {}
+	}
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -194,15 +194,15 @@ func (*schemaSuite) TestMapWithUnmetValuesConstraint(c *C) {
 
 func (*schemaSuite) TestMapSchemaMetConstraintsWithMissingEntry(c *C) {
 	schemaStr := []byte(`{
-  "schema": {
-    "foo": "string",
+	"schema": {
+		"foo": "string",
 		"bar": "string"
-  }
+	}
 }`)
 
 	// bar is in the schema but not the input and baz is the opposite (both aren't errors)
 	input := []byte(`{
-  "foo": "oof",
+	"foo": "oof",
 	"baz": {
 		"a": "b"
 	}
@@ -217,14 +217,14 @@ func (*schemaSuite) TestMapSchemaMetConstraintsWithMissingEntry(c *C) {
 
 func (*schemaSuite) TestMapSchemaUnmetConstraint(c *C) {
 	schemaStr := []byte(`{
-  "schema": {
-    "foo": "string",
+	"schema": {
+		"foo": "string",
 		"bar": "string"
-  }
+	}
 }`)
 
 	input := []byte(`{
-  "foo": "oof",
+	"foo": "oof",
 	"bar": {
 		"a": "b"
 	},
@@ -241,16 +241,16 @@ func (*schemaSuite) TestMapSchemaUnmetConstraint(c *C) {
 func (*schemaSuite) TestMapSchemaWithMetRequiredConstraint(c *C) {
 	// single list of required entries
 	schemaStr := []byte(`{
-  "schema": {
-    "foo": "string",
+	"schema": {
+		"foo": "string",
 		"bar": "string",
 		"baz": "map"
-  },
+	},
 	"required": ["foo", "baz"]
 }`)
 
 	input := []byte(`{
-  "foo": "oof",
+	"foo": "oof",
 	"baz": {
 		"a": "b"
 	}
@@ -266,16 +266,16 @@ func (*schemaSuite) TestMapSchemaWithMetRequiredConstraint(c *C) {
 func (*schemaSuite) TestMapSchemaWithUnmetRequiredConstraint(c *C) {
 	// single list of required entries
 	schemaStr := []byte(`{
-  "schema": {
-    "foo": "string",
+	"schema": {
+		"foo": "string",
 		"bar": "string",
 		"baz": "map"
-  },
+	},
 	"required": ["foo", "baz"]
 }`)
 
 	input := []byte(`{
-  "foo": "oof",
+	"foo": "oof",
 	"bar": "rab"
 }`)
 
@@ -289,17 +289,17 @@ func (*schemaSuite) TestMapSchemaWithUnmetRequiredConstraint(c *C) {
 func (*schemaSuite) TestMapSchemaWithAlternativeOfRequiredEntries(c *C) {
 	// multiple alternative lists of required entries
 	schemaStr := []byte(`{
-  "schema": {
-    "foo": "string",
+	"schema": {
+		"foo": "string",
 		"bar": "string",
 		"baz": "map"
-  },
+	},
 	"required": [["foo"], ["bar"]]
 }`)
 
 	// accepts the 1st allowed combination "foo"
 	input := []byte(`{
-  "foo": "oof"
+	"foo": "oof"
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -323,17 +323,17 @@ func (*schemaSuite) TestMapSchemaWithAlternativeOfRequiredEntries(c *C) {
 func (*schemaSuite) TestMapSchemaWithUnmetAlternativeOfRequiredEntries(c *C) {
 	// multiple alternative lists of required entries
 	schemaStr := []byte(`{
-  "schema": {
-    "foo": "string",
+	"schema": {
+		"foo": "string",
 		"bar": "string",
 		"baz": "map"
-  },
+	},
 	"required": [["foo"], ["bar"]]
 }`)
 
 	// accepts the 1st allowed combination "foo"
 	input := []byte(`{
-  "baz": {
+	"baz": {
 		"a": "b"
 	}
 }`)
@@ -355,8 +355,7 @@ func (*schemaSuite) TestMapInvalidConstraintCombos(c *C) {
 	tcs := []testcase{
 		{
 			name: "schema and keys",
-			snippet: `
-{
+			snippet: `{
 	"schema": { "foo": "bar" },
 	"keys": "string"
 }`,
@@ -364,8 +363,7 @@ func (*schemaSuite) TestMapInvalidConstraintCombos(c *C) {
 		},
 		{
 			name: "schema and values",
-			snippet: `
-{
+			snippet: `{
 	"schema": { "foo": "bar" },
 	"values": "string"
 }`,
@@ -373,8 +371,7 @@ func (*schemaSuite) TestMapInvalidConstraintCombos(c *C) {
 		},
 		{
 			name: "required w/o schema",
-			snippet: `
-{
+			snippet: `{
 	"required": ["foo"]
 }`,
 			err: `cannot parse map: cannot use "required" without "schema" constraint`,
@@ -383,9 +380,9 @@ func (*schemaSuite) TestMapInvalidConstraintCombos(c *C) {
 
 	for _, tc := range tcs {
 		schemaStr := []byte(fmt.Sprintf(`{
-  "schema": {
-    "top": %s
-  }
+	"schema": {
+		"top": %s
+	}
 }`, tc.snippet))
 
 		_, err := aspects.ParseSchema(schemaStr)
@@ -396,9 +393,9 @@ func (*schemaSuite) TestMapInvalidConstraintCombos(c *C) {
 
 func (*schemaSuite) TestSchemaWithUnknownType(c *C) {
 	schemaStr := []byte(`{
-  "schema": {
-    "foo": "blarg"
-  }
+	"schema": {
+		"foo": "blarg"
+	}
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)

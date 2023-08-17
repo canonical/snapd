@@ -121,8 +121,8 @@ type mapSchema struct {
 	// topSchema is the schema for the top-level schema which contains the user types.
 	topSchema *StorageSchema
 
-	// entrySchemas map keys that can the map can contain to their expected types.
-	// Alternatively, the schema can instead key and/or value types.
+	// entrySchemas maps keys to their expected types. Alternatively, the schema
+	// can constrain key and/or value types.
 	entrySchemas map[string]Schema
 
 	// valueSchema validates that the map's values match a certain type.
