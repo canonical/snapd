@@ -342,7 +342,7 @@ dbus (send, receive)
       peer=(label=unconfined),
 `
 
-var desktopPermanentSlotAppArmor = `
+const desktopPermanentSlotAppArmor = `
 # Description: Can provide various desktop services
 
 #include <abstractions/dbus-session-strict>
