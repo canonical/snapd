@@ -34,6 +34,19 @@ func makeSnapDirForPack(c *check.C, snapYaml string) string {
 	return tempdir
 }
 
+func makeComponentDirForPack(c *check.C, compYaml string) string {
+	tempdir := c.MkDir()
+	c.Assert(os.Chmod(tempdir, 0755), check.IsNil)
+
+	metaDir := filepath.Join(tempdir, "meta")
+	err := os.Mkdir(metaDir, 0755)
+	c.Assert(err, check.IsNil)
+	err = os.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(compYaml), 0644)
+	c.Assert(err, check.IsNil)
+
+	return tempdir
+}
+
 func (s *SnapSuite) TestPackCheckSkeletonNoAppFiles(c *check.C) {
 	_, r := logger.MockLogger()
 	defer r()
@@ -183,4 +196,36 @@ esac
 	c.Assert(matches, check.HasLen, 1)
 	err = os.Remove(matches[0])
 	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapSuite) TestPackComponentHappy(c *check.C) {
+	const compYaml = `component: snap+comp
+version: 12a
+type: test
+`
+	_, r := logger.MockLogger()
+	defer r()
+
+	snapDir := makeComponentDirForPack(c, compYaml)
+
+	// check-skeleton does not fail due to missing files
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", snapDir})
+	c.Assert(err, check.IsNil)
+	err = os.Remove("snap+comp_12a.comp")
+	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapSuite) TestPackComponentBadName(c *check.C) {
+	const compYaml = `component: snapcomp
+version: 12a
+type: test
+`
+	_, r := logger.MockLogger()
+	defer r()
+
+	snapDir := makeComponentDirForPack(c, compYaml)
+
+	// check-skeleton does not fail due to missing files
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", snapDir})
+	c.Assert(err, check.ErrorMatches, `.*: cannot parse component.yaml: incorrect component name "snapcomp"`)
 }
