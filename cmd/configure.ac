@@ -258,22 +258,29 @@ void bar() { struct bpf_cgroup_dev_ctx ctx = {0}; }
   AM_CONDITIONAL([USE_INTERNAL_BPF_HEADERS], [test "x$snapd_cv_bpf_header_work" = "xno"])
 ])
 
-AC_DEFINE([MISSING_FIELD_INITIALIZERS_USABLE], [1], [-Wmissing-field-initializers are usable])
-AC_MSG_CHECKING([whether MISSING_FIELD_INITIALIZER warnings are usable])
-AC_COMPILE_IFELSE([
-#include <linux/resource.h>
-#pragma GCC diagnostic error "-Wmissing-field-initializers"
-struct sc_mount{const char *path;int foo;};
-void foo() { struct sc_mount mounts[[]] = { {.path = "x"}, {}, }; }
-void bar() { struct rlimit limit = {0}; }
-], [w_missing_field_initializers_usable=yes], [w_missing_field_initializers_usable=no])
-if test "x$w_missing_field_initializers_usable" = "xyes"; then
-   AC_MSG_RESULT([yes])
-else
-  AC_MSG_RESULT([no, running with -Wno-missing-field-initializers])
-fi
-AM_CONDITIONAL([NO_MISSING_FIELD_INITIALIZERS], [test "x$w_missing_field_initializers_usable" = "xno"])
+AX_APPEND_COMPILE_FLAGS([ dnl
+  -Wall dnl
+  -Wextra dnl
+  -Wmissing-prototypes dnl
+  -Wstrict-prototypes dnl
+  -Wno-unused-parameter dnl
+  ], [CHECK_CFLAGS])
 
+# Remove -Wmissing-field-initializers if it is broken.
+AX_CHECK_COMPILE_FLAG([-Wmissing-field-initializers], [
+  # Works, do nothing, it is included in -Wextra
+], [
+  AX_APPEND_COMPILE_FLAGS([-Wno-missing-field-initializers], [CHECK_CFLAGS])
+], [-Werror], [AC_LANG_SOURCE([[
+struct { int a; int b; } a = { 0 };
+struct { const char* a; int b; } b[] = { {.a = ""}, {} };
+]])])
+
+AS_IF([test "x$with_unit_tests" = "xyes"], [
+  AX_APPEND_COMPILE_FLAGS([-Werror], [CHECK_CFLAGS])
+])
+
+AC_SUBST([CHECK_CFLAGS])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
