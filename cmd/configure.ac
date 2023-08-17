@@ -241,21 +241,27 @@ esac],
 [enable_bpf=yes])
 AM_CONDITIONAL([ENABLE_BPF], [test "x$enable_bpf" = "xyes"])
 
-if test "x$enable_bpf" = "xyes"; then
-AC_DEFINE([ENABLE_BPF], [1], [Enable BPF support])
-AC_MSG_CHECKING([whether host BPF headers are usable])
-AC_COMPILE_IFELSE([
+AS_IF([test "x$enable_bpf" = "xyes"], [
+  AC_DEFINE([ENABLE_BPF], [1], [Enable BPF support])
+
+  AC_CACHE_CHECK([whether host BPF headers are usable], [snapd_cv_bpf_header_works], [
+      AC_COMPILE_IFELSE(
+        [AC_LANG_SOURCE([[
 #include <linux/bpf.h>
 void foo(enum bpf_attach_type type) {}
 void bar() { struct bpf_cgroup_dev_ctx ctx = {0}; }
-], [host_bpf_headers_usable=yes], [host_bpf_headers_usable=no])
-if test "x$host_bpf_headers_usable" = "xyes"; then
-   AC_MSG_RESULT([yes])
-else
-  AC_MSG_RESULT([no, using vendored BPF headers])
-fi
-fi
-AM_CONDITIONAL([USE_INTERNAL_BPF_HEADERS], [test "x$host_bpf_headers_usable" = "xno"])
+]])],
+          [snapd_cv_bpf_header_works=yes],
+          [snapd_cv_bpf_header_works=no])
+  ])
+
+  AS_IF([test "x$snapd_cv_bpf_header_works" = "xno"], [
+    use_internal_pbf_headers=yes
+  ])
+], [
+  use_internal_pbf_headers=no
+])
+AM_CONDITIONAL([USE_INTERNAL_BPF_HEADERS], [test "x$use_internal_pbf_headers" = "xyes"])
 
 AC_DEFINE([MISSING_FIELD_INITIALIZERS_USABLE], [1], [-Wmissing-field-initializers are usable])
 AC_MSG_CHECKING([whether MISSING_FIELD_INITIALIZER warnings are usable])
