@@ -2301,3 +2301,31 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
 	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
 }
+
+func (s *ValidateSuite) TestValidateComponentNames(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+components:
+  comp-1:
+    type: test
+  comp-long123-1-name:
+    type: test
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, IsNil)
+}
+
+func (s *ValidateSuite) TestDetectInvalidComponentName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+components:
+  comp_1:
+    type: test
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid snap name: "comp_1"`)
+}
