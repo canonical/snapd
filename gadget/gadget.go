@@ -186,6 +186,18 @@ func (v *Volume) MinSize() quantity.Size {
 	return quantity.Size(endVol)
 }
 
+// StructFromYamlIndex returns the structure defined at a given yaml index from
+// the original yaml file.
+func (v *Volume) StructFromYamlIndex(yamlIdx int) *VolumeStructure {
+	i, err := v.yamlIdxToStructureIdx(yamlIdx)
+	if err != nil {
+		return nil
+	}
+	return &v.Structure[i]
+}
+
+// yamlIdxToStructureIdx returns the index to Volume.Structure that matches the
+// yaml index from the original yaml file.
 func (v *Volume) yamlIdxToStructureIdx(yamlIdx int) (int, error) {
 	for i := range v.Structure {
 		if v.Structure[i].YamlIndex == yamlIdx {
@@ -194,6 +206,47 @@ func (v *Volume) yamlIdxToStructureIdx(yamlIdx int) (int, error) {
 	}
 
 	return -1, fmt.Errorf("structure with yaml index %d not found", yamlIdx)
+}
+
+// Copy makes a deep copy of the volume structure.
+func (vs *VolumeStructure) Copy() *VolumeStructure {
+	newVs := *vs
+	if vs.Offset != nil {
+		newVs.Offset = asOffsetPtr(*vs.Offset)
+	}
+	if vs.OffsetWrite != nil {
+		offsetWr := *vs.OffsetWrite
+		newVs.OffsetWrite = &offsetWr
+	}
+	if vs.Content != nil {
+		newVs.Content = make([]VolumeContent, len(vs.Content))
+		copy(newVs.Content, vs.Content)
+		for i, c := range vs.Content {
+			if c.Offset != nil {
+				newC := &newVs.Content[i]
+				newC.Offset = asOffsetPtr(*c.Offset)
+			}
+		}
+	}
+	return &newVs
+}
+
+// Copy makes a deep copy of the volume.
+func (v *Volume) Copy() *Volume {
+	newV := *v
+	if v.Partial != nil {
+		newV.Partial = make([]PartialProperty, len(v.Partial))
+		copy(newV.Partial, v.Partial)
+	}
+	if v.Structure != nil {
+		newV.Structure = make([]VolumeStructure, len(v.Structure))
+		for i, vs := range v.Structure {
+			newVs := vs.Copy()
+			newVs.EnclosingVolume = &newV
+			newV.Structure[i] = *newVs
+		}
+	}
+	return &newV
 }
 
 const GPTPartitionGUIDESP = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
@@ -612,25 +665,25 @@ func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits,
 	return mapping, nil
 }
 
-// AllDiskVolumeDeviceTraits takes a mapping of volume name to LaidOutVolume and
-// produces a map of volume name to DiskVolumeDeviceTraits. Since doing so uses
-// DiskVolumeDeviceTraitsForDevice, it will also validate that disk devices
-// identified for the laid out volume are compatible and matching before
-// returning.
-func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPerVolume map[string]*DiskVolumeValidationOptions) (map[string]DiskVolumeDeviceTraits, error) {
+// AllDiskVolumeDeviceTraits takes a mapping of volume name to Volume
+// and produces a map of volume name to DiskVolumeDeviceTraits. Since
+// doing so uses DiskVolumeDeviceTraitsForDevice, it will also
+// validate that disk devices identified for the volume are compatible
+// and matching before returning.
+func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[string]*DiskVolumeValidationOptions) (map[string]DiskVolumeDeviceTraits, error) {
 	// build up the mapping of volumes to disk device traits
 
-	allVols := map[string]DiskVolumeDeviceTraits{}
+	allTraits := map[string]DiskVolumeDeviceTraits{}
 
 	// find all devices which map to volumes to save the current state of the
 	// system
-	for name, vol := range allLaidOutVols {
+	for name, vol := range allVols {
 		// try to find a device for a structure inside the volume, we have a
 		// loop to attempt to use all structures in the volume in case there are
 		// partitions we can't map to a device directly at first using the
 		// device symlinks that FindDeviceForStructure uses
 		dev := ""
-		for _, ls := range vol.LaidOutStructure {
+		for _, vs := range vol.Structure {
 			// TODO: This code works for volumes that have at least one
 			// partition (i.e. not type: bare structure), but does not work for
 			// volumes which contain only type: bare structures with no other
@@ -642,12 +695,12 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 			// at the expected locations, but that is probably fragile and very
 			// non-performant.
 
-			if !ls.IsPartition() {
+			if !vs.IsPartition() {
 				// skip trying to find non-partitions on disk, it won't work
 				continue
 			}
 
-			structureDevice, err := FindDeviceForStructure(ls.VolumeStructure)
+			structureDevice, err := FindDeviceForStructure(&vs)
 			if err != nil && err != ErrDeviceNotFound {
 				return nil, err
 			}
@@ -675,15 +728,15 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 		if opts == nil {
 			opts = &DiskVolumeValidationOptions{}
 		}
-		traits, err := DiskTraitsFromDeviceAndValidate(vol.Volume, dev, opts)
+		traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, opts)
 		if err != nil {
 			return nil, fmt.Errorf("cannot gather disk traits for device %s to use with volume %s: %v", dev, name, err)
 		}
 
-		allVols[name] = traits
+		allTraits[name] = traits
 	}
 
-	return allVols, nil
+	return allTraits, nil
 }
 
 // GadgetConnect describes an interface connection requested by the gadget
@@ -1618,24 +1671,18 @@ func checkCompatibleSchema(old, new *Volume) error {
 	return nil
 }
 
-// LaidOutVolumesFromGadget takes a gadget rootdir and lays out the partitions
-// on all volumes as specified. It returns the specific volume on which system-*
-// roles/partitions exist, as well as all volumes mentioned in the gadget.yaml
-// and their laid out representations. Those volumes are assumed to already be
-// flashed and managed separately at image build/flash time, while the system
-// volume with all the system-* roles on it can be manipulated during install
-// mode.
-func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model, encType secboot.EncryptionType) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
+// LaidOutVolumesFromGadget takes gadget volumes, gadget and kernel rootdirs
+// and lays out the partitions on all volumes as specified. It returns the
+// specific volume on which system-* roles/partitions exist, as well as all
+// volumes mentioned in the gadget.yaml and their laid out representations.
+// Those volumes are assumed to already be flashed and managed separately at
+// image build/flash time, while the system volume with all the system-* roles
+// on it can be manipulated during install mode.
+func LaidOutVolumesFromGadget(vols map[string]*Volume, gadgetRoot, kernelRoot string, model Model, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*OnDiskStructure) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
 	all = make(map[string]*LaidOutVolume)
 	// model should never be nil here
 	if model == nil {
 		return nil, nil, fmt.Errorf("internal error: must have model to lay out system volumes from a gadget")
-	}
-	// rely on the basic validation from ReadInfo to ensure that the system-*
-	// roles are all on the same volume for example
-	info, err := ReadInfoAndValidate(gadgetRoot, model, nil)
-	if err != nil {
-		return nil, nil, err
 	}
 
 	// layout all volumes saving them
@@ -1647,8 +1694,15 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model, encTyp
 
 	// find the volume with the system-boot role on it, we already validated
 	// that the system-* roles are all on the same volume
-	for name, vol := range info.Volumes {
-		lvol, err := LayoutVolume(vol, nil, opts)
+	for name, vol := range vols {
+		var gadgetToDiskStruct map[int]*OnDiskStructure
+		if volToGadgetToDiskStruct != nil {
+			var ok bool
+			if gadgetToDiskStruct, ok = volToGadgetToDiskStruct[name]; !ok {
+				return nil, nil, fmt.Errorf("internal error: volume %q does not have a map of gadget to disk partitions", name)
+			}
+		}
+		lvol, err := LayoutVolume(vol, gadgetToDiskStruct, opts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1674,6 +1728,18 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model, encTyp
 	}
 
 	return system, all, nil
+}
+
+// FindBootVolume returns the volume that contains the system-boot partition.
+func FindBootVolume(vols map[string]*Volume) (*Volume, error) {
+	for _, vol := range vols {
+		for _, structure := range vol.Structure {
+			if structure.Role == SystemBoot {
+				return vol, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("no volume has system-boot role")
 }
 
 func flatten(path string, cfg interface{}, out map[string]interface{}) {

@@ -411,12 +411,19 @@ func MockInstallEncryptPartitions(f func(onVolumes map[string]*gadget.Volume, en
 	}
 }
 
-func MockInstallSaveStorageTraits(f func(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *install.EncryptionSetupData) error) (restore func()) {
+func MockInstallSaveStorageTraits(f func(model gadget.Model, allLaidOutVols map[string]*gadget.Volume, encryptSetupData *install.EncryptionSetupData) error) (restore func()) {
 	old := installSaveStorageTraits
 	installSaveStorageTraits = f
 	return func() {
 		installSaveStorageTraits = old
 	}
+}
+
+func MockMatchDisksToGadgetVolumes(f func(gVols map[string]*gadget.Volume,
+	volCompatOpts *gadget.VolumeCompatibilityOptions) (map[string]map[int]*gadget.OnDiskStructure, error)) (restore func()) {
+	restore = testutil.Backup(&installMatchDisksToGadgetVolumes)
+	installMatchDisksToGadgetVolumes = f
+	return restore
 }
 
 func MockSecbootStageEncryptionKeyChange(f func(node string, key keys.EncryptionKey) error) (restore func()) {

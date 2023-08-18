@@ -74,14 +74,6 @@ func MockMkfsMake(f func(typ, img, label string, devSize, sectorSize quantity.Si
 	}
 }
 
-func MockSysfsPathForBlockDevice(f func(device string) (string, error)) (restore func()) {
-	old := sysfsPathForBlockDevice
-	sysfsPathForBlockDevice = f
-	return func() {
-		sysfsPathForBlockDevice = old
-	}
-}
-
 func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevice map[string]string) error {
 	for label, part := range encryptSetup.parts {
 		switch part.role {
