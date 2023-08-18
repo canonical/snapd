@@ -343,6 +343,13 @@ func Validate(info *Info) error {
 		return err
 	}
 
+	// validate component names, which follow the same rules as snap names
+	for cname := range info.Components {
+		if err := ValidateName(cname); err != nil {
+			return err
+		}
+	}
+
 	if err := validateTitle(info.Title()); err != nil {
 		return err
 	}
