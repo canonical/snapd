@@ -416,3 +416,33 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 
 	return nil
 }
+
+func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
+	var raw msgNotificationFileKernel
+	packer := newStringPacker(raw)
+	raw.Version = 2
+	raw.NotificationType = msg.NotificationType
+	raw.Signalled = msg.Signalled
+	raw.Flags = msg.Flags
+	raw.ID = msg.ID
+	raw.Error = msg.Error
+	raw.Allow = msg.Allow
+	raw.Deny = msg.Deny
+	raw.Pid = msg.Pid
+	raw.Label = packer.PackString(msg.Label)
+	raw.Class = uint16(msg.Class)
+	raw.Op = msg.Op
+	raw.SUID = msg.SUID
+	raw.OUID = msg.OUID
+	raw.Name = packer.PackString(msg.Name)
+	raw.Length = packer.TotalLen()
+	msgBuf := bytes.NewBuffer(make([]byte, 0, raw.Length))
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	if err := binary.Write(msgBuf, order, raw); err != nil {
+		return nil, err
+	}
+	if _, err := msgBuf.Write(packer.Bytes()); err != nil {
+		return nil, err
+	}
+	return msgBuf.Bytes(), nil
+}
