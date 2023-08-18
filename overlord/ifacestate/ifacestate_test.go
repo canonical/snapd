@@ -3407,7 +3407,7 @@ slots:
 	c.Check(secBackend.SetupCalls, HasLen, 2)
 }
 
-// LP:#1825883; make sure static attributes in conns state are updated from the snap yaml on snap refresh (content interface only)
+// LP:#1825883; make sure static attributes in conns state are updated from the snap yaml on snap refresh
 func (s *interfaceManagerSuite) testDoSetupProfilesUpdatesStaticAttributes(c *C, snapNameToSetup string) {
 	// Put a connection in the state. The connection binds the two snaps we are
 	// adding below. The connection reflects the snaps as they are now, and
@@ -3419,6 +3419,9 @@ func (s *interfaceManagerSuite) testDoSetupProfilesUpdatesStaticAttributes(c *C,
 		},
 		"consumer:plug3 producer:slot2": map[string]interface{}{
 			"interface": "system-files",
+		},
+		"consumer:plug4 producer:slot3": map[string]interface{}{
+			"interface": "shared-memory",
 		},
 		"unrelated-a:plug unrelated-b:slot": map[string]interface{}{
 			"interface":   "unrelated",
@@ -3443,6 +3446,9 @@ plugs:
   content: bar
  plug3:
   interface: system-files
+ plug4:
+  interface: shared-memory
+  shared-memory: baz
 `
 	const producerV1Yaml = `
 name: producer
@@ -3453,6 +3459,11 @@ slots:
   content: foo
  slot2:
   interface: system-files
+ slot3:
+  interface: shared-memory
+  shared-memory: baz
+  read:
+   - baz
 `
 	const consumerV2Yaml = `
 name: consumer
@@ -3470,6 +3481,9 @@ plugs:
   interface: system-files
   read:
     - /etc/foo
+ plug4:
+  interface: shared-memory
+  shared-memory: baz
 `
 	const producerV2Yaml = `
 name: producer
@@ -3481,6 +3495,12 @@ slots:
   attr: slot-value
  slot2:
   interface: system-files
+ slot3:
+  interface: shared-memory
+  shared-memory: baz
+  read:
+   - baz
+   - qux
 `
 
 	const unrelatedAYaml = `
@@ -3521,6 +3541,9 @@ slots:
 	sysFilesConnRef := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug3"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot2"}}
+	shmConnRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug4"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot3"}}
 
 	// Add a test security backend and a test interface. We want to use them to
 	// observe the interaction with the security backend and to allow the
@@ -3536,11 +3559,15 @@ slots:
 			c.Assert(err, IsNil)
 			sysFilesConn, err2 := repo.Connection(sysFilesConnRef)
 			c.Assert(err2, IsNil)
+			shmConn, err3 := repo.Connection(shmConnRef)
+			c.Assert(err3, IsNil)
 			switch appSet.Info().Version {
 			case "1":
 				c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
 				c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
 				c.Check(sysFilesConn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{})
+				c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"shared-memory": "baz"})
+				c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"shared-memory": "baz", "read": []interface{}{"baz"}})
 			case "2":
 				switch snapNameToSetup {
 				case "consumer":
@@ -3548,10 +3575,14 @@ slots:
 					c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "plug-value"})
 					c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
 					c.Check(sysFilesConn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"read": []interface{}{"/etc/foo"}})
+					c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"shared-memory": "baz"})
+					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"shared-memory": "baz", "read": []interface{}{"baz"}})
 				case "producer":
 					// When the producer has security setup the producer's slot attribute is updated.
 					c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
 					c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "slot-value"})
+					c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"shared-memory": "baz"})
+					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"shared-memory": "baz", "read": []interface{}{"baz", "qux"}})
 				}
 			}
 			return nil
