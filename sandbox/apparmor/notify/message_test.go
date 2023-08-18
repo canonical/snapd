@@ -185,7 +185,7 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 	})
 }
 
-func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
+func (s *messageSuite) TestMsgNotificationFileMarshalUnmarshalBinary(c *C) {
 	if arch.Endian() == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
@@ -215,7 +215,7 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 	var msg notify.MsgNotificationFile
 	err := msg.UnmarshalBinary(bytes)
 	c.Assert(err, IsNil)
-	c.Check(msg, DeepEquals, notify.MsgNotificationFile{
+	c.Assert(msg, DeepEquals, notify.MsgNotificationFile{
 		MsgNotificationOp: notify.MsgNotificationOp{
 			MsgNotification: notify.MsgNotification{
 				MsgHeader: notify.MsgHeader{
@@ -234,6 +234,10 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 		},
 		Name: "/root/.ssh/",
 	})
+
+	buf, err := msg.MarshalBinary()
+	c.Assert(err, IsNil)
+	c.Assert(buf, DeepEquals, bytes)
 }
 
 func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
