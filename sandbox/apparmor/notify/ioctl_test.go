@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
-	"unsafe"
 
 	. "gopkg.in/check.v1"
 
@@ -32,7 +31,7 @@ func (*ioctlSuite) TestIoctlRequestBuffer(c *C) {
 }
 
 func (*ioctlSuite) TestBytesToIoctlRequestBuffer(c *C) {
-	buf := []byte{'f', 'o', 'o'}
+	buf := []byte("foo")
 	ioctlBuf := notify.BytesToIoctlRequestBuffer(buf)
 	c.Assert(ioctlBuf.Bytes(), DeepEquals, buf)
 }
@@ -40,33 +39,32 @@ func (*ioctlSuite) TestBytesToIoctlRequestBuffer(c *C) {
 func (*ioctlSuite) TestIoctlHappy(c *C) {
 	fd := uintptr(123)
 	req := notify.IoctlRequest(456)
-	buf := notify.NewIoctlRequestBuffer()
+	ioctlBuf := notify.NewIoctlRequestBuffer()
 	restore := notify.MockSyscall(
 		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
 			c.Check(trap, Equals, uintptr(unix.SYS_IOCTL))
 			c.Check(a1, Equals, fd)
 			c.Check(a2, Equals, uintptr(req))
-			c.Check(a3, Equals, buf.Pointer())
-			return uintptr(buf.Len()), 0, 0
+			c.Check(a3, Equals, ioctlBuf.Pointer())
+			return uintptr(ioctlBuf.Len()), 0, 0
 		})
 	defer restore()
-	n, err := notify.Ioctl(fd, req, buf)
+	buf, err := notify.Ioctl(fd, req, ioctlBuf)
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, buf.Len())
+	c.Assert(buf, DeepEquals, ioctlBuf.Bytes())
 }
 
 func (*ioctlSuite) TestIoctlBuffer(c *C) {
 	fd := uintptr(123)
 	req := notify.IoctlRequest(456)
-	buf := notify.NewIoctlRequestBuffer()
-	bufAddr := uintptr(unsafe.Pointer(&buf.Bytes()[0]))
+	ioctlBuf := notify.NewIoctlRequestBuffer()
 
 	contents := []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01, 0x23, 0x45, 0x67, 0x89, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
 
 	restore := notify.MockSyscall(
 		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
-			c.Assert(a3, Equals, bufAddr)
-			raw := buf.Bytes()
+			c.Assert(a3, Equals, ioctlBuf.Pointer())
+			raw := ioctlBuf.Bytes()
 
 			for i, b := range contents {
 				raw[i] = b
@@ -76,49 +74,30 @@ func (*ioctlSuite) TestIoctlBuffer(c *C) {
 		})
 	defer restore()
 
-	n, err := notify.Ioctl(fd, req, buf)
+	buf, err := notify.Ioctl(fd, req, ioctlBuf)
 	c.Assert(err, Equals, nil)
-	c.Assert(n, Equals, len(contents))
-	c.Assert(buf.Bytes(), DeepEquals, contents)
-}
-
-func (*ioctlSuite) TestReadMessage(c *C) {
-	fd := uintptr(123)
-	req := notify.APPARMOR_NOTIF_RECV
-	restore := notify.MockSyscall(
-		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
-			c.Check(trap, Equals, uintptr(unix.SYS_IOCTL))
-			c.Check(a1, Equals, fd)
-			c.Check(a2, Equals, uintptr(req))
-			return 0, 0, 0
-		})
-	defer restore()
-	buf, err := notify.ReadMessage(fd)
-	c.Assert(err, IsNil)
-	preparedBuf := notify.NewIoctlRequestBuffer()
-	buf = buf[:preparedBuf.Len()]
-	c.Assert(buf, DeepEquals, preparedBuf.Bytes())
+	c.Assert(buf, DeepEquals, contents)
 }
 
 func (*ioctlSuite) TestIoctlReturnValueSizeMismatch(c *C) {
 	fd := uintptr(123)
 	req := notify.IoctlRequest(456)
-	buf := notify.NewIoctlRequestBuffer()
+	ioctlBuf := notify.NewIoctlRequestBuffer()
 	restore := notify.MockSyscall(
 		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
 			// Return different size.
-			return uintptr(buf.Len() * 2), 0, 0
+			return uintptr(ioctlBuf.Len() * 2), 0, 0
 		})
 	defer restore()
-	n, err := notify.Ioctl(fd, req, buf)
+	buf, err := notify.Ioctl(fd, req, ioctlBuf)
 	c.Assert(err, Equals, notify.ErrIoctlReturnInvalid)
-	c.Assert(n, Equals, buf.Len()*2)
+	c.Assert(buf, HasLen, ioctlBuf.Len())
 }
 
 func (*ioctlSuite) TestIoctlReturnError(c *C) {
 	fd := uintptr(123)
 	req := notify.IoctlRequest(456)
-	buf := notify.NewIoctlRequestBuffer()
+	ioctlBuf := notify.NewIoctlRequestBuffer()
 	restore := notify.MockSyscall(
 		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
 			// return size of -1
@@ -126,9 +105,9 @@ func (*ioctlSuite) TestIoctlReturnError(c *C) {
 			return ^zero, 0, unix.EBADF
 		})
 	defer restore()
-	n, err := notify.Ioctl(fd, req, buf)
+	buf, err := notify.Ioctl(fd, req, ioctlBuf)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot perform IOCTL request .*"))
-	c.Assert(n, Equals, -1)
+	c.Assert(buf, IsNil)
 }
 
 func (*ioctlSuite) TestIoctlDump(c *C) {
@@ -142,16 +121,15 @@ func (*ioctlSuite) TestIoctlDump(c *C) {
 
 	fd := uintptr(123)
 	req := notify.IoctlRequest(456)
-	buf := notify.NewIoctlRequestBuffer()
-	bufAddr := uintptr(unsafe.Pointer(&buf.Bytes()[0]))
+	ioctlBuf := notify.NewIoctlRequestBuffer()
 
 	contents := []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01, 0x23, 0x45, 0x67, 0x89, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
 	contentsString := "0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01, 0x23, 0x45, 0x67, 0x89, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, \n0xff"
 
 	restore := notify.MockSyscall(
 		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
-			c.Assert(a3, Equals, bufAddr)
-			raw := buf.Bytes()
+			c.Assert(a3, Equals, ioctlBuf.Pointer())
+			raw := ioctlBuf.Bytes()
 
 			for i, b := range contents {
 				raw[i] = b
@@ -161,19 +139,17 @@ func (*ioctlSuite) TestIoctlDump(c *C) {
 		})
 	defer restore()
 
-	sendHeader := fmt.Sprintf(">>> ioctl %v (%d bytes) ...\n", req, buf.Len())
+	sendHeader := fmt.Sprintf(">>> ioctl %v (%d bytes) ...\n", req, ioctlBuf.Len())
 	sendDataStr := "0xff, 0xff, 0x02, 0x00, "
 	if arch.Endian() == binary.BigEndian {
 		sendDataStr = "0xff, 0xff, 0x00, 0x02, "
 	}
 
-	n, err := notify.Ioctl(fd, req, buf)
+	buf, err := notify.Ioctl(fd, req, ioctlBuf)
 	c.Assert(err, Equals, nil)
-	c.Assert(n, Equals, len(contents))
-	c.Assert(buf.Bytes(), HasLen, len(contents))
-	c.Assert(buf.Bytes(), DeepEquals, contents)
+	c.Assert(buf, DeepEquals, contents)
 
-	recvHeader := fmt.Sprintf("<<< ioctl %v returns %d, errno: %v\n", req, n, unix.Errno(0))
+	recvHeader := fmt.Sprintf("<<< ioctl %v returns %d, errno: %v\n", req, len(buf), unix.Errno(0))
 
 	logBufStr := logBuf.String()
 
