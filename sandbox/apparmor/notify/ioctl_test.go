@@ -26,7 +26,7 @@ func (*ioctlSuite) TestIoctlRequestBuffer(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(header, Equals, notify.MsgHeader{
 		Length:  0xFFFF,
-		Version: 2,
+		Version: 3,
 	})
 }
 
@@ -140,9 +140,9 @@ func (*ioctlSuite) TestIoctlDump(c *C) {
 	defer restore()
 
 	sendHeader := fmt.Sprintf(">>> ioctl %v (%d bytes) ...\n", req, ioctlBuf.Len())
-	sendDataStr := "0xff, 0xff, 0x02, 0x00, "
+	sendDataStr := "0xff, 0xff, 0x03, 0x00, "
 	if arch.Endian() == binary.BigEndian {
-		sendDataStr = "0xff, 0xff, 0x00, 0x02, "
+		sendDataStr = "0xff, 0xff, 0x00, 0x03, "
 	}
 
 	buf, err := notify.Ioctl(fd, req, ioctlBuf)

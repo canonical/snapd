@@ -49,7 +49,7 @@ type IoctlRequestBuffer struct {
 func NewIoctlRequestBuffer() *IoctlRequestBuffer {
 	bufSize := 0xFFFF
 	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
-	header := MsgHeader{Version: 2, Length: uint16(bufSize)}
+	header := MsgHeader{Version: 3, Length: uint16(bufSize)}
 	order := arch.Endian()
 	binary.Write(buf, order, &header)
 	buf.Write(make([]byte, bufSize-buf.Len()))
