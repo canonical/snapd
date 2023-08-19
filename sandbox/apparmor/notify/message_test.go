@@ -240,6 +240,34 @@ func (s *messageSuite) TestMsgNotificationFileMarshalUnmarshalBinary(c *C) {
 	c.Assert(buf, DeepEquals, bytes)
 }
 
+func (s *messageSuite) TestMsgNotificationValidate(c *C) {
+	msg := notify.MsgNotification{}
+	for _, t := range []notify.NotificationType{
+		notify.APPARMOR_NOTIF_RESP,
+		notify.APPARMOR_NOTIF_CANCEL,
+		notify.APPARMOR_NOTIF_INTERRUPT,
+		notify.APPARMOR_NOTIF_ALIVE,
+		notify.APPARMOR_NOTIF_OP,
+	} {
+		msg.NotificationType = t
+		c.Check(msg.Validate(), IsNil)
+	}
+	msg.NotificationType = notify.NotificationType(5)
+	c.Check(msg.Validate(), ErrorMatches, "unsupported notification type: 5")
+}
+
+func (s *messageSuite) TestResponseForRequest(c *C) {
+	req := notify.MsgNotification{
+		ID:    1234,
+		Error: 0xbad,
+	}
+	resp := notify.ResponseForRequest(&req)
+	c.Assert(resp.NotificationType, Equals, notify.APPARMOR_NOTIF_RESP)
+	c.Assert(resp.NoCache, Equals, uint8(1))
+	c.Assert(resp.ID, Equals, req.ID)
+	c.Assert(resp.MsgNotification.Error, Equals, req.Error)
+}
+
 func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 	if arch.Endian() == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
