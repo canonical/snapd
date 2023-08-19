@@ -10,9 +10,9 @@ import (
 
 var SysPath string
 
-// PromptingSupportAvailable returns true if SysPath exists, indicating that
-// apparmor prompting messages may be received from SysPath.
-func PromptingSupportAvailable() bool {
+// SupportAvailable returns true if SysPath exists, indicating that apparmor
+// prompting messages may be received from SysPath.
+func SupportAvailable() bool {
 	return osutil.FileExists(SysPath)
 }
 
