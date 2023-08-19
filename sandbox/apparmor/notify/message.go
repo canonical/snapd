@@ -16,14 +16,22 @@ import (
 //
 // The header encodes the size of the entire message, including variable-size
 // components and the version of the notification protocol.
+//
+// This structure corresponds to the kernel type struct apparmor_notif_common
+// described below.
+//
+//	struct apparmor_notif_common {
+//	  __u16 len;        /* actual len data */
+//	  __u16 version;    /* interface version */
+//	}
 type MsgHeader struct {
 	// Length is the length of the entire message, including any more
 	// specialized messages appended after the header and any variable-length
 	// objects referenced by any such message.
 	Length uint16
 	// Version is the version of the communication protocol.
-	// Currently version 2 is implemented by the demo kernel based on Linux 5.7.7,
-	// but version 3 was used in the past.
+	// Currently version 3 is implemented in the kernel, but other versions may
+	// be used in the future.
 	Version uint16
 }
 
@@ -38,7 +46,7 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 		return fmt.Errorf("%s: %s", prefix, err)
 	}
 
-	if msg.Version != 2 {
+	if msg.Version != 3 {
 		return fmt.Errorf("%s: unsupported version: %d", prefix, msg.Version)
 	}
 	if int(msg.Length) != len(data) {
@@ -79,10 +87,10 @@ type MsgNotificationFilter struct {
 	// ModeSet is a bitmask. Specifying APPARMOR_MODESET_USER allows to
 	// receive notification messages in userspace.
 	ModeSet ModeSet
-	// XXX: This is currently unused by the kernel and the value is ignored.
+	// NameSpace is only used if the namespace does not match the monitoring task.
 	NameSpace string
-	// XXX: This is currently unused by the kernel and the format is unknown.
-	Filter string
+	// Filter is a binary state machine in a specific format.
+	Filter []byte
 }
 
 // UnmarshalBinary unmarshals the message from binary form.
@@ -108,15 +116,13 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 	if err != nil {
 		return fmt.Errorf("%s: cannot unpack namespace: %v", prefix, err)
 	}
-	filter, err := unpacker.UnpackString(raw.Filter)
-	if err != nil {
-		return fmt.Errorf("%s: cannot unpack filter: %v", prefix, err)
-	}
 
 	// Put everything together.
 	msg.ModeSet = ModeSet(raw.ModeSet)
 	msg.NameSpace = ns
-	msg.Filter = filter
+	if raw.Filter != 0 {
+		msg.Filter = data[raw.Filter:]
+	}
 
 	return nil
 }
@@ -125,11 +131,16 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
 	var raw msgNotificationFilterKernel
 	packer := newStringPacker(raw)
-	raw.Version = 2
+	raw.Version = 3
 	raw.ModeSet = uint32(msg.ModeSet)
 	raw.NS = packer.PackString(msg.NameSpace)
-	raw.Filter = packer.PackString(msg.Filter)
-	raw.Length = packer.TotalLen()
+	filter := msg.Filter
+	if filter != nil {
+		raw.Filter = uint32(packer.TotalLen()) // filter []byte will follow the other packed strings
+	} else {
+		raw.Filter = 0 // use 0 to indicate that that filter is not included
+	}
+	raw.Length = packer.TotalLen() + uint16(len(filter))
 	msgBuf := bytes.NewBuffer(make([]byte, 0, raw.Length))
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
 	if err := binary.Write(msgBuf, order, raw); err != nil {
@@ -137,6 +148,11 @@ func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
 	}
 	if _, err := msgBuf.Write(packer.Bytes()); err != nil {
 		return nil, err
+	}
+	if filter != nil {
+		if _, err := msgBuf.Write(filter); err != nil {
+			return nil, err
+		}
 	}
 	return msgBuf.Bytes(), nil
 }
@@ -158,7 +174,7 @@ func (msg *MsgNotificationFilter) Validate() error {
 //	  struct apparmor_notif_common base;
 //	  __u16 ntype;        /* notify type */
 //	  __u8 signalled;
-//	  __u8 flags;
+//	  __u8 no_cache;
 //	  __u64 id;           /* unique id, not globally unique*/
 //	  __s32 error;        /* error if unchanged */
 //	} __attribute__((packed));
@@ -166,16 +182,17 @@ type MsgNotification struct {
 	MsgHeader
 	// NotificationType describes the kind of notification message used.
 	// Currently the kernel only sends APPARMOR_NOTIF_OP messages.
+	// Responses to the kernel should be APPARMOR_NOTIF_RESP messages.
 	NotificationType NotificationType
-	// XXX: Signaled seems to be unused.
+	// Signaled is unused, but previously used for interrupt information.
 	Signalled uint8
-	// Set to 1 to NOT cache
-	Flags uint8
+	// Set NoCache to 1 to NOT cache.
+	NoCache uint8
 	// ID is an opaque kernel identifier of the notification message. It must be
 	// repeated in the MsgNotificationResponse if one is sent back.
 	ID uint64
-	// XXX: This seems to be unused and clashes with identical field in
-	// MsgNotificationOp.
+	// Error is the error the kernel will return to the application if the
+	// notification is denied.
 	Error int32
 }
 
@@ -200,7 +217,7 @@ func (msg *MsgNotification) UnmarshalBinary(data []byte) error {
 
 // MarshalBinary marshals the message into binary form.
 func (msg *MsgNotification) MarshalBinary() ([]byte, error) {
-	msg.Version = 2
+	msg.Version = 3
 	msg.Length = uint16(binary.Size(*msg))
 	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
@@ -231,12 +248,15 @@ func (msg *MsgNotification) Validate() error {
 //	} __attribute__((packed));
 type MsgNotificationResponse struct {
 	MsgNotification
-	// XXX: The embedded MsgNotification also has an Error field, why?
+	// In version 3, Error in MsgNotificationResponse is unused, but Error in
+	// the embedded MsgNotification is used.
 	Error int32
-	// Allow somehow encodes the allowed operation mask.
+	// Allow encodes the allowed operation mask.
 	Allow uint32
-	// Deny somehow encodes the denied operation mask.
+	// Deny encodes the denied operation mask.
 	Deny uint32
+	// Allow|Deny must cover at least the allow|deny from the original request,
+	// or the notification will result in a denial.
 }
 
 // ResponseForRequest returns a response message for a given request.
@@ -244,20 +264,16 @@ func ResponseForRequest(req *MsgNotification) MsgNotificationResponse {
 	return MsgNotificationResponse{
 		MsgNotification: MsgNotification{
 			NotificationType: APPARMOR_NOTIF_RESP,
-			// XXX: should Signalled be copied?
-			Signalled: req.Signalled,
-			// XXX: should Flags be copied?
-			Flags: req.Flags,
-			ID:    req.ID,
-			// XXX: should Error be copied?
-			Error: req.Error,
+			NoCache:          1,
+			ID:               req.ID,
+			Error:            req.Error,
 		},
 	}
 }
 
 // MarshalBinary marshals the message into binary form.
 func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
-	msg.Version = 2
+	msg.Version = 3
 	msg.Length = uint16(binary.Size(*msg))
 	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
 	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
@@ -267,7 +283,7 @@ func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// msgNotificationOpKernel (TBD, document me).
+// msgNotificationOpKernel
 //
 //	struct apparmor_notif_op {
 //	  struct apparmor_notif base;
@@ -310,7 +326,9 @@ type MsgNotificationOp struct {
 	// Class of the mediation operation.
 	// Currently only AA_CLASS_FILE is implemented in the kernel.
 	Class MediationClass
-	// XXX: This is unused.
+	// Op provides supplemental information about the operation which caused
+	// the notification. It may be set for notifications, but is ignored in
+	// responses. At the moment, just used for debugging, and can be ignored.
 	Op uint16
 }
 
@@ -358,7 +376,7 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// msgNotificationFileKernel (TBD, document me).
+// msgNotificationFileKernel
 //
 //	struct apparmor_notif_file {
 //	  struct apparmor_notif_op base;
@@ -379,9 +397,9 @@ type MsgNotificationFile struct {
 	SUID uint32
 	OUID uint32
 	// Name of the file being accessed.
-	// XXX: is this path valid from the point of view of the accessing process
-	// or the notify process? The name is insufficient to correctly identify
-	// the actual object being accessed in some cases.
+	// This is the path from the point of view of the process being mediated.
+	// In the future, this should be mapped to the point of view of snapd, but
+	// this is not always possible yet.
 	Name string
 }
 
@@ -420,10 +438,10 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 	var raw msgNotificationFileKernel
 	packer := newStringPacker(raw)
-	raw.Version = 2
+	raw.Version = 3
 	raw.NotificationType = msg.NotificationType
 	raw.Signalled = msg.Signalled
-	raw.Flags = msg.Flags
+	raw.NoCache = msg.NoCache
 	raw.ID = msg.ID
 	raw.Error = msg.Error
 	raw.Allow = msg.Allow
