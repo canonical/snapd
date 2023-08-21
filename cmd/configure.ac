@@ -262,15 +262,20 @@ AX_APPEND_COMPILE_FLAGS([ dnl
   -Wno-unused-parameter dnl
   ], [CHECK_CFLAGS])
 
+
 # Remove -Wmissing-field-initializers if it is broken.
 AX_CHECK_COMPILE_FLAG([-Wmissing-field-initializers], [
   # Works, do nothing, it is included in -Wextra
 ], [
-  AX_APPEND_COMPILE_FLAGS([-Wno-missing-field-initializers], [CHECK_CFLAGS])
+  remove_missing_field_initializers=yes
 ], [-Werror], [AC_LANG_SOURCE([[
 struct { int a; int b; } a = { 0 };
 struct { const char* a; int b; } b[] = { {.a = ""}, {} };
 ]])])
+
+AS_IF([test "x$remove_missing_field_initializers" = "xyes"], [
+  AX_APPEND_COMPILE_FLAGS([-Wno-missing-field-initializers], [CHECK_CFLAGS])
+])
 
 AS_IF([test "x$with_unit_tests" = "xyes"], [
   AX_APPEND_COMPILE_FLAGS([-Werror], [CHECK_CFLAGS])
