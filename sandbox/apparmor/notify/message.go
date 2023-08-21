@@ -192,7 +192,7 @@ type MsgNotification struct {
 	// repeated in the MsgNotificationResponse if one is sent back.
 	ID uint64
 	// Error is the error the kernel will return to the application if the
-	// notification is denied.
+	// notification is denied.  In version 3, this is ignored in responses.
 	Error int32
 }
 
@@ -248,8 +248,8 @@ func (msg *MsgNotification) Validate() error {
 //	} __attribute__((packed));
 type MsgNotificationResponse struct {
 	MsgNotification
-	// In version 3, Error in MsgNotificationResponse is unused, but Error in
-	// the embedded MsgNotification is used.
+	// In version 3, both the Error in MsgNotificationResponse and the
+	// embedded MsgNotification are ignored in responses.
 	Error int32
 	// Allow encodes the allowed operation mask.
 	Allow uint32
