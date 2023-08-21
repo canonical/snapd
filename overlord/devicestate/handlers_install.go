@@ -986,9 +986,9 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if useEncryption {
 		encType = secboot.EncryptionTypeLUKS
 	}
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mergedVols,
+	allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mergedVols,
 		mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel],
-		sys.Model, encType, volToGadgetToDiskStruct)
+		encType, volToGadgetToDiskStruct)
 	if err != nil {
 		return fmt.Errorf("on finish install: cannot layout volumes: %v", err)
 	}
