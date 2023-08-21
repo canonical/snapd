@@ -32,32 +32,55 @@ import (
 	"github.com/snapcore/snapd/secboot"
 )
 
-func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*gadget.OnDiskStructure) (system *gadget.LaidOutVolume, all map[string]*gadget.LaidOutVolume, err error) {
+func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*gadget.OnDiskStructure) (all map[string]*gadget.LaidOutVolume, err error) {
 	// rely on the basic validation from ReadInfo to ensure that the system-*
 	// roles are all on the same volume for example
 	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return gadget.LaidOutVolumesFromGadget(info.Volumes, gadgetRoot, kernelRoot, model, encType, volToGadgetToDiskStruct)
+
+	// If not provided, create an imaginary disk from the gadget specification.
+	if volToGadgetToDiskStruct == nil {
+		volToGadgetToDiskStruct = map[string]map[int]*gadget.OnDiskStructure{}
+		for name, v := range info.Volumes {
+			odss := onDiskStructsFromGadget(v)
+			volToGadgetToDiskStruct[name] = odss
+
+		}
+	}
+
+	return gadget.LaidOutVolumesFromGadget(info.Volumes, gadgetRoot, kernelRoot, encType, volToGadgetToDiskStruct)
 }
 
 // LayoutMultiVolumeFromYaml returns all LaidOutVolumes for the given
 // gadget.yaml string and works for either single or multiple volume
 // gadget.yaml's. An empty directory to use to create a gadget.yaml file should
 // be provided, such as c.MkDir() in tests.
-func LayoutMultiVolumeFromYaml(newDir, kernelDir, gadgetYaml string, model gadget.Model) (map[string]*gadget.LaidOutVolume, error) {
+func LayoutMultiVolumeFromYaml(newDir, kernelDir, gadgetYaml string, model gadget.Model, volToGadgetToDiskStruct map[string]map[int]*gadget.OnDiskStructure) (map[string]*gadget.LaidOutVolume, error) {
 	gadgetRoot, err := WriteGadgetYaml(newDir, gadgetYaml)
 	if err != nil {
 		return nil, err
 	}
 
-	_, allVolumes, err := LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone, nil)
+	allVolumes, err := LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone, volToGadgetToDiskStruct)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volumes: %v", err)
 	}
 
 	return allVolumes, nil
+}
+
+func WriteGadgetYamlReadInfo(newDir, gadgetYaml string, model gadget.Model) (*gadget.Info, string, error) {
+	gadgetRoot, err := WriteGadgetYaml(newDir, gadgetYaml)
+	if err != nil {
+		return nil, "", err
+	}
+	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	return info, gadgetRoot, nil
 }
 
 func WriteGadgetYaml(newDir, gadgetYaml string) (string, error) {
@@ -235,6 +258,32 @@ var MockGadgetPartitionedOnDiskVolume = gadget.OnDiskVolume{
 	},
 }
 
+// Build a map of yaml index to OnDiskStructure by assuming the gadget matches
+// exactly a system disk.
+func onDiskStructsFromGadget(volume *gadget.Volume) (structures map[int]*gadget.OnDiskStructure) {
+	structures = map[int]*gadget.OnDiskStructure{}
+	offset := quantity.Offset(0)
+	for idx, vs := range volume.Structure {
+		// Offset is end of previous struct unless explicit.
+		if volume.Structure[idx].Offset != nil {
+			offset = *volume.Structure[idx].Offset
+		}
+		ods := gadget.OnDiskStructure{
+			Name:        vs.Name,
+			Type:        vs.Type,
+			StartOffset: offset,
+			Size:        vs.Size,
+		}
+
+		// Note that structures are ordered by offset as volume.Structure
+		// was ordered when reading the gadget information.
+		offset += quantity.Offset(volume.Structure[idx].Size)
+		structures[vs.YamlIndex] = &ods
+	}
+
+	return structures
+}
+
 func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Info, laidVols map[string]*gadget.LaidOutVolume, model *asserts.Model, restore func(), err error) {
 	// TODO test for UC systems too
 	model = boottest.MakeMockClassicWithModesModel()
@@ -244,7 +293,7 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	_, laidVols, err = LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone, nil)
+	laidVols, err = LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone, nil)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
