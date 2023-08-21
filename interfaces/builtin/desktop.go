@@ -308,6 +308,49 @@ dbus (send, receive)
       path=/org/freedesktop/IBus/InputContext_[0-9]*
       interface=org.freedesktop.IBus.InputContext
       peer=(label=unconfined),
+
+# Allow access to the Fcitx portal, supported by fcitx/fcitx5
+dbus (send)
+      bus=session
+      path=/{,org/freedesktop/portal/}inputmethod
+      interface=org.fcitx.Fcitx.InputMethod1
+      member={CreateInputContext,Version}
+      peer=(name=org.freedesktop.portal.Fcitx),
+
+dbus (send, receive)
+      bus=session
+      path=/{,org/freedesktop/portal/}inputcontext/**
+      interface=org.fcitx.Fcitx.InputContext1
+      peer=(label=unconfined),
+`
+
+var desktopPermanentSlotAppArmor = `
+# Description: Can provide various desktop services
+
+#include <abstractions/dbus-session-strict>
+
+# Able to provide notifications
+dbus (receive)
+    bus=session
+    path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications
+    member="{GetCapabilities,GetServerInformation,Notify,CloseNotification}"
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications
+    member={ActionInvoked,NotificationClosed,NotificationReplied}
+    peer=(label=unconfined),
+
+# Able to provide GTK notifications
+dbus (receive)
+    bus=session
+    path=/org/gtk/Notifications
+    interface=org.gtk.Notifications
+    member="{AddNotification,RemoveNotification}"
+    peer=(label=unconfined),
 `
 
 type desktopInterface struct {

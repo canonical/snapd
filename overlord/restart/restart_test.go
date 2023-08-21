@@ -294,6 +294,83 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 	}
 }
 
+func (s *restartSuite) TestProcessRestartForChangeClassic(c *C) {
+	buf, restore := logger.MockLogger()
+	defer restore()
+	restore = release.MockOnClassic(true)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("test", "...")
+	t := st.NewTask("waiting", "...")
+
+	chg.AddTask(t)
+
+	err = restart.FinishTaskWithRestart2(t, "some-snap", state.DoneStatus, restart.RestartSystem, nil)
+	c.Assert(err, IsNil)
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(t.WaitedStatus(), Equals, state.DoneStatus)
+
+	err = restart.ProcessRestartForChange(chg)
+	c.Assert(err, IsNil)
+
+	// ensure restart-ctx was cleared
+	var rt restart.RestartParameters
+	c.Check(chg.Get("pending-system-restart", &rt), FitsTypeOf, &state.NoStateError{})
+
+	c.Assert(buf.String(), testutil.Contains, `Postponing restart until a manual system restart allows to continue`)
+}
+
+func (s *restartSuite) TestProcessRestartForChangeCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	h := &testHandler{}
+	_, err := restart.Manager(st, "boot-id-1", h)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("test", "...")
+	t := st.NewTask("waiting", "...")
+
+	chg.AddTask(t)
+
+	err = restart.FinishTaskWithRestart2(t, "some-snap", state.DoneStatus, restart.RestartSystem, nil)
+	c.Assert(err, IsNil)
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(t.WaitedStatus(), Equals, state.DoneStatus)
+
+	err = restart.ProcessRestartForChange(chg)
+	c.Assert(err, IsNil)
+	c.Check(h.restartRequested, Equals, true)
+	c.Assert(h.rebootInfo, NotNil)
+	c.Check(h.rebootInfo.RebootRequired, Equals, true)
+}
+
+func (s *restartSuite) TestProcessRestartForChangeMissingRebootContext(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("test", "...")
+	t := st.NewTask("waiting", "...")
+
+	chg.AddTask(t)
+	t.SetToWait(state.DoneStatus)
+
+	err := restart.ProcessRestartForChange(chg)
+	c.Assert(err, ErrorMatches, `change 1 is waiting to continue but has not requested any reboots`)
+}
+
 func (s *restartSuite) TestStartUpWaitTasks(c *C) {
 	st := state.New(nil)
 
@@ -373,13 +450,13 @@ func (s *restartSuite) TestStartUpWaitTasks(c *C) {
 	c.Check(chg.Has("wait-for-system-restart"), Equals, false)
 }
 
-func (s *restartSuite) TestPendingForSystemRestart(c *C) {
+func (s *restartSuite) TestPendingForChange(c *C) {
 	st := state.New(nil)
 
 	st.Lock()
 	defer st.Unlock()
 
-	rm, err := restart.Manager(st, "boot-id-1", nil)
+	_, err := restart.Manager(st, "boot-id-1", nil)
 	c.Assert(err, IsNil)
 
 	chg1 := st.NewChange("not-ready", "...")
@@ -429,10 +506,287 @@ func (s *restartSuite) TestPendingForSystemRestart(c *C) {
 	// nothing after t8
 	c.Check(chg4.IsReady(), Equals, false)
 
-	c.Check(rm.PendingForSystemRestart(chg1), Equals, false)
-	c.Check(rm.PendingForSystemRestart(chg2), Equals, false)
-	c.Check(rm.PendingForSystemRestart(chg3), Equals, true)
-	c.Check(rm.PendingForSystemRestart(chg4), Equals, true)
+	c.Check(restart.PendingForChange(st, chg1), Equals, false)
+	c.Check(restart.PendingForChange(st, chg2), Equals, false)
+	c.Check(restart.PendingForChange(st, chg3), Equals, true)
+	c.Check(restart.PendingForChange(st, chg4), Equals, true)
+}
+
+func (s *restartSuite) TestMarkTaskForRestart(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("test", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+
+	restart.MarkTaskForRestart(t1, state.DoneStatus)
+
+	var waitBootID string
+	if err := t1.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
+		c.Check(err, IsNil)
+	}
+	c.Check(waitBootID, Equals, "boot-id-1")
+	c.Check(t1.Status(), Equals, state.WaitStatus)
+	c.Check(t1.WaitedStatus(), Equals, state.DoneStatus)
+}
+
+func (s *restartSuite) TestMarkTaskForRestartClassicUndo(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("test", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+
+	restart.MarkTaskForRestart(t1, state.UndoneStatus)
+
+	var waitBootID string
+	if err := t1.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
+		c.Check(err, IsNil)
+	}
+	c.Check(waitBootID, Equals, "")
+	c.Check(t1.Status(), Equals, state.UndoneStatus)
+	c.Assert(t1.Log(), HasLen, 1)
+	c.Check(t1.Log()[0], Matches, `.* Skipped automatic system restart on classic system when undoing changes back to previous state`)
+}
+
+func (s *restartSuite) TestTaskWaitForRestartDo(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("test", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+
+	t1.SetStatus(state.DoingStatus)
+
+	err = restart.TaskWaitForRestart(t1)
+	c.Assert(err, IsNil)
+
+	c.Check(t1.Log(), HasLen, 1)
+	c.Check(t1.Log()[0], Matches, ".* Task set to wait until a system restart allows to continue")
+
+	var waitBootID string
+	if err := t1.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
+		c.Check(err, IsNil)
+	}
+	c.Check(waitBootID, Equals, "boot-id-1")
+	c.Check(t1.Status(), Equals, state.WaitStatus)
+	c.Check(t1.WaitedStatus(), Equals, state.DoStatus)
+
+	c.Check(t1.Log(), HasLen, 1)
+	c.Check(t1.Log()[0], Matches, ".* Task set to wait until a system restart allows to continue")
+}
+
+func (s *restartSuite) TestTaskWaitForRestartUndoClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("test", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+
+	t1.SetStatus(state.UndoingStatus)
+
+	err := restart.TaskWaitForRestart(t1)
+	c.Assert(err, IsNil)
+
+	c.Check(t1.Log(), HasLen, 1)
+	c.Check(t1.Log()[0], Matches, ".* Skipped automatic system restart on classic system when undoing changes back to previous state")
+}
+
+func (s *restartSuite) TestTaskWaitForRestartUndoCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("test", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+
+	t1.SetStatus(state.UndoingStatus)
+
+	err = restart.TaskWaitForRestart(t1)
+	c.Assert(err, IsNil)
+
+	c.Check(t1.Log(), HasLen, 1)
+	c.Check(t1.Log()[0], Matches, ".* Task set to wait until a system restart allows to continue")
+
+	var waitBootID string
+	if err := t1.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
+		c.Check(err, IsNil)
+	}
+	c.Check(waitBootID, Equals, "boot-id-1")
+	c.Check(t1.Status(), Equals, state.WaitStatus)
+	c.Check(t1.WaitedStatus(), Equals, state.UndoStatus)
+
+	c.Check(t1.Log(), HasLen, 1)
+	c.Check(t1.Log()[0], Matches, ".* Task set to wait until a system restart allows to continue")
+}
+
+func (s *restartSuite) TestTaskWaitForRestartInvalid(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("test", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+
+	err := restart.TaskWaitForRestart(t1)
+	c.Assert(err, ErrorMatches, `internal error: only tasks currently in progress \(doing/undoing\) are supported`)
+}
+
+func (s *restartSuite) TestFinishTaskWithRestart2Done(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("test", "...")
+	t := st.NewTask("waiting", "...")
+	chg.AddTask(t)
+
+	err = restart.FinishTaskWithRestart2(t, "some-snap", state.DoneStatus, restart.RestartSystemNow, nil)
+	c.Assert(err, IsNil)
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(t.WaitedStatus(), Equals, state.DoneStatus)
+
+	rt, err := restart.RestartParametersFromChange(chg)
+	c.Assert(err, IsNil)
+	c.Check(rt.SnapName, Equals, "some-snap")
+	c.Check(rt.RestartType, Equals, restart.RestartSystemNow)
+	c.Check(rt.BootloaderOptions, IsNil)
+}
+
+func (s *restartSuite) TestFinishTaskWithRestart2WithArguments(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("test", "...")
+	t := st.NewTask("waiting", "...")
+	chg.AddTask(t)
+
+	err = restart.FinishTaskWithRestart2(t, "some-snap", state.DoneStatus, restart.RestartSystemNow,
+		&boot.RebootInfo{
+			BootloaderOptions: &bootloader.Options{
+				PrepareImageTime: true,
+				Role:             bootloader.RoleRunMode,
+			},
+		})
+	c.Assert(err, IsNil)
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(t.WaitedStatus(), Equals, state.DoneStatus)
+
+	rt, err := restart.RestartParametersFromChange(chg)
+	c.Assert(err, IsNil)
+	c.Check(rt.SnapName, Equals, "some-snap")
+	c.Check(rt.RestartType, Equals, restart.RestartSystemNow)
+	c.Check(rt.BootloaderOptions, DeepEquals, &bootloader.Options{
+		PrepareImageTime: true,
+		Role:             bootloader.RoleRunMode,
+	})
+}
+
+func (s *restartSuite) TestFinishTaskWithRestart2UndoneClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("test", "...")
+	t := st.NewTask("waiting", "...")
+
+	chg.AddTask(t)
+
+	err = restart.FinishTaskWithRestart2(t, "some-snap", state.UndoneStatus, restart.RestartSystemNow, nil)
+	c.Assert(err, IsNil)
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+
+	rt, err := restart.RestartParametersFromChange(chg)
+	c.Assert(err, IsNil)
+	c.Check(rt.SnapName, Equals, "some-snap")
+	c.Check(rt.RestartType, Equals, restart.RestartSystemNow)
+	c.Check(rt.BootloaderOptions, IsNil)
+
+	c.Check(t.Log(), HasLen, 1)
+	c.Check(t.Log()[0], Matches, ".* Skipped automatic system restart on classic system when undoing changes back to previous state")
+}
+
+func (s *restartSuite) TestFinishTaskWithRestart2UndoneCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("test", "...")
+	t := st.NewTask("waiting", "...")
+
+	chg.AddTask(t)
+
+	err = restart.FinishTaskWithRestart2(t, "some-snap", state.UndoneStatus, restart.RestartSystemNow, nil)
+	c.Assert(err, IsNil)
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(t.WaitedStatus(), Equals, state.UndoneStatus)
+
+	rt, err := restart.RestartParametersFromChange(chg)
+	c.Assert(err, IsNil)
+	c.Check(rt.SnapName, Equals, "some-snap")
+	c.Check(rt.RestartType, Equals, restart.RestartSystemNow)
+	c.Check(rt.BootloaderOptions, IsNil)
+}
+
+func (s *restartSuite) TestFinishTaskWithRestart2Invalid(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("test", "...")
+	t := st.NewTask("waiting", "...")
+
+	chg.AddTask(t)
+
+	err := restart.FinishTaskWithRestart2(t, "", state.DoingStatus, restart.RestartSystem, nil)
+	c.Assert(err, ErrorMatches, `internal error: unexpected task status when requesting system restart for task: Doing`)
 }
 
 type notifyRebootRequiredSuite struct {

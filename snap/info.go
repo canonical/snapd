@@ -316,6 +316,8 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
+	Components map[string]Component
+
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
 
@@ -501,44 +503,71 @@ func (s *Info) Description() string {
 // Links returns the blessed set of snap-related links.
 func (s *Info) Links() map[string][]string {
 	if s.EditedLinks != nil {
-		// coming from thes store, assumed normalized
-		return s.EditedLinks
+		// the store used to send empty links, normalization
+		// is required to filter out persisted invalid links
+		return s.normalizedEditedLinks()
 	}
 	return s.normalizedOriginalLinks()
 }
 
-func (s *Info) normalizedOriginalLinks() map[string][]string {
-	res := make(map[string][]string, len(s.OriginalLinks))
-	addLink := func(k, v string) {
-		if v == "" {
-			return
-		}
-		u, err := url.Parse(v)
-		if err != nil {
-			// shouldn't happen if Validate succeeded but be robust
-			return
-		}
-		// assume email if no scheme
-		// Validate enforces the presence of @
-		if u.Scheme == "" {
-			v = "mailto:" + v
-		}
-		if strutil.ListContains(res[k], v) {
-			return
-		}
-		res[k] = append(res[k], v)
+// addLink adds a link if it passes validation to ensure it will not contribute to
+// ValidateLinks errors. It also attempts to convert a link with URL scheme "" to
+// "mailto" and avoids duplicate links.
+func addLink(links map[string][]string, key, link string) {
+	if key == "" || !isValidLinksKey(key) {
+		return
 	}
-	addLink("contact", s.LegacyEditedContact)
-	addLink("website", s.LegacyWebsite)
-	for k, links := range s.OriginalLinks {
-		for _, v := range links {
-			addLink(k, v)
+	if link == "" {
+		return
+	}
+	u, err := url.Parse(link)
+	if err != nil {
+		return
+	}
+	if u.Scheme == "" {
+		link = "mailto:" + link
+		u.Scheme = "mailto"
+	}
+	if u.Scheme == "mailto" {
+		// minimal check
+		if !strings.Contains(link, "@") {
+			return
+		}
+	} else if !strutil.ListContains(validLinkSchemes, u.Scheme) {
+		return
+	}
+	if strutil.ListContains(links[key], link) {
+		return
+	}
+	links[key] = append(links[key], link)
+}
+
+func (s *Info) normalizedEditedLinks() map[string][]string {
+	normalizedLinks := make(map[string][]string, len(s.EditedLinks))
+	for key, links := range s.EditedLinks {
+		for _, link := range links {
+			addLink(normalizedLinks, key, link)
 		}
 	}
-	if len(res) == 0 {
+	if len(normalizedLinks) == 0 {
 		return nil
 	}
-	return res
+	return normalizedLinks
+}
+
+func (s *Info) normalizedOriginalLinks() map[string][]string {
+	normalizedLinks := make(map[string][]string, len(s.OriginalLinks))
+	addLink(normalizedLinks, "contact", s.LegacyEditedContact)
+	addLink(normalizedLinks, "website", s.LegacyWebsite)
+	for key, links := range s.OriginalLinks {
+		for _, link := range links {
+			addLink(normalizedLinks, key, link)
+		}
+	}
+	if len(normalizedLinks) == 0 {
+		return nil
+	}
+	return normalizedLinks
 }
 
 // Contact returns the blessed contact information for the snap.

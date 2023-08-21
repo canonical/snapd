@@ -642,7 +642,7 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	// TODO: inst.Amend, etc?
-	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Purge || inst.Prefer {
+	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Prefer {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 	if err := inst.validate(); err != nil {

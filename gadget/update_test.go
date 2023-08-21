@@ -215,8 +215,9 @@ func (u *updateTestSuite) TestCanUpdateSize(c *C) {
 }
 
 func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
+	// We do not care about changes in offset-write, so we check that nothing
+	// errors here.
 	mokVol := &gadget.Volume{}
-	partSizeVol := &gadget.Volume{Partial: []gadget.PartialProperty{gadget.PartialSize}}
 	cases := []canUpdateTestCase{
 		{
 			// offset-write change
@@ -224,37 +225,8 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 				OffsetWrite: &gadget.RelativeOffset{Offset: 1024}, EnclosingVolume: mokVol},
 			to: gadget.VolumeStructure{
 				OffsetWrite: &gadget.RelativeOffset{Offset: 2048}, EnclosingVolume: mokVol},
-			err: "cannot change structure offset-write from [0-9]+ to [0-9]+",
 		}, {
-			// offset-write, change in relative-to structure name
-			from: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024}, EnclosingVolume: mokVol},
-			to: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024}, EnclosingVolume: mokVol},
-			err: `cannot change structure offset-write from foo\+[0-9]+ to bar\+[0-9]+`,
-		}, {
-			// offset-write, unspecified in old
-			from: gadget.VolumeStructure{
-				OffsetWrite: nil, EnclosingVolume: mokVol,
-			},
-			to: gadget.VolumeStructure{
-				OffsetWrite:     &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024},
-				EnclosingVolume: mokVol,
-			},
-			err: `cannot change structure offset-write from unspecified to bar\+[0-9]+`,
-		}, {
-			// offset-write, unspecified in new
-			from: gadget.VolumeStructure{
-				OffsetWrite:     &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
-				EnclosingVolume: mokVol,
-			},
-			to: gadget.VolumeStructure{
-				OffsetWrite:     nil,
-				EnclosingVolume: mokVol,
-			},
-			err: `cannot change structure offset-write from foo\+[0-9]+ to unspecified`,
-		}, {
-			// all ok, both nils
+			// both nils
 			from: gadget.VolumeStructure{
 				OffsetWrite:     nil,
 				EnclosingVolume: mokVol,
@@ -264,7 +236,7 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 				EnclosingVolume: mokVol,
 			},
 		}, {
-			// all ok, both fully specified
+			// both fully specified
 			from: gadget.VolumeStructure{
 				OffsetWrite:     &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
 				EnclosingVolume: mokVol,
@@ -273,28 +245,6 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 				OffsetWrite:     &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
 				EnclosingVolume: mokVol,
 			},
-		}, {
-			// all ok, both fully specified
-			from: gadget.VolumeStructure{
-				OffsetWrite:     &gadget.RelativeOffset{Offset: 1024},
-				EnclosingVolume: mokVol,
-			},
-			to: gadget.VolumeStructure{
-				OffsetWrite:     &gadget.RelativeOffset{Offset: 1024},
-				EnclosingVolume: mokVol,
-			},
-		}, {
-			// from is partial
-			from: gadget.VolumeStructure{EnclosingVolume: partSizeVol},
-			to:   gadget.VolumeStructure{EnclosingVolume: mokVol},
-		}, {
-			// to is partial
-			from: gadget.VolumeStructure{EnclosingVolume: mokVol},
-			to:   gadget.VolumeStructure{EnclosingVolume: partSizeVol},
-		}, {
-			// both partial
-			from: gadget.VolumeStructure{EnclosingVolume: partSizeVol},
-			to:   gadget.VolumeStructure{EnclosingVolume: partSizeVol},
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -366,10 +316,21 @@ func (u *updateTestSuite) TestCanUpdateType(c *C) {
 
 	cases := []canUpdateTestCase{
 		{
-			// from hybrid type to GUID
+			// from hybrid type to GUID -> fine, we keep one of the types
 			from: gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
 			to:   gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
-			err:  `cannot change structure type from "0C,00000000-0000-0000-0000-dd00deadbeef" to "00000000-0000-0000-0000-dd00deadbeef"`,
+		}, {
+			// from hybrid type to MBR -> fine, we keep one of the types
+			from: gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "0C", EnclosingVolume: &gadget.Volume{}},
+		}, {
+			// from MBR to hybrid -> fine, we keep one of the types
+			from: gadget.VolumeStructure{Type: "0C", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
+		}, {
+			// from GUID to hybrid -> fine, we keep one of the types
+			from: gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
+			to:   gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef", EnclosingVolume: &gadget.Volume{}},
 		}, {
 			// from MBR type to GUID (would be stopped at volume update checks)
 			from: gadget.VolumeStructure{Type: "0C", EnclosingVolume: &gadget.Volume{}},

@@ -100,6 +100,12 @@ func (s *clientSuite) TestClientProxyTakesUserAgent(c *check.C) {
 	c.Assert(called, check.Equals, true)
 }
 
+func (s *clientSuite) TestClientCheckRedirect(c *check.C) {
+	cli := httputil.NewHTTPClient(&httputil.ClientOptions{})
+	c.Assert(cli, check.NotNil)
+	c.Assert(cli.CheckRedirect, check.NotNil)
+}
+
 var privKey, _ = rsa.GenerateKey(rand.Reader, 768)
 
 // see crypto/tls/generate_cert.go
