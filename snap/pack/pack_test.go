@@ -414,7 +414,7 @@ volumes:
 		TargetDir: outputDir,
 		SnapName:  absSnapFile,
 	})
-	c.Assert(err, ErrorMatches, `invalid layout of volume "bad": cannot lay out structure #1 \("bare-struct"\): content "bare.img": stat .*/bare.img: no such file or directory`)
+	c.Assert(err, ErrorMatches, `structure #1 \("bare-struct"\): content "bare.img": stat .*/bare.img: no such file or directory`)
 
 	err = os.WriteFile(filepath.Join(sourceDir, "bare.img"), []byte("foo"), 0644)
 	c.Assert(err, IsNil)
