@@ -19,6 +19,7 @@
 package aspectstate_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -27,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/aspectstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type aspectTestSuite struct {
@@ -195,4 +197,112 @@ func (s *aspectTestSuite) TestNewTransactionNoState(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(value, Equals, "bar")
 	}
+}
+
+type filterSampleSuite struct {
+	state *state.State
+	bag   aspects.JSONDataBag
+}
+
+var _ = Suite(&filterSampleSuite{})
+
+func (s *filterSampleSuite) SetUpTest(c *C) {
+	var raw map[string]json.RawMessage
+	err := json.Unmarshal([]byte(`{
+		"snaps": {
+			"test-snapd-sh": {
+				"name":   "test-snapd-sh",
+				"status": "installed"
+			},
+			"core20": {
+				"name":   "core20",
+				"status": "active"
+			},
+			"snapcraft": {
+				"name":   "snapcraft",
+				"status": "active"
+			},
+			"firefox": {
+				"name":   "firefox",
+				"status": "active"
+			},
+			"snapd": {
+				"name":   "snapd",
+				"status": "active"
+			},
+			"vlc": {
+				"name":   "vlc",
+				"status": "inactive"
+			},
+			"spotify": {
+				"name":   "spotify",
+				"status": "failed"
+			},
+			"discord": {
+				"name":   "discord",
+				"status": "active"
+			},
+			"shellcheck": {
+				"name":   "shellcheck",
+				"status": "active"
+			},
+			"htop": {
+				"name":   "htop",
+				"status": "inactive"
+			}
+		}
+	}`), &raw)
+	c.Assert(err, IsNil)
+
+	s.state = overlord.Mock().State()
+	s.bag = aspects.JSONDataBag(raw)
+}
+
+func (s *filterSampleSuite) TestQueryNoFilters(c *C) {
+	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "byname", "")
+	c.Assert(err, IsNil)
+	// returns all snaps
+	c.Assert(res, HasLen, 10)
+	c.Assert(res[0], FitsTypeOf, map[string]interface{}{})
+
+}
+
+func (s *filterSampleSuite) TestQueryFilterName(c *C) {
+	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "byname", "name=firefox")
+	c.Assert(err, IsNil)
+	c.Assert(res, HasLen, 1)
+	c.Assert(res[0], FitsTypeOf, map[string]interface{}{})
+
+	firefoxSnap := res[0].(map[string]interface{})
+	c.Check(firefoxSnap["name"], Equals, "firefox")
+	c.Check(firefoxSnap["status"], Equals, "active")
+}
+
+func (s *filterSampleSuite) TestQueryFilterStatus(c *C) {
+	results, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "bystatus", "status=active")
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 6)
+
+	expectedSnaps := []string{"firefox", "shellcheck", "snapd", "snapcraft", "discord", "core20"}
+	seenSnaps := make(map[string]struct{})
+	for _, res := range results {
+		snap := res.(map[string]json.RawMessage)
+		name := parseString(c, snap["name"])
+		c.Assert(strutil.ListContains(expectedSnaps, name), Equals, true, Commentf("%v doesn't contain %s", expectedSnaps, name))
+		seenSnaps[name] = struct{}{}
+
+		status := parseString(c, snap["status"])
+		c.Assert(status, Equals, "active")
+	}
+
+	c.Assert(seenSnaps, HasLen, 6)
+}
+
+func parseString(c *C, raw json.RawMessage) string {
+	var str string
+	if err := json.Unmarshal(raw, &str); err != nil {
+		c.Fatal(err, Commentf("expected value to be string"))
+	}
+
+	return str
 }

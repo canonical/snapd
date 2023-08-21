@@ -19,6 +19,7 @@
 package aspects
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -147,4 +148,8 @@ func applyDeltas(bag JSONDataBag, deltas []map[string]interface{}) error {
 // Data returns the transaction's committed data.
 func (t *Transaction) Data() ([]byte, error) {
 	return t.pristine.Data()
+}
+
+func (t *Transaction) Query(path string, params map[string]string) ([]interface{}, error) {
+	return nil, fmt.Errorf(`not implemented`)
 }

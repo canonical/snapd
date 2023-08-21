@@ -93,6 +93,7 @@ func (e *InvalidAccessError) Is(err error) bool {
 
 // DataBag controls access to the aspect data storage.
 type DataBag interface {
+	Query(path string, params map[string]string, filters map[string]Filter) ([]interface{}, error)
 	Get(path string, value interface{}) error
 	Set(path string, value interface{}) error
 	Data() ([]byte, error)
@@ -201,25 +202,29 @@ func validateNamePathPair(name, path string) error {
 		return fmt.Errorf("invalid path %q: %w", path, err)
 	}
 
-	namePlaceholders, pathPlaceholders := getPlaceholders(name), getPlaceholders(path)
-	if len(namePlaceholders) != len(pathPlaceholders) {
-		return fmt.Errorf("access name %q and path %q have mismatched placeholders", name, path)
-	}
+	// NOTE: if we can express the placeholder values as a query parameters,
+	// we don't need these to have the placeholders in the name/request
 
-	for placeholder := range namePlaceholders {
-		if !pathPlaceholders[placeholder] {
-			return fmt.Errorf("placeholder %q from access name %q is absent from path %q",
-				placeholder, name, path)
-		}
-	}
+	//namePlaceholders, pathPlaceholders := getPlaceholders(name), getPlaceholders(path)
+	//if len(namePlaceholders) != len(pathPlaceholders) {
+	//	return fmt.Errorf("access name %q and path %q have mismatched placeholders", name, path)
+	//}
+
+	//for placeholder := range namePlaceholders {
+	//	if !pathPlaceholders[placeholder] {
+	//		return fmt.Errorf("placeholder %q from access name %q is absent from path %q",
+	//			placeholder, name, path)
+	//	}
+	//}
 
 	return nil
 }
 
 var (
-	subkeyRegex      = "(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*"
-	validSubkey      = regexp.MustCompile(fmt.Sprintf("^%s$", subkeyRegex))
-	validPlaceholder = regexp.MustCompile(fmt.Sprintf("^{%s}$", subkeyRegex))
+	subkeyRegex           = "(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*"
+	validSubkey           = regexp.MustCompile(fmt.Sprintf("^%s$", subkeyRegex))
+	validPlaceholder      = regexp.MustCompile(fmt.Sprintf("^{%s}$", subkeyRegex))
+	validFieldPlaceholder = regexp.MustCompile(fmt.Sprintf(`^{%s}(\[\.%s={%s}\])?$`, subkeyRegex, subkeyRegex, subkeyRegex))
 )
 
 // validateAspectDottedPath validates that names/paths in an aspect definition are:
@@ -228,19 +233,43 @@ var (
 //     optionally with dashes between alphanumeric characters (e.g., "a-b-c")
 //   - placeholder subkeys are composed of non-placeholder subkeys wrapped in curly brackets
 func validateAspectDottedPath(path string) (err error) {
-	subkeys := strings.Split(path, ".")
-
+	subkeys := splitPath(path)
 	for _, subkey := range subkeys {
 		if subkey == "" {
 			return errors.New("cannot have empty subkeys")
 		}
 
-		if !(validSubkey.MatchString(subkey) || validPlaceholder.MatchString(subkey)) {
+		if !(validSubkey.MatchString(subkey) || validPlaceholder.MatchString(subkey) || validFieldPlaceholder.MatchString(subkey)) {
 			return fmt.Errorf("invalid subkey %q", subkey)
 		}
 	}
 
 	return nil
+}
+
+func splitPath(path string) []string {
+	var parts []string
+
+	lastDot := -1
+	for i, char := range path {
+		if char != '.' {
+			continue
+		}
+
+		// dot inside a field placeholder; not a key separator
+		if i > 0 && path[i-1] == '[' {
+			continue
+		}
+
+		parts = append(parts, path[lastDot+1:i])
+		lastDot = i
+	}
+
+	if lastDot != len(path)-1 {
+		parts = append(parts, path[lastDot+1:])
+	}
+
+	return parts
 }
 
 // getPlaceholders returns the set of placeholders in the string or nil, if
@@ -357,6 +386,34 @@ func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 	}
 }
 
+func (a *Aspect) Query(databag DataBag, request, query string, filters map[string]Filter) ([]interface{}, error) {
+	subkeys := strings.Split(request, ".")
+	for _, accessPatt := range a.accessPatterns {
+		_, ok := accessPatt.match(subkeys)
+		if !ok {
+			continue
+		}
+
+		params := make(map[string]string)
+		if query != "" {
+			queryParts := strings.Split(query, ",")
+
+			for _, query := range queryParts {
+				parts := strings.Split(query, "=")
+				if len(parts) != 2 {
+					return nil, fmt.Errorf(`cannot parse query: %s should be key=val`, query)
+				}
+
+				params[parts[0]] = parts[1]
+			}
+		}
+
+		return databag.Query(accessPatt.originalPath, params, filters)
+	}
+
+	return nil, fmt.Errorf(`cannot find path that matches request`)
+}
+
 func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 	accType, err := newAccessType(accesstype)
 	if err != nil {
@@ -390,9 +447,10 @@ func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 	}
 
 	return &accessPattern{
-		name:   nameMatchers,
-		path:   pathWriters,
-		access: accType,
+		originalPath: path,
+		name:         nameMatchers,
+		path:         pathWriters,
+		access:       accType,
 	}, nil
 }
 
@@ -404,9 +462,10 @@ func isPlaceholder(part string) bool {
 // to match an input name and map it into a corresponding path, potentially with
 // placeholders filled in.
 type accessPattern struct {
-	name   []nameMatcher
-	path   []pathWriter
-	access accessType
+	originalPath string
+	name         []nameMatcher
+	path         []pathWriter
+	access       accessType
 }
 
 // match takes a list of subkeys and returns true if those subkeys match the pattern's
@@ -525,6 +584,195 @@ type JSONDataBag map[string]json.RawMessage
 // The top-level of the JSON structure is always a map.
 func NewJSONDataBag() JSONDataBag {
 	return JSONDataBag(make(map[string]json.RawMessage))
+}
+
+func (s JSONDataBag) Query(path string, params map[string]string, filters map[string]Filter) ([]interface{}, error) {
+	subKeys := splitPath(path)
+	return query(subKeys, 0, s, params, filters)
+}
+
+func query(subKeys []string, index int, node map[string]json.RawMessage, params map[string]string, filters map[string]Filter) ([]interface{}, error) {
+	key := subKeys[index]
+
+	var fieldFilter filter
+	if key[0] == '{' {
+		var err error
+		key, fieldFilter, err = parsePlaceholder(key, params, filters)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var rawLevels []json.RawMessage
+	if key == "*" {
+		// if there wasn't a mapping for the placeholder, read all
+		for _, val := range node {
+			rawLevels = append(rawLevels, val)
+		}
+	} else {
+		nextLevel, ok := node[key]
+		if !ok {
+			pathPrefix := strings.Join(subKeys[:index+1], ".")
+			return nil, PathNotFoundError(fmt.Sprintf("no value was found under path %q", pathPrefix))
+		}
+
+		rawLevels = []json.RawMessage{nextLevel}
+	}
+
+	// read the final value
+	if index == len(subKeys)-1 {
+		var results []interface{}
+
+		for _, val := range rawLevels {
+			var res interface{}
+
+			// if there's a field filter, assume it's a map
+			if fieldFilter != nil {
+				var nextLevel map[string]json.RawMessage
+				if err := json.Unmarshal(val, &nextLevel); err != nil {
+					var typeErr *json.UnmarshalTypeError
+					if errors.As(err, &typeErr) {
+						return nil, fmt.Errorf("cannot filter by field: expected a map but got a %s", typeErr.Value)
+					}
+					return nil, err
+				}
+
+				pass, err := fieldFilter(nextLevel)
+				if err != nil {
+					return nil, err
+				}
+
+				if !pass {
+					continue
+				}
+				res = nextLevel
+			} else {
+				if err := json.Unmarshal(val, &res); err != nil {
+					var typeErr *json.UnmarshalTypeError
+					if errors.As(err, &typeErr) {
+						path := strings.Join(subKeys, ".")
+						return nil, fmt.Errorf("cannot read value of %q into %T: maps to %s", path, res, typeErr.Value)
+					}
+
+					return nil, err
+				}
+			}
+
+			results = append(results, res)
+		}
+
+		return results, nil
+	}
+
+	var results []interface{}
+	for _, nextLevel := range rawLevels {
+		var level map[string]json.RawMessage
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(nextLevel), &level); err != nil {
+			var typeErr *json.UnmarshalTypeError
+			if errors.As(err, &typeErr) {
+				pathPrefix := strings.Join(subKeys[:index+1], ".")
+				return nil, fmt.Errorf("cannot read path prefix %q: maps to %s", pathPrefix, typeErr.Value)
+			}
+
+			return nil, err
+		}
+
+		passFilter := true
+		if fieldFilter != nil {
+			var err error
+			passFilter, err = fieldFilter(level)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if !passFilter {
+			continue
+		}
+
+		res, err := query(subKeys, index+1, level, params, filters)
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, res...)
+	}
+
+	return results, nil
+}
+
+func parsePlaceholder(key string, params map[string]string, filters map[string]Filter) (string, filter, error) {
+	end := strings.Index(key, "}")
+
+	// parse the field filter, if any exists
+	var fieldFilter filter
+	if end < len(key)-1 && key[end+1] == '[' && key[len(key)-1] == ']' {
+		var err error
+		fieldFilter, err = getFieldFilter(key[end+2:len(key)-1], params, filters)
+		if err != nil {
+			return "", nil, err
+		}
+	}
+
+	// parse the placeholder
+	placeholder := key[1:end]
+	if param, ok := params[placeholder]; ok {
+		key = param
+	} else {
+		if !filters[placeholder].Optional {
+			return "", nil, fmt.Errorf(`cannot find non-optional placeholder in query parameters`)
+		}
+		key = "*"
+	}
+
+	return key, fieldFilter, nil
+}
+
+type filter func(map[string]json.RawMessage) (bool, error)
+
+func getFieldFilter(fieldPlace string, params map[string]string, filters map[string]Filter) (filter, error) {
+	parts := strings.Split(fieldPlace, "=")
+	field, reference := parts[0], parts[1]
+
+	if field[0] != '.' {
+		return nil, fmt.Errorf(`cannot parse field placeholder: missing . before field name`)
+	}
+	field = field[1:]
+
+	if !isPlaceholder(reference) {
+		return nil, fmt.Errorf(`cannot parse field placeholder: value should be placeholder "{value}"`)
+	}
+
+	reference = reference[1 : len(reference)-1]
+	fieldValue, ok := params[reference]
+	if !ok {
+		if !filters[fieldValue].Optional {
+			return nil, fmt.Errorf(`cannot find non-optional placeholder in query parameters`)
+		}
+
+		return func(map[string]json.RawMessage) (bool, error) {
+			return true, nil
+		}, nil
+	}
+
+	return func(obj map[string]json.RawMessage) (bool, error) {
+		rawVal, ok := obj[field]
+		if !ok {
+			return false, nil
+		}
+
+		// to simplify, assume it's always a string
+		var val string
+		if err := json.Unmarshal(rawVal, &val); err != nil {
+			return false, err
+		}
+
+		return val == fieldValue, nil
+	}, nil
+}
+
+type Filter struct {
+	Optional bool
 }
 
 // Get takes a path and a pointer to a variable into which the value referenced
