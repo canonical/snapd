@@ -1,6 +1,6 @@
 [Unit]
 Description=Wait until snapd is fully seeded
-After=snapd.service snapd.socket
+After=snapd.socket
 Requires=snapd.socket
 
 [Service]
