@@ -666,7 +666,7 @@ volumes:
 	ginfo, err := gadget.ReadInfo(s.dir, nil)
 	c.Assert(err, IsNil)
 	err = gadget.ValidateContent(ginfo, s.dir, "")
-	c.Assert(err, ErrorMatches, `invalid layout of volume "pc": cannot lay out structure #0 \("foo"\): content "foo.img": stat .*/foo.img: no such file or directory`)
+	c.Assert(err, ErrorMatches, `structure #0 \("foo"\): content "foo.img": stat .*/foo.img: no such file or directory`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateContentMultiVolumeContent(c *C) {
@@ -696,7 +696,7 @@ volumes:
 	ginfo, err := gadget.ReadInfo(s.dir, nil)
 	c.Assert(err, IsNil)
 	err = gadget.ValidateContent(ginfo, s.dir, "")
-	c.Assert(err, ErrorMatches, `invalid layout of volume "second": cannot lay out structure #0 \("second-foo"\): content "second.img": stat .*/second.img: no such file or directory`)
+	c.Assert(err, ErrorMatches, `structure #0 \("second-foo"\): content "second.img": stat .*/second.img: no such file or directory`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateContentFilesystemContent(c *C) {
