@@ -134,6 +134,51 @@ apps:
 	c.Assert(err, Equals, snap.ErrMissingPaths)
 }
 
+func (s *packSuite) TestPackDefaultConfigureWithoutConfigureError(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+apps:
+ foo:
+  command: bin/hello-world
+`)
+	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "default-configure"), []byte("#!/bin/sh"), 0755), IsNil)
+	_, err := pack.Snap(sourceDir, pack.Defaults)
+	c.Check(err, ErrorMatches, "cannot validate snap \"hello\": cannot specify \"default-configure\" hook without \"configure\" hook")
+}
+
+func (s *packSuite) TestPackConfigureHooksPermissionsError(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+apps:
+ foo:
+  command: bin/hello-world
+`)
+	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
+	configureHooks := []string{"configure", "default-configure"}
+	for _, hook := range configureHooks {
+		c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0666), IsNil)
+		_, err := pack.Snap(sourceDir, pack.Defaults)
+		c.Check(err, ErrorMatches, "snap is unusable due to bad permissions")
+	}
+}
+
+func (s *packSuite) TestPackConfigureHooksHappy(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+apps:
+ foo:
+  command: bin/hello-world
+`)
+	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
+	configureHooks := []string{"configure", "default-configure"}
+	for _, hook := range configureHooks {
+		c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0755), IsNil)
+		_, err := pack.Snap(sourceDir, pack.Defaults)
+		c.Assert(err, IsNil)
+	}
+}
+
 func (s *packSuite) TestValidateMissingAppFailsWithErrMissingPaths(c *C) {
 	var buf bytes.Buffer
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
