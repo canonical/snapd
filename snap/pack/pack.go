@@ -107,25 +107,30 @@ func CheckSkeleton(w io.Writer, sourceDir string) error {
 }
 
 func loadAndValidate(sourceDir string) (*snap.Info, error) {
-	// ensure we have valid content
+	// Extraction of snap info is duplicated in ReadInfoFromSnapFile, this is done
+	// only to extract the snap instance name, if available, to use in case of
+	// ReadInfoFromSnapFile error
 	yaml, err := ioutil.ReadFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
 	if err != nil {
 		return nil, err
 	}
-
 	info, err := snap.InfoFromSnapYaml(yaml)
 	if err != nil {
 		return nil, err
 	}
+	instanceName := info.InstanceName()
 
-	if err := snap.Validate(info); err != nil {
-		return nil, fmt.Errorf("cannot validate snap %q: %v", info.InstanceName(), err)
+	// ReadInfoFromSnapFile covers the following required steps:
+	// 	- Read snap metadata from meta/snap.yaml
+	//      - Extract snap info from meta/snap.yaml, without populating side info
+	//      - Add implicit hooks from meta/hooks, and validate hooks individually
+	//      - Validate available snap information
+	info, err = snap.ReadInfoFromSnapFile(snapdir.New(sourceDir), nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot validate snap %q: %v", instanceName, err)
 	}
 
 	if err := snap.ValidateContainer(snapdir.New(sourceDir), info, logger.Noticef); err != nil {
-		return nil, err
-	}
-	if _, err := snap.ReadSnapshotYamlFromSnapFile(snapdir.New(sourceDir)); err != nil {
 		return nil, err
 	}
 
