@@ -24,7 +24,7 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 		{
 			bytes: []byte{
 				0x10, 0x0, // Length
-				0x2, 0x0, // Protocol
+				0x3, 0x0, // Protocol
 				0x80, 0x0, 0x0, 0x0, // Mode Set
 				0x0, 0x0, 0x0, 0x0, // Namespace
 				0x0, 0x0, 0x0, 0x0, // Filter
@@ -32,29 +32,29 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 			msg: notify.MsgNotificationFilter{
 				MsgHeader: notify.MsgHeader{
 					Length:  0x10,
-					Version: 0x02,
+					Version: 0x03,
 				},
 				ModeSet: notify.APPARMOR_MODESET_USER,
 			},
 		},
 		{
 			bytes: []byte{
-				0x18, 0x0, // Length
-				0x2, 0x0, // Protocol
+				0x17, 0x0, // Length
+				0x3, 0x0, // Protocol
 				0x80, 0x0, 0x0, 0x0, // Mode Set
 				0x10, 0x0, 0x0, 0x0, // Namespace (offset)
 				0x14, 0x0, 0x0, 0x0, // Filter
 				'f', 'o', 'o', 0x0, // Packed namespace string.
-				'b', 'a', 'r', 0x0, // Packed namespace string.
+				'b', 'a', 'r', // Packed filter []byte.
 			},
 			msg: notify.MsgNotificationFilter{
 				MsgHeader: notify.MsgHeader{
-					Length:  0x18,
-					Version: 0x02,
+					Length:  0x17,
+					Version: 0x03,
 				},
 				ModeSet:   notify.APPARMOR_MODESET_USER,
 				NameSpace: "foo",
-				Filter:    "bar",
+				Filter:    []byte("bar"),
 			},
 		},
 	} {
@@ -85,19 +85,19 @@ func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
 		},
 		{
 			comment: "header without the remaining data",
-			bytes:   []byte{0x10, 0x00, 0x02, 0x00},
+			bytes:   []byte{0x10, 0x00, 0x03, 0x00},
 			errMsg:  `cannot unmarshal apparmor message header: length mismatch 16 != 4`,
 		},
 		{
 			comment: "unsupported protocol version",
-			bytes:   []byte{0x04, 0x0, 0x3, 0x0},
-			errMsg:  `cannot unmarshal apparmor message header: unsupported version: 3`,
+			bytes:   []byte{0x04, 0x0, 0x2, 0x0},
+			errMsg:  `cannot unmarshal apparmor message header: unsupported version: 2`,
 		},
 		{
 			comment: "message with truncated mode set",
 			bytes: []byte{
 				0x10, 0x0, // Length
-				0x2, 0x0, // Protocol
+				0x3, 0x0, // Protocol
 				0x80, 0x0, 0x0, // Mode Set, short of one byte
 			},
 			errMsg: `cannot unmarshal apparmor message header: length mismatch 16 != 7`,
@@ -106,7 +106,7 @@ func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
 			comment: "message with truncated namespace",
 			bytes: []byte{
 				0x10, 0x0, // Length
-				0x2, 0x0, // Protocol
+				0x3, 0x0, // Protocol
 				0x80, 0x0, 0x0, 0x0, // Mode Set
 				0x0, 0x0, 0x0, // Namespace, short of one byte
 			},
@@ -116,7 +116,7 @@ func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
 			comment: "message with truncated filter",
 			bytes: []byte{
 				0x10, 0x0, // Length
-				0x2, 0x0, // Protocol
+				0x3, 0x0, // Protocol
 				0x80, 0x0, 0x0, 0x0, // Mode Set
 				0x0, 0x0, 0x0, 0x0, // Namespace
 				0x0, 0x0, 0x0, // Filter, short of one byte
@@ -127,7 +127,7 @@ func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
 			comment: "message with namespace address pointing beyond message body",
 			bytes: []byte{
 				0x10, 0x0, // Length
-				0x2, 0x0, // Protocol
+				0x3, 0x0, // Protocol
 				0x80, 0x0, 0x0, 0x0, // Mode Set
 				0xFF, 0x0, 0x0, 0x0, // Namespace, pointing to invalid address
 				0x0, 0x0, 0x0, 0x0, // Filter
@@ -138,7 +138,7 @@ func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
 			comment: "message with with namespace without proper termination",
 			bytes: []byte{
 				0x13, 0x0, // Length
-				0x2, 0x0, // Protocol
+				0x3, 0x0, // Protocol
 				0x80, 0x0, 0x0, 0x0, // Mode Set
 				0x10, 0x0, 0x0, 0x0, // Namespace, pointing to invalid address
 				0x0, 0x0, 0x0, 0x0, // Filter
@@ -167,7 +167,7 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 	msg := notify.MsgNotification{
 		NotificationType: notify.APPARMOR_NOTIF_RESP,
 		Signalled:        1,
-		Flags:            0,
+		NoCache:          0,
 		ID:               0x1234,
 		Error:            0xFF,
 	}
@@ -176,7 +176,7 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 	c.Check(data, HasLen, 20)
 	c.Check(data, DeepEquals, []byte{
 		0x14, 0x0, // Length
-		0x2, 0x0, // Protocol
+		0x3, 0x0, // Protocol
 		0x0, 0x0, // Notification Type
 		0x1,                                            // Signalled
 		0x0,                                            // Reserved
@@ -185,14 +185,14 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 	})
 }
 
-func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
+func (s *messageSuite) TestMsgNotificationFileMarshalUnmarshalBinary(c *C) {
 	if arch.Endian() == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
 	}
 	// Notification for accessing a the /root/.ssh/ file.
 	bytes := []byte{
 		0x4c, 0x0, // Length == 76 bytes
-		0x2, 0x0, // Protocol 2
+		0x3, 0x0, // Protocol
 		0x4, 0x0, // Notification type == notify.APPARMOR_NOTIF_OP
 		0x0,                                    // Signalled
 		0x0,                                    // Reserved
@@ -215,12 +215,12 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 	var msg notify.MsgNotificationFile
 	err := msg.UnmarshalBinary(bytes)
 	c.Assert(err, IsNil)
-	c.Check(msg, DeepEquals, notify.MsgNotificationFile{
+	c.Assert(msg, DeepEquals, notify.MsgNotificationFile{
 		MsgNotificationOp: notify.MsgNotificationOp{
 			MsgNotification: notify.MsgNotification{
 				MsgHeader: notify.MsgHeader{
 					Length:  76,
-					Version: 2,
+					Version: 3,
 				},
 				NotificationType: notify.APPARMOR_NOTIF_OP,
 				ID:               2,
@@ -234,6 +234,38 @@ func (s *messageSuite) TestMsgNotificationFileUnmarshalBinary(c *C) {
 		},
 		Name: "/root/.ssh/",
 	})
+
+	buf, err := msg.MarshalBinary()
+	c.Assert(err, IsNil)
+	c.Assert(buf, DeepEquals, bytes)
+}
+
+func (s *messageSuite) TestMsgNotificationValidate(c *C) {
+	msg := notify.MsgNotification{}
+	for _, t := range []notify.NotificationType{
+		notify.APPARMOR_NOTIF_RESP,
+		notify.APPARMOR_NOTIF_CANCEL,
+		notify.APPARMOR_NOTIF_INTERRUPT,
+		notify.APPARMOR_NOTIF_ALIVE,
+		notify.APPARMOR_NOTIF_OP,
+	} {
+		msg.NotificationType = t
+		c.Check(msg.Validate(), IsNil)
+	}
+	msg.NotificationType = notify.NotificationType(5)
+	c.Check(msg.Validate(), ErrorMatches, "unsupported notification type: 5")
+}
+
+func (s *messageSuite) TestResponseForRequest(c *C) {
+	req := notify.MsgNotification{
+		ID:    1234,
+		Error: 0xbad,
+	}
+	resp := notify.ResponseForRequest(&req)
+	c.Assert(resp.NotificationType, Equals, notify.APPARMOR_NOTIF_RESP)
+	c.Assert(resp.NoCache, Equals, uint8(1))
+	c.Assert(resp.ID, Equals, req.ID)
+	c.Assert(resp.MsgNotification.Error, Equals, req.Error)
 }
 
 func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
@@ -244,7 +276,7 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 		MsgNotification: notify.MsgNotification{
 			NotificationType: 0x11,
 			Signalled:        0x22,
-			Flags:            0x33,
+			NoCache:          0x33,
 			ID:               0x44,
 			Error:            0x55,
 		},
@@ -256,7 +288,7 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(bytes, DeepEquals, []byte{
 		0x20, 0x0, // Length
-		0x2, 0x0, // Version
+		0x3, 0x0, // Version
 		0x11, 0x0, // Notification Type
 		0x22,                                    // Signalled
 		0x33,                                    // Reserved

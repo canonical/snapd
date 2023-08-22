@@ -34,14 +34,14 @@ func (*notifySuite) TestSysPathBehavior(c *C) {
 	c.Assert(notify.SysPath, Equals, newSysPath)
 }
 
-func (*notifySuite) TestPromptingSupportAvailable(c *C) {
+func (*notifySuite) TestSupportAvailable(c *C) {
 	newRoot := c.MkDir()
 	dirs.SetRootDir(newRoot)
-	c.Assert(notify.PromptingSupportAvailable(), Equals, false)
+	c.Assert(notify.SupportAvailable(), Equals, false)
 	err := os.MkdirAll(filepath.Dir(notify.SysPath), 0755)
 	c.Assert(err, IsNil)
-	c.Assert(notify.PromptingSupportAvailable(), Equals, false)
+	c.Assert(notify.SupportAvailable(), Equals, false)
 	_, err = os.Create(notify.SysPath)
 	c.Assert(err, IsNil)
-	c.Assert(notify.PromptingSupportAvailable(), Equals, true)
+	c.Assert(notify.SupportAvailable(), Equals, true)
 }

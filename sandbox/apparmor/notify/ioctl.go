@@ -49,7 +49,7 @@ type IoctlRequestBuffer struct {
 func NewIoctlRequestBuffer() *IoctlRequestBuffer {
 	bufSize := 0xFFFF
 	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
-	header := MsgHeader{Version: 2, Length: uint16(bufSize)}
+	header := MsgHeader{Version: 3, Length: uint16(bufSize)}
 	order := arch.Endian()
 	binary.Write(buf, order, &header)
 	buf.Write(make([]byte, bufSize-buf.Len()))
@@ -97,12 +97,13 @@ func SetIoctlDump(value bool) bool {
 
 // Ioctl performs a ioctl(2) on the given file descriptor.
 //
-// Sets the length of buf.Bytes() to be equal to the return value of the
-// syscall, indicating how many bytes were written to the buffer.
-// If the ioctl syscall returns an error, the buffer contents are those filled
-// by the syscall, but the size of the buffer is unchanged, and NotifySyscall
-// returns the size and error returned by the syscall.
-func Ioctl(fd uintptr, req IoctlRequest, buf *IoctlRequestBuffer) (int, error) {
+// Returns a []byte with the contents of buf.Bytes() after the syscall, set to
+// the size returned by the syscall, indicating how many bytes were written.
+// The size of buf.Bytes() is left unchanged, so buf may be re-used for future
+// Ioctl calls.  If the ioctl syscall returns an error, the buffer contents are
+// those filled by the syscall, but the size of the buffer is unchanged, and
+// the complete buffer and error are returned.
+func Ioctl(fd uintptr, req IoctlRequest, buf *IoctlRequestBuffer) ([]byte, error) {
 	var err error
 	if dumpIoctl {
 		log.Printf(">>> ioctl %v (%d bytes) ...\n", req, buf.Len())
@@ -117,27 +118,15 @@ func Ioctl(fd uintptr, req IoctlRequest, buf *IoctlRequestBuffer) (int, error) {
 		}
 	}
 	if errno != 0 {
-		return size, fmt.Errorf("cannot perform IOCTL request %v: %v", req, unix.Errno(errno))
+		return nil, fmt.Errorf("cannot perform IOCTL request %v: %v", req, unix.Errno(errno))
 	}
+	data := buf.Bytes()
 	if size >= 0 && size <= buf.Len() {
-		buf.bytes = buf.bytes[:size]
+		data = data[:size]
 	} else {
 		err = ErrIoctlReturnInvalid
 	}
-	return size, err
-}
-
-// ReadMessage uses ioctl(2) to receive a message from apparmor.
-//
-// The ioctl(2) syscall is performed on the given file descriptor.
-// Returns a buffer containing the received message.
-func ReadMessage(fd uintptr) ([]byte, error) {
-	buf := NewIoctlRequestBuffer()
-	_, err := Ioctl(fd, APPARMOR_NOTIF_RECV, buf)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return data, err
 }
 
 // IoctlRequest is the type of ioctl(2) request numbers used by apparmor .notify file.
