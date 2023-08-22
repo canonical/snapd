@@ -257,5 +257,22 @@ fi
 fi
 AM_CONDITIONAL([USE_INTERNAL_BPF_HEADERS], [test "x$host_bpf_headers_usable" = "xno"])
 
+AC_DEFINE([MISSING_FIELD_INITIALIZERS_USABLE], [1], [-Wmissing-field-initializers are usable])
+AC_MSG_CHECKING([whether MISSING_FIELD_INITIALIZER warnings are usable])
+AC_COMPILE_IFELSE([
+#include <linux/resource.h>
+#pragma GCC diagnostic error "-Wmissing-field-initializers"
+struct sc_mount{const char *path;int foo;};
+void foo() { struct sc_mount mounts[[]] = { {.path = "x"}, {}, }; }
+void bar() { struct rlimit limit = {0}; }
+], [w_missing_field_initializers_usable=yes], [w_missing_field_initializers_usable=no])
+if test "x$w_missing_field_initializers_usable" = "xyes"; then
+   AC_MSG_RESULT([yes])
+else
+  AC_MSG_RESULT([no, running with -Wno-missing-field-initializers])
+fi
+AM_CONDITIONAL([NO_MISSING_FIELD_INITIALIZERS], [test "x$w_missing_field_initializers_usable" = "xno"])
+
+
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

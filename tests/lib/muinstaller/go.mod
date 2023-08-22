@@ -2,8 +2,8 @@ module github.com/snapcore/snapd/tests/lib/muinstaller
 
 go 1.18
 
-// XXX remove as soon as https://github.com/snapcore/snapd/pull/12985 is merged
-replace github.com/snapcore/snapd => github.com/alfonsosanchezbeato/snapd v0.0.0-20230727071725-a26d74a3caa7
+// TODO get this back to snapcore repo after changes are merged
+replace github.com/snapcore/snapd => github.com/alfonsosanchezbeato/snapd v0.0.0-20230808084524-9a40cc044dcd
 
 require github.com/snapcore/snapd v0.0.0-20230705065623-befebe0d505e
 
