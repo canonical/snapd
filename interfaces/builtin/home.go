@@ -112,7 +112,7 @@ func (iface *homeInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 
 func evalPrompting(s string) string {
 	repl := ""
-	if features.AppArmorPrompting.IsEnabled() && apparmor_prompting.PromptingSupportAvailable() {
+	if features.AppArmorPrompting.IsEnabled() && apparmor_prompting.SupportAvailable() {
 		repl = "prompt "
 	}
 	return strings.Replace(s, "###PROMPT###", repl, -1)

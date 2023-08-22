@@ -167,7 +167,7 @@ func (l *Listener) waitAndRespond(req *Request, msg *notify.MsgNotificationFile)
 	// XXX: should both error fields be zeroed?
 	resp.MsgNotification.Error = 0
 	// XXX: flags 1 means not-cache the reply, make this a proper named flag
-	resp.MsgNotification.Flags = 1
+	resp.MsgNotification.NoCache = 1
 	if allow := <-req.YesNo; allow {
 		resp.Allow = msg.Allow | msg.Deny
 		resp.Deny = 0
@@ -207,7 +207,8 @@ func (l *Listener) runOnce(tomb *tomb.Tomb) error {
 				// maximum allowed size and will contain one kernel request upon return.
 				// Note that the actually occupied buffer is indicated by the Length field
 				// in the header.
-				buf, err := notify.ReadMessage(l.notifyFile.Fd())
+				ioctlBuf := notify.NewIoctlRequestBuffer()
+				buf, err := notify.Ioctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_RECV, ioctlBuf)
 				if err != nil {
 					return err
 				}

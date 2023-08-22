@@ -32,7 +32,7 @@ func New() Interface {
 }
 
 func (p *Prompting) Connect() error {
-	if !notify.PromptingSupportAvailable() {
+	if !notify.SupportAvailable() {
 		return nil
 	}
 	l, err := listener.Register()
