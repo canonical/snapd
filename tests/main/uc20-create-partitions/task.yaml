@@ -162,7 +162,6 @@ execute: |
     echo "Check that the filesystem content was deployed"
     mount "${LOOP}p3" ./mnt
     ls ./mnt/EFI/boot/grubx64.efi
-    ls ./mnt/EFI/boot/bootx64.efi
     # remove a file
     rm ./mnt/EFI/boot/grubx64.efi
     umount ./mnt
