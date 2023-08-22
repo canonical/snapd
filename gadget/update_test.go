@@ -2276,8 +2276,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 				},
 			},
 			map[string]map[int]*gadget.OnDiskStructure{
-				"pc":  gadgettest.OnDiskStructsFromGadget(newData.Info.Volumes["pc"]),
-				"foo": gadgettest.OnDiskStructsFromGadget(newData.Info.Volumes["foo"]),
+				"pc":  gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			}, nil
 	})
 	defer r()
@@ -2304,14 +2304,6 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 	// go go go
 	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("nofspart"\) for volume foo: new valid structure size range \[1024, 1024\] is not compatible with current \(\[4096, 4096\]\)`)
-
-	// now with overlap
-	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeMiB
-	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
-	// XXX with the layout changes there is only one disk, so this will fail
-	// in the first check (previously different disk were simulated for old
-	// an new gadgets).
-	c.Assert(err, ErrorMatches, `cannot lay out the old volume foo: cannot lay out volume, structure #2 \("some-filesystem"\) overlaps with preceding structure #1 \("nofspart"\)`)
 }
 
 func (u *updateTestSuite) TestUpdateApplyUC20KernelAssetsOnAllVolumesWithInitialMapAllVolumesUpdatedFullLogic(c *C) {

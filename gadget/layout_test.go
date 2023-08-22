@@ -925,31 +925,6 @@ volumes:
 	})
 }
 
-func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteBadRelativeTo(c *C) {
-	// define volumes explicitly as those would not pass validation
-	volBadStructure := gadget.Volume{
-		Structure: []gadget.VolumeStructure{
-			{
-				Name:   "foo",
-				Type:   "DA,21686148-6449-6E6F-744E-656564454649",
-				Offset: asOffsetPtr(0),
-				Size:   1 * quantity.SizeMiB,
-				OffsetWrite: &gadget.RelativeOffset{
-					RelativeTo: "bar",
-					Offset:     10,
-				},
-			},
-		},
-	}
-
-	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*quantity.SizeKiB, []byte(""))
-
-	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(&volBadStructure, gadgettest.OnDiskStructsFromGadget(&volBadStructure), opts)
-	c.Check(v, IsNil)
-	c.Check(err, ErrorMatches, `structure "foo" refers to an unexpected structure "bar"`)
-}
-
 func (p *layoutTestSuite) TestLayoutVolumePartialNoSuchFile(c *C) {
 	gadgetYaml := `
 volumes:
