@@ -122,6 +122,15 @@ func (s *packSuite) TestPackNoManifestFails(c *C) {
 	c.Assert(err, ErrorMatches, `.*/meta/snap\.yaml: no such file or directory`)
 }
 
+func (s *packSuite) TestPackInfoFromSnapYamlFails(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+no-colon
+`)
+	_, err := pack.Snap(sourceDir, pack.Defaults)
+	c.Assert(err, ErrorMatches, `cannot parse snap.yaml: yaml: line 4: could not find expected ':'`)
+}
+
 func (s *packSuite) TestPackMissingAppFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 0
@@ -177,6 +186,57 @@ apps:
 		_, err := pack.Snap(sourceDir, pack.Defaults)
 		c.Assert(err, IsNil)
 	}
+}
+
+func (s *packSuite) TestPackSnapshotYamlExcludePathError(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+apps:
+ foo:
+  command: bin/hello-world
+`)
+
+	invalidSnapshotYaml := `exclude:
+    - $SNAP_DATA/one
+    - $SNAP_UNKNOWN_DIR/two
+`
+	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0444), IsNil)
+	_, err := pack.Snap(sourceDir, pack.Defaults)
+	c.Assert(err, ErrorMatches, "cannot validate snap \"hello\": snapshot exclude path must start with one of.*")
+}
+
+func (s *packSuite) TestPackSnapshotYamlPermissionsError(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+apps:
+ foo:
+  command: bin/hello-world
+`)
+
+	invalidSnapshotYaml := `exclude:
+    - $SNAP_DATA/one
+    - $SNAP_COMMON/two
+`
+	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0411), IsNil)
+	_, err := pack.Snap(sourceDir, pack.Defaults)
+	c.Assert(err, ErrorMatches, "snap is unusable due to bad permissions")
+}
+
+func (s *packSuite) TestPackSnapshotYamlHappy(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+apps:
+ foo:
+  command: bin/hello-world
+`)
+
+	invalidSnapshotYaml := `exclude:
+    - $SNAP_DATA/one
+    - $SNAP_COMMON/two
+`
+	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0444), IsNil)
+	_, err := pack.Snap(sourceDir, pack.Defaults)
+	c.Assert(err, IsNil)
 }
 
 func (s *packSuite) TestValidateMissingAppFailsWithErrMissingPaths(c *C) {
