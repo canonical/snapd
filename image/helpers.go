@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -90,7 +91,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 		KernelRootDir: kernelUnpackDir,
 	}
 	for volName, vol := range info.Volumes {
-		pvol, err := gadget.LayoutVolume(vol, nil, opts)
+		pvol, err := gadget.LayoutVolume(vol, onDiskStructsFromGadget(vol), opts)
 		if err != nil {
 			return err
 		}
@@ -122,4 +123,31 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 	}
 
 	return nil
+}
+
+// Build a map of gadget yaml index to OnDiskStructure by assuming that the
+// gadget matches exactly a system disk. This is used only in disk image build
+// time as we do not know yet the target disk.
+func onDiskStructsFromGadget(volume *gadget.Volume) (structures map[int]*gadget.OnDiskStructure) {
+	structures = map[int]*gadget.OnDiskStructure{}
+	offset := quantity.Offset(0)
+	for idx, vs := range volume.Structure {
+		// Offset is end of previous struct unless explicit.
+		if volume.Structure[idx].Offset != nil {
+			offset = *volume.Structure[idx].Offset
+		}
+		ods := gadget.OnDiskStructure{
+			Name:        vs.Name,
+			Type:        vs.Type,
+			StartOffset: offset,
+			Size:        vs.Size,
+		}
+
+		// Note that structures are ordered by offset as volume.Structure
+		// was ordered when reading the gadget information.
+		offset += quantity.Offset(volume.Structure[idx].Size)
+		structures[vs.YamlIndex] = &ods
+	}
+
+	return structures
 }
