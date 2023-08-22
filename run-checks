@@ -336,32 +336,33 @@ if [ "$STATIC" = 1 ]; then
     fi
 
     echo "Checking installation of golangci-lint"
-    FIRST_GOBIN="$(go env GOPATH | sed 's|:.*|/bin|g')"
+    GOLANGCI_INSTALL_DIR="/tmp"
+    GOLANGCI_LINT="$GOLANGCI_INSTALL_DIR/golangci-lint"
     # Ensure GOLANGCI_VERSION matches the golangci-lint version in
     # .github/workflows/test.yaml (without leading v)
     GOLANGCI_VERSION="1.51.2"
-    if ! command -v golangci-lint > /dev/null || [ -z "$(golangci-lint --version | grep $GOLANGCI_VERSION)" ] ; then
-        if command -v curl ; then
-            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$FIRST_GOBIN" "v$GOLANGCI_VERSION"
-        elif command -v wget ; then
-            wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$FIRST_GOBIN" "v$GOLANGCI_VERSION"
+    if ! command -v $GOLANGCI_LINT > /dev/null || ! $GOLANGCI_LINT --version | grep -q $GOLANGCI_VERSION ; then
+        if command -v curl > /dev/null ; then
+            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$GOLANGCI_INSTALL_DIR" "v$GOLANGCI_VERSION"
+        elif command -v wget /dev/null ; then
+            wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$GOLANGCI_INSTALL_DIR" "v$GOLANGCI_VERSION"
         else
             echo 'ERROR: could not install golangci-lint. Please do one of the following:'
             echo '1. install manually from: https://golangci-lint.run/usage/install/#local-installation'
             echo '2. install curl or wget and re-run this script'
             exit 1
         fi
-        if ! command -v golangci-lint > /dev/null || [ -z "$(golangci-lint --version | grep $GOLANGCI_VERSION)" ] ; then
-            echo 'ERROR: installation of golangci-lint proceeded, but executable not found in path.'
-            echo 'Please ensure that golangci-lint v$GOLANGCI_VERSION is installed.'
-            echo 'Installation instructions are available at:'
-            echo '    https://golangci-lint.run/usage/install/#local-installation'
+        if ! command -v $GOLANGCI_LINT > /dev/null || ! $GOLANGCI_LINT --version | grep -q "$GOLANGCI_VERSION" ; then
+            echo "ERROR: installation of golangci-lint proceeded, but executable not found in $GOLANGCI_INSTALL_DIR."
+            echo "Please ensure that golangci-lint v$GOLANGCI_VERSION is installed."
+            echo "Installation instructions are available at:"
+            echo "    https://golangci-lint.run/usage/install/#local-installation"
             exit 1
         fi
     fi
 
     echo "Running golangci-lint"
-    golangci-lint run || exit 1
+    $GOLANGCI_LINT run || exit 1
 fi
 
 if [ "$UNIT" = 1 ]; then
