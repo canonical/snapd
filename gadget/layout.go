@@ -206,25 +206,6 @@ func layoutVolumeStructures(volume *Volume, gadgetToDiskStruct map[int]*OnDiskSt
 	if err != nil {
 		return nil, err
 	}
-
-	// Check:
-	// - No structure overlaps
-	// - offset-write meets the restrictions defined in the gadget
-	// TODO Reuse fully validateCrossVolumeStructure
-	previousEnd := quantity.Offset(0)
-	for idx, ps := range structures {
-		// XXX this check is probably not needed if using matched structures
-		// and will be removed when we always have a gadgetToDiskStruct.
-		if ps.StartOffset < previousEnd {
-			return nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
-		}
-		previousEnd = ps.StartOffset + quantity.Offset(ps.Size)
-
-		if err := validateOffsetWrite(ps.VolumeStructure, structures[0].VolumeStructure, volume.MinSize()); err != nil {
-			return nil, err
-		}
-	}
-
 	return structures, nil
 }
 
