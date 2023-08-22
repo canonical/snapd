@@ -2085,7 +2085,7 @@ volumes:
 		// also layout the volume and check that when laying out the MBR
 		// structure it retains the role of MBR, as validated by IsRoleMBR
 		vol := giMeta.Volumes[volName]
-		ls, err := gadget.LayoutVolumePartially(vol, gadgettest.OnDiskStructsFromGadget(vol))
+		ls, err := gadget.LayoutVolumePartially(vol, gadget.OnDiskStructsFromGadget(vol))
 		c.Assert(err, IsNil)
 		c.Check(ls.LaidOutStructure[0].VolumeStructure.IsRoleMBR(), Equals, true)
 	}

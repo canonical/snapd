@@ -6305,7 +6305,7 @@ volumes:
 	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{"volume-id": {0: {}}},
 			map[string]map[int]*gadget.OnDiskStructure{
-				"volume-id": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["volume-id"]),
+				"volume-id": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["volume-id"]),
 			}, nil
 	})
 	defer r()
@@ -6430,7 +6430,7 @@ volumes:
 				},
 			},
 			map[string]map[int]*gadget.OnDiskStructure{
-				"volume-id": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["volume-id"]),
+				"volume-id": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["volume-id"]),
 			},
 			nil
 	})
@@ -7659,7 +7659,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentKernelChannel(c *C) {
 	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{"pc": {}},
 			map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
 			}, nil
 	})
 	defer r()
@@ -7811,7 +7811,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentGadgetChannel(c *C) {
 				},
 			},
 			map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
 			}, nil
 	})
 	defer r()
@@ -8103,7 +8103,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
 			}, nil
 	})
 	defer r()
@@ -8291,7 +8291,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
 			}, nil
 	})
 	defer r()
@@ -8667,7 +8667,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
 			}, nil
 	})
 	defer r()
@@ -9978,7 +9978,7 @@ func (s *mgrsSuiteCore) testGadgetKernelCommandLine(c *C, gadgetPath string, gad
 	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{"pc": {}},
 			map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
 			},
 			nil
 	})
@@ -10575,7 +10575,7 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootWithGadgetSetup(c *C, sn
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
 			}, nil
 	})
 	defer r()
@@ -12027,7 +12027,7 @@ func (ms *gadgetUpdatesSuite) TestGadgetWithKernelRefUpgradeFromOldErrorKernel(c
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"volume-id": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["volume-id"]),
+				"volume-id": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["volume-id"]),
 			}, nil
 	})
 	defer r()
@@ -12236,7 +12236,7 @@ volumes:
 
 	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{"volume-id": {0: {}}}, map[string]map[int]*gadget.OnDiskStructure{
-			"volume-id": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["volume-id"]),
+			"volume-id": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["volume-id"]),
 		}, nil
 	})
 	defer r()

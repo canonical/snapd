@@ -44,7 +44,7 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model,
 	if volToGadgetToDiskStruct == nil {
 		volToGadgetToDiskStruct = map[string]map[int]*gadget.OnDiskStructure{}
 		for name, v := range info.Volumes {
-			odss := OnDiskStructsFromGadget(v)
+			odss := gadget.OnDiskStructsFromGadget(v)
 			volToGadgetToDiskStruct[name] = odss
 
 		}
@@ -149,7 +149,7 @@ func MustLayOutSingleVolumeFromGadget(gadgetRoot, kernelRoot string, model gadge
 	}
 	for _, vol := range info.Volumes {
 		// we know info.Volumes map has size 1 so we can return here
-		return gadget.LayoutVolume(vol, OnDiskStructsFromGadget(vol), opts)
+		return gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
 	}
 
 	// this is impossible to reach, we already checked that info.Volumes has a
@@ -256,32 +256,6 @@ var MockGadgetPartitionedOnDiskVolume = gadget.OnDiskVolume{
 			Size:             4096 * quantity.SizeMiB,
 		},
 	},
-}
-
-// Build a map of yaml index to OnDiskStructure by assuming the gadget matches
-// exactly a system disk.
-func OnDiskStructsFromGadget(volume *gadget.Volume) (structures map[int]*gadget.OnDiskStructure) {
-	structures = map[int]*gadget.OnDiskStructure{}
-	offset := quantity.Offset(0)
-	for idx, vs := range volume.Structure {
-		// Offset is end of previous struct unless explicit.
-		if volume.Structure[idx].Offset != nil {
-			offset = *volume.Structure[idx].Offset
-		}
-		ods := gadget.OnDiskStructure{
-			Name:        vs.Name,
-			Type:        vs.Type,
-			StartOffset: offset,
-			Size:        vs.Size,
-		}
-
-		// Note that structures are ordered by offset as volume.Structure
-		// was ordered when reading the gadget information.
-		offset += quantity.Offset(volume.Structure[idx].Size)
-		structures[vs.YamlIndex] = &ods
-	}
-
-	return structures
 }
 
 func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Info, laidVols map[string]*gadget.LaidOutVolume, model *asserts.Model, restore func(), err error) {

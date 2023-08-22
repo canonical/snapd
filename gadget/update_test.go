@@ -713,7 +713,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			},
 			nil
 	})
@@ -1102,8 +1102,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc":  gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
-				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"pc":  gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			},
 			nil
 	})
@@ -1412,8 +1412,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc":  gadgettest.OnDiskStructsFromGadget(newData.Info.Volumes["pc"]),
-				"foo": gadgettest.OnDiskStructsFromGadget(newData.Info.Volumes["foo"]),
+				"pc":  gadget.OnDiskStructsFromGadget(newData.Info.Volumes["pc"]),
+				"foo": gadget.OnDiskStructsFromGadget(newData.Info.Volumes["foo"]),
 			},
 			nil
 	})
@@ -1686,8 +1686,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc":  gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
-				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"pc":  gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			},
 			nil
 	})
@@ -2276,8 +2276,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 				},
 			},
 			map[string]map[int]*gadget.OnDiskStructure{
-				"pc":  gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
-				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"pc":  gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			}, nil
 	})
 	defer r()
@@ -2525,8 +2525,8 @@ volumes:
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc":  gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
-				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"pc":  gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			},
 			nil
 	})
@@ -2981,7 +2981,7 @@ func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			},
 			nil
 	})
@@ -3051,7 +3051,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{"foo": {}},
 			map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			},
 			nil
 	})
@@ -3183,7 +3183,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{"foo": {}},
 			map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			},
 			nil
 	})
@@ -3704,7 +3704,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			},
 			nil
 	})
@@ -3922,7 +3922,7 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInAll(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			},
 			nil
 	})
@@ -3981,7 +3981,7 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInSome(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			},
 			nil
 	})
@@ -4038,7 +4038,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverBeforeWriteErrs(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			},
 			nil
 	})
@@ -4088,7 +4088,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverCanceledErrs(c *C) {
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"foo": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
+				"foo": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["foo"]),
 			},
 			nil
 	})
@@ -5215,7 +5215,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMul
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: gadgetRoot}
 	for volName, vol := range info.Volumes {
-		lvol, err := gadget.LayoutVolume(vol, gadgettest.OnDiskStructsFromGadget(vol), opts)
+		lvol, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
 		c.Assert(err, IsNil)
 		allLaidOutVolumes[volName] = lvol
 	}
