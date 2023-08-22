@@ -458,6 +458,8 @@ gen_require(`
 ')
 allow snappy_t devicekit_power_exec_t:file { getattr };
 
+
+
 ########################################
 #
 # snap-update-ns, snap-dicsard-ns local policy
@@ -806,6 +808,8 @@ allow snappy_cli_t snappy_snap_t:lnk_file { read_lnk_file_perms };
 allow snappy_cli_t snappy_var_lib_t:dir { list_dir_perms };
 allow snappy_cli_t snappy_var_lib_t:file { read_file_perms };
 allow snappy_cli_t snappy_var_lib_t:lnk_file { read_lnk_file_perms };
+
+allow snappy_cli_t snappy_var_t:dir { search getattr };
 
 # the release package calls stat() on /proc/sys/fs/binfmt_misc/WSLInterop to
 # detect WSL
