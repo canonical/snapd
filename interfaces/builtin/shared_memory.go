@@ -285,16 +285,21 @@ func (iface *sharedMemoryInterface) BeforePreparePlug(plug *snap.PlugInfo) error
 	return nil
 }
 
-func (iface *sharedMemoryInterface) isPrivate(plug *interfaces.ConnectedPlug) bool {
+func (iface *sharedMemoryInterface) isPrivate(plug *interfaces.ConnectedPlug) (bool, error) {
 	var private bool
-	if err := plug.Attr("private", &private); err == nil {
-		return private
+	if err := plug.Attr("private", &private); err != nil {
+		return false, err
 	}
-	panic("plug is not sanitized")
+	return private, nil
 }
 
 func (iface *sharedMemoryInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if iface.isPrivate(plug) {
+	private, err := iface.isPrivate(plug)
+	if err != nil {
+		return err
+	}
+
+	if private {
 		spec.AddSnippet(sharedMemoryPrivateConnectedPlugAppArmor)
 		spec.AddUpdateNSf(`  # Private /dev/shm
   /dev/ r,
@@ -321,7 +326,10 @@ func (iface *sharedMemoryInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 }
 
 func (iface *sharedMemoryInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if !iface.isPrivate(plug) {
+	private, err := iface.isPrivate(plug)
+	if err != nil {
+		return err
+	} else if !private {
 		return nil
 	}
 

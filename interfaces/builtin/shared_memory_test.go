@@ -470,3 +470,18 @@ func (s *SharedMemoryInterfaceSuite) TestAutoConnect(c *C) {
 func (s *SharedMemoryInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *SharedMemoryInterfaceSuite) TestErrorOnBadPlug(c *C) {
+	consumerYaml := `name: consumer
+version: 0
+plugs:
+ shmem-missing:
+  interface: shared-memory
+  shared-memory: foo
+`
+	plug, _ := MockConnectedPlug(c, consumerYaml, nil, "shmem-missing")
+
+	spec := &mount.Specification{}
+	err := spec.AddConnectedPlug(s.iface, plug, nil)
+	c.Assert(err, ErrorMatches, `snap "consumer" does not have attribute "private" for interface "shared-memory"`)
+}
