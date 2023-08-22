@@ -50,11 +50,6 @@ type partitionTestSuite struct {
 
 var _ = Suite(&partitionTestSuite{})
 
-func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
-	goff := offs
-	return &goff
-}
-
 func (s *partitionTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
