@@ -72,6 +72,9 @@ func newRequest(l *Listener, msg *notify.MsgNotificationFile) *Request {
 var (
 	// ErrListenerNotSupported indicates that the kernel does not support apparmor prompting
 	ErrListenerNotSupported = errors.New("kernel does not support apparmor notifications")
+
+	osOpen      = os.Open
+	notifyIoctl = notify.Ioctl
 )
 
 // Register opens and configures the apparmor notification interface.
@@ -83,7 +86,7 @@ func Register() (*Listener, error) {
 		path = override
 	}
 
-	notifyFile, err := os.Open(path)
+	notifyFile, err := osOpen(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrListenerNotSupported
@@ -98,7 +101,7 @@ func Register() (*Listener, error) {
 		return nil, err
 	}
 	ioctlBuf := notify.BytesToIoctlRequestBuffer(data)
-	_, err = notify.Ioctl(notifyFile.Fd(), notify.APPARMOR_NOTIF_SET_FILTER, ioctlBuf)
+	_, err = notifyIoctl(notifyFile.Fd(), notify.APPARMOR_NOTIF_SET_FILTER, ioctlBuf)
 	// TODO: check ioctl return size
 	if err != nil {
 		notifyFile.Close()
@@ -154,7 +157,7 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte, tomb *tomb.Tomb) error {
 				return nil
 			})
 		default:
-			return fmt.Errorf("unsupported mediation class : %v", omsg.Class)
+			return fmt.Errorf("unsupported mediation class: %v", omsg.Class)
 		}
 	default:
 		return fmt.Errorf("unsupported notification type: %v", nmsg.NotificationType)
@@ -164,9 +167,7 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte, tomb *tomb.Tomb) error {
 
 func (l *Listener) waitAndRespond(req *Request, msg *notify.MsgNotificationFile) {
 	resp := notify.ResponseForRequest(&msg.MsgNotification)
-	// XXX: should both error fields be zeroed?
-	resp.MsgNotification.Error = 0
-	// XXX: flags 1 means not-cache the reply, make this a proper named flag
+	resp.MsgNotification.Error = 0 // ignored in responses
 	resp.MsgNotification.NoCache = 1
 	if allow := <-req.YesNo; allow {
 		resp.Allow = msg.Allow | msg.Deny
@@ -176,6 +177,8 @@ func (l *Listener) waitAndRespond(req *Request, msg *notify.MsgNotificationFile)
 		resp.Allow = 0
 		resp.Deny = msg.Deny
 		resp.Error = msg.Error
+		// msg.Error is field from MsgNotificationResponse, and is unused.
+		// msg.MsgNotification.Error is also ignored in responses.
 	}
 	//log.Printf("notification response: %#v\n", resp)
 	if err := l.encodeAndSendResponse(&resp); err != nil {
@@ -189,7 +192,7 @@ func (l *Listener) encodeAndSendResponse(resp *notify.MsgNotificationResponse) e
 		return err
 	}
 	ioctlBuf := notify.BytesToIoctlRequestBuffer(buf)
-	_, err = notify.Ioctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_SEND, ioctlBuf)
+	_, err = notifyIoctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_SEND, ioctlBuf)
 	return err
 }
 
@@ -208,7 +211,7 @@ func (l *Listener) runOnce(tomb *tomb.Tomb) error {
 				// Note that the actually occupied buffer is indicated by the Length field
 				// in the header.
 				ioctlBuf := notify.NewIoctlRequestBuffer()
-				buf, err := notify.Ioctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_RECV, ioctlBuf)
+				buf, err := notifyIoctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_RECV, ioctlBuf)
 				if err != nil {
 					return err
 				}
