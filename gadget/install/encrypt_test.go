@@ -29,9 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
-	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
@@ -47,14 +45,6 @@ type encryptSuite struct {
 }
 
 var _ = Suite(&encryptSuite{})
-
-var mockDeviceStructure = gadget.OnDiskStructure{
-	Name:             "Test structure",
-	PartitionFSLabel: "some-label",
-	StartOffset:      0,
-	Size:             3 * quantity.SizeMiB,
-	Node:             "/dev/node1",
-}
 
 func (s *encryptSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
@@ -108,7 +98,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, secboot.EncryptionTypeLUKS, s.mockedEncryptionKey, "some-label-enc", "some-label")
+		dev, err := install.NewEncryptedDeviceLUKS("/dev/node1", secboot.EncryptionTypeLUKS, s.mockedEncryptionKey, "some-label", "some-label")
 		c.Assert(calls, Equals, 1)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)

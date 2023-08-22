@@ -75,7 +75,11 @@ func verifyUpdateTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskSe
 
 	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(te, NotNil)
-	c.Assert(te.Kind(), Equals, "validate-snap")
+	if opts&localSnap != 0 {
+		c.Assert(te.Kind(), Equals, "prepare-snap")
+	} else {
+		c.Assert(te.Kind(), Equals, "validate-snap")
+	}
 }
 
 func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
@@ -2656,7 +2660,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevision(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-7/stable"}, s.user.ID, snapstate.Flags{})
-	c.Assert(err, Equals, store.ErrNoUpdateAvailable)
+	c.Assert(err.Error(), Equals, "snap has no updates available")
 }
 
 func (s *snapmgrTestSuite) TestUpdateToRevisionRememberedUserRunThrough(c *C) {
@@ -4241,6 +4245,100 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	c.Check(validateCalled, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContext(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: DefaultModel(),
+		CtxStore:    s.fakeStore,
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(8)}
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+`)
+
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+	c.Assert(err, IsNil)
+	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|localSnap, 0, ts)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+}
+
+func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextSwitchChannel(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: DefaultModel(),
+		CtxStore:    s.fakeStore,
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7)}
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+`)
+
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "22/edge"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+	c.Assert(err, IsNil)
+	c.Check(ts.Tasks(), HasLen, 1)
+	c.Check(ts.Tasks()[0].Kind(), Equals, "switch-snap-channel")
+}
+
+func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextBadFile(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: DefaultModel(),
+		CtxStore:    s.fakeStore,
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7)}
+	path := filepath.Join(c.MkDir(), "some-snap_7.snap")
+	err := os.WriteFile(path, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, path, "some-snap", opts, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+
+	c.Assert(err, ErrorMatches, `cannot open snap file: cannot process snap or snapdir: cannot read ".*/some-snap_7.snap": EOF`)
+	c.Assert(ts, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevision(c *C) {

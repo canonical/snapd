@@ -127,3 +127,7 @@ execute: |
     # aliases belong to test-snapd-auto-aliases
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown1)" = "test-snapd-auto-aliases.wellknown1"
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown2)" = "test-snapd-auto-aliases.wellknown2"
+
+    echo "Check that --prefer doesn't support multi-snap installs"
+    not snap install --prefer test-snapd-auto-aliases test-snapd-auto-aliases_bar 2> stderr.out
+    MATCH 'a single snap name is needed to specify the prefer flag' < stderr.out

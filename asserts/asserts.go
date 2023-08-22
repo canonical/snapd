@@ -204,6 +204,9 @@ func init() {
 	// 2: support for user-presence constraint
 	maxSupportedFormat[SystemUserType.Name] = 2
 
+	// 1: support for constraints
+	maxSupportedFormat[AccountKeyType.Name] = 1
+
 	for _, at := range typeRegistry {
 		at.validate()
 	}
@@ -235,6 +238,7 @@ func MockOptionalPrimaryKey(assertType *AssertionType, key, defaultValue string)
 }
 
 var formatAnalyzer = map[*AssertionType]func(headers map[string]interface{}, body []byte) (formatnum int, err error){
+	AccountKeyType:      accountKeyFormatAnalyze,
 	SnapDeclarationType: snapDeclarationFormatAnalyze,
 	SystemUserType:      systemUserFormatAnalyze,
 }

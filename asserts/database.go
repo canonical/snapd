@@ -775,6 +775,9 @@ func CheckSignature(assert Assertion, signingKey *AccountKey, roDB RODatabase, c
 		if assert.AuthorityID() != signingKey.AccountID() {
 			return fmt.Errorf("assertion authority %q does not match public key from %q", assert.AuthorityID(), signingKey.AccountID())
 		}
+		if !signingKey.canSign(assert) {
+			return fmt.Errorf("assertion does not match signing constraints for public key %q from %q", assert.SignKeyID(), assert.AuthorityID())
+		}
 	} else {
 		custom, ok := assert.(customSigner)
 		if !ok {

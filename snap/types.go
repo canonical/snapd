@@ -182,3 +182,38 @@ func (daemonScope *DaemonScope) fromString(str string) error {
 	*daemonScope = d
 	return nil
 }
+
+// ComponentType is a type to represent the possible types of snap components.
+type ComponentType string
+
+const (
+	// TestComponent is just for testing purposes.
+	// TODO add here new component when there is more progress on the
+	// components implementation.
+	TestComponent ComponentType = "test"
+)
+
+var validComponentTypes = [...]ComponentType{TestComponent}
+
+// Component represents a snap component.
+type Component struct {
+	Type        ComponentType `yaml:"type"`
+	Summary     string        `yaml:"summary"`
+	Description string        `yaml:"description"`
+}
+
+func (ct *ComponentType) UnmarshalYAML(unmarshall func(interface{}) error) error {
+	typeStr := ""
+	if err := unmarshall(&typeStr); err != nil {
+		return err
+	}
+
+	for _, t := range validComponentTypes {
+		if string(t) == typeStr {
+			*ct = t
+			return nil
+		}
+	}
+
+	return fmt.Errorf("unknown component type %q", typeStr)
+}
