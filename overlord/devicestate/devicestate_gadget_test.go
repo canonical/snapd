@@ -36,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -740,7 +739,7 @@ volumes:
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
 			}, nil
 	})
 	defer r()
