@@ -96,8 +96,15 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 				return nil, e
 			}
 
-			// an non-client error here means the server most
-			// likely went away
+			// A non-client error here means the server most likely went away.
+			// First thing we should check is whether this is a part of a system restart,
+			// as in that case we want to to report this to user instead of looping here until
+			// the restart does happen. (Or in the case of spread tests, blocks forever).
+			if e, ok := cli.Maintenance().(*client.Error); ok && e.Kind == client.ErrorKindSystemRestart {
+				return nil, e
+			}
+
+			// Otherwise it's most likely a daemon restart, assume it might come up again.
 			// XXX: it actually can be a bunch of other things; fix client to expose it better
 			now := time.Now()
 			if tMax.IsZero() {
