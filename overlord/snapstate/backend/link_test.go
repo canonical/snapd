@@ -293,7 +293,7 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(currentDataDir, Equals, dataDir)
 
-	c.Check(filepath.Join(runinhibit.InhibitDir, "hello.lock"), testutil.FileAbsent)
+	c.Check(runinhibit.LockFile("hello"), testutil.FileAbsent)
 }
 
 func (s *linkSuite) TestLinkUndoIdempotent(c *C) {
@@ -334,7 +334,7 @@ apps:
 	c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
 
 	// no inhibition lock
-	c.Check(filepath.Join(runinhibit.InhibitDir, "hello.lock"), testutil.FileAbsent)
+	c.Check(runinhibit.LockFile("hello"), testutil.FileAbsent)
 }
 
 func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
@@ -676,7 +676,7 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 	c.Check(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"), checker)
 	c.Check(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"), checker)
 	c.Check(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"), checker)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FileAbsent)
+	c.Check(runinhibit.LockFile("hello"), testutil.FileAbsent)
 
 	// D-Bus service activation
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service"), checker)
@@ -744,7 +744,7 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 		c.Check(toEtcUnitPath(entry[0]), testutil.FilePresent)
 	}
 	// linked snaps do not have a run inhibition lock
-	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FileAbsent)
+	c.Check(runinhibit.LockFile("hello"), testutil.FileAbsent)
 
 	linkCtx := backend.LinkContext{
 		FirstInstall:   true,
@@ -758,12 +758,12 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 		c.Check(toEtcUnitPath(entry[0]), testutil.FileAbsent)
 	}
 	// unlinked snaps have a run inhibition lock
-	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
+	c.Check(runinhibit.LockFile("snapd"), testutil.FilePresent)
 
 	// unlink is idempotent
 	err = s.be.UnlinkSnap(info, linkCtx, nil)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
+	c.Check(runinhibit.LockFile("snapd"), testutil.FilePresent)
 }
 
 func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) {
@@ -798,8 +798,8 @@ func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) 
 	}
 
 	// unlinked snaps have a run inhibition lock. XXX: the specific inhibition hint can change.
-	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FileEquals, "refresh")
+	c.Check(runinhibit.LockFile("snapd"), testutil.FilePresent)
+	c.Check(runinhibit.LockFile("snapd"), testutil.FileEquals, `{"hint":"refresh","revision":"unset"}`)
 }
 
 func (s *linkSuite) TestLinkOptRequiresTooling(c *C) {

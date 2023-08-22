@@ -2159,7 +2159,7 @@ func makeDBusMethodAvailableMessage(c *check.C, msg *dbus.Message) *dbus.Message
 	})
 	c.Check(msg.Body[0], check.Equals, "SnapTest")
 	param2 := fmt.Sprintf("%s", msg.Body[1])
-	c.Check(strings.HasSuffix(param2, "/var/lib/snapd/inhibit/SnapTest.lock"), check.Equals, true)
+	c.Check(strings.HasSuffix(param2, "/var/lib/snapd/inhibit/SnapTest_v2.lock"), check.Equals, true)
 	return &dbus.Message{
 		Type: dbus.TypeMethodReply,
 		Headers: map[dbus.HeaderField]dbus.Variant{

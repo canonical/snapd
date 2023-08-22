@@ -28,22 +28,32 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type runInhibitSuite struct{}
+type runInhibitSuite struct {
+	lockFile string
+}
 
 var _ = Suite(&runInhibitSuite{})
 
 func (s *runInhibitSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
+	rootDir := c.MkDir()
+	s.lockFile = filepath.Join(rootDir, "/var/lib/snapd/inhibit/pkg_v2.lock")
+	dirs.SetRootDir(rootDir)
 }
 
 func (s *runInhibitSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+}
+
+func (s *runInhibitSuite) TestLockFilePath(c *C) {
+	lockFile := runinhibit.LockFile("pkg")
+	c.Assert(lockFile, Equals, s.lockFile)
 }
 
 // Locking cannot be done with an empty hint as that is equivalent to unlocking.
@@ -70,29 +80,43 @@ func (s *runInhibitSuite) TestLockWithHint(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
 
-	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "refresh")
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"refresh","revision":"unset"}`)
 }
 
 // The lock can be re-acquired to present a different hint.
 func (s *runInhibitSuite) TestLockLocked(c *C) {
 	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "refresh")
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"refresh","revision":"unset"}`)
 
 	err = runinhibit.LockWithHint("pkg", runinhibit.Hint("just-testing"))
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "just-testing")
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"just-testing","revision":"unset"}`)
 
 	err = runinhibit.LockWithHint("pkg", runinhibit.Hint("short"))
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "short")
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"short","revision":"unset"}`)
 }
 
 // Unlocking an unlocked lock doesn't break anything.
 func (s *runInhibitSuite) TestUnlockUnlocked(c *C) {
 	err := runinhibit.Unlock("pkg")
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileAbsent)
+	c.Check(s.lockFile, testutil.FileAbsent)
+}
+
+// Unlocking a locked lock multiple times shouldn't break anything.
+func (s *runInhibitSuite) TestUnlockLockedTwice(c *C) {
+	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh)
+	c.Assert(err, IsNil)
+
+	err = runinhibit.Unlock("pkg")
+	c.Assert(err, IsNil)
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"","revision":"unset"}`)
+
+	err = runinhibit.Unlock("pkg")
+	c.Assert(err, IsNil)
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"","revision":"unset"}`)
 }
 
 // Unlocking an locked lock truncates the hint.
@@ -103,7 +127,7 @@ func (s *runInhibitSuite) TestUnlockLocked(c *C) {
 	err = runinhibit.Unlock("pkg")
 	c.Assert(err, IsNil)
 
-	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "")
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"","revision":"unset"}`)
 }
 
 // IsLocked doesn't fail when the lock directory or lock file is missing.
@@ -147,10 +171,78 @@ func (s *runInhibitSuite) TestIsLockedUnlocked(c *C) {
 
 func (s *runInhibitSuite) TestRemoveLockFile(c *C) {
 	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh), IsNil)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FilePresent)
+	c.Check(s.lockFile, testutil.FilePresent)
 
 	c.Assert(runinhibit.RemoveLockFile("pkg"), IsNil)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileAbsent)
+	c.Check(s.lockFile, testutil.FileAbsent)
 	// Removing an absent lock file is not an error.
 	c.Assert(runinhibit.RemoveLockFile("pkg"), IsNil)
+}
+
+func (s *runInhibitSuite) TestSetRevision(c *C) {
+	err := runinhibit.SetRevision("pkg", snap.R(1))
+	c.Assert(err, IsNil)
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"","revision":"1"}`)
+
+	err = runinhibit.SetRevision("pkg", snap.R(2))
+	c.Assert(err, IsNil)
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"","revision":"2"}`)
+
+	err = runinhibit.SetRevision("pkg", snap.R("x3"))
+	c.Assert(err, IsNil)
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"","revision":"x3"}`)
+}
+
+func (s *runInhibitSuite) TestSetRevisionWithUnsetRevision(c *C) {
+	_, err := os.Stat(runinhibit.InhibitDir)
+	c.Assert(os.IsNotExist(err), Equals, true)
+
+	err = runinhibit.SetRevision("pkg", snap.R(0))
+	c.Assert(err, ErrorMatches, "snap revision cannot be unset")
+
+	_, err = os.Stat(runinhibit.InhibitDir)
+	c.Assert(os.IsNotExist(err), Equals, true)
+}
+
+// SetRevision and LockWithHint do not conflict with each other.
+func (s *runInhibitSuite) TestSetRevisionWithLockWithHint(c *C) {
+	err := runinhibit.SetRevision("pkg", snap.R(1))
+	c.Assert(err, IsNil)
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"","revision":"1"}`)
+
+	err = runinhibit.LockWithHint("pkg", runinhibit.Hint("refresh"))
+	c.Assert(err, IsNil)
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"refresh","revision":"1"}`)
+
+	err = runinhibit.LockWithHint("pkg", runinhibit.Hint("just-testing"))
+	c.Assert(err, IsNil)
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"just-testing","revision":"1"}`)
+
+	err = runinhibit.SetRevision("pkg", snap.R(2))
+	c.Assert(err, IsNil)
+	c.Check(s.lockFile, testutil.FileEquals, `{"hint":"just-testing","revision":"2"}`)
+}
+
+func (s *runInhibitSuite) TestGetRevision(c *C) {
+	rev, err := runinhibit.GetRevision("pkg")
+	c.Assert(err, IsNil)
+	c.Check(rev, Equals, snap.R(0))
+
+	err = runinhibit.SetRevision("pkg", snap.R(1))
+	c.Assert(err, IsNil)
+	rev, err = runinhibit.GetRevision("pkg")
+	c.Assert(err, IsNil)
+	c.Check(rev, Equals, snap.R(1))
+
+	err = runinhibit.SetRevision("pkg", snap.R(2))
+	c.Assert(err, IsNil)
+	rev, err = runinhibit.GetRevision("pkg")
+	c.Assert(err, IsNil)
+	c.Check(rev, Equals, snap.R(2))
+
+	err = runinhibit.SetRevision("pkg", snap.R("x3"))
+	c.Assert(err, IsNil)
+	rev, err = runinhibit.GetRevision("pkg")
+	c.Assert(err, IsNil)
+	c.Check(rev, Equals, snap.R("x3"))
 }
