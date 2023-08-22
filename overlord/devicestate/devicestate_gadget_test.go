@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -730,15 +731,17 @@ volumes:
 		{"content.img", "updated content"},
 	})
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
-			"pc": {
-				0: {
-					Device: "/dev/foo",
-					Offset: quantity.OffsetMiB,
+				"pc": {
+					0: {
+						Device: "/dev/foo",
+						Offset: quantity.OffsetMiB,
+					},
 				},
-			},
-		}, nil, nil
+			}, map[string]map[int]*gadget.OnDiskStructure{
+				"pc": gadgettest.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+			}, nil
 	})
 	defer r()
 

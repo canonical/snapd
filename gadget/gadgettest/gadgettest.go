@@ -44,7 +44,7 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model,
 	if volToGadgetToDiskStruct == nil {
 		volToGadgetToDiskStruct = map[string]map[int]*gadget.OnDiskStructure{}
 		for name, v := range info.Volumes {
-			odss := onDiskStructsFromGadget(v)
+			odss := OnDiskStructsFromGadget(v)
 			volToGadgetToDiskStruct[name] = odss
 
 		}
@@ -149,7 +149,7 @@ func MustLayOutSingleVolumeFromGadget(gadgetRoot, kernelRoot string, model gadge
 	}
 	for _, vol := range info.Volumes {
 		// we know info.Volumes map has size 1 so we can return here
-		return gadget.LayoutVolume(vol, nil, opts)
+		return gadget.LayoutVolume(vol, OnDiskStructsFromGadget(vol), opts)
 	}
 
 	// this is impossible to reach, we already checked that info.Volumes has a
@@ -260,7 +260,7 @@ var MockGadgetPartitionedOnDiskVolume = gadget.OnDiskVolume{
 
 // Build a map of yaml index to OnDiskStructure by assuming the gadget matches
 // exactly a system disk.
-func onDiskStructsFromGadget(volume *gadget.Volume) (structures map[int]*gadget.OnDiskStructure) {
+func OnDiskStructsFromGadget(volume *gadget.Volume) (structures map[int]*gadget.OnDiskStructure) {
 	structures = map[int]*gadget.OnDiskStructure{}
 	offset := quantity.Offset(0)
 	for idx, vs := range volume.Structure {
