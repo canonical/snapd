@@ -329,7 +329,9 @@ func (iface *sharedMemoryInterface) MountConnectedPlug(spec *mount.Specification
 	private, err := iface.isPrivate(plug)
 	if err != nil {
 		return err
-	} else if !private {
+	}
+
+	if !private {
 		return nil
 	}
 
