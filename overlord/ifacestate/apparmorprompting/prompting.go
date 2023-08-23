@@ -89,6 +89,7 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 	}
 
 	p.requests.Add(user, snap, app, path, permissions, req.YesNo)
+	logger.Noticef("adding request to internal storage: user: %v, snap: %v, app: %v, path: %v, permissions: %v", user, snap, app, path, permissions)
 	// TODO: notify any listeners to the requests API using p.tomb.Go()
 	return nil
 }
@@ -111,7 +112,9 @@ func (p *Prompting) Run() error {
 			select {
 			case req := <-p.listener.R:
 				logger.Noticef("Got from kernel req chan: %v", req)
-				p.handleListenerReq(req) // no use multithreading, since IsPathAllowed locks
+				if err := p.handleListenerReq(req); err != nil { // no use multithreading, since IsPathAllowed locks
+					logger.Noticef("Error while handling request: %v", err)
+				}
 			case err := <-p.listener.E:
 				logger.Noticef("Got from kernel error chan: %v", err)
 				return err
