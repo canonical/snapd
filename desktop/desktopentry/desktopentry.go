@@ -38,6 +38,7 @@ type DesktopEntry struct {
 	Name     string
 	Icon     string
 	Exec     string
+	SnapExec string
 
 	Hidden                bool
 	OnlyShowIn            []string
@@ -49,9 +50,10 @@ type DesktopEntry struct {
 
 // Action represents an application action defined in a desktop entry file.
 type Action struct {
-	Name string
-	Icon string
-	Exec string
+	Name     string
+	Icon     string
+	Exec     string
+	SnapExec string
 }
 
 type groupState int
@@ -145,6 +147,8 @@ func parse(filename string, r io.Reader) (*DesktopEntry, error) {
 				de.Icon = value
 			case "Exec":
 				de.Exec = value
+			case "X-Snap-Exec":
+				de.SnapExec = value
 			case "Hidden":
 				de.Hidden = value == "true"
 			case "OnlyShowIn":
@@ -166,6 +170,8 @@ func parse(filename string, r io.Reader) (*DesktopEntry, error) {
 				currentAction.Icon = value
 			case "Exec":
 				currentAction.Exec = value
+			case "X-Snap-Exec":
+				currentAction.SnapExec = value
 			default:
 				// Ignore all other keys
 			}
@@ -226,6 +232,18 @@ func (de *DesktopEntry) ExpandExec(uris []string) ([]string, error) {
 	return expandExec(de, de.Exec, uris)
 }
 
+// ExpandSnapExec returns the X-Snap-Exec command line used to launch
+// this desktop entry.
+//
+// Macros will be expanded, with the %f, %F, %u, and %U macros using
+// the provided list of URIs
+func (de *DesktopEntry) ExpandSnapExec(uris []string) ([]string, error) {
+	if de.SnapExec == "" {
+		return nil, fmt.Errorf("desktop file %q has no X-Snap-Exec line", de.Filename)
+	}
+	return expandExec(de, de.SnapExec, uris)
+}
+
 // ExpandActionExec returns the command line used to launch the named
 // action of the desktop entry.
 func (de *DesktopEntry) ExpandActionExec(action string, uris []string) ([]string, error) {
@@ -236,4 +254,16 @@ func (de *DesktopEntry) ExpandActionExec(action string, uris []string) ([]string
 		return nil, fmt.Errorf("desktop file %q action %q has no Exec line", de.Filename, action)
 	}
 	return expandExec(de, de.Actions[action].Exec, uris)
+}
+
+// ExpandActionSnapExec returns the X-Snap-Exec command line used to
+// launch the named action of the desktop entry.
+func (de *DesktopEntry) ExpandActionSnapExec(action string, uris []string) ([]string, error) {
+	if de.Actions[action] == nil {
+		return nil, fmt.Errorf("desktop file %q does not have action %q", de.Filename, action)
+	}
+	if de.Actions[action].SnapExec == "" {
+		return nil, fmt.Errorf("desktop file %q action %q has no X-Snap-Exec line", de.Filename, action)
+	}
+	return expandExec(de, de.Actions[action].SnapExec, uris)
 }
