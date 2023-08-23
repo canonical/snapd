@@ -66,7 +66,7 @@ func (rdb *RequestDB) Requests(user int) []*PromptRequest {
 	defer rdb.mutex.Unlock()
 	userEntry, exists := rdb.PerUser[user]
 	if !exists {
-		return nil
+		return make([]*PromptRequest, 0)
 	}
 	requests := make([]*PromptRequest, 0, len(userEntry.ById))
 	for _, req := range userEntry.ById {
