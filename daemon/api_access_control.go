@@ -86,10 +86,15 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	snap := query.Get("snap")
 	app := query.Get("app")
 
+	var userID int
+	if user != nil {
+		userID = user.ID
+	}
+
 	if app != "" && snap == "" {
 		return BadRequest("app parameter provided, must also provide snap parameter")
 	}
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(user.ID, snap, app)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(userID, snap, app)
 	if err != nil {
 		return InternalError("%v", err)
 	}

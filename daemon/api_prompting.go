@@ -81,7 +81,12 @@ func getRequests(c *Command, r *http.Request, user *auth.UserState) Response {
 		// this connection.
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequests(user.ID)
+	var userID int
+	if user != nil {
+		userID = user.ID
+	}
+
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequests(userID)
 	if err != nil {
 		return InternalError("%v", err)
 	}
