@@ -380,6 +380,8 @@ ConnsLoop:
 		// and "system-files" interfaces.
 		// This is a partial and temporary solution to https://bugs.launchpad.net/snapd/+bug/1825883
 		// and https://bugs.launchpad.net/snapd/+bug/1942266.
+		// XXX: Added another case for the "shared-memory" interface. The interface has introduced
+		// a new attribute, which causes a panic, preventing a core snap update on UC16.
 		switch plugInfo.Interface {
 		case "content":
 			var plugContent, slotContent string
@@ -393,7 +395,7 @@ ConnsLoop:
 			} else {
 				logger.Noticef("cannot refresh static attributes of the connection %q", connId)
 			}
-		case "system-files":
+		case "system-files", "shared-memory":
 			staticPlugAttrs = utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
 			staticSlotAttrs = utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
 			updateStaticAttrs = true
