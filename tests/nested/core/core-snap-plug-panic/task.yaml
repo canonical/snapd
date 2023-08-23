@@ -1,0 +1,49 @@
+summary: core revert test to regression test panic SNAPDENG-8452
+
+systems: [ubuntu-16.04-64]
+
+kill-timeout: 60m
+
+environment:
+    NESTED_REPACK_GADGET_SNAP: true
+    NESTED_SNAPD_DEBUG_TO_SERIAL: true
+
+execute: |
+    echo "Wait for the system to be seeded first"
+    remote.exec "sudo snap wait system seed.loaded"
+
+    echo "Wait for device initialisation to be done"
+    remote.exec "retry --wait 5 -n 10 sh -c 'snap changes | MATCH \"Done.*Initialize device\"'"
+
+    boot_id="$(tests.nested boot-id)"
+    echo "Downgrade core snap to older version"
+    remote.exec snap download --revision=12834 core
+    remote.exec sudo snap install --no-wait --dangerous core_12834.snap
+
+    echo "Wait for reboot"
+    remote.wait-for reboot "$boot_id"
+
+    # create and install our custom snaps
+    snap pack shm-plug
+    snap pack shm-slot
+    remote.push shm-plug_1.0_all.snap
+    remote.push shm-slot_1.0_all.snap
+
+    # install the snaps and connect the shared memory interface
+    remote.exec sudo snap install --dangerous shm-plug_1.0_all.snap
+    remote.exec sudo snap install --dangerous shm-slot_1.0_all.snap
+
+    remote.exec sudo snap connect shm-plug:shmem shm-slot:shmem
+    remote.exec sudo snap connect shm-plug:shmem-wildcard shm-slot:shmem-wildcard
+
+    echo "Updating to the newest core snap"
+    boot_id="$(tests.nested boot-id)"
+    remote.exec sudo snap refresh core --channel=stable --amend
+
+    echo "Waiting for reboot"
+    remote.wait-for reboot "$boot_id"
+    
+    # now there should be no error
+    remote.exec snap changes | NOMATCH "Error"
+    remote.exec snap connections | MATCH 'shared-memory\ +shm-plug:shmem\ +shm-slot:shmem'
+    remote.exec snap connections | MATCH 'shared-memory\ +shm-plug:shmem-wildcard\ +shm-slot:shmem-wildcard'

@@ -648,6 +648,41 @@ EOF
             gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
             cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
             rm -f "pc.snap" "pc.assert" "$snakeoil_key" "$snakeoil_cert"
+        elif nested_is_core_16_system; then
+            snap download --basename=pc --channel="latest/edge" pc
+            unsquashfs -d pc-gadget pc.snap
+
+            # also make logging persistent for easier debugging of
+            # test failures, otherwise we have no way to see what
+            # happened during a failed nested VM boot where we
+            # weren't able to login to a device
+            cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
+            local GADGET_EXTRA_CMDLINE=""
+            if [ "$NESTED_SNAPD_DEBUG_TO_SERIAL" = "true" ]; then
+                # add snapd debug and log to serial console for extra
+                # visibility what happens when a machine fails to boot
+                GADGET_EXTRA_CMDLINE="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
+            fi
+            if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
+                GADGET_EXTRA_CMDLINE="$GADGET_EXTRA_CMDLINE $NESTED_EXTRA_CMDLINE"
+            fi
+
+            if [ -n "$GADGET_EXTRA_CMDLINE" ]; then
+                echo "Configuring command line parameters in the gadget snap: \"$GADGET_EXTRA_CMDLINE\""
+                sed -i "s/ panic=-1/& $GADGET_EXTRA_CMDLINE/" pc-gadget/grub.cfg
+            fi
+
+            # pack it
+            snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
+
+            gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
+            cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
+            rm -f "pc.snap" "pc.assert"
         fi
         # sign the pc gadget snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
