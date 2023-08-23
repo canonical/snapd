@@ -106,7 +106,9 @@ func (p *Prompting) Run() error {
 					return p.disconnect()
 				}
 				logger.Noticef("Got from kernel req chan: %v", req)
-				p.handleListenerReq(req) // no use multithreading, since IsPathAllowed locks
+				if err := p.handleListenerReq(req); err != nil { // no use multithreading, since IsPathAllowed locks
+					logger.Noticef("Error while handling request: %v", err)
+				}
 			case <-p.tomb.Dying():
 				logger.Noticef("Prompting tomb is dying, disconnecting")
 				return p.disconnect()
@@ -156,6 +158,7 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 	}
 
 	p.requests.Add(user, snap, app, path, permissions, req)
+	logger.Noticef("adding request to internal storage: user: %v, snap: %v, app: %v, path: %v, permissions: %v", user, snap, app, path, permissions)
 	// TODO: notify any listeners to the requests API using p.tomb.Go()
 	return nil
 }
