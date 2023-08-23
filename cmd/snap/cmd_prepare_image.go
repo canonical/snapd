@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,15 +27,17 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/seed/seedwriter"
 )
 
 type cmdPrepareImage struct {
-	Classic        bool   `long:"classic"`
-	Preseed        bool   `long:"preseed"`
-	PreseedSignKey string `long:"preseed-sign-key"`
+	Classic            bool   `long:"classic"`
+	Preseed            bool   `long:"preseed"`
+	PreseedSignKeyName string `long:"preseed-sign-key"`
 	// optional path to AppArmor kernel features directory
 	AppArmorKernelFeaturesDir string `long:"apparmor-features-dir"`
 	// optional sysfs overlay
@@ -112,6 +114,7 @@ For preparing classic images it supports a --classic mode`),
 
 var imagePrepare = image.Prepare
 var seedwriterReadManifest = seedwriter.ReadManifest
+var getKeypairManager = signtool.GetKeypairManager
 
 func (x *cmdPrepareImage) Execute(args []string) error {
 	opts := &image.Options{
@@ -163,7 +166,7 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	opts.PrepareDir = x.Positional.TargetDir
 	opts.Classic = x.Classic
 
-	if x.PreseedSignKey != "" && !x.Preseed {
+	if x.PreseedSignKeyName != "" && !x.Preseed {
 		return fmt.Errorf("--preseed-sign-key cannot be used without --preseed")
 	}
 
@@ -172,9 +175,40 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	}
 
 	opts.Preseed = x.Preseed
-	opts.PreseedSignKey = x.PreseedSignKey
 	opts.AppArmorKernelFeaturesDir = x.AppArmorKernelFeaturesDir
 	opts.SysfsOverlay = x.SysfsOverlay
+
+	if opts.Preseed {
+		// Retrieve the signing key
+		keypairMgr, err := getKeypairManager()
+		if err != nil {
+			return err
+		}
+
+		keyName := x.PreseedSignKeyName
+		if keyName == "" {
+			keyName = `default`
+		}
+		privKey, err := keypairMgr.GetByName(keyName)
+		if err != nil {
+			// TRANSLATORS: %q is the key name, %v the error message
+			return fmt.Errorf(i18n.G("cannot use %q key: %v"), keyName, err)
+		}
+
+		accountKey, err := mustGetOneAssert("account-key", map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})
+		if err != nil {
+			return err
+		}
+
+		account, err := mustGetOneAssert("account", map[string]string{"account-id": accountKey.(*asserts.AccountKey).AccountID()})
+		if err != nil {
+			return err
+		}
+
+		opts.PreseedSignKey = &privKey
+		opts.PreseedAccountAssert = account.(*asserts.Account)
+		opts.PreseedAccountKeyAssert = accountKey.(*asserts.AccountKey)
+	}
 
 	return imagePrepare(opts)
 }

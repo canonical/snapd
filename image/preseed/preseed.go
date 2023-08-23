@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/store/tooling"
@@ -54,7 +53,10 @@ type CoreOptions struct {
 	// prepare image directory
 	PrepareImageDir string
 	// key to sign preseeded data with
-	PreseedSignKey string
+	PreseedSignKey *asserts.PrivateKey
+	// assertions for the signing key and its associated account
+	PreseedAccountAssert    *asserts.Account
+	PreseedAccountKeyAssert *asserts.AccountKey
 	// optional path to AppArmor kernel features directory
 	AppArmorKernelFeaturesDir string
 	// optional sysfs overlay
@@ -98,19 +100,13 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 }
 
 func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) error {
+	if opts.PreseedAccountAssert == nil {
+		return fmt.Errorf("no preseed account assertion supplied")
+	}
+
 	keypairMgr, err := getKeypairManager()
 	if err != nil {
 		return err
-	}
-
-	key := opts.PreseedSignKey
-	if key == "" {
-		key = `default`
-	}
-	privKey, err := keypairMgr.GetByName(key)
-	if err != nil {
-		// TRANSLATORS: %q is the key name, %v the error message
-		return fmt.Errorf(i18n.G("cannot use %q key: %v"), key, err)
 	}
 
 	sysDir := filepath.Join(opts.PrepareImageDir, "system-seed")
@@ -171,7 +167,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) erro
 	}
 	headers := map[string]interface{}{
 		"type":              "preseed",
-		"authority-id":      model.AuthorityID(),
+		"authority-id":      opts.PreseedAccountAssert.AccountID(),
 		"series":            "16",
 		"brand-id":          model.BrandID(),
 		"model":             model.Model(),
@@ -181,7 +177,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) erro
 		"snaps":             snaps,
 	}
 
-	signedAssert, err := adb.Sign(asserts.PreseedType, headers, nil, privKey.PublicKey().ID())
+	signedAssert, err := adb.Sign(asserts.PreseedType, headers, nil, (*opts.PreseedSignKey).PublicKey().ID())
 	if err != nil {
 		return fmt.Errorf("cannot sign preseed assertion: %v", err)
 	}
@@ -209,7 +205,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) erro
 
 	enc := asserts.NewEncoder(serialized)
 	for _, aref := range f.Refs() {
-		if aref.Type == asserts.PreseedType || aref.Type == asserts.AccountKeyType {
+		if aref.Type == asserts.PreseedType || aref.Type == asserts.AccountType || aref.Type == asserts.AccountKeyType {
 			as, err := aref.Resolve(adb.Find)
 			if err != nil {
 				return fmt.Errorf("internal error: %v", err)

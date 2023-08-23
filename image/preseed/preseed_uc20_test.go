@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -221,9 +221,14 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), []byte(`hello world`), 0644), IsNil)
 
+	accountAssert := ts.Brands.Account("my-brand")
+	accountKeyAssert := ts.Brands.AccountKey("my-brand")
+
 	opts := &preseed.CoreOptions{
 		PrepareImageDir:           tmpDir,
-		PreseedSignKey:            "",
+		PreseedSignKey:            &testKey,
+		PreseedAccountAssert:      accountAssert,
+		PreseedAccountKeyAssert:   accountKeyAssert,
 		AppArmorKernelFeaturesDir: customAppArmorFeaturesDir,
 		SysfsOverlay:              sysfsOverlay,
 	}
@@ -336,6 +341,9 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 		case asserts.AccountKeyType:
 			acckeyAs := as.(*asserts.AccountKey)
 			tpe = fmt.Sprintf("%s:%s", as.Type().Name, acckeyAs.AccountID())
+		case asserts.AccountType:
+			accAs := as.(*asserts.Account)
+			tpe = fmt.Sprintf("%s:%s", as.Type().Name, accAs.AccountID())
 		case asserts.PreseedType:
 			preseedAs := as.(*asserts.Preseed)
 			c.Check(preseedAs.Revision(), Equals, 0)
@@ -360,6 +368,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 
 	c.Check(seen, DeepEquals, map[string]bool{
 		"account-key:my-brand": true,
+		"account:my-brand":     true,
 		"preseed":              true,
 	})
 }

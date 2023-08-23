@@ -154,10 +154,8 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	if err := setupSeed(tsto, model, opts); err != nil {
-		return err
-	}
-
+	// If preseeding, make sure that preseeding key is delegated *before*
+	// setting up the seed
 	if opts.Preseed {
 		// TODO: support UC22
 		if model.Classic() {
@@ -171,9 +169,26 @@ func Prepare(opts *Options) error {
 		if coreVersion < 20 {
 			return fmt.Errorf("cannot preseed the image for older base than core20")
 		}
+
+		// Check that the preseed key is allowed by the model
+		if !strutil.ListContains(model.PreseedAuthority(), opts.PreseedAccountAssert.AccountID()) {
+			return fmt.Errorf("preseed key registered to account %q, but expected one of %q",
+				opts.PreseedAccountAssert.AccountID(),
+				model.PreseedAuthority(),
+			)
+		}
+	}
+
+	if err := setupSeed(tsto, model, opts); err != nil {
+		return err
+	}
+
+	if opts.Preseed {
 		coreOpts := &preseed.CoreOptions{
 			PrepareImageDir:           opts.PrepareDir,
 			PreseedSignKey:            opts.PreseedSignKey,
+			PreseedAccountAssert:      opts.PreseedAccountAssert,
+			PreseedAccountKeyAssert:   opts.PreseedAccountKeyAssert,
 			AppArmorKernelFeaturesDir: opts.AppArmorKernelFeaturesDir,
 			SysfsOverlay:              opts.SysfsOverlay,
 		}

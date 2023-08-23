@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,6 +26,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/image"
@@ -495,4 +496,10 @@ func MockSeedWriterReadManifest(f func(manifestFile string) (*seedwriter.Manifes
 	restore = testutil.Backup(&seedwriterReadManifest)
 	seedwriterReadManifest = f
 	return restore
+}
+
+func MockGetKeypairManager(f func() (signtool.KeypairManager, error)) (restore func()) {
+	r := testutil.Backup(&getKeypairManager)
+	getKeypairManager = f
+	return r
 }

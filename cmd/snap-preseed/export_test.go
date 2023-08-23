@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package main
 
 import (
+	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/image/preseed"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -27,6 +28,12 @@ import (
 var (
 	Run = run
 )
+
+func MockGetKeypairManager(f func() (signtool.KeypairManager, error)) (restore func()) {
+	r := testutil.Backup(&getKeypairManager)
+	getKeypairManager = f
+	return r
+}
 
 func MockOsGetuid(f func() int) (restore func()) {
 	r := testutil.Backup(&osGetuid)

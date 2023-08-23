@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,7 +19,10 @@
 
 package image
 
-import "github.com/snapcore/snapd/seed/seedwriter"
+import (
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/seed/seedwriter"
+)
 
 type Options struct {
 	ModelFile string
@@ -27,9 +30,10 @@ type Options struct {
 
 	// Preseed requests the image to be preseeded (only for UC20)
 	Preseed bool
-	// PreseedSignKey is the name of the key to use for signing preseed
-	// assertion (empty means the default key).
-	PreseedSignKey string
+	// PreseedSignKey is the private key to use for signing preseed
+	PreseedSignKey          *asserts.PrivateKey
+	PreseedAccountAssert    *asserts.Account
+	PreseedAccountKeyAssert *asserts.AccountKey
 
 	// AppArmor kernel features directory to bind-mount when preseeding.
 	// If empty then the features from /sys/kernel/security/apparmor will be used.
