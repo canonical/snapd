@@ -263,22 +263,22 @@ void bar() { struct bpf_cgroup_dev_ctx ctx = {0}; }
 ])
 AM_CONDITIONAL([USE_INTERNAL_BPF_HEADERS], [test "x$use_internal_pbf_headers" = "xyes"])
 
-AC_DEFINE([MISSING_FIELD_INITIALIZERS_USABLE], [1], [-Wmissing-field-initializers are usable])
-AC_MSG_CHECKING([whether MISSING_FIELD_INITIALIZER warnings are usable])
-AC_COMPILE_IFELSE([
-#include <linux/resource.h>
-#pragma GCC diagnostic error "-Wmissing-field-initializers"
-struct sc_mount{const char *path;int foo;};
-void foo() { struct sc_mount mounts[[]] = { {.path = "x"}, {}, }; }
-void bar() { struct rlimit limit = {0}; }
-], [w_missing_field_initializers_usable=yes], [w_missing_field_initializers_usable=no])
-if test "x$w_missing_field_initializers_usable" = "xyes"; then
-   AC_MSG_RESULT([yes])
-else
-  AC_MSG_RESULT([no, running with -Wno-missing-field-initializers])
-fi
-AM_CONDITIONAL([NO_MISSING_FIELD_INITIALIZERS], [test "x$w_missing_field_initializers_usable" = "xno"])
+AC_CACHE_CHECK([whether -Wmissing-field-initializers is correct], [snapd_cv_missing_field_initializers_works], [
+  save_CFLAGS="${CFLAGS}"
+  CFLAGS="${CFLAGS} -Wmissing-field-initializers -Werror"
+  AC_COMPILE_IFELSE(
+    [AC_LANG_SOURCE([[
+struct { int a; int b; } a = { 0 };
+struct { const char* a; int b; } b[] = { {.a = ""}, {} };
+]])], [
+    snapd_cv_missing_field_initializers_works=yes
+  ], [
+    snapd_cv_missing_field_initializers_works=no
+  ])
+  CFLAGS="${save_CFLAGS}"
+])
 
+AM_CONDITIONAL([NO_MISSING_FIELD_INITIALIZERS], [test "x$snapd_cv_missing_field_initializers_works" = "xno"])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
