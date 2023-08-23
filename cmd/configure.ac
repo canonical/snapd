@@ -278,7 +278,21 @@ struct { const char* a; int b; } b[] = { {.a = ""}, {} };
   CFLAGS="${save_CFLAGS}"
 ])
 
-AM_CONDITIONAL([NO_MISSING_FIELD_INITIALIZERS], [test "x$snapd_cv_missing_field_initializers_works" = "xno"])
+AX_APPEND_COMPILE_FLAGS([ dnl
+  -Wall dnl
+  -Wextra dnl
+  -Wmissing-prototypes dnl
+  -Wstrict-prototypes dnl
+  -Wno-unused-parameter dnl
+ ], [CHECK_CFLAGS])
+
+AS_IF([test "x$snapd_cv_missing_field_initializers_works" = "xno"], [
+  AX_APPEND_COMPILE_FLAGS([-Wno-missing-field-initializers], [CHECK_CFLAGS])
+])
+
+AS_IF([test "x$with_unit_tests" = "xyes"], [
+  AX_APPEND_COMPILE_FLAGS([-Werror], [CHECK_CFLAGS])
+])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

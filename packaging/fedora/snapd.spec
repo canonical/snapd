@@ -192,6 +192,7 @@ designed for working with self-contained, immutable packages.
 Summary:        Confinement system for snap applications
 License:        GPLv3
 BuildRequires:  autoconf
+BuildRequires:  autoconf-archive
 BuildRequires:  automake
 BuildRequires:  libtool
 BuildRequires:  gcc
