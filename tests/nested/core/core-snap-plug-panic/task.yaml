@@ -46,6 +46,9 @@ execute: |
     echo "Waiting for reboot"
     remote.wait-for reboot "$boot_id"
     
+    # wait for the change to run to completion
+    remote.exec snap watch --last=install
+
     # now the last change should report Done
     remote.exec snap changes | sed '/^$/d' | tail -n 1 | MATCH "Done"
     remote.exec snap connections | MATCH 'shared-memory\ +shm-plug:shmem\ +shm-slot:shmem'
