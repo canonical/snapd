@@ -154,7 +154,7 @@ func (p *Prompting) GetRequest(userId int, requestId string) (*promptrequests.Pr
 type PromptReply struct {
 	Outcome     common.OutcomeType      `json:"action"`
 	Lifespan    common.LifespanType     `json:"lifespan"`
-	Duration    int                     `json:"duration"`
+	Duration    int                     `json:"duration,omitempty"`
 	PathPattern string                  `json:"path-pattern"`
 	Permissions []common.PermissionType `json:"permissions"`
 }
@@ -195,7 +195,7 @@ type PostRulesCreateRuleContents struct {
 	PathPattern string                  `json:"path-pattern"`
 	Outcome     common.OutcomeType      `json:"outcome"`
 	Lifespan    common.LifespanType     `json:"lifespan"`
-	Duration    int                     `json:"duration"`
+	Duration    int                     `json:"duration,omitempty"`
 	Permissions []common.PermissionType `json:"permissions"`
 }
 
@@ -211,16 +211,16 @@ type PostRulesRequestBody struct {
 }
 
 type PostRuleModifyRuleContents struct {
-	PathPattern string                  `json:"path-pattern"`
-	Outcome     common.OutcomeType      `json:"outcome"`
-	Lifespan    common.LifespanType     `json:"lifespan"`
-	Duration    int                     `json:"duration"`
-	Permissions []common.PermissionType `json:"permissions"`
+	PathPattern string                  `json:"path-pattern,omitempty"`
+	Outcome     common.OutcomeType      `json:"outcome,omitempty"`
+	Lifespan    common.LifespanType     `json:"lifespan,omitempty"`
+	Duration    int                     `json:"duration,omitempty"`
+	Permissions []common.PermissionType `json:"permissions,omitempty"`
 }
 
 type PostRuleRequestBody struct {
 	Action string                      `json:"action"`
-	Rule   *PostRuleModifyRuleContents `json:"rule"`
+	Rule   *PostRuleModifyRuleContents `json:"rule,omitempty"`
 }
 
 func (p *Prompting) GetRules(userId int, snap string, app string) ([]*accessrules.AccessRule, error) {
