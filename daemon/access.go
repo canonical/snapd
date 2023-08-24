@@ -298,3 +298,33 @@ func isRequestFromSnapCmd(r *http.Request) (bool, error) {
 
 	return false, nil
 }
+
+var requirePromptingApiAccess = requirePromptingApiAccessImpl
+
+func requirePromptingApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
+	if ucred == nil {
+		return Forbidden("access denied")
+	}
+
+	switch ucred.Socket {
+	case dirs.SnapdSocket:
+		// Allow access on main snapd.socket
+		return nil
+
+	case dirs.SnapSocket:
+		// Handled below
+	default:
+		return Forbidden("access denied")
+	}
+
+	// TODO: Require snap-prompting-control plug.
+	return nil
+}
+
+// promptingOpenAccess behaves like openAccess, but allows requests from
+// snapd-snap.socket for snaps that plug snap-prompting-control.
+type promptingOpenAccess struct{}
+
+func (ac promptingOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	return requirePromptingApiAccess(d, ucred)
+}
