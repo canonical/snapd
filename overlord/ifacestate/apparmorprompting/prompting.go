@@ -242,7 +242,6 @@ func (p *Prompting) PostRulesCreate(userId int, rules []*PostRulesCreateRuleCont
 	userId = userOverride // TODO: undo this! This is just for debugging
 	createdRules := make([]*accessrules.AccessRule, 0, len(rules))
 	errors := make([]error, 0)
-	hadError := false
 	for _, ruleContents := range rules {
 		snap := ruleContents.Snap
 		app := ruleContents.App
@@ -253,18 +252,15 @@ func (p *Prompting) PostRulesCreate(userId int, rules []*PostRulesCreateRuleCont
 		permissions := ruleContents.Permissions
 		newRule, err := p.rules.CreateAccessRule(userId, snap, app, pathPattern, outcome, lifespan, duration, permissions)
 		if err != nil {
-			hadError = true
+			errors = append(errors, err)
 		} else {
 			createdRules = append(createdRules, newRule)
 		}
-		errors = append(errors, err)
 	}
-	if hadError {
+	if len(errors) > 0 {
 		err := fmt.Errorf("")
 		for i, e := range errors {
-			if e != nil {
-				err = fmt.Errorf("%w%+v: %v; ", err, rules[i], e)
-			}
+			err = fmt.Errorf("%w%+v: %v; ", err, rules[i], e)
 		}
 		return createdRules, err
 	}
