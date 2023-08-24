@@ -378,24 +378,41 @@ func createClassicRootfsIfNeeded(rootfsCreator string) error {
 	return nil
 }
 
-func createSeedOnTarget(bootDevice, seedLabel string) error {
-	// XXX: too naive?
-	dataMnt := runMntFor("ubuntu-data")
+func copySeedDir(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	// Note that we do not use the -a option as cp returns an error if trying to
+	// preserve attributes in a fat filesystem. And this is fine for files from
+	// the seed, that do not need anything too special in that regard.
+	if output, err := exec.Command("cp", "-r", src, dst).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+
+	return nil
+}
+
+func copySeedToSeedPartition() error {
+	dst := runMntFor("ubuntu-seed")
+	for _, subDir := range []string{"snaps", "systems"} {
+		src := filepath.Join(dirs.SnapSeedDir, subDir)
+		if err := copySeedDir(src, dst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copySeedToDataPartition() error {
 	src := dirs.SnapSeedDir
+	dataMnt := runMntFor("ubuntu-data")
 	dst := dirs.SnapSeedDirUnder(dataMnt)
 	// Remove any existing seed on the target fs and then put the
 	// selected seed in place on the target
 	if err := os.RemoveAll(dst); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
-	if output, err := exec.Command("cp", "-a", src, dst).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
-	}
-
-	return nil
+	return copySeedDir(src, dst)
 }
 
 func detectStorageEncryption(seedLabel string) (bool, error) {
@@ -492,7 +509,8 @@ func fillPartiallyDefinedVolume(vol *gadget.Volume, bootDevice string) error {
 	return nil
 }
 
-func run(seedLabel, rootfsCreator, bootDevice string) error {
+func run(seedLabel, bootDevice, rootfsCreator string) error {
+	isCore := rootfsCreator == ""
 	logger.Noticef("installing on %q", bootDevice)
 
 	cli := client.New(nil)
@@ -534,11 +552,17 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	if err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
-	if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
-		return fmt.Errorf("cannot create classic rootfs: %v", err)
+	if isCore {
+		if err := copySeedToSeedPartition(); err != nil {
+			return fmt.Errorf("cannot create seed on seed partition: %v", err)
+		}
+	} else {
+		if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
+			return fmt.Errorf("cannot create classic rootfs: %v", err)
+		}
 	}
-	if err := createSeedOnTarget(bootDevice, seedLabel); err != nil {
-		return fmt.Errorf("cannot create seed on target: %v", err)
+	if err := copySeedToDataPartition(); err != nil {
+		return fmt.Errorf("cannot create seed on data partition: %v", err)
 	}
 	if err := unmountFilesystems(mntPts); err != nil {
 		return fmt.Errorf("cannot unmount filesystems: %v", err)
@@ -552,21 +576,25 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 }
 
 func main() {
-	if len(os.Args) != 4 {
-		// XXX: allow installing real UC without a classic-rootfs later
-		fmt.Fprintf(os.Stderr, "Usage: %s <seed-label> <rootfs-creator> <target-device>\n", os.Args[0])
+	if len(os.Args) < 3 || len(os.Args) > 4 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <seed-label> <target-device> [rootfs-creator]\n"+
+			"If [rootfs-creator] is specified, classic Ubuntu with core boot will be installed.\n"+
+			"Otherwise, Ubuntu Core will be installed\n", os.Args[0])
 		os.Exit(1)
 	}
 	logger.SimpleSetup()
 
 	seedLabel := os.Args[1]
-	rootfsCreator := os.Args[2]
-	bootDevice := os.Args[3]
+	bootDevice := os.Args[2]
+	rootfsCreator := ""
+	if len(os.Args) > 3 {
+		rootfsCreator = os.Args[3]
+	}
 	if bootDevice == "auto" {
 		bootDevice = waitForDevice()
 	}
 
-	if err := run(seedLabel, rootfsCreator, bootDevice); err != nil {
+	if err := run(seedLabel, bootDevice, rootfsCreator); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
