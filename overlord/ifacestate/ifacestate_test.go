@@ -3751,6 +3751,212 @@ slots:
 	})
 }
 
+func (s *interfaceManagerSuite) testUpdateStaticAttributesRespectsSnapDeclaration(c *C, auto, byGadget bool, testUpdateVal string, shouldUpdate bool) {
+	// allow nothing in the base decl, as we'll later allow certain carve-outs
+	// in the snap decl
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    allow-auto-connection: false
+    allow-connection: false
+`))
+	defer restore()
+
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+	initialConns := map[string]interface{}{
+		"test-consumer:test test-producer:test": map[string]interface{}{
+			"interface":   "test",
+			"test-update": "foo",
+		},
+	}
+	if auto {
+		initialConns["test-consumer:test test-producer:test"].(map[string]interface{})["auto"] = true
+	}
+	if byGadget {
+		initialConns["test-consumer:test test-producer:test"].(map[string]interface{})["by-gadget"] = true
+	}
+
+	s.state.Lock()
+	s.state.Set("conns", initialConns)
+	s.state.Unlock()
+
+	const consumerV1Yaml = `
+name: test-consumer
+version: 1
+plugs:
+ test:
+  interface: test
+  test-update: foo
+`
+	consumerV2Yaml := `
+name: test-consumer
+version: 2
+plugs:
+ test:
+  interface: test
+  test-update: ` + testUpdateVal + `
+`
+
+	const producerYaml = `
+name: test-producer
+version: 1
+slots:
+ test:
+  interface: test
+`
+
+	s.MockSnapDecl(c, "test-consumer", "publisher-foo", map[string]interface{}{
+		"format": "5",
+		"plugs": map[string]interface{}{
+			"test": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"plug-attributes": map[string]interface{}{
+						"test-update": []interface{}{
+							"auto",
+							"foo",
+						},
+					},
+				},
+				"allow-connection": map[string]interface{}{
+					"plug-attributes": map[string]interface{}{
+						"test-update": []interface{}{
+							"auto",
+							"manual",
+							"foo",
+						},
+					},
+				},
+				"allow-installation": "true",
+			},
+		},
+	})
+
+	s.MockSnapDecl(c, "test-producer", "publisher-foo", map[string]interface{}{
+		"format": "5",
+		"slots": map[string]interface{}{
+			"test": map[string]interface{}{
+				"allow-installation": "true",
+			},
+		},
+	})
+	// NOTE: s.mockSnap sets the state and calls MockSnapInstance internally,
+	// which puts the snap on disk. This gives us both yamls on disk and
+	// just the first version in the state.
+	snapInfo := s.mockSnap(c, consumerV1Yaml)
+	snaptest.MockSnapInstance(c, "", consumerV2Yaml, &snap.SideInfo{Revision: snap.R(2)})
+
+	s.mockSnap(c, producerYaml)
+
+	secBackend := &ifacetest.TestSecurityBackend{BackendName: "test"}
+	s.mockSecBackend(secBackend)
+
+	// Create the interface manager. This indirectly adds the snaps to the
+	// repository and reloads the connection.
+	s.manager(c)
+
+	// Alter the state of the test snap to get a new revision.
+	s.state.Lock()
+	snapstate.Set(s.state, "test-consumer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{Revision: snap.R(1)}, {Revision: snap.R(2)}},
+		Current:  snap.R(2),
+		SnapType: string("app"),
+	})
+	s.state.Unlock()
+
+	s.state.Lock()
+	change := s.state.NewChange("test", "")
+	task := s.state.NewTask("setup-profiles", "")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "test-consumer", Revision: snap.R(2), SnapID: snapInfo.SnapID}})
+	change.AddTask(task)
+	s.state.Unlock()
+
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	var conns map[string]interface{}
+	s.state.Get("conns", &conns)
+
+	expectedConns := map[string]interface{}{
+		"test-consumer:test test-producer:test": map[string]interface{}{
+			"interface":   "test",
+			"plug-static": map[string]interface{}{"test-update": "foo"},
+		},
+	}
+	if auto {
+		expectedConns["test-consumer:test test-producer:test"].(map[string]interface{})["auto"] = true
+	}
+	if byGadget {
+		expectedConns["test-consumer:test test-producer:test"].(map[string]interface{})["by-gadget"] = true
+	}
+	if shouldUpdate {
+		expectedConns["test-consumer:test test-producer:test"].(map[string]interface{})["plug-static"].(map[string]interface{})["test-update"] = testUpdateVal
+	}
+	c.Check(conns, DeepEquals, expectedConns)
+}
+
+func (s *interfaceManagerSuite) TestUpdateStaticAttributesRespectsSnapDeclarationAutoHappy(c *C) {
+	const auto = true
+	const byGadget = false
+	const testUpdateVal = "auto"
+	const shouldUpdate = true
+	s.testUpdateStaticAttributesRespectsSnapDeclaration(c, auto, byGadget, testUpdateVal, shouldUpdate)
+}
+
+func (s *interfaceManagerSuite) TestUpdateStaticAttributesRespectsSnapDeclarationAutoOnlyAllowManual(c *C) {
+	const auto = true
+	const byGadget = false
+	const testUpdateVal = "manual"
+	const shouldUpdate = false
+	s.testUpdateStaticAttributesRespectsSnapDeclaration(c, auto, byGadget, testUpdateVal, shouldUpdate)
+}
+
+func (s *interfaceManagerSuite) TestUpdateStaticAttributesRespectsSnapDeclarationAutoNonsense(c *C) {
+	const auto = true
+	const byGadget = false
+	const testUpdateVal = "bar"
+	const shouldUpdate = false
+	s.testUpdateStaticAttributesRespectsSnapDeclaration(c, auto, byGadget, testUpdateVal, shouldUpdate)
+}
+
+func (s *interfaceManagerSuite) TestUpdateStaticAttributesRespectsSnapDeclarationManualHappy(c *C) {
+	const auto = false
+	const byGadget = false
+	const testUpdateVal = "manual"
+	const shouldUpdate = true
+	s.testUpdateStaticAttributesRespectsSnapDeclaration(c, auto, byGadget, testUpdateVal, shouldUpdate)
+}
+
+func (s *interfaceManagerSuite) TestUpdateStaticAttributesRespectsSnapDeclarationManualNonsense(c *C) {
+	const auto = false
+	const byGadget = false
+	const testUpdateVal = "bar"
+	const shouldUpdate = false
+	s.testUpdateStaticAttributesRespectsSnapDeclaration(c, auto, byGadget, testUpdateVal, shouldUpdate)
+}
+
+func (s *interfaceManagerSuite) TestUpdateStaticAttributesRespectsSnapDeclarationGadgetHappy(c *C) {
+	const auto = false
+	const byGadget = false
+	const testUpdateVal = "manual"
+	const shouldUpdate = true
+	s.testUpdateStaticAttributesRespectsSnapDeclaration(c, auto, byGadget, testUpdateVal, shouldUpdate)
+}
+
+func (s *interfaceManagerSuite) TestUpdateStaticAttributesRespectsSnapDeclarationGadgetNonsense(c *C) {
+	const auto = false
+	const byGadget = false
+	const testUpdateVal = "bar"
+	const shouldUpdate = false
+	s.testUpdateStaticAttributesRespectsSnapDeclaration(c, auto, byGadget, testUpdateVal, shouldUpdate)
+}
+
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityIgnoresStrayConnection(c *C) {
 	s.MockModel(c, nil)
 
@@ -9602,18 +9808,18 @@ func (s *interfaceManagerSuite) TestFirstTaskAfterBootWhenPreseeding(c *C) {
 	chg := st.NewChange("change", "")
 
 	setupTask := st.NewTask("some-task", "")
-	setupTask.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "test-snap"}})
+	setupTask.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "test-consumer"}})
 	chg.AddTask(setupTask)
 
 	markPreseeded := st.NewTask("fake-mark-preseeded", "")
 	markPreseeded.WaitFor(setupTask)
-	_, err := ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
+	_, err := ifacestate.FirstTaskAfterBootWhenPreseeding("test-consumer", markPreseeded)
 	c.Check(err, ErrorMatches, `internal error: fake-mark-preseeded task not in change`)
 
 	chg.AddTask(markPreseeded)
 
-	_, err = ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
-	c.Check(err, ErrorMatches, `internal error: cannot find install hook for snap "test-snap"`)
+	_, err = ifacestate.FirstTaskAfterBootWhenPreseeding("test-consumer", markPreseeded)
+	c.Check(err, ErrorMatches, `internal error: cannot find install hook for snap "test-consumer"`)
 
 	// install hook of another snap
 	task1 := st.NewTask("run-hook", "")
@@ -9621,16 +9827,16 @@ func (s *interfaceManagerSuite) TestFirstTaskAfterBootWhenPreseeding(c *C) {
 	task1.Set("hook-setup", &hsup)
 	task1.WaitFor(markPreseeded)
 	chg.AddTask(task1)
-	_, err = ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
-	c.Check(err, ErrorMatches, `internal error: cannot find install hook for snap "test-snap"`)
+	_, err = ifacestate.FirstTaskAfterBootWhenPreseeding("test-consumer", markPreseeded)
+	c.Check(err, ErrorMatches, `internal error: cannot find install hook for snap "test-consumer"`)
 
 	// add install hook for the correct snap
 	task2 := st.NewTask("run-hook", "")
-	hsup = hookstate.HookSetup{Hook: "install", Snap: "test-snap"}
+	hsup = hookstate.HookSetup{Hook: "install", Snap: "test-consumer"}
 	task2.Set("hook-setup", &hsup)
 	task2.WaitFor(markPreseeded)
 	chg.AddTask(task2)
-	hooktask, err := ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
+	hooktask, err := ifacestate.FirstTaskAfterBootWhenPreseeding("test-consumer", markPreseeded)
 	c.Assert(err, IsNil)
 	c.Check(hooktask.ID(), Equals, task2.ID())
 }
