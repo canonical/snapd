@@ -79,7 +79,10 @@ const (
 	LastBeforeLocalModificationsEdge = state.TaskSetEdge("last-before-local-modifications")
 )
 
-const snapdDesktopIntegrationSnapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
+const (
+	firmwareUpdaterSnapID         = "EI0D1KHjP8XiwMZKqSjuh6W8zvcowUVP"
+	snapdDesktopIntegrationSnapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
+)
 
 var ErrNothingToDo = errors.New("nothing to do")
 
@@ -1032,13 +1035,13 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		if err != nil {
 			return err
 		}
-		// The snapd-desktop-integration snap is allowed to
-		// use user daemons, irrespective of the feature flag
-		// state.
+		// The firmware-updater and snapd-desktop-integration
+		// snaps are allowed to use user daemons, irrespective
+		// of the feature flag state.
 		//
 		// TODO: remove the special case once
 		// experimental.user-daemons is the default
-		if !flag && info.SnapID != snapdDesktopIntegrationSnapID {
+		if !flag && info.SnapID != firmwareUpdaterSnapID && info.SnapID != snapdDesktopIntegrationSnapID {
 			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 		}
 		if !release.SystemctlSupportsUserUnits() {
