@@ -426,7 +426,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 			// not touch it, unless a gadget asset update says to update that
 			// image file with a new binary image file. This also covers the
 			// partial filesystem case.
-			if gs.Filesystem != "" && gs.Filesystem != ds.PartitionFSType {
+			if gs.Filesystem != "" && !gs.MatchesLinuxFilesystem(ds.PartitionFSType) {
 				// use more specific error message for structures that are
 				// not creatable at install when we are not being strict
 				if !IsCreatableAtInstall(gs) && !opts.AssumeCreatablePartitionsCreated {

@@ -5164,3 +5164,36 @@ func (s *gadgetYamlTestSuite) TestVolumeCopy(c *C) {
 		}
 	}
 }
+
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityVfatPartitions(c *C) {
+	const mockFat16Structure = `
+      - name: Writable
+        role: system-data
+        filesystem-label: writable
+        filesystem: fat16
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 64M
+`
+
+	gadgetVolumeWithExtras, err := gadgettest.VolumeFromYaml(c.MkDir(), mockSimpleGadgetYaml+mockFat16Structure, nil)
+	c.Assert(err, IsNil)
+	deviceLayout := mockDeviceLayout
+
+	// device matches gadget except for the filesystem type
+	deviceLayout.Structure = append(deviceLayout.Structure,
+		gadget.OnDiskStructure{
+			Node:             "/dev/node2",
+			Name:             "Writable",
+			Size:             64 * quantity.SizeMiB,
+			PartitionFSLabel: "writable",
+			PartitionFSType:  "vfat",
+			StartOffset:      2 * quantity.OffsetMiB,
+		},
+	)
+
+	// strict compatibility check, assuming that the creatable partitions
+	// have already been created will fail
+	opts := &gadget.VolumeCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
+	_, err = gadget.EnsureVolumeCompatibility(gadgetVolumeWithExtras, &deviceLayout, opts)
+	c.Assert(err, IsNil)
+}

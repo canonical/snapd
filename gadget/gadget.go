@@ -350,6 +350,15 @@ func isFatFilesystem(filesystem string) bool {
 	return strutil.ListContains([]string{"vfat", "fat16"}, filesystem)
 }
 
+// MatchesLinuxFilesystem checks if the filesystem specified in the
+// gadget matches the filesystem as specified in Linux.
+func (vs *VolumeStructure) MatchesLinuxFilesystem(linuxFsystem string) bool {
+	if isFatFilesystem(vs.Filesystem) && linuxFsystem == "vfat" {
+		return true
+	}
+	return vs.Filesystem == linuxFsystem
+}
+
 // HasLabel checks if label matches the VolumeStructure label. It ignores
 // capitals if the structure has a fat filesystem.
 func (vs *VolumeStructure) HasLabel(label string) bool {
