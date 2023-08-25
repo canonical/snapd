@@ -30,7 +30,7 @@ var (
 		Path: "/v2/accessories/changes/{id}",
 		GET:  getAccessoriesChange,
 		// TODO: expand this to other accessories APIs as they appear
-		ReadAccess: themesOpenAccess{},
+		ReadAccess: interfaceOpenAccess{Interface: "snap-themes-control"},
 	}
 )
 
