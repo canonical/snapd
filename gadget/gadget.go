@@ -293,7 +293,7 @@ type VolumeStructure struct {
 	// ID is the GPT partition ID, this should always be made upper case for
 	// comparison purposes.
 	ID string `yaml:"id" json:"id"`
-	// Filesystem used for the partition, 'vfat', 'ext4' or 'none' for
+	// Filesystem used for the partition, 'fat16', 'vfat', 'ext4' or 'none' for
 	// structures of type 'bare'
 	Filesystem string `yaml:"filesystem" json:"filesystem"`
 	// Content of the structure
@@ -346,10 +346,14 @@ func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
 }
 
+func isFatFilesystem(filesystem string) bool {
+	return strutil.ListContains([]string{"vfat", "fat16"}, filesystem)
+}
+
 // HasLabel checks if label matches the VolumeStructure label. It ignores
-// capitals if the structure has a vfat filesystem.
+// capitals if the structure has a fat filesystem.
 func (vs *VolumeStructure) HasLabel(label string) bool {
-	if vs.Filesystem == "vfat" {
+	if isFatFilesystem(vs.Filesystem) {
 		return strings.EqualFold(vs.Label, label)
 	}
 	return vs.Label == label
@@ -1034,9 +1038,9 @@ func setKnownLabel(label, filesystem string, knownFsLabels, knownVfatFsLabels ma
 	if seen := knownVfatFsLabels[lowerLabel]; seen {
 		return false
 	}
-	if filesystem == "vfat" {
+	if isFatFilesystem(filesystem) {
 		// labels with same name (ignoring capitals) as an already
-		// existing vfat label are not allowed
+		// existing fat label are not allowed
 		for knownLabel := range knownFsLabels {
 			if lowerLabel == strings.ToLower(knownLabel) {
 				return false
@@ -1384,7 +1388,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 		}
 		return fmt.Errorf("invalid %s: %v", what, err)
 	}
-	if vs.Filesystem != "" && !strutil.ListContains([]string{"ext4", "vfat", "none"}, vs.Filesystem) {
+	if vs.Filesystem != "" && !strutil.ListContains([]string{"ext4", "vfat", "fat16", "none"}, vs.Filesystem) {
 		return fmt.Errorf("invalid filesystem %q", vs.Filesystem)
 	}
 

@@ -1368,6 +1368,7 @@ func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
 		err string
 	}{
 		{"vfat", ""},
+		{"fat16", ""},
 		{"ext4", ""},
 		{"none", ""},
 		{"btrfs", `invalid filesystem "btrfs"`},
@@ -1555,6 +1556,8 @@ volumes:
 		err              string
 	}{
 		{"foo", "FOO", "vfat", "vfat", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"foo", "FOO", "vfat", "fat16", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"foo", "FOO", "fat16", "fat16", `invalid volume "minimal": filesystem label "FOO" is not unique`},
 		{"foo", "FOO", "ext4", "ext4", ""},
 		{"foo", "FOO", "vfat", "ext4", `invalid volume "minimal": filesystem label "FOO" is not unique`},
 		{"FOO", "foo", "vfat", "ext4", `invalid volume "minimal": filesystem label "foo" is not unique`},
