@@ -35,7 +35,7 @@ type accessoriesSuite struct {
 }
 
 func (s *accessoriesSuite) expectThemesAccess() {
-	s.expectReadAccess(daemon.ThemesOpenAccess{})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-themes-control"})
 }
 
 func (s *accessoriesSuite) TestChangeInfo(c *C) {
