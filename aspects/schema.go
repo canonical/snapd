@@ -48,7 +48,9 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 			return nil, fmt.Errorf(`cannot parse top level schema's "type" entry: %w`, err)
 		}
 
-		return nil, fmt.Errorf(`cannot parse top level schema: expected map but got %s`, typ)
+		if typ != "map" {
+			return nil, fmt.Errorf(`cannot parse top level schema: expected map but got %s`, typ)
+		}
 	}
 
 	if _, ok := schemaDef["schema"]; !ok {

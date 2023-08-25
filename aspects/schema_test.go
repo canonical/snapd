@@ -53,6 +53,16 @@ func (*schemaSuite) TestTopLevelMustBeMapType(c *C) {
 
 	_, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse top level schema: expected map but got string`)
+
+	schemaStr = []byte(`{
+		"type": "map",
+		"schema": {
+
+		}
+}`)
+
+	_, err = aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
 }
 
 func (*schemaSuite) TestTopLevelTypeWrongFormat(c *C) {
