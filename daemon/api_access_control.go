@@ -33,8 +33,8 @@ var (
 		Path:        "/v2/access-control/rules",
 		GET:         getRules,
 		POST:        postRules,
-		ReadAccess:  promptingOpenAccess{},
-		WriteAccess: promptingOpenAccess{},
+		ReadAccess:  interfaceOpenAccess{Interface: "snap-prompting-control"},
+		WriteAccess: interfaceOpenAccess{Interface: "snap-prompting-control"},
 		// TODO: make this authenticatedAccess{Polkit: polkitActionPrompting}
 		// Need to add polkitActionPrompting to daemon/api.go and register
 		// prompt UI clients with it.
@@ -44,8 +44,8 @@ var (
 		Path:        "/v2/access-control/rules/{id}",
 		GET:         getRule,
 		POST:        postRule,
-		ReadAccess:  promptingOpenAccess{},
-		WriteAccess: promptingOpenAccess{},
+		ReadAccess:  interfaceOpenAccess{Interface: "snap-prompting-control"},
+		WriteAccess: interfaceOpenAccess{Interface: "snap-prompting-control"},
 		// TODO: make these authenticatedAccess{Polkit: polkitActionPrompting}
 		// Need to add polkitActionPrompting to daemon/api.go and register
 		// prompt UI clients with it.
