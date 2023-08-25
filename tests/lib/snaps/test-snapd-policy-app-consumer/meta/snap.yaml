@@ -221,6 +221,9 @@ apps:
   shutdown:
     command: bin/run
     plugs: [ shutdown ]
+  snap-prompting-control:
+    command: bin/run
+    plugs: [ snap-prompting-control ]
   snap-refresh-control:
     command: bin/run
     plugs: [ snap-refresh-control ]
