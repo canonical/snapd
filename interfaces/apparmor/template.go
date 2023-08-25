@@ -65,6 +65,7 @@ var templateCommon = `
 
 #include <tunables/global>
 
+###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
 ###INCLUDE_IF_EXISTS_SNAP_TUNING###
 
 # snapd supports the concept of 'parallel installs' where snaps with the same
@@ -848,6 +849,8 @@ var coreSnippet = `
 var classicTemplate = `
 #include <tunables/global>
 
+###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
+
 ###VAR###
 
 ###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
@@ -931,6 +934,8 @@ var updateNSTemplate = `
 # vim:syntax=apparmor
 
 #include <tunables/global>
+
+###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
 
 profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # The next four rules mirror those above. We want to be able to read

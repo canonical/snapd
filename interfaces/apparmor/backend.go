@@ -180,6 +180,20 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	patchedProfileText = bytes.Replace(
 		patchedProfileText, []byte("/var/lib/snapd/apparmor/snap-confine"), []byte(apparmor_sandbox.SnapConfineAppArmorDir), -1)
 
+	// To support non standard homedirs we currently use the home.d tunables, which are
+	// written to the system apparmor directory. However snapd vendors its own apparmor, which
+	// uses the readonly filesystem, which we cannot modify with our own snippets. So we force
+	// include the home.d tunables from /etc if necessary.
+	// We should be safely able to use "#include if exists" as the vendored apparmor supports this.
+	// XXX: Replace include home tunables until we have a better solution
+	features, _ := parserFeatures()
+	if strutil.ListContains(features, "snapd-internal") {
+		patchedProfileText = bytes.Replace(
+			patchedProfileText,
+			[]byte("#include <tunables/global>"),
+			[]byte("#include <tunables/global>\n#include if exists \"/etc/apparmor.d/tunables/home.d/\""), -1)
+	}
+
 	// Also replace the test providing access to verbatim
 	// /usr/lib/snapd/snap-confine, which is necessary because to execute snaps
 	// from strict snaps, we need to be able read and map
@@ -827,6 +841,14 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 			features, _ := parserFeatures()
 			if strutil.ListContains(features, "include-if-exists") {
 				return `#include if exists "/var/lib/snapd/apparmor/snap-tuning"`
+			}
+			return ""
+		// XXX: Remove this when we have a better solution to including the system
+		// tunables. See snapConfineFromSnapProfile() for a more detailed explanation.
+		case "###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###":
+			features, _ := parserFeatures()
+			if strutil.ListContains(features, "snapd-internal") {
+				return `#include if exists "/etc/apparmor.d/tunables/home.d"`
 			}
 			return ""
 		case "###VAR###":
