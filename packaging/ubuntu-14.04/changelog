@@ -1,3 +1,12 @@
+snapd (2.60.3~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - i/b/shared-memory: handle "private" plug attribute in shared-
+      memory interface correctly
+    - i/apparmor: support for home.d tunables from /etc/
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 25 Aug 2023 18:36:50 +0200
+
 snapd (2.60.2~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #2024007
