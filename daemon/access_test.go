@@ -234,12 +234,14 @@ name: core
 type: os
 version: 1
 slots:
+  snap-prompting-control:
   snap-themes-control:
 `)
 	s.mockSnap(c, `
 name: some-snap
 version: 1
 plugs:
+  snap-prompting-control:
   snap-themes-control:
 `)
 
@@ -251,73 +253,83 @@ plugs:
 	})
 	defer restore()
 
-	var ac daemon.AccessChecker = daemon.InterfaceOpenAccess{Interface: "snap-themes-control"}
+	for _, interfaceName := range []string{
+		"snap-themes-control",
+		"snap-prompting-control",
+	} {
+		var ac daemon.AccessChecker = daemon.InterfaceOpenAccess{Interface: interfaceName}
 
-	// Access with no ucred data is forbidden
-	c.Check(ac.CheckAccess(d, nil, nil, nil), DeepEquals, errForbidden)
+		// Access with no ucred data is forbidden
+		c.Check(ac.CheckAccess(d, nil, nil, nil), DeepEquals, errForbidden)
 
-	// Access from snapd.socket is allowed
-	ucred := &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: dirs.SnapdSocket}
-	c.Check(ac.CheckAccess(d, nil, ucred, nil), IsNil)
+		// Access from snapd.socket is allowed
+		ucred := &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: dirs.SnapdSocket}
+		c.Check(ac.CheckAccess(d, nil, ucred, nil), IsNil)
 
-	// Access from unknown sockets is forbidden
-	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: "unknown.socket"}
-	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
+		// Access from unknown sockets is forbidden
+		ucred = &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: "unknown.socket"}
+		c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
 
-	// Access from pids that cannot be mapped to a snap on
-	// snapd-snap.socket are rejected
-	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: dirs.SnapSocket}
-	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, daemon.Forbidden("could not determine snap name for pid: not a snap"))
+		// Access from pids that cannot be mapped to a snap on
+		// snapd-snap.socket are rejected
+		ucred = &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: dirs.SnapSocket}
+		c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, daemon.Forbidden("could not determine snap name for pid: not a snap"))
 
-	// Access from snapd-snap.socket is rejected by default
-	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 42, Socket: dirs.SnapSocket}
-	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
+		// Access from snapd-snap.socket is rejected by default
+		ucred = &daemon.Ucrednet{Uid: 1000, Pid: 42, Socket: dirs.SnapSocket}
+		c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
 
-	// Now connect the marker interface
-	st := d.Overlord().State()
-	st.Lock()
-	st.Set("conns", map[string]interface{}{
-		"some-snap:snap-themes-control core:snap-themes-control": map[string]interface{}{
-			"interface": "snap-themes-control",
-		},
-	})
-	st.Unlock()
+		// Now connect the marker interface
+		st := d.Overlord().State()
+		st.Lock()
+		st.Set("conns", map[string]interface{}{
+			fmt.Sprintf("some-snap:%s core:%s", interfaceName, interfaceName): map[string]interface{}{
+				"interface": interfaceName,
+			},
+		})
+		st.Unlock()
 
-	// Access is allowed now that the snap has the plug connected
-	c.Check(ac.CheckAccess(s.d, nil, ucred, nil), IsNil)
+		// Access is allowed now that the snap has the plug connected
+		c.Check(ac.CheckAccess(s.d, nil, ucred, nil), IsNil)
 
-	// A left over "undesired" connection does not grant access
-	st.Lock()
-	st.Set("conns", map[string]interface{}{
-		"some-snap:snap-themes-control core:snap-themes-control": map[string]interface{}{
-			"interface": "snap-themes-control",
-			"undesired": true,
-		},
-	})
-	st.Unlock()
-	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
+		// A left over "undesired" connection does not grant access
+		st.Lock()
+		st.Set("conns", map[string]interface{}{
+			fmt.Sprintf("some-snap:%s core:%s", interfaceName, interfaceName): map[string]interface{}{
+				"interface": interfaceName,
+				"undesired": true,
+			},
+		})
+		st.Unlock()
+		c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
+	}
 }
 
 func (s *accessSuite) TestInterfaceOpenAccess(c *C) {
-	var ac daemon.AccessChecker = daemon.InterfaceOpenAccess{Interface: "snap-themes-control"}
-
 	s.daemon(c)
-	// interfaceOpenAccess allows access if requireInterfaceApiAccess() succeeds
-	ucred := &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
-	restore := daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, u *daemon.Ucrednet, interfaceName string) *daemon.APIError {
-		c.Check(d, Equals, s.d)
-		c.Check(u, Equals, ucred)
-		return nil
-	})
-	defer restore()
-	c.Check(ac.CheckAccess(s.d, nil, ucred, nil), IsNil)
+	for _, interfaceName := range []string{
+		"snap-themes-control",
+		"snap-prompting-control",
+	} {
+		var ac daemon.AccessChecker = daemon.InterfaceOpenAccess{Interface: interfaceName}
 
-	// Access is forbidden if requireInterfaceApiAccess() fails
-	restore = daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, u *daemon.Ucrednet, interfaceName string) *daemon.APIError {
-		return errForbidden
-	})
-	defer restore()
-	c.Check(ac.CheckAccess(s.d, nil, ucred, nil), DeepEquals, errForbidden)
+		// interfaceOpenAccess allows access if requireInterfaceApiAccess() succeeds
+		ucred := &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
+		restore := daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, u *daemon.Ucrednet, interfaceName string) *daemon.APIError {
+			c.Check(d, Equals, s.d)
+			c.Check(u, Equals, ucred)
+			return nil
+		})
+		defer restore()
+		c.Check(ac.CheckAccess(s.d, nil, ucred, nil), IsNil)
+
+		// Access is forbidden if requireInterfaceApiAccess() fails
+		restore = daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, u *daemon.Ucrednet, interfaceName string) *daemon.APIError {
+			return errForbidden
+		})
+		defer restore()
+		c.Check(ac.CheckAccess(s.d, nil, ucred, nil), DeepEquals, errForbidden)
+	}
 }
 
 func (s *accessSuite) TestInterfaceAuthenticatedAccess(c *C) {
@@ -334,7 +346,7 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccess(c *C) {
 	user := &auth.UserState{}
 	s.daemon(c)
 
-	// themesAuthenticatedAccess denies access if requireInterfaceApiAccess fails
+	// interfaceAuthenticatedAccess denies access if requireInterfaceApiAccess fails
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
 	restore = daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, u *daemon.Ucrednet, interfaceName string) *daemon.APIError {
 		c.Check(d, Equals, s.d)
