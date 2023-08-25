@@ -1,0 +1,34 @@
+summary: Refresh snap from 2.59 to stable having homedirs set
+
+systems: [ ubuntu-18*, ubuntu-2* ]
+
+prepare: |
+    apt remove -y snapd --purge
+    apt install -y snapd
+
+    mkdir -p /home/mydir/
+    useradd -m -d /home/mydir/mytest mytest
+    usermod -aG sudo mytest
+
+    tests.session -u mytest prepare
+
+restore: |
+    tests.session -u mytest restore
+    userdel mytest
+    rm -rf /home/mydir
+
+    # Restore the original snapd
+    apt remove -y snapd --purge
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_install_build_snapd
+
+execute: |
+    snap install snapd --revision 19122
+    snap set system homedirs=/home/mydir/
+
+    snap install kubectl --classic
+    tests.session -u mytest exec sh -c "kubectl version" 2>&1 | NOMATCH "Permission denied"
+
+    snap refresh snapd --stable
+    tests.session -u mytest exec sh -c "kubectl version" 2>&1 | NOMATCH "Permission denied"
