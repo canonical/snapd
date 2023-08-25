@@ -348,19 +348,28 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		return nil, err
 	}
 
+	canReload := false
+	var policyChecker interfaces.PolicyFunc
+	var autoChecker *autoConnectChecker
+	var connChecker *connectChecker
+
 	deviceCtx, err := snapstate.DeviceCtx(m.state, nil, nil)
-	if err != nil {
+	if errors.Is(err, state.ErrNoState) {
+		//noop
+	} else if err != nil {
 		return nil, err
-	}
+	} else {
+		autoChecker, err = newAutoConnectChecker(m.state, m.repo, deviceCtx)
+		if err != nil {
+			return nil, err
+		}
 
-	autoChecker, err := newAutoConnectChecker(m.state, m.repo, deviceCtx)
-	if err != nil {
-		return nil, err
-	}
+		connChecker, err = newConnectChecker(m.state, deviceCtx)
+		if err != nil {
+			return nil, err
+		}
 
-	connChecker, err := newConnectChecker(m.state, deviceCtx)
-	if err != nil {
-		return nil, err
+		canReload = true
 	}
 
 	connStateChanged := false
@@ -415,34 +424,35 @@ ConnsLoop:
 		}
 
 		var updateStaticAttrs bool
-		var policyChecker interfaces.PolicyFunc
-
 		staticPlugAttrs := connState.StaticPlugAttrs
 		staticSlotAttrs := connState.StaticSlotAttrs
 		newStaticPlugAttrs := utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
 		newStaticSlotAttrs := utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
 
-		// if the interface was originally autoconnected, update the static attrs if it would
-		// still be allowed to autoconnect. Otherwise, update the static attrs if it would still
-		// be allowed to regular connect.
-		if connState.Auto && !connState.ByGadget {
-			policyChecker = func(cplug *interfaces.ConnectedPlug, cslot *interfaces.ConnectedSlot) (bool, error) {
-				ok, _, err := autoChecker.check(cplug, cslot)
-				return ok, err
+		if canReload {
+			// if the interface was originally autoconnected, update the static attrs if it would
+			// still be allowed to autoconnect. Otherwise, update the static attrs if it would still
+			// be allowed to regular connect.
+			if connState.Auto && !connState.ByGadget {
+				policyChecker = func(cplug *interfaces.ConnectedPlug, cslot *interfaces.ConnectedSlot) (bool, error) {
+					ok, _, err := autoChecker.check(cplug, cslot)
+					return ok, err
+				}
+			} else {
+				policyChecker = connChecker.check
 			}
-		} else {
-			policyChecker = connChecker.check
-		}
 
-		cplug := interfaces.NewConnectedPlug(plugInfo, newStaticPlugAttrs, connState.DynamicPlugAttrs)
-		cslot := interfaces.NewConnectedSlot(slotInfo, newStaticSlotAttrs, connState.DynamicSlotAttrs)
+			cplug := interfaces.NewConnectedPlug(plugInfo, newStaticPlugAttrs, connState.DynamicPlugAttrs)
+			cslot := interfaces.NewConnectedSlot(slotInfo, newStaticSlotAttrs, connState.DynamicSlotAttrs)
 
-		if ok, err := policyChecker(cplug, cslot); !ok || err != nil {
-			logger.Noticef("cannot refresh static attributes of the connection %q", connId)
-		} else {
-			staticPlugAttrs = newStaticPlugAttrs
-			staticSlotAttrs = newStaticSlotAttrs
-			updateStaticAttrs = true
+			ok, err := policyChecker(cplug, cslot)
+			if !ok || err != nil {
+				logger.Noticef("cannot refresh static attributes of the connection %q", connId)
+			} else {
+				staticPlugAttrs = newStaticPlugAttrs
+				staticSlotAttrs = newStaticSlotAttrs
+				updateStaticAttrs = true
+			}
 		}
 
 		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
