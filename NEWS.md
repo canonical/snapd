@@ -1,3 +1,10 @@
+# New in snapd 2.60.3:
+* Fix bug in the "private" plug attribute of the shared-memory
+  interface that can result in a crash when upgrading from an
+  old version of snapd.
+* Fix missing integration of the /etc/apparmor.d/tunables/home.d/
+  apparmor to support non-standard home directories
+
 # New in snapd 2.60.2:
 * Performance improvements for apparmor_parser to compensate for
   the slower `-O expr-simplify` default used. This should bring
