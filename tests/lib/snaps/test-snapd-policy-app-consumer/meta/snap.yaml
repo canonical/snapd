@@ -431,6 +431,9 @@ apps:
   snapd-control:
     command: bin/run
     plugs: [ snapd-control ]
+  snap-prompting-control:
+    command: bin/run
+    plugs: [ snap-prompting-control ]
   snap-refresh-control:
     command: bin/run
     plugs: [ snap-refresh-control ]
