@@ -933,6 +933,9 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 
 func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c *C, modelGrade asserts.ModelGrade, modelUpdater func(*C, map[string]interface{}), expectedErr string) {
 	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "20.04"})()
+	// re-init rootdirs required after MockReleaseInfo to ensure
+	// dirs.SnapMountDir is set to /snap on e.g. fedora
+	dirs.SetRootDir(dirs.GlobalRootDir)
 	// XXX this shouldn't be needed
 	defer release.MockOnClassic(true)()
 	c.Assert(release.OnClassic, Equals, true)
