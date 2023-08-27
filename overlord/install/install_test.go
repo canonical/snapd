@@ -1310,7 +1310,7 @@ func (s *installSuite) TestApplyPreseededData(c *C) {
 		{"pc/1", "pc_1.snap"},
 		{"optional20-a/x1", "optional20-a_x1.snap"},
 	} {
-		c.Assert(osutil.FileExists(filepath.Join(writableDir, "/snap", seedSnap.name)), Equals, true, &dumpDirContents{c, writableDir})
+		c.Assert(osutil.FileExists(filepath.Join(writableDir, dirs.StripRootDir(dirs.SnapMountDir), seedSnap.name)), Equals, true, &dumpDirContents{c, writableDir})
 		c.Assert(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, seedSnap.blob)), Equals, true, &dumpDirContents{c, writableDir})
 	}
 
