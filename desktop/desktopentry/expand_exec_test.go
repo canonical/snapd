@@ -74,15 +74,27 @@ func (s *desktopentrySuite) TestExpandExecHelper(c *C) {
 	}, {
 		in:   "foo %u bar",
 		uris: []string{"file:///test1", "file:///test2"},
-		out:  []string{"foo", "file:///test1", "bar"},
+		out:  []string{"foo", "/test1", "bar"},
 	}, {
 		in:   "foo %U bar",
 		uris: []string{"file:///test1", "file:///test2", "file:///test3"},
-		out:  []string{"foo", "file:///test1", "file:///test2", "file:///test3", "bar"},
+		out:  []string{"foo", "/test1", "/test2", "/test3", "bar"},
 	}, {
-		in:   "foo %U",
+		in:   "foo %f",
+		uris: []string{"http://example.org"},
+		err:  `"http://example.org" is not a file URI`,
+	}, {
+		in:   "foo %F",
+		uris: []string{"http://example.org"},
+		err:  `"http://example.org" is not a file URI`,
+	}, {
+		in:   "foo %u",
 		uris: []string{"http://example.org"},
 		out:  []string{"foo", "http://example.org"},
+	}, {
+		in:   "foo %U",
+		uris: []string{"http://example.org", "http://example.com"},
+		out:  []string{"foo", "http://example.org", "http://example.com"},
 	}, {
 		in:  "foo %i bar",
 		out: []string{"foo", "--icon", "/path/icon.png", "bar"},

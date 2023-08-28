@@ -54,7 +54,12 @@ func expandMacro(r rune, buf *bytes.Buffer, de *DesktopEntry, uris []string) ([]
 	switch r {
 	case 'u':
 		if len(uris) > 0 {
-			buf.WriteString(shellQuote(uris[0]))
+			// Format as a file path, falling back to a URI
+			arg, err := toFilePath(uris[0])
+			if err != nil {
+				arg = uris[0]
+			}
+			buf.WriteString(shellQuote(arg))
 			uris = uris[1:]
 		}
 	case 'U':
@@ -64,30 +69,35 @@ func expandMacro(r rune, buf *bytes.Buffer, de *DesktopEntry, uris []string) ([]
 				buf.WriteRune(' ')
 			}
 			first = false
-			buf.WriteString(shellQuote(u))
+			// Format as a file path, falling back to a URI
+			arg, err := toFilePath(u)
+			if err != nil {
+				arg = u
+			}
+			buf.WriteString(shellQuote(arg))
 		}
 		uris = nil
 	case 'f':
 		if len(uris) > 0 {
-			f, err := toFilePath(uris[0])
+			arg, err := toFilePath(uris[0])
 			if err != nil {
 				return nil, err
 			}
-			buf.WriteString(shellQuote(f))
+			buf.WriteString(shellQuote(arg))
 			uris = uris[1:]
 		}
 	case 'F':
 		first := true
 		for _, u := range uris {
-			f, err := toFilePath(u)
-			if err != nil {
-				return nil, err
-			}
 			if !first {
 				buf.WriteRune(' ')
 			}
 			first = false
-			buf.WriteString(shellQuote(f))
+			arg, err := toFilePath(u)
+			if err != nil {
+				return nil, err
+			}
+			buf.WriteString(shellQuote(arg))
 		}
 		uris = nil
 	case 'i':
