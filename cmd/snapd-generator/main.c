@@ -45,11 +45,11 @@ static sc_mountinfo_entry *find_root_mountinfo(sc_mountinfo * mounts)
 
 static int ensure_root_fs_shared(const char *normal_dir)
 {
-	// Load /proc/self/mountinfo so that we can inspect the root filesystem.
+	// Load /proc/1/mountinfo so that we can inspect the root filesystem.
 	sc_mountinfo *mounts SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
-	mounts = sc_parse_mountinfo(NULL);
+	mounts = sc_parse_mountinfo("/proc/1/mountinfo");
 	if (!mounts) {
-		fprintf(stderr, "cannot open or parse /proc/self/mountinfo\n");
+		fprintf(stderr, "cannot open or parse /proc/1/mountinfo\n");
 		return 1;
 	}
 
