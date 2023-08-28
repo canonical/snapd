@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,7 +39,7 @@ type cmdDesktopLaunch struct {
 	DesktopFile string `long:"desktop" required:"true"`
 	Action      string `long:"action"`
 	Positional  struct {
-		Uris []string `positional-arg-name:"<files-or-uris>" required:"0"`
+		FilesOrUris []string `positional-arg-name:"<files-or-uris>" required:"0"`
 	} `positional-args:"true"`
 }
 
@@ -49,6 +50,31 @@ func init() {
 		func() flags.Commander {
 			return &cmdDesktopLaunch{}
 		}, nil, nil)
+}
+
+func cmdlineArgsToUris(args []string) ([]string, error) {
+	uris := make([]string, len(args))
+	for i, arg := range args {
+		// This follows the logic of glib's
+		// g_file_new_for_commandline_arg function:
+		//  - if it looks like an absolute path, it is a file path
+		//  - if it has a valid URI scheme, it is a URI
+		//  - otherwise, it is a relative file path
+		if filepath.IsAbs(arg) {
+			u := &url.URL{Scheme: "file", Path: arg}
+			uris[i] = u.String()
+		} else if u, err := url.Parse(arg); err == nil && u.IsAbs() {
+			uris[i] = arg
+		} else {
+			fullPath, err := filepath.Abs(arg)
+			if err != nil {
+				return nil, err
+			}
+			u := &url.URL{Scheme: "file", Path: fullPath}
+			uris[i] = u.String()
+		}
+	}
+	return uris, nil
 }
 
 func (x *cmdDesktopLaunch) Execute([]string) error {
@@ -64,7 +90,10 @@ func (x *cmdDesktopLaunch) Execute([]string) error {
 		return err
 	}
 
-	uris := x.Positional.Uris
+	uris, err := cmdlineArgsToUris(x.Positional.FilesOrUris)
+	if err != nil {
+		return err
+	}
 
 	var args []string
 	if x.Action == "" {

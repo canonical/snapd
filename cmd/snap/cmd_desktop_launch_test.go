@@ -124,3 +124,28 @@ func (s *DesktopLaunchSuite) TestBadAction(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "desktop-launch", "--desktop", s.desktopFile, "--action", "bad-action"})
 	c.Check(err, ErrorMatches, `desktop file .* does not have action "bad-action"`)
 }
+
+func (s *DesktopLaunchSuite) TestCmdlineArgsToUris(c *C) {
+	// Use a fixed current working directory so relative paths
+	// resolve consistently.
+	origDir, err := os.Getwd()
+	c.Assert(err, IsNil)
+	defer os.Chdir(origDir)
+	os.Chdir("/tmp")
+
+	uris, err := snap.CmdlineArgsToUris([]string{
+		"/test 1.txt",
+		"file:///test2.txt",
+		"http://example.org/test3.txt",
+		"test 4.txt",
+		"mailto:joe@example.org",
+	})
+	c.Assert(err, IsNil)
+	c.Check(uris, DeepEquals, []string{
+		"file:///test%201.txt",
+		"file:///test2.txt",
+		"http://example.org/test3.txt",
+		"file:///tmp/test%204.txt",
+		"mailto:joe@example.org",
+	})
+}
