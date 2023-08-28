@@ -333,13 +333,13 @@ func (s *binariesTestSuite) addSnapBinaries(info *snap.Info) error {
 	return wrappers.EnsureSnapBinaries(nil, info)
 }
 
-func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, disabledCompletion bool) {
+func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, disabledCompletionOnHost bool) {
 	info := snaptest.MockSnap(c, packageHello+"base: "+s.base+"\n", &snap.SideInfo{Revision: snap.R(11)})
 	completer := filepath.Join(dirs.CompletersDir, "hello-snap.world")
 	if useLegacy {
 		completer = filepath.Join(dirs.LegacyCompletersDir, "hello-snap.world")
 	}
-	completerExisted := osutil.FileExists(completer)
+	completerExisted := osutil.FileExists(completer) && !osutil.IsSymlink(completer)
 
 	err := s.addSnapBinaries(info)
 	c.Assert(err, IsNil)
@@ -357,7 +357,7 @@ func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, d
 	if useLegacy {
 		compDir = dirs.LegacyCompletersDir
 	}
-	if disabledCompletion {
+	if disabledCompletionOnHost || !osutil.FileExists(dirs.CompleteShPath(s.base)) {
 		c.Assert(osutil.IsSymlink(filepath.Join(dirs.CompletersDir, "hello-snap.world")), Equals, false)
 		c.Assert(osutil.IsSymlink(filepath.Join(dirs.LegacyCompletersDir, "hello-snap.world")), Equals, false)
 	} else {
@@ -375,7 +375,7 @@ func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, d
 		}
 	}
 
-	if !disabledCompletion && !useLegacy {
+	if !disabledCompletionOnHost && !useLegacy {
 		legacyCompleter := filepath.Join(dirs.LegacyCompletersDir, "hello-snap.world")
 		c.Assert(osutil.IsSymlink(legacyCompleter), Equals, false)
 	}
@@ -385,20 +385,20 @@ func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, d
 
 	for _, bin := range bins {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
-		c.Check(osutil.FileExists(link), Equals, false, Commentf(bin))
+		c.Check(osutil.IsSymlink(link), Equals, false, Commentf(bin))
 	}
 
 	// we left the existing completer alone, but removed it otherwise
 	c.Check(osutil.FileExists(completer), Equals, completerExisted)
 }
 
-func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool, disabledCompletion bool) {
+func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool, disabledCompletionOnHost bool) {
 	oldInfo := snaptest.MockSnap(c, packageHello+"base: "+s.base+"\n", &snap.SideInfo{Revision: snap.R(11)})
 	oldCompleter := filepath.Join(dirs.CompletersDir, "hello-snap.world")
 	if useLegacy {
 		oldCompleter = filepath.Join(dirs.LegacyCompletersDir, "hello-snap.world")
 	}
-	oldCompleterExisted := osutil.FileExists(oldCompleter)
+	oldCompleterExisted := osutil.FileExists(oldCompleter) && !osutil.IsSymlink(oldCompleter)
 	err := s.addSnapBinaries(oldInfo)
 	c.Assert(err, IsNil)
 
@@ -407,7 +407,7 @@ func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool
 	if useLegacy {
 		newCompleter = filepath.Join(dirs.LegacyCompletersDir, "hello-snap.universe")
 	}
-	newCompleterExisted := osutil.FileExists(newCompleter)
+	newCompleterExisted := osutil.FileExists(newCompleter) && !osutil.IsSymlink(newCompleter)
 	err = wrappers.EnsureSnapBinaries(oldInfo, newInfo)
 	c.Assert(err, IsNil)
 
@@ -423,7 +423,7 @@ func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool
 
 	for _, bin := range binsRemoved {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
-		c.Check(osutil.FileExists(link), Equals, false, Commentf(bin))
+		c.Check(osutil.IsSymlink(link), Equals, false, Commentf(bin))
 	}
 
 	compDir := dirs.CompletersDir
@@ -440,7 +440,7 @@ func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool
 		c.Check(osutil.FileExists(oldCompleter), Equals, false)
 	}
 
-	if disabledCompletion {
+	if disabledCompletionOnHost || !osutil.FileExists(dirs.CompleteShPath(s.base)) {
 		c.Assert(osutil.IsSymlink(filepath.Join(dirs.CompletersDir, "hello-snap.universe")), Equals, false)
 		c.Assert(osutil.IsSymlink(filepath.Join(dirs.LegacyCompletersDir, "hello-snap.universe")), Equals, false)
 	} else {
@@ -458,7 +458,7 @@ func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool
 		}
 	}
 
-	if !disabledCompletion && !useLegacy {
+	if !disabledCompletionOnHost && !useLegacy {
 		legacyCompleter := filepath.Join(dirs.LegacyCompletersDir, "hello-snap.universe")
 		c.Assert(osutil.IsSymlink(legacyCompleter), Equals, false)
 	}
@@ -468,7 +468,7 @@ func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool
 
 	for _, bin := range binsAdded {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
-		c.Check(osutil.FileExists(link), Equals, false, Commentf(bin))
+		c.Check(osutil.IsSymlink(link), Equals, false, Commentf(bin))
 	}
 
 	// we left the existing completer alone, but removed it otherwise
