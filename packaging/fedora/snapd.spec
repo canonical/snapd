@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.60.2
+Version:        2.60.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -996,6 +996,12 @@ fi
 
 
 %changelog
+* Fri Aug 25 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.3
+ - i/b/shared-memory: handle "private" plug attribute in shared-
+   memory interface correctly
+ - i/apparmor: support for home.d tunables from /etc/
+
 * Fri Aug 04 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.60.2
  - i/builtin: allow directories in private /dev/shm
