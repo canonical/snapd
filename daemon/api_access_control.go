@@ -113,9 +113,14 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into access rule contents: %v", err)
 	}
 
+	var userID int
+	if user != nil {
+		userID = user.ID
+	}
+
 	switch postBody.Action {
 	case "create":
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesCreate(user.ID, postBody.CreateRules)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesCreate(userID, postBody.CreateRules)
 		if err != nil {
 			return InternalError("%v", err)
 		}
@@ -127,7 +132,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 				return BadRequest(`must include "snap" parameter in "selectors"`)
 			}
 		}
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesDelete(user.ID, postBody.DeleteSelectors)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesDelete(userID, postBody.DeleteSelectors)
 		if err != nil {
 			return InternalError("%v", err)
 		}
@@ -145,7 +150,12 @@ func getRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedAccessControlClientResponse(user)
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRule(user.ID, id)
+	var userID int
+	if user != nil {
+		userID = user.ID
+	}
+
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRule(userID, id)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -167,15 +177,20 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into access rule modification or deletion: %v", err)
 	}
 
+	var userID int
+	if user != nil {
+		userID = user.ID
+	}
+
 	switch postBody.Action {
 	case "modify":
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleModify(user.ID, id, postBody.Rule)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleModify(userID, id, postBody.Rule)
 		if err != nil {
 			return InternalError("%v", err)
 		}
 		return SyncResponse(result)
 	case "delete":
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleDelete(user.ID, id)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleDelete(userID, id)
 		if err != nil {
 			return InternalError("%v", err)
 		}

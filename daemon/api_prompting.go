@@ -102,7 +102,12 @@ func getRequest(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedPromptClientResponse(user)
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequest(user.ID, id)
+	var userID int
+	if user != nil {
+		userID = user.ID
+	}
+
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequest(userID, id)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -118,13 +123,18 @@ func postRequest(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedPromptClientResponse(user)
 	}
 
+	var userID int
+	if user != nil {
+		userID = user.ID
+	}
+
 	var reply apparmorprompting.PromptReply
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&reply); err != nil {
 		return BadRequest("cannot decode request body into prompt reply: %v", err)
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().PostRequest(user.ID, id, &reply)
+	result, err := c.d.overlord.InterfaceManager().Prompting().PostRequest(userID, id, &reply)
 	if err != nil {
 		return InternalError("%v", err)
 	}
