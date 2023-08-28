@@ -263,7 +263,7 @@ func deriveDesktopFilesContent(s *snap.Info, desktopFiles []string) (map[string]
 		fileContent = sanitizeDesktopFile(s, installedDesktopFileName, fileContent)
 		content[base] = &osutil.MemoryFileState{
 			Content: fileContent,
-			Mode:    0755,
+			Mode:    0644,
 		}
 	}
 	return content, nil

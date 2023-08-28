@@ -91,6 +91,9 @@ func (s *desktopSuite) TestEnsurePackageDesktopFiles(c *C) {
 	err := wrappers.EnsureSnapDesktopFiles(info)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
+	stat, err := os.Stat(expectedDesktopFilePath)
+	c.Assert(err, IsNil)
+	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0644))
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
 		{"update-desktop-database", dirs.SnapDesktopFilesDir},
 	})
