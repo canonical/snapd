@@ -236,6 +236,35 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		return append(all, ts)
 	}
 
+	/*chainFullSeedingNew := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
+	                // mark-preseeded task needs to be inserted between preliminary setup and hook tasks
+	                beginTask, beforeHooksTask, hooksTask, err := criticalTaskEdges(ts)
+	                if err != nil {
+	                        // XXX: internal error?
+	                        panic(err)
+	                }
+	                // we either have all edges or none
+	                if beginTask != nil {
+	                        // Install (first of the hook tasks) must wait for mark-preseeded
+				// TODO: This should change to default-configure
+	                        hooksTask.WaitFor(preseedDoneTask)
+	                        if n := len(all); n > 0 {
+	                                // the first hook of the snap waits for all tasks of previous snap
+	                        if lastBeforeHooksTask != nil {
+	                                beginTask.WaitFor(lastBeforeHooksTask)
+	                        }
+	                        preseedDoneTask.WaitFor(beforeHooksTask)
+	                        lastBeforeHooksTask = beforeHooksTask
+	                } else {
+	                        n := len(all)
+	                        // no edges: it is a configure snap taskset for core/gadget/kernel
+	                        if n != 0 {
+	                                ts.WaitAll(all[n-1])
+	                        }
+	                }
+	                return append(all, ts)
+	        }*/
+
 	if preseed {
 		chainTs = chainTsPreseeding
 	} else {
@@ -292,7 +321,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	chainSorted(infos, infoToTs)
 
 	// chain together configuring core, kernel, and gadget after
-	// installing them so that defaults are availabble from gadget
+	// installing them so that defaults are available from gadget
 	if len(configTss) > 0 {
 		if preseed {
 			configTss[0].WaitFor(preseedDoneTask)

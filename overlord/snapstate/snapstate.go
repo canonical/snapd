@@ -71,6 +71,7 @@ const (
 const (
 	BeginEdge                        = state.TaskSetEdge("begin")
 	BeforeHooksEdge                  = state.TaskSetEdge("before-hooks")
+	ConfigureEdge                    = state.TaskSetEdge("configure")
 	HooksEdge                        = state.TaskSetEdge("hooks")
 	BeforeMaybeRebootEdge            = state.TaskSetEdge("before-maybe-reboot")
 	MaybeRebootEdge                  = state.TaskSetEdge("maybe-reboot")
@@ -483,10 +484,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		t.WaitFor(prev)
 		tasks = append(tasks, t)
 	}
-	addTasksFromTaskSet := func(ts *state.TaskSet) {
+	addTasksFromTaskSet := func(ts *state.TaskSet) *state.Task {
 		ts.WaitFor(prev)
+		firstTaskIndex := len(tasks)
 		tasks = append(tasks, ts.Tasks()...)
 		prev = tasks[len(tasks)-1]
+		if len(tasks) > firstTaskIndex {
+			return tasks[firstTaskIndex]
+		}
+		return nil
 	}
 
 	var checkAsserts *state.Task
@@ -634,11 +640,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = quotaAddSnapTask
 	}
 
-	// only run default-configure hook if installing the snap for the first time and
-	// default-configure is allowed
-	if !snapst.IsInstalled() && isDefaultConfigureAllowed(snapsup) {
+	// only run default-configure hook if installing the snap for the first time, skip configure flag is not set
+	// and default-configure is allowed
+	var defaultConfigureHook *state.Task
+	if !snapst.IsInstalled() && flags&skipConfigure == 0 && isDefaultConfigureAllowed(snapsup) {
 		defaultConfigureSet := DefaultConfigure(st, snapsup.InstanceName())
-		addTasksFromTaskSet(defaultConfigureSet)
+		defaultConfigureHook = addTasksFromTaskSet(defaultConfigureSet)
 	}
 
 	// run new services
@@ -705,6 +712,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		addTask(st.NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", snapsup.InstanceName(), revisionStr)))
 	}
 
+	// only run configure hook if skip configure flag is not set and configure is allowed
+	var configureHook *state.Task
+	if isConfigureAllowed(snapsup) && flags&skipConfigure == 0 {
+		confFlags := configureSnapFlags(snapst, snapsup)
+		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
+		configureHook = addTasksFromTaskSet(configSet)
+	}
+
 	installSet := state.NewTaskSet(tasks...)
 	installSet.WaitAll(ts)
 	installSet.MarkEdge(prereq, BeginEdge)
@@ -716,6 +731,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if installHook != nil {
 		installSet.MarkEdge(installHook, HooksEdge)
 	}
+
+	// Set configure edge
+	for _, task := range []*state.Task{defaultConfigureHook, startSnapServices, configureHook} {
+		if task != nil {
+			ts.MarkEdge(task, ConfigureEdge)
+			break
+		}
+	}
+
 	// if snap is being installed from the store, then the last task before
 	// any system modifications are done is check validate-snap, otherwise
 	// it's the prepare-snap
@@ -729,13 +753,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	ts.AddAllWithEdges(installSet)
-
-	if isConfigureAllowed(snapsup) {
-		confFlags := configureSnapFlags(snapst, snapsup)
-		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
-		configSet.WaitAll(ts)
-		ts.AddAll(configSet)
-	}
 
 	healthCheck := CheckHealthHook(st, snapsup.InstanceName(), snapsup.Revision())
 	healthCheck.WaitAll(ts)
