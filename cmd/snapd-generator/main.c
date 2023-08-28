@@ -89,8 +89,13 @@ static int ensure_root_fs_shared(const char *normal_dir)
 	fprintf(f, "Where=" SNAP_MOUNT_DIR "\n");
 	fprintf(f, "Type=none\n");
 	fprintf(f, "Options=bind,shared\n");
-	fprintf(f, "[Install]\n");
-	fprintf(f, "WantedBy=local-fs.target\n");
+
+        /* We do not need to create symlinks from any target since
+         * this generated mount will automically be added to implicit
+         * dependencies of sub mount units through
+         * `RequiresMountsFor`.
+         */
+
 	return 0;
 }
 
