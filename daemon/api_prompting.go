@@ -33,9 +33,6 @@ var (
 		Path:       "/v2/prompting/requests",
 		GET:        getRequests,
 		ReadAccess: interfaceOpenAccess{Interface: "snap-prompting-control"},
-		// TODO: make this authenticatedAccess{Polkit: polkitActionPrompting}
-		// Need to add polkitActionPrompting to daemon/api.go and register
-		// prompt UI clients with it.
 	}
 
 	promptRequestCmd = &Command{
@@ -44,9 +41,6 @@ var (
 		POST:        postRequest,
 		ReadAccess:  interfaceOpenAccess{Interface: "snap-prompting-control"},
 		WriteAccess: interfaceAuthenticatedAccess{Interface: "snap-prompting-control", Polkit: polkitActionManage},
-		// TODO: make these authenticatedAccess{Polkit: polkitActionPrompting}
-		// Need to add polkitActionPrompting to daemon/api.go and register
-		// prompt UI clients with it.
 	}
 )
 
