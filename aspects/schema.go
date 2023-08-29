@@ -85,11 +85,11 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 	if err := json.Unmarshal(raw, &schemaDef); err != nil {
 		var typeErr *json.UnmarshalTypeError
 		if !errors.As(err, &typeErr) {
-			return nil, err
+			return nil, fmt.Errorf(`cannot parse aspect schema: %w`, err)
 		}
 
 		if err := json.Unmarshal(raw, &typ); err != nil {
-			return nil, err
+			return nil, fmt.Errorf(`cannot parse aspect schema: types constraint must be expressed as maps or strings: %w`, err)
 		}
 	} else {
 		rawType, ok := schemaDef["type"]
@@ -97,7 +97,7 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 			typ = "map"
 		} else {
 			if err := json.Unmarshal(rawType, &typ); err != nil {
-				return nil, err
+				return nil, fmt.Errorf(`cannot parse "type" constraint in type definition: %w`, err)
 			}
 		}
 	}
