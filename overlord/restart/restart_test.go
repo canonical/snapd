@@ -312,6 +312,8 @@ func (s *restartSuite) TestProcessRestartForChangeClassic(c *C) {
 
 	chg.AddTask(t)
 
+	restart.MarkTaskAsRestartBoundary(t, restart.RestartBoundaryDirectionDo)
+
 	err = restart.FinishTaskWithRestart2(t, "some-snap", state.DoneStatus, restart.RestartSystem, nil)
 	c.Assert(err, IsNil)
 	c.Check(t.Status(), Equals, state.WaitStatus)
@@ -343,6 +345,8 @@ func (s *restartSuite) TestProcessRestartForChangeCore(c *C) {
 	t := st.NewTask("waiting", "...")
 
 	chg.AddTask(t)
+
+	restart.MarkTaskAsRestartBoundary(t, restart.RestartBoundaryDirectionDo)
 
 	err = restart.FinishTaskWithRestart2(t, "some-snap", state.DoneStatus, restart.RestartSystem, nil)
 	c.Assert(err, IsNil)
@@ -524,7 +528,7 @@ func (s *restartSuite) TestMarkTaskForRestart(c *C) {
 	t1 := st.NewTask("foo", "...")
 	chg.AddTask(t1)
 
-	restart.MarkTaskForRestart(t1, state.DoneStatus)
+	restart.MarkTaskForRestart(t1, state.DoneStatus, true)
 
 	var waitBootID string
 	if err := t1.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
@@ -547,7 +551,7 @@ func (s *restartSuite) TestMarkTaskForRestartClassicUndo(c *C) {
 	t1 := st.NewTask("foo", "...")
 	chg.AddTask(t1)
 
-	restart.MarkTaskForRestart(t1, state.UndoneStatus)
+	restart.MarkTaskForRestart(t1, state.UndoneStatus, true)
 
 	var waitBootID string
 	if err := t1.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
@@ -674,6 +678,33 @@ func (s *restartSuite) TestFinishTaskWithRestart2Done(c *C) {
 
 	err = restart.FinishTaskWithRestart2(t, "some-snap", state.DoneStatus, restart.RestartSystemNow, nil)
 	c.Assert(err, IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	// Restart must still be requested
+	rt, err := restart.RestartParametersFromChange(chg)
+	c.Assert(err, IsNil)
+	c.Check(rt.SnapName, Equals, "some-snap")
+	c.Check(rt.RestartType, Equals, restart.RestartSystemNow)
+	c.Check(rt.BootloaderOptions, IsNil)
+}
+
+func (s *restartSuite) TestFinishTaskWithRestart2DoneWithRestartBoundary(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("test", "...")
+	t := st.NewTask("waiting", "...")
+	chg.AddTask(t)
+
+	restart.MarkTaskAsRestartBoundary(t, restart.RestartBoundaryDirectionDo)
+
+	err = restart.FinishTaskWithRestart2(t, "some-snap", state.DoneStatus, restart.RestartSystemNow, nil)
+	c.Assert(err, IsNil)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(t.WaitedStatus(), Equals, state.DoneStatus)
 
@@ -695,6 +726,8 @@ func (s *restartSuite) TestFinishTaskWithRestart2WithArguments(c *C) {
 	chg := st.NewChange("test", "...")
 	t := st.NewTask("waiting", "...")
 	chg.AddTask(t)
+
+	restart.MarkTaskAsRestartBoundary(t, restart.RestartBoundaryDirectionDo)
 
 	err = restart.FinishTaskWithRestart2(t, "some-snap", state.DoneStatus, restart.RestartSystemNow,
 		&boot.RebootInfo{
@@ -765,6 +798,37 @@ func (s *restartSuite) TestFinishTaskWithRestart2UndoneCore(c *C) {
 
 	err = restart.FinishTaskWithRestart2(t, "some-snap", state.UndoneStatus, restart.RestartSystemNow, nil)
 	c.Assert(err, IsNil)
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+	c.Check(chg.Status(), Equals, state.UndoneStatus)
+
+	// Restart must still be requested
+	rt, err := restart.RestartParametersFromChange(chg)
+	c.Assert(err, IsNil)
+	c.Check(rt.SnapName, Equals, "some-snap")
+	c.Check(rt.RestartType, Equals, restart.RestartSystemNow)
+	c.Check(rt.BootloaderOptions, IsNil)
+}
+
+func (s *restartSuite) TestFinishTaskWithRestart2UndoneCoreWithRestartBoundary(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("test", "...")
+	t := st.NewTask("waiting", "...")
+
+	chg.AddTask(t)
+
+	restart.MarkTaskAsRestartBoundary(t, restart.RestartBoundaryDirectionUndo)
+
+	err = restart.FinishTaskWithRestart2(t, "some-snap", state.UndoneStatus, restart.RestartSystemNow, nil)
+	c.Assert(err, IsNil)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(t.WaitedStatus(), Equals, state.UndoneStatus)
 
@@ -787,6 +851,58 @@ func (s *restartSuite) TestFinishTaskWithRestart2Invalid(c *C) {
 
 	err := restart.FinishTaskWithRestart2(t, "", state.DoingStatus, restart.RestartSystem, nil)
 	c.Assert(err, ErrorMatches, `internal error: unexpected task status when requesting system restart for task: Doing`)
+}
+
+func (s *restartSuite) TestRestartBoundaryDirectionMarshalJSON(c *C) {
+	tests := []struct {
+		value restart.RestartBoundaryDirection
+		str   string
+	}{
+		{restart.RestartBoundaryDirection(0), `""`},
+		{restart.RestartBoundaryDirection(32), `""`},
+		{restart.RestartBoundaryDirectionDo, `"do"`},
+		{restart.RestartBoundaryDirectionUndo, `"undo"`},
+		{restart.RestartBoundaryDirectionDo | restart.RestartBoundaryDirectionUndo, `"do|undo"`},
+	}
+
+	for _, t := range tests {
+		data, err := t.value.MarshalJSON()
+		c.Check(err, IsNil)
+		c.Check(string(data), Equals, t.str)
+	}
+}
+
+func (s *restartSuite) TestRestartBoundaryDirectionUnmarshalJSON(c *C) {
+	tests := []struct {
+		str   string
+		value restart.RestartBoundaryDirection
+	}{
+		{`""`, restart.RestartBoundaryDirection(0)},
+		{`"i9045934"`, restart.RestartBoundaryDirection(0)},
+		{`"do,undo"`, restart.RestartBoundaryDirection(0)},
+		{`"do"`, restart.RestartBoundaryDirectionDo},
+		{`"undo"`, restart.RestartBoundaryDirectionUndo},
+		{`"do|undo"`, restart.RestartBoundaryDirectionDo | restart.RestartBoundaryDirectionUndo},
+	}
+
+	for _, t := range tests {
+		var rbd restart.RestartBoundaryDirection
+		c.Check(rbd.UnmarshalJSON([]byte(t.str)), IsNil)
+		c.Check(rbd, Equals, t.value)
+	}
+}
+
+func (s *restartSuite) TestMarkTaskAsRestartBoundarySimple(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("waiting", "...")
+	restart.MarkTaskAsRestartBoundary(t, restart.RestartBoundaryDirectionDo)
+
+	var boundary restart.RestartBoundaryDirection
+	c.Check(t.Get("restart-boundary", &boundary), IsNil)
+	c.Check(boundary, Equals, restart.RestartBoundaryDirectionDo)
 }
 
 type notifyRebootRequiredSuite struct {
