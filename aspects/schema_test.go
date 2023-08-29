@@ -200,6 +200,19 @@ func (*schemaSuite) TestMapWithValuesStringConstraintHappy(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (*schemaSuite) TestMapWithBadValuesConstraint(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"snaps": {
+			"values": "int"
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse unknown type "int"`)
+}
+
 func (*schemaSuite) TestMapWithUnmetValuesConstraint(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -429,5 +442,5 @@ func (*schemaSuite) TestSchemaWithUnknownType(c *C) {
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse type "blarg": unknown`)
+	c.Assert(err, ErrorMatches, `cannot parse unknown type "blarg"`)
 }

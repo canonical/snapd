@@ -67,12 +67,14 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 	return schema, nil
 }
 
+// StorageSchema represents an aspect schema and can be used to validate JSON
+// aspects against it.
 type StorageSchema struct {
 	// topLevel is the schema for the top level map.
 	topLevel Schema
 }
 
-// Validate validates the provided JSON object
+// Validate validates the provided JSON object.
 func (s *StorageSchema) Validate(raw []byte) error {
 	return s.topLevel.Validate(raw)
 }
@@ -123,7 +125,7 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 	case "string":
 		return &stringSchema{}, nil
 	default:
-		return nil, fmt.Errorf("cannot parse type %q: unknown", typ)
+		return nil, fmt.Errorf("cannot parse unknown type %q", typ)
 	}
 }
 
@@ -197,7 +199,6 @@ func (v *mapSchema) Validate(raw []byte) error {
 			if err := v.keySchema.Validate(rawKey); err != nil {
 				return err
 			}
-
 		}
 	}
 
@@ -213,7 +214,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 }
 
 func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) error {
-	err := checkExclusiveConstraints(constraints)
+	err := checkExclusiveMapConstraints(constraints)
 	if err != nil {
 		return fmt.Errorf(`cannot parse map: %w`, err)
 	}
@@ -277,8 +278,8 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 	return nil
 }
 
-// checkExclusiveConstraints checks if the map contains mutually exclusive constraints.
-func checkExclusiveConstraints(obj map[string]json.RawMessage) error {
+// checkExclusiveMapConstraints checks if the map contains mutually exclusive constraints.
+func checkExclusiveMapConstraints(obj map[string]json.RawMessage) error {
 	has := func(k string) bool {
 		_, ok := obj[k]
 		return ok
