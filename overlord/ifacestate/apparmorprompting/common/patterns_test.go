@@ -174,6 +174,59 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 	c.Check(empty, Equals, "")
 }
 
+func (*commonSuite) TestStripTrailingSlashes(c *C) {
+	cases := []struct {
+		orig     string
+		stripped string
+	}{
+		{
+			"foo",
+			"foo",
+		},
+		{
+			"foo/",
+			"foo",
+		},
+		{
+			"/foo",
+			"/foo",
+		},
+		{
+			"/foo/",
+			"/foo",
+		},
+		{
+			"/foo//",
+			"/foo",
+		},
+		{
+			"/foo///",
+			"/foo",
+		},
+		{
+			"/foo/bar",
+			"/foo/bar",
+		},
+		{
+			"/foo/bar/",
+			"/foo/bar",
+		},
+		{
+			"/foo/bar//",
+			"/foo/bar",
+		},
+		{
+			"/foo/bar///",
+			"/foo/bar",
+		},
+	}
+
+	for _, testCase := range cases {
+		result := common.StripTrailingSlashes(testCase.orig)
+		c.Check(result, Equals, testCase.stripped)
+	}
+}
+
 func (*commonSuite) TestPathPatternMatches(c *C) {
 	cases := []struct {
 		pattern string
@@ -189,6 +242,21 @@ func (*commonSuite) TestPathPatternMatches(c *C) {
 			"/home/test/Documents/foo",
 			"/home/test/Documents/foo.txt",
 			false,
+		},
+		{
+			"/home/test/Documents",
+			"/home/test/Documents",
+			true,
+		},
+		{
+			"/home/test/Documents/*",
+			"/home/test/Documents",
+			true,
+		},
+		{
+			"/home/test/Documents/**",
+			"/home/test/Documents",
+			true,
 		},
 		{
 			"/home/test/Documents/*",
