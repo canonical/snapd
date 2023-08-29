@@ -336,6 +336,21 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 	return shortestPattern, nil
 }
 
+func StripTrailingSlashes(path string) string {
+	for path[len(path)-1] == '/' {
+		path = path[:len(path)-1]
+	}
+	return path
+}
+
 func PathPatternMatches(pathPattern string, path string) (bool, error) {
-	return doublestar.Match(pathPattern, path)
+	path = StripTrailingSlashes(path)
+	matched, err := doublestar.Match(pathPattern, path)
+	if err != nil {
+		return false, err
+	}
+	if matched {
+		return true, nil
+	}
+	return doublestar.Match(pathPattern, path+"/")
 }

@@ -303,6 +303,7 @@ func validatePatternOutcomeLifespanDuration(pathPattern string, outcome common.O
 // of the access rule which is returned.  If any of the given parameters are
 // invalid, returns a corresponding error.
 func (ardb *AccessRuleDB) PopulateNewAccessRule(user int, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
+	pathPattern = common.StripTrailingSlashes(pathPattern)
 	expiration, err := validatePatternOutcomeLifespanDuration(pathPattern, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
@@ -423,6 +424,7 @@ func (ardb *AccessRuleDB) RuleWithID(user int, id string) (*AccessRule, error) {
 func (ardb *AccessRuleDB) CreateAccessRule(user int, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
+	pathPattern = common.StripTrailingSlashes(pathPattern)
 	newRule, err := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
 	if err != nil {
 		return nil, err
@@ -472,6 +474,7 @@ func (ardb *AccessRuleDB) ModifyAccessRule(user int, id string, pathPattern stri
 	if pathPattern == "" {
 		pathPattern = origRule.PathPattern
 	}
+	pathPattern = common.StripTrailingSlashes(pathPattern)
 	if outcome == common.OutcomeUnset {
 		outcome = origRule.Outcome
 	}
