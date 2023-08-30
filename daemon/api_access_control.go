@@ -63,26 +63,39 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	query := r.URL.Query()
+
+	snap := query.Get("snap")
+	app := query.Get("app")
+
 	follow := false
 	if s := query.Get("follow"); s != "" {
 		f, err := strconv.ParseBool(s)
 		if err != nil {
 			return BadRequest("invalid value for follow: %q: %v", s, err)
 		}
+		if snap == "" {
+			return BadRequest("follow=true parameter provided, must also provide snap parameter")
+		}
 		follow = f
 	}
-	if follow {
-		// TODO: do something as a result of follow=true to receive requests
-		// created for the corresponding user in the future and forward them over
-		// this connection.
-	}
-
-	snap := query.Get("snap")
-	app := query.Get("app")
 
 	var userID int
 	if user != nil {
 		userID = user.ID
+	}
+
+	if follow {
+		// TODO: provide a way to stop these when the daemon stops.
+		// XXX: is there a way to tell when the connection has been closed by
+		// the UI client? Can't let requestsCh be closed by the daemon, that
+		// would cause a panic when the prompting manager tries to write or
+		// close it.
+		jsonSeqResp, rulesCh := newFollowRulesSeqResponse()
+		// TODO: implement the following:
+		// respWriter := c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRulesChan(userID, snap, app, rulesCh)
+		// When daemon stops, call respWriter.Stop()
+		_ = c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRulesChan(userID, snap, app, rulesCh)
+		return jsonSeqResp
 	}
 
 	if app != "" && snap == "" {

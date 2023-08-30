@@ -69,15 +69,24 @@ func getRequests(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		follow = f
 	}
-	if follow {
-		// TODO: do something as a result of follow=true to receive requests
-		// created for the corresponding user in the future and forward them over
-		// this connection.
-	}
 
 	var userID int
 	if user != nil {
 		userID = user.ID
+	}
+
+	if follow {
+		// TODO: provide a way to stop these when the daemon stops.
+		// XXX: is there a way to tell when the connection has been closed by
+		// the UI client? Can't let requestsCh be closed by the daemon, that
+		// would cause a panic when the prompting manager tries to write or
+		// close it.
+		jsonSeqResp, requestsCh := newFollowRequestsSeqResponse()
+		// TODO: implement the following:
+		// respWriter := c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRequestsChan(userID, requestsCh)
+		// When daemon stops, call respWriter.Stop()
+		_ = c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRequestsChan(userID, requestsCh)
+		return jsonSeqResp
 	}
 
 	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequests(userID)
@@ -85,7 +94,7 @@ func getRequests(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
-	return SyncResponse(result) // TODO: should this be async for follow=true?
+	return SyncResponse(result)
 }
 
 func getRequest(c *Command, r *http.Request, user *auth.UserState) Response {
