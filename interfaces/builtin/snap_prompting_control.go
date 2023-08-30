@@ -21,10 +21,20 @@ package builtin
 
 const snapPromptingSummary = `allows use of snapd's prompting API`
 
+// XXX: TODO: Reset snapPromptingBaseDeclarationPlugs to the following:
+/*
 const snapPromptingBaseDeclarationPlugs = `
   snap-prompting-control:
     allow-installation: false
     deny-auto-connection: true
+`
+*/
+const snapPromptingBaseDeclarationPlugs = `
+  snap-prompting-control:
+    allow-installation:
+      plug-snap-id:
+        - IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu
+    allow-auto-connection: true
 `
 
 const snapPromptingBaseDeclarationSlots = `
