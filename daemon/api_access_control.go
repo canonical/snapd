@@ -73,9 +73,6 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		if err != nil {
 			return BadRequest("invalid value for follow: %q: %v", s, err)
 		}
-		if snap == "" {
-			return BadRequest("follow=true parameter provided, must also provide snap parameter")
-		}
 		follow = f
 	}
 
