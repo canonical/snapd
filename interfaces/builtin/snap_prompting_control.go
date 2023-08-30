@@ -23,7 +23,9 @@ const snapPromptingSummary = `allows use of snapd's prompting API`
 
 const snapPromptingBaseDeclarationPlugs = `
   snap-prompting-control:
-    allow-installation: false
+    allow-installation:
+      plug-snap-id:
+        - IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu
     deny-auto-connection: true
 `
 
