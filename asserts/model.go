@@ -674,7 +674,7 @@ func checkAuthorityMatchesBrand(a Assertion) error {
 	return nil
 }
 
-func checkOptionalAuthority(headers map[string]interface{}, name string, brandID string, acceptsAny bool) ([]string, error) {
+func checkOptionalAuthority(headers map[string]interface{}, name string, brandID string, acceptsWildcard bool) ([]string, error) {
 	ids := []string{brandID}
 	v, ok := headers[name]
 	if !ok {
@@ -682,7 +682,7 @@ func checkOptionalAuthority(headers map[string]interface{}, name string, brandID
 	}
 	switch x := v.(type) {
 	case string:
-		if acceptsAny && x == "*" {
+		if acceptsWildcard && x == "*" {
 			return nil, nil
 		}
 	case []interface{}:
@@ -695,7 +695,7 @@ func checkOptionalAuthority(headers map[string]interface{}, name string, brandID
 		}
 	}
 
-	if acceptsAny {
+	if acceptsWildcard {
 		return nil, fmt.Errorf("%q header must be '*' or a list of account ids", name)
 	} else {
 		return nil, fmt.Errorf("%q header must be a list of account ids", name)
@@ -703,18 +703,18 @@ func checkOptionalAuthority(headers map[string]interface{}, name string, brandID
 }
 
 func checkOptionalSerialAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
-	const acceptsAny = false
-	return checkOptionalAuthority(headers, "serial-authority", brandID, acceptsAny)
+	const acceptsWildcard = false
+	return checkOptionalAuthority(headers, "serial-authority", brandID, acceptsWildcard)
 }
 
 func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
-	const acceptsAny = true
-	return checkOptionalAuthority(headers, "system-user-authority", brandID, acceptsAny)
+	const acceptsWildcard = true
+	return checkOptionalAuthority(headers, "system-user-authority", brandID, acceptsWildcard)
 }
 
 func checkOptionalPreseedAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
-	const acceptsAny = false
-	return checkOptionalAuthority(headers, "preseed-authority", brandID, acceptsAny)
+	const acceptsWildcard = false
+	return checkOptionalAuthority(headers, "preseed-authority", brandID, acceptsWildcard)
 }
 
 func checkModelValidationSetAccountID(headers map[string]interface{}, what, brandID string) (string, error) {
