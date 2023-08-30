@@ -682,6 +682,11 @@ func getSnapdDesktopFileNames(s *snap.Info) ([]string, error) {
 }
 
 func writeSnapdDesktopFilesOnCore(s *snap.Info) error {
+	// Ensure /var/lib/snapd/desktop/applications exists
+	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
+		return err
+	}
+
 	desktopFileNames, err := getSnapdDesktopFileNames(s)
 	if err != nil {
 		return err
