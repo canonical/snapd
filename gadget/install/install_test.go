@@ -1434,7 +1434,7 @@ func (s *installSuite) TestMountVolumesLazyUnmountError(c *C) {
 	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot lazy unmount %q: lazy unmount failed", seedMntPt))
 }
 
-func (s *installSuite) makeMockGadgetParitionDiskAsinstallerSetsThem(c *C, deviceFmt string) *gadget.Info {
+func (s *installSuite) makeMockGadgetPartitionDiskAsInstallerSetsThem(c *C, deviceFmt string) *gadget.Info {
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
 	c.Assert(err, IsNil)
@@ -1454,9 +1454,9 @@ func (s *installSuite) makeMockGadgetParitionDiskAsinstallerSetsThem(c *C, devic
 
 func (s *installSuite) TestMatchDisksToGadgetVolumesNotFound(c *C) {
 	// SysfsPathForBlockDevice() is not mocked here and by using
-	// the obsolte /dev/xda%d path we can be sure no system that
+	// the obsolete /dev/xda%d path we can be sure no system that
 	// runs this test has it and can match this disk.
-	ginfo := s.makeMockGadgetParitionDiskAsinstallerSetsThem(c, "/dev/xda%d")
+	ginfo := s.makeMockGadgetPartitionDiskAsInstallerSetsThem(c, "/dev/xda%d")
 
 	volCompatOpts := &gadget.VolumeCompatibilityOptions{
 		// at this point all partitions should be created
@@ -1471,7 +1471,7 @@ func (s *installSuite) TestMatchDisksToGadgetVolumesNotFound(c *C) {
 }
 
 func (s *installSuite) TestMatchDisksToGadgetVolumesHappy(c *C) {
-	ginfo := s.makeMockGadgetParitionDiskAsinstallerSetsThem(c, "/dev/vda%d")
+	ginfo := s.makeMockGadgetPartitionDiskAsInstallerSetsThem(c, "/dev/vda%d")
 
 	volCompatOpts := &gadget.VolumeCompatibilityOptions{
 		// at this point all partitions should be created
@@ -1513,7 +1513,7 @@ func (s *installSuite) TestMatchDisksToGadgetVolumesHappy(c *C) {
 }
 
 func (s *installSuite) TestMatchDisksToGadgetVolumesIncompatibleGadget(c *C) {
-	ginfo := s.makeMockGadgetParitionDiskAsinstallerSetsThem(c, "/dev/vda%d")
+	ginfo := s.makeMockGadgetPartitionDiskAsInstallerSetsThem(c, "/dev/vda%d")
 
 	volCompatOpts := &gadget.VolumeCompatibilityOptions{
 		// at this point all partitions should be created
