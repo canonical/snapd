@@ -5,6 +5,9 @@ summary: Basic desktop launcher snap
 description: A basic snap that attempts to launch other snaps
 
 apps:
+  cmd:
+    command: bin/cmd.sh
+    plugs: [desktop-launch]
   dbus:
     command: bin/dbus.sh
     plugs: [desktop-launch]

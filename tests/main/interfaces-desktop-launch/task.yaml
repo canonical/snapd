@@ -61,3 +61,9 @@ execute: |
         test-app_test-app.desktop
     retry -n 5 --wait 1 test -s "$launch_data"
     MATCH "^args=arg-before arg-after$" < "$launch_data"
+
+    echo "The desktop-launch helper reports errors from the D-Bus service"
+    not tests.session -u test exec test-launcher.cmd \
+        snap routine desktop-launch --desktop \
+            /var/lib/snapd/desktop/applications/no-such.desktop 2> stderr.log
+    MATCH 'failed to launch no-such.desktop via the privileged desktop launcher:' < stderr.log
