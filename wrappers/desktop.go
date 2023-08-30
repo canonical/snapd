@@ -246,7 +246,13 @@ func findDesktopFiles(rootDir string) ([]string, error) {
 	return desktopFiles, nil
 }
 
-func deriveDesktopFilesContent(s *snap.Info, desktopFiles []string) (map[string]osutil.FileState, error) {
+func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error) {
+	rootDir := filepath.Join(s.MountDir(), "meta", "gui")
+	desktopFiles, err := findDesktopFiles(rootDir)
+	if err != nil {
+		return nil, err
+	}
+
 	content := make(map[string]osutil.FileState)
 	for _, df := range desktopFiles {
 		base := filepath.Base(df)
@@ -281,13 +287,7 @@ func EnsureSnapDesktopFiles(s *snap.Info) error {
 		return err
 	}
 
-	rootDir := filepath.Join(s.MountDir(), "meta", "gui")
-	desktopFiles, err := findDesktopFiles(rootDir)
-	if err != nil {
-		return err
-	}
-
-	content, err := deriveDesktopFilesContent(s, desktopFiles)
+	content, err := deriveDesktopFilesContent(s)
 	if err != nil {
 		return err
 	}
