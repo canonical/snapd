@@ -75,12 +75,12 @@ func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge
 }
 
 func criticalTaskEdgesNew(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge, beforeConfigureEdge, configureEdge, endEdge *state.Task, err error) {
-	// we expect all three edges, or none (the latter is the case with config tasksets).
+	// we expect all edges, or none (the latter is the case with config tasksets).
 	beginEdge, err = ts.Edge(snapstate.BeginEdge)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil
 	}
-	beforeHooksEdge, err = ts.Edge(snapstate.BeforeHooksEdge)
+	beforeHooksEdge, err = ts.BeforeEdge(snapstate.HooksEdge)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, err
 	}
@@ -185,7 +185,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
 		isCoreBoot := hasModeenv || !release.OnClassic
-		//TODO: This is a hack for testing
+		//TODO: Remove this hack for preseed testing
 		isCoreBoot = true
 		deviceSeed, err = m.importAssertionsFromSeed(isCoreBoot)
 	})
@@ -213,183 +213,131 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	}
 
 	model := deviceSeed.Model()
-
+	modelIsDangerous := model.Grade() == asserts.ModelDangerous
 	essentialSeedSnaps := deviceSeed.EssentialSnaps()
 	seedSnaps, err := deviceSeed.ModeSnaps(mode)
 	if err != nil {
 		return nil, err
 	}
 
-	tsAll := []*state.TaskSet{}
-	//configTss := []*state.TaskSet{}
-
-	var lastBeforeHooksTask *state.Task
-	var chainTs func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet
-
 	var preseedDoneTask *state.Task
 	if preseed {
 		preseedDoneTask = st.NewTask("mark-preseeded", i18n.G("Mark system pre-seeded"))
 	}
-
-	/*chainTsPreseeding := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
-		// mark-preseeded task needs to be inserted between preliminary setup and hook tasks
-		beginTask, beforeHooksTask, hooksTask, err := criticalTaskEdges(ts)
-		if err != nil {
-			// XXX: internal error?
-			panic(err)
-		}
-		// we either have all edges or none
-		if beginTask != nil {
-			// hooks must wait for mark-preseeded
-			hooksTask.WaitFor(preseedDoneTask)
-			if n := len(all); n > 0 {
-				// the first hook of the snap waits for all tasks of previous snap
-				hooksTask.WaitAll(all[n-1])
-			}
-			if lastBeforeHooksTask != nil {
-				beginTask.WaitFor(lastBeforeHooksTask)
-			}
-			preseedDoneTask.WaitFor(beforeHooksTask)
-			lastBeforeHooksTask = beforeHooksTask
-		} else {
-			n := len(all)
-			// no edges: it is a configure snap taskset for core/gadget/kernel
-			if n != 0 {
-				ts.WaitAll(all[n-1])
-			}
-		}
-		return append(all, ts)
-	}*/
-
-        var firstConfigureTask *state.Task
+	var injectedConfigureTaskSet *state.TaskSet
+	var injectedConfigureTask *state.Task
+	var firstConfigureTask *state.Task
+	var lastBeforeHooksTask *state.Task
 	var lastBeforeConfigureTask *state.Task
-	var lastConfigureTask *state.Task
 	var lastEndTask *state.Task
 
-	// THIS IS THE PROPOSED PRESEEDING SORTER
-	linkEssentialSnapTasksPreseed := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
-		// mark-preseeded task needs to be inserted between preliminary setup and hook tasks
+	injectCoreConfigureTask := func() {
+		injectedConfigureTaskSet = snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults)
+	}
+
+	chainSnapTasksPreseed := func(all []*state.TaskSet, ts *state.TaskSet, isEssentialSnap bool) []*state.TaskSet {
 		beginTask, beforeHooksTask, hooksTask, beforeConfigureTask, configureTask, endEdgeTask, err := criticalTaskEdgesNew(ts)
 		if err != nil {
 			panic(err)
 		}
-		
-		// Check if the required task edges was found
+
+		// check if the required task edges was found
 		if beginTask != nil {
-			if n:= len(all); n == 0 {
-				firstConfigureTask = configureTask
+			// add dependencies
+			if len(all) == 0 {
+				if isEssentialSnap {
+					firstConfigureTask = configureTask
+					if injectedConfigureTaskSet != nil {
+						injectedConfigureTask = injectedConfigureTaskSet.Tasks()[0]
+						injectedConfigureTask.WaitFor(beforeConfigureTask)
+						firstConfigureTask.WaitFor(injectedConfigureTaskSet.Tasks()[len(injectedConfigureTaskSet.Tasks())-1])
+						all = append(all, injectedConfigureTaskSet)
+					}
+				}
 			} else {
-				// Link this snap's first task to previous snap before hook task
 				beginTask.WaitFor(lastBeforeHooksTask)
-				configureTask.WaitFor(lastConfigureTask)
+				if isEssentialSnap {
+					configureTask.WaitFor(lastEndTask)
+					hooksTask.WaitFor(lastBeforeConfigureTask)
+					injectedConfigureTask.WaitFor(beforeConfigureTask)
+					firstConfigureTask.WaitFor(beforeConfigureTask)
+				} else {
+					hooksTask.WaitFor(lastEndTask)
+				}
 			}
-			// Mark preseed should also wait for this snaps before hook task
 			preseedDoneTask.WaitFor(beforeHooksTask)
-			// This snap's hook task should wait for mark preseed
 			hooksTask.WaitFor(preseedDoneTask)
 
-			// The first snaps's configure tasks should wait for this snaps before configure task
-			firstConfigureTask.WaitFor(beforeConfigureTask)
-
-			// Store last tasks 
+			// save last tasks
 			lastBeforeHooksTask = beforeHooksTask
-			lastBeforeConfigureTask = beforeConfigureTask
-			lastConfigureTask = configureTask
-			lastEndTask = endEdgeTask
-		}
-		return append(all, ts)
-	}
-	
-	linkOtherSnapTasksPreseed := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
-		// mark-preseeded task needs to be inserted between preliminary setup and hook tasks
-		beginTask, beforeHooksTask, hooksTask, _, _, endEdgeTask, err := criticalTaskEdgesNew(ts)
-		if err != nil {
-			panic(err)
-		}
-		
-		// Check if the required task edges was found
-		if beginTask != nil {
-			// Link this snap's first task to previous snap before hook task
-			beginTask.WaitFor(lastBeforeHooksTask)
-
-			// Mark preseed should also wait for this snaps before hook task
-			preseedDoneTask.WaitFor(beforeHooksTask)
-			
-			// This snap's hook task should wait for mark preseed (stricly redundant)
-			hooksTask.WaitFor(preseedDoneTask)
-
-			// This snap's hook task should wait for the last of the essential snap configuration tasks to complete
-			hooksTask.WaitFor(lastEndTask)
-
-			// Store last tasks 
-			lastBeforeHooksTask = beforeHooksTask
+			if isEssentialSnap {
+				lastBeforeConfigureTask = beforeConfigureTask
+			}
 			lastEndTask = endEdgeTask
 		}
 		return append(all, ts)
 	}
 
-	// THIS IS THE PROPOSED SEEDING SORTER
-	chainTsFullSeedingNew := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
-		beginTask, _, _, beforeConfigureTask, configureTask, _, err := criticalTaskEdgesNew(ts)
+	chainSnapTasksSeed := func(all []*state.TaskSet, ts *state.TaskSet, isEssentialSnap bool) []*state.TaskSet {
+		beginTask, _, _, beforeConfigureTask, configureTask, endTask, err := criticalTaskEdgesNew(ts)
 		if err != nil {
 			panic(err)
 		}
 
-		// Check if the required task edges was found
+		// check if the required task edges was found
 		if beginTask != nil {
-			if n:= len(all); n == 0 {
-				firstConfigureTask = configureTask
+			// add dependencies
+			if len(all) == 0 {
+				if isEssentialSnap {
+					firstConfigureTask = configureTask
+				}
 			} else {
-				beginTask.WaitFor(lastBeforeConfigureTask)
-				configureTask.WaitAll(all[n-1])
-				firstConfigureTask.WaitFor(beforeConfigureTask)
+				if isEssentialSnap {
+					beginTask.WaitFor(lastBeforeConfigureTask)
+					firstConfigureTask.WaitFor(beforeConfigureTask)
+					configureTask.WaitFor(lastEndTask)
+				} else {
+					beginTask.WaitFor(lastEndTask)
+				}
 			}
-			lastBeforeConfigureTask = beforeConfigureTask
+
+			// save last tasks
+			if isEssentialSnap {
+				lastBeforeConfigureTask = beforeConfigureTask
+			}
+			lastEndTask = endTask
 		}
 		return append(all, ts)
 	}
 
-	/*chainTsFullSeeding := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
-		n := len(all)
-		if n != 0 {
-			ts.WaitAll(all[n-1])
-		}
-		return append(all, ts)
-	}*/
-
-	
+	var chainTs func(all []*state.TaskSet, ts *state.TaskSet, isEssentialSnap bool) []*state.TaskSet
 	if preseed {
-		chainTs = linkEssentialSnapTasksPreseed
+		chainTs = chainSnapTasksPreseed
 	} else {
-		//chainTs = chainTsFullSeeding
-		chainTs = chainTsFullSeedingNew
+		chainTs = chainSnapTasksSeed
 	}
 
-	chainSorted := func(infos []*snap.Info, infoToTs map[*snap.Info]*state.TaskSet) {
+	tsAll := []*state.TaskSet{}
+	chainSorted := func(infos []*snap.Info, infoToTs map[*snap.Info]*state.TaskSet, isEssentialSnap bool) {
 		sort.Stable(snap.ByType(infos))
 		for _, info := range infos {
 			ts := infoToTs[info]
-			tsAll = chainTs(tsAll, ts)
+			tsAll = chainTs(tsAll, ts, isEssentialSnap)
 		}
 	}
 
 	// collected snap infos
-	infos := make([]*snap.Info, 0, len(essentialSeedSnaps)+len(seedSnaps))
-
+	infos := make([]*snap.Info, 0, len(essentialSeedSnaps))
 	infoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
 
-	if len(essentialSeedSnaps) != 0 {
-		// we *always* configure "core" here even if bases are used
-		// for booting. "core" is where the system config lives.
-		//configTss = chainTs(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
-	}
-
-	modelIsDangerous := model.Grade() == asserts.ModelDangerous
-	
-	// TODO: Sort this shit earlier on to avoid confusion
+	var hasCoreSnap bool
 	for _, seedSnap := range essentialSeedSnaps {
+		// TODO: Double check if this is solid
+		if seedSnap.EssentialType == snap.TypeOS {
+			hasCoreSnap = true
+		}
+
 		flags := snapstate.Flags{
-			//SkipConfigure: true, <=====
 			// The kernel is already there either from ubuntu-image or from "install"
 			// mode so skip extract.
 			SkipKernelExtraction: true,
@@ -404,29 +352,22 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		if err != nil {
 			return nil, err
 		}
-		/*if info.Type() == snap.TypeKernel || info.Type() == snap.TypeGadget {
-			configTs := snapstate.ConfigureSnap(st, info.SnapName(), snapstate.UseConfigDefaults)
-			// wait for the previous configTss
-			configTss = chainTs(configTss, configTs)
-		}*/
 		infos = append(infos, info)
 		infoToTs[info] = ts
 	}
+
+	// essential snaps requires core configure
+	if !hasCoreSnap {
+		injectCoreConfigureTask()
+	}
+
 	// now add/chain the tasksets in the right order based on essential
 	// snap types
-	chainSorted(infos, infoToTs)
-
-	// chain together configuring core, kernel, and gadget after
-	// installing them so that defaults are available from gadget
-	/*if len(configTss) > 0 {
-		if preseed {
-			configTss[0].WaitFor(preseedDoneTask)
-		}
-		configTss[0].WaitAll(tsAll[len(tsAll)-1])
-		tsAll = append(tsAll, configTss...)
-	}*/
+	isEssentialSnap := true
+	chainSorted(infos, infoToTs, isEssentialSnap)
 
 	// ensure we install in the right order
+	infos = make([]*snap.Info, 0, len(seedSnaps))
 	infoToTs = make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
 
 	for _, seedSnap := range seedSnaps {
@@ -456,18 +397,10 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		return nil, errs[0]
 	}
 
-	// TODO: Temporary directy switch over to other algo
-	chainSorted = func(infos []*snap.Info, infoToTs map[*snap.Info]*state.TaskSet) {
-		sort.Stable(snap.ByType(infos))
-		for _, info := range infos {
-			ts := infoToTs[info]
-			tsAll = linkOtherSnapTasksPreseed(tsAll, ts)
-		}
-	}
-
 	// now add/chain the tasksets in the right order, note that we
 	// only have tasksets that we did not already seeded
-	chainSorted(infos[len(essentialSeedSnaps):], infoToTs)
+	isEssentialSnap = false
+	chainSorted(infos, infoToTs, isEssentialSnap)
 
 	if len(tsAll) == 0 {
 		return nil, fmt.Errorf("cannot proceed, no snaps to seed")
@@ -479,12 +412,12 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	// Start tracking any validation sets included in the seed after
 	// installing the included snaps.
-	/*if trackVss, err := maybeEnforceValidationSetsTask(st, model); err != nil {
+	if trackVss, err := maybeEnforceValidationSetsTask(st, model); err != nil {
 		return nil, err
 	} else if trackVss != nil {
 		trackVss.WaitAll(ts)
 		endTs.AddTask(trackVss)
-	}*/
+	}
 
 	markSeeded := markSeededTask(st)
 	if preseed {

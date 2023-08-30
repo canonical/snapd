@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -342,67 +343,7 @@ snaps:
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
-func (s *firstbootPreseedingClassic16Suite) TestPreseedOnClassicHappyNew(c *C) {     // <========================= 1
-	restore := snapdenv.MockPreseeding(true)
-	defer restore()
-
-	// precondition
-	c.Assert(release.OnClassic, Equals, true)
-
-	coreFname, _, _ := s.makeCoreSnaps(c, "")
-
-	// put a firstboot snap into the SnapBlobDir
-	snapYaml := `name: foo
-version: 1.0
-`
-	fooFname, fooDecl, fooRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
-	s.WriteAssertions("foo.asserts", s.devAcct, fooRev, fooDecl)
-
-	// put a firstboot snap into the SnapBlobDir
-	snapYaml2 := `name: bar
-version: 1.0
-`
-	barFname, barDecl, barRev := s.MakeAssertedSnap(c, snapYaml2, nil, snap.R(33), "developerid")
-	s.WriteAssertions("bar.asserts", s.devAcct, barRev, barDecl)
-
-	// add a model assertion and its chain
-	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
-	s.WriteAssertions("model.asserts", assertsChain...)
-
-	// create a seed.yaml
-	content := []byte(fmt.Sprintf(`
-snaps:
- - name: foo
-   file: %s
- - name: bar
-   file: %s
- - name: core
-   file: %s
-`, fooFname, barFname, coreFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
-	c.Assert(err, IsNil)
-
-	// run the firstboot stuff
-	s.startOverlord(c)
-	st := s.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
-	c.Assert(err, IsNil)
-        for _, ts := range tsAll {
-        	for _, t := range ts.Tasks() {
-                        fmt.Printf("[%s] %s\n", t.ID(), t.Summary())
-                                fmt.Printf("    Waiting for:\n")
-                        for _, wt := range t.WaitTasks() {
-                                fmt.Printf("    -> %s\n", wt.ID())
-                        }
-                }
-        }
-
-}
-
-func (s *firstbootPreseedingClassic16Suite) TestPreseedOnClassicHappyComplete(c *C) {     // <========================= 2
+func (s *firstbootPreseedingClassic16Suite) TestPreseedOnCoreOrderingNew(c *C) {
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
@@ -454,17 +395,18 @@ snaps:
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
-        for _, ts := range tsAll {
-        	for _, t := range ts.Tasks() {
-                        fmt.Printf("[%s] %s\n", t.ID(), t.Summary())
-                                fmt.Printf("    Waiting for:\n")
-                        for _, wt := range t.WaitTasks() {
-                                fmt.Printf("    -> %s\n", wt.ID())
-                        }
-                }
-	}
-}
 
+	// Print tasks with wait tasks
+	devicestatetest.TaskPrintDeps(tsAll)
+
+	tasks, err := devicestatetest.TaskRunOrder(tsAll)
+        c.Assert(err, IsNil)
+
+        // Print tasks order
+        for _, task := range tasks {
+                fmt.Printf("[%s] %s\n", task.ID(), task.Summary())
+        }
+}
 
 func (s *firstbootPreseedingClassic16Suite) TestPreseedClassicWithSnapdOnlyHappy(c *C) {
 	restorePreseedMode := snapdenv.MockPreseeding(true)

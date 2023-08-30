@@ -1601,22 +1601,16 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
-	for _, ts := range tsAll {
-		for _, t := range ts.Tasks() {
-			//snapsup, _ := snapstate.TaskSnapSetup(t)
-			//c.Assert(err, IsNil, Commentf("%#v", t))
-			/*if snapsup != nil {
-				fmt.Printf("Snap: %s\n", snapsup.InstanceName())
-			}*/
-			fmt.Printf("[%s] %s\n", t.ID(), t.Summary())
-				fmt.Printf("    Waiting for:\n")
-			for _, wt := range t.WaitTasks() {
-				fmt.Printf("    -> %s\n", wt.ID())
-			}
-		}
+	devicestatetest.TaskPrintDeps(tsAll)
+
+	tasks, err := devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
+	// For now use visual inspection
+	for _, task := range tasks {
+		fmt.Printf("[%s] %s\n", task.ID(), task.Summary())
 	}
 }
-
 
 func (s *firstBoot16Suite) TestFirstbootGadgetBaseModelBaseMismatch(c *C) {
 	s.WriteAssertions("developer.account", s.devAcct)

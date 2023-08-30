@@ -732,15 +732,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		installSet.MarkEdge(installHook, HooksEdge)
 	}
 
-	// Set before configure edge
-	for _, task := range []*state.Task{defaultConfigureHook, startSnapServices, configureHook} {
-		if task != nil {
-			ts.MarkEdge(task, ConfigureEdge)
-			break
-		}
-	}
-
-
 	// Set configure edge
 	for _, task := range []*state.Task{defaultConfigureHook, startSnapServices, configureHook} {
 		if task != nil {
