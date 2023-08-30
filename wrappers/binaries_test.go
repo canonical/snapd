@@ -267,7 +267,7 @@ func (s *binariesTestSuite) TestAddSnapBinariesAndRemoveWithLegacyCompleters(c *
 
 func (s *binariesTestSuite) TestRemoveWithLegacyCompleters(c *C) {
 	info := snaptest.MockSnap(c, packageHello+"base: "+s.base+"\n", &snap.SideInfo{Revision: snap.R(11)})
-	err := s.addSnapBinaries(info)
+	err := wrappers.EnsureSnapBinaries(info)
 	c.Assert(err, IsNil)
 
 	// Simulate legacy installation
@@ -329,10 +329,6 @@ func (s *binariesTestSuite) TestEnsureSnapBinariesAndRemoveWithExistingLegacyCom
 	s.testEnsureSnapBinariesAndRemove(c, true, false)
 }
 
-func (s *binariesTestSuite) addSnapBinaries(info *snap.Info) error {
-	return wrappers.EnsureSnapBinaries(nil, info)
-}
-
 func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, disabledCompletionOnHost bool) {
 	info := snaptest.MockSnap(c, packageHello+"base: "+s.base+"\n", &snap.SideInfo{Revision: snap.R(11)})
 	completer := filepath.Join(dirs.CompletersDir, "hello-snap.world")
@@ -341,7 +337,7 @@ func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, d
 	}
 	completerExisted := osutil.FileExists(completer) && !osutil.IsSymlink(completer)
 
-	err := s.addSnapBinaries(info)
+	err := wrappers.EnsureSnapBinaries(info)
 	c.Assert(err, IsNil)
 
 	bins := []string{"hello-snap.hello", "hello-snap.world"}
@@ -399,7 +395,7 @@ func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool
 		oldCompleter = filepath.Join(dirs.LegacyCompletersDir, "hello-snap.world")
 	}
 	oldCompleterExisted := osutil.FileExists(oldCompleter) && !osutil.IsSymlink(oldCompleter)
-	err := s.addSnapBinaries(oldInfo)
+	err := wrappers.EnsureSnapBinaries(oldInfo)
 	c.Assert(err, IsNil)
 
 	newInfo := snaptest.MockSnap(c, packageHelloV2+"base: "+s.base+"\n", &snap.SideInfo{Revision: snap.R(12)})
@@ -408,7 +404,7 @@ func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool
 		newCompleter = filepath.Join(dirs.LegacyCompletersDir, "hello-snap.universe")
 	}
 	newCompleterExisted := osutil.FileExists(newCompleter) && !osutil.IsSymlink(newCompleter)
-	err = wrappers.EnsureSnapBinaries(oldInfo, newInfo)
+	err = wrappers.EnsureSnapBinaries(newInfo)
 	c.Assert(err, IsNil)
 
 	binsAdded := []string{"hello-snap.hello", "hello-snap.universe"}
@@ -485,7 +481,7 @@ func (s *binariesTestSuite) TestAddSnapBinariesCleansUpOnFailure(c *C) {
   command: bin/bye
 `, &snap.SideInfo{Revision: snap.R(11)})
 
-	err := s.addSnapBinaries(info)
+	err := wrappers.EnsureSnapBinaries(info)
 	c.Assert(err, NotNil)
 
 	c.Check(osutil.FileExists(link), Equals, false)
