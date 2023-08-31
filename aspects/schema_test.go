@@ -175,8 +175,58 @@ func (*schemaSuite) TestMapKeysConstraintMustBeStringBased(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: must be based on string but got "int"`)
 }
 
-// TODO: once string constraints are supported, test that keys with unmet constraints
-// fail during validation (can't test now because we can't express constraints)
+func (*schemaSuite) TestMapKeysStringBased(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"pattern": {
+			"keys": {
+				"type": "string",
+				"pattern": "[fb]oo"
+			}
+		}
+	}
+}`)
+
+	input := []byte(`{
+	"pattern": {
+		"foo": "a"
+	},
+	"userType": {
+		"boo": "a"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestMapKeysFail(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"snaps": {
+			"keys": {
+				"type": "string",
+				"choices": ["foo"]
+			}
+		}
+	}
+}`)
+
+	input := []byte(`{
+	"snaps": {
+		"bar": "a"
+		}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `string "bar" is not one of the allowed choices`)
+}
 
 func (*schemaSuite) TestMapWithValuesStringConstraintHappy(c *C) {
 	schemaStr := []byte(`{
@@ -232,7 +282,7 @@ func (*schemaSuite) TestMapWithUnmetValuesConstraint(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, "cannot validate string: unexpected object type")
+	c.Assert(err, ErrorMatches, "cannot validate string: json: cannot unmarshal object into Go value of type string")
 }
 
 func (*schemaSuite) TestMapSchemaMetConstraintsWithMissingEntry(c *C) {
@@ -278,7 +328,7 @@ func (*schemaSuite) TestMapSchemaUnmetConstraint(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate string: unexpected object type`)
+	c.Assert(err, ErrorMatches, `cannot validate string: json: cannot unmarshal object into Go value of type string`)
 }
 
 func (*schemaSuite) TestMapSchemaWithMetRequiredConstraint(c *C) {
@@ -443,4 +493,151 @@ func (*schemaSuite) TestSchemaWithUnknownType(c *C) {
 
 	_, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse unknown type "blarg"`)
+}
+
+func (*schemaSuite) TestStringsWithEmptyChoices(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"snaps": {
+			"keys": {
+				"type": "string",
+				"choices": []
+			}
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: cannot have "choices" constraint with empty list`)
+}
+
+func (*schemaSuite) TestStringsWithChoicesHappy(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"snaps": {
+			"keys": {
+				"type": "string",
+				"choices": ["foo", "bar"]
+			}
+		}
+	}
+}`)
+
+	input := []byte(`{
+	"snaps": {
+		"foo": "a",
+		"bar": "a"
+		}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestStringsWithChoicesFail(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"snaps": {
+			"keys": {
+				"type": "string",
+				"choices": ["foo", "bar"]
+			}
+		}
+	}
+}`)
+
+	input := []byte(`{
+	"snaps": {
+		"foo": "a",
+		"bar": "a",
+		"baz": "a"
+		}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `string "baz" is not one of the allowed choices`)
+}
+
+func (*schemaSuite) TestStringChoicesAndPatternsFail(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"snaps": {
+			"keys": {
+				"type": "string",
+				"pattern": "foo",
+				"choices": ["foo"]
+			}
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `.*cannot use "choices" and "pattern" constraints in same schema`)
+}
+
+func (*schemaSuite) TestStringPatternNoMatch(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "string",
+			"pattern": "[fb]00"
+		}
+	}
+}`)
+
+	input := []byte(`{
+	"foo": "F00"
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `string "F00" doesn't match schema pattern \[fb\]00`)
+}
+
+func (*schemaSuite) TestStringPatternWrongFormat(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "string",
+			"pattern": "[fb00"
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "pattern" constraint: error parsing regexp.*`)
+
+	schemaStr = []byte(`{
+	"schema": {
+		"foo": {
+			"type": "string",
+			"pattern": 1
+		}
+	}
+}`)
+
+	_, err = aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "pattern" constraint:.*`)
+}
+
+func (*schemaSuite) TestStringChoicesWrongFormat(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "string",
+			"choices": "one-choice"
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "choices" constraint:.*`)
 }
