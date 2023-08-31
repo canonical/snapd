@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/logger"
@@ -3765,7 +3766,9 @@ slots:
 `))
 	defer restore()
 
-	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+	restore = builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer restore()
+
 	initialConns := map[string]interface{}{
 		"test-consumer:test test-producer:test": map[string]interface{}{
 			"interface":   "test",

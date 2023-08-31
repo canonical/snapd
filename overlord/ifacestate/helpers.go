@@ -432,6 +432,15 @@ ConnsLoop:
 		// be allowed to regular connect.
 		if connState.Auto && !connState.ByGadget {
 			policyChecker = func(cplug *interfaces.ConnectedPlug, cslot *interfaces.ConnectedSlot) (bool, error) {
+				iface, err := interfaces.ByName(cplug.Interface())
+				if err != nil {
+					return false, err
+				}
+
+				if !iface.AutoConnect(plugInfo, slotInfo) {
+					return false, nil
+				}
+
 				ok, _, err := autoChecker.check(cplug, cslot)
 				return ok, err
 			}
