@@ -30,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/sysparams"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // RemoveSnapData removes the data for the given version of the given snap.
@@ -111,14 +113,42 @@ func (b Backend) untrashData(snap *snap.Info, opts *dirs.SnapDirOptions) error {
 	return err
 }
 
+// removeDirs tries to remove all directories even if there is an error.
+//
+// Note: If there is an error only the first one is returned.
 func removeDirs(dirs []string) error {
+	var firstErr error
 	for _, dir := range dirs {
-		if err := os.RemoveAll(dir); err != nil {
-			return err
+		if err := os.RemoveAll(dir); err != nil && firstErr == nil {
+			firstErr = err
 		}
 	}
 
-	return nil
+	return firstErr
+}
+
+// baseSystemDataHomeDirs returns the per-user base directory for snap data under system.homedirs.
+//
+// More info: https://snapcraft.io/docs/home-outside-home.
+func baseSystemDataHomeDirs(name string, opts *dirs.SnapDirOptions) ([]string, error) {
+	var found []string
+	ssp, err := sysparams.Open("")
+	if err != nil {
+		return nil, err
+	}
+	systemHomeBaseDirs := strutil.CommaSeparatedList(ssp.Homedirs)
+	userSnapDir := dirs.UserHomeSnapDir
+	if opts != nil && opts.HiddenSnapDataDir {
+		userSnapDir = dirs.HiddenSnapDataHomeDir
+	}
+	for _, dir := range systemHomeBaseDirs {
+		matches, err := filepath.Glob(filepath.Join(dir, "*", userSnapDir, name))
+		if err != nil {
+			return nil, err
+		}
+		found = append(found, matches...)
+	}
+	return found, nil
 }
 
 // snapDataDirs returns the list of base data directories for the given snap name
@@ -128,6 +158,13 @@ func snapBaseDataDirs(name string, opts *dirs.SnapDirOptions) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
+	// then non-standard homes defined in system.homedirs
+	// more info: https://snapcraft.io/docs/home-outside-home
+	systemHomeDirs, err := baseSystemDataHomeDirs(name, opts)
+	if err != nil {
+		return nil, err
+	}
+	found = append(found, systemHomeDirs...)
 	// then the /root user (including GlobalRootDir for tests)
 	found = append(found, snap.BaseUserDataDir(filepath.Join(dirs.GlobalRootDir, "/root/"), name, opts))
 	// then system data
@@ -139,6 +176,7 @@ func snapBaseDataDirs(name string, opts *dirs.SnapDirOptions) ([]string, error) 
 // snapDataDirs returns the list of data directories for the given snap version
 func snapDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
 	// collect the directories, homes first
+	// XXX: should we handle non-standard homes defined in system.homedirs?
 	found, err := filepath.Glob(snap.DataHomeDir(opts))
 	if err != nil {
 		return nil, err
@@ -154,6 +192,7 @@ func snapDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) 
 // snapCommonDataDirs returns the list of data directories common between versions of the given snap
 func snapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
 	// collect the directories, homes first
+	// XXX: should we handle non-standard homes defined in system.homedirs?
 	found, err := filepath.Glob(snap.CommonDataHomeDir(opts))
 	if err != nil {
 		return nil, err
