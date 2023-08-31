@@ -40,7 +40,7 @@ var (
 	findCmd = &Command{
 		Path:       "/v2/find",
 		GET:        searchStore,
-		ReadAccess: openAccess{},
+		ReadAccess: interfaceOpenAccess{Interface: "snap-find"},
 	}
 )
 

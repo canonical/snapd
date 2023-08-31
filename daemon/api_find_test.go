@@ -29,6 +29,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -40,6 +41,12 @@ var _ = check.Suite(&findSuite{})
 
 type findSuite struct {
 	apiBaseSuite
+}
+
+func (s *findSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-find"})
 }
 
 func (s *findSuite) TestFind(c *check.C) {

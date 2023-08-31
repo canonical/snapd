@@ -416,9 +416,15 @@ apps:
   snapd-control:
     command: bin/run
     plugs: [ snapd-control ]
+  snap-find:
+    command: bin/run
+    plugs: [ snap-find ]
   snap-refresh-control:
     command: bin/run
     plugs: [ snap-refresh-control ]
+  snap-snaps:
+    command: bin/run
+    plugs: [ snap-snaps ]
   snap-themes-control:
     command: bin/run
     plugs: [ snap-themes-control ]
