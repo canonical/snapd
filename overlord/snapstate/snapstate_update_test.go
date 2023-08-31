@@ -9980,21 +9980,19 @@ func (s *snapmgrTestSuite) TestPreDownloadWithIgnoreRunningRefresh(c *C) {
 	c.Assert(chg.Err(), IsNil)
 
 	// wait for the monitoring to be cleared
-	s.state.Unlock()
 	for i := 0; i < 5; i++ {
-		<-time.After(time.Second)
+		s.state.Unlock()
+		<-time.After(2 * time.Second)
 		s.state.Lock()
+
 		// the monitoring has stopped but no auto-refresh was or will be attempted
-		monitoredSnaps := s.state.Cached("monitored-snaps")
-		if monitoredSnaps != nil {
-			s.state.Unlock()
-			continue
+		if monitored := s.state.Cached("monitored-snaps"); monitored == nil {
+			break
 		}
-		break
 	}
 
 	// the monitoring has stopped but no auto-refresh was or will be attempted
-	c.Check(s.state.Cached("monitored-snaps"), IsNil)
+	c.Check(s.state.Cached("monitored-snaps"), IsNil, Commentf("monitoring wasn't cleared after 10 seconds"))
 	c.Check(s.state.Cached("auto-refresh-continue-attempt"), IsNil)
 	lastRefresh, err := s.snapmgr.LastRefresh()
 	c.Assert(err, IsNil)
