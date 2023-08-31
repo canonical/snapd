@@ -3,8 +3,10 @@ Description=Snap Daemon
 After=snapd.socket
 After=time-set.target
 After=snapd.mounts.target
+After=snapd.apparmor.service
 Wants=time-set.target
 Wants=snapd.mounts.target
+Wants=snapd.apparmor.service
 Requires=snapd.socket
 OnFailure=snapd.failure.service
 # This is handled by snapd
