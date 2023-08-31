@@ -244,7 +244,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.DeviceCtx = devicestate.DeviceCtx
+	s.BaseTest.AddCleanup(snapstatetest.ReplaceDeviceCtxHook(devicestate.DeviceCtx))
 	s.MockModel(c, nil)
 
 	s.privateHookMgr = nil
