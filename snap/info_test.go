@@ -1177,8 +1177,8 @@ func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.CommonDataSaveDir(), Equals, "/var/lib/snapd/save/snap/name")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name")
 	// XXX: Those are actually a globs, not directories
-	c.Check(info.DataHomeDir(nil), Equals, "/home/*/snap/name/1")
-	c.Check(info.CommonDataHomeDir(nil), Equals, "/home/*/snap/name/common")
+	c.Check(info.DataHomeDir(nil)[0], Equals, "/home/*/snap/name/1")
+	c.Check(info.CommonDataHomeDir(nil)[0], Equals, "/home/*/snap/name/common")
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
 }
 
@@ -1206,8 +1206,8 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.CommonDataSaveDir(), Equals, "/var/lib/snapd/save/snap/name_instance")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name_instance")
 	// XXX: Those are actually a globs, not directories
-	c.Check(info.DataHomeDir(nil), Equals, "/home/*/snap/name_instance/1")
-	c.Check(info.CommonDataHomeDir(nil), Equals, "/home/*/snap/name_instance/common")
+	c.Check(info.DataHomeDir(nil)[0], Equals, "/home/*/snap/name_instance/1")
+	c.Check(info.CommonDataHomeDir(nil)[0], Equals, "/home/*/snap/name_instance/common")
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
 }
 
