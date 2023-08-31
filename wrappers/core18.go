@@ -667,7 +667,7 @@ func undoSnapdDbusActivationOnCore() error {
 	return err
 }
 
-func getSnapdDesktopFileNames(s *snap.Info) ([]string, error) {
+func snapdDesktopFileNames(s *snap.Info) ([]string, error) {
 	paths, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/share/applications/*.desktop"))
 	if err != nil {
 		return nil, err
@@ -687,7 +687,7 @@ func writeSnapdDesktopFilesOnCore(s *snap.Info) error {
 		return err
 	}
 
-	desktopFileNames, err := getSnapdDesktopFileNames(s)
+	desktopFileNames, err := snapdDesktopFileNames(s)
 	if err != nil {
 		return err
 	}
@@ -702,7 +702,7 @@ func writeSnapdDesktopFilesOnCore(s *snap.Info) error {
 }
 
 func undoSnapdDesktopFilesOnCore(s *snap.Info) error {
-	desktopFileNames, err := getSnapdDesktopFileNames(s)
+	desktopFileNames, err := snapdDesktopFileNames(s)
 	if err != nil {
 		return err
 	}
