@@ -40,7 +40,7 @@ var (
 		GET:         getRequest,
 		POST:        postRequest,
 		ReadAccess:  interfaceOpenAccess{Interface: "snap-prompting-control"},
-		WriteAccess: interfaceAuthenticatedAccess{Interface: "snap-prompting-control", Polkit: polkitActionManage},
+		WriteAccess: interfaceOpenAccess{Interface: "snap-prompting-control"},
 	}
 )
 
