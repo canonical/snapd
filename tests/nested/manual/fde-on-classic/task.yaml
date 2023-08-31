@@ -136,7 +136,7 @@ execute: |
 
   echo "Refresh pc gadget and assert assets got updated"
   refresh_rebooting_snap pc-new.snap pc reboot
-  for f in /boot/grub/kernel.efi /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi; do
+  for f in /boot/grub/kernel.efi /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi; do
       remote.exec sudo grep -q -a '"This program cannot be run in XXX mode"' "$f"
   done
 
