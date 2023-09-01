@@ -202,7 +202,7 @@ apps:
 `
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0444), IsNil)
 	_, err := pack.Snap(sourceDir, pack.Defaults)
-	c.Assert(err, ErrorMatches, "cannot validate snap \"hello\": snapshot exclude path must start with one of.*")
+	c.Assert(err, ErrorMatches, "snapshot exclude path must start with one of.*")
 }
 
 func (s *packSuite) TestPackSnapshotYamlPermissionsError(c *C) {

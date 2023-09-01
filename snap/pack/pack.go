@@ -107,31 +107,26 @@ func CheckSkeleton(w io.Writer, sourceDir string) error {
 }
 
 func loadAndValidate(sourceDir string) (*snap.Info, error) {
-	// Parsing of snap info is duplicated in ReadInfoFromSnapFile. It is done
-	// here to retrieve the snap instance name, if available, to use in case of
-	// ReadInfoFromSnapFile error
-	yaml, err := ioutil.ReadFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
+	container := snapdir.New(sourceDir)
+	yaml, err := container.ReadFile("meta/snap.yaml")
 	if err != nil {
 		return nil, err
 	}
+
 	info, err := snap.InfoFromSnapYaml(yaml)
 	if err != nil {
 		return nil, err
 	}
-	instanceName := info.InstanceName()
+	snap.AddImplicitHooksFromContainer(info, container)
 
-	// ReadInfoFromSnapFile covers the following required steps:
-	// 	- Read snap metadata from meta/snap.yaml
-	//      - Parse snap info from meta/snap.yaml without side info
-	//      - Add and bind implicit hooks from meta/hooks
-	//      - Validate available snap information
-	//      - Validate snapshot metadata from opional meta/snapshot.yaml
-	info, err = snap.ReadInfoFromSnapFile(snapdir.New(sourceDir), nil)
-	if err != nil {
-		return nil, fmt.Errorf("cannot validate snap %q: %v", instanceName, err)
+	if err := snap.Validate(info); err != nil {
+		return nil, fmt.Errorf("cannot validate snap %q: %v", info.InstanceName(), err)
 	}
 
-	if err := snap.ValidateContainer(snapdir.New(sourceDir), info, logger.Noticef); err != nil {
+	if err := snap.ValidateContainer(container, info, logger.Noticef); err != nil {
+		return nil, err
+	}
+	if _, err := snap.ReadSnapshotYamlFromSnapFile(container); err != nil {
 		return nil, err
 	}
 

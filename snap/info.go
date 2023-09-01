@@ -1413,7 +1413,7 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	addImplicitHooksFromContainer(info, snapf)
+	AddImplicitHooksFromContainer(info, snapf)
 
 	bindImplicitHooks(info, strk)
 
