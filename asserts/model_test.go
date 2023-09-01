@@ -554,6 +554,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{reqSnaps, "required-snaps:\n  -\n    - nested\n", `"required-snaps" header must be a list of strings`},
 		{serialAuths, "serial-authority:\n  a: 1\n", `"serial-authority" header must be a list of account ids`},
 		{serialAuths, "serial-authority:\n  - 5_6\n", `"serial-authority" header must be a list of account ids`},
+		{serialAuths, "serial-authority: *\n", `"serial-authority" header must be a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  a: 1\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  - 5_6\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 		{preseedAuths, "preseed-authority:\n  a: 1\n", `"preseed-authority" header must be a list of account ids`},
