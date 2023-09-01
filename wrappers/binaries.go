@@ -162,7 +162,7 @@ func ensureSnapBinariesWithContent(s *snap.Info, binariesContent, completersCont
 	}
 
 	// Ensure completers
-	// First find exsiting completers that were not created by us
+	// First find existing completers that were not created by us
 	existingCompleters, err := findExistingCompleters(s, dirs.CompletersDir)
 	if err != nil {
 		return err
