@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -40,6 +41,12 @@ var _ = check.Suite(&findSuite{})
 
 type findSuite struct {
 	apiBaseSuite
+}
+
+func (s *findSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-prompting-control"}})
 }
 
 func (s *findSuite) TestFind(c *check.C) {
