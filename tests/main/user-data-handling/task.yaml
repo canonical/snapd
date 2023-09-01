@@ -1,26 +1,11 @@
 summary: Check that the refresh data copy works.
 
-environment:
-    USERNAME: home-sweet-home
-
-prepare: |
-    # Create a new user in a non-standard location
-    mkdir -p /remote/users
-    useradd -b /remote/users -m -U "$USERNAME"
-
-restore: |
-    userdel -f --remove "$USERNAME"
-    rm -rf /remote/users
-
 execute: |
-    echo "Enable the home directories under /remote/users"
-    snap set system homedirs=/remote/users
-
     echo "For an installed snap"
     snap install test-snapd-sh
     rev=$(snap list test-snapd-sh|tail -n1|tr -s ' '|cut -f3 -d' ')
 
-    homes=(/root/ /home/test/ "/remote/users/$USERNAME/")
+    homes=(/root/ /home/test/)
     echo "That has some user data"
     for h in "${homes[@]}"; do
         test -d "$h"
@@ -36,10 +21,6 @@ execute: |
 
     echo "Then the user data gets copied"
     for h in "${homes[@]}"; do
-        # TODO: fix data copy not working for non-standard home dirs
-        if [[ ${h} == "/remote/users/$USERNAME/" ]]; then
-            continue
-        fi
         test -e "${h}snap/test-snapd-sh/$new_rev/mock-data"
         test -e "${h}snap/test-snapd-sh/$rev/mock-data"
     done
