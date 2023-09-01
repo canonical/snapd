@@ -1740,7 +1740,9 @@ func (s *deviceMgrSuite) TestHasFdeSetupHook(c *C) {
 	} {
 		makeInstalledMockKernelSnap(c, st, tc.kernelYaml)
 
+		st.Unlock()
 		hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr, nil)
+		st.Lock()
 		c.Assert(err, IsNil)
 		c.Check(hasHook, Equals, tc.hasFdeSetupHook)
 	}
@@ -1765,11 +1767,15 @@ func (s *deviceMgrSuite) TestHasFdeSetupHookOtherKernel(c *C) {
 	_, otherInfo := snaptest.MakeTestSnapInfoWithFiles(c, kernelYamlWithFdeSetup, nil, otherSI)
 	makeInstalledMockKernelSnap(c, st, kernelYamlNoFdeSetup)
 
+	st.Unlock()
 	hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr, nil)
+	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(hasHook, Equals, false)
 
+	st.Unlock()
 	hasHook, err = devicestate.DeviceManagerHasFDESetupHook(s.mgr, otherInfo)
+	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(hasHook, Equals, true)
 }
@@ -1822,9 +1828,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookHappy(c *C) {
 		Key:     mockKey[:],
 		KeyName: "some-key-name",
 	}
-	st.Lock()
 	res, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, req)
-	st.Unlock()
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, []byte("result"))
 	c.Check(hookCalled, DeepEquals, []string{"pc-kernel"})
@@ -1859,9 +1863,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookErrors(c *C) {
 	req := &fde.SetupRequest{
 		Op: "op",
 	}
-	st.Lock()
 	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, req)
-	st.Unlock()
 	c.Assert(err, ErrorMatches, `cannot run hook for "op": run hook "fde-setup": hook failed`)
 }
 
@@ -1901,9 +1903,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookErrorResult(c *C) {
 	req := &fde.SetupRequest{
 		Op: "op",
 	}
-	st.Lock()
 	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, req)
-	st.Unlock()
 	c.Assert(err, ErrorMatches, `cannot get result from fde-setup hook "op": cannot unmarshal context value for "fde-setup-result": illegal base64 data at input byte 3`)
 }
 

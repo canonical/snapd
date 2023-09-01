@@ -2378,8 +2378,10 @@ func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool 
 }
 
 func (m *DeviceManager) hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
-	// state must be locked
+	// state must be unlocked
 	st := m.state
+	st.Lock()
+	defer st.Unlock()
 
 	deviceCtx, err := DeviceCtx(st, nil, nil)
 	if err != nil {
@@ -2402,14 +2404,17 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	// that we never run this when the kernel is not fully configured
 	// i.e. when there are no security profiles for the hook
 
-	// state must be locked
+	// state must be unlocked
 	st := m.state
+	st.Lock()
 
 	deviceCtx, err := DeviceCtx(st, nil, nil)
 	if err != nil {
+		st.Unlock()
 		return nil, fmt.Errorf("cannot get device context to run fde-setup hook: %v", err)
 	}
 	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	st.Unlock()
 	if err != nil {
 		return nil, fmt.Errorf("cannot get kernel info to run fde-setup hook: %v", err)
 	}
@@ -2423,8 +2428,6 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	contextData := map[string]interface{}{
 		"fde-setup-request": req,
 	}
-	st.Unlock()
-	defer st.Lock()
 	context, err := m.hookMgr.EphemeralRunHook(context.Background(), hooksup, contextData)
 	if err != nil {
 		return nil, fmt.Errorf("cannot run hook for %q: %v", req.Op, err)
@@ -2597,7 +2600,10 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		return "", err
 	}
 
-	return install.CheckEncryptionSupport(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
+	st.Unlock()
+	ret, err := install.CheckEncryptionSupport(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
+	st.Lock()
+	return ret, err
 }
 
 func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (install.EncryptionSupportInfo, error) {
