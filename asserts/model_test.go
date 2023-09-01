@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -534,6 +534,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{reqSnaps, "required-snaps:\n  -\n    - nested\n", `"required-snaps" header must be a list of strings`},
 		{serialAuths, "serial-authority:\n  a: 1\n", `"serial-authority" header must be a list of account ids`},
 		{serialAuths, "serial-authority:\n  - 5_6\n", `"serial-authority" header must be a list of account ids`},
+		{serialAuths, "serial-authority: *\n", `"serial-authority" header must be a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  a: 1\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  - 5_6\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 		{reqSnaps, "grade: dangerous\n", `cannot specify a grade for model without the extended snaps header`},
