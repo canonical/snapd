@@ -36,38 +36,38 @@ func Test(t *testing.T) { TestingT(t) }
 var _ = Suite(&aspectSuite{})
 
 func (*aspectSuite) TestNewAspectBundle(c *C) {
-	_, err := aspects.NewAspectBundle("acc", "foo", nil, aspects.NewJSONSchema())
+	_, err := aspects.NewAspectBundle("acc", "foo", nil, aspects.NewJSONSchema(), nil)
 	c.Assert(err, ErrorMatches, `cannot define aspects bundle: no aspects`)
 
 	_, err = aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"bar": "baz",
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns should be a list of maps`)
 
 	_, err = aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"bar": []map[string]string{},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, ErrorMatches, `cannot define aspect "bar": no access patterns found`)
 
 	_, err = aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"path": "foo"},
 		},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns must have a "name" field`)
 
 	_, err = aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "foo"},
 		},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns must have a "path" field`)
 
 	aspectBundle, err := aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "a", "path": "b"},
 		},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, IsNil)
 	c.Check(aspectBundle, Not(IsNil))
 }
@@ -99,7 +99,7 @@ func (s *aspectSuite) TestAccessTypes(c *C) {
 		aspectBundle, err := aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 			"bar": []map[string]string{
 				{"name": "a", "path": "b", "access": t.access},
-			}}, aspects.NewJSONSchema())
+			}}, aspects.NewJSONSchema(), nil)
 
 		cmt := Commentf("\"%s access\" sub-test failed", t.access)
 		if t.err {
@@ -121,7 +121,7 @@ func (*aspectSuite) TestGetAndSetAspects(c *C) {
 			{"name": "top-level", "path": "top-level"},
 			{"name": "dotted.name", "path": "dotted"},
 		},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, IsNil)
 
 	wsAspect := aspectBundle.Aspect("wifi-setup")
@@ -171,7 +171,7 @@ func (s *aspectSuite) TestAspectNotFound(c *C) {
 			{"name": "nested", "path": "top.nested-one"},
 			{"name": "other-nested", "path": "top.nested-two"},
 		},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, IsNil)
 
 	aspect := aspectBundle.Aspect("bar")
@@ -204,7 +204,7 @@ func (s *aspectSuite) TestAspectBadRead(c *C) {
 			{"name": "one", "path": "one"},
 			{"name": "onetwo", "path": "one.two"},
 		},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, IsNil)
 
 	aspect := aspectBundle.Aspect("bar")
@@ -228,7 +228,7 @@ func (s *aspectSuite) TestAspectsAccessControl(c *C) {
 			{"name": "read-only", "path": "path.read-only", "access": "read"},
 			{"name": "write-only", "path": "path.write-only", "access": "write"},
 		},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, IsNil)
 
 	aspect := aspectBundle.Aspect("foo")
@@ -320,7 +320,7 @@ func (s *aspectSuite) TestAspectAssertionWithPlaceholder(c *C) {
 			{"name": "{foo}.mid2.{bar}", "path": "{bar}.mid2.{foo}"},
 			{"name": "multi.{foo}", "path": "{foo}.multi.{foo}"},
 		},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, IsNil)
 
 	aspect := aspectBundle.Aspect("foo")
@@ -445,7 +445,7 @@ func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
 			"foo": []map[string]string{
 				{"name": tc.name, "path": tc.path},
 			},
-		}, aspects.NewJSONSchema())
+		}, aspects.NewJSONSchema(), nil)
 
 		cmt := Commentf("sub-test %q failed", tc.testName)
 		c.Assert(err, Not(IsNil), cmt)
@@ -460,7 +460,7 @@ func (s *aspectSuite) TestAspectUnsetTopLevelEntry(c *C) {
 			{"name": "foo", "path": "foo"},
 			{"name": "bar", "path": "bar"},
 		},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, IsNil)
 
 	aspect := aspectBundle.Aspect("my-aspect")
@@ -489,7 +489,7 @@ func (s *aspectSuite) TestAspectUnsetLeafWithSiblings(c *C) {
 			{"name": "bar", "path": "foo.bar"},
 			{"name": "baz", "path": "foo.baz"},
 		},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, IsNil)
 
 	aspect := aspectBundle.Aspect("my-aspect")
@@ -519,7 +519,7 @@ func (s *aspectSuite) TestAspectUnsetWithNestedEntry(c *C) {
 			{"name": "foo", "path": "foo"},
 			{"name": "bar", "path": "foo.bar"},
 		},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, IsNil)
 
 	aspect := aspectBundle.Aspect("my-aspect")
@@ -544,7 +544,7 @@ func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
 			{"name": "foo", "path": "foo"},
 			{"name": "bar", "path": "foo.bar"},
 		},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, IsNil)
 
 	aspect := aspectBundle.Aspect("my-aspect")
@@ -570,7 +570,7 @@ func (s *aspectSuite) TestAspectUnsetAlreadyUnsetEntry(c *C) {
 			{"name": "foo", "path": "foo"},
 			{"name": "bar", "path": "one.bar"},
 		},
-	}, aspects.NewJSONSchema())
+	}, aspects.NewJSONSchema(), nil)
 	c.Assert(err, IsNil)
 
 	aspect := aspectBundle.Aspect("my-aspect")

@@ -93,7 +93,7 @@ func (e *InvalidAccessError) Is(err error) bool {
 
 // DataBag controls access to the aspect data storage.
 type DataBag interface {
-	Query(path string, params map[string]string, filters map[string]Filter) ([]interface{}, error)
+	Query(path string, params map[string]string) ([]interface{}, error)
 	Get(path string, value interface{}) error
 	Set(path string, value interface{}) error
 	Data() ([]byte, error)
@@ -115,7 +115,7 @@ type Bundle struct {
 
 // NewAspectBundle returns a new aspect bundle for the specified aspects
 // and access patterns.
-func NewAspectBundle(account string, bundleName string, aspects map[string]interface{}, schema Schema) (*Bundle, error) {
+func NewAspectBundle(account string, bundleName string, aspects map[string]interface{}, schema Schema, optionals map[string]bool) (*Bundle, error) {
 	if len(aspects) == 0 {
 		return nil, errors.New(`cannot define aspects bundle: no aspects`)
 	}
@@ -135,7 +135,7 @@ func NewAspectBundle(account string, bundleName string, aspects map[string]inter
 			return nil, fmt.Errorf("cannot define aspect %q: no access patterns found", name)
 		}
 
-		aspect, err := newAspect(aspectBundle, name, accessPatterns)
+		aspect, err := newAspect(aspectBundle, name, accessPatterns, optionals)
 		if err != nil {
 			return nil, fmt.Errorf("cannot define aspect %q: %w", name, err)
 		}
@@ -146,7 +146,7 @@ func NewAspectBundle(account string, bundleName string, aspects map[string]inter
 	return aspectBundle, nil
 }
 
-func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) (*Aspect, error) {
+func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string, optionals map[string]bool) (*Aspect, error) {
 	aspect := &Aspect{
 		Name:           name,
 		accessPatterns: make([]*accessPattern, 0, len(aspectPatterns)),
@@ -175,7 +175,7 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) 
 			return nil, errors.New(`access patterns must have a "path" field`)
 		}
 
-		if err := validateNamePathPair(name, path); err != nil {
+		if err := validateNamePathPair(name, path, optionals); err != nil {
 			return nil, err
 		}
 
@@ -193,7 +193,7 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) 
 // validateNamePathPair checks that:
 //   - names and paths are composed of valid subkeys (see: validateAspectString)
 //   - all placeholders in a name are in the path and vice-versa
-func validateNamePathPair(name, path string) error {
+func validateNamePathPair(name, path string, optionals map[string]bool) error {
 	if err := validateAspectDottedPath(name); err != nil {
 		return fmt.Errorf("invalid access name %q: %w", name, err)
 	}
@@ -202,29 +202,28 @@ func validateNamePathPair(name, path string) error {
 		return fmt.Errorf("invalid path %q: %w", path, err)
 	}
 
-	// NOTE: if we can express the placeholder values as a query parameters,
-	// we don't need these to have the placeholders in the name/request
+	namePlaceholders, pathPlaceholders := getPlaceholders(name), getPlaceholders(path)
+	for placeholder := range pathPlaceholders {
+		if _, ok := namePlaceholders[placeholder]; !ok && !optionals[placeholder] {
+			return fmt.Errorf("non-optional placeholder %q from access name %q is absent from path %q",
+				placeholder, name, path)
+		}
+	}
 
-	//namePlaceholders, pathPlaceholders := getPlaceholders(name), getPlaceholders(path)
-	//if len(namePlaceholders) != len(pathPlaceholders) {
-	//	return fmt.Errorf("access name %q and path %q have mismatched placeholders", name, path)
-	//}
-
-	//for placeholder := range namePlaceholders {
-	//	if !pathPlaceholders[placeholder] {
-	//		return fmt.Errorf("placeholder %q from access name %q is absent from path %q",
-	//			placeholder, name, path)
-	//	}
-	//}
+	for placeholder := range namePlaceholders {
+		if _, ok := pathPlaceholders[placeholder]; !ok {
+			return fmt.Errorf(`cannot find name placeholder %q in path`, placeholder)
+		}
+	}
 
 	return nil
 }
 
 var (
-	subkeyRegex           = "(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*"
-	validSubkey           = regexp.MustCompile(fmt.Sprintf("^%s$", subkeyRegex))
-	validPlaceholder      = regexp.MustCompile(fmt.Sprintf("^{%s}$", subkeyRegex))
-	validFieldPlaceholder = regexp.MustCompile(fmt.Sprintf(`^{%s}(\[\.%s={%s}\])?$`, subkeyRegex, subkeyRegex, subkeyRegex))
+	subkeyRegex              = "(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*"
+	validSubkey              = regexp.MustCompile(fmt.Sprintf("^%s$", subkeyRegex))
+	validPlaceholder         = regexp.MustCompile(fmt.Sprintf("^{%s}$", subkeyRegex))
+	validFilteredPlaceholder = regexp.MustCompile(fmt.Sprintf(`^{%s}(\[\.%s={%s}\])$`, subkeyRegex, subkeyRegex, subkeyRegex))
 )
 
 // validateAspectDottedPath validates that names/paths in an aspect definition are:
@@ -239,7 +238,7 @@ func validateAspectDottedPath(path string) (err error) {
 			return errors.New("cannot have empty subkeys")
 		}
 
-		if !(validSubkey.MatchString(subkey) || validPlaceholder.MatchString(subkey) || validFieldPlaceholder.MatchString(subkey)) {
+		if !(validSubkey.MatchString(subkey) || validPlaceholder.MatchString(subkey) || validFilteredPlaceholder.MatchString(subkey)) {
 			return fmt.Errorf("invalid subkey %q", subkey)
 		}
 	}
@@ -277,14 +276,15 @@ func splitPath(path string) []string {
 func getPlaceholders(aspectStr string) map[string]bool {
 	var placeholders map[string]bool
 
-	subkeys := strings.Split(aspectStr, ".")
+	subkeys := splitPath(aspectStr)
 	for _, subkey := range subkeys {
-		if subkey[0] == '{' && subkey[len(subkey)-1] == '}' {
+		if subkey[0] == '{' {
+			// may not be last char, if there's a field filter
+			end := strings.Index(subkey, "}")
 			if placeholders == nil {
 				placeholders = make(map[string]bool)
 			}
-
-			placeholders[subkey] = true
+			placeholders[subkey[1:end]] = true
 		}
 	}
 
@@ -386,29 +386,39 @@ func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 	}
 }
 
-func (a *Aspect) Query(databag DataBag, request, query string, filters map[string]Filter) ([]interface{}, error) {
-	subkeys := strings.Split(request, ".")
+func (a *Aspect) Query(databag DataBag, request, query string) ([]interface{}, error) {
+	var params map[string]string
+	if query != "" {
+		params = make(map[string]string)
+		queryParts := strings.Split(query, ",")
+
+		for _, query := range queryParts {
+			parts := strings.Split(query, "=")
+			if len(parts) != 2 {
+				return nil, fmt.Errorf(`cannot parse query: %s should be key=val`, query)
+			}
+
+			params[parts[0]] = parts[1]
+		}
+	}
+
+	subkeys := splitPath(request)
 	for _, accessPatt := range a.accessPatterns {
-		_, ok := accessPatt.match(subkeys)
+		placeholders, ok := accessPatt.match(subkeys)
 		if !ok {
 			continue
 		}
 
-		params := make(map[string]string)
-		if query != "" {
-			queryParts := strings.Split(query, ",")
-
-			for _, query := range queryParts {
-				parts := strings.Split(query, "=")
-				if len(parts) != 2 {
-					return nil, fmt.Errorf(`cannot parse query: %s should be key=val`, query)
-				}
-
-				params[parts[0]] = parts[1]
-			}
+		for ref, value := range params {
+			placeholders[ref] = value
 		}
 
-		return databag.Query(accessPatt.originalPath, params, filters)
+		path, err := accessPatt.getPath(placeholders)
+		if err != nil {
+			return nil, err
+		}
+
+		return databag.Query(path, params)
 	}
 
 	return nil, fmt.Errorf(`cannot find path that matches request`)
@@ -420,26 +430,32 @@ func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 		return nil, fmt.Errorf("cannot create aspect pattern: %w", err)
 	}
 
-	nameSubkeys := strings.Split(name, ".")
+	nameSubkeys := splitPath(name)
 	nameMatchers := make([]nameMatcher, 0, len(nameSubkeys))
 	for _, subkey := range nameSubkeys {
 		var patt nameMatcher
-		if isPlaceholder(subkey) {
-			patt = placeholder(subkey[1 : len(subkey)-1])
-		} else {
+		switch {
+		case isFilteredPlaceholder(subkey):
+			patt = filteredPlaceholder(subkey)
+		case isPlaceholder(subkey):
+			patt = placeholder(subkey)
+		default:
 			patt = literal(subkey)
 		}
 
 		nameMatchers = append(nameMatchers, patt)
 	}
 
-	pathSubkeys := strings.Split(path, ".")
+	pathSubkeys := splitPath(path)
 	pathWriters := make([]pathWriter, 0, len(pathSubkeys))
 	for _, subkey := range pathSubkeys {
 		var patt pathWriter
-		if isPlaceholder(subkey) {
-			patt = placeholder(subkey[1 : len(subkey)-1])
-		} else {
+		switch {
+		case isFilteredPlaceholder(subkey):
+			patt = filteredPlaceholder(subkey)
+		case isPlaceholder(subkey):
+			patt = placeholder(subkey)
+		default:
 			patt = literal(subkey)
 		}
 
@@ -458,6 +474,10 @@ func isPlaceholder(part string) bool {
 	return part[0] == '{' && part[len(part)-1] == '}'
 }
 
+func isFilteredPlaceholder(s string) bool {
+	return validFilteredPlaceholder.MatchString(s)
+}
+
 // accessPattern represents an individual aspect access pattern. It can be used
 // to match an input name and map it into a corresponding path, potentially with
 // placeholders filled in.
@@ -466,6 +486,7 @@ type accessPattern struct {
 	name         []nameMatcher
 	path         []pathWriter
 	access       accessType
+	optional     map[string]bool
 }
 
 // match takes a list of subkeys and returns true if those subkeys match the pattern's
@@ -474,13 +495,9 @@ type accessPattern struct {
 // and nameSubkeys=["a", "b", "c"], then it returns true and the map will contain
 // {"foo": "a", "bar": "c"}.
 func (p *accessPattern) match(nameSubkeys []string) (map[string]string, bool) {
-	if len(p.name) != len(nameSubkeys) {
-		return nil, false
-	}
-
 	placeholders := make(map[string]string)
 	for i, subkey := range nameSubkeys {
-		if !p.name[i].match(subkey, placeholders) {
+		if !p.optional[subkey] && !p.name[i].match(subkey, placeholders) {
 			return nil, false
 		}
 	}
@@ -503,7 +520,6 @@ func (p *accessPattern) getPath(placeholders map[string]string) (string, error) 
 		if err := subkey.write(sb, placeholders); err != nil {
 			return "", err
 		}
-
 	}
 
 	return sb.String(), nil
@@ -552,6 +568,38 @@ func (p placeholder) write(sb *strings.Builder, placeholders map[string]string) 
 	return err
 }
 
+type filteredPlaceholder string
+
+// match adds a mapping to the placeholders map from this placeholder key to the
+// supplied name subkey and returns true (a placeholder matches with any value).
+func (p filteredPlaceholder) match(subkey string, placeholders map[string]string) bool {
+	end := strings.Index(string(p), "}")
+	ref := string(p)[1:end]
+	placeholders[ref] = subkey
+	return true
+}
+
+// write writes the value from the placeholders map corresponding to this placeholder
+// key into the strings.Builder.
+func (p filteredPlaceholder) write(sb *strings.Builder, placeholders map[string]string) error {
+	end := strings.Index(string(p), "}")
+	ref := string(p)[1:end]
+	subkey, ok := placeholders[ref]
+	if !ok {
+		// the validation at create-time checks for mismatched placeholders so this
+		// shouldn't be possible save for programmer error
+		return fmt.Errorf("cannot find path placeholder %q in the aspect name", p)
+	}
+
+	_, err := sb.WriteString(subkey)
+	if err != nil {
+		return err
+	}
+
+	_, err = sb.WriteString(string(p)[end+1:])
+	return err
+}
+
 // literal is a non-placeholder name/path subkey.
 type literal string
 
@@ -586,22 +634,13 @@ func NewJSONDataBag() JSONDataBag {
 	return JSONDataBag(make(map[string]json.RawMessage))
 }
 
-func (s JSONDataBag) Query(path string, params map[string]string, filters map[string]Filter) ([]interface{}, error) {
+func (s JSONDataBag) Query(path string, params map[string]string) ([]interface{}, error) {
 	subKeys := splitPath(path)
-	return query(subKeys, 0, s, params, filters)
+	return query(subKeys, 0, s, params)
 }
 
-func query(subKeys []string, index int, node map[string]json.RawMessage, params map[string]string, filters map[string]Filter) ([]interface{}, error) {
-	key := subKeys[index]
-
-	var fieldFilter filter
-	if key[0] == '{' {
-		var err error
-		key, fieldFilter, err = parsePlaceholder(key, params, filters)
-		if err != nil {
-			return nil, err
-		}
-	}
+func query(subKeys []string, index int, node map[string]json.RawMessage, params map[string]string) ([]interface{}, error) {
+	key, fieldFilter := splitKeyAndFilter(subKeys[index], params)
 
 	var rawLevels []json.RawMessage
 	if key == "*" {
@@ -690,7 +729,7 @@ func query(subKeys []string, index int, node map[string]json.RawMessage, params 
 			continue
 		}
 
-		res, err := query(subKeys, index+1, level, params, filters)
+		res, err := query(subKeys, index+1, level, params)
 		if err != nil {
 			return nil, err
 		}
@@ -701,61 +740,31 @@ func query(subKeys []string, index int, node map[string]json.RawMessage, params 
 	return results, nil
 }
 
-func parsePlaceholder(key string, params map[string]string, filters map[string]Filter) (string, filter, error) {
-	end := strings.Index(key, "}")
-
-	// parse the field filter, if any exists
-	var fieldFilter filter
-	if end < len(key)-1 && key[end+1] == '[' && key[len(key)-1] == ']' {
-		var err error
-		fieldFilter, err = getFieldFilter(key[end+2:len(key)-1], params, filters)
-		if err != nil {
-			return "", nil, err
-		}
+func splitKeyAndFilter(key string, params map[string]string) (string, filter) {
+	start := strings.Index(key, "[")
+	if start == -1 {
+		// no field filter, just a normal key
+		return key, nil
 	}
 
-	// parse the placeholder
-	placeholder := key[1:end]
-	if param, ok := params[placeholder]; ok {
-		key = param
-	} else {
-		if !filters[placeholder].Optional {
-			return "", nil, fmt.Errorf(`cannot find non-optional placeholder in query parameters`)
-		}
-		key = "*"
-	}
+	parts := strings.Split(key[start+1:len(key)-1], "=")
+	key = key[:start]
 
-	return key, fieldFilter, nil
-}
-
-type filter func(map[string]json.RawMessage) (bool, error)
-
-func getFieldFilter(fieldPlace string, params map[string]string, filters map[string]Filter) (filter, error) {
-	parts := strings.Split(fieldPlace, "=")
 	field, reference := parts[0], parts[1]
-
-	if field[0] != '.' {
-		return nil, fmt.Errorf(`cannot parse field placeholder: missing . before field name`)
-	}
+	// strip the dot (we validated before so assume it's correct)
 	field = field[1:]
-
-	if !isPlaceholder(reference) {
-		return nil, fmt.Errorf(`cannot parse field placeholder: value should be placeholder "{value}"`)
-	}
-
+	// strip the {} around the field placeholder (similarly, we already validated)
 	reference = reference[1 : len(reference)-1]
+
 	fieldValue, ok := params[reference]
 	if !ok {
-		if !filters[fieldValue].Optional {
-			return nil, fmt.Errorf(`cannot find non-optional placeholder in query parameters`)
-		}
-
-		return func(map[string]json.RawMessage) (bool, error) {
+		// query doesn't filter for value, accept any
+		return key, func(map[string]json.RawMessage) (bool, error) {
 			return true, nil
-		}, nil
+		}
 	}
 
-	return func(obj map[string]json.RawMessage) (bool, error) {
+	return key, func(obj map[string]json.RawMessage) (bool, error) {
 		rawVal, ok := obj[field]
 		if !ok {
 			return false, nil
@@ -768,12 +777,10 @@ func getFieldFilter(fieldPlace string, params map[string]string, filters map[str
 		}
 
 		return val == fieldValue, nil
-	}, nil
+	}
 }
 
-type Filter struct {
-	Optional bool
-}
+type filter func(map[string]json.RawMessage) (bool, error)
 
 // Get takes a path and a pointer to a variable into which the value referenced
 // by the path is written. The path can be dotted. For each dot a JSON object

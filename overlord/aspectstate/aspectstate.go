@@ -32,7 +32,7 @@ func SetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 	accPatterns := aspecttest.MockWifiSetupAspect()
 	schema := aspects.NewJSONSchema()
 
-	aspectBundle, err := aspects.NewAspectBundle(account, bundleName, accPatterns, schema)
+	aspectBundle, err := aspects.NewAspectBundle(account, bundleName, accPatterns, schema, nil)
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func GetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 	accPatterns := aspecttest.MockWifiSetupAspect()
 	schema := aspects.NewJSONSchema()
 
-	aspectBundle, err := aspects.NewAspectBundle(account, bundleName, accPatterns, schema)
+	aspectBundle, err := aspects.NewAspectBundle(account, bundleName, accPatterns, schema, nil)
 	if err != nil {
 		return err
 	}
@@ -85,38 +85,23 @@ func GetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 	return nil
 }
 
-type Filters struct {
-	params map[string]Filter
-}
-
-type Filter struct {
-	value    string
-	optional bool
-}
-
 func QueryAspect(databag aspects.DataBag, account, bundleName, aspect, request, query string) ([]interface{}, error) {
 	patt := map[string]interface{}{
 		"asp": []map[string]string{
-			{"name": "byname", "path": "snaps.{name}"},
-			{"name": "bystatus", "path": "snaps.{name}[.status={status}]"},
+			{"name": "snaps.{name}", "path": "snaps.{name}[.status={status}]"},
 		},
+	}
+	optional := map[string]bool{
+		"name":   true,
+		"status": true,
 	}
 	schema := aspects.NewJSONSchema()
 
-	aspectBundle, err := aspects.NewAspectBundle(account, bundleName, patt, schema)
+	aspectBundle, err := aspects.NewAspectBundle(account, bundleName, patt, schema, optional)
 	if err != nil {
 		return nil, err
 	}
 
-	// NOTE: mocking this in code to avoid writing new code for parsing and validating
-	// the new assertion format
-	filters := map[string]aspects.Filter{
-		"name":   aspects.Filter{Optional: true},
-		"status": aspects.Filter{Optional: true},
-	}
-
-	// TODO: have some struct that carries parameters and filters, use that information
-	// to answer queries about placeholder
 	asp := aspectBundle.Aspect(aspect)
 	if asp == nil {
 		return nil, &aspects.NotFoundError{
@@ -127,7 +112,7 @@ func QueryAspect(databag aspects.DataBag, account, bundleName, aspect, request, 
 		}
 	}
 
-	return asp.Query(databag, request, query, filters)
+	return asp.Query(databag, request, query)
 }
 
 // NewTransaction returns a transaction configured to read and write databags

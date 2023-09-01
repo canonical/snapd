@@ -259,16 +259,28 @@ func (s *filterSampleSuite) SetUpTest(c *C) {
 }
 
 func (s *filterSampleSuite) TestQueryNoFilters(c *C) {
-	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "byname", "")
+	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "")
 	c.Assert(err, IsNil)
 	// returns all snaps
 	c.Assert(res, HasLen, 10)
+	// TODO: right now the result is a list of encoded maps, Samuele wants the result to be
+	// decoded into maps
 	c.Assert(res[0], FitsTypeOf, map[string]interface{}{})
-
 }
 
-func (s *filterSampleSuite) TestQueryFilterName(c *C) {
-	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "byname", "name=firefox")
+func (s *filterSampleSuite) TestQueryFilterNameWithParameter(c *C) {
+	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "name=firefox")
+	c.Assert(err, IsNil)
+	c.Assert(res, HasLen, 1)
+	c.Assert(res[0], FitsTypeOf, map[string]interface{}{})
+
+	firefoxSnap := res[0].(map[string]interface{})
+	c.Check(firefoxSnap["name"], Equals, "firefox")
+	c.Check(firefoxSnap["status"], Equals, "active")
+}
+
+func (s *filterSampleSuite) TestQueryFilterNameWithRequest(c *C) {
+	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps.firefox", "")
 	c.Assert(err, IsNil)
 	c.Assert(res, HasLen, 1)
 	c.Assert(res[0], FitsTypeOf, map[string]interface{}{})
@@ -279,7 +291,7 @@ func (s *filterSampleSuite) TestQueryFilterName(c *C) {
 }
 
 func (s *filterSampleSuite) TestQueryFilterStatus(c *C) {
-	results, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "bystatus", "status=active")
+	results, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "status=active")
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 6)
 
