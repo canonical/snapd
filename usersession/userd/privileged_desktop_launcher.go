@@ -99,40 +99,39 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry2(desktopFileID string, acti
 		return dbus.MakeFailedError(err)
 	}
 
-	if len(environment) != 0 {
-		return dbus.MakeFailedError(fmt.Errorf("unknown variables in environment"))
-	}
-
 	de, err := desktopentry.Read(desktopFile)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
 
-	var args []string
+	var execArgs []string
 	if action == "" {
-		args, err = de.ExpandExec(uris)
+		execArgs, err = de.ExpandExec(uris)
 	} else {
-		args, err = de.ExpandActionExec(action, uris)
+		execArgs, err = de.ExpandActionExec(action, uris)
 	}
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
 
-	err = systemd.EnsureAtLeast(236)
-	if err == nil {
+	args := []string{"--user"}
+	if err = systemd.EnsureAtLeast(236); err == nil {
 		// systemd 236 introduced the --collect option to systemd-run,
 		// which specifies that the unit should be garbage collected
 		// even if it fails.
 		//   https://github.com/systemd/systemd/pull/7314
-		args = append([]string{"systemd-run", "--user", "--collect", "--"}, args...)
-	} else if systemd.IsSystemdTooOld(err) {
-		args = append([]string{"systemd-run", "--user", "--"}, args...)
-	} else {
+		args = append(args, "--collect")
+	} else if !systemd.IsSystemdTooOld(err) {
 		// systemd not available
 		return dbus.MakeFailedError(err)
 	}
+	if args, err = appendEnvironment(args, environment); err != nil {
+		return dbus.MakeFailedError(err)
+	}
+	args = append(args, "--")
+	args = append(args, execArgs...)
 
-	cmd := exec.Command(args[0], args[1:]...)
+	cmd := exec.Command("systemd-run", args...)
 
 	if err := cmd.Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot run %q: %v", args, err))
@@ -165,6 +164,22 @@ func validateURIs(uris []string) error {
 		}
 	}
 	return nil
+}
+
+// appendEnvironment extends a systemd-run command line to set allowed
+// environment variables.
+func appendEnvironment(args []string, environment map[string]string) ([]string, error) {
+	for key, value := range environment {
+		switch key {
+		case "DESKTOP_STARTUP_ID", "XDG_ACTIVATION_TOKEN":
+			// Allow startup notification related
+			// environment variables
+			args = append(args, fmt.Sprintf("--setenv=%s=%s", key, value))
+		default:
+			return nil, fmt.Errorf("unknown variables in environment")
+		}
+	}
+	return args, nil
 }
 
 var regularFileExists = osutil.RegularFileExists
