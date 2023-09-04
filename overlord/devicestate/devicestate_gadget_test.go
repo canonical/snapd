@@ -728,7 +728,7 @@ volumes:
 		{"content.img", "updated content"},
 	})
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 			"pc": {
 				0: {
@@ -736,7 +736,7 @@ volumes:
 					Offset: quantity.OffsetMiB,
 				},
 			},
-		}, nil
+		}, nil, nil
 	})
 	defer r()
 

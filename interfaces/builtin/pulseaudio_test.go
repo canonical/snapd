@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -123,6 +124,32 @@ func (s *PulseAudioInterfaceSuite) TestSecCompOnAllSnaps(c *C) {
 	c.Assert(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "shmctl\n")
 }
 
+func (s *PulseAudioInterfaceSuite) TestApparmorOnClassic(c *C) {
+	// connected plug to classic slot
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/native rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/pid r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.pulseaudio/pulse/ r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.pulseaudio/pulse/native rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.pulseaudio/pulse/pid r,\n")
+}
+
+func (s *PulseAudioInterfaceSuite) TestApparmorOnCoreNotSnapd(c *C) {
+	// connected plug to classic slot
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/native rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/pid r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /run/user/[0-9]*/snap.pulseaudio/pulse/ r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /run/user/[0-9]*/snap.pulseaudio/pulse/native rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /run/user/[0-9]*/snap.pulseaudio/pulse/pid r,\n")
+}
+
 func (s *PulseAudioInterfaceSuite) TestUDev(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
@@ -133,7 +160,7 @@ KERNEL=="controlC[0-9]*", TAG+="snap_pulseaudio_app1"`)
 KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="snap_pulseaudio_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# pulseaudio
 KERNEL=="timer", TAG+="snap_pulseaudio_app1"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_pulseaudio_app1", RUN+="%v/snap-device-helper $env{ACTION} snap_pulseaudio_app1 $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_pulseaudio_app1", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_pulseaudio_app1 $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *PulseAudioInterfaceSuite) TestInterfaces(c *C) {

@@ -1,8 +1,38 @@
+# New in snapd 2.60.3:
+* Fix bug in the "private" plug attribute of the shared-memory
+  interface that can result in a crash when upgrading from an
+  old version of snapd.
+* Fix missing integration of the /etc/apparmor.d/tunables/home.d/
+  apparmor to support non-standard home directories
+
+# New in snapd 2.60.2:
+* Performance improvements for apparmor_parser to compensate for
+  the slower `-O expr-simplify` default used. This should bring
+  the performance back to the 2.60 level and even increase it
+  for many use-cases.
+* Bugfixes
+
+# New in snapd 2.60.1:
+* Bugfixes
+* Use "aes-cbc-essiv:sha256" in cryptsetup on arm 32bit devices
+  to increase speed on devices with CAAM support
+* Stop using `-O no-expr-simplify` in apparmor_parser to avoid
+  potential exponential memory use. This can lead to slower 
+  policy complication in some cases but it is much safer on
+  low memory devices.
+
 # New in snapd 2.60:
 * Support for dynamic snapshot data exclusions
 * Apparmor userspace is vendored inside the snapd snap
 * Added a default-configure hook that exposes gadget default configuration
   options to snaps during first install before services are started
+* Allow install from initrd to speed up the initial installation for
+  systems that do not have a install-device hook
+* New `snap sign --chain` flag that appends the account and account-key
+  assertions
+* Support validation-sets in the model assertion
+* Support new "min-size" field in gadget.yaml
+* New interface: "userns"
 
 # New in snapd 2.59.5:
 * Explicitly disallow the use of ioctl + TIOCLINUX

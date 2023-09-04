@@ -245,26 +245,28 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	}
 
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
-	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)
+	summary := fmt.Sprintf(i18n.G("Update available for %s."), refreshInfo.InstanceName)
 	var urgencyLevel notification.Urgency
 	var body, icon string
 	var hints []notification.Hint
 
-	plzClose := i18n.G("Close the app to update now")
 	if daysLeft := int(refreshInfo.TimeRemaining.Truncate(time.Hour).Hours() / 24); daysLeft > 0 {
 		urgencyLevel = notification.LowUrgency
-		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
-			i18n.NG("%d day left", "%d days left", daysLeft), daysLeft))
+		body = fmt.Sprintf(
+			i18n.NG("Close the application to update now. It will update automatically in %d day.",
+				"Close the application to update now. It will update automatically in %d days.", daysLeft), daysLeft)
 	} else if hoursLeft := int(refreshInfo.TimeRemaining.Truncate(time.Minute).Minutes() / 60); hoursLeft > 0 {
 		urgencyLevel = notification.NormalUrgency
-		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
-			i18n.NG("%d hour left", "%d hours left", hoursLeft), hoursLeft))
+		body = fmt.Sprintf(
+			i18n.NG("Close the application to update now. It will update automatically in %d hour.",
+				"Close the application to update now. It will update automatically in %d hours.", hoursLeft), hoursLeft)
 	} else if minutesLeft := int(refreshInfo.TimeRemaining.Truncate(time.Minute).Minutes()); minutesLeft > 0 {
 		urgencyLevel = notification.CriticalUrgency
-		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
-			i18n.NG("%d minute left", "%d minutes left", minutesLeft), minutesLeft))
+		body = fmt.Sprintf(
+			i18n.NG("Close the application to update now. It will update automatically in %d minute.",
+				"Close the application to update now. It will update automatically in %d minutes.", minutesLeft), minutesLeft)
 	} else {
-		summary = fmt.Sprintf(i18n.G("Snap %q is refreshing now!"), refreshInfo.InstanceName)
+		summary = fmt.Sprintf(i18n.G("%s is updating now!"), refreshInfo.InstanceName)
 		urgencyLevel = notification.CriticalUrgency
 	}
 	hints = append(hints, notification.WithUrgency(urgencyLevel))
@@ -324,8 +326,8 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
-	summary := fmt.Sprintf(i18n.G("%q snap has been refreshed"), finishRefresh.InstanceName)
-	body := i18n.G("Now available to launch")
+	summary := fmt.Sprintf(i18n.G("%s was updated."), finishRefresh.InstanceName)
+	body := i18n.G("Ready to launch.")
 	hints := []notification.Hint{
 		notification.WithDesktopEntry("io.snapcraft.SessionAgent"),
 		notification.WithUrgency(notification.LowUrgency),

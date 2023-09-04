@@ -36,34 +36,34 @@ func Test(t *testing.T) { TestingT(t) }
 var _ = Suite(&aspectSuite{})
 
 func (*aspectSuite) TestNewAspectBundle(c *C) {
-	_, err := aspects.NewAspectBundle("foo", nil, aspects.NewJSONSchema())
+	_, err := aspects.NewAspectBundle("acc", "foo", nil, aspects.NewJSONSchema())
 	c.Assert(err, ErrorMatches, `cannot define aspects bundle: no aspects`)
 
-	_, err = aspects.NewAspectBundle("foo", map[string]interface{}{
+	_, err = aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"bar": "baz",
 	}, aspects.NewJSONSchema())
 	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns should be a list of maps`)
 
-	_, err = aspects.NewAspectBundle("foo", map[string]interface{}{
+	_, err = aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"bar": []map[string]string{},
 	}, aspects.NewJSONSchema())
 	c.Assert(err, ErrorMatches, `cannot define aspect "bar": no access patterns found`)
 
-	_, err = aspects.NewAspectBundle("foo", map[string]interface{}{
+	_, err = aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"path": "foo"},
 		},
 	}, aspects.NewJSONSchema())
 	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns must have a "name" field`)
 
-	_, err = aspects.NewAspectBundle("foo", map[string]interface{}{
+	_, err = aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "foo"},
 		},
 	}, aspects.NewJSONSchema())
 	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns must have a "path" field`)
 
-	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "a", "path": "b"},
 		},
@@ -96,7 +96,7 @@ func (s *aspectSuite) TestAccessTypes(c *C) {
 			err:    true,
 		},
 	} {
-		aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
+		aspectBundle, err := aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 			"bar": []map[string]string{
 				{"name": "a", "path": "b", "access": t.access},
 			}}, aspects.NewJSONSchema())
@@ -114,7 +114,7 @@ func (s *aspectSuite) TestAccessTypes(c *C) {
 
 func (*aspectSuite) TestGetAndSetAspects(c *C) {
 	databag := aspects.NewJSONDataBag()
-	aspectBundle, err := aspects.NewAspectBundle("system/network", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("system", "network", map[string]interface{}{
 		"wifi-setup": []map[string]string{
 			{"name": "ssids", "path": "wifi.ssids"},
 			{"name": "ssid", "path": "wifi.ssid"},
@@ -165,7 +165,7 @@ func (*aspectSuite) TestGetAndSetAspects(c *C) {
 
 func (s *aspectSuite) TestAspectNotFound(c *C) {
 	databag := aspects.NewJSONDataBag()
-	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "top-level", "path": "top-level"},
 			{"name": "nested", "path": "top.nested-one"},
@@ -178,28 +178,28 @@ func (s *aspectSuite) TestAspectNotFound(c *C) {
 
 	var value string
 	err = aspect.Get(databag, "missing", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get field "missing": not found`)
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "missing" of aspect acc/foo/bar: field not found`)
 
 	err = aspect.Set(databag, "missing", "thing")
-	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot set field "missing": not found`)
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "missing" of aspect acc/foo/bar: field not found`)
 
 	err = aspect.Get(databag, "top-level", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get field "top-level": no value was found under "top-level"`)
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "top-level" of aspect acc/foo/bar: no value was found under path "top-level"`)
 
 	err = aspect.Set(databag, "nested", "thing")
 	c.Assert(err, IsNil)
 
 	err = aspect.Get(databag, "other-nested", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get field "other-nested": no value was found under "top.nested-two"`)
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "other-nested" of aspect acc/foo/bar: no value was found under path "top.nested-two"`)
 }
 
 func (s *aspectSuite) TestAspectBadRead(c *C) {
 	databag := aspects.NewJSONDataBag()
-	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "one", "path": "one"},
 			{"name": "onetwo", "path": "one.two"},
@@ -221,7 +221,7 @@ func (s *aspectSuite) TestAspectBadRead(c *C) {
 }
 
 func (s *aspectSuite) TestAspectsAccessControl(c *C) {
-	aspectBundle, err := aspects.NewAspectBundle("bundle", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("acc", "bundle", map[string]interface{}{
 		"foo": []map[string]string{
 			{"name": "default", "path": "path.default"},
 			{"name": "read-write", "path": "path.read-write", "access": "read-write"},
@@ -248,12 +248,12 @@ func (s *aspectSuite) TestAspectsAccessControl(c *C) {
 		{
 			name: "read-only",
 			// unrelated error
-			getErr: `cannot get field "read-only": no value was found under "path"`,
-			setErr: `cannot set field "read-only": path is not writeable`,
+			getErr: `cannot find field "read-only" of aspect acc/bundle/foo: no value was found under path "path"`,
+			setErr: `cannot write field "read-only": only supports read access`,
 		},
 		{
 			name:   "write-only",
-			getErr: `cannot get field "write-only": path is not readable`,
+			getErr: `cannot read field "write-only": only supports write access`,
 		},
 	} {
 		cmt := Commentf("sub-test %q failed", t.name)
@@ -281,7 +281,7 @@ type witnessDataBag struct {
 	getPath, setPath string
 }
 
-func newSpyDataBag(bag aspects.DataBag) *witnessDataBag {
+func newWitnessDataBag(bag aspects.DataBag) *witnessDataBag {
 	return &witnessDataBag{bag: bag}
 }
 
@@ -307,7 +307,7 @@ func (s *witnessDataBag) getLastPaths() (get, set string) {
 }
 
 func (s *aspectSuite) TestAspectAssertionWithPlaceholder(c *C) {
-	aspectBundle, err := aspects.NewAspectBundle("bundle", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("acc", "bundle", map[string]interface{}{
 		"foo": []map[string]string{
 			{"name": "defaults.{foo}", "path": "first.{foo}.last"},
 			{"name": "{bar}.name", "path": "first.{bar}"},
@@ -359,7 +359,7 @@ func (s *aspectSuite) TestAspectAssertionWithPlaceholder(c *C) {
 	} {
 		cmt := Commentf("sub-test %q failed", t.testName)
 
-		databag := newSpyDataBag(aspects.NewJSONDataBag())
+		databag := newWitnessDataBag(aspects.NewJSONDataBag())
 		err := aspect.Set(databag, t.name, "expectedValue")
 		c.Assert(err, IsNil, cmt)
 
@@ -437,7 +437,7 @@ func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
 			name:     "a. .c", path: "a.b", err: `invalid access name "a. .c": invalid subkey " "`,
 		},
 	} {
-		_, err := aspects.NewAspectBundle("foo", map[string]interface{}{
+		_, err := aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 			"foo": []map[string]string{
 				{"name": tc.name, "path": tc.path},
 			},
@@ -451,7 +451,7 @@ func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
 
 func (s *aspectSuite) TestAspectUnsetTopLevelEntry(c *C) {
 	databag := aspects.NewJSONDataBag()
-	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"my-aspect": []map[string]string{
 			{"name": "foo", "path": "foo"},
 			{"name": "bar", "path": "bar"},
@@ -471,7 +471,7 @@ func (s *aspectSuite) TestAspectUnsetTopLevelEntry(c *C) {
 
 	var value string
 	err = aspect.Get(databag, "foo", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 
 	err = aspect.Get(databag, "bar", &value)
 	c.Assert(err, IsNil)
@@ -480,7 +480,7 @@ func (s *aspectSuite) TestAspectUnsetTopLevelEntry(c *C) {
 
 func (s *aspectSuite) TestAspectUnsetLeafWithSiblings(c *C) {
 	databag := aspects.NewJSONDataBag()
-	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"my-aspect": []map[string]string{
 			{"name": "bar", "path": "foo.bar"},
 			{"name": "baz", "path": "foo.baz"},
@@ -500,7 +500,7 @@ func (s *aspectSuite) TestAspectUnsetLeafWithSiblings(c *C) {
 
 	var value string
 	err = aspect.Get(databag, "bar", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 
 	// doesn't affect the other leaf entry under "foo"
 	err = aspect.Get(databag, "baz", &value)
@@ -510,7 +510,7 @@ func (s *aspectSuite) TestAspectUnsetLeafWithSiblings(c *C) {
 
 func (s *aspectSuite) TestAspectUnsetWithNestedEntry(c *C) {
 	databag := aspects.NewJSONDataBag()
-	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"my-aspect": []map[string]string{
 			{"name": "foo", "path": "foo"},
 			{"name": "bar", "path": "foo.bar"},
@@ -527,15 +527,15 @@ func (s *aspectSuite) TestAspectUnsetWithNestedEntry(c *C) {
 
 	var value interface{}
 	err = aspect.Get(databag, "foo", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 
 	err = aspect.Get(databag, "bar", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 }
 
 func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
 	databag := aspects.NewJSONDataBag()
-	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"my-aspect": []map[string]string{
 			{"name": "foo", "path": "foo"},
 			{"name": "bar", "path": "foo.bar"},
@@ -556,12 +556,12 @@ func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
 	c.Assert(err, IsNil)
 
 	err = aspect.Get(databag, "foo", &value)
-	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 }
 
 func (s *aspectSuite) TestAspectUnsetAlreadyUnsetEntry(c *C) {
 	databag := aspects.NewJSONDataBag()
-	aspectBundle, err := aspects.NewAspectBundle("foo", map[string]interface{}{
+	aspectBundle, err := aspects.NewAspectBundle("acc", "foo", map[string]interface{}{
 		"my-aspect": []map[string]string{
 			{"name": "foo", "path": "foo"},
 			{"name": "bar", "path": "one.bar"},
@@ -577,14 +577,44 @@ func (s *aspectSuite) TestAspectUnsetAlreadyUnsetEntry(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *aspectSuite) TestAspectNotFoundError(c *C) {
-	err := &aspects.AspectNotFoundError{Account: "foo", BundleName: "bar", Aspect: "baz"}
-	c.Assert(err, testutil.ErrorIs, &aspects.AspectNotFoundError{})
-	c.Assert(err, ErrorMatches, `aspect foo/bar/baz not found`)
+func (s *aspectSuite) TestInvalidAccessError(c *C) {
+	err := &aspects.InvalidAccessError{RequestedAccess: 1, FieldAccess: 2, Field: "foo"}
+	c.Assert(err, testutil.ErrorIs, &aspects.InvalidAccessError{})
+	c.Assert(err, ErrorMatches, `cannot read field "foo": only supports write access`)
+
+	err = &aspects.InvalidAccessError{RequestedAccess: 2, FieldAccess: 1, Field: "foo"}
+	c.Assert(err, testutil.ErrorIs, &aspects.InvalidAccessError{})
+	c.Assert(err, ErrorMatches, `cannot write field "foo": only supports read access`)
 }
 
-func (s *aspectSuite) TestFieldNotFoundError(c *C) {
-	err := &aspects.FieldNotFoundError{Message: "expected error"}
-	c.Assert(err, testutil.ErrorIs, &aspects.FieldNotFoundError{})
-	c.Assert(err, ErrorMatches, `expected error`)
+func (s *aspectSuite) TestJSONDataBagCopy(c *C) {
+	bag := aspects.NewJSONDataBag()
+	err := bag.Set("foo", "bar")
+	c.Assert(err, IsNil)
+
+	// precondition check
+	data, err := bag.Data()
+	c.Assert(err, IsNil)
+	c.Assert(string(data), Equals, `{"foo":"bar"}`)
+
+	bagCopy := bag.Copy()
+	data, err = bagCopy.Data()
+	c.Assert(err, IsNil)
+	c.Assert(string(data), Equals, `{"foo":"bar"}`)
+
+	// changes in the copied bag don't affect the original
+	err = bagCopy.Set("foo", "baz")
+	c.Assert(err, IsNil)
+
+	data, err = bag.Data()
+	c.Assert(err, IsNil)
+	c.Assert(string(data), Equals, `{"foo":"bar"}`)
+
+	// and vice-versa
+	err = bag.Set("foo", "zab")
+	c.Assert(err, IsNil)
+
+	data, err = bagCopy.Data()
+	c.Assert(err, IsNil)
+	c.Assert(string(data), Equals, `{"foo":"baz"}`)
 }

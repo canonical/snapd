@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -39,12 +40,17 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
+	gadgetInstall "github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/kcmdline"
+	"github.com/snapcore/snapd/snapdtool"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
@@ -72,6 +78,11 @@ func init() {
 type cmdInitramfsMounts struct{}
 
 func (c *cmdInitramfsMounts) Execute([]string) error {
+	boot.HasFDESetupHook = hasFDESetupHook
+	boot.RunFDESetupHook = runFDESetupHook
+
+	logger.Noticef("snap-bootstrap version %v starting", snapdtool.Version)
+
 	return generateInitramfsMounts()
 }
 
@@ -99,6 +110,11 @@ var (
 		ReadOnly: true,
 		Private:  true,
 	}
+
+	gadgetInstallRun                 = gadgetInstall.Run
+	bootMakeRunnableStandaloneSystem = boot.MakeRunnableStandaloneSystemFromInitrd
+	installApplyPreseededData        = install.ApplyPreseededData
+	bootEnsureNextBootToRunMode      = boot.EnsureNextBootToRunMode
 )
 
 func stampedAction(stamp string, action func() error) error {
@@ -236,6 +252,147 @@ func canInstallAndRunAtOnce(mst *initramfsMountsState) (bool, error) {
 	return kernelHasFdeSetup, nil
 }
 
+func readSnapInfo(sysSnaps map[snap.Type]*seed.Snap, snapType snap.Type) (*snap.Info, error) {
+	seedSnap := sysSnaps[snapType]
+	mountPoint := filepath.Join(boot.InitramfsRunMntDir, snapTypeToMountDir[snapType])
+	info, err := snap.ReadInfoFromMountPoint(seedSnap.SnapName(), mountPoint, seedSnap.Path, seedSnap.SideInfo)
+	if err != nil {
+		return nil, err
+	}
+	if info.Revision.Unset() {
+		info.Revision = snap.R(-1)
+	}
+	return info, nil
+
+}
+
+func runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
+	// TODO: use systemd-run
+	encoded, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command("fde-setup")
+	cmd.Stdin = bytes.NewBuffer(encoded)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	return output, nil
+}
+func hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
+	_, ok := kernelInfo.Hooks["fde-setup"]
+	return ok, nil
+}
+
+func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap) error {
+	kernelSnap, err := readSnapInfo(sysSnaps, snap.TypeKernel)
+	if err != nil {
+		return err
+	}
+	baseSnap, err := readSnapInfo(sysSnaps, snap.TypeBase)
+	if err != nil {
+		return err
+	}
+	gadgetSnap, err := readSnapInfo(sysSnaps, snap.TypeGadget)
+	if err != nil {
+		return err
+	}
+	kernelMountDir := filepath.Join(boot.InitramfsRunMntDir, snapTypeToMountDir[snap.TypeKernel])
+	gadgetMountDir := filepath.Join(boot.InitramfsRunMntDir, snapTypeToMountDir[snap.TypeGadget])
+	gadgetInfo, err := gadget.ReadInfo(gadgetMountDir, model)
+	if err != nil {
+		return err
+	}
+	encryptionSupport, err := install.CheckEncryptionSupport(model, secboot.TPMProvisionFull, kernelSnap, gadgetInfo, runFDESetupHook)
+	if err != nil {
+		return err
+	}
+	useEncryption := (encryptionSupport != secboot.EncryptionTypeNone)
+
+	installObserver, trustedInstallObserver, err := install.BuildInstallObserver(model, gadgetMountDir, useEncryption)
+	if err != nil {
+		return err
+	}
+
+	options := gadgetInstall.Options{
+		Mount:          true,
+		EncryptionType: encryptionSupport,
+	}
+
+	validationConstraints := gadget.ValidationConstraints{
+		EncryptedData: useEncryption,
+	}
+
+	gadgetInfo, err = gadget.ReadInfoAndValidate(gadgetMountDir, model, &validationConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot use gadget: %v", err)
+	}
+	if err := gadget.ValidateContent(gadgetInfo, gadgetMountDir, kernelMountDir); err != nil {
+		return fmt.Errorf("cannot use gadget: %v", err)
+	}
+
+	bootDevice := ""
+	installedSystem, err := gadgetInstallRun(model, gadgetMountDir, kernelMountDir, bootDevice, options, installObserver, timings.New(nil))
+	if err != nil {
+		return err
+	}
+
+	if trustedInstallObserver != nil {
+		if err := install.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+			return err
+		}
+	}
+
+	err = install.PrepareRunSystemData(model, gadgetMountDir, timings.New(nil))
+	if err != nil {
+		return err
+	}
+
+	bootWith := &boot.BootableSet{
+		Base:                baseSnap,
+		BasePath:            sysSnaps[snap.TypeBase].Path,
+		Gadget:              gadgetSnap,
+		GadgetPath:          sysSnaps[snap.TypeGadget].Path,
+		Kernel:              kernelSnap,
+		KernelPath:          sysSnaps[snap.TypeKernel].Path,
+		UnpackedGadgetDir:   gadgetMountDir,
+		RecoverySystemLabel: mst.recoverySystem,
+	}
+
+	if err := bootMakeRunnableStandaloneSystem(model, bootWith, trustedInstallObserver); err != nil {
+		return err
+	}
+
+	dataMountOpts := &systemdMountOptions{
+		Bind: true,
+	}
+	if err := doSystemdMount(boot.InstallUbuntuDataDir, boot.InitramfsDataDir, dataMountOpts); err != nil {
+		return err
+	}
+
+	currentSeed, err := mst.LoadSeed(mst.recoverySystem)
+	if err != nil {
+		return err
+	}
+	preseedSeed, ok := currentSeed.(seed.PreseedCapable)
+	if ok {
+		runMode := false
+		if err := installApplyPreseededData(preseedSeed, boot.InitramfsWritableDir(model, runMode)); err != nil {
+			return err
+		}
+	}
+
+	if err := bootEnsureNextBootToRunMode(mst.recoverySystem); err != nil {
+		return fmt.Errorf("failed to set system to run mode: %v\n", err)
+	}
+
+	mst.mode = "run"
+	mst.recoverySystem = ""
+
+	return nil
+}
+
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(mst *initramfsMountsState) error {
@@ -251,8 +408,10 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 	}
 
 	if installAndRun {
-		// TODO: implement install in initrd
-		return fmt.Errorf("install in initrd not implemented yet")
+		if err := doInstall(mst, model, snaps); err != nil {
+			return err
+		}
+		return nil
 	} else {
 		if err := generateMountsCommonInstallRecoverContinue(mst, model, snaps); err != nil {
 			return err
@@ -1414,7 +1573,7 @@ func waitForCandidateByLabelPath(label string) (string, error) {
 }
 
 func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
-	values, err := osutil.KernelCommandLineKeyValues("snapd_system_disk")
+	values, err := kcmdline.KeyValues("snapd_system_disk")
 	if err != nil {
 		return "", err
 	}

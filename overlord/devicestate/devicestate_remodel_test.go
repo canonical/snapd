@@ -79,7 +79,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappyNotSeeded(c *C) {
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 	})
-	_, err := devicestate.Remodel(s.state, newModel)
+	_, err := devicestate.Remodel(s.state, newModel, nil, nil)
 	c.Assert(err, ErrorMatches, "cannot remodel until fully seeded")
 }
 
@@ -159,7 +159,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 	} {
 		mergeMockModelHeaders(cur, t.new)
 		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), t.new)
-		chg, err := devicestate.Remodel(s.state, new)
+		chg, err := devicestate.Remodel(s.state, new, nil, nil)
 		c.Check(chg, IsNil)
 		c.Check(err, ErrorMatches, t.errStr)
 	}
@@ -196,7 +196,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelFromClassicUnhappy(c *C) {
 		"classic":      cur["classic"],
 	})
 
-	_, err := devicestate.Remodel(s.state, new)
+	_, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Check(err, ErrorMatches, `cannot remodel from classic model`)
 }
 
@@ -234,7 +234,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelCheckGrade(c *C) {
 		c.Logf("tc: %v", idx)
 		mergeMockModelHeaders(cur, t.new)
 		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), t.new)
-		chg, err := devicestate.Remodel(s.state, new)
+		chg, err := devicestate.Remodel(s.state, new, nil, nil)
 		c.Check(chg, IsNil)
 		c.Check(err, ErrorMatches, t.errStr)
 	}
@@ -269,7 +269,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiresSerial(c *C) {
 	}
 	mergeMockModelHeaders(cur, newModelHdrs)
 	new := s.brands.Model("canonical", "pc-model", newModelHdrs)
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Check(chg, IsNil)
 	c.Check(err, ErrorMatches, "cannot remodel without a serial")
 }
@@ -368,27 +368,95 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
 
-	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
 	c.Assert(err, IsNil)
 	// 2 snaps, plus one track switch plus the remodel task, the
 	// wait chain is tested in TestRemodel*
 	c.Assert(tss, HasLen, 4)
 }
 
+func createLocalSnap(c *C, name, id string, revision int) (*snap.SideInfo, string) {
+	yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+	si := &snap.SideInfo{
+		RealName: name,
+		Revision: snap.R(revision),
+		SnapID:   id,
+	}
+	tmpPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
+	return si, tmpPath
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchGadget(c *C) {
-	s.testRemodelSwitchTasks(c, "other-gadget", "18", map[string]interface{}{
-		"gadget": "other-gadget=18",
-	})
+	newTrack := map[string]string{"other-gadget": "18"}
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{"gadget": "other-gadget=18"}, nil, nil, "")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalGadget(c *C) {
+	newTrack := map[string]string{"other-gadget": "18"}
+	sis := make([]*snap.SideInfo, 1)
+	paths := make([]string, 1)
+	sis[0], paths[0] = createLocalSnap(c, "pc", "pcididididididididididididididid", 3)
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{"gadget": "other-gadget=18"},
+		sis, paths, "")
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernel(c *C) {
-	s.testRemodelSwitchTasks(c, "other-kernel", "18", map[string]interface{}{
-		"kernel": "other-kernel=18",
-	})
+	newTrack := map[string]string{"other-kernel": "18"}
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{"kernel": "other-kernel=18"}, nil, nil, "")
 }
 
-func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTrack string, newModelOverrides map[string]interface{}) {
-	c.Check(newModelOverrides, HasLen, 1, Commentf("test expects a single model property to change"))
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernel(c *C) {
+	newTrack := map[string]string{"other-kernel": "18"}
+	sis := make([]*snap.SideInfo, 1)
+	paths := make([]string, 1)
+	sis[0], paths[0] = createLocalSnap(c, "pc-kernel", "pckernelidididididididididididid", 3)
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{"kernel": "other-kernel=18"},
+		sis, paths, "")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernelAndGadget(c *C) {
+	newTrack := map[string]string{"other-kernel": "18", "other-gadget": "18"}
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{
+			"kernel": "other-kernel=18",
+			"gadget": "other-gadget=18"}, nil, nil, "")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernelAndGadget(c *C) {
+	newTrack := map[string]string{"other-kernel": "18", "other-gadget": "18"}
+	sis := make([]*snap.SideInfo, 2)
+	paths := make([]string, 2)
+	sis[0], paths[0] = createLocalSnap(c, "pc-kernel", "pckernelidididididididididididid", 3)
+	sis[1], paths[1] = createLocalSnap(c, "pc", "pcididididididididididididididid", 3)
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{
+			"kernel": "other-kernel=18",
+			"gadget": "other-gadget=18"},
+		sis, paths, "")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernelAndGadgetFails(c *C) {
+	// Fails as if we use local files, all need to be provided to the API.
+	newTrack := map[string]string{"other-kernel": "18", "other-gadget": "18"}
+	sis := make([]*snap.SideInfo, 1)
+	paths := make([]string, 1)
+	sis[0], paths[0] = createLocalSnap(c, "pc-kernel", "pckernelidididididididididididid", 3)
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{
+			"kernel": "other-kernel=18",
+			"gadget": "other-gadget=18"},
+		sis, paths,
+		`no snap file provided for "other-gadget"`)
+}
+
+func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[string]string, newModelOverrides map[string]interface{}, localSnaps []*snap.SideInfo, paths []string, expectedErr string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -397,12 +465,43 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTr
 	var testDeviceCtx snapstate.DeviceContext
 
 	var snapstateInstallWithDeviceContextCalled int
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallPathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		snapstateInstallWithDeviceContextCalled++
-		c.Check(name, Equals, whatsNew)
-		if whatNewTrack != "" {
-			c.Check(opts.Channel, Equals, whatNewTrack)
+		newTrack, ok := whatNewTrack[name]
+		c.Check(ok, Equals, true)
+		c.Check(opts.Channel, Equals, newTrack)
+		if localSnaps != nil {
+			found := false
+			for i := range localSnaps {
+				if si.RealName == localSnaps[i].RealName {
+					found = true
+				}
+			}
+			c.Check(found, Equals, true)
+		} else {
+			c.Check(si, IsNil)
 		}
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		snapstateInstallWithDeviceContextCalled++
+		newTrack, ok := whatNewTrack[name]
+		c.Check(ok, Equals, true)
+		c.Check(opts.Channel, Equals, newTrack)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tDownload.Set("snap-setup", &snapstate.SnapSetup{
@@ -427,6 +526,8 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTr
 		"gadget":       "pc",
 		"base":         "core18",
 	})
+	current.KernelSnap().SnapID = "pckernelidididididididididididid"
+	current.GadgetSnap().SnapID = "pcididididididididididididididid"
 	err := assertstate.Add(s.state, current)
 	c.Assert(err, IsNil)
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -445,15 +546,21 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTr
 		headers[k] = v
 	}
 	new := s.brands.Model("canonical", "pc-model", headers)
+	new.KernelSnap().SnapID = "pckernelidididididididididididid"
+	new.GadgetSnap().SnapID = "pcididididididididididididididid"
 
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
 
-	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
-	c.Assert(err, IsNil)
-	// 1 of switch-kernel/base/gadget plus the remodel task
-	c.Assert(tss, HasLen, 2)
-	// API was hit
-	c.Assert(snapstateInstallWithDeviceContextCalled, Equals, 1)
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, localSnaps, paths, testDeviceCtx, "99")
+	if expectedErr == "" {
+		c.Assert(err, IsNil)
+		// 1 per switch-kernel/base/gadget plus the remodel task
+		c.Assert(tss, HasLen, len(whatNewTrack)+1)
+		// API was hit
+		c.Assert(snapstateInstallWithDeviceContextCalled, Equals, len(whatNewTrack))
+	} else {
+		c.Assert(err.Error(), Equals, expectedErr)
+	}
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
@@ -505,7 +612,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
 		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -639,7 +746,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		"required-snaps": []interface{}{"new-required-snap-1"},
 		"revision":       "1",
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -717,7 +824,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelLessRequiredSnaps(c *C) {
 		"base":         "core18",
 		"revision":     "1",
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -806,7 +913,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {
 		return testStore
 	}
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -865,7 +972,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRereg(c *C) {
 		return nil
 	}
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(chg.Summary(), Equals, "Remodel device to canonical/rereg-model (0)")
@@ -885,6 +992,50 @@ func (s *deviceMgrRemodelSuite) TestRemodelRereg(c *C) {
 	c.Assert(tPrepareRemodeling.Kind(), Equals, "prepare-remodeling")
 	c.Assert(tPrepareRemodeling.Summary(), Equals, "Prepare remodeling")
 	c.Assert(tPrepareRemodeling.WaitTasks(), DeepEquals, []*state.Task{tRequestSerial})
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelReregLocalFails(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "orig-serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:           "canonical",
+		Model:           "pc-model",
+		Serial:          "orig-serial",
+		SessionMacaroon: "old-session",
+	})
+
+	new := s.brands.Model("canonical", "rereg-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+	})
+
+	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
+		mod, err := devBE.Model()
+		c.Check(err, IsNil)
+		if err == nil {
+			c.Check(mod, DeepEquals, new)
+		}
+		return nil
+	}
+
+	sis := []*snap.SideInfo{{RealName: "pc-kernel"}, {RealName: "pc"}}
+	paths := []string{"pc-kernel_1.snap", "pc_1.snap"}
+	chg, err := devicestate.Remodel(s.state, new, sis, paths)
+	c.Assert(err.Error(), Equals, "cannot remodel offline to different brand ID / model yet")
+	c.Assert(chg, IsNil)
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
@@ -950,7 +1101,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 	})
 
 	clashing = other
-	_, err := devicestate.Remodel(s.state, new)
+	_, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
 		Message: "cannot start remodel, clashing with concurrent remodel to canonical/pc-model-other (0)",
 	})
@@ -962,7 +1113,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 		Serial: "1234",
 	})
 	clashing = new
-	_, err = devicestate.Remodel(s.state, new)
+	_, err = devicestate.Remodel(s.state, new, nil, nil)
 	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
 		Message: "cannot start remodel, clashing with concurrent remodel to canonical/pc-model (1)",
 	})
@@ -1018,7 +1169,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 		"revision":       "1",
 	})
 
-	_, err := devicestate.Remodel(s.state, new)
+	_, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
 		Message:    "cannot start remodel, clashing with concurrent one",
 		ChangeKind: "remodel",
@@ -1064,7 +1215,7 @@ func (s *deviceMgrRemodelSuite) TestReregRemodelClashAnyChange(c *C) {
 	chg := s.state.NewChange("chg", "other change")
 	chg.SetStatus(state.DoingStatus)
 
-	_, err := devicestate.Remodel(s.state, new)
+	_, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "chg",
@@ -1506,7 +1657,7 @@ volumes:
 		gadgetUpdateCalled = true
 		c.Check(policy, NotNil)
 		c.Check(reflect.ValueOf(policy).Pointer(), Equals, reflect.ValueOf(gadget.RemodelUpdatePolicy).Pointer())
-		c.Check(current, DeepEquals, gadget.GadgetData{
+		gd := gadget.GadgetData{
 			Info: &gadget.Info{
 				Volumes: map[string]*gadget.Volume{
 					"pc": {
@@ -1524,7 +1675,8 @@ volumes:
 							Content: []gadget.VolumeContent{
 								{UnresolvedSource: "foo-content", Target: "/"},
 							},
-							YamlIndex: 0,
+							YamlIndex:       0,
+							EnclosingVolume: &gadget.Volume{},
 						}, {
 							VolumeName: "pc",
 							Name:       "bare-one",
@@ -1535,14 +1687,17 @@ volumes:
 							Content: []gadget.VolumeContent{
 								{Image: "bare.img"},
 							},
-							YamlIndex: 1,
+							YamlIndex:       1,
+							EnclosingVolume: &gadget.Volume{},
 						}},
 					},
 				},
 			},
 			RootDir: currentGadgetInfo.MountDir(),
-		})
-		c.Check(update, DeepEquals, gadget.GadgetData{
+		}
+		gadget.SetEnclosingVolumeInStructs(gd.Info.Volumes)
+		c.Check(current, DeepEquals, gd)
+		gd = gadget.GadgetData{
 			Info: &gadget.Info{
 				Volumes: map[string]*gadget.Volume{
 					"pc": {
@@ -1577,12 +1732,14 @@ volumes:
 				},
 			},
 			RootDir: newGadgetInfo.MountDir(),
-		})
+		}
+		gadget.SetEnclosingVolumeInStructs(gd.Info.Volumes)
+		c.Check(update, DeepEquals, gd)
 		return nil
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
@@ -1669,7 +1826,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
@@ -1731,7 +1888,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
 
-	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
 	c.Assert(err, IsNil)
 	// 1 switch to a new base plus the remodel task
 	c.Assert(tss, HasLen, 2)
@@ -1866,7 +2023,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -1966,6 +2123,24 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C) {
+	s.testRemodelUC20SwitchKernelGadgetBaseSnaps(c, &prepareRemodelFlags{})
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnapsLocalSnaps(c *C) {
+	s.testRemodelUC20SwitchKernelGadgetBaseSnaps(c, &prepareRemodelFlags{localSnaps: true})
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnapsLocalSnapsFails(c *C) {
+	s.testRemodelUC20SwitchKernelGadgetBaseSnaps(c,
+		&prepareRemodelFlags{localSnaps: true, missingSnap: true})
+}
+
+type prepareRemodelFlags struct {
+	localSnaps  bool
+	missingSnap bool
+}
+
+func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C, testFlags *prepareRemodelFlags) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -1975,7 +2150,35 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C)
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
 		c.Check(deviceCtx, NotNil)
+		c.Check(testFlags.localSnaps, Equals, false)
 
+		// This task would not really be added if we have a local snap,
+		// but we keep it anyway to simplify the checks we do at the end.
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s from track %s", name, opts.Channel))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
+		tUpdate.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	restore = devicestate.MockSnapstateUpdatePathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		c.Check(flags.Required, Equals, false)
+		c.Check(flags.NoReRefresh, Equals, true)
+		c.Check(deviceCtx, NotNil)
+		c.Check(si, NotNil)
+		c.Check(si.RealName, Equals, name)
+
+		// This task would not really be added if we have a local snap,
+		// but we keep it anyway to simplify the checks we do at the end.
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s from track %s", name, opts.Channel))
 		tDownload.Set("snap-setup", &snapstate.SnapSetup{
 			SideInfo: &snap.SideInfo{
@@ -2094,7 +2297,24 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C)
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+
+	var localSnaps []*snap.SideInfo
+	var paths []string
+	if testFlags.localSnaps {
+		localSnaps = []*snap.SideInfo{siModelKernel, siModelBase}
+		paths = []string{"pc-kernel_101.snap", "core20"}
+		if !testFlags.missingSnap {
+			localSnaps = append(localSnaps, siModelGadget)
+			paths = append(paths, "pc_101.snap")
+		}
+	}
+
+	chg, err := devicestate.Remodel(s.state, new, localSnaps, paths)
+	if testFlags.missingSnap {
+		c.Assert(chg, IsNil)
+		c.Assert(err.Error(), Equals, `no snap file provided for "pc" (track changed)`)
+		return
+	}
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -2335,7 +2555,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -2453,6 +2673,21 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstalledSnapsDifferentChannelThanNew(c *C) {
+	s.testRemodelUC20SwitchKernelBaseGadgetSnapsInstalledSnapsDifferentChannelThanNew(
+		c, &switchDifferentChannelThanNew{})
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstalledSnapsDifferentChannelThanNewLocal(c *C) {
+	s.testRemodelUC20SwitchKernelBaseGadgetSnapsInstalledSnapsDifferentChannelThanNew(
+		c, &switchDifferentChannelThanNew{localSnaps: true})
+}
+
+type switchDifferentChannelThanNew struct {
+	localSnaps bool
+}
+
+func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstalledSnapsDifferentChannelThanNew(
+	c *C, opts *switchDifferentChannelThanNew) {
 	// kernel, base and gadget snaps that are used by the new model are
 	// already installed, but track a different channel from what is set in
 	// the new model
@@ -2461,9 +2696,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
+	callsToMockedUpdate := 0
 	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Assert(strutil.ListContains([]string{"core20-new", "pc-kernel-new", "pc-new"}, name), Equals, true,
 			Commentf("unexpected snap %q", name))
+		callsToMockedUpdate++
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
 		c.Check(deviceCtx, NotNil)
@@ -2488,6 +2725,36 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 			},
 			Flags: snapstate.Flags{}.ForSnapSetup(),
 			Type:  snap.Type(typ),
+		})
+		ts := state.NewTaskSet(tSwitchChannel)
+		// no download-and-checks-done edge
+		return ts, nil
+	})
+	defer restore()
+
+	callsToMockedUpdatePath := 0
+	restore = devicestate.MockSnapstateUpdatePathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		callsToMockedUpdatePath++
+		c.Assert(strutil.ListContains([]string{"core20-new", "pc-kernel-new", "pc-new"}, name), Equals, true,
+			Commentf("unexpected snap %q", name))
+		c.Check(flags.Required, Equals, false)
+		c.Check(flags.NoReRefresh, Equals, true)
+		c.Check(deviceCtx, NotNil)
+		c.Check(si, NotNil)
+		c.Check(si.RealName, Equals, name)
+
+		// switch channel using SideInfo from the local snap
+		tSwitchChannel := s.state.NewTask("switch-snap-channel", fmt.Sprintf("Switch %s channel to %s", name, opts.Channel))
+		typ := "kernel"
+		if name == "core20-new" {
+			typ = "base"
+		} else if name == "pc-new" {
+			typ = "gadget"
+		}
+		tSwitchChannel.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: si,
+			Flags:    snapstate.Flags{}.ForSnapSetup(),
+			Type:     snap.Type(typ),
 		})
 		ts := state.NewTaskSet(tSwitchChannel)
 		// no download-and-checks-done edge
@@ -2614,9 +2881,27 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+
+	var localSnaps []*snap.SideInfo
+	var paths []string
+	if opts.localSnaps {
+		for i, name := range []string{"pc-kernel-new", "core20-new", "pc-new"} {
+			si, path := createLocalSnap(c, name, snaptest.AssertedSnapID(name), 222+i)
+			localSnaps = append(localSnaps, si)
+			paths = append(paths, path)
+		}
+	}
+
+	chg, err := devicestate.Remodel(s.state, new, localSnaps, paths)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
+	if opts.localSnaps {
+		c.Check(callsToMockedUpdate, Equals, 0)
+		c.Check(callsToMockedUpdatePath, Equals, 3)
+	} else {
+		c.Check(callsToMockedUpdate, Equals, 3)
+		c.Check(callsToMockedUpdatePath, Equals, 0)
+	}
 
 	tl := chg.Tasks()
 	// 2 snaps with (snap switch channel + link snap) + gadget assets update
@@ -2858,7 +3143,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -3076,7 +3361,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -3249,7 +3534,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAnd
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -3432,7 +3717,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -3624,7 +3909,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC
 		defer os.Chmod(systemsDir, 0755)
 	}
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	if tc.expectedErr == "" {
 		c.Assert(err, IsNil)
 		c.Assert(chg, NotNil)
@@ -3834,7 +4119,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	var setModelTask *state.Task
 	for _, tsk := range chg.Tasks() {
@@ -3906,6 +4191,302 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 			},
 		})
 	}
+}
+
+func (s *deviceMgrRemodelSuite) TestUC20RemodelLocalNonEssentialInstall(c *C) {
+	s.testUC20RemodelLocalNonEssential(c,
+		&uc20RemodelLocalNonEssentialCase{isUpdate: false})
+}
+
+func (s *deviceMgrRemodelSuite) TestUC20RemodelLocalNonEssentialUpdate(c *C) {
+	s.testUC20RemodelLocalNonEssential(c,
+		&uc20RemodelLocalNonEssentialCase{isUpdate: true})
+}
+
+func (s *deviceMgrRemodelSuite) TestUC20RemodelLocalNonEssentialInstallExtraSnap(c *C) {
+	// We check that it is fine to pass down a snap that is not used,
+	// although we might change the behavior in the future.
+	s.testUC20RemodelLocalNonEssential(c,
+		&uc20RemodelLocalNonEssentialCase{isUpdate: false, notUsedSnap: true})
+}
+
+func (s *deviceMgrRemodelSuite) TestUC20RemodelLocalNonEssentialUpdateExtraSnap(c *C) {
+	// We check that it is fine to pass down a snap that is not used,
+	// although we might change the behavior in the future.
+	s.testUC20RemodelLocalNonEssential(c,
+		&uc20RemodelLocalNonEssentialCase{isUpdate: true, notUsedSnap: true})
+}
+
+type uc20RemodelLocalNonEssentialCase struct {
+	isUpdate    bool
+	notUsedSnap bool
+}
+
+func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20RemodelLocalNonEssentialCase) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	devicestate.SetBootOkRan(s.mgr, true)
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
+
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
+
+	s.mockTasksNopHandler("fake-download", "validate-snap", "fake-install",
+		// create recovery system requests are boot, which is not done here
+		"create-recovery-system", "finalize-recovery-system")
+
+	// set a model assertion we remodel from
+	essentialSnaps := []interface{}{
+		map[string]interface{}{
+			"name":            "pc-kernel",
+			"id":              snaptest.AssertedSnapID("pc-kernel"),
+			"type":            "kernel",
+			"default-channel": "20",
+		},
+		map[string]interface{}{
+			"name":            "pc",
+			"id":              snaptest.AssertedSnapID("pc"),
+			"type":            "gadget",
+			"default-channel": "20",
+		},
+	}
+	snaps := essentialSnaps
+	if tc.isUpdate {
+		snaps = append(snaps, map[string]interface{}{
+			"name":            "some-snap",
+			"id":              snaptest.AssertedSnapID("some-snap"),
+			"type":            "app",
+			"default-channel": "latest",
+		})
+	}
+	model := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps":        snaps,
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+
+	oldSeededTs := time.Now().AddDate(0, 0, -1)
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:    "0000",
+			Model:     model.Model(),
+			BrandID:   model.BrandID(),
+			Timestamp: model.Timestamp(),
+			SeedTime:  oldSeededTs,
+		},
+	})
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(1),
+		SnapID:   snaptest.AssertedSnapID("pc"),
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// current kernel
+	siModelKernel := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(1),
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+	}
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// base
+	siModelBase := &snap.SideInfo{
+		RealName: "core20",
+		Revision: snap.R(31),
+		SnapID:   snaptest.AssertedSnapID("core20"),
+	}
+	snapstate.Set(s.state, "core20", &snapstate.SnapState{
+		SnapType:        "base",
+		Sequence:        []*snap.SideInfo{siModelBase},
+		Current:         siModelBase.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
+	})
+	// extra snap
+	if tc.isUpdate {
+		siSomeSnap := &snap.SideInfo{
+			RealName: "some-snap",
+			Revision: snap.R(1),
+			SnapID:   snaptest.AssertedSnapID("some-snap"),
+		}
+		snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+			SnapType:        "app",
+			Sequence:        []*snap.SideInfo{siSomeSnap},
+			Current:         siSomeSnap.Revision,
+			Active:          true,
+			TrackingChannel: "latest/stable",
+		})
+	}
+
+	newModelSnaps := essentialSnaps
+	newModelSnaps = append(newModelSnaps, map[string]interface{}{
+		"name":            "some-snap",
+		"id":              snaptest.AssertedSnapID("some-snap"),
+		"type":            "app",
+		"default-channel": "new-channel",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"snaps":        newModelSnaps,
+	})
+
+	installWithDeviceContextCalled := 0
+	restore := devicestate.MockSnapstateInstallPathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		installWithDeviceContextCalled++
+		c.Check(si, NotNil)
+		c.Check(si.RealName, Equals, name)
+		c.Check(si.RealName, Not(Equals), "not-used-snap")
+
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.Set("snap-setup",
+			&snapstate.SnapSetup{SideInfo: si, Channel: opts.Channel})
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	updateWithDeviceContextCalled := 0
+	restore = devicestate.MockSnapstateUpdatePathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		updateWithDeviceContextCalled++
+		c.Check(flags.Required, Equals, false)
+		c.Check(flags.NoReRefresh, Equals, true)
+		c.Check(deviceCtx, NotNil)
+		c.Check(si, NotNil)
+		c.Check(si.RealName, Equals, name)
+		c.Check(si.RealName, Not(Equals), "not-used-snap")
+
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.Set("snap-setup",
+			&snapstate.SnapSetup{SideInfo: si, Channel: opts.Channel})
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	restore = release.MockOnClassic(false)
+	defer restore()
+
+	m := boot.Modeenv{
+		Mode: "run",
+
+		GoodRecoverySystems:    []string{"0000"},
+		CurrentRecoverySystems: []string{"0000"},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	now := time.Now()
+	expectedLabel := now.Format("20060102")
+	restore = devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+	s.state.Set("tried-systems", []string{expectedLabel})
+
+	resealKeyCalls := 0
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool) error {
+		resealKeyCalls++
+		c.Check(modeenv.GoodRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
+		c.Check(modeenv.CurrentRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
+		return nil
+	})
+	defer restore()
+
+	siSomeSnapNew, path := createLocalSnap(c, "some-snap", snaptest.AssertedSnapID("some-snap"), 3)
+	localSnaps := []*snap.SideInfo{siSomeSnapNew}
+	paths := []string{path}
+	if tc.notUsedSnap {
+		siNotUsed, pathNotUsed := createLocalSnap(c, "not-used-snap", snaptest.AssertedSnapID("not-used-snap"), 3)
+		localSnaps = append(localSnaps, siNotUsed)
+		paths = append(paths, pathNotUsed)
+	}
+
+	chg, err := devicestate.Remodel(s.state, new, localSnaps, paths)
+	c.Assert(err, IsNil)
+	if tc.isUpdate {
+		c.Check(installWithDeviceContextCalled, Equals, 0)
+		c.Check(updateWithDeviceContextCalled, Equals, 1)
+	} else {
+		c.Check(installWithDeviceContextCalled, Equals, 1)
+		c.Check(updateWithDeviceContextCalled, Equals, 0)
+	}
+	var setModelTask *state.Task
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "set-model" {
+			setModelTask = tsk
+			break
+		}
+	}
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(chg.Err(), IsNil)
+	// even if errors occur during reseal, set-model is a point of no return
+	c.Check(setModelTask.Status(), Equals, state.DoneStatus)
+	var seededSystems []devicestate.SeededSystem
+	c.Assert(s.state.Get("seeded-systems", &seededSystems), IsNil)
+
+	c.Check(setModelTask.Log(), HasLen, 0)
+
+	c.Assert(seededSystems, HasLen, 2)
+	// the system was seeded after our mocked 'now' or at the same
+	// time if clock resolution is very low, but not before it
+	c.Check(seededSystems[0].SeedTime.Before(now), Equals, false)
+	seededSystems[0].SeedTime = time.Time{}
+	c.Check(seededSystems[1].SeedTime.Equal(oldSeededTs), Equals, true)
+	seededSystems[1].SeedTime = time.Time{}
+	c.Check(seededSystems, DeepEquals, []devicestate.SeededSystem{
+		{
+			System:    expectedLabel,
+			Model:     new.Model(),
+			BrandID:   new.BrandID(),
+			Revision:  new.Revision(),
+			Timestamp: new.Timestamp(),
+		},
+		{
+			System:    "0000",
+			Model:     model.Model(),
+			BrandID:   model.BrandID(),
+			Timestamp: model.Timestamp(),
+			Revision:  model.Revision(),
+		},
+	})
 }
 
 func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelHappy(c *C) {
@@ -4156,7 +4737,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 
 	// since we cannot panic in random place in code that runs under
@@ -4486,7 +5067,7 @@ plugs:
 
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
 
-	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
 	errMsg := `cannot remodel with incomplete model, the following snaps are required but not listed: "foo-base"`
 	switch {
 	case strutil.ListContains(missingWhat, "base") && strutil.ListContains(missingWhat, "content"):
@@ -4706,7 +5287,7 @@ plugs:
 
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
 
-	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
 	errMsg := `cannot remodel with incomplete model, the following snaps are required but not listed: "bar-base", "foo-base", "foo-content"`
 	c.Assert(err, ErrorMatches, errMsg)
 	c.Assert(tss, IsNil)

@@ -140,6 +140,9 @@ mount options=(rw, rbind) /oldroot/home/**/usr/ -> /newroot/usr/,
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/** -> /newroot/etc/**,
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.cache -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.cache,
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.conf -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.conf,
+
+mount options=(rw, rbind) /oldroot/{home,media,mnt,run/media,opt,srv}/**/steamapps/common/** -> /newroot/**,
+
 mount options=(rw, rbind) /oldroot/mnt/{,**} -> /newroot/mnt/{,**},
 mount options=(rw, rbind) /oldroot/media/{,**} -> /newroot/media/{,**},
 mount options=(rw, rbind) /oldroot/run/media/ -> /newroot/run/media/,
@@ -150,6 +153,7 @@ mount options=(rw, rbind) /oldroot/etc/group -> /newroot/etc/group,
 mount options=(rw, rbind) /oldroot/etc/passwd -> /newroot/etc/passwd,
 mount options=(rw, rbind) /oldroot/etc/host.conf -> /newroot/etc/host.conf,
 mount options=(rw, rbind) /oldroot/etc/hosts -> /newroot/etc/hosts,
+mount options=(rw, rbind) /oldroot/usr/share/zoneinfo/** -> /newroot/etc/localtime,
 mount options=(rw, rbind) /oldroot/**/*resolv.conf -> /newroot/etc/resolv.conf,
 mount options=(rw, rbind) /bindfile* -> /newroot/etc/timezone,
 
@@ -214,6 +218,10 @@ const steamSupportConnectedPlugSecComp = `
 mount
 umount2
 pivot_root
+
+# Native games using QtWebEngineProcess -
+# https://forum.snapcraft.io/t/autoconnect-request-steam-network-control/34267
+unshare CLONE_NEWNS
 `
 
 const steamSupportSteamInputUDevRules = `

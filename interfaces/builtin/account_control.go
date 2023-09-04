@@ -39,6 +39,39 @@ const accountControlBaseDeclarationSlots = `
 `
 
 const accountControlConnectedPlugAppArmor = `
+#include <abstractions/dbus-strict>
+# Introspection of org.freedesktop.Accounts
+dbus (send)
+    bus=system
+    path=/org/freedesktop/Accounts{,/User[0-9]*}
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
+dbus (send)
+    bus=system
+    path=/org/freedesktop/Accounts
+    interface=org.freedesktop.Accounts
+    peer=(label=unconfined),
+dbus (send)
+    bus=system
+    path=/org/freedesktop/Accounts/User[0-9]*
+    interface=org.freedesktop.Accounts.User
+    peer=(label=unconfined),
+# Read all properties from Accounts
+dbus (send)
+    bus=system
+    path=/org/freedesktop/Accounts{,/User[0-9]*}
+    interface=org.freedesktop.DBus.Properties
+    member=Get{,All}
+    peer=(label=unconfined),
+# Receive Accounts property changed events
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/Accounts{,/User[0-9]*}
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
+    peer=(label=unconfined),
+
 /{,usr/}sbin/chpasswd ixr,
 /{,usr/}sbin/user{add,del} ixr,
 

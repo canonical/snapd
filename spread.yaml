@@ -15,6 +15,7 @@ environment:
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     TESTSTMP: /var/tmp/snapd-tools
+    RUNTIME_STATE_PATH: $TESTSTMP/runtime-state
     # turn debug off so that we don't get errant debug messages while running
     # tests, and in some cases like on UC20 we have the kernel command line
     # parameter, snapd.debug=1 turned on to enable early boot debugging before
@@ -73,6 +74,8 @@ environment:
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
     EXPERIMENTAL_FEATURES: '$(HOST: echo "${SPREAD_EXPERIMENTAL_FEATURES:-}")'
+    # set to 1 when the snapd memory limit has to be removed
+    SNAPD_NO_MEMORY_LIMIT: '$(HOST: echo "${SPREAD_SNAPD_NO_MEMORY_LIMIT:-}")'
 
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
     # Build and use snapd from current branch
@@ -137,24 +140,24 @@ backends:
             - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
-            - ubuntu-22.10-64:
-                  storage: 12G
-                  workers: 8
             - ubuntu-23.04-64:
                   storage: 12G
                   workers: 8
+            - ubuntu-23.10-64:
+                  storage: 12G
+                  workers: 8
 
-            - debian-10-64:
-                  workers: 6
             - debian-11-64:
+                  workers: 6
+            - debian-12-64:
                   workers: 6
             - debian-sid-64:
                   storage: 12G
                   workers: 6
 
-            - fedora-36-64:
-                  workers: 6
             - fedora-37-64:
+                  workers: 6
+            - fedora-38-64:
                   workers: 6
 
             - arch-linux-64:
@@ -177,12 +180,12 @@ backends:
                   storage: preserve-size
                   image: centos-9-64
 
-            # unstable systems below
             - opensuse-15.4-64:
+                  workers: 6
+            - opensuse-15.5-64:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
-                  manual: true
 
     google-arm:
         type: google
@@ -216,7 +219,7 @@ backends:
                   workers: 6
             - ubuntu-22.04-64:
                   workers: 6
-            - ubuntu-22.10-64:
+            - ubuntu-23.04-64:
                   workers: 6
 
     google-nested:
@@ -350,10 +353,16 @@ backends:
             - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
-            - debian-10-64:
+            - ubuntu-23.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-23.10-64:
+                  username: ubuntu
+                  password: ubuntu
+            - debian-11-64:
                   username: debian
                   password: debian
-            - debian-11-64:
+            - debian-12-64:
                   username: debian
                   password: debian
             - debian-sid-64:
@@ -404,22 +413,6 @@ backends:
             - ubuntu-16.04-s390x:
                   username: ubuntu
                   password: ubuntu
-            # Artful
-            - ubuntu-17.10-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-i386:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-ppc64el:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-armhf:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-s390x:
-                  username: ubuntu
-                  password: ubuntu
             # Bionic
             - ubuntu-18.04-amd64:
                   username: ubuntu
@@ -456,6 +449,25 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-arm64:
+                  username: ubuntu
+                  password: ubuntu
+            # Jammy
+            - ubuntu-22.04-amd64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-i386:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-ppc64el:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-armhf:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-s390x:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-arm64:
                   username: ubuntu
                   password: ubuntu
 
@@ -542,6 +554,9 @@ debug-each: |
 
     echo '# Kernel information'
     uname -a
+
+    echo '# Apparmor information'
+    apparmor_parser --version || true
 
     echo '# Go information'
     go version || true

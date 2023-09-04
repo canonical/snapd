@@ -7,14 +7,6 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
-CHECK_CFLAGS = -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes \
-	-Wno-missing-field-initializers -Wno-unused-parameter
-
-# Make all warnings errors when building for unit tests
-if WITH_UNIT_TESTS
-CHECK_CFLAGS += -Werror
-endif
-
 if USE_INTERNAL_BPF_HEADERS
 VENDOR_BPF_HEADERS_CFLAGS = -I$(srcdir)/libsnap-confine-private/bpf/vendor
 endif

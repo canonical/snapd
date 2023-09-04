@@ -464,6 +464,8 @@ const (
 	assertionsPath = "v2/assertions"
 )
 
+var httputilNewHTTPClient = httputil.NewHTTPClient
+
 func (s *Store) newHTTPClient(opts *httputil.ClientOptions) *http.Client {
 	if opts == nil {
 		opts = &httputil.ClientOptions{}
@@ -473,7 +475,7 @@ func (s *Store) newHTTPClient(opts *httputil.ClientOptions) *http.Client {
 	opts.ExtraSSLCerts = &httputil.ExtraSSLCertsFromDir{
 		Dir: dirs.SnapdStoreSSLCertsDir,
 	}
-	return httputil.NewHTTPClient(opts)
+	return httputilNewHTTPClient(opts)
 }
 
 func (s *Store) defaultSnapQuery() url.Values {

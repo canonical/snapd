@@ -46,54 +46,37 @@ func (s *aspectTestSuite) TestGetAspect(c *C) {
 	err := databag.Set("wifi.ssid", "foo")
 	c.Assert(err, IsNil)
 
-	s.state.Lock()
-	s.state.Set("aspect-databags", map[string]map[string]aspects.JSONDataBag{
-		"system": {"network": databag},
-	})
-	s.state.Unlock()
-
 	var res interface{}
-	err = aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &res)
+	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid", &res)
 	c.Assert(err, IsNil)
 	c.Assert(res, Equals, "foo")
 }
 
 func (s *aspectTestSuite) TestGetNotFound(c *C) {
+	databag := aspects.NewJSONDataBag()
+
 	var res interface{}
-	err := aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &res)
-	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
-	c.Assert(err, ErrorMatches, `aspect system/network/wifi-setup not found`)
+	err := aspectstate.GetAspect(databag, "system", "network", "other-aspect", "ssid", &res)
+	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "ssid" of aspect system/network/other-aspect: aspect not found`)
 	c.Check(res, IsNil)
 
-	s.state.Lock()
-	s.state.Set("aspect-databags", map[string]map[string]aspects.JSONDataBag{
-		"system": {"network": aspects.NewJSONDataBag()},
-	})
-	s.state.Unlock()
-
-	err = aspectstate.Get(s.state, "system", "network", "other-aspect", "ssid", &res)
-	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
-	c.Assert(err, ErrorMatches, `aspect system/network/other-aspect not found`)
+	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid", &res)
+	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "ssid" of aspect system/network/wifi-setup: no value was found under path "wifi"`)
 	c.Check(res, IsNil)
 
-	err = aspectstate.Get(s.state, "system", "network", "wifi-setup", "ssid", &res)
-	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get field "ssid": no value was found under "wifi"`)
+	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "other-field", &res)
+	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "other-field" of aspect system/network/wifi-setup: field not found`)
 	c.Check(res, IsNil)
+
 }
 
 func (s *aspectTestSuite) TestSetAspect(c *C) {
-	err := aspectstate.Set(s.state, "system", "network", "wifi-setup", "ssid", "foo")
+	databag := aspects.NewJSONDataBag()
+	err := aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "ssid", "foo")
 	c.Assert(err, IsNil)
-
-	var databags map[string]map[string]aspects.JSONDataBag
-	s.state.Lock()
-	err = s.state.Get("aspect-databags", &databags)
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
-	databag := databags["system"]["network"]
-	c.Assert(databag, NotNil)
 
 	var val string
 	err = databag.Get("wifi.ssid", &val)
@@ -102,36 +85,114 @@ func (s *aspectTestSuite) TestSetAspect(c *C) {
 }
 
 func (s *aspectTestSuite) TestSetNotFound(c *C) {
-	err := aspectstate.Set(s.state, "system", "other-bundle", "other-aspect", "foo", "bar")
-	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
+	databag := aspects.NewJSONDataBag()
+	err := aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "foo", "bar")
+	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "foo" of aspect system/network/wifi-setup: field not found`)
 
-	err = aspectstate.Set(s.state, "system", "network", "other-aspect", "foo", "bar")
-	c.Assert(err, FitsTypeOf, &aspects.AspectNotFoundError{})
+	err = aspectstate.SetAspect(databag, "system", "network", "other-aspect", "foo", "bar")
+	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot find field "foo" of aspect system/network/other-aspect: aspect not found`)
 }
 
 func (s *aspectTestSuite) TestSetAccessError(c *C) {
-	err := aspectstate.Set(s.state, "system", "network", "wifi-setup", "status", "foo")
-	c.Assert(err, ErrorMatches, `cannot set field "status": path is not writeable`)
+	databag := aspects.NewJSONDataBag()
+	err := aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "status", "foo")
+	c.Assert(err, ErrorMatches, `cannot write field "status": only supports read access`)
 }
 
 func (s *aspectTestSuite) TestUnsetAspect(c *C) {
-	err := aspectstate.Set(s.state, "system", "network", "wifi-setup", "ssid", "foo")
+	databag := aspects.NewJSONDataBag()
+	err := aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "ssid", "foo")
 	c.Assert(err, IsNil)
 
-	err = aspectstate.Set(s.state, "system", "network", "wifi-setup", "ssid", nil)
+	err = aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "ssid", nil)
 	c.Assert(err, IsNil)
-
-	var databags map[string]map[string]aspects.JSONDataBag
-	s.state.Lock()
-	err = s.state.Get("aspect-databags", &databags)
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
-	databag := databags["system"]["network"]
-	c.Assert(databag, NotNil)
 
 	var val string
 	err = databag.Get("wifi.ssid", &val)
-	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
+	c.Assert(err, FitsTypeOf, aspects.PathNotFoundError(""))
 	c.Assert(val, Equals, "")
+}
+
+func (s *aspectTestSuite) TestNewTransactionExistingState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	bag := aspects.NewJSONDataBag()
+	err := bag.Set("foo", "bar")
+	c.Assert(err, IsNil)
+	databags := map[string]map[string]aspects.JSONDataBag{
+		"system": {"network": bag},
+	}
+	s.state.Set("aspect-databags", databags)
+
+	tx, err := aspectstate.NewTransaction(s.state, "system", "network")
+	c.Assert(err, IsNil)
+
+	var value interface{}
+	err = tx.Get("foo", &value)
+	c.Assert(err, IsNil)
+	c.Assert(value, Equals, "bar")
+
+	err = tx.Set("foo", "baz")
+	c.Assert(err, IsNil)
+
+	err = tx.Commit()
+	c.Assert(err, IsNil)
+
+	err = s.state.Get("aspect-databags", &databags)
+	c.Assert(err, IsNil)
+	err = databags["system"]["network"].Get("foo", &value)
+	c.Assert(err, IsNil)
+	c.Assert(value, Equals, "baz")
+}
+
+func (s *aspectTestSuite) TestNewTransactionNoState(c *C) {
+	type testcase struct {
+		state map[string]map[string]aspects.JSONDataBag
+	}
+
+	testcases := []testcase{
+		{
+			state: map[string]map[string]aspects.JSONDataBag{
+				"system": {"network": nil},
+			},
+		},
+		{
+			state: map[string]map[string]aspects.JSONDataBag{
+				"system": nil,
+			},
+		},
+		{
+			state: map[string]map[string]aspects.JSONDataBag{},
+		},
+		{
+			state: nil,
+		},
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	for _, tc := range testcases {
+		s.state.Set("aspect-databags", tc.state)
+
+		tx, err := aspectstate.NewTransaction(s.state, "system", "network")
+		c.Assert(err, IsNil)
+
+		err = tx.Set("foo", "bar")
+		c.Assert(err, IsNil)
+
+		err = tx.Commit()
+		c.Assert(err, IsNil)
+
+		var databags map[string]map[string]aspects.JSONDataBag
+		err = s.state.Get("aspect-databags", &databags)
+		c.Assert(err, IsNil)
+
+		var value interface{}
+		err = databags["system"]["network"].Get("foo", &value)
+		c.Assert(err, IsNil)
+		c.Assert(value, Equals, "bar")
+	}
 }

@@ -192,6 +192,7 @@ func (client *Client) SystemDetails(systemLabel string) (*SystemDetails, error) 
 	if _, err := client.doSync("GET", "/v2/systems/"+systemLabel, nil, nil, nil, &rsp); err != nil {
 		return nil, xerrors.Errorf("cannot get details for system %q: %v", systemLabel, err)
 	}
+	gadget.SetEnclosingVolumeInStructs(rsp.Volumes)
 	return &rsp, nil
 }
 

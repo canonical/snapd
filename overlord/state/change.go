@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,6 +26,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 // Status is used for status values for changes and tasks.
@@ -114,6 +116,18 @@ func (s Status) String() string {
 	panic(fmt.Sprintf("internal error: unknown task status code: %d", s))
 }
 
+// taskWaitComputeStatus is used while computing the wait status of a
+// change. It keeps track of whether a task is waiting or not waiting, or the
+// computation for it is still in-progress to detect cyclic dependencies.
+type taskWaitComputeStatus int
+
+const (
+	taskWaitStatusNotComputed taskWaitComputeStatus = iota
+	taskWaitStatusComputing
+	taskWaitStatusNotWaiting
+	taskWaitStatusWaiting
+)
+
 // Change represents a tracked modification to the system state.
 //
 // The Change provides both the justification for individual tasks
@@ -125,15 +139,16 @@ func (s Status) String() string {
 // while the individual Task values would track the running of
 // the hooks themselves.
 type Change struct {
-	state   *State
-	id      string
-	kind    string
-	summary string
-	status  Status
-	clean   bool
-	data    customData
-	taskIDs []string
-	ready   chan struct{}
+	state              *State
+	id                 string
+	kind               string
+	summary            string
+	status             Status
+	clean              bool
+	data               customData
+	taskIDs            []string
+	ready              chan struct{}
+	lastObservedStatus Status
 
 	spawnTime time.Time
 	readyTime time.Time
@@ -282,32 +297,138 @@ func init() {
 	}
 }
 
+func (c *Change) isTaskWaiting(visited map[string]taskWaitComputeStatus, t *Task, deps []*Task) bool {
+	taskID := t.ID()
+	// Retrieve the compute status of the wait for the task, if not
+	// computed this defaults to 0 (taskWaitStatusNotComputed).
+	computeStatus := visited[taskID]
+	switch computeStatus {
+	case taskWaitStatusComputing:
+		// Cyclic dependency detected, return false to short-circuit.
+		logger.Noticef("detected cyclic dependencies for task %q in change %q", t.Kind(), t.Change().Kind())
+		// Make sure errors show up in "snap change <id>" too
+		t.Logf("detected cyclic dependencies for task %q in change %q", t.Kind(), t.Change().Kind())
+		return false
+	case taskWaitStatusWaiting, taskWaitStatusNotWaiting:
+		return computeStatus == taskWaitStatusWaiting
+	}
+	visited[taskID] = taskWaitStatusComputing
+
+	var isWaiting bool
+depscheck:
+	for _, wt := range deps {
+		switch wt.Status() {
+		case WaitStatus:
+			isWaiting = true
+		// States that can be valid when waiting
+		// - Done, Undone, ErrorStatus, HoldStatus
+		case DoneStatus, UndoneStatus, ErrorStatus, HoldStatus:
+			continue
+		// For 'Do' and 'Undo' we have to check whether the task is waiting
+		// for any dependencies. The logic is the same, but the set of tasks
+		// varies.
+		case DoStatus:
+			isWaiting = c.isTaskWaiting(visited, wt, wt.WaitTasks())
+			if !isWaiting {
+				// Cancel early if we detect something is runnable.
+				break depscheck
+			}
+		case UndoStatus:
+			isWaiting = c.isTaskWaiting(visited, wt, wt.HaltTasks())
+			if !isWaiting {
+				// Cancel early if we detect something is runnable.
+				break depscheck
+			}
+		default:
+			// When we determine the change can not be in a wait-state then
+			// break early.
+			isWaiting = false
+			break depscheck
+		}
+	}
+	if isWaiting {
+		visited[taskID] = taskWaitStatusWaiting
+	} else {
+		visited[taskID] = taskWaitStatusNotWaiting
+	}
+	return isWaiting
+}
+
+// isChangeWaiting should only ever return true iff it determines all tasks in Do/Undo
+// are blocked by tasks in either of three states: 'DoneStatus', 'UndoneStatus' or 'WaitStatus',
+// if this fails, we default to the normal status ordering logic.
+func (c *Change) isChangeWaiting() bool {
+	// Since we might visit tasks more than once, we store results to avoid recomputing them.
+	visited := make(map[string]taskWaitComputeStatus)
+	for _, t := range c.Tasks() {
+		switch t.Status() {
+		case WaitStatus, DoneStatus, UndoneStatus, ErrorStatus, HoldStatus:
+			continue
+		case DoStatus:
+			if !c.isTaskWaiting(visited, t, t.WaitTasks()) {
+				return false
+			}
+		case UndoStatus:
+			if !c.isTaskWaiting(visited, t, t.HaltTasks()) {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	// If we end up here, then return true as we know we
+	// have at least one waiter in this change.
+	return true
+}
+
 // Status returns the current status of the change.
 // If the status was not explicitly set the result is derived from the status
 // of the individual tasks related to the change, according to the following
 // decision sequence:
 //
+//   - With all pending tasks blocked by other tasks in WaitStatus, return WaitStatus
 //   - With at least one task in DoStatus, return DoStatus
 //   - With at least one task in ErrorStatus, return ErrorStatus
 //   - Otherwise, return DoneStatus
 func (c *Change) Status() Status {
 	c.state.reading()
-	if c.status == DefaultStatus {
-		if len(c.taskIDs) == 0 {
-			return HoldStatus
-		}
-		statusStats := make([]int, nStatuses)
-		for _, tid := range c.taskIDs {
-			statusStats[c.state.tasks[tid].Status()]++
-		}
-		for _, s := range statusOrder {
-			if statusStats[s] > 0 {
-				return s
-			}
-		}
-		panic(fmt.Sprintf("internal error: cannot process change status: %v", statusStats))
+	if c.status != DefaultStatus {
+		return c.status
 	}
-	return c.status
+
+	if len(c.taskIDs) == 0 {
+		return HoldStatus
+	}
+
+	statusStats := make([]int, nStatuses)
+	for _, tid := range c.taskIDs {
+		statusStats[c.state.tasks[tid].Status()]++
+	}
+
+	// If the change has any waiters, check for any runnable tasks
+	// or whether it's completely blocked by waiters.
+	if statusStats[WaitStatus] > 0 {
+		// Only if the change has all tasks blocked we return WaitStatus.
+		if c.isChangeWaiting() {
+			return WaitStatus
+		}
+	}
+
+	// Otherwise we return the current status with the highest priority.
+	for _, s := range statusOrder {
+		if statusStats[s] > 0 {
+			return s
+		}
+	}
+	panic(fmt.Sprintf("internal error: cannot process change status: %v", statusStats))
+}
+
+func (c *Change) notifyStatusChange(new Status) {
+	if c.lastObservedStatus == new {
+		return
+	}
+	c.state.notifyChangeStatusChangedHandlers(c, c.lastObservedStatus, new)
+	c.lastObservedStatus = new
 }
 
 // SetStatus sets the change status, overriding the default behavior (see Status method).
@@ -317,6 +438,7 @@ func (c *Change) SetStatus(s Status) {
 	if s.Ready() {
 		c.markReady()
 	}
+	c.notifyStatusChange(c.Status())
 }
 
 func (c *Change) markReady() {
@@ -335,15 +457,10 @@ func (c *Change) Ready() <-chan struct{} {
 	return c.ready
 }
 
-// taskStatusChanged is called by tasks when their status is changed,
-// to give the opportunity for the change to close its ready channel.
-func (c *Change) taskStatusChanged(t *Task, old, new Status) {
-	if old.Ready() == new.Ready() {
-		return
-	}
+func (c *Change) detectChangeReady(excludeTask *Task) {
 	for _, tid := range c.taskIDs {
 		task := c.state.tasks[tid]
-		if task != t && !task.status.Ready() {
+		if task != excludeTask && !task.status.Ready() {
 			return
 		}
 	}
@@ -354,6 +471,21 @@ func (c *Change) taskStatusChanged(t *Task, old, new Status) {
 		panic(fmt.Errorf("change %s unexpectedly became unready (%s)", c.ID(), c.Status()))
 	}
 	c.markReady()
+}
+
+// taskStatusChanged is called by tasks when their status is changed,
+// to give the opportunity for the change to close its ready channel, and
+// notify observers of Change changes.
+func (c *Change) taskStatusChanged(t *Task, old, new Status) {
+	cs := c.Status()
+	// If the task changes from ready => unready or unready => ready,
+	// update the ready status for the change.
+	if old.Ready() == new.Ready() {
+		c.notifyStatusChange(cs)
+		return
+	}
+	c.detectChangeReady(t)
+	c.notifyStatusChange(cs)
 }
 
 // IsClean returns whether all tasks in the change have been cleaned. See SetClean.

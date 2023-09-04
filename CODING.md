@@ -192,7 +192,7 @@ We write them using [spread](https://github.com/snapcore/spread). Generally all 
 
 * Large moving of code around and changes to code placement might also be better done separately.
 
-* PR summaries are expected to be of this form:
+* PR summaries and the first line of commit messages are expected to be of this form:
   * *`affected full packages:  short summary in lowercase`*
     * When too many packages are involved, many can be used instead, or sometimes package names can be abbreviated by using single letters for the top-level package, when non ambiguous combined with the subpackage.
     * Examples:

@@ -161,19 +161,27 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 }
 
 func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
-	old := snapstateInstallWithDeviceContext
+	r := testutil.Backup(&snapstateInstallWithDeviceContext)
 	snapstateInstallWithDeviceContext = f
-	return func() {
-		snapstateInstallWithDeviceContext = old
-	}
+	return r
+}
+
+func MockSnapstateInstallPathWithDeviceContext(f func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
+	r := testutil.Backup(&snapstateInstallPathWithDeviceContext)
+	snapstateInstallPathWithDeviceContext = f
+	return r
 }
 
 func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
-	old := snapstateUpdateWithDeviceContext
+	r := testutil.Backup(&snapstateUpdateWithDeviceContext)
 	snapstateUpdateWithDeviceContext = f
-	return func() {
-		snapstateUpdateWithDeviceContext = old
-	}
+	return r
+}
+
+func MockSnapstateUpdatePathWithDeviceContext(f func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
+	r := testutil.Backup(&snapstateUpdatePathWithDeviceContext)
+	snapstateUpdatePathWithDeviceContext = f
+	return r
 }
 
 func EnsureSeeded(m *DeviceManager) error {
@@ -403,12 +411,19 @@ func MockInstallEncryptPartitions(f func(onVolumes map[string]*gadget.Volume, en
 	}
 }
 
-func MockInstallSaveStorageTraits(f func(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *install.EncryptionSetupData) error) (restore func()) {
+func MockInstallSaveStorageTraits(f func(model gadget.Model, allLaidOutVols map[string]*gadget.Volume, encryptSetupData *install.EncryptionSetupData) error) (restore func()) {
 	old := installSaveStorageTraits
 	installSaveStorageTraits = f
 	return func() {
 		installSaveStorageTraits = old
 	}
+}
+
+func MockMatchDisksToGadgetVolumes(f func(gVols map[string]*gadget.Volume,
+	volCompatOpts *gadget.VolumeCompatibilityOptions) (map[string]map[int]*gadget.OnDiskStructure, error)) (restore func()) {
+	restore = testutil.Backup(&installMatchDisksToGadgetVolumes)
+	installMatchDisksToGadgetVolumes = f
+	return restore
 }
 
 func MockSecbootStageEncryptionKeyChange(f func(node string, key keys.EncryptionKey) error) (restore func()) {

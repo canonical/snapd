@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,11 +20,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/i18n"
 )
@@ -42,6 +44,7 @@ type cmdSign struct {
 	} `positional-args:"yes"`
 
 	KeyName keyName `short:"k" default:"default"`
+	Chain   bool    `long:"chain"`
 }
 
 func init() {
@@ -50,6 +53,8 @@ func init() {
 	}, map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"k": i18n.G("Name of the key to use, otherwise use the default key"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"chain": i18n.G("Append the account and account-key assertions necessary to allow any device to validate the signed assertion."),
 	}, []argDesc{{
 		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<filename>"),
@@ -90,9 +95,13 @@ func (x *cmdSign) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("cannot use %q key: %v"), x.KeyName, err)
 	}
 
+	ak, accKeyErr := mustGetOneAssert("account-key", map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})
+	accountKey, _ := ak.(*asserts.AccountKey)
+
 	signOpts := signtool.Options{
-		KeyID:     privKey.PublicKey().ID(),
-		Statement: statement,
+		KeyID:      privKey.PublicKey().ID(),
+		AccountKey: accountKey,
+		Statement:  statement,
 	}
 
 	encodedAssert, err := signtool.Sign(&signOpts, keypairMgr)
@@ -100,9 +109,57 @@ func (x *cmdSign) Execute(args []string) error {
 		return err
 	}
 
-	_, err = Stdout.Write(encodedAssert)
+	outBuf := bytes.NewBuffer(nil)
+	enc := asserts.NewEncoder(outBuf)
+
+	err = enc.WriteEncoded(encodedAssert)
+	if err != nil {
+		return err
+	}
+
+	if x.Chain {
+		if accKeyErr != nil {
+			return fmt.Errorf(i18n.G("cannot create assertion chain: %w"), accKeyErr)
+		}
+
+		err = enc.Encode(accountKey)
+		if err != nil {
+			return err
+		}
+
+		account, err := mustGetOneAssert("account", map[string]string{"account-id": accountKey.AccountID()})
+		if err != nil {
+			return fmt.Errorf(i18n.G("cannot create assertion chain: %w"), err)
+		}
+
+		err = enc.Encode(account)
+		if err != nil {
+			return err
+		}
+	} else {
+		if accountKey == nil {
+			fmt.Fprintf(Stderr, i18n.G("WARNING: could not fetch account-key to cross-check signed assertion with key constraints.\n"))
+		}
+	}
+
+	_, err = Stdout.Write(outBuf.Bytes())
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+// call this function in a way that is guaranteed to specify a unique assertion
+// (i.e. with a header specifying a value for the assertion's primary key)
+func mustGetOneAssert(assertType string, headers map[string]string) (asserts.Assertion, error) {
+	asserts, err := downloadAssertion(assertType, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(asserts) != 1 {
+		return nil, fmt.Errorf(i18n.G("internal error: cannot identify unique %s assertion for specified headers"), assertType)
+	}
+
+	return asserts[0], nil
 }

@@ -38,7 +38,7 @@ prepare: |
         sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core20/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-20.snap
         snap install --dangerous netplan-snap-20.snap
-    elif os.query is-ubuntu 22.04 || os.query is-ubuntu 22.10 || os.query is-ubuntu 23.04; then
+    elif os.query is-ubuntu-ge 22.04; then
         # use base: core22
         sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core22/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-22.snap

@@ -80,7 +80,10 @@ check_lxcfs_mounted() {
 
 check_stray_dbus_daemon() {
 	n="$1" # invariant name
-	(
+	wait_for_dbus_daemon=5
+	failed=()
+	while [ "${wait_for_dbus_daemon}" -gt 0 ]; do
+		failed=()
 		skipped_system=0
 		skipped_root_session=0
 		for pid in $(pgrep -x dbus-daemon); do
@@ -102,11 +105,16 @@ check_stray_dbus_daemon() {
 				continue
 			fi
 			# Report stray dbus-daemon.
-			echo "pid:$pid user:$user cmdline:$cmdline"
+			failed+=("pid:$pid user:$user cmdline:$cmdline")
 		done
-	) > "$TESTSTMP/tests.invariant.$n"
-	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
-		echo "tests.invariant: more than one dbus-daemon running" >&2
+		: $((wait_for_dbus_daemon--))
+		sleep 1
+	done
+
+	if [ "${#failed[@]}" -ne 0 ]; then
+		(for line in "${failed[@]}"; do
+			echo "${line}"
+		done) >"$TESTSTMP/tests.invariant.$n"
 		cat "$TESTSTMP/tests.invariant.$n" >&2
 		return 1
 	fi
@@ -178,7 +186,7 @@ check_cgroup_scopes() {
 check_segmentation_violations() {
 	n="$1" # invariant name
 
-	"$TESTSTOOLS"/journal-state get-log -unit snapd | grep "segmentation violation" > "$TESTSTMP/tests.invariant.$n"
+	"$TESTSTOOLS"/journal-state get-log -u snapd | grep "segmentation violation" > "$TESTSTMP/tests.invariant.$n"
 	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
 		echo "tests.invariant: segmentation violation found" >&2
 		cat "$TESTSTMP/tests.invariant.$n" >&2

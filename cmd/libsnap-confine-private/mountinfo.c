@@ -147,8 +147,9 @@ static bool is_octal_digit(char c)
 	return c >= '0' && c <= '7';
 }
 
-static char *parse_next_string_field(sc_mountinfo_entry * entry,
-				     const char *line, size_t *offset)
+static char *parse_next_string_field_ex(sc_mountinfo_entry * entry,
+					const char *line, size_t *offset,
+					bool allow_spaces_in_field)
 {
 	const char *input = &line[*offset];
 	char *output = &entry->line_buf[*offset];
@@ -174,12 +175,14 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 			// NOTE: we must not advance the reading index since we
 			// reached the end of the buffer.
 			break;
-		} else if (c == ' ') {
+		} else if (c == ' ' && !allow_spaces_in_field) {
 			// Fields are space delimited or end-of-string terminated.
 			// Represent either as the end-of-string marker, skip over it,
 			// and stop parsing by terminating the output, then
 			// breaking out of the loop but advancing the reading
 			// index which is needed for subsequent calls.
+			//
+			// XXX: The last field may contain spaces.
 			output[output_idx] = '\0';
 			input_idx++;
 			break;
@@ -224,6 +227,21 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 #endif
 	show_buffers(line, *offset, entry);
 	return output;
+}
+
+// Return the next space separated string field in the given line
+static char *parse_next_string_field(sc_mountinfo_entry * entry,
+				     const char *line, size_t *offset)
+{
+	return parse_next_string_field_ex(entry, line, offset, false);
+}
+
+// Return the last string field in the given line, this means the field
+// is allowed to contain spaces (' ', 0x20)
+static char *parse_last_string_field(sc_mountinfo_entry * entry,
+				     const char *line, size_t *offset)
+{
+	return parse_next_string_field_ex(entry, line, offset, true);
 }
 
 static sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
@@ -302,7 +320,7 @@ static sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 	     parse_next_string_field(entry, line, &offset)) == NULL)
 		goto fail;
 	if ((entry->super_opts =
-	     parse_next_string_field(entry, line, &offset)) == NULL)
+	     parse_last_string_field(entry, line, &offset)) == NULL)
 		goto fail;
 	return entry;
  fail:

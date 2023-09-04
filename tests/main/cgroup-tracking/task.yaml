@@ -62,7 +62,7 @@ execute: |
     # was attached to the system slice, as it is not associated with any user.
     test -f /var/snap/test-snapd-tracking/common/configure.cgroup
     hook_tracking_cg_path="$(grep -E "^$base_cg_id:" < /var/snap/test-snapd-tracking/common/configure.cgroup | cut -d : -f 3)"
-    echo "$hook_tracking_cg_path" | MATCH '/system\.slice/snap\.test-snapd-tracking\.hook\.configure\.[0-9a-f-]+\.scope'
+    echo "$hook_tracking_cg_path" | MATCH '/system\.slice/snap\.test-snapd-tracking\.hook\.configure-[0-9a-f-]+\.scope'
 
     # The nap service was executed and was tracked as a systemd service.
     test -f /var/snap/test-snapd-tracking/common/nap.cgroup
@@ -118,7 +118,7 @@ execute: |
     echo "new transient scope. The scope name is \"snap.\$random.test-snapd-tracking.sh\"."
     echo "Let's verify that."
     pid1_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid1_sleep/cgroup" | cut -d : -f 3)"
-    echo "$pid1_tracking_cg_path" | MATCH '.*/snap\.test-snapd-tracking\.sh\.[0-9a-f-]+\.scope'
+    echo "$pid1_tracking_cg_path" | MATCH '.*/snap\.test-snapd-tracking\.sh-[0-9a-f-]+\.scope'
 
     echo "Sanity check, cgroup associated with the scope exists."
     test -d "${base_cg_path}${pid1_tracking_cg_path}"
@@ -133,7 +133,7 @@ execute: |
     retry -n 30 test -e /tmp/snap-private-tmp/snap.test-snapd-tracking/tmp/2.stamp
     pid2_sleep=$(cat /tmp/2.pid)
     pid2_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid2_sleep/cgroup" | cut -d : -f 3)"
-    echo "$pid2_tracking_cg_path" | MATCH '.*/snap\.test-snapd-tracking\.sh\.[0-9a-f-]+\.scope'
+    echo "$pid2_tracking_cg_path" | MATCH '.*/snap\.test-snapd-tracking\.sh-[0-9a-f-]+\.scope'
     MATCH "$pid2_sleep" < "${base_cg_path}${pid2_tracking_cg_path}/cgroup.procs"
 
     echo "Each invocation uses a new transient scope and thus a new cgroup path."
@@ -187,6 +187,6 @@ execute: |
     retry -n 30 test -e /var/snap/test-snapd-tracking/common/nap.cgroup
     pid4=$(cat /tmp/4.pid)
     pid4_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid4/cgroup" | cut -d : -f 3)"
-    echo "$pid4_tracking_cg_path" | MATCH '.*/snap\.test-snapd-tracking\.nap\.[0-9a-f-]+\.scope'
+    echo "$pid4_tracking_cg_path" | MATCH '.*/snap\.test-snapd-tracking\.nap-[0-9a-f-]+\.scope'
     kill "$pid4"
     wait "$session4_pid" || true

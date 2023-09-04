@@ -50,11 +50,6 @@ type partitionTestSuite struct {
 
 var _ = Suite(&partitionTestSuite{})
 
-func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
-	goff := offs
-	return &goff
-}
-
 func (s *partitionTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -158,41 +153,8 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 	Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
 }
 
-var mockLaidoutStructureWritable = gadget.LaidOutStructure{
-	OnDiskStructure: gadget.OnDiskStructure{
-		Node: "/dev/node3",
-		Name: "Writable",
-		//Size:        1258291200,
-		Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-		PartitionFSLabel: "ubuntu-data",
-		PartitionFSType:  "ext4",
-		StartOffset:      1260388352,
-		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
-		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
-		// yaml structure (the MBR) that does not appear on disk
-		DiskIndex: 3,
-		// expanded to fill the disk
-		Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
-	},
-	VolumeStructure: &gadget.VolumeStructure{
-		VolumeName: "pc",
-		Name:       "Writable",
-		MinSize:    1258291200,
-		Size:       1258291200,
-		Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-		Role:       "system-data",
-		Label:      "ubuntu-data",
-		Filesystem: "ext4",
-		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
-		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
-		// yaml structure (the MBR) that does not appear on disk
-		Offset:    asOffsetPtr(1260388352),
-		YamlIndex: 3,
-	},
-}
-
-var mockLaidoutStructureSave = gadget.LaidOutStructure{
-	OnDiskStructure: gadget.OnDiskStructure{
+func createOnDiskStructureSave(enclosing *gadget.Volume) *gadget.OnDiskStructure {
+	return &gadget.OnDiskStructure{
 		Node:             "/dev/node3",
 		Name:             "Save",
 		Size:             128 * quantity.SizeMiB,
@@ -204,23 +166,11 @@ var mockLaidoutStructureSave = gadget.LaidOutStructure{
 		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
 		// yaml structure (the MBR) that does not appear on disk
 		DiskIndex: 3,
-	},
-	VolumeStructure: &gadget.VolumeStructure{
-		VolumeName: "pc",
-		Name:       "Save",
-		Label:      "ubuntu-save",
-		MinSize:    128 * quantity.SizeMiB,
-		Size:       128 * quantity.SizeMiB,
-		Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-		Role:       "system-save",
-		Filesystem: "ext4",
-		Offset:     asOffsetPtr(1260388352),
-		YamlIndex:  3,
-	},
+	}
 }
 
-var mockLaidoutStructureWritableAfterSave = gadget.LaidOutStructure{
-	OnDiskStructure: gadget.OnDiskStructure{
+func createOnDiskStructureWritableAfterSave(enclosing *gadget.Volume) *gadget.OnDiskStructure {
+	return &gadget.OnDiskStructure{
 		Node: "/dev/node4",
 		Name: "Writable",
 		// expanded to fill the disk
@@ -233,19 +183,7 @@ var mockLaidoutStructureWritableAfterSave = gadget.LaidOutStructure{
 		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
 		// yaml structure (the MBR) that does not appear on disk
 		DiskIndex: 4,
-	},
-	VolumeStructure: &gadget.VolumeStructure{
-		VolumeName: "pc",
-		Name:       "Writable",
-		MinSize:    1200 * quantity.SizeMiB,
-		Size:       1200 * quantity.SizeMiB,
-		Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-		Role:       "system-data",
-		Label:      "ubuntu-data",
-		Filesystem: "ext4",
-		Offset:     asOffsetPtr(1394606080),
-		YamlIndex:  4,
-	},
+	}
 }
 
 type uc20Model struct{}
@@ -273,16 +211,62 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 
 	// the expected expanded writable partition size is:
 	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
-	sfdiskInput, create, err := install.BuildPartitionList(dl, pv, nil)
+	sfdiskInput, create, err := install.BuildPartitionList(dl, pv.Volume, nil)
 	c.Assert(err, IsNil)
 	c.Assert(sfdiskInput.String(), Equals,
 		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
 /dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
 	c.Check(create, NotNil)
-	c.Assert(create, DeepEquals, []gadget.LaidOutStructure{
-		mockLaidoutStructureSave,
-		mockLaidoutStructureWritableAfterSave,
+	c.Assert(create, DeepEquals, []*gadget.OnDiskAndGadgetStructurePair{
+		{
+			DiskStructure:   createOnDiskStructureSave(pv.Volume),
+			GadgetStructure: &pv.Volume.Structure[3],
+		},
+		{
+			DiskStructure:   createOnDiskStructureWritableAfterSave(pv.Volume),
+			GadgetStructure: &pv.Volume.Structure[4],
+		},
+	})
+}
+
+func (s *partitionTestSuite) TestBuildPartitionListPartsNotInGadget(c *C) {
+	m := map[string]*disks.MockDiskMapping{
+		"/dev/node": makeMockDiskMappingIncludingPartitions(scriptPartitionsBiosSeed),
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
+
+	// This gadget does not specify the bios partition, but it is on the disk
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithGap)
+	c.Assert(err, IsNil)
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
+	c.Assert(err, IsNil)
+
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, IsNil)
+
+	// the expected expanded writable partition size is: start
+	// offset = (2M + 1200M), expanded size in sectors =
+	// (8388575*512 - start offset)/512
+	sfdiskInput, create, err := install.BuildPartitionList(dl, pv.Volume,
+		&install.CreateOptions{})
+	c.Assert(err, IsNil)
+	c.Assert(sfdiskInput.String(), Equals,
+		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
+/dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
+`)
+	c.Check(create, NotNil)
+	c.Assert(create, DeepEquals, []*gadget.OnDiskAndGadgetStructurePair{
+		{
+			DiskStructure:   createOnDiskStructureSave(pv.Volume),
+			GadgetStructure: &pv.Volume.Structure[1],
+		},
+		{
+			DiskStructure:   createOnDiskStructureWritableAfterSave(pv.Volume),
+			GadgetStructure: &pv.Volume.Structure[2],
+		},
 	})
 }
 
@@ -308,7 +292,7 @@ func (s *partitionTestSuite) TestBuildPartitionListOnlyCreatablePartitions(c *C)
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	_, _, err = install.BuildPartitionList(dl, pv, nil)
+	_, _, err = install.BuildPartitionList(dl, pv.Volume, nil)
 	c.Assert(err, ErrorMatches, `cannot create partition #1 \(\"BIOS Boot\"\)`)
 }
 
@@ -345,9 +329,15 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	opts := &install.CreateOptions{
 		GadgetRootDir: s.gadgetRoot,
 	}
-	created, err := install.TestCreateMissingPartitions(dl, pv, opts)
+	created, err := install.TestCreateMissingPartitions(dl, pv.Volume, opts)
 	c.Assert(err, IsNil)
-	c.Assert(created, DeepEquals, []gadget.LaidOutStructure{mockLaidoutStructureWritable})
+	c.Assert(created, DeepEquals, []*gadget.OnDiskAndGadgetStructurePair{
+		{
+			DiskStructure:   &mockOnDiskStructureWritable,
+			GadgetStructure: &pv.Volume.Structure[3],
+		},
+	})
+
 	c.Assert(calls, Equals, 1)
 
 	// Check partition table write
@@ -400,7 +390,7 @@ func (s *partitionTestSuite) TestCreatePartitionsNonRolePartitions(c *C) {
 		GadgetRootDir:              s.gadgetRoot,
 		CreateAllMissingPartitions: true,
 	}
-	created, err := install.TestCreateMissingPartitions(dl, pv, opts)
+	created, err := install.TestCreateMissingPartitions(dl, pv.Volume, opts)
 	c.Assert(err, IsNil)
 	c.Assert(created, HasLen, 3)
 	c.Assert(calls, Equals, 1)
@@ -858,6 +848,33 @@ const gptGadgetContentWithSave = `volumes:
         content:
           - image: pc-core.img
       - name: Recovery
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+      - name: Save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 128M
+      - name: Writable
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+`
+
+const gptGadgetContentWithGap = `volumes:
+  pc:
+    bootloader: grub
+    partial: [ filesystem ]
+    structure:
+      - name: Recovery
+        offset: 2M
         role: system-seed
         filesystem: vfat
         # UEFI will boot the ESP partition by default first

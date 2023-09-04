@@ -183,8 +183,8 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	 **/
 
 	/* Read the target of symlink at /proc/self/fd/<fd-of-orig-cwd> */
-	char fd_path[PATH_MAX];
-	char orig_cwd[PATH_MAX];
+	char fd_path[PATH_MAX] = {0};
+	char orig_cwd[PATH_MAX] = {0};
 	ssize_t nread;
 	/* If the original working directory cannot be used for whatever reason then
 	 * move the process to a special void directory. */
@@ -200,6 +200,7 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	if (nread == sizeof orig_cwd) {
 		die("cannot fit symbolic link target %s", fd_path);
 	}
+	orig_cwd[nread] = 0;
 
 	/* Open path corresponding to the original working directory in the
 	 * execution environment. This may normally fail if the path no longer
