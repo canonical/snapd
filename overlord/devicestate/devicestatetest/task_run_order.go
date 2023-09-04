@@ -25,18 +25,17 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// TODO: This is temporary helper function, to be removed later.
 // TaskPrintDeps print each task with its wait tasks.
 func TaskPrintDeps(tsAll []*state.TaskSet) {
 	// Add all tasks to single task list
-        for _, ts := range tsAll {
-                for _, t := range ts.Tasks() {
+	for _, ts := range tsAll {
+		for _, t := range ts.Tasks() {
 			fmt.Printf("Task: [%s] %s\n", t.ID(), t.Summary())
 			for _, wt := range t.WaitTasks() {
 				fmt.Printf(" - Wait: %s\n", wt.ID())
 			}
-                }
-        }
+		}
+	}
 }
 
 // TaskRunOrder returns tasks in the order that it will run.

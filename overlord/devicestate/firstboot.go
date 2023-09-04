@@ -185,8 +185,10 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
 		isCoreBoot := hasModeenv || !release.OnClassic
-		//TODO: Remove this hack for preseed testing
-		isCoreBoot = true
+		//TODO: Remove this hack that is used for preseed testing
+		if !isCoreBoot {
+			isCoreBoot = true
+		}
 		deviceSeed, err = m.importAssertionsFromSeed(isCoreBoot)
 	})
 	if err != nil && err != errNothingToDo {
@@ -330,6 +332,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	infos := make([]*snap.Info, 0, len(essentialSeedSnaps))
 	infoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
 
+	// collect the tasksets for installing the essential snaps
 	var hasCoreSnap bool
 	for _, seedSnap := range essentialSeedSnaps {
 		// TODO: Double check if this is solid
@@ -356,17 +359,21 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		infoToTs[info] = ts
 	}
 
-	// essential snaps requires core configure
+	// TODO: If we decide to inject core configuration during doInstall for snapd
+	// (which is arguably required), we likely do not need this anymore.
+
+	// Essential snaps require "core" configuration even if bases are used for booting,
+	// because it provides the system configuration. Without the "core" snap present, it
+	// will not be included in the installation taskset, so we need to inject it.
 	if !hasCoreSnap {
 		injectCoreConfigureTask()
 	}
 
-	// now add/chain the tasksets in the right order based on essential
-	// snap types
+	// now add/chain the essential snap tasksets in the right order based on essential snap types
 	isEssentialSnap := true
 	chainSorted(infos, infoToTs, isEssentialSnap)
 
-	// ensure we install in the right order
+	// collect the tasksets for installing the non-essential snaps
 	infos = make([]*snap.Info, 0, len(seedSnaps))
 	infoToTs = make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
 
@@ -397,8 +404,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		return nil, errs[0]
 	}
 
-	// now add/chain the tasksets in the right order, note that we
-	// only have tasksets that we did not already seeded
+	// now add/chain the non-essential snap tasksets in the right order
 	isEssentialSnap = false
 	chainSorted(infos, infoToTs, isEssentialSnap)
 

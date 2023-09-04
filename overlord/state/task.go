@@ -608,7 +608,7 @@ func (ts TaskSet) BeforeEdge(e TaskSetEdge) (*Task, error) {
 		}
 		taskPrev = task
 	}
-	
+
 	if taskPrev == nil {
 		return nil, fmt.Errorf("internal error: no task before %q edge in task set", e)
 	}

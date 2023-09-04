@@ -354,22 +354,22 @@ func (s *firstbootPreseedingClassic16Suite) TestPreseedOnCoreOrderingNew(c *C) {
 	s.WriteAssertions("model.asserts", assertsChain...)
 
 	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c, nil)
-	
-        snapYaml := `name: snap-req-other-base
+
+	snapYaml := `name: snap-req-other-base
 version: 1.0
 base: other-base
 `
-        snapFname, snapDecl, snapRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
-        s.WriteAssertions("snap-req-other-base.asserts", s.devAcct, snapRev, snapDecl)
-        baseYaml := `name: other-base
+	snapFname, snapDecl, snapRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+	s.WriteAssertions("snap-req-other-base.asserts", s.devAcct, snapRev, snapDecl)
+	baseYaml := `name: other-base
 version: 1.0
 type: base
 `
-        baseFname, baseDecl, baseRev := s.MakeAssertedSnap(c, baseYaml, nil, snap.R(127), "developerid")
-        s.WriteAssertions("other-base.asserts", s.devAcct, baseRev, baseDecl)
+	baseFname, baseDecl, baseRev := s.MakeAssertedSnap(c, baseYaml, nil, snap.R(127), "developerid")
+	s.WriteAssertions("other-base.asserts", s.devAcct, baseRev, baseDecl)
 
-        // create a seed.yaml
-        content := []byte(fmt.Sprintf(`
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
 snaps:
  - name: snapd
    file: %s
@@ -384,14 +384,14 @@ snaps:
  - name: other-base
    file: %s
 `, snapdFname, core18Fname, kernelFname, gadgetFname, snapFname, baseFname))
-        err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
-        c.Assert(err, IsNil)
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
 
-        // run the firstboot stuff
-        s.startOverlord(c)
-        st := s.overlord.State()
-        st.Lock()
-        defer st.Unlock()
+	// run the firstboot stuff
+	s.startOverlord(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
@@ -400,12 +400,12 @@ snaps:
 	devicestatetest.TaskPrintDeps(tsAll)
 
 	tasks, err := devicestatetest.TaskRunOrder(tsAll)
-        c.Assert(err, IsNil)
+	c.Assert(err, IsNil)
 
-        // Print tasks order
-        for _, task := range tasks {
-                fmt.Printf("[%s] %s\n", task.ID(), task.Summary())
-        }
+	// Print tasks order
+	for _, task := range tasks {
+		fmt.Printf("[%s] %s\n", task.ID(), task.Summary())
+	}
 }
 
 func (s *firstbootPreseedingClassic16Suite) TestPreseedClassicWithSnapdOnlyHappy(c *C) {

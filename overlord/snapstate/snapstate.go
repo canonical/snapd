@@ -748,6 +748,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	} else {
 		installSet.MarkEdge(prepare, LastBeforeLocalModificationsEdge)
 	}
+
+	//TODO: Consider if this is still correct. The spec questions/suggests
+	// if health check tasks should be added for essential snaps as well.
+	// Firstboot preseed and seed code changed to not skip configure anymore, which
+	// this is not used. If it turns out this is not applicable anymore, it may be
+	// removed and perhaps the whole skip confnigure concept.
 	if flags&skipConfigure != 0 {
 		return installSet, nil
 	}

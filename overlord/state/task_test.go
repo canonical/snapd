@@ -676,7 +676,7 @@ func (cs *taskSuite) TestTaskBeforeEdge(c *C) {
 	t, err := ts.BeforeEdge(edge1)
 	c.Assert(t, IsNil)
 	c.Assert(err, ErrorMatches, `internal error: missing "on-edge" edge in task set`)
-	
+
 	// one edge
 	ts.MarkEdge(t1, edge1)
 	t, err = ts.BeforeEdge(edge1)
@@ -690,12 +690,11 @@ func (cs *taskSuite) TestTaskBeforeEdge(c *C) {
 	c.Check(t, Equals, t1)
 
 	// three edges
-        ts.MarkEdge(t3, edge3)
-        t, err = ts.BeforeEdge(edge3)
-        c.Assert(err, IsNil)
-        c.Check(t, Equals, t2)
+	ts.MarkEdge(t3, edge3)
+	t, err = ts.BeforeEdge(edge3)
+	c.Assert(err, IsNil)
+	c.Check(t, Equals, t2)
 }
-
 
 func (cs *taskSuite) TestTaskAddAllWithEdges(c *C) {
 	st := state.New(nil)
