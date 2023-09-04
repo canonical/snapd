@@ -1180,7 +1180,7 @@ func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.DataHomeDir(nil), Equals, "/home/*/snap/name/1")
 	c.Check(info.CommonDataHomeDir(nil), Equals, "/home/*/snap/name/common")
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
-	c.Check(info.BinaryGlobs(), DeepEquals, []string{"name", "name.*"})
+	c.Check(info.BinaryNameGlobs(), DeepEquals, []string{"name", "name.*"})
 }
 
 func (s *infoSuite) TestMinimalInfoDirAndFileMethodsParallelInstall(c *C) {
@@ -1210,7 +1210,7 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.DataHomeDir(nil), Equals, "/home/*/snap/name_instance/1")
 	c.Check(info.CommonDataHomeDir(nil), Equals, "/home/*/snap/name_instance/common")
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
-	c.Check(info.BinaryGlobs(), DeepEquals, []string{"name_instance", "name_instance.*"})
+	c.Check(info.BinaryNameGlobs(), DeepEquals, []string{"name_instance", "name_instance.*"})
 }
 
 func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {

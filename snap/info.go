@@ -104,8 +104,8 @@ type PlaceInfo interface {
 	// UserExposedHomeDir returns the snap's new home directory under ~/Snap.
 	UserExposedHomeDir(home string) string
 
-	// BinaryGlobs returns globs that matches all snap binaries.
-	BinaryGlobs() []string
+	// BinaryNameGlobs returns base name globs that matches all snap binaries.
+	BinaryNameGlobs() []string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a
@@ -682,7 +682,7 @@ func (s *Info) XdgRuntimeDirs() string {
 	return filepath.Join(dirs.XdgRuntimeDirGlob, fmt.Sprintf("snap.%s", s.InstanceName()))
 }
 
-func (s *Info) BinaryGlobs() []string {
+func (s *Info) BinaryNameGlobs() []string {
 	return []string{s.InstanceName(), fmt.Sprintf("%s.*", s.InstanceName())}
 }
 
