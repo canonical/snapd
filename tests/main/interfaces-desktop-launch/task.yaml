@@ -42,7 +42,7 @@ execute: |
     snap connections test-launcher | MATCH "desktop-launch +test-launcher:desktop-launch +:desktop-launch +manual"
 
     echo "The launcher snap can launch other snaps via userd"
-    tests.session -u test exec test-launcher.dbus \
+    tests.session -u test exec test-launcher.dbus-v1 \
         test-app_test-app.desktop
 
     echo "The app snap records that it has been launched"
@@ -52,15 +52,36 @@ execute: |
     echo "The app was invoked with the arguments in the desktop file"
     MATCH "^args=arg-before arg-after$" < "$launch_data"
 
+    echo "The v2 API supports launching files and startup notification"
+    rm "$launch_data"
+    tests.session -u test exec \
+        env DESKTOP_STARTUP_ID=x11-startup XDG_ACTIVATION_TOKEN=wayland-startup \
+        test-launcher.dbus-v2 test-app_test-app.desktop \
+        file:///test1.txt file:///test2.txt
+    retry -n 5 --wait 1 test -s "$launch_data"
+    MATCH "^args=arg-before /test1.txt /test2.txt arg-after$" < "$launch_data"
+    MATCH "^DESKTOP_STARTUP_ID=x11-startup$" < "$launch_data"
+    MATCH "^XDG_ACTIVATION_TOKEN=wayland-startup$" < "$launch_data"
+
+    echo "The v2 API supports launching actions"
+    rm "$launch_data"
+    tests.session -u test exec test-launcher.dbus-v2 \
+        -a foo-action test-app_test-app.desktop
+    retry -n 5 --wait 1 test -s "$launch_data"
+    MATCH "^args=action$" < "$launch_data"
+
     if ! os.query is-core; then
         exit 0
     fi
     echo "The launcher snap can also invoke the snap via the desktop file Exec line"
     rm "$launch_data"
-    tests.session -u test exec test-launcher.exec \
-        test-app_test-app.desktop
+    tests.session -u test exec \
+        env DESKTOP_STARTUP_ID=x11-startup XDG_ACTIVATION_TOKEN=wayland-startup \
+        test-launcher.exec test-app_test-app.desktop
     retry -n 5 --wait 1 test -s "$launch_data"
     MATCH "^args=arg-before arg-after$" < "$launch_data"
+    MATCH "^DESKTOP_STARTUP_ID=x11-startup$" < "$launch_data"
+    MATCH "^XDG_ACTIVATION_TOKEN=wayland-startup$" < "$launch_data"
 
     echo "The desktop-launch helper reports errors from the D-Bus service"
     not tests.session -u test exec test-launcher.cmd \

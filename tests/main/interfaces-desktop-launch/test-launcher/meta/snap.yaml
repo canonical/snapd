@@ -8,8 +8,11 @@ apps:
   cmd:
     command: bin/cmd.sh
     plugs: [desktop-launch]
-  dbus:
-    command: bin/dbus.sh
+  dbus-v1:
+    command: bin/dbus-v1.sh
+    plugs: [desktop-launch]
+  dbus-v2:
+    command: bin/dbus-v2.sh
     plugs: [desktop-launch]
   exec:
     command: bin/exec.sh
