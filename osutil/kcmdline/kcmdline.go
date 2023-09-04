@@ -446,8 +446,8 @@ func (kap *ArgumentPattern) unmarshalFromString(arg string) error {
 	return nil
 }
 
-func (kap *ArgumentPattern) marshalToString() (string, error) {
-	return fmt.Sprintf(`%s=%s`, kap.param, kap.value.String()), nil
+func (kap *ArgumentPattern) marshalToString() string {
+	return fmt.Sprintf(`%s=%s`, kap.param, kap.value.String())
 }
 
 func (kap *ArgumentPattern) UnmarshalBinary(data []byte) error {
@@ -455,11 +455,7 @@ func (kap *ArgumentPattern) UnmarshalBinary(data []byte) error {
 }
 
 func (kap *ArgumentPattern) MarshalBinary() ([]byte, error) {
-	str, err := kap.marshalToString()
-	if err != nil {
-		return []byte{}, err
-	}
-	return []byte(str), nil
+	return []byte(kap.marshalToString()), nil
 }
 
 func (kap *ArgumentPattern) UnmarshalText(data []byte) error {
@@ -467,17 +463,13 @@ func (kap *ArgumentPattern) UnmarshalText(data []byte) error {
 }
 
 func (kap *ArgumentPattern) MarshalText() ([]byte, error) {
-	str, err := kap.marshalToString()
-	if err != nil {
-		return []byte{}, err
-	}
-	return []byte(str), nil
+	return []byte(kap.marshalToString()), nil
 }
 
 func (kap *ArgumentPattern) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var arg string
 	if err := unmarshal(&arg); err != nil {
-		return errors.New("cannot unmarshal kernel argument")
+		return fmt.Errorf("cannot unmarshal kernel argument: %v", err)
 	}
 	return kap.unmarshalFromString(arg)
 }
