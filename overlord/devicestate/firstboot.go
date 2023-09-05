@@ -233,7 +233,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	var lastBeforeConfigureTask *state.Task
 	var lastEndTask *state.Task
 
-	injectCoreConfigureTask := func() {
+	injectCoreConfigureTaskSet := func() {
 		injectedConfigureTaskSet = snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults)
 	}
 
@@ -370,10 +370,10 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	// (which is arguably required), we likely do not need this anymore.
 
 	// Essential snaps require "core" configuration even if bases are used for booting,
-	// because it provides the system configuration. Without the "core" snap present, it
-	// will not be included in the installation taskset, so we need to inject it.
-	if !hasCoreSnap {
-		injectCoreConfigureTask()
+	// because it provides the system configuration. In the case of no "core" essential snap,
+	// the "core" configuration taskset should be injected.
+	if len(essentialSeedSnaps) > 0 && !hasCoreSnap {
+		injectCoreConfigureTaskSet()
 	}
 
 	// now add/chain the essential snap tasksets in the right order based on essential snap types
