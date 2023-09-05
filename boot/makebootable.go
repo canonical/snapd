@@ -326,6 +326,7 @@ type makeRunnableOptions struct {
 	Standalone     bool
 	AfterDataReset bool
 	SeedDir        string
+	Unlocker       func() func()
 }
 
 func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error {
@@ -531,6 +532,9 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		if makeOpts.Standalone {
 			flags.SnapsDir = snapBlobDir
 		}
+
+		locker := makeOpts.Unlocker()
+		defer locker()
 		// seal the encryption key to the parameters specified in modeenv
 		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv, flags); err != nil {
 			return err
@@ -587,6 +591,10 @@ func buildOptionalKernelCommandLine(model *asserts.Model, gadgetSnapOrDir string
 	return cmdlineAppend, nil
 }
 
+func noUnlocker() func() {
+	return func() {}
+}
+
 // MakeRunnableSystem is like MakeBootableImage in that it sets up a system to
 // be able to boot, but is unique in that it is intended to be called from UC20
 // install mode and makes the run system bootable (hence it is called
@@ -598,7 +606,8 @@ func buildOptionalKernelCommandLine(model *asserts.Model, gadgetSnapOrDir string
 // running in between.
 func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
-		SeedDir: dirs.SnapSeedDir,
+		SeedDir:  dirs.SnapSeedDir,
+		Unlocker: noUnlocker,
 	})
 }
 
@@ -611,6 +620,20 @@ func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, s
 	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
 		Standalone: true,
 		SeedDir:    dirs.SnapSeedDir,
+		Unlocker:   noUnlocker,
+	})
+}
+
+// MakeRunnableStandaloneSystemUnlocker operates like MakeRunnableStandaloneSystem.
+// It takes and extra parameter which allows to unlock state when
+// sealing which takes a lot of time is required.
+func MakeRunnableStandaloneSystemUnlocker(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver, unlocker func() func()) error {
+	// TODO consider merging this back into MakeRunnableSystem but need
+	// to consider the properties of the different input used for sealing
+	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
+		Standalone: true,
+		SeedDir:    dirs.SnapSeedDir,
+		Unlocker:   unlocker,
 	})
 }
 
@@ -622,6 +645,7 @@ func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *Boot
 	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
 		Standalone: true,
 		SeedDir:    filepath.Join(InitramfsRunMntDir, "ubuntu-seed"),
+		Unlocker:   noUnlocker,
 	})
 }
 
@@ -632,5 +656,6 @@ func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSe
 	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
 		AfterDataReset: true,
 		SeedDir:        dirs.SnapSeedDir,
+		Unlocker:       noUnlocker,
 	})
 }
