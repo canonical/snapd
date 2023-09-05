@@ -158,6 +158,8 @@ func trivialSeeding(st *state.State) []*state.TaskSet {
 }
 
 func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state.TaskSet, error) {
+
+	fmt.Printf(">>>>> FUNCTIO RUNS  >>>>>>\n")
 	st := m.state
 	// check that the state is empty
 	var seeded bool
@@ -185,10 +187,10 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
 		isCoreBoot := hasModeenv || !release.OnClassic
-		//TODO: Remove this hack that is used for preseed testing
+		/*//TODO: Remove this hack that is used for preseed testing
 		if !isCoreBoot {
 			isCoreBoot = true
-		}
+		}*/
 		deviceSeed, err = m.importAssertionsFromSeed(isCoreBoot)
 	})
 	if err != nil && err != errNothingToDo {
@@ -400,6 +402,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	// validate that all snaps have bases
 	errs := snap.ValidateBasesAndProviders(infos)
 	if errs != nil {
+		fmt.Printf(">>>>> MAJOR FUCKUP RIGHT HERE >>>>>>\n")
 		// only report the first error encountered
 		return nil, errs[0]
 	}
@@ -474,7 +477,7 @@ func (m *DeviceManager) importAssertionsFromSeed(isCoreBoot bool) (seed.Seed, er
 	}
 	modelAssertion := deviceSeed.Model()
 
-	/*classicModel := modelAssertion.Classic()
+	classicModel := modelAssertion.Classic()
 	// FIXME this will not be correct on classic with modes system when
 	// mode is not "run".
 	if release.OnClassic != classicModel {
@@ -485,7 +488,7 @@ func (m *DeviceManager) importAssertionsFromSeed(isCoreBoot bool) (seed.Seed, er
 			msg = "cannot seed a classic system with an all-snaps model"
 		}
 		return nil, fmt.Errorf(msg)
-	}*/
+	}
 
 	// set device,model from the model assertion
 	if err := setDeviceFromModelAssertion(st, device, modelAssertion); err != nil {
