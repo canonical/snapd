@@ -158,8 +158,6 @@ func trivialSeeding(st *state.State) []*state.TaskSet {
 }
 
 func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state.TaskSet, error) {
-
-	fmt.Printf(">>>>> FUNCTIO RUNS  >>>>>>\n")
 	st := m.state
 	// check that the state is empty
 	var seeded bool
@@ -402,7 +400,6 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	// validate that all snaps have bases
 	errs := snap.ValidateBasesAndProviders(infos)
 	if errs != nil {
-		fmt.Printf(">>>>> MAJOR FUCKUP RIGHT HERE >>>>>>\n")
 		// only report the first error encountered
 		return nil, errs[0]
 	}
