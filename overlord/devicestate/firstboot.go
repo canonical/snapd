@@ -329,7 +329,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	}
 
 	// collected snap infos
-	infos := make([]*snap.Info, 0, len(essentialSeedSnaps))
+	infos := make([]*snap.Info, 0, len(essentialSeedSnaps)+len(seedSnaps))
 	infoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
 
 	// collect the tasksets for installing the essential snaps
@@ -374,7 +374,6 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	chainSorted(infos, infoToTs, isEssentialSnap)
 
 	// collect the tasksets for installing the non-essential snaps
-	infos = make([]*snap.Info, 0, len(seedSnaps))
 	infoToTs = make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
 
 	for _, seedSnap := range seedSnaps {
@@ -406,7 +405,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	// now add/chain the non-essential snap tasksets in the right order
 	isEssentialSnap = false
-	chainSorted(infos, infoToTs, isEssentialSnap)
+	chainSorted(infos[len(essentialSeedSnaps):], infoToTs, isEssentialSnap)
 
 	if len(tsAll) == 0 {
 		return nil, fmt.Errorf("cannot proceed, no snaps to seed")
