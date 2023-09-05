@@ -22,6 +22,7 @@ package wrappers
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -205,6 +206,9 @@ func ensureSnapBinariesWithContent(s *snap.Info, binariesContent, completersCont
 // It also removes wrapper binaries from the applications of the old snap revision if it exists ensuring that
 // only new snap binaries exist.
 func EnsureSnapBinaries(s *snap.Info) (err error) {
+	if s == nil {
+		return fmt.Errorf("internal error: snap info cannot be nil")
+	}
 	binariesContent := map[string]osutil.FileState{}
 	completersContent := map[string]osutil.FileState{}
 

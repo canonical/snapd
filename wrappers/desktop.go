@@ -281,7 +281,7 @@ func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error
 // that only new snap desktop files exist.
 func EnsureSnapDesktopFiles(s *snap.Info) error {
 	if s == nil {
-		panic("internal error: snap info cannot be nil")
+		return fmt.Errorf("internal error: snap info cannot be nil")
 	}
 	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
 		return err

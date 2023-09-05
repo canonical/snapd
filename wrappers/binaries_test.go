@@ -486,3 +486,7 @@ func (s *binariesTestSuite) TestAddSnapBinariesCleansUpOnFailure(c *C) {
 
 	c.Check(osutil.FileExists(link), Equals, false)
 }
+
+func (s *iconsTestSuite) TestEnsureSnapBinariesNilSnapInfo(c *C) {
+	c.Assert(wrappers.EnsureSnapBinaries(nil), ErrorMatches, "internal error: snap info cannot be nil")
+}

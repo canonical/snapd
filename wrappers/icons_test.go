@@ -99,9 +99,7 @@ func (s *iconsTestSuite) TestEnsureSnapIcons(c *C) {
 }
 
 func (s *iconsTestSuite) TestEnsureSnapIconsNilSnapInfo(c *C) {
-	c.Assert(func() {
-		wrappers.EnsureSnapIcons(nil)
-	}, PanicMatches, "internal error: snap info cannot be nil")
+	c.Assert(wrappers.EnsureSnapIcons(nil), ErrorMatches, "internal error: snap info cannot be nil")
 }
 
 func (s *iconsTestSuite) TestRemoveSnapIcons(c *C) {

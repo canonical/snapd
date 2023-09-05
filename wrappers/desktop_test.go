@@ -105,9 +105,7 @@ func (s *desktopSuite) TestEnsurePackageDesktopFiles(c *C) {
 }
 
 func (s *iconsTestSuite) TestEnsurePackageDesktopFilesNilSnapInfo(c *C) {
-	c.Assert(func() {
-		wrappers.EnsureSnapDesktopFiles(nil)
-	}, PanicMatches, "internal error: snap info cannot be nil")
+	c.Assert(wrappers.EnsureSnapDesktopFiles(nil), ErrorMatches, "internal error: snap info cannot be nil")
 }
 
 func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {

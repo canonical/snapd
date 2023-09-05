@@ -97,7 +97,7 @@ func deriveIconContent(instanceName string, rootDir string, icons []string) (con
 // that only new snap icon files exist.
 func EnsureSnapIcons(s *snap.Info) error {
 	if s == nil {
-		panic("internal error: snap info cannot be nil")
+		return fmt.Errorf("internal error: snap info cannot be nil")
 	}
 	if err := os.MkdirAll(dirs.SnapDesktopIconsDir, 0755); err != nil {
 		return err
