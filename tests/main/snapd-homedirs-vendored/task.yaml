@@ -25,6 +25,12 @@ restore: |
     userdel -f --remove "$USERNAME"
     rm -rf /remote/users
 
+    # Reinstall the original snap
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_purge_package snapd
+    distro_install_build_snapd
+
 debug: |
     # output custom snap-confine snippets
     ls -l /var/lib/snapd/apparmor/snap-confine/
