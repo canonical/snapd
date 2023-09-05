@@ -95,7 +95,7 @@ func (x *cmdDesktopLaunch) Execute([]string) error {
 		// Attempt to launch the desktop file via the
 		// privileged launcher, this will check that this snap
 		// has the desktop-launch interface connected.
-		conn, err := dbusutil.SessionBusPrivate()
+		conn, err := dbusutil.SessionBus()
 		if err != nil {
 			return fmt.Errorf(i18n.G("unable to access privileged desktop launcher: unable to get session bus: %v"), err)
 		}

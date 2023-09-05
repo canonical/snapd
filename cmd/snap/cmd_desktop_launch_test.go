@@ -20,13 +20,17 @@
 package main_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
+	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -154,4 +158,71 @@ func (s *DesktopLaunchSuite) TestCmdlineArgsToUris(c *C) {
 		"file:///tmp/test%204.txt",
 		"mailto:joe@example.org",
 	})
+}
+
+func (s *DesktopLaunchSuite) TestDBusLaunch(c *C) {
+	conn, _, err := dbustest.InjectableConnection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		c.Check(msg.Type, Equals, dbus.TypeMethodCall)
+		c.Check(msg.Headers, DeepEquals, map[dbus.HeaderField]dbus.Variant{
+			dbus.FieldDestination: dbus.MakeVariant("io.snapcraft.Launcher"),
+			dbus.FieldPath:        dbus.MakeVariant(dbus.ObjectPath("/io/snapcraft/PrivilegedDesktopLauncher")),
+			dbus.FieldInterface:   dbus.MakeVariant("io.snapcraft.PrivilegedDesktopLauncher"),
+			dbus.FieldMember:      dbus.MakeVariant("OpenDesktopEntry"),
+			dbus.FieldSignature:   dbus.MakeVariant(dbus.ParseSignatureMust("s")),
+		})
+
+		c.Assert(msg.Body, HasLen, 1)
+		c.Check(msg.Body[0], Equals, "foo_foo.desktop")
+
+		reply := &dbus.Message{
+			Type: dbus.TypeMethodReply,
+			Headers: map[dbus.HeaderField]dbus.Variant{
+				dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
+				dbus.FieldSender:      dbus.MakeVariant(":42"),
+			},
+		}
+		return []*dbus.Message{reply}, nil
+	})
+	c.Assert(err, IsNil)
+	restore := dbusutil.MockOnlySessionBusAvailable(conn)
+	defer restore()
+
+	restore = snap.MockSyscallExec(func(arg0 string, args []string, env []string) error {
+		c.Fail()
+		return fmt.Errorf("syscall.Exec unexpectedly called")
+	})
+	defer restore()
+
+	os.Setenv("SNAP", "launcher-snap")
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "desktop-launch", "--desktop", s.desktopFile, "--action", "action1", "--", "/test.txt"})
+	c.Check(err, IsNil)
+}
+
+func (s *DesktopLaunchSuite) TestDBusLaunchFailed(c *C) {
+	conn, _, err := dbustest.InjectableConnection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		reply := &dbus.Message{
+			Type: dbus.TypeError,
+			Headers: map[dbus.HeaderField]dbus.Variant{
+				dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
+				dbus.FieldSender:      dbus.MakeVariant(":42"),
+				dbus.FieldErrorName:   dbus.MakeVariant("org.freedesktop.DBus.Error.UnknownMethod"),
+			},
+		}
+		return []*dbus.Message{reply}, nil
+	})
+	c.Assert(err, IsNil)
+	restore := dbusutil.MockOnlySessionBusAvailable(conn)
+	defer restore()
+
+	restore = snap.MockSyscallExec(func(arg0 string, args []string, env []string) error {
+		c.Fail()
+		return fmt.Errorf("syscall.Exec unexpectedly called")
+	})
+	defer restore()
+
+	os.Setenv("SNAP", "launcher-snap")
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "desktop-launch", "--desktop", s.desktopFile, "--action", "action1", "--", "/test.txt"})
+	c.Check(err, ErrorMatches, `failed to launch foo_foo.desktop via the privileged desktop launcher: org.freedesktop.DBus.Error.UnknownMethod`)
 }
