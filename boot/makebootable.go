@@ -603,7 +603,7 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 }
 
 // MakeRunnableStandaloneSystem operates like MakeRunnableSystem but does
-// assume that the run system being set up is related to the current
+// not assume that the run system being set up is related to the current
 // system. This is appropriate e.g when installing from a classic installer.
 func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	// TODO consider merging this back into MakeRunnableSystem but need
