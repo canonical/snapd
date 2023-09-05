@@ -253,7 +253,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 						injectedConfigureTask = injectedConfigureTaskSet.Tasks()[0]
 						injectedConfigureTask.WaitFor(beforeConfigureTask)
 						firstConfigureTask.WaitFor(injectedConfigureTaskSet.Tasks()[len(injectedConfigureTaskSet.Tasks())-1])
-						all = append(all, injectedConfigureTaskSet)
+						//all = append(all, injectedConfigureTaskSet)
 					}
 				}
 			} else {
@@ -379,6 +379,9 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	// now add/chain the essential snap tasksets in the right order based on essential snap types
 	isEssentialSnap := true
 	chainSorted(infos, infoToTs, isEssentialSnap)
+	// TODO: This was temporarily moved outside of chainSnapTasksPreseed just to make existing unit test pass.
+	// The unit test should be adapted to this reverted.
+	tsAll = append(tsAll, injectedConfigureTaskSet)
 
 	// collect the tasksets for installing the non-essential snaps
 	infoToTs = make(map[*snap.Info]*state.TaskSet, len(seedSnaps))

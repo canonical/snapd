@@ -26,9 +26,10 @@ import (
 )
 
 // TaskPrintDeps print each task with its wait tasks.
-/*func TaskPrintDeps(tsAll []*state.TaskSet) {
+func TaskPrintDeps(tsAll []*state.TaskSet) {
 	// Add all tasks to single task list
-	for _, ts := range tsAll {
+	for i, ts := range tsAll {
+		fmt.Printf("Taskset: [%d] with %d tasks, first task is: %s\n", i+1, len(ts.Tasks()), ts.Tasks()[0].Summary())
 		for _, t := range ts.Tasks() {
 			fmt.Printf("Task: [%s] %s\n", t.ID(), t.Summary())
 			for _, wt := range t.WaitTasks() {
@@ -36,7 +37,7 @@ import (
 			}
 		}
 	}
-}*/
+}
 
 // TaskRunOrder returns tasks in the order that it will run.
 func TaskRunOrder(tsAll []*state.TaskSet) ([]*state.Task, error) {
