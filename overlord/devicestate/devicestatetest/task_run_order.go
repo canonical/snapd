@@ -26,7 +26,7 @@ import (
 )
 
 // TaskPrintDeps print each task with its wait tasks.
-func TaskPrintDeps(tsAll []*state.TaskSet) {
+/*func TaskPrintDeps(tsAll []*state.TaskSet) {
 	// Add all tasks to single task list
 	for _, ts := range tsAll {
 		for _, t := range ts.Tasks() {
@@ -36,7 +36,7 @@ func TaskPrintDeps(tsAll []*state.TaskSet) {
 			}
 		}
 	}
-}
+}*/
 
 // TaskRunOrder returns tasks in the order that it will run.
 func TaskRunOrder(tsAll []*state.TaskSet) ([]*state.Task, error) {
@@ -108,7 +108,7 @@ func TaskRunOrder(tsAll []*state.TaskSet) ([]*state.Task, error) {
 		}
 
 		for taskIndex, task := range tasksCompletedSameTime {
-			fmt.Printf("Done: [%s] %s\n", task.ID(), task.Summary())
+			//fmt.Printf("Done: [%s] %s\n", task.ID(), task.Summary())
 
 			completedTasks = append(completedTasks, task)
 			indexToRemove := tasksCompletedSameTimeIndexes[taskIndex]

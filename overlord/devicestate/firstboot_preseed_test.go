@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	//"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -343,7 +343,7 @@ snaps:
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
-func (s *firstbootPreseedingClassic16Suite) TestPreseedOnCoreOrderingNew(c *C) {
+/*func (s *firstbootPreseedingClassic16Suite) TestPreseedOnCoreOrderingNew(c *C) {
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
@@ -406,7 +406,7 @@ snaps:
 	for _, task := range tasks {
 		fmt.Printf("[%s] %s\n", task.ID(), task.Summary())
 	}
-}
+}*/
 
 func (s *firstbootPreseedingClassic16Suite) TestPreseedClassicWithSnapdOnlyHappy(c *C) {
 	restorePreseedMode := snapdenv.MockPreseeding(true)

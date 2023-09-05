@@ -1601,7 +1601,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
-	devicestatetest.TaskPrintDeps(tsAll)
+	//devicestatetest.TaskPrintDeps(tsAll)
 
 	tasks, err := devicestatetest.TaskRunOrder(tsAll)
 	c.Assert(err, IsNil)

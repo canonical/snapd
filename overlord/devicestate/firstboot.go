@@ -292,10 +292,17 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			if len(all) == 0 {
 				if isEssentialSnap {
 					firstConfigureTask = configureTask
+					if injectedConfigureTaskSet != nil {
+						injectedConfigureTask = injectedConfigureTaskSet.Tasks()[0]
+						injectedConfigureTask.WaitFor(beforeConfigureTask)
+						firstConfigureTask.WaitFor(injectedConfigureTaskSet.Tasks()[len(injectedConfigureTaskSet.Tasks())-1])
+						all = append(all, injectedConfigureTaskSet)
+					}
 				}
 			} else {
 				if isEssentialSnap {
 					beginTask.WaitFor(lastBeforeConfigureTask)
+					injectedConfigureTask.WaitFor(beforeConfigureTask)
 					firstConfigureTask.WaitFor(beforeConfigureTask)
 					configureTask.WaitFor(lastEndTask)
 				} else {
