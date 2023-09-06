@@ -323,6 +323,19 @@ func SetEnclosingVolumeInStructs(vv map[string]*Volume) {
 	}
 }
 
+// ResetEnclosingVolumeInStructs removes all recursive pointers
+// added by SetEnclosingVolumeInStructs. This is useful
+// to be able to serialize Volume.
+// This is a temporary hack for ubuntu-image, please do not use it.
+// XXX: this should be removed once ubuntu-image does not need it.
+func ResetEnclosingVolumeInStructs(vv map[string]*Volume) {
+	for _, v := range vv {
+		for sidx := range v.Structure {
+			v.Structure[sidx].EnclosingVolume = nil
+		}
+	}
+}
+
 // IsRoleMBR tells us if v has MBR role or not.
 func (v *VolumeStructure) IsRoleMBR() bool {
 	return v.Role == schemaMBR
