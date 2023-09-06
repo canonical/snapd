@@ -340,6 +340,9 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		if !app.IsService() {
 			continue
 		}
+		if strutil.ListContains(disabledSvcs, app.Name) {
+			continue
+		}
 		// Get all units for the service, but we only deal with
 		// the activators here.
 		_, activators := serviceUnits(app)
