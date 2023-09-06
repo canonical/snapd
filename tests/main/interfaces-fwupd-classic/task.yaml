@@ -33,4 +33,7 @@ execute: |
         # In Debian we might see "debian/" prepended to the version
         VERSION_PREFIX="(debian/)?"
     fi
-    test-snapd-fwupd.get-version | MATCH "variant +string \"${VERSION_PREFIX}[0-9.]+(-[0-9a-g-]+)?\""
+
+    # Retry to get reply from fwupd to deal with a delay in the response
+    # Error org.freedesktop.DBus.Error.NoReply: Did not receive a reply.
+    retry -n 3 --wait 1 sh -c 'test-snapd-fwupd.get-version | MATCH "variant +string \"${VERSION_PREFIX}[0-9.]+(-[0-9a-g-]+)?\""'
