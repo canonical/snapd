@@ -70,26 +70,30 @@ func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
 	// discussed.  We could use "-e trace=?syscall" but that is
 	// only available since strace 4.17 which is not even in
 	// ubutnu 17.10.
+	var userOpts []string
 	var stracePath string
 	cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
 	if osutil.FileExists(cand) {
 		stracePath = cand
+		// strace-static cannot resolve usernames, pass uid/gid instead
+		userOpts = []string{"--uid", current.Uid, "--gid", current.Gid}
 	}
 	if stracePath == "" {
 		stracePath, err = exec.LookPath("strace")
 		if err != nil {
 			return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
 		}
+		userOpts = []string{"-u", current.Username}
 	}
 
 	args := []string{
 		sudoPath,
 		"-E",
 		stracePath,
-		"-u", current.Username,
-		"-f",
-		"-e", ExcludedSyscalls,
 	}
+
+	args = append(args, userOpts...)
+	args = append(args, "-f", "-e", ExcludedSyscalls)
 	args = append(args, extraStraceOpts...)
 	args = append(args, traceeCmd...)
 

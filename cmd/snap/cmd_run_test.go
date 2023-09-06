@@ -1051,7 +1051,24 @@ echo "stdout output 2"
 	s.ResetStdStreams()
 	sudoCmd.ForgetCalls()
 
-	// unfiltered output cases
+	// try again without filtering
+	rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--strace=--raw", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
+		{
+			"sudo", "-E",
+			filepath.Join(straceCmd.BinDir(), "strace"),
+			"-u", user.Username,
+			"-f",
+			"-e", strace.ExcludedSyscalls,
+			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+			"snap.snapname.app",
+			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+			"snapname.app", "--arg1", "arg2",
+		},
+	})
+	c.Check(s.Stdout(), check.Equals, "stdout output 1\nstdout output 2\n")
 	expectedFullFmt := `execve("/path/to/snap-confine")
 snap-confine/snap-exec strace stuff
 getuid() = 1000
@@ -1098,6 +1115,7 @@ and more
 		c.Check(s.Stdout(), check.Equals, "stdout output 1\nstdout output 2\n")
 		c.Check(s.Stderr(), check.Equals, expectedFull)
 	}
+	c.Check(s.Stderr(), check.Equals, fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir))
 }
 
 func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
