@@ -78,7 +78,10 @@ func Read(filename string) (*DesktopEntry, error) {
 
 func parse(filename string, r io.Reader) (*DesktopEntry, error) {
 	de := &DesktopEntry{
-		Filename:              filename,
+		Filename: filename,
+		// If X-GNOME-Autostart-Enabled is not present, it is
+		// treated as if it is set to true:
+		// https://gitlab.gnome.org/GNOME/gnome-session/-/blob/543881614a6e8333d1f39108edd8eb6218cec619/gnome-session/gsm-autostart-app.c#L116-129
 		GnomeAutostartEnabled: true,
 	}
 	var (
@@ -126,11 +129,11 @@ func parse(filename string, r io.Reader) (*DesktopEntry, error) {
 
 		split := strings.SplitN(line, "=", 2)
 		if len(split) != 2 {
-			return nil, fmt.Errorf("desktop file %q badly formed", filename)
+			return nil, fmt.Errorf("desktop file %q badly formed in line %q", filename, line)
 		}
 		// Trim whitespace around the equals sign
-		key := strings.TrimRight(split[0], "\t\n\v\f\r ")
-		value := strings.TrimLeft(split[1], "\t\n\v\f\r ")
+		key := strings.TrimRight(split[0], "\t\v\f\r ")
+		value := strings.TrimLeft(split[1], "\t\v\f\r ")
 		switch currentGroup {
 		case unknownGroup:
 			// Ignore keys in unknown groups

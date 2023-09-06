@@ -113,7 +113,7 @@ Actions=known;
 [Desktop Entry]
 NoEqualsSign
 `,
-		err: `desktop file "/path/foo.desktop" badly formed`,
+		err: `desktop file "/path/foo.desktop" badly formed in line "NoEqualsSign"`,
 	}} {
 		c.Logf("tc %d", i)
 		r := bytes.NewBufferString(tc.in)
