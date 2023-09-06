@@ -39,49 +39,36 @@ func (hb hexBuf) String() string {
 
 // IoctlRequestBuffer is a buffer with a constructor method which prepares a
 // buffer to be passed into ioctl(2), along with other useful methods.
-type IoctlRequestBuffer struct {
-	bytes []byte
-}
+type IoctlRequestBuffer []byte
 
 // NewIoctlRequestBuffer returns a new buffer for communication with the kernel.
 //
 // The buffer contains encoded information about its size and protocol version.
-func NewIoctlRequestBuffer() *IoctlRequestBuffer {
+func NewIoctlRequestBuffer() IoctlRequestBuffer {
 	bufSize := 0xFFFF
 	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
 	header := MsgHeader{Version: 3, Length: uint16(bufSize)}
 	order := arch.Endian()
 	binary.Write(buf, order, &header)
 	buf.Write(make([]byte, bufSize-buf.Len()))
-	return &IoctlRequestBuffer{
-		bytes: buf.Bytes(),
-	}
-}
-
-// BytesToIoctlRequestBuffer creates a new IoctlRequestBuffer built around the
-// given buffer.  The buffer should the output of a valid ioctl message struct
-// being marshalled into bytes.
-func BytesToIoctlRequestBuffer(buf []byte) *IoctlRequestBuffer {
-	return &IoctlRequestBuffer{
-		bytes: buf,
-	}
+	return IoctlRequestBuffer(buf.Bytes())
 }
 
 // Bytes returns the underlying byte slice of an IoctlRequestBuffer.
-func (b *IoctlRequestBuffer) Bytes() []byte {
-	return b.bytes
+func (b IoctlRequestBuffer) Bytes() []byte {
+	return b
 }
 
 // Len returns the length of the underlying byte slice of an IoctlRequestBuffer.
-func (b *IoctlRequestBuffer) Len() int {
-	return len(b.bytes)
+func (b IoctlRequestBuffer) Len() int {
+	return len(b)
 }
 
 // Pointer returns a pointer to the first element of an IoctlRequestBuffer.
 //
 // This is intended to be used to simplify passing the buffer into ioctl(2).
-func (b *IoctlRequestBuffer) Pointer() uintptr {
-	return uintptr(unsafe.Pointer(&b.bytes[0]))
+func (b IoctlRequestBuffer) Pointer() uintptr {
+	return uintptr(unsafe.Pointer(&b[0]))
 }
 
 var dumpIoctl bool = osutil.GetenvBool("SNAPD_DEBUG_DUMP_IOCTL")
@@ -103,7 +90,7 @@ func SetIoctlDump(value bool) bool {
 // Ioctl calls.  If the ioctl syscall returns an error, the buffer contents are
 // those filled by the syscall, but the size of the buffer is unchanged, and
 // the complete buffer and error are returned.
-func Ioctl(fd uintptr, req IoctlRequest, buf *IoctlRequestBuffer) ([]byte, error) {
+func Ioctl(fd uintptr, req IoctlRequest, buf IoctlRequestBuffer) ([]byte, error) {
 	var err error
 	if dumpIoctl {
 		log.Printf(">>> ioctl %v (%d bytes) ...\n", req, buf.Len())

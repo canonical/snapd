@@ -32,7 +32,7 @@ func (*ioctlSuite) TestIoctlRequestBuffer(c *C) {
 
 func (*ioctlSuite) TestBytesToIoctlRequestBuffer(c *C) {
 	buf := []byte("foo")
-	ioctlBuf := notify.BytesToIoctlRequestBuffer(buf)
+	ioctlBuf := notify.IoctlRequestBuffer(buf)
 	c.Assert(ioctlBuf.Bytes(), DeepEquals, buf)
 }
 
