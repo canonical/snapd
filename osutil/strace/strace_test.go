@@ -67,7 +67,7 @@ func (s *straceSuite) TestStraceCommandHappy(c *C) {
 	c.Assert(cmd.Path, Equals, s.mockSudo.Exe())
 	c.Assert(cmd.Args, DeepEquals, []string{
 		s.mockSudo.Exe(), "-E",
-		s.mockStrace.Exe(), "-u", u.Username, "-f",
+		s.mockStrace.Exe(), "--gid", u.Gid, "--uid", u.Uid, "-f",
 		"-e", strace.ExcludedSyscalls,
 		// the command
 		"foo",
@@ -105,7 +105,7 @@ func (s *straceSuite) TestTraceExecCommand(c *C) {
 	c.Assert(cmd.Path, Equals, s.mockSudo.Exe())
 	c.Assert(cmd.Args, DeepEquals, []string{
 		s.mockSudo.Exe(), "-E",
-		s.mockStrace.Exe(), "-u", u.Username, "-f",
+		s.mockStrace.Exe(), "--gid", u.Gid, "--uid", u.Uid, "-f",
 		"-e", strace.ExcludedSyscalls,
 		// timing specific trace
 		"-ttt",

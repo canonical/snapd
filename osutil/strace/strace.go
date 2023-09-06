@@ -86,7 +86,8 @@ func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
 		sudoPath,
 		"-E",
 		stracePath,
-		"-u", current.Username,
+		"--gid", current.Gid,
+		"--uid", current.Uid,
 		"-f",
 		"-e", ExcludedSyscalls,
 	}
