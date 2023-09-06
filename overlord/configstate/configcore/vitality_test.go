@@ -151,7 +151,7 @@ func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 	svcName := "snap.test-snap.foo.service"
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"is-enabled", "snap.test-snap.foo.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.foo.service"},
 		{"--no-reload", "enable", "snap.test-snap.foo.service"},
 		{"daemon-reload"},
 		{"start", "snap.test-snap.foo.service"},
@@ -211,7 +211,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	svcName := "snap.test-snap.foo.service"
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"is-enabled", "snap.test-snap.foo.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.foo.service"},
 		{"--no-reload", "enable", "snap.test-snap.foo.service"},
 		{"daemon-reload"},
 		{"start", "snap.test-snap.foo.service"},

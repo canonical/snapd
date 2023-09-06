@@ -654,8 +654,14 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", slightFuture),
 		},
 		{
-			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
-			output:  "enabled",
+			expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.svc1.service"},
+			output: `Type=notify
+Id=snap.test-snap.svc1.service
+Names=snap.test-snap.svc1.service
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+`,
 		},
 		{
 			expArgs: []string{"start", "snap.test-snap.svc1.service"},
@@ -735,9 +741,14 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoe
 		},
 		// the service is disabled
 		{
-			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
-			output:  "disabled",
-			err:     systemctlDisabledServiceError{},
+			expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.svc1.service"},
+			output: `Type=notify
+Id=snap.test-snap.svc1.service
+Names=snap.test-snap.svc1.service
+ActiveState=active
+UnitFileState=disabled
+NeedDaemonReload=no
+`,
 		},
 		// then we don't restart the service even though it was killed
 	})
@@ -953,8 +964,14 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFil
 			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", t1Str),
 		},
 		{
-			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
-			output:  "enabled",
+			expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.svc1.service"},
+			output: `Type=notify
+Id=snap.test-snap.svc1.service
+Names=snap.test-snap.svc1.service
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+`,
 		},
 		{
 			expArgs: []string{"start", "snap.test-snap.svc1.service"},
@@ -1040,8 +1057,14 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFil
 			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", t1Str),
 		},
 		{
-			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
-			output:  "enabled",
+			expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.svc1.service"},
+			output: `Type=notify
+Id=snap.test-snap.svc1.service
+Names=snap.test-snap.svc1.service
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+`,
 		},
 		{
 			expArgs: []string{"start", "snap.test-snap.svc1.service"},
@@ -1113,8 +1136,14 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFil
 			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", slightFuture),
 		},
 		{
-			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
-			output:  "enabled",
+			expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.svc1.service"},
+			output: `Type=notify
+Id=snap.test-snap.svc1.service
+Names=snap.test-snap.svc1.service
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+`,
 		},
 		{
 			expArgs: []string{"start", "snap.test-snap.svc1.service"},
@@ -1287,8 +1316,14 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", slightFuture),
 		},
 		{
-			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
-			output:  "enabled",
+			expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.svc1.service"},
+			output: `Type=notify
+Id=snap.test-snap.svc1.service
+Names=snap.test-snap.svc1.service
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+`,
 		},
 		{
 			expArgs: []string{"start", "snap.test-snap.svc1.service"},
@@ -1369,7 +1404,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTri
 			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", slightFuture),
 		},
 		{
-			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
+			expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.svc1.service"},
 			err:     fmt.Errorf("systemd is having a bad day"),
 		},
 	})

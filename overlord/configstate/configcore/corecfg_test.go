@@ -149,6 +149,15 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 	s.AddCleanup(osutil.MockMountInfo(""))
 
 	s.systemctlOutput = func(args ...string) []byte {
+		if args[0] == "show" {
+			return []byte(fmt.Sprintf(`Type=notify
+Id=%[1]s
+Names=%[1]s
+ActiveState=inactive
+UnitFileState=enabled
+NeedDaemonReload=no
+`, args[len(args)-1]))
+		}
 		return []byte("ActiveState=inactive")
 	}
 

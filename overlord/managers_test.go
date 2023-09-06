@@ -9032,8 +9032,14 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"})
 			return []byte("InactiveEnterTimestamp=" + t1.Format("Mon 2006-01-02 15:04:05 MST")), nil
 		case 12:
-			c.Check(cmd, DeepEquals, []string{"is-enabled", "snap.test-snap.svc1.service"})
-			return []byte("enabled"), nil
+			c.Check(cmd, DeepEquals, []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.svc1.service"})
+			return []byte(`Type=notify
+Id=snap.test-snap.svc1.service
+Names=snap.test-snap.svc1.service
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+`), nil
 		case 13:
 			c.Check(cmd, DeepEquals, []string{"start", "snap.test-snap.svc1.service"})
 			return nil, nil
@@ -9262,8 +9268,14 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"})
 			return []byte("InactiveEnterTimestamp=" + t1.Format("Mon 2006-01-02 15:04:05 MST")), nil
 		case 12:
-			c.Check(cmd, DeepEquals, []string{"is-enabled", "snap.test-snap.svc1.service"})
-			return []byte("enabled"), nil
+			c.Check(cmd, DeepEquals, []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.svc1.service"})
+			return []byte(`Type=notify
+Id=snap.test-snap.svc1.service
+Names=snap.test-snap.svc1.service
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+`), nil
 		case 13:
 			// starting the snap fails
 			c.Check(cmd, DeepEquals, []string{"start", "snap.test-snap.svc1.service"})
