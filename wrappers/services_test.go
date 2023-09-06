@@ -2865,13 +2865,12 @@ apps:
 
 func (s *servicesTestSuite) TestServicesEnableState(c *C) {
 	info := snaptest.MockSnap(c, packageHello+`
- svc2:
+ svc1:
   command: bin/hello
   daemon: forking
- svc3:
+ svc2:
   command: bin/hello
   daemon: simple
-  daemon-scope: user
 `, &snap.SideInfo{Revision: snap.R(12)})
 	svc1File := "snap.hello-snap.svc1.service"
 	svc2File := "snap.hello-snap.svc2.service"
@@ -2884,18 +2883,31 @@ func (s *servicesTestSuite) TestServicesEnableState(c *C) {
 	fi
 
 	case "$1" in
-		is-enabled)
-			case "$2" in 
-			"snap.hello-snap.svc1.service")
-				echo "disabled"
-				exit 1
-				;;
-			"snap.hello-snap.svc2.service")
-				echo "enabled"
+		show)
+			case "$3" in
+			"snap.hello-snap.svc1.service"|snap.hello-snap.svc2.service)
+				for SVC in $3 $4
+				do
+					echo "Type=notify"
+					echo "Id=$SVC"
+					echo "Names=$SVC"
+					echo "NeedDaemonReload=no"
+					if [ "$SVC" = "snap.hello-snap.svc1.service" ]; then
+						echo "ActiveState=active"
+						echo "UnitFileState=enabled"
+					elif [ "$SVC" = "snap.hello-snap.svc2.service" ]; then
+						echo "ActiveState=inactive"
+						echo "UnitFileState=disabled"
+					fi
+					if [ "$SVC" != "$4" ]; then 
+						echo ""
+					fi
+				done
 				exit 0
 				;;
 			*)
-				echo "unexpected is-enabled of service $2"
+				shift 2
+				echo "unexpected show of service $*"
 				exit 2
 				;;
 			esac
@@ -2911,17 +2923,17 @@ func (s *servicesTestSuite) TestServicesEnableState(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(states, DeepEquals, map[string]bool{
-		"svc1": false,
-		"svc2": true,
+		"svc1": true,
+		"svc2": false,
 	})
 
 	// the calls could be out of order in the list, since iterating over a map
 	// is non-deterministic, so manually check each call
-	c.Assert(r.Calls(), HasLen, 2)
+	c.Assert(r.Calls(), HasLen, 1)
 	for _, call := range r.Calls() {
-		c.Assert(call, HasLen, 3)
-		c.Assert(call[:2], DeepEquals, []string{"systemctl", "is-enabled"})
-		switch call[2] {
+		c.Assert(call, HasLen, 5)
+		c.Assert(call[:2], DeepEquals, []string{"systemctl", "show"})
+		switch call[3] {
 		case svc1File, svc2File:
 		default:
 			c.Errorf("unknown service for systemctl call: %s", call[2])
@@ -2941,14 +2953,14 @@ func (s *servicesTestSuite) TestServicesEnableStateFail(c *C) {
 	fi
 
 	case "$1" in
-		is-enabled)
-			case "$2" in
+		show)
+			case "$3" in
 			"snap.hello-snap.svc1.service")
 				echo "whoops"
 				exit 1
 				;;
 			*)
-				echo "unexpected is-enabled of service $2"
+				echo "unexpected is-enabled of service $3"
 				exit 2
 				;;
 			esac
@@ -2961,11 +2973,187 @@ func (s *servicesTestSuite) TestServicesEnableStateFail(c *C) {
 	defer r.Restore()
 
 	_, err := wrappers.ServicesEnableState(info, progress.Null)
-	c.Assert(err, ErrorMatches, ".*is-enabled snap.hello-snap.svc1.service\\] failed with exit status 1: whoops\n.*")
+	c.Assert(err, ErrorMatches, ".*show --property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload snap.hello-snap.svc1.service\\] failed with exit status 1: whoops\n.*")
 
 	c.Assert(r.Calls(), DeepEquals, [][]string{
-		{"systemctl", "is-enabled", svc1File},
+		{"systemctl", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", svc1File},
 	})
+}
+
+func (s *servicesTestSuite) TestQueryDisabledServices(c *C) {
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
+ svc1:
+  daemon: simple
+  command: bin/hello
+ svc2:
+  daemon: simple
+  command: bin/hello
+`, &snap.SideInfo{Revision: snap.R(12)})
+	s.systemctlRestorer()
+	// This will mock the following:
+	// svc 1 will be reported as disabled
+	// svc 2 will be reported as enabled
+	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
+	if [ "$1" = "--root" ]; then
+		# shifting by 2 also drops the temp dir arg to --root
+	    shift 2
+	fi
+
+	case "$1" in
+		show)
+			case "$3" in 
+			"snap.hello-snap.svc1.service"|"snap.hello-snap.svc2.service")
+				for SVC in $3 $4
+				do
+					echo "Type=notify"
+					echo "Id=$SVC"
+					echo "Names=$SVC"
+					echo "NeedDaemonReload=no"
+					if [ "$SVC" = "snap.hello-snap.svc1.service" ]; then
+						echo "ActiveState=inactive"
+						echo "UnitFileState=disabled"
+					elif [ "$SVC" = "snap.hello-snap.svc2.service" ]; then
+						echo "ActiveState=inactive"
+						echo "UnitFileState=enabled"
+					fi
+					if [ "$SVC" != "$4" ]; then 
+						echo ""
+					fi
+				done
+				exit 0
+				;;
+			*)
+				shift 2
+				echo "unexpected show of service $*"
+				exit 2
+				;;
+			esac
+	        ;;
+	    *)
+	        echo "unexpected op $*"
+	        exit 2
+	esac
+	`)
+	defer r.Restore()
+
+	disabledSvcs, err := wrappers.QueryDisabledServices(info, progress.Null)
+	c.Assert(err, IsNil)
+
+	// ensure svc1 was reported as disabled
+	c.Assert(disabledSvcs, DeepEquals, []string{"svc1"})
+
+	// the calls could be out of order in the list, since iterating over a map
+	// is non-deterministic, so manually check each call
+	c.Assert(r.Calls(), HasLen, 1)
+	for _, call := range r.Calls() {
+		c.Assert(call, HasLen, 5)
+		c.Assert(call[:2], DeepEquals, []string{"systemctl", "show"})
+		switch call[3] {
+		case "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service":
+		default:
+			c.Errorf("unknown service for systemctl call: %s", call[2])
+		}
+	}
+}
+
+func (s *servicesTestSuite) TestQueryDisabledServicesActivatedServices(c *C) {
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
+ svc1:
+  daemon: simple
+  plugs: [network-bind]
+  sockets:
+    sock1:
+      listen-stream: $SNAP_COMMON/sock1.socket
+      socket-mode: 0666
+    sock2:
+      listen-stream: $SNAP_DATA/sock2.socket
+ svc2:
+  daemon: simple
+  command: bin/hello
+`, &snap.SideInfo{Revision: snap.R(12)})
+	s.systemctlRestorer()
+	// This will mock the following:
+	// svc 1 will be reported as static
+	// svc 2 will be reported as enabled
+	// svc 1 has two socket activations that both will be reported as disabled
+	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
+	if [ "$1" = "--root" ]; then
+		# shifting by 2 also drops the temp dir arg to --root
+	    shift 2
+	fi
+
+	case "$1" in
+		show)
+			case "$3" in 
+			"snap.hello-snap.svc1.service"|"snap.hello-snap.svc2.service")
+				for SVC in $3 $4
+				do
+					echo "Type=notify"
+					echo "Id=$SVC"
+					echo "Names=$SVC"
+					echo "NeedDaemonReload=no"
+					if [ "$SVC" = "snap.hello-snap.svc1.service" ]; then
+						echo "ActiveState=inactive"
+						echo "UnitFileState=static"
+					elif [ "$SVC" = "snap.hello-snap.svc2.service" ]; then
+						echo "ActiveState=inactive"
+						echo "UnitFileState=enabled"
+					fi
+					if [ "$SVC" != "$4" ]; then 
+						echo ""
+					fi
+				done
+				exit 0
+				;;
+			"snap.hello-snap.svc1.sock1.socket"|"snap.hello-snap.svc1.sock2.socket")
+				echo "Type=notify"
+				echo "Id=snap.hello-snap.svc1.sock1.socket"
+				echo "Names=snap.hello-snap.svc1.sock1.socket"
+				echo "ActiveState=inactive"
+				echo "UnitFileState=disabled"
+				echo "NeedDaemonReload=no"
+				echo ""
+				echo "Type=notify"
+				echo "Id=snap.hello-snap.svc1.sock2.socket"
+				echo "Names=snap.hello-snap.svc1.sock2.socket"
+				echo "ActiveState=inactive"
+				echo "UnitFileState=disabled"
+				echo "NeedDaemonReload=no"
+				exit 0
+				;;
+			*)
+				shift 2
+				echo "unexpected show of service $*"
+				exit 2
+				;;
+			esac
+	        ;;
+	    *)
+	        echo "unexpected op $*"
+	        exit 2
+	esac
+	`)
+	defer r.Restore()
+
+	disabledSvcs, err := wrappers.QueryDisabledServices(info, progress.Null)
+	c.Assert(err, IsNil)
+
+	// ensure svc1 were reported as disabled
+	c.Assert(disabledSvcs, DeepEquals, []string{"svc1"})
+
+	// the calls could be out of order in the list, since iterating over a map
+	// is non-deterministic, so manually check each call
+	c.Assert(r.Calls(), HasLen, 2)
+	for _, call := range r.Calls() {
+		c.Assert(call, HasLen, 5)
+		c.Assert(call[:2], DeepEquals, []string{"systemctl", "show"})
+		switch call[3] {
+		case "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service", "snap.hello-snap.svc3.service":
+		case "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket":
+		default:
+			c.Errorf("unknown service for systemctl call: %s", call[2])
+		}
+	}
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServices(c *C) {
@@ -4667,8 +4855,7 @@ apps:
 	sort.Sort(snap.AppInfoBySnapApp(services))
 	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesFlags{AlsoEnabledNonActive: true}, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload",
-			srvFile1, srvFile2, srvFile3, srvFile4},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2, srvFile3, srvFile4},
 		{"stop", srvFile1},
 		{"show", "--property=ActiveState", srvFile1},
 		{"start", srvFile1},
@@ -4685,8 +4872,7 @@ apps:
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(services, []string{srvFile4}, &wrappers.RestartServicesFlags{AlsoEnabledNonActive: true}, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload",
-			srvFile1, srvFile2, srvFile3, srvFile4},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2, srvFile3, srvFile4},
 		{"stop", srvFile1},
 		{"show", "--property=ActiveState", srvFile1},
 		{"start", srvFile1},
@@ -4705,8 +4891,7 @@ apps:
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesFlags{AlsoEnabledNonActive: false}, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload",
-			srvFile1, srvFile2, srvFile3, srvFile4},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2, srvFile3, srvFile4},
 		{"stop", srvFile1},
 		{"show", "--property=ActiveState", srvFile1},
 		{"start", srvFile1},
