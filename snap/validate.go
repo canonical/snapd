@@ -162,6 +162,22 @@ func ValidateLicense(license string) error {
 	return nil
 }
 
+func validateHooks(info *Info) error {
+	for _, hook := range info.Hooks {
+		if err := ValidateHook(hook); err != nil {
+			return err
+		}
+	}
+
+	hasDefaultConfigureHook := info.Hooks["default-configure"] != nil
+	hasConfigureHook := info.Hooks["configure"] != nil
+	if hasDefaultConfigureHook && !hasConfigureHook {
+		return fmt.Errorf(`cannot specify "default-configure" hook without "configure" hook`)
+	}
+
+	return nil
+}
+
 // ValidateHook validates the content of the given HookInfo
 func ValidateHook(hook *HookInfo) error {
 	if err := naming.ValidateHook(hook.Name); err != nil {
@@ -368,11 +384,9 @@ func Validate(info *Info) error {
 		}
 	}
 
-	// validate hook entries
-	for _, hook := range info.Hooks {
-		if err := ValidateHook(hook); err != nil {
-			return err
-		}
+	// Validate hook entries
+	if err := validateHooks(info); err != nil {
+		return err
 	}
 
 	// Ensure that plugs and slots have appropriate names and interface names.
