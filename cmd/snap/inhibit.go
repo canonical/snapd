@@ -35,7 +35,7 @@ import (
 )
 
 func waitWhileInhibited(snapName string) error {
-	hint, err := runinhibit.IsLocked(snapName)
+	hint, _, err := runinhibit.IsLocked(snapName)
 	if err != nil {
 		return err
 	}
@@ -161,7 +161,7 @@ var waitInhibitUnlock = func(snapName string, waitFor runinhibit.Hint) (notInhib
 		select {
 		case <-ticker.C:
 			// Half a second has elapsed, let's check again.
-			hint, err := isLocked(snapName)
+			hint, _, err := isLocked(snapName)
 			if err != nil {
 				return false, err
 			}

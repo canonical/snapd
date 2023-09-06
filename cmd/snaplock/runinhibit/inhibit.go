@@ -22,6 +22,7 @@
 package runinhibit
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 // defaultInhibitDir is the directory where inhibition files are stored.
@@ -59,13 +61,59 @@ const (
 	HintInhibitedForPreDownload Hint = "pre-download"
 )
 
+const hintFilePostfix = "lock"
+
 // HintFile returns the full path of the run inhibition lock file for the given snap.
 func HintFile(snapName string) string {
-	return filepath.Join(InhibitDir, snapName+".lock")
+	return filepath.Join(InhibitDir, fmt.Sprintf("%s.%s", snapName, hintFilePostfix))
+}
+
+func InhibitInfoFile(snapName string, hint Hint) string {
+	return filepath.Join(InhibitDir, fmt.Sprintf("%s.%s", snapName, hint))
 }
 
 func openHintFileLock(snapName string) (*osutil.FileLock, error) {
 	return osutil.NewFileLockWithMode(HintFile(snapName), 0644)
+}
+
+type InhibitInfo struct {
+	Revision snap.Revision `json:"revision"`
+}
+
+func validateInhibitInfo(info InhibitInfo) error {
+	if info.Revision.Unset() {
+		return fmt.Errorf("snap revision cannot be unset")
+	}
+	return nil
+}
+
+func validateHint(hint Hint) error {
+	if len(hint) == 0 {
+		return fmt.Errorf("lock hint cannot be empty")
+	}
+	if string(hint) == hintFilePostfix {
+		return fmt.Errorf("hint cannot have value %q", hintFilePostfix)
+	}
+	return nil
+}
+
+func removeInhibitInfoFiles(snapName string) error {
+	infoGlob := filepath.Join(InhibitDir, snapName+".*")
+	// There should be one file only, but just in case
+	files, err := filepath.Glob(infoGlob)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		// Don't remove hint
+		if filepath.Base(f) == fmt.Sprintf("%s.%s", snapName, hintFilePostfix) {
+			continue
+		}
+		if err := os.Remove(f); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // LockWithHint sets a persistent "snap run" inhibition lock, for the given snap, with a given hint.
@@ -73,9 +121,12 @@ func openHintFileLock(snapName string) (*osutil.FileLock, error) {
 // The hint cannot be empty. It should be one of the Hint constants defined in
 // this package. With the hint in place "snap run" will not allow the snap to
 // start and will block, presenting a user interface if possible.
-func LockWithHint(snapName string, hint Hint) error {
-	if len(hint) == 0 {
-		return fmt.Errorf("lock hint cannot be empty")
+func LockWithHint(snapName string, hint Hint, info InhibitInfo) error {
+	if err := validateHint(hint); err != nil {
+		return err
+	}
+	if err := validateInhibitInfo(info); err != nil {
+		return err
 	}
 	if err := os.MkdirAll(InhibitDir, 0755); err != nil {
 		return err
@@ -86,15 +137,29 @@ func LockWithHint(snapName string, hint Hint) error {
 	}
 	defer flock.Close()
 
+	// The following order of execution is important to avoid race conditions.
+	// Take the lock
 	if err := flock.Lock(); err != nil {
 		return err
 	}
+	// Write inhibit info
+	buf, err := json.Marshal(info)
+	if err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(InhibitInfoFile(snapName, hint), buf, 0644); err != nil {
+		return err
+	}
+	// Write hint
 	f := flock.File()
 	if err := f.Truncate(0); err != nil {
 		return err
 	}
-	_, err = f.WriteString(string(hint))
-	return err
+	if _, err = f.WriteString(string(hint)); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Unlock truncates the run inhibition lock, for the given snap.
@@ -110,36 +175,64 @@ func Unlock(snapName string) error {
 	}
 	defer flock.Close()
 
+	// The following order of execution is important to avoid race conditions.
+	// Take the lock
 	if err := flock.Lock(); err != nil {
 		return err
 	}
+	// Write HintNotInhibited
 	f := flock.File()
-	return f.Truncate(0)
+	if err := f.Truncate(0); err != nil {
+		return err
+	}
+	// Remove inhibit info file
+	if err := removeInhibitInfoFiles(snapName); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // IsLocked returns the state of the run inhibition lock for the given snap.
 //
 // It returns the current, non-empty hint if inhibition is in place. Otherwise
 // it returns an empty hint.
-func IsLocked(snapName string) (Hint, error) {
-	flock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
+func IsLocked(snapName string) (Hint, InhibitInfo, error) {
+	hintFlock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
 	if os.IsNotExist(err) {
-		return "", nil
+		return "", InhibitInfo{}, nil
 	}
 	if err != nil {
-		return "", err
+		return "", InhibitInfo{}, err
 	}
-	defer flock.Close()
+	defer hintFlock.Close()
 
-	if err := flock.ReadLock(); err != nil {
-		return "", err
+	// The following order of execution is important to avoid race conditions.
+	// Take the lock
+	if err := hintFlock.ReadLock(); err != nil {
+		return "", InhibitInfo{}, err
 	}
-
-	buf, err := ioutil.ReadAll(flock.File())
+	// Read hint
+	buf, err := ioutil.ReadAll(hintFlock.File())
 	if err != nil {
-		return "", err
+		return "", InhibitInfo{}, err
 	}
-	return Hint(string(buf)), nil
+	hint := Hint(string(buf))
+	if hint == HintNotInhibited {
+		return hint, InhibitInfo{}, nil
+	}
+	// Read inhibit info
+	buf, err = ioutil.ReadFile(InhibitInfoFile(snapName, hint))
+	if err != nil {
+		return "", InhibitInfo{}, err
+	}
+	var info InhibitInfo
+	err = json.Unmarshal(buf, &info)
+	if err != nil {
+		return "", InhibitInfo{}, err
+	}
+
+	return hint, info, nil
 }
 
 // RemoveLockFile removes the run inhibition lock for the given snap.
@@ -151,9 +244,29 @@ func IsLocked(snapName string) (Hint, error) {
 //
 // The function does not fail if the inhibition lock does not exist.
 func RemoveLockFile(snapName string) error {
-	err := os.Remove(HintFile(snapName))
+	hintFlock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer hintFlock.Close()
+
+	// The following order of execution is important to avoid race conditions.
+	// Take the lock
+	if err := hintFlock.Lock(); err != nil {
+		return err
+	}
+	// Remove inhibit info files
+	if err := removeInhibitInfoFiles(snapName); err != nil {
+		return err
+	}
+	// Remove hint file
+	err = os.Remove(HintFile(snapName))
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
+
 	return nil
 }

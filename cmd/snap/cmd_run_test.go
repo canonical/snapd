@@ -233,7 +233,8 @@ func (s *RunSuite) TestSnapRunAppRunsChecksInhibitionLock(c *check.C) {
 	})
 	defer restorer()
 
-	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh), check.IsNil)
+	inhibitInfo := runinhibit.InhibitInfo{Revision: snap.R("x2")}
+	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
@@ -284,7 +285,8 @@ func (s *RunSuite) TestSnapRunHookNoRuninhibit(c *check.C) {
 	})
 	defer restore()
 
-	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh), check.IsNil)
+	inhibitInfo := runinhibit.InhibitInfo{Revision: snap.R(42)}
+	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
@@ -316,7 +318,8 @@ func (s *RunSuite) TestSnapRunAppRuninhibitSkipsServices(c *check.C) {
 	})
 	defer restorer()
 
-	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh), check.IsNil)
+	inhibitInfo := runinhibit.InhibitInfo{Revision: snap.R("x2")}
+	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
@@ -1810,12 +1813,12 @@ func (s *RunSuite) TestRunGdbserverNoGdbserver(c *check.C) {
 
 func (s *RunSuite) TestWaitInhibitUnlock(c *check.C) {
 	var called int
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, runinhibit.InhibitInfo, error) {
 		called++
 		if called < 5 {
-			return runinhibit.HintInhibitedForRefresh, nil
+			return runinhibit.HintInhibitedForRefresh, runinhibit.InhibitInfo{}, nil
 		}
-		return runinhibit.HintNotInhibited, nil
+		return runinhibit.HintNotInhibited, runinhibit.InhibitInfo{}, nil
 	})
 	defer restore()
 
@@ -1827,12 +1830,12 @@ func (s *RunSuite) TestWaitInhibitUnlock(c *check.C) {
 
 func (s *RunSuite) TestWaitInhibitUnlockWaitsForSpecificHint(c *check.C) {
 	var called int
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, runinhibit.InhibitInfo, error) {
 		called++
 		if called < 5 {
-			return runinhibit.HintInhibitedGateRefresh, nil
+			return runinhibit.HintInhibitedGateRefresh, runinhibit.InhibitInfo{}, nil
 		}
-		return runinhibit.HintInhibitedForRefresh, nil
+		return runinhibit.HintInhibitedForRefresh, runinhibit.InhibitInfo{}, nil
 	})
 	defer restore()
 
@@ -1844,19 +1847,20 @@ func (s *RunSuite) TestWaitInhibitUnlockWaitsForSpecificHint(c *check.C) {
 
 func (s *RunSuite) TestWaitWhileInhibitedNoop(c *check.C) {
 	var called int
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, runinhibit.InhibitInfo, error) {
 		called++
 		if called < 2 {
-			return runinhibit.HintInhibitedGateRefresh, nil
+			return runinhibit.HintInhibitedGateRefresh, runinhibit.InhibitInfo{}, nil
 		}
-		return runinhibit.HintNotInhibited, nil
+		return runinhibit.HintNotInhibited, runinhibit.InhibitInfo{}, nil
 	})
 	defer restore()
 
 	meter := &progresstest.Meter{}
 	defer progress.MockMeter(meter)()
 
-	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedGateRefresh), check.IsNil)
+	inhibitInfo := runinhibit.InhibitInfo{Revision: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedGateRefresh, inhibitInfo), check.IsNil)
 	c.Assert(snaprun.WaitWhileInhibited("some-snap"), check.IsNil)
 	c.Check(called, check.Equals, 2)
 
@@ -1869,19 +1873,20 @@ func (s *RunSuite) TestWaitWhileInhibitedNoop(c *check.C) {
 
 func (s *RunSuite) TestWaitWhileInhibitedTextFlow(c *check.C) {
 	var called int
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, runinhibit.InhibitInfo, error) {
 		called++
 		if called < 2 {
-			return runinhibit.HintInhibitedForRefresh, nil
+			return runinhibit.HintInhibitedForRefresh, runinhibit.InhibitInfo{}, nil
 		}
-		return runinhibit.HintNotInhibited, nil
+		return runinhibit.HintNotInhibited, runinhibit.InhibitInfo{}, nil
 	})
 	defer restore()
 
 	meter := &progresstest.Meter{}
 	defer progress.MockMeter(meter)()
 
-	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedGateRefresh), check.IsNil)
+	inhibitInfo := runinhibit.InhibitInfo{Revision: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedGateRefresh, inhibitInfo), check.IsNil)
 	c.Assert(snaprun.WaitWhileInhibited("some-snap"), check.IsNil)
 	c.Check(called, check.Equals, 2)
 
@@ -1923,17 +1928,18 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
 	defer restoreFinishRefreshNotification()
 
 	var called int
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, runinhibit.InhibitInfo, error) {
 		c.Check(snapName, check.Equals, "some-snap")
 		called++
 		if called < 2 {
-			return runinhibit.HintInhibitedForRefresh, nil
+			return runinhibit.HintInhibitedForRefresh, runinhibit.InhibitInfo{}, nil
 		}
-		return runinhibit.HintNotInhibited, nil
+		return runinhibit.HintNotInhibited, runinhibit.InhibitInfo{}, nil
 	})
 	defer restore()
 
-	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
+	inhibitInfo := runinhibit.InhibitInfo{Revision: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
 	c.Assert(snaprun.WaitWhileInhibited("some-snap"), check.IsNil)
 	c.Check(called, check.Equals, 2)
 	c.Check(s.Stdout(), check.Equals, "")
@@ -1961,10 +1967,11 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
 	})
 	defer restorePendingRefreshNotification()
 
-	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	inhibitInfo := runinhibit.InhibitInfo{Revision: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, runinhibit.InhibitInfo, error) {
 		c.Check(snapName, check.Equals, "some-snap")
-		return runinhibit.HintInhibitedForRefresh, nil
+		return runinhibit.HintInhibitedForRefresh, runinhibit.InhibitInfo{}, nil
 	})
 	defer restore()
 
@@ -2001,15 +2008,16 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowErrorOnFinish(c *ch
 	})
 	defer restoreFinishRefreshNotification()
 
-	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
+	inhibitInfo := runinhibit.InhibitInfo{Revision: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
 	n := 0
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, runinhibit.InhibitInfo, error) {
 		c.Check(snapName, check.Equals, "some-snap")
 		n++
 		if n == 1 {
-			return runinhibit.HintInhibitedForRefresh, nil
+			return runinhibit.HintInhibitedForRefresh, runinhibit.InhibitInfo{}, nil
 		}
-		return runinhibit.HintNotInhibited, nil
+		return runinhibit.HintNotInhibited, runinhibit.InhibitInfo{}, nil
 	})
 	defer restore()
 
