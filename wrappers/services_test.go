@@ -3827,9 +3827,7 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 
 func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartNoEnableNoDisable(c *C) {
 	// start services is called without the enable flag (eg. as during snap
-	// start foo), in which case, the cleanup does not call disable (unless
-	// there are timers and socket, in which the buggy behavior kicks in,
-	// but only for those units)
+	// start foo), in which case, the cleanup does not call disable.
 	var sysdLog [][]string
 	svc1Name := "snap.hello-snap.svc1.service"
 	svc2Name := "snap.hello-snap.svc2.service"
@@ -3873,10 +3871,8 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartNoEnableNoDisable
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Logf("sysdlog: %v", sysdLog)
-	c.Assert(sysdLog, HasLen, 15, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 11, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"--no-reload", "enable", svc2SocketName, svc3SocketName},
-		{"daemon-reload"},
 		{"start", svc2SocketName},
 		{"start", svc3SocketName},
 		{"start", svc1Name}, // start failed, what follows is the cleanup
@@ -3888,8 +3884,6 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartNoEnableNoDisable
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
-		{"--no-reload", "disable", svc2SocketName, svc3SocketName},
-		{"daemon-reload"},
 	}, Commentf("calls: %v", sysdLog))
 }
 
