@@ -232,6 +232,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	var lastBeforeHooksTask *state.Task
 	var lastBeforeConfigureTask *state.Task
 	var lastEndTask *state.Task
+	var lastSnapTaskSet *state.TaskSet
 
 	injectCoreConfigureTaskSet := func() {
 		injectedConfigureTaskSet = snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults)
@@ -261,8 +262,10 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 				if isEssentialSnap {
 					configureTask.WaitFor(lastEndTask)
 					hooksTask.WaitFor(lastBeforeConfigureTask)
-					injectedConfigureTask.WaitFor(beforeConfigureTask)
 					firstConfigureTask.WaitFor(beforeConfigureTask)
+					if injectedConfigureTaskSet != nil {
+						injectedConfigureTask.WaitFor(beforeConfigureTask)
+					}
 				} else {
 					hooksTask.WaitFor(lastEndTask)
 				}
@@ -276,6 +279,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 				lastBeforeConfigureTask = beforeConfigureTask
 			}
 			lastEndTask = endEdgeTask
+			lastSnapTaskSet = ts
 		}
 		return append(all, ts)
 	}
@@ -296,15 +300,17 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 						injectedConfigureTask = injectedConfigureTaskSet.Tasks()[0]
 						injectedConfigureTask.WaitFor(beforeConfigureTask)
 						firstConfigureTask.WaitFor(injectedConfigureTaskSet.Tasks()[len(injectedConfigureTaskSet.Tasks())-1])
-						all = append(all, injectedConfigureTaskSet)
+						//all = append(all, injectedConfigureTaskSet)
 					}
 				}
 			} else {
 				if isEssentialSnap {
 					beginTask.WaitFor(lastBeforeConfigureTask)
-					injectedConfigureTask.WaitFor(beforeConfigureTask)
 					firstConfigureTask.WaitFor(beforeConfigureTask)
 					configureTask.WaitFor(lastEndTask)
+					if injectedConfigureTaskSet != nil {
+						injectedConfigureTask.WaitFor(beforeConfigureTask)
+					}
 				} else {
 					beginTask.WaitFor(lastEndTask)
 				}
@@ -315,6 +321,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 				lastBeforeConfigureTask = beforeConfigureTask
 			}
 			lastEndTask = endTask
+			lastSnapTaskSet = ts
 		}
 		return append(all, ts)
 	}
@@ -348,6 +355,10 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		}
 
 		flags := snapstate.Flags{
+			// When seeding run configure hooks using the gadget defaults if available.
+			// This impacts the "core" configuration that should otherwise not use
+			// gadget defaults.
+			ConfigureDefaults: true,
 			// The kernel is already there either from ubuntu-image or from "install"
 			// mode so skip extract.
 			SkipKernelExtraction: true,
@@ -381,7 +392,9 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	chainSorted(infos, infoToTs, isEssentialSnap)
 	// TODO: This was temporarily moved outside of chainSnapTasksPreseed just to make existing unit test pass.
 	// The unit test should be adapted to this reverted.
-	tsAll = append(tsAll, injectedConfigureTaskSet)
+	if len(essentialSeedSnaps) > 0 && !hasCoreSnap {
+		tsAll = append(tsAll, injectedConfigureTaskSet)
+	}
 
 	// collect the tasksets for installing the non-essential snaps
 	infoToTs = make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
@@ -422,7 +435,8 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	}
 
 	// ts is the taskset of the last snap
-	ts := tsAll[len(tsAll)-1]
+	//ts := tsAll[len(tsAll)-1]
+	ts := lastSnapTaskSet
 	endTs := state.NewTaskSet()
 
 	// Start tracking any validation sets included in the seed after

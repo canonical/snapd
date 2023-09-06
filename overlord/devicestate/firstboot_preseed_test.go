@@ -112,26 +112,21 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	markPreseeded := 0
 	markPreseededWaitingForAliases := 0
 
-	fmt.Printf("Verify chaining of run-hooks, mark-predeeded and mark-seeded:")
 	for _, ts := range tsAll {
 		for _, t := range ts.Tasks() {
 			switch t.Kind() {
 			case "run-hook":
 				// ensure that hooks are run after mark-preseeded
 				c.Check(markPreseededInWaitChain(t), Equals, true)
-				fmt.Printf("Checking run-hook (%s) has mark-preseeded in wait chain\n", t.Summary())
 			case "mark-seeded":
 				// nothing waits for mark-seeded
 				c.Check(t.HaltTasks(), HasLen, 0)
-				fmt.Printf("Checking nothing waits on mark-seeded\n")
 				markSeeded++
 				c.Check(markPreseededInWaitChain(t), Equals, true)
-				fmt.Printf("Checking mark-seeded has mark-preseeded in wait chain\n")
 			case "mark-preseeded":
 				for _, wt := range t.WaitTasks() {
 					if wt.Kind() == "setup-aliases" {
 						markPreseededWaitingForAliases++
-						fmt.Printf("Checking mark-preseed waits on setup aliases (%s)\n", wt.Summary())
 					}
 				}
 				markPreseeded++
@@ -140,61 +135,45 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	}
 
 	c.Check(markSeeded, Equals, 1)
-	fmt.Printf("Checking there is only one mark-seeded task\n")
 	c.Check(markPreseeded, Equals, 1)
-	fmt.Printf("Checking there is only one mark-preseeded task\n")
 	c.Check(markPreseededWaitingForAliases, Equals, len(snaps))
-	fmt.Printf("Checking mark-preseeded waits on all %d snaps\n", len(snaps))
 
-	fmt.Printf("Verify prerequisite tasks are present and chained properly:\n")
 	// check that prerequisites tasks for all snaps are present and
 	// are chained properly.
 	var prevTask *state.Task
 	for i, ts := range tsAll {
 		task0 := ts.Tasks()[0]
-		fmt.Printf("Taskset %d first task is [%s]\n", i, task0.Summary())
 		waitTasks := task0.WaitTasks()
 
 		if task0.Kind() != "prerequisites" {
-			fmt.Printf("First task is not prerequisites\n")
 			if i == len(tsAll)-1 {
-				fmt.Printf("Check that last taskset contains first task mark-preseeded\n")
 				c.Check(task0.Kind(), Equals, "mark-preseeded")
-				fmt.Printf("Check that last taskset contains second task mark-seeded\n")
 				c.Check(ts.Tasks()[1].Kind(), Equals, "mark-seeded")
-				fmt.Printf("Check that last taskset contains only the two tasks\n")
 				c.Check(ts.Tasks(), HasLen, 2)
 
 			} else {
-				fmt.Printf("Check that the first task is a configure run-hook\n")
 				c.Check(task0.Kind(), Equals, "run-hook")
 				var hsup hookstate.HookSetup
 				c.Assert(task0.Get("hook-setup", &hsup), IsNil)
 				c.Check(hsup.Hook, Equals, "configure")
-				fmt.Printf("Check that the taskset contains only the one task\n")
 				c.Check(ts.Tasks(), HasLen, 1)
 			}
-			fmt.Printf("Skipping to next taskset\n")
 			continue
 		}
 
 		if i == 0 {
 			c.Check(waitTasks, HasLen, 0)
-			fmt.Printf("Check prerequisite task does not wait for any task\n")
 		} else {
 			c.Assert(waitTasks, HasLen, 1)
 			c.Assert(waitTasks[0].Kind(), Equals, prevTask.Kind())
 			c.Check(waitTasks[0], Equals, prevTask)
-			fmt.Printf("Check prerequisite task waits for previous aliases task\n")
 		}
 
-		fmt.Printf("Verify install-hooks wait for the previous snap and for mark-preseeded:\n")
 		// make sure that install-hooks wait for the previous snap, and for
 		// mark-preseeded.
 		hookEdgeTask, err := ts.Edge(snapstate.HooksEdge)
 		c.Assert(err, IsNil)
 		c.Assert(hookEdgeTask.Kind(), Equals, "run-hook")
-		fmt.Printf("Checking hook edge: [%s] %s \n", hookEdgeTask.ID(), hookEdgeTask.Summary())
 		var hsup hookstate.HookSetup
 		c.Assert(hookEdgeTask.Get("hook-setup", &hsup), IsNil)
 		c.Check(hsup.Hook, Equals, "install")
@@ -234,132 +213,6 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 			if snaps[matched-1] != "core" && snaps[matched-1] != "core18" && snaps[matched-1] != "pc" {
 				// TODO: This should be removed, see comment above.
 				//c.Check(waitsForPreviousSnap, Equals, true, Commentf("%s", snaps[matched-1]))
-			}
-		}
-
-		snapsup, err := snapstate.TaskSnapSetup(task0)
-		c.Assert(err, IsNil, Commentf("%#v", task0))
-		c.Check(snapsup.InstanceName(), Equals, snaps[matched])
-		matched++
-
-		// find setup-aliases task in current taskset; its position
-		// is not fixed due to e.g. optional update-gadget-assets task.
-		var aliasesTask *state.Task
-		for _, t := range ts.Tasks() {
-			if t.Kind() == "setup-aliases" {
-				aliasesTask = t
-				break
-			}
-		}
-		c.Assert(aliasesTask, NotNil)
-		prevTask = aliasesTask
-	}
-
-	c.Check(matched, Equals, len(snaps))
-}
-
-func checkPreseedOrderNew(c *C, tsAll []*state.TaskSet, snaps ...string) {
-	matched := 0
-	markSeeded := 0
-	markPreseeded := 0
-	markPreseededWaitingForAliases := 0
-
-	for _, ts := range tsAll {
-		for _, t := range ts.Tasks() {
-			switch t.Kind() {
-			case "run-hook":
-				// ensure that hooks are run after mark-preseeded
-				c.Check(markPreseededInWaitChain(t), Equals, true)
-			case "mark-seeded":
-				// nothing waits for mark-seeded
-				c.Check(t.HaltTasks(), HasLen, 0)
-				markSeeded++
-				c.Check(markPreseededInWaitChain(t), Equals, true)
-			case "mark-preseeded":
-				for _, wt := range t.WaitTasks() {
-					if wt.Kind() == "setup-aliases" {
-						markPreseededWaitingForAliases++
-					}
-				}
-				markPreseeded++
-			}
-		}
-	}
-
-	c.Check(markSeeded, Equals, 1)
-	c.Check(markPreseeded, Equals, 1)
-	c.Check(markPreseededWaitingForAliases, Equals, len(snaps))
-
-	// check that prerequisites tasks for all snaps are present and
-	// are chained properly.
-	var prevTask *state.Task
-	for i, ts := range tsAll {
-		task0 := ts.Tasks()[0]
-		fmt.Printf("Task0: %v\n", task0.Summary())
-		waitTasks := task0.WaitTasks()
-		// all tasksets start with prerequisites task, except for
-		// tasksets with just the configure hook of special snaps,
-		// or last taskset.
-		if task0.Kind() != "prerequisites" {
-			if i == len(tsAll)-1 {
-				c.Check(task0.Kind(), Equals, "mark-preseeded")
-				c.Check(ts.Tasks()[1].Kind(), Equals, "mark-seeded")
-				c.Check(ts.Tasks(), HasLen, 2)
-			} else {
-				c.Check(task0.Kind(), Equals, "run-hook")
-				var hsup hookstate.HookSetup
-				c.Assert(task0.Get("hook-setup", &hsup), IsNil)
-				c.Check(hsup.Hook, Equals, "configure")
-				c.Check(ts.Tasks(), HasLen, 1)
-			}
-			continue
-		}
-
-		if i == 0 {
-			c.Check(waitTasks, HasLen, 0)
-		} else {
-			c.Assert(waitTasks, HasLen, 1)
-			c.Assert(waitTasks[0].Kind(), Equals, prevTask.Kind())
-			c.Check(waitTasks[0], Equals, prevTask)
-		}
-
-		// make sure that install-hooks wait for the previous snap, and for
-		// mark-preseeded.
-		hookEdgeTask, err := ts.Edge(snapstate.HooksEdge)
-		c.Assert(err, IsNil)
-		c.Assert(hookEdgeTask.Kind(), Equals, "run-hook")
-		var hsup hookstate.HookSetup
-		c.Assert(hookEdgeTask.Get("hook-setup", &hsup), IsNil)
-		c.Check(hsup.Hook, Equals, "install")
-		switch hsup.Snap {
-		case "core", "core18", "snapd":
-			// ignore
-		default:
-			// snaps other than core/core18/snapd
-			var waitsForMarkPreseeded, waitsForPreviousSnapHook, waitsForPreviousSnap bool
-			for _, wt := range hookEdgeTask.WaitTasks() {
-				switch wt.Kind() {
-				case "setup-aliases":
-					continue
-				case "run-hook":
-					var wtsup hookstate.HookSetup
-					c.Assert(wt.Get("hook-setup", &wtsup), IsNil)
-					c.Check(wtsup.Snap, Equals, snaps[matched-1])
-					waitsForPreviousSnapHook = true
-				case "mark-preseeded":
-					waitsForMarkPreseeded = true
-				case "prerequisites":
-				default:
-					snapsup, err := snapstate.TaskSnapSetup(wt)
-					c.Assert(err, IsNil, Commentf("%#v", wt))
-					c.Check(snapsup.SnapName(), Equals, snaps[matched-1], Commentf("%s: %#v", hsup.Snap, wt))
-					waitsForPreviousSnap = true
-				}
-			}
-			c.Assert(waitsForMarkPreseeded, Equals, true)
-			c.Assert(waitsForPreviousSnapHook, Equals, true)
-			if snaps[matched-1] != "core" && snaps[matched-1] != "core18" && snaps[matched-1] != "pc" {
-				c.Check(waitsForPreviousSnap, Equals, true, Commentf("%s", snaps[matched-1]))
 			}
 		}
 
@@ -455,6 +308,9 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
@@ -496,6 +352,8 @@ snaps:
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
+//TODO: Need to get a test with a full set up and running. This test could only run by making changes
+// to allow ubuntu core model on classic system.
 /*func (s *firstbootPreseedingClassic16Suite) TestPreseedOnCoreOrderingNew(c *C) {
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()
@@ -606,6 +464,9 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	// now run the change and check the result
 	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
@@ -614,7 +475,7 @@ snaps:
 	c.Assert(st.Changes(), HasLen, 1)
 	c.Assert(chg.Err(), IsNil)
 
-	checkPreseedOrderNew(c, tsAll, "snapd", "core18", "foo")
+	checkPreseedOrder(c, tsAll, "snapd", "core18", "foo")
 
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
@@ -737,6 +598,10 @@ snaps:
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
@@ -744,7 +609,6 @@ snaps:
 	}
 	c.Assert(st.Changes(), HasLen, 1)
 
-	devicestatetest.TaskPrintDeps(tsAll)
 	checkPreseedOrder(c, tsAll, "snapd", "core18", "foo", "bar")
 
 	st.Unlock()

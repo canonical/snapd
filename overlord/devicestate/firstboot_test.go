@@ -267,6 +267,10 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoop(c *C) {
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, s.perfTimings)
 	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	checkTrivialSeeding(c, tsAll)
 
 	// already set the fallback model
@@ -310,6 +314,10 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, s.perfTimings)
 	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	checkTrivialSeeding(c, tsAll)
 
 	ds, err := devicestatetest.Device(st)
@@ -377,6 +385,10 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	checkTrivialSeeding(c, tsAll)
 
 	ds, err := devicestatetest.Device(st)
@@ -472,16 +484,18 @@ type: gadget`
 
 func checkOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	matched := 0
-	var prevTask *state.Task
+	//var prevTask0 *state.Task
 	for i, ts := range tsAll {
 		task0 := ts.Tasks()[0]
 		waitTasks := task0.WaitTasks()
 		if i == 0 {
 			c.Check(waitTasks, HasLen, 0)
 		} else {
-			c.Check(waitTasks, testutil.Contains, prevTask)
+			//TODO: This should be improved for the new seeding order for which this dependency
+			// check is incorrect. This is generally also not a very good verification check.
+			//c.Check(waitTasks, testutil.Contains, prevTask0)
 		}
-		prevTask = task0
+		//prevTask0 = task0
 		if task0.Kind() != "prerequisites" {
 			continue
 		}
@@ -568,6 +582,9 @@ snaps:
 	defer st.Unlock()
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
+	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
 	c.Assert(err, IsNil)
 
 	// now run the change and check the result
@@ -784,6 +801,10 @@ snaps:
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
@@ -898,6 +919,9 @@ snaps:
 	c.Check(dev.Kernel(), Equals, "pc-kernel")
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -1046,6 +1070,9 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
+	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -1426,6 +1453,10 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
+	devicestatetest.TaskPrintDeps(tsAll)
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc")
 
 	// now run the change and check the result
@@ -1549,67 +1580,10 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc", "other-base", "snap-req-other-base")
-}
-
-func (s *firstBoot16Suite) TestPopulateFromSeedOrderingNew(c *C) {
-	s.WriteAssertions("developer.account", s.devAcct)
-
-	// add a model assertion and its chain
-	assertsChain := s.makeModelAssertionChain(c, "my-model", map[string]interface{}{"base": "core18"})
-	s.WriteAssertions("model.asserts", assertsChain...)
-
-	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c, nil)
-
-	snapYaml := `name: snap-req-other-base
-version: 1.0
-base: other-base
-`
-	snapFname, snapDecl, snapRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
-	s.WriteAssertions("snap-req-other-base.asserts", s.devAcct, snapRev, snapDecl)
-	baseYaml := `name: other-base
-version: 1.0
-type: base
-`
-	baseFname, baseDecl, baseRev := s.MakeAssertedSnap(c, baseYaml, nil, snap.R(127), "developerid")
-	s.WriteAssertions("other-base.asserts", s.devAcct, baseRev, baseDecl)
-
-	// create a seed.yaml
-	content := []byte(fmt.Sprintf(`
-snaps:
- - name: snapd
-   file: %s
- - name: core18
-   file: %s
- - name: pc-kernel
-   file: %s
- - name: pc
-   file: %s
- - name: snap-req-other-base
-   file: %s
- - name: other-base
-   file: %s
-`, snapdFname, core18Fname, kernelFname, gadgetFname, snapFname, baseFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
-	c.Assert(err, IsNil)
-
-	// run the firstboot stuff
-	s.startOverlord(c)
-	st := s.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
-	c.Assert(err, IsNil)
-
-	//devicestatetest.TaskPrintDeps(tsAll)
-
-	tasks, err := devicestatetest.TaskRunOrder(tsAll)
-	c.Assert(err, IsNil)
-
-	// For now use visual inspection
-	for _, task := range tasks {
-		fmt.Printf("[%s] %s\n", task.ID(), task.Summary())
-	}
 }
 
 func (s *firstBoot16Suite) TestFirstbootGadgetBaseModelBaseMismatch(c *C) {
@@ -1713,6 +1687,10 @@ snaps:
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
@@ -1832,6 +1810,9 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
+	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "core18", "foo")
@@ -1973,6 +1954,9 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
+	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "core18", "pc", "foo")
@@ -2180,6 +2164,10 @@ snaps:
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
@@ -2306,6 +2294,9 @@ snaps:
 	defer st.Unlock()
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
+	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
 	c.Assert(err, IsNil)
 
 	// ensure the validation-set tracking task is present

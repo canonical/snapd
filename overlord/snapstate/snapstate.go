@@ -59,6 +59,7 @@ import (
 // control flags for doInstall
 const (
 	skipConfigure = 1 << iota
+	configureDefaults
 )
 
 // control flags for "Configure()"
@@ -330,7 +331,6 @@ func configureSnapFlags(snapst *SnapState, snapsup *SnapSetup) int {
 	confFlags := 0
 	// config defaults cannot be retrieved without a snap ID
 	hasSnapID := snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != ""
-
 	if !snapst.IsInstalled() && hasSnapID && !isCoreSnap(snapsup.InstanceName()) {
 		// installation, run configure using the gadget defaults if available, system config defaults (attached to
 		// "core") are consumed only during seeding, via an explicit configure step separate from installing
@@ -394,7 +394,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	targetRevision := snapsup.Revision()
 	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
 
-	ts := state.NewTaskSet()
 	if snapst.IsInstalled() {
 		// consider also the current revision to set plugs-only hint
 		info, err := snapst.CurrentInfo()
@@ -438,10 +437,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 						}
 					}
 
+					ts := state.NewTaskSet()
 					preDownTask := st.NewTask("pre-download-snap", fmt.Sprintf(i18n.G("Pre-download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
 					preDownTask.Set("snap-setup", snapsup)
 					preDownTask.Set("refresh-info", busyErr.PendingSnapRefreshInfo())
-
 					ts.AddTask(preDownTask)
 					return ts, busyErr
 				}
@@ -712,16 +711,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		addTask(st.NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", snapsup.InstanceName(), revisionStr)))
 	}
 
-	// only run configure hook if skip configure flag is not set and configure is allowed
-	var configureHook *state.Task
-	if isConfigureAllowed(snapsup) && flags&skipConfigure == 0 {
-		confFlags := configureSnapFlags(snapst, snapsup)
-		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
-		configureHook = addTasksFromTaskSet(configSet)
-	}
-
 	installSet := state.NewTaskSet(tasks...)
-	installSet.WaitAll(ts)
 	installSet.MarkEdge(prereq, BeginEdge)
 	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
 	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge)
@@ -732,10 +722,30 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		installSet.MarkEdge(installHook, HooksEdge)
 	}
 
+	// only run configure hook if skip configure flag is not set and configure is allowed
+	var configureHook *state.Task
+	if isConfigureAllowed(snapsup) && flags&skipConfigure == 0 {
+		confFlags := 0
+		if flags&configureDefaults == 0 {
+			// not seeding
+			confFlags = configureSnapFlags(snapst, snapsup)
+		} else {
+			// seeding
+			confFlags |= UseConfigDefaults
+		}
+		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
+		if len(configSet.Tasks()) > 0 {
+			configureHook = configSet.Tasks()[0]
+		}
+
+		configSet.WaitAll(installSet)
+		installSet.AddAll(configSet)
+	}
+
 	// Set configure edge
 	for _, task := range []*state.Task{defaultConfigureHook, startSnapServices, configureHook} {
 		if task != nil {
-			ts.MarkEdge(task, ConfigureEdge)
+			installSet.MarkEdge(task, ConfigureEdge)
 			break
 		}
 	}
@@ -753,18 +763,16 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	// if health check tasks should be added for essential snaps as well.
 	// Firstboot preseed and seed code changed to not skip configure anymore, which
 	// this is not used. If it turns out this is not applicable anymore, it may be
-	// removed and perhaps the whole skip confnigure concept.
-	if flags&skipConfigure != 0 {
+	// removed and perhaps the whole skip configure concept.
+	if flags&skipConfigure != 0 || flags&configureDefaults != 0 {
 		return installSet, nil
 	}
 
-	ts.AddAllWithEdges(installSet)
-
 	healthCheck := CheckHealthHook(st, snapsup.InstanceName(), snapsup.Revision())
-	healthCheck.WaitAll(ts)
-	ts.AddTask(healthCheck)
+	healthCheck.WaitAll(installSet)
+	installSet.AddTask(healthCheck)
 
-	return ts, nil
+	return installSet, nil
 }
 
 func findTasksMatchingKindAndSnap(st *state.State, kind string, snapName string, revision snap.Revision) ([]*state.Task, error) {
@@ -792,10 +800,13 @@ func ConfigureSnap(st *state.State, snapName string, confFlags int) *state.TaskS
 	// This is slightly ugly, ideally we would check the type instead
 	// of hardcoding the name here. Unfortunately we do not have the
 	// type until we actually run the change.
+	//TODO: We do not currently do this for seeding scenario, but moved configure hook creation
+	// do doInstall. So this is currently different from before. Need to clarify what we want.
 	if isCoreSnap(snapName) {
 		confFlags |= IgnoreHookError
 		confFlags |= TrackHookError
 	}
+
 	return Configure(st, snapName, nil, confFlags)
 }
 
@@ -1183,10 +1194,12 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 
 	var instFlags int
+	// extract flags that are not passed into SnapSetup as doInstall flags
 	if flags.SkipConfigure {
-		// extract it as a doInstall flag, this is not passed
-		// into SnapSetup
 		instFlags |= skipConfigure
+	}
+	if flags.ConfigureDefaults {
+		instFlags |= configureDefaults
 	}
 
 	// It is ok do open the snap file here because we either
