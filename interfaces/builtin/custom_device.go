@@ -185,22 +185,34 @@ func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]inte
 			if err != nil {
 				break
 			}
-			deviceName := value.(string)
-			err = iface.validateKernelDeviceNameIsBasename(deviceName)
-			if err != nil {
-				break
-			}
-			// furthermore, the kernel name must match the basename of one
-			// of the given devices
+			kernelVal := value.(string)
+			// The kernel device name must match the full path of
+			// the given device, stripped of the leading /dev/, or
+			// it must be the basename of the device path.
 			foundMatch := false
 			for _, devicePath := range devices {
-				if deviceName == filepath.Base(devicePath) {
+				if "/dev/"+kernelVal == devicePath {
 					foundMatch = true
 					break
 				}
 			}
+			if foundMatch {
+				break
+			}
+			// Not a full path, so check if it matches the basename
+			// of a device path, and not more than one.
+			for _, devicePath := range devices {
+				if kernelVal != filepath.Base(devicePath) {
+					continue
+				}
+				if foundMatch {
+					err = fmt.Errorf(`%q matches more than one specified device`, kernelVal)
+					break
+				}
+				foundMatch = true
+			}
 			if !foundMatch {
-				err = fmt.Errorf(`%q does not match any specified device`, deviceName)
+				err = fmt.Errorf(`%q does not match any specified device`, kernelVal)
 			}
 		case "attributes", "environment":
 			err = iface.validateUDevValueMap(value)
@@ -273,10 +285,6 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 
 	allDevices := devices
 	allDevices = append(allDevices, readDevices...)
-
-	if err := iface.validateUDevDevicesUniqueBasenames(allDevices); err != nil {
-		return err
-	}
 
 	// validate files
 	var filesMap map[string][]string
@@ -408,13 +416,16 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 	// Create a map in which will store udev rules indexed by device name
 	deviceRules := make(map[string]string, len(allDevicePaths))
 
-	// Generate a basic udev rule for each device; we put them into a map
-	// indexed by the device name, so that we can overwrite the entry later
-	// with a more specific rule.
+	placeholderRule := "###PLACEHOLDER###"
+
+	// Generate a placeholder udev rule for each device; we put them into a
+	// map indexed by the device name, so that we can overwrite the entry
+	// later with a specified rule, or create default rules if no
+	// "udev-tagging" rules are explicitly given.
 	for _, devicePath := range allDevicePaths {
 		if strings.HasPrefix(devicePath, "/dev/") {
-			deviceName := filepath.Base(devicePath)
-			deviceRules[deviceName] = fmt.Sprintf(`KERNEL=="%s"`, deviceName)
+			deviceName := devicePath[len("/dev/"):]
+			deviceRules[deviceName] = placeholderRule
 		}
 	}
 
@@ -451,8 +462,33 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 	}
 
 	// Now write all the rules
-	for _, rule := range deviceRules {
-		spec.TagDevice(rule)
+	for deviceName, rule := range deviceRules {
+		if rule == placeholderRule {
+			baseName := filepath.Base(deviceName)
+
+			// There is an explicit rule for the basename of the
+			// device path, which is distinct from the full device
+			// path, but which doesn't exist as its own self-
+			// contained device path of the form /dev/<basename>,
+			// so don't emit a default rule for the full path.
+			// XXX: Is this safe? Is it okay to have multiple
+			// devices with the same basename?
+			if baseNameRule, exists := deviceRules[baseName]; deviceName != baseName && exists && baseNameRule != placeholderRule && !strutil.ListContains(allDevicePaths, "/dev/"+baseName) {
+				continue
+			}
+
+			fullPathRule := fmt.Sprintf(`KERNEL=="%s"`, deviceName)
+			spec.TagDevice(fullPathRule)
+
+			if _, exists := deviceRules[baseName]; !exists {
+				// can only be here if baseName != deviceName,
+				// since deviceRules[deviceName] exists
+				baseNameRule := fmt.Sprintf(`KERNEL=="%s"`, baseName)
+				spec.TagDevice(baseNameRule)
+			}
+		} else {
+			spec.TagDevice(rule)
+		}
 	}
 
 	return nil
