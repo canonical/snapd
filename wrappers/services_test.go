@@ -3187,6 +3187,43 @@ func (s *servicesTestSuite) TestStopStartServicesWithSocketsDisableAndEnable(c *
 	})
 }
 
+func (s *servicesTestSuite) TestStartServicesWithDisabledActivatedService(c *C) {
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
+ svc1:
+  daemon: simple
+  plugs: [network-bind]
+  sockets:
+    sock1:
+      listen-stream: $SNAP_COMMON/sock1.socket
+      socket-mode: 0666
+    sock2:
+      listen-stream: $SNAP_DATA/sock2.socket
+ svc2:
+  daemon: simple
+  command: bin/hello
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	sorted := info.Services()
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name < sorted[j].Name
+	})
+
+	// When providing disabledServices (i.e during install), we want to make sure that
+	// the list of disabled services is honored, including their activation units.
+	s.sysdLog = nil
+	err = wrappers.StartServices(sorted, []string{"svc1"}, &wrappers.StartServicesFlags{Enable: true}, &progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		// Expect only calls related to svc2
+		{"--no-reload", "enable", "snap.hello-snap.svc2.service"},
+		{"daemon-reload"},
+		{"start", "snap.hello-snap.svc2.service"},
+	})
+}
+
 func (s *servicesTestSuite) TestStartServicesStopsServicesIncludingActivation(c *C) {
 	s.systemctlRestorer()
 	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
