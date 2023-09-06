@@ -1059,6 +1059,45 @@ execve("%s/snapName/x2/bin/foo")
 interessting strace output
 and more
 `
+	expectedFull := fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir)
+
+	for _, tc := range []struct {
+		arg   string
+		entry []string
+	}{
+		{arg: "--raw"},
+		{arg: "-o foo", entry: []string{"-o", "foo"}},
+		{arg: "-o=foo", entry: []string{"-o=foo"}},
+		{arg: "--output foo", entry: []string{"--output", "foo"}},
+		{arg: "--output=foo", entry: []string{"--output=foo"}},
+	} {
+		s.ResetStdStreams()
+		sudoCmd.ForgetCalls()
+
+		rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{
+			"run", "--strace=" + tc.arg, "--", "snapname.app", "--arg1", "arg2",
+		})
+		c.Assert(err, check.IsNil)
+		c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+		c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
+			append(append([]string{
+				"sudo", "-E",
+				filepath.Join(straceCmd.BinDir(), "strace"),
+				"-u", user.Username,
+				"-f",
+				"-e", strace.ExcludedSyscalls,
+			},
+				tc.entry...),
+				[]string{
+					filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+					"snap.snapname.app",
+					filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+					"snapname.app", "--arg1", "arg2",
+				}...),
+		})
+		c.Check(s.Stdout(), check.Equals, "stdout output 1\nstdout output 2\n")
+		c.Check(s.Stderr(), check.Equals, expectedFull)
+	}
 	c.Check(s.Stderr(), check.Equals, fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir))
 }
 
