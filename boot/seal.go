@@ -122,6 +122,9 @@ type sealKeyToModeenvFlags struct {
 	// SeedDir is the path where to find mounted seed with
 	// essential snaps.
 	SeedDir string
+	// Unlocker is a function that is called before sealing keys
+	// on TPM. And it should return a function to be called after.
+	Unlocker func() func()
 }
 
 // sealKeyToModeenvImpl seals the supplied keys to the parameters specified
@@ -145,6 +148,8 @@ func sealKeyToModeenvImpl(key, saveKey keys.EncryptionKey, model *asserts.Model,
 		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, model, modeenv, flags)
 	}
 
+	locker := flags.Unlocker()
+	defer locker()
 	return sealKeyToModeenvUsingSecboot(key, saveKey, model, modeenv, flags)
 }
 

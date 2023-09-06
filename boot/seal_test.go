@@ -318,6 +318,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 		err = boot.SealKeyToModeenv(myKey, myKey2, model, modeenv, boot.MockSealKeyToModeenvFlags{
 			FactoryReset: tc.factoryReset,
+			Unlocker:     func() func() { return func() {} },
 		})
 		c.Check(pcrHandleOfKeyCalls, Equals, tc.expPCRHandleOfKeyCalls)
 		c.Check(provisionCalls, Equals, tc.expProvisionCalls)

@@ -528,13 +528,12 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 			HasFDESetupHook: hasHook,
 			FactoryReset:    makeOpts.AfterDataReset,
 			SeedDir:         makeOpts.SeedDir,
+			Unlocker:        makeOpts.Unlocker,
 		}
 		if makeOpts.Standalone {
 			flags.SnapsDir = snapBlobDir
 		}
 
-		locker := makeOpts.Unlocker()
-		defer locker()
 		// seal the encryption key to the parameters specified in modeenv
 		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv, flags); err != nil {
 			return err
