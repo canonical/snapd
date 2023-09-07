@@ -3465,6 +3465,10 @@ func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
 		map[string]interface{}{"name": "pc-kernel", "id": s.AssertedSnapID("pc-kernel"), "revision": "1"},
 		map[string]interface{}{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
 	}
+
+	signerKey, _ := assertstest.GenerateKey(752)
+	s.Brands.Register("my-signer", signerKey, nil)
+
 	headers := map[string]interface{}{
 		"type":              "preseed",
 		"series":            "16",
@@ -3476,10 +3480,6 @@ func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
 		"timestamp":         time.Now().UTC().Format(time.RFC3339),
 		"snaps":             snaps,
 	}
-
-	signerKey, _ := assertstest.GenerateKey(752)
-	s.Brands.Register("my-signer", signerKey, nil)
-
 	signer := s.Brands.Signing("my-signer")
 	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
 	c.Assert(err, IsNil)
