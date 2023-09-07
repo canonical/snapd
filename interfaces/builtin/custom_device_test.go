@@ -412,6 +412,8 @@ slots:
     - /dev/dma_heap/qcom,qseecom
     - /dev/bar
     - /dev/foo/bar
+    - /dev/dir1/baz
+    - /dev/dir2/baz
   read-devices:
     - /dev/js*
   %s
@@ -437,6 +439,9 @@ apps:
 				{`KERNEL`: `"qcom,qseecom"`},
 				{`KERNEL`: `"bar"`},
 				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
 			},
 		},
 		{
@@ -450,6 +455,9 @@ apps:
 				{`KERNEL`: `"qcom,qseecom"`},
 				{`KERNEL`: `"bar"`},
 				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
 			},
 		},
 		{
@@ -469,6 +477,9 @@ apps:
 				{`KERNEL`: `"qcom,qseecom"`},
 				{`KERNEL`: `"bar"`},
 				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
 			},
 		},
 		{
@@ -494,6 +505,9 @@ apps:
 				{`KERNEL`: `"qcom,qseecom"`},
 				{`KERNEL`: `"bar"`},
 				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
 			},
 		},
 		{
@@ -507,6 +521,9 @@ apps:
 				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
 				{`KERNEL`: `"bar"`},
 				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
 			},
 		},
 		{
@@ -520,6 +537,9 @@ apps:
 				{`KERNEL`: `"qcom,qseecom"`},
 				{`KERNEL`: `"bar"`},
 				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
 			},
 		},
 		// if there happens to be a full device path which matches the
@@ -537,6 +557,9 @@ apps:
 				{`KERNEL`: `"qcom,qseecom"`},
 				{`KERNEL`: `"bar"`},
 				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
 			},
 		},
 		{
@@ -551,6 +574,50 @@ apps:
 				{`KERNEL`: `"qcom,qseecom"`},
 				{`KERNEL`: `"bar"`},
 				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
+			},
+		},
+		// if there happen to be two device paths with the same
+		// basenames, create default rules for both full paths, and one
+		// default rule with the shared basename.  If there is a rule
+		// for one of the full paths, the other still gets both default
+		// rules.  If there is are rules for both full paths, don't
+		// generate the basename default rule.
+		{
+			"udev-tagging:\n   - kernel: dir1/baz",
+			[]map[string]string{
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"event[0-9]"`},
+				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"mice"`},
+				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
+				{`KERNEL`: `"bar"`},
+				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
+			},
+		},
+		{
+			`udev-tagging:
+   - kernel: dir1/baz
+   - kernel: dir2/baz`,
+			[]map[string]string{
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"event[0-9]"`},
+				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"mice"`},
+				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
+				{`KERNEL`: `"bar"`},
+				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
 			},
 		},
 	}
