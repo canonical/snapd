@@ -138,6 +138,9 @@ var (
 	SysfsDir        string
 
 	FeaturesDir string
+
+	// Comma separated list of user defined home directories in system-params
+	SnapHomeDirs string
 )
 
 const (

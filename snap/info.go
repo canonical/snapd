@@ -36,10 +36,10 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap/naming"
-	"github.com/snapcore/snapd/snap/sysparams"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
+	"golang.org/x/exp/slices"
 )
 
 // PlaceInfo offers all the information about where a snap and its data are
@@ -90,13 +90,13 @@ type PlaceInfo interface {
 	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
 	UserXdgRuntimeDir(userID sys.UserID) string
 
-	// DataHomeDir returns a glob that matches all per user data directories
+	// DataHomeDirs returns a slice of globs that match all per user data directories
 	// of a snap.
-	DataHomeDir(opts *dirs.SnapDirOptions) []string
+	DataHomeDirs(opts *dirs.SnapDirOptions) []string
 
-	// CommonDataHomeDir returns a glob that matches all per user data
+	// CommonDataHomeDirs returns a slice of globs that match all per user data
 	// directories common across revisions of the snap.
-	CommonDataHomeDir(opts *dirs.SnapDirOptions) []string
+	CommonDataHomeDirs(opts *dirs.SnapDirOptions) []string
 
 	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR
 	// directories for all users of the snap.
@@ -644,36 +644,28 @@ func (s *Info) CommonDataSaveDir() string {
 	return CommonDataSaveDir(s.InstanceName())
 }
 
-// Get home directories from system-params file.
-// Home directories are returned as a ',' seperated string
-func HomeDirsSysParams(rootDir string) (string, error) {
-
-	ssp, err := sysparams.Open(rootDir)
-	if err != nil {
-		return "", err
-	}
-
-	return ssp.Homedirs, nil
-}
-
-// DataHomeGlob returns the globbing expression for the snap directories in use
-func DataHomeGlob(opts *dirs.SnapDirOptions) []string {
+// DataHomeGlobs returns a slice of globbing expressions for the snap directories in use
+func DataHomeGlobs(opts *dirs.SnapDirOptions) []string {
 
 	if opts == nil {
 		opts = &dirs.SnapDirOptions{}
 	}
 
-	homedirs, err := HomeDirsSysParams(dirs.GlobalRootDir)
-
-	// if we cannot read the file or if the homedirs value is empty we use dirs defaults
-	if err != nil || homedirs == "" {
+	// If we cannot read the file or if the homedirs value is empty we use dirs defaults
+	if dirs.SnapHomeDirs == "" {
 		if opts.HiddenSnapDataDir {
 			return []string{dirs.HiddenSnapDataHomeGlob}
 		}
 		return []string{dirs.SnapDataHomeGlob}
 	}
 
-	list := strings.Split(homedirs, ",")
+	list := strings.Split(dirs.SnapHomeDirs, ",")
+
+	// Make sure /home is part of the list
+	if !slices.Contains(list, "/home") {
+		list = append(list, "/home")
+	}
+
 	for i, dir := range list {
 		// Necessary for tests. Removes any '/' present at the end of the path
 		// regardless of how many there are
@@ -690,20 +682,21 @@ func DataHomeGlob(opts *dirs.SnapDirOptions) []string {
 	return list
 }
 
-// DataHomeDir returns the per user data directory of the snap.
-func (s *Info) DataHomeDir(opts *dirs.SnapDirOptions) []string {
+// DataHomeDirs returns the per user data directory of the snap across multiple
+// home directories.
+func (s *Info) DataHomeDirs(opts *dirs.SnapDirOptions) []string {
 	var dataHomeGlob []string
-	for _, glob := range DataHomeGlob(opts) {
+	for _, glob := range DataHomeGlobs(opts) {
 		dataHomeGlob = append(dataHomeGlob, filepath.Join(glob, s.InstanceName(), s.Revision.String()))
 	}
 	return dataHomeGlob
 }
 
-// CommonDataHomeDir returns the per user data directory common across revisions
-// of the snap.
-func (s *Info) CommonDataHomeDir(opts *dirs.SnapDirOptions) []string {
+// CommonDataHomeDirs returns the per user data directory common across revisions
+// of the snap in all defined home directories.
+func (s *Info) CommonDataHomeDirs(opts *dirs.SnapDirOptions) []string {
 	var comDataHomeGlob []string
-	for _, glob := range DataHomeGlob(opts) {
+	for _, glob := range DataHomeGlobs(opts) {
 		comDataHomeGlob = append(comDataHomeGlob, filepath.Join(glob, s.InstanceName(), "common"))
 	}
 	return comDataHomeGlob

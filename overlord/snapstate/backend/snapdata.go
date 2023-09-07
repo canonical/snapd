@@ -118,7 +118,7 @@ func snapDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) 
 	// collect the directories, homes first
 	var found []string
 
-	for _, entry := range snap.DataHomeDir(opts) {
+	for _, entry := range snap.DataHomeDirs(opts) {
 		entryPaths, err := filepath.Glob(entry)
 		if err != nil {
 			return nil, err
@@ -139,7 +139,7 @@ func snapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, e
 	// collect the directories, homes first
 	var found []string
 
-	for _, entry := range snap.CommonDataHomeDir(opts) {
+	for _, entry := range snap.CommonDataHomeDirs(opts) {
 		entryPaths, err := filepath.Glob(entry)
 		if err != nil {
 			return nil, err

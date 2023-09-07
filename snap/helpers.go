@@ -42,7 +42,7 @@ func IsSnapd(snapID string) bool {
 func AllUsers(opts *dirs.SnapDirOptions) ([]*user.User, error) {
 	var ds []string
 
-	for _, entry := range DataHomeGlob(opts) {
+	for _, entry := range DataHomeGlobs(opts) {
 		entryPaths, err := filepath.Glob(entry)
 		if err != nil {
 			return nil, err
