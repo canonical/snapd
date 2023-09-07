@@ -67,8 +67,34 @@ func (s *straceSuite) TestStraceCommandHappy(c *C) {
 	c.Assert(cmd.Path, Equals, s.mockSudo.Exe())
 	c.Assert(cmd.Args, DeepEquals, []string{
 		s.mockSudo.Exe(), "-E",
-		s.mockStrace.Exe(), "--gid", u.Gid, "--uid", u.Uid, "-f",
+		s.mockStrace.Exe(),
+		"-f",
 		"-e", strace.ExcludedSyscalls,
+		"-u", u.Username,
+		// the command
+		"foo",
+	})
+}
+
+func (s *straceSuite) TestStraceCommandHappyFromSnap(c *C) {
+	u, err := user.Current()
+	c.Assert(err, IsNil)
+
+	straceStaticPath := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
+	err = os.MkdirAll(filepath.Dir(straceStaticPath), 0755)
+	c.Assert(err, IsNil)
+	mockStraceStatic := testutil.MockCommand(c, straceStaticPath, "")
+	defer mockStraceStatic.Restore()
+
+	cmd, err := strace.Command(nil, "foo")
+	c.Assert(err, IsNil)
+	c.Check(cmd.Path, Equals, s.mockSudo.Exe())
+	c.Check(cmd.Args, DeepEquals, []string{
+		s.mockSudo.Exe(), "-E",
+		mockStraceStatic.Exe(),
+		"-f",
+		"-e", strace.ExcludedSyscalls,
+		"--uid", u.Uid, "--gid", u.Gid,
 		// the command
 		"foo",
 	})
@@ -105,8 +131,9 @@ func (s *straceSuite) TestTraceExecCommand(c *C) {
 	c.Assert(cmd.Path, Equals, s.mockSudo.Exe())
 	c.Assert(cmd.Args, DeepEquals, []string{
 		s.mockSudo.Exe(), "-E",
-		s.mockStrace.Exe(), "--gid", u.Gid, "--uid", u.Uid, "-f",
+		s.mockStrace.Exe(), "-f",
 		"-e", strace.ExcludedSyscalls,
+		"-u", u.Username,
 		// timing specific trace
 		"-ttt",
 		"-e", "trace=execve,execveat",

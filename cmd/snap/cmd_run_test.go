@@ -1020,9 +1020,9 @@ echo "stdout output 2"
 		{
 			"sudo", "-E",
 			filepath.Join(straceCmd.BinDir(), "strace"),
-			"--gid", user.Gid, "--uid", user.Uid,
 			"-f",
 			"-e", strace.ExcludedSyscalls,
+			"-u", user.Username,
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
@@ -1043,9 +1043,9 @@ echo "stdout output 2"
 		{
 			"sudo", "-E",
 			filepath.Join(straceCmd.BinDir(), "strace"),
-			"--gid", user.Gid, "--uid", user.Uid,
 			"-f",
 			"-e", strace.ExcludedSyscalls,
+			"-u", user.Username,
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
@@ -1090,9 +1090,9 @@ func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 		{
 			"sudo", "-E",
 			filepath.Join(straceCmd.BinDir(), "strace"),
-			"--gid", user.Gid, "--uid", user.Uid,
 			"-f",
 			"-e", strace.ExcludedSyscalls,
+			"-u", user.Username,
 			"-tt",
 			"-o",
 			"file with spaces",
