@@ -145,6 +145,24 @@ func (iface *customDeviceInterface) validateUDevValueMap(value interface{}) erro
 	return nil
 }
 
+func (iface *customDeviceInterface) validateKernelMatchesOneDeviceBasename(kernelVal string, devices []string) error {
+	matches := make([]string, 0)
+	for _, devicePath := range devices {
+		if kernelVal != filepath.Base(devicePath) {
+			continue
+		}
+		matches = append(matches, devicePath)
+	}
+	switch len(matches) {
+	case 0:
+		return fmt.Errorf(`%q does not match any specified device`, kernelVal)
+	case 1:
+		return nil
+	default:
+		return fmt.Errorf(`%q matches more than one specified device: %q`, kernelVal, matches)
+	}
+}
+
 func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]interface{}, devices []string) error {
 	hasKernelTag := false
 	for key, value := range rule {
@@ -160,33 +178,14 @@ func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]inte
 			}
 			kernelVal := value.(string)
 			// The kernel device name must match the full path of
-			// the given device, stripped of the leading /dev/, or
-			// it must be the basename of the device path.
-			foundMatch := false
-			for _, devicePath := range devices {
-				if "/dev/"+kernelVal == devicePath {
-					foundMatch = true
-					break
-				}
-			}
-			if foundMatch {
+			// one of the given devices, stripped of the leading
+			// /dev/, or it must be the basename of a device path.
+			if strutil.ListContains(devices, "/dev/"+kernelVal) {
 				break
 			}
 			// Not a full path, so check if it matches the basename
 			// of a device path, and not more than one.
-			for _, devicePath := range devices {
-				if kernelVal != filepath.Base(devicePath) {
-					continue
-				}
-				if foundMatch {
-					err = fmt.Errorf(`%q matches more than one specified device`, kernelVal)
-					break
-				}
-				foundMatch = true
-			}
-			if !foundMatch {
-				err = fmt.Errorf(`%q does not match any specified device`, kernelVal)
-			}
+			err = iface.validateKernelMatchesOneDeviceBasename(kernelVal, devices)
 		case "attributes", "environment":
 			err = iface.validateUDevValueMap(value)
 		default:
@@ -466,6 +465,8 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 			// is /dev/<basename>, so that rule should apply to
 			// the device given by this full path. Thus, do not
 			// emit a default rule for this device name.
+			// validateUDevTaggingRule() already checked that the
+			// basename rule only applies to only one device.
 			continue
 		}
 

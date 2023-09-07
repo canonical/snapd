@@ -314,7 +314,7 @@ apps:
 		},
 		{
 			"devices: [/dev/dir1/foo, /dev/dir2/foo]\n  udev-tagging:\n    - kernel: foo",
-			`custom-device "udev-tagging" invalid "kernel" tag: "foo" matches more than one specified device`,
+			`custom-device "udev-tagging" invalid "kernel" tag: "foo" matches more than one specified device: \["/dev/dir1/foo" "/dev/dir2/foo"\]`,
 		},
 		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - attributes: foo",
