@@ -145,33 +145,6 @@ func (iface *customDeviceInterface) validateUDevValueMap(value interface{}) erro
 	return nil
 }
 
-func (iface *customDeviceInterface) validateUDevDevicesUniqueBasenames(devices []string) error {
-	basenames := make(map[string][]string, len(devices))
-	var duplicateBasenames []string
-	for _, devicePath := range devices {
-		deviceName := filepath.Base(devicePath)
-		if len(basenames[deviceName]) == 1 {
-			duplicateBasenames = append(duplicateBasenames, deviceName)
-		}
-		basenames[deviceName] = append(basenames[deviceName], devicePath)
-	}
-	if len(duplicateBasenames) == 0 {
-		return nil
-	}
-	var duplicatesOutput []string
-	for _, deviceName := range duplicateBasenames {
-		duplicatesOutput = append(duplicatesOutput, fmt.Sprintf(`"%s": ["%s"]`, deviceName, strings.Join(basenames[deviceName], `", "`)))
-	}
-	return fmt.Errorf(`custom-device specified devices have duplicate basenames: {%s}`, strings.Join(duplicatesOutput, ", "))
-}
-
-func (iface *customDeviceInterface) validateKernelDeviceNameIsBasename(deviceName string) error {
-	if deviceName != filepath.Base(deviceName) {
-		return fmt.Errorf(`kernel device name "%s" must be a basename`, deviceName)
-	}
-	return nil
-}
-
 func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]interface{}, devices []string) error {
 	hasKernelTag := false
 	for key, value := range rule {
