@@ -389,7 +389,7 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 	// Create a map in which will store udev rules indexed by device name
 	deviceRules := make(map[string]string, len(allDevicePaths))
 
-	placeholderRule := "###PLACEHOLDER###"
+	const placeholderRule string = "<placeholder>"
 
 	// Generate a placeholder udev rule for each device; we put them into a
 	// map indexed by the device name, so that we can overwrite the entry
@@ -436,32 +436,40 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 
 	// Now write all the rules
 	for deviceName, rule := range deviceRules {
-		if rule == placeholderRule {
-			baseName := filepath.Base(deviceName)
-
-			// There is an explicit rule for the basename of the
-			// device path, which is distinct from the full device
-			// path, but which doesn't exist as its own self-
-			// contained device path of the form /dev/<basename>,
-			// so don't emit a default rule for the full path.
-			// XXX: Is this safe? Is it okay to have multiple
-			// devices with the same basename?
-			if baseNameRule, exists := deviceRules[baseName]; deviceName != baseName && exists && baseNameRule != placeholderRule && !strutil.ListContains(allDevicePaths, "/dev/"+baseName) {
-				continue
-			}
-
-			fullPathRule := fmt.Sprintf(`KERNEL=="%s"`, deviceName)
-			spec.TagDevice(fullPathRule)
-
-			if _, exists := deviceRules[baseName]; !exists {
-				// can only be here if baseName != deviceName,
-				// since deviceRules[deviceName] exists
-				baseNameRule := fmt.Sprintf(`KERNEL=="%s"`, baseName)
-				spec.TagDevice(baseNameRule)
-			}
-		} else {
+		if rule != placeholderRule {
 			spec.TagDevice(rule)
+			continue
 		}
+
+		baseName := filepath.Base(deviceName)
+
+		defaultRule := fmt.Sprintf(`KERNEL=="%s"`, deviceName)
+		defaultBaseNameRule := fmt.Sprintf(`KERNEL=="%s"`, baseName)
+
+		if baseName == deviceName {
+			spec.TagDevice(defaultRule)
+			continue
+		}
+
+		baseNameRule, exists := deviceRules[baseName]
+		if !exists {
+			// There is no rule for the basename, so emit a default
+			// rule for both the full path and basename.
+			spec.TagDevice(defaultRule)
+			spec.TagDevice(defaultBaseNameRule)
+			continue
+		}
+
+		if baseNameRule != placeholderRule && !strutil.ListContains(allDevicePaths, "/dev/"+baseName) {
+			// There is a user-defined rule for the basename of the
+			// device path, and there is not a device whose path
+			// is /dev/<basename>, so that rule should apply to
+			// the device given by this full path. Thus, do not
+			// emit a default rule for this device name.
+			continue
+		}
+
+		spec.TagDevice(defaultRule)
 	}
 
 	return nil
