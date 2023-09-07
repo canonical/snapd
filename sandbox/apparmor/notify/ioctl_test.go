@@ -20,20 +20,14 @@ var _ = Suite(&ioctlSuite{})
 
 func (*ioctlSuite) TestIoctlRequestBuffer(c *C) {
 	buf := notify.NewIoctlRequestBuffer()
-	c.Assert(buf.Bytes(), HasLen, 0xFFFF)
+	c.Assert(buf, HasLen, 0xFFFF)
 	var header notify.MsgHeader
-	err := header.UnmarshalBinary(buf.Bytes())
+	err := header.UnmarshalBinary(buf)
 	c.Assert(err, IsNil)
 	c.Check(header, Equals, notify.MsgHeader{
 		Length:  0xFFFF,
 		Version: 3,
 	})
-}
-
-func (*ioctlSuite) TestBytesToIoctlRequestBuffer(c *C) {
-	buf := []byte("foo")
-	ioctlBuf := notify.IoctlRequestBuffer(buf)
-	c.Assert(ioctlBuf.Bytes(), DeepEquals, buf)
 }
 
 func (*ioctlSuite) TestIoctlHappy(c *C) {
@@ -46,12 +40,12 @@ func (*ioctlSuite) TestIoctlHappy(c *C) {
 			c.Check(a1, Equals, fd)
 			c.Check(a2, Equals, uintptr(req))
 			c.Check(a3, Equals, ioctlBuf.Pointer())
-			return uintptr(ioctlBuf.Len()), 0, 0
+			return uintptr(len(ioctlBuf)), 0, 0
 		})
 	defer restore()
 	buf, err := notify.Ioctl(fd, req, ioctlBuf)
 	c.Assert(err, IsNil)
-	c.Assert(buf, DeepEquals, ioctlBuf.Bytes())
+	c.Assert(buf, DeepEquals, []byte(ioctlBuf))
 }
 
 func (*ioctlSuite) TestIoctlBuffer(c *C) {
@@ -64,10 +58,9 @@ func (*ioctlSuite) TestIoctlBuffer(c *C) {
 	restore := notify.MockSyscall(
 		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
 			c.Assert(a3, Equals, ioctlBuf.Pointer())
-			raw := ioctlBuf.Bytes()
 
 			for i, b := range contents {
-				raw[i] = b
+				ioctlBuf[i] = b
 			}
 
 			return (uintptr)(len(contents)), 0, 0
@@ -86,12 +79,12 @@ func (*ioctlSuite) TestIoctlReturnValueSizeMismatch(c *C) {
 	restore := notify.MockSyscall(
 		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
 			// Return different size.
-			return uintptr(ioctlBuf.Len() * 2), 0, 0
+			return uintptr(len(ioctlBuf) * 2), 0, 0
 		})
 	defer restore()
 	buf, err := notify.Ioctl(fd, req, ioctlBuf)
 	c.Assert(err, Equals, notify.ErrIoctlReturnInvalid)
-	c.Assert(buf, HasLen, ioctlBuf.Len())
+	c.Assert(buf, HasLen, len(ioctlBuf))
 }
 
 func (*ioctlSuite) TestIoctlReturnError(c *C) {
@@ -129,17 +122,16 @@ func (*ioctlSuite) TestIoctlDump(c *C) {
 	restore := notify.MockSyscall(
 		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
 			c.Assert(a3, Equals, ioctlBuf.Pointer())
-			raw := ioctlBuf.Bytes()
 
 			for i, b := range contents {
-				raw[i] = b
+				ioctlBuf[i] = b
 			}
 
 			return (uintptr)(len(contents)), 0, 0
 		})
 	defer restore()
 
-	sendHeader := fmt.Sprintf(">>> ioctl %v (%d bytes) ...\n", req, ioctlBuf.Len())
+	sendHeader := fmt.Sprintf(">>> ioctl %v (%d bytes) ...\n", req, len(ioctlBuf))
 	sendDataStr := "0xff, 0xff, 0x03, 0x00, "
 	if arch.Endian() == binary.BigEndian {
 		sendDataStr = "0xff, 0xff, 0x00, 0x03, "
