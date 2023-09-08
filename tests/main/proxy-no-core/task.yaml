@@ -21,8 +21,6 @@ execute: |
        echo "SKIP: need python3"
        exit 0
     fi
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
     systemctl stop snapd.socket snapd.service
     rm -rf /var/lib/snapd/state.json
     systemctl start snapd.socket snapd.service
@@ -34,9 +32,7 @@ execute: |
 
     # run a proxy that can access http/https (via the owner rule)
     systemd-run --service-type=notify --uid=test --unit tinyproxy -- python3 "$TESTSLIB/tinyproxy/tinyproxy.py"
-    # shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-    wait_for_service tinyproxy
+    tests.systemd wait-for-service -n 30 --state active tinyproxy
 
     echo "Ensure normal install without proxy does not work"
     if snap install core; then

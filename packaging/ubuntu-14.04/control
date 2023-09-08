@@ -3,6 +3,7 @@ Section: devel
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: autoconf,
+               autoconf-archive,
                automake,
                autotools-dev,
                bash-completion,
@@ -18,7 +19,7 @@ Build-Depends: autoconf,
                gettext,
                grub-common,
                gnupg2,
-               golang-any (>=2:1.13) | golang-1.13,
+               golang-any (>=2:1.18) | golang-1.18,
                indent,
                init-system-helpers,
                libcap-dev,

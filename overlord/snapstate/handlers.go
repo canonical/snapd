@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -53,9 +54,12 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -208,7 +212,7 @@ func defaultPrereqSnapsChannel() string {
 
 func findLinkSnapTaskForSnap(st *state.State, snapName string) (*state.Task, error) {
 	for _, chg := range st.Changes() {
-		if chg.Status().Ready() {
+		if chg.IsReady() {
 			continue
 		}
 		for _, tc := range chg.Tasks() {
@@ -749,8 +753,8 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	targetFn := snapsup.MountFile()
 
 	dlOpts := &store.DownloadOptions{
-		IsAutoRefresh: snapsup.IsAutoRefresh,
-		RateLimit:     rate,
+		Scheduled: snapsup.IsAutoRefresh,
+		RateLimit: rate,
 	}
 	if snapsup.DownloadInfo == nil {
 		var storeInfo store.SnapActionResult
@@ -832,8 +836,8 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	targetFn := snapsup.MountFile()
 	dlOpts := &store.DownloadOptions{
 		// pre-downloads are only triggered in auto-refreshes
-		IsAutoRefresh: true,
-		RateLimit:     autoRefreshRateLimited(st),
+		Scheduled: true,
+		RateLimit: autoRefreshRateLimited(st),
 	}
 
 	perfTimings := state.TimingsForTask(t)
@@ -888,23 +892,18 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 			return err
 		}
 
-		return asyncRefreshOnSnapClose(m.state, refreshInfo)
+		return asyncRefreshOnSnapClose(m.state, snapsup, refreshInfo)
 	}
 
-	continueInhibitedAutoRefresh(st)
-	return nil
+	return continueInhibitedAutoRefresh(st, snapsup.InstanceName())
 }
 
 // asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
 // the user and then triggers an auto-refresh.
-func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) error {
-	monitoredSnaps := snapMonitoring(st)
-	if monitoredSnaps == nil {
-		monitoredSnaps = make(map[string]chan<- bool)
-	}
-
+func asyncRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, refreshInfo *userclient.PendingSnapRefreshInfo) error {
+	snapName := snapsup.InstanceName()
 	// there's already a goroutine waiting for this snap to close so just notify
-	if monitoredSnaps[refreshInfo.InstanceName] != nil {
+	if isSnapMonitored(st, snapName) {
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 		return nil
 	}
@@ -912,71 +911,190 @@ func asyncRefreshOnSnapClose(st *state.State, refreshInfo *userclient.PendingSna
 	// monitor the snap until it closes. Use buffered channel to prevent the sender
 	// from blocking if the receiver stops before reading from it
 	done := make(chan string, 1)
-	if err := cgroupMonitorSnapEnded(refreshInfo.InstanceName, done); err != nil {
+	if err := cgroupMonitorSnapEnded(snapName, done); err != nil {
 		return fmt.Errorf("cannot monitor for snap closure: %w", err)
+	}
+
+	refreshCtx, abort := context.WithCancel(context.Background())
+	if ok, err := addMonitoring(st, snapName, abort); err != nil {
+		return fmt.Errorf("cannot save monitoring state for %q: %v", snapName, err)
+	} else if !ok {
+		// refresh candidate missing, no need to monitor
+		return nil
 	}
 
 	// notify the user about the blocked refresh
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 
-	abort := make(chan bool, 1)
-	monitoredSnaps[refreshInfo.InstanceName] = abort
-	st.Cache("monitored-snaps", monitoredSnaps)
-
-	go func() {
-		continueAutoRefresh := false
-		select {
-		case <-done:
-			continueAutoRefresh = true
-		case <-abort:
-		}
-
-		st.Lock()
-		defer st.Unlock()
-
-		monitoredSnaps := snapMonitoring(st)
-		if monitoredSnaps == nil {
-			// shouldn't happen except for programmer error
-			logger.Noticef("cannot find monitoring state for snap %q", refreshInfo.InstanceName)
-		} else {
-			delete(monitoredSnaps, refreshInfo.InstanceName)
-
-			if len(monitoredSnaps) == 0 {
-				// use nil to delete entry but must be nil type (can't be map var set to nil)
-				st.Cache("monitored-snaps", nil)
-			} else {
-				st.Cache("monitored-snaps", monitoredSnaps)
-			}
-		}
-
-		if continueAutoRefresh {
-			continueInhibitedAutoRefresh(st)
-		}
-	}()
-
+	go continueRefreshOnSnapClose(st, snapsup, done, refreshCtx)
 	return nil
 }
 
-// continueInhibitedAutoRefresh triggers an auto-refresh so it can be continued
-func continueInhibitedAutoRefresh(st *state.State) {
-	// signal that there's an auto-refresh to be continued (for auto-refresh code)
-	st.Cache("auto-refresh-continue-attempt", 1)
-	st.EnsureBefore(0)
+// addMonitoring adds monitoring info to the persisted and in-memory states.
+// Returns true if the monitoring state was saved or false if it wasn't because
+// the monitoring shouldn't proceed.
+func addMonitoring(st *state.State, snapName string, abort context.CancelFunc) (bool, error) {
+	var refreshHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
+		if errors.Is(err, &state.NoStateError{}) {
+			// the candidate may have been reverted from the channel after the
+			// auto-refresh, so it's missing here and there's nothing to refresh to
+			logger.Noticef("cannot get refresh candidate for %q (possibly reverted): nothing to refresh", snapName)
+			return false, nil
+		}
+
+		return false, fmt.Errorf("cannot get refresh-candidates: %v", err)
+	} else if _, ok := refreshHints[snapName]; !ok {
+		// the candidate may have been reverted from the channel after the
+		// auto-refresh, so it's missing here and there's nothing to refresh to
+		logger.Noticef("cannot get refresh candidate for %q (possibly reverted): nothing to refresh", snapName)
+		return false, nil
+	}
+
+	abortChans, err := getMonitoringAborts(st)
+	if err != nil {
+		return false, err
+	}
+	if abortChans == nil {
+		abortChans = make(map[string]context.CancelFunc)
+	}
+
+	refreshHints[snapName].Monitored = true
+	st.Set("refresh-candidates", refreshHints)
+
+	abortChans[snapName] = abort
+	st.Cache("monitored-snaps", abortChans)
+
+	return true, nil
 }
 
-func snapMonitoring(st *state.State) map[string]chan<- bool {
-	if cachedMonitored := st.Cached("monitored-snaps"); cachedMonitored != nil {
-		if monitoredSnaps, ok := cachedMonitored.(map[string]chan<- bool); ok {
-			return monitoredSnaps
-		}
+// removeMonitoring removes monitoring state related to the specified snap.
+func removeMonitoring(st *state.State, snapName string) error {
+	var refreshHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
+		return fmt.Errorf("cannot get refresh-candidates: %v", err)
+	} else if _, ok := refreshHints[snapName]; !ok {
+		return fmt.Errorf(`cannot reset the "monitored" field for %q in "refresh-candidates"`, snapName)
+	}
+
+	refreshHints[snapName].Monitored = false
+	st.Set("refresh-candidates", refreshHints)
+
+	abortChans, err := getMonitoringAborts(st)
+	if err != nil {
+		return nil
+	}
+	if abortChans == nil {
+		return nil
+	}
+
+	delete(abortChans, snapName)
+	if len(abortChans) == 0 {
+		st.Cache("monitored-snaps", nil)
+	} else {
+		st.Cache("monitored-snaps", abortChans)
 	}
 
 	return nil
 }
 
+func continueRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, done <-chan string, refreshCtx context.Context) {
+	snapName := snapsup.InstanceName()
+
+	var aborted bool
+	select {
+	case <-done:
+	case <-refreshCtx.Done():
+		aborted = true
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	defer func() {
+		if err := removeMonitoring(st, snapName); err != nil {
+			logger.Noticef("cannot remove monitoring information: %v", err)
+		}
+	}()
+
+	if aborted {
+		logger.Debugf("monitoring for pre-downloaded snap %q was aborted", snapName)
+		return
+	}
+
+	if err := continueInhibitedAutoRefresh(st, snapName); err != nil {
+		logger.Noticef("cannot continue inhibited auto-refresh for %q: %v", snapName, err)
+		return
+	}
+}
+
+// continueInhibitedAutoRefresh refreshes the snap to continue the inhibited auto-refresh
+func continueInhibitedAutoRefresh(st *state.State, snapName string) error {
+	var refreshHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
+		return fmt.Errorf("cannot get refresh-candidates: %v", err)
+	}
+
+	hint, ok := refreshHints[snapName]
+	if !ok {
+		return fmt.Errorf("cannot get refresh-candidates for %q: not found", snapName)
+	}
+
+	flags := &Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: true}
+	tss, err := autoRefreshPhase2(context.TODO(), st, []*refreshCandidate{hint}, flags, "")
+	if err != nil {
+		return err
+	}
+
+	// TODO: do a check so this can't happen?
+	createdPreDl, err := createPreDownloadChange(st, tss)
+	if err != nil {
+		return err
+	}
+
+	if !createdPreDl {
+		snaps := []string{snapName}
+		msg := autoRefreshSummary(snaps)
+		chg := st.NewChange("auto-refresh", msg)
+		for _, ts := range tss.Refresh {
+			chg.AddAll(ts)
+		}
+		chg.Set("snap-names", snaps)
+		chg.Set("api-data", map[string]interface{}{"snap-names": snaps})
+	}
+
+	st.EnsureBefore(0)
+	return nil
+}
+
+func getMonitoringAborts(st *state.State) (map[string]context.CancelFunc, error) {
+	stored := st.Cached("monitored-snaps")
+	if stored == nil {
+		return nil, nil
+	}
+	aborts, ok := stored.(map[string]context.CancelFunc)
+	if !ok {
+		// NOTE: should never happen save for programmer error
+		return nil, fmt.Errorf(`internal error: "monitored-snaps" should be map[string]context.CancelFunc but got %T`, stored)
+	}
+	return aborts, nil
+}
+
+func monitoringAbort(st *state.State, snapName string) context.CancelFunc {
+	aborts, err := getMonitoringAborts(st)
+	if err != nil {
+		logger.Noticef("%v", err)
+	}
+	return aborts[snapName]
+}
+
+func isSnapMonitored(st *state.State, snapName string) bool {
+	return monitoringAbort(st, snapName) != nil
+}
+
 func abortMonitoring(st *state.State, snapName string) {
-	if monitored := snapMonitoring(st); monitored[snapName] != nil {
-		monitored[snapName] <- true
+	if abort := monitoringAbort(st, snapName); abort != nil {
+		abort()
 	}
 }
 
@@ -1249,7 +1367,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			if errors.As(err, &busyErr) {
 				// notify user to close the snap and trigger the auto-refresh once it's closed
 				refreshInfo := busyErr.PendingSnapRefreshInfo()
-				if err := asyncRefreshOnSnapClose(m.state, refreshInfo); err != nil {
+				if err := asyncRefreshOnSnapClose(m.state, snapsup, refreshInfo); err != nil {
 					return err
 				}
 			}
@@ -1283,7 +1401,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// undo migration if appropriate
 	if snapsup.Flags.Revert {
@@ -1417,7 +1535,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
@@ -1804,14 +1922,14 @@ func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string
 type LinkSnapParticipant interface {
 	// SnapLinkageChanged is called when a snap is linked or unlinked.
 	// The error is only logged and does not stop the task it is used from.
-	SnapLinkageChanged(st *state.State, instanceName string) error
+	SnapLinkageChanged(st *state.State, snapsup *SnapSetup) error
 }
 
 // LinkSnapParticipantFunc is an adapter from function to LinkSnapParticipant.
-type LinkSnapParticipantFunc func(st *state.State, instanceName string) error
+type LinkSnapParticipantFunc func(st *state.State, snapsup *SnapSetup) error
 
-func (f LinkSnapParticipantFunc) SnapLinkageChanged(st *state.State, instanceName string) error {
-	return f(st, instanceName)
+func (f LinkSnapParticipantFunc) SnapLinkageChanged(st *state.State, snapsup *SnapSetup) error {
+	return f(st, snapsup)
 }
 
 var linkSnapParticipants []LinkSnapParticipant
@@ -1830,10 +1948,10 @@ func MockLinkSnapParticipants(ps []LinkSnapParticipant) (restore func()) {
 	}
 }
 
-func notifyLinkParticipants(t *state.Task, instanceName string) {
+func notifyLinkParticipants(t *state.Task, snapsup *SnapSetup) {
 	st := t.State()
 	for _, p := range linkSnapParticipants {
-		if err := p.SnapLinkageChanged(st, instanceName); err != nil {
+		if err := p.SnapLinkageChanged(st, snapsup); err != nil {
 			t.Errorf("%v", err)
 		}
 	}
@@ -1987,6 +2105,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return fmt.Errorf("cannot discard preserved namespaces: %v", err)
 	}
 
+	if err := m.maybeRemoveAppArmorProfilesOnSnapdDowngrade(st, newInfo); err != nil {
+		return fmt.Errorf("cannot discard apparmor profiles: %v", err)
+	}
+
 	rebootInfo, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
@@ -2009,7 +2131,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		if backendErr != nil {
 			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", snapsup.InstanceName(), backendErr)
 		}
-		notifyLinkParticipants(t, snapsup.InstanceName())
+		notifyLinkParticipants(t, snapsup)
 	}()
 	if err != nil {
 		return err
@@ -2124,7 +2246,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	finalStatus := state.DoneStatus
@@ -2260,6 +2382,65 @@ func (m *SnapManager) maybeDiscardNamespacesOnSnapdDowngrade(st *state.State, sn
 				// downgrade for this. Let's just log it down.
 				logger.Noticef("WARNING: discarding namespace of snap %q failed, snap might be unusable until next reboot", snap.InstanceName())
 			}
+		}
+	}
+	return nil
+}
+
+// maybeRemoveAppArmorProfilesOnSnapdDowngrade must be called when we are about
+// to activate a different snapd version. It checks whether we are a snapd with
+// a vendored AppArmor and whether we are performing a downgrade to an older
+// snapd version and, if so, discards all apparmor profiles; failure to do so
+// could cause the older snapd to be unable to load the existing apparmor
+// profiles generated by the vendored AppArmor parser.  This method assumes that
+// the State is locked.
+func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.State, snapInfo *snap.Info) error {
+	if snapInfo.Type() != snap.TypeSnapd || snapInfo.Version == "" {
+		return nil
+	}
+
+	// ignore if not seeded yet or if preseeding
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if errors.Is(err, state.ErrNoState) || !seeded || snapdenv.Preseeding() {
+		return nil
+	}
+
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Unsupported {
+		// no apparmor means no parser features
+		return nil
+	}
+
+	feats, err := apparmor_sandbox.ParserFeatures()
+	if err != nil {
+		return err
+	}
+
+	// if we do not have a vendored AppArmor parser (ie the parser is not
+	// snapd-internal) then it is managed by the host and we don't have to
+	// worry about it
+	if !strutil.ListContains(feats, "snapd-internal") {
+		return nil
+	}
+
+	// if we are downgrading snapd with a vendored AppArmor parser then
+	// remove any existing AppArmor profiles and the system-key to ensure
+	// that there are no profiles on disk when the downgraded snapd starts
+	// up (as otherwise they might be incompatible with the AppArmor parser
+	// that it is using - either because it also has a vendored AppArmor
+	// parser, or because it doesn't in which case it will be using the
+	// host's AppArmor parser)
+	if compare, err := strutil.VersionCompare(snapInfo.Version, snapdtool.Version); err == nil && compare < 0 {
+		logger.Noticef("Downgrading snapd to version %q, discarding all existing snap AppArmor profiles", snapInfo.Version)
+		if err = m.backend.RemoveAllSnapAppArmorProfiles(); err != nil {
+			// We don't propagate the error as we don't want to block the
+			// downgrade for this. Let's just log it down.
+			logger.Noticef("WARNING: removing AppArmor profiles failed")
+		}
+		// also remove system-key to ensure the AppArmor profiles get
+		// regenerated when the new snapd starts up
+		if err = interfaces.RemoveSystemKey(); err != nil {
+			logger.Noticef("WARNING: failed to remove system-key")
 		}
 	}
 	return nil
@@ -2537,7 +2718,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// Finish task: set status, possibly restart
 
@@ -2960,7 +3141,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	return err
 }
@@ -3026,7 +3207,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
+	notifyLinkParticipants(t, snapsup)
 
 	// if we just linked back a core snap, request a restart
 	// so that we switch executing its snapd.
@@ -3259,14 +3440,15 @@ func (m *SnapManager) doSetAutoAliases(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// --unaliased
-	if snapsup.Unaliased {
+	// --unaliased/--prefer
+	// auto aliased is disabled for --prefer to avoid conflicting with
+	// existing installs
+	if snapsup.Unaliased || snapsup.Prefer {
 		t.Set("old-auto-aliases-disabled", snapst.AutoAliasesDisabled)
 		snapst.AutoAliasesDisabled = true
 	}
 
 	curAliases := snapst.Aliases
-	// TODO: implement --prefer logic
 	newAliases, err := refreshAliases(st, curInfo, curAliases)
 	if err != nil {
 		return err
@@ -3939,7 +4121,9 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		}
 	}
 
-	if createPreDownloadChange(st, updateTss) {
+	if created, err := createPreDownloadChange(st, updateTss); err != nil {
+		return err
+	} else if created {
 		newTasks = true
 	}
 
@@ -3966,12 +4150,14 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		return nil
 	}
 
-	updateTss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
+	updateTss, err := autoRefreshPhase2(context.TODO(), st, snaps, nil, t.Change().ID())
 	if err != nil {
 		return err
 	}
 
-	createPreDownloadChange(st, updateTss)
+	if _, err := createPreDownloadChange(st, updateTss); err != nil {
+		return err
+	}
 
 	if updateTss.Refresh != nil {
 		// update the map of refreshed snaps on the task, this affects
@@ -4056,36 +4242,34 @@ func (m *SnapManager) undoMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error 
 	return writeMigrationStatus(t, snapst, snapsup)
 }
 
-func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	var userID int
-	if err := t.Get("userID", &userID); err != nil {
-		return err
-	}
-
+func (m *SnapManager) decodeValidationSets(t *state.Task) (map[string]*asserts.ValidationSet, error) {
 	encodedAsserts := make(map[string][]byte)
 	if err := t.Get("validation-sets", &encodedAsserts); err != nil {
-		return err
+		return nil, err
 	}
 
 	decodedAsserts := make(map[string]*asserts.ValidationSet, len(encodedAsserts))
 	for vsStr, encAssert := range encodedAsserts {
 		decAssert, err := asserts.Decode(encAssert)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		vsAssert, ok := decAssert.(*asserts.ValidationSet)
 		if !ok {
-			return errors.New("expected encoded assertion to be of type ValidationSet")
+			return nil, errors.New("expected encoded assertion to be of type ValidationSet")
 		}
 		decodedAsserts[vsStr] = vsAssert
 	}
+	return decodedAsserts, nil
+}
 
-	var pinnedSeqs map[string]int
+func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	pinnedSeqs := make(map[string]int)
 	if err := t.Get("pinned-sequence-numbers", &pinnedSeqs); err != nil {
 		return err
 	}
@@ -4095,10 +4279,41 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 		return err
 	}
 
-	if err := EnforceValidationSets(st, decodedAsserts, pinnedSeqs, snaps, ignoreValidation, userID); err != nil {
-		return fmt.Errorf("cannot enforce validation sets: %v", err)
+	// 'validation-set-keys' determines which enforcement function to invoke. If provided
+	// then we should call EnforceLocalValidationSets, which does not
+	// fetch any assertions or their pre-requisites. If not provided, then 'validation-sets'
+	// must be set, and we call EnforceValidationSets, which may contact the
+	// store for any additional assertions.
+	var local bool
+	vsKeys := make(map[string][]string)
+	if err := t.Get("validation-set-keys", &vsKeys); err != nil && !errors.Is(err, &state.NoStateError{}) {
+		// we accept NoStateError, it simply means we use the normal version, however then
+		// 'userID' and 'validation-sets' must be present
+		return err
+	} else if err == nil {
+		// 'validation-set-keys' was present, use the local version
+		local = true
 	}
 
+	if local {
+		if err := EnforceLocalValidationSets(st, vsKeys, pinnedSeqs, snaps, ignoreValidation); err != nil {
+			return fmt.Errorf("cannot enforce validation sets: %v", err)
+		}
+	} else {
+		var userID int
+		if err := t.Get("userID", &userID); err != nil {
+			return err
+		}
+
+		decodedAsserts, err := m.decodeValidationSets(t)
+		if err != nil {
+			return err
+		}
+
+		if err := EnforceValidationSets(st, decodedAsserts, pinnedSeqs, snaps, ignoreValidation, userID); err != nil {
+			return fmt.Errorf("cannot enforce validation sets: %v", err)
+		}
+	}
 	return nil
 }
 

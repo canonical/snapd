@@ -103,7 +103,7 @@ func (s *downloadSuite) TestActualDownloadAutoRefresh(c *C) {
 	var buf SillyBuffer
 	// keep tests happy
 	sha3 := ""
-	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, &store.DownloadOptions{IsAutoRefresh: true})
+	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, &store.DownloadOptions{Scheduled: true})
 	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, "response-data")
 	c.Check(n, Equals, 1)

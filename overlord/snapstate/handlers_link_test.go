@@ -43,8 +43,10 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -347,9 +349,9 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 
 	linkChangeCount := 0
 	lp := &testLinkParticipant{
-		linkageChanged: func(st *state.State, instanceName string) error {
+		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(st, instanceName, &snapst)
+			err := snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			linkChangeCount++
 			switch linkChangeCount {
 			case 1:
@@ -1229,6 +1231,91 @@ func (s *linkSnapSuite) TestDoLinkSnapdDiscardsNsOnDowngrade(c *C) {
 	c.Check(lp.instanceNames, DeepEquals, []string{"snapd"})
 }
 
+func (s *linkSnapSuite) TestDoLinkSnapdRemovesAppArmorProfilesOnSnapdDowngrade(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lp := &testLinkParticipant{}
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
+	defer restore()
+
+	// pretend we have an installed snapd with a vendored apparmor that has
+	// a version greater than the one we are going to downgrade to
+	restore = snapdtool.MockVersion("2.58")
+	defer restore()
+	restore = apparmor.MockFeatures([]string{}, nil, []string{"snapd-internal"}, nil)
+	defer restore()
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Check(name, Equals, "snapd")
+		info := &snap.Info{Version: "2.56", SideInfo: *si, SnapType: snap.TypeSnapd}
+		return info, nil
+	})
+
+	siSnapd := &snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
+		Revision: snap.R(42),
+	}
+	// Create a downgrade
+	si := &snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
+		Revision: snap.R(41),
+	}
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{siSnapd, si},
+		Current:         siSnapd.Revision,
+		TrackingChannel: "latest/stable",
+		SnapType:        "snapd",
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Channel:  "beta",
+	})
+
+	// set seeded so that AppArmor profile cleanup should occur - however
+	// since we now appear to be seeded this would trigger the mount units
+	// to be updated etc which would call into systemctl - so turn that off
+	// too
+	s.state.Set("seeded", true)
+	s.AddCleanup(snapstate.MockEnsuredMountsUpdated(s.snapmgr, true))
+	s.state.NewChange("sample", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+
+	// tried to cleanup
+	expected := fakeOps{
+		{
+			op:    "candidate",
+			sinfo: *si,
+		},
+		{
+			op:   "discard-namespace",
+			name: "snapd",
+		},
+		{
+			op: "remove-apparmor-profiles",
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "snapd/41"),
+		},
+	}
+
+	// start with an easier-to-read error if this fails:
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// link snap participant was invoked
+	c.Check(lp.instanceNames, DeepEquals, []string{"snapd"})
+}
+
 func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceDidNotHaveCandidate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1323,9 +1410,9 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 
 	linkChangeCount := 0
 	lp := &testLinkParticipant{
-		linkageChanged: func(st *state.State, instanceName string) error {
+		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(st, instanceName, &snapst)
+			err := snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			linkChangeCount++
 			switch linkChangeCount {
 			case 1:

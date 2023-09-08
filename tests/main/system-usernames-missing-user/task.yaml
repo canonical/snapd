@@ -4,7 +4,7 @@ summary: ensure snap fails to install if one of user or group doesn't exist
 # too old. Since the illegal name check happens after verifying system support,
 # we can ignore these. Ignore ubuntu-core since groupdel doesn't support
 # --extrausers
-systems: [-amazon-linux-2-*, -centos-7-*, -debian-10-*, -ubuntu-14.04-*, -ubuntu-core-*]
+systems: [-amazon-linux-2-*, -centos-7-*, -ubuntu-14.04-*, -ubuntu-core-*]
 
 prepare: |
     groupadd --system snap_daemon
@@ -25,4 +25,4 @@ execute: |
     getent group snap_daemon || exit 1
 
     echo "Then the snap cannot be installed"
-    snap install --edge test-snapd-daemon-user 2>&1 | MATCH 'cannot add user/group "snap_daemon": group exists and user does not'
+    snap install --edge test-snapd-daemon-user 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'cannot add user/group "snap_daemon": group exists and user does not'

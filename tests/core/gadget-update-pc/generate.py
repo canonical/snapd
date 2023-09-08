@@ -13,7 +13,9 @@ def parse_arguments():
     parser.add_argument(
         "--system-seed", action="store_true", help="also modify system-seed"
     )
-
+    parser.add_argument(
+        "--system-bios", action="store_true", help="also modify system-bios"
+    )
     parser.add_argument(
         "gadgetyaml", type=argparse.FileType("r"), help="path to gadget.yaml input file"
     )
@@ -106,7 +108,7 @@ def make_v1(doc, system_seed):
     #     - image: foo.img
     #   update:
     #       edition: 1
-    if biosboot is not None and "content" in biosboot:
+    if biosboot and "content" in biosboot:
         biosboot["content"].append({"image": "foo.img"})
         biosboot["update"] = bump_update_edition(biosboot.get("update"))
 
@@ -137,7 +139,7 @@ def make_v1(doc, system_seed):
     return doc
 
 
-def make_v2(doc, system_seed):
+def make_v2(doc, system_seed, system_bios):
     # appply v1, add more new files to 'EFI System' partition, preserve one of
     # the updated files, to 'BIOS Boot', bump update edition for both
 
@@ -145,7 +147,11 @@ def make_v2(doc, system_seed):
 
     structs = doc["volumes"]["pc"]["structure"]
     efisystem = must_find_struct(structs, match_role_with_fallback("system-boot"))
-    biosboot = must_find_struct(structs, match_name("BIOS Boot"))
+    if system_bios:
+        biosboot = must_find_struct(structs, match_name("BIOS Boot"))
+    else:
+        biosboot = may_find_struct(structs, match_name("BIOS Boot"))
+
     # - name: EFI System
     #   (not)type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
     #   filesystem: vfat
@@ -185,7 +191,8 @@ def make_v2(doc, system_seed):
     #     - image: foo.img
     #   update:
     #       edition: 2
-    biosboot["update"] = bump_update_edition(biosboot.get("update"))
+    if system_bios: 
+        biosboot["update"] = bump_update_edition(biosboot.get("update"))
 
     if system_seed:
         # only in UC20 gadgets
@@ -203,7 +210,7 @@ def main(opts):
     if opts.variant == "v1":
         make_v1(doc, opts.system_seed)
     elif opts.variant == "v2":
-        make_v2(doc, opts.system_seed)
+        make_v2(doc, opts.system_seed, opts.system_bios)
 
     yaml.dump(doc, sys.stdout)
 

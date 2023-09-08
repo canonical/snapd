@@ -181,6 +181,9 @@ main() {
 				umount -l /var/lib/systemd
 			fi
 
+			# Make sure there is not neither stopping nor abandoned user sessions
+			systemctl restart systemd-logind.service
+
 			exit 0
 			;;
 		dump)
@@ -231,12 +234,71 @@ main() {
 	unit_name="tests.session-$uuid.service"
 	tmp_dir="$TESTSTMP/tests.session-$uuid"
 	mkdir "$tmp_dir"
-	mkfifo -m 0666 "$tmp_dir/dbus-monitor.pipe" "$tmp_dir/ready.pipe" "$tmp_dir/result.pipe" "$tmp_dir/stdin.pipe" "$tmp_dir/stdout.pipe" "$tmp_dir/stderr.pipe"
 	trap 'rm -rf $tmp_dir' EXIT
 
-	# Run dbus-monitor waiting for systemd JobRemoved signal. Process the output
-	# with awk, forwarding the result of the service to a fifo.
-	monitor_expr="type='signal', sender='org.freedesktop.systemd1', interface='org.freedesktop.systemd1.Manager', path='/org/freedesktop/systemd1', member='JobRemoved'"
+	(
+		echo "#!/bin/sh"
+		test -n "$pid_file" && echo "echo \$$ >\"$pid_file\""
+		printf "exec "
+		for arg in "$@"; do
+			printf '%q ' "$arg"
+		done
+		echo
+	)>"$tmp_dir/exec"
+	chmod +x "$tmp_dir/exec"
+
+	# When systemd version is higher than 252 we use systemd-run to execute
+	# In other scenarios we use the older approach: bustctl with the dbus monitor
+	if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -gt 252 ]; then
+		local selinux_context_arg=""
+		if os.query is-fedora || os.query is-centos; then
+			selinux_context_arg="--property SELinuxContext=unconfined_u:unconfined_r:unconfined_t:s0"
+		fi
+
+		# It is needed to have '|| true' to make sure in case systemd-run fails,
+		# the command systemctl reset-failed is called
+		# shellcheck disable=SC2086
+ 		systemd-run \
+  		--unit="$unit_name" \
+		--description "tests.session running $* as $user" \
+		--quiet \
+		--wait \
+		--pipe \
+		--service-type simple \
+		--setenv TERM=xterm-256color \
+		--property "Environment=SNAPD_DEBUG=$SNAPD_DEBUG SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG" \
+		$selinux_context_arg \
+		"$(command -v runuser)" -l "$user" - -c "exec $tmp_dir/exec" || true
+
+		# Prevent accumulation of failed sessions.
+		if systemctl cat "$unit_name" &>/dev/null; then
+			if systemctl is-failed "$unit_name"; then
+				systemctl reset-failed "$unit_name"
+				exit 1
+			else
+				exit 0
+			fi
+		else
+			exit 0
+		fi
+  	fi
+
+	mkfifo -m 0666 "$tmp_dir/result.pipe" "$tmp_dir/stdin.pipe" "$tmp_dir/stdout.pipe" "$tmp_dir/stderr.pipe"
+	# Use busctl to spawn a command. The command is wrapped in shell, runuser -l
+	# and redirects to capture output. Sadly busctl doesn't support passing file
+	# descriptors https://github.com/systemd/systemd/issues/14954 As a workaround
+	# we pass a set of pipes. This is good for non-interactive work.
+	# NOTE: /dev/stdin is provided explicitly to trigger special behavior in bash,
+	# as otherwise background tasks are started with /dev/null for stdin.
+	cat </dev/stdin >"$tmp_dir/stdin.pipe" &
+	cat_stdin_pid=$!
+	cat <"$tmp_dir/stdout.pipe" >&1 &
+	cat_stdout_pid=$!
+	cat <"$tmp_dir/stderr.pipe" >&2 &
+	cat_stderr_pid=$!
+
+  	mkfifo -m 0666 "$tmp_dir/dbus-monitor.pipe" "$tmp_dir/ready.pipe"
+  	monitor_expr="type='signal', sender='org.freedesktop.systemd1', interface='org.freedesktop.systemd1.Manager', path='/org/freedesktop/systemd1', member='JobRemoved'"
 	stdbuf -oL dbus-monitor --system --monitor "$monitor_expr" > "$tmp_dir/dbus-monitor.pipe" 2>"$tmp_dir/dbus-monitor.stderr" &
 	dbus_monitor_pid=$!
 
@@ -245,7 +307,6 @@ BEGIN {
 	found=0;
 	ready=0;
 }
-
 # Once we get the NameAcquired message we are sure dbus-monitor is connected
 # and will receive JobRemoved once it is sent. The reason we are getting this
 # message despite the filter we establish above is that it is sent directly to
@@ -257,7 +318,6 @@ BEGIN {
 		close(\"$tmp_dir/ready.pipe\");
 	}
 }
-
 # This part matches an argument to JobRemoved that contains the name of the
 # tests.session-xxx.service name we picked earlier. Once we see this we are sure
 # the job is gone.
@@ -267,7 +327,6 @@ BEGIN {
 	fflush();
 	next;
 }
-
 # This matches any string argument but only takes effect once we found our
 # JobRemoved message. The order of arguments to JobRemoved is such that the
 # immediate successor of the service name is the result word. This is
@@ -288,30 +347,6 @@ BEGIN {
 
 	# Wait for dbus-monitor to start.
 	cat "$tmp_dir/ready.pipe" >/dev/null
-
-	# Use busctl to spawn a command. The command is wrapped in shell, runuser -l
-	# and redirects to capture output. Sadly busctl doesn't support passing file
-	# descriptors https://github.com/systemd/systemd/issues/14954 As a workaround
-	# we pass a set of pipes. This is good for non-interactive work.
-	# NOTE: /dev/stdin is provided explicitly to trigger special behavior in bash,
-	# as otherwise background tasks are started with /dev/null for stdin.
-	cat </dev/stdin >"$tmp_dir/stdin.pipe" &
-	cat_stdin_pid=$!
-	cat <"$tmp_dir/stdout.pipe" >&1 &
-	cat_stdout_pid=$!
-	cat <"$tmp_dir/stderr.pipe" >&2 &
-	cat_stderr_pid=$!
-
-	(
-		echo "#!/bin/sh"
-		test -n "$pid_file" && echo "echo \$$ >\"$pid_file\""
-		printf "exec "
-		for arg in "$@"; do
-			printf '%q ' "$arg"
-		done
-		echo
-	)>"$tmp_dir/exec"
-	chmod +x "$tmp_dir/exec"
 
 	# We want to provide a SELinuxContext but systemd in older SELinux-using distributions
 	# does not recognize this attribute. See https://github.com/systemd/systemd/blob/master/NEWS#L6402

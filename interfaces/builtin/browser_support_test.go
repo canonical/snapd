@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -140,6 +141,7 @@ apps:
 	snippet := apparmorSpec.SnippetForTag("snap.browser-support-plug-snap.app2")
 	c.Assert(snippet, testutil.Contains, `# Description: Can access various APIs needed by modern browsers`)
 	c.Assert(snippet, Not(testutil.Contains), `capability sys_admin,`)
+	c.Assert(snippet, Not(testutil.Contains), `userns,`)
 
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
@@ -164,6 +166,8 @@ apps:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := interfaces.NewConnectedPlug(info.Plugs["browser-support"], nil, nil)
 
+	restore := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
+	defer restore()
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
@@ -171,6 +175,8 @@ apps:
 	snippet := apparmorSpec.SnippetForTag("snap.browser-support-plug-snap.app2")
 	c.Assert(snippet, testutil.Contains, `# Description: Can access various APIs needed by modern browsers`)
 	c.Assert(snippet, testutil.Contains, `ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.**`)
+	// we haven't mocked the userns apparmor feature
+	c.Assert(snippet, Not(testutil.Contains), `userns,`)
 
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
@@ -179,6 +185,32 @@ apps:
 	secCompSnippet := seccompSpec.SnippetForTag("snap.browser-support-plug-snap.app2")
 	c.Assert(secCompSnippet, testutil.Contains, `# Description: Can access various APIs needed by modern browsers`)
 	c.Assert(secCompSnippet, testutil.Contains, `chroot`)
+}
+
+func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithUserNS(c *C) {
+	const mockSnapYaml = `name: browser-support-plug-snap
+version: 1.0
+plugs:
+ browser-support:
+  allow-sandbox: true
+apps:
+ app2:
+  command: foo
+  plugs: [browser-support]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := interfaces.NewConnectedPlug(info.Plugs["browser-support"], nil, nil)
+
+	restore := apparmor_sandbox.MockFeatures(nil, nil, []string{"userns"}, nil)
+	defer restore()
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.browser-support-plug-snap.app2"})
+	snippet := apparmorSpec.SnippetForTag("snap.browser-support-plug-snap.app2")
+	c.Assert(snippet, testutil.Contains, `# Description: Can access various APIs needed by modern browsers`)
+	c.Assert(snippet, testutil.Contains, `ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.**`)
+	c.Assert(snippet, testutil.Contains, `userns,`)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {

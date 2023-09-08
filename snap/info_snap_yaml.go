@@ -55,6 +55,7 @@ type snapYaml struct {
 	Layout          map[string]layoutYaml  `yaml:"layout,omitempty"`
 	SystemUsernames map[string]interface{} `yaml:"system-usernames,omitempty"`
 	Links           map[string][]string    `yaml:"links,omitempty"`
+	Components      map[string]Component   `yaml:"components,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -291,6 +292,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		Hooks:               make(map[string]*HookInfo),
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
+		Components:          y.Components,
 		Environment:         y.Environment,
 		SystemUsernames:     make(map[string]*SystemUsernameInfo),
 		OriginalLinks:       make(map[string][]string),

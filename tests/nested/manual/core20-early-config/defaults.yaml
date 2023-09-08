@@ -21,12 +21,10 @@ defaults:
           bridges:
             br54:
               dhcp4: true
-          # ensure that default behavor can be overridden
+          # ensure that default behavior can be overridden
           ethernets:
-            ens3:
-              dhcp4: false
-              addresses:
-                - 10.0.2.15/24
-              routes:
-                - to: default
-                  via: 10.0.2.2
+            any:
+              match:
+                name: e*
+              dhcp4: true
+              dhcp6: true

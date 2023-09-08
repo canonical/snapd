@@ -32,7 +32,7 @@ parts:
   snapd-deb:
     plugin: nil
     source: .
-    build-snaps: [go/1.13/stable]
+    build-snaps: [go/1.18/stable]
     # these packages are needed to call mkversion.sh in override-pull, all other
     # dependencies are installed using apt-get build-dep
     build-packages:
@@ -68,7 +68,7 @@ parts:
       fi
       # run the real build (but just build the binary package, and don't
       # bother compressing it too much)
-      dpkg-buildpackage -b -Zgzip -zfast
+      dpkg-buildpackage -b -Zgzip -zfast -uc -us
       dpkg-deb -x $(pwd)/../snapd_*.deb $SNAPCRAFT_PART_INSTALL
       # not included in the deb as it's only used with UC20 preseeding.
       cp -a data/preseed.json $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
@@ -167,8 +167,20 @@ parts:
       - bin/fc-cache-v7
   apparmor:
     plugin: autotools
-    build-packages: [bison, flex, gettext, g++, pkg-config]
-    source: https://launchpad.net/apparmor/3.0/3.0.7/+download/apparmor-3.0.7.tar.gz
+    build-packages: [bison, flex, gettext, g++, pkg-config, wget]
+    source: https://launchpad.net/apparmor/3.0/3.0.8/+download/apparmor-3.0.8.tar.gz
+    override-pull: |
+      snapcraftctl pull
+      # add support for mediating posix mqueue's and userns - these come from
+      # the ubuntu source package for lunar
+      # https://git.launchpad.net/ubuntu/+source/apparmor/tree/debian/patches/ubuntu?h=ubuntu/lunar
+      for feature in mqueue userns; do
+        wget https://git.launchpad.net/ubuntu/+source/apparmor/plain/debian/patches/ubuntu/add-${feature}-support.patch?h=ubuntu/lunar -O - | patch -p1
+      done
+      # apply local apparmor patches
+      for patch in $SNAPCRAFT_PROJECT_DIR/build-aux/snap/patches/apparmor/*; do
+          patch -p1 < $patch
+      done
     override-build: |
       cd $SNAPCRAFT_PART_BUILD/libraries/libapparmor
       ./autogen.sh

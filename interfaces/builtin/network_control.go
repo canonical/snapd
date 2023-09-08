@@ -300,6 +300,7 @@ capability sys_ptrace,
 # 'ip netns exec foo /bin/sh'
 mount options=(rw, rslave) /,
 mount options=(rw, rslave), # LP: #1648245
+mount fstype=sysfs,
 umount /sys/,
 
 # Eg, nsenter --net=/run/netns/... <command>

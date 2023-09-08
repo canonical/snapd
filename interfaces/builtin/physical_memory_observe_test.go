@@ -81,6 +81,7 @@ func (s *PhysicalMemoryObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/mem r,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `@{PROC}/@{pids}/pagemap r,`)
 }
 
 func (s *PhysicalMemoryObserveInterfaceSuite) TestUDevSpec(c *C) {
@@ -89,7 +90,7 @@ func (s *PhysicalMemoryObserveInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# physical-memory-observe
 KERNEL=="mem", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *PhysicalMemoryObserveInterfaceSuite) TestStaticInfo(c *C) {

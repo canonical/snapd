@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts/internal"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // expose test-only things here
@@ -259,6 +260,10 @@ func init() {
 	maxSupportedFormat[TestOnlySeqType.Name] = 2
 }
 
+func (ak *AccountKey) CanSign(a Assertion) bool {
+	return ak.canSign(a)
+}
+
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
 func AccountKeyIsKeyValidAt(ak *AccountKey, when time.Time) bool {
 	return ak.isValidAt(when)
@@ -353,4 +358,12 @@ func (b *Batch) DoPrecheck(db *Database) error {
 
 func MakePoolGrouping(elems ...uint16) Grouping {
 	return Grouping(internal.Serialize(elems))
+}
+
+// fetcher tests
+
+func MockAssertionPrereqs(f func(a Assertion) []*Ref) func() {
+	r := testutil.Backup(&assertionPrereqs)
+	assertionPrereqs = f
+	return r
 }

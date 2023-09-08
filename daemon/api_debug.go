@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2021 Canonical Ltd
+ * Copyright (C) 2015-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,16 +27,13 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -284,52 +281,24 @@ func getGadgetDiskMapping(st *state.State) Response {
 	}
 	gadgetDir := gadgetInfo.MountDir()
 
-	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
-	if err != nil {
-		return InternalError("cannot get kernel info: %v", err)
-	}
-	kernelDir := kernelInfo.MountDir()
-
 	mod := deviceCtx.Model()
 
-	// Find out if we are encrypted
-	encType := secboot.EncryptionTypeNone
-	sealingMethod, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+	info, err := gadget.ReadInfoAndValidate(gadgetDir, mod, nil)
 	if err != nil {
-		if err != device.ErrNoSealedKeys {
-			return InternalError("cannot find out crypto state: %v", err)
-		}
-		// no sealed keys, so no encryption
-	} else {
-		switch sealingMethod {
-		case device.SealingMethodLegacyTPM, device.SealingMethodTPM:
-			encType = secboot.EncryptionTypeLUKS
-		case device.SealingMethodFDESetupHook:
-			// TODO:ICE: device setup hook support goes away
-			// XXX: this also seems to be broken already, this sealing
-			// method should not imply ICE
-			encType = secboot.EncryptionTypeDeviceSetupHook
-		default:
-			return InternalError("unknown sealing method: %s", sealingMethod)
-		}
-	}
-
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetDir, kernelDir, mod, encType)
-	if err != nil {
-		return InternalError("cannot get all disk volume device traits: cannot layout volumes: %v", err)
+		return InternalError("cannot get all disk volume device traits: cannot read gadget: %v", err)
 	}
 
 	// TODO: allow passing in encrypted options info here
 
 	// allow implicit system-data on pre-uc20 only
 	optsMap := map[string]*gadget.DiskVolumeValidationOptions{}
-	for vol := range allLaidOutVols {
+	for vol := range info.Volumes {
 		optsMap[vol] = &gadget.DiskVolumeValidationOptions{
 			AllowImplicitSystemData: mod.Grade() == asserts.ModelGradeUnset,
 		}
 	}
 
-	res, err := gadget.AllDiskVolumeDeviceTraits(allLaidOutVols, optsMap)
+	res, err := gadget.AllDiskVolumeDeviceTraits(info.Volumes, optsMap)
 	if err != nil {
 		return InternalError("cannot get all disk volume device traits: %v", err)
 	}

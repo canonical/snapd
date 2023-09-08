@@ -45,11 +45,11 @@ static sc_mountinfo_entry *find_root_mountinfo(sc_mountinfo * mounts)
 
 static int ensure_root_fs_shared(const char *normal_dir)
 {
-	// Load /proc/self/mountinfo so that we can inspect the root filesystem.
+	// Load /proc/1/mountinfo so that we can inspect the root filesystem.
 	sc_mountinfo *mounts SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
-	mounts = sc_parse_mountinfo(NULL);
+	mounts = sc_parse_mountinfo("/proc/1/mountinfo");
 	if (!mounts) {
-		fprintf(stderr, "cannot open or parse /proc/self/mountinfo\n");
+		fprintf(stderr, "cannot open or parse /proc/1/mountinfo\n");
 		return 1;
 	}
 
@@ -89,8 +89,13 @@ static int ensure_root_fs_shared(const char *normal_dir)
 	fprintf(f, "Where=" SNAP_MOUNT_DIR "\n");
 	fprintf(f, "Type=none\n");
 	fprintf(f, "Options=bind,shared\n");
-	fprintf(f, "[Install]\n");
-	fprintf(f, "WantedBy=local-fs.target\n");
+
+        /* We do not need to create symlinks from any target since
+         * this generated mount will automically be added to implicit
+         * dependencies of sub mount units through
+         * `RequiresMountsFor`.
+         */
+
 	return 0;
 }
 

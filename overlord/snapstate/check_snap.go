@@ -53,6 +53,8 @@ var featureSet = map[string]bool{
 	"kernel-assets": true,
 	// Support for "refresh-mode: ignore-running" in snap.yaml
 	"app-refresh-mode": true,
+	// Support for "SNAP_UID" and "SNAP_EUID" environment variables
+	"snap-uid-envvars": true,
 }
 
 func checkAssumes(si *snap.Info) error {
@@ -480,7 +482,7 @@ func earlyChecks(st *state.State, snapst *SnapState, update *snap.Info, flags Fl
 }
 
 // check that the listed system users are valid
-var osutilEnsureUserGroup = osutil.EnsureUserGroup
+var osutilEnsureSnapUserGroup = osutil.EnsureSnapUserGroup
 
 func validateSystemUsernames(si *snap.Info) error {
 	for _, user := range si.SystemUsernames {
@@ -551,15 +553,25 @@ func checkAndCreateSystemUsernames(si *snap.Info) error {
 			// base (see above)
 			rangeStart := id & 0xFFFF0000
 			rangeName := fmt.Sprintf("snapd-range-%d-root", rangeStart)
-			if err := osutilEnsureUserGroup(rangeName, rangeStart, extrausers); err != nil {
+			if err := osutilEnsureSnapUserGroup(rangeName, rangeStart, extrausers); err != nil {
 				return fmt.Errorf(`cannot ensure users for snap %q required system username "%s": %v`, si.InstanceName(), user.Name, err)
 			}
 
 			// Create the requested user and group
-			if err := osutilEnsureUserGroup(user.Name, id, extrausers); err != nil {
+			if err := osutilEnsureSnapUserGroup(user.Name, id, extrausers); err != nil {
 				return fmt.Errorf(`cannot ensure users for snap %q required system username "%s": %v`, si.InstanceName(), user.Name, err)
 			}
 		}
+	}
+	return nil
+}
+
+func checkConfigureHooks(_ *state.State, snapInfo, curInfo *snap.Info, _ snap.Container, _ Flags, deviceCtx DeviceContext) error {
+	hasDefaultConfigureHook := snapInfo.Hooks["default-configure"] != nil
+	hasConfigureHook := snapInfo.Hooks["configure"] != nil
+
+	if hasDefaultConfigureHook && !hasConfigureHook {
+		return fmt.Errorf(`cannot specify "default-configure" hook without "configure" hook`)
 	}
 	return nil
 }
@@ -570,4 +582,5 @@ func init() {
 	AddCheckSnapCallback(checkGadgetOrKernel)
 	AddCheckSnapCallback(checkBases)
 	AddCheckSnapCallback(checkEpochs)
+	AddCheckSnapCallback(checkConfigureHooks)
 }

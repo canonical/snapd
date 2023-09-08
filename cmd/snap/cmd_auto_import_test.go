@@ -266,23 +266,47 @@ func (s *SnapSuite) TestAutoImportIntoSpoolUnhappyTooBig(c *C) {
 }
 
 func (s *SnapSuite) TestAutoImportUnhappyInInstallMode(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
+	restoreRelease := release.MockOnClassic(false)
+	defer restoreRelease()
+
+	restoreMountInfo := osutil.MockMountInfo(``)
+	defer restoreMountInfo()
 
 	_, restoreLogger := logger.MockLogger()
 	defer restoreLogger()
 
-	mockProcCmdlinePath := filepath.Join(c.MkDir(), "cmdline")
-	err := ioutil.WriteFile(mockProcCmdlinePath, []byte("foo=bar snapd_recovery_mode=install snapd_recovery_system=20191118"), 0644)
-	c.Assert(err, IsNil)
+	modeenvContent := `mode=install
+recovery_system=20200202
+`
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
 
-	restore = osutil.MockProcCmdline(mockProcCmdlinePath)
-	defer restore()
-
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "auto-import is disabled in install-mode\n")
+}
+
+func (s *SnapSuite) TestAutoImportUnhappyInInstallInInitrdMode(c *C) {
+	restoreRelease := release.MockOnClassic(false)
+	defer restoreRelease()
+
+	restoreMountInfo := osutil.MockMountInfo(``)
+	defer restoreMountInfo()
+
+	_, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
+	modeenvContent := `mode=run
+recovery_system=20200202
+`
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
 }
 
 var mountStatic = []string{"mount", "-t", "ext4,vfat", "-o", "ro", "--make-private"}

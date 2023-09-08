@@ -57,11 +57,13 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -107,6 +109,7 @@ type automaticSnapshotCall struct {
 	InstanceName string
 	SnapConfig   map[string]interface{}
 	Usernames    []string
+	Options      *snap.SnapshotOptions
 }
 
 type baseMgrsSuite struct {
@@ -201,8 +204,9 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	})
 
 	s.automaticSnapshots = nil
-	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
-		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames})
+	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string,
+		options *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
+		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames, Options: options})
 		return nil, nil
 	})
 	s.AddCleanup(r)
@@ -762,7 +766,7 @@ apps:
 	c.Assert(osutil.FileExists(mup), Equals, false)
 
 	// automatic snapshot was created
-	c.Assert(s.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil}})
+	c.Assert(s.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil, nil}})
 }
 
 func (s *mgrsSuite) TestHappyRemoveWithQuotas(c *C) {
@@ -4806,6 +4810,10 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run install hook of "%s" snap if present`, name))
 	i++
+	if flags&noConfigure == 0 {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run default-configure hook of "%s" snap if present`, name))
+		i++
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Start snap "%s" (%s) services`, name, revno))
 	i++
 	if flags&noConfigure == 0 {
@@ -4944,7 +4952,7 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAdded(c *C) {
 		"revision":       "1",
 	})
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(devicestate.RemodelingChange(st), NotNil)
@@ -5051,7 +5059,7 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAddedUndo(c *C) {
 	devicestate.InjectSetModelError(fmt.Errorf("boom"))
 	defer devicestate.InjectSetModelError(nil)
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -5118,7 +5126,7 @@ type: base`
 		"revision": "1",
 	})
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, ErrorMatches, "cannot remodel from core to bases yet")
 	c.Assert(chg, IsNil)
 }
@@ -5203,7 +5211,7 @@ version: 20.04`
 		"required-snaps": []interface{}{"foo"},
 	})
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -5348,7 +5356,7 @@ version: 20.04`
 	devicestate.InjectSetModelError(fmt.Errorf("boom"))
 	defer devicestate.InjectSetModelError(nil)
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -5485,7 +5493,7 @@ version: 20.04`
 		"required-snaps": []interface{}{"foo"},
 	})
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -5855,7 +5863,7 @@ func (s *kernelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		"required-snaps": []interface{}{"foo"},
 	})
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -5909,7 +5917,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 		"required-snaps": []interface{}{"foo"},
 	})
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6001,7 +6009,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 	devicestate.InjectSetModelError(fmt.Errorf("boom"))
 	defer devicestate.InjectSetModelError(nil)
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6057,7 +6065,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 	devicestate.InjectSetModelError(fmt.Errorf("boom"))
 	defer devicestate.InjectSetModelError(nil)
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6177,7 +6185,7 @@ func (s *mgrsSuiteCore) TestRemodelStoreSwitch(c *C) {
 	s.expectedStore = "switched-store"
 	s.sessionMacaroon = "switched-store-session"
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6260,7 +6268,12 @@ volumes:
 		"revision": "1",
 	})
 
-	chg, err := devicestate.Remodel(st, newModel)
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"foo": {}}, nil, nil
+	})
+	defer r()
+
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6370,7 +6383,7 @@ volumes:
 	})
 	s.serveSnap(snapPath, "2")
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 			"volume-id": {
 				0: {
@@ -6378,7 +6391,7 @@ volumes:
 					Offset: quantity.OffsetMiB,
 				},
 			},
-		}, nil
+		}, nil, nil
 	})
 	defer r()
 
@@ -6411,7 +6424,7 @@ volumes:
 		"revision": "1",
 	})
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -6538,14 +6551,14 @@ volumes:
 		"revision": "1",
 	})
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*cannot remodel to an incompatible gadget: .*cannot change structure size.*`)
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*cannot remodel to an incompatible gadget: .*new valid structure size range.*is not compatible with current.*`)
 }
 
 func (s *mgrsSuiteCore) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
@@ -6777,7 +6790,7 @@ func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
 	s.expectedStore = "my-brand-substore"
 	s.sessionMacaroon = "other-store-session"
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -7009,7 +7022,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	c.Assert(os.Symlink(boot.InitramfsUbuntuSeedDir, dirs.SnapSeedDir), IsNil)
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
-	restore = osutil.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	restore = kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
 
 	// mock state related to boot assets
@@ -7221,7 +7234,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(devicestate.RemodelingChange(st), NotNil)
@@ -7445,7 +7458,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C) {
 	c.Assert(os.Symlink(boot.InitramfsUbuntuSeedDir, dirs.SnapSeedDir), IsNil)
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
-	restore = osutil.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	restore = kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	s.AddCleanup(restore)
 
 	// mock state related to boot assets
@@ -7596,7 +7609,12 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentKernelChannel(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	chg, err := devicestate.Remodel(st, newModel)
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"pc": {}}, nil, nil
+	})
+	defer r()
+
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -7726,7 +7744,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentGadgetChannel(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 			"pc": {
 				0: {
@@ -7739,7 +7757,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentGadgetChannel(c *C) {
 					RootMountPoint: "/foo-data",
 				},
 			},
-		}, nil
+		}, nil, nil
 	})
 	defer r()
 
@@ -7751,7 +7769,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentGadgetChannel(c *C) {
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -7874,7 +7892,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentBaseChannel(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -7971,7 +7989,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentBaseChannel(c *C) {
 func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
-	restore := osutil.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
 	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
 		"snaps": []interface{}{
@@ -8013,7 +8031,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 			"pc": {
 				0: {
@@ -8026,7 +8044,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 					RootMountPoint: "/foo-data",
 				},
 			},
-		}, nil
+		}, nil, nil
 	})
 	defer r()
 
@@ -8037,7 +8055,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -8149,7 +8167,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	// but tracks a different channel than what the new model ordains
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
-	restore := osutil.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
 	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
 		"snaps": []interface{}{
@@ -8194,7 +8212,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 			"pc": {
 				0: {
@@ -8207,7 +8225,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 					RootMountPoint: "/foo-data",
 				},
 			},
-		}, nil
+		}, nil, nil
 	})
 	defer r()
 
@@ -8218,7 +8236,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -8339,7 +8357,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
-	restore := osutil.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
 	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
 		"snaps": []interface{}{
@@ -8388,7 +8406,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
 		},
 	})
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot remodel with incomplete model, the following snaps are required but not listed: "prereq-base", "prereq-content"`)
 	c.Assert(chg, IsNil)
 }
@@ -8495,7 +8513,7 @@ func dumpTasks(c *C, when string, tasks []*state.Task) {
 
 func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
-	restore := osutil.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
 
 	restore = backend.MockAllUsers(func(*dirs.SnapDirOptions) ([]*user.User, error) {
@@ -8555,7 +8573,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 	bl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{Role: bootloader.RoleRecovery})
 	c.Assert(err, IsNil)
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 			"pc": {
 				0: {
@@ -8568,7 +8586,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 					RootMountPoint: "/foo-data",
 				},
 			},
-		}, nil
+		}, nil, nil
 	})
 	defer r()
 
@@ -8584,7 +8602,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	chg, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
 	c.Assert(err, IsNil)
 	dumpTasks(c, "at the beginning", chg.Tasks())
 
@@ -9819,6 +9837,11 @@ func (s *mgrsSuiteCore) testGadgetKernelCommandLine(c *C, gadgetPath string, gad
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"pc": {}}, nil, nil
+	})
+	defer r()
+
 	ts, _, err := snapstate.InstallPath(st, gadgetSideInfo, gadgetPath, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 
@@ -9845,7 +9868,7 @@ func (s *mgrsSuiteCore) testGadgetKernelCommandLine(c *C, gadgetPath string, gad
 		// old and pending command line
 		c.Assert(m.CurrentKernelCommandLines, HasLen, 2)
 
-		restore := osutil.MockProcCmdline(cmdlineAfterRebootPath)
+		restore := kcmdline.MockProcCmdline(cmdlineAfterRebootPath)
 		defer restore()
 
 		// reset bootstate, so that after-reboot command line is
@@ -10391,6 +10414,28 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootWithGadgetSetup(c *C, sn
 	})
 	s.serveSnap(p, "2")
 
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{
+			"pc": {
+				0: {
+					RootMountPoint: "/run/mnt/ubuntu-seed",
+				},
+				1: {
+					RootMountPoint: "/run/mnt/ubuntu-boot",
+				},
+				2: {
+					RootMountPoint: "/run/mnt/ubuntu-data",
+				},
+			},
+		}, nil, nil
+	})
+	defer r()
+	s.makeMockedDisk(c, []string{"ubuntu-seed", "ubuntu-boot", "ubuntu-data"})
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
 	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20", "pc", "snapd"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"core20", "pc", "pc-kernel", "snapd"})
@@ -10405,6 +10450,104 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootWithGadgetSetup(c *C, sn
 		chg.AddAll(ts)
 	}
 	return bloader, chg
+}
+
+// makeMockDisk mocks a disk compatible with pcGadgetYaml constant.
+func (bs *baseMgrsSuite) makeMockedDisk(c *C, partNames []string) {
+	const oneMeg = uint64(quantity.SizeMiB)
+
+	// mock /dev/disk/by-label/{structureName}
+	byLabelDir := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/")
+	err := os.MkdirAll(byLabelDir, 0755)
+	c.Assert(err, IsNil)
+	fakeDiskDeviceNode := filepath.Join(dirs.GlobalRootDir, "/dev/vda")
+	fakePartDeviceNode := fakeDiskDeviceNode + "p1"
+	// create fakedevice node
+	err = ioutil.WriteFile(fakePartDeviceNode, nil, 0644)
+	c.Assert(err, IsNil)
+
+	for _, partName := range partNames {
+		// and point the mocked by-label entry to the fakedevice node
+		err = os.Symlink(fakePartDeviceNode, filepath.Join(byLabelDir, partName))
+		c.Assert(err, IsNil)
+
+		// mock /proc/self/mountinfo with the above generated paths
+		bs.AddCleanup(osutil.MockMountInfo(fmt.Sprintf("26 27 8:3 / %[1]s/run/mnt/%[2]s rw,relatime shared:7 - vfat %[1]s/dev/fakedevice0p1 rw", dirs.GlobalRootDir, partName)))
+
+		// and mock the mount point
+		err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", partName), 0755)
+		c.Assert(err, IsNil)
+	}
+
+	mockDisk := &disks.MockDiskMapping{
+		DevNode: fakeDiskDeviceNode,
+
+		DevPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda",
+		DevNum:  "600:1",
+		// assume 34 sectors at end for GPT headers backup
+		DiskUsableSectorEnd: 5120*oneMeg/512 - 34,
+		DiskSizeInBytes:     5120 * oneMeg,
+		SectorSizeBytes:     512,
+		DiskSchema:          "gpt",
+		ID:                  "f0eef013-a777-4a27-aaf0-dbb5cf68c2b6",
+		Structure: []disks.Partition{
+			{
+				KernelDeviceNode: "/dev/vda1",
+				KernelDevicePath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda2",
+				PartitionUUID:    "4b436628-71ba-43f9-aa12-76b84fe32728",
+				PartitionLabel:   "ubuntu-seed",
+				PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+				FilesystemUUID:   "04D6-5AE2",
+				FilesystemLabel:  "ubuntu-seed",
+				FilesystemType:   "vfat",
+				StartInBytes:     oneMeg,
+				SizeInBytes:      100 * oneMeg,
+				Major:            600,
+				Minor:            3,
+				DiskIndex:        1,
+			},
+			{
+				KernelDeviceNode: "/dev/vda2",
+				KernelDevicePath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda3",
+				PartitionUUID:    "ade3ba65-7831-fd40-bbe2-e01c9774ed5b",
+				PartitionLabel:   "ubuntu-boot",
+				PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+				FilesystemUUID:   "5b3e775a-407d-4af7-aa16-b92a8b7507e6",
+				FilesystemLabel:  "ubuntu-boot",
+				FilesystemType:   "ext4",
+				StartInBytes:     (1 + 100) * oneMeg,
+				SizeInBytes:      100 * oneMeg,
+				Major:            600,
+				Minor:            4,
+				DiskIndex:        2,
+			},
+			{
+				KernelDeviceNode: "/dev/vda3",
+				KernelDevicePath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda5",
+				PartitionUUID:    "4994f0e5-1ead-1a4d-b696-2d8cb1fa980d",
+				PartitionLabel:   "ubuntu-data",
+				PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+				FilesystemUUID:   "4e29a1e9-526d-48fc-a5c2-4f97e7e011e2",
+				FilesystemLabel:  "ubuntu-data",
+				FilesystemType:   "ext4",
+				StartInBytes:     (100 + 100 + 1) * oneMeg,
+				// including the last usable sector - the offset
+				SizeInBytes: 500 * oneMeg,
+				Major:       600,
+				Minor:       6,
+				DiskIndex:   3,
+			},
+		},
+	}
+
+	// mock device nodes
+	disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		fakePartDeviceNode: mockDisk,
+	})
+
+	disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		fakeDiskDeviceNode: mockDisk,
+	})
 }
 
 func (s *mgrsSuiteCore) TestUpdateKernelBaseSingleRebootWithGadgetWithExplicitBase(c *C) {
@@ -11736,7 +11879,7 @@ func (ms *gadgetUpdatesSuite) TestGadgetWithKernelRefUpgradeFromOldErrorKernel(c
 	structureName := "ubuntu-seed"
 	structureMountDir := filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName)
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 			"volume-id": {
 				0: {
@@ -11746,7 +11889,7 @@ func (ms *gadgetUpdatesSuite) TestGadgetWithKernelRefUpgradeFromOldErrorKernel(c
 					RootMountPoint: "/foo-data",
 				},
 			},
-		}, nil
+		}, nil, nil
 	})
 	defer r()
 
@@ -11938,6 +12081,11 @@ func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
 	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", "volumes:\n volume-id:\n  bootloader: grub"},
 	})
+
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"pc": {}}, nil, nil
+	})
+	defer r()
 
 	// now a refresh is simulated that does *not* contain an
 	// "update-gadget-assets" task, see LP:#1940553

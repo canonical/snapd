@@ -1,0 +1,5 @@
+exclude:
+  - $SNAP_USER_COMMON/static-exclude.txt
+  - $SNAP_USER_DATA/static-exclude.txt
+  - $SNAP_COMMON/static-exclude.txt
+  - $SNAP_DATA/static-exclude.txt

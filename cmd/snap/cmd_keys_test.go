@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,6 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 type SnapKeysSuite struct {
@@ -82,6 +84,16 @@ func (s *SnapKeysSuite) SetUpTest(c *C) {
 
 	os.Setenv("SNAP_GNUPG_HOME", s.tempdir)
 	os.Setenv("SNAP_GNUPG_CMD", s.GnupgCmd)
+
+	// by default avoid talking to the real store
+	s.AddCleanup(snap.MockStoreNew(func(cfg *store.Config, stoCtx store.DeviceAndAuthContext) *store.Store {
+		if cfg == nil {
+			cfg = store.DefaultConfig()
+		}
+		serverURL, _ := url.Parse("http://nowhere.example.com")
+		cfg.AssertionsBaseURL = serverURL
+		return store.New(cfg, stoCtx)
+	}))
 }
 
 func (s *SnapKeysSuite) TearDownTest(c *C) {

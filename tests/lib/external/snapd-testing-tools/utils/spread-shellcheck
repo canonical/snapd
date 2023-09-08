@@ -20,6 +20,7 @@ import hashlib
 import itertools
 import logging
 import os
+import re
 import subprocess
 import yaml
 
@@ -119,21 +120,34 @@ def checksection(data, env: Dict[str, str]):
 
     for key, value in env.items():
         value = str(value)
-        # Unpack the special "$(HOST: ...) syntax and tell shellcheck not to
-        # worry about the use of echo to print variable value.
-        if value.startswith("$(HOST:") and value.endswith(")"):
-            script_data.append("# shellcheck disable=SC2116")
-            value = "$({})".format(value[len("$(HOST:"):-1])
-        # XXX: poor man's shell key=value assignment with values in double
-        # quotes so that one value can refer to another value.
-        if '"' in value:
-            value = value.replace('"', '\"')
+        disabled_warnings = set()
+        export_disabled_warnings = set()
+        def replacement(match):
+            if match.group(0) == '"':
+                # SC2089 and SC2090 are about quotes vs arrays
+                # We cannot have arrays in environment variables of spread
+                # So we do have to use quotes
+                disabled_warnings.add('SC2089')
+                export_disabled_warnings.add('SC2090')
+                return r'\"'
+            else:
+                assert(match.group('command') is not None)
+                # "Useless" echo. This is what we get.
+                # We cannot just evaluate to please shellcheck.
+                disabled_warnings.add('SC2116')
+                return '$({})'.format(match.group('command'))
+        value = re.sub(r'[$][(]HOST:(?P<command>.*)[)]|"', replacement, value)
         # converts
         # FOO: "$(HOST: echo $foo)"     -> FOO="$(echo $foo)"
-        # FOO: "$(HOST: echo \"$foo\")" -> FOO="$(echo \"$foo\")"
+        # FOO: "$(HOST: echo \"$foo\")" -> FOO="$(echo "$foo")"
         # FOO: "foo"                    -> FOO="foo"
+        # FOO: "\"foo\""                -> FOO="\"foo\""
+        if disabled_warnings:
+            script_data.append("# shellcheck disable={}".format(','.join(disabled_warnings)))
         script_data.append("{}=\"{}\"".format(key, value))
-        script_data.append("export {}".format(key))
+        if export_disabled_warnings:
+            script_data.append("# shellcheck disable={}".format(','.join(export_disabled_warnings)))
+        script_data.append("export {}".format(key, value))
     script_data.append(data)
     proc = subprocess.Popen("shellcheck -s {} -x -".format(SHELLCHECK_SHELL),
                             stdout=subprocess.PIPE,

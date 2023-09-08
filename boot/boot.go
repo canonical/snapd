@@ -42,13 +42,13 @@ const (
 )
 
 // RebootInfo contains information about how to perform a reboot if
-// required
+// required.
 type RebootInfo struct {
-	// RebootRequired is true if we need to reboot after an update
+	// RebootRequired is true if we need to reboot after an update.
 	RebootRequired bool
-	// RebootBootloader will not be nil if the bootloader has something to say on
-	// how to perform the reboot
-	RebootBootloader bootloader.RebootBootloader
+	// BootloaderOptions will be used to find the correct bootloader when
+	// checking for any set reboot arguments.
+	BootloaderOptions *bootloader.Options
 }
 
 // NextBootContext carries additional significative information used when

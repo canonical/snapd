@@ -77,6 +77,10 @@ type Snapshot struct {
 	SHA3_384 map[string]string `json:"sha3-384"`
 	// the sum of the archive sizes
 	Size int64 `json:"size,omitempty"`
+
+	// dynamic snapshot options
+	Options *snap.SnapshotOptions `json:"options,omitempty"`
+
 	// if the snapshot failed to open this will be the reason why
 	Broken string `json:"broken,omitempty"`
 
@@ -100,6 +104,7 @@ func (sh *Snapshot) ContentHash() ([]byte, error) {
 	sh2.SetID = 0
 	sh2.Time = time.Time{}
 	sh2.Auto = false
+	sh2.Options = nil
 	h := sha256.New()
 	enc := json.NewEncoder(h)
 	if err := enc.Encode(&sh2); err != nil {
@@ -238,9 +243,12 @@ func (client *Client) SnapshotExport(setID uint64) (stream io.ReadCloser, conten
 		defer rsp.Body.Close()
 
 		var r response
-		specificErr := r.err(client, rsp.StatusCode)
-		if err != nil {
-			return nil, 0, specificErr
+		dec := json.NewDecoder(rsp.Body)
+		if err := dec.Decode(&r); err == nil {
+			specificErr := r.err(client, rsp.StatusCode)
+			if specificErr != nil {
+				return nil, 0, specificErr
+			}
 		}
 		return nil, 0, fmt.Errorf("unexpected status code: %v", rsp.Status)
 	}

@@ -34,6 +34,7 @@ package main
 //#include <stdio.h>
 //#include <stdlib.h>
 //#include <string.h>
+//#include <sys/ioctl.h>
 //#include <sys/prctl.h>
 //#include <sys/quota.h>
 //#include <sys/resource.h>
@@ -182,6 +183,28 @@ package main
 // #ifndef PTRACE_SETFPXREGS
 // #define PTRACE_SETFPXREGS 19
 // #endif
+//
+// /* Define TIOCLINUX if needed */
+// #ifndef TIOCLINUX
+// #define TIOCLINUX 0x541C
+// #endif
+//
+//#include <linux/version.h>
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0)
+// #include <linux/kcmp.h>
+//#else  // LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0)
+// /* Define missing kcmp constants */
+// #define KCMP_FILE 0
+// #define KCMP_VM 1
+// #define KCMP_FILES 2
+// #define KCMP_FS 3
+// #define KCMP_SIGHAND 4
+// #define KCMP_IO 5
+// #define KCMP_SYSVSEM 6
+//#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0)
+//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
+// #define KCMP_EPOLL_TFD 7
+//#endif // LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
 import "C"
 
 import (
@@ -381,6 +404,9 @@ var seccompResolver = map[string]uint64{
 	// man 4 tty_ioctl
 	"TIOCSTI": syscall.TIOCSTI,
 
+	// man 2 ioctl_console
+	"TIOCLINUX": C.TIOCLINUX,
+
 	// man 2 quotactl (with what Linux supports)
 	"Q_SYNC":      C.Q_SYNC,
 	"Q_QUOTAON":   C.Q_QUOTAON,
@@ -439,6 +465,16 @@ var seccompResolver = map[string]uint64{
 	"PTRACE_PEEKUSR":  C.PTRACE_PEEKUSER,
 	"PTRACE_PEEKUSER": C.PTRACE_PEEKUSER,
 	"PTRACE_CONT":     C.PTRACE_CONT,
+
+	// man 2 kcmp
+	"KCMP_FILE":      C.KCMP_FILE,
+	"KCMP_VM":        C.KCMP_VM,
+	"KCMP_FILES":     C.KCMP_FILES,
+	"KCMP_FS":        C.KCMP_FS,
+	"KCMP_SIGHAND":   C.KCMP_SIGHAND,
+	"KCMP_IO":        C.KCMP_IO,
+	"KCMP_SYSVSEM":   C.KCMP_SYSVSEM,
+	"KCMP_EPOLL_TFD": C.KCMP_EPOLL_TFD,
 }
 
 // DpkgArchToScmpArch takes a dpkg architecture and converts it to
@@ -542,6 +578,11 @@ func readNumber(token string, syscallName string) (uint64, error) {
 	return uint64(uint32(value)), nil
 }
 
+var (
+	errnoOnExplicitDenial int16 = C.EACCES
+	errnoOnImplicitDenial int16 = C.EPERM
+)
+
 func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 	// ignore comments and empty lines
 	if strings.HasPrefix(line, "#") || line == "" {
@@ -554,8 +595,17 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 		return fmt.Errorf("too many arguments specified for syscall '%s' in line %q", tokens[0], line)
 	}
 
+	// allow the listed syscall but also support explicit denials as well by
+	// prefixing the line with a ~
+	action := seccomp.ActAllow
+
 	// fish out syscall
 	syscallName := tokens[0]
+	if strings.HasPrefix(syscallName, "~") {
+		action = seccomp.ActErrno.SetReturnCode(errnoOnExplicitDenial)
+		syscallName = syscallName[1:]
+	}
+
 	secSyscall, err := seccomp.GetSyscallFromName(syscallName)
 	if err != nil {
 		// FIXME: use structed error in libseccomp-golang when
@@ -638,8 +688,8 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 
 	// Default to adding a precise match if possible. Otherwise
 	// let seccomp figure out the architecture specifics.
-	if err = secFilter.AddRuleConditionalExact(secSyscall, seccomp.ActAllow, conds); err != nil {
-		err = secFilter.AddRuleConditional(secSyscall, seccomp.ActAllow, conds)
+	if err = secFilter.AddRuleConditionalExact(secSyscall, action, conds); err != nil {
+		err = secFilter.AddRuleConditional(secSyscall, action, conds)
 	}
 
 	return err
@@ -697,8 +747,6 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 
 	return nil
 }
-
-var errnoOnDenial int16 = C.EPERM
 
 func preprocess(content []byte) (unrestricted, complain bool) {
 	scanner := bufio.NewScanner(bytes.NewBuffer(content))
@@ -771,7 +819,7 @@ func compile(content []byte, out string) error {
 			unrestricted = true
 		}
 	default:
-		secFilter, err = seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(errnoOnDenial))
+		secFilter, err = seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(errnoOnImplicitDenial))
 	}
 	if err != nil {
 		return fmt.Errorf("cannot create seccomp filter: %s", err)
@@ -819,7 +867,7 @@ func findUid(username string) (uint64, error) {
 	if uid, ok := uidCache[username]; ok {
 		return uid, nil
 	}
-	if !osutil.IsValidUsername(username) {
+	if !osutil.IsValidSnapSystemUsername(username) {
 		return 0, fmt.Errorf("%q must be a valid username", username)
 	}
 	uid, err := osutil.FindUid(username)
@@ -834,7 +882,7 @@ func findGid(group string) (uint64, error) {
 	if gid, ok := gidCache[group]; ok {
 		return gid, nil
 	}
-	if !osutil.IsValidUsername(group) {
+	if !osutil.IsValidSnapSystemUsername(group) {
 		return 0, fmt.Errorf("%q must be a valid group name", group)
 	}
 	gid, err := osutil.FindGid(group)

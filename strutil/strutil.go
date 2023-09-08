@@ -215,7 +215,7 @@ func ParseByteSize(inp string) (int64, error) {
 	return val * mul, nil
 }
 
-// CommaSeparatedList takes a comman-separated series of identifiers,
+// CommaSeparatedList takes a comma-separated series of identifiers,
 // and returns a slice of the space-trimmed identifiers, without empty
 // entries.
 // So " foo ,, bar,baz" -> {"foo", "bar", "baz"}

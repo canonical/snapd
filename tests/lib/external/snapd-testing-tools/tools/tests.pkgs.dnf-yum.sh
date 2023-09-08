@@ -27,12 +27,26 @@ remap_one() {
 }
 
 cmd_install() {
-    # shellcheck disable=SC2068
-    if [ "$(command -v dnf)" != "" ]; then
-        dnf install -y $@
-    else
-        yum install -y $@
+    local CMD="dnf"
+    if [ -z "$(command -v dnf)" ]; then
+        CMD="yum"
     fi
+    local DNF_YUM_FLAGS="-y"
+
+    while [ -n "$1" ]; do
+        case "$1" in
+            --no-install-recommends)
+                DNF_YUM_FLAGS="$DNF_YUM_FLAGS --setopt=install_weak_deps=False"
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    # shellcheck disable=SC2068,SC2086
+    $CMD install $DNF_YUM_FLAGS $@
 }
 
 cmd_is_installed() {

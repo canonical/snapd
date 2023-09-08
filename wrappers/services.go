@@ -220,29 +220,16 @@ func startUserServices(cli *client.Client, inter Interacter, services ...string)
 	return err
 }
 
-func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter Interacter) error {
-	var serviceList []string
-
-	// Add application sockets
-	for _, socket := range app.Sockets {
-		serviceList = append(serviceList, filepath.Base(socket.File()))
-	}
-	// Add application timers
-	if app.Timer != nil {
-		serviceList = append(serviceList, filepath.Base(app.Timer.File()))
-	}
-	// Add application service
-	serviceList = append(serviceList, app.ServiceName())
-
-	switch app.DaemonScope {
+func stopService(sysd systemd.Systemd, inter Interacter, scope snap.DaemonScope, svcs []string) error {
+	switch scope {
 	case snap.SystemDaemon:
-		if err := sysd.Stop(serviceList); err != nil {
+		if err := sysd.Stop(svcs); err != nil {
 			return err
 		}
 
 	case snap.UserDaemon:
 		cli := client.New()
-		if err := stopUserServices(cli, inter, serviceList...); err != nil {
+		if err := stopUserServices(cli, inter, svcs...); err != nil {
 			return err
 		}
 	default:
@@ -250,6 +237,31 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter Interacter) erro
 	}
 
 	return nil
+}
+
+func serviceIsActivated(app *snap.AppInfo) bool {
+	return len(app.Sockets) > 0 || app.Timer != nil || len(app.ActivatesOn) > 0
+}
+
+func serviceIsSlotActivated(app *snap.AppInfo) bool {
+	return len(app.ActivatesOn) > 0
+}
+
+// serviceUnits returns the service unit of the primary service, and a list
+// of service units for the activation services.
+func serviceUnits(app *snap.AppInfo) (service string, activators []string) {
+	// Add application sockets
+	for _, socket := range app.Sockets {
+		activators = append(activators, filepath.Base(socket.File()))
+	}
+	// Sort the results from sockets for consistency
+	sort.Strings(activators)
+
+	// Add application timer
+	if app.Timer != nil {
+		activators = append(activators, filepath.Base(app.Timer.File()))
+	}
+	return app.ServiceName(), activators
 }
 
 // StartServicesFlags carries extra flags for StartServices.
@@ -284,7 +296,8 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		if servicesStarted {
 			for i := len(apps) - 1; i >= 0; i-- {
 				app := apps[i]
-				if e := stopService(systemSysd, app, inter); e != nil {
+				svc, activators := serviceUnits(app)
+				if e := stopService(systemSysd, inter, app.DaemonScope, append(activators, svc)); e != nil {
 					inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
 				}
 			}
@@ -306,21 +319,20 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 	// process all services of the snap in the order specified by the
 	// caller; before batched calls were introduced, the sockets and timers
 	// were started first, followed by other non-activated services
-
-	startService := func(svc string, scope snap.DaemonScope) {
+	markServicesForStart := func(svcs []string, scope snap.DaemonScope) {
 		switch scope {
 		case snap.SystemDaemon:
-			systemServices = append(systemServices, svc)
+			systemServices = append(systemServices, svcs...)
 		case snap.UserDaemon:
-			userServices = append(userServices, svc)
+			userServices = append(userServices, svcs...)
 		}
 	}
-	enableService := func(svc string, scope snap.DaemonScope) {
+	markServicesForEnable := func(svcs []string, scope snap.DaemonScope) {
 		switch scope {
 		case snap.SystemDaemon:
-			toEnableSystem = append(toEnableSystem, svc)
+			toEnableSystem = append(toEnableSystem, svcs...)
 		case snap.UserDaemon:
-			toEnableUser = append(toEnableUser, svc)
+			toEnableUser = append(toEnableUser, svcs...)
 		}
 	}
 	// first, gather all socket and timer units
@@ -328,38 +340,33 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		if !app.IsService() {
 			continue
 		}
-		for _, socket := range app.Sockets {
-			// socket unit
-			socketService := filepath.Base(socket.File())
-			startService(socketService, app.DaemonScope)
-			// TODO: look at enable flag
-			enableService(socketService, app.DaemonScope)
+		// Get all units for the service, but we only deal with
+		// the activators here.
+		_, activators := serviceUnits(app)
+		if len(activators) == 0 {
+			// just skip if there are no activated units
+			continue
 		}
-
-		if app.Timer != nil {
-			// timer unit
-			timerService := filepath.Base(app.Timer.File())
-
-			startService(timerService, app.DaemonScope)
-			// TODO: look at enable flag
-			enableService(timerService, app.DaemonScope)
-		}
+		markServicesForStart(activators, app.DaemonScope)
+		// TODO: only if flags.Enable is set
+		markServicesForEnable(activators, app.DaemonScope)
 	}
+
 	// now collect all services
 	for _, app := range apps {
 		if !app.IsService() {
 			continue
 		}
-		if len(app.Sockets) > 0 || app.Timer != nil || len(app.ActivatesOn) > 0 {
+		if serviceIsActivated(app) {
 			continue
 		}
 		if strutil.ListContains(disabledSvcs, app.Name) {
 			continue
 		}
 		svcName := app.ServiceName()
-		startService(svcName, app.DaemonScope)
+		markServicesForStart([]string{svcName}, app.DaemonScope)
 		if flags.Enable {
-			enableService(svcName, app.DaemonScope)
+			markServicesForEnable([]string{svcName}, app.DaemonScope)
 		}
 	}
 
@@ -969,17 +976,31 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 			}
 		}
 
+		// Is the service slot activated, then lets warn the user this doesn't have any
+		// real effect if a disable was requested
+		if flags.Disable && serviceIsSlotActivated(app) {
+			logger.Noticef("Disabling %s may not have the intended effect as the service is currently always activated by a slot", app.Name)
+		}
+
+		// Get services including any activation mechanisms. When stopping and disabling
+		// services we do it on both the primary service, and it's activation mechanisms. The
+		// StartServices logic does actually not enable/start any service which are activated,
+		// but rather only the activation services themselves, so one might argue if it
+		// is really necessary to disable the primary service.
+		svc, activators := serviceUnits(app)
+
 		var err error
 		timings.Run(tm, "stop-service", fmt.Sprintf("stop service %q", app.ServiceName()), func(nested timings.Measurer) {
-			err = stopService(sysd, app, inter)
+			err = stopService(sysd, inter, app.DaemonScope, append(activators, svc))
 			if err == nil && flags.Disable {
-				disableServices = append(disableServices, app.ServiceName())
+				disableServices = append(disableServices, append(activators, svc)...)
 			}
 		})
 		if err != nil {
 			return err
 		}
 	}
+
 	if len(disableServices) > 0 {
 		if err := sysd.DisableNoReload(disableServices); err != nil {
 			return err
@@ -1789,7 +1810,10 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 }
 
 type RestartServicesFlags struct {
+	// Reload set if we might need to reload the service definitions.
 	Reload bool
+	// AlsoEnabledNonActive set if we to restart also enabled but not running units
+	AlsoEnabledNonActive bool
 }
 
 // Restart or reload active services in `svcs`.
@@ -1805,6 +1829,9 @@ type RestartServicesFlags struct {
 // (introduce AppRef?)
 func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 	flags *RestartServicesFlags, inter Interacter, tm timings.Measurer) error {
+	if flags == nil {
+		flags = &RestartServicesFlags{}
+	}
 	sysd := systemd.New(systemd.SystemMode, inter)
 
 	unitNames := make([]string, 0, len(svcs))
@@ -1824,15 +1851,21 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 	for _, unit := range unitStatuses {
 		// If the unit was explicitly mentioned in the command line, restart it
 		// even if it is disabled; otherwise, we only restart units which are
-		// currently running. Reference:
+		// currently enabled or running. Reference:
 		// https://forum.snapcraft.io/t/command-line-interface-to-manipulate-services/262/47
 		if !unit.Active && !strutil.ListContains(explicitServices, unit.Name) {
-			continue
+			if !flags.AlsoEnabledNonActive {
+				logger.Noticef("not restarting inactive unit %s", unit.Name)
+				continue
+			} else if !unit.Enabled {
+				logger.Noticef("not restarting disabled and inactive unit %s", unit.Name)
+				continue
+			}
 		}
 
 		var err error
 		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %s", unit.Name), func(nested timings.Measurer) {
-			if flags != nil && flags.Reload {
+			if flags.Reload {
 				err = sysd.ReloadOrRestart([]string{unit.Name})
 			} else {
 				// note: stop followed by start, not just 'restart'

@@ -18,8 +18,9 @@ execute: |
     # requirements
     MINIMAL_MEM=256
 
+    # see https://ubuntu.com/core/docs/system-requirements for ubuntu-core
+    # minimum requirements by version
     if tests.nested is-nested uc20; then
-        # TODO:UC20: this should written down in the official docs
         MINIMAL_MEM=512
         NESTED_SPREAD_SYSTEM=ubuntu-core-20-64
     elif tests.nested is-nested uc22; then

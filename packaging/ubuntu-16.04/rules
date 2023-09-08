@@ -18,8 +18,8 @@ export DH_GOLANG_GO_GENERATE=1
 
 export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on xenial
-export PATH:=/usr/lib/go-1.13/bin:${PATH}
-# GOCACHE is needed by go-1.13
+export PATH:=/usr/lib/go-1.18/bin:${PATH}
+# GOCACHE is needed by go-1.13+
 export GOCACHE:=/tmp/go-build
 
 include /etc/os-release
@@ -174,10 +174,11 @@ override_dh_clean:
 	(cd c-vendor/squashfuse && rm -f snapfuse && make distclean || true )
 
 override_dh_auto_build:
+	# generate dh-golang does not copy modules.txt
+	cp -a vendor/modules.txt _build/src/$(DH_GOPKG)/vendor
 	# usually done via `go generate` but that is not supported on powerpc
 	./mkversion.sh
 	# ensure auto-generated version is also in the build-tree
-	# XXX: do we need this?
 	(cd _build/src/$(DH_GOPKG)/ && ../../../../../mkversion.sh)
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data

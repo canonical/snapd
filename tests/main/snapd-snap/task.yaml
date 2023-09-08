@@ -155,6 +155,9 @@ execute: |
       if ! os.query is-trusty && ! os.query is-xenial; then
         systemctl status snapd.apparmor.service
       fi
+      if os.query is-ubuntu; then
+        systemctl status apparmor.service
+      fi
       cat /var/lib/snapd/system-key
       echo "Rebooted successfully"
 
@@ -218,13 +221,6 @@ execute: |
 
     unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
 
-    # This check is to cheat the shellcheck
-    if os.query is-ubuntu; then
-        # TODO:apparmor-vendoring
-        # remove this "exit 0" once apparmor-vendoring is ready
-        exit 0
-    fi
-
     echo "Ensure we have apparmor_parser"
     unsquashfs -ll snapd_spread-test.snap | MATCH usr/lib/snapd/apparmor_parser
 
@@ -242,9 +238,24 @@ execute: |
     echo "Ensure we restarted into the snapd snap"
     "$TESTSTOOLS"/journal-state match-log  'restarting into "/snap/snapd/'
 
+    # see LP:2024637
+    if grep -q /var/lib/snapd/apparmor/ /lib/apparmor/functions; then
+       echo "SKIP: cannot test builtin apparmor parser until /lib/apparmor/functions stops loading the snapd profiles"
+       exit 0
+    fi
+
     echo "Ensure sandbox-features shows the internal apparmor_parser"
     snap debug sandbox-features --required apparmor:parser:snapd-internal
 
+    echo "Ensure snap-confine apparmor profile points to snap-confine.internal"
+    for profile in /var/lib/snapd/apparmor/profiles/snap-confine.*; do
+        MATCH '#include "/var/lib/snapd/apparmor/snap-confine.internal"' < "$profile"
+    done
+
+    echo "Ensure we support posix mqueue and userns in the internal apparmor_parser"
+    snap debug sandbox-features --required apparmor:parser:mqueue
+    snap debug sandbox-features --required apparmor:parser:userns
+    
     echo "Then we should be able to compile policy using the internal apparmor_parser"
     /snap/snapd/current/usr/lib/snapd/apparmor_parser \
       --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf \
@@ -300,8 +311,8 @@ execute: |
         # snap whilst waiting for apparmor_parser to finish, so avoid this
         # by only touching some of the interfaces overall - there also
         # seems to be another smaller leak on Bionic etc too so only do
-        # half the interfaces on other systems
-        if os.query is-xenial && [ "$((RANDOM % 8))" != 0 ] || [ "$((RANDOM % 2))" != 0 ]; then
+        # one third of the interfaces on other systems
+        if os.query is-xenial && [ "$((RANDOM % 8))" != 0 ] || [ "$((RANDOM % 3))" != 0 ]; then
             echo "skipping plug: $plugcmd"
             continue
         fi

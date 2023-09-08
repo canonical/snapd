@@ -117,7 +117,7 @@ execute: |
   # the unit will jump between SubState=running and SubState=auto-restart while
   # trying to restart it in a loop, but after systemd has hit the limit it will
   # give up and mark the unit as failed
-  retry --wait 1 -n 10 sh -c "systemctl show --property=SubState snap.go-example-webserver.webserver.service | MATCH 'SubState=failed'"
+  retry --wait 1 -n 30 sh -c "systemctl show --property=SubState snap.go-example-webserver.webserver.service | MATCH 'SubState=failed'"
 
   # clear "oom-killer" messages from dmesg or prepare-restore.sh will fail due
   # to the oom-killer messages from go-example-webserver

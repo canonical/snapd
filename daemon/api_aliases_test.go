@@ -639,3 +639,29 @@ func (s *aliasesSuite) TestInstallIgnoreRunning(c *check.C) {
 
 	c.Check(calledFlags.IgnoreRunning, check.Equals, true)
 }
+
+func (s *aliasesSuite) TestInstallPrefer(c *check.C) {
+	var calledFlags snapstate.Flags
+
+	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action: "install",
+		Prefer: true,
+		Snaps:  []string{"fake"},
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.Dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags.Prefer, check.Equals, true)
+}

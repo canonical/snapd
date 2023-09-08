@@ -72,8 +72,8 @@ func (s *themesSuite) daemon(c *C) *daemon.Daemon {
 }
 
 func (s *themesSuite) expectThemesAccess() {
-	s.expectReadAccess(daemon.ThemesOpenAccess{})
-	s.expectWriteAccess(daemon.ThemesAuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-themes-control"})
+	s.expectWriteAccess(daemon.InterfaceAuthenticatedAccess{Interface: "snap-themes-control", Polkit: "io.snapcraft.snapd.manage"})
 }
 
 func (s *themesSuite) TestInstalledThemes(c *C) {

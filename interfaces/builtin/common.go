@@ -33,11 +33,11 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// evalSymlinks is either filepath.EvalSymlinks or a mocked function for
+// evalSymlinks is either filepath.EvalSymlinks or a mocked function
 // applicable for testing.
 var evalSymlinks = filepath.EvalSymlinks
 
-// readDir is either ioutil.ReadDir or a mocked function for applicable for
+// readDir is either ioutil.ReadDir or a mocked function applicable for
 // testing.
 var readDir = ioutil.ReadDir
 
@@ -69,6 +69,7 @@ type commonInterface struct {
 
 	usesPtraceTrace             bool
 	suppressPtraceTrace         bool
+	suppressPycacheDeny         bool
 	suppressHomeIx              bool
 	usesSysModuleCapability     bool
 	suppressSysModuleCapability bool
@@ -110,6 +111,9 @@ func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	if iface.suppressHomeIx {
 		spec.SetSuppressHomeIx()
 	}
+	if iface.suppressPycacheDeny {
+		spec.SetSuppressPycacheDeny()
+	}
 	if iface.usesSysModuleCapability {
 		spec.SetUsesSysModuleCapability()
 	} else if iface.suppressSysModuleCapability {
@@ -125,7 +129,7 @@ func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 }
 
 // AutoConnect returns whether plug and slot should be implicitly
-// auto-connected assuming they will be an unambiguous connection
+// auto-connected assuming there will be an unambiguous connection
 // candidate and declaration-based checks allow.
 //
 // By default we allow what declarations allowed.
@@ -186,7 +190,7 @@ func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, 
 }
 
 func (iface *commonInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// don't tag devices if the interface controls it's own device cgroup
+	// don't tag devices if the interface controls its own device cgroup
 	if iface.controlsDeviceCgroup {
 		spec.SetControlsDeviceCgroup()
 	} else {

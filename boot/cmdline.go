@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -56,7 +56,7 @@ var (
 // and the recovery system label as passed in the kernel command line by the
 // bootloader.
 func ModeAndRecoverySystemFromKernelCommandLine() (mode, sysLabel string, err error) {
-	m, err := osutil.KernelCommandLineKeyValues("snapd_recovery_mode", "snapd_recovery_system")
+	m, err := kcmdline.KeyValues("snapd_recovery_mode", "snapd_recovery_system")
 	if err != nil {
 		return "", "", err
 	}
@@ -111,11 +111,7 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineAppend string) (map[string]string, error) {
 	extraOrFull, full, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath)
 	if err != nil {
-		if err != gadget.ErrNoKernelCommandline {
-			return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
-		}
-		extraOrFull = ""
-		full = false
+		return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
 	}
 	logger.Debugf("trusted command line: from gadget: %q, from options: %q",
 		extraOrFull, cmdlineAppend)
@@ -179,16 +175,14 @@ func composeCommandLine(currentOrCandidate int, mode, system, gadgetDirOrSnapPat
 	}
 	if gadgetDirOrSnapPath != "" {
 		extraOrFull, full, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath)
-		if err != nil && err != gadget.ErrNoKernelCommandline {
+		if err != nil {
 			return "", fmt.Errorf("cannot use kernel command line from gadget: %v", err)
 		}
-		if err == nil {
-			// gadget provides some part of the kernel command line
-			if full {
-				components.FullArgs = extraOrFull
-			} else {
-				components.ExtraArgs = extraOrFull
-			}
+		// gadget provides some part of the kernel command line
+		if full {
+			components.FullArgs = extraOrFull
+		} else {
+			components.ExtraArgs = extraOrFull
 		}
 	}
 	if currentOrCandidate == currentEdition {
@@ -271,7 +265,7 @@ func observeSuccessfulCommandLineUpdate(m *Modeenv) (*Modeenv, error) {
 	}
 
 	// get the current command line
-	cmdlineBootedWith, err := osutil.KernelCommandLine()
+	cmdlineBootedWith, err := kcmdline.KernelCommandLine()
 	if err != nil {
 		return nil, err
 	}
@@ -303,7 +297,7 @@ func observeSuccessfulCommandLineCompatBoot(model *asserts.Model, m *Modeenv) (*
 		// not being tracked
 		return m, nil
 	}
-	cmdlineBootedWith, err := osutil.KernelCommandLine()
+	cmdlineBootedWith, err := kcmdline.KernelCommandLine()
 	if err != nil {
 		return nil, err
 	}

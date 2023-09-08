@@ -33,6 +33,7 @@ import (
 	"syscall"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -66,6 +67,12 @@ type StoreImpl interface {
 
 	// Assertion retrieves the assertion for the given type and primary key.
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
+
+	// SeqFormingAssertion retrieves the sequence-forming assertion for the given
+	// type (currently validation-set only). For sequence <= 0 we query for the
+	// latest sequence, otherwise the latest revision of the given sequence is
+	// requested.
+	SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error)
 
 	// SetAssertionMaxFormats sets the assertion max formats to send.
 	SetAssertionMaxFormats(maxFormats map[string]int)
@@ -266,6 +273,8 @@ type SnapToDownload struct {
 	Channel   string
 	Revision  snap.Revision
 	CohortKey string
+	// ValidationSets is an optional array of validation set primary keys.
+	ValidationSets []snapasserts.ValidationSetKey
 }
 
 type CurrentSnap struct {
@@ -327,12 +336,13 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		}
 
 		actions = append(actions, &store.SnapAction{
-			Action:       "download",
-			InstanceName: sn.Snap.SnapName(), // XXX consider using snap-id first
-			Channel:      channel,
-			Revision:     sn.Revision,
-			CohortKey:    sn.CohortKey,
-			Flags:        actionFlag,
+			Action:         "download",
+			InstanceName:   sn.Snap.SnapName(), // XXX consider using snap-id first
+			Channel:        channel,
+			Revision:       sn.Revision,
+			CohortKey:      sn.CohortKey,
+			Flags:          actionFlag,
+			ValidationSets: sn.ValidationSets,
 		})
 	}
 
@@ -357,7 +367,8 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 	return downloadedSnaps, nil
 }
 
-// AssertionFetcher creates an asserts.Fetcher for assertions using dlOpts for authorization, the fetcher will add assertions in the given database and after that also call save for each of them.
+// AssertionFetcher creates an asserts.Fetcher for assertions, the fetcher will
+// add assertions in the given database and after that also call save for each of them.
 func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, nil)
@@ -374,6 +385,30 @@ func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asser
 		return save(a)
 	}
 	return asserts.NewFetcher(db, retrieve, save2)
+}
+
+// AssertionSequenceFormingFetcher creates an asserts.SequenceFormingFetcher for
+// fetching assertions. The fetcher will then store the fetched assertions in the
+// given db and call save for each of them.
+func (tsto *ToolingStore) AssertionSequenceFormingFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.SequenceFormingFetcher {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, nil)
+	}
+	retrieveSeq := func(seq *asserts.AtSequence) (asserts.Assertion, error) {
+		return tsto.sto.SeqFormingAssertion(seq.Type, seq.SequenceKey, seq.Sequence, nil)
+	}
+	save2 := func(a asserts.Assertion) error {
+		// for checking
+		err := db.Add(a)
+		if err != nil {
+			if _, ok := err.(*asserts.RevisionError); ok {
+				return nil
+			}
+			return fmt.Errorf("cannot add assertion %v: %v", a.Ref(), err)
+		}
+		return save(a)
+	}
+	return asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, save2)
 }
 
 // Find provides the snapsserts.Finder interface for snapasserts.DerviceSideInfo

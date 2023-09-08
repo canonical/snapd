@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/naming"
 )
 
@@ -48,6 +49,7 @@ const (
 	reqSnaps     = "required-snaps:\n  - foo\n  - bar\n"
 	sysUserAuths = "system-user-authority: *\n"
 	serialAuths  = "serial-authority:\n  - generic\n"
+	preseedAuths = "preseed-authority:\n  - preseed-delegate\n"
 )
 
 const (
@@ -65,6 +67,7 @@ const (
 		serialAuths +
 		sysUserAuths +
 		reqSnaps +
+		preseedAuths +
 		"TSLINE" +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -275,6 +278,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
 	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1", "generic"})
+	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1", "preseed-delegate"})
 }
 
 func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
@@ -457,6 +461,23 @@ func (mods *modelSuite) TestDecodeSystemUserAuthorityIsOptional(c *C) {
 	c.Check(model.SystemUserAuthority(), DeepEquals, []string{"brand-id1", "foo", "bar"})
 }
 
+func (mods *modelSuite) TestDecodePreseedAuthorityIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, preseedAuths, "", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	// the default is just to accept the brand itself
+	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1"})
+
+	encoded = strings.Replace(withTimestamp, preseedAuths, "preseed-authority:\n  - foo\n  - bar\n", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model = a.(*asserts.Model)
+	// the brand is always added implicitly
+	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1", "foo", "bar"})
+}
+
 func (mods *modelSuite) TestDecodeKernelTrack(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, "kernel: baz-linux\n", "kernel: baz-linux=18\n", 1)
@@ -535,6 +556,9 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{serialAuths, "serial-authority:\n  - 5_6\n", `"serial-authority" header must be a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  a: 1\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  - 5_6\n", `"system-user-authority" header must be '\*' or a list of account ids`},
+		{preseedAuths, "preseed-authority:\n  a: 1\n", `"preseed-authority" header must be a list of account ids`},
+		{preseedAuths, "preseed-authority:\n  - 5_6\n", `"preseed-authority" header must be a list of account ids`},
+		{preseedAuths, "preseed-authority: *\n", `"preseed-authority" header must be a list of account ids`},
 		{reqSnaps, "grade: dangerous\n", `cannot specify a grade for model without the extended snaps header`},
 	}
 
@@ -808,6 +832,7 @@ func (mods *modelSuite) testWithSnapsDecodeOK(c *C, modelRaw string, isClassic b
 
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
 	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1"})
+	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1"})
 }
 
 func (mods *modelSuite) TestCore20ExplictBootBase(c *C) {
@@ -1190,6 +1215,37 @@ func (mods *modelSuite) TestClassicWithSnapsMinimalDecodeOK(c *C) {
 		}
 		c.Check(noEssential.Size(), Equals, len(snaps)-1)
 	}
+}
+
+func (mods *modelSuite) TestModelValidationSetAtSequence(c *C) {
+	mvs := &asserts.ModelValidationSet{
+		AccountID: "test",
+		Name:      "set",
+		Mode:      asserts.ModelValidationSetModeEnforced,
+	}
+	c.Check(mvs.AtSequence(), DeepEquals, &asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{release.Series, "test", "set"},
+		Sequence:    0,
+		Pinned:      false,
+		Revision:    asserts.RevisionNotKnown,
+	})
+}
+
+func (mods *modelSuite) TestModelValidationSetAtSequenceNoSequence(c *C) {
+	mvs := &asserts.ModelValidationSet{
+		AccountID: "test",
+		Name:      "set",
+		Sequence:  1,
+		Mode:      asserts.ModelValidationSetModeEnforced,
+	}
+	c.Check(mvs.AtSequence(), DeepEquals, &asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{release.Series, "test", "set"},
+		Sequence:    1,
+		Pinned:      true,
+		Revision:    asserts.RevisionNotKnown,
+	})
 }
 
 func (mods *modelSuite) TestValidationSetsDecodeInvalid(c *C) {

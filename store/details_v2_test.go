@@ -84,6 +84,10 @@ const (
     "amd64"
   ],
   "base": "base-18",
+  "categories": [
+    {"featured": true, "name": "featured"},
+    {"featured": false, "name": "productivity"}
+  ],
   "confinement": "strict",
   "contact": "https://thingy.com",
   "common-ids": ["org.thingy"],
@@ -121,7 +125,8 @@ const (
   "links": {
     "contact": ["https://thingy.com","mailto:thingy@thingy.com"],
     "website": ["http://example.com/thingy"],
-    "issues": ["mailto:bugs@thingy.com"]
+    "issues": ["mailto:bugs@thingy.com"],
+    "empty": []
   },
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
@@ -202,6 +207,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	info, err := infoFromStoreSnap(&snp)
 	c.Assert(err, IsNil)
 	c.Check(snap.Validate(info), IsNil)
+	c.Check(snap.ValidateLinks(info.EditedLinks), IsNil)
 
 	info2 := *info
 	// clear recursive bits
@@ -264,7 +270,11 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_01.png"},
 			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
 		},
-		CommonIDs:      []string{"org.thingy"},
+		CommonIDs: []string{"org.thingy"},
+		Categories: []snap.CategoryInfo{
+			{Featured: true, Name: "featured"},
+			{Featured: false, Name: "productivity"},
+		},
 		StoreURL:       "https://snapcraft.io/thingy",
 		SnapProvenance: "prov",
 	})
@@ -317,6 +327,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"SideInfo.Channel",
 		"SystemUsernames",
 		"LegacyWebsite",
+		"Components",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {
@@ -398,6 +409,11 @@ func fillStruct(a interface{}, c *C) {
 			x = []storeSnapMedia{{
 				Type: "potato",
 				URL:  "http://example.com/foo.pot",
+			}}
+		case []storeSnapCategory:
+			x = []storeSnapCategory{{
+				Featured: false,
+				Name:     "foo",
 			}}
 		case map[string][]string:
 			x = map[string][]string{
