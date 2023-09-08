@@ -88,9 +88,18 @@ func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
 	return ioutil.ReadFile(filepath.Join(s.path, file))
 }
 
+func (s *SnapDir) ReadLink(file string) (string, error) {
+	return os.Readlink(filepath.Join(s.path, file))
+}
+
+func (s *SnapDir) Lstat(file string) (os.FileInfo, error) {
+	return os.Lstat(filepath.Join(s.path, file))
+}
+
 func littleWalk(dirPath string, dirHandle *os.File, dirstack *[]string, walkFn filepath.WalkFunc) error {
 	const numSt = 100
 
+	// XXX: check if os.ReadDir is more efficient
 	sts, err := dirHandle.Readdir(numSt)
 	if err != nil {
 		return err
