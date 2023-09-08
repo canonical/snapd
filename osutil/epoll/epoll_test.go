@@ -207,7 +207,7 @@ func (*epollSuite) TestEpollWaitEintrHandling(c *C) {
 
 	var mu sync.Mutex
 	eintr := true
-	doReturnEintr := func() bool {
+	shouldReturnEintr := func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return eintr
@@ -218,7 +218,7 @@ func (*epollSuite) TestEpollWaitEintrHandling(c *C) {
 		eintr = false
 	}
 	restore := epoll.MockUnixEpollWait(func(epfd int, events []unix.EpollEvent, msec int) (n int, err error) {
-		if doReturnEintr() {
+		if shouldReturnEintr() {
 			time.Sleep(time.Millisecond * 10) // rate limit a bit
 			return 0, unix.EINTR
 		}
