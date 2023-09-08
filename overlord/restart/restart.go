@@ -361,6 +361,11 @@ func asyncNotifyRebootRequiredCoreDesktop(context context.Context, client *userc
 	}()
 }
 
+func notifyRebootRequiredCoreDesktop(rebootRequiredSnap string) {
+	rebootRequiredInfo := userclient.RebootRequiredInfo{InstanceName: rebootRequiredSnap}
+	asyncNotifyRebootRequiredCoreDesktop(context.TODO(), userclient.New(), &rebootRequiredInfo)
+}
+
 // FinishTaskWithRestart will finish a task that needs a restart, by setting
 // its status and requesting a restart.
 // It should usually be invoked returning its result immediately from the
@@ -376,7 +381,7 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType
 	// instead or just log the request if we are on the undo path
 	switch rt {
 	case RestartSystem, RestartSystemNow:
-		if release.OnClassic {
+		if release.OnClassic || release.OnCoreDesktop {
 			if status == state.DoneStatus {
 				rm := restartManager(task.State(), "internal error: cannot request a restart before RestartManager initialization")
 				// notify the system that a reboot is required
@@ -384,8 +389,7 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType
 					logger.Noticef("cannot notify about pending reboot: %v", err)
 				}
 				if release.OnCoreDesktop {
-					rebootRequiredInfo := userclient.RebootRequiredInfo{InstanceName: snapName}
-					asyncNotifyRebootRequiredCoreDesktop(context.TODO(), userclient.New(), &rebootRequiredInfo)
+					notifyRebootRequiredCoreDesktop(snapName)
 				}
 				// store current boot id to be able to check
 				// later if we have rebooted or not
@@ -591,6 +595,11 @@ func processRestartForChange(chg *state.Change) error {
 		if err := notifyRebootRequiredClassic(rp.SnapName); err != nil {
 			logger.Noticef("cannot notify about pending reboot: %v", err)
 		}
+		logger.Noticef("Postponing restart until a manual system restart allows to continue")
+		return nil
+	}
+	if release.OnCoreDesktop {
+		notifyRebootRequiredCoreDesktop(rp.SnapName)
 		logger.Noticef("Postponing restart until a manual system restart allows to continue")
 		return nil
 	}
