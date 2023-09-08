@@ -20,6 +20,7 @@
 package snapdir_test
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -68,6 +69,45 @@ func (s *SnapdirTestSuite) TestReadFile(c *C) {
 	content, err := sn.ReadFile("foo")
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, needle)
+}
+
+func (s *SnapdirTestSuite) TestReadlink(c *C) {
+	d := c.MkDir()
+	c.Assert(os.Symlink("target", filepath.Join(d, "foo")), IsNil)
+
+	sn := snapdir.New(d)
+	target, err := sn.ReadLink("foo")
+	c.Assert(err, IsNil)
+	c.Assert(target, DeepEquals, "target")
+}
+
+func (s *SnapdirTestSuite) TestLstat(c *C) {
+	d := c.MkDir()
+	c.Assert(os.Symlink("target", filepath.Join(d, "symlink")), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, "meta"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "meta/snap.yaml"), nil, 0644), IsNil)
+
+	sn := snapdir.New(d)
+	for _, file := range []string{
+		"symlink",
+		"meta",
+		"meta/snap.yaml",
+	} {
+		expectedInfo, err := os.Lstat(filepath.Join(d, file))
+		c.Assert(err, IsNil)
+		info, err := sn.Lstat(file)
+		c.Assert(err, IsNil)
+
+		c.Check(info.Name(), Equals, expectedInfo.Name())
+		c.Check(info.Mode(), Equals, expectedInfo.Mode())
+		c.Check(info.Size(), Equals, expectedInfo.Size())
+	}
+}
+
+func (s *SnapdirTestSuite) TestLstatErrNotExist(c *C) {
+	sn := snapdir.New(c.MkDir())
+	_, err := sn.Lstat("meta/non-existent")
+	c.Check(errors.Is(err, os.ErrNotExist), Equals, true)
 }
 
 func (s *SnapdirTestSuite) TestRandomAccessFile(c *C) {

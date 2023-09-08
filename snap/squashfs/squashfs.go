@@ -273,6 +273,41 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	return content, nil
 }
 
+func (s *Snap) ReadLink(filePath string) (string, error) {
+	// XXX: This could be optimized by reading a cached version of
+	// unsquashfs raw output where the symlink's target is available.
+	// Check -> func fromRaw(raw []byte) (*stat, error)
+	var target string
+	err := s.withUnpackedFile(filePath, func(p string) (err error) {
+		target, err = os.Readlink(p)
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+	return target, nil
+}
+
+func (s *Snap) Lstat(filePath string) (os.FileInfo, error) {
+	var fileInfo os.FileInfo
+
+	err := s.Walk(filePath, func(path string, info os.FileInfo, err error) error {
+		if filePath == path {
+			fileInfo = info
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if fileInfo == nil {
+		return nil, os.ErrNotExist
+	}
+
+	return fileInfo, nil
+}
+
 // skipper is used to track directories that should be skipped
 //
 // Given sk := make(skipper), if you sk.Add("foo/bar"), then
@@ -353,8 +388,12 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 				return err
 			}
 		} else {
-			path := filepath.Join(relative, st.Path())
+			path := filepath.Join(".", st.Path())
 			if skipper.Has(path) {
+				continue
+			}
+			// skip if path is not under given relative path
+			if relative != "." && !strings.HasPrefix(path, relative) {
 				continue
 			}
 			err = walkFn(path, st, nil)
