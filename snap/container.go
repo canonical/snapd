@@ -21,6 +21,7 @@ package snap
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -43,6 +44,12 @@ type Container interface {
 
 	// ReadFile returns the content of a single file from the snap.
 	ReadFile(relative string) ([]byte, error)
+
+	// ReadLink returns the destination of the named symbolic link.
+	ReadLink(relative string) (string, error)
+
+	// Lstat is like os.Lstat.
+	Lstat(relative string) (os.FileInfo, error)
 
 	// Walk is like filepath.Walk, without the ordering guarantee.
 	Walk(relative string, walkFn filepath.WalkFunc) error
@@ -77,6 +84,142 @@ var (
 	// ErrMissingPaths is returned by ValidateContainer when the container is missing required files or directories
 	ErrMissingPaths = errors.New("snap is unusable due to missing files")
 )
+
+type symlinkInfo struct {
+	// target is the furthest target we could evaluate.
+	target string
+	// targetMode is the mode of the final symlink target.
+	targetMode os.FileMode
+	// naiveTarget is the first symlink target.
+	naiveTarget string
+	// isExternal determines if the symlink is considered external
+	// relative to its container.
+	isExternal bool
+}
+
+// evalSymlink follows symlinks inside given container and returns
+// information about it's target.
+//
+// The symlink is followed inside the container until we cannot
+// continue further either due to absolute symlinks or symlinks
+// that escape the container.
+//
+//       max depth reached?<------
+//               /\               \
+//            yes  no              \
+//            /      \              \
+//           V        V              \
+//        error      path             \
+//                    │                \
+//                    V                 \
+//                read target            \
+//                    │                   \
+//                    V                    \
+//               is absolute?               \
+//                   /\                      \
+//                yes  no                     \
+//                /      \                     \
+//               V        V                     \
+//       isExternal     eval relative target     \
+//           +               \                    \
+//     return target          V                    \
+//                     escapes container?           \
+//                           /\                      \
+//                        yes  no                     \
+//                       /      \                      |
+//                      V        V                     |
+//              isExternal      is symlink?            |
+//                   +                /\               |
+//             return target       yes  no             │
+//                                /      \             │
+//                               V        V            │
+//                       !isExternal    path = target  │
+//                            +             \----------│
+//                      return target
+//
+func evalSymlink(c Container, path string) (symlinkInfo, error) {
+	var naiveTarget string
+
+	const maxDepth = 10
+	currentDepth := 0
+	for currentDepth < maxDepth {
+		currentDepth++
+		target, err := c.ReadLink(path)
+		if err != nil {
+			return symlinkInfo{}, err
+		}
+		// record first symlink target
+		if currentDepth == 1 {
+			naiveTarget = target
+		}
+
+		target = filepath.Clean(target)
+		// don't follow absolute targets
+		if filepath.IsAbs(target) {
+			return symlinkInfo{target, os.FileMode(0), naiveTarget, true}, nil
+		}
+
+		// evaluate target relative to symlink directory
+		target = filepath.Join(filepath.Dir(path), target)
+
+		// target escapes container, cannot evaluate further, let's return
+		if strings.Split(target, string(os.PathSeparator))[0] == ".." {
+			return symlinkInfo{target, os.FileMode(0), naiveTarget, true}, nil
+		}
+
+		info, err := c.Lstat(target)
+		// cannot follow bad targets
+		if err != nil {
+			return symlinkInfo{}, err
+		}
+
+		// non-symlink, let's return
+		if info.Mode().Type() != os.ModeSymlink {
+			return symlinkInfo{target, info.Mode(), naiveTarget, false}, nil
+		}
+
+		// we have another symlink
+		path = target
+	}
+
+	return symlinkInfo{}, fmt.Errorf("too many levels of symbolic links")
+}
+
+func shouldValidateSymlink(path string) bool {
+	// we only check meta directory for now
+	pathTokens := strings.Split(path, string(os.PathSeparator))
+	if pathTokens[0] == "meta" {
+		return true
+	}
+	return false
+}
+
+func evalAndValidateSymlink(c Container, path string) (symlinkInfo, error) {
+	pathTokens := strings.Split(path, string(os.PathSeparator))
+	// check if meta directory is a symlink
+	if len(pathTokens) == 1 && pathTokens[0] == "meta" {
+		return symlinkInfo{}, fmt.Errorf("meta directory cannot be a symlink")
+	}
+
+	info, err := evalSymlink(c, path)
+	if err != nil {
+		return symlinkInfo{}, err
+	}
+
+	if info.isExternal {
+		return symlinkInfo{}, fmt.Errorf("external symlink found: %s -> %s", path, info.naiveTarget)
+	}
+
+	// symlinks like this don't look innocent
+	badTargets := []string{".", "meta"}
+	for _, badTarget := range badTargets {
+		if info.target == badTarget {
+			return symlinkInfo{}, fmt.Errorf("bad symlink found: %s -> %s", path, info.naiveTarget)
+		}
+	}
+
+	return info, nil
+}
 
 // ValidateComponentContainer does a minimal quick check on a snap component container.
 func ValidateComponentContainer(c Container, contName string, logf func(format string, v ...interface{})) error {
@@ -196,20 +339,32 @@ func validateContainer(c Container, needsrx, needsx, needsr, needsf, noskipd map
 			return nil
 		}
 
-		if needsrx[path] || mode.IsDir() {
+		if mode&os.ModeSymlink != 0 && shouldValidateSymlink(path) {
+			symlinkInfo, err := evalAndValidateSymlink(c, path)
+			if err != nil {
+				logf("%s", err)
+				hasBadModes = true
+			} else {
+				// use target mode for checks below
+				mode = symlinkInfo.targetMode
+			}
+		}
+
+		if mode.IsDir() {
 			if mode.Perm()&0555 != 0555 {
 				logf("in %s %q: %q should be world-readable and executable, and isn't: %s", contType, name, path, mode)
 				hasBadModes = true
 			}
 		} else {
-			if needsf[path] {
-				// this assumes that if it's a symlink it's OK. Arguably we
-				// should instead follow the symlink.  We'd have to expose
-				// Lstat(), and guard against loops, and ...  huge can of
-				// worms, and as this validator is meant as a developer aid
-				// more than anything else, not worth it IMHO (as I can't
-				// imagine this happening by accident).
-				if mode&(os.ModeDir|os.ModeNamedPipe|os.ModeSocket|os.ModeDevice) != 0 {
+			if needsrx[path] {
+				if mode.Perm()&0555 != 0555 {
+					logf("in snap %q: %q should be world-readable and executable, and isn't: %s", name, path, mode)
+					hasBadModes = true
+				}
+			}
+			// XXX: do we need to match other directories?
+			if needsf[path] || strings.HasPrefix(path, "meta/") {
+				if mode&(os.ModeNamedPipe|os.ModeSocket|os.ModeDevice) != 0 {
 					logf("in %s %q: %q should be a regular file (or a symlink) and isn't", contType, name, path)
 					hasBadModes = true
 				}
