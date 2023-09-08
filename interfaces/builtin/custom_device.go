@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -467,6 +468,7 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 			// emit a default rule for this device name.
 			// validateUDevTaggingRule() already checked that the
 			// basename rule only applies to only one device.
+			logger.Noticef(`custom-device: applying "udev-tagging" rule with kernel "%s" to device "/dev/%s", since no device with path "/dev/%s"`, baseName, deviceName, baseName)
 			continue
 		}
 
