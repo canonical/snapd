@@ -53,12 +53,6 @@ dbus (send)
 	path=/org/freedesktop/locale1
 	interface=org.freedesktop.locale1
 	member={SetLocale,SetX11Keyboard,SetVConsoleKeyboard}
-	peer=(label=unconfined),
-dbus (send)
-	bus=system
-	path=/org/freedesktop/locale1
-	interface=org.freedesktop.locale1
-	member={SetLocale,SetX11Keyboard,SetVConsoleKeyboard}
 	peer=(name=org.freedesktop.locale1),
 # Receive Accounts property changed events
 dbus (receive)
