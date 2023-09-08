@@ -493,3 +493,19 @@ func (s *clientSuite) TestPendingRefreshNotificationOneClient(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(atomic.LoadInt32(&n), Equals, int32(1))
 }
+
+func (s *clientSuite) TestRebootRequiredNotification(c *C) {
+	var n int32
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&n, 1)
+		c.Assert(r.URL.Path, Equals, "/v1/notifications/reboot-required")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(string(body), DeepEquals, `{"instance-name":"some-snap"}`)
+	})
+	err := s.cli.RebootRequiredNotification(context.Background(), &client.RebootRequiredInfo{InstanceName: "some-snap"})
+	c.Assert(err, IsNil)
+	// two calls because clientSuite simulates two user sessions (two
+	// snapd-session-agent.socket sockets).
+	c.Check(atomic.LoadInt32(&n), Equals, int32(2))
+}

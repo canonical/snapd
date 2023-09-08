@@ -631,3 +631,37 @@ func (s *restSuite) TestPostCloseRefreshNotification(c *C) {
 		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 	})
 }
+
+func (s *restSuite) testPostRebootRequiredNotificationBody(c *C, rebootInfo *client.RebootRequiredInfo) {
+	reqBody, err := json.Marshal(rebootInfo)
+	c.Assert(err, IsNil)
+	req := httptest.NewRequest("POST", "/v1/notifications/reboot-required", bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	agent.RebootRequiredNotificationCmd.POST(agent.RebootRequiredNotificationCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 200)
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
+	c.Check(rsp.Result, IsNil)
+}
+
+func (s *restSuite) TestPostRebootRequiredNotificationHappeningNow(c *C) {
+	rebootInfo := &client.RebootRequiredInfo{InstanceName: "pkg"}
+	s.testPostRebootRequiredNotificationBody(c, rebootInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	c.Check(n.AppName, Equals, "")
+	c.Check(n.Icon, Equals, "")
+	c.Check(n.Summary, Equals, `Update available for "pkg".`)
+	c.Check(n.Body, Equals, "Restart the system to update now.")
+	c.Check(n.Actions, DeepEquals, []string{})
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.NormalUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
+	})
+	c.Check(n.Expires, Equals, int32(0))
+}
