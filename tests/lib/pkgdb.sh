@@ -800,6 +800,7 @@ pkg_dependencies_opensuse(){
 pkg_dependencies_arch(){
     echo "
     apparmor
+    autoconf-archive
     base-devel
     bash-completion
     bpf

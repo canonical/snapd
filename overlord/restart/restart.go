@@ -24,11 +24,13 @@ package restart
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -57,6 +59,55 @@ const (
 	// RestartSystemPoweroffNow will shutdown --poweroff the system asap
 	RestartSystemPoweroffNow
 )
+
+// RestartBoundaryDirection defines in which direction a task may have a restart
+// boundary set. A restart boundary is when the task must restart, before it's dependencies
+// can continue. A restart boundary may be either in the 'Do' direction, or the 'Undo' direction.
+type RestartBoundaryDirection int
+
+const (
+	// RestartBoundaryDirectionDo is a restart boundary in the 'Do' direction
+	RestartBoundaryDirectionDo RestartBoundaryDirection = 1 << iota
+	// RestartBoundaryDirectionUndo is a restart boundary in the 'Undo' direction
+	RestartBoundaryDirectionUndo RestartBoundaryDirection = 1 << iota
+)
+
+func restartBoundaryDirections(value string) RestartBoundaryDirection {
+	var boundaries RestartBoundaryDirection
+	var tokens = strings.Split(value, "|")
+	for _, t := range tokens {
+		if t == "do" {
+			boundaries |= RestartBoundaryDirectionDo
+		} else if t == "undo" {
+			boundaries |= RestartBoundaryDirectionUndo
+		}
+	}
+	return boundaries
+}
+
+func (rb *RestartBoundaryDirection) String() string {
+	var values []string
+	if (*rb & RestartBoundaryDirectionDo) != 0 {
+		values = append(values, "do")
+	}
+	if (*rb & RestartBoundaryDirectionUndo) != 0 {
+		values = append(values, "undo")
+	}
+	return strings.Join(values, "|")
+}
+
+func (rb RestartBoundaryDirection) MarshalJSON() ([]byte, error) {
+	return json.Marshal(rb.String())
+}
+
+func (rb *RestartBoundaryDirection) UnmarshalJSON(data []byte) error {
+	var asStr string
+	if err := json.Unmarshal(data, &asStr); err != nil {
+		return err
+	}
+	*rb = restartBoundaryDirections(asStr)
+	return nil
+}
 
 // Handler can handle restart requests and whether expected reboots happen.
 type Handler interface {
@@ -380,7 +431,7 @@ func ReplaceBootID(st *state.State, bootID string) {
 
 // markTaskForRestart sets certain properties on a task to mark it for system restart.
 // The status argument is the status that the task will have after the system restart.
-func markTaskForRestart(t *state.Task, status state.Status) {
+func markTaskForRestart(t *state.Task, status state.Status, setTaskToWait bool) {
 	// XXX: Preserve previous restart behaviour for classic in the undo cases, is this still
 	// necessary?
 	if release.OnClassic && (status == state.UndoStatus || status == state.UndoneStatus) {
@@ -391,12 +442,16 @@ func markTaskForRestart(t *state.Task, status state.Status) {
 
 	rm := restartManager(t.State(), "internal error: cannot request a restart before RestartManager initialization")
 
-	// store current boot id to be able to check later if we have rebooted or not
-	t.Set("wait-for-system-restart-from-boot-id", rm.bootID)
-	t.SetToWait(status)
 	setWaitForSystemRestart(t.Change())
-
-	t.Logf("Task set to wait until a system restart allows to continue")
+	if setTaskToWait {
+		// store current boot id to be able to check later if we have rebooted or not
+		t.Set("wait-for-system-restart-from-boot-id", rm.bootID)
+		t.SetToWait(status)
+		t.Logf("Task set to wait until a system restart allows to continue")
+	} else {
+		t.SetStatus(status)
+		t.Logf("Task has requested a system restart")
+	}
 }
 
 // restartParametersFromChange returns either existing restart parameters from a
@@ -415,6 +470,33 @@ func restartParametersFromChange(chg *state.Change) (*RestartParameters, error) 
 		return nil, err
 	}
 	return &rp, nil
+}
+
+func boundaryDirectionFromStatus(status state.Status) RestartBoundaryDirection {
+	switch status {
+	case state.DoStatus, state.DoingStatus, state.DoneStatus:
+		return RestartBoundaryDirectionDo
+	case state.UndoStatus, state.UndoingStatus, state.UndoneStatus:
+		return RestartBoundaryDirectionUndo
+	default:
+		return 0
+	}
+}
+
+func taskIsRestartBoundary(t *state.Task, dir RestartBoundaryDirection) bool {
+	var boundary RestartBoundaryDirection
+	if err := t.Get("restart-boundary", &boundary); err != nil {
+		return false
+	}
+	return (boundary & dir) != 0
+}
+
+// MarkTaskAsRestartBoundary sets a task as a restart boundary. That means
+// the change cannot continue beyond this task, before a restart has taken
+// place. 'path' indicates which execution direction(s) it will be a restart
+// boundary for.
+func MarkTaskAsRestartBoundary(t *state.Task, dir RestartBoundaryDirection) {
+	t.Set("restart-boundary", dir)
 }
 
 // FinishTaskWithRestart2 either schedules a restart for the given task or it
@@ -452,7 +534,8 @@ func FinishTaskWithRestart2(t *state.Task, snapName string, status state.Status,
 	// only allow these for now as nothing tests with anything else.
 	switch status {
 	case state.DoneStatus, state.UndoneStatus:
-		markTaskForRestart(t, status)
+		setTaskToWait := taskIsRestartBoundary(t, boundaryDirectionFromStatus(status))
+		markTaskForRestart(t, status, setTaskToWait)
 	default:
 		return fmt.Errorf("internal error: unexpected task status when requesting system restart for task: %s", status)
 	}
@@ -476,11 +559,12 @@ func PendingForChange(st *state.State, chg *state.Change) bool {
 func TaskWaitForRestart(t *state.Task) error {
 	// We catch them in Undoing/Doing and restore them to
 	// Do/Undo so they are re-run as we cannot save progress mid-task.
+	const setTaskToWait = true
 	switch t.Status() {
 	case state.UndoingStatus:
-		markTaskForRestart(t, state.UndoStatus)
+		markTaskForRestart(t, state.UndoStatus, setTaskToWait)
 	case state.DoingStatus:
-		markTaskForRestart(t, state.DoStatus)
+		markTaskForRestart(t, state.DoStatus, setTaskToWait)
 	default:
 		return fmt.Errorf("internal error: only tasks currently in progress (doing/undoing) are supported")
 	}

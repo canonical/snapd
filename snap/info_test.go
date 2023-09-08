@@ -824,13 +824,33 @@ hooks:
 func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidImplicitHook(c *C) {
 	yaml := `name: foo
 version: 1.0`
-	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks("123abc"))
 
-	snapf, err := snapfile.Open(snapPath)
+	contents := [][]string{
+		{"meta/hooks/123abc", ""},
+	}
+	sideInfo := &snap.SideInfo{}
+	snapInfo := snaptest.MockSnapWithFiles(c, yaml, sideInfo, contents)
+	snapf, err := snapfile.Open(snapInfo.MountDir())
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, ErrorMatches, ".*invalid hook name.*")
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileCatchesImplicitHookDefaultConfigureOnly(c *C) {
+	yaml := `name: foo
+version: 1.0`
+
+	contents := [][]string{
+		{"meta/hooks/default-configure", ""},
+	}
+	sideInfo := &snap.SideInfo{}
+	snapInfo := snaptest.MockSnapWithFiles(c, yaml, sideInfo, contents)
+	snapf, err := snapfile.Open(snapInfo.MountDir())
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, "cannot specify \"default-configure\" hook without \"configure\" hook")
 }
 
 func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, instanceName, yaml string, contents string, hooks []string, checker func(c *C, info *snap.Info)) {

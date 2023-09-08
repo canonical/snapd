@@ -82,7 +82,7 @@
 
 
 Name:           snapd
-Version:        2.60.1
+Version:        2.60.3
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -91,6 +91,7 @@ Url:            https://%{import_path}
 Source0:        https://github.com/snapcore/snapd/releases/download/%{version}/%{name}_%{version}.vendor.tar.xz
 Source1:        snapd-rpmlintrc
 BuildRequires:  autoconf
+BuildRequires:  autoconf-archive
 BuildRequires:  automake
 BuildRequires:  fakeroot
 BuildRequires:  glib2-devel

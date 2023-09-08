@@ -1150,6 +1150,40 @@ func (s *backendSuite) TestCombineSnippetsIncludeIfExists(c *C) {
 	}
 }
 
+func (s *backendSuite) TestCombineSnippetsIncludeEtcTunables(c *C) {
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+
+	restoreTemplate := apparmor.MockTemplate("###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###")
+	defer restoreTemplate()
+
+	type includeIfExistsScenario struct {
+		features []string
+		expected string
+	}
+
+	var includeIfExistsScenarios = []includeIfExistsScenario{{
+		features: []string{},
+		expected: "",
+	}, {
+		features: []string{"snapd-internal"},
+		expected: `#include if exists "/etc/apparmor.d/tunables/home.d"`,
+	}}
+
+	for i, scenario := range includeIfExistsScenarios {
+		restore = apparmor.MockParserFeatures(func() ([]string, error) { return scenario.features, nil })
+		defer restore()
+
+		snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		c.Check(profile, testutil.FileEquals, scenario.expected, Commentf("scenario %d: %#v", i, scenario))
+		stat, err := os.Stat(profile)
+		c.Assert(err, IsNil)
+		c.Check(stat.Mode(), Equals, os.FileMode(0644))
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestParallelInstallCombineSnippets(c *C) {
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
@@ -1358,6 +1392,40 @@ func (s *backendSuite) TestSnapConfineFromSnapProfileCreatesAllDirs(c *C) {
 	err := aa.SetupSnapConfineReexec(coreInfo)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.IsDirectory(dirs.SnapAppArmorDir), Equals, true)
+}
+
+func (s *backendSuite) TestSnapConfineProfileIncludesEtcTunables(c *C) {
+	// Mock vendored apparmor
+	r := apparmor.MockParserFeatures(func() ([]string, error) { return []string{"snapd-internal"}, nil })
+	defer r()
+
+	// Let's say we're working with the core snap at revision 111.
+	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
+	s.writeVanillaSnapConfineProfile(c, coreInfo)
+
+	// Expect #include if exists "/etc/apparmor.d/tunables/home.d/" to be added
+	// right below #include <tunables/global>
+	expectedProfileName := "snap-confine.core.111"
+	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
+#include if exists "/etc/apparmor.d/tunables/home.d/"
+%s/usr/lib/snapd/snap-confine (attach_disconnected) {
+    #include "%s/var/lib/snapd/apparmor/snap-confine"
+
+    # We run privileged, so be fanatical about what we include and don't use
+    # any abstractions
+    /etc/ld.so.cache r,
+}
+`, coreInfo.MountDir(), dirs.GlobalRootDir)
+
+	// Compute the profile and see if it matches.
+	_, _, content, err := apparmor.SnapConfineFromSnapProfile(coreInfo)
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, map[string]osutil.FileState{
+		expectedProfileName: &osutil.MemoryFileState{
+			Content: []byte(expectedProfileText),
+			Mode:    0644,
+		},
+	})
 }
 
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {

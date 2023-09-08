@@ -793,6 +793,18 @@ hooks:
 	c.Check(err, ErrorMatches, `invalid hook name: "123abc"`)
 }
 
+func (s *ValidateSuite) TestIllegalHookDefaultConfigureWithoutConfigure(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+hooks:
+  default-configure:
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, "cannot specify \"default-configure\" hook without \"configure\" hook")
+}
+
 func (s *ValidateSuite) TestPlugSlotNamesUnique(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: snap
 version: 0

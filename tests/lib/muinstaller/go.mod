@@ -2,10 +2,7 @@ module github.com/snapcore/snapd/tests/lib/muinstaller
 
 go 1.18
 
-// XXX remove as soon as https://github.com/snapcore/snapd/pull/12985 is merged
-replace github.com/snapcore/snapd => github.com/alfonsosanchezbeato/snapd v0.0.0-20230727071725-a26d74a3caa7
-
-require github.com/snapcore/snapd v0.0.0-20230705065623-befebe0d505e
+require github.com/snapcore/snapd v0.0.0-20230823151120-37adc7130d48
 
 require (
 	github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 // indirect

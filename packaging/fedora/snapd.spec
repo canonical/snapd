@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.60.1
+Version:        2.60.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -192,6 +192,7 @@ designed for working with self-contained, immutable packages.
 Summary:        Confinement system for snap applications
 License:        GPLv3
 BuildRequires:  autoconf
+BuildRequires:  autoconf-archive
 BuildRequires:  automake
 BuildRequires:  libtool
 BuildRequires:  gcc
@@ -996,6 +997,28 @@ fi
 
 
 %changelog
+* Fri Aug 25 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.3
+ - i/b/shared-memory: handle "private" plug attribute in shared-
+   memory interface correctly
+ - i/apparmor: support for home.d tunables from /etc/
+
+* Fri Aug 04 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.2
+ - i/builtin: allow directories in private /dev/shm
+ - i/builtin: add read access to /proc/task/schedstat in system-
+   observe
+ - snap-bootstrap: print version information at startup
+ - go.mod: update gopkg.in/yaml.v3 to v3.0.1 to fix CVE-2022-28948
+ - snap, store: filter out invalid snap edited links from store info
+   and persisted state
+ - o/configcore: write netplan defaults to 00-snapd-config on seeding
+ - snapcraft.yaml: pull in apparmor_parser optimization patches from
+   https://gitlab.com/apparmor/apparmor/-/merge_requests/711
+ - snap-confine: fix missing \0 after readlink
+ - cmd/snap: hide append-integrity-data
+ - interfaces/opengl: add support for ARM Mali
+
 * Tue Jul 04 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.60.1
  - install: fallback to lazy unmount() in writeFilesystemContent
