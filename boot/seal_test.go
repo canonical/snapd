@@ -100,6 +100,8 @@ func mockGadgetSeedSnap(c *C, files [][]string) *seed.Snap {
 }
 
 func (s *sealSuite) TestSealKeyToModeenv(c *C) {
+	defer boot.MockModeenvLocked()()
+
 	for idx, tc := range []struct {
 		sealErr                  error
 		provisionErr             error
@@ -1665,6 +1667,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	key := keys.EncryptionKey{1, 2, 3, 4}
 	saveKey := keys.EncryptionKey{5, 6, 7, 8}
 
+	defer boot.MockModeenvLocked()()
+
 	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
@@ -1703,6 +1707,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	}
 	key := keys.EncryptionKey{1, 2, 3, 4}
 	saveKey := keys.EncryptionKey{5, 6, 7, 8}
+
+	defer boot.MockModeenvLocked()()
 
 	model := boottest.MakeMockUC20Model()
 	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020-2022 Canonical Ltd
+ * Copyright (C) 2020-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -128,6 +128,10 @@ type sealKeyToModeenvFlags struct {
 // in modeenv.
 // It assumes to be invoked in install mode.
 func sealKeyToModeenvImpl(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
+	if !isModeeenvLocked() {
+		return fmt.Errorf("internal error: cannot seal without the modeenv lock")
+	}
+
 	// make sure relevant locations exist
 	for _, p := range []string{
 		InitramfsSeedEncryptionKeyDir,
@@ -412,6 +416,10 @@ var resealKeyToModeenv = resealKeyToModeenvImpl
 // transient/in-memory information with the risk that successive
 // reseals during in-progress operations produce diverging outcomes.
 func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool) error {
+	/*if !isModeeenvLocked() {
+		return fmt.Errorf("internal error: cannot reseal without the modeenv lock")
+	}*/
+
 	method, err := device.SealedKeysMethod(rootdir)
 	if err == device.ErrNoSealedKeys {
 		// nothing to do
