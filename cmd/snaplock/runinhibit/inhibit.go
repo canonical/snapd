@@ -63,6 +63,16 @@ const (
 
 const hintFilePostfix = "lock"
 
+func (hint Hint) validate() error {
+	if len(hint) == 0 {
+		return fmt.Errorf("lock hint cannot be empty")
+	}
+	if string(hint) == hintFilePostfix {
+		return fmt.Errorf("hint cannot have value %q", hintFilePostfix)
+	}
+	return nil
+}
+
 // HintFile returns the full path of the run inhibition lock file for the given snap.
 func HintFile(snapName string) string {
 	return filepath.Join(InhibitDir, fmt.Sprintf("%s.%s", snapName, hintFilePostfix))
@@ -83,19 +93,9 @@ type InhibitInfo struct {
 	Previous snap.Revision `json:"previous"`
 }
 
-func validateInhibitInfo(info InhibitInfo) error {
+func (info InhibitInfo) validate() error {
 	if info.Previous.Unset() {
 		return fmt.Errorf("snap revision cannot be unset")
-	}
-	return nil
-}
-
-func validateHint(hint Hint) error {
-	if len(hint) == 0 {
-		return fmt.Errorf("lock hint cannot be empty")
-	}
-	if string(hint) == hintFilePostfix {
-		return fmt.Errorf("hint cannot have value %q", hintFilePostfix)
 	}
 	return nil
 }
@@ -129,10 +129,10 @@ func removeInhibitInfoFiles(snapName string) error {
 // info.Previous corresponding to the snap revision that was installed must be
 // provided and cannot be unset.
 func LockWithHint(snapName string, hint Hint, info InhibitInfo) error {
-	if err := validateHint(hint); err != nil {
+	if err := hint.validate(); err != nil {
 		return err
 	}
-	if err := validateInhibitInfo(info); err != nil {
+	if err := info.validate(); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(InhibitDir, 0755); err != nil {
