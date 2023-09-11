@@ -71,11 +71,11 @@ func notSnapErrorDetails(path string) error {
 	}
 	// Arbitrary value but big enough to show some header
 	// information (the squashfs header is type u32)
-	var header [5]byte
+	var header [15]byte
 	if _, err := f.Read(header[:]); err != nil {
 		return fmt.Errorf("cannot read %q: %v", path, err)
 	}
-	return fmt.Errorf("file %q is invalid (header %v)", path, header)
+	return fmt.Errorf("file %q is invalid (header %v %q)", path, header, header)
 }
 
 // Open opens a given snap file with the right backend.
