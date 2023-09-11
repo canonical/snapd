@@ -569,10 +569,15 @@ func (p *Prompting) PostRulesCreate(userID int, rules []*PostRulesCreateRuleCont
 		newRule, err := p.rules.CreateAccessRule(userID, snap, app, pathPattern, outcome, lifespan, duration, permissions)
 		if err != nil {
 			errors = append(errors, err)
-		} else {
-			createdRules = append(createdRules, newRule)
+			continue
 		}
+		createdRules = append(createdRules, newRule)
 		p.notifyNewRule(userID, newRule)
+		// Apply new rule to outstanding requests. If error occurs,
+		// include it in the list of errors from creating rules.
+		if _, err := p.requests.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.PathPattern, newRule.Outcome, newRule.Permissions); err != nil {
+			errors = append(errors, err)
+		}
 	}
 	if len(errors) > 0 {
 		err := fmt.Errorf("")
