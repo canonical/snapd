@@ -508,7 +508,7 @@ func (*schemaSuite) TestStringsWithEmptyChoices(c *C) {
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: cannot have "choices" constraint with empty list`)
+	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: cannot have a "choices" constraint with an empty list`)
 }
 
 func (*schemaSuite) TestStringsWithChoicesHappy(c *C) {

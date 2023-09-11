@@ -222,7 +222,7 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 		return fmt.Errorf(`cannot parse map: %w`, err)
 	}
 
-	// maps can "schemas" with types for specific entries and optional "required" constraints
+	// maps can be "schemas" with types for specific entries and optional "required" constraints
 	if rawEntries, ok := constraints["schema"]; ok {
 		var entries map[string]json.RawMessage
 		if err := json.Unmarshal(rawEntries, &entries); err != nil {
@@ -373,7 +373,7 @@ func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) 
 		}
 
 		if len(choices) == 0 {
-			return fmt.Errorf(`cannot have "choices" constraint with empty list`)
+			return fmt.Errorf(`cannot have a "choices" constraint with an empty list`)
 		}
 
 		v.choices = choices
