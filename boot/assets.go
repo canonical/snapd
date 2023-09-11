@@ -430,7 +430,21 @@ type TrustedAssetsUpdateObserver struct {
 	seedManagedAssets []string
 	seedChangedAssets []*trackedAsset
 
-	modeenv *Modeenv
+	modeenv       *Modeenv
+	modeenvLocked bool
+}
+
+// Done must be called when done with the observer if any of the
+// gadget.ContenUpdateObserver methods might have been called.
+func (o *TrustedAssetsUpdateObserver) Done() {
+	if o.modeenvLocked {
+		o.modeenvUnlock()
+	}
+}
+
+func (o *TrustedAssetsUpdateObserver) modeenvUnlock() {
+	modeenvUnlock()
+	o.modeenvLocked = false
 }
 
 func trustedAndManagedAssetsOfBootloader(bl bootloader.Bootloader) (trustedAssets, managedAssets []string, err error) {
@@ -513,9 +527,12 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, partRo
 	}
 	if o.modeenv == nil {
 		// we've hit a trusted asset, so a modeenv is needed now too
-		// XXX take the lock
+		modeenvLock()
+		o.modeenvLocked = true
 		o.modeenv, err = ReadModeenv("")
 		if err != nil {
+			// for test convenience
+			o.modeenvUnlock()
 			return gadget.ChangeAbort, fmt.Errorf("cannot load modeenv: %v", err)
 		}
 	}

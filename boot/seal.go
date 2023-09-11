@@ -416,9 +416,9 @@ var resealKeyToModeenv = resealKeyToModeenvImpl
 // transient/in-memory information with the risk that successive
 // reseals during in-progress operations produce diverging outcomes.
 func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool) error {
-	/*if !isModeeenvLocked() {
+	if !isModeeenvLocked() {
 		return fmt.Errorf("internal error: cannot reseal without the modeenv lock")
-	}*/
+	}
 
 	method, err := device.SealedKeysMethod(rootdir)
 	if err == device.ErrNoSealedKeys {

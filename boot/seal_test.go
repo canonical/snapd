@@ -433,6 +433,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 	var prevPbc boot.PredictableBootChains
 	var prevRecoveryPbc boot.PredictableBootChains
 
+	defer boot.MockModeenvLocked()()
+
 	for idx, tc := range []struct {
 		sealedKeys       bool
 		reuseRunPbc      bool
@@ -832,6 +834,8 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 	})
 	defer restore()
 
+	defer boot.MockModeenvLocked()()
+
 	// set mock key resealing
 	resealKeysCalls := 0
 	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
@@ -1105,6 +1109,8 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
+
+	defer boot.MockModeenvLocked()()
 
 	// set mock key resealing
 	resealKeysCalls := 0
@@ -1743,6 +1749,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	err = ioutil.WriteFile(marker, []byte("fde-setup-hook"), 0644)
 	c.Assert(err, IsNil)
 
+	defer boot.MockModeenvLocked()()
+
 	model := boottest.MakeMockUC20Model()
 	modeenv := &boot.Modeenv{
 		RecoverySystem: "20200825",
@@ -1774,6 +1782,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(marker, []byte("fde-setup-hook"), 0644)
 	c.Assert(err, IsNil)
+
+	defer boot.MockModeenvLocked()()
 
 	model := boottest.MakeMockUC20Model()
 	modeenv := &boot.Modeenv{
@@ -1872,6 +1882,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 		return systemModel, []*seed.Snap{mockKernelSeedSnap(snap.R(kernelRev)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
+
+	defer boot.MockModeenvLocked()()
 
 	// set mock key resealing
 	resealKeysCalls := 0
