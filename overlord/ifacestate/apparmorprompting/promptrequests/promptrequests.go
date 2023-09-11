@@ -2,6 +2,7 @@ package promptrequests
 
 import (
 	"errors"
+	"reflect"
 	"sync"
 
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
@@ -13,13 +14,13 @@ var ErrRequestIDNotFound = errors.New("no request with the given ID found for th
 var ErrUserNotFound = errors.New("no prompt requests found for the given user")
 
 type PromptRequest struct {
-	ID          string                  `json:"id"`
-	Timestamp   string                  `json:"timestamp"`
-	Snap        string                  `json:"snap"`
-	App         string                  `json:"app"`
-	Path        string                  `json:"path"`
-	Permissions []common.PermissionType `json:"permissions"`
-	listenerReq *listener.Request       `json:"-"`
+	ID           string                  `json:"id"`
+	Timestamp    string                  `json:"timestamp"`
+	Snap         string                  `json:"snap"`
+	App          string                  `json:"app"`
+	Path         string                  `json:"path"`
+	Permissions  []common.PermissionType `json:"permissions"`
+	listenerReqs []*listener.Request     `json:"-"`
 }
 
 type userRequestDB struct {
@@ -38,7 +39,13 @@ func New() *RequestDB {
 }
 
 // Creates, adds, and returns a new prompt request from the given parameters.
-func (rdb *RequestDB) Add(user int, snap string, app string, path string, permissions []common.PermissionType, listenerReq *listener.Request) *PromptRequest {
+//
+// If the parameters exactly match an existing request, merge it with that
+// existing request instead, and do not add a new request. If a new request was
+// added, returns the new request and false, indicating the request was not
+// merged. If it was merged with an identical existing request, returns the
+// existing request and true.
+func (rdb *RequestDB) AddOrMerge(user int, snap string, app string, path string, permissions []common.PermissionType, listenerReq *listener.Request) (*PromptRequest, bool) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	userEntry, exists := rdb.PerUser[user]
@@ -48,18 +55,27 @@ func (rdb *RequestDB) Add(user int, snap string, app string, path string, permis
 		}
 		userEntry = rdb.PerUser[user]
 	}
+
+	// Search for an identical existing request, merge if found
+	for _, req := range userEntry.ByID {
+		if req.Snap == snap && req.App == app && req.Path == path && reflect.DeepEqual(req.Permissions, permissions) {
+			req.listenerReqs = append(req.listenerReqs, listenerReq)
+			return req, true
+		}
+	}
+
 	id, timestamp := common.NewIDAndTimestamp()
 	req := &PromptRequest{
-		ID:          id,
-		Timestamp:   timestamp,
-		Snap:        snap,
-		App:         app,
-		Path:        path,
-		Permissions: permissions, // TODO: copy permissions list?
-		listenerReq: listenerReq,
+		ID:           id,
+		Timestamp:    timestamp,
+		Snap:         snap,
+		App:          app,
+		Path:         path,
+		Permissions:  permissions, // TODO: copy permissions list?
+		listenerReqs: []*listener.Request{listenerReq},
 	}
 	userEntry.ByID[id] = req
-	return req
+	return req, false
 }
 
 func (rdb *RequestDB) Requests(user int) []*PromptRequest {
@@ -111,8 +127,10 @@ func (rdb *RequestDB) Reply(user int, id string, outcome common.OutcomeType) (*P
 	default:
 		return nil, common.ErrInvalidOutcome
 	}
-	if err := sendReply(req.listenerReq, outcomeBool); err != nil {
-		return nil, err
+	for _, listenerReq := range req.listenerReqs {
+		if err := sendReply(listenerReq, outcomeBool); err != nil {
+			return nil, err
+		}
 	}
 	delete(userEntry.ByID, id)
 	return req, nil
@@ -163,7 +181,9 @@ func (rdb *RequestDB) HandleNewRule(user int, snap string, app string, pathPatte
 			continue
 		}
 		// all permissions of request satisfied
-		sendReply(req.listenerReq, outcomeBool)
+		for _, listenerReq := range req.listenerReqs {
+			sendReply(listenerReq, outcomeBool)
+		}
 		delete(userEntry.ByID, id)
 		satisfiedReqIDs = append(satisfiedReqIDs, id)
 	}

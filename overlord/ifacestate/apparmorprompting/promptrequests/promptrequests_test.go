@@ -32,7 +32,7 @@ func (s *promptrequestsSuite) TestNew(c *C) {
 	c.Assert(prdb.PerUser, HasLen, 0)
 }
 
-func (s *promptrequestsSuite) TestAddRequests(c *C) {
+func (s *promptrequestsSuite) TestAddOrMergeRequests(c *C) {
 	restore := promptrequests.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
@@ -46,32 +46,43 @@ func (s *promptrequestsSuite) TestAddRequests(c *C) {
 	path := "/home/test/Documents/foo.txt"
 	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
 
-	listenerReq := &listener.Request{}
+	listenerReq1 := &listener.Request{}
+	listenerReq2 := &listener.Request{}
+	listenerReq3 := &listener.Request{}
 
 	stored := rdb.Requests(user)
 	c.Assert(stored, HasLen, 0)
 
 	before := time.Now()
-	req := rdb.Add(user, snap, app, path, permissions, listenerReq)
+	req1, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq1)
 	after := time.Now()
+	c.Assert(merged, Equals, false)
 
-	timestamp, err := common.TimestampToTime(req.Timestamp)
+	req2, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq2)
+	c.Assert(merged, Equals, true)
+	c.Assert(req2, Equals, req1)
+
+	timestamp, err := common.TimestampToTime(req1.Timestamp)
 	c.Assert(err, IsNil)
 	c.Check(timestamp.After(before), Equals, true)
 	c.Check(timestamp.Before(after), Equals, true)
 
-	c.Check(req.Snap, Equals, snap)
-	c.Check(req.App, Equals, app)
-	c.Check(req.Path, Equals, path)
-	c.Check(req.Permissions, DeepEquals, permissions)
+	c.Check(req1.Snap, Equals, snap)
+	c.Check(req1.App, Equals, app)
+	c.Check(req1.Path, Equals, path)
+	c.Check(req1.Permissions, DeepEquals, permissions)
 
 	stored = rdb.Requests(user)
 	c.Assert(stored, HasLen, 1)
-	c.Check(stored[0], Equals, req)
+	c.Check(stored[0], Equals, req1)
 
-	storedReq, err := rdb.RequestWithID(user, req.ID)
+	storedReq, err := rdb.RequestWithID(user, req1.ID)
 	c.Check(err, IsNil)
-	c.Check(storedReq, Equals, req)
+	c.Check(storedReq, Equals, req1)
+
+	req3, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq3)
+	c.Check(merged, Equals, true)
+	c.Check(req3, Equals, req1)
 }
 
 func (s *promptrequestsSuite) TestRequestWithIDErrors(c *C) {
@@ -90,7 +101,8 @@ func (s *promptrequestsSuite) TestRequestWithIDErrors(c *C) {
 
 	listenerReq := &listener.Request{}
 
-	req := rdb.Add(user, snap, app, path, permissions, listenerReq)
+	req, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq)
+	c.Check(merged, Equals, false)
 
 	result, err := rdb.RequestWithID(user, req.ID)
 	c.Check(err, IsNil)
@@ -106,8 +118,8 @@ func (s *promptrequestsSuite) TestRequestWithIDErrors(c *C) {
 }
 
 func (s *promptrequestsSuite) TestReply(c *C) {
-	listenerReqChan := make(chan *listener.Request, 1)
-	replyChan := make(chan interface{}, 1)
+	listenerReqChan := make(chan *listener.Request, 2)
+	replyChan := make(chan interface{}, 2)
 	restore := promptrequests.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		listenerReqChan <- listenerReq
 		replyChan <- reply
@@ -122,35 +134,51 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 	path := "/home/test/Documents/foo.txt"
 	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
 
-	listenerReq := &listener.Request{}
+	listenerReq1 := &listener.Request{}
+	listenerReq2 := &listener.Request{}
 
-	req := rdb.Add(user, snap, app, path, permissions, listenerReq)
+	req1, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq1)
+	c.Check(merged, Equals, false)
+
+	req2, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq2)
+	c.Check(merged, Equals, true)
+	c.Check(req2, Equals, req1)
 
 	outcome := common.OutcomeAllow
-	repliedReq, err := rdb.Reply(user, req.ID, outcome)
-	c.Check(err, IsNil)
-	c.Check(repliedReq, Equals, req)
-	receivedReq := <-listenerReqChan
-	c.Check(receivedReq, Equals, listenerReq)
-	result := <-replyChan
-	allowed, ok := result.(bool)
-	c.Check(ok, Equals, true)
-	c.Check(allowed, Equals, true)
+	repliedReq, err := rdb.Reply(user, req1.ID, outcome)
+	for _, listenerReq := range []*listener.Request{listenerReq1, listenerReq2} {
+		c.Check(err, IsNil)
+		c.Check(repliedReq, Equals, req1)
+		receivedReq := <-listenerReqChan
+		c.Check(receivedReq, Equals, listenerReq)
+		result := <-replyChan
+		allowed, ok := result.(bool)
+		c.Check(ok, Equals, true)
+		c.Check(allowed, Equals, true)
+	}
 
-	listenerReq = &listener.Request{}
+	listenerReq1 = &listener.Request{}
+	listenerReq2 = &listener.Request{}
 
-	req = rdb.Add(user, snap, app, path, permissions, listenerReq)
+	req1, merged = rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq1)
+	c.Check(merged, Equals, false)
+
+	req2, merged = rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq2)
+	c.Check(merged, Equals, true)
+	c.Check(req2, Equals, req1)
 
 	outcome = common.OutcomeDeny
-	repliedReq, err = rdb.Reply(user, req.ID, outcome)
-	c.Check(err, IsNil)
-	c.Check(repliedReq, Equals, req)
-	receivedReq = <-listenerReqChan
-	c.Check(receivedReq, Equals, listenerReq)
-	result = <-replyChan
-	allowed, ok = result.(bool)
-	c.Check(ok, Equals, true)
-	c.Check(allowed, Equals, false)
+	repliedReq, err = rdb.Reply(user, req1.ID, outcome)
+	for _, listenerReq := range []*listener.Request{listenerReq1, listenerReq2} {
+		c.Check(err, IsNil)
+		c.Check(repliedReq, Equals, req1)
+		receivedReq := <-listenerReqChan
+		c.Check(receivedReq, Equals, listenerReq)
+		result := <-replyChan
+		allowed, ok := result.(bool)
+		c.Check(ok, Equals, true)
+		c.Check(allowed, Equals, false)
+	}
 }
 
 func (s *promptrequestsSuite) TestReplyErrors(c *C) {
@@ -169,7 +197,8 @@ func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 
 	listenerReq := &listener.Request{}
 
-	req := rdb.Add(user, snap, app, path, permissions, listenerReq)
+	req, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq)
+	c.Check(merged, Equals, false)
 
 	outcome := common.OutcomeAllow
 
@@ -205,19 +234,23 @@ func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
 	listenerReq1 := &listener.Request{}
-	_ = rdb.Add(user, snap, app, path, permissions, listenerReq1)
+	_, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq1)
+	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead}
 	listenerReq2 := &listener.Request{}
-	req2 := rdb.Add(user, snap, app, path, permissions, listenerReq2)
+	req2, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq2)
+	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionRead}
 	listenerReq3 := &listener.Request{}
-	req3 := rdb.Add(user, snap, app, path, permissions, listenerReq3)
+	req3, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq3)
+	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionOpen}
 	listenerReq4 := &listener.Request{}
-	_ = rdb.Add(user, snap, app, path, permissions, listenerReq4)
+	_, merged = rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq4)
+	c.Check(merged, Equals, false)
 
 	stored := rdb.Requests(user)
 	c.Assert(stored, HasLen, 4)
@@ -269,19 +302,23 @@ func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 
 	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
 	listenerReq1 := &listener.Request{}
-	_ = rdb.Add(user, snap, app, path, permissions, listenerReq1)
+	_, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq1)
+	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead}
 	listenerReq2 := &listener.Request{}
-	req2 := rdb.Add(user, snap, app, path, permissions, listenerReq2)
+	req2, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq2)
+	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionRead}
 	listenerReq3 := &listener.Request{}
-	req3 := rdb.Add(user, snap, app, path, permissions, listenerReq3)
+	req3, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq3)
+	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionOpen}
 	listenerReq4 := &listener.Request{}
-	_ = rdb.Add(user, snap, app, path, permissions, listenerReq4)
+	_, merged = rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq4)
+	c.Check(merged, Equals, false)
 
 	stored := rdb.Requests(user)
 	c.Assert(stored, HasLen, 4)
@@ -340,7 +377,8 @@ func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
 	path := "/home/test/Documents/foo.txt"
 	permissions := []common.PermissionType{common.PermissionRead}
 	listenerReq := &listener.Request{}
-	req := rdb.Add(user, snap, app, path, permissions, listenerReq)
+	req, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq)
+	c.Check(merged, Equals, false)
 
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow

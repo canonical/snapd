@@ -447,7 +447,12 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 		return req.Reply(true)
 	}
 
-	newRequest := p.requests.Add(userID, snap, app, path, permissions, req)
+	newRequest, merged := p.requests.AddOrMerge(userID, snap, app, path, permissions, req)
+	if merged {
+		logger.Noticef("new request merged with identical existing request: %+v", newRequest)
+		return nil
+	}
+
 	logger.Noticef("adding request to internal storage: %+v", newRequest)
 
 	p.notifyNewRequest(userID, newRequest)
