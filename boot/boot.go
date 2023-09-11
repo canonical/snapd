@@ -28,6 +28,13 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// Unlocker functions are passed from code using boot to indicate that global
+// state should be unlocked during slow operations, e.g sealing/unsealing.
+// Boot code is then expected to call the unlocker around the slow section and
+// relock using the returned function. Unlocker being nil indicates not to do
+// this.
+type Unlocker func() (relock func())
+
 const (
 	// DefaultStatus is the value of a status boot variable when nothing is
 	// being tried

@@ -4110,7 +4110,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	s.state.Set("tried-systems", []string{expectedLabel})
 
 	resealKeyCalls := 0
-	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool) error {
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool, u boot.Unlocker) error {
 		resealKeyCalls++
 		c.Assert(len(tc.resealErr) >= resealKeyCalls, Equals, true)
 		c.Check(modeenv.GoodRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
@@ -4417,7 +4417,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	s.state.Set("tried-systems", []string{expectedLabel})
 
 	resealKeyCalls := 0
-	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool) error {
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool, u boot.Unlocker) error {
 		resealKeyCalls++
 		c.Check(modeenv.GoodRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
 		c.Check(modeenv.CurrentRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
@@ -4682,7 +4682,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	s.state.Set("tried-systems", []string{expectedLabel})
 
 	resealKeyCalls := 0
-	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool) error {
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool, u boot.Unlocker) error {
 		resealKeyCalls++
 		// calls:
 		// 1 - promote recovery system
@@ -4722,6 +4722,8 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 				testutil.FileContains, fmt.Sprintf("model: %s\n", new.Model()))
 			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
 				testutil.FileContains, fmt.Sprintf("revision: %v\n", new.Revision()))
+			// check unlocker
+			u()()
 		case 6:
 			c.Check(modeenv.Model, Equals, new.Model())
 			c.Check(modeenv.TryModel, Equals, "")
@@ -4729,6 +4731,8 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 				testutil.FileContains, fmt.Sprintf("model: %s\n", new.Model()))
 			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
 				testutil.FileContains, fmt.Sprintf("revision: %v\n", new.Revision()))
+			// check unlocker
+			u()()
 		}
 		if resealKeyCalls > 6 {
 			c.Fatalf("unexpected #%v call to reseal key to modeenv", resealKeyCalls)

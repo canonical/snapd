@@ -81,7 +81,7 @@ func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (rest
 }
 
 // MockResealKeyToModeenv is only useful in testing.
-func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectReseal bool) error) (restore func()) {
+func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error) (restore func()) {
 	osutil.MustBeTestBinary("resealKeyToModeenv only can be mocked in tests")
 	old := resealKeyToModeenv
 	resealKeyToModeenv = f
@@ -415,7 +415,7 @@ var resealKeyToModeenv = resealKeyToModeenvImpl
 // atomically.  In particular we want to avoid resealing against
 // transient/in-memory information with the risk that successive
 // reseals during in-progress operations produce diverging outcomes.
-func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool) error {
+func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error {
 	if !isModeeenvLocked() {
 		return fmt.Errorf("internal error: cannot reseal without the modeenv lock")
 	}
@@ -432,6 +432,10 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool)
 	case device.SealingMethodFDESetupHook:
 		return resealKeyToModeenvUsingFDESetupHook(rootdir, modeenv, expectReseal)
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
+		if unlocker != nil {
+			// unlock/relock global state
+			defer unlocker()()
+		}
 		return resealKeyToModeenvSecboot(rootdir, modeenv, expectReseal)
 	default:
 		return fmt.Errorf("unknown key sealing method: %q", method)
