@@ -132,7 +132,7 @@ func (s *snapFileTestSuite) TestOpenSnapdirUnsupportedFormat(c *C) {
 
 	_, err = snapfile.Open(fn)
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
-	c.Check(err, ErrorMatches, `cannot process snap or snapdir: file ".*" is invalid \(header \[110 111 116 45 97\]\)`)
+	c.Check(err, ErrorMatches, `cannot process snap or snapdir: file ".*" is invalid \(header \[110 111 116 45 97 45 114 101 97 108 45 104 101 97 100\] "not-a-real-head"\)`)
 }
 
 func (s *snapFileTestSuite) TestOpenSnapdirFileNoExists(c *C) {
