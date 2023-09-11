@@ -175,59 +175,6 @@ func (*schemaSuite) TestMapKeysConstraintMustBeStringBased(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: must be based on string but got "int"`)
 }
 
-func (*schemaSuite) TestMapKeysStringBased(c *C) {
-	schemaStr := []byte(`{
-	"schema": {
-		"pattern": {
-			"keys": {
-				"type": "string",
-				"pattern": "[fb]oo"
-			}
-		}
-	}
-}`)
-
-	input := []byte(`{
-	"pattern": {
-		"foo": "a"
-	},
-	"userType": {
-		"boo": "a"
-	}
-}`)
-
-	schema, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, IsNil)
-
-	err = schema.Validate(input)
-	c.Assert(err, IsNil)
-}
-
-func (*schemaSuite) TestMapKeysFail(c *C) {
-	schemaStr := []byte(`{
-	"schema": {
-		"snaps": {
-			"keys": {
-				"type": "string",
-				"choices": ["foo"]
-			}
-		}
-	}
-}`)
-
-	input := []byte(`{
-	"snaps": {
-		"bar": "a"
-		}
-}`)
-
-	schema, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, IsNil)
-
-	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `string "bar" is not one of the allowed choices`)
-}
-
 func (*schemaSuite) TestMapWithValuesStringConstraintHappy(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -511,6 +458,7 @@ func (*schemaSuite) TestStringsWithEmptyChoices(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: cannot have a "choices" constraint with an empty list`)
 }
 
+// NOTE: this also serves as a test for the success case of checking map keys
 func (*schemaSuite) TestStringsWithChoicesHappy(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -537,6 +485,7 @@ func (*schemaSuite) TestStringsWithChoicesHappy(c *C) {
 	c.Assert(err, IsNil)
 }
 
+// NOTE: this also serves as a test for the failure case of checking map keys
 func (*schemaSuite) TestStringsWithChoicesFail(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -579,6 +528,32 @@ func (*schemaSuite) TestStringChoicesAndPatternsFail(c *C) {
 
 	_, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `.*cannot use "choices" and "pattern" constraints in same schema`)
+}
+
+func (*schemaSuite) TestStringPatternHappy(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"pattern": {
+			"keys": {
+				"type": "string",
+				"pattern": "[fb]oo"
+			}
+		}
+	}
+}`)
+
+	input := []byte(`{
+	"pattern": {
+		"foo": "a",
+		"boo": "a"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
 }
 
 func (*schemaSuite) TestStringPatternNoMatch(c *C) {
