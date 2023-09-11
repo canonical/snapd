@@ -809,7 +809,7 @@ func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) 
 	buf, err := ioutil.ReadFile(inhibitInfoPath)
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(buf, &inhibitInfo), IsNil)
-	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{Revision: snap.R(11)})
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{Previous: snap.R(11)})
 }
 
 func (s *linkSuite) TestLinkOptRequiresTooling(c *C) {

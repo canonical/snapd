@@ -510,7 +510,7 @@ func (s *refreshSuite) TestRefreshPrintInhibitHint(c *C) {
 	c.Assert(err, IsNil)
 	err = lock.Lock()
 	c.Assert(err, IsNil)
-	inhibitInfo := runinhibit.InhibitInfo{Revision: snap.R(1)}
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(1)}
 	c.Check(runinhibit.LockWithHint("snap1", runinhibit.HintInhibitedForRefresh, inhibitInfo), IsNil)
 	lock.Unlock()
 

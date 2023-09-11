@@ -79,12 +79,12 @@ func openHintFileLock(snapName string) (*osutil.FileLock, error) {
 // InhibitInfo holds data of the previous snap revision that will be needed by
 // "snap run" while the snap is unlinked (i.e. the current symlink is removed).
 type InhibitInfo struct {
-	// Revision is the previous revision for the snap being refreshed.
-	Revision snap.Revision `json:"revision"`
+	// Previous is the previous revision for the snap being refreshed.
+	Previous snap.Revision `json:"previous"`
 }
 
 func validateInhibitInfo(info InhibitInfo) error {
-	if info.Revision.Unset() {
+	if info.Previous.Unset() {
 		return fmt.Errorf("snap revision cannot be unset")
 	}
 	return nil
@@ -126,7 +126,8 @@ func removeInhibitInfoFiles(snapName string) error {
 // The hint cannot be empty. It should be one of the Hint constants defined in
 // this package. With the hint in place "snap run" will not allow the snap to
 // start and will block, presenting a user interface if possible. Also
-// info.Revision must be provided and cannot be unset.
+// info.Previous corresponding to the snap revision that was installed must be
+// provided and cannot be unset.
 func LockWithHint(snapName string, hint Hint, info InhibitInfo) error {
 	if err := validateHint(hint); err != nil {
 		return err

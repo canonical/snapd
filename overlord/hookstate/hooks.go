@@ -115,7 +115,7 @@ func (h *gateAutoRefreshHookHandler) Before() error {
 	}
 	defer lock.Unlock()
 
-	inhibitInfo := runinhibit.InhibitInfo{Revision: snapRev}
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snapRev}
 	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedGateRefresh, inhibitInfo); err != nil {
 		return err
 	}

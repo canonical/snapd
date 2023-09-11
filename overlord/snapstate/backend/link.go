@@ -304,7 +304,7 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 	var err0 error
 	if hint := linkCtx.RunInhibitHint; hint != runinhibit.HintNotInhibited {
 		// inhibit startup of new programs
-		inhibitInfo := runinhibit.InhibitInfo{Revision: info.SnapRevision()}
+		inhibitInfo := runinhibit.InhibitInfo{Previous: info.SnapRevision()}
 		err0 = runinhibit.LockWithHint(info.InstanceName(), hint, inhibitInfo)
 	}
 

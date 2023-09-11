@@ -45,7 +45,7 @@ type runInhibitSuite struct {
 var _ = Suite(&runInhibitSuite{})
 
 func (s *runInhibitSuite) SetUpTest(c *C) {
-	s.inhibitInfo = runinhibit.InhibitInfo{Revision: snap.R(11)}
+	s.inhibitInfo = runinhibit.InhibitInfo{Previous: snap.R(11)}
 	dirs.SetRootDir(c.MkDir())
 }
 
@@ -70,7 +70,7 @@ func (s *runInhibitSuite) TestLockWithUnsetRevision(c *C) {
 	_, err := os.Stat(runinhibit.InhibitDir)
 	c.Assert(os.IsNotExist(err), Equals, true)
 
-	err = runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, runinhibit.InhibitInfo{Revision: snap.R(0)})
+	err = runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, runinhibit.InhibitInfo{Previous: snap.R(0)})
 	c.Assert(err, ErrorMatches, "snap revision cannot be unset")
 
 	_, err = os.Stat(runinhibit.InhibitDir)
@@ -92,7 +92,7 @@ func (s *runInhibitSuite) TestLockWithHint(c *C) {
 	_, err := os.Stat(runinhibit.InhibitDir)
 	c.Assert(os.IsNotExist(err), Equals, true)
 
-	expectedInfo := runinhibit.InhibitInfo{Revision: snap.R(42)}
+	expectedInfo := runinhibit.InhibitInfo{Previous: snap.R(42)}
 	err = runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, expectedInfo)
 	c.Assert(err, IsNil)
 
@@ -108,19 +108,19 @@ func (s *runInhibitSuite) TestLockWithHint(c *C) {
 
 // The lock can be re-acquired to present a different hint.
 func (s *runInhibitSuite) TestLockLocked(c *C) {
-	expectedInfo := runinhibit.InhibitInfo{Revision: snap.R(42)}
+	expectedInfo := runinhibit.InhibitInfo{Previous: snap.R(42)}
 	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, expectedInfo)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "refresh")
 	testInhibitInfo(c, "pkg", "refresh", expectedInfo)
 
-	expectedInfo = runinhibit.InhibitInfo{Revision: snap.R(43)}
+	expectedInfo = runinhibit.InhibitInfo{Previous: snap.R(43)}
 	err = runinhibit.LockWithHint("pkg", runinhibit.Hint("just-testing"), expectedInfo)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "just-testing")
 	testInhibitInfo(c, "pkg", "just-testing", expectedInfo)
 
-	expectedInfo = runinhibit.InhibitInfo{Revision: snap.R(44)}
+	expectedInfo = runinhibit.InhibitInfo{Previous: snap.R(44)}
 	err = runinhibit.LockWithHint("pkg", runinhibit.Hint("short"), expectedInfo)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "short")

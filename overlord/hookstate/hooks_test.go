@@ -147,7 +147,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookProceedRuninhibitLock(
 		hint, info, err := runinhibit.IsLocked("snap-a")
 		c.Assert(err, IsNil)
 		c.Check(hint, Equals, runinhibit.HintInhibitedGateRefresh)
-		c.Check(info, Equals, runinhibit.InhibitInfo{Revision: snap.R(1)})
+		c.Check(info, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
 
 		// action is normally set via snapctl; pretend it is --proceed.
 		action := snapstate.GateAutoRefreshProceed
@@ -180,7 +180,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookProceedRuninhibitLock(
 	hint, info, err := runinhibit.IsLocked("snap-a")
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintInhibitedForRefresh)
-	c.Check(info, Equals, runinhibit.InhibitInfo{Revision: snap.R(1)})
+	c.Check(info, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
 }
 
 func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookHoldUnlocksRuninhibit(c *C) {
@@ -194,7 +194,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookHoldUnlocksRuninhibit(
 		hint, info, err := runinhibit.IsLocked("snap-a")
 		c.Assert(err, IsNil)
 		c.Check(hint, Equals, runinhibit.HintInhibitedGateRefresh)
-		c.Check(info, Equals, runinhibit.InhibitInfo{Revision: snap.R(1)})
+		c.Check(info, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
 
 		// action is normally set via snapctl; pretend it is --hold.
 		action := snapstate.GateAutoRefreshHold
@@ -239,7 +239,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceedUnlocksRunin
 		hint, info, err := runinhibit.IsLocked("snap-a")
 		c.Assert(err, IsNil)
 		c.Check(hint, Equals, runinhibit.HintInhibitedGateRefresh)
-		c.Check(info, Equals, runinhibit.InhibitInfo{Revision: snap.R(1)})
+		c.Check(info, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
 
 		// this hook does nothing (action not set to proceed/hold).
 		c.Check(ctx.HookName(), Equals, "gate-auto-refresh")
@@ -438,7 +438,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorRuninhibitUnlock(
 		hint, info, err := runinhibit.IsLocked("snap-a")
 		c.Assert(err, IsNil)
 		c.Check(hint, Equals, runinhibit.HintInhibitedGateRefresh)
-		c.Check(info, Equals, runinhibit.InhibitInfo{Revision: snap.R(1)})
+		c.Check(info, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
 
 		// this hook does nothing (action not set to proceed/hold).
 		c.Check(ctx.HookName(), Equals, "gate-auto-refresh")

@@ -59,7 +59,7 @@ version: 1
 	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
 	c.Assert(err, IsNil)
 	c.Check(string(hint), Equals, "hint")
-	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{Revision: snap.R(1)})
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
 }
 
 func (s *lockingSuite) TestRunInhibitSnapForUnlinkNegativeDecision(c *C) {
