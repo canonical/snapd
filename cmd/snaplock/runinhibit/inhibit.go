@@ -107,7 +107,7 @@ func removeInhibitInfoFiles(snapName string) error {
 	if err != nil {
 		return err
 	}
-	hintFile := fmt.Sprintf("%s.%s", snapName, hintFilePostfix)
+	hintFile := filepath.Base(HintFile(snapName))
 	for _, f := range files {
 		// Don't remove hint
 		if filepath.Base(f) == hintFile {
@@ -165,6 +165,9 @@ func LockWithHint(snapName string, hint Hint, info InhibitInfo) error {
 	if _, err = f.WriteString(string(hint)); err != nil {
 		return err
 	}
+	if err := f.Sync(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -190,6 +193,9 @@ func Unlock(snapName string) error {
 	// Write HintNotInhibited
 	f := flock.File()
 	if err := f.Truncate(0); err != nil {
+		return err
+	}
+	if err := f.Sync(); err != nil {
 		return err
 	}
 	// Remove inhibit info file
