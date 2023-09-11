@@ -39,6 +39,8 @@ func DeviceChange(from snap.Device, to snap.Device) error {
 		// nothing useful happens on a non-UC20 system here
 		return nil
 	}
+	modeenvLock()
+	defer modeenvUnlock()
 
 	m, err := loadModeenv()
 	if err != nil {

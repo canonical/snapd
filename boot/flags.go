@@ -269,7 +269,7 @@ func setNextBootFlags(dev snap.Device, rootDir string, flags []string) error {
 		return errNotUC20
 	}
 
-	// XXX take the lock?
+	// XXX take the modeenv lock?
 
 	m, err := ReadModeenv(rootDir)
 	if err != nil {

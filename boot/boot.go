@@ -310,6 +310,9 @@ var (
 // type of snap, which can be snap.TypeBase (or snap.TypeOS), or snap.TypeKernel.
 // Returns ErrBootNameAndRevisionNotReady if the values are temporarily not established.
 func GetCurrentBoot(t snap.Type, dev snap.Device) (snap.PlaceInfo, error) {
+	modeenvLock()
+	defer modeenvUnlock()
+
 	s, err := bootStateFor(t, dev)
 	if err != nil {
 		return nil, err
@@ -354,6 +357,9 @@ type bootStateUpdate interface {
 //     will set snap_mode="" and the system will boot with the known good
 //     values from snap_{core,kernel}
 func MarkBootSuccessful(dev snap.Device) error {
+	modeenvLock()
+	defer modeenvUnlock()
+
 	const errPrefix = "cannot mark boot successful: %s"
 
 	var u bootStateUpdate
@@ -443,6 +449,9 @@ func UpdateManagedBootConfigs(dev snap.Device, gadgetSnapOrDir, cmdlineAppend st
 	if !dev.RunMode() {
 		return false, fmt.Errorf("internal error: boot config can only be updated in run mode")
 	}
+	modeenvLock()
+	defer modeenvUnlock()
+
 	return updateManagedBootConfigForBootloader(dev, ModeRun, gadgetSnapOrDir, cmdlineAppend)
 }
 
@@ -482,6 +491,9 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdli
 		// only UC20 devices are supported
 		return false, fmt.Errorf("internal error: command line component cannot be updated on pre-UC20 devices")
 	}
+	modeenvLock()
+	defer modeenvUnlock()
+
 	opts := &bootloader.Options{
 		Role: bootloader.RoleRunMode,
 	}

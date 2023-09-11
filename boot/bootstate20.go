@@ -22,6 +22,8 @@ package boot
 import (
 	"fmt"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -46,7 +48,29 @@ func newBootState20(typ snap.Type, dev snap.Device) bootState {
 	}
 }
 
+var (
+	modeenvMu     sync.Mutex
+	modeenvLocked int32
+)
+
+func modeenvLock() {
+	modeenvMu.Lock()
+	atomic.AddInt32(&modeenvLocked, 1)
+}
+
+func modeenvUnlock() {
+	atomic.AddInt32(&modeenvLocked, -1)
+	modeenvMu.Unlock()
+}
+
+func isModeeenvLocked() bool {
+	return atomic.LoadInt32(&modeenvLocked) == 1
+}
+
 func loadModeenv() (*Modeenv, error) {
+	if !isModeeenvLocked() {
+		return nil, fmt.Errorf("internal error: cannot read modeenv without the lock")
+	}
 	modeenv, err := ReadModeenv("")
 	if err != nil {
 		return nil, fmt.Errorf("cannot read modeenv: %v", err)
