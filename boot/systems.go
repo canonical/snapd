@@ -349,7 +349,7 @@ func InspectTryRecoverySystemOutcome(dev snap.Device) (outcome TryRecoverySystem
 	case status == "tried":
 		// check that try_recovery_system ended up in the modeenv's
 		// CurrentRecoverySystems
-		m, err := ReadModeenv("")
+		m, err := loadModeenv()
 		if err != nil {
 			return TryRecoverySystemOutcomeFailure, trySystem, err
 		}

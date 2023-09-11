@@ -513,6 +513,7 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, partRo
 	}
 	if o.modeenv == nil {
 		// we've hit a trusted asset, so a modeenv is needed now too
+		// XXX take the lock
 		o.modeenv, err = ReadModeenv("")
 		if err != nil {
 			return gadget.ChangeAbort, fmt.Errorf("cannot load modeenv: %v", err)

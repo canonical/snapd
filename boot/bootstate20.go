@@ -49,7 +49,7 @@ func newBootState20(typ snap.Type, dev snap.Device) bootState {
 func loadModeenv() (*Modeenv, error) {
 	modeenv, err := ReadModeenv("")
 	if err != nil {
-		return nil, fmt.Errorf("cannot get snap revision: unable to read modeenv: %v", err)
+		return nil, fmt.Errorf("cannot read modeenv: %v", err)
 	}
 	return modeenv, nil
 }
@@ -464,7 +464,7 @@ type bootState20Base struct{}
 func (bs20 *bootState20Base) revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error) {
 	modeenv, err := loadModeenv()
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, "", fmt.Errorf("cannot get snap revision: %v", err)
 	}
 	return bs20.revisionsFromModeenv(modeenv)
 }
