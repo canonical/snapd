@@ -40,6 +40,7 @@ import (
 	// for SanitizePlugsSlots
 	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/pack"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
@@ -466,6 +467,8 @@ func (s *packSuite) TestPackWithIntegrity(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	targetDir := c.MkDir()
 
+	const verityHashSize = 8192
+
 	// mock the verity-setup command, what it does is make a copy of the snap
 	// and then returns pre-calculated output
 	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
@@ -475,8 +478,8 @@ case "$1" in
 		exit 0
 		;;
 	format)
-		cp %[1]s/hello_0_all.snap %[1]s/hello_0_all.snap.verity
-		echo "VERITY header information for %[1]s/hello_0_all.snap.verity"
+		truncate -s %[1]d %[2]s/hello_0_all.snap.verity
+		echo "VERITY header information for %[2]s/hello_0_all.snap.verity"
 		echo "UUID:            	606d10a2-24d8-4c6b-90cf-68207aa7c850"
 		echo "Hash type:       	1"
 		echo "Data blocks:     	1"
@@ -487,7 +490,7 @@ case "$1" in
 		echo "Root hash:      	3fbfef5f1f0214d727d03eebc4723b8ef5a34740fd8f1359783cff1ef9c3f334"
 		;;
 esac
-`, targetDir))
+`, verityHashSize, targetDir))
 	defer vscmd.Restore()
 
 	snapPath, err := pack.Snap(sourceDir, &pack.Options{
@@ -507,10 +510,10 @@ esac
 	defer snapFile.Close()
 
 	// example snap has a size of 4096 (1 block)
-	_, err = snapFile.Seek(4096, io.SeekStart)
+	_, err = snapFile.Seek(squashfs.MinimumSnapSize, io.SeekStart)
 	c.Assert(err, IsNil)
 
-	integrityHdr := make([]byte, 4096)
+	integrityHdr := make([]byte, integrity.HeaderSize)
 	_, err = snapFile.Read(integrityHdr)
 	c.Assert(err, IsNil)
 
@@ -527,9 +530,9 @@ esac
 	c.Assert(ok, Equals, true)
 	hdrSize, err := strconv.ParseUint(hdrSizeStr, 10, 64)
 	c.Assert(err, IsNil)
-	c.Check(hdrSize, Equals, uint64(2*4096))
+	c.Check(hdrSize, Equals, uint64(integrity.HeaderSize+verityHashSize))
 
 	fi, err := snapFile.Stat()
 	c.Assert(err, IsNil)
-	c.Check(fi.Size(), Equals, int64(3*4096))
+	c.Check(fi.Size(), Equals, int64(squashfs.MinimumSnapSize+(integrity.HeaderSize+verityHashSize)))
 }
