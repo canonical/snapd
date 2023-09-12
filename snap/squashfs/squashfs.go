@@ -505,6 +505,12 @@ type BuildOpts struct {
 	ExcludeFiles []string
 }
 
+// MinimumSnapSize is the smallest size a snap can be. The kernel attempts to read a
+// partition table from the snap when a loopback device is created from it. If the snap
+// is smaller than this size, some versions of the kernel will print error logs while
+// scanning the loopback device for partitions.
+const MinimumSnapSize int64 = 16384
+
 // Build builds the snap.
 func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 	if opts == nil {
@@ -548,14 +554,20 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 		cmd.Args = append(cmd.Args, "-all-root", "-no-xattrs")
 	}
 
-	return osutil.ChDir(sourceDir, func() error {
+	if err := osutil.ChDir(sourceDir, func() error {
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			return MksquashfsError{fmt.Sprintf("mksquashfs call failed: %s", osutil.OutputErr(output, err))}
 		}
 
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	// grow the snap larger if it is smaller than the minimum snap size. see
+	// MinimumSnapSize for more details
+	return truncateSnapToMinSize(fullSnapPath, MinimumSnapSize)
 }
 
 // BuildDate returns the "Creation or last append time" as reported by unsquashfs.
@@ -586,4 +598,21 @@ func BuildDate(path string) time.Time {
 	}
 	t0, _ = time.Parse(time.ANSIC, matches[0][len(prefix):])
 	return t0
+}
+
+var truncateSnapToMinSize = func(snapPath string, minSize int64) error {
+	info, err := os.Stat(snapPath)
+	if err != nil {
+		return fmt.Errorf("cannot get size of snap: %w", err)
+	}
+
+	if info.Size() >= minSize {
+		return nil
+	}
+
+	if err := os.Truncate(snapPath, minSize); err != nil {
+		return fmt.Errorf("cannot truncate snap: %w", err)
+	}
+
+	return nil
 }

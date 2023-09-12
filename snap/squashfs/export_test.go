@@ -88,3 +88,11 @@ func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
 		isRootWritableOverlay = old
 	}
 }
+
+func MockTruncateSnapToMinSize(newTruncate func(string, int64) error) (restore func()) {
+	oldTruncate := truncateSnapToMinSize
+	truncateSnapToMinSize = newTruncate
+	return func() {
+		truncateSnapToMinSize = oldTruncate
+	}
+}

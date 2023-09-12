@@ -38,6 +38,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -670,6 +671,9 @@ func (s *SquashfsTestSuite) TestBuildSupportsMultipleExcludesWithOnlyOneWildcard
 	})()
 	mksq := testutil.MockCommand(c, "mksquashfs", "")
 	defer mksq.Restore()
+	defer squashfs.MockTruncateSnapToMinSize(func(string, int64) error {
+		return nil
+	})()
 
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
 	sn := squashfs.New(snapPath)
@@ -697,6 +701,9 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromCoreIfAvailable(c *C) {
 	})()
 	mksq := testutil.MockCommand(c, "mksquashfs", "exit 1")
 	defer mksq.Restore()
+	defer squashfs.MockTruncateSnapToMinSize(func(string, int64) error {
+		return nil
+	})()
 
 	buildDir := c.MkDir()
 
@@ -716,6 +723,9 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromClassicIfCoreUnavailable(
 	})()
 	mksq := testutil.MockCommand(c, "mksquashfs", "")
 	defer mksq.Restore()
+	defer squashfs.MockTruncateSnapToMinSize(func(string, int64) error {
+		return nil
+	})()
 
 	buildDir := c.MkDir()
 
@@ -751,6 +761,9 @@ func (s *SquashfsTestSuite) TestBuildVariesArgsByType(c *C) {
 	})()
 	mksq := testutil.MockCommand(c, "mksquashfs", "")
 	defer mksq.Restore()
+	defer squashfs.MockTruncateSnapToMinSize(func(string, int64) error {
+		return nil
+	})()
 
 	buildDir := c.MkDir()
 	filename := filepath.Join(c.MkDir(), "foo.snap")
@@ -961,4 +974,28 @@ func (s *SquashfsTestSuite) TestBuildWithCompressionUnhappy(c *C) {
 		Compression: "silly",
 	})
 	c.Assert(err, ErrorMatches, "(?m)^mksquashfs call failed: ")
+}
+
+func (s *SquashfsTestSuite) TestBuildBelowMinimumSize(c *C) {
+	// this snap is empty. without truncating it to be larger, it should be smaller than
+	// the minimum snap size
+	sn := squashfs.New(filepath.Join(c.MkDir(), "truncate_me.snap"))
+	sn.Build(c.MkDir(), nil)
+
+	size, err := sn.Size()
+	c.Assert(err, IsNil)
+
+	c.Assert(int(size), testutil.IntEqual, int(squashfs.MinimumSnapSize))
+}
+
+func (s *SquashfsTestSuite) TestBuildAboveMinimumSize(c *C) {
+	// fill a snap with random data that will not compress well. it should be forced
+	// to be bigger than the minimum threshold
+	randomData := randutil.RandomString(int(squashfs.MinimumSnapSize * 2))
+	sn := makeSnapInDir(c, c.MkDir(), "name: do_not_truncate_me", randomData)
+
+	size, err := sn.Size()
+	c.Assert(err, IsNil)
+
+	c.Assert(int(size), testutil.IntGreaterThan, int(squashfs.MinimumSnapSize))
 }
