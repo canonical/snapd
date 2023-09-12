@@ -348,8 +348,9 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			continue
 		}
 		markServicesForStart(activators, app.DaemonScope)
-		// TODO: only if flags.Enable is set
-		markServicesForEnable(activators, app.DaemonScope)
+		if flags.Enable {
+			markServicesForEnable(activators, app.DaemonScope)
+		}
 	}
 
 	// now collect all services

@@ -18,16 +18,18 @@ execute: |
     snap services | cat -n > svcs.txt
     MATCH "     1\s+Service\s+Startup\s+Current\s+Notes$" < svcs.txt
     MATCH "     2\s+socket-activation.sleep-daemon\s+enabled\s+inactive\s+socket-activated$" < svcs.txt
-    
+
     echo "Checking that the service is reported as static"
     systemctl show --property=UnitFileState snap.socket-activation.sleep-daemon.service | grep "static"
 
-    echo "Checking that service activation unit is reported as enabled"
+    echo "Checking that service activation unit is reported as enabled and running"
     systemctl show --property=UnitFileState snap.socket-activation.sleep-daemon.sock.socket | grep "enabled"
+    systemctl show --property=ActiveState snap.socket-activation.sleep-daemon.sock.socket | grep "ActiveState=active"
 
     echo "Testing that we can stop will not disable the service"
     snap stop socket-activation.sleep-daemon
     systemctl show --property=UnitFileState snap.socket-activation.sleep-daemon.sock.socket | grep "enabled"
+    systemctl show --property=ActiveState snap.socket-activation.sleep-daemon.sock.socket | grep "ActiveState=inactive"
 
     echo "Testing that we can correctly disable activations"
     snap stop --disable socket-activation.sleep-daemon
@@ -37,10 +39,23 @@ execute: |
     MATCH "     1\s+Service\s+Startup\s+Current\s+Notes$" < svcs.txt
     MATCH "     2\s+socket-activation.sleep-daemon\s+disabled\s+inactive\s+socket-activated$" < svcs.txt
     
-    echo "Checking that service activation unit is reported as disabled"
+    echo "Checking that service activation unit is reported as disabled and inactive"
     systemctl show --property=UnitFileState snap.socket-activation.sleep-daemon.sock.socket | grep "disabled"
+    systemctl show --property=ActiveState snap.socket-activation.sleep-daemon.sock.socket | grep "ActiveState=inactive"
 
-    echo "Enable service again and verify its listed as enabled, but inactive"
+    echo "Starting the service will start the socket unit, but not enable"
+    snap start socket-activation.sleep-daemon
+
+    echo "Checking that services are listed as expected"
+    snap services | cat -n > svcs.txt
+    MATCH "     1\s+Service\s+Startup\s+Current\s+Notes$" < svcs.txt
+    MATCH "     2\s+socket-activation.sleep-daemon\s+disabled\s+inactive\s+socket-activated$" < svcs.txt
+
+    echo "Checking that service activation unit is reported as disabled and active"
+    systemctl show --property=UnitFileState snap.socket-activation.sleep-daemon.sock.socket | grep "disabled"
+    systemctl show --property=ActiveState snap.socket-activation.sleep-daemon.sock.socket | grep "ActiveState=active"
+
+    echo "Enable service and verify its listed as enabled"
     snap start --enable socket-activation.sleep-daemon
 
     echo "Checking that services are listed correctly"
@@ -48,5 +63,6 @@ execute: |
     MATCH "     1\s+Service\s+Startup\s+Current\s+Notes$" < svcs.txt
     MATCH "     2\s+socket-activation.sleep-daemon\s+enabled\s+inactive\s+socket-activated$" < svcs.txt
 
-    echo "Checking that service activation unit is reported as enabled again"
+    echo "Checking that service activation unit is reported as enabled and active again"
     systemctl show --property=UnitFileState snap.socket-activation.sleep-daemon.sock.socket | grep "enabled"
+    systemctl show --property=ActiveState snap.socket-activation.sleep-daemon.sock.socket | grep "ActiveState=active"
