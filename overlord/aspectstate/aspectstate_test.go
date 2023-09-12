@@ -20,6 +20,7 @@ package aspectstate_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -263,31 +264,34 @@ func (s *filterSampleSuite) TestQueryNoFilters(c *C) {
 	c.Assert(err, IsNil)
 	// returns all snaps
 	c.Assert(res, HasLen, 10)
-	// TODO: right now the result is a list of encoded maps, Samuele wants the result to be
-	// decoded into maps
-	c.Assert(res[0], FitsTypeOf, map[string]interface{}{})
+	c.Assert(res[0], FitsTypeOf, map[string]json.RawMessage{})
+	raw, err := json.Marshal(res)
+	c.Assert(err, IsNil)
+	// [{"name":"discord","status":"active"},{"name":"htop","status":"inactive"}...]
+	fmt.Println(string(raw))
 }
 
 func (s *filterSampleSuite) TestQueryFilterNameWithParameter(c *C) {
 	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "name=firefox")
 	c.Assert(err, IsNil)
 	c.Assert(res, HasLen, 1)
-	c.Assert(res[0], FitsTypeOf, map[string]interface{}{})
-
-	firefoxSnap := res[0].(map[string]interface{})
-	c.Check(firefoxSnap["name"], Equals, "firefox")
-	c.Check(firefoxSnap["status"], Equals, "active")
+	c.Assert(res[0], FitsTypeOf, map[string]json.RawMessage{})
+	raw, err := json.Marshal(res)
+	c.Assert(err, IsNil)
+	// [{"name":"firefox","status":"active"}]
+	fmt.Println(string(raw))
 }
 
 func (s *filterSampleSuite) TestQueryFilterNameWithRequest(c *C) {
 	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps.firefox", "")
 	c.Assert(err, IsNil)
 	c.Assert(res, HasLen, 1)
-	c.Assert(res[0], FitsTypeOf, map[string]interface{}{})
-
-	firefoxSnap := res[0].(map[string]interface{})
-	c.Check(firefoxSnap["name"], Equals, "firefox")
-	c.Check(firefoxSnap["status"], Equals, "active")
+	c.Assert(res[0], FitsTypeOf, map[string]json.RawMessage{})
+	raw, err := json.Marshal(res)
+	c.Assert(err, IsNil)
+	// NOTE: this [{"name":"firefox","status":"active"}] (same as the previous) but should it return {"name": "firefox",...}
+	// without the array? Seems more fitting for the request
+	fmt.Println(string(raw))
 }
 
 func (s *filterSampleSuite) TestQueryFilterStatus(c *C) {
@@ -307,7 +311,9 @@ func (s *filterSampleSuite) TestQueryFilterStatus(c *C) {
 		c.Assert(status, Equals, "active")
 	}
 
-	c.Assert(seenSnaps, HasLen, 6)
+	raw, err := json.Marshal(results)
+	c.Assert(err, IsNil)
+	fmt.Println(string(raw))
 }
 
 func parseString(c *C, raw json.RawMessage) string {

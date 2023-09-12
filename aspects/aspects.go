@@ -761,17 +761,16 @@ func splitKeyAndFilter(key string, params map[string]string) (string, filter) {
 		key = key[:start]
 	}
 
-	var field string
 	if key[0] == '{' && key[len(key)-1] == '}' {
 		key = key[1 : len(key)-1]
 		var ok bool
-		field, ok = params[key]
+		key, ok = params[key]
 		if !ok {
-			field = "*"
+			key = "*"
 		}
 	}
 
-	return field, filt
+	return key, filt
 }
 
 func getFieldFilter(key string, params map[string]string) filter {
