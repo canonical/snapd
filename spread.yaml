@@ -241,7 +241,10 @@ backends:
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 8
+                  # The number of workers has been increased to deal with an issue which
+                  # makes nested vm run slow. 
+                  # TODO: When the issue is fixed the workers number should be 8 again
+                  workers: 12
             - ubuntu-22.04-64:
                   image: ubuntu-2204-64-virt-enabled
                   storage: 25G
