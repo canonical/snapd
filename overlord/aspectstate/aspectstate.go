@@ -92,8 +92,8 @@ func QueryAspect(databag aspects.DataBag, account, bundleName, aspect, request, 
 		},
 	}
 	optional := map[string]bool{
-		"name":   true,
-		"status": true,
+		"{name}":   true,
+		"{status}": true,
 	}
 	schema := aspects.NewJSONSchema()
 

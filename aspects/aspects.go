@@ -179,7 +179,7 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string, 
 			return nil, err
 		}
 
-		accPattern, err := newAccessPattern(name, path, aspectPattern["access"])
+		accPattern, err := newAccessPattern(name, path, aspectPattern["access"], optionals)
 		if err != nil {
 			return nil, err
 		}
@@ -424,7 +424,7 @@ func (a *Aspect) Query(databag DataBag, request, query string) ([]interface{}, e
 	return nil, fmt.Errorf(`cannot find path that matches request`)
 }
 
-func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
+func newAccessPattern(name, path, accesstype string, optionals map[string]bool) (*accessPattern, error) {
 	accType, err := newAccessType(accesstype)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create aspect pattern: %w", err)
@@ -467,6 +467,7 @@ func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 		name:         nameMatchers,
 		path:         pathWriters,
 		access:       accType,
+		optionals:    optionals,
 	}, nil
 }
 
@@ -486,7 +487,7 @@ type accessPattern struct {
 	name         []nameMatcher
 	path         []pathWriter
 	access       accessType
-	optional     map[string]bool
+	optionals    map[string]bool
 }
 
 // match takes a list of subkeys and returns true if those subkeys match the pattern's
@@ -497,7 +498,7 @@ type accessPattern struct {
 func (p *accessPattern) match(nameSubkeys []string) (map[string]string, bool) {
 	placeholders := make(map[string]string)
 	for i, subkey := range nameSubkeys {
-		if !p.optional[subkey] && !p.name[i].match(subkey, placeholders) {
+		if !p.optionals[subkey] && !p.name[i].match(subkey, placeholders) {
 			return nil, false
 		}
 	}
@@ -517,7 +518,7 @@ func (p *accessPattern) getPath(placeholders map[string]string) (string, error) 
 			}
 		}
 
-		if err := subkey.write(sb, placeholders); err != nil {
+		if err := subkey.write(sb, placeholders, p.optionals); err != nil {
 			return "", err
 		}
 	}
@@ -540,7 +541,7 @@ type nameMatcher interface {
 }
 
 type pathWriter interface {
-	write(sb *strings.Builder, placeholders map[string]string) error
+	write(sb *strings.Builder, placeholders map[string]string, optionals map[string]bool) error
 }
 
 // placeholder represents a subkey of a name/path (e.g., "{foo}") that can match
@@ -550,18 +551,23 @@ type placeholder string
 // match adds a mapping to the placeholders map from this placeholder key to the
 // supplied name subkey and returns true (a placeholder matches with any value).
 func (p placeholder) match(subkey string, placeholders map[string]string) bool {
+	// TODO: account for optionals
 	placeholders[string(p)] = subkey
 	return true
 }
 
 // write writes the value from the placeholders map corresponding to this placeholder
 // key into the strings.Builder.
-func (p placeholder) write(sb *strings.Builder, placeholders map[string]string) error {
-	subkey, ok := placeholders[string(p)]
+func (p placeholder) write(sb *strings.Builder, placeholders map[string]string, optionals map[string]bool) error {
+	key := string(p)
+	subkey, ok := placeholders[key]
 	if !ok {
-		// the validation at create-time checks for mismatched placeholders so this
-		// shouldn't be possible save for programmer error
-		return fmt.Errorf("cannot find path placeholder %q in the aspect name", p)
+		if !optionals[key] {
+			return fmt.Errorf("cannot find non-optional value for placeholder %q in the aspect name", key)
+		}
+
+		// placeholder is optional so use the placeholder instead of a concrete value
+		subkey = key
 	}
 
 	_, err := sb.WriteString(subkey)
@@ -573,22 +579,26 @@ type filteredPlaceholder string
 // match adds a mapping to the placeholders map from this placeholder key to the
 // supplied name subkey and returns true (a placeholder matches with any value).
 func (p filteredPlaceholder) match(subkey string, placeholders map[string]string) bool {
+	// TODO: account for optionals
 	end := strings.Index(string(p), "}")
-	ref := string(p)[1:end]
+	ref := string(p)[:end+1]
 	placeholders[ref] = subkey
 	return true
 }
 
 // write writes the value from the placeholders map corresponding to this placeholder
 // key into the strings.Builder.
-func (p filteredPlaceholder) write(sb *strings.Builder, placeholders map[string]string) error {
+func (p filteredPlaceholder) write(sb *strings.Builder, placeholders map[string]string, optionals map[string]bool) error {
 	end := strings.Index(string(p), "}")
-	ref := string(p)[1:end]
+	ref := string(p)[:end+1]
 	subkey, ok := placeholders[ref]
 	if !ok {
-		// the validation at create-time checks for mismatched placeholders so this
-		// shouldn't be possible save for programmer error
-		return fmt.Errorf("cannot find path placeholder %q in the aspect name", p)
+		if !optionals[ref] {
+			return fmt.Errorf("cannot find non-optional value for placeholder %q in the aspect name", ref)
+		}
+
+		// placeholder is optional so use the placeholder instead of a concrete value
+		subkey = ref
 	}
 
 	_, err := sb.WriteString(subkey)
@@ -609,7 +619,7 @@ func (p literal) match(subkey string, _ map[string]string) bool {
 }
 
 // write writes the literal subkey into the strings.Builder.
-func (p literal) write(sb *strings.Builder, _ map[string]string) error {
+func (p literal) write(sb *strings.Builder, _ map[string]string, _ map[string]bool) error {
 	_, err := sb.WriteString(string(p))
 	return err
 }
@@ -742,29 +752,47 @@ func query(subKeys []string, index int, node map[string]json.RawMessage, params 
 
 func splitKeyAndFilter(key string, params map[string]string) (string, filter) {
 	start := strings.Index(key, "[")
-	if start == -1 {
-		// no field filter, just a normal key
-		return key, nil
+
+	var filt filter
+	if start != -1 {
+		filt = getFieldFilter(key[start:], params)
+
+		// ignore the processed field filter
+		key = key[:start]
 	}
 
-	parts := strings.Split(key[start+1:len(key)-1], "=")
-	key = key[:start]
+	var field string
+	if key[0] == '{' && key[len(key)-1] == '}' {
+		key = key[1 : len(key)-1]
+		var ok bool
+		field, ok = params[key]
+		if !ok {
+			field = "*"
+		}
+	}
 
-	field, reference := parts[0], parts[1]
-	// strip the dot (we validated before so assume it's correct)
+	return field, filt
+}
+
+func getFieldFilter(key string, params map[string]string) filter {
+	// strip the square brackets and split the field and placeholder
+	key = key[1 : len(key)-1]
+	parts := strings.Split(key, "=")
+	field, placeholder := parts[0], parts[1]
+
+	// strip the dot before the field ref (we validated before)
 	field = field[1:]
-	// strip the {} around the field placeholder (similarly, we already validated)
-	reference = reference[1 : len(reference)-1]
-
-	fieldValue, ok := params[reference]
+	// strip the {} around the placeholder (similarly, we already validated)
+	placeholder = placeholder[1 : len(placeholder)-1]
+	fieldValue, ok := params[placeholder]
 	if !ok {
-		// query doesn't filter for value, accept any
-		return key, func(map[string]json.RawMessage) (bool, error) {
+		// anything matches the filter
+		return func(obj map[string]json.RawMessage) (bool, error) {
 			return true, nil
 		}
 	}
 
-	return key, func(obj map[string]json.RawMessage) (bool, error) {
+	return func(obj map[string]json.RawMessage) (bool, error) {
 		rawVal, ok := obj[field]
 		if !ok {
 			return false, nil
