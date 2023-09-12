@@ -671,7 +671,7 @@ func (s *SquashfsTestSuite) TestBuildSupportsMultipleExcludesWithOnlyOneWildcard
 	})()
 	mksq := testutil.MockCommand(c, "mksquashfs", "")
 	defer mksq.Restore()
-	defer squashfs.MockTruncateSnapToMinSize(func(string, int64) error {
+	defer squashfs.MockGrowSnapToMinSize(func(string, int64) error {
 		return nil
 	})()
 
@@ -701,7 +701,7 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromCoreIfAvailable(c *C) {
 	})()
 	mksq := testutil.MockCommand(c, "mksquashfs", "exit 1")
 	defer mksq.Restore()
-	defer squashfs.MockTruncateSnapToMinSize(func(string, int64) error {
+	defer squashfs.MockGrowSnapToMinSize(func(string, int64) error {
 		return nil
 	})()
 
@@ -723,7 +723,7 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromClassicIfCoreUnavailable(
 	})()
 	mksq := testutil.MockCommand(c, "mksquashfs", "")
 	defer mksq.Restore()
-	defer squashfs.MockTruncateSnapToMinSize(func(string, int64) error {
+	defer squashfs.MockGrowSnapToMinSize(func(string, int64) error {
 		return nil
 	})()
 
@@ -761,7 +761,7 @@ func (s *SquashfsTestSuite) TestBuildVariesArgsByType(c *C) {
 	})()
 	mksq := testutil.MockCommand(c, "mksquashfs", "")
 	defer mksq.Restore()
-	defer squashfs.MockTruncateSnapToMinSize(func(string, int64) error {
+	defer squashfs.MockGrowSnapToMinSize(func(string, int64) error {
 		return nil
 	})()
 
