@@ -102,6 +102,7 @@ var (
 	SnapSystemdConfDir     string
 	SnapDesktopFilesDir    string
 	SnapDesktopIconsDir    string
+	SnapWaylandSessionsDir string
 	SnapPolkitPolicyDir    string
 	SnapSystemdDir         string
 	SnapSystemdRunDir      string
@@ -460,6 +461,7 @@ func SetRootDir(rootdir string) {
 	// freedesktop.org specifications
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	SnapDesktopIconsDir = filepath.Join(rootdir, snappyDir, "desktop", "icons")
+	SnapWaylandSessionsDir = filepath.Join(rootdir, "/usr/share/wayland-sessions")
 	RunDir = filepath.Join(rootdir, "/run")
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")

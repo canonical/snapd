@@ -26,6 +26,8 @@ AUTOSTART_FILES = $(AUTOSTART_SOURCES:.in=)
 ICON_FILES = snapcraft-logo-bird.svg
 ICON_FOLDER = /usr/share/snapd
 
+CORE_DESKTOP_WRAPPER_FILES = ubuntu-core-desktop-session-wrapper
+
 .PHONY: all
 all: $(DESKTOP_FILES) $(AUTOSTART_FILES)
 
@@ -42,6 +44,10 @@ install:: $(AUTOSTART_FILES)
 install:: $(ICON_FILES)
 	install -d -m 0755 $(DESTDIR)/$(ICON_FOLDER)
 	install -m 0644 -t $(DESTDIR)/$(ICON_FOLDER) $^
+
+install:: $(CORE_DESKTOP_WRAPPER_FILES)
+	install -d -m 0755 $(DESTDIR)/$(BINDIR)
+	install -m 0644 -t $(DESTDIR)/$(BINDDIR) $^
 
 .PHONY: clean
 clean:

@@ -42,6 +42,9 @@ var (
 	UsersToUids               = usersToUids
 	NewUserServiceClientNames = newUserServiceClientNames
 
+	SanitizeSessionFile    = sanitizeSessionFile
+	IsValidSessionFileLine = isValidSessionFileLine
+
 	// icons
 	FindIconFiles = findIconFiles
 )
