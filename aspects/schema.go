@@ -23,6 +23,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 type parser interface {
@@ -219,7 +222,7 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 		return fmt.Errorf(`cannot parse map: %w`, err)
 	}
 
-	// maps can "schemas" with types for specific entries and optional "required" constraints
+	// maps can be "schemas" with types for specific entries and optional "required" constraints
 	if rawEntries, ok := constraints["schema"]; ok {
 		var entries map[string]json.RawMessage
 		if err := json.Unmarshal(rawEntries, &entries); err != nil {
@@ -329,31 +332,68 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 		return schema, nil
 	}
 
-	if typ == "string" {
-		return &stringSchema{}, nil
-	}
 	// TODO: if type starts with $, check against user-defined types
+	if typ != "string" {
+		return nil, fmt.Errorf(`must be based on string but got %q`, typ)
+	}
 
-	return nil, fmt.Errorf(`must be based on string but got %q`, typ)
+	return &stringSchema{}, nil
 }
 
-type stringSchema struct{}
+type stringSchema struct {
+	// pattern is a regex pattern that the string must match.
+	pattern *regexp.Regexp
+	// choices holds the possible values the string can take, if non-empty.
+	choices []string
+}
 
-// Validate that raw is a valid aspect string.
+// Validate that raw is a valid aspect string and meets the schema's constraints.
 func (v *stringSchema) Validate(raw []byte) error {
 	var value string
 	if err := json.Unmarshal(raw, &value); err != nil {
-		var typeErr *json.UnmarshalTypeError
-		if !errors.As(err, &typeErr) {
-			return err
-		}
+		return fmt.Errorf("cannot validate string: %w", err)
+	}
 
-		return fmt.Errorf("cannot validate string: unexpected %s type", typeErr.Value)
+	if len(v.choices) != 0 && !strutil.ListContains(v.choices, value) {
+		return fmt.Errorf(`string %q is not one of the allowed choices`, value)
+	}
+
+	if v.pattern != nil && !v.pattern.Match([]byte(value)) {
+		return fmt.Errorf(`string %q doesn't match schema pattern %s`, value, v.pattern.String())
 	}
 
 	return nil
 }
 
 func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	if rawChoices, ok := constraints["choices"]; ok {
+		var choices []string
+		if err := json.Unmarshal(rawChoices, &choices); err != nil {
+			return fmt.Errorf(`cannot parse "choices" constraint: %w`, err)
+		}
+
+		if len(choices) == 0 {
+			return fmt.Errorf(`cannot have a "choices" constraint with an empty list`)
+		}
+
+		v.choices = choices
+	}
+
+	if rawPattern, ok := constraints["pattern"]; ok {
+		if v.choices != nil {
+			return fmt.Errorf(`cannot use "choices" and "pattern" constraints in same schema`)
+		}
+
+		var patt string
+		err := json.Unmarshal(rawPattern, &patt)
+		if err != nil {
+			return fmt.Errorf(`cannot parse "pattern" constraint: %w`, err)
+		}
+
+		if v.pattern, err = regexp.Compile(patt); err != nil {
+			return fmt.Errorf(`cannot parse "pattern" constraint: %w`, err)
+		}
+	}
+
 	return nil
 }
