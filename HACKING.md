@@ -339,7 +339,7 @@ To run the integration tests locally via QEMU, you need the latest version of
 the [spread](https://github.com/snapcore/spread) framework. 
 You can get spread, QEMU, and the build tools to build QEMU images with:
 
-    $ sudo apt update && sudo apt install -y qemu-kvm autopkgtest
+    $ sudo apt update && sudo apt install -y qemu-kvm autopkgtest genisoimage
     $ curl https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C <target-directory>
 
 > `<target-directory>` can be any directory that is listed in `$PATH`, 
