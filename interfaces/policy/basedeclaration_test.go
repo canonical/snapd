@@ -1321,6 +1321,72 @@ plugs:
 	c.Check(err, NotNil)
 }
 
+func (s *baseDeclSuite) TestConnectionQualcommIpcRouter(c *C) {
+	// we let connect explicitly as long as qcipc matches
+
+	slotDecl1 := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl1 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+
+	// Same qcipc label
+	cand := s.connectCand(c, "qc-router", `name: slot-snap
+version: 0
+slots:
+  qc-router:
+    interface: qualcomm-ipc-router
+    qcipc: monitor
+    address: abcd
+`, `
+name: plug-snap
+version: 0
+plugs:
+  qc-router:
+    interface: qualcomm-ipc-router
+    qcipc: monitor
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err := cand.Check()
+	c.Check(err, IsNil)
+
+	// Different qcipc label
+	cand = s.connectCand(c, "qc-router", `name: slot-snap
+version: 0
+slots:
+  qc-router:
+    interface: qualcomm-ipc-router
+    qcipc: monitor
+    address: abcd
+`, `
+name: plug-snap
+version: 0
+plugs:
+  qc-router:
+    interface: qualcomm-ipc-router
+    qcipc: other
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err.Error(), Equals, `connection not allowed by slot rule of interface "qualcomm-ipc-router"`)
+
+	// Legacy case with slot provided by system
+	cand = s.connectCand(c, "qualcomm-ipc-router", `name: snapd
+version: 0
+type: snapd
+slots:
+  qualcomm-ipc-router:
+`, `
+name: plug-snap
+version: 0
+plugs:
+  qualcomm-ipc-router:
+`)
+	cand.SlotSnapDeclaration = s.mockSnapDecl(c, "snapd", "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4", "canonical", "")
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestConnectionSharedMemory(c *C) {
 	// we let connect explicitly as long as shared-memory matches
 
