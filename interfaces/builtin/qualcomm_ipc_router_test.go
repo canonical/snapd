@@ -20,12 +20,15 @@
 package builtin_test
 
 import (
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -45,23 +48,30 @@ var _ = Suite(&QrtrInterfaceSuite{
 
 const qipcrtrClientYaml = `name: client
 version: 0
+plugs:
+  qc-router:
+    interface: qualcomm-ipc-router
+    qcipc: monitor
 apps:
- app:
-  plugs: [qualcomm-ipc-router]
+  app:
+    plugs: [qc-router]
 `
 
 const qipcrtrServerYaml = `name: server
 version: 0
 apps:
- app:
-  slot: [qualcomm-ipc-router]
+  app:
+    slot: [qc-router]
 slots:
-  qualcomm-ipc-router:
+  qc-router:
+    interface: qualcomm-ipc-router
+    qcipc: monitor
+    address: '@\x00\x00'
 `
 
 func (s *QrtrInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, qipcrtrClientYaml, nil, "qualcomm-ipc-router")
-	s.slot, s.slotInfo = MockConnectedSlot(c, qipcrtrServerYaml, nil, "qualcomm-ipc-router")
+	s.plug, s.plugInfo = MockConnectedPlug(c, qipcrtrClientYaml, nil, "qc-router")
+	s.slot, s.slotInfo = MockConnectedSlot(c, qipcrtrServerYaml, nil, "qc-router")
 }
 
 func (s *QrtrInterfaceSuite) TestName(c *C) {
@@ -72,6 +82,120 @@ func (s *QrtrInterfaceSuite) TestSanitizeSlot(c *C) {
 	r := apparmor_sandbox.MockFeatures(nil, nil, []string{"qipcrtr-socket"}, nil)
 	defer r()
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+}
+
+func (s *QrtrInterfaceSuite) TestValidPlugQcipcAttr(c *C) {
+	const clientYamlTmpl = `name: client
+version: 0
+plugs:
+  qc-router:
+    interface: qualcomm-ipc-router
+    qcipc: ##QCIPC##
+apps:
+  app:
+    plugs: [qc-router]
+`
+
+	for _, tc := range []struct {
+		tag, err string
+	}{
+		{"foo", ""},
+		{"abc-1232", ""},
+		{"bad[", `bad name for qcipc attribute: invalid tag name: "bad["`},
+		{"''", "qualcomm-ipc-router qcipc attribute cannot be empty"},
+	} {
+		c.Logf("tc: %v %v", tc.tag, tc.err)
+		clientYaml := strings.ReplaceAll(clientYamlTmpl, "##QCIPC##", tc.tag)
+		s.plug, s.plugInfo = MockConnectedPlug(c, clientYaml, nil, "qc-router")
+
+		spec := &apparmor.Specification{}
+		err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err.Error(), Equals, tc.err)
+		}
+	}
+}
+
+func skipIfNoQipcrtrSocketSupport(c *C) {
+	if release.ReleaseInfo.ID == "ubuntu" &&
+		(release.ReleaseInfo.VersionID == "14.04" || release.ReleaseInfo.VersionID == "16.04") {
+		c.Skip("qipcrtr socket is unsupported in 14.04/16.04")
+	}
+}
+
+func (s *QrtrInterfaceSuite) TestValidSlotQcipcAttr(c *C) {
+	skipIfNoQipcrtrSocketSupport(c)
+
+	const serverYamlTmpl = `name: server
+version: 0
+apps:
+  app:
+    slot: [qc-router]
+slots:
+  qc-router:
+    interface: qualcomm-ipc-router
+    qcipc: ##QCIPC##
+    address: abcd
+`
+
+	for _, tc := range []struct {
+		tag, err string
+	}{
+		{"foo", ""},
+		{"abc-1232", ""},
+		{"bad[", `bad name for qcipc attribute: invalid tag name: "bad["`},
+		{"''", "qualcomm-ipc-router qcipc attribute cannot be empty"},
+	} {
+		c.Logf("tc: %v %v", tc.tag, tc.err)
+		serverYaml := strings.ReplaceAll(serverYamlTmpl, "##QCIPC##", tc.tag)
+		s.slot, s.slotInfo = MockConnectedSlot(c, serverYaml, nil, "qc-router")
+
+		err := interfaces.BeforePrepareSlot(s.iface, s.slotInfo)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err.Error(), Equals, tc.err)
+		}
+	}
+}
+
+func (s *QrtrInterfaceSuite) TestValidSlotAddressAttr(c *C) {
+	skipIfNoQipcrtrSocketSupport(c)
+
+	const serverYamlTmpl = `name: server
+version: 0
+apps:
+  app:
+    slot: [qc-router]
+slots:
+  qc-router:
+    interface: qualcomm-ipc-router
+    qcipc: monitor
+    address: ##ADDRESS##
+`
+
+	for _, tc := range []struct {
+		addr, err string
+	}{
+		{"foo", ""},
+		{`"@abstract"`, ""},
+		{"bad[", `address is invalid: "bad[" contains a reserved apparmor char from ?*[]{}^"` + "\x00"},
+		{"''", "qualcomm-ipc-router qcipc attribute cannot be empty"},
+	} {
+		c.Logf("tc: %v %v", tc.addr, tc.err)
+		serverYaml := strings.ReplaceAll(serverYamlTmpl, "##ADDRESS##", tc.addr)
+		s.slot, s.slotInfo = MockConnectedSlot(c, serverYaml, nil, "qc-router")
+
+		err := interfaces.BeforePrepareSlot(s.iface, s.slotInfo)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Logf(err.Error())
+			c.Assert(err.Error(), Equals, tc.err)
+		}
+	}
 }
 
 func (s *QrtrInterfaceSuite) TestSanitizeSlotMissingFeature(c *C) {
@@ -112,12 +236,12 @@ func (s *QrtrInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	c.Assert(spec.SnippetForTag("snap.client.app"), testutil.Contains, "network qipcrtr,\n")
 	c.Assert(spec.SnippetForTag("snap.client.app"), Not(testutil.Contains), "capability net_admin,\n")
-	c.Assert(spec.SnippetForTag("snap.client.app"), testutil.Contains, `unix (connect, send, receive) type=seqpacket addr="@**" peer=(label="snap.server.app"),`)
+	c.Assert(spec.SnippetForTag("snap.client.app"), testutil.Contains, `unix (connect, send, receive) type=seqpacket addr="@\x00\x00" peer=(label="snap.server.app"),`)
 
 	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, "network qipcrtr,\n")
 	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, "capability net_admin,\n")
-	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, `unix (accept, send, receive) type=seqpacket addr="@**" peer=(label="snap.client.app"),`)
-	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, `unix (bind, listen) type=seqpacket addr="@**",`)
+	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, `unix (accept, send, receive) type=seqpacket addr="@\x00\x00" peer=(label="snap.client.app"),`)
+	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, `unix (bind, listen) type=seqpacket addr="@\x00\x00",`)
 }
 
 func (s *QrtrInterfaceSuite) TestSecCompSpec(c *C) {
@@ -157,8 +281,8 @@ var _ = Suite(&QrtrInterfaceCompatSuite{
 const qipcrtrConsumerCompatYaml = `name: consumer
 version: 0
 apps:
- app:
-  plugs: [qualcomm-ipc-router]
+  app:
+    plugs: [qualcomm-ipc-router]
 `
 
 const qipcrtrCoreCompatYaml = `name: core
@@ -171,6 +295,23 @@ slots:
 func (s *QrtrInterfaceCompatSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, qipcrtrConsumerCompatYaml, nil, "qualcomm-ipc-router")
 	s.slot, s.slotInfo = MockConnectedSlot(c, qipcrtrCoreCompatYaml, nil, "qualcomm-ipc-router")
+}
+
+func (s *QrtrInterfaceCompatSuite) TestNoTagAllowed(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, `name: consumer
+version: 0
+plugs:
+  qualcomm-ipc-router:
+    interface: qualcomm-ipc-router
+    qcipc: some-name
+apps:
+  app:
+    plugs: [qualcomm-ipc-router]
+`, nil, "qualcomm-ipc-router")
+
+	spec := &apparmor.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err.Error(), Equals, `"qcipc" attribute not allowed if connecting to a system slot`)
 }
 
 func (s *QrtrInterfaceCompatSuite) TestName(c *C) {
