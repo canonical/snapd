@@ -433,7 +433,7 @@ func (m *autoRefresh) restoreMonitoring() error {
 
 		refreshCtx, abort := context.WithCancel(context.Background())
 		aborts[snapName] = abort
-		go continueRefreshOnSnapClose(m.state, snap, done, refreshCtx)
+		go continueRefreshOnSnapClose(m.state, snap.InstanceName(), done, refreshCtx)
 	}
 
 	m.state.Cache("monitored-snaps", aborts)

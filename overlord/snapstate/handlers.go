@@ -877,6 +877,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	snapName := snapsup.InstanceName()
 	// TODO: in the future, do a hard check before starting an auto-refresh so there's
 	// no chance of the snap starting between changes and preventing it from going through
 	err = backend.WithSnapLock(info, func() error {
@@ -892,16 +893,15 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 			return err
 		}
 
-		return asyncRefreshOnSnapClose(m.state, snapsup, refreshInfo)
+		return asyncRefreshOnSnapClose(m.state, snapName, refreshInfo)
 	}
 
-	return continueInhibitedAutoRefresh(st, snapsup.InstanceName())
+	return continueInhibitedAutoRefresh(st, snapName)
 }
 
 // asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
 // the user and then triggers an auto-refresh.
-func asyncRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, refreshInfo *userclient.PendingSnapRefreshInfo) error {
-	snapName := snapsup.InstanceName()
+func asyncRefreshOnSnapClose(st *state.State, snapName string, refreshInfo *userclient.PendingSnapRefreshInfo) error {
 	// there's already a goroutine waiting for this snap to close so just notify
 	if isSnapMonitored(st, snapName) {
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
@@ -926,7 +926,7 @@ func asyncRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, refreshInfo *u
 	// notify the user about the blocked refresh
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 
-	go continueRefreshOnSnapClose(st, snapsup, done, refreshCtx)
+	go continueRefreshOnSnapClose(st, snapName, done, refreshCtx)
 	return nil
 }
 
@@ -998,9 +998,7 @@ func removeMonitoring(st *state.State, snapName string) error {
 	return nil
 }
 
-func continueRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, done <-chan string, refreshCtx context.Context) {
-	snapName := snapsup.InstanceName()
-
+func continueRefreshOnSnapClose(st *state.State, snapName string, done <-chan string, refreshCtx context.Context) {
 	var aborted bool
 	select {
 	case <-done:
@@ -1367,7 +1365,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			if errors.As(err, &busyErr) {
 				// notify user to close the snap and trigger the auto-refresh once it's closed
 				refreshInfo := busyErr.PendingSnapRefreshInfo()
-				if err := asyncRefreshOnSnapClose(m.state, snapsup, refreshInfo); err != nil {
+				if err := asyncRefreshOnSnapClose(m.state, snapsup.InstanceName(), refreshInfo); err != nil {
 					return err
 				}
 			}
