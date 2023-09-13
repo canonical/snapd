@@ -1076,10 +1076,7 @@ suites:
                 # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                # ubuntu-image is failing to create uc images https://bugs.launchpad.net/ubuntu/+bug/2035352
-                # TODO: revert this once the issue is fixed
-                # get_ubuntu_image
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+                get_ubuntu_image
             fi
 
             if os.query is-arm; then
@@ -1136,10 +1133,7 @@ suites:
                 # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                # ubuntu-image is failing to create uc images https://bugs.launchpad.net/ubuntu/+bug/2035352
-                # TODO: revert this once the issue is fixed
-                # get_ubuntu_image
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+                get_ubuntu_image
             fi
 
             if os.query is-arm; then
@@ -1200,10 +1194,7 @@ suites:
                 # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                # ubuntu-image is failing to create uc images https://bugs.launchpad.net/ubuntu/+bug/2035352
-                # TODO: revert this once the issue is fixed
-                # get_ubuntu_image
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+                get_ubuntu_image
             fi
 
             # Install the snapd built

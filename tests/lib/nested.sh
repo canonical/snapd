@@ -726,9 +726,7 @@ nested_create_core_vm() {
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
         else
             # create the ubuntu-core image
-            # local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
-            # TODO: revert this when ubuntu-image with test keys works properly
-            UBUNTU_IMAGE=/snap/bin/ubuntu-image
+            local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
             if os.query is-xenial || os.query is-arm; then
                 # ubuntu-image on 16.04 needs to be installed from a snap
                 UBUNTU_IMAGE=/snap/bin/ubuntu-image
