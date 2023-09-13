@@ -565,7 +565,7 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 		return err
 	}
 
-	// Grow the snap larger if it is smaller than the minimum snap size. See
+	// Grow the snap if it is smaller than the minimum snap size. See
 	// MinimumSnapSize for more details.
 	return growSnapToMinSize(fullSnapPath, MinimumSnapSize)
 }
