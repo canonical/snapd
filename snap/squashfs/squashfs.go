@@ -554,14 +554,15 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 		cmd.Args = append(cmd.Args, "-all-root", "-no-xattrs")
 	}
 
-	if err := osutil.ChDir(sourceDir, func() error {
+	err = osutil.ChDir(sourceDir, func() error {
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			return MksquashfsError{fmt.Sprintf("mksquashfs call failed: %s", osutil.OutputErr(output, err))}
 		}
 
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
