@@ -509,7 +509,7 @@ esac
 	c.Assert(err, IsNil)
 	defer snapFile.Close()
 
-	// example snap has a size of 4096 (1 block)
+	// example snap has a size of 16384 (4 blocks)
 	_, err = snapFile.Seek(squashfs.MinimumSnapSize, io.SeekStart)
 	c.Assert(err, IsNil)
 
