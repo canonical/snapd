@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -314,8 +315,6 @@ func errToResponse(err error, snaps []string, fallback errorResponder, format st
 		case *snap.NotInstalledError:
 			kind = client.ErrorKindSnapNotInstalled
 			snapName = err.Snap
-		case *snapstate.ChangeConflictError:
-			return SnapChangeConflict(err)
 		case *servicestate.QuotaChangeConflictError:
 			return QuotaChangeConflict(err)
 		case *snapstate.SnapNeedsDevModeError:
@@ -340,13 +339,22 @@ func errToResponse(err error, snaps []string, fallback errorResponder, format st
 			}
 		case *store.SnapActionError:
 			// we only handle a few specific cases
-			_, _, e := err.SingleOpError()
+			_, name, e := err.SingleOpError()
 			if e != nil {
 				// 👉😎👉
-				return errToResponse(e, snaps, fallback, format)
+				return errToResponse(e, []string{name}, fallback, format)
 			}
 			handled = false
 		default:
+			// support wrapped errors
+			switch {
+			case errors.Is(err, &snapstate.ChangeConflictError{}):
+				var conflErr *snapstate.ChangeConflictError
+				if errors.As(err, &conflErr) {
+					return SnapChangeConflict(conflErr)
+				}
+			}
+
 			handled = false
 		}
 

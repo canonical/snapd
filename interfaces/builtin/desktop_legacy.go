@@ -58,6 +58,9 @@ dbus (send)
 #   https://gitlab.gnome.org/GNOME/at-spi2-core/-/issues/43
 owner /{,var/}run/user/[0-9]*/at-spi/bus* rw,
 
+# Allow access to the socket used by speech-dispatcher
+owner /{,var/}run/user/[0-9]*/speech-dispatcher/speechd.sock rw,
+
 # Allow the accessibility services in the user session to send us any events
 dbus (receive)
     bus=accessibility
@@ -144,6 +147,9 @@ unix (connect, receive, send)
 unix (connect, receive, send)
      type=stream
      peer=(addr="@/home/*/.cache/ibus/dbus-*"),
+
+# when running with glib >= 2.75.0, ibus uses a regular socket
+owner @{HOME}/.cache/ibus/dbus-* rw,
 
 
 # mozc
@@ -314,7 +320,7 @@ dbus (receive)
     bus=session
     path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
     interface=org.kde.StatusNotifierItem
-    member={Activate,ContextMenu,Scroll,SecondaryActivate,XAyatanaSecondaryActivate}
+    member={Activate,ContextMenu,Scroll,SecondaryActivate,ProvideXdgActivationToken,XAyatanaSecondaryActivate}
     peer=(label=unconfined),
 
 dbus (send)

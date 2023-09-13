@@ -55,8 +55,9 @@ func mockRefreshCandidate(snapName, channel, version string, revision snap.Revis
 			Revision: revision,
 			RealName: snapName,
 		},
+		Version: version,
 	}
-	return snapstate.MockRefreshCandidate(sup, version)
+	return snapstate.MockRefreshCandidate(sup)
 }
 
 func (s *refreshSuite) SetUpTest(c *C) {
@@ -223,7 +224,7 @@ version: 1
 `, "")
 
 	// pretend snap foo is held initially
-	_, err = snapstate.HoldRefresh(s.st, "snap1", 0, "foo")
+	_, err = snapstate.HoldRefresh(s.st, snapstate.HoldAutoRefresh, "snap1", 0, "foo")
 	c.Check(err, IsNil)
 	s.st.Unlock()
 

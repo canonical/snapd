@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
+// +build !nomanagers
 
 /*
  * Copyright (C) 2021 Canonical Ltd
@@ -36,7 +38,7 @@ func (s *earlySuite) TestEarly(c *C) {
 	patch := map[string]interface{}{
 		"experimental.parallel-instances": true,
 		"experimental.user-daemons":       true,
-		"services.ssh.disable":            true,
+		"service.ssh.disable":             true,
 	}
 	tr := &mockConf{state: s.state}
 	err := configcore.Early(coreDev, tr, patch)

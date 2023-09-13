@@ -177,6 +177,10 @@ dbus (receive, send)
 dbus (bind)
     bus=system
     name="org.freedesktop.NetworkManager",
+# Allow binding OpenVPN names
+dbus (bind)
+    bus=system
+    name="org.freedesktop.NetworkManager.openvpn.*",
 
 # Allow traffic to/from our path and interface with any method for unconfined
 # clients to talk to our service.
@@ -282,7 +286,7 @@ dbus (receive, send)
 # internal process addresses that live in that file, but that has no adverse
 # effects for NetworkManager, which just wants to find out the start time of the
 # process.
-deny ptrace (trace) peer=###PLUG_SECURITY_TAGS###,
+deny ptrace (trace,read) peer=###PLUG_SECURITY_TAGS###,
 `
 
 const networkManagerConnectedPlugAppArmor = `
@@ -381,6 +385,10 @@ const networkManagerPermanentSlotDBus = `
     -->
     <allow own="org.freedesktop.NetworkManager.dnsmasq"/>
     <allow send_destination="org.freedesktop.NetworkManager.dnsmasq"/>
+
+    <!-- VPN support -->
+    <allow own_prefix="org.freedesktop.NetworkManager.openvpn"/>
+    <allow send_destination="org.freedesktop.NetworkManager.openvpn"/>
 </policy>
 
 <policy context="default">
@@ -486,6 +494,10 @@ const networkManagerPermanentSlotDBus = `
 
     <deny own="org.freedesktop.NetworkManager.dnsmasq"/>
     <deny send_destination="org.freedesktop.NetworkManager.dnsmasq"/>
+
+    <!-- VPN support -->
+    <deny own_prefix="org.freedesktop.NetworkManager.openvpn"/>
+    <deny send_destination="org.freedesktop.NetworkManager.openvpn"/>
 </policy>
 
 <limit name="max_replies_per_connection">1024</limit>

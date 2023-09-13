@@ -5,6 +5,8 @@ systems:
     - -ubuntu-core-*
     # Ubuntu 14.04 PackageKit seems to be too old
     - -ubuntu-14.04-*
+    # Arm64 is not supported
+    - -ubuntu-*-arm-64
 
 restore: |
     snap remove --purge test-snapd-packagekit

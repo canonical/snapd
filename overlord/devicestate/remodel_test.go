@@ -1109,6 +1109,8 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 		}
 		// this is running as part of post finish step, so the state has
 		// already been updated
+		s.state.Lock()
+		defer s.state.Unlock()
 		serial, err = s.mgr.Serial()
 		c.Assert(err, IsNil)
 		c.Check(serial.Model(), Equals, "other-model")

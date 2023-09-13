@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -65,9 +65,9 @@ var storeSnaps = map[string]*snap.Info{
 			Revision: snap.R(1),
 		},
 		DownloadInfo: snap.DownloadInfo{
-			Size:            int64(len(snapContent)),
-			AnonDownloadURL: "http://localhost/bar",
-			Sha3_384:        "sha3sha3sha3",
+			Size:        int64(len(snapContent)),
+			DownloadURL: "http://localhost/bar",
+			Sha3_384:    "sha3sha3sha3",
 		},
 	},
 	"edge-bar": {
@@ -78,9 +78,9 @@ var storeSnaps = map[string]*snap.Info{
 			Channel: "edge",
 		},
 		DownloadInfo: snap.DownloadInfo{
-			Size:            int64(len(snapContent)),
-			AnonDownloadURL: "http://localhost/edge-bar",
-			Sha3_384:        "sha3sha3sha3",
+			Size:        int64(len(snapContent)),
+			DownloadURL: "http://localhost/edge-bar",
+			Sha3_384:    "sha3sha3sha3",
 		},
 	},
 	"rev7-bar": {
@@ -90,16 +90,16 @@ var storeSnaps = map[string]*snap.Info{
 			Revision: snap.R(7),
 		},
 		DownloadInfo: snap.DownloadInfo{
-			Size:            int64(len(snapContent)),
-			AnonDownloadURL: "http://localhost/rev7-bar",
-			Sha3_384:        "sha3sha3sha3",
+			Size:        int64(len(snapContent)),
+			DownloadURL: "http://localhost/rev7-bar",
+			Sha3_384:    "sha3sha3sha3",
 		},
 	},
 	"download-error-trigger-snap": {
 		DownloadInfo: snap.DownloadInfo{
-			Size:            100,
-			AnonDownloadURL: "http://localhost/foo",
-			Sha3_384:        "sha3sha3sha3",
+			Size:        100,
+			DownloadURL: "http://localhost/foo",
+			Sha3_384:    "sha3sha3sha3",
 		},
 	},
 	"foo-resume-3": {
@@ -108,9 +108,9 @@ var storeSnaps = map[string]*snap.Info{
 			Revision: snap.R(1),
 		},
 		DownloadInfo: snap.DownloadInfo{
-			Size:            int64(len(snapContent)),
-			AnonDownloadURL: "http://localhost/foo-resume-3",
-			Sha3_384:        "sha3sha3sha3",
+			Size:        int64(len(snapContent)),
+			DownloadURL: "http://localhost/foo-resume-3",
+			Sha3_384:    "sha3sha3sha3",
 		},
 	},
 }

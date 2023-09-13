@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2021 Canonical Ltd
+ * Copyright (C) 2015-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -281,29 +281,24 @@ func getGadgetDiskMapping(st *state.State) Response {
 	}
 	gadgetDir := gadgetInfo.MountDir()
 
-	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
-	if err != nil {
-		return InternalError("cannot get kernel info: %v", err)
-	}
-	kernelDir := kernelInfo.MountDir()
-
 	mod := deviceCtx.Model()
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetDir, kernelDir, mod)
+
+	info, err := gadget.ReadInfoAndValidate(gadgetDir, mod, nil)
 	if err != nil {
-		return InternalError("cannot get all disk volume device traits: cannot layout volumes: %v", err)
+		return InternalError("cannot get all disk volume device traits: cannot read gadget: %v", err)
 	}
 
 	// TODO: allow passing in encrypted options info here
 
 	// allow implicit system-data on pre-uc20 only
 	optsMap := map[string]*gadget.DiskVolumeValidationOptions{}
-	for vol := range allLaidOutVols {
+	for vol := range info.Volumes {
 		optsMap[vol] = &gadget.DiskVolumeValidationOptions{
 			AllowImplicitSystemData: mod.Grade() == asserts.ModelGradeUnset,
 		}
 	}
 
-	res, err := gadget.AllDiskVolumeDeviceTraits(allLaidOutVols, optsMap)
+	res, err := gadget.AllDiskVolumeDeviceTraits(info.Volumes, optsMap)
 	if err != nil {
 		return InternalError("cannot get all disk volume device traits: %v", err)
 	}

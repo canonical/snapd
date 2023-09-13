@@ -41,19 +41,10 @@ func MockLoadProfiles(f func(fnames []string, cacheDir string, flags apparmor_sa
 	return r
 }
 
-func MockUnloadProfiles(f func(fnames []string, cacheDir string) error) (restore func()) {
-	r := testutil.Backup(&unloadProfiles)
-	unloadProfiles = f
+func MockRemoveCachedProfiles(f func(fnames []string, cacheDir string) error) (restore func()) {
+	r := testutil.Backup(&removeCachedProfiles)
+	removeCachedProfiles = f
 	return r
-}
-
-// MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
-func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
-	old := isRootWritableOverlay
-	isRootWritableOverlay = new
-	return func() {
-		isRootWritableOverlay = old
-	}
 }
 
 // MockProcSelfExe mocks the location of /proc/self/exe read by setupSnapConfineGeneratedPolicy.

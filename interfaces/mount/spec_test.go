@@ -221,6 +221,53 @@ layout:
 	})
 }
 
+func (s *specSuite) TestSpecificationMergedClash(c *C) {
+	defaultEntry := osutil.MountEntry{
+		Dir:  "/usr/foo",
+		Type: "tmpfs",
+		Name: "/here",
+	}
+	for _, td := range []struct {
+		// Options for all the clashing mount entries
+		Options [][]string
+		// Expected options for the merged mount entry
+		ExpectedOptions []string
+	}{
+		{
+			// If all entries are read-only, the merged entry is also RO
+			Options:         [][]string{{"noatime", "ro"}, {"ro"}},
+			ExpectedOptions: []string{"noatime", "ro"},
+		},
+		{
+			// If one entry is rbind, the recursiveness is preserved
+			Options:         [][]string{{"bind", "rw"}, {"rbind", "ro"}},
+			ExpectedOptions: []string{"rbind"},
+		},
+		{
+			// With simple bind, no recursiveness is added
+			Options:         [][]string{{"bind", "noatime"}, {"bind", "noexec"}},
+			ExpectedOptions: []string{"noatime", "noexec", "bind"},
+		},
+		{
+			// Ordinary flags are preserved
+			Options:         [][]string{{"noexec", "noatime"}, {"noatime", "nomand"}, {"nodev"}},
+			ExpectedOptions: []string{"noexec", "noatime", "nomand", "nodev"},
+		},
+	} {
+		for _, options := range td.Options {
+			entry := defaultEntry
+			entry.Options = options
+			s.spec.AddMountEntry(entry)
+		}
+		c.Check(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+			{Dir: "/usr/foo", Name: "/here", Type: "tmpfs", Options: td.ExpectedOptions},
+		}, Commentf("Clashing entries: %q", td.Options))
+
+		// reset the spec after each iteration, or flags will leak
+		s.spec = &mount.Specification{}
+	}
+}
+
 func (s *specSuite) TestParallelInstanceMountEntriesNoInstanceKey(c *C) {
 	snapInfo := &snap.Info{SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(42)}}
 	s.spec.AddOvername(snapInfo)

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -92,9 +91,6 @@ func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapCommonSave(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	varSaveData := snap.CommonDataSaveDir("hello")
 	err := os.MkdirAll(varSaveData, 0755)
 	c.Assert(err, IsNil)
@@ -108,7 +104,7 @@ func (s *snapdataSuite) TestRemoveSnapCommonSave(c *C) {
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
-	err = s.be.RemoveSnapSaveData(info)
+	err = s.be.RemoveSnapSaveData(info, mockDev)
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(varSaveData), Equals, false)
 	c.Check(osutil.FileExists(filepath.Dir(varSaveData)), Equals, true)

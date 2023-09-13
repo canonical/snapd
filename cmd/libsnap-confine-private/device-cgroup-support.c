@@ -257,13 +257,11 @@ static void _sc_cleanup_v2_device_key(sc_cgroup_v2_device_key **keyptr) {
 
 static void _sc_cgroup_v2_set_memlock_limit(struct rlimit limit) {
     /* we may be setting the limit over the current max, which requires root
-     * privileges */
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+     * privileges or CAP_SYS_RESOURCE */
     if (setrlimit(RLIMIT_MEMLOCK, &limit) < 0) {
         die("cannot set memlock limit to %llu:%llu", (long long unsigned int)limit.rlim_cur,
             (long long unsigned int)limit.rlim_max);
     }
-    (void)sc_set_effective_identity(old);
 }
 
 // _sc_cgroup_v2_adjust_memlock_limit updates the memlock limit which used to be
@@ -325,11 +323,8 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     }
 
     char path[PATH_MAX] = {0};
-    sc_must_snprintf(path, sizeof path, "/sys/fs/bpf/snap/%s", self->v2.tag);
-
-    /* TODO: open("/sys/fs/bpf") and then mkdirat?  */
-    /* create /sys/fs/bpf/snap as root */
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+    static const char bpf_base[] = "/sys/fs/bpf";
+    sc_must_snprintf(path, sizeof path, "%s/snap/%s", bpf_base, self->v2.tag);
 
     /* we expect bpffs to be mounted at /sys/fs/bpf, which should have been done
      * by systemd, but some systems out there are a weird mix of older userland
@@ -342,16 +337,35 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         debug("bpffs mounted at /sys/fs/bpf");
     }
 
-    if (mkdir("/sys/fs/bpf/snap", 0700) < 0) {
-        if (errno != EEXIST) {
-            die("cannot create /sys/fs/bpf/snap directory");
-        }
+    /* Using 0000 permissions to avoid a race condition; we'll set the right
+     * permissions after chmod. */
+    int bpf_fd = open(bpf_base, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (bpf_fd < 0) {
+        die("cannot open %s", bpf_base);
     }
+
+    if (mkdirat(bpf_fd, "snap", 0000) == 0) {
+        /* the new directory must be owned by root:root. */
+        if (fchownat(bpf_fd, "snap", 0, 0, AT_SYMLINK_NOFOLLOW) < 0) {
+            die("cannot set root ownership on %s/snap directory", bpf_base);
+        }
+        if (fchmodat(bpf_fd, "snap", 0700, AT_SYMLINK_NOFOLLOW) < 0) {
+            /* On Debian, this fails with "operation not supported. But it
+             * should not be a critical error, we can also leave with 0000
+             * permissions. */
+            if (errno != ENOTSUP) {
+                die("cannot set 0700 permissions on %s/snap directory", bpf_base);
+            }
+        }
+    } else if (errno != EEXIST) {
+        die("cannot create %s/snap directory", bpf_base);
+    }
+    close(bpf_fd);
+
     /* and obtain a file descriptor to the map, also as root */
     int devmap_fd = bpf_get_by_path(path);
     /* keep a copy of errno in case it gets clobbered */
     int get_by_path_errno = errno;
-    (void)sc_set_effective_identity(old);
     /* XXX: this should be more than enough keys */
     const size_t max_entries = 500;
     if (devmap_fd < 0) {
@@ -368,12 +382,10 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         debug("device map not present yet");
         /* map not created and pinned yet */
         const size_t value_size = 1;
-        /* create the map as root, also pinning the map creates a file entry
-         * under /sys/bpf/snap, make sure it's owned by root too */
-        (void)sc_set_effective_identity(sc_root_group_identity());
         /* kernels used to do account of BPF memory using rlimit memlock pool,
          * thus on older kernels (seen on 5.10), the map effectively locks 11
          * pages (45k) of memlock memory, while on newer kernels (5.11+) only 2 (8k) */
+        /* NOTE: the new file map must be owned by root:root. */
         devmap_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct sc_cgroup_v2_device_key), value_size, max_entries);
         if (devmap_fd < 0) {
             die("cannot create bpf map");
@@ -391,7 +403,6 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
             /* we checked that the map did not exist, so fail on EEXIST too */
             die("cannot pin map to %s", path);
         }
-        (void)sc_set_effective_identity(old);
     } else if (!from_existing) {
         /* the devices access map exists, and we have been asked to setup a
          * cgroup, so clear the old map first so it was like it never existed */
@@ -455,10 +466,8 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     }
 
     if (!from_existing) {
-        /* load and attach the BPF program as root */
-        (void)sc_set_effective_identity(sc_root_group_identity());
+        /* load and attach the BPF program */
         int prog_fd = load_devcgroup_prog(devmap_fd);
-        (void)sc_set_effective_identity(old);
         /* keep track of the program */
         self->v2.prog_fd = prog_fd;
     }
@@ -538,9 +547,7 @@ static void _sc_cgroup_v2_attach_pid_bpf(sc_device_cgroup *self, pid_t pid) {
     debug("cgroup %s opened at %d", own_group_full_path, cgroup_fd);
 
     /* attach the program to the cgroup */
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
     int attach = bpf_prog_attach(BPF_CGROUP_DEVICE, cgroup_fd, self->v2.prog_fd);
-    (void)sc_set_effective_identity(old);
     if (attach < 0) {
         die("cannot attach cgroup program");
     }
@@ -702,15 +709,20 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
     const char *security_tag_relpath = security_tag;
     if (!from_existing) {
         /* Open snap.$SNAP_NAME.$APP_NAME relative to /sys/fs/cgroup/devices,
-         * creating the directory if necessary. Note that we always chown the
-         * resulting directory to root:root. */
-        sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-        if (mkdirat(devices_fd, security_tag_relpath, 0755) < 0) {
-            if (errno != EEXIST) {
-                die("cannot create directory %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
+         * creating the directory if necessary.
+         * Using 0000 permissions to avoid a race condition; we'll set the
+         * right permissions after chmod. */
+        if (mkdirat(devices_fd, security_tag_relpath, 0000) == 0) {
+            /* the new directory must be owned by root:root. */
+            if (fchownat(devices_fd, security_tag_relpath, 0, 0, AT_SYMLINK_NOFOLLOW) < 0) {
+                die("cannot set root ownership on %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
             }
+            if (fchmodat(devices_fd, security_tag_relpath, 0755, 0) < 0) {
+                die("cannot set 0755 permissions on %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
+            }
+        } else if (errno != EEXIST) {
+            die("cannot create directory %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
         }
-        (void)sc_set_effective_identity(old);
     }
 
     int SC_CLEANUP(sc_cleanup_close) security_tag_fd = -1;
@@ -722,37 +734,33 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
         die("cannot open %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
     }
 
-    /* Open devices.allow relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
-    const char *devices_allow_relpath = "devices.allow";
     int SC_CLEANUP(sc_cleanup_close) devices_allow_fd = -1;
-    devices_allow_fd = openat(security_tag_fd, devices_allow_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-    if (devices_allow_fd < 0) {
-        if (from_existing && errno == ENOENT) {
-            return -1;
-        }
-        die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, devices_allow_relpath);
-    }
-
-    /* Open devices.deny relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
-    const char *devices_deny_relpath = "devices.deny";
     int SC_CLEANUP(sc_cleanup_close) devices_deny_fd = -1;
-    devices_deny_fd = openat(security_tag_fd, devices_deny_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-    if (devices_deny_fd < 0) {
-        if (from_existing && errno == ENOENT) {
-            return -1;
-        }
-        die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, devices_deny_relpath);
-    }
-
-    /* Open cgroup.procs relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
-    const char *cgroup_procs_relpath = "cgroup.procs";
     int SC_CLEANUP(sc_cleanup_close) cgroup_procs_fd = -1;
-    cgroup_procs_fd = openat(security_tag_fd, cgroup_procs_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-    if (cgroup_procs_fd < 0) {
-        if (from_existing && errno == ENOENT) {
-            return -1;
+
+    /* Open device files relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
+    struct device_file_t {
+        int *fd;
+        const char *relpath;
+    } device_files[] = {
+        { &devices_allow_fd, "devices.allow" },
+        { &devices_deny_fd, "devices.deny" },
+        { &cgroup_procs_fd, "cgroup.procs" },
+        { NULL, NULL }
+    };
+
+    for (struct device_file_t *device_file = device_files;
+         device_file->fd != NULL;
+         device_file++) {
+        int fd = openat(security_tag_fd, device_file->relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
+        if (fd < 0) {
+            if (from_existing && errno == ENOENT) {
+                return -1;
+            }
+            die("cannot open %s/%s/%s/%s", cgroup_path,
+                devices_relpath, security_tag_relpath, device_file->relpath);
         }
-        die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, cgroup_procs_relpath);
+        *device_file->fd = fd;
     }
 
     /* Everything worked so pack the result and "move" the descriptors over so

@@ -35,6 +35,9 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/lib/gl{,32}/ r,
 /var/lib/snapd/lib/gl{,32}/** rm,
 
+# libdrm data files
+/usr/share/libdrm/amdgpu.ids r,
+
 # Bi-arch distribution nvidia support
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcuda*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvidia*.so{,.*} rm,
@@ -55,6 +58,7 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcudnn{,_adv_infer,_adv_train,_cnn_infer,_cnn_train,_ops_infer,_ops_train}*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvrtc{,-builtins}*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvToolsExt.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}nvidia/wine/*.dll rm,
 
 # Support reading the Vulkan ICD files
 /var/lib/snapd/lib/vulkan/ r,
@@ -123,6 +127,8 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 # ARM Mali driver
 /dev/mali[0-9]* rw,
 /dev/dma_buf_te rw,
+/dev/dma_heap/linux,cma rw,
+/dev/dma_heap/system rw,
 
 # NXP i.MX driver
 # https://github.com/Freescale/kernel-module-imx-gpu-viv
@@ -170,6 +176,8 @@ unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 // will be added by snap-confine.
 var openglConnectedPlugUDev = []string{
 	`SUBSYSTEM=="drm", KERNEL=="card[0-9]*"`,
+	`SUBSYSTEM=="dma_heap", KERNEL=="linux,cma"`,
+	`SUBSYSTEM=="dma_heap", KERNEL=="system"`,
 	`KERNEL=="vchiq"`,
 	`KERNEL=="vcsm-cma"`,
 	`KERNEL=="renderD[0-9]*"`,

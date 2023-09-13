@@ -233,3 +233,67 @@ func (s *validateSuite) TestValidationSetsListEmpty(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "No validations are available\n")
 	c.Check(s.Stdout(), check.Equals, "")
 }
+
+func (s *validateSuite) TestValidateRefreshOnlyUsedWithEnforce(c *check.C) {
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--refresh", "--monitor", "foo/bar"})
+	c.Assert(err, check.ErrorMatches, "--refresh can only be used together with --enforce")
+	c.Check(rest, check.HasLen, 1)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "")
+}
+
+func (s *validateSuite) TestValidationSetsRefreshEnforce(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type": "async", "change": "42", "status-code": 202}`)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-names": ["one","two"]}}}`)
+
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--refresh", "--enforce", "foo/bar"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "Refreshed/installed snaps \"one\", \"two\" to enforce validation set \"foo/bar\"\n")
+}
+
+func (s *validateSuite) TestValidationSetsRefreshEnforceNoUnmetConstraints(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type": "async", "change": "42", "status-code": 202}`)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
+
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--refresh", "--enforce", "foo/bar"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "Enforced validation set \"foo/bar\"\n")
+}

@@ -1,0 +1,177 @@
+#!/bin/bash -e
+
+show_help() {
+    echo "usage: tests.systemd create-and-start-unit <UNIT-NAME> <UNIT-COMMAND-LINE> <UNIT-OVERRIDE>"
+    echo "       tests.systemd stop-unit [--remove] <UNIT-NAME> ..."
+    echo "       tests.systemd wait-for-service [-n|--attempts retries] [--wait seconds] [--state STATE] <UNIT-NAME>"
+}
+
+# Create and start a persistent systemd unit that survives reboots. Use as:
+#   systemd_create_and_start_unit "name" "my-service --args"
+# The third arg supports "overrides" which allow to customize the service
+# as needed, e.g.:
+#   systemd_create_and_start_unit "name" "start" "[Unit]\nAfter=foo"
+create_and_start_unit() {
+    local name=$1
+    local start_line=$2
+    local override=$3
+
+    if [ -z "$name" ]; then
+        echo "tests.systemd: unit name cannot be empty"
+        return 1
+    fi
+    if [ -z "$start_line" ]; then
+        echo "tests.systemd: unit command line cannot be empty"
+        return 1
+    fi
+    if [ -f "/etc/systemd/system/$name.service" ]; then
+        echo "tests.systemd: unit service file already exist, it is going to be overwritten"
+    fi
+
+    printf '[Unit]\nDescription=Support for test %s\n[Service]\nType=simple\nExecStart=%s\n[Install]\nWantedBy=multi-user.target\n' "$name" "$start_line" > "/etc/systemd/system/$name.service"
+    if [ -n "$override" ]; then
+        mkdir -p "/etc/systemd/system/$name.service.d"
+        # shellcheck disable=SC2059
+        printf "$override" > "/etc/systemd/system/$name.service.d/override.conf"
+    fi
+
+    systemctl daemon-reload
+    systemctl enable "$name"
+    systemctl start "$name"
+    wait_for_service "$name"
+}
+
+_stop_unit() {
+    local unit=$1
+
+    if systemctl is-active "$unit"; then
+        retries=20
+        while systemctl status "$unit" | grep -q "Active: activating"; do
+            if [ $retries -eq 0 ]; then
+                echo "tests.systemd: unit $unit could not be stopped"
+                systemctl status "$unit"
+                exit 1
+            fi
+            retries=$(( retries - 1 ))
+            sleep 1
+        done
+
+        systemctl stop "$unit"
+    fi
+}
+
+stop_unit() {
+    local remove=false
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --remove)
+                remove=true
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    if [ $# -eq 0 ]; then
+        echo "tests.systemd: at least a unit name is required"
+        return 1
+    fi
+
+    for unit in "$@"; do
+        _stop_unit "$unit"
+        if [ "$remove" = true ]; then
+            if systemctl is-enabled "$unit"; then
+                systemctl disable "$unit"
+            fi
+            rm -f "/etc/systemd/system/$unit.service"
+            rm -rf "/etc/systemd/system/$unit.service.d"
+        fi
+    done
+
+    systemctl daemon-reload
+}
+
+wait_for_service() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    local attempts=300
+    local wait=1
+    local state="active"
+    local service_name
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --wait)
+                wait="$2"
+                shift 2
+                ;;
+            -n|--attempts)
+                attempts="$2"
+                shift 2
+                ;;
+            --state)
+                state="$2"
+                shift 2
+                ;;
+            *)
+                service_name=$1
+                break
+                ;;
+        esac
+    done
+
+    if [ -z "$service_name" ]; then
+        echo "tests.systemd: unit name cannot be empty"
+        return 1
+    fi
+
+    for i in $(seq "$attempts"); do
+        if systemctl show -p ActiveState "$service_name" | grep -q "ActiveState=$state"; then
+            return
+        fi
+        # show debug output every 1min
+        if [ "$i" -gt 0 ] && [ $(( i % 60 )) = 0 ]; then
+            systemctl status "$service_name" || true
+        fi
+        sleep "$wait"
+    done
+
+    echo "tests.systemd: service $service_name did not become $state"
+    return 1
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit
+                ;;
+            *)
+                action=$(echo "$1" | tr '-' '_')
+                shift
+                break
+                ;;
+        esac
+    done
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "tests.systemd: no such command: $action" >&2
+        show_help
+        exit 1
+    fi
+
+    "$action" "$@"
+}
+
+main "$@"

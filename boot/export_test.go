@@ -64,7 +64,7 @@ var (
 	NewTrustedAssetsCache = newTrustedAssetsCache
 
 	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
-	SealKeyToModeenv                = sealKeyToModeenv
+	SealKeyToModeenv                = sealKeyToModeenvImpl
 	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
 	SealKeyModelParams              = sealKeyModelParams
@@ -77,7 +77,6 @@ var (
 type BootAssetsMap = bootAssetsMap
 type BootCommandLines = bootCommandLines
 type TrackedAsset = trackedAsset
-type SealKeyToModeenvFlags = sealKeyToModeenvFlags
 
 func (t *TrackedAsset) Equals(blName, name, hash string) error {
 	equal := t.hash == hash &&
@@ -226,7 +225,13 @@ func MockRebootArgsPath(argsPath string) (restore func()) {
 	return func() { rebootArgsPath = oldRebootArgsPath }
 }
 
-func MockHasFDESetupHook(f func() (bool, error)) (restore func()) {
+func MockBootloaderFind(f func(rootdir string, opts *bootloader.Options) (bootloader.Bootloader, error)) (restore func()) {
+	r := testutil.Backup(&bootloaderFind)
+	bootloaderFind = f
+	return r
+}
+
+func MockHasFDESetupHook(f func(*snap.Info) (bool, error)) (restore func()) {
 	oldHasFDESetupHook := HasFDESetupHook
 	HasFDESetupHook = f
 	return func() {

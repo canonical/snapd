@@ -29,6 +29,7 @@ import (
 	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
@@ -619,6 +620,26 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	exists, _, err := osutil.DirExists(filepath.Dir(kernefi))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, false)
+}
+
+func (s *grubTestSuite) TestListTrustedAssetsNotForArch(c *C) {
+	oldArch := arch.DpkgArchitecture()
+	defer arch.SetArchitecture(arch.ArchitectureType(oldArch))
+	arch.SetArchitecture("non-existing-architecture")
+
+	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
+some random boot config`))
+
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+
+	tg, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	ta, err := tg.TrustedAssets()
+	c.Check(err, ErrorMatches, `cannot find grub assets for "non-existing-architecture"`)
+	c.Check(ta, HasLen, 0)
 }
 
 func (s *grubTestSuite) TestListManagedAssets(c *C) {

@@ -11,6 +11,12 @@ environment:
     # uploading the core or otherwise large snap triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1
 
+prepare: |
+    # make sure that the snapd daemon gives us time for comms before
+    # closing the socket
+    echo "SNAPD_SHUTDOWN_DELAY=1" >> /etc/environment
+    systemctl restart snapd
+
 restore: |
     TARGET_SNAP_NAME=core
     if os.query is-core18; then
@@ -23,6 +29,11 @@ restore: |
         snap changes
         exit 1
     fi
+    
+    # remove SNAPD_SHUTDOWN_DELAY from /etc/environment again
+    #shellcheck disable=SC2005
+    echo "$(grep -v 'SNAPD_SHUTDOWN_DELAY=1' /etc/environment)" > /etc/environment
+    systemctl restart snapd
 
 execute: |
     TARGET_SNAP_NAME=core
@@ -61,8 +72,7 @@ execute: |
         [ "$(cat initialRev)" !=  "$currRev" ]
 
         # revert the target snap
-        snap revert "$TARGET_SNAP_NAME" &> revert.log
-        MATCH "snapd is about to reboot the system" < revert.log
+        snap revert "$TARGET_SNAP_NAME" 2>&1 | MATCH "snapd is about to reboot the system"
 
         # Detect in the logs when the reboot can been triggered
         "$TESTSTOOLS"/journal-state match-log -n 50 --wait 2 "Waiting for system reboot"

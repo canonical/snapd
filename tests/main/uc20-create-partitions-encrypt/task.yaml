@@ -1,13 +1,19 @@
 summary: Integration tests for the snap-bootstrap binary
 
 # use the same system and tooling as uc20
-systems: [ubuntu-2*]
+# TODO: revert skip for ubuntu-23*
+systems: [ubuntu-20.*,ubuntu-22.*]
 
 environment:
     SNAPD_DEBUG: "1"
     DISK_MAPPING_JSON: /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/disk-mapping.json
 
 prepare: |
+    if not os.query is-pc-amd64; then
+        echo "test designed for amd64 architecture, exiting..."
+        exit
+    fi
+
     echo "Create a fake block device image that looks like an image from u-i"
     truncate --size=5GB fake.img
 
@@ -47,12 +53,17 @@ prepare: |
     echo "Get the UC20 gadget"
     if os.query is-focal; then
         snap download --channel=20/edge pc
-    elif os.query is-jammy; then
+    elif os.query is-ubuntu 22.04 || os.query is-ubuntu 23.04; then
         snap download --channel=22/edge pc
     fi
     unsquashfs -d gadget-dir pc_*.snap
 
 restore: |
+    if not os.query is-pc-amd64; then
+        echo "test designed for amd64 architecture, exiting..."
+        exit
+    fi
+
     for m in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot; do
         if mountpoint "/run/mnt/$m"; then
             umount "/run/mnt/$m"
@@ -84,8 +95,13 @@ debug: |
     cat /proc/partitions
 
 execute: |
+    if not os.query is-pc-amd64; then
+        echo "test designed for amd64 architecture, exiting..."
+        exit
+    fi
+
     channel=20
-    if os.query is-jammy; then
+    if os.query is-ubuntu-ge 22.04; then
         channel=22
     fi
 

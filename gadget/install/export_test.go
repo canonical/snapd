@@ -20,6 +20,7 @@
 package install
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
@@ -33,12 +34,12 @@ var (
 	WriteFilesystemContent = writeFilesystemContent
 	MountFilesystem        = mountFilesystem
 
-	CreateMissingPartitions = createMissingPartitions
 	BuildPartitionList      = buildPartitionList
 	RemoveCreatedPartitions = removeCreatedPartitions
 	EnsureNodesExist        = ensureNodesExist
 
-	CreatedDuringInstall = createdDuringInstall
+	CreatedDuringInstall        = createdDuringInstall
+	TestCreateMissingPartitions = createMissingPartitions
 )
 
 func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
@@ -57,7 +58,7 @@ func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
 	}
 }
 
-func MockEnsureNodesExist(f func(dss []gadget.OnDiskStructure, timeout time.Duration) error) (restore func()) {
+func MockEnsureNodesExist(f func(nodes []string, timeout time.Duration) error) (restore func()) {
 	old := ensureNodesExist
 	ensureNodesExist = f
 	return func() {
@@ -71,4 +72,24 @@ func MockMkfsMake(f func(typ, img, label string, devSize, sectorSize quantity.Si
 	return func() {
 		mkfsImpl = old
 	}
+}
+
+func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevice map[string]string) error {
+	for label, part := range encryptSetup.parts {
+		switch part.role {
+		case gadget.SystemData, gadget.SystemSave:
+			// ok
+		default:
+			return fmt.Errorf("unexpected role in %q: %q", label, part.role)
+		}
+		if part.encryptedDevice != labelToEncDevice[label] {
+			return fmt.Errorf("encrypted device in EncryptionSetupData (%q) different to expected (%q)",
+				encryptSetup.parts[label].encryptedDevice, labelToEncDevice[label])
+		}
+		if len(part.encryptionKey) == 0 {
+			return fmt.Errorf("encryption key for %q is empty", label)
+		}
+	}
+
+	return nil
 }

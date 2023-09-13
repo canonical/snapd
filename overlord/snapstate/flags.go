@@ -68,12 +68,20 @@ type Flags struct {
 	// installing the snap.
 	Unaliased bool `json:"unaliased,omitempty"`
 
+	// Prefer enables all aliases of the given snap in preference to
+	// conflicting aliases of other snaps whose automatic aliases will
+	// be disabled and manual aliases will be removed.
+	Prefer bool `json:"prefer,omitempty"`
+
 	// Amend allows refreshing out of a snap unknown to the store
 	// and into one that is known.
 	Amend bool `json:"amend,omitempty"`
 
 	// IsAutoRefresh is true if the snap is currently auto-refreshed
 	IsAutoRefresh bool `json:"is-auto-refresh,omitempty"`
+
+	// IsContinuedAutoRefresh is true if this is a continued refresh
+	IsContinuedAutoRefresh bool `json:"is-continued-auto-refresh,omitempty"`
 
 	// NoReRefresh prevents refresh from adding epoch-hopping
 	// re-refresh tasks. This allows refresh to work offline, as
@@ -98,6 +106,13 @@ type Flags struct {
 	// "per-snap" in case each snap is treated in a different
 	// transaction.
 	Transaction client.TransactionType `json:"transaction,omitempty"`
+
+	// QuotaGroupName represents the quota group a snap should be assigned
+	// to during installation.
+	QuotaGroupName string `json:"quota-group,omitempty"`
+
+	// Lane is the lane that tasks should join if Transaction is set to "all-snaps".
+	Lane int `json:"lane,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode
@@ -114,5 +129,6 @@ func (f Flags) ForSnapSetup() Flags {
 	f.NoReRefresh = false
 	f.RequireTypeBase = false
 	f.ApplySnapDevMode = false
+	f.Lane = 0
 	return f
 }

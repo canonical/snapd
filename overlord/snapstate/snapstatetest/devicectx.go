@@ -74,6 +74,14 @@ func (dc *TrivialDeviceContext) HasModeenv() bool {
 	return dc.Model().Grade() != asserts.ModelGradeUnset
 }
 
+func (d *TrivialDeviceContext) IsCoreBoot() bool {
+	return d.Model().Kernel() != ""
+}
+
+func (d *TrivialDeviceContext) IsClassicBoot() bool {
+	return !d.IsCoreBoot()
+}
+
 func (dc *TrivialDeviceContext) RunMode() bool {
 	return dc.SystemMode() == "run"
 }

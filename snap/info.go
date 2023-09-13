@@ -21,6 +21,7 @@ package snap
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -270,17 +272,19 @@ func SnapDir(home string, opts *dirs.SnapDirOptions) string {
 // from the store but is not required for working offline should not
 // end up in SideInfo.
 type SideInfo struct {
-	RealName          string              `yaml:"name,omitempty" json:"name,omitempty"`
-	SnapID            string              `yaml:"snap-id" json:"snap-id"`
-	Revision          Revision            `yaml:"revision" json:"revision"`
-	Channel           string              `yaml:"channel,omitempty" json:"channel,omitempty"`
-	EditedLinks       map[string][]string `yaml:"links,omitempty" json:"links,omitempty"`
-	EditedContact     string              `yaml:"contact,omitempty" json:"contact,omitempty"`
-	EditedTitle       string              `yaml:"title,omitempty" json:"title,omitempty"`
-	EditedSummary     string              `yaml:"summary,omitempty" json:"summary,omitempty"`
-	EditedDescription string              `yaml:"description,omitempty" json:"description,omitempty"`
-	Private           bool                `yaml:"private,omitempty" json:"private,omitempty"`
-	Paid              bool                `yaml:"paid,omitempty" json:"paid,omitempty"`
+	RealName    string              `yaml:"name,omitempty" json:"name,omitempty"`
+	SnapID      string              `yaml:"snap-id" json:"snap-id"`
+	Revision    Revision            `yaml:"revision" json:"revision"`
+	Channel     string              `yaml:"channel,omitempty" json:"channel,omitempty"`
+	EditedLinks map[string][]string `yaml:"links,omitempty" json:"links,omitempty"`
+	// subsumed by EditedLinks, by need to set for if we revert
+	// to old snapd
+	LegacyEditedContact string `yaml:"contact,omitempty" json:"contact,omitempty"`
+	EditedTitle         string `yaml:"title,omitempty" json:"title,omitempty"`
+	EditedSummary       string `yaml:"summary,omitempty" json:"summary,omitempty"`
+	EditedDescription   string `yaml:"description,omitempty" json:"description,omitempty"`
+	Private             bool   `yaml:"private,omitempty" json:"private,omitempty"`
+	Paid                bool   `yaml:"paid,omitempty" json:"paid,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -312,6 +316,8 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
+	Components map[string]Component
+
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
 
@@ -331,8 +337,11 @@ type Info struct {
 
 	Publisher StoreAccount
 
-	Media   MediaInfos
-	Website string
+	Media MediaInfos
+
+	// subsumed by EditedLinks but needed to handle information
+	// stored by old snapd
+	LegacyWebsite string
 
 	StoreURL string
 
@@ -353,6 +362,9 @@ type Info struct {
 
 	// OriginalLinks is a map links keys to link lists
 	OriginalLinks map[string][]string
+
+	// Categories this snap is in.
+	Categories []CategoryInfo
 }
 
 // StoreAccount holds information about a store account, for example of snap
@@ -491,32 +503,89 @@ func (s *Info) Description() string {
 // Links returns the blessed set of snap-related links.
 func (s *Info) Links() map[string][]string {
 	if s.EditedLinks != nil {
-		return s.EditedLinks
+		// the store used to send empty links, normalization
+		// is required to filter out persisted invalid links
+		return s.normalizedEditedLinks()
 	}
-	return s.OriginalLinks
+	return s.normalizedOriginalLinks()
+}
+
+// addLink adds a link if it passes validation to ensure it will not contribute to
+// ValidateLinks errors. It also attempts to convert a link with URL scheme "" to
+// "mailto" and avoids duplicate links.
+func addLink(links map[string][]string, key, link string) {
+	if key == "" || !isValidLinksKey(key) {
+		return
+	}
+	if link == "" {
+		return
+	}
+	u, err := url.Parse(link)
+	if err != nil {
+		return
+	}
+	if u.Scheme == "" {
+		link = "mailto:" + link
+		u.Scheme = "mailto"
+	}
+	if u.Scheme == "mailto" {
+		// minimal check
+		if !strings.Contains(link, "@") {
+			return
+		}
+	} else if !strutil.ListContains(validLinkSchemes, u.Scheme) {
+		return
+	}
+	if strutil.ListContains(links[key], link) {
+		return
+	}
+	links[key] = append(links[key], link)
+}
+
+func (s *Info) normalizedEditedLinks() map[string][]string {
+	normalizedLinks := make(map[string][]string, len(s.EditedLinks))
+	for key, links := range s.EditedLinks {
+		for _, link := range links {
+			addLink(normalizedLinks, key, link)
+		}
+	}
+	if len(normalizedLinks) == 0 {
+		return nil
+	}
+	return normalizedLinks
+}
+
+func (s *Info) normalizedOriginalLinks() map[string][]string {
+	normalizedLinks := make(map[string][]string, len(s.OriginalLinks))
+	addLink(normalizedLinks, "contact", s.LegacyEditedContact)
+	addLink(normalizedLinks, "website", s.LegacyWebsite)
+	for key, links := range s.OriginalLinks {
+		for _, link := range links {
+			addLink(normalizedLinks, key, link)
+		}
+	}
+	if len(normalizedLinks) == 0 {
+		return nil
+	}
+	return normalizedLinks
 }
 
 // Contact returns the blessed contact information for the snap.
 func (s *Info) Contact() string {
-	var contact string
-	if s.EditedContact != "" {
-		contact = s.EditedContact
-	} else {
-		contacts := s.Links()["contact"]
-		if len(contacts) > 0 {
-			contact = contacts[0]
-		}
+	contacts := s.Links()["contact"]
+	if len(contacts) > 0 {
+		return contacts[0]
 	}
-	if contact != "" {
-		u, err := url.Parse(contact)
-		if err != nil {
-			return ""
-		}
-		if u.Scheme == "" {
-			contact = "mailto:" + contact
-		}
+	return ""
+}
+
+// Website returns the blessed website information for the snap.
+func (s *Info) Website() string {
+	websites := s.Links()["website"]
+	if len(websites) > 0 {
+		return websites[0]
 	}
-	return contact
+	return ""
 }
 
 // Type returns the type of the snap, including additional snap ID check
@@ -655,18 +724,19 @@ func (s *Info) ExpandSnapVariables(path string) string {
 
 // InstallDate returns the "install date" of the snap.
 //
-// If the snap is not active, it'll return a zero time; otherwise
+// If the snap is not active, it'll return nil; otherwise
 // it'll return the modtime of the "current" symlink. Sneaky.
-func (s *Info) InstallDate() time.Time {
+func (s *Info) InstallDate() *time.Time {
 	dir, rev := filepath.Split(s.MountDir())
 	cur := filepath.Join(dir, "current")
 	tag, err := os.Readlink(cur)
 	if err == nil && tag == rev {
 		if st, err := os.Lstat(cur); err == nil {
-			return st.ModTime()
+			modTime := st.ModTime()
+			return &modTime
 		}
 	}
-	return time.Time{}
+	return nil
 }
 
 // IsActive returns whether this snap revision is active.
@@ -723,8 +793,7 @@ func (s *Info) DesktopPrefix() string {
 // DownloadInfo contains the information to download a snap.
 // It can be marshalled.
 type DownloadInfo struct {
-	AnonDownloadURL string `json:"anon-download-url,omitempty"`
-	DownloadURL     string `json:"download-url,omitempty"`
+	DownloadURL string `json:"download-url,omitempty"`
 
 	Size     int64  `json:"size,omitempty"`
 	Sha3_384 string `json:"sha3-384,omitempty"`
@@ -739,13 +808,12 @@ type DownloadInfo struct {
 // DeltaInfo contains the information to download a delta
 // from one revision to another.
 type DeltaInfo struct {
-	FromRevision    int    `json:"from-revision,omitempty"`
-	ToRevision      int    `json:"to-revision,omitempty"`
-	Format          string `json:"format,omitempty"`
-	AnonDownloadURL string `json:"anon-download-url,omitempty"`
-	DownloadURL     string `json:"download-url,omitempty"`
-	Size            int64  `json:"size,omitempty"`
-	Sha3_384        string `json:"sha3-384,omitempty"`
+	FromRevision int    `json:"from-revision,omitempty"`
+	ToRevision   int    `json:"to-revision,omitempty"`
+	Format       string `json:"format,omitempty"`
+	DownloadURL  string `json:"download-url,omitempty"`
+	Size         int64  `json:"size,omitempty"`
+	Sha3_384     string `json:"sha3-384,omitempty"`
 }
 
 // check that Info is a PlaceInfo
@@ -1041,16 +1109,21 @@ type HookInfo struct {
 // SystemUsernameInfo provides information about a system username (ie, a
 // UNIX user and group with the same name). The scope defines visibility of the
 // username wrt the snap and the system. Defined scopes:
-// - shared    static, snapd-managed user/group shared between host and all
-//             snaps
-// - private   static, snapd-managed user/group private to a particular snap
-//             (currently not implemented)
-// - external  dynamic user/group shared between host and all snaps (currently
-//             not implented)
+//   - shared    static, snapd-managed user/group shared between host and all
+//     snaps
+//   - private   static, snapd-managed user/group private to a particular snap
+//     (currently not implemented)
+//   - external  dynamic user/group shared between host and all snaps (currently
+//     not implented)
 type SystemUsernameInfo struct {
 	Name  string
 	Scope string
 	Attrs map[string]interface{}
+}
+
+type CategoryInfo struct {
+	Name     string `json:"name"`
+	Featured bool   `json:"featured"`
 }
 
 // File returns the path to the *.socket file
@@ -1251,7 +1324,13 @@ var SanitizePlugsSlots = func(snapInfo *Info) {
 // ReadInfo reads the snap information for the installed snap with the given
 // name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
-	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
+	return ReadInfoFromMountPoint(name, MountDir(name, si.Revision), MountFile(name, si.Revision), si)
+}
+
+// ReadInfoFromMountPoint reads the snap information for a mounted
+// snap given the mound point, mount file, and side info.
+func ReadInfoFromMountPoint(name, mountPoint, mountFile string, si *SideInfo) (*Info, error) {
+	snapYamlFn := filepath.Join(mountPoint, "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
 		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: snapYamlFn}
@@ -1269,14 +1348,14 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	_, instanceKey := SplitInstanceName(name)
 	info.InstanceKey = instanceKey
 
-	err = addImplicitHooks(info)
+	hooksDir := filepath.Join(mountPoint, "meta", "hooks")
+	err = addImplicitHooks(info, hooksDir)
 	if err != nil {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
 	bindImplicitHooks(info, strk)
 
-	mountFile := MountFile(name, si.Revision)
 	st, err := os.Lstat(mountFile)
 	if os.IsNotExist(err) {
 		// This can happen when "snap try" mode snap is moved around. The mount
@@ -1334,7 +1413,7 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	addImplicitHooksFromContainer(info, snapf)
+	AddImplicitHooksFromContainer(info, snapf)
 
 	bindImplicitHooks(info, strk)
 
@@ -1511,4 +1590,86 @@ func (a AppInfoBySnapApp) Less(i, j int) bool {
 		return a[i].Name < a[j].Name
 	}
 	return iName < jName
+}
+
+// SnapdAssertionMaxFormatsFromSnapFile returns the supported assertion max
+// formats for the snapd code carried by the given snap, plus its snapd
+// version. This is only applicable to snapd/core or UC20+ kernel snaps.
+// For kernel snaps that are not UC20+ or that do not carry the necessary
+// explicit information yes, this can return nil and "" respectively for
+// maxFormats and snapdVersion.
+func SnapdAssertionMaxFormatsFromSnapFile(snapf Container) (maxFormats map[string]int, snapdVersion string, err error) {
+	info, err := ReadInfoFromSnapFile(snapf, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	var infoFile string
+	missingOK := false
+	typ := info.Type()
+	switch typ {
+	case TypeOS, TypeSnapd:
+		infoFile = "/usr/lib/snapd/info"
+	case TypeKernel:
+		infoFile = "/snapd-info"
+		// some old kernel file will not contain this
+		missingOK = true
+	default:
+		return nil, "", fmt.Errorf("cannot extract assertion max formats information, snaps of type %s do not carry snapd", typ)
+	}
+	b, err := snapf.ReadFile(infoFile)
+	if err != nil {
+		if missingOK && os.IsNotExist(err) {
+			return nil, "", nil
+		}
+		return nil, "", err
+	}
+	ver, flags, err := snapdtool.ParseInfoFile(bytes.NewBuffer(b), fmt.Sprintf("from %s snap", typ))
+	if err != nil {
+		return nil, "", err
+	}
+	if fmts := flags["SNAPD_ASSERTS_FORMATS"]; fmts != "" {
+		err := json.Unmarshal([]byte(strings.Trim(fmts, "'")), &maxFormats)
+		if err != nil {
+			return nil, "", fmt.Errorf("cannot unmarshal SNAPD_ASSERTS_FORMATS from info file from %s snap", typ)
+		}
+		return maxFormats, ver, nil
+	}
+	// use version
+	sysUser := 0
+	cmp, err := strutil.VersionCompare(ver, "2.46")
+	if err != nil {
+		return nil, "", fmt.Errorf("invalid snapd version in info file from %s snap: %v", typ, err)
+	}
+	if cmp >= 0 {
+		sysUser = 1
+	}
+	snapDecl := 0
+	for _, mapping := range verToSnapDecl {
+		// ignoring error as we validated the version before
+		if cmp, _ := strutil.VersionCompare(ver, mapping.ver); cmp >= 0 {
+			snapDecl = mapping.format
+			break
+		}
+	}
+	maxFormats = make(map[string]int)
+	if sysUser > 0 {
+		maxFormats["system-user"] = sysUser
+	}
+	if snapDecl > 0 {
+		maxFormats["snap-declaration"] = snapDecl
+	}
+	return maxFormats, ver, nil
+}
+
+var verToSnapDecl = []struct {
+	ver    string
+	format int
+}{
+	{"2.54", 5},
+	{"2.44", 4},
+	{"2.36", 3},
+	// old
+	{"2.23", 2},
+	// ancient
+	{"2.17", 1},
 }

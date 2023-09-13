@@ -61,8 +61,8 @@ var longSetQuotaHelp = i18n.G(`
 The set-quota command updates or creates a quota group with the specified set of
 snaps.
 
-A quota group sets resource limits on the set of snaps it contains. Snaps can 
-be at most in one quota group but quota groups can be nested. Nested quota 
+A quota group sets resource limits on the set of snaps or snap services it contains.
+Snaps can be at most in one quota group but quota groups can be nested. Nested quota 
 groups are subject to the restriction that the total sum of each existing quota
 in sub-groups cannot exceed that of the parent group the nested groups are part of.
 
@@ -70,6 +70,14 @@ All provided snaps are appended to the group; to remove a snap from a
 quota group, the entire group must be removed with remove-quota and recreated 
 without the snap. To remove a sub-group from the quota group, the 
 sub-group must be removed directly with the remove-quota command.
+
+To set limits on individual services, one or more services can be placed into a
+sub-group. The respective snap for each service must belong to the sub-group's
+parent group. These sub-groups will have the same limitations as nested groups
+which means their combined resource usage cannot exceed the resource limits set 
+for the parent group. Sub-groups which contain services cannot have their own
+journal quotas set, and instead automatically inherit any journal quota their
+parent quota group may have.
 
 The memory limit for a quota group can be increased but not decreased. To
 decrease the memory limit for a quota group, the entire group must be removed
@@ -105,8 +113,7 @@ An existing sub group cannot be moved from one parent to another.
 `)
 
 func init() {
-	// TODO: unhide the commands when non-experimental
-	cmd := addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp,
+	addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp,
 		func() flags.Commander { return &cmdSetQuota{} },
 		waitDescs.also(map[string]string{
 			"memory":             i18n.G("Memory quota"),
@@ -117,16 +124,9 @@ func init() {
 			"journal-rate-limit": i18n.G("Journal rate limit as <message count>/<message period>"),
 			"parent":             i18n.G("Parent quota group"),
 		}), nil)
-	cmd.hidden = true
-
-	cmd = addCommand("quota", shortQuotaHelp, longQuotaHelp, func() flags.Commander { return &cmdQuota{} }, nil, nil)
-	cmd.hidden = true
-
-	cmd = addCommand("quotas", shortQuotasHelp, longQuotasHelp, func() flags.Commander { return &cmdQuotas{} }, nil, nil)
-	cmd.hidden = true
-
-	cmd = addCommand("remove-quota", shortRemoveQuotaHelp, longRemoveQuotaHelp, func() flags.Commander { return &cmdRemoveQuota{} }, nil, nil)
-	cmd.hidden = true
+	addCommand("quota", shortQuotaHelp, longQuotaHelp, func() flags.Commander { return &cmdQuota{} }, nil, nil)
+	addCommand("quotas", shortQuotasHelp, longQuotasHelp, func() flags.Commander { return &cmdQuotas{} }, nil, nil)
+	addCommand("remove-quota", shortRemoveQuotaHelp, longRemoveQuotaHelp, func() flags.Commander { return &cmdRemoveQuota{} }, nil, nil)
 }
 
 type cmdSetQuota struct {
@@ -140,8 +140,8 @@ type cmdSetQuota struct {
 	JournalRateLimit string `long:"journal-rate-limit" optional:"true"`
 	Parent           string `long:"parent" optional:"true"`
 	Positional       struct {
-		GroupName string              `positional-arg-name:"<group-name>" required:"true"`
-		Snaps     []installedSnapName `positional-arg-name:"<snap>" optional:"true"`
+		GroupName string        `positional-arg-name:"<group-name>" required:"true"`
+		Snaps     []serviceName `positional-arg-name:"<snap-or-service>" optional:"true"`
 	} `positional-args:"yes"`
 }
 
@@ -259,8 +259,10 @@ func (x *cmdSetQuota) parseQuotas() (*client.QuotaValues, error) {
 			if err != nil {
 				return nil, fmt.Errorf("cannot parse journal rate limit %q: %v", x.JournalRateLimit, err)
 			}
-			quotaValues.Journal.RateCount = count
-			quotaValues.Journal.RatePeriod = period
+			quotaValues.Journal.QuotaJournalRate = &client.QuotaJournalRate{
+				RateCount:  count,
+				RatePeriod: period,
+			}
 		}
 	}
 
@@ -272,10 +274,21 @@ func (x *cmdSetQuota) hasQuotaSet() bool {
 		x.ThreadsMax != "" || x.JournalSizeMax != "" || x.JournalRateLimit != ""
 }
 
+func (x *cmdSetQuota) splitSnapsAndServices() (snaps []string, services []string) {
+	names := serviceNames(x.Positional.Snaps)
+	for _, name := range names {
+		if strings.Contains(name, ".") {
+			services = append(services, name)
+		} else {
+			snaps = append(snaps, name)
+		}
+	}
+	return snaps, services
+}
+
 func (x *cmdSetQuota) Execute(args []string) (err error) {
 	quotaProvided := x.hasQuotaSet()
-
-	names := installedSnapNames(x.Positional.Snaps)
+	snaps, services := x.splitSnapsAndServices()
 
 	// figure out if the group exists or not to make error messages more useful
 	groupExists := false
@@ -287,7 +300,7 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 
 	switch {
 	case !quotaProvided && x.Parent == "" && len(x.Positional.Snaps) == 0:
-		// no snaps were specified, no memory limit was specified, and no parent
+		// no snaps or services were specified, no memory limit was specified, and no parent
 		// was specified, so just the group name was provided - this is not
 		// supported since there is nothing to change/create
 
@@ -324,21 +337,29 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// orphan a sub-group to no longer have a parent, but currently it just
 		// means leave the group with whatever parent it has, or if it doesn't
 		// currently exist, create the group without a parent group
-		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, quotaValues)
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, &client.EnsureQuotaOptions{
+			Parent:      x.Parent,
+			Snaps:       snaps,
+			Services:    services,
+			Constraints: quotaValues,
+		})
 		if err != nil {
 			return err
 		}
 	case len(x.Positional.Snaps) != 0:
-		// there are snaps specified for this group but no limits, so the
-		// group must already exist and we must be adding the specified snaps to
+		// there are snaps or services specified for this group but no limits, so the
+		// group must already exist and we must be adding the specified snaps or services to
 		// the group
 
 		// TODO: this case may someday also imply overwriting the current set of
-		// snaps with whatever was specified with some option, but we don't
-		// currently support that, so currently all snaps specified here are
+		// snaps or services with whatever was specified with some option, but we don't
+		// currently support that, so currently all snaps or services specified here are
 		// just added to the group
-
-		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, nil)
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, &client.EnsureQuotaOptions{
+			Parent:   x.Parent,
+			Snaps:    snaps,
+			Services: services,
+		})
 		if err != nil {
 			return err
 		}
@@ -411,8 +432,10 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 			val := strings.TrimSpace(fmtSize(int64(group.Constraints.Journal.Size)))
 			fmt.Fprintf(w, "  journal-size:\t%s\n", val)
 		}
-		if group.Constraints.Journal.RateCount != 0 && group.Constraints.Journal.RatePeriod != 0 {
-			fmt.Fprintf(w, "  journal-rate:\t%d/%s\n", group.Constraints.Journal.RateCount, group.Constraints.Journal.RatePeriod)
+		if group.Constraints.Journal.QuotaJournalRate != nil {
+			fmt.Fprintf(w, "  journal-rate:\t%d/%s\n",
+				group.Constraints.Journal.RateCount,
+				group.Constraints.Journal.RatePeriod)
 		}
 	}
 
@@ -441,6 +464,12 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 		fmt.Fprint(w, "snaps:\n")
 		for _, snapName := range group.Snaps {
 			fmt.Fprintf(w, "  - %s\n", snapName)
+		}
+	}
+	if len(group.Services) > 0 {
+		fmt.Fprint(w, "services:\n")
+		for _, name := range group.Services {
+			fmt.Fprintf(w, "  - %s\n", name)
 		}
 	}
 
@@ -523,8 +552,11 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 			if q.Constraints.Journal.Size != 0 {
 				grpConstraints = append(grpConstraints, "journal-size="+strings.TrimSpace(fmtSize(int64(q.Constraints.Journal.Size))))
 			}
-			if q.Constraints.Journal.RateCount != 0 && q.Constraints.Journal.RatePeriod != 0 {
-				grpConstraints = append(grpConstraints, fmt.Sprintf("journal-rate=%d/%s", q.Constraints.Journal.RateCount, q.Constraints.Journal.RatePeriod))
+
+			if q.Constraints.Journal.QuotaJournalRate != nil {
+				grpConstraints = append(grpConstraints,
+					fmt.Sprintf("journal-rate=%d/%s",
+						q.Constraints.Journal.RateCount, q.Constraints.Journal.RatePeriod))
 			}
 		}
 

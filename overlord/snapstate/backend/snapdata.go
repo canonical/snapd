@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -54,8 +53,9 @@ func (b Backend) RemoveSnapCommonData(snap *snap.Info, opts *dirs.SnapDirOptions
 }
 
 // RemoveSnapSaveData removes the common save data in the case of a complete removal of a snap.
-func (b Backend) RemoveSnapSaveData(snapInfo *snap.Info) error {
-	if release.OnClassic {
+func (b Backend) RemoveSnapSaveData(snapInfo *snap.Info, dev snap.Device) error {
+	// ubuntu-save per-snap directories are only created on core systems
+	if dev.Classic() {
 		return nil
 	}
 

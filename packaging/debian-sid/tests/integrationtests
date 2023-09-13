@@ -26,7 +26,7 @@ cat /proc/meminfo
 # ensure we can do a connect to localhost
 echo ubuntu:ubuntu|chpasswd
 sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
-systemctl reload sshd.service
+systemctl reload ssh.service
 
 # Map snapd deb package pockets to core snap channels. This is intended to cope
 # with the autopkgtest execution when testing packages from the different pockets

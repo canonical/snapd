@@ -31,9 +31,11 @@ import (
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/tooling"
+	"github.com/snapcore/snapd/testutil"
 	usersessionclient "github.com/snapcore/snapd/usersession/client"
 )
 
@@ -108,11 +110,19 @@ func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
 type ChangeTimings = changeTimings
 
 func NewInfoWriter(w writeflusher) *infoWriter {
+	return NewInfoWriterWithFmtTime(w, nil)
+}
+
+func NewInfoWriterWithFmtTime(w writeflusher, fmtTime func(time.Time) string) *infoWriter {
+	if fmtTime == nil {
+		fmtTime = func(t time.Time) string { return t.Format(time.Kitchen) }
+	}
+
 	return &infoWriter{
 		writeflusher: w,
 		termWidth:    20,
 		esc:          &escapes{dash: "--", tick: "*"},
-		fmtTime:      func(t time.Time) string { return t.Format(time.Kitchen) },
+		fmtTime:      fmtTime,
 	}
 }
 
@@ -121,26 +131,28 @@ func SetVerbose(iw *infoWriter, verbose bool) {
 }
 
 var (
-	ClientSnapFromPath          = clientSnapFromPath
-	SetupDiskSnap               = (*infoWriter).setupDiskSnap
-	SetupSnap                   = (*infoWriter).setupSnap
-	MaybePrintServices          = (*infoWriter).maybePrintServices
-	MaybePrintCommands          = (*infoWriter).maybePrintCommands
-	MaybePrintType              = (*infoWriter).maybePrintType
-	PrintSummary                = (*infoWriter).printSummary
-	MaybePrintPublisher         = (*infoWriter).maybePrintPublisher
-	MaybePrintNotes             = (*infoWriter).maybePrintNotes
-	MaybePrintStandaloneVersion = (*infoWriter).maybePrintStandaloneVersion
-	MaybePrintBuildDate         = (*infoWriter).maybePrintBuildDate
-	MaybePrintContact           = (*infoWriter).maybePrintContact
-	MaybePrintBase              = (*infoWriter).maybePrintBase
-	MaybePrintPath              = (*infoWriter).maybePrintPath
-	MaybePrintSum               = (*infoWriter).maybePrintSum
-	MaybePrintCohortKey         = (*infoWriter).maybePrintCohortKey
-	MaybePrintHealth            = (*infoWriter).maybePrintHealth
-	WaitInhibitUnlock           = waitInhibitUnlock
-	WaitWhileInhibited          = waitWhileInhibited
-	IsLocked                    = isLocked
+	ClientSnapFromPath                            = clientSnapFromPath
+	SetupDiskSnap                                 = (*infoWriter).setupDiskSnap
+	SetupSnap                                     = (*infoWriter).setupSnap
+	MaybePrintServices                            = (*infoWriter).maybePrintServices
+	MaybePrintCommands                            = (*infoWriter).maybePrintCommands
+	MaybePrintType                                = (*infoWriter).maybePrintType
+	PrintSummary                                  = (*infoWriter).printSummary
+	MaybePrintPublisher                           = (*infoWriter).maybePrintPublisher
+	MaybePrintNotes                               = (*infoWriter).maybePrintNotes
+	MaybePrintStandaloneVersion                   = (*infoWriter).maybePrintStandaloneVersion
+	MaybePrintBuildDate                           = (*infoWriter).maybePrintBuildDate
+	MaybePrintLinks                               = (*infoWriter).maybePrintLinks
+	MaybePrintBase                                = (*infoWriter).maybePrintBase
+	MaybePrintPath                                = (*infoWriter).maybePrintPath
+	MaybePrintSum                                 = (*infoWriter).maybePrintSum
+	MaybePrintCohortKey                           = (*infoWriter).maybePrintCohortKey
+	MaybePrintHealth                              = (*infoWriter).maybePrintHealth
+	MaybePrintRefreshInfo                         = (*infoWriter).maybePrintRefreshInfo
+	WaitInhibitUnlock                             = waitInhibitUnlock
+	WaitWhileInhibited                            = waitWhileInhibited
+	IsLocked                                      = isLocked
+	TryNotifyRefreshViaSnapDesktopIntegrationFlow = tryNotifyRefreshViaSnapDesktopIntegrationFlow
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -450,6 +462,14 @@ func MockFinishRefreshNotification(f func(refreshInfo *usersessionclient.Finishe
 	}
 }
 
+func MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(f func(snapName string) (bool, error)) (restore func()) {
+	old := tryNotifyRefreshViaSnapDesktopIntegrationFlow
+	tryNotifyRefreshViaSnapDesktopIntegrationFlow = f
+	return func() {
+		tryNotifyRefreshViaSnapDesktopIntegrationFlow = old
+	}
+}
+
 func MockAutostartSessionApps(f func(string) error) func() {
 	old := autostartSessionApps
 	autostartSessionApps = f
@@ -469,4 +489,10 @@ func ParseQuotaValues(maxMemory, cpuMax, cpuSet, threadsMax, journalSizeMax, jou
 	quotas.JournalRateLimit = journalRateLimit
 
 	return quotas.parseQuotas()
+}
+
+func MockSeedWriterReadManifest(f func(manifestFile string) (*seedwriter.Manifest, error)) (restore func()) {
+	restore = testutil.Backup(&seedwriterReadManifest)
+	seedwriterReadManifest = f
+	return restore
 }

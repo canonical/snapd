@@ -52,11 +52,14 @@ func udevadmTrigger(args ...string) error {
 // reloadRules runs three commands that reload udev rule database.
 //
 // The commands are: udevadm control --reload-rules
-//                   udevadm trigger --subsystem-nomatch=input
-//                   udevadm settle --timeout=3
+//
+//	udevadm trigger --subsystem-nomatch=input
+//	udevadm settle --timeout=3
+//
 // and optionally trigger other subsystems as defined in the interfaces. Eg:
-//                   udevadm trigger --subsystem-match=input
-//                   udevadm trigger --property-match=ID_INPUT_JOYSTICK=1
+//
+//	udevadm trigger --subsystem-match=input
+//	udevadm trigger --property-match=ID_INPUT_JOYSTICK=1
 func (b *Backend) reloadRules(subsystemTriggers []string) error {
 	if b.preseed {
 		return nil

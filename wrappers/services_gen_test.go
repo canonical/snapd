@@ -29,8 +29,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeout"
@@ -202,7 +204,7 @@ apps:
 	defer restore()
 	dirs.SetRootDir("/")
 
-	opts := wrappers.AddSnapServicesOptions{
+	opts := wrappers.GenerateSnapServicesOptions{
 		RequireMountedSnapdSnap: false,
 	}
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, &opts)
@@ -210,7 +212,7 @@ apps:
 	c.Check(string(generatedWrapper), Equals, expectedAppServiceOnCore)
 
 	// now with additional dependency on tooling
-	opts = wrappers.AddSnapServicesOptions{
+	opts = wrappers.GenerateSnapServicesOptions{
 		RequireMountedSnapdSnap: true,
 	}
 	generatedWrapper, err = wrappers.GenerateSnapServiceFile(app, &opts)
@@ -992,7 +994,7 @@ func (s *servicesWrapperGenSuite) TestVitalityScore(c *C) {
 		RestartDelay: timeout.Timeout(20 * time.Second),
 	}
 
-	opts := &wrappers.AddSnapServicesOptions{VitalityRank: 1}
+	opts := &wrappers.GenerateSnapServicesOptions{VitalityRank: 1}
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, opts)
 	c.Assert(err, IsNil)
 
@@ -1018,4 +1020,153 @@ OOMScoreAdjust=-899
 [Install]
 WantedBy=multi-user.target
 `, mountUnitPrefix, mountUnitPrefix))
+}
+
+func (s *servicesWrapperGenSuite) TestQuotaGroupSlice(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
+	}
+
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	opts := &wrappers.GenerateSnapServicesOptions{QuotaGroup: grp}
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, opts)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+Requires=%s-snap-44.mount
+Wants=network.target
+After=%s-snap-44.mount network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=on-failure
+WorkingDirectory=/var/snap/snap/44
+TimeoutStopSec=30
+Type=simple
+Slice=snap.foo.slice
+
+[Install]
+WantedBy=multi-user.target
+`, mountUnitPrefix, mountUnitPrefix))
+}
+
+func (s *servicesWrapperGenSuite) TestQuotaGroupLogNamespace(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
+	}
+
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(err, IsNil)
+
+	opts := &wrappers.GenerateSnapServicesOptions{QuotaGroup: grp}
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, opts)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+Requires=%s-snap-44.mount
+Wants=network.target
+After=%s-snap-44.mount network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=on-failure
+WorkingDirectory=/var/snap/snap/44
+TimeoutStopSec=30
+Type=simple
+Slice=snap.foo.slice
+LogNamespace=snap-foo
+
+[Install]
+WantedBy=multi-user.target
+`, mountUnitPrefix, mountUnitPrefix))
+}
+
+func (s *servicesWrapperGenSuite) TestQuotaGroupLogNamespaceInheritParent(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
+	}
+
+	testCases := []struct {
+		topResources quota.Resources
+		subResources quota.Resources
+		expectedLog  string
+		description  string
+	}{
+		{
+			topResources: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+			subResources: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
+			expectedLog:  "snap-foo",
+			description:  "Setting a namespace on parent, and none on service sub-group, must inherit parent",
+		},
+		{
+			topResources: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+			subResources: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+			expectedLog:  "snap-foo",
+			description:  "Setting a namespace on both groups, it should select parent",
+		},
+		{
+			topResources: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+			subResources: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+			expectedLog:  "",
+			description:  "Setting a namespace on only sub-group, no namespace should be selected",
+		},
+	}
+
+	for _, t := range testCases {
+		grp, err := quota.NewGroup("foo", t.topResources)
+		c.Assert(err, IsNil)
+		sub, err := grp.NewSubGroup("foosub", t.subResources)
+		c.Assert(err, IsNil)
+
+		// if this is not set, then it won't be considered
+		sub.Services = []string{"snap.app"}
+
+		opts := &wrappers.GenerateSnapServicesOptions{QuotaGroup: sub}
+		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, opts)
+		c.Assert(err, IsNil)
+		c.Check(string(generatedWrapper), testutil.Contains, "Slice=snap.foo-foosub.slice", Commentf("test failed: %s", t.description))
+		if t.expectedLog != "" {
+			c.Check(string(generatedWrapper), testutil.Contains, fmt.Sprintf("LogNamespace=%s", t.expectedLog), Commentf("test failed: %s", t.description))
+		} else {
+			// no negative check? :(
+			found := strings.Contains(string(generatedWrapper), fmt.Sprintf("LogNamespace=%s", t.expectedLog))
+			c.Check(found, Equals, false, Commentf("test failed: %s", t.description))
+		}
+	}
 }

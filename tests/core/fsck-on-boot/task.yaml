@@ -50,8 +50,12 @@ execute: |
       # Refer to the core 20 gadgets for details:
       # https://github.com/snapcore/pc-amd64-gadget/blob/20/gadget.yaml
       # https://github.com/snapcore/pi-gadget/blob/20-arm64/gadget.yaml
-      if os.query is-arm; then
-        umount /boot/uboot
+      if os.query is-arm && not snap list pc; then
+        if os.query is-core20; then
+          umount /boot/uboot
+        else
+          umount /boot/piboot
+        fi
       else
         umount /boot/efi
       fi

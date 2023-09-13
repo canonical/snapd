@@ -20,6 +20,9 @@
 package builtin
 
 import (
+	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -27,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -39,6 +42,8 @@ const udisks2BaseDeclarationSlots = `
       slot-snap-type:
         - app
         - core
+      slot-attributes:
+        udev-file: $MISSING
     deny-connection:
       on-classic: false
     deny-auto-connection: true
@@ -102,8 +107,7 @@ network netlink raw,
 # Mount points could be in /run/media/<user>/* or /media/<user>/*
 /run/systemd/seats/* r,
 /{,run/}media/{,**} rw,
-mount options=(ro,nosuid,nodev) /dev/{sd*,mmcblk*} -> /{,run/}media/**,
-mount options=(rw,nosuid,nodev) /dev/{sd*,mmcblk*} -> /{,run/}media/**,
+mount /dev/{dm-*,nvme*,vd*,hd*,sd*,mmcblk*,fd*,sr*} -> /{,run/}media/**,
 umount /{,run/}media/**,
 
 # This should probably be patched to use $SNAP_DATA/run/...
@@ -118,12 +122,21 @@ umount /{,run/}media/**,
 
 # Udisks2 needs to read the raw device for partition information. These rules
 # give raw read access to the system disks and therefore the entire system.
-/dev/sd* r,
-/dev/mmcblk* r,
-/dev/vd* r,
+/dev/{dm-*,nvme*,vd*,hd*,sd*,mmcblk*,fd*,sr*} r,
 
 # Needed for probing raw devices
 capability sys_rawio,
+
+/run/ rw,
+/run/cryptsetup/{,**} rwk,
+/run/mount/utab.lock rwk,
+/run/mount/utab.* rw,
+/run/mount/utab rw,
+/run/udisks2/{,**} rw,
+/sys/devices/**/block/**/uevent w,
+
+/{usr/,}{sbin,bin}/dumpe2fs ixr,
+/etc/crypttab r,
 `
 
 const udisks2ConnectedSlotAppArmor = `
@@ -217,18 +230,10 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 const udisks2PermanentSlotDBus = `
 <policy user="root">
     <allow own="org.freedesktop.UDisks2"/>
+</policy>
+
+<policy context="default">
     <allow send_destination="org.freedesktop.UDisks2"/>
-</policy>
-
-<policy context="default">
-    <allow send_destination="org.freedesktop.UDisks2" send_interface="org.freedesktop.DBus.Introspectable" />
-</policy>
-`
-
-const udisks2ConnectedPlugDBus = `
-<policy context="default">
-    <deny own="org.freedesktop.UDisks2"/>
-    <deny send_destination="org.freedesktop.UDisks2"/>
 </policy>
 `
 
@@ -403,15 +408,8 @@ func (iface *udisks2Interface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *udisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if !release.OnClassic {
-		spec.AddSnippet(udisks2ConnectedPlugDBus)
-	}
-	return nil
-}
-
 func (iface *udisks2Interface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
+	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(udisks2PermanentSlotDBus)
 	}
 	return nil
@@ -420,7 +418,7 @@ func (iface *udisks2Interface) DBusPermanentSlot(spec *dbus.Specification, slot 
 func (iface *udisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	var new string
-	if release.OnClassic {
+	if implicitSystemConnectedSlot(slot) {
 		new = "unconfined"
 	} else {
 		new = slotAppLabelExpr(slot)
@@ -431,24 +429,39 @@ func (iface *udisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 }
 
 func (iface *udisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
+	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(udisks2PermanentSlotAppArmor)
 	}
 	return nil
 }
 
 func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
-		spec.AddSnippet(udisks2PermanentSlotUDev)
-		spec.TagDevice(`SUBSYSTEM=="block"`)
-		// # This tags all USB devices, so we'll use AppArmor to mediate specific access (eg, /dev/sd* and /dev/mmcblk*)
-		spec.TagDevice(`SUBSYSTEM=="usb"`)
+	if !implicitSystemPermanentSlot(slot) {
+		var udevFile string
+		slot.Attr("udev-file", &udevFile)
+		if udevFile != "" {
+			mountDir := slot.Snap.MountDir()
+			resolvedPath, err := osutil.ResolvePathNoEscape(mountDir, udevFile)
+			if err != nil {
+				return fmt.Errorf("cannot resolve udev-file: %v", err)
+			}
+			data, err := ioutil.ReadFile(filepath.Join(mountDir, resolvedPath))
+			if err != nil {
+				return fmt.Errorf("cannot open udev-file: %v", err)
+			}
+			spec.AddSnippet(string(data))
+		} else {
+			spec.AddSnippet(udisks2PermanentSlotUDev)
+			spec.TagDevice(`SUBSYSTEM=="block"`)
+			// # This tags all USB devices, so we'll use AppArmor to mediate specific access (eg, /dev/sd* and /dev/mmcblk*)
+			spec.TagDevice(`SUBSYSTEM=="usb"`)
+		}
 	}
 	return nil
 }
 
 func (iface *udisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if !release.OnClassic {
+	if !implicitSystemConnectedSlot(slot) {
 		old := "###PLUG_SECURITY_TAGS###"
 		new := plugAppLabelExpr(plug)
 		snippet := strings.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
@@ -458,7 +471,7 @@ func (iface *udisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 }
 
 func (iface *udisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
+	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(udisks2PermanentSlotSecComp)
 	}
 	return nil

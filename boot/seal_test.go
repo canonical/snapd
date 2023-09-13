@@ -270,7 +270,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
 			c.Assert(params.ModelParams, HasLen, 1)
-			for _, d := range []string{boot.InitramfsSeedEncryptionKeyDir, boot.InstallHostFDEDataDir} {
+			for _, d := range []string{boot.InitramfsSeedEncryptionKeyDir, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde")} {
 				ex, isdir, _ := osutil.DirExists(d)
 				c.Check(ex && isdir, Equals, true, Commentf("location %q does not exist or is not a directory", d))
 			}
@@ -316,7 +316,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 		defer restore()
 
-		err = boot.SealKeyToModeenv(myKey, myKey2, model, modeenv, boot.SealKeyToModeenvFlags{
+		err = boot.SealKeyToModeenv(myKey, myKey2, model, modeenv, boot.MockSealKeyToModeenvFlags{
 			FactoryReset: tc.factoryReset,
 		})
 		c.Check(pcrHandleOfKeyCalls, Equals, tc.expPCRHandleOfKeyCalls)
@@ -331,7 +331,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		}
 
 		// verify the boot chains data file
-		pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"))
+		pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "boot-chains"))
 		c.Assert(err, IsNil)
 		c.Check(cnt, Equals, 0)
 		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
@@ -390,7 +390,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 
 		// verify the recovery boot chains
-		pbc, cnt, err = boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "recovery-boot-chains"))
+		pbc, cnt, err = boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "recovery-boot-chains"))
 		c.Assert(err, IsNil)
 		c.Check(cnt, Equals, 0)
 		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
@@ -421,7 +421,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 
 		// marker
-		marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
+		marker := filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys")
 		c.Check(marker, testutil.FileEquals, "tpm")
 	}
 }
@@ -1393,7 +1393,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		}
 
 		includeTryModel := false
-		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tc.modesForSystems, tbl, modeenv, includeTryModel)
+		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tc.modesForSystems, tbl, modeenv, includeTryModel, dirs.SnapSeedDir)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			if tc.expectedBootChainsCount == 0 {
@@ -1627,17 +1627,11 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	rootdir := c.MkDir()
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
-
-	restore := boot.MockHasFDESetupHook(func() (bool, error) {
-		return true, nil
-	})
-	defer restore()
-
 	model := boottest.MakeMockUC20Model()
 
 	n := 0
 	var runFDESetupHookReqs []*fde.SetupRequest
-	restore = boot.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
+	restore := boot.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
 		n++
 		runFDESetupHookReqs = append(runFDESetupHookReqs, req)
 
@@ -1671,7 +1665,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	key := keys.EncryptionKey{1, 2, 3, 4}
 	saveKey := keys.EncryptionKey{5, 6, 7, 8}
 
-	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.SealKeyToModeenvFlags{})
+	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
@@ -1690,7 +1684,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 		c.Check(keyToSave[p], DeepEquals, mockedSealedKey)
 	}
 
-	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
+	marker := filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys")
 	c.Check(marker, testutil.FileEquals, "fde-setup-hook")
 }
 
@@ -1699,12 +1693,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
 
-	restore := boot.MockHasFDESetupHook(func() (bool, error) {
-		return true, nil
-	})
-	defer restore()
-
-	restore = boot.MockSecbootSealKeysWithFDESetupHook(func(fde.RunSetupHookFunc, []secboot.SealKeyRequest, *secboot.SealKeysWithFDESetupHookParams) error {
+	restore := boot.MockSecbootSealKeysWithFDESetupHook(func(fde.RunSetupHookFunc, []secboot.SealKeyRequest, *secboot.SealKeysWithFDESetupHookParams) error {
 		return fmt.Errorf("hook failed")
 	})
 	defer restore()
@@ -1716,9 +1705,9 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	saveKey := keys.EncryptionKey{5, 6, 7, 8}
 
 	model := boottest.MakeMockUC20Model()
-	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.SealKeyToModeenvFlags{})
+	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
 	c.Assert(err, ErrorMatches, "hook failed")
-	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
+	marker := filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys")
 	c.Check(marker, testutil.FileAbsent)
 }
 
@@ -1737,7 +1726,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	// TODO: this simulates that the hook is not available yet
 	//       because of e.g. seeding. Longer term there will be
 	//       more, see TODO in resealKeyToModeenvUsingFDESetupHookImpl
-	restore = boot.MockHasFDESetupHook(func() (bool, error) {
+	restore = boot.MockHasFDESetupHook(func(kernel *snap.Info) (bool, error) {
 		return false, fmt.Errorf("hook not available yet because e.g. seeding")
 	})
 	defer restore()
@@ -2168,7 +2157,8 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 			}
 		}
 
-		restore := boot.MockHasFDESetupHook(func() (bool, error) {
+		restore := boot.MockHasFDESetupHook(func(kernel *snap.Info) (bool, error) {
+			c.Check(kernel, IsNil)
 			return tc.hasFDEHook, nil
 		})
 		defer restore()

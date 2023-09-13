@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2021 Canonical Ltd
+ * Copyright (C) 2018-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,6 +26,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord"
@@ -121,8 +122,8 @@ func MockAssertstateRefreshSnapAssertions(mock func(*state.State, int, *assertst
 }
 
 func MockAssertstateTryEnforceValidationSets(f func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error) (restore func()) {
-	r := testutil.Backup(&assertstateTryEnforceValidationSets)
-	assertstateTryEnforceValidationSets = f
+	r := testutil.Backup(&assertstateTryEnforcedValidationSets)
+	assertstateTryEnforcedValidationSets = f
 	return r
 }
 
@@ -182,7 +183,7 @@ func MockSnapstateRevertToRevision(mock func(*state.State, string, snap.Revision
 	}
 }
 
-func MockSnapstateInstallMany(mock func(*state.State, []string, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallMany(mock func(*state.State, []string, []*snapstate.RevisionOptions, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
 	oldSnapstateInstallMany := snapstateInstallMany
 	snapstateInstallMany = mock
 	return func() {
@@ -190,7 +191,7 @@ func MockSnapstateInstallMany(mock func(*state.State, []string, int, *snapstate.
 	}
 }
 
-func MockSnapstateUpdateMany(mock func(context.Context, *state.State, []string, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
+func MockSnapstateUpdateMany(mock func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
 	oldSnapstateUpdateMany := snapstateUpdateMany
 	snapstateUpdateMany = mock
 	return func() {
@@ -198,7 +199,7 @@ func MockSnapstateUpdateMany(mock func(context.Context, *state.State, []string, 
 	}
 }
 
-func MockSnapstateRemoveMany(mock func(*state.State, []string) ([]string, []*state.TaskSet, error)) (restore func()) {
+func MockSnapstateRemoveMany(mock func(*state.State, []string, *snapstate.RemoveFlags) ([]string, []*state.TaskSet, error)) (restore func()) {
 	oldSnapstateRemoveMany := snapstateRemoveMany
 	snapstateRemoveMany = mock
 	return func() {
@@ -214,10 +215,12 @@ func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.
 	}
 }
 
-func MockSnapstateEnforceSnaps(f func(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) ([]*state.TaskSet, []string, error)) func() {
-	r := testutil.Backup(&assertstateTryEnforceValidationSets)
-	snapstateEnforceSnaps = f
-	return r
+func MockSnapstateResolveValSetEnforcementError(f func(context.Context, *state.State, *snapasserts.ValidationSetsValidationError, map[string]int, int) ([]*state.TaskSet, []string, error)) func() {
+	old := snapstateResolveValSetsEnforcementError
+	snapstateResolveValSetsEnforcementError = f
+	return func() {
+		snapstateResolveValSetsEnforcementError = old
+	}
 }
 
 func MockSnapstateMigrate(mock func(*state.State, []string) ([]*state.TaskSet, error)) (restore func()) {
@@ -228,9 +231,70 @@ func MockSnapstateMigrate(mock func(*state.State, []string) ([]*state.TaskSet, e
 	}
 }
 
+func MockSnapstateProceedWithRefresh(f func(st *state.State, gatingSnap string, snaps []string) error) (restore func()) {
+	old := snapstateProceedWithRefresh
+	snapstateProceedWithRefresh = f
+	return func() {
+		snapstateProceedWithRefresh = old
+	}
+}
+
+func MockSnapstateHoldRefreshesBySystem(f func(st *state.State, level snapstate.HoldLevel, time string, snaps []string) error) (restore func()) {
+	old := snapstateHoldRefreshesBySystem
+	snapstateHoldRefreshesBySystem = f
+	return func() {
+		snapstateHoldRefreshesBySystem = old
+	}
+}
+
+func MockConfigstateConfigureInstalled(f func(st *state.State, name string, patchValues map[string]interface{}, flags int) (*state.TaskSet, error)) (restore func()) {
+	old := configstateConfigureInstalled
+	configstateConfigureInstalled = f
+	return func() {
+		configstateConfigureInstalled = old
+	}
+}
+
+func MockSystemHold(f func(st *state.State, name string) (time.Time, error)) (restore func()) {
+	old := snapstateSystemHold
+	snapstateSystemHold = f
+	return func() {
+		snapstateSystemHold = old
+	}
+}
+
+func MockLongestGatingHold(f func(st *state.State, name string) (time.Time, error)) (restore func()) {
+	old := snapstateLongestGatingHold
+	snapstateLongestGatingHold = f
+	return func() {
+		snapstateLongestGatingHold = old
+	}
+}
+
 func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error) func() {
 	reboot = f
 	return func() { reboot = boot.Reboot }
+}
+
+func MockSideloadSnapsInfo(sis []*snap.SideInfo) (restore func()) {
+	r := testutil.Backup(&sideloadSnapsInfo)
+	sideloadSnapsInfo = func(st *state.State, snapFiles []*uploadedSnap,
+		flags sideloadFlags) (*sideloadedInfo, *apiError) {
+
+		names := make([]string, len(snapFiles))
+		sideInfos := make([]*snap.SideInfo, len(snapFiles))
+		origPaths := make([]string, len(snapFiles))
+		tmpPaths := make([]string, len(snapFiles))
+		for i, snapFile := range snapFiles {
+			sideInfos[i] = sis[i]
+			names[i] = sis[i].RealName
+			origPaths[i] = snapFile.filename
+			tmpPaths[i] = snapFile.tmpPath
+		}
+		return &sideloadedInfo{sideInfos: sideInfos, names: names,
+			origPaths: origPaths, tmpPaths: tmpPaths}, nil
+	}
+	return r
 }
 
 type (
@@ -270,3 +334,25 @@ var (
 
 	MaxReadBuflen = maxReadBuflen
 )
+
+func MockAspectstateGet(f func(databag aspects.DataBag, account, bundleName, aspect, field string, value interface{}) error) (restore func()) {
+	old := aspectstateGetAspect
+	aspectstateGetAspect = f
+	return func() {
+		aspectstateGetAspect = old
+	}
+}
+
+func MockAspectstateSet(f func(databag aspects.DataBag, account, bundleName, aspect, field string, val interface{}) error) (restore func()) {
+	old := aspectstateSetAspect
+	aspectstateSetAspect = f
+	return func() {
+		aspectstateSetAspect = old
+	}
+}
+
+func MockRebootNoticeWait(d time.Duration) (restore func()) {
+	restore = testutil.Backup(&rebootNoticeWait)
+	rebootNoticeWait = d
+	return restore
+}

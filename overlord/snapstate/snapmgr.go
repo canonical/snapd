@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var (
@@ -66,6 +67,8 @@ type SnapManager struct {
 	catalogRefresh *catalogRefresh
 
 	preseed bool
+
+	ensuredMountsUpdated bool
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -79,6 +82,9 @@ type SnapSetup struct {
 	// operation have only plugs (#plugs >= 0), and absolutely no
 	// slots (#slots == 0).
 	PlugsOnly bool `json:"plugs-only,omitempty"`
+
+	// Version being installed/refreshed to.
+	Version string `json:"version,omitempty"`
 
 	CohortKey string `json:"cohort-key,omitempty"`
 
@@ -234,6 +240,19 @@ type SnapState struct {
 	// MigratedToExposedHome is set if ~/Snap was created and initialized. If set, ~/Snap
 	// should be used as the snap's HOME.
 	MigratedToExposedHome bool `json:"migrated-exposed-home,omitempty"`
+
+	// PendingSecurity tracks information about snaps that have
+	// their security profiles set up but are not active.
+	// It is managed by ifacestate.
+	PendingSecurity *PendingSecurityState `json:"pending-security,omitempty"`
+}
+
+// PendingSecurityState holds information about snaps that have
+// their security profiles set up but are not active.
+type PendingSecurityState struct {
+	// SideInfo of the revision for which security profiles are or
+	// should be set up if any.
+	SideInfo *snap.SideInfo `json:"side-info,omitempty"`
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {
@@ -462,11 +481,12 @@ func Store(st *state.State, deviceCtx DeviceContext) StoreService {
 func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	preseed := snapdenv.Preseeding()
 	m := &SnapManager{
-		state:          st,
-		autoRefresh:    newAutoRefresh(st),
-		refreshHints:   newRefreshHints(st),
-		catalogRefresh: newCatalogRefresh(st),
-		preseed:        preseed,
+		state:                st,
+		autoRefresh:          newAutoRefresh(st),
+		refreshHints:         newRefreshHints(st),
+		catalogRefresh:       newCatalogRefresh(st),
+		preseed:              preseed,
+		ensuredMountsUpdated: false,
 	}
 	if preseed {
 		m.backend = backend.NewForPreseedMode()
@@ -531,11 +551,14 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// misc
 	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
 	runner.AddHandler("migrate-snap-home", m.doMigrateSnapHome, m.undoMigrateSnapHome)
+	// no undo for now since it's last task in valset auto-resolution change
+	runner.AddHandler("enforce-validation-sets", m.doEnforceValidationSets, nil)
+	runner.AddHandler("pre-download-snap", m.doPreDownloadSnap, nil)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
 
-	AddAffectedSnapsByKind("conditional-auto-refresh", conditionalAutoRefreshAffectedSnaps)
+	RegisterAffectedSnapsByKind("conditional-auto-refresh", conditionalAutoRefreshAffectedSnaps)
 
 	return m, nil
 }
@@ -602,8 +625,7 @@ func (m *SnapManager) NextRefresh() time.Time {
 }
 
 // EffectiveRefreshHold returns the time until to which refreshes are
-// held if refresh.hold configuration is set and accounting for the
-// max postponement since the last refresh.
+// held if refresh.hold configuration is set.
 // The caller should be holding the state lock.
 func (m *SnapManager) EffectiveRefreshHold() (time.Time, error) {
 	return m.autoRefresh.EffectiveRefreshHold()
@@ -637,7 +659,7 @@ func (m *SnapManager) EnsureAutoRefreshesAreDelayed(delay time.Duration) ([]*sta
 	// look for auto refresh changes in progress
 	autoRefreshChgsInFlight := []*state.Change{}
 	for _, chg := range m.state.Changes() {
-		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
+		if chg.Kind() == "auto-refresh" && !chg.IsReady() {
 			autoRefreshChgsInFlight = append(autoRefreshChgsInFlight, chg)
 		}
 	}
@@ -656,7 +678,7 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 	// in them from being available to abuse for fixed vulnerabilies that are
 	// not exploitable in the current versions of snapd/core snaps.
 	var alreadyRemoved bool
-	key := fmt.Sprintf("%s-snap-cve-2021-44731-vuln-removed", name)
+	key := fmt.Sprintf("%s-snap-cve-2022-3328-vuln-removed", name)
 	if err := m.state.Get(key, &alreadyRemoved); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -683,8 +705,8 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 		if err != nil {
 			return err
 		}
-		// res is < 0 if "ver" is lower than "2.54.3"
-		res, err := strutil.VersionCompare(ver, "2.54.3")
+		// res is < 0 if "ver" is lower than "2.57.6"
+		res, err := strutil.VersionCompare(ver, "2.57.6")
 		if err != nil {
 			return err
 		}
@@ -759,7 +781,7 @@ func (m *SnapManager) ensureVulnerableSnapConfineVersionsRemovedOnClassic() erro
 
 	// we have to remove vulnerable versions of both the core and snapd snaps
 	// only when we now have fixed versions installed / active
-	// the fixed version is 2.54.3, so if the version of the current core/snapd
+	// the fixed version is 2.57.6, so if the version of the current core/snapd
 	// snap is that or higher, then we proceed (if we didn't already do this)
 
 	if err := m.ensureVulnerableSnapRemoved("snapd"); err != nil {
@@ -1053,6 +1075,67 @@ func (m *SnapManager) localInstallCleanup() error {
 	return osutil.UnlinkManyAt(d, filenames)
 }
 
+func MockEnsuredMountsUpdated(m *SnapManager, ensured bool) (restore func()) {
+	osutil.MustBeTestBinary("ensured snap mounts can only be mocked from tests")
+	old := m.ensuredMountsUpdated
+	m.ensuredMountsUpdated = ensured
+	return func() {
+		m.ensuredMountsUpdated = old
+	}
+}
+
+func getSystemD() systemd.Systemd {
+	if snapdenv.Preseeding() {
+		return systemd.NewEmulationMode(dirs.GlobalRootDir)
+	} else {
+		return systemd.New(systemd.SystemMode, nil)
+	}
+}
+
+func (m *SnapManager) ensureMountsUpdated() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.ensuredMountsUpdated {
+		return nil
+	}
+
+	// only run after we are seeded
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	allStates, err := All(m.state)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	if len(allStates) != 0 {
+		sysd := getSystemD()
+
+		for _, snapSt := range allStates {
+			info, err := snapSt.CurrentInfo()
+			if err != nil {
+				return err
+			}
+			squashfsPath := dirs.StripRootDir(info.MountFile())
+			whereDir := dirs.StripRootDir(info.MountDir())
+			if _, err = sysd.EnsureMountUnitFile(info.InstanceName(), info.Revision.String(), squashfsPath, whereDir, "squashfs"); err != nil {
+				return err
+			}
+		}
+	}
+
+	m.ensuredMountsUpdated = true
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	if m.preseed {
@@ -1073,6 +1156,7 @@ func (m *SnapManager) Ensure() error {
 		m.catalogRefresh.Ensure(),
 		m.localInstallCleanup(),
 		m.ensureVulnerableSnapConfineVersionsRemovedOnClassic(),
+		m.ensureMountsUpdated(),
 	}
 
 	//FIXME: use firstErr helper

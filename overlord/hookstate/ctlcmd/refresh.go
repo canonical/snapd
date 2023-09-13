@@ -273,7 +273,8 @@ func (c *refreshCommand) hold() error {
 
 	// no duration specified, use maximum allowed for this gating snap.
 	var holdDuration time.Duration
-	remaining, err := snapstate.HoldRefresh(st, ctx.InstanceName(), holdDuration, affecting...)
+	// XXX for now snaps hold other snaps only for auto-refreshes
+	remaining, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, ctx.InstanceName(), holdDuration, affecting...)
 	if err != nil {
 		// TODO: let a snap hold again once for 1h.
 		return err

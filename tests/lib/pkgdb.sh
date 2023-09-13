@@ -1,11 +1,9 @@
 #!/bin/bash
 
-# shellcheck source=tests/lib/quiet.sh
-. "$TESTSLIB/quiet.sh"
-
 debian_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
     . "$TESTSLIB/tools/tests.pkgs.apt.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -14,6 +12,7 @@ debian_name_package() {
 ubuntu_14_04_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
     . "$TESTSLIB/tools/tests.pkgs.apt.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -22,6 +21,7 @@ ubuntu_14_04_name_package() {
 fedora_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
     . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -30,6 +30,7 @@ fedora_name_package() {
 amazon_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
     . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -38,6 +39,7 @@ amazon_name_package() {
 opensuse_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.zypper.sh
     . "$TESTSLIB/tools/tests.pkgs.zypper.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -46,6 +48,7 @@ opensuse_name_package() {
 arch_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.pacman.sh
     . "$TESTSLIB/tools/tests.pkgs.pacman.sh"
+    #shellcheck disable=SC2317
     for i in "$@"; do
         remap_one "$i"
     done
@@ -168,16 +171,6 @@ distro_install_package() {
         ubuntu-*|debian-*)
         if [[ "$*" =~ "libudev-dev" ]]; then
             eatmydata apt-get install -y --only-upgrade systemd
-        fi
-        ;;
-    esac
-
-    # fix dependency issue where libp11-kit0 needs to be downgraded to
-    # install gnome-keyring
-    case "$SPREAD_SYSTEM" in
-        debian-9-*)
-        if [[ "$*" =~ "gnome-keyring" ]]; then
-            eatmydata apt-get remove -y libp11-kit0
         fi
         ;;
     esac
@@ -608,20 +601,22 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-utils
                 "
             ;;
-        ubuntu-20.04-64)
+        ubuntu-20.04-64|ubuntu-20.04-arm-64)
+            # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
                 evolution-data-server
                 fwupd
                 gccgo-9
                 libvirt-daemon-system
+                linux-tools-$(uname -r)
                 packagekit
                 qemu-kvm
                 qemu-utils
                 shellcheck
                 "
             ;;
-        ubuntu-22.04-64)
+        ubuntu-22.*|ubuntu-23.*)
             # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
@@ -642,6 +637,8 @@ pkg_dependencies_ubuntu_classic(){
         debian-*)
             echo "
                 autopkgtest
+                bpftool
+                cryptsetup-bin
                 debootstrap
                 eatmydata
                 evolution-data-server
@@ -649,20 +646,14 @@ pkg_dependencies_ubuntu_classic(){
                 gcc-multilib
                 libc6-dev-i386
                 linux-libc-dev
+                lsof
                 net-tools
                 packagekit
                 sbuild
                 schroot
+                strace
+                systemd-timesyncd
                 "
-            ;;
-    esac
-    case "$SPREAD_SYSTEM" in
-        debian-11-*|debian-sid-*)
-            echo "
-                 bpftool
-                 strace
-                 systemd-timesyncd
-                 "
             ;;
     esac
 }
@@ -799,11 +790,17 @@ pkg_dependencies_opensuse(){
         xdg-utils
         zsh
         "
+    if os.query is-opensuse tumbleweed; then
+        echo "
+            libfwupd2
+        "
+    fi
 }
 
 pkg_dependencies_arch(){
     echo "
     apparmor
+    autoconf-archive
     base-devel
     bash-completion
     bpf

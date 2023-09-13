@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
@@ -101,7 +102,7 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 
 	// mock an empty cmdline since we check the cmdline to check whether we are
 	// in install mode or not and we don't want to use the host's proc/cmdline
-	s.AddCleanup(osutil.MockProcCmdline(filepath.Join(c.MkDir(), "proc/cmdline")))
+	s.AddCleanup(kcmdline.MockProcCmdline(filepath.Join(c.MkDir(), "proc/cmdline")))
 }
 
 func (s *BaseSnapSuite) TearDownTest(c *C) {
@@ -263,6 +264,22 @@ func (s *SnapSuite) TestUnknownCommand(c *C) {
 
 	err := snap.RunMain()
 	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see 'snap help'.`)
+}
+
+func (s *SnapSuite) TestNoCommandWithArgs(c *C) {
+	for _, args := range [][]string{
+		{"snap", "--foo"},
+		{"snap", "--bar", "install"},
+		{"snap", "-f"},
+		{"snap", "-b", "refresh"},
+	} {
+		restore := mockArgs(args...)
+		err := snap.RunMain()
+
+		flag := strings.TrimLeft(args[1], "-")
+		c.Assert(err, ErrorMatches, fmt.Sprintf("unknown flag `%s'", flag))
+		restore()
+	}
 }
 
 func (s *SnapSuite) TestResolveApp(c *C) {

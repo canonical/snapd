@@ -57,17 +57,17 @@ type Options struct {
 	// PrepareImageTime indicates whether the booloader is being
 	// used at prepare-image time, that means not on a runtime
 	// system.
-	PrepareImageTime bool
+	PrepareImageTime bool `json:"prepare-image-time,omitempty"`
 
 	// Role specifies to use the bootloader for the given role.
-	Role Role
+	Role Role `json:"role,omitempty"`
 
 	// NoSlashBoot indicates to use the native layout of the
 	// bootloader partition and not the /boot mount.
 	// It applies only for RoleRunMode.
 	// It is implied and ignored for RoleRecovery.
 	// It is an error to set it for RoleSole.
-	NoSlashBoot bool
+	NoSlashBoot bool `json:"no-slash-boot,omitempty"`
 }
 
 func (o *Options) validate() error {
@@ -329,7 +329,8 @@ var (
 //
 // The rootdir option is useful for image creation operations. It
 // can also be used to find the recovery bootloader, e.g. on uc20:
-//   bootloader.Find("/run/mnt/ubuntu-seed")
+//
+//	bootloader.Find("/run/mnt/ubuntu-seed")
 func Find(rootdir string, opts *Options) (Bootloader, error) {
 	if err := opts.validate(); err != nil {
 		return nil, err

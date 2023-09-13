@@ -27,8 +27,10 @@ import "syscall"
 // (and so the 32 bit version is called getuid32 etc)
 
 const (
-	_SYS_GETUID  = syscall.SYS_GETUID32
-	_SYS_GETGID  = syscall.SYS_GETGID32
-	_SYS_GETEUID = syscall.SYS_GETEUID32
-	_SYS_GETEGID = syscall.SYS_GETEGID32
+	_SYS_GETUID   = syscall.SYS_GETUID32
+	_SYS_GETGID   = syscall.SYS_GETGID32
+	_SYS_GETEUID  = syscall.SYS_GETEUID32
+	_SYS_GETEGID  = syscall.SYS_GETEGID32
+	_SYS_SETREUID = syscall.SYS_SETREUID32
+	_SYS_SETREGID = syscall.SYS_SETREGID32
 )

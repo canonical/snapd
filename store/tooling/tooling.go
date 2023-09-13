@@ -20,13 +20,11 @@
 package tooling
 
 import (
-	"bytes"
 	"context"
 	"crypto"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/url"
 	"os"
 	"os/signal"
@@ -34,23 +32,28 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/mvo5/goconfigparser"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
-	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
 
 // ToolingStore wraps access to the store for tools.
 type ToolingStore struct {
-	sto  StoreImpl
-	user *auth.UserState
+	// Stdout is for output, mainly progress bars
+	// left unset stdout is used
+	Stdout io.Writer
+
+	sto StoreImpl
+	cfg *store.Config
+
+	assertMaxFormats map[string]int
 }
 
 // A StoreImpl can find metadata on snaps, download snaps and fetch assertions.
@@ -59,139 +62,43 @@ type StoreImpl interface {
 	// SnapAction queries the store for snap information for the given install/refresh actions. Orthogonally it can be used to fetch or update assertions.
 	SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, store.AssertionQuery, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error)
 
-	// Download downloads the snap addressed by download info
+	// Download downloads the snap addressed by download info.
 	Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error
 
 	// Assertion retrieves the assertion for the given type and primary key.
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
+
+	// SeqFormingAssertion retrieves the sequence-forming assertion for the given
+	// type (currently validation-set only). For sequence <= 0 we query for the
+	// latest sequence, otherwise the latest revision of the given sequence is
+	// requested.
+	SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error)
+
+	// SetAssertionMaxFormats sets the assertion max formats to send.
+	SetAssertionMaxFormats(maxFormats map[string]int)
 }
 
 func newToolingStore(arch, storeID string) (*ToolingStore, error) {
 	cfg := store.DefaultConfig()
 	cfg.Architecture = arch
 	cfg.StoreID = storeID
-	var user *auth.UserState
-	if authFn := os.Getenv("UBUNTU_STORE_AUTH_DATA_FILENAME"); authFn != "" {
-		var err error
-		user, err = readAuthFile(authFn)
+	creds, err := getAuthorizer()
+	if err != nil {
+		return nil, err
+	}
+	cfg.Authorizer = creds
+	if storeURL := os.Getenv("UBUNTU_STORE_URL"); storeURL != "" {
+		u, err := url.Parse(storeURL)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid UBUNTU_STORE_URL: %v", err)
 		}
+		cfg.StoreBaseURL = u
 	}
-	sto := store.New(cfg, toolingStoreContext{})
+	sto := store.New(cfg, nil)
 	return &ToolingStore{
-		sto:  sto,
-		user: user,
+		sto: sto,
+		cfg: cfg,
 	}, nil
-}
-
-type authData struct {
-	Macaroon   string   `json:"macaroon"`
-	Discharges []string `json:"discharges"`
-}
-
-func readAuthFile(authFn string) (*auth.UserState, error) {
-	data, err := ioutil.ReadFile(authFn)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read auth file %q: %v", authFn, err)
-	}
-
-	creds, err := parseAuthFile(authFn, data)
-	if err != nil {
-		// try snapcraft login format instead
-		var err2 error
-		creds, err2 = parseSnapcraftLoginFile(authFn, data)
-		if err2 != nil {
-			trimmed := bytes.TrimSpace(data)
-			if len(trimmed) > 0 && trimmed[0] == '[' {
-				return nil, err2
-			}
-			return nil, err
-		}
-	}
-
-	return &auth.UserState{
-		StoreMacaroon:   creds.Macaroon,
-		StoreDischarges: creds.Discharges,
-	}, nil
-}
-
-func parseAuthFile(authFn string, data []byte) (*authData, error) {
-	var creds authData
-	err := json.Unmarshal(data, &creds)
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode auth file %q: %v", authFn, err)
-	}
-	if creds.Macaroon == "" || len(creds.Discharges) == 0 {
-		return nil, fmt.Errorf("invalid auth file %q: missing fields", authFn)
-	}
-	return &creds, nil
-}
-
-func snapcraftLoginSection() string {
-	if snapdenv.UseStagingStore() {
-		return "login.staging.ubuntu.com"
-	}
-	return "login.ubuntu.com"
-}
-
-func parseSnapcraftLoginFile(authFn string, data []byte) (*authData, error) {
-	errPrefix := fmt.Sprintf("invalid snapcraft login file %q", authFn)
-
-	cfg := goconfigparser.New()
-	if err := cfg.ReadString(string(data)); err != nil {
-		return nil, fmt.Errorf("%s: %v", errPrefix, err)
-	}
-	sec := snapcraftLoginSection()
-	macaroon, err := cfg.Get(sec, "macaroon")
-	if err != nil {
-		return nil, fmt.Errorf("%s: %s", errPrefix, err)
-	}
-	unboundDischarge, err := cfg.Get(sec, "unbound_discharge")
-	if err != nil {
-		return nil, fmt.Errorf("%s: %v", errPrefix, err)
-	}
-	if macaroon == "" || unboundDischarge == "" {
-		return nil, fmt.Errorf("invalid snapcraft login file %q: empty fields", authFn)
-	}
-	return &authData{
-		Macaroon:   macaroon,
-		Discharges: []string{unboundDischarge},
-	}, nil
-}
-
-// toolingStoreContext implements trivially store.DeviceAndAuthContext
-// except implementing UpdateUserAuth properly to be used to refresh a
-// soft-expired user macaroon.
-type toolingStoreContext struct{}
-
-func (tac toolingStoreContext) CloudInfo() (*auth.CloudInfo, error) {
-	return nil, nil
-}
-
-func (tac toolingStoreContext) Device() (*auth.DeviceState, error) {
-	return &auth.DeviceState{}, nil
-}
-
-func (tac toolingStoreContext) DeviceSessionRequestParams(_ string) (*store.DeviceSessionRequestParams, error) {
-	return nil, store.ErrNoSerial
-}
-
-func (tac toolingStoreContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
-	return "", defaultURL, nil
-}
-
-func (tac toolingStoreContext) StoreID(fallback string) (string, error) {
-	return fallback, nil
-}
-
-func (tac toolingStoreContext) UpdateDeviceAuth(_ *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
-	return nil, fmt.Errorf("internal error: no device state in tools")
-}
-
-func (tac toolingStoreContext) UpdateUserAuth(user *auth.UserState, discharges []string) (*auth.UserState, error) {
-	user.StoreDischarges = discharges
-	return user, nil
 }
 
 // NewToolingStoreFromModel creates ToolingStore for the snap store used by the given model.
@@ -299,7 +206,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (d
 		Channel:      opts.Channel,
 	}}
 
-	sars, _, err := sto.SnapAction(context.TODO(), nil, actions, nil, tsto.user, nil)
+	sars, _, err := sto.SnapAction(context.TODO(), nil, actions, nil, nil, nil)
 	if err != nil {
 		// err will be 'cannot download snap "foo": <reasons>'
 		return nil, err
@@ -335,7 +242,7 @@ func (tsto *ToolingStore) snapDownload(targetFn string, sar *store.SnapActionRes
 		logger.Debugf("File exists but has wrong hash, ignoring (here).")
 	}
 
-	pb := progress.MakeProgressBar()
+	pb := progress.MakeProgressBar(tsto.Stdout)
 	defer pb.Finished()
 
 	// Intercept sigint
@@ -348,7 +255,7 @@ func (tsto *ToolingStore) snapDownload(targetFn string, sar *store.SnapActionRes
 	}()
 
 	dlOpts := &store.DownloadOptions{LeavePartialOnError: opts.LeavePartialOnError}
-	if err = tsto.sto.Download(context.TODO(), snap.SnapName(), targetFn, &snap.DownloadInfo, pb, tsto.user, dlOpts); err != nil {
+	if err = tsto.sto.Download(context.TODO(), snap.SnapName(), targetFn, &snap.DownloadInfo, pb, nil, dlOpts); err != nil {
 		return nil, err
 	}
 
@@ -364,7 +271,10 @@ func (tsto *ToolingStore) snapDownload(targetFn string, sar *store.SnapActionRes
 type SnapToDownload struct {
 	Snap      naming.SnapRef
 	Channel   string
+	Revision  snap.Revision
 	CohortKey string
+	// ValidationSets is an optional array of validation set primary keys.
+	ValidationSets []snapasserts.ValidationSetKey
 }
 
 type CurrentSnap struct {
@@ -418,16 +328,25 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 
 	actions := make([]*store.SnapAction, 0, len(toDownload))
 	for _, sn := range toDownload {
+		// One cannot specify both a channel and specific revision. The store
+		// will return an error if do this.
+		channel := sn.Channel
+		if !sn.Revision.Unset() {
+			channel = ""
+		}
+
 		actions = append(actions, &store.SnapAction{
-			Action:       "download",
-			InstanceName: sn.Snap.SnapName(), // XXX consider using snap-id first
-			Channel:      sn.Channel,
-			CohortKey:    sn.CohortKey,
-			Flags:        actionFlag,
+			Action:         "download",
+			InstanceName:   sn.Snap.SnapName(), // XXX consider using snap-id first
+			Channel:        channel,
+			Revision:       sn.Revision,
+			CohortKey:      sn.CohortKey,
+			Flags:          actionFlag,
+			ValidationSets: sn.ValidationSets,
 		})
 	}
 
-	sars, _, err := tsto.sto.SnapAction(context.TODO(), current, actions, nil, tsto.user, nil)
+	sars, _, err := tsto.sto.SnapAction(context.TODO(), current, actions, nil, nil, nil)
 	if err != nil {
 		// err will be 'cannot download snap "foo": <reasons>'
 		return nil, err
@@ -448,10 +367,11 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 	return downloadedSnaps, nil
 }
 
-// AssertionFetcher creates an asserts.Fetcher for assertions using dlOpts for authorization, the fetcher will add assertions in the given database and after that also call save for each of them.
+// AssertionFetcher creates an asserts.Fetcher for assertions, the fetcher will
+// add assertions in the given database and after that also call save for each of them.
 func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, tsto.user)
+		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, nil)
 	}
 	save2 := func(a asserts.Assertion) error {
 		// for checking
@@ -467,13 +387,48 @@ func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asser
 	return asserts.NewFetcher(db, retrieve, save2)
 }
 
+// AssertionSequenceFormingFetcher creates an asserts.SequenceFormingFetcher for
+// fetching assertions. The fetcher will then store the fetched assertions in the
+// given db and call save for each of them.
+func (tsto *ToolingStore) AssertionSequenceFormingFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.SequenceFormingFetcher {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, nil)
+	}
+	retrieveSeq := func(seq *asserts.AtSequence) (asserts.Assertion, error) {
+		return tsto.sto.SeqFormingAssertion(seq.Type, seq.SequenceKey, seq.Sequence, nil)
+	}
+	save2 := func(a asserts.Assertion) error {
+		// for checking
+		err := db.Add(a)
+		if err != nil {
+			if _, ok := err.(*asserts.RevisionError); ok {
+				return nil
+			}
+			return fmt.Errorf("cannot add assertion %v: %v", a.Ref(), err)
+		}
+		return save(a)
+	}
+	return asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, save2)
+}
+
 // Find provides the snapsserts.Finder interface for snapasserts.DerviceSideInfo
 func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error) {
 	pk, err := asserts.PrimaryKeyFromHeaders(at, headers)
 	if err != nil {
 		return nil, err
 	}
-	return tsto.sto.Assertion(at, pk, tsto.user)
+	return tsto.sto.Assertion(at, pk, nil)
+}
+
+// SetAssertionMaxFormats sets the assertion max formats to use with Assertion and SnapAction.
+func (tsto *ToolingStore) SetAssertionMaxFormats(maxFormats map[string]int) {
+	tsto.sto.SetAssertionMaxFormats(maxFormats)
+	tsto.assertMaxFormats = maxFormats
+}
+
+// AssertionMaxFormats returns the max formats set with SetAssertionMaxFormats or nil.
+func (tsto *ToolingStore) AssertionMaxFormats() map[string]int {
+	return tsto.assertMaxFormats
 }
 
 // MockToolingStore creates a ToolingStore that uses the provided StoreImpl

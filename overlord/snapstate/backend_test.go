@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -170,6 +170,8 @@ type fakeStore struct {
 	downloadError   map[string]error
 	state           *state.State
 	seenPrivacyKeys map[string]bool
+
+	downloadCallback func()
 }
 
 func (f *fakeStore) pokeStateLock() {
@@ -241,6 +243,8 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		confinement = "classic"
 	case "some-epoch-snap":
 		epoch = snap.E("42")
+	case "firmware-updater":
+		snapID = "EI0D1KHjP8XiwMZKqSjuh6W8zvcowUVP"
 	case "snapd-desktop-integration":
 		snapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
 	}
@@ -257,7 +261,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 			SnapID:   snapID,
 			Revision: spec.Revision,
 		},
-		Version: spec.Name,
+		Version: spec.Name + "Ver",
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
@@ -452,7 +456,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 			SnapID:   cand.snapID,
 			Revision: revno,
 		},
-		Version: name,
+		Version: name + "Ver",
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
@@ -695,12 +699,16 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	if _, key := snap.SplitInstanceName(name); key != "" {
 		return fmt.Errorf("internal error: unsupported download with instance name %q", name)
 	}
+	if f.downloadCallback != nil {
+		f.downloadCallback()
+	}
+
 	var macaroon string
 	if user != nil {
 		macaroon = user.StoreMacaroon
 	}
 	// only add the options if they contain anything interesting
-	if *dlOpts == (store.DownloadOptions{}) {
+	if dlOpts != nil && *dlOpts == (store.DownloadOptions{}) {
 		dlOpts = nil
 	}
 	f.downloads = append(f.downloads, fakeDownload{
@@ -711,8 +719,10 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	})
 	f.fakeBackend.appendOp(&fakeOp{op: "storesvc-download", name: name})
 
-	pb.SetTotal(float64(f.fakeTotalProgress))
-	pb.Set(float64(f.fakeCurrentProgress))
+	if pb != nil {
+		pb.SetTotal(float64(f.fakeTotalProgress))
+		pb.Set(float64(f.fakeCurrentProgress))
+	}
 
 	if e, ok := f.downloadError[name]; ok {
 		return e
@@ -830,8 +840,9 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 }
 
 // XXX: this is now something that is overridden by tests that need a
-//      different service setup so it should be configurable and part
-//      of the fakeSnappyBackend?
+//
+//	different service setup so it should be configurable and part
+//	of the fakeSnappyBackend?
 var servicesSnapYaml = `name: services-snap
 apps:
   svc1:
@@ -889,6 +900,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	// naive emulation for now, always works
 	info := &snap.Info{
 		SuggestedName: snapName,
+		Version:       snapName + "Ver",
 		SideInfo:      *si,
 		Architectures: []string{"all"},
 		SnapType:      snap.TypeApp,
@@ -986,7 +998,7 @@ func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, use
 	})
 }
 
-func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress.Meter, opts *dirs.SnapDirOptions) error {
+func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, opts *dirs.SnapDirOptions, p progress.Meter) error {
 	p.Notify("copy-data")
 	op := &fakeOp{
 		op:   "copy-data",
@@ -1012,7 +1024,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) SetupSnapSaveData(info *snap.Info, meter progress.Meter) error {
+func (f *fakeSnappyBackend) SetupSnapSaveData(info *snap.Info, _ snap.Device, meter progress.Meter) error {
 	f.appendOp(&fakeOp{
 		op:   "setup-snap-save-data",
 		path: info.CommonDataSaveDir(),
@@ -1139,7 +1151,7 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, insta
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, p progress.Meter, opts *dirs.SnapDirOptions) error {
+func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, opts *dirs.SnapDirOptions, p progress.Meter) error {
 	p.Notify("undo-copy-data")
 	old := "<no-old>"
 	if oldInfo != nil {
@@ -1153,7 +1165,7 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.I
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, meter progress.Meter) error {
+func (f *fakeSnappyBackend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, _ snap.Device, meter progress.Meter) error {
 	old := "<no-old>"
 	if oldInfo != nil {
 		old = oldInfo.CommonDataSaveDir()
@@ -1203,7 +1215,7 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.Sna
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveSnapSaveData(info *snap.Info) error {
+func (f *fakeSnappyBackend) RemoveSnapSaveData(info *snap.Info, _ snap.Device) error {
 	f.appendOp(&fakeOp{
 		op:   "remove-snap-save-data",
 		path: snap.CommonDataSaveDir(info.InstanceName()),
@@ -1243,6 +1255,13 @@ func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
 	f.appendOp(&fakeOp{
 		op:   "discard-namespace",
 		name: snapName,
+	})
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) RemoveAllSnapAppArmorProfiles() error {
+	f.appendOp(&fakeOp{
+		op: "remove-apparmor-profiles",
 	})
 	return f.maybeErrForLastOp()
 }

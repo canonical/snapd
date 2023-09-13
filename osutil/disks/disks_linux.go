@@ -47,8 +47,29 @@ var diskFromMountPoint = func(mountpoint string, opts *Options) (Disk, error) {
 	return diskFromMountPointImpl(mountpoint, opts)
 }
 
-var abstractCalculateLastUsableLBA = func(device string) (uint64, error) {
-	return CalculateLastUsableLBA(device)
+var abstractCalculateLastUsableLBA = func(device string, diskSize uint64, sectorSize uint64) (uint64, error) {
+	return CalculateLastUsableLBA(device, diskSize, sectorSize)
+}
+
+func MockUdevPropertiesForDevice(new func(string, string) (map[string]string, error)) (restore func()) {
+	old := udevadmProperties
+	// for better testing we mock the udevadm command output so that we still
+	// test the parsing
+	udevadmProperties = func(typeOpt, dev string) ([]byte, error) {
+		props, err := new(typeOpt, dev)
+		if err != nil {
+			return []byte(err.Error()), err
+		}
+		// put it into udevadm format output, i.e. "KEY=VALUE\n"
+		output := ""
+		for k, v := range props {
+			output += fmt.Sprintf("%s=%s\n", k, v)
+		}
+		return []byte(output), nil
+	}
+	return func() {
+		udevadmProperties = old
+	}
 }
 
 func parseDeviceMajorMinor(s string) (int, int, error) {
@@ -352,13 +373,7 @@ func (d *disk) SizeInBytes() (uint64, error) {
 	// TODO: this could be implemented by reading the "size" file in sysfs
 	// instead of using blockdev
 
-	// The size of the disk is always given by using blockdev, but blockdev
-	// returns the size in 512-byte blocks, so for bytes we have to multiply by
-	// 512.
-	num512Sectors, err := blockDeviceSizeInSectors(d.devname)
-	// if err is non-nil, numSectors will be 0 and thus 0*512 will still be
-	// zero
-	return num512Sectors * 512, err
+	return blockDeviceSize(d.devname)
 }
 
 // TODO: remove this code in favor of abstractCalculateLastUsableLBA()
@@ -422,7 +437,15 @@ func (d *disk) UsableSectorsEnd() (uint64, error) {
 	}
 
 	// calculated is last LBA
-	calculated, err := abstractCalculateLastUsableLBA(d.devname)
+	byteSize, err := d.SizeInBytes()
+	if err != nil {
+		return 0, err
+	}
+	sectorSize, err := d.SectorSize()
+	if err != nil {
+		return 0, err
+	}
+	calculated, err := abstractCalculateLastUsableLBA(d.devname, byteSize, sectorSize)
 	// end (or size) LBA is the last LBA + 1
 	return calculated + 1, err
 }
@@ -854,7 +877,7 @@ func (d *disk) FindMatchingPartitionWithFsLabel(label string) (Partition, error)
 	}
 
 	for _, p := range d.partitions {
-		if p.FilesystemLabel == encodedLabel {
+		if p.hasFilesystemLabel(encodedLabel) {
 			return p, nil
 		}
 	}
@@ -980,4 +1003,16 @@ func PartitionUUID(node string) (string, error) {
 
 func SectorSize(devname string) (uint64, error) {
 	return blockDeviceSectorSize(devname)
+}
+
+// filesystemTypeForPartition returns the filesystem type for a
+// partition passed by device name. The type might be an empty string
+// if no filesystem has been detected.
+func filesystemTypeForPartition(devname string) (string, error) {
+	props, err := udevPropertiesForName(devname)
+	if err != nil {
+		return "", err
+	}
+
+	return props["ID_FS_TYPE"], nil
 }

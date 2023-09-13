@@ -180,7 +180,7 @@ func (m *DeviceManager) doPrepareRemodeling(t *state.Task, tmb *tomb.Tomb) error
 	}
 	// ensure a new session accounting for the new brand/model
 	st.Unlock()
-	_, err = sto.EnsureDeviceSession()
+	err = sto.EnsureDeviceSession()
 	st.Lock()
 	if err != nil {
 		return fmt.Errorf("cannot get a store session based on the new model assertion: %v", err)
@@ -188,7 +188,7 @@ func (m *DeviceManager) doPrepareRemodeling(t *state.Task, tmb *tomb.Tomb) error
 
 	chgID := t.Change().ID()
 
-	tss, err := remodelTasks(tmb.Context(nil), st, current, remodCtx.Model(), remodCtx, chgID)
+	tss, err := remodelTasks(tmb.Context(nil), st, current, remodCtx.Model(), nil, nil, remodCtx, chgID)
 	if err != nil {
 		return err
 	}

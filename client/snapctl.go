@@ -50,7 +50,7 @@ type SnapCtlOptions struct {
 
 // SnapCtlPostData is the data posted to the daemon /v2/snapctl endpoint
 // TODO: this can be removed again once we no longer need to pass stdin data
-//       but instead use a real stdin stream
+// but instead use a real stdin stream
 type SnapCtlPostData struct {
 	SnapCtlOptions
 

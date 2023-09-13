@@ -1,5 +1,7 @@
 summary: smoke test for the retry tool
 
+backends: [google]
+
 execute: |
     # Retry runs the command that was passed as argument and returns the exit
     # code of that command.

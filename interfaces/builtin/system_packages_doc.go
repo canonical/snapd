@@ -39,7 +39,7 @@ const systemPackagesDocBaseDeclarationSlots = `
 const systemPackagesDocConnectedPlugAppArmor = `
 # Description: can access documentation of system packages.
 
-/usr/share/doc/{,**} r,
+/usr/{,local/}share/doc/{,**} r,
 /usr/share/cups/doc-root/{,**} r,
 /usr/share/gimp/2.0/help/{,**} r,
 /usr/share/gtk-doc/{,**} r,
@@ -58,6 +58,9 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/doc/ -> /usr/share/doc/,\n")
 	emit("  remount options=(bind, ro) /usr/share/doc/,\n")
 	emit("  umount /usr/share/doc/,\n")
+	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/local/share/doc/ -> /usr/local/share/doc/,\n")
+	emit("  remount options=(bind, ro) /usr/local/share/doc/,\n")
+	emit("  umount /usr/local/share/doc/,\n")
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/cups/doc-root/ -> /usr/share/cups/doc-root/,\n")
 	emit("  remount options=(bind, ro) /usr/share/cups/doc-root/,\n")
 	emit("  umount /usr/share/cups/doc-root/,\n")
@@ -73,9 +76,11 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/xubuntu-docs/ -> /usr/share/xubuntu-docs/,\n")
 	emit("  remount options=(bind, ro) /usr/share/xubuntu-docs/,\n")
 	emit("  umount /usr/share/xubuntu-docs/,\n")
-	// the mount targets under /usr/share/ do not necessarily exist in the
-	// base image, in which case, we need to create a writable mimic
-	apparmor.GenWritableProfile(emit, "/usr/share/", 3)
+	// The mount targets under /usr/share/ do not necessarily exist in the
+	// base image, in which case, we need to create a writable mimic.
+	apparmor.GenWritableProfile(emit, "/usr/share/cups/", 3)
+	apparmor.GenWritableProfile(emit, "/usr/share/gimp/2.0/", 3)
+	apparmor.GenWritableProfile(emit, "/usr/share/libreoffice/", 3)
 	return nil
 }
 
@@ -83,6 +88,11 @@ func (iface *systemPackagesDocInterface) MountConnectedPlug(spec *mount.Specific
 	spec.AddMountEntry(osutil.MountEntry{
 		Name:    "/var/lib/snapd/hostfs/usr/share/doc",
 		Dir:     "/usr/share/doc",
+		Options: []string{"bind", "ro"},
+	})
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    "/var/lib/snapd/hostfs/usr/local/share/doc",
+		Dir:     "/usr/local/share/doc",
 		Options: []string{"bind", "ro"},
 	})
 	spec.AddMountEntry(osutil.MountEntry{

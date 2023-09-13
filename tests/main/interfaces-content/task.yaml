@@ -21,10 +21,7 @@ prepare: |
     echo "Ensure an empty state so that installing test-snapd-content-plug"
     echo "will pull in test-snapd-content-slot *and* core"
 
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-
-    systemd_stop_units snapd.service
+    tests.systemd stop-unit snapd.service
     rm -f /var/lib/snapd/state.json
     systemctl start snapd
     snap wait system seed.loaded
@@ -46,7 +43,9 @@ execute: |
     test-snapd-content-plug.content-plug | grep "Some shared content"
 
     echo "And the current mount profile is the same as the desired mount profile"
-    diff -u /run/snapd/ns/snap.test-snapd-content-plug.fstab /var/lib/snapd/mount/snap.test-snapd-content-plug.fstab
+    # Exclude the rootfs line, which is only in the /run/ fstab
+    grep -v "x-snapd.origin=rootfs" /run/snapd/ns/snap.test-snapd-content-plug.fstab \
+        | diff -u - /var/lib/snapd/mount/snap.test-snapd-content-plug.fstab
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot

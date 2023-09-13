@@ -114,6 +114,7 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 				cmd.ActionModifier = "disable"
 			}
 		case inst.Action == "restart":
+			cmd.RestartEnabledNonActive = true
 			if inst.Reload {
 				cmd.Action = "reload-or-restart"
 			} else {
@@ -266,6 +267,18 @@ func NewStatusDecorator(rep interface {
 	}
 }
 
+func (sd *StatusDecorator) hasEnabledActivator(appInfo *client.AppInfo) bool {
+	// Just one activator should be enabled in order for the service to be able
+	// to become enabled. For slot activated services this is always true as we
+	// have no way currently of disabling this.
+	for _, act := range appInfo.Activators {
+		if act.Enabled {
+			return true
+		}
+	}
+	return false
+}
+
 // DecorateWithStatus adds service status information to the given
 // client.AppInfo associated with the given snap.AppInfo.
 // If the snap is inactive or the app is not service it does nothing.
@@ -354,17 +367,21 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 			Type:    "dbus",
 		})
 	}
-
+	// For activated services, the service tends to be reported as Static, meaning
+	// it can't be disabled. However, if all the activators are disabled, then we change
+	// this to appear disabled.
+	if len(appInfo.Activators) > 0 {
+		appInfo.Enabled = sd.hasEnabledActivator(appInfo)
+	}
 	return nil
 }
 
 // SnapServiceOptions computes the options to configure services for
-// the given snap. This function might not check for the existence
-// of instanceName. It also takes as argument a map of all quota groups as an
+// the given snap. It also takes as argument a map of all quota groups as an
 // optimization, the map if non-nil is used in place of checking state for
 // whether or not the specified snap is in a quota group or not. If nil, state
 // is consulted directly instead.
-func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
+func SnapServiceOptions(st *state.State, snapInfo *snap.Info, quotaGroups map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
 	// if quotaGroups was not provided to us, then go get that
 	if quotaGroups == nil {
 		allGrps, err := AllQuotas(st)
@@ -383,7 +400,7 @@ func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[st
 		return nil, err
 	}
 	for i, s := range strings.Split(vitalityStr, ",") {
-		if s == instanceName {
+		if s == snapInfo.InstanceName() {
 			opts.VitalityRank = i + 1
 			break
 		}
@@ -391,7 +408,7 @@ func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[st
 
 	// also check for quota group for this instance name
 	for _, grp := range quotaGroups {
-		if strutil.ListContains(grp.Snaps, instanceName) {
+		if strutil.ListContains(grp.Snaps, snapInfo.InstanceName()) {
 			opts.QuotaGroup = grp
 			break
 		}

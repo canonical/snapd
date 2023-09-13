@@ -19,9 +19,9 @@ debug: |
     echo "other dir content"
     ls -lh
     echo "download log:"
-    cat snap-download.log
+    cat snap-download.log || true
     echo "iptables rules and counters"
-    iptables -L -n -v
+    iptables -L -n -v || true
 
 execute: |
     echo "Downloading a large snap in the background"

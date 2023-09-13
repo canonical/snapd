@@ -30,8 +30,8 @@ func init() {
 }
 
 func checkWSL() error {
-	if release.OnWSL {
-		return errors.New("snapd does not work inside WSL")
+	if release.WSLVersion == 1 {
+		return errors.New("snapd does not work inside WSL1")
 	}
 
 	return nil

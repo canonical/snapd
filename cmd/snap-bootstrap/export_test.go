@@ -24,8 +24,14 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/gadget"
+	gadgetInstall "github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -34,6 +40,8 @@ var (
 	DoSystemdMount = doSystemdMountImpl
 
 	MountNonDataPartitionMatchingKernelDisk = mountNonDataPartitionMatchingKernelDisk
+
+	GetNonUEFISystemDisk = getNonUEFISystemDisk
 )
 
 type SystemdMountOptions = systemdMountOptions
@@ -48,6 +56,18 @@ func (r *RecoverDegradedState) Degraded(isEncrypted bool) bool {
 		degradedState:  r,
 	}
 	return m.degraded()
+}
+
+func MockPollWaitForLabel(newPollDur time.Duration) (restore func()) {
+	restore = testutil.Backup(&pollWaitForLabel)
+	pollWaitForLabel = newPollDur
+	return restore
+}
+
+func MockPollWaitForLabelIters(newNumIters int) (restore func()) {
+	restore = testutil.Backup(&pollWaitForLabelIters)
+	pollWaitForLabelIters = newNumIters
+	return restore
 }
 
 func MockTimeNow(f func() time.Time) (restore func()) {
@@ -117,6 +137,14 @@ func MockSecbootUnlockEncryptedVolumeUsingKey(f func(disk disks.Disk, name strin
 	}
 }
 
+func MockSecbootProvisionForCVM(f func(_ string) error) (restore func()) {
+	old := secbootProvisionForCVM
+	secbootProvisionForCVM = f
+	return func() {
+		secbootProvisionForCVM = old
+	}
+}
+
 func MockSecbootMeasureSnapSystemEpochWhenPossible(f func() error) (restore func()) {
 	old := secbootMeasureSnapSystemEpochWhenPossible
 	secbootMeasureSnapSystemEpochWhenPossible = f
@@ -156,7 +184,7 @@ func MockPartitionUUIDForBootedKernelDisk(uuid string) (restore func()) {
 	}
 }
 
-func MockTryRecoverySystemHealthCheck(mock func() error) (restore func()) {
+func MockTryRecoverySystemHealthCheck(mock func(gadget.Model) error) (restore func()) {
 	old := tryRecoverySystemHealthCheck
 	tryRecoverySystemHealthCheck = mock
 	return func() {
@@ -173,3 +201,35 @@ func MockWaitFile(f func(string, time.Duration, int) error) (restore func()) {
 }
 
 var WaitFile = waitFile
+
+func MockGadgetInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error)) (restore func()) {
+	old := gadgetInstallRun
+	gadgetInstallRun = f
+	return func() {
+		gadgetInstallRun = old
+	}
+}
+
+func MockMakeRunnableStandaloneSystem(f func(model *asserts.Model, bootWith *boot.BootableSet, sealer *boot.TrustedAssetsInstallObserver) error) (restore func()) {
+	old := bootMakeRunnableStandaloneSystem
+	bootMakeRunnableStandaloneSystem = f
+	return func() {
+		bootMakeRunnableStandaloneSystem = old
+	}
+}
+
+func MockApplyPreseededData(f func(preseedSeed seed.PreseedCapable, writableDir string) error) (restore func()) {
+	old := installApplyPreseededData
+	installApplyPreseededData = f
+	return func() {
+		installApplyPreseededData = old
+	}
+}
+
+func MockEnsureNextBootToRunMode(f func(systemLabel string) error) (restore func()) {
+	old := bootEnsureNextBootToRunMode
+	bootEnsureNextBootToRunMode = f
+	return func() {
+		bootEnsureNextBootToRunMode = old
+	}
+}

@@ -45,10 +45,10 @@ func MockAssertstateMonitorValidationSet(f func(st *state.State, accountID, name
 	}
 }
 
-func MockAssertstateEnforceValidationSet(f func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*assertstate.ValidationSetTracking, error)) func() {
-	old := assertstateEnforceValidationSet
-	assertstateEnforceValidationSet = f
+func MockAssertstateFetchEnforceValidationSet(f func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*assertstate.ValidationSetTracking, error)) func() {
+	old := assertstateFetchAndApplyEnforcedValidationSet
+	assertstateFetchAndApplyEnforcedValidationSet = f
 	return func() {
-		assertstateEnforceValidationSet = old
+		assertstateFetchAndApplyEnforcedValidationSet = old
 	}
 }

@@ -78,3 +78,7 @@ func PartitionUUID(node string) (string, error) {
 func SectorSize(devname string) (uint64, error) {
 	return 0, osutil.ErrDarwin
 }
+
+func filesystemTypeForPartition(devname string) (string, error) {
+	return "", osutil.ErrDarwin
+}

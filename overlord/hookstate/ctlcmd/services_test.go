@@ -203,10 +203,13 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	s.st.Set("refresh-privacy-key", "privacy-key")
 	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+	old := snapstate.EnforcedValidationSets
+	s.AddCleanup(func() {
+		snapstate.EnforcedValidationSets = old
 	})
-	s.AddCleanup(restore)
+	snapstate.EnforcedValidationSets = func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	}
 }
 
 func (s *servicectlSuite) TestStopCommand(c *C) {
@@ -333,6 +336,7 @@ var (
 		"set-auto-aliases",
 		"setup-aliases",
 		"run-hook[install]",
+		"run-hook[default-configure]",
 		"start-snap-services",
 		"run-hook[configure]",
 		"run-hook[check-health]",
@@ -365,7 +369,7 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("install change", "install change")
-	installed, tts, err := snapstate.InstallMany(s.st, []string{"one", "two"}, 0, nil)
+	installed, tts, err := snapstate.InstallMany(s.st, []string{"one", "two"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
 	c.Assert(tts, HasLen, 2)
@@ -400,10 +404,10 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	checkLaneTasks := func(lane int) {
 		laneTasks := chg.LaneTasks(lane)
 		c.Assert(taskKinds(laneTasks), DeepEquals, expectedTaskKinds)
-		c.Check(laneTasks[12].Summary(), Matches, `Run configure hook of .* snap if present`)
-		c.Check(laneTasks[14].Summary(), Equals, "stop of [test-snap.test-service]")
-		c.Check(laneTasks[16].Summary(), Equals, "start of [test-snap.test-service]")
-		c.Check(laneTasks[18].Summary(), Equals, "restart of [test-snap.test-service]")
+		c.Check(laneTasks[13].Summary(), Matches, `Run configure hook of .* snap if present`)
+		c.Check(laneTasks[15].Summary(), Equals, "stop of [test-snap.test-service]")
+		c.Check(laneTasks[17].Summary(), Equals, "start of [test-snap.test-service]")
+		c.Check(laneTasks[19].Summary(), Equals, "restart of [test-snap.test-service]")
 	}
 	checkLaneTasks(1)
 	checkLaneTasks(2)
@@ -509,7 +513,7 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("update many change", "update change")
-	installed, tts, err := snapstate.UpdateMany(context.Background(), s.st, []string{"test-snap", "other-snap"}, 0, nil)
+	installed, tts, err := snapstate.UpdateMany(context.Background(), s.st, []string{"test-snap", "other-snap"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	sort.Strings(installed)
 	c.Check(installed, DeepEquals, []string{"other-snap", "test-snap"})
@@ -588,10 +592,10 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 
 	laneTasks := chg.LaneTasks(0)
 	c.Assert(taskKinds(laneTasks), DeepEquals, append(installTaskKinds, "exec-command", "service-control", "exec-command", "service-control", "exec-command", "service-control"))
-	c.Check(laneTasks[12].Summary(), Matches, `Run configure hook of .* snap if present`)
-	c.Check(laneTasks[14].Summary(), Equals, "stop of [test-snap.test-service]")
-	c.Check(laneTasks[16].Summary(), Equals, "start of [test-snap.test-service]")
-	c.Check(laneTasks[18].Summary(), Equals, "restart of [test-snap.test-service]")
+	c.Check(laneTasks[13].Summary(), Matches, `Run configure hook of .* snap if present`)
+	c.Check(laneTasks[15].Summary(), Equals, "stop of [test-snap.test-service]")
+	c.Check(laneTasks[17].Summary(), Equals, "start of [test-snap.test-service]")
+	c.Check(laneTasks[19].Summary(), Equals, "restart of [test-snap.test-service]")
 }
 
 func (s *servicectlSuite) TestTwoServices(c *C) {

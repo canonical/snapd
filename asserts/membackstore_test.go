@@ -255,12 +255,14 @@ func (mbss *memBackstoreSuite) TestGetFormat(c *C) {
 
 	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 0)
 	c.Assert(err, FitsTypeOf, &asserts.NotFoundError{})
+	c.Check(a, IsNil)
 
 	err = bs.Put(asserts.TestOnlyType, af2)
 	c.Assert(err, IsNil)
 
 	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 1)
 	c.Assert(err, FitsTypeOf, &asserts.NotFoundError{})
+	c.Check(a, IsNil)
 
 	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 2)
 	c.Assert(err, IsNil)
@@ -418,6 +420,7 @@ func (mbss *memBackstoreSuite) TestPutSequence(c *C) {
 	c.Assert(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.TestOnlySeqType,
 	})
+	c.Check(a, IsNil)
 
 	a, err = bs.Get(asserts.TestOnlySeqType, []string{"s1", "3"}, 1)
 	c.Assert(err, IsNil)
@@ -587,9 +590,11 @@ func (mbss *memBackstoreSuite) TestOptionalPrimaryKeys(c *C) {
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.TestOnlyType,
 	})
+	c.Check(a, IsNil)
 
 	a, err = bs.Get(asserts.TestOnlyType, []string{}, 0)
 	c.Check(err, ErrorMatches, `internal error: Backstore.Get given a key missing mandatory elements for "test-only":.*`)
+	c.Check(a, IsNil)
 
 	var found map[string]string
 	cb := func(a asserts.Assertion) {

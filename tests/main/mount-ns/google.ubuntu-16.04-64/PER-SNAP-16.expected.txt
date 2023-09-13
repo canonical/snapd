@@ -51,7 +51,7 @@
 +0:+1 / /sys/kernel/debug rw,relatime master:+1 - debugfs debugfs rw
 +0:+1 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime master:+1 - securityfs securityfs rw
 -1:-32 /tmp /tmp rw,relatime master:-39 - ext4 /dev/sda1 rw,data=ordered
-+0:+0 /tmp/snap.test-snapd-mountinfo-core16/tmp /tmp rw,relatime - ext4 /dev/sda1 rw,data=ordered
++0:+0 /tmp/snap-private-tmp/snap.test-snapd-mountinfo-core16/tmp /tmp rw,relatime - ext4 /dev/sda1 rw,data=ordered
 +1:+34 / /usr/share/gdb rw,relatime - tmpfs tmpfs rw,mode=755
 +1:-34 /usr/share/gdb/auto-load /usr/share/gdb/auto-load ro,nodev,relatime master:17 - squashfs /dev/loop0 ro
 -1:+35 / /usr/share/gdb/test rw,relatime - tmpfs tmpfs rw

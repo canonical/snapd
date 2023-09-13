@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/polkit"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -269,6 +270,15 @@ apps:
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, ErrorMatches, `snap "other" has interface "polkit" with invalid value type bool for "action-prefix" attribute: \*string`)
+}
+
+func (s *polkitInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Check(si.ImplicitOnCore, Equals, osutil.IsExecutable("/usr/libexec/polkitd"))
+	c.Check(si.ImplicitOnClassic, Equals, true)
+	c.Check(si.Summary, Equals, "allows access to polkitd to check authorisation")
+	c.Check(si.BaseDeclarationPlugs, testutil.Contains, "polkit")
+	c.Check(si.BaseDeclarationSlots, testutil.Contains, "polkit")
 }
 
 func (s *polkitInterfaceSuite) TestInterfaces(c *C) {

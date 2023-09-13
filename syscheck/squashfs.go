@@ -40,22 +40,20 @@ func init() {
 	checks = append(checks, checkSquashfsMount)
 }
 
-/* This image was created using:
-
-#!/bin/sh
-
-cd $(mktemp -d)
-cat > canary.txt<<'EOF'
-This file is used to check that snapd can read a squashfs image.
-
-The squashfs was generated with:
-EOF
-cat $0 >> canary.txt
-
-mksquashfs . /tmp/canary.squashfs -noappend -comp xz -no-xattrs -no-fragments >/dev/nul
-cat /tmp/canary.squashfs | gzip - | base64
-
-*/
+// This image was created using:
+//
+// #!/bin/sh
+//
+// cd $(mktemp -d)
+// cat > canary.txt<<'EOF'
+// This file is used to check that snapd can read a squashfs image.
+//
+// The squashfs was generated with:
+// EOF
+// cat $0 >> canary.txt
+//
+// mksquashfs . /tmp/canary.squashfs -noappend -comp xz -no-xattrs -no-fragments >/dev/nul
+// cat /tmp/canary.squashfs | gzip - | base64
 var b64SquashfsImage = []byte(`
 H4sIAGxdFVsAA8soLixmYmBgyIkVjWZgALEYGFgYBBkuMDECaQYGFQYI4INIMbBB6f9Q0MAI4R+D
 0s+g9A8o/de8KiKKgYExU+meGfOB54wzmBUZuYDiVhPYbR4wTme4H8ugJcWpniK5waL4VLewwsUC

@@ -72,8 +72,8 @@ func (s *themesSuite) daemon(c *C) *daemon.Daemon {
 }
 
 func (s *themesSuite) expectThemesAccess() {
-	s.expectReadAccess(daemon.ThemesOpenAccess{})
-	s.expectWriteAccess(daemon.ThemesAuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-themes-control"})
+	s.expectWriteAccess(daemon.InterfaceAuthenticatedAccess{Interface: "snap-themes-control", Polkit: "io.snapcraft.snapd.manage"})
 }
 
 func (s *themesSuite) TestInstalledThemes(c *C) {
@@ -416,7 +416,7 @@ func (s *themesSuite) TestThemesCmdPost(c *C) {
 			},
 		},
 	}
-	restore := daemon.MockSnapstateInstallMany(func(s *state.State, names []string, userID int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+	restore := daemon.MockSnapstateInstallMany(func(s *state.State, names []string, _ []*snapstate.RevisionOptions, _ int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		t := s.NewTask("fake-theme-install", "Theme install")
 		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})

@@ -61,8 +61,17 @@ func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
 
 	// TODO: undo handler
 	runner.AddHandler("quota-control", m.doQuotaControl, nil)
+	RegisterAffectedQuotasByKind("quota-control", affectedQuotasForQuotaControl)
+	snapstate.RegisterAffectedSnapsByKind("quota-control", affectedSnapsForQuotaControl)
 
-	snapstate.AddAffectedSnapsByKind("quota-control", quotaControlAffectedSnaps)
+	// We can't directly refer to the servicestate internals from snapstate,
+	// so this task encapsulate taking care of calling quotaUpdate
+	// with the correct setup. This task also supports proper handling of
+	// failure during install and correctly removes the snap again.
+	runner.AddHandler("quota-add-snap", m.doQuotaAddSnap, m.undoQuotaAddSnap)
+	RegisterAffectedQuotasByKind("quota-add-snap", affectedQuotasForQuotaAddSnap)
+	// quota-add-snap uses snap-setup and because of this retrieving the snap
+	// that is being added is implicitly already supported by snapstate/conflict.go
 
 	return m
 }
@@ -127,7 +136,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		}
 
 		// use the cached copy of all quota groups
-		snapSvcOpts, err := SnapServiceOptions(m.state, info.InstanceName(), allGrps)
+		snapSvcOpts, err := SnapServiceOptions(m.state, info, allGrps)
 		if err != nil {
 			return err
 		}
@@ -200,7 +209,7 @@ func (m *ServiceManager) Ensure() error {
 
 func delayedCrossMgrInit() {
 	// hook into conflict checks mechanisms
-	snapstate.AddAffectedSnapsByAttr("service-action", serviceControlAffectedSnaps)
+	snapstate.RegisterAffectedSnapsByAttr("service-action", serviceControlAffectedSnaps)
 	snapstate.SnapServiceOptions = SnapServiceOptions
 	snapstate.EnsureSnapAbsentFromQuotaGroup = EnsureSnapAbsentFromQuota
 }

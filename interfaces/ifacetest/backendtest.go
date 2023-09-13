@@ -211,6 +211,13 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 
 // UpdateSnap "updates" an existing snap from YAML.
 func (s *BackendSuite) UpdateSnap(c *C, oldSnapInfo *snap.Info, opts interfaces.ConfinementOptions, snapYaml string, revision int) *snap.Info {
+	newSnapInfo, err := s.UpdateSnapMaybeErr(c, oldSnapInfo, opts, snapYaml, revision)
+	c.Assert(err, IsNil)
+	return newSnapInfo
+}
+
+// UpdateSnapMaybeErr "updates" an existing snap from YAML, this might error.
+func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts interfaces.ConfinementOptions, snapYaml string, revision int) (*snap.Info, error) {
 	newSnapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
 		Revision: snap.R(revision),
 	})
@@ -218,8 +225,7 @@ func (s *BackendSuite) UpdateSnap(c *C, oldSnapInfo *snap.Info, opts interfaces.
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
 	err := s.Backend.Setup(newSnapInfo, opts, s.Repo, s.meas)
-	c.Assert(err, IsNil)
-	return newSnapInfo
+	return newSnapInfo, err
 }
 
 // RemoveSnap "removes" an "installed" snap.

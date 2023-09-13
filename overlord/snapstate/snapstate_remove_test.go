@@ -1276,7 +1276,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 		Current: snap.R(1),
 	})
 
-	removed, tts, err := snapstate.RemoveMany(s.state, []string{"one", "two"})
+	removed, tts, err := snapstate.RemoveMany(s.state, []string{"one", "two"}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
@@ -1367,7 +1367,7 @@ func (s *snapmgrTestSuite) testRemoveManyDiskSpaceCheck(c *C, featureFlag, autom
 		Current: snap.R(1),
 	})
 
-	_, _, err := snapstate.RemoveMany(s.state, []string{"one", "two"})
+	_, _, err := snapstate.RemoveMany(s.state, []string{"one", "two"}, nil)
 	if featureFlag && automaticSnapshot {
 		c.Check(snapshotSizeCall, Equals, 2)
 		c.Check(checkFreeSpaceCall, Equals, 1)
@@ -1436,12 +1436,12 @@ func (f *snapdBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.SnapDirO
 	return f.fakeSnappyBackend.RemoveSnapCommonData(info, nil)
 }
 
-func (f *snapdBackend) RemoveSnapSaveData(info *snap.Info) error {
+func (f *snapdBackend) RemoveSnapSaveData(info *snap.Info, dev snap.Device) error {
 	dir := snap.CommonDataSaveDir(info.InstanceName())
 	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("unexpected error: %v", err)
 	}
-	return f.fakeSnappyBackend.RemoveSnapSaveData(info)
+	return f.fakeSnappyBackend.RemoveSnapSaveData(info, dev)
 }
 
 func isUndone(c *C, tasks []*state.Task, kind string, numExpected int) {
@@ -1709,16 +1709,16 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 	}
 	st.Set("refresh-candidates", rc)
 
-	_, err := snapstate.HoldRefresh(st, "some-snap", 0, "foo-snap")
+	_, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "some-snap", 0, "foo-snap")
 	c.Assert(err, IsNil)
-	_, err = snapstate.HoldRefresh(st, "another-snap", 0, "some-snap")
+	_, err = snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "another-snap", 0, "some-snap")
 	c.Assert(err, IsNil)
 
-	held, err := snapstate.HeldSnaps(st)
+	held, err := snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh)
 	c.Assert(err, IsNil)
-	c.Check(held, DeepEquals, map[string]bool{
-		"foo-snap":  true,
-		"some-snap": true,
+	c.Check(held, DeepEquals, map[string][]string{
+		"foo-snap":  {"some-snap"},
+		"some-snap": {"another-snap"},
 	})
 
 	chg := st.NewChange("remove", "remove a snap")
@@ -1735,7 +1735,7 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// held snaps were updated
-	held, err = snapstate.HeldSnaps(st)
+	held, err = snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh)
 	c.Assert(err, IsNil)
 	c.Check(held, HasLen, 0)
 
@@ -1766,12 +1766,12 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 	rc := map[string]*snapstate.RefreshCandidate{"some-snap": {}}
 	st.Set("refresh-candidates", rc)
 
-	_, err := snapstate.HoldRefresh(st, "some-snap", 0, "some-snap")
+	_, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "some-snap", 0, "some-snap")
 	c.Assert(err, IsNil)
 
-	held, err := snapstate.HeldSnaps(st)
+	held, err := snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh)
 	c.Assert(err, IsNil)
-	c.Check(held, DeepEquals, map[string]bool{"some-snap": true})
+	c.Check(held, DeepEquals, map[string][]string{"some-snap": {"some-snap"}})
 
 	chg := st.NewChange("remove", "remove a snap")
 	ts, err := snapstate.Remove(st, "some-snap", snap.R(12), nil)
@@ -1786,9 +1786,9 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 	c.Assert(snapstate.Get(st, "some-snap", &snapst), IsNil)
 
 	// held snaps are intact
-	held, err = snapstate.HeldSnaps(st)
+	held, err = snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh)
 	c.Assert(err, IsNil)
-	c.Check(held, DeepEquals, map[string]bool{"some-snap": true})
+	c.Check(held, DeepEquals, map[string][]string{"some-snap": {"some-snap"}})
 
 	// refresh-candidates are intact
 	var candidates map[string]*snapstate.RefreshCandidate
@@ -1960,7 +1960,7 @@ func (s *snapmgrTestSuite) TestRemoveFailsWithInvalidSnapName(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "rev=", "123"})
+	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "rev=", "123"}, nil)
 	c.Check(removed, HasLen, 0)
 	c.Check(ts, HasLen, 0)
 	c.Check(err.Error(), Equals, "cannot remove invalid snap names: rev=, 123")
@@ -1970,7 +1970,7 @@ func (s *snapmgrTestSuite) TestRemoveSucceedsWithInstanceName(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "ab_c"})
+	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "ab_c"}, nil)
 	c.Check(removed, NotNil)
 	c.Check(ts, NotNil)
 	c.Check(err, IsNil)
@@ -2000,8 +2000,51 @@ func (s *snapmgrTestSuite) TestRemoveDeduplicatesSnapNames(c *C) {
 		Active:  true,
 	})
 
-	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "some-base", "some-snap", "some-base"})
+	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "some-base", "some-snap", "some-base"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
 	c.Check(ts, HasLen, 2)
+}
+
+func (s *snapmgrTestSuite) TestRemoveManyWithPurge(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+		Active:   true,
+	})
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", SnapID: "foo-id", Revision: snap.R(11)},
+		},
+		Current:  snap.R(11),
+		SnapType: "app",
+		Active:   true,
+	})
+
+	removed, tss, err := snapstate.RemoveMany(s.state, []string{"some-snap", "foo"}, &snapstate.RemoveFlags{Purge: true})
+	c.Check(removed, DeepEquals, []string{"some-snap", "foo"})
+	c.Check(tss, NotNil)
+	c.Check(err, IsNil)
+
+	// tasks to take snapshot aren't generated
+	for _, ts := range tss {
+		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+			"stop-snap-services",
+			"run-hook[remove]",
+			"auto-disconnect",
+			"remove-aliases",
+			"unlink-snap",
+			"remove-profiles",
+			"clear-snap",
+			"discard-snap",
+		})
+	}
+
 }

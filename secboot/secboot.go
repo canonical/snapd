@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -81,6 +81,7 @@ type ModelForSealing interface {
 	Series() string
 	BrandID() string
 	Model() string
+	Classic() bool
 	Grade() asserts.ModelGrade
 	SignKeyID() string
 }
@@ -106,6 +107,10 @@ const (
 	// authorization data from TPMLockoutAuthFile will be used to authorize
 	// provisioning and will get overwritten in the process.
 	TPMPartialReprovision
+	// TPMProvisionFullWithoutLockout indicates full provisioning
+	// without using lockout authorization data, as currently used
+	// by Azure CVM
+	TPMProvisionFullWithoutLockout
 )
 
 type SealKeysParams struct {
@@ -199,7 +204,7 @@ func EncryptedPartitionName(name string) string {
 // MarkSuccessful marks the secure boot parts of the boot as
 // successful.
 //
-//This means that the dictionary attack (DA) lockout counter is reset.
+// This means that the dictionary attack (DA) lockout counter is reset.
 func MarkSuccessful() error {
 	sealingMethod, err := device.SealedKeysMethod(dirs.GlobalRootDir)
 	if err != nil && err != device.ErrNoSealedKeys {

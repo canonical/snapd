@@ -25,6 +25,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/timerfd.h>
+#include <string.h>
 
 static int called = 0;
 
@@ -142,6 +143,31 @@ static void test_cleanup_close(void)
 	g_assert_cmpint(fd, ==, -1);
 }
 
+static void test_cleanup_deep_strv(void)
+{
+	/* It is safe to use with a NULL pointer */
+	sc_cleanup_deep_strv(NULL);
+
+	char **argses = NULL;
+	/* It is OK if the pointer value is NULL */
+	sc_cleanup_deep_strv(&argses);
+	g_assert_null(argses);
+
+	/* It is safe to call with an empty array */
+	argses = calloc(10, sizeof(char *));
+	g_assert_nonnull(argses);
+	sc_cleanup_deep_strv(&argses);
+
+	/* And of course the typical case works as well */
+	argses = calloc(10, sizeof(char *));
+	g_assert_nonnull(argses);
+	for (int i = 0; i < 9; i++) {
+		argses[i] = strdup("hello");
+	}
+	sc_cleanup_deep_strv(&argses);
+	g_assert_null(argses);
+}
+
 static void test_cleanup_shallow_strv(void)
 {
 	/* It is safe to use with a NULL pointer */
@@ -171,5 +197,6 @@ static void __attribute__((constructor)) init(void)
 	g_test_add_func("/cleanup/endmntent", test_cleanup_endmntent);
 	g_test_add_func("/cleanup/closedir", test_cleanup_closedir);
 	g_test_add_func("/cleanup/close", test_cleanup_close);
+	g_test_add_func("/cleanup/deep_strv", test_cleanup_deep_strv);
 	g_test_add_func("/cleanup/shallow_strv", test_cleanup_shallow_strv);
 }

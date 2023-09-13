@@ -31,8 +31,8 @@ execute: |
     fi
 
     echo "Refresh the core snap to $NESTED_CORE_REFRESH_CHANNEL channel"
-    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_CHANNEL}"
-    tests.nested exec "sudo snap refresh --${NESTED_CORE_REFRESH_CHANNEL} core" || true
+    remote.exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_CHANNEL}"
+    remote.exec "sudo snap refresh --${NESTED_CORE_REFRESH_CHANNEL} core" || true
 
     if ! tests.nested wait-for ssh; then
         echo "ssh not stablished, exiting..."
@@ -40,14 +40,14 @@ execute: |
     fi
 
     echo "Wait until the refresh is completed"
-    tests.nested exec "retry --wait 1 -n 180 --env NESTED_CORE_REFRESH_CHANNEL=$NESTED_CORE_REFRESH_CHANNEL sh -c 'snap changes | MATCH "Done.*Refresh \"core\" snap from \""${NESTED_CORE_REFRESH_CHANNEL}"\" channel"'"
-    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
+    remote.exec "retry --wait 1 -n 180 --env NESTED_CORE_REFRESH_CHANNEL=$NESTED_CORE_REFRESH_CHANNEL sh -c 'snap changes | MATCH "Done.*Refresh \"core\" snap from \""${NESTED_CORE_REFRESH_CHANNEL}"\" channel"'"
+    remote.exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
 
     echo "Precondition check, no refresh should be done here but the command shouldn't fail"
-    tests.nested exec "sudo snap refresh"
+    remote.exec "sudo snap refresh"
 
     echo "Revert the core snap"
-    tests.nested exec "sudo snap revert core" || true
+    remote.exec "sudo snap revert core" || true
 
     if ! tests.nested wait-for ssh; then
         echo "ssh not stablished, exiting..."
@@ -55,12 +55,12 @@ execute: |
     fi
 
     echo "Wait until the revert is completed"
-    tests.nested exec "retry --wait 1 -n 180 sh -c 'snap changes" | MATCH "Done.*Revert \"core\" snap'"
+    remote.exec "retry --wait 1 -n 180 sh -c 'snap changes" | MATCH "Done.*Revert \"core\" snap'"
 
     echo "Check the revert was done properly"
-    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
-    tests.nested exec "ifconfig" | MATCH eth0
+    remote.exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
+    remote.exec "ifconfig" | MATCH eth0
 
 
-    tests.nested exec "sudo snap refresh"
-    tests.nested exec "sudo cat /var/log/syslog" | NOMATCH "hsearch_r failed for.* No such process"
+    remote.exec "sudo snap refresh"
+    remote.exec "sudo cat /var/log/syslog" | NOMATCH "hsearch_r failed for.* No such process"

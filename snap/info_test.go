@@ -107,10 +107,10 @@ func (s *infoSuite) TestContactFromEdited(c *C) {
 	}
 
 	info.SideInfo = snap.SideInfo{
-		EditedContact: "mailto:econtact",
+		LegacyEditedContact: "mailto:econtact@example.com",
 	}
 
-	c.Check(info.Contact(), Equals, "mailto:econtact")
+	c.Check(info.Contact(), Equals, "mailto:econtact@example.com")
 }
 
 func (s *infoSuite) TestNoContact(c *C) {
@@ -122,21 +122,21 @@ func (s *infoSuite) TestNoContact(c *C) {
 func (s *infoSuite) TestContactFromLinks(c *C) {
 	info := &snap.Info{
 		OriginalLinks: map[string][]string{
-			"contact": {"ocontact1", "ocontact2"},
+			"contact": {"ocontact1@example.com", "ocontact2@example.com"},
 		},
 	}
 
-	c.Check(info.Contact(), Equals, "mailto:ocontact1")
+	c.Check(info.Contact(), Equals, "mailto:ocontact1@example.com")
 }
 
 func (s *infoSuite) TestContactFromLinksMailtoAlready(c *C) {
 	info := &snap.Info{
 		OriginalLinks: map[string][]string{
-			"contact": {"mailto:ocontact1", "ocontact2"},
+			"contact": {"mailto:ocontact1@example.com", "ocontact2@example.com"},
 		},
 	}
 
-	c.Check(info.Contact(), Equals, "mailto:ocontact1")
+	c.Check(info.Contact(), Equals, "mailto:ocontact1@example.com")
 }
 
 func (s *infoSuite) TestContactFromLinksNotEmail(c *C) {
@@ -152,28 +152,97 @@ func (s *infoSuite) TestContactFromLinksNotEmail(c *C) {
 func (s *infoSuite) TestLinks(c *C) {
 	info := &snap.Info{
 		OriginalLinks: map[string][]string{
-			"contact": {"ocontact"},
-			"website": {"owebsite"},
+			"contact": {"ocontact@example.com"},
+			"website": {"http://owebsite"},
 		},
 	}
 
 	info.SideInfo = snap.SideInfo{
 		EditedLinks: map[string][]string{
-			"contact": {"econtact"},
-			"website": {"ewebsite"},
+			"contact": {"mailto:econtact@example.com"},
+			"website": {"http://ewebsite"},
 		},
 	}
 
 	c.Check(info.Links(), DeepEquals, map[string][]string{
-		"contact": {"econtact"},
-		"website": {"ewebsite"},
+		"contact": {"mailto:econtact@example.com"},
+		"website": {"http://ewebsite"},
 	})
 
 	info.EditedLinks = nil
 	c.Check(info.Links(), DeepEquals, map[string][]string{
-		"contact": {"ocontact"},
-		"website": {"owebsite"},
+		"contact": {"mailto:ocontact@example.com"},
+		"website": {"http://owebsite"},
 	})
+}
+
+func (s *infoSuite) TestNormalizeEditedLinks(c *C) {
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			EditedLinks: map[string][]string{
+				"contact": {"ocontact1@example.com", "ocontact2@example.com", "mailto:ocontact2@example.com", "ocontact"},
+				"website": {":", "http://owebsite1", "https://owebsite2", ""},
+				"":        {"ocontact2@example.com"},
+				"?":       {"ocontact3@example.com"},
+				"abc":     {},
+			},
+		},
+	}
+
+	c.Check(snap.ValidateLinks(info.EditedLinks), NotNil)
+	c.Check(snap.ValidateLinks(info.Links()), IsNil)
+	c.Check(info.Links(), DeepEquals, map[string][]string{
+		"contact": {"mailto:ocontact1@example.com", "mailto:ocontact2@example.com"},
+		"website": {"http://owebsite1", "https://owebsite2"},
+	})
+}
+
+func (s *infoSuite) TestNormalizeOriginalLinks(c *C) {
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			LegacyEditedContact: "ocontact1@example.com",
+		},
+		LegacyWebsite: "http://owebsite1",
+		OriginalLinks: map[string][]string{
+			"contact": {"ocontact2@example.com", "mailto:ocontact2@example.com", "ocontact"},
+			"website": {":", "https://owebsite2", ""},
+			"":        {"ocontact2@example.com"},
+			"?":       {"ocontact3@example.com"},
+			"abc":     {},
+		},
+	}
+
+	c.Check(snap.ValidateLinks(info.OriginalLinks), NotNil)
+	c.Check(snap.ValidateLinks(info.Links()), IsNil)
+	c.Check(info.Links(), DeepEquals, map[string][]string{
+		"contact": {"mailto:ocontact1@example.com", "mailto:ocontact2@example.com"},
+		"website": {"http://owebsite1", "https://owebsite2"},
+	})
+}
+
+func (s *infoSuite) TestWebsiteFromLegacy(c *C) {
+	info := &snap.Info{
+		OriginalLinks: nil,
+		LegacyWebsite: "http://website",
+	}
+
+	c.Check(info.Website(), Equals, "http://website")
+}
+
+func (s *infoSuite) TestNoWebsite(c *C) {
+	info := &snap.Info{}
+
+	c.Check(info.Website(), Equals, "")
+}
+
+func (s *infoSuite) TestWebsiteFromLinks(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"website": {"http://website1", "http://website2"},
+		},
+	}
+
+	c.Check(info.Website(), Equals, "http://website1")
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
@@ -350,7 +419,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(1)}
 	info := snaptest.MockSnap(c, sampleYaml, si)
 	// not current -> Zero
-	c.Check(info.InstallDate().IsZero(), Equals, true)
+	c.Check(info.InstallDate(), IsNil)
 	c.Check(snap.InstallDate(info.InstanceName()).IsZero(), Equals, true)
 
 	mountdir := info.MountDir()
@@ -755,13 +824,33 @@ hooks:
 func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidImplicitHook(c *C) {
 	yaml := `name: foo
 version: 1.0`
-	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks("123abc"))
 
-	snapf, err := snapfile.Open(snapPath)
+	contents := [][]string{
+		{"meta/hooks/123abc", ""},
+	}
+	sideInfo := &snap.SideInfo{}
+	snapInfo := snaptest.MockSnapWithFiles(c, yaml, sideInfo, contents)
+	snapf, err := snapfile.Open(snapInfo.MountDir())
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, ErrorMatches, ".*invalid hook name.*")
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileCatchesImplicitHookDefaultConfigureOnly(c *C) {
+	yaml := `name: foo
+version: 1.0`
+
+	contents := [][]string{
+		{"meta/hooks/default-configure", ""},
+	}
+	sideInfo := &snap.SideInfo{}
+	snapInfo := snaptest.MockSnapWithFiles(c, yaml, sideInfo, contents)
+	snapf, err := snapfile.Open(snapInfo.MountDir())
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, "cannot specify \"default-configure\" hook without \"configure\" hook")
 }
 
 func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, instanceName, yaml string, contents string, hooks []string, checker func(c *C, info *snap.Info)) {
@@ -1906,4 +1995,106 @@ func (s *infoSuite) TestGetAttributeHappy(c *C) {
 	err := snap.GetAttribute("snap0", "iface0", attrs, "attr1", &intVal)
 	c.Check(err, IsNil)
 	c.Check(intVal, Equals, 12)
+}
+
+func (s *infoSuite) TestSnapdAssertionMaxFormatsFromSnapFileFromSnapd(c *C) {
+	tests := []struct {
+		info     string
+		snapDecl int
+		sysUser  int
+	}{
+		{info: `VERSION=2.58
+SNAPD_ASSERTS_FORMATS='{"snap-declaration":5,"system-user":2}'`, snapDecl: 5, sysUser: 2},
+		{info: `VERSION=2.56
+SNAPD_ASSERTS_FORMATS='{"snap-declaration":5,"system-user":1}'`, snapDecl: 5, sysUser: 1},
+		{info: `VERSION=2.55`, snapDecl: 5, sysUser: 1},
+		{info: `VERSION=2.54`, snapDecl: 5, sysUser: 1},
+		{info: `VERSION=2.47`, snapDecl: 4, sysUser: 1},
+		{info: `VERSION=2.46`, snapDecl: 4, sysUser: 1},
+		{info: `VERSION=2.45`, snapDecl: 4},
+		{info: `VERSION=2.44`, snapDecl: 4},
+		{info: `VERSION=2.36`, snapDecl: 3},
+		// old
+		{info: `VERSION=2.23`, snapDecl: 2},
+		// ancient
+		{info: `VERSION=2.17`, snapDecl: 1},
+		{info: `VERSION=2.16`},
+	}
+	for _, t := range tests {
+		snapdPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
+type: snapd
+version: 1.0`, [][]string{{
+			"/usr/lib/snapd/info", t.info}})
+		snapf, err := snapfile.Open(snapdPath)
+		c.Assert(err, IsNil)
+
+		maxFormats, ver, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+		c.Assert(err, IsNil)
+		expectedMaxFormats := map[string]int{}
+		if t.sysUser > 0 {
+			expectedMaxFormats["system-user"] = t.sysUser
+		}
+		if t.snapDecl > 0 {
+			expectedMaxFormats["snap-declaration"] = t.snapDecl
+		}
+		c.Check(maxFormats, DeepEquals, expectedMaxFormats)
+		c.Check(strings.HasPrefix(t.info, fmt.Sprintf("VERSION=%s", ver)), Equals, true)
+	}
+}
+
+func (s *infoSuite) TestSnapdAssertionMaxFormatsFromSnapFileFromCore(c *C) {
+	corePath := snaptest.MakeTestSnapWithFiles(c, `name: core
+type: os
+version: 1.0`, [][]string{{
+		"/usr/lib/snapd/info", `VERSION=2.47`}})
+	snapf, err := snapfile.Open(corePath)
+	c.Assert(err, IsNil)
+
+	maxFormats, ver, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+	c.Assert(err, IsNil)
+	c.Check(ver, Equals, "2.47")
+	c.Check(maxFormats, DeepEquals, map[string]int{
+		"snap-declaration": 4,
+		"system-user":      1,
+	})
+}
+
+func (s *infoSuite) TestSnapdAssertionMaxFormatsFromSnapFileFromKernel(c *C) {
+	krnlPath := snaptest.MakeTestSnapWithFiles(c, `name: krnl
+type: kernel
+version: 1.0`, [][]string{{
+		"/snapd-info", `VERSION=2.56
+SNAPD_ASSERTS_FORMATS='{"snap-declaration":5,"system-user":1}'`}})
+	snapf, err := snapfile.Open(krnlPath)
+	c.Assert(err, IsNil)
+
+	maxFormats, ver, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+	c.Assert(err, IsNil)
+	c.Check(ver, Equals, "2.56")
+	c.Check(maxFormats, DeepEquals, map[string]int{
+		"snap-declaration": 5,
+		"system-user":      1,
+	})
+
+	// no snadd-info
+	krnlPath = snaptest.MakeTestSnapWithFiles(c, `name: krnl
+type: kernel
+version: 1.0`, nil)
+	snapf, err = snapfile.Open(krnlPath)
+	c.Assert(err, IsNil)
+
+	maxFormats, ver, err = snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+	c.Assert(err, IsNil)
+	c.Check(ver, Equals, "")
+	c.Check(maxFormats, IsNil)
+}
+
+func (s *infoSuite) TestSnapdAssertionMaxFormatsFromSnapFileFromOther(c *C) {
+	appPath := snaptest.MakeTestSnapWithFiles(c, `name: app
+version: 1.0`, nil)
+	snapf, err := snapfile.Open(appPath)
+	c.Assert(err, IsNil)
+
+	_, _, err = snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+	c.Check(err, ErrorMatches, `cannot extract assertion max formats information, snaps of type app do not carry snapd`)
 }

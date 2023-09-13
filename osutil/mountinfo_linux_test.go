@@ -105,11 +105,27 @@ func (s *mountinfoSuite) TestParseMountInfoEntry3(c *C) {
 	c.Assert(entry.SuperOptions, DeepEquals, map[string]string{"rw ": "", "errors": "continue"})
 }
 
+func (s *mountinfoSuite) TestBrokenEscapingPlan9(c *C) {
+	// This is a real sample collected on WSL-2 with Docker installed on the Windows host.
+	mi, err := osutil.ParseMountInfoEntry(`1146 77 0:149 / /Docker/host rw,noatime - 9p drvfs rw,dirsync,aname=drvfs;path=C:\Program Files\Docker\Docker\resources;symlinkroot=/mnt/,mmap,access=client,msize=262144,trans=virtio`)
+	c.Assert(err, IsNil)
+	c.Check(mi.SuperOptions, DeepEquals, map[string]string{
+		"rw":      "",
+		"dirsync": "",
+		// XXX: what is the likelihood that comma is properly escaped in the mount option value?
+		"aname":  "drvfs;path=C:\\Program Files\\Docker\\Docker\\resources;symlinkroot=/mnt/",
+		"mmap":   "",
+		"access": "client",
+		"msize":  "262144",
+		"trans":  "virtio",
+	})
+}
+
 // Check that various malformed entries are detected.
 func (s *mountinfoSuite) TestParseMountInfoEntry4(c *C) {
-	var err error
-	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
-	c.Assert(err, ErrorMatches, "incorrect number of tail fields, expected 3 but found 4")
+	mi, err := osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
+	c.Assert(err, IsNil)
+	c.Check(mi.SuperOptions, DeepEquals, map[string]string{"rw": "", "errors": "continue foo"})
 	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root")
 	c.Assert(err, ErrorMatches, "incorrect number of tail fields, expected 3 but found 2")
 	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3")

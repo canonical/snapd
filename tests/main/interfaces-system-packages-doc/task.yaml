@@ -36,6 +36,15 @@ execute: |
     test-snapd-app.sh -c 'cat /usr/share/cups/doc-root/content' | MATCH text
     test-snapd-app.sh -c 'cat /usr/share/gimp/2.0/help/content' | MATCH text
 
+    # Do the same, after discarding the namespace to verify that snap-update-ns rules are correct
+    snapd.tool exec snap-discard-ns test-snapd-app
+    test-snapd-app.sh -c 'cat /usr/share/doc/system-packages-doc-iface/content' | MATCH text
+    test-snapd-app.sh -c 'cat /usr/share/libreoffice/help/content' | MATCH text
+    test-snapd-app.sh -c 'cat /usr/share/xubuntu-docs/content' | MATCH text
+    test-snapd-app.sh -c 'cat /usr/share/gtk-doc/content' | MATCH text
+    test-snapd-app.sh -c 'cat /usr/share/cups/doc-root/content' | MATCH text
+    test-snapd-app.sh -c 'cat /usr/share/gimp/2.0/help/content' | MATCH text
+
     # The interface can be disconnected
     snap disconnect test-snapd-app:system-packages-doc
     not test-snapd-app.sh -c 'test -e /usr/share/doc/system-packages-doc-iface/content'

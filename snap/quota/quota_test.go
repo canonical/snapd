@@ -50,7 +50,7 @@ func (ts *quotaTestSuite) TestNewGroup(c *C) {
 	}{
 		{
 			name:    "group1",
-			limits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			limits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			comment: "basic happy",
 		},
 		{
@@ -159,83 +159,83 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 		comment       string
 	}{
 		{
-			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub",
-			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			comment:    "basic sub group with same quota as parent happy",
 		},
 		{
-			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(2 * quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(2 * quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub",
-			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(50).WithAllowedCPUs([]int{0}).WithThreadLimit(16).Build(),
+			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(50).WithCPUSet([]int{0}).WithThreadLimit(16).Build(),
 			comment:    "basic sub group with smaller quota than parent happy",
 		},
 		{
-			rootlimits:    quota.NewResourcesBuilder().WithMemoryLimit(2 * quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits:    quota.NewResourcesBuilder().WithMemoryLimit(2 * quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			subname:       "sub-with-dashes",
 			sliceFileName: `myroot-sub\x2dwith\x2ddashes`,
-			sublimits:     quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(50).WithAllowedCPUs([]int{0}).WithThreadLimit(16).Build(),
+			sublimits:     quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(50).WithCPUSet([]int{0}).WithThreadLimit(16).Build(),
 			comment:       "basic sub group with dashes in the name",
 		},
 		{
 			rootname:      "my-root",
-			rootlimits:    quota.NewResourcesBuilder().WithMemoryLimit(2 * quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits:    quota.NewResourcesBuilder().WithMemoryLimit(2 * quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			subname:       "sub-with-dashes",
 			sliceFileName: `my\x2droot-sub\x2dwith\x2ddashes`,
-			sublimits:     quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(50).WithAllowedCPUs([]int{0}).WithThreadLimit(16).Build(),
+			sublimits:     quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(50).WithCPUSet([]int{0}).WithThreadLimit(16).Build(),
 			comment:       "parent and sub group have dashes in name",
 		},
 		{
-			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub",
 			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB * 2).Build(),
 			err:        "sub-group memory limit of 2 MiB is too large to fit inside group \"myroot\" remaining quota space 1 MiB",
 			comment:    "sub group with larger memory quota than parent unhappy",
 		},
 		{
-			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub",
 			sublimits:  quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(100).Build(),
 			err:        "sub-group cpu limit of 200% is too large to fit inside group \"myroot\" remaining quota space 100%",
 			comment:    "sub group with larger cpu count quota than parent unhappy",
 		},
 		{
-			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub",
-			sublimits:  quota.NewResourcesBuilder().WithAllowedCPUs([]int{1}).Build(),
+			sublimits:  quota.NewResourcesBuilder().WithCPUSet([]int{1}).Build(),
 			err:        "sub-group cpu-set \\[1\\] is not a subset of group \"myroot\" cpu-set \\[0\\]",
 			comment:    "sub group with different cpu allowance quota than parent unhappy",
 		},
 		{
-			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub",
 			sublimits:  quota.NewResourcesBuilder().WithThreadLimit(64).Build(),
 			err:        "sub-group thread limit of 64 is too large to fit inside group \"myroot\" remaining quota space 32",
 			comment:    "sub group with larger task allowance quota than parent unhappy",
 		},
 		{
-			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub invalid chars",
-			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			err:        `invalid quota group name: contains invalid characters.*`,
 			comment:    "sub group with invalid name",
 		},
 		{
-			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "myroot",
-			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			err:        `cannot use same name "myroot" for sub group as parent group`,
 			comment:    "sub group with same name as parent group",
 		},
 		{
-			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "snapd",
-			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			err:        `group name "snapd" reserved`,
 			comment:    "sub group with reserved name",
 		},
 		{
-			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "zero",
 			sublimits:  quota.NewResourcesBuilder().Build(),
 			err:        `quota group must have at least one resource limit set`,
@@ -298,16 +298,28 @@ func (ts *quotaTestSuite) TestComplexSubGroups(c *C) {
 	c.Assert(subsubsub1.SliceFileName(), Equals, "snap.myroot-sub1-subsub1-subsubsub1.slice")
 }
 
-func (ts *quotaTestSuite) TestGroupUnmixableSnapsSubgroups(c *C) {
+func (ts *quotaTestSuite) TestGroupIsMixableSnapsSubgroups(c *C) {
 	parent, err := quota.NewGroup("parent", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 
 	// now we add a snap to the parent group
 	parent.Snaps = []string{"test-snap"}
 
-	// add a subgroup to the parent group, this should fail as the group now has snaps
+	// add a subgroup to the parent group
 	_, err = parent.NewSubGroup("sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
-	c.Assert(err, ErrorMatches, "cannot mix sub groups with snaps in the same group")
+	c.Assert(err, IsNil)
+}
+
+func (ts *quotaTestSuite) TestGroupUnmixableServicesSubgroups(c *C) {
+	parent, err := quota.NewGroup("parent", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+
+	// now we add a snap to the parent group
+	parent.Services = []string{"my-service"}
+
+	// add a subgroup to the parent group
+	_, err = parent.NewSubGroup("sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, ErrorMatches, "cannot mix sub groups with services in the same group")
 }
 
 func (ts *quotaTestSuite) TestJournalNamespaceName(c *C) {
@@ -316,10 +328,74 @@ func (ts *quotaTestSuite) TestJournalNamespaceName(c *C) {
 	c.Check(grp.JournalNamespaceName(), Equals, "snap-foo")
 }
 
-func (ts *quotaTestSuite) TestJournalFileName(c *C) {
+func (ts *quotaTestSuite) TestJournalQuotaSet(c *C) {
+	// If no services are in the sub-group, then it's not a service group.
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(err, IsNil)
+	sub, err := grp.NewSubGroup("bar", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalQuotaSet(), Equals, true)
+	c.Check(sub.JournalQuotaSet(), Equals, false)
+}
+
+func (ts *quotaTestSuite) TestJournalQuotaSetReflectsParent(c *C) {
+	// If services are in the sub-group, then it's a service group.
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(err, IsNil)
+	sub, err := grp.NewSubGroup("bar", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	sub.Services = []string{"snap.svc"}
+	c.Check(grp.JournalQuotaSet(), Equals, true)
+
+	// now that sub is a service group, we should see that this reflects
+	// the parent group
+	c.Check(sub.JournalQuotaSet(), Equals, true)
+}
+
+func (ts *quotaTestSuite) TestJournalNamespaceNameSubgroupNotInherit(c *C) {
+	// If no services are in the sub-group, then it's not a service group.
 	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
-	c.Check(grp.JournalFileName(), Equals, "journald@snap-foo.conf")
+	sub, err := grp.NewSubGroup("bar", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalNamespaceName(), Equals, "snap-foo")
+	c.Check(sub.JournalNamespaceName(), Equals, "snap-bar")
+}
+
+func (ts *quotaTestSuite) TestJournalNamespaceNameSubgroupInherit(c *C) {
+	// If services are in the sub-group, then it's a service group.
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	sub, err := grp.NewSubGroup("bar", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	sub.Services = []string{"snap.svc"}
+	c.Check(grp.JournalNamespaceName(), Equals, "snap-foo")
+	// now the journal namespace is set to the parent
+	c.Check(sub.JournalNamespaceName(), Equals, "snap-foo")
+}
+
+func (ts *quotaTestSuite) TestJournalConfFileName(c *C) {
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalConfFileName(), Equals, "journald@snap-foo.conf")
+}
+
+func (ts *quotaTestSuite) TestJournalServiceName(c *C) {
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalServiceName(), Equals, "systemd-journald@snap-foo.service")
+}
+
+func (ts *quotaTestSuite) TestJournalServiceDropInDir(c *C) {
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalServiceDropInDir(), Equals, "/etc/systemd/system/systemd-journald@snap-foo.service.d")
+}
+
+func (ts *quotaTestSuite) TestJournalServiceDropInFile(c *C) {
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalServiceDropInFile(), Equals, "/etc/systemd/system/systemd-journald@snap-foo.service.d/00-snap.conf")
 }
 
 func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
@@ -522,11 +598,166 @@ func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
 			err:     `missing group "other-missing" referenced as the parent of group "foogroup"`,
 			comment: "missing sub-group name",
 		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:         "foogroup",
+					JournalLimit: &quota.GroupQuotaJournal{},
+					Services:     []string{"snap.svc"},
+				},
+			},
+			err:     `group "foogroup" is invalid: journal quota is not supported for individual services`,
+			comment: "setting a journal quota for a group with services is not allowed",
+		},
 	}
 
 	for _, t := range tt {
 		comment := Commentf(t.comment)
 		err := quota.ResolveCrossReferences(t.grps)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, comment)
+		} else {
+			c.Assert(err, IsNil, comment)
+		}
+	}
+}
+
+func (ts *quotaTestSuite) TestVerifyNestingAndMixingIsAllowed(c *C) {
+	tt := []struct {
+		grps    map[string]*quota.Group
+		check   string
+		err     string
+		comment string
+	}{
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB * 16,
+					Snaps:       []string{"test-snap"},
+				},
+			},
+			check:   "foogroup",
+			comment: "single group with a snap",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB * 16,
+					Snaps:       []string{"test-snap"},
+					SubGroups:   []string{"foo-sub"},
+				},
+				"foo-sub": {
+					Name:        "foo-sub",
+					MemoryLimit: quantity.SizeMiB * 8,
+					ParentGroup: "foogroup",
+				},
+			},
+			check:   "foogroup",
+			comment: "mixed group, with a single sub-group",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB * 16,
+					Snaps:       []string{"test-snap"},
+					SubGroups:   []string{"foo-sub"},
+				},
+				"foo-sub": {
+					Name:        "foo-sub",
+					MemoryLimit: quantity.SizeMiB * 8,
+					ParentGroup: "foogroup",
+					SubGroups:   []string{"foo-sub-sub"},
+				},
+				"foo-sub-sub": {
+					Name:        "foo-sub-sub",
+					MemoryLimit: quantity.SizeMiB * 4,
+					ParentGroup: "foo-sub",
+				},
+			},
+			check:   "foogroup",
+			err:     `group "foo-sub-sub" is invalid: only one level of sub-groups are allowed for groups with snaps`,
+			comment: "mixed parent group with more than 1 level of sub-grouping",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB * 16,
+					Snaps:       []string{"test-snap"},
+					SubGroups:   []string{"foo-sub"},
+				},
+				"foo-sub": {
+					Name:        "foo-sub",
+					MemoryLimit: quantity.SizeMiB * 8,
+					ParentGroup: "foogroup",
+					SubGroups:   []string{"foo-sub-sub"},
+				},
+				"foo-sub-sub": {
+					Name:        "foo-sub-sub",
+					MemoryLimit: quantity.SizeMiB * 4,
+					ParentGroup: "foo-sub",
+				},
+			},
+			check:   "foo-sub",
+			err:     `group "foo-sub" is invalid: only one level of sub-groups are allowed for groups with snaps`,
+			comment: "mixed parent group with more than 1 level of sub-grouping, verifying foo-sub",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB * 16,
+					Snaps:       []string{"test-snap"},
+					SubGroups:   []string{"foo-sub"},
+				},
+				"foo-sub": {
+					Name:        "foo-sub",
+					MemoryLimit: quantity.SizeMiB * 8,
+					ParentGroup: "foogroup",
+					SubGroups:   []string{"foo-sub-sub"},
+				},
+				"foo-sub-sub": {
+					Name:        "foo-sub-sub",
+					MemoryLimit: quantity.SizeMiB * 4,
+					ParentGroup: "foo-sub",
+				},
+			},
+			check:   "foo-sub-sub",
+			err:     `group "foo-sub-sub" is invalid: only one level of sub-groups are allowed for groups with snaps`,
+			comment: "mixed parent group with more than 1 level of sub-grouping, verifying foo-sub-sub",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB * 16,
+					Snaps:       []string{"test-snap"},
+					SubGroups:   []string{"foo-sub"},
+				},
+				"foo-sub": {
+					Name:        "foo-sub",
+					MemoryLimit: quantity.SizeMiB * 8,
+					ParentGroup: "foogroup",
+					Snaps:       []string{"test-snap"},
+				},
+			},
+			check:   "foogroup",
+			err:     `group "foogroup" is invalid: nesting of groups with snaps is not supported`,
+			comment: "mixed parent group with nested snap, verifying foogroup",
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		// resolve cross references as we need group pointers to be updated
+		err := quota.ResolveCrossReferences(t.grps)
+		c.Assert(err, IsNil, comment)
+		grpToCheck := t.grps[t.check]
+		c.Assert(grpToCheck, NotNil, comment)
+		err = grpToCheck.ValidateNestingAndSnaps()
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, comment)
 		} else {
@@ -887,7 +1118,7 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 	thrq0, err := grp1.NewSubGroup("thread-q0", quota.NewResourcesBuilder().WithThreadLimit(32).Build())
 	c.Assert(err, IsNil)
 
-	cpusq0, err := grp1.NewSubGroup("cpus-q0", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	cpusq0, err := grp1.NewSubGroup("cpus-q0", quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build())
 	c.Assert(err, IsNil)
 
 	memq1, err := cpuq0.NewSubGroup("mem-q1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB*256).Build())
@@ -896,7 +1127,7 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 	memq2, err := thrq0.NewSubGroup("mem-q2", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB*256).Build())
 	c.Assert(err, IsNil)
 
-	_, err = cpusq0.NewSubGroup("cpus-q1", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0}).Build())
+	_, err = cpusq0.NewSubGroup("cpus-q1", quota.NewResourcesBuilder().WithCPUSet([]int{0}).Build())
 	c.Check(err, IsNil)
 
 	_, err = memq1.NewSubGroup("cpu-q1", quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build())
@@ -914,12 +1145,12 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 
 	// Verify the root group
 	c.Check(allReservations["groot"], DeepEquals, &quota.GroupQuotaAllocations{
-		MemoryLimit:                   quantity.SizeGiB,
-		MemoryReservedByChildren:      quantity.SizeMiB * 512,
-		CPUReservedByChildren:         100,
-		ThreadsReservedByChildren:     32,
-		AllowedCPUsLimit:              []int{},
-		AllowedCPUsReservedByChildren: []int{0, 1},
+		MemoryLimit:               quantity.SizeGiB,
+		MemoryReservedByChildren:  quantity.SizeMiB * 512,
+		CPUReservedByChildren:     100,
+		ThreadsReservedByChildren: 32,
+		CPUSetLimit:               []int{},
+		CPUSetReservedByChildren:  []int{0, 1},
 	})
 
 	// Verify the subgroup cpu-q0
@@ -927,7 +1158,7 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 		CPULimit:                 100,
 		CPUReservedByChildren:    50,
 		MemoryReservedByChildren: quantity.SizeMiB * 256,
-		AllowedCPUsLimit:         []int{},
+		CPUSetLimit:              []int{},
 	})
 
 	// Verify the subgroup thread-q0
@@ -935,25 +1166,25 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 		MemoryReservedByChildren:  quantity.SizeMiB * 256,
 		ThreadsLimit:              32,
 		ThreadsReservedByChildren: 16,
-		AllowedCPUsLimit:          []int{},
+		CPUSetLimit:               []int{},
 	})
 
 	// Verify the subgroup cpus-q0
 	c.Check(allReservations["cpus-q0"], DeepEquals, &quota.GroupQuotaAllocations{
-		AllowedCPUsLimit:              []int{0, 1},
-		AllowedCPUsReservedByChildren: []int{0},
+		CPUSetLimit:              []int{0, 1},
+		CPUSetReservedByChildren: []int{0},
 	})
 
 	// Verify the subgroup cpus-q1
 	c.Check(allReservations["cpus-q1"], DeepEquals, &quota.GroupQuotaAllocations{
-		AllowedCPUsLimit: []int{0},
+		CPUSetLimit: []int{0},
 	})
 
 	// Verify the subgroup mem-q1
 	c.Check(allReservations["mem-q1"], DeepEquals, &quota.GroupQuotaAllocations{
 		MemoryLimit:           quantity.SizeMiB * 256,
 		CPUReservedByChildren: 50,
-		AllowedCPUsLimit:      []int{},
+		CPUSetLimit:           []int{},
 	})
 
 	// Verify the subgroup mem-q2
@@ -961,26 +1192,26 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 		MemoryLimit:               quantity.SizeMiB * 256,
 		MemoryReservedByChildren:  quantity.SizeMiB * 128,
 		ThreadsReservedByChildren: 16,
-		AllowedCPUsLimit:          []int{},
+		CPUSetLimit:               []int{},
 	})
 
 	// Verify the subgroup cpu-q1
 	c.Check(allReservations["cpu-q1"], DeepEquals, &quota.GroupQuotaAllocations{
-		CPULimit:         50,
-		AllowedCPUsLimit: []int{},
+		CPULimit:    50,
+		CPUSetLimit: []int{},
 	})
 
 	// Verify the subgroup thread-q1
 	c.Check(allReservations["thread-q1"], DeepEquals, &quota.GroupQuotaAllocations{
 		MemoryReservedByChildren: quantity.SizeMiB * 128,
 		ThreadsLimit:             16,
-		AllowedCPUsLimit:         []int{},
+		CPUSetLimit:              []int{},
 	})
 
 	// Verify the subgroup mem-q3
 	c.Check(allReservations["mem-q3"], DeepEquals, &quota.GroupQuotaAllocations{
-		MemoryLimit:      quantity.SizeMiB * 128,
-		AllowedCPUsLimit: []int{},
+		MemoryLimit: quantity.SizeMiB * 128,
+		CPUSetLimit: []int{},
 	})
 }
 
@@ -994,7 +1225,7 @@ func (ts *quotaTestSuite) TestNestingOfLimitsWithExceedingParent(c *C) {
 	_, err = grp1.NewSubGroup("thread-sub", quota.NewResourcesBuilder().WithThreadLimit(32).Build())
 	c.Check(err, IsNil)
 
-	_, err = grp1.NewSubGroup("cpus-sub", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	_, err = grp1.NewSubGroup("cpus-sub", quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build())
 	c.Check(err, IsNil)
 
 	// Now we have the root with a memory limit, and three subgroups with
@@ -1015,7 +1246,7 @@ func (ts *quotaTestSuite) TestNestingOfLimitsWithExceedingSiblings(c *C) {
 	_, err = grp1.NewSubGroup("thread-sub", quota.NewResourcesBuilder().WithThreadLimit(32).Build())
 	c.Check(err, IsNil)
 
-	subgrp2, err := grp1.NewSubGroup("cpus-sub", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	subgrp2, err := grp1.NewSubGroup("cpus-sub", quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build())
 	c.Check(err, IsNil)
 
 	// The point here is to catch if we, in a nested, scenario, together with our siblings
@@ -1098,23 +1329,23 @@ func (ts *quotaTestSuite) TestChangingParentCpuSetLimits(c *C) {
 	// The purpose here is to make sure we can't change the limits of the parent group
 	// that would otherwise conflict with the current usage of limits by children of the
 	// parent.
-	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build())
 	c.Assert(err, IsNil)
 
 	subgrp1, err := grp1.NewSubGroup("cpu-sub", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
 	c.Assert(err, IsNil)
 
 	// Create a nested subgroup with a cpu limit that uses both of allowed cpus
-	_, err = subgrp1.NewSubGroup("cpuset-sub", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	_, err = subgrp1.NewSubGroup("cpuset-sub", quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build())
 	c.Assert(err, IsNil)
 
 	// Now the test is to change the upper most parent limit so that it would be more
 	// restrictive then the previous limit
-	err = grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithAllowedCPUs([]int{0}).Build())
+	err = grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithCPUSet([]int{0}).Build())
 	c.Check(err, ErrorMatches, `group cpu-set \[0\] is not a superset of current subgroup usage of \[0 1\]`)
 }
 
-func (ts *quotaTestSuite) TestChangingParentTaskLimits(c *C) {
+func (ts *quotaTestSuite) TestChangingParentThreadLimits(c *C) {
 	// The purpose here is to make sure we can't change the limits of the parent group
 	// that would otherwise conflict with the current usage of limits by children of the
 	// parent.
@@ -1212,14 +1443,14 @@ func (ts *quotaTestSuite) TestAddingNewMiddleParentCpuLimits(c *C) {
 func (ts *quotaTestSuite) TestAddingNewMiddleParentCpuSetLimits(c *C) {
 	// The purpose here is to make sure we catch any new limits inserted into
 	// the tree, which would conflict with the current usage.
-	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1, 2, 3}).Build())
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithCPUSet([]int{0, 1, 2, 3}).Build())
 	c.Assert(err, IsNil)
 
 	subgrp1, err := grp1.NewSubGroup("cpu-sub1", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
 	c.Assert(err, IsNil)
 
 	// Create a nested subgroup with a more restrictive cpu-set of the upper parent
-	subgrp2, err := subgrp1.NewSubGroup("cpuset-sub", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	subgrp2, err := subgrp1.NewSubGroup("cpuset-sub", quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build())
 	c.Assert(err, IsNil)
 
 	// Create a nested subgroup with a cpu limit that takes up the entire quota of the middle parent
@@ -1227,11 +1458,11 @@ func (ts *quotaTestSuite) TestAddingNewMiddleParentCpuSetLimits(c *C) {
 	c.Assert(err, IsNil)
 
 	// Now lets inject a cpu-set that does not match whats currently used by children
-	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithAllowedCPUs([]int{2, 3}).Build())
+	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithCPUSet([]int{2, 3}).Build())
 	c.Check(err, ErrorMatches, `group cpu-set \[2 3\] is not a superset of current subgroup usage of \[0 1\]`)
 
 	// Now lets inject one that is larger, that should be possible
-	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1, 2}).Build())
+	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithCPUSet([]int{0, 1, 2}).Build())
 	c.Check(err, IsNil)
 }
 
@@ -1266,7 +1497,7 @@ func (ts *quotaTestSuite) TestCombinedCpuPercentageWithCpuSetLimits(c *C) {
 	restore := quota.MockRuntimeNumCPU(func() int { return 4 })
 	defer restore()
 
-	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build())
 	c.Assert(err, IsNil)
 
 	// Create a subgroup of the CPU set of 0,1 with 50% allowed CPU usage. This should result in a combined
@@ -1284,7 +1515,7 @@ func (ts *quotaTestSuite) TestCombinedCpuPercentageWithLowCoreCount(c *C) {
 	restore := quota.MockRuntimeNumCPU(func() int { return 1 })
 	defer restore()
 
-	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build())
 	c.Assert(err, IsNil)
 
 	subgrp1, err := grp1.NewSubGroup("cpu-sub1", quota.NewResourcesBuilder().WithCPUPercentage(50).Build())
@@ -1336,4 +1567,49 @@ func (ts *quotaTestSuite) TestJournalQuotasUpdatesCorrectly(c *C) {
 	c.Check(grp1.JournalLimit.Size, Equals, quantity.SizeMiB)
 	c.Check(grp1.JournalLimit.RateCount, Equals, 15)
 	c.Check(grp1.JournalLimit.RatePeriod, Equals, time.Microsecond*5)
+}
+
+func (ts *quotaTestSuite) TestServiceMapEmptyOnEmptyGroup(c *C) {
+	rootGrp, err := quota.NewGroup("myroot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	// Check the root group now. No services exists yet, so this should yield an empty map
+	serviceMap := rootGrp.ServiceMap()
+	c.Check(serviceMap, DeepEquals, map[string]*quota.Group{})
+}
+
+func (ts *quotaTestSuite) TestServiceMapEmptyOnGroupWithNoServices(c *C) {
+	rootGrp, err := quota.NewGroup("myroot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	_, err = rootGrp.NewSubGroup("mysub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB/2).Build())
+	c.Assert(err, IsNil)
+
+	// Add a snap, this should yield no difference as services that are not
+	// in service sub-groups are not included, and the fact that ServiceMap does
+	// not look into snap.Info, but relies completely on local information in the group.
+	rootGrp.Snaps = append(rootGrp.Snaps, "my-snap")
+
+	// Let's also add a service, while not permitted, we can do this as we manually do
+	// modifications. This service should not be included.
+	rootGrp.Services = append(rootGrp.Services, "my-snap.uh-oh")
+
+	// Check the root group now. No services exists yet, so this should yield an empty map
+	serviceMap := rootGrp.ServiceMap()
+	c.Check(serviceMap, DeepEquals, map[string]*quota.Group{})
+}
+
+func (ts *quotaTestSuite) TestServiceMapHappy(c *C) {
+	rootGrp, err := quota.NewGroup("myroot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	svcGrp, err := rootGrp.NewSubGroup("mysub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB/2).Build())
+	c.Assert(err, IsNil)
+
+	// add a service to the service sub-group, this should now be included
+	svcGrp.Services = []string{"my-snap.service"}
+	serviceMap := rootGrp.ServiceMap()
+	c.Check(serviceMap, DeepEquals, map[string]*quota.Group{
+		"my-snap.service": svcGrp,
+	})
 }

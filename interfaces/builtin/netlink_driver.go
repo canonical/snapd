@@ -56,11 +56,11 @@ capability net_admin,
 `
 
 // regex for family-name must match:
-// * at least 2 characters long
-// * must start with letter
-// * must not end in a hyphen
-// * can contain numbers, letters and hyphens for all character positions except
-//   as described above
+//   - at least 2 characters long
+//   - must start with letter
+//   - must not end in a hyphen
+//   - can contain numbers, letters and hyphens for all character positions except
+//     as described above
 var familyNameRegexp = regexp.MustCompile(`^[a-z]+[a-z0-9-]*[^\-]$`)
 
 // BeforePrepareSlot checks the slot definition is valid

@@ -41,7 +41,7 @@ execute: |
     "test-snapd-sh-${base_snap}.sh" -c 'cat /var/lib/extrausers/passwd' | MATCH test
 
     case "$SPREAD_SYSTEM" in
-      ubuntu-core-20-64|ubuntu-core-22-64)
+      ubuntu-core-20-64|ubuntu-core-22-64|ubuntu-core-22-arm-64)
         echo "Ensure extracted kernel.efi exists"
         kernel_name="$(snaps.name kernel)"
         test -e /boot/grub/"$kernel_name"*/kernel.efi
@@ -75,7 +75,7 @@ execute: |
     # b) there was a cloud.cfg.d override (e.g. MAAS), then we must have more
     #    files in writable than in the core20 snap. The core20 content and the
     #    extra config will be merged
-    test -e /writable/system-data/etc/cloud/cloud-init.disabled || [ "$(find /writable/system-data/etc/cloud/cloud.cfg.d/ | wc -l)" -gt "$(find /snap/${base_snap}/current/etc/cloud/cloud.cfg.d/ | wc -l)" ]
+    test -e /writable/system-data/etc/cloud/cloud-init.disabled || [ "$(find /writable/system-data/etc/cloud/cloud.cfg.d/ | wc -l)" -gt "$(find /snap/"${base_snap}"/current/etc/cloud/cloud.cfg.d/ | wc -l)" ]
 
     # ensure that we have no symlinks from /var/lib/snapd/snaps to
     # /var/lib/snapd/seed
@@ -111,3 +111,12 @@ execute: |
         echo "${loop}" | MATCH "/dev/loop[0-9]+"
         losetup -O ro -n --raw "${loop}" | MATCH "1"
     done
+
+    # ensure apparmor works, see LP: 2024637
+    systemctl status apparmor.service
+
+    # reboot to double check that apparmor still works after the reboot
+    # (LP: 2024637)
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        REBOOT
+    fi

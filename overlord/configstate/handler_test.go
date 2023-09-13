@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
+// +build !nomanagers
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -20,6 +22,7 @@
 package configstate_test
 
 import (
+	"errors"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
@@ -33,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -260,6 +264,169 @@ volumes:
 	c.Check(err, ErrorMatches, `cannot apply gadget config defaults for snap "test-snap", no configure hook`)
 }
 
+type defaultConfigureHandlerSuite struct {
+	testutil.BaseTest
+
+	state                   *state.State
+	defaultConfigureContext *hookstate.Context
+	configureContext        *hookstate.Context
+	defaultConfigureHandler hookstate.Handler
+	configureHandler        hookstate.Handler
+}
+
+var _ = Suite(&defaultConfigureHandlerSuite{})
+
+func (s *defaultConfigureHandlerSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+
+	s.state = state.New(nil)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var err error
+	task := s.state.NewTask("run-hook", "Run default-configure hook")
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "default-configure"}
+	s.defaultConfigureContext, err = hookstate.NewContext(task, task.State(), setup, hooktest.NewMockHandler(), "")
+	c.Assert(err, IsNil)
+
+	task = s.state.NewTask("run-hook", "Run configure hook")
+	setup = &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
+	s.configureContext, err = hookstate.NewContext(task, task.State(), setup, hooktest.NewMockHandler(), "")
+	c.Assert(err, IsNil)
+
+	s.defaultConfigureHandler = configstate.NewDefaultConfigureHandler(s.defaultConfigureContext)
+	s.configureHandler = configstate.NewConfigureHandler(s.configureContext)
+}
+
+func (s *defaultConfigureHandlerSuite) TestBeforeNotInstalledError(c *C) {
+	err := s.defaultConfigureHandler.Before()
+	var notInstalledError *snap.NotInstalledError
+	c.Assert(errors.As(err, &notInstalledError), Equals, true)
+
+	s.defaultConfigureContext.Lock()
+	tr := configstate.ContextTransaction(s.defaultConfigureContext)
+	s.defaultConfigureContext.Unlock()
+	c.Check(len(tr.Changes()), Equals, 0)
+}
+
+func (s *defaultConfigureHandlerSuite) TestBeforeMissingConfigureHookError(c *C) {
+	const mockTestSnapYaml = `
+name: test-snap
+hooks:
+    default-configure:
+`
+	snaptest.MockSnap(c, mockTestSnapYaml, &snap.SideInfo{Revision: snap.R(11)})
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "test-snap", Revision: snap.R(11), SnapID: "testsnapidididididididididididid"},
+		},
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+	s.state.Unlock()
+
+	err := s.defaultConfigureHandler.Before()
+	c.Check(err, ErrorMatches, `cannot use default-configure hook for snap "test-snap", no configure hook`)
+
+	s.defaultConfigureContext.Lock()
+	tr := configstate.ContextTransaction(s.defaultConfigureContext)
+	s.defaultConfigureContext.Unlock()
+	c.Check(len(tr.Changes()), Equals, 0)
+}
+
+func (s *defaultConfigureHandlerSuite) TestBeforeUseDefaults(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	const mockGadgetSnapYaml = `
+name: canonical-pc
+type: gadget
+`
+	var mockGadgetYaml = []byte(`
+defaults:
+  testsnapidididididididididididid:
+      bar: baz
+      num: 1.305
+
+volumes:
+    volume-id:
+        bootloader: grub
+`)
+
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(1)})
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	snapstate.Set(s.state, "canonical-pc", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "canonical-pc", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+
+	r = snapstatetest.MockDeviceModel(makeModel(map[string]interface{}{
+		"gadget": "canonical-pc",
+	}))
+	defer r()
+
+	const mockTestSnapYaml = `
+name: test-snap
+hooks:
+    default-configure:
+    configure:
+`
+
+	snaptest.MockSnap(c, mockTestSnapYaml, &snap.SideInfo{Revision: snap.R(11)})
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "test-snap", Revision: snap.R(11), SnapID: "testsnapidididididididididididid"},
+		},
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+	s.state.Unlock()
+
+	s.defaultConfigureContext.Lock()
+	s.defaultConfigureContext.Set("use-defaults", true)
+	s.defaultConfigureContext.Unlock()
+
+	c.Assert(s.defaultConfigureHandler.Before(), IsNil)
+	s.defaultConfigureContext.Lock()
+	tr := configstate.ContextTransaction(s.defaultConfigureContext)
+	s.defaultConfigureContext.Unlock()
+	c.Check(tr.Changes(), DeepEquals, []string{"test-snap.bar", "test-snap.num"})
+	var value string
+	c.Check(tr.Get("test-snap", "bar", &value), IsNil)
+	c.Check(value, Equals, "baz")
+	var fl float64
+	c.Check(tr.Get("test-snap", "num", &fl), IsNil)
+	c.Check(fl, Equals, 1.305)
+
+	s.defaultConfigureContext.Lock()
+	c.Assert(s.defaultConfigureContext.Done(), IsNil)
+	tr = configstate.ContextTransaction(s.defaultConfigureContext)
+	s.defaultConfigureContext.Unlock()
+	c.Check(len(tr.Changes()), Equals, 0)
+
+	s.configureContext.Lock()
+	s.configureContext.Set("use-defaults", true)
+	s.configureContext.Unlock()
+
+	c.Assert(s.configureHandler.Before(), IsNil)
+	s.configureContext.Lock()
+	tr = configstate.ContextTransaction(s.configureContext)
+	s.configureContext.Unlock()
+	c.Check(len(tr.Changes()), Equals, 0)
+}
+
 type configcoreHandlerSuite struct {
 	testutil.BaseTest
 
@@ -284,7 +451,7 @@ func (s *configcoreHandlerSuite) SetUpTest(c *C) {
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
-	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ config.ConfGetter) error {
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ configcore.ConfGetter) error {
 		return nil
 	})
 	s.AddCleanup(r)
@@ -351,7 +518,7 @@ volumes:
 		SnapType: "snapd",
 	})
 
-	witnessConfigcoreRun := func(dev sysconfig.Device, conf config.Conf) error {
+	witnessConfigcoreRun := func(dev sysconfig.Device, conf configcore.RunTransaction) error {
 		c.Check(dev.Kernel(), Equals, "kernel")
 		// called with no state lock!
 		conf.State().Lock()
@@ -411,7 +578,7 @@ volumes:
 		SnapType: "os",
 	})
 
-	witnessConfigcoreRun := func(dev sysconfig.Device, conf config.Conf) error {
+	witnessConfigcoreRun := func(dev sysconfig.Device, conf configcore.RunTransaction) error {
 		c.Check(dev.Kernel(), Equals, "kernel")
 		// called with no state lock!
 		conf.State().Lock()

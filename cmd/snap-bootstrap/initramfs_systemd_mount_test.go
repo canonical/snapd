@@ -155,6 +155,16 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "tmpfs",
 			where: "/run/mnt/data",
 			opts: &main.SystemdMountOptions{
+				Umount: true,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{false},
+			comment:          "happy umount",
+		},
+		{
+			what:  "tmpfs",
+			where: "/run/mnt/data",
+			opts: &main.SystemdMountOptions{
 				NoSuid: true,
 				Bind:   true,
 			},
@@ -236,6 +246,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			call := cmd.Calls()[0]
 			args := []string{
 				"systemd-mount", t.what, t.where, "--no-pager", "--no-ask-password",
+			}
+			if opts.Umount {
+				args = []string{
+					"systemd-mount", t.where, "--umount", "--no-pager", "--no-ask-password",
+				}
 			}
 			c.Assert(call[:len(args)], DeepEquals, args)
 

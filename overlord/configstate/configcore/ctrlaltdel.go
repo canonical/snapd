@@ -22,7 +22,6 @@ package configcore
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -117,7 +116,7 @@ func switchCtrlAltDelAction(action string, opts *fsOnlyContext) error {
 	return nil
 }
 
-func handleCtrlAltDelConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleCtrlAltDelConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	output, err := coreCfg(tr, "system.ctrl-alt-del-action")
 	if err != nil {
 		return err

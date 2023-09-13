@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/utils"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -68,7 +67,8 @@ func matchMountPathAttribute(path string, attribute interface{}, snapInfo *snap.
 
 	expandedPattern := snapInfo.ExpandSnapVariables(pattern)
 
-	pp, err := utils.NewPathPattern(expandedPattern)
+	const allowCommas = true
+	pp, err := utils.NewPathPattern(expandedPattern, allowCommas)
 	return err == nil && pp.Matches(path)
 }
 
@@ -180,14 +180,14 @@ func (m *mountCommand) checkConnections(context *hookstate.Context) error {
 	return fmt.Errorf("no matching mount-control connection found")
 }
 
-func (m *mountCommand) createMountUnit(sysd systemd.Systemd) (string, error) {
+func (m *mountCommand) ensureMount(sysd systemd.Systemd) (string, error) {
 	snapName := m.snapInfo.InstanceName()
 	revision := m.snapInfo.SnapRevision().String()
 	lifetime := systemd.Transient
 	if m.Persistent {
 		lifetime = systemd.Persistent
 	}
-	return sysd.AddMountUnitFileWithOptions(&systemd.MountUnitOptions{
+	unitName, err := sysd.EnsureMountUnitFileWithOptions(&systemd.MountUnitOptions{
 		Lifetime: lifetime,
 		SnapName: snapName,
 		Revision: revision,
@@ -197,6 +197,10 @@ func (m *mountCommand) createMountUnit(sysd systemd.Systemd) (string, error) {
 		Options:  m.optionsList,
 		Origin:   "mount-control",
 	})
+	if err != nil {
+		_ = sysd.RemoveMountUnitFile(m.Positional.Where)
+	}
+	return unitName, err
 }
 
 func (m *mountCommand) Execute([]string) error {
@@ -218,20 +222,10 @@ func (m *mountCommand) Execute([]string) error {
 	}
 
 	sysd := systemd.New(systemd.SystemMode, nil)
-	name, err := m.createMountUnit(sysd)
+	_, err = m.ensureMount(sysd)
 	if err != nil {
-		return fmt.Errorf("cannot create mount unit: %v", err)
+		return fmt.Errorf("cannot ensure mount unit: %v", err)
 	}
 
-	if err := sysd.Start([]string{name}); err != nil {
-		// There's no point in keeping the mount unit if it doesn't work. Even
-		// if the problem is transient, the next invocation of "snapctl mount"
-		// will create a new unit anyway.
-		if err := sysd.RemoveMountUnitFile(m.Positional.Where); err != nil {
-			// Not much we can do about it, other than logging.
-			logger.Noticef("cannot remove mount unit on %q which failed to start: %v", m.Positional.Where, err)
-		}
-		return fmt.Errorf("cannot start mount unit: %v", err)
-	}
 	return nil
 }

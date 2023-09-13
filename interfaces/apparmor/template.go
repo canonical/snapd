@@ -60,11 +60,13 @@ package apparmor
 // The preamble and default accesses common to all bases go in templateCommon.
 // These rules include the aformentioned host file rules as well as non-file
 // rules (eg signal, dbus, unix, etc).
-//
 var templateCommon = `
 # vim:syntax=apparmor
 
 #include <tunables/global>
+
+###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
+###INCLUDE_IF_EXISTS_SNAP_TUNING###
 
 # snapd supports the concept of 'parallel installs' where snaps with the same
 # name are differentiated by '_<instance>' such that foo, foo_bar and foo_baz
@@ -91,6 +93,17 @@ var templateCommon = `
   # The base abstraction doesn't yet have this
   /etc/sysconfig/clock r,
   owner @{PROC}/@{pid}/maps k,
+
+  # /proc/XXXX/map_files contains the same info than /proc/XXXX/maps, but
+  # in a format that is simpler to manage, because it doesn't require to
+  # parse the text data inside a file, but just reading the contents of
+  # a directory.
+  # Reading /proc/XXXX/maps is already allowed in the base template
+  # via <abstractions/base>. Also, only the owner can read it, and the
+  # kernel limits access to it by requiring 'ptrace' enabled, so allowing
+  # to access /proc/XXXX/map_files can be considered secure too.
+  owner @{PROC}/@{pid}/map_files/ r,
+
   # While the base abstraction has rules for encryptfs encrypted home and
   # private directories, it is missing rules for directory read on the toplevel
   # directory of the mount (LP: #1848919)
@@ -99,15 +112,9 @@ var templateCommon = `
 
   # for python apps/services
   #include <abstractions/python>
-  /etc/python3.[0-9]/**                                r,
+  /etc/python3.[0-9]*/**                                r,
 
-  # explicitly deny noisy denials to read-only filesystems (see LP: #1496895
-  # for details)
-  deny /usr/lib/python3*/{,**/}__pycache__/ w,
-  deny /usr/lib/python3*/{,**/}__pycache__/**.pyc.[0-9]* w,
-  # bind mount used here (see 'parallel installs', above)
-  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/             w,
-  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,
+  ###PYCACHEDENY###
 
   # for perl apps/services
   #include <abstractions/perl>
@@ -251,6 +258,7 @@ var templateCommon = `
   /etc/{,writable/}mailname r,
   /etc/{,writable/}timezone r,
   owner @{PROC}/@{pid}/cgroup rk,
+  @{PROC}/@{pid}/cpuset r,
   @{PROC}/@{pid}/io r,
   owner @{PROC}/@{pid}/limits r,
   owner @{PROC}/@{pid}/loginuid r,
@@ -493,10 +501,10 @@ var defaultCoreRuntimeTemplateRules = `
   # for python apps/services
   /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
   # additional accesses needed for newer pythons in later bases
-  /usr/lib{,32,64}/python3.[0-9]/**.{pyc,so}           mr,
-  /usr/lib{,32,64}/python3.[0-9]/**.{egg,py,pth}       r,
-  /usr/lib{,32,64}/python3.[0-9]/{site,dist}-packages/ r,
-  /usr/lib{,32,64}/python3.[0-9]/lib-dynload/*.so      mr,
+  /usr/lib{,32,64}/python3.[0-9]*/**.{pyc,so}           mr,
+  /usr/lib{,32,64}/python3.[0-9]*/**.{egg,py,pth}       r,
+  /usr/lib{,32,64}/python3.[0-9]*/{site,dist}-packages/ r,
+  /usr/lib{,32,64}/python3.[0-9]*/lib-dynload/*.so      mr,
   /usr/include/python3.[0-9]*/pyconfig.h               r,
 
   # for perl apps/services
@@ -780,10 +788,10 @@ var defaultOtherBaseTemplate = templateCommon + defaultOtherBaseTemplateRules + 
 // to send signals to other users (even within the same snap). We want to
 // maintain this with our privilege dropping rules, so we omit 'capability
 // kill' since snaps can work within the system without 'capability kill':
-// - root parent can drop, spawn a child and later (dropped) parent can send a
-//   signal
-// - root parent can spawn a child that drops, then later temporarily drop
-//   (ie, seteuid/setegid), send the signal, then reraise
+//   - root parent can drop, spawn a child and later (dropped) parent can send a
+//     signal
+//   - root parent can spawn a child that drops, then later temporarily drop
+//     (ie, seteuid/setegid), send the signal, then reraise
 var privDropAndChownRules = `
   # allow setuid, setgid and chown for privilege dropping (mediation is done
   # via seccomp). Note: CAP_SETUID allows (and CAP_SETGID is the same, but
@@ -816,7 +824,6 @@ var privDropAndChownRules = `
 
 // coreSnippet contains apparmor rules specific only for
 // snaps on native core systems.
-//
 var coreSnippet = `
 # Allow each snaps to access each their own folder on the
 # ubuntu-save partition, with write permissions.
@@ -835,6 +842,8 @@ var coreSnippet = `
 // It can be overridden for testing using MockClassicTemplate().
 var classicTemplate = `
 #include <tunables/global>
+
+###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
 
 ###VAR###
 
@@ -876,34 +885,6 @@ var classicJailmodeSnippet = `
   @{INSTALL_DIR}/core/*/usr/lib/snapd/snap-exec m,
 `
 
-// nfsSnippet contains extra permissions necessary for snaps and snap-confine
-// to operate when NFS is used. This is an imperfect solution as this grants
-// some network access to all the snaps on the system.
-// For tracking see https://bugs.launchpad.net/apparmor/+bug/1724903
-var nfsSnippet = `
-  # snapd autogenerated workaround for systems using NFS, for details see:
-  # https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1662552
-  network inet,
-  network inet6,
-`
-
-// overlayRootSnippet contains the extra permissions necessary for snap and
-// snap-confine to operate on systems where '/' is a writable overlay fs.
-// AppArmor requires directory reads for upperdir (but these aren't otherwise
-// visible to the snap). While we filter AppArmor regular expression (AARE)
-// characters elsewhere, we double quote the path in case UPPERDIR has spaces.
-var overlayRootSnippet = `
-  # snapd autogenerated workaround for systems using '/' on overlayfs. For
-  # details see: https://bugs.launchpad.net/apparmor/+bug/1703674
-  "###UPPERDIR###/{,**/}" r,
-`
-
-// capabilityBPFSnippet contains extra permissions for snap-confine to execute
-// bpf() syscall and set up or modify cgroupv2 device access filtering
-var capabilityBPFSnippet = `
-capability bpf,
-`
-
 var ptraceTraceDenySnippet = `
 # While commands like 'ps', 'ip netns identify <pid>', 'ip netns pids foo', etc
 # trigger a 'ptrace (trace)' denial, they aren't actually tracing other
@@ -916,6 +897,16 @@ var ptraceTraceDenySnippet = `
 # dangerous access frivolously.
 deny ptrace (trace),
 deny capability sys_ptrace,
+`
+
+var pycacheDenySnippet = `
+# explicitly deny noisy denials to read-only filesystems (see LP: #1496895
+# for details)
+deny /usr/lib/python3*/{,**/}__pycache__/ w,
+deny /usr/lib/python3*/{,**/}__pycache__/**.pyc.[0-9]* w,
+# bind mount used here (see 'parallel installs', above)
+deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/             w,
+deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,
 `
 
 var sysModuleCapabilityDenySnippet = `
@@ -947,6 +938,8 @@ var updateNSTemplate = `
 # vim:syntax=apparmor
 
 #include <tunables/global>
+
+###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
 
 profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # The next four rules mirror those above. We want to be able to read
@@ -1085,6 +1078,10 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 
   # snapd logger.go checks /proc/cmdline
   @{PROC}/cmdline r,
+
+  # snap checks if vendored apparmor parser should be used at startup
+  /usr/lib/snapd/info r,
+  /lib/apparmor/functions r,
 
 ###SNIPPETS###
 }

@@ -3,9 +3,6 @@ summary: Test that config defaults are applied early when image is created.
 # core18 specific test (and nested vm is derived from host system)
 systems: [ubuntu-18.04-64]
 
-environment:
-    NESTED_IMAGE_ID: core-early-config
-
 prepare: |
     # modify and repack gadget snap (add defaults section and install hook)
     snap download --channel=18/stable pc
@@ -37,20 +34,20 @@ prepare: |
     tests.nested create-vm core
 
 execute: |
-    tests.nested exec "sudo snap wait system seed.loaded"
+    remote.exec "sudo snap wait system seed.loaded"
 
     echo "Test that rsyslog was disabled early."
     # early config is witnessed by install hook of the pc gadget
-    tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
-    tests.nested exec "test -L /etc/systemd/system/rsyslog.service"
+    remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
+    remote.exec "test -L /etc/systemd/system/rsyslog.service"
 
     echo "Check that the timezone is set"
-    tests.nested exec "cat /etc/timezone" | MATCH "Europe/Malta"
-    tests.nested exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
-    tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
+    remote.exec "cat /etc/timezone" | MATCH "Europe/Malta"
+    remote.exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
+    remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
 
     echo "Check that console-conf is disabled"
-    tests.nested exec "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
+    remote.exec "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
 
     # hostname is set
-    tests.nested exec "cat /etc/hostname" | MATCH "F00"
+    remote.exec "cat /etc/hostname" | MATCH "F00"

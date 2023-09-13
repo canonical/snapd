@@ -8,12 +8,12 @@ jobs:
   macos-quick:
     runs-on: macos-latest
     steps:
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
-          go-version: "1.14.x"
+          go-version: "1.18.x"
 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install squashfs from homebrew
         run: |
@@ -21,6 +21,7 @@ jobs:
 
       - name: Build quick checks
         run: |
+          go mod vendor
           ./mkversion.sh
           go build -tags nosecboot -o /tmp/snp ./cmd/snap
 

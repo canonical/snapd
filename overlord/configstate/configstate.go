@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
+// +build !nomanagers
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -41,6 +43,7 @@ import (
 
 func init() {
 	snapstate.Configure = Configure
+	snapstate.DefaultConfigure = DefaultConfigure
 }
 
 func ConfigureHookTimeout() time.Duration {
@@ -131,6 +134,22 @@ func Configure(st *state.State, snapName string, patch map[string]interface{}, f
 	return state.NewTaskSet(task)
 }
 
+// DefaultConfigure returns a taskset to apply the given default-configuration patch.
+func DefaultConfigure(st *state.State, snapName string) *state.TaskSet {
+	summary := fmt.Sprintf(i18n.G("Run default-configure hook of %q snap if present"), snapName)
+	hooksup := &hookstate.HookSetup{
+		Snap:     snapName,
+		Hook:     "default-configure",
+		Optional: true,
+		// all configure hooks must finish within this timeout
+		Timeout: ConfigureHookTimeout(),
+	}
+	// the default-configure hook always uses defaults, no need to indicate this
+	// by setting use-defaults flag in context data
+	task := hookstate.HookTask(st, summary, hooksup, nil)
+	return state.NewTaskSet(task)
+}
+
 // RemapSnapFromRequest renames a snap as received from an API request
 func RemapSnapFromRequest(snapName string) string {
 	if snapName == "system" {
@@ -168,9 +187,10 @@ func EarlyConfig(st *state.State, preloadGadget func() (sysconfig.Device, *gadge
 	if err != nil {
 		return err
 	}
-	tr := config.NewTransaction(st)
+	// No task is associated to the transaction if it is an early config
+	rt := configcore.NewRunTransaction(config.NewTransaction(st), nil)
 	if configed {
-		if err := configcoreExportExperimentalFlags(tr); err != nil {
+		if err := configcoreExportExperimentalFlags(rt); err != nil {
 			return fmt.Errorf("cannot export experimental config flags: %v", err)
 		}
 		return nil
@@ -185,10 +205,10 @@ func EarlyConfig(st *state.State, preloadGadget func() (sysconfig.Device, *gadge
 			return err
 		}
 		values := gadget.SystemDefaults(gi.Defaults)
-		if err := configcoreEarly(dev, tr, values); err != nil {
+		if err := configcoreEarly(dev, rt, values); err != nil {
 			return err
 		}
-		tr.Commit()
+		rt.Commit()
 	}
 	return nil
 }

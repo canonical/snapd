@@ -1,5 +1,7 @@
 summary: smoke test for the spread-manager tool
 
+backends: [google]
+
 systems: [ ubuntu-20.04-64 ]
 
 prepare: |

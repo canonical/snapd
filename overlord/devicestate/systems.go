@@ -77,18 +77,23 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 }
 
 func systemFromSeed(label string, current *currentSystem) (*System, error) {
-	s, err := seed.Open(dirs.SnapSeedDir, label)
+	_, sys, err := loadSeedAndSystem(label, current)
+	return sys, err
+}
+
+func loadSeedAndSystem(label string, current *currentSystem) (seed.Seed, *System, error) {
+	s, err := seedOpen(dirs.SnapSeedDir, label)
 	if err != nil {
-		return nil, fmt.Errorf("cannot open: %v", err)
+		return nil, nil, fmt.Errorf("cannot open: %v", err)
 	}
 	if err := s.LoadAssertions(nil, nil); err != nil {
-		return nil, fmt.Errorf("cannot load assertions: %v", err)
+		return nil, nil, fmt.Errorf("cannot load assertions for label %q: %v", label, err)
 	}
 	// get the model
 	model := s.Model()
 	brand, err := s.Brand()
 	if err != nil {
-		return nil, fmt.Errorf("cannot obtain brand: %v", err)
+		return nil, nil, fmt.Errorf("cannot obtain brand: %v", err)
 	}
 	system := &System{
 		Current: false,
@@ -101,7 +106,7 @@ func systemFromSeed(label string, current *currentSystem) (*System, error) {
 		system.Current = true
 		system.Actions = current.actions
 	}
-	return system, nil
+	return s, system, nil
 }
 
 type currentSystem struct {
@@ -298,8 +303,9 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		}
 		return asserts.NewFetcher(db, fromDB, save)
 	}
-	f, err := w.Start(db, newFetcher)
-	if err != nil {
+
+	sf := seedwriter.MakeSeedAssertionFetcher(newFetcher)
+	if err := w.Start(db, sf); err != nil {
 		return "", err
 	}
 	// past this point the system directory is present
@@ -309,6 +315,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		return recoverySystemDir, err
 	}
 
+	localARefs := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
 	for _, sn := range localSnaps {
 		info, ok := modelSnaps[sn.Path]
 		if !ok {
@@ -318,9 +325,9 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// we have in snap.Info, but getting it this way can be
 		// expensive as we need to compute the hash, try to find a
 		// better way
-		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, f, db)
+		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, sf, db)
 		if err != nil {
-			if !asserts.IsNotFound(err) {
+			if !errors.Is(err, &asserts.NotFoundError{}) {
 				return recoverySystemDir, err
 			} else if info.SnapID != "" {
 				// snap info from state must have come
@@ -332,11 +339,15 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		if err := w.SetInfo(sn, info); err != nil {
 			return recoverySystemDir, err
 		}
-		sn.ARefs = aRefs
+		localARefs[sn] = aRefs
 	}
 
 	if err := w.InfoDerived(); err != nil {
 		return recoverySystemDir, err
+	}
+
+	retrieveAsserts := func(sn, _, _ *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
+		return localARefs[sn], nil
 	}
 
 	for {
@@ -355,7 +366,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 			return recoverySystemDir, fmt.Errorf("internal error: need to download snaps: %v", strings.Join(which, ", "))
 		}
 
-		complete, err := w.Downloaded()
+		complete, err := w.Downloaded(retrieveAsserts)
 		if err != nil {
 			return recoverySystemDir, err
 		}
@@ -419,7 +430,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 			bootWith.GadgetSnapOrDir = sn.Path
 		}
 	}
-	if err := boot.MakeRecoverySystemBootable(boot.InitramfsUbuntuSeedDir, recoverySystemDirInRootDir, bootWith); err != nil {
+	if err := boot.MakeRecoverySystemBootable(model, boot.InitramfsUbuntuSeedDir, recoverySystemDirInRootDir, bootWith); err != nil {
 		return recoverySystemDir, fmt.Errorf("cannot make candidate recovery system %q bootable: %v", label, err)
 	}
 	logger.Noticef("created recovery system %q", label)

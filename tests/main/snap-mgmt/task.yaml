@@ -13,7 +13,6 @@ prepare: |
     # and snapd won't be around to respond, much less remove any state since
     # the state should be removed by the test
     snap set system experimental.user-daemons=true
-    snap set system experimental.quota-groups=true
 
     # Install a number of snaps that contain various features that have
     # representation in the file system.
@@ -132,6 +131,10 @@ execute: |
 
     echo "No dangling service symlinks are left behind"
     test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"
+    # shellcheck disable=SC2251
+    ! test -d /etc/systemd/system/snapd.mounts.target.wants
+    # shellcheck disable=SC2251
+    ! test -d /etc/systemd/system/multi-user.target.wants
     test -z "$(find /etc/systemd/system/sockets.target.wants/ -name 'snap.*')"
     test -z "$(find /etc/systemd/system/timers.target.wants/ -name 'snap.*')"
     if ! os.query is-trusty; then

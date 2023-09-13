@@ -50,11 +50,9 @@ func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
 	}
 }
 
-func MockRandomUUID(uuid string) func() {
+func MockRandomUUID(f func() (string, error)) func() {
 	old := randomUUID
-	randomUUID = func() (string, error) {
-		return uuid, nil
-	}
+	randomUUID = f
 	return func() {
 		randomUUID = old
 	}
@@ -110,4 +108,8 @@ func MockCgroupsFilePath(path string) (restore func()) {
 	r := testutil.Backup(&cgroupsFilePath)
 	cgroupsFilePath = path
 	return r
+}
+
+func MonitorDelete(folders []string, name string, channel chan string) error {
+	return currentWatcher.monitorDelete(folders, name, channel)
 }

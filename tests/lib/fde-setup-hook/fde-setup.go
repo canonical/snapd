@@ -63,17 +63,31 @@ type fdeSetupJSONStrictBase64 struct {
 }
 
 func runFdeSetup() error {
-	output, err := exec.Command("snapctl", "fde-setup-request").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("cannot run snapctl fde-setup-request: %v", osutil.OutputErr(output, err))
+	fromInitrd := osutil.FileExists("/etc/initrd-release")
+
+	var input []byte
+
+	if fromInitrd {
+		var err error
+		input, err = ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+	} else {
+		var err error
+		input, err = exec.Command("snapctl", "fde-setup-request").CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("cannot run snapctl fde-setup-request: %v", osutil.OutputErr(input, err))
+		}
 	}
+
 	var js fdeSetupJSON
-	if err := json.Unmarshal(output, &js); err != nil {
+	if err := json.Unmarshal(input, &js); err != nil {
 		return err
 	}
 
 	var jsStrict fdeSetupJSONStrictBase64
-	if err := json.Unmarshal(output, &jsStrict); err != nil {
+	if err := json.Unmarshal(input, &jsStrict); err != nil {
 		return err
 	}
 
@@ -90,8 +104,10 @@ func runFdeSetup() error {
 	var fdeSetupResult []byte
 	switch js.Op {
 	case "features":
-		// no special features supported by this hook
 		fdeSetupResult = []byte(`{"features":[]}`)
+		if osutil.FileExists(filepath.Join(filepath.Dir(os.Args[0]), "enable-ice-support")) {
+			fdeSetupResult = []byte(`{"features":["inline-crypto-engine"]}`)
+		}
 	case "initial-setup":
 		// "seal" using a really bad crypto algorithm
 		res := fdeSetupResultJSON{
@@ -105,13 +121,19 @@ func runFdeSetup() error {
 	default:
 		return fmt.Errorf("unsupported op %q", js.Op)
 	}
-	cmd := exec.Command("snapctl", "fde-setup-result")
-	// simulate a secboot v1 encrypted key
-	cmd.Stdin = bytes.NewBuffer(fdeSetupResult)
-	output, err = cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("cannot run snapctl fde-setup-result for op %q: %v", js.Op, osutil.OutputErr(output, err))
+
+	if fromInitrd {
+		os.Stdout.Write(fdeSetupResult)
+	} else {
+		cmd := exec.Command("snapctl", "fde-setup-result")
+		// simulate a secboot v1 encrypted key
+		cmd.Stdin = bytes.NewBuffer(fdeSetupResult)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("cannot run snapctl fde-setup-result for op %q: %v", js.Op, osutil.OutputErr(output, err))
+		}
 	}
+
 	return nil
 }
 

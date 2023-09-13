@@ -30,6 +30,7 @@ package seed
 */
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -182,7 +183,7 @@ func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack str
 				// sets si too
 				_, err = deriveRev(snapSHA3_384, snapSize)
 			})
-			if asserts.IsNotFound(err) {
+			if errors.Is(err, &asserts.NotFoundError{}) {
 				return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
 			}
 			if err != nil {
@@ -190,8 +191,7 @@ func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack str
 			}
 			sideInfo = *si
 			sideInfo.Private = sn.Private
-			// TODO: consider whether to use this if we have links?
-			sideInfo.EditedContact = sn.Contact
+			sideInfo.LegacyEditedContact = sn.Contact
 		}
 		origPath := path
 		if newPath != "" {

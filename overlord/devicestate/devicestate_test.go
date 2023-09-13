@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -61,6 +61,9 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/seed/seedtest"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -103,6 +106,8 @@ type deviceMgrBaseSuite struct {
 	// test the actual functions, it can just call this in it's SetUpTest, see
 	// devicestate_cloudinit_test.go for details
 	restoreCloudInitStatusRestore func()
+
+	restoreProcessAutoImportAssertion func()
 }
 
 type deviceMgrSuite struct {
@@ -140,6 +145,8 @@ var (
 func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.BaseTest.SetUpTest(c)
 
+	s.AddCleanup(release.MockOnClassic(classic))
+
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
@@ -158,20 +165,19 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	bootloader.Force(s.bootloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	s.AddCleanup(release.MockOnClassic(classic))
-
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.restartObserve = nil
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.state.Lock()
-	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType) {
+	_, err = restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType) {
 		s.restartRequests = append(s.restartRequests, req)
 		if s.restartObserve != nil {
 			s.restartObserve()
 		}
 	}))
 	s.state.Unlock()
+	c.Assert(err, IsNil)
 	s.se = s.o.StateEngine()
 
 	s.AddCleanup(sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel))
@@ -249,6 +255,11 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.AddCleanup(devicestate.MockSecbootMarkSuccessful(func() error {
 		return nil
 	}))
+
+	s.restoreProcessAutoImportAssertion = devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		return nil
+	})
+	s.AddCleanup(s.restoreProcessAutoImportAssertion)
 }
 
 func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -264,6 +275,7 @@ func (s *deviceMgrBaseSuite) settle(c *C) {
 func (s *deviceMgrBaseSuite) seeding() {
 	chg := s.state.NewChange("seed", "Seed system")
 	chg.SetStatus(state.DoingStatus)
+	s.state.Set("seeded", false)
 }
 
 func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) *asserts.Model {
@@ -286,6 +298,37 @@ func (s *deviceMgrBaseSuite) setPCModelInState(c *C) {
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
+		Serial: "serialserialserial",
+	})
+}
+
+func (s *deviceMgrBaseSuite) setUC20PCModelInState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		// UC20
+		"grade": "dangerous",
+		"base":  "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-20",
 		Serial: "serialserialserial",
 	})
 }
@@ -386,7 +429,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlreadySeeded(c *C) {
 	s.state.Unlock()
 
 	called := false
-	restore := devicestate.MockPopulateStateFromSeed(func(*state.State, *devicestate.PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error) {
+	restore := devicestate.MockPopulateStateFromSeed(s.mgr, func(string, string, timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
 		return nil, nil
 	})
@@ -404,7 +447,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededChangeInFlight(c *C) {
 	s.state.Unlock()
 
 	called := false
-	restore := devicestate.MockPopulateStateFromSeed(func(*state.State, *devicestate.PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error) {
+	restore := devicestate.MockPopulateStateFromSeed(s.mgr, func(string, string, timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
 		return nil, nil
 	})
@@ -419,9 +462,10 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlsoOnClassic(c *C) {
 	release.OnClassic = true
 
 	called := false
-	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
+	restore := devicestate.MockPopulateStateFromSeed(s.mgr, func(sLabel, sMode string, tm timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
-		c.Check(opts, IsNil)
+		c.Check(sMode, Equals, "")
+		c.Check(sLabel, Equals, "")
 		return nil, nil
 	})
 	defer restore()
@@ -432,8 +476,9 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlsoOnClassic(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappy(c *C) {
-	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) (ts []*state.TaskSet, err error) {
-		c.Assert(opts, IsNil)
+	restore := devicestate.MockPopulateStateFromSeed(s.mgr, func(sLabel, sMode string, tm timings.Measurer) (ts []*state.TaskSet, err error) {
+		c.Assert(sLabel, Equals, "")
+		c.Assert(sMode, Equals, "")
 		t := s.state.NewTask("test-task", "a random task")
 		ts = append(ts, state.NewTaskSet(t))
 		return ts, nil
@@ -469,20 +514,39 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnNonRunModes(c *C)
 	c.Assert(err, IsNil)
 }
 
+func (s *deviceMgrSuite) switchDevManagerToClassicWithModes(c *C) {
+	release.OnClassic = true
+
+	// mock the modeenv file
+	m := boot.Modeenv{
+		Mode: "run",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	// re-create manager so that modeenv file is-read
+	s.mgr, err = devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOnClassicWithModes(c *C) {
+	s.switchDevManagerToClassicWithModes(c)
+	s.setPCModelInState(c)
+
+	secbootMarkSuccessfulCalled := 0
+	r := devicestate.MockSecbootMarkSuccessful(func() error {
+		secbootMarkSuccessfulCalled++
+		return nil
+	})
+	defer r()
+
+	err := devicestate.EnsureBootOk(s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 	n := 0
-	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) (ts []*state.TaskSet, err error) {
-		c.Assert(opts, NotNil)
-		c.Check(opts.Label, Equals, "20191127")
-		c.Check(opts.Mode, Equals, "install")
-
-		t := s.state.NewTask("test-task", "a random task")
-		ts = append(ts, state.NewTaskSet(t))
-
-		n++
-		return ts, nil
-	})
-	defer restore()
 
 	// mock the modeenv file
 	m := boot.Modeenv{
@@ -495,6 +559,17 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 	// re-create manager so that modeenv file is-read
 	s.mgr, err = devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
+	restore := devicestate.MockPopulateStateFromSeed(s.mgr, func(sLabel, sMode string, tm timings.Measurer) (ts []*state.TaskSet, err error) {
+		c.Check(sLabel, Equals, "20191127")
+		c.Check(sMode, Equals, "install")
+
+		t := s.state.NewTask("test-task", "a random task")
+		ts = append(ts, state.NewTaskSet(t))
+
+		n++
+		return ts, nil
+	})
+	defer restore()
 
 	err = devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
@@ -791,20 +866,25 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	defer s.state.Unlock()
 	kernelInfo := snaptest.MockInfo(c, "{type: kernel, name: lnrk, version: 0}", nil)
 
-	// not on classic
+	// not on classic without modes
 	release.OnClassic = true
-	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, nil)
-	c.Check(err, ErrorMatches, `cannot install a kernel snap on classic`)
+	// model assertion in device context
+	model := fakeMyModel(map[string]interface{}{
+		"classic": "true",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, deviceCtx)
+	c.Check(err, ErrorMatches, `cannot install a kernel snap if classic boot`)
 	release.OnClassic = false
 
 	s.setupBrands()
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	model = fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
 		"gadget":       "gadget",
 		"kernel":       "krnl",
 	})
-	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 
 	err = devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install kernel "lnrk", model assertion requests "krnl"`)
@@ -845,6 +925,40 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	otherKrnlInfo.InstanceKey = "foo"
 	err = devicestate.CheckGadgetOrKernel(s.state, otherKrnlInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install "krnl_foo", parallel installation of kernel or gadget snaps is not supported`)
+}
+
+func (s *deviceMgrSuite) TestCheckKernelOnClassicWithModes(c *C) {
+	s.switchDevManagerToClassicWithModes(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	kernelInfo := snaptest.MockInfo(c, "{type: kernel, name: pc-kernel, version: 0}", nil)
+
+	// model assertion in device context
+	model := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"classic":      "true",
+		"grade":        "dangerous",
+		"distribution": "ubuntu",
+		"base":         "core22",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "22",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "22",
+			},
+		},
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, deviceCtx)
+	c.Check(err, IsNil)
 }
 
 func (s *deviceMgrSuite) TestCanAutoRefreshOnCore(c *C) {
@@ -1099,6 +1213,23 @@ func (s *deviceMgrSuite) TestCanManageRefreshesNoRefreshScheduleManaged(c *C) {
 	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
 }
 
+func (s *deviceMgrSuite) TestResetSession(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(devicestate.ResetSession(st), IsNil)
+
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		SessionMacaroon: "session",
+	})
+	c.Assert(devicestate.ResetSession(st), IsNil)
+
+	device, err := devicestatetest.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(device.SessionMacaroon, Equals, "")
+}
+
 func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	st := state.New(nil)
 
@@ -1280,42 +1411,17 @@ func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Install(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
 	c.Assert(err, IsNil)
 
+	s.setUC20PCModelInState(c)
+
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// have a model
-	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
-		"architecture": "amd64",
-		// UC20
-		"grade": "dangerous",
-		"base":  "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":            "pc-kernel",
-				"id":              snaptest.AssertedSnapID("pc-kernel"),
-				"type":            "kernel",
-				"default-channel": "20",
-			},
-			map[string]interface{}{
-				"name":            "pc",
-				"id":              snaptest.AssertedSnapID("pc"),
-				"type":            "gadget",
-				"default-channel": "20",
-			},
-		},
-	})
-
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-20",
-	})
 
 	// seeded
 	s.state.Set("seeded", true)
 	// no flags
 	c.Assert(boot.InitramfsExposeBootFlagsForSystem(nil), IsNil)
 	// data present
-	ubuntuData := filepath.Dir(boot.InstallHostWritableDir)
+	ubuntuData := filepath.Dir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"))
 	c.Assert(os.MkdirAll(ubuntuData, 0755), IsNil)
 
 	smi, err := mgr.SystemModeInfo()
@@ -1350,35 +1456,10 @@ func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Run(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
 	c.Assert(err, IsNil)
 
+	s.setUC20PCModelInState(c)
+
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// have a model
-	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
-		"architecture": "amd64",
-		// UC20
-		"grade": "dangerous",
-		"base":  "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":            "pc-kernel",
-				"id":              snaptest.AssertedSnapID("pc-kernel"),
-				"type":            "kernel",
-				"default-channel": "20",
-			},
-			map[string]interface{}{
-				"name":            "pc",
-				"id":              snaptest.AssertedSnapID("pc"),
-				"type":            "gadget",
-				"default-channel": "20",
-			},
-		},
-	})
-
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-20",
-	})
 
 	// not seeded
 	// no flags
@@ -1411,30 +1492,106 @@ const (
 	mountSnapSaveFmt         = `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
 )
 
-func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveFullHappy(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveRunModeHappy(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
-	cmd := testutil.MockCommand(c, "systemd-mount", "")
-	defer cmd.Restore()
+	// make this one fail so we test both are invoked
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "echo 'Failed to start var-lib-snapd-save.mount: Unit var-lib-snapd-save.mount not found.'; exit 1")
+	defer sysctlCmd.Restore()
+
+	mountCmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer mountCmd.Restore()
 
 	// ubuntu-save not mounted
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), HasLen, 0)
+	c.Check(sysctlCmd.Calls(), HasLen, 0)
+	c.Check(mountCmd.Calls(), HasLen, 0)
 
 	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir))
 	defer restore()
 
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
+	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
+		{"systemctl", "start", "var-lib-snapd-save.mount"},
+	})
+	c.Check(mountCmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "-o", "bind", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir},
 	})
+
+	// known as available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveSystemCtlFails(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "run"}
+	err := modeEnv.WriteTo("")
+	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
+	// create a new manager so that the modeenv we mocked in read
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	// this one now fails without a known reason, systemd-mount should not
+	// be invoked, and we should receive an error
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "echo failed; exit 1")
+	defer sysctlCmd.Restore()
+
+	mountCmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer mountCmd.Restore()
+
+	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir))
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot set up ubuntu-save: systemctl command [start var-lib-snapd-save.mount] failed with exit status 1: failed\n")
+	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
+		{"systemctl", "start", "var-lib-snapd-save.mount"},
+	})
+	c.Check(mountCmd.Calls(), HasLen, 0)
+
+	// since the systemctl fails, and it was not due to the missing mount
+	// unit, then we should get an error, and ubuntu save should not bge available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, false)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveMountUnitExists(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "run"}
+	err := modeEnv.WriteTo("")
+	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
+	// create a new manager so that the modeenv we mocked in read
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	// this one now succeeds, which means systemd-mount should not
+	// be invoked
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "")
+	defer sysctlCmd.Restore()
+
+	mountCmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer mountCmd.Restore()
+
+	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir))
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
+		{"systemctl", "start", "var-lib-snapd-save.mount"},
+	})
+	c.Check(mountCmd.Calls(), HasLen, 0)
 
 	// known as available
 	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
@@ -1444,12 +1601,17 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveAlreadyMounted(c 
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
-	cmd := testutil.MockCommand(c, "systemd-mount", "")
-	defer cmd.Restore()
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "")
+	defer sysctlCmd.Restore()
+
+	mountCmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer mountCmd.Restore()
 
 	// already mounted
 	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir) + "\n" +
@@ -1458,7 +1620,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveAlreadyMounted(c 
 
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), HasLen, 0)
+	c.Check(sysctlCmd.Calls(), HasLen, 0)
+	c.Check(mountCmd.Calls(), HasLen, 0)
 
 	// known as available
 	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
@@ -1468,6 +1631,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20NoUbuntuSave(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
@@ -1488,19 +1653,27 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveErr(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
-	cmd := testutil.MockCommand(c, "systemd-mount", "echo failed; exit 1")
-	defer cmd.Restore()
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "echo 'Failed to start var-lib-snapd-save.mount: Unit var-lib-snapd-save.mount not found.'; exit 1")
+	defer sysctlCmd.Restore()
+
+	mountCmd := testutil.MockCommand(c, "systemd-mount", "echo failed; exit 1")
+	defer mountCmd.Restore()
 
 	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir))
 	defer restore()
 
 	err = mgr.StartUp()
 	c.Assert(err, ErrorMatches, "cannot set up ubuntu-save: cannot bind mount .*/run/mnt/ubuntu-save under .*/var/lib/snapd/save: failed")
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
+	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
+		{"systemctl", "start", "var-lib-snapd-save.mount"},
+	})
+	c.Check(mountCmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "-o", "bind", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir},
 	})
 
@@ -1515,13 +1688,17 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupNonUC20NoUbuntuSave(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
-	cmd := testutil.MockCommand(c, "systemd-mount", "")
-	defer cmd.Restore()
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "")
+	defer sysctlCmd.Restore()
+
+	mountCmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer mountCmd.Restore()
 
 	// ubuntu-save not mounted
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), HasLen, 0)
+	c.Check(sysctlCmd.Calls(), HasLen, 0)
+	c.Check(mountCmd.Calls(), HasLen, 0)
 
 	// known as not available
 	c.Check(devicestate.SaveAvailable(mgr), Equals, false)
@@ -1563,10 +1740,38 @@ func (s *deviceMgrSuite) TestHasFdeSetupHook(c *C) {
 	} {
 		makeInstalledMockKernelSnap(c, st, tc.kernelYaml)
 
-		hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr)
+		hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr, nil)
 		c.Assert(err, IsNil)
 		c.Check(hasHook, Equals, tc.hasFdeSetupHook)
 	}
+}
+
+func (s *deviceMgrSuite) TestHasFdeSetupHookOtherKernel(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	otherSI := &snap.SideInfo{RealName: "pc-kernel", Revision: snap.R(1), SnapID: "pc-kernel-id"}
+	_, otherInfo := snaptest.MakeTestSnapInfoWithFiles(c, kernelYamlWithFdeSetup, nil, otherSI)
+	makeInstalledMockKernelSnap(c, st, kernelYamlNoFdeSetup)
+
+	hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr, nil)
+	c.Assert(err, IsNil)
+	c.Check(hasHook, Equals, false)
+
+	hasHook, err = devicestate.DeviceManagerHasFDESetupHook(s.mgr, otherInfo)
+	c.Assert(err, IsNil)
+	c.Check(hasHook, Equals, true)
 }
 
 func (s *deviceMgrSuite) TestRunFDESetupHookHappy(c *C) {
@@ -2074,4 +2279,378 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C
 	c.Assert(err, IsNil)
 	// nothing was called
 	c.Check(completeCalls, Equals, 1)
+}
+
+func (s *deviceMgrSuite) mockSystemUser(c *C, username string, expiration time.Time) {
+	_, err := auth.NewUser(s.state, auth.NewUserParams{
+		Username:   username,
+		Email:      "email1@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+		Expiration: expiration,
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) mockSystemMode(c *C, mode string) {
+	modeEnv := &boot.Modeenv{Mode: mode}
+	err := modeEnv.WriteTo("")
+	c.Assert(err, IsNil)
+	devicestate.SetSystemMode(s.mgr, mode)
+}
+
+func (s *deviceMgrSuite) testExpiredUserRemoved(c *C, userToRemove string, extraUsers bool) {
+	// Mock the delete user callback to verify it's correctly called. On ubuntu core
+	// systems ExtraUsers should be set, where on classic systems ExtraUsers should not
+	// be set
+	var delUserCalled bool
+	r := devicestate.MockOsutilDelUser(func(name string, opts *osutil.DelUserOptions) error {
+		delUserCalled = true
+		c.Check(name, Equals, userToRemove)
+		c.Check(opts, NotNil)
+		c.Check(opts.ExtraUsers, Equals, extraUsers)
+		return nil
+	})
+	defer r()
+
+	s.state.Unlock()
+	err := devicestate.EnsureExpiredUsersRemoved(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(delUserCalled, Equals, true)
+}
+
+func (s *deviceMgrSuite) testExpiredUserNotRemoved(c *C) {
+	// Mock the delete user callback to verify it's correctly called. On ubuntu core
+	// systems ExtraUsers should be set, where on classic systems ExtraUsers should not
+	// be set
+	var delUserCalled bool
+	r := devicestate.MockOsutilDelUser(func(name string, opts *osutil.DelUserOptions) error {
+		delUserCalled = true
+		return nil
+	})
+	defer r()
+
+	s.state.Unlock()
+	err := devicestate.EnsureExpiredUsersRemoved(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(delUserCalled, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedOnCore(c *C) {
+	s.mockSystemMode(c, "run")
+	s.state.Lock()
+
+	// Set seeded otherwise we won't get very far in this test, as we don't
+	// remove users when not seeded.
+	s.state.Set("seeded", true)
+
+	// We mock a few users, with one of them having expired. We then run
+	// the code to see that it correctly removes it from the system. Important
+	// to also test with a user that has no expiration to make sure the previous
+	// users are unaffected.
+	s.mockSystemUser(c, "user1", time.Time{})
+	s.mockSystemUser(c, "expires-soon", time.Now().Add(time.Minute*5))
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+	s.testExpiredUserRemoved(c, "remove-me", true)
+}
+
+func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedOnClassic(c *C) {
+	// Mock being on classic, then the EnsureExpiredUsersRemoved should be a no-op
+	r := release.MockOnClassic(true)
+	defer r()
+	s.state.Lock()
+
+	// It's not really needed to set seeded here as the check comes after
+	// we check for classic - however in the future, if someone were to reorder
+	// checks this would still pass if we didn't set this
+	s.state.Set("seeded", true)
+
+	// We mock a few users, with one of them having expired. We then run
+	// the code to see that it correctly removes it from the system. Important
+	// to also test with a user that has no expiration to make sure the previous
+	// users are unaffected.
+	s.mockSystemUser(c, "user1", time.Time{})
+	s.mockSystemUser(c, "expires-soon", time.Now().Add(time.Minute*5))
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+	s.testExpiredUserRemoved(c, "remove-me", false)
+}
+
+func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotRecoverMode(c *C) {
+	// mock recovery mode
+	s.mockSystemMode(c, "recover")
+
+	s.state.Lock()
+
+	// It's not really needed to set seeded here as the check comes after
+	// we check for classic - however in the future, if someone were to reorder
+	// checks this would still pass if we didn't set this
+	s.state.Set("seeded", true)
+
+	// Mock a user that would be expired
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+	s.testExpiredUserNotRemoved(c)
+}
+
+func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotInstallMode(c *C) {
+	// mock install mode
+	s.mockSystemMode(c, "install")
+
+	s.state.Lock()
+
+	// It's not really needed to set seeded here as the check comes after
+	// we check for classic - however in the future, if someone were to reorder
+	// checks this would still pass if we didn't set this
+	s.state.Set("seeded", true)
+
+	// Mock a user that would be expired, but expect it not to be removed
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+	s.testExpiredUserNotRemoved(c)
+}
+
+func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotUnseeded(c *C) {
+	s.mockSystemMode(c, "run")
+	s.state.Lock()
+
+	// The default seems to be false, but lets be explicit about setting
+	// this to false.
+	s.state.Set("seeded", false)
+
+	// Mock a user that would be expired, but expect it not to be removed
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+	s.testExpiredUserNotRemoved(c)
+}
+
+func (s *deviceMgrSuite) cacheDeviceCore20Seed(c *C) {
+
+	// now create a minimal uc20 seed dir with snaps/assertions
+	ss := &seedtest.SeedSnaps{
+		StoreSigning: s.storeSigning,
+		Brands:       s.brands,
+	}
+
+	// now create a minimal uc20 seed dir with snaps/assertions
+	seed20 := &seedtest.TestingSeed20{
+		SeedSnaps: *ss,
+		SeedDir:   dirs.SnapSeedDir,
+	}
+
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+        structure:
+        - name: ubuntu-seed
+          role: system-seed
+          type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+          size: 1G
+        - name: ubuntu-data
+          role: system-data
+          type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+          size: 2G
+`
+	makeSnap := func(yamlKey string) {
+		var files [][]string
+		if yamlKey == "pc=20" {
+			files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
+		}
+		seed20.MakeAssertedSnap(c, seedtest.SampleSnapYaml[yamlKey], files, snap.R(1), "canonical", seed20.StoreSigning.Database)
+	}
+
+	makeSnap("snapd")
+	makeSnap("pc-kernel=20")
+	makeSnap("core20")
+	makeSnap("pc=20")
+	optSnapPath := snaptest.MakeTestSnapWithFiles(c, seedtest.SampleSnapYaml["optional20-a"], nil)
+
+	model := map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              seed20.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              seed20.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   seed20.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   seed20.AssertedSnapID("core20"),
+				"type": "base",
+			}},
+	}
+
+	modelAs := seed20.MakeSeed(c, "20220401", "my-brand", "my-model", model, []*seedwriter.OptionsSnap{{Path: optSnapPath}})
+	c.Assert(modelAs, NotNil)
+
+	// mock /he modeenv file
+	m := boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: "20220401",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	// reload device seed
+	_, _, err = devicestate.ReloadEarlyDeviceSeed(s.mgr, state.ErrNoState)
+	c.Assert(err, IsNil)
+
+	// not fully realistic but avoids more mocking
+	devicestate.SetBootOkRan(s.mgr, true)
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionClassic(c *C) {
+	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		panic("trying to process auto-import-assertion on classic system")
+	})
+	defer a()
+
+	release.OnClassic = true
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Check(err, IsNil)
+
+	// ensure state has not been changed
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	c.Assert(autoImported, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhenDone(c *C) {
+	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		panic("trying to process auto-import-assertion after it was already processed")
+	})
+	defer a()
+
+	s.mockSystemMode(c, "run")
+
+	// set state as processed
+	s.state.Lock()
+	s.state.Set("asserts-early-auto-imported", true)
+	s.cacheDeviceCore20Seed(c)
+	s.seeding()
+	s.state.Unlock()
+
+	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Check(err, IsNil)
+
+	// check state has not changed
+	s.state.Lock()
+	defer s.state.Unlock()
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, IsNil)
+	c.Assert(autoImported, Equals, true)
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionNoSeedCache(c *C) {
+	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		panic("trying to process auto-import-assertion without cached system seed")
+	})
+	defer a()
+
+	s.mockSystemMode(c, "run")
+
+	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Check(err, IsNil)
+
+	// ensure state has not been changed
+	s.state.Lock()
+	defer s.state.Unlock()
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	c.Assert(autoImported, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionFailed(c *C) {
+	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		return fmt.Errorf("failed to add user from system user assertions")
+	})
+	defer a()
+
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	s.state.Set("seeded", nil)
+	s.state.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err := s.mgr.Ensure()
+	c.Check(err, IsNil)
+
+	// ensure state has not been changed
+	s.state.Lock()
+	defer s.state.Unlock()
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, IsNil)
+	c.Assert(autoImported, Equals, true)
+	c.Assert(logbuf.String(), testutil.Contains, `failed to add user from system user assertions`)
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionAlreadySeeded(c *C) {
+	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		return fmt.Errorf("failed to process auto import assertion")
+	})
+	defer a()
+
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	err := s.mgr.Ensure()
+	c.Check(err, IsNil)
+
+	// ensure state has not been changed
+	s.state.Lock()
+	defer s.state.Unlock()
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	c.Assert(autoImported, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionHappy(c *C) {
+
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	s.state.Set("seeded", nil)
+	s.state.Unlock()
+
+	err := s.mgr.Ensure()
+	c.Check(err, IsNil)
+
+	// check state is set as done
+	s.state.Lock()
+	defer s.state.Unlock()
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, IsNil)
+	c.Assert(autoImported, Equals, true)
 }

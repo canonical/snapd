@@ -11,6 +11,10 @@ systems:
   - -ubuntu-core-16-32
   - -ubuntu-core-18-32
 
+environment:
+    # we unfortunately (sometimes) run out of memory while setting up test-content-layout-consumer snap
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 prepare: |
     if os.query is-arm64; then
         SNAP_NAME=test-content-layout-consumer-arm64
@@ -73,9 +77,9 @@ execute: |
     $SNAP/data-dir/sounds
     EOF
 
-    if os.query is-amd64; then
+    if os.query is-pc-amd64; then
         check_non_empty /usr/lib/$LINUX_GNU_NAME/webkit2gtk-4.0
-        check_non_empty/usr/lib/$LINUX_GNU_NAME/webkit2gtk-4.0/injected-bundle
+        check_non_empty /usr/lib/$LINUX_GNU_NAME/webkit2gtk-4.0/injected-bundle
         check_non_empty /usr/share/xml/iso-codes
     fi
 

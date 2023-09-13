@@ -21,8 +21,11 @@ package gadget
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 )
 
@@ -30,7 +33,25 @@ import (
 
 // OnDiskStructure represents a gadget structure laid on a block device.
 type OnDiskStructure struct {
-	LaidOutStructure
+	// Name, when non empty, provides the name of the structure
+	Name string
+	// PartitionFSLabel provides the filesystem label
+	PartitionFSLabel string
+	// Type of the structure, which can be 2-hex digit MBR partition,
+	// 36-char GUID partition, comma separated <mbr>,<guid> for hybrid
+	// partitioning schemes, or 'bare' when the structure is not considered
+	// a partition.
+	//
+	// For backwards compatibility type 'mbr' is also accepted, and the
+	// structure is treated as if it is of role 'mbr'.
+	Type string
+	// PartitionFSType used for the partition filesystem: 'vfat', 'ext4',
+	// 'none' for structures of type 'bare', or 'crypto_LUKS' for encrypted
+	// partitions.
+	PartitionFSType string
+	// StartOffset defines the start offset of the structure within the
+	// enclosing volume
+	StartOffset quantity.Offset
 
 	// Node identifies the device node of the block device.
 	Node string
@@ -72,6 +93,11 @@ type OnDiskVolume struct {
 	UsableSectorsEnd uint64
 	// sector size in bytes
 	SectorSize quantity.Size
+}
+
+type OnDiskAndGadgetStructurePair struct {
+	DiskStructure   *OnDiskStructure
+	GadgetStructure *VolumeStructure
 }
 
 // OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
@@ -154,22 +180,85 @@ func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
 		return OnDiskStructure{}, fmt.Errorf("cannot decode filesystem label for partition %s: %v", p.KernelDeviceNode, err)
 	}
 
-	volStruct := VolumeStructure{
-		Name:       decodedPartLabel,
-		Size:       quantity.Size(p.SizeInBytes),
-		Label:      decodedFsLabel,
-		Type:       p.PartitionType,
-		Filesystem: p.FilesystemType,
-		ID:         p.PartitionUUID,
+	logger.Debugf("OnDiskStructureFromPartition: p.FilesystemType %q, p.FilesystemLabel %q",
+		p.FilesystemType, p.FilesystemLabel)
+
+	// TODO add ID in second part of the gadget refactoring?
+	return OnDiskStructure{
+		Name:             decodedPartLabel,
+		PartitionFSLabel: decodedFsLabel,
+		Type:             p.PartitionType,
+		PartitionFSType:  p.FilesystemType,
+		StartOffset:      quantity.Offset(p.StartInBytes),
+		DiskIndex:        int(p.DiskIndex),
+		Size:             quantity.Size(p.SizeInBytes),
+		Node:             p.KernelDeviceNode,
+	}, nil
+}
+
+// OnDiskVolumeFromGadgetVol returns the disk volume matching a gadget volume
+// that has the Device field set, which implies that this should be called only
+// in the context of an installer that set the device in the gadget and
+// returned it to snapd.
+func OnDiskVolumeFromGadgetVol(vol *Volume) (*OnDiskVolume, error) {
+	var diskVol *OnDiskVolume
+	for _, vs := range vol.Structure {
+		if vs.Device == "" || vs.Role == "mbr" || vs.Type == "bare" {
+			continue
+		}
+
+		partSysfsPath, err := sysfsPathForBlockDevice(vs.Device)
+		if err != nil {
+			return nil, err
+		}
+
+		// Volume needs to be resolved only once
+		diskVol, err = onDiskVolumeFromPartitionSysfsPath(partSysfsPath)
+		if err != nil {
+			return nil, err
+		}
+		break
 	}
 
-	return OnDiskStructure{
-		LaidOutStructure: LaidOutStructure{
-			VolumeStructure: &volStruct,
-			StartOffset:     quantity.Offset(p.StartInBytes),
-		},
-		DiskIndex: int(p.DiskIndex),
-		Size:      quantity.Size(p.SizeInBytes),
-		Node:      p.KernelDeviceNode,
-	}, nil
+	if diskVol == nil {
+		return nil, fmt.Errorf("volume %q has no device assigned", vol.Name)
+	}
+
+	return diskVol, nil
+}
+
+// sysfsPathForBlockDevice returns the sysfs path for a block device.
+var sysfsPathForBlockDevice = func(device string) (string, error) {
+	syfsLink := filepath.Join("/sys/class/block", filepath.Base(device))
+	partPath, err := os.Readlink(syfsLink)
+	if err != nil {
+		return "", fmt.Errorf("cannot read link %q: %v", syfsLink, err)
+	}
+	// Remove initial ../../ from partPath, and make path absolute
+	return filepath.Join("/sys/class/block", partPath), nil
+}
+
+// onDiskVolumeFromPartitionSysfsPath creates an OnDiskVolume that
+// matches the disk that contains the given partition sysfs path
+func onDiskVolumeFromPartitionSysfsPath(partPath string) (*OnDiskVolume, error) {
+	// Removing the last component will give us the disk path
+	diskPath := filepath.Dir(partPath)
+	disk, err := disks.DiskFromDevicePath(diskPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot retrieve disk information for %q: %v", partPath, err)
+	}
+	onDiskVol, err := OnDiskVolumeFromDisk(disk)
+	if err != nil {
+		return nil, fmt.Errorf("cannot retrieve on disk volume for %q: %v", partPath, err)
+	}
+
+	return onDiskVol, nil
+}
+
+func MockSysfsPathForBlockDevice(f func(device string) (string, error)) (restore func()) {
+	old := sysfsPathForBlockDevice
+	sysfsPathForBlockDevice = f
+	return func() {
+		sysfsPathForBlockDevice = old
+	}
 }

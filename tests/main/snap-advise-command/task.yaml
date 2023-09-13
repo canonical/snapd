@@ -1,5 +1,9 @@
 summary: Ensure that `snap advise-snap` works
 
+# On some slow external devices the test fails to restart snapd on restore
+backends:
+    - -external
+
 # advise-snap / command-not-found only works on ubuntu classic, and on uc16
 # on uc18+ we don't have the /usr/lib/command-not-found symlink so it's not
 # useful

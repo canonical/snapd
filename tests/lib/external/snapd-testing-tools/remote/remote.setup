@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-CFG_FILE=remote.setup.cfg
+CFG_FILE="${REMOTE_CFG_FILE:-$(pwd)/remote.setup.cfg}"
 
 show_help() {
     echo "usage: remote.setup config --host <host> --port <port> --user <USER> [--pass <PASS>] [--cert <CERT>]"
@@ -64,6 +64,7 @@ config() {
 
     rm -f "$CFG_FILE"
     echo "export TESTS_REMOTE_HOST=$host" > "$CFG_FILE"
+    # shellcheck disable=SC2129
     echo "export TESTS_REMOTE_PORT=$port" >> "$CFG_FILE"
     echo "export TESTS_REMOTE_USER=$user" >> "$CFG_FILE"
     echo "export TESTS_REMOTE_PASS=$pass" >> "$CFG_FILE"

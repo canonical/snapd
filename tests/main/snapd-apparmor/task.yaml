@@ -4,7 +4,7 @@ environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
 
 debug: |
-    journalctl -u snap.apparmor.service
+    "$TESTSTOOLS"/journal-state get-log -u snap.apparmor.service
 
 execute: |
     if ! systemctl is-active snapd.apparmor.service; then
@@ -53,6 +53,9 @@ execute: |
     # restart snapd.apparmor service to reload profiles
     echo "And restart snapd.apparmor.service"
     systemctl restart snapd.apparmor.service
+
+    # check that logging from snapd-apparmor works
+    "$TESTSTOOLS"/journal-state match-log "Loading profiles " -u snapd.apparmor
 
     # get the set of profiles which now exist
     grep -v / /sys/kernel/security/apparmor/profiles | cut -f1 -d" " | sort > profiles_after_reload.txt

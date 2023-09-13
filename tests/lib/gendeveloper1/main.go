@@ -17,25 +17,25 @@
  *
  */
 
-// The ``gendeveloper1'' tool can be used generate model assertions for use in
+// The “gendeveloper1” tool can be used generate model assertions for use in
 // tests. It reads the assetion headers in form of a JSON from stdin, and
 // outputs a model assertion, signed by the test key to stdout.
 //
 // Usage:
-//       gendeveloper1 sign-model < headers.json > assertion.model
+//
+//	gendeveloper1 sign-model < headers.json > assertion.model
 //
 // Example input:
 //
-// {
-//     "type": "model",
-//     "brand-id": "developer1",
-//     "model": "my-model",
-//     "architecture": "amd64",
-//     "gadget": "test-snapd-pc",
-//     "kernel": "pc-kernel=18",
-//     "timestamp": "2018-09-11T22:00:00+00:00"
-// }
-//
+//	{
+//	    "type": "model",
+//	    "brand-id": "developer1",
+//	    "model": "my-model",
+//	    "architecture": "amd64",
+//	    "gadget": "test-snapd-pc",
+//	    "kernel": "pc-kernel=18",
+//	    "timestamp": "2018-09-11T22:00:00+00:00"
+//	}
 package main
 
 import (
@@ -71,10 +71,10 @@ func main() {
 		log.Fatalf("failed to decode model headers data: %v", err)
 	}
 
-	assertName, _ := headers["type"]
+	headerType := headers["type"]
 	assertType := asserts.ModelType
-	if assertName == "system-user" {
-		assertType = asserts.SystemUserType
+	if assertTypeStr, ok := headerType.(string); ok {
+		assertType = asserts.Type(assertTypeStr)
 	}
 
 	clModel, err := devSigning.Sign(assertType, headers, nil, "")

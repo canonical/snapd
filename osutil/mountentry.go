@@ -31,14 +31,14 @@ import (
 //
 // Fields are named after names in struct returned by getmntent(3).
 //
-// struct mntent {
-//     char *mnt_fsname;   /* name of mounted filesystem */
-//     char *mnt_dir;      /* filesystem path prefix */
-//     char *mnt_type;     /* mount type (see Mntent.h) */
-//     char *mnt_opts;     /* mount options (see Mntent.h) */
-//     int   mnt_freq;     /* dump frequency in days */
-//     int   mnt_passno;   /* pass number on parallel fsck */
-// };
+//	struct mntent {
+//	    char *mnt_fsname;   /* name of mounted filesystem */
+//	    char *mnt_dir;      /* filesystem path prefix */
+//	    char *mnt_type;     /* mount type (see Mntent.h) */
+//	    char *mnt_opts;     /* mount options (see Mntent.h) */
+//	    int   mnt_freq;     /* dump frequency in days */
+//	    int   mnt_passno;   /* pass number on parallel fsck */
+//	};
 type MountEntry struct {
 	Name    string
 	Dir     string

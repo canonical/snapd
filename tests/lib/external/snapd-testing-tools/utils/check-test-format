@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 """
-This tool is used to varify a correct format of spread tests
+This tool is used to verify a correct format of spread tests
 The input is a directory which is scanned recursively and all
 the task.yaml files are check
 """

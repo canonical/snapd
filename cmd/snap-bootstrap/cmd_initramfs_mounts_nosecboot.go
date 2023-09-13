@@ -34,6 +34,9 @@ var (
 )
 
 func init() {
+	secbootProvisionForCVM = func(_ string) error {
+		return errNotImplemented
+	}
 	secbootMeasureSnapSystemEpochWhenPossible = func() error {
 		return errNotImplemented
 	}

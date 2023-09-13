@@ -45,8 +45,8 @@ var (
 		Path:        "/v2/accessories/themes",
 		GET:         checkThemes,
 		POST:        installThemes,
-		ReadAccess:  themesOpenAccess{},
-		WriteAccess: themesAuthenticatedAccess{Polkit: polkitActionManage},
+		ReadAccess:  interfaceOpenAccess{Interface: "snap-themes-control"},
+		WriteAccess: interfaceAuthenticatedAccess{Interface: "snap-themes-control", Polkit: polkitActionManage},
 	}
 )
 
@@ -227,7 +227,7 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	if user != nil {
 		userID = user.ID
 	}
-	installed, tasksets, err := snapstateInstallMany(st, toInstall, userID, &snapstate.Flags{})
+	installed, tasksets, err := snapstateInstallMany(st, toInstall, nil, userID, &snapstate.Flags{})
 	if err != nil {
 		return InternalError("cannot install themes: %s", err)
 	}

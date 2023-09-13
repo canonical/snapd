@@ -35,8 +35,8 @@ type ResourcesBuilder struct {
 	CPUPercentage    int
 	CPUPercentageSet bool
 
-	AllowedCPUs    []int
-	AllowedCPUsSet bool
+	CPUSet    []int
+	CPUSetSet bool
 
 	ThreadLimit    int
 	ThreadLimitSet bool
@@ -69,9 +69,9 @@ func (rb *ResourcesBuilder) WithCPUPercentage(percentage int) *ResourcesBuilder 
 	return rb
 }
 
-func (rb *ResourcesBuilder) WithAllowedCPUs(allowedCPUs []int) *ResourcesBuilder {
-	rb.AllowedCPUs = allowedCPUs
-	rb.AllowedCPUsSet = true
+func (rb *ResourcesBuilder) WithCPUSet(cpuSet []int) *ResourcesBuilder {
+	rb.CPUSet = cpuSet
+	rb.CPUSetSet = true
 	return rb
 }
 
@@ -112,9 +112,9 @@ func (rb *ResourcesBuilder) Build() Resources {
 			Percentage: rb.CPUPercentage,
 		}
 	}
-	if rb.AllowedCPUsSet {
+	if rb.CPUSetSet {
 		quotaResources.CPUSet = &ResourceCPUSet{
-			CPUs: rb.AllowedCPUs,
+			CPUs: rb.CPUSet,
 		}
 	}
 	if rb.ThreadLimitSet {

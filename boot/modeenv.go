@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/mvo5/goconfigparser"
@@ -69,6 +70,7 @@ type Modeenv struct {
 	// device model.
 	Model          string `key:"model"`
 	BrandID        string `key:"model,secondary"`
+	Classic        bool   `key:"classic"`
 	Grade          string `key:"grade"`
 	ModelSignKeyID string `key:"model_sign_key_id"`
 	// TryModel, TryBrandID, TryGrade, TrySignKeyID describe the properties
@@ -194,6 +196,7 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	unmarshalModeenvValueFromCfg(cfg, "model", &bm)
 	m.BrandID = bm.brandID
 	m.Model = bm.model
+	unmarshalModeenvValueFromCfg(cfg, "classic", &m.Classic)
 	// expect the caller to validate the grade
 	unmarshalModeenvValueFromCfg(cfg, "grade", &m.Grade)
 	unmarshalModeenvValueFromCfg(cfg, "model_sign_key_id", &m.ModelSignKeyID)
@@ -306,6 +309,9 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		}
 		marshalModeenvEntryTo(buf, "model", &modeenvModel{brandID: m.BrandID, model: m.Model})
 	}
+	if m.Classic {
+		marshalModeenvEntryTo(buf, "classic", true)
+	}
 	// TODO: complain when grade or key are unset
 	marshalModeenvEntryTo(buf, "grade", m.Grade)
 	marshalModeenvEntryTo(buf, "model_sign_key_id", m.ModelSignKeyID)
@@ -346,6 +352,7 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 type modelForSealing struct {
 	brandID        string
 	model          string
+	classic        bool
 	grade          asserts.ModelGrade
 	modelSignKeyID string
 }
@@ -356,6 +363,7 @@ var _ secboot.ModelForSealing = (*modelForSealing)(nil)
 func (m *modelForSealing) BrandID() string           { return m.brandID }
 func (m *modelForSealing) SignKeyID() string         { return m.modelSignKeyID }
 func (m *modelForSealing) Model() string             { return m.model }
+func (m *modelForSealing) Classic() bool             { return m.classic }
 func (m *modelForSealing) Grade() asserts.ModelGrade { return m.grade }
 func (m *modelForSealing) Series() string            { return release.Series }
 
@@ -372,6 +380,7 @@ func (m *Modeenv) ModelForSealing() secboot.ModelForSealing {
 	return &modelForSealing{
 		brandID:        m.BrandID,
 		model:          m.Model,
+		classic:        m.Classic,
 		grade:          asserts.ModelGrade(m.Grade),
 		modelSignKeyID: m.ModelSignKeyID,
 	}
@@ -384,6 +393,7 @@ func (m *Modeenv) TryModelForSealing() secboot.ModelForSealing {
 	return &modelForSealing{
 		brandID:        m.TryBrandID,
 		model:          m.TryModel,
+		classic:        m.Classic,
 		grade:          asserts.ModelGrade(m.TryGrade),
 		modelSignKeyID: m.TryModelSignKeyID,
 	}
@@ -433,6 +443,8 @@ func marshalModeenvEntryTo(out io.Writer, key string, what interface{}) error {
 			return nil
 		}
 		asString = asModeenvStringList(v)
+	case bool:
+		asString = strconv.FormatBool(v)
 	default:
 		if vm, ok := what.(modeenvValueMarshaller); ok {
 			marshalled, err := vm.MarshalModeenvValue()
@@ -472,6 +484,16 @@ func unmarshalModeenvValueFromCfg(cfg *goconfigparser.ConfigParser, key string, 
 		*v = kv
 	case *[]string:
 		*v = splitModeenvStringList(kv)
+	case *bool:
+		if kv == "" {
+			*v = false
+			return nil
+		}
+		var err error
+		*v, err = strconv.ParseBool(kv)
+		if err != nil {
+			return fmt.Errorf("cannot parse modeenv value %q to bool: %v", kv, err)
+		}
 	default:
 		if vm, ok := v.(modeenvValueUnmarshaller); ok {
 			if err := vm.UnmarshalModeenvValue(kv); err != nil {

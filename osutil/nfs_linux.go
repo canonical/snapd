@@ -26,12 +26,12 @@ import (
 
 var etcFstab = "/etc/fstab"
 
-// IsHomeUsingNFS returns true if NFS mounts are defined or mounted under /home.
+// isHomeUsingNFS returns true if NFS mounts are defined or mounted under /home.
 //
 // Internally /proc/self/mountinfo and /etc/fstab are interrogated (for current
 // and possible mounted filesystems).  If either of those describes NFS
 // filesystem mounted under or beneath /home/ then the return value is true.
-func IsHomeUsingNFS() (bool, error) {
+var isHomeUsingNFS = func() (bool, error) {
 	mountinfo, err := LoadMountInfo()
 	if err != nil {
 		return false, fmt.Errorf("cannot parse mountinfo: %s", err)

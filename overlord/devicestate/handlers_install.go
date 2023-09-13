@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,12 +23,10 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -40,76 +38,45 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/assertstate"
+	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/randutil"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/squashfs"
-	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
 
 var (
+	bootMakeBootablePartition            = boot.MakeBootablePartition
 	bootMakeRunnable                     = boot.MakeRunnableSystem
+	bootMakeRunnableStandalone           = boot.MakeRunnableStandaloneSystem
 	bootMakeRunnableAfterDataReset       = boot.MakeRunnableSystemAfterDataReset
 	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
 	installRun                           = install.Run
 	installFactoryReset                  = install.FactoryReset
+	installMountVolumes                  = install.MountVolumes
+	installWriteContent                  = install.WriteContent
+	installEncryptPartitions             = install.EncryptPartitions
+	installSaveStorageTraits             = install.SaveStorageTraits
+	installMatchDisksToGadgetVolumes     = install.MatchDisksToGadgetVolumes
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
-	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
+	installLogicPrepareRunSystemData = installLogic.PrepareRunSystemData
 )
-
-func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
-	ubuntuSeedCloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-
-	grade := model.Grade()
-
-	// we always set the cloud-init src directory if it exists, it is
-	// automatically ignored by sysconfig in the case it shouldn't be used
-	if osutil.IsDirectory(ubuntuSeedCloudCfg) {
-		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
-	}
-
-	switch {
-	// if the gadget has a cloud.conf file, always use that regardless of grade
-	case sysconfig.HasGadgetCloudConf(gadgetDir):
-		opts.AllowCloudInit = true
-
-	// next thing is if are in secured grade and didn't have gadget config, we
-	// disable cloud-init always, clouds should have their own config via
-	// gadgets for grade secured
-	case grade == asserts.ModelSecured:
-		opts.AllowCloudInit = false
-
-	// all other cases we allow cloud-init to run, either through config that is
-	// available at runtime via a CI-DATA USB drive, or via config on
-	// ubuntu-seed if that is allowed by the model grade, etc.
-	default:
-		opts.AllowCloudInit = true
-	}
-}
-
-func writeModel(model *asserts.Model, where string) error {
-	f, err := os.OpenFile(where, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return asserts.NewEncoder(f).Encode(model)
-}
 
 func writeLogs(rootdir string, fromMode string) error {
 	// XXX: would be great to use native journal format but it's tied
@@ -143,31 +110,6 @@ func writeLogs(rootdir string, fromMode string) error {
 		return fmt.Errorf("cannot flush compressed log output: %v", err)
 	}
 
-	return nil
-}
-
-func writeTimesyncdClock(srcRootDir, dstRootDir string) error {
-	// keep track of the time
-	const timesyncClockInRoot = "/var/lib/systemd/timesync/clock"
-	clockSrc := filepath.Join(srcRootDir, timesyncClockInRoot)
-	clockDst := filepath.Join(dstRootDir, timesyncClockInRoot)
-	if err := os.MkdirAll(filepath.Dir(clockDst), 0755); err != nil {
-		return fmt.Errorf("cannot store the clock: %v", err)
-	}
-	if !osutil.FileExists(clockSrc) {
-		logger.Noticef("timesyncd clock timestamp %v does not exist", clockSrc)
-		return nil
-	}
-	// clock file is owned by a specific user/group, thus preserve
-	// attributes of the source
-	if err := osutil.CopyFile(clockSrc, clockDst, osutil.CopyFlagPreserveAll); err != nil {
-		return fmt.Errorf("cannot copy clock: %v", err)
-	}
-	// the file is empty however, its modification timestamp is used to set
-	// up the current time
-	if err := os.Chtimes(clockDst, timeNow(), timeNow()); err != nil {
-		return fmt.Errorf("cannot update clock timestamp: %v", err)
-	}
 	return nil
 }
 
@@ -250,6 +192,19 @@ func writeTimings(st *state.State, rootdir, fromMode string) error {
 	return nil
 }
 
+func (m *DeviceManager) doSetupUbuntuSave(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	return m.setupUbuntuSave(deviceCtx)
+}
+
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -287,7 +242,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bopts := install.Options{
 		Mount: true,
 	}
-	encryptionType, err := m.checkEncryption(st, deviceCtx)
+	encryptionType, err := m.checkEncryption(st, deviceCtx, secboot.TPMProvisionFull)
 	if err != nil {
 		return err
 	}
@@ -311,20 +266,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
-	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
-	// get a nice nil interface by default
-	var installObserver gadget.ContentObserver
-	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
-	if err != nil && err != boot.ErrObserverNotApplicable {
-		return fmt.Errorf("cannot setup asset install observer: %v", err)
-	}
-	if err == nil {
-		installObserver = trustedInstallObserver
-		if !useEncryption {
-			// there will be no key sealing, so past the
-			// installation pass no other methods need to be called
-			trustedInstallObserver = nil
-		}
+	installObserver, trustedInstallObserver, err := installLogic.BuildInstallObserver(model, gadgetDir, useEncryption)
+	if err != nil {
+		return err
 	}
 
 	var installedSystem *install.InstalledSystemSideData
@@ -340,12 +284,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if trustedInstallObserver != nil {
-		if err := prepareEncryptedSystemData(installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
 
-	if err := prepareRunSystemData(model, gadgetDir, perfTimings); err != nil {
+	if err := installLogicPrepareRunSystemData(model, gadgetDir, perfTimings); err != nil {
 		return err
 	}
 
@@ -356,7 +300,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
-	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
 		BasePath:          bootBaseInfo.MountFile(),
@@ -364,8 +307,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		GadgetPath:        gadgetInfo.MountFile(),
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInfo.MountFile(),
-		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
+
+		RecoverySystemLabel: modeEnv.RecoverySystem,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
 		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
@@ -373,202 +317,8 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
-	return nil
-}
-
-func prepareEncryptedSystemData(keyForRole map[string]keys.EncryptionKey, trustedInstallObserver *boot.TrustedAssetsInstallObserver) error {
-	// validity check
-	if len(keyForRole) == 0 || keyForRole[gadget.SystemData] == nil || keyForRole[gadget.SystemSave] == nil {
-		return fmt.Errorf("internal error: system encryption keys are unset")
-	}
-	dataEncryptionKey := keyForRole[gadget.SystemData]
-	saveEncryptionKey := keyForRole[gadget.SystemSave]
-
-	// make note of the encryption keys
-	trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
-
-	// keep track of recovery assets
-	if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
-		return fmt.Errorf("cannot observe existing trusted recovery assets: err")
-	}
-	if err := saveKeys(keyForRole); err != nil {
-		return err
-	}
-	// write markers containing a secret to pair data and save
-	if err := writeMarkers(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func prepareRunSystemData(model *asserts.Model, gadgetDir string, perfTimings timings.Measurer) error {
-	// keep track of the model we installed
-	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
-	if err != nil {
-		return fmt.Errorf("cannot store the model: %v", err)
-	}
-	err = writeModel(model, filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
-	if err != nil {
-		return fmt.Errorf("cannot store the model: %v", err)
-	}
-
-	// preserve systemd-timesyncd clock timestamp, so that RTC-less devices
-	// can start with a more recent time on the next boot
-	if err := writeTimesyncdClock(dirs.GlobalRootDir, boot.InstallHostWritableDir); err != nil {
-		return fmt.Errorf("cannot seed timesyncd clock: %v", err)
-	}
-
-	// configure the run system
-	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
-	// configure cloud init
-	setSysconfigCloudOptions(opts, gadgetDir, model)
-	timings.Run(perfTimings, "sysconfig-configure-target-system", "Configure target system", func(timings.Measurer) {
-		err = sysconfigConfigureTargetSystem(model, opts)
-	})
-	if err != nil {
-		return err
-	}
-
-	// TODO: FIXME: this should go away after we have time to design a proper
-	//              solution
-	// TODO: only run on specific models?
-
-	// on some specific devices, we need to create these directories in
-	// _writable_defaults in order to allow the install-device hook to install
-	// some files there, this eventually will go away when we introduce a proper
-	// mechanism not using system-files to install files onto the root
-	// filesystem from the install-device hook
-	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
-		return err
-	}
-	return nil
-}
-
-func fixupWritableDefaultDirs(systemDataDir string) error {
-	// the _writable_default directory is used to put files in place on
-	// ubuntu-data from install mode, so we abuse it here for a specific device
-	// to let that device install files with system-files and the install-device
-	// hook
-
-	// eventually this will be a proper, supported, designed mechanism instead
-	// of just this hack, but this hack is just creating the directories, since
-	// the system-files interface only allows creating the file, not creating
-	// the directories leading up to that file, and since the file is deeply
-	// nested we would effectively have to give all permission to the device
-	// to create any file on ubuntu-data which we don't want to do, so we keep
-	// this restriction to let the device create one specific file, and then
-	// we behind the scenes just create the directories for the device
-
-	for _, subDirToCreate := range []string{"/etc/udev/rules.d", "/etc/modprobe.d", "/etc/modules-load.d/", "/etc/systemd/network"} {
-		dirToCreate := sysconfig.WritableDefaultsDir(systemDataDir, subDirToCreate)
-
-		if err := os.MkdirAll(dirToCreate, 0755); err != nil {
-			return err
-		}
-	}
 
 	return nil
-}
-
-// writeMarkers writes markers containing the same secret to pair data and save.
-func writeMarkers() error {
-	// ensure directory for markers exists
-	if err := os.MkdirAll(boot.InstallHostFDEDataDir, 0755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(boot.InstallHostFDESaveDir, 0755); err != nil {
-		return err
-	}
-
-	// generate a secret random marker
-	markerSecret, err := randutil.CryptoTokenBytes(32)
-	if err != nil {
-		return fmt.Errorf("cannot create ubuntu-data/save marker secret: %v", err)
-	}
-
-	return device.WriteEncryptionMarkers(boot.InstallHostFDEDataDir, boot.InstallHostFDESaveDir, markerSecret)
-}
-
-func saveKeys(keyForRole map[string]keys.EncryptionKey) error {
-	saveEncryptionKey := keyForRole[gadget.SystemSave]
-	if saveEncryptionKey == nil {
-		// no system-save support
-		return nil
-	}
-	// ensure directory for keys exists
-	if err := os.MkdirAll(boot.InstallHostFDEDataDir, 0755); err != nil {
-		return err
-	}
-	if err := saveEncryptionKey.Save(device.SaveKeyUnder(boot.InstallHostFDEDataDir)); err != nil {
-		return fmt.Errorf("cannot store system save key: %v", err)
-	}
-	return nil
-}
-
-var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
-
-// checkEncryption verifies whether encryption should be used based on the
-// model grade and the availability of a TPM device or a fde-setup hook
-// in the kernel.
-func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res secboot.EncryptionType, err error) {
-	model := deviceCtx.Model()
-	secured := model.Grade() == asserts.ModelSecured
-	dangerous := model.Grade() == asserts.ModelDangerous
-	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
-
-	// check if we should disable encryption non-secured devices
-	// TODO:UC20: this is not the final mechanism to bypass encryption
-	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
-		return res, nil
-	}
-
-	// check if the model prefers to be unencrypted
-	// TODO: provide way to select via install chooser menu
-	//       if the install is unencrypted or encrypted
-	if model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
-		logger.Noticef(`installing system unencrypted to comply with prefer-unencrypted storage-safety model option`)
-		return res, nil
-	}
-
-	// check if encryption is available
-	var (
-		hasFDESetupHook    bool
-		checkEncryptionErr error
-	)
-	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
-		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
-			res, checkEncryptionErr = m.checkFDEFeatures()
-		}
-	}
-	// Note that having a fde-setup hook will disable the build-in
-	// secboot encryption
-	if !hasFDESetupHook {
-		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
-		if checkEncryptionErr == nil {
-			res = secboot.EncryptionTypeLUKS
-		}
-	}
-
-	// check if encryption is required
-	if checkEncryptionErr != nil {
-		if secured {
-			return res, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
-		}
-		if encrypted {
-			return res, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
-		}
-
-		if hasFDESetupHook {
-			logger.Noticef("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
-		} else {
-			logger.Noticef("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
-		}
-
-		// not required, go without
-		return res, nil
-	}
-
-	return res, nil
 }
 
 // RebootOptions can be attached to restart-system-to-run-mode tasks to control
@@ -599,7 +349,13 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		return fmt.Errorf("missing modeenv, cannot proceed")
 	}
 
-	preseeded, err := maybeApplyPreseededData(st, boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, boot.InstallHostWritableDir)
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+	model := deviceCtx.Model()
+
+	preseeded, err := maybeApplyPreseededData(model, boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, boot.InstallHostWritableDir(model))
 	if err != nil {
 		logger.Noticef("failed to apply preseed data: %v", err)
 		return err
@@ -608,6 +364,20 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		logger.Noticef("successfully preseeded the system")
 	} else {
 		logger.Noticef("preseed data not present, will do normal seeding")
+	}
+
+	// if the model has a gadget snap, and said gadget snap has an install-device hook
+	// call systemctl daemon-reload to account for any potential side-effects of that
+	// install-device hook
+	hasHook, err := m.hasInstallDeviceHook(model)
+	if err != nil {
+		return err
+	}
+	if hasHook {
+		sd := systemd.New(systemd.SystemMode, progress.Null)
+		if err := sd.DaemonReload(); err != nil {
+			return err
+		}
 	}
 
 	// ensure the next boot goes into run mode
@@ -622,11 +392,11 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	}
 
 	// write timing information
-	if err := writeTimings(st, boot.InstallHostWritableDir, modeEnv.Mode); err != nil {
+	if err := writeTimings(st, boot.InstallHostWritableDir(model), modeEnv.Mode); err != nil {
 		logger.Noticef("cannot write timings: %v", err)
 	}
 	// store install-mode log into ubuntu-data partition
-	if err := writeLogs(boot.InstallHostWritableDir, modeEnv.Mode); err != nil {
+	if err := writeLogs(boot.InstallHostWritableDir(model), modeEnv.Mode); err != nil {
 		logger.Noticef("cannot write installation log: %v", err)
 	}
 
@@ -649,220 +419,36 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	return nil
 }
 
-func readPreseedAssertion(st *state.State, model *asserts.Model, ubuntuSeedDir, sysLabel string) (*asserts.Preseed, error) {
-	f, err := os.Open(filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed"))
-	if err != nil {
-		return nil, fmt.Errorf("cannot read preseed assertion: %v", err)
-	}
-
-	// main seed assertions are loaded in the assertion db of install mode; add preseed assertion from
-	// systems/<label>/preseed file on top of it via a temporary db.
-	tmpDb := assertstate.TemporaryDB(st)
-	batch := asserts.NewBatch(nil)
-	_, err = batch.AddStream(f)
-	if err != nil {
-		return nil, err
-	}
-
-	var preseedAs *asserts.Preseed
-	err = batch.CommitToAndObserve(tmpDb, func(as asserts.Assertion) {
-		if as.Type() == asserts.PreseedType {
-			preseedAs = as.(*asserts.Preseed)
-		}
-	}, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	switch {
-	case preseedAs == nil:
-		return nil, fmt.Errorf("internal error: preseed assertion file is present but preseed assertion not found")
-	case preseedAs.SystemLabel() != sysLabel:
-		return nil, fmt.Errorf("preseed assertion system label %q doesn't match system label %q", preseedAs.SystemLabel(), sysLabel)
-	case preseedAs.Model() != model.Model():
-		return nil, fmt.Errorf("preseed assertion model %q doesn't match the model %q", preseedAs.Model(), model.Model())
-	case preseedAs.BrandID() != model.BrandID():
-		return nil, fmt.Errorf("preseed assertion brand %q doesn't match model brand %q", preseedAs.BrandID(), model.BrandID())
-	case preseedAs.Series() != model.Series():
-		return nil, fmt.Errorf("preseed assertion series %q doesn't match model series %q", preseedAs.Series(), model.Series())
-	}
-
-	return preseedAs, nil
-}
-
 var seedOpen = seed.Open
 
-// TODO: consider reusing this kind of handler for UC20 seeding
-type preseedSnapHandler struct {
-	writableDir string
-}
-
-func (p *preseedSnapHandler) HandleUnassertedSnap(name, path string, _ timings.Measurer) (string, error) {
-	pinfo := snap.MinimalPlaceInfo(name, snap.Revision{N: -1})
-	targetPath := filepath.Join(p.writableDir, pinfo.MountFile())
-	mountDir := filepath.Join(p.writableDir, pinfo.MountDir())
-
-	sq := squashfs.New(path)
-	opts := &snap.InstallOptions{MustNotCrossDevices: true}
-	if _, err := sq.Install(targetPath, mountDir, opts); err != nil {
-		return "", fmt.Errorf("cannot install snap %q: %v", name, err)
-	}
-
-	return targetPath, nil
-}
-
-func (p *preseedSnapHandler) HandleAndDigestAssertedSnap(name, path string, essType snap.Type, snapRev *asserts.SnapRevision, _ func(string, uint64) (snap.Revision, error), _ timings.Measurer) (string, string, uint64, error) {
-	pinfo := snap.MinimalPlaceInfo(name, snap.Revision{N: snapRev.SnapRevision()})
-	targetPath := filepath.Join(p.writableDir, pinfo.MountFile())
-	mountDir := filepath.Join(p.writableDir, pinfo.MountDir())
-
-	logger.Debugf("copying: %q to %q; mount dir=%q", path, targetPath, mountDir)
-
-	srcFile, err := os.Open(path)
+func maybeApplyPreseededData(model *asserts.Model, ubuntuSeedDir, sysLabel, writableDir string) (preseeded bool, err error) {
+	sysSeed, err := seedOpen(ubuntuSeedDir, sysLabel)
 	if err != nil {
-		return "", "", 0, err
+		return false, err
 	}
-	defer srcFile.Close()
+	// this function is for UC20+ only so sysSeed ia always PreseedCapable
+	preseedSeed := sysSeed.(seed.PreseedCapable)
 
-	destFile, err := osutil.NewAtomicFile(targetPath, 0644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return "", "", 0, fmt.Errorf("cannot create atomic file: %v", err)
-	}
-	defer destFile.Cancel()
-
-	finfo, err := srcFile.Stat()
-	if err != nil {
-		return "", "", 0, err
-	}
-
-	destFile.SetModTime(finfo.ModTime())
-
-	h := crypto.SHA3_384.New()
-	w := io.MultiWriter(h, destFile)
-
-	size, err := io.CopyBuffer(w, srcFile, make([]byte, 2*1024*1024))
-	if err != nil {
-		return "", "", 0, err
-	}
-	if err := destFile.Commit(); err != nil {
-		return "", "", 0, fmt.Errorf("cannot copy snap %q: %v", name, err)
-	}
-
-	sq := squashfs.New(targetPath)
-	opts := &snap.InstallOptions{MustNotCrossDevices: true}
-	// since Install target path is the same as source path passed to squashfs.New,
-	// Install isn't going to copy the blob, but we call it to set up mount directory etc.
-	if _, err := sq.Install(targetPath, mountDir, opts); err != nil {
-		return "", "", 0, fmt.Errorf("cannot install snap %q: %v", name, err)
-	}
-
-	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, h.Sum(nil))
-	if err != nil {
-		return "", "", 0, fmt.Errorf("cannot encode snap %q digest: %v", path, err)
-	}
-	return targetPath, sha3_384, uint64(size), nil
-}
-
-var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (preseeded bool, err error) {
-	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
-	if !osutil.FileExists(preseedArtifact) {
+	if !preseedSeed.HasArtifact("preseed.tgz") {
 		return false, nil
 	}
 
-	model, err := findModel(st)
-	if err != nil {
-		return false, fmt.Errorf("preseed error: cannot find model: %v", err)
-	}
-
-	preseedAs, err := readPreseedAssertion(st, model, ubuntuSeedDir, sysLabel)
-	if err != nil {
+	if err := preseedSeed.LoadAssertions(nil, nil); err != nil {
 		return false, err
 	}
-
-	// TODO: consider a writer that feeds the file to stdin of tar and calculates the digest at the same time.
-	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
-	if err != nil {
-		return false, fmt.Errorf("cannot calculate preseed artifact digest: %v", err)
+	_, sig := model.Signature()
+	_, seedModelSig := preseedSeed.Model().Signature()
+	if !bytes.Equal(sig, seedModelSig) {
+		return false, fmt.Errorf("system seed %q model does not match model in use", sysLabel)
 	}
 
-	digest, err := base64.RawURLEncoding.DecodeString(preseedAs.ArtifactSHA3_384())
-	if err != nil {
-		return false, fmt.Errorf("cannot decode preseed artifact digest")
-	}
-	if !bytes.Equal(sha3_384, digest) {
-		return false, fmt.Errorf("invalid preseed artifact digest")
-	}
-
-	logger.Noticef("apply preseed data: %q, %q", writableDir, preseedArtifact)
-	cmd := exec.Command("tar", "--extract", "--preserve-permissions", "--preserve-order", "--gunzip", "--directory", writableDir, "-f", preseedArtifact)
-	if err := cmd.Run(); err != nil {
+	if err := applyPreseededData(preseedSeed, writableDir); err != nil {
 		return false, err
 	}
-
-	logger.Noticef("copying snaps")
-
-	deviceSeed, err := seedOpen(ubuntuSeedDir, sysLabel)
-	if err != nil {
-		return false, err
-	}
-	tm := timings.New(nil)
-
-	if err := deviceSeed.LoadAssertions(nil, nil); err != nil {
-		return false, err
-	}
-
-	if err := os.MkdirAll(filepath.Join(writableDir, "var/lib/snapd/snaps"), 0755); err != nil {
-		return false, err
-	}
-
-	snapHandler := &preseedSnapHandler{writableDir: writableDir}
-	if err := deviceSeed.LoadMeta("run", snapHandler, tm); err != nil {
-		return false, err
-	}
-
-	preseedSnaps := make(map[string]*asserts.PreseedSnap)
-	for _, ps := range preseedAs.Snaps() {
-		preseedSnaps[ps.Name] = ps
-	}
-
-	checkSnap := func(ssnap *seed.Snap) error {
-		ps, ok := preseedSnaps[ssnap.SnapName()]
-		if !ok {
-			return fmt.Errorf("snap %q not present in the preseed assertion", ssnap.SnapName())
-		}
-		if ps.Revision != ssnap.SideInfo.Revision.N {
-			rev := snap.Revision{N: ps.Revision}
-			return fmt.Errorf("snap %q has wrong revision %s (expected: %s)", ssnap.SnapName(), ssnap.SideInfo.Revision, rev)
-		}
-		if ps.SnapID != ssnap.SideInfo.SnapID {
-			return fmt.Errorf("snap %q has wrong snap id %q (expected: %q)", ssnap.SnapName(), ssnap.SideInfo.SnapID, ps.SnapID)
-		}
-		return nil
-	}
-
-	esnaps := deviceSeed.EssentialSnaps()
-	msnaps, err := deviceSeed.ModeSnaps("run")
-	if err != nil {
-		return false, err
-	}
-	if len(msnaps)+len(esnaps) != len(preseedSnaps) {
-		return false, fmt.Errorf("seed has %d snaps but %d snaps are required by preseed assertion", len(msnaps)+len(esnaps), len(preseedSnaps))
-	}
-
-	for _, esnap := range esnaps {
-		if err := checkSnap(esnap); err != nil {
-			return false, err
-		}
-	}
-
-	for _, ssnap := range msnaps {
-		if err := checkSnap(ssnap); err != nil {
-			return false, err
-		}
-	}
-
 	return true, nil
 }
+
+var applyPreseededData = installLogic.ApplyPreseededData
 
 func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -900,7 +486,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	bopts := install.Options{
 		Mount: true,
 	}
-	encryptionType, err := m.checkEncryption(st, deviceCtx)
+	encryptionType, err := m.checkEncryption(st, deviceCtx, secboot.TPMPartialReprovision)
 	if err != nil {
 		return err
 	}
@@ -981,7 +567,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		// ubuntu-save was opened during boot, so the removal operation
 		// can be authorized with a key from the keyring
 		err = secbootRemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
-			{Mountpoint: boot.InitramfsUbuntuSaveDir}: device.RecoveryKeyUnder(boot.InstallHostFDEDataDir),
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: device.RecoveryKeyUnder(boot.InstallHostFDEDataDir(model)),
 		})
 		if err != nil {
 			return fmt.Errorf("cannot remove recovery key: %v", err)
@@ -1004,12 +590,12 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		// keep track of the new ubuntu-save encryption key
 		installedSystem.KeyForRole[gadget.SystemSave] = saveEncryptionKey
 
-		if err := prepareEncryptedSystemData(installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
 
-	if err := prepareRunSystemData(model, gadgetDir, perfTimings); err != nil {
+	if err := installLogicPrepareRunSystemData(model, gadgetDir, perfTimings); err != nil {
 		return err
 	}
 
@@ -1023,7 +609,6 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
-	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
 		BasePath:          bootBaseInfo.MountFile(),
@@ -1031,8 +616,9 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		GadgetPath:        gadgetInfo.MountFile(),
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInfo.MountFile(),
-		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
+
+		RecoverySystemLabel: modeEnv.RecoverySystem,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
 		err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith, trustedInstallObserver)
@@ -1042,7 +628,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	}
 
 	// leave a marker that factory reset was performed
-	factoryResetMarker := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "factory-reset")
+	factoryResetMarker := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir(model)), "factory-reset")
 	if err := writeFactoryResetMarker(factoryResetMarker, useEncryption); err != nil {
 		return fmt.Errorf("cannot write the marker file: %v", err)
 	}
@@ -1081,7 +667,7 @@ func restoreDeviceSerialFromSave(model *asserts.Model) error {
 		"brand-id": model.BrandID(),
 		"model":    model.Model(),
 	})
-	if (err != nil && asserts.IsNotFound(err)) || len(serials) == 0 {
+	if (err != nil && errors.Is(err, &asserts.NotFoundError{})) || len(serials) == 0 {
 		// there is no serial assertion in the old system that matches
 		// our model, it is still possible that the old system could
 		// have generated device keys and sent out a serial request, but
@@ -1130,7 +716,7 @@ func restoreDeviceSerialFromSave(model *asserts.Model) error {
 	logger.Debugf("found a serial assertion for %v/%v, with serial %v",
 		model.BrandID(), model.Model(), serialAs.Serial())
 
-	toDB, err := sysdb.OpenAt(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions"))
+	toDB, err := sysdb.OpenAt(filepath.Join(boot.InstallHostWritableDir(model), "var/lib/snapd/assertions"))
 	if err != nil {
 		return err
 	}
@@ -1240,5 +826,304 @@ func rotateEncryptionKeys() error {
 	if err := secbootTransitionEncryptionKeyChange(boot.InitramfsUbuntuSaveDir, keys.EncryptionKey(kd)); err != nil {
 		return fmt.Errorf("cannot transition the encryption key: %v", err)
 	}
+	return nil
+}
+
+type encryptionSetupDataKey struct {
+	systemLabel string
+}
+
+func mountSeedSnap(seedSn *seed.Snap) (mountpoint string, unmount func() error, err error) {
+	mountpoint = filepath.Join(dirs.SnapRunDir, "snap-content", string(seedSn.EssentialType))
+	if err := os.MkdirAll(mountpoint, 0755); err != nil {
+		return "", nil, err
+	}
+
+	// temporarily mount the filesystem
+	logger.Debugf("mounting %q in %q", seedSn.Path, mountpoint)
+	sd := systemd.New(systemd.SystemMode, progress.Null)
+	if err := sd.Mount(seedSn.Path, mountpoint); err != nil {
+		return "", nil, fmt.Errorf("cannot mount %q at %q: %v", seedSn.Path, mountpoint, err)
+	}
+	return mountpoint,
+		func() error {
+			logger.Debugf("unmounting %q", mountpoint)
+			return sd.Umount(mountpoint)
+		},
+		nil
+}
+
+func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (
+	*System, map[snap.Type]*snap.Info, map[snap.Type]*seed.Snap, map[snap.Type]string, func(), error) {
+
+	essentialTypes := []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget}
+	sys, snapInfos, snapSeeds, err := m.loadSystemAndEssentialSnaps(systemLabel, essentialTypes)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	// Unset revision here actually means that the snap is local.
+	// Assign then a local revision as seeding/installing the snap would do.
+	for _, snInfo := range snapInfos {
+		if snInfo.Revision.Unset() {
+			snInfo.Revision = snap.R(-1)
+		}
+	}
+
+	// Mount gadget and kernel
+	var unmountFuncs []func() error
+	mntPtForType := make(map[snap.Type]string)
+	unmount := func() {
+		for _, unmountF := range unmountFuncs {
+			if errUnmount := unmountF(); errUnmount != nil {
+				logger.Noticef("error unmounting: %v", errUnmount)
+			}
+		}
+	}
+	for _, seedSn := range []*seed.Snap{snapSeeds[snap.TypeGadget], snapSeeds[snap.TypeKernel]} {
+		mntPt, unmountSnap, err := mountSeedSnap(seedSn)
+		if err != nil {
+			unmount()
+			return nil, nil, nil, nil, nil, err
+		}
+		unmountFuncs = append(unmountFuncs, unmountSnap)
+		mntPtForType[seedSn.EssentialType] = mntPt
+	}
+
+	return sys, snapInfos, snapSeeds, mntPtForType, unmount, nil
+}
+
+// doInstallFinish performs the finish step of the install. It will
+// - install missing volumes structure content
+// - install gadget assets
+// - install kernel.efi
+// - make system bootable (including writing modeenv)
+func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
+	var err error
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	var systemLabel string
+	if err := t.Get("system-label", &systemLabel); err != nil {
+		return err
+	}
+	var onVolumes map[string]*gadget.Volume
+	if err := t.Get("on-volumes", &onVolumes); err != nil {
+		return err
+	}
+
+	var encryptSetupData *install.EncryptionSetupData
+	cached := st.Cached(encryptionSetupDataKey{systemLabel})
+	if cached != nil {
+		var ok bool
+		// TODO check that encryptSetupData is not out of sync with the onVolumes we get
+		encryptSetupData, ok = cached.(*install.EncryptionSetupData)
+		if !ok {
+			return fmt.Errorf("internal error: wrong data type under encryptionSetupDataKey")
+		}
+	}
+
+	st.Unlock()
+	sys, snapInfos, snapSeeds, mntPtForType, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel)
+	st.Lock()
+	if err != nil {
+		return err
+	}
+	defer unmount()
+
+	// Check if encryption is mandatory
+	if sys.Model.StorageSafety() == asserts.StorageSafetyEncrypted && encryptSetupData == nil {
+		return fmt.Errorf("storage encryption required by model but has not been set up")
+	}
+	useEncryption := encryptSetupData != nil
+
+	logger.Debugf("starting install-finish for %q (using encryption: %t) on %v", systemLabel, useEncryption, onVolumes)
+
+	// TODO we probably want to pass a different location for the assets cache
+	installObserver, trustedInstallObserver, err := installLogic.BuildInstallObserver(sys.Model, mntPtForType[snap.TypeGadget], useEncryption)
+	if err != nil {
+		return err
+	}
+
+	gi, err := gadget.ReadInfoAndValidate(mntPtForType[snap.TypeGadget], sys.Model, nil)
+	if err != nil {
+		return err
+	}
+
+	// Import new information from the installer to the gadget data,
+	// including the target devices and information marked as partial in
+	// the gadget, so the gadget is not partially defined anymore if it
+	// was.
+	// TODO validation of onVolumes versus gadget.yaml, needs to happen here.
+	mergedVols, err := gadget.ApplyInstallerVolumesToGadget(onVolumes, gi.Volumes)
+	if err != nil {
+		return err
+	}
+
+	// Match gadget against the disk, so we make sure that the information
+	// reported by the installer is correct and that all partitions have
+	// been created.
+	volCompatOpts := &gadget.VolumeCompatibilityOptions{
+		// at this point all partitions should be created
+		AssumeCreatablePartitionsCreated: true,
+	}
+	if useEncryption {
+		volCompatOpts.ExpectedStructureEncryption = map[string]gadget.StructureEncryptionParameters{
+			"ubuntu-data": {Method: gadget.EncryptionLUKS},
+			"ubuntu-save": {Method: gadget.EncryptionLUKS},
+		}
+	}
+	volToGadgetToDiskStruct, err := installMatchDisksToGadgetVolumes(mergedVols, volCompatOpts)
+	if err != nil {
+		return err
+	}
+
+	encType := secboot.EncryptionTypeNone
+	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
+	if useEncryption {
+		encType = secboot.EncryptionTypeLUKS
+	}
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mergedVols,
+		mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel],
+		sys.Model, encType, volToGadgetToDiskStruct)
+	if err != nil {
+		return fmt.Errorf("on finish install: cannot layout volumes: %v", err)
+	}
+
+	logger.Debugf("writing content to partitions")
+	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
+		st.Unlock()
+		defer st.Lock()
+		_, err = installWriteContent(mergedVols, allLaidOutVols, encryptSetupData, installObserver, perfTimings)
+	})
+	if err != nil {
+		return fmt.Errorf("cannot write content: %v", err)
+	}
+
+	// Mount the partitions and find the system-seed{,-null} partition
+	seedMntDir, unmountParts, err := installMountVolumes(mergedVols, encryptSetupData)
+	if err != nil {
+		return fmt.Errorf("cannot mount partitions for installation: %v", err)
+	}
+	defer unmountParts()
+
+	if err := installSaveStorageTraits(sys.Model, mergedVols, encryptSetupData); err != nil {
+		return err
+	}
+
+	if useEncryption {
+		if trustedInstallObserver != nil {
+			if err := installLogic.PrepareEncryptedSystemData(sys.Model, install.KeysForRole(encryptSetupData), trustedInstallObserver); err != nil {
+				return err
+			}
+		}
+	}
+
+	bootWith := &boot.BootableSet{
+		Base:              snapInfos[snap.TypeBase],
+		BasePath:          snapSeeds[snap.TypeBase].Path,
+		Kernel:            snapInfos[snap.TypeKernel],
+		KernelPath:        snapSeeds[snap.TypeKernel].Path,
+		Gadget:            snapInfos[snap.TypeGadget],
+		GadgetPath:        snapSeeds[snap.TypeGadget].Path,
+		UnpackedGadgetDir: mntPtForType[snap.TypeGadget],
+
+		RecoverySystemLabel: systemLabel,
+	}
+
+	// installs in system-seed{,-null} partition: grub.cfg, grubenv
+	logger.Debugf("making the system-seed{,-null} partition bootable, mount dir is %q", seedMntDir)
+	opts := &bootloader.Options{
+		PrepareImageTime: false,
+		// We need the same configuration that a recovery partition,
+		// as we will chainload to grub in the boot partition.
+		Role: bootloader.RoleRecovery,
+	}
+	if err := bootMakeBootablePartition(seedMntDir, opts, bootWith, boot.ModeRun, nil); err != nil {
+		return err
+	}
+
+	// writes the model etc
+	if err := installLogicPrepareRunSystemData(sys.Model, bootWith.UnpackedGadgetDir, perfTimings); err != nil {
+		return err
+	}
+
+	logger.Debugf("making the installed system runnable for system label %s", systemLabel)
+	if err := bootMakeRunnableStandalone(sys.Model, bootWith, trustedInstallObserver); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	var systemLabel string
+	if err := t.Get("system-label", &systemLabel); err != nil {
+		return err
+	}
+	var onVolumes map[string]*gadget.Volume
+	if err := t.Get("on-volumes", &onVolumes); err != nil {
+		return err
+	}
+	logger.Debugf("install-setup-storage-encryption for %q on %v", systemLabel, onVolumes)
+
+	st.Unlock()
+	sys, snapInfos, snapSeeds, mntPtForType, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel)
+	st.Lock()
+	if err != nil {
+		return err
+	}
+	defer unmount()
+
+	// Gadget information
+	snapf, err := snapfile.Open(snapSeeds[snap.TypeGadget].Path)
+	if err != nil {
+		return fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	gadgetInfo, err := gadget.ReadInfoFromSnapFileNoValidate(snapf, sys.Model)
+	if err != nil {
+		return fmt.Errorf("reading gadget information: %v", err)
+	}
+
+	encryptInfo, err := m.encryptionSupportInfo(sys.Model, secboot.TPMProvisionFull, snapInfos[snap.TypeKernel], gadgetInfo)
+	if err != nil {
+		return err
+	}
+	if !encryptInfo.Available {
+		var whyStr string
+		if encryptInfo.UnavailableErr != nil {
+			whyStr = encryptInfo.UnavailableErr.Error()
+		} else {
+			whyStr = encryptInfo.UnavailableWarning
+		}
+		return fmt.Errorf("encryption unavailable on this device: %v", whyStr)
+	}
+
+	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
+	encType := secboot.EncryptionTypeLUKS
+	encryptionSetupData, err := installEncryptPartitions(onVolumes, encType, sys.Model, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], perfTimings)
+	if err != nil {
+		return err
+	}
+
+	// Store created devices in the change so they can be accessed from the installer
+	apiData := map[string]interface{}{
+		"encrypted-devices": encryptionSetupData.EncryptedDevices(),
+	}
+	chg := t.Change()
+	chg.Set("api-data", apiData)
+
+	st.Cache(encryptionSetupDataKey{systemLabel}, encryptionSetupData)
+
 	return nil
 }

@@ -148,6 +148,7 @@ func (s *appsSuite) SetUpTest(c *check.C) {
 	// turn off ensuring snap services which will call systemctl automatically
 	r := servicestate.MockEnsuredSnapServices(s.d.Overlord().ServiceManager(), true)
 	s.AddCleanup(r)
+	s.AddCleanup(snapstate.MockEnsuredMountsUpdated(d.Overlord().SnapManager(), true))
 
 	s.infoA = s.mkInstalledInState(c, s.d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {svc1: {daemon: simple}, svc2: {daemon: simple, reload-command: x}}")
 	s.infoB = s.mkInstalledInState(c, s.d, "snap-b", "dev", "v1", snap.R(1), false, "apps: {svc3: {daemon: simple}, cmd1: {}}")
@@ -657,7 +658,7 @@ func (s *appsSuite) TestLogs(c *check.C) {
 	c.Check(s.jctlNamespaces, check.DeepEquals, []bool{false})
 
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json-seq")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json-seq")
 	c.Check(rec.Body.String(), check.Equals, `
 {"timestamp":"1970-01-01T00:00:00.000042Z","message":"hello1","sid":"xyzzy","pid":"42"}
 {"timestamp":"1970-01-01T00:00:00.000044Z","message":"hello2","sid":"xyzzy","pid":"42"}

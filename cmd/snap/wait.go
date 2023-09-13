@@ -40,6 +40,9 @@ type waitMixin struct {
 	clientMixin
 	NoWait    bool `long:"no-wait"`
 	skipAbort bool
+
+	// Wait also for tasks in the "wait" state.
+	waitForTasksInWaitStatus bool
 }
 
 var waitDescs = mixinDescs{
@@ -70,7 +73,7 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 		}
 	}()
 
-	pb := progress.MakeProgressBar()
+	pb := progress.MakeProgressBar(Stdout)
 	defer func() {
 		pb.Finished()
 		// next two not strictly needed for CLI, but without
@@ -93,8 +96,15 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 				return nil, e
 			}
 
-			// an non-client error here means the server most
-			// likely went away
+			// A non-client error here means the server most likely went away.
+			// First thing we should check is whether this is a part of a system restart,
+			// as in that case we want to to report this to user instead of looping here until
+			// the restart does happen. (Or in the case of spread tests, blocks forever).
+			if e, ok := cli.Maintenance().(*client.Error); ok && e.Kind == client.ErrorKindSystemRestart {
+				return nil, e
+			}
+
+			// Otherwise it's most likely a daemon restart, assume it might come up again.
 			// XXX: it actually can be a bunch of other things; fix client to expose it better
 			now := time.Now()
 			if tMax.IsZero() {
@@ -115,17 +125,35 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 			tMax = time.Time{}
 		}
 
+		maybeShowLog := func(t *client.Task) {
+			nowLog := lastLogStr(t.Log)
+			if lastLog[t.ID] != nowLog {
+				pb.Notify(nowLog)
+				lastLog[t.ID] = nowLog
+			}
+		}
+
+		// Tasks in "wait" state communicate the wait reason
+		// via the log mechanism. So make sure the log is
+		// visible even if the normal progress reporting
+		// has tasks in "Doing" state (like "check-refresh")
+		// that would suppress displaying the log. This will
+		// ensure on a classic+modes system the user sees
+		// the messages: "Task set to wait until a manual system restart allows to continue"
+		for _, t := range chg.Tasks {
+			if t.Status == "Wait" {
+				maybeShowLog(t)
+			}
+		}
+
+		// progress reporting
 		for _, t := range chg.Tasks {
 			switch {
-			case t.Status != "Doing":
+			case t.Status != "Doing" && t.Status != "Wait":
 				continue
 			case t.Progress.Total == 1:
 				pb.Spin(t.Summary)
-				nowLog := lastLogStr(t.Log)
-				if lastLog[t.ID] != nowLog {
-					pb.Notify(nowLog)
-					lastLog[t.ID] = nowLog
-				}
+				maybeShowLog(t)
 			case t.ID == lastID:
 				pb.Set(float64(t.Progress.Done))
 			default:
@@ -133,6 +161,10 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 				lastID = t.ID
 			}
 			break
+		}
+
+		if !wmx.waitForTasksInWaitStatus && chg.Status == "Wait" {
+			return chg, nil
 		}
 
 		if chg.Ready {

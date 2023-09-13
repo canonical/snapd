@@ -274,8 +274,8 @@ type TrustedAssetsInstallObserver struct {
 // measured as part of the secure boot or the bootloader configuration.
 //
 // Implements gadget.ContentObserver.
-func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
-	if affectedStruct.Role != gadget.SystemBoot {
+func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+	if partRole != gadget.SystemBoot {
 		// only care about system-boot
 		return gadget.ChangeApply, nil
 	}
@@ -469,19 +469,20 @@ func gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, rootDir string, opts *boot
 // bootloader binaries, or preserves managed assets such as boot configuration.
 //
 // Implements gadget.ContentUpdateObserver.
-func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	var whichBootloader bootloader.Bootloader
 	var whichTrustedAssets []string
 	var whichManagedAssets []string
 	var err error
 	var isRecovery bool
 
-	switch affectedStruct.Role {
+	logger.Debugf("observing role %q (root %q, target %q", partRole, root, relativeTarget)
+	switch partRole {
 	case gadget.SystemBoot:
 		whichBootloader = o.bootBootloader
 		whichTrustedAssets = o.bootTrustedAssets
 		whichManagedAssets = o.bootManagedAssets
-	case gadget.SystemSeed:
+	case gadget.SystemSeed, gadget.SystemSeedNull:
 		whichBootloader = o.seedBootloader
 		whichTrustedAssets = o.seedTrustedAssets
 		whichManagedAssets = o.seedManagedAssets

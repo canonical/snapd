@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 
 	"gopkg.in/check.v1"
 
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/testutil"
 )
 
 const packSnapYaml = `name: hello
@@ -139,4 +141,47 @@ func (s *SnapSuite) TestPackPacksASnapWithCompressionUnhappy(c *check.C) {
 		_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--compression", comp, snapDir, snapDir})
 		c.Assert(err, check.ErrorMatches, fmt.Sprintf(`cannot pack "/.*": cannot use compression %q`, comp))
 	}
+}
+
+func (s *SnapSuite) TestPackPacksASnapWithIntegrityHappy(c *check.C) {
+	snapDir := makeSnapDirForPack(c, "name: hello\nversion: 1.0")
+
+	// mock the verity-setup command, what it does is make a copy of the snap
+	// and then returns pre-calculated output
+	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
+case "$1" in
+	--version)
+		echo "veritysetup 2.2.6"
+		exit 0
+		;;
+	format)
+		cp %[1]s/hello_1.0_all.snap %[1]s/hello_1.0_all.snap.verity
+		echo "VERITY header information for %[1]s/hello_1.0_all.snap.verity"
+		echo "UUID:            	8f6dcdd2-9426-49d8-9879-a5c87fc78c15"
+		echo "Hash type:       	1"
+		echo "Data blocks:     	1"
+		echo "Data block size: 	4096"
+		echo "Hash block size: 	4096"
+		echo "Hash algorithm:  	sha256"
+		echo "Salt:            	06d01a87b298b6855b6a3a1b32450deba4550417cbec2bb21a38d6dda24a1b53"
+		echo "Root hash:      	306398e250a950ea1cbfceda608ee4585f053323251b08b7ed3f004740e91ba5"
+		;;
+esac
+`, snapDir))
+	defer vscmd.Restore()
+
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--append-integrity-data", snapDir, snapDir})
+	c.Assert(err, check.IsNil)
+
+	snapOriginal := path.Join(snapDir, "hello_1.0_all.snap")
+	snapVerity := snapOriginal + ".verity"
+	c.Assert(vscmd.Calls(), check.HasLen, 2)
+	c.Check(vscmd.Calls()[0], check.DeepEquals, []string{"veritysetup", "--version"})
+	c.Check(vscmd.Calls()[1], check.DeepEquals, []string{"veritysetup", "format", snapOriginal, snapVerity})
+
+	matches, err := filepath.Glob(snapDir + "/hello*.snap")
+	c.Assert(err, check.IsNil)
+	c.Assert(matches, check.HasLen, 1)
+	err = os.Remove(matches[0])
+	c.Assert(err, check.IsNil)
 }

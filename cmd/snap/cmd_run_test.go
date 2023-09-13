@@ -33,8 +33,11 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/godbus/dbus"
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
+	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
@@ -1890,25 +1893,38 @@ func (s *RunSuite) TestWaitWhileInhibitedTextFlow(c *check.C) {
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
 	defer restoreIsGraphicalSession()
 
-	var notification *usersessionclient.PendingSnapRefreshInfo
+	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(snapName string) (bool, error) {
+		c.Check(snapName, check.Equals, "some-snap")
+		return false, nil
+	})
+	defer restoreTryNotifyRefresh()
+
 	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
-		notification = refreshInfo
+		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.PendingSnapRefreshInfo{
+			InstanceName:  "some-snap",
+			TimeRemaining: 0,
+		})
 		return nil
 	})
 	defer restorePendingRefreshNotification()
 
-	var finishNotification *usersessionclient.FinishedSnapRefreshInfo
 	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
-		finishNotification = refreshInfo
+		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.FinishedSnapRefreshInfo{
+			InstanceName: "some-snap",
+		})
 		return nil
 	})
 	defer restoreFinishRefreshNotification()
 
 	var called int
 	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+		c.Check(snapName, check.Equals, "some-snap")
 		called++
 		if called < 2 {
 			return runinhibit.HintInhibitedForRefresh, nil
@@ -1920,28 +1936,34 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
 	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
 	c.Assert(snaprun.WaitWhileInhibited("some-snap"), check.IsNil)
 	c.Check(called, check.Equals, 2)
-
 	c.Check(s.Stdout(), check.Equals, "")
-	c.Check(notification, check.DeepEquals, &usersessionclient.PendingSnapRefreshInfo{
-		InstanceName:  "some-snap",
-		TimeRemaining: 0,
-	})
-	c.Check(finishNotification, check.DeepEquals, &usersessionclient.FinishedSnapRefreshInfo{
-		InstanceName: "some-snap",
-	})
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
 	defer restoreIsGraphicalSession()
 
+	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(snapName string) (bool, error) {
+		c.Check(snapName, check.Equals, "some-snap")
+		return false, nil
+	})
+	defer restoreTryNotifyRefresh()
+
 	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
+		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.PendingSnapRefreshInfo{
+			InstanceName:  "some-snap",
+			TimeRemaining: 0,
+		})
 		return fmt.Errorf("boom")
 	})
 	defer restorePendingRefreshNotification()
 
 	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
 	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+		c.Check(snapName, check.Equals, "some-snap")
 		return runinhibit.HintInhibitedForRefresh, nil
 	})
 	defer restore()
@@ -1950,15 +1972,31 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowErrorOnFinish(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
 	defer restoreIsGraphicalSession()
 
+	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(snapName string) (bool, error) {
+		c.Check(snapName, check.Equals, "some-snap")
+		return false, nil
+	})
+	defer restoreTryNotifyRefresh()
+
 	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
+		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.PendingSnapRefreshInfo{
+			InstanceName:  "some-snap",
+			TimeRemaining: 0,
+		})
 		return nil
 	})
 	defer restorePendingRefreshNotification()
 
 	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
+		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.FinishedSnapRefreshInfo{
+			InstanceName: "some-snap",
+		})
 		return fmt.Errorf("boom")
 	})
 	defer restoreFinishRefreshNotification()
@@ -1966,6 +2004,7 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowErrorOnFinish(c *ch
 	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
 	n := 0
 	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+		c.Check(snapName, check.Equals, "some-snap")
 		n++
 		if n == 1 {
 			return runinhibit.HintInhibitedForRefresh, nil
@@ -2063,4 +2102,86 @@ func (s *RunSuite) TestRunDebugLog(c *check.C) {
 	c.Check(os.Getenv("SNAPD_DEBUG"), check.Equals, "1")
 	// and we've let the user know that logging was enabled
 	c.Check(logBuf.String(), testutil.Contains, "DEBUG: enabled debug logging of early snap startup")
+}
+
+func (s *RunSuite) TestDesktopIntegrationNoDBus(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
+	noDBus := func() (*dbus.Conn, error) { return nil, fmt.Errorf("dbus not available") }
+	restore := dbusutil.MockConnections(noDBus, noDBus)
+	defer restore()
+
+	sent, err := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow("Test")
+	c.Assert(sent, check.Equals, false)
+	c.Assert(err, check.IsNil)
+}
+
+func makeDBusMethodNotAvailableMessage(c *check.C, msg *dbus.Message) *dbus.Message {
+	return &dbus.Message{
+		Type: dbus.TypeError,
+		Headers: map[dbus.HeaderField]dbus.Variant{
+			dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
+			dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
+			// dbus.FieldDestination is provided automatically by DBus test helper.
+			dbus.FieldErrorName: dbus.MakeVariant("org.freedesktop.DBus.Error.UnknownMethod"),
+		},
+	}
+}
+
+func (s *RunSuite) TestDesktopIntegrationDBusAvailableNoMethod(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
+	conn, _, err := dbustest.InjectableConnection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		return []*dbus.Message{makeDBusMethodNotAvailableMessage(c, msg)}, nil
+	})
+	c.Assert(err, check.IsNil)
+
+	restore := dbusutil.MockOnlySessionBusAvailable(conn)
+	defer restore()
+
+	sent, err := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow("SnapTest")
+	c.Assert(sent, check.Equals, false)
+	c.Assert(err, check.IsNil)
+}
+
+func makeDBusMethodAvailableMessage(c *check.C, msg *dbus.Message) *dbus.Message {
+	c.Assert(msg.Type, check.Equals, dbus.TypeMethodCall)
+	c.Check(msg.Flags, check.Equals, dbus.Flags(0))
+
+	c.Check(msg.Headers, check.DeepEquals, map[dbus.HeaderField]dbus.Variant{
+		dbus.FieldDestination: dbus.MakeVariant("io.snapcraft.SnapDesktopIntegration"),
+		dbus.FieldPath:        dbus.MakeVariant(dbus.ObjectPath("/io/snapcraft/SnapDesktopIntegration")),
+		dbus.FieldInterface:   dbus.MakeVariant("io.snapcraft.SnapDesktopIntegration"),
+		dbus.FieldMember:      dbus.MakeVariant("ApplicationIsBeingRefreshed"),
+		dbus.FieldSignature:   dbus.MakeVariant(dbus.SignatureOf("", "", make(map[string]dbus.Variant))),
+	})
+	c.Check(msg.Body[0], check.Equals, "SnapTest")
+	param2 := fmt.Sprintf("%s", msg.Body[1])
+	c.Check(strings.HasSuffix(param2, "/var/lib/snapd/inhibit/SnapTest.lock"), check.Equals, true)
+	return &dbus.Message{
+		Type: dbus.TypeMethodReply,
+		Headers: map[dbus.HeaderField]dbus.Variant{
+			dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
+			dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
+		},
+	}
+}
+
+func (s *RunSuite) TestDesktopIntegrationDBusAvailableMethodWorks(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
+	conn, _, err := dbustest.InjectableConnection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		return []*dbus.Message{makeDBusMethodAvailableMessage(c, msg)}, nil
+	})
+	c.Assert(err, check.IsNil)
+
+	restore := dbusutil.MockOnlySessionBusAvailable(conn)
+	defer restore()
+
+	sent, err := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow("SnapTest")
+	c.Assert(sent, check.Equals, true)
+	c.Assert(err, check.IsNil)
 }

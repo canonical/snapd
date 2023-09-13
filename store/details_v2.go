@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,28 +33,29 @@ import (
 
 // storeSnap holds the information sent as JSON by the store for a snap.
 type storeSnap struct {
-	Architectures []string           `json:"architectures"`
-	Base          string             `json:"base"`
-	Confinement   string             `json:"confinement"`
-	Contact       string             `json:"contact"`
-	CreatedAt     string             `json:"created-at"` // revision timestamp
-	Description   safejson.Paragraph `json:"description"`
-	Download      storeSnapDownload  `json:"download"`
-	Epoch         snap.Epoch         `json:"epoch"`
-	License       string             `json:"license"`
-	Name          string             `json:"name"`
-	Prices        map[string]string  `json:"prices"` // currency->price,  free: {"USD": "0"}
-	Private       bool               `json:"private"`
-	Publisher     snap.StoreAccount  `json:"publisher"`
-	Revision      int                `json:"revision"` // store revisions are ints starting at 1
-	SnapID        string             `json:"snap-id"`
-	SnapYAML      string             `json:"snap-yaml"` // optional
-	Summary       safejson.String    `json:"summary"`
-	Title         safejson.String    `json:"title"`
-	Type          snap.Type          `json:"type"`
-	Version       string             `json:"version"`
-	Website       string             `json:"website"`
-	StoreURL      string             `json:"store-url"`
+	Architectures []string            `json:"architectures"`
+	Base          string              `json:"base"`
+	Confinement   string              `json:"confinement"`
+	Links         map[string][]string `json:"links"`
+	Contact       string              `json:"contact"`
+	CreatedAt     string              `json:"created-at"` // revision timestamp
+	Description   safejson.Paragraph  `json:"description"`
+	Download      storeSnapDownload   `json:"download"`
+	Epoch         snap.Epoch          `json:"epoch"`
+	License       string              `json:"license"`
+	Name          string              `json:"name"`
+	Prices        map[string]string   `json:"prices"` // currency->price,  free: {"USD": "0"}
+	Private       bool                `json:"private"`
+	Publisher     snap.StoreAccount   `json:"publisher"`
+	Revision      int                 `json:"revision"` // store revisions are ints starting at 1
+	SnapID        string              `json:"snap-id"`
+	SnapYAML      string              `json:"snap-yaml"` // optional
+	Summary       safejson.String     `json:"summary"`
+	Title         safejson.String     `json:"title"`
+	Type          snap.Type           `json:"type"`
+	Version       string              `json:"version"`
+	Website       string              `json:"website"`
+	StoreURL      string              `json:"store-url"`
 
 	// TODO: not yet defined: channel map
 
@@ -62,6 +63,8 @@ type storeSnap struct {
 	Media []storeSnapMedia `json:"media"`
 
 	CommonIDs []string `json:"common-ids"`
+
+	Categories []storeSnapCategory `json:"categories"`
 }
 
 type storeSnapDownload struct {
@@ -85,6 +88,11 @@ type storeSnapMedia struct {
 	URL    string `json:"url"`
 	Width  int64  `json:"width"`
 	Height int64  `json:"height"`
+}
+
+type storeSnapCategory struct {
+	Featured bool   `json:"featured"`
+	Name     string `json:"name"`
 }
 
 // storeInfoChannel is the channel description included in info results
@@ -185,6 +193,9 @@ func copyNonZeroFrom(src, dst *storeSnap) {
 	if src.Confinement != "" {
 		dst.Confinement = src.Confinement
 	}
+	if len(src.Links) != 0 {
+		dst.Links = src.Links
+	}
 	if src.Contact != "" {
 		dst.Contact = src.Contact
 	}
@@ -248,6 +259,9 @@ func copyNonZeroFrom(src, dst *storeSnap) {
 	if len(src.CommonIDs) > 0 {
 		dst.CommonIDs = src.CommonIDs
 	}
+	if len(src.Categories) > 0 {
+		dst.Categories = src.Categories
+	}
 	if len(src.Website) > 0 {
 		dst.Website = src.Website
 	}
@@ -265,7 +279,14 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.EditedSummary = d.Summary.Clean()
 	info.EditedDescription = d.Description.Clean()
 	info.Private = d.Private
-	info.EditedContact = d.Contact
+	// needs to be set for old snapd
+	info.LegacyEditedContact = d.Contact
+	// info.EditedLinks should contain normalized edited links. info.Links() normalizes
+	// non-empty edited links, otherwise it returns normalized original links.
+	if len(d.Links) != 0 {
+		info.EditedLinks = d.Links
+		info.EditedLinks = info.Links()
+	}
 	info.Architectures = d.Architectures
 	info.SnapType = d.Type
 	info.Version = d.Version
@@ -292,7 +313,11 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 		info.Deltas = deltas
 	}
 	info.CommonIDs = d.CommonIDs
-	info.Website = d.Website
+	if len(info.EditedLinks) == 0 {
+		// if non empty links was provided, no need to set this
+		// separately as in itself it is not persisted
+		info.LegacyWebsite = d.Website
+	}
 	info.StoreURL = d.StoreURL
 
 	// fill in the plug/slot data etc
@@ -334,6 +359,8 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	// media
 	addMedia(info, d.Media)
 
+	addCategories(info, d.Categories)
+
 	return info, nil
 }
 
@@ -347,5 +374,16 @@ func addMedia(info *snap.Info, media []storeSnapMedia) {
 		info.Media[i].URL = mediaObj.URL
 		info.Media[i].Width = mediaObj.Width
 		info.Media[i].Height = mediaObj.Height
+	}
+}
+
+func addCategories(info *snap.Info, categories []storeSnapCategory) {
+	if len(categories) == 0 {
+		return
+	}
+	info.Categories = make([]snap.CategoryInfo, len(categories))
+	for i, category := range categories {
+		info.Categories[i].Featured = category.Featured
+		info.Categories[i].Name = category.Name
 	}
 }

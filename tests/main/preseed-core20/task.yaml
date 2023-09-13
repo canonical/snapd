@@ -6,7 +6,9 @@ details: |
 
 # TODO: test on 21.10 / 22.04; they fail because new build of snapd cannot
 # be run in core20-based chroot due to old libc.
-systems: [ubuntu-20.04*]
+# This test cannot be executed in arm architecture because the model
+# assertion is made for amd64
+systems: [ubuntu-20.04-64]
 
 environment:
   PREPARE_IMAGE_DIR: uc20image
@@ -27,9 +29,7 @@ prepare: |
   cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
   cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
 
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  setup_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
   echo "Creating a new key without a password"
   mkdir -p ~/.snap/gnupg
@@ -37,10 +37,7 @@ prepare: |
 
 restore: |
   rm -rf "$PREPARE_IMAGE_DIR"
-
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  teardown_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
 debug: |
   cat preseed.log || true
@@ -126,12 +123,16 @@ execute: |
   MATCH "^etc/systemd/system/snapd.service" < files.log
 
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.core-fixup.service" < files.log
+  MATCH "^etc/systemd/system/snapd.mounts.target.wants/snap-pc-.*.mount" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snap-pc-.*.mount" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.spread-tests-run-mode-tweaks.service" < files.log
+  MATCH "^etc/systemd/system/snapd.mounts.target.wants/snap-pc.*kernel-.*.mount" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snap-pc.*kernel-.*.mount" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.autoimport.service" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.apparmor.service" < files.log
+  MATCH "^etc/systemd/system/snapd.mounts.target.wants/snap-core20-.*.mount" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snap-core20-.*.mount" < files.log
+  MATCH "^etc/systemd/system/snapd.mounts.target.wants/snap-snapd-.*.mount" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snap-snapd-.*.mount" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.seeded.service" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.recovery-chooser-trigger.service" < files.log

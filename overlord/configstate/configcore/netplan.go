@@ -125,7 +125,7 @@ func getNetplanCfgSnapshot() (dbus.BusObject, error) {
 	return netplanCfgSnapshot, nil
 }
 
-func validateNetplanSettings(tr config.Conf) error {
+func validateNetplanSettings(tr RunTransaction) error {
 	// validation is done by netplan itself on apply, there is no
 	// way to dry-run this
 	return nil
@@ -135,7 +135,7 @@ func isNetplanChange(chg string) bool {
 	return chg == "core.system.network.netplan" || strings.HasPrefix(chg, "core.system.network.netplan.")
 }
 
-func hasNetplanChanges(tr config.Conf) bool {
+func hasNetplanChanges(tr RunTransaction) bool {
 	for _, chg := range tr.Changes() {
 		if isNetplanChange(chg) {
 			return true
@@ -156,7 +156,7 @@ func testStoreReachableWithRetry(state *state.State, n int, wait time.Duration) 
 	return n, false
 }
 
-func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) (err error) {
+func handleNetplanConfiguration(tr RunTransaction, opts *fsOnlyContext) (err error) {
 	if !hasNetplanChanges(tr) {
 		return nil
 	}
@@ -190,11 +190,14 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) (err error)
 
 	originHint := "90-snapd-config"
 	if !seeded {
-		// Use a different origin hint when seeding that sorts
-		// before the console-conf "00-snapd-config.yaml" so
-		// that console-conf can override our settings when it
-		// runs.
-		originHint = "0-snapd-defaults"
+		// This is the origin used by the defaults settings established from
+		// the base, and it is also modified by console-conf if it runs. We
+		// really want to clean it if console-conf is disabled, as we want to
+		// override the base defaults. If console conf is enabled, it will
+		// rewrite the file anyway setting its own thing, which is fine, as it
+		// is a manual configuration and the defaults might even conflict with
+		// it.
+		originHint = "00-snapd-config"
 	}
 
 	// Always starts with a clean config to avoid merging of keys

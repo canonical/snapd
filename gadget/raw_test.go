@@ -80,7 +80,8 @@ func (r *rawTestSuite) TestRawWriterHappy(c *C) {
 
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:            2048,
+			EnclosingVolume: &gadget.Volume{},
 		},
 		LaidOutContent: []gadget.LaidOutContent{
 			{
@@ -129,7 +130,8 @@ func (r *rawTestSuite) TestRawWriterNoFile(c *C) {
 
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:            2048,
+			EnclosingVolume: &gadget.Volume{},
 		},
 		LaidOutContent: []gadget.LaidOutContent{
 			{
@@ -181,7 +183,8 @@ func (r *rawTestSuite) TestRawWriterFailInWriteSeeker(c *C) {
 
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:            2048,
+			EnclosingVolume: &gadget.Volume{},
 		},
 		LaidOutContent: []gadget.LaidOutContent{
 			{
@@ -213,7 +216,8 @@ func (r *rawTestSuite) TestRawWriterNoImage(c *C) {
 	out := &mockWriteSeeker{}
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:            2048,
+			EnclosingVolume: &gadget.Volume{},
 		},
 		LaidOutContent: []gadget.LaidOutContent{
 			{
@@ -251,7 +255,8 @@ func (r *rawTestSuite) TestRawWriterFailWithNonBare(c *C) {
 func (r *rawTestSuite) TestRawWriterInternalErrors(c *C) {
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:            2048,
+			EnclosingVolume: &gadget.Volume{},
 		},
 	}
 
@@ -298,10 +303,13 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
 	makeSizedFile(c, filepath.Join(r.dir, "foo.img"), 128, []byte("foo foo foo"))
 	makeSizedFile(c, filepath.Join(r.dir, "bar.img"), 128, []byte("bar bar bar"))
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+		OnDiskStructure: gadget.OnDiskStructure{
+			StartOffset: 1 * quantity.OffsetMiB,
 		},
-		StartOffset: 1 * quantity.OffsetMiB,
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:            2048,
+			EnclosingVolume: &gadget.Volume{},
+		},
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
@@ -378,10 +386,13 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 	makeSizedFile(c, filepath.Join(r.dir, "bar.img"), 256, []byte("xxx xxx xxx xxx"))
 	makeSizedFile(c, filepath.Join(r.dir, "unchanged.img"), 128, []byte("unchanged unchanged"))
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Size: 4096,
+		OnDiskStructure: gadget.OnDiskStructure{
+			StartOffset: 1 * quantity.OffsetMiB,
 		},
-		StartOffset: 1 * quantity.OffsetMiB,
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:            4096,
+			EnclosingVolume: &gadget.Volume{},
+		},
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
@@ -472,12 +483,14 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreNoPartition(c *C) {
 	makeSizedFile(c, filepath.Join(r.dir, "foo.img"), 128, []byte("zzz zzz zzz zzz"))
 	makeSizedFile(c, filepath.Join(r.dir, "bar.img"), 256, []byte("xxx xxx xxx xxx"))
 	ps := &gadget.LaidOutStructure{
+		OnDiskStructure: gadget.OnDiskStructure{
+			StartOffset: 1 * quantity.OffsetMiB,
+		},
 		VolumeStructure: &gadget.VolumeStructure{
 			// No partition table entry, would trigger fallback lookup path.
 			Type: "bare",
 			Size: 2048,
 		},
-		StartOffset: 1 * quantity.OffsetMiB,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
@@ -534,10 +547,13 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreNoPartition(c *C) {
 func (r *rawTestSuite) TestRawUpdaterBackupErrors(c *C) {
 	diskPath := filepath.Join(r.dir, "disk.img")
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+		OnDiskStructure: gadget.OnDiskStructure{
+			StartOffset: 0,
 		},
-		StartOffset: 0,
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:            2048,
+			EnclosingVolume: &gadget.Volume{},
+		},
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
@@ -583,10 +599,13 @@ func (r *rawTestSuite) TestRawUpdaterBackupIdempotent(c *C) {
 	makeSizedFile(c, diskPath, 0, nil)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+		OnDiskStructure: gadget.OnDiskStructure{
+			StartOffset: 0,
 		},
-		StartOffset: 0,
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:            2048,
+			EnclosingVolume: &gadget.Volume{},
+		},
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
@@ -625,10 +644,13 @@ func (r *rawTestSuite) TestRawUpdaterBackupIdempotent(c *C) {
 
 func (r *rawTestSuite) TestRawUpdaterFindDeviceFailed(c *C) {
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+		OnDiskStructure: gadget.OnDiskStructure{
+			StartOffset: 0,
 		},
-		StartOffset: 0,
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:            2048,
+			EnclosingVolume: &gadget.Volume{},
+		},
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
@@ -671,10 +693,13 @@ func (r *rawTestSuite) TestRawUpdaterRollbackErrors(c *C) {
 	makeSizedFile(c, diskPath, 0, nil)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+		OnDiskStructure: gadget.OnDiskStructure{
+			StartOffset: 0,
 		},
-		StartOffset: 0,
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:            2048,
+			EnclosingVolume: &gadget.Volume{},
+		},
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
@@ -721,10 +746,13 @@ func (r *rawTestSuite) TestRawUpdaterUpdateErrors(c *C) {
 	makeSizedFile(c, diskPath, 2048, nil)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+		OnDiskStructure: gadget.OnDiskStructure{
+			StartOffset: 0,
 		},
-		StartOffset: 0,
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:            2048,
+			EnclosingVolume: &gadget.Volume{},
+		},
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
@@ -766,8 +794,10 @@ func (r *rawTestSuite) TestRawUpdaterUpdateErrors(c *C) {
 
 func (r *rawTestSuite) TestRawUpdaterContentBackupPath(c *C) {
 	ps := &gadget.LaidOutStructure{
+		OnDiskStructure: gadget.OnDiskStructure{
+			StartOffset: 0,
+		},
 		VolumeStructure: &gadget.VolumeStructure{},
-		StartOffset:     0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{},
@@ -781,7 +811,7 @@ func (r *rawTestSuite) TestRawUpdaterContentBackupPath(c *C) {
 	pc.Index = 5
 	p = gadget.RawContentBackupPath(r.backup, ps, pc)
 	c.Assert(p, Equals, r.backup+"/struct-0-5")
-	ps.YamlIndex = 9
+	ps.VolumeStructure.YamlIndex = 9
 	p = gadget.RawContentBackupPath(r.backup, ps, pc)
 	c.Assert(p, Equals, r.backup+"/struct-9-5")
 }
@@ -789,7 +819,8 @@ func (r *rawTestSuite) TestRawUpdaterContentBackupPath(c *C) {
 func (r *rawTestSuite) TestRawUpdaterInternalErrors(c *C) {
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:            2048,
+			EnclosingVolume: &gadget.Volume{},
 		},
 	}
 

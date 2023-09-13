@@ -25,6 +25,7 @@ _check_project_path() {
 }
 
 _check_test_paths() {
+    # shellcheck disable=SC2124
     local test_paths="$@"
     if [ -z "$test_paths" ]; then
         echo "spread-manager: test path cannot be empty"
@@ -66,10 +67,11 @@ _set_manual_value() {
 set_manual() {
     local project_path="$1"
     shift
+    # shellcheck disable=SC2124
     local test_paths="$@"
 
     _check_project_path "$project_path"
-    test_paths="$(echo $test_paths | tr ',' ' ')"
+    test_paths="$(echo "$test_paths" | tr ',' ' ')"
     _check_test_paths "$test_paths"
 
     for test_path in $test_paths; do
@@ -78,17 +80,18 @@ set_manual() {
 
         # Backup the task
         cp "$task_path" "$task_path.back"
-        _set_manual_value $task_path true
+        _set_manual_value "$task_path" true
     done
 }
 
 unset_manual() {
     local project_path="$1"
     shift
+    # shellcheck disable=SC2124
     local test_paths="$@"
 
     _check_project_path "$project_path"
-    test_paths="$(echo $test_paths | tr ',' ' ')"
+    test_paths="$(echo "$test_paths" | tr ',' ' ')"
     _check_test_paths "$test_paths"
 
     for test_path in $test_paths; do
@@ -97,17 +100,18 @@ unset_manual() {
 
         # Backup the task
         cp "$task_path" "$task_path.back"
-        _set_manual_value $task_path false
+        _set_manual_value "$task_path" false
     done
 }
 
 reset_manual() {
     local project_path="$1"
     shift
+    # shellcheck disable=SC2124
     local test_paths="$@"
 
     _check_project_path "$project_path"
-    test_paths="$(echo $test_paths | tr ',' ' ')"
+    test_paths="$(echo "$test_paths" | tr ',' ' ')"
     _check_test_paths "$test_paths"
 
     for test_path in $test_paths; do
@@ -131,41 +135,33 @@ main() {
 
     local subcommand="$1"
     local action=
-    local params=
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            -h|--help)
-                show_help
-                exit 0
-                ;;
-            *-manual)
-                action=$(echo "$subcommand" | tr '-' '_')                
-                shift
-                if [ "$1" == "--project-path" ]; then
-                    params="$2"
-                    shift 2
-                else
-                    params="$(pwd)"
-                fi
-                params="$params $@"
-                break
-                ;;
-            *)
-                action=$(echo "$subcommand" | tr '-' '_')
-                shift
-                params="$@"
-                break
-                ;;
-        esac
-    done
+    if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+        show_help
+        exit 0
+    else
+        action=$(echo "$subcommand" | tr '-' '_')
+        shift
+    fi
 
     if [ -z "$(declare -f "$action")" ]; then
         echo "spread-manager: no such command: $subcommand" >&2
         show_help
         exit 1
     fi
-    "$action" $params
-    
+
+    local project_path
+    if [ $# -gt 0 ]; then
+        if [[ "$action" =~ .*_manual ]]; then
+            project_path="$(pwd)"
+            if [ "$1" == "--project-path" ]; then
+                project_path="$2"
+                shift 2
+            fi
+            "$action" "$project_path" "$@"
+        else
+            "$action" "$@"
+        fi
+    fi
 }
 
 main "$@"

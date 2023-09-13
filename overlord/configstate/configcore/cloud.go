@@ -30,11 +30,10 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-func alreadySeeded(tr config.Conf) (bool, error) {
+func alreadySeeded(tr RunTransaction) (bool, error) {
 	st := tr.State()
 	st.Lock()
 	defer st.Unlock()
@@ -82,7 +81,7 @@ func (c *cloudInitInstanceData) UnmarshalJSON(bs []byte) error {
 	return nil
 }
 
-func setCloudInfoWhenSeeding(tr config.Conf, opts *fsOnlyContext) error {
+func setCloudInfoWhenSeeding(tr RunTransaction, opts *fsOnlyContext) error {
 	// if we are during seeding try to capture cloud information
 	seeded, err := alreadySeeded(tr)
 	if err != nil {

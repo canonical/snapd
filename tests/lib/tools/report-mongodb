@@ -15,6 +15,10 @@ def _make_parser():
                         **environ_or_required('MONGO_HOST'))
     parser.add_argument('--port', help="Port for the mongo database",
                         **environ_or_required('MONGO_PORT'))
+    parser.add_argument('--user', help="Username for the mongo database",
+                        **environ_or_required('MONGO_USER'))
+    parser.add_argument('--password', help="Password for the mongo database",
+                        **environ_or_required('MONGO_PASS'))
     parser.add_argument('--db-name', help="Name for the database used to insert", required=True)
     parser.add_argument('--db-collection', help="Name for the collection used to insert", required=True)
     parser.add_argument('--metadata', help="Metadata to be included in the insert")
@@ -30,8 +34,13 @@ def environ_or_required(key):
         return {'required': True}
 
 
-def connect(host, port, db_name):
-    client = MongoClient(host=host, port=int(port))
+def connect(host, port, user, password, db_name):
+    if user and password:
+        # The default database name is “admin”
+        # SCRAM-SHA-256 is the default authentication mechanism
+        client = MongoClient(host=host, port=int(port), username=user, password=password)
+    else:
+        client = MongoClient(host=host, port=int(port))
     if not db_name in client.list_database_names():
         print("report-mongodb: invalid db name, it does not exist in mongodb")
         sys.exit(1)
@@ -101,7 +110,7 @@ def main():
         print("report-mongodb: value cannot be empty")
         sys.exit(1)
 
-    db = connect(args.host, args.port, args.db_name)
+    db = connect(args.host, args.port, args.user, args.password, args.db_name)
     insert(db, args.db_collection, args.metadata, args.value)
 
 

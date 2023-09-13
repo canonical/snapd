@@ -175,7 +175,6 @@ linters:
   enable:
     - govet
     - misspell
-    - deadcode
     - unused
     # gosimple may suggest patterns that work only with more recent Go versions
     # - gosimple

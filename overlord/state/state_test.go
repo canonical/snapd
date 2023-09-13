@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -75,6 +75,20 @@ func (ss *stateSuite) TestGetAndSet(c *C) {
 	err = st.Get("mgr2", &mSt2B)
 	c.Assert(err, IsNil)
 	c.Check(&mSt2B, DeepEquals, mSt2)
+}
+
+func (ss *stateSuite) TestHas(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(st.Has("a"), Equals, false)
+
+	st.Set("a", 1)
+	c.Check(st.Has("a"), Equals, true)
+
+	st.Set("a", nil)
+	c.Check(st.Has("a"), Equals, false)
 }
 
 func (ss *stateSuite) TestStrayTaskWithNoChange(c *C) {
@@ -812,6 +826,55 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Check(st.AllWarnings(), HasLen, 1)
 }
 
+func (ss *stateSuite) TestRegisterPendingChangeByAttr(c *C) {
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now()
+	pruneWait := 1 * time.Hour
+	abortWait := 3 * time.Hour
+
+	unset := time.Time{}
+
+	t1 := st.NewTask("foo", "...")
+	t2 := st.NewTask("foo", "...")
+	t3 := st.NewTask("foo", "...")
+	t4 := st.NewTask("foo", "...")
+
+	chg1 := st.NewChange("abort", "...")
+	chg1.AddTask(t1)
+	chg1.AddTask(t2)
+	state.MockChangeTimes(chg1, now.Add(-abortWait), unset)
+
+	chg2 := st.NewChange("pending", "...")
+	chg2.AddTask(t3)
+	chg2.AddTask(t4)
+	state.MockChangeTimes(chg2, now.Add(-abortWait), unset)
+	chg2.Set("pending-flag", true)
+	t3.SetStatus(state.HoldStatus)
+
+	st.RegisterPendingChangeByAttr("pending-flag", func(chg *state.Change) bool {
+		c.Check(chg.ID(), Equals, chg2.ID())
+		return true
+	})
+
+	past := time.Now().AddDate(-1, 0, 0)
+	st.Prune(past, pruneWait, abortWait, 100)
+
+	c.Assert(st.Change(chg1.ID()), Equals, chg1)
+	c.Assert(st.Change(chg2.ID()), Equals, chg2)
+	c.Assert(st.Task(t1.ID()), Equals, t1)
+	c.Assert(st.Task(t2.ID()), Equals, t2)
+	c.Assert(st.Task(t3.ID()), Equals, t3)
+	c.Assert(st.Task(t4.ID()), Equals, t4)
+
+	c.Assert(t1.Status(), Equals, state.HoldStatus)
+	c.Assert(t2.Status(), Equals, state.HoldStatus)
+	c.Assert(t3.Status(), Equals, state.HoldStatus)
+	c.Assert(t4.Status(), Equals, state.DoStatus)
+}
+
 func (ss *stateSuite) TestPruneEmptyChange(c *C) {
 	// Empty changes are a bit special because they start out on Hold
 	// which is a Ready status, but the change itself is not considered Ready
@@ -976,7 +1039,7 @@ func (ss *stateSuite) TestPruneHonorsStartOperationTime(c *C) {
 	c.Check(chg.Status(), Equals, state.HoldStatus)
 }
 
-func (ss *stateSuite) TestReadStateInitsCache(c *C) {
+func (ss *stateSuite) TestReadStateInitsTransientMapFields(c *C) {
 	st, err := state.ReadState(nil, bytes.NewBufferString("{}"))
 	c.Assert(err, IsNil)
 	st.Lock()
@@ -984,6 +1047,7 @@ func (ss *stateSuite) TestReadStateInitsCache(c *C) {
 
 	st.Cache("key", "value")
 	c.Assert(st.Cached("key"), Equals, "value")
+	st.RegisterPendingChangeByAttr("attr", func(*state.Change) bool { return false })
 }
 
 func (ss *stateSuite) TestTimingsSupport(c *C) {
@@ -1016,4 +1080,162 @@ func (ss *stateSuite) TestNoStateErrorString(c *C) {
 	c.Assert(err.Error(), Equals, `no state entry for key`)
 	err.Key = "foo"
 	c.Assert(err.Error(), Equals, `no state entry for key "foo"`)
+}
+
+type taskAndStatus struct {
+	t        *state.Task
+	old, new state.Status
+}
+
+func (ss *stateSuite) TestTaskChangedHandler(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	var taskObservedChanges []taskAndStatus
+	oId := st.AddTaskStatusChangedHandler(func(t *state.Task, old, new state.Status) {
+		taskObservedChanges = append(taskObservedChanges, taskAndStatus{
+			t:   t,
+			old: old,
+			new: new,
+		})
+	})
+
+	t1 := st.NewTask("foo", "...")
+
+	t1.SetStatus(state.DoingStatus)
+
+	// Set task status to identical status, we don't want
+	// task events when task don't actually change status.
+	t1.SetStatus(state.DoingStatus)
+
+	// Set task to done.
+	t1.SetStatus(state.DoneStatus)
+
+	// Unregister us, and make sure we do not receive more events.
+	st.RemoveTaskStatusChangedHandler(oId)
+
+	// must not appear in list.
+	t1.SetStatus(state.DoingStatus)
+
+	c.Check(taskObservedChanges, DeepEquals, []taskAndStatus{
+		{
+			t:   t1,
+			old: state.DefaultStatus,
+			new: state.DoingStatus,
+		},
+		{
+			t:   t1,
+			old: state.DoingStatus,
+			new: state.DoneStatus,
+		},
+	})
+}
+
+type changeAndStatus struct {
+	chg      *state.Change
+	old, new state.Status
+}
+
+func (ss *stateSuite) TestChangeChangedHandler(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	var observedChanges []changeAndStatus
+	oId := st.AddChangeStatusChangedHandler(func(chg *state.Change, old, new state.Status) {
+		observedChanges = append(observedChanges, changeAndStatus{
+			chg: chg,
+			old: old,
+			new: new,
+		})
+	})
+
+	chg := st.NewChange("test-chg", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+
+	t1.SetStatus(state.DoingStatus)
+
+	// Set task status to identical status, we don't want
+	// change events when changes don't actually change status.
+	t1.SetStatus(state.DoingStatus)
+
+	// Set task to waiting
+	t1.SetToWait(state.DoneStatus)
+
+	// Unregister us, and make sure we do not receive more events.
+	st.RemoveChangeStatusChangedHandler(oId)
+
+	// must not appear in list.
+	t1.SetStatus(state.DoneStatus)
+
+	c.Check(observedChanges, DeepEquals, []changeAndStatus{
+		{
+			chg: chg,
+			old: state.DefaultStatus,
+			new: state.DoingStatus,
+		},
+		{
+			chg: chg,
+			old: state.DoingStatus,
+			new: state.WaitStatus,
+		},
+	})
+}
+
+func (ss *stateSuite) TestChangeSetStatusChangedHandler(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	var observedChanges []changeAndStatus
+	oId := st.AddChangeStatusChangedHandler(func(chg *state.Change, old, new state.Status) {
+		observedChanges = append(observedChanges, changeAndStatus{
+			chg: chg,
+			old: old,
+			new: new,
+		})
+	})
+
+	chg := st.NewChange("test-chg", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+
+	t1.SetStatus(state.DoingStatus)
+
+	// We have a single task in Doing, now we manipulate the status
+	// of the change to ensure we are receiving correct events
+	chg.SetStatus(state.WaitStatus)
+
+	// Change to a new status
+	chg.SetStatus(state.ErrorStatus)
+
+	// Now return the status back to Default, which should result
+	// in the change reporting Doing
+	chg.SetStatus(state.DefaultStatus)
+	st.RemoveChangeStatusChangedHandler(oId)
+
+	c.Check(observedChanges, DeepEquals, []changeAndStatus{
+		{
+			chg: chg,
+			old: state.DefaultStatus,
+			new: state.DoingStatus,
+		},
+		{
+			chg: chg,
+			old: state.DoingStatus,
+			new: state.WaitStatus,
+		},
+		{
+			chg: chg,
+			old: state.WaitStatus,
+			new: state.ErrorStatus,
+		},
+		{
+			chg: chg,
+			old: state.ErrorStatus,
+			new: state.DoingStatus,
+		},
+	})
 }

@@ -185,6 +185,11 @@ func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernelNoTry(sn s
 		}
 	}
 
+	// Make sure that no try-kernel.efi link is left around. We do
+	// not really care if this method fails as depending on when
+	// we are undoing it might be there or not.
+	bks.ebl.DisableTryKernel()
+
 	if bks.currentKernelStatus != DefaultStatus {
 		m := map[string]string{
 			"kernel_status": DefaultStatus,

@@ -36,6 +36,7 @@ import (
 
 	"github.com/canonical/go-tpm2"
 	"github.com/canonical/go-tpm2/linux"
+	"github.com/canonical/go-tpm2/mu"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
@@ -81,31 +82,45 @@ func (s *secbootSuite) TestCheckTPMKeySealingSupported(c *C) {
 	efiNotSupported := []uint8(nil)
 	tpmErr := errors.New("TPM error")
 
+	tpmModesBoth := []secboot.TPMProvisionMode{secboot.TPMProvisionFull, secboot.TPMPartialReprovision}
 	type testCase struct {
 		tpmErr     error
 		tpmEnabled bool
+		tpmLockout bool
+		tpmModes   []secboot.TPMProvisionMode
 		sbData     []uint8
 		err        string
 	}
 	for i, tc := range []testCase{
 		// happy case
-		{tpmErr: nil, tpmEnabled: true, sbData: sbEnabled, err: ""},
+		{tpmErr: nil, tpmEnabled: true, tpmLockout: false, tpmModes: tpmModesBoth, sbData: sbEnabled, err: ""},
 		// secure boot EFI var is empty
-		{tpmErr: nil, tpmEnabled: true, sbData: sbEmpty, err: "secure boot variable does not exist"},
+		{tpmErr: nil, tpmEnabled: true, tpmLockout: false, tpmModes: tpmModesBoth, sbData: sbEmpty, err: "secure boot variable does not exist"},
 		// secure boot is disabled
-		{tpmErr: nil, tpmEnabled: true, sbData: sbDisabled, err: "secure boot is disabled"},
+		{tpmErr: nil, tpmEnabled: true, tpmLockout: false, tpmModes: tpmModesBoth, sbData: sbDisabled, err: "secure boot is disabled"},
 		// EFI not supported
-		{tpmErr: nil, tpmEnabled: true, sbData: efiNotSupported, err: "not a supported EFI system"},
+		{tpmErr: nil, tpmEnabled: true, tpmLockout: false, tpmModes: tpmModesBoth, sbData: efiNotSupported, err: "not a supported EFI system"},
 		// TPM connection error
-		{tpmErr: tpmErr, sbData: sbEnabled, err: "cannot connect to TPM device: TPM error"},
+		{tpmErr: tpmErr, sbData: sbEnabled, tpmLockout: false, tpmModes: tpmModesBoth, err: "cannot connect to TPM device: TPM error"},
 		// TPM was detected but it's not enabled
-		{tpmErr: nil, tpmEnabled: false, sbData: sbEnabled, err: "TPM device is not enabled"},
+		{tpmErr: nil, tpmEnabled: false, tpmLockout: false, tpmModes: tpmModesBoth, sbData: sbEnabled, err: "TPM device is not enabled"},
 		// No TPM device
-		{tpmErr: sb_tpm2.ErrNoTPM2Device, sbData: sbEnabled, err: "cannot connect to TPM device: no TPM2 device is available"},
+		{tpmErr: sb_tpm2.ErrNoTPM2Device, tpmLockout: false, tpmModes: tpmModesBoth, sbData: sbEnabled, err: "cannot connect to TPM device: no TPM2 device is available"},
+
+		// In DA lockout mode full provision errors
+		{tpmErr: nil, tpmEnabled: true, tpmLockout: true, tpmModes: []secboot.TPMProvisionMode{secboot.TPMProvisionFull}, sbData: sbEnabled, err: "the TPM is in DA lockout mode"},
+
+		// In DA lockout mode partial provision is fine
+		{tpmErr: nil, tpmEnabled: true, tpmLockout: true, tpmModes: []secboot.TPMProvisionMode{secboot.TPMPartialReprovision}, sbData: sbEnabled, err: ""},
 	} {
-		c.Logf("%d: %v %v %v %q", i, tc.tpmErr, tc.tpmEnabled, tc.sbData, tc.err)
+		c.Logf("%d: %v %v %v %v %q", i, tc.tpmErr, tc.tpmEnabled, tc.tpmModes, tc.sbData, tc.err)
 
 		_, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		restore = secboot.MockSbLockoutAuthSet(func(tpm *sb_tpm2.Connection) bool {
+			return tc.tpmLockout
+		})
 		defer restore()
 
 		restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
@@ -120,11 +135,13 @@ func (s *secbootSuite) TestCheckTPMKeySealingSupported(c *C) {
 		restoreEfiVars := efi.MockVars(vars, nil)
 		defer restoreEfiVars()
 
-		err := secboot.CheckTPMKeySealingSupported()
-		if tc.err == "" {
-			c.Assert(err, IsNil)
-		} else {
-			c.Assert(err, ErrorMatches, tc.err)
+		for _, tpmMode := range tc.tpmModes {
+			err := secboot.CheckTPMKeySealingSupported(tpmMode)
+			if tc.err == "" {
+				c.Assert(err, IsNil)
+			} else {
+				c.Assert(err, ErrorMatches, tc.err)
+			}
 		}
 	}
 }
@@ -320,6 +337,86 @@ func (s *secbootSuite) TestLockTPMSealedKeys(c *C) {
 	}
 }
 
+func (s *secbootSuite) TestProvisionForCVM(c *C) {
+	mockTpm, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
+		c.Check(tpm, Equals, mockTpm)
+		return true
+	})
+	defer restore()
+
+	expectedTemplate := &tpm2.Public{
+		Type:    tpm2.ObjectTypeRSA,
+		NameAlg: tpm2.HashAlgorithmSHA256,
+		Attrs: tpm2.AttrFixedTPM | tpm2.AttrFixedParent | tpm2.AttrSensitiveDataOrigin | tpm2.AttrUserWithAuth | tpm2.AttrNoDA |
+			tpm2.AttrRestricted | tpm2.AttrDecrypt,
+		Params: &tpm2.PublicParamsU{
+			RSADetail: &tpm2.RSAParams{
+				Symmetric: tpm2.SymDefObject{
+					Algorithm: tpm2.SymObjectAlgorithmAES,
+					KeyBits:   &tpm2.SymKeyBitsU{Sym: 128},
+					Mode:      &tpm2.SymModeU{Sym: tpm2.SymModeCFB}},
+				Scheme:   tpm2.RSAScheme{Scheme: tpm2.RSASchemeNull},
+				KeyBits:  2048,
+				Exponent: 0}}}
+	mu.MustCopyValue(&expectedTemplate, expectedTemplate)
+
+	dir := c.MkDir()
+
+	f, err := os.OpenFile(filepath.Join(dir, "tpm2-srk.tmpl"), os.O_RDWR|os.O_CREATE, 0600)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	mu.MustMarshalToWriter(f, mu.Sized(expectedTemplate))
+
+	provisioningCalls := 0
+	restore = secboot.MockSbTPMEnsureProvisionedWithCustomSRK(func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte, srkTemplate *tpm2.Public) error {
+		provisioningCalls += 1
+		c.Check(tpm, Equals, mockTpm)
+		c.Check(mode, Equals, sb_tpm2.ProvisionModeWithoutLockout)
+		c.Check(lockoutAuth, IsNil)
+		c.Check(srkTemplate, DeepEquals, expectedTemplate)
+		return nil
+	})
+	defer restore()
+
+	c.Check(secboot.ProvisionForCVM(dir), IsNil)
+	c.Check(provisioningCalls, Equals, 1)
+}
+
+func (s *secbootSuite) TestProvisionForCVMNoTPM(c *C) {
+	_, restore := mockSbTPMConnection(c, sb_tpm2.ErrNoTPM2Device)
+	defer restore()
+
+	restore = secboot.MockSbTPMEnsureProvisionedWithCustomSRK(func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte, srkTemplate *tpm2.Public) error {
+		c.Error("unexpected provisioning call")
+		return nil
+	})
+	defer restore()
+
+	c.Check(secboot.ProvisionForCVM(c.MkDir()), IsNil)
+}
+
+func (s *secbootSuite) TestProvisionForCVMTPMNotEnabled(c *C) {
+	mockTpm, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
+		c.Check(tpm, Equals, mockTpm)
+		return false
+	})
+	defer restore()
+
+	restore = secboot.MockSbTPMEnsureProvisionedWithCustomSRK(func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte, srkTemplate *tpm2.Public) error {
+		c.Error("unexpected provisioning call")
+		return nil
+	})
+	defer restore()
+
+	c.Check(secboot.ProvisionForCVM(c.MkDir()), IsNil)
+}
+
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 
 	// setup mock disks to use for locating the partition
@@ -354,6 +451,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		rkErr               error // recovery key unlock error, only relevant if TPM not available
 		activated           bool  // the activation operation succeeded
 		activateErr         error // the activation error
+		uuidFailure         bool  // failure to get valid uuid
 		err                 string
 		skipDiskEnsureCheck bool // whether to check to ensure the mock disk contains the device label
 		expUnlockMethod     secboot.UnlockMethod
@@ -365,6 +463,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			activated:       true,
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithSealedKey,
+		}, {
+			// encrypted device: failure to generate uuid based target device name
+			tpmEnabled: true, hasEncdev: true, activated: true, uuidFailure: true,
+			disk: mockDiskWithEncDev,
+			err:  "mocked uuid error",
 		}, {
 			// device activation fails
 			tpmEnabled: true, hasEncdev: true,
@@ -442,13 +545,17 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			err: "error enumerating partitions for disk to find unencrypted device \"name\": filesystem label \"name\" not found",
 		},
 	} {
+		c.Logf("tc %v: %+v", idx, tc)
+
 		randomUUID := fmt.Sprintf("random-uuid-for-test-%d", idx)
-		restore := secboot.MockRandomKernelUUID(func() string {
-			return randomUUID
+		restore := secboot.MockRandomKernelUUID(func() (string, error) {
+			if tc.uuidFailure {
+				return "", errors.New("mocked uuid error")
+			}
+			return randomUUID, nil
 		})
 		defer restore()
 
-		c.Logf("tc %v: %+v", idx, tc)
 		_, restoreConnect := mockSbTPMConnection(c, tc.tpmErr)
 		defer restoreConnect()
 
@@ -589,12 +696,12 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 		{
 			// invalid snap file
 			bootFile: bootloader.NewBootFile(existingFile, "rel", bootloader.RoleRecovery),
-			err:      fmt.Sprintf(`"%s/foo" is not a snap or snapdir`, tmpDir),
+			err:      fmt.Sprintf(`cannot process snap or snapdir: cannot read "%s/foo": EOF`, tmpDir),
 		},
 		{
 			// missing snap file
 			bootFile: bootloader.NewBootFile(missingFile, "rel", bootloader.RoleRecovery),
-			err:      fmt.Sprintf(`"%s/bar" is not a snap or snapdir`, tmpDir),
+			err:      fmt.Sprintf(`cannot process snap or snapdir: open %s/bar: no such file or directory`, tmpDir),
 		},
 	} {
 		o, err := secboot.EFIImageFromBootFile(&tc.bootFile)
@@ -696,7 +803,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
 		{tpmEnabled: true, missingFile: true, expectedErr: "cannot build EFI image load sequences: file /does/not/exist does not exist"},
-		{tpmEnabled: true, badSnapFile: true, expectedErr: `.*/kernel.snap" is not a snap or snapdir`},
+		{tpmEnabled: true, badSnapFile: true, expectedErr: `cannot build EFI image load sequences: cannot process snap or snapdir: cannot read ".*/kernel.snap": EOF`},
 		{tpmEnabled: true, addEFISbPolicyErr: mockErr, expectedErr: "cannot add EFI secure boot policy profile: some error"},
 		{tpmEnabled: true, addEFIBootManagerErr: mockErr, expectedErr: "cannot add EFI boot manager profile: some error"},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
@@ -1201,6 +1308,28 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyBadDisk(c *C) {
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{})
 }
 
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyUUIDError(c *C) {
+	disk := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "ubuntu-save-enc",
+				PartitionUUID:   "123-123-123",
+			},
+		},
+	}
+	restore := secboot.MockRandomKernelUUID(func() (string, error) {
+		return "", errors.New("mocked uuid error")
+	})
+	defer restore()
+
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	c.Assert(err, ErrorMatches, "mocked uuid error")
+	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
+		PartDevice:  "/dev/disk/by-partuuid/123-123-123",
+		IsEncrypted: true,
+	})
+}
+
 func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 	disk := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
@@ -1210,8 +1339,8 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 			},
 		},
 	}
-	restore := secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-123-123"
+	restore := secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-123-123", nil
 	})
 	defer restore()
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
@@ -1242,8 +1371,8 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 			},
 		},
 	}
-	restore := secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-123-123"
+	restore := secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-123-123", nil
 	})
 	defer restore()
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
@@ -1317,8 +1446,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1An
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1554,8 +1683,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1615,8 +1744,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1670,8 +1799,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1723,8 +1852,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1783,8 +1912,8 @@ func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey,
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1851,8 +1980,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1908,8 +2037,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 

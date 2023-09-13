@@ -37,6 +37,8 @@ execute: |
   snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
 
   snap set core refresh.schedule="0:00-23:59"
+  # ensure there are no refresh holds, otherwise can't force auto-refresh
+  snap set system refresh.hold!
 
   # scenario #1
 

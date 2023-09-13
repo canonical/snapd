@@ -28,7 +28,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -66,7 +65,7 @@ func (s *servicesSuite) SetUpTest(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureServiceInvalidValue(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"service.ssh.disable": "xxx",
@@ -117,7 +116,7 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 	} {
 		s.systemctlArgs = nil
 		s.serviceInstalled = service.installed
-		err := configcore.Run(coreDev, &mockConf{
+		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				fmt.Sprintf("service.%s.disable", service.cfgName): true,
@@ -177,6 +176,12 @@ func (s *servicesSuite) TestConfigureConsoleConfEnabledFSOnly(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureConsoleConfEnableNotAtRuntime(c *C) {
+	modeenvContent := `mode=run
+recovery_system=20200202
+`
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+
 	// pretend that console-conf is disabled
 	canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
 	err := os.MkdirAll(filepath.Dir(canary), 0755)
@@ -185,7 +190,7 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableNotAtRuntime(c *C) {
 	c.Assert(err, IsNil)
 
 	// now enable it
-	err = configcore.Run(coreDev, &mockConf{
+	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.console-conf.disable": false,
@@ -195,11 +200,17 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableNotAtRuntime(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureConsoleConfDisableNotAtRuntime(c *C) {
+	modeenvContent := `mode=run
+recovery_system=20200202
+`
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+
 	// console-conf is not disabled, i.e. there is no
 	// "/var/lib/console-conf/complete" file
 
 	// now try to enable it
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.console-conf.disable": true,
@@ -209,10 +220,16 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableNotAtRuntime(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureConsoleConfEnableAlreadyEnabledIsFine(c *C) {
+	modeenvContent := `mode=run
+recovery_system=20200202
+`
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+
 	// Note that we have no
 	//        /var/lib/console-conf/complete
 	// file. So console-conf is already enabled
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.console-conf.disable": false,
@@ -229,7 +246,13 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableAlreadyDisabledIsFine(c *
 	err = ioutil.WriteFile(canary, nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = configcore.Run(coreDev, &mockConf{
+	modeenvContent := `mode=run
+recovery_system=20200202
+`
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+
+	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.console-conf.disable": true,
@@ -239,13 +262,13 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableAlreadyDisabledIsFine(c *
 }
 
 func (s *servicesSuite) TestConfigureConsoleConfEnableDuringInstallMode(c *C) {
-	mockProcCmdline := filepath.Join(c.MkDir(), "cmdline")
-	err := ioutil.WriteFile(mockProcCmdline, []byte("snapd_recovery_mode=install snapd_recovery_system=20201212\n"), 0644)
-	c.Assert(err, IsNil)
-	restore := osutil.MockProcCmdline(mockProcCmdline)
-	defer restore()
+	modeenvContent := `mode=install
+recovery_system=20200202
+`
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
 
-	err = configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.console-conf.disable": true,
@@ -273,7 +296,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 	} {
 		s.systemctlArgs = nil
 		s.serviceInstalled = service.installed
-		err := configcore.Run(coreDev, &mockConf{
+		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				fmt.Sprintf("service.%s.disable", service.cfgName): false,
@@ -311,7 +334,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureServiceUnsupportedService(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.snapd.disable": true,
@@ -335,5 +358,141 @@ func (s *servicesSuite) TestFilesystemOnlyApply(c *C) {
 	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", tmpDir, "mask", "rsyslog.service"},
+	})
+}
+
+func (s *servicesSuite) TestConfigureNetworkSSHListenAddressFailsOnNonCore20(c *C) {
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"service.ssh.listen-address": ":8022",
+		},
+	})
+	c.Assert(err, ErrorMatches, "cannot set ssh listen address configuration on systems older than UC20")
+}
+
+func (s *servicesSuite) TestConfigureNetworkSSHListenAdressFailsWrongRange(c *C) {
+	for _, invalidPort := range []int{0, 65536, -1, 99999} {
+		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+			state: s.state,
+			changes: map[string]interface{}{
+				"service.ssh.listen-address": fmt.Sprintf(":%v", invalidPort),
+			},
+		})
+		c.Check(err, ErrorMatches, fmt.Sprintf("cannot validate ssh configuration: port %v must be in the range 1-65535", invalidPort))
+	}
+}
+
+func (s *servicesSuite) TestConfigureNetworkSSHListenAdressFailsWrongAddr(c *C) {
+	for _, tc := range []struct {
+		confStr string
+		errStr  string
+	}{
+		// strange chars
+		{"x!", `cannot validate ssh configuration: invalid hostname "x!"`},
+		// invalid ports
+		{"x:x", `cannot validate ssh configuration: port must be a number: strconv.Atoi: parsing "x": invalid syntax`},
+		{"x:123456", "cannot validate ssh configuration: port 123456 must be in the range 1-65535"},
+		// too long
+		{"1234567890123456789012345678901234567890123456789012345678901234567890", `cannot validate ssh configuration: invalid hostname "1234567890123456789012345678901234567890123456789012345678901234567890"`},
+		// mixing good/bad also rejected
+		{"valid-hostname,invalid!one", `cannot validate ssh configuration: invalid hostname "invalid!one"`},
+	} {
+		err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
+			state: s.state,
+			changes: map[string]interface{}{
+				"service.ssh.listen-address": tc.confStr,
+			},
+		})
+		c.Check(err, ErrorMatches, tc.errStr, Commentf(tc.confStr))
+	}
+}
+
+func (s *servicesSuite) TestConfigureNetworkValid(c *C) {
+	sshListenCfg := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_config.d/listen.conf")
+
+	for _, tc := range []struct {
+		confStr string
+		sshConf string
+	}{
+		// valid hostnames/IPs
+		{"host", "ListenAddress host\n"},
+		{"10.0.2.2", "ListenAddress 10.0.2.2\n"},
+		{"::1", "ListenAddress ::1\n"},
+		{"[::1]:8022", "ListenAddress [::1]:8022\n"},
+		{"2001", "ListenAddress 2001\n"},
+		{"2001.net", "ListenAddress 2001.net\n"},
+		// port only
+		{":9022", "ListenAddress 0.0.0.0:9022\nListenAddress [::]:9022\n"},
+		// multiple ones
+		{"host1,host2", "ListenAddress host1\nListenAddress host2\n"},
+	} {
+		err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
+			state: s.state,
+			changes: map[string]interface{}{
+				"service.ssh.listen-address": tc.confStr,
+			},
+		})
+		c.Assert(err, IsNil)
+		c.Check(sshListenCfg, testutil.FileEquals, tc.sshConf)
+	}
+}
+
+func (s *servicesSuite) TestSamePortNoChange(c *C) {
+	err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.ssh.listen-address": ":8022",
+		},
+		changes: map[string]interface{}{
+			"service.ssh.listen-address": ":8022",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(s.systemctlArgs, HasLen, 0)
+}
+
+func (s *servicesSuite) TestConfigureNetworkIntegrationSSHListenAddress(c *C) {
+	err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"service.ssh.listen-address": ":8022",
+		},
+	})
+	c.Assert(err, IsNil)
+
+	sshListenCfg := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_config.d/listen.conf")
+	c.Check(sshListenCfg, testutil.FileEquals, "ListenAddress 0.0.0.0:8022\nListenAddress [::]:8022\n")
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"reload-or-restart", "ssh.service"},
+	})
+
+	// disable port again
+	err = configcore.FilesystemOnlyRun(core20Dev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.ssh.listen-address": ":8022",
+		},
+		changes: map[string]interface{}{
+			"service.ssh.listen-address": "",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(sshListenCfg, testutil.FileAbsent)
+}
+
+func (s *servicesSuite) TestConfigureNetworkIntegrationSSHListenAddressMulti(c *C) {
+	err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"service.ssh.listen-address": ":8022,192.168.99.4:9922",
+		},
+	})
+	c.Assert(err, IsNil)
+
+	sshListenCfg := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_config.d/listen.conf")
+	c.Check(sshListenCfg, testutil.FileEquals, "ListenAddress 0.0.0.0:8022\nListenAddress [::]:8022\nListenAddress 192.168.99.4:9922\n")
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"reload-or-restart", "ssh.service"},
 	})
 }

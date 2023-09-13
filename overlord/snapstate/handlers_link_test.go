@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,14 +36,17 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -59,10 +62,11 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 	s.baseHandlerSuite.SetUpTest(c)
 
 	s.state.Lock()
-	defer s.state.Unlock()
-	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		s.restartRequested = append(s.restartRequested, t)
 	}))
+	s.state.Unlock()
+	c.Assert(err, IsNil)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 
@@ -73,11 +77,7 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 		s.restartRequested = nil
 	})
 
-	// enable refresh-app-awareness (it's disabled by default) but we
-	// want to enable soon(ish) so testing with it is preferred
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
+	s.AddCleanup(snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)}))
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
@@ -99,7 +99,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 
 	lp := &testLinkParticipant{}
-	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
 	defer restore()
 
 	s.state.Lock()
@@ -237,7 +237,12 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserIDAlreadySet(c *C) {
 		UserID:  1,
 	})
 	// the user
-	user, err := auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(s.state, auth.NewUserParams{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	c.Assert(err, IsNil)
 	c.Assert(user.ID, Equals, 1)
 
@@ -344,9 +349,9 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 
 	linkChangeCount := 0
 	lp := &testLinkParticipant{
-		linkageChanged: func(st *state.State, instanceName string) error {
+		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(st, instanceName, &snapst)
+			err := snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			linkChangeCount++
 			switch linkChangeCount {
 			case 1:
@@ -360,7 +365,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 			return nil
 		},
 	}
-	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
 	defer restore()
 
 	// a hook might have set some config
@@ -536,6 +541,11 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
 
 	expected := fakeOps{
 		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "foo",
+			inhibitHint: "refresh",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "foo/11"),
 		},
@@ -688,7 +698,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	defer s.state.Unlock()
 
 	lp := &testLinkParticipant{}
-	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
 	defer restore()
 
 	si := &snap.SideInfo{
@@ -854,6 +864,51 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBase(c *C) {
 	c.Check(t.Log()[0], Matches, `.*INFO Requested system restart.*`)
 }
 
+func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	r := snapstatetest.MockDeviceModel(MakeModelClassicWithModes("pc", nil))
+	defer r()
+
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name, Equals, "kernel")
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeKernel}
+		return info, nil
+	})
+
+	s.fakeBackend.linkSnapMaybeReboot = true
+	s.fakeBackend.linkSnapRebootFor = map[string]bool{
+		"kernel": true,
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "kernel",
+		SnapID:   "pclinuxdidididididididididididid",
+		Revision: snap.R(22),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeKernel,
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(s.restartRequested, HasLen, 0)
+	c.Assert(t.Log(), HasLen, 1)
+	c.Check(t.Log()[0], Matches, `.*INFO Task set to wait until a manual system restart allows to continue`)
+}
+
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmediate(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -984,7 +1039,7 @@ func (s *linkSnapSuite) TestDoLinkSnapdSnapCleanupOnErrorFirstInstall(c *C) {
 	defer s.state.Unlock()
 
 	lp := &testLinkParticipant{}
-	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
 	defer restore()
 
 	si := &snap.SideInfo{
@@ -1043,7 +1098,7 @@ func (s *linkSnapSuite) TestDoLinkSnapdSnapCleanupOnErrorNthInstall(c *C) {
 	defer s.state.Unlock()
 
 	lp := &testLinkParticipant{}
-	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
 	defer restore()
 
 	si := &snap.SideInfo{
@@ -1095,6 +1150,161 @@ func (s *linkSnapSuite) TestDoLinkSnapdSnapCleanupOnErrorNthInstall(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "snapd/20"),
 
 			unlinkFirstInstallUndo: false,
+		},
+	}
+
+	// start with an easier-to-read error if this fails:
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// link snap participant was invoked
+	c.Check(lp.instanceNames, DeepEquals, []string{"snapd"})
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapdDiscardsNsOnDowngrade(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lp := &testLinkParticipant{}
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
+	defer restore()
+
+	// pretend we have an installed snapd
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Check(name, Equals, "snapd")
+		info := &snap.Info{Version: "2.56", SideInfo: *si, SnapType: snap.TypeSnapd}
+		return info, nil
+	})
+	siSnapd := &snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
+		Revision: snap.R(42),
+	}
+	// Create a downgrade
+	si := &snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
+		Revision: snap.R(41),
+	}
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{siSnapd, si},
+		Current:         siSnapd.Revision,
+		TrackingChannel: "latest/stable",
+		SnapType:        "snapd",
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Channel:  "beta",
+	})
+
+	s.state.NewChange("sample", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+
+	// tried to cleanup
+	expected := fakeOps{
+		{
+			op:    "candidate",
+			sinfo: *si,
+		},
+		{
+			op:   "discard-namespace",
+			name: "snapd",
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "snapd/41"),
+		},
+	}
+
+	// start with an easier-to-read error if this fails:
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// link snap participant was invoked
+	c.Check(lp.instanceNames, DeepEquals, []string{"snapd"})
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapdRemovesAppArmorProfilesOnSnapdDowngrade(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lp := &testLinkParticipant{}
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
+	defer restore()
+
+	// pretend we have an installed snapd with a vendored apparmor that has
+	// a version greater than the one we are going to downgrade to
+	restore = snapdtool.MockVersion("2.58")
+	defer restore()
+	restore = apparmor.MockFeatures([]string{}, nil, []string{"snapd-internal"}, nil)
+	defer restore()
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Check(name, Equals, "snapd")
+		info := &snap.Info{Version: "2.56", SideInfo: *si, SnapType: snap.TypeSnapd}
+		return info, nil
+	})
+
+	siSnapd := &snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
+		Revision: snap.R(42),
+	}
+	// Create a downgrade
+	si := &snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
+		Revision: snap.R(41),
+	}
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{siSnapd, si},
+		Current:         siSnapd.Revision,
+		TrackingChannel: "latest/stable",
+		SnapType:        "snapd",
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Channel:  "beta",
+	})
+
+	// set seeded so that AppArmor profile cleanup should occur - however
+	// since we now appear to be seeded this would trigger the mount units
+	// to be updated etc which would call into systemctl - so turn that off
+	// too
+	s.state.Set("seeded", true)
+	s.AddCleanup(snapstate.MockEnsuredMountsUpdated(s.snapmgr, true))
+	s.state.NewChange("sample", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+
+	// tried to cleanup
+	expected := fakeOps{
+		{
+			op:    "candidate",
+			sinfo: *si,
+		},
+		{
+			op:   "discard-namespace",
+			name: "snapd",
+		},
+		{
+			op: "remove-apparmor-profiles",
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "snapd/41"),
 		},
 	}
 
@@ -1200,24 +1410,26 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 
 	linkChangeCount := 0
 	lp := &testLinkParticipant{
-		linkageChanged: func(st *state.State, instanceName string) error {
+		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(st, instanceName, &snapst)
+			err := snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			linkChangeCount++
 			switch linkChangeCount {
 			case 1:
 				// Initially the snap gets unlinked.
 				c.Check(err, IsNil)
 				c.Check(snapst.Active, Equals, false)
+				c.Check(snapst.PendingSecurity, NotNil)
 			case 2:
 				// Then the undo handler re-links it.
 				c.Check(err, IsNil)
 				c.Check(snapst.Active, Equals, true)
+				c.Check(snapst.PendingSecurity, IsNil)
 			}
 			return nil
 		},
 	}
-	restore = snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	restore = snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged), lp})
 	defer restore()
 
 	s.state.Lock()
@@ -1935,9 +2147,9 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesUnrelatedAppDoesNothing(c
 		},
 	})
 
-	err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
+	restartRequested, _, err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
-	c.Check(s.restartRequested, HasLen, 0)
+	c.Check(restartRequested, Equals, false)
 }
 
 func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesSameKernel(c *C) {
@@ -1954,9 +2166,9 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesSameKernel(c *C) {
 		Type: "kernel",
 	})
 
-	err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
+	restartRequested, _, err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
-	c.Check(s.restartRequested, HasLen, 0)
+	c.Check(restartRequested, Equals, false)
 }
 
 func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
@@ -2006,9 +2218,10 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 		},
 		Type: "kernel",
 	})
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	// now we simulate that the new kernel is getting undone
-	err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
+	restartRequested, rebootRequired, err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
 
 	// that will schedule a boot into the previous kernel
@@ -2017,8 +2230,8 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 		"snap_kernel":     "kernel_1.snap",
 		"snap_try_kernel": "",
 	})
-	c.Check(s.restartRequested, HasLen, 1)
-	c.Check(s.restartRequested[0], Equals, restart.RestartSystem)
+	c.Check(restartRequested, Equals, true)
+	c.Check(rebootRequired, Equals, true)
 }
 
 func (s *linkSnapSuite) testDoLinkSnapWithToolingDependency(c *C, classicOrBase string) {

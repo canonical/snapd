@@ -78,12 +78,15 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 }
 
 func (as *assertsSuite) TestMaxSupportedFormats(c *C) {
+	accountKeyMaxFormat := asserts.AccountKeyType.MaxSupportedFormat()
 	snapDeclMaxFormat := asserts.SnapDeclarationType.MaxSupportedFormat()
 	systemUserMaxFormat := asserts.SystemUserType.MaxSupportedFormat()
 	// validity
+	c.Check(accountKeyMaxFormat >= 1, Equals, true)
 	c.Check(snapDeclMaxFormat >= 4, Equals, true)
-	c.Check(systemUserMaxFormat >= 1, Equals, true)
+	c.Check(systemUserMaxFormat >= 2, Equals, true)
 	c.Check(asserts.MaxSupportedFormats(1), DeepEquals, map[string]int{
+		"account-key":      accountKeyMaxFormat,
 		"snap-declaration": snapDeclMaxFormat,
 		"system-user":      systemUserMaxFormat,
 		"test-only":        1,
@@ -546,7 +549,6 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		{"body-length: 5", "body-length: 3", "assertion body length and declared body-length don't match: 5 != 3"},
 		{"authority-id: auth-id\n", "", `assertion: "authority-id" header is mandatory`},
 		{"authority-id: auth-id\n", "authority-id: \n", `assertion: "authority-id" header should not be empty`},
-		{"authority-id: auth-id\n", "authority-id: auth-id\nsignatory-id: \n", `assertion: "signatory-id" header should not be empty`},
 		{keyIDHdr, "", `assertion: "sign-key-sha3-384" header is mandatory`},
 		{keyIDHdr, "sign-key-sha3-384: \n", `assertion: "sign-key-sha3-384" header should not be empty`},
 		{keyIDHdr, "sign-key-sha3-384: $\n", `assertion: "sign-key-sha3-384" header cannot be decoded: .*`},
@@ -584,16 +586,6 @@ func (as *assertsSuite) TestDecodeNoAuthorityInvalid(c *C) {
 
 	_, err := asserts.Decode([]byte(invalid))
 	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have authority-id set`)
-
-	invalid = "type: test-only-no-authority\n" +
-		"signatory-id: auth-id1\n" +
-		"hdr: FOO\n" +
-		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
-		"\n\n" +
-		"openpgp c2ln"
-
-	_, err = asserts.Decode([]byte(invalid))
-	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have signatory-id set`)
 }
 
 func checkContent(c *C, a asserts.Assertion, encoded string) {
@@ -630,6 +622,7 @@ func (as *assertsSuite) TestEncoderDecoderHappy(c *C) {
 
 	a, err = decoder.Decode()
 	c.Assert(err, Equals, io.EOF)
+	c.Check(a, IsNil)
 }
 
 func (as *assertsSuite) TestDecodeEmptyStream(c *C) {
@@ -876,41 +869,6 @@ func (as *assertsSuite) TestSignFormatValidityEmptyBody(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = asserts.Decode(asserts.Encode(a))
-	c.Check(err, IsNil)
-}
-
-func (as *assertsSuite) TestSignFormatValiditySignatoryId(c *C) {
-	headers := map[string]interface{}{
-		"authority-id": "auth-id1",
-		"primary-key":  "0",
-		"signatory-id": "delegated-auth-id",
-	}
-	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
-	c.Assert(err, IsNil)
-
-	b := asserts.Encode(a)
-	c.Check(bytes.HasPrefix(b, []byte(`type: test-only
-authority-id: auth-id1
-signatory-id: delegated-auth-id
-`)), Equals, true)
-
-	_, err = asserts.Decode(b)
-	c.Check(err, IsNil)
-}
-
-func (as *assertsSuite) TestSignFormatValiditySignatoryIdCoalesce(c *C) {
-	headers := map[string]interface{}{
-		"authority-id": "auth-id1",
-		"primary-key":  "0",
-		"signatory-id": "auth-id1",
-	}
-	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
-	c.Assert(err, IsNil)
-
-	b := asserts.Encode(a)
-	c.Check(bytes.Contains(b, []byte("signatory-id:")), Equals, false)
-
-	_, err = asserts.Decode(b)
 	c.Check(err, IsNil)
 }
 
@@ -1213,13 +1171,6 @@ func (as *assertsSuite) TestSignWithoutAuthorityMisuse(c *C) {
 			"hdr":          "FOO",
 		}, nil, testPrivKey1)
 	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have authority-id set`)
-
-	_, err = asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
-		map[string]interface{}{
-			"signatory-id": "auth-id1",
-			"hdr":          "FOO",
-		}, nil, testPrivKey1)
-	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have signatory-id set`)
 }
 
 func (ss *serialSuite) TestSignatureCheckError(c *C) {

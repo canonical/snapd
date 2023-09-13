@@ -77,7 +77,7 @@ func resetCompletionSymlinks(completersPath string) error {
 
 // ResetPreseededChroot removes all preseeding artifacts from preseedChroot
 // (classic Ubuntu only).
-func ResetPreseededChroot(preseedChroot string) error {
+var ResetPreseededChroot = func(preseedChroot string) error {
 	var err error
 	preseedChroot, err = filepath.Abs(preseedChroot)
 	if err != nil {
@@ -107,6 +107,8 @@ func ResetPreseededChroot(preseedChroot string) error {
 		filepath.Join(dirs.SnapServicesDir, "snap.*.socket"),
 		filepath.Join(dirs.SnapServicesDir, "snap-*.mount"),
 		filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-*.mount"),
+		filepath.Join(dirs.SnapServicesDir, "default.target.wants", "snap-*.mount"),
+		filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants", "snap-*.mount"),
 		filepath.Join(dirs.SnapUserServicesDir, "snap.*.service"),
 		filepath.Join(dirs.SnapUserServicesDir, "snap.*.socket"),
 		filepath.Join(dirs.SnapUserServicesDir, "snap.*.timer"),

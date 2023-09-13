@@ -31,6 +31,93 @@ build_ubuntu_image() {
             go build -tags 'withtestkeys' ./cmd/ubuntu-image
         )
         # make it available
-        cp -av /tmp/ubuntu-image/ubuntu-image "$GOHOME/bin"
+        mv /tmp/ubuntu-image/ubuntu-image "$GOHOME/bin"
+    fi
+}
+
+
+get_ubuntu_image() {
+    wget -c https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys.tar.gz
+    tar xvzf ubuntu-image-withtestkeys.tar.gz
+    rm -f ubuntu-image-withtestkeys.tar.gz
+
+    test -x ubuntu-image
+    mv ubuntu-image "$GOHOME/bin"
+}
+
+# shellcheck disable=SC2120
+get_google_image_url_for_vm() {
+    case "${1:-$SPREAD_SYSTEM}" in
+        ubuntu-16.04-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
+            ;;
+        ubuntu-18.04-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/bionic-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-20.04-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-20.04-arm-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-arm64.img"
+            ;;
+        ubuntu-22.04-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/jammy-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-22.04-arm-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/jammy-server-cloudimg-arm64.img"
+            ;;
+        ubuntu-23.04-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/lunar-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-23.10-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/mantic-server-cloudimg-amd64.img"
+            ;;
+        *)
+            echo "unsupported system"
+            exit 1
+            ;;
+    esac
+}
+
+# shellcheck disable=SC2120
+get_ubuntu_image_url_for_vm() {
+    case "${1:-$SPREAD_SYSTEM}" in
+        ubuntu-16.04-64*)
+            echo "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
+            ;;
+        ubuntu-18.04-64*)
+            echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-20.04-64*)
+            echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-20.04-arm-64*)
+            echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-arm64.img"
+            ;;
+        ubuntu-22.04-64*)
+            echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-22.04-arm-64*)
+            echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-arm64.img"
+            ;;
+        ubuntu-23.04-64*)
+            echo "https://cloud-images.ubuntu.com/lunar/current/lunar-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-23.10-64*)
+            echo "https://cloud-images.ubuntu.com/mantic/current/mantic-server-cloudimg-amd64.img"
+            ;;
+        *)
+            echo "unsupported system"
+            exit 1
+            ;;
+        esac
+}
+
+# shellcheck disable=SC2120
+get_image_url_for_vm() {
+    if [[ "$SPREAD_BACKEND" == google* ]]; then
+        get_google_image_url_for_vm "$@"
+    else
+        get_ubuntu_image_url_for_vm "$@"
     fi
 }

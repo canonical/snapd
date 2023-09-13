@@ -39,6 +39,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -201,6 +202,18 @@ func (dbs *databaseSuite) TestPublicKeyNotFound(c *C) {
 
 	_, err = dbs.db.PublicKey("ff" + keyID)
 	c.Check(err, ErrorMatches, "cannot find key pair")
+}
+
+func (dbs *databaseSuite) TestNotFoundErrorIs(c *C) {
+	this := &asserts.NotFoundError{
+		Headers: map[string]string{"a": "a"},
+		Type:    asserts.ValidationSetType,
+	}
+	that := &asserts.NotFoundError{
+		Headers: map[string]string{"b": "b"},
+		Type:    asserts.RepairType,
+	}
+	c.Check(this, testutil.ErrorIs, that)
 }
 
 type checkSuite struct {
@@ -373,7 +386,7 @@ func (chks *checkSuite) TestCheckMismatchedAccountIDandKey(c *C) {
 	err = db.Check(a)
 	c.Check(err, ErrorMatches, `error finding matching public key for signature: found public key ".*" from "canonical" but expected it from: random`)
 
-	_, err = asserts.CheckSignature(a, cfg.Trusted[0].(*asserts.AccountKey), nil, db, time.Time{}, time.Time{})
+	err = asserts.CheckSignature(a, cfg.Trusted[0].(*asserts.AccountKey), db, time.Time{}, time.Time{})
 	c.Check(err, ErrorMatches, `assertion authority "random" does not match public key from "canonical"`)
 }
 
@@ -513,17 +526,6 @@ func (safs *signAddFindSuite) TestSignMissingAuthorityId(c *C) {
 	c.Check(a1, IsNil)
 }
 
-func (safs *signAddFindSuite) TestSignInvalidSignatoryID(c *C) {
-	headers := map[string]interface{}{
-		"authority-id": "auth-id1",
-		"signatory-id": []interface{}{"foo"},
-		"primary-key":  "a",
-	}
-	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
-	c.Assert(err, ErrorMatches, `"signatory-id" header must be a string`)
-	c.Check(a1, IsNil)
-}
-
 func (safs *signAddFindSuite) TestSignMissingPrimaryKey(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "canonical",
@@ -646,285 +648,6 @@ func (safs *signAddFindSuite) TestSignInadequateFormat(c *C) {
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, ErrorMatches, `cannot sign "test-only" assertion with format set to 0 lower than min format 1 covering included features`)
 	c.Check(a1, IsNil)
-}
-
-func (safs *signAddFindSuite) TestSignDelegation(c *C) {
-	c.Skip("authority-delegation disabled")
-
-	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
-	c.Assert(err, IsNil)
-	c.Assert(delegatedSigningDB.ImportKey(testPrivKey1), IsNil)
-	delegatedKeyID := testPrivKey1.PublicKey().ID()
-	headers := map[string]interface{}{
-		"type":         "account",
-		"authority-id": "canonical",
-		"account-id":   "delegated-acct",
-		"display-name": "delegated",
-		"validation":   "verified",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	since := time.Now()
-	delegatedAcct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
-	c.Assert(err, IsNil)
-	headers = map[string]interface{}{
-		"type":                "account-key",
-		"authority-id":        "canonical",
-		"account-id":          "delegated-acct",
-		"name":                "default",
-		"public-key-sha3-384": delegatedKeyID,
-		"since":               since.Format(time.RFC3339),
-	}
-	pubKeyEncoded, err := asserts.EncodePublicKey(testPrivKey1.PublicKey())
-	c.Assert(err, IsNil)
-	delegatedAcctKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, pubKeyEncoded, safs.signingKeyID)
-	c.Assert(err, IsNil)
-
-	c.Assert(safs.db.Add(delegatedAcct), IsNil)
-	c.Assert(safs.db.Add(delegatedAcctKey), IsNil)
-
-	headers = map[string]interface{}{
-		"authority-id": "canonical",
-		"signatory-id": "delegated-acct",
-		"primary-key":  "k1",
-		"anchor":       "A",
-	}
-	a1, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
-	c.Assert(err, IsNil)
-
-	err = safs.db.Check(a1)
-	c.Check(err, ErrorMatches, `no matching authority-delegation for signing delegation from "canonical" to "delegated-acct"`)
-
-	// now add authority-delegation
-	headers = map[string]interface{}{
-		"authority-id": "canonical",
-		"account-id":   "canonical",
-		"delegate-id":  "delegated-acct",
-		"assertions": []interface{}{
-			map[string]interface{}{
-				"type": asserts.TestOnlyType.Name,
-				"headers": map[string]interface{}{
-					"primary-key": "k1",
-					"anchor":      "A",
-				},
-				"since": since.Format(time.RFC3339),
-			},
-		},
-	}
-	ad, err := safs.signingDB.Sign(asserts.AuthorityDelegationType, headers, nil, safs.signingKeyID)
-	c.Assert(err, IsNil)
-
-	c.Assert(safs.db.Add(ad), IsNil)
-
-	err = safs.db.Check(a1)
-	c.Check(err, IsNil)
-
-	// test CheckDelegation directly as well, first retrieve the constraints
-	acs := ad.(*asserts.AuthorityDelegation).MatchingConstraints(a1)
-
-	acs, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, safs.db, time.Time{}, time.Time{})
-	c.Check(err, IsNil)
-	// the constraints are consumed and not passed further along
-	c.Check(acs, HasLen, 0)
-}
-
-func (safs *signAddFindSuite) TestSignDelegationMismatchedAccountIDandKey(c *C) {
-	c.Skip("authority-delegation disabled")
-
-	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
-	c.Assert(err, IsNil)
-	c.Assert(delegatedSigningDB.ImportKey(testPrivKey1), IsNil)
-	delegatedKeyID := testPrivKey1.PublicKey().ID()
-	headers := map[string]interface{}{
-		"type":         "account",
-		"authority-id": "canonical",
-		"account-id":   "delegated-acct",
-		"display-name": "delegated",
-		"validation":   "verified",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	since := time.Now()
-	delegatedAcct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
-	c.Assert(err, IsNil)
-	headers = map[string]interface{}{
-		"type":                "account-key",
-		"authority-id":        "canonical",
-		"account-id":          "delegated-acct",
-		"name":                "default",
-		"public-key-sha3-384": delegatedKeyID,
-		"since":               since.Format(time.RFC3339),
-	}
-	pubKeyEncoded, err := asserts.EncodePublicKey(testPrivKey1.PublicKey())
-	c.Assert(err, IsNil)
-	delegatedAcctKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, pubKeyEncoded, safs.signingKeyID)
-	c.Assert(err, IsNil)
-
-	c.Assert(safs.db.Add(delegatedAcct), IsNil)
-	c.Assert(safs.db.Add(delegatedAcctKey), IsNil)
-
-	headers = map[string]interface{}{
-		"authority-id": "canonical",
-		"signatory-id": "random",
-		"primary-key":  "k1",
-		"anchor":       "A",
-	}
-	a1, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
-	c.Assert(err, IsNil)
-
-	_, err = asserts.CheckSignature(a1, delegatedAcctKey.(*asserts.AccountKey), nil, safs.db, time.Time{}, time.Time{})
-	c.Check(err, ErrorMatches, `assertion signatory "random" does not match public key from "delegated-acct"`)
-}
-
-func (safs *signAddFindSuite) TestSignDelegationConstraintsMismatch(c *C) {
-	c.Skip("authority-delegation disabled")
-
-	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
-	c.Assert(err, IsNil)
-	c.Assert(delegatedSigningDB.ImportKey(testPrivKey1), IsNil)
-	delegatedKeyID := testPrivKey1.PublicKey().ID()
-	headers := map[string]interface{}{
-		"type":         "account",
-		"authority-id": "canonical",
-		"account-id":   "delegated-acct",
-		"display-name": "delegated",
-		"validation":   "verified",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	since := time.Now()
-	delegatedAcct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
-	c.Assert(err, IsNil)
-	headers = map[string]interface{}{
-		"type":                "account-key",
-		"authority-id":        "canonical",
-		"account-id":          "delegated-acct",
-		"name":                "default",
-		"public-key-sha3-384": delegatedKeyID,
-		"since":               since.Format(time.RFC3339),
-	}
-	pubKeyEncoded, err := asserts.EncodePublicKey(testPrivKey1.PublicKey())
-	c.Assert(err, IsNil)
-	delegatedAcctKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, pubKeyEncoded, safs.signingKeyID)
-	c.Assert(err, IsNil)
-
-	c.Assert(safs.db.Add(delegatedAcct), IsNil)
-	c.Assert(safs.db.Add(delegatedAcctKey), IsNil)
-
-	headers = map[string]interface{}{
-		"authority-id": "canonical",
-		"signatory-id": "delegated-acct",
-		"primary-key":  "k1",
-		"anchor":       "A",
-	}
-	a1, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
-	c.Assert(err, IsNil)
-
-	// now add authority-delegation
-	headers = map[string]interface{}{
-		"authority-id": "canonical",
-		"account-id":   "canonical",
-		"delegate-id":  "delegated-acct",
-		"assertions": []interface{}{
-			map[string]interface{}{
-				"type": asserts.TestOnlyType.Name,
-				"headers": map[string]interface{}{
-					"primary-key": "k1",
-					"anchor":      "B",
-				},
-				"since": since.Format(time.RFC3339),
-			},
-		},
-	}
-	ad, err := safs.signingDB.Sign(asserts.AuthorityDelegationType, headers, nil, safs.signingKeyID)
-	c.Assert(err, IsNil)
-
-	c.Assert(safs.db.Add(ad), IsNil)
-
-	err = safs.db.Check(a1)
-	c.Check(err, ErrorMatches, `no matching constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
-
-	// test CheckDelegation directly as well, first retrieve the constraints
-	acs := ad.(*asserts.AuthorityDelegation).MatchingConstraints(assertstest.FakeAssertion(map[string]interface{}{
-		"authority-id": "canonical",
-		"signatory-id": "delegated-acct",
-		"type":         "test-only",
-		"primary-key":  "k1",
-		"anchor":       "B",
-	}))
-	c.Assert(acs, HasLen, 1)
-
-	_, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), nil, safs.db, time.Time{}, time.Time{})
-	c.Check(err, ErrorMatches, `no valid constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
-
-	_, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, safs.db, time.Time{}, time.Time{})
-	c.Check(err, ErrorMatches, `no valid constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
-}
-
-func (safs *signAddFindSuite) TestSignDelegationExpired(c *C) {
-	c.Skip("authority-delegation disabled")
-
-	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
-	c.Assert(err, IsNil)
-	c.Assert(delegatedSigningDB.ImportKey(testPrivKey1), IsNil)
-	delegatedKeyID := testPrivKey1.PublicKey().ID()
-	headers := map[string]interface{}{
-		"type":         "account",
-		"authority-id": "canonical",
-		"account-id":   "delegated-acct",
-		"display-name": "delegated",
-		"validation":   "verified",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	since := time.Now()
-	delegatedAcct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
-	c.Assert(err, IsNil)
-	headers = map[string]interface{}{
-		"type":                "account-key",
-		"authority-id":        "canonical",
-		"account-id":          "delegated-acct",
-		"name":                "default",
-		"public-key-sha3-384": delegatedKeyID,
-		"since":               since.Format(time.RFC3339),
-	}
-	pubKeyEncoded, err := asserts.EncodePublicKey(testPrivKey1.PublicKey())
-	c.Assert(err, IsNil)
-	delegatedAcctKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, pubKeyEncoded, safs.signingKeyID)
-	c.Assert(err, IsNil)
-
-	c.Assert(safs.db.Add(delegatedAcct), IsNil)
-	c.Assert(safs.db.Add(delegatedAcctKey), IsNil)
-
-	headers = map[string]interface{}{
-		"authority-id": "canonical",
-		"signatory-id": "delegated-acct",
-		"primary-key":  "k1",
-		"anchor":       "A",
-	}
-	a1, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
-	c.Assert(err, IsNil)
-
-	// add expired authority-delegation
-	headers = map[string]interface{}{
-		"authority-id": "canonical",
-		"account-id":   "canonical",
-		"delegate-id":  "delegated-acct",
-		"assertions": []interface{}{
-			map[string]interface{}{
-				"type": asserts.TestOnlyType.Name,
-				"headers": map[string]interface{}{
-					"primary-key": "k1",
-					"anchor":      "A",
-				},
-				"since": since.AddDate(0, -2, 0).Format(time.RFC3339),
-				"until": since.AddDate(0, -1, 0).Format(time.RFC3339),
-			},
-		},
-	}
-	ad, err := safs.signingDB.Sign(asserts.AuthorityDelegationType, headers, nil, safs.signingKeyID)
-	c.Assert(err, IsNil)
-
-	c.Assert(safs.db.Add(ad), IsNil)
-
-	err = safs.db.Check(a1)
-	c.Check(err, ErrorMatches, `all constraints supporting delegated test-only assertion from "canonical" to "delegated-acct" are expired`)
 }
 
 func (safs *signAddFindSuite) TestAddRefusesSelfSignedKey(c *C) {
@@ -1054,13 +777,13 @@ func (safs *signAddFindSuite) TestNotFoundError(c *C) {
 			"snap-id": "snap-id",
 		},
 	}
-	c.Check(asserts.IsNotFound(err1), Equals, true)
+	c.Check(errors.Is(err1, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err1.Error(), Equals, "snap-declaration (snap-id; series:16) not found")
 
 	err2 := &asserts.NotFoundError{
 		Type: asserts.SnapRevisionType,
 	}
-	c.Check(asserts.IsNotFound(err1), Equals, true)
+	c.Check(errors.Is(err2, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err2.Error(), Equals, "snap-revision assertion not found")
 }
 
@@ -1272,7 +995,7 @@ func (safs *signAddFindSuite) TestFindTrusted(c *C) {
 	_, err = safs.db.FindTrusted(asserts.AccountType, map[string]string{
 		"account-id": "predefined",
 	})
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (safs *signAddFindSuite) TestFindPredefined(c *C) {
@@ -1425,7 +1148,7 @@ func (safs *signAddFindSuite) TestFindManyPredefined(c *C) {
 		"account-id":          acct1.AccountID(),
 		"public-key-sha3-384": acct1Key.PublicKeyID(),
 	})
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrustedOnes(c *C) {
@@ -1547,6 +1270,7 @@ func (safs *signAddFindSuite) TestFindMaxFormat(c *C) {
 		"primary-key": "foo",
 	}, 3)
 	c.Check(err, ErrorMatches, `cannot find "test-only" assertions for format 3 higher than supported format 1`)
+	c.Check(a, IsNil)
 }
 
 func (safs *signAddFindSuite) TestFindOptionalPrimaryKeys(c *C) {
@@ -1679,7 +1403,7 @@ func (safs *signAddFindSuite) TestWithStackedBackstore(c *C) {
 	_, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
 		"primary-key": "two",
 	})
-	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	_, err = stacked.Find(asserts.AccountKeyType, map[string]string{
 		"public-key-sha3-384": safs.signingKeyID,
@@ -1850,6 +1574,80 @@ func (safs *signAddFindSuite) TestFindSequence(c *C) {
 		Type: asserts.TestOnlySeqType, Headers: seqHeaders,
 	})
 
+}
+
+func (safs *signAddFindSuite) TestCheckConstraints(c *C) {
+	headers := map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "my-brand",
+		"display-name": "My Brand",
+		"validation":   "verified",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	acct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(acct)
+	c.Check(err, IsNil)
+
+	pubKey1 := testPrivKey1.PublicKey()
+	pubKey1Encoded, err := asserts.EncodePublicKey(pubKey1)
+	c.Assert(err, IsNil)
+
+	now := time.Now().UTC()
+	headers = map[string]interface{}{
+		"authority-id":        "canonical",
+		"format":              "1",
+		"account-id":          "my-brand",
+		"public-key-sha3-384": pubKey1.ID(),
+		"name":                "default",
+		"since":               now.Format(time.RFC3339),
+		"until":               now.AddDate(1, 0, 0).Format(time.RFC3339),
+		"constraints": []interface{}{
+			map[string]interface{}{
+				"headers": map[string]interface{}{
+					"type":  "model",
+					"model": "foo-.*",
+				},
+			},
+		},
+	}
+	accKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, []byte(pubKey1Encoded), safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(accKey)
+	c.Check(err, IsNil)
+
+	headers = map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"series":       "16",
+		"model":        "foo-200",
+		"classic":      "true",
+		"timestamp":    now.Format(time.RFC3339),
+	}
+	mfoo, err := asserts.AssembleAndSignInTest(asserts.ModelType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(mfoo)
+	c.Check(err, IsNil)
+
+	headers = map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"series":       "16",
+		"model":        "goo-200",
+		"classic":      "true",
+		"timestamp":    now.Format(time.RFC3339),
+	}
+	mnotfoo, err := asserts.AssembleAndSignInTest(asserts.ModelType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(mnotfoo)
+	c.Check(err, ErrorMatches, `assertion does not match signing constraints for public key ".*" from "my-brand"`)
 }
 
 type revisionErrorSuite struct{}

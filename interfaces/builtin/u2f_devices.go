@@ -118,9 +118,9 @@ var u2fDevices = []u2fDevice{
 		ProductIDPattern: "5026",
 	},
 	{
-		Name:             "Tomu board + chopstx U2F + SoloKeys",
+		Name:             "Tomu board + chopstx U2F + SoloKeys + Flipper zero",
 		VendorIDPattern:  "0483",
-		ProductIDPattern: "cdab|a2ca",
+		ProductIDPattern: "cdab|a2ca|5741",
 	},
 	{
 		Name:             "SoloKeys",
@@ -133,14 +133,19 @@ var u2fDevices = []u2fDevice{
 		ProductIDPattern: "60fc",
 	},
 	{
+		Name:             "Thetis U2F BT Fido2 Key",
+		VendorIDPattern:  "1ea8",
+		ProductIDPattern: "fc25",
+	},
+	{
 		Name:             "MIRKey",
 		VendorIDPattern:  "0483",
 		ProductIDPattern: "a2ac",
 	},
 	{
-		Name:             "Ledger Blue + Nano S + Nano X",
+		Name:             "Ledger Blue + Nano S + Nano X + Nano S+ + Ledger Stax",
 		VendorIDPattern:  "2c97",
-		ProductIDPattern: "0000|0001|0004|0005|0015|1005|1015|4005|4015",
+		ProductIDPattern: "0000|0001|0004|0005|0015|1005|1015|4005|4015|5005|5015|6005|6015",
 	},
 	{
 		Name:             "GoTrust Idem Key",
@@ -161,6 +166,11 @@ var u2fDevices = []u2fDevice{
 		Name:             "U2F-TOKEN (Tomu et al.)",
 		VendorIDPattern:  "16d0",
 		ProductIDPattern: "0e90",
+	},
+	{
+		Name:             "Swissbit iShield Key",
+		VendorIDPattern:  "1370",
+		ProductIDPattern: "0911",
 	},
 }
 

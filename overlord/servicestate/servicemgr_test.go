@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -77,20 +78,21 @@ func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.state.Lock()
-	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType) {
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType) {
 		s.restartRequests = append(s.restartRequests, req)
 		if s.restartObserve != nil {
 			s.restartObserve()
 		}
 	}))
 	s.state.Unlock()
+	c.Assert(err, IsNil)
 	s.se = s.o.StateEngine()
 
 	s.mgr = servicestate.Manager(s.state, s.o.TaskRunner())
 	s.o.AddManager(s.mgr)
 	s.o.AddManager(s.o.TaskRunner())
 
-	err := s.o.StartUp()
+	err = s.o.StartUp()
 	c.Assert(err, IsNil)
 
 	// by default we are seeded
@@ -134,6 +136,8 @@ func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
 		Active:   true,
 		SnapType: "app",
 	}
+
+	s.AddCleanup(osutil.MockMountInfo(""))
 }
 
 type expectedSystemctl struct {

@@ -162,6 +162,22 @@ func ValidateLicense(license string) error {
 	return nil
 }
 
+func validateHooks(info *Info) error {
+	for _, hook := range info.Hooks {
+		if err := ValidateHook(hook); err != nil {
+			return err
+		}
+	}
+
+	hasDefaultConfigureHook := info.Hooks["default-configure"] != nil
+	hasConfigureHook := info.Hooks["configure"] != nil
+	if hasDefaultConfigureHook && !hasConfigureHook {
+		return fmt.Errorf(`cannot specify "default-configure" hook without "configure" hook`)
+	}
+
+	return nil
+}
+
 // ValidateHook validates the content of the given HookInfo
 func ValidateHook(hook *HookInfo) error {
 	if err := naming.ValidateHook(hook.Name); err != nil {
@@ -368,11 +384,9 @@ func Validate(info *Info) error {
 		}
 	}
 
-	// validate hook entries
-	for _, hook := range info.Hooks {
-		if err := ValidateHook(hook); err != nil {
-			return err
-		}
+	// Validate hook entries
+	if err := validateHooks(info); err != nil {
+		return err
 	}
 
 	// Ensure that plugs and slots have appropriate names and interface names.
@@ -396,7 +410,7 @@ func Validate(info *Info) error {
 	}
 
 	// Ensure links are valid
-	if err := ValidateLinks(info.Links()); err != nil {
+	if err := ValidateLinks(info.OriginalLinks); err != nil {
 		return err
 	}
 
@@ -924,6 +938,7 @@ var layoutRejectionList = []string{
 	// snap applications to be integrated with the rest of the system and
 	// therefore snaps should not be allowed to replace it.
 	"/run",
+	"/var/run",
 	// The /tmp directory contains a private, per-snap, view of /tmp and
 	// there's no valid reason to allow snaps to replace it.
 	"/tmp",
@@ -939,9 +954,11 @@ var layoutRejectionList = []string{
 	// firmware. Therefore firmware must not be replaceable to prevent
 	// malicious firmware from attacking the host.
 	"/lib/firmware",
+	"/usr/lib/firmware",
 	// Similarly the kernel will load modules and the modules should not be
 	// something that snaps can tamper with.
 	"/lib/modules",
+	"/usr/lib/modules",
 
 	// Locations that store essential data:
 
@@ -1108,7 +1125,7 @@ func ValidateCommonIDs(info *Info) error {
 
 func ValidateSystemUsernames(info *Info) error {
 	for username := range info.SystemUsernames {
-		if !osutil.IsValidUsername(username) {
+		if !osutil.IsValidSnapSystemUsername(username) {
 			return fmt.Errorf("invalid system username %q", username)
 		}
 	}

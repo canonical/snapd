@@ -273,7 +273,10 @@ func (rc *baseRemodelContext) updateRunModeSystem() error {
 	// booting and consider a new recovery system as as seeded
 	oldDeviceContext := rc.GroundContext()
 	newDeviceContext := &rc.groundDeviceContext
-	if err := boot.DeviceChange(oldDeviceContext, newDeviceContext); err != nil {
+	rc.st.Unlock()
+	err := boot.DeviceChange(oldDeviceContext, newDeviceContext)
+	rc.st.Lock()
+	if err != nil {
 		return fmt.Errorf("cannot switch device: %v", err)
 	}
 	if err := rc.deviceMgr.recordSeededSystem(rc.st, &seededSystem{

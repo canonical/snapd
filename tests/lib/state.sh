@@ -2,12 +2,7 @@
 
 SNAPD_STATE_PATH="$TESTSTMP/snapd-state"
 SNAPD_STATE_FILE="$TESTSTMP/snapd-state/snapd-state.tar"
-RUNTIME_STATE_PATH="$TESTSTMP/runtime-state"
 SNAPD_ACTIVE_UNITS="$RUNTIME_STATE_PATH/snapd-active-units"
-
-# shellcheck source=tests/lib/systemd.sh
-. "$TESTSLIB/systemd.sh"
-
 
 delete_snapd_state() {
     rm -rf "$SNAPD_STATE_PATH"
@@ -25,6 +20,10 @@ is_snapd_state_saved() {
     else
         return 1
     fi
+}
+
+get_active_snapd_units() {
+    systemctl list-units --plain --state=active | grep -Eo '^snapd\..*(socket|service|timer)' || true
 }
 
 save_snapd_state() {
@@ -60,6 +59,7 @@ save_snapd_state() {
             /var/cache/snapd \
             "$SNAP_MOUNT_DIR" \
             /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount \
+            /etc/systemd/system/snapd.mounts.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
             /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
             $snap_confine_profiles \
             $snapd_env \
@@ -78,7 +78,7 @@ save_snapd_state() {
     fi
 
     # Save the snapd active units
-    systemd_get_active_snapd_units > "$SNAPD_ACTIVE_UNITS"
+    get_active_snapd_units > "$SNAPD_ACTIVE_UNITS"
 }
 
 restore_snapd_state() {

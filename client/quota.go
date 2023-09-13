@@ -33,6 +33,7 @@ type postQuotaData struct {
 	GroupName   string       `json:"group-name"`
 	Parent      string       `json:"parent,omitempty"`
 	Snaps       []string     `json:"snaps,omitempty"`
+	Services    []string     `json:"services,omitempty"`
 	Constraints *QuotaValues `json:"constraints,omitempty"`
 }
 
@@ -41,6 +42,7 @@ type QuotaGroupResult struct {
 	Parent      string       `json:"parent,omitempty"`
 	Subgroups   []string     `json:"subgroups,omitempty"`
 	Snaps       []string     `json:"snaps,omitempty"`
+	Services    []string     `json:"services,omitempty"`
 	Constraints *QuotaValues `json:"constraints,omitempty"`
 	Current     *QuotaValues `json:"current,omitempty"`
 }
@@ -54,10 +56,14 @@ type QuotaCPUSetValues struct {
 	CPUs []int `json:"cpus,omitempty"`
 }
 
+type QuotaJournalRate struct {
+	RateCount  int           `json:"rate-count"`
+	RatePeriod time.Duration `json:"rate-period"`
+}
+
 type QuotaJournalValues struct {
-	Size       quantity.Size `json:"size,omitempty"`
-	RateCount  int           `json:"rate-count,omitempty"`
-	RatePeriod time.Duration `json:"rate-period,omitempty"`
+	Size quantity.Size `json:"size,omitempty"`
+	*QuotaJournalRate
 }
 
 type QuotaValues struct {
@@ -68,20 +74,37 @@ type QuotaValues struct {
 	Journal *QuotaJournalValues `json:"journal,omitempty"`
 }
 
-// EnsureQuota creates a quota group or updates an existing group.
-// The list of snaps can be empty.
-func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, constraints *QuotaValues) (changeID string, err error) {
+type EnsureQuotaOptions struct {
+	// Parent is used to assign a Parent quota group
+	Parent string
+	// Snaps that should be added to the quota group
+	Snaps []string
+	// Services that should be added to the quota group
+	Services []string
+	// Constraints are the resource limits that should be applied to the quota group,
+	// these are added or modified, not removed.
+	Constraints *QuotaValues
+}
+
+// EnsureQuota creates a quota group or updates an existing group with the options
+// provided.
+func (client *Client) EnsureQuota(groupName string, opts *EnsureQuotaOptions) (changeID string, err error) {
 	if groupName == "" {
 		return "", fmt.Errorf("cannot create or update quota group without a name")
 	}
+	if opts == nil {
+		return "", fmt.Errorf("cannot create or update quota group without any options")
+	}
+
 	// TODO: use naming.ValidateQuotaGroup()
 
 	data := &postQuotaData{
 		Action:      "ensure",
 		GroupName:   groupName,
-		Parent:      parent,
-		Snaps:       snaps,
-		Constraints: constraints,
+		Parent:      opts.Parent,
+		Snaps:       opts.Snaps,
+		Services:    opts.Services,
+		Constraints: opts.Constraints,
 	}
 
 	var body bytes.Buffer

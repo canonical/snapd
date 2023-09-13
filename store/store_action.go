@@ -26,9 +26,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -39,7 +41,7 @@ type RefreshOptions struct {
 	// RefreshManaged indicates to the store that the refresh is
 	// managed via snapd-control.
 	RefreshManaged bool
-	IsAutoRefresh  bool
+	Scheduled      bool
 
 	PrivacyKey string
 }
@@ -56,8 +58,11 @@ type CurrentSnap struct {
 	Block            []snap.Revision
 	Epoch            snap.Epoch
 	CohortKey        string
-	// ValidationSets is an optional array of validation sets primary keys.
-	ValidationSets [][]string
+	// ValidationSets is an optional array of validation set primary keys.
+	ValidationSets []snapasserts.ValidationSetKey
+	// HeldBy is an optional array of snaps with holds on the current snap's
+	// refreshes. The "system" snap represents a hold placed by the user.
+	HeldBy []string
 }
 
 type AssertionQuery interface {
@@ -77,8 +82,11 @@ type currentSnapV2JSON struct {
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 	CohortKey        string     `json:"cohort-key,omitempty"`
-	// ValidationSets is an optional array of validation sets primary keys.
+	// ValidationSets is an optional array of validation set primary keys.
 	ValidationSets [][]string `json:"validation-sets,omitempty"`
+	// Held is an optional map that can contain a "by" key mapping to a list of
+	// snaps with holds on the current snap (see CurrentSnap#Held).
+	Held map[string][]string `json:"held,omitempty"`
 }
 
 type SnapActionFlags int
@@ -97,9 +105,9 @@ type SnapAction struct {
 	CohortKey    string
 	Flags        SnapActionFlags
 	Epoch        snap.Epoch
-	// ValidationSets is an optional array of validation sets primary keys
+	// ValidationSets is an optional array of validation set primary keys
 	// (relevant for install and refresh actions).
-	ValidationSets [][]string
+	ValidationSets []snapasserts.ValidationSetKey
 }
 
 func isValidAction(action string) bool {
@@ -233,31 +241,33 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	authRefreshes := 0
 	for {
-		sars, ars, err := s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts)
+		sars, ars, err := s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts, 0)
 
 		if saErr, ok := err.(*SnapActionError); ok && authRefreshes < 2 && len(saErr.Other) > 0 {
 			// do we need to try to refresh auths?, 2 tries
-			var refreshNeed authRefreshNeed
+			var refreshNeed AuthRefreshNeed
 			for _, otherErr := range saErr.Other {
 				switch otherErr {
 				case errUserAuthorizationNeedsRefresh:
-					refreshNeed.user = true
+					refreshNeed.User = true
 				case errDeviceAuthorizationNeedsRefresh:
-					refreshNeed.device = true
+					refreshNeed.Device = true
 				}
 			}
 			if refreshNeed.needed() {
-				err := s.refreshAuth(user, refreshNeed)
-				if err != nil {
-					// best effort
-					logger.Noticef("cannot refresh soft-expired authorisation: %v", err)
+				if a, ok := s.auth.(RefreshingAuthorizer); ok {
+					err := a.RefreshAuth(refreshNeed, s.dauthCtx, user, s.client)
+					if err != nil {
+						// best effort
+						logger.Noticef("cannot refresh soft-expired authorisation: %v", err)
+					}
+					authRefreshes++
+					// TODO: we could avoid retrying here
+					// if refreshAuth gave no error we got
+					// as many non-error results from the
+					// store as actions anyway
+					continue
 				}
-				authRefreshes++
-				// TODO: we could avoid retrying here
-				// if refreshAuth gave no error we got
-				// as many non-error results from the
-				// store as actions anyway
-				continue
 			}
 		}
 
@@ -300,7 +310,7 @@ type AssertionResult struct {
 	StreamURLs []string
 }
 
-func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, toResolve map[asserts.Grouping][]*asserts.AtRevision, toResolveSeq map[asserts.Grouping][]*asserts.AtSequence, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, []AssertionResult, error) {
+func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, toResolve map[asserts.Grouping][]*asserts.AtRevision, toResolveSeq map[asserts.Grouping][]*asserts.AtSequence, user *auth.UserState, opts *RefreshOptions, storeVer int) ([]SnapActionResult, []AssertionResult, error) {
 	requestSalt := ""
 	if opts != nil {
 		requestSalt = opts.PrivacyKey
@@ -327,6 +337,12 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if !curSnap.RefreshedDate.IsZero() {
 			refreshedDate = &curSnap.RefreshedDate
 		}
+
+		valsetKeys := make([][]string, 0, len(curSnap.ValidationSets))
+		for _, vsKey := range curSnap.ValidationSets {
+			valsetKeys = append(valsetKeys, vsKey.Components())
+		}
+
 		curSnapJSONs[i] = &currentSnapV2JSON{
 			SnapID:           curSnap.SnapID,
 			InstanceKey:      instanceKey,
@@ -336,7 +352,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			RefreshedDate:    refreshedDate,
 			Epoch:            curSnap.Epoch,
 			CohortKey:        curSnap.CohortKey,
-			ValidationSets:   curSnap.ValidationSets,
+			ValidationSets:   valsetKeys,
+		}
+		// `held` field was introduced in version 55 https://api.snapcraft.io/docs/
+		if len(curSnap.HeldBy) > 0 && (storeVer <= 0 || storeVer >= 55) {
+			curSnapJSONs[i].Held = map[string][]string{"by": curSnap.HeldBy}
 		}
 	}
 
@@ -368,6 +388,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			ignoreValidation = &f
 		}
 
+		valsetKeyComponents := make([][]string, 0, len(a.ValidationSets))
+		for _, vsKey := range a.ValidationSets {
+			valsetKeyComponents = append(valsetKeyComponents, vsKey.Components())
+		}
+
 		var instanceKey string
 		aJSON := &snapActionJSON{
 			Action:           a.Action,
@@ -375,7 +400,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			Channel:          a.Channel,
 			Revision:         a.Revision.N,
 			CohortKey:        a.CohortKey,
-			ValidationSets:   a.ValidationSets,
+			ValidationSets:   valsetKeyComponents,
 			IgnoreValidation: ignoreValidation,
 		}
 		if !a.Revision.Unset() {
@@ -495,7 +520,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	if len(toResolve) > 0 || len(toResolveSeq) > 0 {
-		assertMaxFormats = asserts.MaxSupportedFormats(1)
+		if s.cfg.AssertionMaxFormats == nil {
+			assertMaxFormats = asserts.MaxSupportedFormats(1)
+		} else {
+			assertMaxFormats = s.cfg.AssertionMaxFormats
+		}
 	}
 
 	// build input for the install/refresh endpoint
@@ -518,7 +547,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		APILevel:    apiV2Endps,
 	}
 
-	if opts.IsAutoRefresh {
+	if opts.Scheduled {
 		logger.Debugf("Auto-refresh; adding header Snap-Refresh-Reason: scheduled")
 		reqOptions.addHeader("Snap-Refresh-Reason", "scheduled")
 	}
@@ -538,6 +567,18 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	if resp.StatusCode != 200 {
+		// some fields might not be supported on proxies with old versions.
+		// we should retry with the snap store version known as we can now
+		// get it from the response header.
+		if resp.StatusCode == 400 && storeVer <= 0 {
+			verstr := resp.Header.Get("Snap-Store-Version")
+			ver, err := strconv.Atoi(verstr)
+			if err != nil || ver <= 0 {
+				logger.Debugf("cannot parse header value of Snap-Store-Version: expected positive int got %q", verstr)
+			} else {
+				return s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts, ver)
+			}
+		}
 		return nil, nil, respToError(resp, "query the store for updates")
 	}
 

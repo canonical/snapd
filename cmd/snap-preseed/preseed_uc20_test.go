@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/image/preseed"
 )
 
 func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
@@ -45,17 +46,18 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
 	var called bool
-	restorePreseed := main.MockPreseedCore20(func(dir, key, aaDir string) error {
-		c.Check(dir, Equals, tmpDir)
-		c.Check(key, Equals, "key")
-		c.Check(aaDir, Equals, "/custom/aa/features")
+	restorePreseed := main.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
+		c.Check(opts.PrepareImageDir, Equals, tmpDir)
+		c.Check(opts.PreseedSignKey, Equals, "key")
+		c.Check(opts.AppArmorKernelFeaturesDir, Equals, "/custom/aa/features")
+		c.Check(opts.SysfsOverlay, Equals, "/sysfs-overlay")
 		called = true
 		return nil
 	})
 	defer restorePreseed()
 
 	parser := testParser(c)
-	c.Assert(main.Run(parser, []string{"--preseed-sign-key", "key", "--apparmor-features-dir", "/custom/aa/features", tmpDir}), IsNil)
+	c.Assert(main.Run(parser, []string{"--preseed-sign-key", "key", "--apparmor-features-dir", "/custom/aa/features", "--sysfs-overlay", "/sysfs-overlay", tmpDir}), IsNil)
 	c.Check(called, Equals, true)
 }
 
@@ -73,10 +75,11 @@ func (s *startPreseedSuite) TestRunPreseedUC20HappyNoArgs(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
 	var called bool
-	restorePreseed := main.MockPreseedCore20(func(dir, key, aaDir string) error {
-		c.Check(dir, Equals, tmpDir)
-		c.Check(key, Equals, "")
-		c.Check(aaDir, Equals, "")
+	restorePreseed := main.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
+		c.Check(opts.PrepareImageDir, Equals, tmpDir)
+		c.Check(opts.PreseedSignKey, Equals, "")
+		c.Check(opts.AppArmorKernelFeaturesDir, Equals, "")
+		c.Check(opts.SysfsOverlay, Equals, "")
 		called = true
 		return nil
 	})
@@ -85,4 +88,32 @@ func (s *startPreseedSuite) TestRunPreseedUC20HappyNoArgs(c *C) {
 	parser := testParser(c)
 	c.Assert(main.Run(parser, []string{tmpDir}), IsNil)
 	c.Check(called, Equals, true)
+}
+
+func (s *startPreseedSuite) TestResetUC20(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+
+	restore := main.MockOsGetuid(func() int {
+		return 0
+	})
+	defer restore()
+
+	// for UC20 probing
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
+	// we don't run tar, so create a fake artifact to make FileDigest happy
+	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
+
+	var called bool
+	restorePreseed := main.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
+		called = true
+		return nil
+	})
+	defer restorePreseed()
+
+	parser := testParser(c)
+	res := main.Run(parser, []string{"--reset", tmpDir})
+	c.Assert(res, Not(IsNil))
+	c.Check(res, ErrorMatches, "cannot snap-preseed --reset for Ubuntu Core")
+	c.Check(called, Equals, false)
 }

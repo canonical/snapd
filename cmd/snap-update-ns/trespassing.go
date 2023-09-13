@@ -127,11 +127,11 @@ func (as *Assumptions) AddChange(change *Change) {
 // canWriteToDirectory returns true if writing to a given directory is allowed.
 //
 // Writing is allowed in one of thee cases:
-// 1) The directory is in one of the explicitly permitted locations.
-//    This is the strongest permission as it explicitly allows writing to
-//    places that may show up on the host, one of the examples being $SNAP_DATA.
-// 2) The directory is on a read-only filesystem.
-// 3) The directory is on a tmpfs created by snapd.
+//  1. The directory is in one of the explicitly permitted locations.
+//     This is the strongest permission as it explicitly allows writing to
+//     places that may show up on the host, one of the examples being $SNAP_DATA.
+//  2. The directory is on a read-only filesystem.
+//  3. The directory is on a tmpfs created by snapd.
 func (as *Assumptions) canWriteToDirectory(dirFd int, dirName string) (bool, error) {
 	if !as.isRestricted(dirName) {
 		return true, nil

@@ -66,7 +66,7 @@ type AtomicFile struct {
 // NewAtomicFile builds an AtomicFile backed by an *os.File that will have
 // the given filename, permissions and uid/gid when Committed.
 //
-//   It _might_ be implemented using O_TMPFILE (see open(2)).
+//	It _might_ be implemented using O_TMPFILE (see open(2)).
 //
 // Note that it won't follow symlinks and will replace existing symlinks with
 // the real file, unless the AtomicWriteFollow flag is specified.
@@ -262,7 +262,7 @@ func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags
 }
 
 // AtomicRename attempts to rename a path from oldName to newName atomically.
-func AtomicRename(oldName, newName string) error {
+func AtomicRename(oldName, newName string) (err error) {
 	var oldDir, newDir *os.File
 
 	// snapdUnsafeIO controls the ability to ignore expensive disk
@@ -276,13 +276,13 @@ func AtomicRename(oldName, newName string) error {
 		oldDirPath := filepath.Dir(oldName)
 		newDirPath := filepath.Dir(newName)
 
-		oldDir, err := os.Open(oldDirPath)
+		oldDir, err = os.Open(oldDirPath)
 		if err != nil {
 			return err
 		}
 		defer oldDir.Close()
 
-		newDir, err := os.Open(newDirPath)
+		newDir, err = os.Open(newDirPath)
 		if err != nil {
 			return err
 		}

@@ -67,6 +67,17 @@ func (vs *ValidationSetTracking) sameAs(tr *ValidationSetTracking) bool {
 		vs.Name == tr.Name && vs.PinnedAt == tr.PinnedAt
 }
 
+// Sequence returns the sequence number of the currently used validation set.
+func (vs *ValidationSetTracking) Sequence() int {
+	// Current was occasionally set to the latest sequence number even when Pinned != 0,
+	// this should no longer happen but return PinnedAt anyway to be safe
+	if vs.PinnedAt > 0 {
+		return vs.PinnedAt
+	}
+
+	return vs.Current
+}
+
 // ValidationSetKey formats the given account id and name into a validation set key.
 func ValidationSetKey(accountID, name string) string {
 	return fmt.Sprintf("%s/%s", accountID, name)
@@ -93,8 +104,26 @@ func UpdateValidationSet(st *state.State, tr *ValidationSetTracking) {
 	st.Set("validation-sets", vsmap)
 }
 
+// verifyForgetAllowedByModelAssertion checks whether a validation-set is controlled by
+// the model assertion. If the validation-set is set to 'enforce', then it's not possible
+// to forget it.
+func verifyForgetAllowedByModelAssertion(st *state.State, accountID, name string) error {
+	vs, err := validationSetFromModel(st, accountID, name)
+	if err != nil {
+		return err
+	}
+	if vs == nil {
+		return nil
+	}
+	if vs.Mode == asserts.ModelValidationSetModeEnforced {
+		return fmt.Errorf("validation-set is enforced by the model")
+	}
+	return nil
+}
+
 // ForgetValidationSet deletes a validation set for the given accountID and name.
-// It is not an error to delete a non-existing one.
+// It is not an error to delete a non-existing one. If the validation-set
+// is controlled by the model assertion it may not be allowed to forget it.
 func ForgetValidationSet(st *state.State, accountID, name string) error {
 	var vsmap map[string]*json.RawMessage
 	err := st.Get("validation-sets", &vsmap)
@@ -104,9 +133,12 @@ func ForgetValidationSet(st *state.State, accountID, name string) error {
 	if len(vsmap) == 0 {
 		return nil
 	}
+	if err := verifyForgetAllowedByModelAssertion(st, accountID, name); err != nil {
+		return err
+	}
+
 	delete(vsmap, ValidationSetKey(accountID, name))
 	st.Set("validation-sets", vsmap)
-
 	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
@@ -146,11 +178,11 @@ func ValidationSets(st *state.State) (map[string]*ValidationSetTracking, error) 
 	return vsmap, nil
 }
 
-// EnforcedValidationSets returns ValidationSets object with all currently tracked
+// TrackedEnforcedValidationSets returns ValidationSets object with all currently tracked
 // validation sets that are in enforcing mode. If extraVss is not nil then they are
 // added to the returned set and replaces validation sets with same account/name
 // in case they were tracked already.
-func EnforcedValidationSets(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+func TrackedEnforcedValidationSets(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 	valsets, err := ValidationSets(st)
 	if err != nil {
 		return nil, err

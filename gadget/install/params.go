@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,8 @@
 package install
 
 import (
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 )
@@ -40,4 +42,56 @@ type InstalledSystemSideData struct {
 	// structures with roles that require data to be encrypted, the device
 	// is the raw encrypted device node (eg. /dev/mmcblk0p1).
 	DeviceForRole map[string]string
+}
+
+// partEncryptionData contains meta-data for an encrypted partition.
+type partEncryptionData struct {
+	role            string
+	device          string
+	encryptedDevice string
+
+	volName       string
+	encryptionKey keys.EncryptionKey
+	// TODO: this is currently not used
+	encryptedSectorSize quantity.Size
+	encryptionParams    gadget.StructureEncryptionParameters
+}
+
+// EncryptionSetupData stores information needed across install
+// API calls.
+type EncryptionSetupData struct {
+	// maps from partition label to data
+	parts map[string]partEncryptionData
+}
+
+// EncryptedDevices returns a map partition role -> LUKS mapper device.
+func (esd *EncryptionSetupData) EncryptedDevices() map[string]string {
+	m := make(map[string]string, len(esd.parts))
+	for _, p := range esd.parts {
+		m[p.role] = p.encryptedDevice
+	}
+	return m
+}
+
+// MockEncryptedDeviceAndRole is meant to be used for unit tests from other
+// packages.
+type MockEncryptedDeviceAndRole struct {
+	Role            string
+	EncryptedDevice string
+}
+
+// MockEncryptionSetupData is meant to be used for unit tests from other
+// packages.
+func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAndRole) *EncryptionSetupData {
+	esd := &EncryptionSetupData{
+		parts: map[string]partEncryptionData{}}
+	for label, encryptData := range labelToEncDevice {
+		esd.parts[label] = partEncryptionData{
+			role:                encryptData.Role,
+			encryptedDevice:     encryptData.EncryptedDevice,
+			encryptionKey:       keys.EncryptionKey{1, 2, 3},
+			encryptedSectorSize: 512,
+		}
+	}
+	return esd
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,8 +24,10 @@
 // into the snap.
 //
 // Each fstab like file looks like a regular fstab entry:
-//   /src/dir /dst/dir none bind 0 0
-//   /src/dir /dst/dir none bind,rw 0 0
+//
+//	/src/dir /dst/dir none bind 0 0
+//	/src/dir /dst/dir none bind,rw 0 0
+//
 // but only bind mounts are supported
 package mount
 
@@ -36,6 +38,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
@@ -77,7 +80,18 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
 	}
 	if err := UpdateSnapNamespace(snapName); err != nil {
-		return fmt.Errorf("cannot update mount namespace of snap %q: %s", snapName, err)
+		// try to discard the mount namespace but only if there aren't enduring daemons in the snap
+		for _, app := range snapInfo.Apps {
+			if app.Daemon != "" && app.RefreshMode == "endure" {
+				return fmt.Errorf("cannot update mount namespace of snap %q, and cannot discard it because it contains an enduring daemon: %s", snapName, err)
+			}
+		}
+		logger.Debugf("cannot update mount namespace of snap %q; discarding namespace", snapName)
+		// In some snaps, if the layout change from a version to the next by replacing a bind by a symlink,
+		// the update can fail. Discarding the namespace allows to solve this.
+		if err = DiscardSnapNamespace(snapName); err != nil {
+			return fmt.Errorf("cannot discard mount namespace of snap %q when trying to update it: %s", snapName, err)
+		}
 	}
 	return nil
 }

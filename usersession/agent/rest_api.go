@@ -43,6 +43,7 @@ var restApi = []*Command{
 	sessionInfoCmd,
 	serviceControlCmd,
 	pendingRefreshNotificationCmd,
+	finishRefreshNotificationCmd,
 }
 
 var (
@@ -227,13 +228,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	decoder := json.NewDecoder(r.Body)
 
 	// pendingSnapRefreshInfo holds information about pending snap refresh provided by snapd.
-	type pendingSnapRefreshInfo struct {
-		InstanceName        string        `json:"instance-name"`
-		TimeRemaining       time.Duration `json:"time-remaining,omitempty"`
-		BusyAppName         string        `json:"busy-app-name,omitempty"`
-		BusyAppDesktopEntry string        `json:"busy-app-desktop-entry,omitempty"`
-	}
-	var refreshInfo pendingSnapRefreshInfo
+	var refreshInfo client.PendingSnapRefreshInfo
 	if err := decoder.Decode(&refreshInfo); err != nil {
 		return BadRequest("cannot decode request body into pending snap refresh info: %v", err)
 	}
@@ -250,26 +245,28 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	}
 
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
-	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)
+	summary := fmt.Sprintf(i18n.G("Update available for %s."), refreshInfo.InstanceName)
 	var urgencyLevel notification.Urgency
 	var body, icon string
 	var hints []notification.Hint
 
-	plzClose := i18n.G("Close the app to avoid disruptions")
 	if daysLeft := int(refreshInfo.TimeRemaining.Truncate(time.Hour).Hours() / 24); daysLeft > 0 {
 		urgencyLevel = notification.LowUrgency
-		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
-			i18n.NG("%d day left", "%d days left", daysLeft), daysLeft))
+		body = fmt.Sprintf(
+			i18n.NG("Close the application to update now. It will update automatically in %d day.",
+				"Close the application to update now. It will update automatically in %d days.", daysLeft), daysLeft)
 	} else if hoursLeft := int(refreshInfo.TimeRemaining.Truncate(time.Minute).Minutes() / 60); hoursLeft > 0 {
 		urgencyLevel = notification.NormalUrgency
-		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
-			i18n.NG("%d hour left", "%d hours left", hoursLeft), hoursLeft))
+		body = fmt.Sprintf(
+			i18n.NG("Close the application to update now. It will update automatically in %d hour.",
+				"Close the application to update now. It will update automatically in %d hours.", hoursLeft), hoursLeft)
 	} else if minutesLeft := int(refreshInfo.TimeRemaining.Truncate(time.Minute).Minutes()); minutesLeft > 0 {
 		urgencyLevel = notification.CriticalUrgency
-		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
-			i18n.NG("%d minute left", "%d minutes left", minutesLeft), minutesLeft))
+		body = fmt.Sprintf(
+			i18n.NG("Close the application to update now. It will update automatically in %d minute.",
+				"Close the application to update now. It will update automatically in %d minutes.", minutesLeft), minutesLeft)
 	} else {
-		summary = fmt.Sprintf(i18n.G("Snap %q is refreshing now!"), refreshInfo.InstanceName)
+		summary = fmt.Sprintf(i18n.G("%s is updating now!"), refreshInfo.InstanceName)
 		urgencyLevel = notification.CriticalUrgency
 	}
 	hints = append(hints, notification.WithUrgency(urgencyLevel))
@@ -329,12 +326,24 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
-	if err := c.s.notificationMgr.CloseNotification(notification.ID(finishRefresh.InstanceName)); err != nil {
+	summary := fmt.Sprintf(i18n.G("%s was updated."), finishRefresh.InstanceName)
+	body := i18n.G("Ready to launch.")
+	hints := []notification.Hint{
+		notification.WithDesktopEntry("io.snapcraft.SessionAgent"),
+		notification.WithUrgency(notification.LowUrgency),
+	}
+
+	msg := &notification.Message{
+		Title: summary,
+		Body:  body,
+		Hints: hints,
+	}
+	if err := c.s.notificationMgr.SendNotification(notification.ID(finishRefresh.InstanceName), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,
 			Result: &errorResult{
-				Message: fmt.Sprintf("cannot send close notification message: %v", err),
+				Message: fmt.Sprintf("cannot send notification message: %v", err),
 			},
 		})
 	}

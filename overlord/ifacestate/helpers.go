@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/interfaces/utils"
@@ -110,7 +109,7 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 		CoreSnapInfo:  coreSnapInfo,
 		SnapdSnapInfo: snapdSnapInfo,
 	}
-	for _, backend := range backends.All {
+	for _, backend := range allSecurityBackends() {
 		if err := backend.Initialize(&opts); err != nil {
 			return err
 		}
@@ -190,8 +189,14 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
 			logger.Noticef("cannot get state of snap %q: %s", snapName, err)
+			return interfaces.ConfinementOptions{}
 		}
-		opts, err := buildConfinementOptions(m.state, snapst.InstanceName(), snapst.Flags)
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			logger.Noticef("cannot get current info for snap %q: %s", snapName, err)
+			return interfaces.ConfinementOptions{}
+		}
+		opts, err := buildConfinementOptions(m.state, snapInfo, snapst.Flags)
 		if err != nil {
 			logger.Noticef("cannot get confinement options for snap %q: %s", snapName, err)
 		}
@@ -666,6 +671,10 @@ func addNewConnection(st *state.State, task *state.Task, newconns map[string]*in
 	return nil
 }
 
+// DebugAutoConnectCheck is a hook that can be set to debug auto-connection
+// candidates as they are checked.
+var DebugAutoConnectCheck func(*policy.ConnectCandidate, interfaces.SideArity, error)
+
 type autoConnectChecker struct {
 	st   *state.State
 	task *state.Task
@@ -711,7 +720,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 	if modelAs.Store() != "" {
 		var err error
 		storeAs, err = assertstate.Store(c.st, modelAs.Store())
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return false, nil, err
 		}
 	}
@@ -748,6 +757,9 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 	}
 
 	arity, err := ic.CheckAutoConnect()
+	if DebugAutoConnectCheck != nil {
+		DebugAutoConnectCheck(&ic, arity, err)
+	}
 	if err == nil {
 		return true, arity, nil
 	}
@@ -869,7 +881,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 	if modelAs.Store() != "" {
 		var err error
 		storeAs, err = assertstate.Store(c.st, modelAs.Store())
-		if err != nil && !asserts.IsNotFound(err) {
+		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return false, err
 		}
 	}
@@ -980,17 +992,46 @@ func setConns(st *state.State, conns map[string]*schema.ConnState) {
 }
 
 // snapsWithSecurityProfiles returns all snaps that have active
-// security profiles: these are either snaps that are active, or about
-// to be active (pending link-snap) with a done setup-profiles
+// security profiles: these are either snaps that are active,
+// inactive snaps that are being operated on, whose profile state
+// is tracked with SnapState.PendingSecurity,
+// or snap about to be active (pending link-snap) with a done
+// setup-profiles
 func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
-	infos, err := snapstate.ActiveInfos(st)
+	all, err := snapstate.All(st)
 	if err != nil {
 		return nil, err
 	}
-	seen := make(map[string]bool, len(infos))
-	for _, info := range infos {
-		seen[info.InstanceName()] = true
+	infos := make([]*snap.Info, 0, len(all))
+	seen := make(map[string]bool, len(all))
+	for instanceName, snapst := range all {
+		if snapst.Active {
+			snapInfo, err := snapst.CurrentInfo()
+			if err != nil {
+				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
+				continue
+			}
+			infos = append(infos, snapInfo)
+			seen[instanceName] = true
+		} else if snapst.PendingSecurity != nil {
+			// we tracked any pending security profiles for the snap
+			seen[instanceName] = true
+			si := snapst.PendingSecurity.SideInfo
+			if si == nil {
+				// profiles removed (already)
+				continue
+			}
+			snapInfo, err := snap.ReadInfo(instanceName, si)
+			if err != nil {
+				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
+				continue
+			}
+			infos = append(infos, snapInfo)
+		}
 	}
+	// look at the changes for old snapds and also
+	// the situation that are being installed, so they do not
+	// have SnapState yet
 	for _, t := range st.Tasks() {
 		if t.Kind() != "link-snap" || t.Status().Ready() {
 			continue
@@ -1039,7 +1080,7 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 		return mapper.RemapSnapFromRequest(snapID), nil
 	}
 	decl, err := assertstate.SnapDeclaration(st, snapID)
-	if asserts.IsNotFound(err) {
+	if errors.Is(err, &asserts.NotFoundError{}) {
 		return "", nil
 	}
 	if err != nil {

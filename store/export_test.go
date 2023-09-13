@@ -30,6 +30,7 @@ import (
 	"github.com/juju/ratelimit"
 	"gopkg.in/retry.v1"
 
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -170,6 +171,14 @@ func (sto *Store) MockCacher(obs downloadCache) (restore func()) {
 	}
 }
 
+func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client) (restore func()) {
+	old := httputilNewHTTPClient
+	httputilNewHTTPClient = f
+	return func() {
+		httputilNewHTTPClient = old
+	}
+}
+
 func (sto *Store) SetDeltaFormat(dfmt string) {
 	sto.deltaFormat = dfmt
 }
@@ -195,11 +204,11 @@ func (sto *Store) DecorateOrders(snaps []*snap.Info, user *auth.UserState) error
 }
 
 func (sto *Store) SessionLock() {
-	sto.sessionMu.Lock()
+	sto.auth.(*deviceAuthorizer).sessionMu.Lock()
 }
 
 func (sto *Store) SessionUnlock() {
-	sto.sessionMu.Unlock()
+	sto.auth.(*deviceAuthorizer).sessionMu.Unlock()
 }
 
 func (sto *Store) FindFields() []string {

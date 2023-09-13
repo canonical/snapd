@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,6 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 type SnapKeysSuite struct {
@@ -40,8 +42,8 @@ type SnapKeysSuite struct {
 }
 
 // FIXME: Ideally we would just use gpg2 and remove the gnupg2_test.go file.
-//        However currently there is LP: #1621839 which prevents us from
-//        switching to gpg2 fully. Once this is resolved we should switch.
+// However currently there is LP: #1621839 which prevents us from switching to
+// gpg2 fully. Once this is resolved we should switch.
 var _ = Suite(&SnapKeysSuite{GnupgCmd: "/usr/bin/gpg"})
 
 var fakePinentryData = []byte(`#!/bin/sh
@@ -82,6 +84,16 @@ func (s *SnapKeysSuite) SetUpTest(c *C) {
 
 	os.Setenv("SNAP_GNUPG_HOME", s.tempdir)
 	os.Setenv("SNAP_GNUPG_CMD", s.GnupgCmd)
+
+	// by default avoid talking to the real store
+	s.AddCleanup(snap.MockStoreNew(func(cfg *store.Config, stoCtx store.DeviceAndAuthContext) *store.Store {
+		if cfg == nil {
+			cfg = store.DefaultConfig()
+		}
+		serverURL, _ := url.Parse("http://nowhere.example.com")
+		cfg.AssertionsBaseURL = serverURL
+		return store.New(cfg, stoCtx)
+	}))
 }
 
 func (s *SnapKeysSuite) TearDownTest(c *C) {

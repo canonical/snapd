@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
@@ -45,19 +46,30 @@ var (
 type initramfsMountsState struct {
 	mode           string
 	recoverySystem string
+
+	verifiedModel gadget.Model
+	seeds         map[string]seed.Seed
 }
 
 var errRunModeNoImpliedRecoverySystem = errors.New("internal error: no implied recovery system in run mode")
 
-// ReadEssential returns the model and verified essential
-// snaps from the recoverySystem. If recoverySystem is "" the
-// implied one will be used (only for modes other than run).
-func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialTypes []snap.Type) (*asserts.Model, []*seed.Snap, error) {
+// LoadSeed returns the seed for the recoverySystem.
+// If recoverySystem is "" the implied one will be used (only for
+// modes other than run).
+func (mst *initramfsMountsState) LoadSeed(recoverySystem string) (seed.Seed, error) {
 	if recoverySystem == "" {
 		if mst.mode == "run" {
-			return nil, nil, errRunModeNoImpliedRecoverySystem
+			return nil, errRunModeNoImpliedRecoverySystem
 		}
 		recoverySystem = mst.recoverySystem
+	}
+
+	if mst.seeds == nil {
+		mst.seeds = make(map[string]seed.Seed)
+	}
+	foundSeed, hasSeed := mst.seeds[recoverySystem]
+	if hasSeed {
+		return foundSeed, nil
 	}
 
 	perf := timings.New(nil)
@@ -76,9 +88,9 @@ func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialT
 	if runtimeNumCPU() > 1 {
 		jobs = 2
 	}
-	model, snaps, newTrustedEarliestTime, err := seed.ReadSystemEssentialAndBetterEarliestTime(boot.InitramfsUbuntuSeedDir, recoverySystem, essentialTypes, now, jobs, perf)
+	seed20, newTrustedEarliestTime, err := seed.ReadSeedAndBetterEarliestTime(boot.InitramfsUbuntuSeedDir, recoverySystem, now, jobs, perf)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// set the time on the system to move forward if it is in the future - never
@@ -91,7 +103,17 @@ func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialT
 		}
 	}
 
-	return model, snaps, nil
+	mst.seeds[recoverySystem] = seed20
+
+	return seed20, nil
+}
+
+// SetVerifiedBootModel sets the "verifiedModel" field. It should only
+// be called after the model is verified. Either via a successful unlock
+// of the encrypted data or after validating the seed in install/recover
+// mode.
+func (mst *initramfsMountsState) SetVerifiedBootModel(m gadget.Model) {
+	mst.verifiedModel = m
 }
 
 // UnverifiedBootModel returns the unverified model from the
@@ -121,15 +143,15 @@ func (mst *initramfsMountsState) UnverifiedBootModel() (*asserts.Model, error) {
 
 // EphemeralModeenvForModel generates a modeenv given the model and the snaps for the
 // current mode and recovery system of the initramfsMountsState.
-func (mst *initramfsMountsState) EphemeralModeenvForModel(model *asserts.Model, snaps map[snap.Type]snap.PlaceInfo) (*boot.Modeenv, error) {
+func (mst *initramfsMountsState) EphemeralModeenvForModel(model *asserts.Model, snaps map[snap.Type]*seed.Snap) (*boot.Modeenv, error) {
 	if mst.mode == "run" {
 		return nil, fmt.Errorf("internal error: initramfs should not write modeenv in run mode")
 	}
 	return &boot.Modeenv{
 		Mode:           mst.mode,
 		RecoverySystem: mst.recoverySystem,
-		Base:           snaps[snap.TypeBase].Filename(),
-		Gadget:         snaps[snap.TypeGadget].Filename(),
+		Base:           snaps[snap.TypeBase].PlaceInfo().Filename(),
+		Gadget:         snaps[snap.TypeGadget].PlaceInfo().Filename(),
 		Model:          model.Model(),
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
