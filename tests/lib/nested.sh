@@ -726,7 +726,9 @@ nested_create_core_vm() {
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
         else
             # create the ubuntu-core image
-            local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+            # local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+            # TODO: revert this when ubuntu-image with test keys works properly
+            UBUNTU_IMAGE=/snap/bin/ubuntu-image
             if os.query is-xenial || os.query is-arm; then
                 # ubuntu-image on 16.04 needs to be installed from a snap
                 UBUNTU_IMAGE=/snap/bin/ubuntu-image
@@ -1014,7 +1016,7 @@ nested_start_core_vm_unit() {
     PARAM_CPU=""
     PARAM_TRACE="-d cpu_reset"
     PARAM_LOG="-D $NESTED_LOGS_DIR/qemu.log"
-    PARAM_RTC="${NESTED_PARAM_RTC:-}"
+    PARAM_RTC="${NESTED_PARAM_RTC:--rtc base=utc,clock=vm}"
     PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
 
     # Open port 7777 on the host so that failures in the nested VM (e.g. to
