@@ -611,7 +611,7 @@ var growSnapToMinSize = func(snapPath string, minSize int64) error {
 	}
 
 	if err := os.Truncate(snapPath, minSize); err != nil {
-		return fmt.Errorf("cannot truncate snap: %w", err)
+		return fmt.Errorf("cannot grow snap to minimum size: %w", err)
 	}
 
 	return nil
