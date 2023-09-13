@@ -482,7 +482,7 @@ case "$1" in
 		echo "VERITY header information for %[2]s/hello_0_all.snap.verity"
 		echo "UUID:            	606d10a2-24d8-4c6b-90cf-68207aa7c850"
 		echo "Hash type:       	1"
-		echo "Data blocks:     	1"
+		echo "Data blocks:     	4"
 		echo "Data block size: 	4096"
 		echo "Hash block size: 	4096"
 		echo "Hash algorithm:  	sha256"
