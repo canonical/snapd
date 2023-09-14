@@ -37,9 +37,8 @@ const microcephConnectedPlugAppArmor = `
 /dev/bcache[0-9]{,[0-9],[0-9][0-9]} rwk,                   # bcache (up to 1000 devices)
 # Access to individual partitions
 /dev/hd[a-t][0-9]{,[0-9],[0-9][0-9]} rwk,                  # IDE, MFM, RLL
-/dev/sd{,[a-h]}[a-z][0-9]{,[0-9],[0-9][0-9]} rwk,          # SCSI
-/dev/sdi[a-v][0-9]{,[0-9],[0-9][0-9]} rwk,                 # SCSI continued
-/dev/vd[a-z][0-9]{,[0-9],[0-9][0-9]} rwk,                  # virtio
+/dev/sd{,[a-z]}[a-z][0-9]{,[0-9],[0-9][0-9]} rwk,          # SCSI
+/dev/vd{,[a-z]}[a-z][0-9]{,[0-9],[0-9][0-9]} rwk,          # virtio
 /dev/nvme{[0-9],[1-9][0-9]}n{[1-9],[1-5][0-9],6[0-3]}p[0-9]{,[0-9],[0-9][0-9]} rwk, # NVMe
 # Allow managing of rbd-backed block devices
 /sys/bus/rbd/add rwk,                                      # add block dev
