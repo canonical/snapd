@@ -42,7 +42,7 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 	var schemaDef map[string]json.RawMessage
 	err := json.Unmarshal(raw, &schemaDef)
 	if err != nil {
-		return nil, fmt.Errorf("cannot parse top level schema: must be a map")
+		return nil, fmt.Errorf("cannot parse top level schema as map: %w", err)
 	}
 
 	if rawType, ok := schemaDef["type"]; ok {
@@ -60,8 +60,24 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 		return nil, fmt.Errorf(`cannot parse top level schema: must have a "schema" constraint`)
 	}
 
-	// TODO: check "types" here and parse the user-defined types
-	schema := &StorageSchema{}
+	schema := new(StorageSchema)
+	if val, ok := schemaDef["types"]; ok {
+		var userTypes map[string]json.RawMessage
+		if err := json.Unmarshal(val, &userTypes); err != nil {
+			return nil, fmt.Errorf(`cannot parse user-defined types map: %w`, err)
+		}
+
+		schema.userTypes = make(map[string]parser, len(userTypes))
+		for userTypeName, typeDef := range userTypes {
+			userTypeSchema, err := schema.parse(typeDef)
+			if err != nil {
+				return nil, fmt.Errorf(`cannot parse user-defined type %q: %w`, userTypeName, err)
+			}
+
+			schema.userTypes[userTypeName] = userTypeSchema
+		}
+	}
+
 	schema.topLevel, err = schema.parse(raw)
 	if err != nil {
 		return nil, err
@@ -75,6 +91,9 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 type StorageSchema struct {
 	// topLevel is the schema for the top level map.
 	topLevel Schema
+
+	// userTypes contains schemas that can validate types defined by the user.
+	userTypes map[string]parser
 }
 
 // Validate validates the provided JSON object.
@@ -121,13 +140,19 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 }
 
 func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
-	// TODO: add any, int, number, bool, array and user-defined types
+	// TODO: add any, int, number, bool and array
 	switch typ {
 	case "map":
 		return &mapSchema{topSchema: s}, nil
 	case "string":
 		return &stringSchema{}, nil
 	default:
+		if typ != "" && typ[0] == '$' {
+			if userType, ok := s.userTypes[typ[1:]]; ok {
+				return userType, nil
+			}
+			return nil, fmt.Errorf("cannot find user-defined type %q", typ[1:])
+		}
 		return nil, fmt.Errorf("cannot parse unknown type %q", typ)
 	}
 }
@@ -332,12 +357,21 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 		return schema, nil
 	}
 
-	// TODO: if type starts with $, check against user-defined types
-	if typ != "string" {
-		return nil, fmt.Errorf(`must be based on string but got %q`, typ)
+	if typ == "string" {
+		return &stringSchema{}, nil
 	}
 
-	return &stringSchema{}, nil
+	if typ != "" && typ[0] == '$' {
+		if userType, ok := v.topSchema.userTypes[typ[1:]]; ok {
+			if _, ok := userType.(*stringSchema); !ok {
+				return nil, fmt.Errorf(`key type %q must be based on string`, typ[1:])
+			}
+			return userType, nil
+		}
+		return nil, fmt.Errorf(`cannot find user-defined type %q`, typ[1:])
+	}
+
+	return nil, fmt.Errorf(`keys must be based on string but got %q`, typ)
 }
 
 type stringSchema struct {

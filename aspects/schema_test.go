@@ -43,7 +43,7 @@ func (*schemaSuite) TestSchemaMustBeMap(c *C) {
 	schemaStr := []byte(`["foo"]`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse top level schema: must be a map`)
+	c.Assert(err, ErrorMatches, `cannot parse top level schema as map: json: cannot unmarshal array.*`)
 }
 
 func (*schemaSuite) TestTopLevelMustBeMapType(c *C) {
@@ -172,7 +172,7 @@ func (*schemaSuite) TestMapKeysConstraintMustBeStringBased(c *C) {
 }`)
 
 	_, err = aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: must be based on string but got "int"`)
+	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: keys must be based on string but got "int"`)
 }
 
 func (*schemaSuite) TestMapWithValuesStringConstraintHappy(c *C) {
@@ -615,4 +615,192 @@ func (*schemaSuite) TestStringChoicesWrongFormat(c *C) {
 
 	_, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "choices" constraint:.*`)
+}
+
+func (*schemaSuite) TestStringBasedUserType(c *C) {
+	schemaStr := []byte(`{
+  "types": {
+    "snap-name": {
+      "type": "string",
+			"pattern": "^[a-z0-9-]*[a-z][a-z0-9-]*$"
+    },
+		"status": {
+			"type": "string",
+			"choices": ["active", "inactive"]
+		}
+  },
+  "schema": {
+    "snaps": {
+      "keys": "$snap-name",
+      "values": {
+        "schema": {
+          "name": "$snap-name",
+          "version": "string",
+          "status": "$status"
+        }
+      }
+    }
+  }
+}`)
+
+	input := []byte(`{
+  "snaps": {
+    "core20": {
+      "name": "core20",
+      "version": "20230503",
+      "status": "active"
+    },
+    "snapd": {
+      "name": "snapd",
+      "version": "2.59.5+git948.gb447044",
+      "status": "inactive"
+    }
+  }
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestMapKeyMustBeStringUserType(c *C) {
+	schemaStr := []byte(`{
+  "types": {
+    "keyType": {
+      "type": "map",
+			"schema": {}
+    }
+  },
+  "schema": {
+    "snaps": {
+      "keys": "$keyType"
+    }
+  }
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: key type "keyType" must be based on string`)
+}
+
+func (*schemaSuite) TestUserDefinedTypesWrongFormat(c *C) {
+	schemaStr := []byte(`{
+  "types": ["foo"],
+	"schema": {}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse user-defined types map: json: cannot unmarshal.*`)
+}
+
+func (*schemaSuite) TestBadUserDefinedType(c *C) {
+	schemaStr := []byte(`{
+  "types": {
+    "mytype": {
+      "type": "bad-type"
+    }
+  },
+	"schema": {}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse user-defined type "mytype": cannot parse unknown type "bad-type"`)
+}
+
+func (*schemaSuite) TestUnknownUserDefinedType(c *C) {
+	schemaStr := []byte(`{
+  "schema": {
+    "snaps": {
+      "values": "$foo"
+    }
+  }
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot find user-defined type "foo"`)
+}
+
+func (*schemaSuite) TestUnknownUserDefinedTypeInKeys(c *C) {
+	schemaStr := []byte(`{
+  "schema": {
+    "snaps": {
+      "keys": "$foo"
+    }
+  }
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: cannot find user-defined type "foo"`)
+}
+
+func (*schemaSuite) TestMapBasedUserDefinedTypeHappy(c *C) {
+	schemaStr := []byte(`{
+  "types": {
+    "snap": {
+			"schema": {
+				"name": "string",
+				"status": "string"
+			}
+    }
+  },
+  "schema": {
+    "snaps": {
+      "values": "$snap"
+    }
+  }
+}`)
+
+	input := []byte(`{
+  "snaps": {
+    "core20": {
+      "name": "core20",
+      "version": "20230503",
+      "status": "active"
+    },
+    "snapd": {
+      "name": "snapd",
+      "status": "inactive"
+    }
+  }
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestMapBasedUserDefinedTypeFail(c *C) {
+	schemaStr := []byte(`{
+  "types": {
+    "snap": {
+			"schema": {
+				"name": "string",
+				"version": "string"
+			}
+    }
+  },
+  "schema": {
+    "snaps": {
+      "values": "$snap"
+    }
+  }
+}`)
+
+	input := []byte(`{
+  "snaps": {
+    "core20": {
+      "name": "core20",
+      "version": 123
+    }
+  }
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot validate string: json: .*`)
 }
