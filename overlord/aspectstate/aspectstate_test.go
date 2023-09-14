@@ -20,7 +20,6 @@ package aspectstate_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -29,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/aspectstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/strutil"
 )
 
 type aspectTestSuite struct {
@@ -263,64 +261,78 @@ func (s *filterSampleSuite) TestQueryNoFilters(c *C) {
 	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "")
 	c.Assert(err, IsNil)
 	// returns all snaps
-	c.Assert(res, HasLen, 10)
-	c.Assert(res[0], FitsTypeOf, map[string]json.RawMessage{})
-	raw, err := json.Marshal(res)
+	obj, ok := res.(map[string]json.RawMessage)
+	c.Assert(ok, Equals, true)
+	c.Assert(obj, HasLen, 10)
+
+	discordRaw, ok := obj["discord"]
+	c.Assert(ok, Equals, true)
+
+	var discord map[string]json.RawMessage
+	err = json.Unmarshal(discordRaw, &discord)
 	c.Assert(err, IsNil)
-	// [{"name":"discord","status":"active"},{"name":"htop","status":"inactive"}...]
-	fmt.Println(string(raw))
+
+	assertField(c, discord, "name", "discord")
+	assertField(c, discord, "status", "active")
+
+	htopRaw, ok := obj["htop"]
+	c.Assert(ok, Equals, true)
+
+	var htop map[string]json.RawMessage
+	err = json.Unmarshal(htopRaw, &htop)
+	c.Assert(err, IsNil)
+
+	assertField(c, htop, "name", "htop")
+	assertField(c, htop, "status", "inactive")
 }
 
 func (s *filterSampleSuite) TestQueryFilterNameWithParameter(c *C) {
 	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "name=firefox")
 	c.Assert(err, IsNil)
-	c.Assert(res, HasLen, 1)
-	c.Assert(res[0], FitsTypeOf, map[string]json.RawMessage{})
-	raw, err := json.Marshal(res)
-	c.Assert(err, IsNil)
-	// [{"name":"firefox","status":"active"}]
-	fmt.Println(string(raw))
+	obj, ok := res.(map[string]json.RawMessage)
+	c.Assert(ok, Equals, true)
+	c.Assert(obj, HasLen, 2)
+	assertField(c, obj, "name", "firefox")
+	assertField(c, obj, "status", "active")
 }
 
 func (s *filterSampleSuite) TestQueryFilterNameWithRequest(c *C) {
 	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps.firefox", "")
 	c.Assert(err, IsNil)
-	c.Assert(res, HasLen, 1)
-	c.Assert(res[0], FitsTypeOf, map[string]json.RawMessage{})
-	raw, err := json.Marshal(res)
-	c.Assert(err, IsNil)
-	// NOTE: this [{"name":"firefox","status":"active"}] (same as the previous) but should it return {"name": "firefox",...}
-	// without the array? Seems more fitting for the request
-	fmt.Println(string(raw))
+
+	obj, ok := res.(map[string]json.RawMessage)
+	c.Assert(ok, Equals, true)
+	c.Assert(obj, HasLen, 2)
+	assertField(c, obj, "name", "firefox")
+	assertField(c, obj, "status", "active")
 }
 
 func (s *filterSampleSuite) TestQueryFilterStatus(c *C) {
-	results, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "status=active")
+	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "status=active")
 	c.Assert(err, IsNil)
-	c.Assert(results, HasLen, 6)
+	obj, ok := res.(map[string]json.RawMessage)
+	c.Assert(ok, Equals, true)
+	c.Assert(obj, HasLen, 6)
 
-	expectedSnaps := []string{"firefox", "shellcheck", "snapd", "snapcraft", "discord", "core20"}
-	seenSnaps := make(map[string]struct{})
-	for _, res := range results {
-		snap := res.(map[string]json.RawMessage)
-		name := parseString(c, snap["name"])
-		c.Assert(strutil.ListContains(expectedSnaps, name), Equals, true, Commentf("%v doesn't contain %s", expectedSnaps, name))
-		seenSnaps[name] = struct{}{}
+	for _, snapName := range []string{"firefox", "shellcheck", "snapd", "snapcraft", "discord", "core20"} {
+		snapRaw, ok := obj[snapName]
+		c.Assert(ok, Equals, true)
 
-		status := parseString(c, snap["status"])
-		c.Assert(status, Equals, "active")
+		var snap map[string]json.RawMessage
+		err = json.Unmarshal(snapRaw, &snap)
+		c.Assert(err, IsNil)
+
+		assertField(c, snap, "name", snapName)
+		assertField(c, snap, "status", "active")
 	}
-
-	raw, err := json.Marshal(results)
-	c.Assert(err, IsNil)
-	fmt.Println(string(raw))
 }
 
-func parseString(c *C, raw json.RawMessage) string {
-	var str string
-	if err := json.Unmarshal(raw, &str); err != nil {
-		c.Fatal(err, Commentf("expected value to be string"))
-	}
+func assertField(c *C, obj map[string]json.RawMessage, field, expected string) {
+	val, ok := obj[field]
+	c.Assert(ok, Equals, true, Commentf("expected object to have field %q but not found", field))
 
-	return str
+	var res string
+	err := json.Unmarshal(val, &res)
+	c.Assert(err, IsNil)
+	c.Assert(res, Equals, expected)
 }
