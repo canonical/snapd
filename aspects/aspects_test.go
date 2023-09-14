@@ -295,7 +295,7 @@ func (s *witnessDataBag) Set(path string, value interface{}) error {
 	return s.bag.Set(path, value)
 }
 
-func (s *witnessDataBag) Query(path string, params map[string]string) ([]interface{}, error) {
+func (s *witnessDataBag) Query(path string, params map[string]string) (interface{}, error) {
 	return nil, nil
 }
 

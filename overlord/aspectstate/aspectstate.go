@@ -85,7 +85,7 @@ func GetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 	return nil
 }
 
-func QueryAspect(databag aspects.DataBag, account, bundleName, aspect, request, query string) ([]interface{}, error) {
+func QueryAspect(databag aspects.DataBag, account, bundleName, aspect, request, query string) (interface{}, error) {
 	patt := map[string]interface{}{
 		"asp": []map[string]string{
 			{"name": "snaps.{name}", "path": "snaps.{name}[.status={status}]"},

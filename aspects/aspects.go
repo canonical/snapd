@@ -93,7 +93,7 @@ func (e *InvalidAccessError) Is(err error) bool {
 
 // DataBag controls access to the aspect data storage.
 type DataBag interface {
-	Query(path string, params map[string]string) ([]interface{}, error)
+	Query(path string, params map[string]string) (interface{}, error)
 	Get(path string, value interface{}) error
 	Set(path string, value interface{}) error
 	Data() ([]byte, error)
@@ -386,7 +386,7 @@ func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 	}
 }
 
-func (a *Aspect) Query(databag DataBag, request, query string) ([]interface{}, error) {
+func (a *Aspect) Query(databag DataBag, request, query string) (interface{}, error) {
 	var params map[string]string
 	if query != "" {
 		params = make(map[string]string)
@@ -644,110 +644,71 @@ func NewJSONDataBag() JSONDataBag {
 	return JSONDataBag(make(map[string]json.RawMessage))
 }
 
-func (s JSONDataBag) Query(path string, params map[string]string) ([]interface{}, error) {
+func (s JSONDataBag) Query(path string, params map[string]string) (interface{}, error) {
 	subKeys := splitPath(path)
 	return query(subKeys, 0, s, params)
 }
 
-func query(subKeys []string, index int, node map[string]json.RawMessage, params map[string]string) ([]interface{}, error) {
+func query(subKeys []string, index int, node map[string]json.RawMessage, params map[string]string) (interface{}, error) {
 	key, fieldFilter := splitKeyAndFilter(subKeys[index], params)
 
-	var rawLevels []json.RawMessage
-	if key == "*" {
-		// if there wasn't a mapping for the placeholder, read all
-		for _, val := range node {
-			rawLevels = append(rawLevels, val)
-		}
-	} else {
+	if key != "*" {
 		nextLevel, ok := node[key]
 		if !ok {
 			pathPrefix := strings.Join(subKeys[:index+1], ".")
 			return nil, PathNotFoundError(fmt.Sprintf("no value was found under path %q", pathPrefix))
 		}
 
-		rawLevels = []json.RawMessage{nextLevel}
+		node = nil
+		if err := json.Unmarshal(nextLevel, &node); err != nil {
+			var typeErr *json.UnmarshalTypeError
+			if errors.As(err, &typeErr) {
+				return nil, fmt.Errorf("cannot filter by field: expected a map but got a %s", typeErr.Value)
+			}
+			return nil, err
+		}
+
+		if fieldFilter != nil {
+			pass, err := fieldFilter(node)
+
+			if err != nil {
+				return nil, err
+			}
+
+			if !pass {
+				// single result was filtered out
+				node = map[string]json.RawMessage{}
+			}
+		}
+	} else if fieldFilter != nil {
+		// return all objects but filtered
+		for field, val := range node {
+			var nextLevel map[string]json.RawMessage
+			if err := json.Unmarshal(val, &nextLevel); err != nil {
+				var typeErr *json.UnmarshalTypeError
+				if errors.As(err, &typeErr) {
+					return nil, fmt.Errorf("cannot filter by field: expected a map but got a %s", typeErr.Value)
+				}
+				return nil, err
+			}
+
+			pass, err := fieldFilter(nextLevel)
+			if err != nil {
+				return nil, err
+			}
+
+			if !pass {
+				delete(node, field)
+			}
+		}
 	}
 
 	// read the final value
 	if index == len(subKeys)-1 {
-		var results []interface{}
-
-		for _, val := range rawLevels {
-			var res interface{}
-
-			// if there's a field filter, assume it's a map
-			if fieldFilter != nil {
-				var nextLevel map[string]json.RawMessage
-				if err := json.Unmarshal(val, &nextLevel); err != nil {
-					var typeErr *json.UnmarshalTypeError
-					if errors.As(err, &typeErr) {
-						return nil, fmt.Errorf("cannot filter by field: expected a map but got a %s", typeErr.Value)
-					}
-					return nil, err
-				}
-
-				pass, err := fieldFilter(nextLevel)
-				if err != nil {
-					return nil, err
-				}
-
-				if !pass {
-					continue
-				}
-				res = nextLevel
-			} else {
-				if err := json.Unmarshal(val, &res); err != nil {
-					var typeErr *json.UnmarshalTypeError
-					if errors.As(err, &typeErr) {
-						path := strings.Join(subKeys, ".")
-						return nil, fmt.Errorf("cannot read value of %q into %T: maps to %s", path, res, typeErr.Value)
-					}
-
-					return nil, err
-				}
-			}
-
-			results = append(results, res)
-		}
-
-		return results, nil
+		return node, nil
 	}
 
-	var results []interface{}
-	for _, nextLevel := range rawLevels {
-		var level map[string]json.RawMessage
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(nextLevel), &level); err != nil {
-			var typeErr *json.UnmarshalTypeError
-			if errors.As(err, &typeErr) {
-				pathPrefix := strings.Join(subKeys[:index+1], ".")
-				return nil, fmt.Errorf("cannot read path prefix %q: maps to %s", pathPrefix, typeErr.Value)
-			}
-
-			return nil, err
-		}
-
-		passFilter := true
-		if fieldFilter != nil {
-			var err error
-			passFilter, err = fieldFilter(level)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if !passFilter {
-			continue
-		}
-
-		res, err := query(subKeys, index+1, level, params)
-		if err != nil {
-			return nil, err
-		}
-
-		results = append(results, res...)
-	}
-
-	return results, nil
+	return query(subKeys, index+1, node, params)
 }
 
 func splitKeyAndFilter(key string, params map[string]string) (string, filter) {
