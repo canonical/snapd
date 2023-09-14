@@ -258,7 +258,8 @@ func (s *filterSampleSuite) SetUpTest(c *C) {
 }
 
 func (s *filterSampleSuite) TestQueryNoFilters(c *C) {
-	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "")
+	var res interface{}
+	err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "", &res)
 	c.Assert(err, IsNil)
 	// returns all snaps
 	obj, ok := res.(map[string]json.RawMessage)
@@ -287,7 +288,8 @@ func (s *filterSampleSuite) TestQueryNoFilters(c *C) {
 }
 
 func (s *filterSampleSuite) TestQueryFilterNameWithParameter(c *C) {
-	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "name=firefox")
+	var res interface{}
+	err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "name=firefox", &res)
 	c.Assert(err, IsNil)
 	obj, ok := res.(map[string]json.RawMessage)
 	c.Assert(ok, Equals, true)
@@ -297,7 +299,8 @@ func (s *filterSampleSuite) TestQueryFilterNameWithParameter(c *C) {
 }
 
 func (s *filterSampleSuite) TestQueryFilterNameWithRequest(c *C) {
-	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps.firefox", "")
+	var res interface{}
+	err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps.firefox", "", &res)
 	c.Assert(err, IsNil)
 
 	obj, ok := res.(map[string]json.RawMessage)
@@ -308,7 +311,8 @@ func (s *filterSampleSuite) TestQueryFilterNameWithRequest(c *C) {
 }
 
 func (s *filterSampleSuite) TestQueryFilterStatus(c *C) {
-	res, err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "status=active")
+	var res interface{}
+	err := aspectstate.QueryAspect(s.bag, "acc", "bundle", "asp", "snaps", "status=active", &res)
 	c.Assert(err, IsNil)
 	obj, ok := res.(map[string]json.RawMessage)
 	c.Assert(ok, Equals, true)

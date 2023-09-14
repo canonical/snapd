@@ -85,7 +85,7 @@ func GetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 	return nil
 }
 
-func QueryAspect(databag aspects.DataBag, account, bundleName, aspect, request, query string) (interface{}, error) {
+func QueryAspect(databag aspects.DataBag, account, bundleName, aspect, request, query string, res interface{}) error {
 	patt := map[string]interface{}{
 		"asp": []map[string]string{
 			{"name": "snaps.{name}", "path": "snaps.{name}[.status={status}]"},
@@ -99,12 +99,12 @@ func QueryAspect(databag aspects.DataBag, account, bundleName, aspect, request, 
 
 	aspectBundle, err := aspects.NewAspectBundle(account, bundleName, patt, schema, optional)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	asp := aspectBundle.Aspect(aspect)
 	if asp == nil {
-		return nil, &aspects.NotFoundError{
+		return &aspects.NotFoundError{
 			Account:    account,
 			BundleName: bundleName,
 			Aspect:     aspect,
@@ -112,7 +112,7 @@ func QueryAspect(databag aspects.DataBag, account, bundleName, aspect, request, 
 		}
 	}
 
-	return asp.Query(databag, request, query)
+	return asp.Query(databag, request, query, res)
 }
 
 // NewTransaction returns a transaction configured to read and write databags

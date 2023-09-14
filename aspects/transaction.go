@@ -150,6 +150,6 @@ func (t *Transaction) Data() ([]byte, error) {
 	return t.pristine.Data()
 }
 
-func (t *Transaction) Query(path string, params map[string]string) (interface{}, error) {
-	return nil, fmt.Errorf(`not implemented`)
+func (t *Transaction) Query(string, map[string]string, interface{}) error {
+	return fmt.Errorf(`not implemented`)
 }

@@ -93,7 +93,7 @@ func (e *InvalidAccessError) Is(err error) bool {
 
 // DataBag controls access to the aspect data storage.
 type DataBag interface {
-	Query(path string, params map[string]string) (interface{}, error)
+	Query(path string, params map[string]string, res interface{}) error
 	Get(path string, value interface{}) error
 	Set(path string, value interface{}) error
 	Data() ([]byte, error)
@@ -386,7 +386,7 @@ func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 	}
 }
 
-func (a *Aspect) Query(databag DataBag, request, query string) (interface{}, error) {
+func (a *Aspect) Query(databag DataBag, request, query string, res interface{}) error {
 	var params map[string]string
 	if query != "" {
 		params = make(map[string]string)
@@ -395,7 +395,7 @@ func (a *Aspect) Query(databag DataBag, request, query string) (interface{}, err
 		for _, query := range queryParts {
 			parts := strings.Split(query, "=")
 			if len(parts) != 2 {
-				return nil, fmt.Errorf(`cannot parse query: %s should be key=val`, query)
+				return fmt.Errorf(`cannot parse query: %s should be key=val`, query)
 			}
 
 			params[parts[0]] = parts[1]
@@ -415,13 +415,13 @@ func (a *Aspect) Query(databag DataBag, request, query string) (interface{}, err
 
 		path, err := accessPatt.getPath(placeholders)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
-		return databag.Query(path, params)
+		return databag.Query(path, params, res)
 	}
 
-	return nil, fmt.Errorf(`cannot find path that matches request`)
+	return fmt.Errorf(`cannot find path that matches request`)
 }
 
 func newAccessPattern(name, path, accesstype string, optionals map[string]bool) (*accessPattern, error) {
@@ -644,35 +644,35 @@ func NewJSONDataBag() JSONDataBag {
 	return JSONDataBag(make(map[string]json.RawMessage))
 }
 
-func (s JSONDataBag) Query(path string, params map[string]string) (interface{}, error) {
+func (s JSONDataBag) Query(path string, params map[string]string, res interface{}) error {
 	subKeys := splitPath(path)
-	return query(subKeys, 0, s, params)
+	return query(subKeys, 0, s, params, res)
 }
 
-func query(subKeys []string, index int, node map[string]json.RawMessage, params map[string]string) (interface{}, error) {
+func query(subKeys []string, index int, node map[string]json.RawMessage, params map[string]string, res interface{}) error {
 	key, fieldFilter := splitKeyAndFilter(subKeys[index], params)
 
 	if key != "*" {
 		nextLevel, ok := node[key]
 		if !ok {
 			pathPrefix := strings.Join(subKeys[:index+1], ".")
-			return nil, PathNotFoundError(fmt.Sprintf("no value was found under path %q", pathPrefix))
+			return PathNotFoundError(fmt.Sprintf("no value was found under path %q", pathPrefix))
 		}
 
 		node = nil
 		if err := json.Unmarshal(nextLevel, &node); err != nil {
 			var typeErr *json.UnmarshalTypeError
 			if errors.As(err, &typeErr) {
-				return nil, fmt.Errorf("cannot filter by field: expected a map but got a %s", typeErr.Value)
+				return fmt.Errorf("cannot filter by field: expected a map but got a %s", typeErr.Value)
 			}
-			return nil, err
+			return err
 		}
 
 		if fieldFilter != nil {
 			pass, err := fieldFilter(node)
 
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 			if !pass {
@@ -687,14 +687,14 @@ func query(subKeys []string, index int, node map[string]json.RawMessage, params 
 			if err := json.Unmarshal(val, &nextLevel); err != nil {
 				var typeErr *json.UnmarshalTypeError
 				if errors.As(err, &typeErr) {
-					return nil, fmt.Errorf("cannot filter by field: expected a map but got a %s", typeErr.Value)
+					return fmt.Errorf("cannot filter by field: expected a map but got a %s", typeErr.Value)
 				}
-				return nil, err
+				return err
 			}
 
 			pass, err := fieldFilter(nextLevel)
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 			if !pass {
@@ -705,10 +705,15 @@ func query(subKeys []string, index int, node map[string]json.RawMessage, params 
 
 	// read the final value
 	if index == len(subKeys)-1 {
-		return node, nil
+		res, ok := res.(*interface{})
+		if !ok {
+			return fmt.Errorf("expected return parameter to be a pointer")
+		}
+		*res = node
+		return nil
 	}
 
-	return query(subKeys, index+1, node, params)
+	return query(subKeys, index+1, node, params, res)
 }
 
 func splitKeyAndFilter(key string, params map[string]string) (string, filter) {
