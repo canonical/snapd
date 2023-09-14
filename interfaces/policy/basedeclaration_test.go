@@ -881,9 +881,22 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 		}
 	}
 
-	// test docker specially
-	ic := s.installSlotCand(c, "docker", snap.TypeApp, ``)
+	// test desktop specifically
+	ic := s.installSlotCand(c, "desktop", snap.TypeApp, ``)
 	err := ic.Check()
+	c.Check(err, Not(IsNil))
+	c.Check(err, ErrorMatches, "installation denied by \"desktop\" slot rule of interface \"desktop\"")
+	// ... but the minimal check (used by --dangerous) allows installation
+	icMin := &policy.InstallCandidateMinimalCheck{
+		Snap:            ic.Snap,
+		BaseDeclaration: s.baseDecl,
+	}
+	err = icMin.Check()
+	c.Check(err, IsNil)
+
+	// test docker specially
+	ic = s.installSlotCand(c, "docker", snap.TypeApp, ``)
+	err = ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"docker\" slot rule of interface \"docker\"")
 
