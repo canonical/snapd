@@ -34,6 +34,15 @@ type FileState interface {
 	State() (reader io.ReadCloser, size int64, mode os.FileMode, err error)
 }
 
+// SymlinkFileState describes the desired symlink by providing its target.
+type SymlinkFileState struct {
+	Target string
+}
+
+func (sym SymlinkFileState) State() (io.ReadCloser, int64, os.FileMode, error) {
+	return ioutil.NopCloser(bytes.NewReader([]byte(sym.Target))), int64(len(sym.Target)), os.ModeSymlink, nil
+}
+
 // FileReference describes the desired content by referencing an existing file.
 type FileReference struct {
 	Path string
@@ -48,6 +57,9 @@ func (fref FileReference) State() (io.ReadCloser, int64, os.FileMode, error) {
 	fi, err := file.Stat()
 	if err != nil {
 		return nil, 0, os.FileMode(0), err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, 0, os.FileMode(0), fmt.Errorf("internal error: only regular files are supported, got %q instead", fi.Mode().Type())
 	}
 	return file, fi.Size(), fi.Mode(), nil
 }
@@ -64,6 +76,9 @@ func (fcref FileReferencePlusMode) State() (io.ReadCloser, int64, os.FileMode, e
 	if err != nil {
 		return nil, 0, os.FileMode(0), err
 	}
+	if !fcref.Mode.IsRegular() {
+		return nil, 0, os.FileMode(0), fmt.Errorf("internal error: only regular files are supported, got %q instead", fcref.Mode.Type())
+	}
 	return reader, size, fcref.Mode, nil
 }
 
@@ -75,6 +90,9 @@ type MemoryFileState struct {
 
 // State returns a reader of the in-memory contents of a file, along with other meta-data.
 func (blob *MemoryFileState) State() (io.ReadCloser, int64, os.FileMode, error) {
+	if !blob.Mode.IsRegular() {
+		return nil, 0, os.FileMode(0), fmt.Errorf("internal error: only regular files are supported, got %q instead", blob.Mode.Type())
+	}
 	return ioutil.NopCloser(bytes.NewReader(blob.Content)), int64(len(blob.Content)), blob.Mode, nil
 }
 
@@ -191,8 +209,8 @@ func EnsureDirState(dir string, glob string, content map[string]FileState) (chan
 	return EnsureDirStateGlobs(dir, []string{glob}, content)
 }
 
-// fileStateEqualTo returns whether the file exists in the expected state.
-func fileStateEqualTo(filePath string, state FileState) (bool, error) {
+// regularFileStateEqualTo returns whether the file exists in the expected state.
+func regularFileStateEqualTo(filePath string, state FileState) (bool, error) {
 	other := &FileReference{Path: filePath}
 
 	// Open views to both files so that we can compare them.
@@ -223,10 +241,8 @@ func fileStateEqualTo(filePath string, state FileState) (bool, error) {
 	return streamsEqualChunked(readerA, readerB, 0), nil
 }
 
-// EnsureFileState ensures that the file is in the expected state. It will not
-// attempt to remove the file if no content is provided.
-func EnsureFileState(filePath string, state FileState) error {
-	equal, err := fileStateEqualTo(filePath, state)
+func ensureRegularFileState(filePath string, state FileState) error {
+	equal, err := regularFileStateEqualTo(filePath, state)
 	if err != nil {
 		return err
 	}
@@ -239,4 +255,73 @@ func EnsureFileState(filePath string, state FileState) error {
 		return err
 	}
 	return AtomicWrite(filePath, reader, mode, 0)
+}
+
+// symlinkFileStateEqualTo returns whether the symlink exists in the expected state.
+func symlinkFileStateEqualTo(filePath string, state FileState) (bool, error) {
+	readerA, _, _, err := state.State()
+	if err != nil {
+		return false, err
+	}
+	defer readerA.Close()
+	buf, err := ioutil.ReadAll(readerA)
+	if err != nil {
+		return false, err
+	}
+	targetA := string(buf)
+
+	other, err := os.Lstat(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Not existing is not an error
+			return false, nil
+		}
+		return false, err
+	}
+	if other.Mode().Type() != os.ModeSymlink {
+		return false, nil
+	}
+	targetB, err := os.Readlink(filePath)
+	if err != nil {
+		return false, err
+	}
+
+	return targetA == targetB, nil
+}
+
+func ensureSymlinkFileState(filePath string, state FileState) error {
+	equal, err := symlinkFileStateEqualTo(filePath, state)
+	if err != nil {
+		return err
+	}
+	if equal {
+		// Return a special error if the file doesn't need to be changed
+		return ErrSameState
+	}
+	reader, _, _, err := state.State()
+	if err != nil {
+		return err
+	}
+	buf, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return err
+	}
+	target := string(buf)
+	return AtomicSymlink(target, filePath)
+}
+
+// EnsureFileState ensures that the file is in the expected state. It will not
+// attempt to remove the file if no content is provided.
+func EnsureFileState(filePath string, state FileState) error {
+	_, _, mode, err := state.State()
+	if err != nil {
+		return err
+	}
+	switch {
+	case mode.IsRegular():
+		return ensureRegularFileState(filePath, state)
+	case mode.Type() == os.ModeSymlink:
+		return ensureSymlinkFileState(filePath, state)
+	}
+	return fmt.Errorf("internal error: EnsureFileState does not support type %q", mode.Type())
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,6 +36,10 @@ var (
 type Options struct {
 	// KeyID specifies the key id of the key to use
 	KeyID string
+
+	// AccountKey optionally holds the account-key for the key to use,
+	// used for cross-checking
+	AccountKey *asserts.AccountKey
 
 	// Statement is used as input to construct the assertion
 	// it's a mapping encoded as JSON
@@ -104,8 +108,20 @@ func Sign(opts *Options, keypairMgr asserts.KeypairManager) ([]byte, error) {
 		return nil, err
 	}
 
-	// TODO: teach Sign to cross check keyID and authority-id
-	// against an account-key
+	if opts.AccountKey != nil {
+		// cross-check with the actual account-key if provided
+		accKey := opts.AccountKey
+		if accKey.PublicKeyID() != opts.KeyID {
+			return nil, fmt.Errorf("internal error: key id does not match the signing account-key")
+		}
+		if accKey.AccountID() != headers["authority-id"] {
+			return nil, fmt.Errorf("authority-id does not match the account-id of the signing account-key")
+		}
+		if accKey.ConstraintsPrecheck(typ, headers) != nil {
+			return nil, fmt.Errorf("the assertion headers do not match the constraints of the signing account-key")
+		}
+	}
+
 	a, err := adb.Sign(typ, headers, body, opts.KeyID)
 	if err != nil {
 		return nil, err

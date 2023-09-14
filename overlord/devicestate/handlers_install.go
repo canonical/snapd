@@ -71,6 +71,7 @@ var (
 	installWriteContent                  = install.WriteContent
 	installEncryptPartitions             = install.EncryptPartitions
 	installSaveStorageTraits             = install.SaveStorageTraits
+	installMatchDisksToGadgetVolumes     = install.MatchDisksToGadgetVolumes
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
@@ -933,8 +934,6 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 	defer unmount()
 
-	// TODO validation of onVolumes versus gadget.yaml, considering also partial
-
 	// Check if encryption is mandatory
 	if sys.Model.StorageSafety() == asserts.StorageSafetyEncrypted && encryptSetupData == nil {
 		return fmt.Errorf("storage encryption required by model but has not been set up")
@@ -949,42 +948,69 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	gi, err := gadget.ReadInfoAndValidate(mntPtForType[snap.TypeGadget], sys.Model, nil)
+	if err != nil {
+		return err
+	}
+
+	// Import new information from the installer to the gadget data,
+	// including the target devices and information marked as partial in
+	// the gadget, so the gadget is not partially defined anymore if it
+	// was.
+	// TODO validation of onVolumes versus gadget.yaml, needs to happen here.
+	mergedVols, err := gadget.ApplyInstallerVolumesToGadget(onVolumes, gi.Volumes)
+	if err != nil {
+		return err
+	}
+
+	// Match gadget against the disk, so we make sure that the information
+	// reported by the installer is correct and that all partitions have
+	// been created.
+	volCompatOpts := &gadget.VolumeCompatibilityOptions{
+		// at this point all partitions should be created
+		AssumeCreatablePartitionsCreated: true,
+	}
+	if useEncryption {
+		volCompatOpts.ExpectedStructureEncryption = map[string]gadget.StructureEncryptionParameters{
+			"ubuntu-data": {Method: gadget.EncryptionLUKS},
+			"ubuntu-save": {Method: gadget.EncryptionLUKS},
+		}
+	}
+	volToGadgetToDiskStruct, err := installMatchDisksToGadgetVolumes(mergedVols, volCompatOpts)
+	if err != nil {
+		return err
+	}
+
 	encType := secboot.EncryptionTypeNone
 	// TODO:ICE: support secboot.EncryptionTypeLUKSWithICE in the API
 	if useEncryption {
 		encType = secboot.EncryptionTypeLUKS
 	}
-	// TODO for partial gadgets we should also use the data from onVolumes instead of
-	// using only what comes from gadget.yaml.
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, encType)
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mergedVols,
+		mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel],
+		sys.Model, encType, volToGadgetToDiskStruct)
 	if err != nil {
 		return fmt.Errorf("on finish install: cannot layout volumes: %v", err)
-	}
-
-	// Import new information from the installer to the laid out data,
-	// so the gadget is not partially defined anymore if it was.
-	if err := gadget.ApplyInstallerVolumesToGadget(onVolumes, allLaidOutVols); err != nil {
-		return err
 	}
 
 	logger.Debugf("writing content to partitions")
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		_, err = installWriteContent(onVolumes, allLaidOutVols, encryptSetupData, installObserver, perfTimings)
+		_, err = installWriteContent(mergedVols, allLaidOutVols, encryptSetupData, installObserver, perfTimings)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)
 	}
 
 	// Mount the partitions and find the system-seed{,-null} partition
-	seedMntDir, unmountParts, err := installMountVolumes(onVolumes, encryptSetupData)
+	seedMntDir, unmountParts, err := installMountVolumes(mergedVols, encryptSetupData)
 	if err != nil {
 		return fmt.Errorf("cannot mount partitions for installation: %v", err)
 	}
 	defer unmountParts()
 
-	if err := installSaveStorageTraits(sys.Model, allLaidOutVols, encryptSetupData); err != nil {
+	if err := installSaveStorageTraits(sys.Model, mergedVols, encryptSetupData); err != nil {
 		return err
 	}
 

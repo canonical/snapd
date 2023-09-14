@@ -359,6 +359,13 @@ func showDone(cli *client.Client, chg *client.Change, names []string, op string,
 
 	snaps, err := cli.List(names, nil)
 	if err != nil {
+		// XXX: When this is called snapd might have gone down - so we add detection code here
+		// even thought it does not belong here. The detection code for snapd being down
+		// and the maintenance message should be commonly handled in doSync() in the client
+		// code and not here (/wait.go)
+		if e, ok := cli.Maintenance().(*client.Error); ok && e.Kind == client.ErrorKindSystemRestart {
+			return e
+		}
 		return err
 	}
 

@@ -21,6 +21,7 @@ package signtool_test
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -35,6 +36,7 @@ func TestSigntool(t *testing.T) { TestingT(t) }
 type signSuite struct {
 	keypairMgr asserts.KeypairManager
 	testKeyID  string
+	testAccKey *asserts.AccountKey
 }
 
 var _ = Suite(&signSuite{})
@@ -45,6 +47,27 @@ func (s *signSuite) SetUpSuite(c *C) {
 	s.keypairMgr = asserts.NewMemoryKeypairManager()
 	s.keypairMgr.Put(testKey)
 	s.testKeyID = testKey.PublicKey().ID()
+
+	encPubKey, err := asserts.EncodePublicKey(testKey.PublicKey())
+	c.Assert(err, IsNil)
+	s.testAccKey = assertstest.FakeAssertionWithBody(encPubKey,
+		map[string]interface{}{
+			"type":                "account-key",
+			"authority-id":        "canonical",
+			"public-key-sha3-384": s.testKeyID,
+			"account-id":          "user-id1",
+			"since":               "2015-11-01T20:00:00Z",
+			"body-length":         strconv.Itoa(len(encPubKey)),
+			"constraints": []interface{}{
+				map[string]interface{}{
+					"headers": map[string]interface{}{
+						"type":  "model",
+						"model": `baz-.*`,
+					},
+				},
+			},
+		},
+	).(*asserts.AccountKey)
 }
 
 func expectedModelHeaders(a asserts.Assertion) map[string]interface{} {
@@ -86,6 +109,32 @@ func exampleJSON(overrides map[string]interface{}) []byte {
 func (s *signSuite) TestSignJSON(c *C) {
 	opts := signtool.Options{
 		KeyID: s.testKeyID,
+
+		Statement: exampleJSON(nil),
+	}
+
+	assertText, err := signtool.Sign(&opts, s.keypairMgr)
+	c.Assert(err, IsNil)
+
+	a, err := asserts.Decode(assertText)
+	c.Assert(err, IsNil)
+
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	c.Check(a.Revision(), Equals, 0)
+	expectedHeaders := expectedModelHeaders(a)
+	c.Check(a.Headers(), DeepEquals, expectedHeaders)
+
+	for n, v := range a.Headers() {
+		c.Check(v, DeepEquals, expectedHeaders[n], Commentf(n))
+	}
+
+	c.Check(a.Body(), IsNil)
+}
+
+func (s *signSuite) TestSignJSONWithAccountKeyCrossCheck(c *C) {
+	opts := signtool.Options{
+		KeyID:      s.testKeyID,
+		AccountKey: s.testAccKey,
 
 		Statement: exampleJSON(nil),
 	}
@@ -211,42 +260,51 @@ func (s *signSuite) TestSignErrors(c *C) {
 		expError        string
 		brokenStatement []byte
 		complement      map[string]interface{}
+		accKey          *asserts.AccountKey
 	}{
 		{`cannot parse the assertion input as JSON:.*`,
 			[]byte("\x00"),
-			nil,
+			nil, nil,
 		},
 		{`invalid assertion type: what`,
 			exampleJSON(map[string]interface{}{"type": "what"}),
-			nil,
+			nil, nil,
 		},
 		{`assertion type must be a string, not: \[\]`,
 			exampleJSON(map[string]interface{}{"type": emptyList}),
-			nil,
+			nil, nil,
 		},
 		{`missing assertion type header`,
 			exampleJSON(map[string]interface{}{"type": nil}),
-			nil,
+			nil, nil,
 		},
 		{"revision should be positive: -10",
 			exampleJSON(map[string]interface{}{"revision": "-10"}),
-			nil,
+			nil, nil,
 		},
 		{`"authority-id" header is mandatory`,
 			exampleJSON(map[string]interface{}{"authority-id": nil}),
-			nil,
+			nil, nil,
 		},
 		{`body if specified must be a string`,
 			exampleJSON(map[string]interface{}{"body": emptyList}),
-			nil,
+			nil, nil,
 		},
 		{`repeated assertion type does not match`,
 			exampleJSON(nil),
-			map[string]interface{}{"type": "foo"},
+			map[string]interface{}{"type": "foo"}, nil,
 		},
 		{`complementary header "kernel" clashes with assertion input`,
 			exampleJSON(nil),
-			map[string]interface{}{"kernel": "foo"},
+			map[string]interface{}{"kernel": "foo"}, nil,
+		},
+		{`authority-id does not match the account-id of the signing account-key`,
+			exampleJSON(map[string]interface{}{"authority-id": "user-id2", "brand-id": "user-id2"}),
+			nil, s.testAccKey,
+		},
+		{`the assertion headers do not match the constraints of the signing account-key`,
+			exampleJSON(map[string]interface{}{"model": "bar"}),
+			nil, s.testAccKey,
 		},
 	}
 
@@ -255,6 +313,7 @@ func (s *signSuite) TestSignErrors(c *C) {
 
 		fresh.Statement = t.brokenStatement
 		fresh.Complement = t.complement
+		fresh.AccountKey = t.accKey
 
 		_, err := signtool.Sign(&fresh, s.keypairMgr)
 		c.Check(err, ErrorMatches, t.expError)

@@ -8804,7 +8804,7 @@ apps:
 	s.state.Unlock()
 
 	what := fmt.Sprintf("%s/%s_%s.snap", "/var/lib/snapd/snaps", "test-snap", "42")
-	unitName := systemd.EscapeUnitNamePath(filepath.Join("/snap", "test-snap", fmt.Sprintf("%s.mount", "42")))
+	unitName := systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", fmt.Sprintf("%s.mount", "42"))))
 	mountFile := filepath.Join(dirs.SnapServicesDir, unitName)
 	mountContent := fmt.Sprintf(`
 [Unit]
@@ -8815,7 +8815,7 @@ Before=local-fs.target
 
 [Mount]
 What=%s
-Where=/snap/test-snap/42
+Where=%s/test-snap/42
 Type=squashfs
 Options=nodev,ro,x-gdu.hide,x-gvfs-hide,otheroptions
 LazyUnmount=yes
@@ -8823,7 +8823,7 @@ LazyUnmount=yes
 [Install]
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
-`[1:], what)
+`[1:], what, dirs.SnapMountDir)
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
 	err := ioutil.WriteFile(mountFile, []byte(mountContent), 0644)
 	c.Assert(err, IsNil)
@@ -8844,7 +8844,7 @@ Before=local-fs.target
 
 [Mount]
 What=%s
-Where=/snap/test-snap/42
+Where=%s/test-snap/42
 Type=squashfs
 Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
@@ -8852,7 +8852,7 @@ LazyUnmount=yes
 [Install]
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
-`[1:], what)
+`[1:], what, dirs.StripRootDir(dirs.SnapMountDir))
 
 	c.Assert(mountFile, testutil.FileEquals, expectedContent)
 }
@@ -8881,7 +8881,7 @@ apps:
 	s.state.Unlock()
 
 	what := fmt.Sprintf("%s/%s_%s.snap", "/var/lib/snapd/snaps", "test-snap", "42")
-	unitName := systemd.EscapeUnitNamePath(filepath.Join("/snap", "test-snap", fmt.Sprintf("%s.mount", "42")))
+	unitName := systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", fmt.Sprintf("%s.mount", "42"))))
 	mountFile := filepath.Join(dirs.SnapServicesDir, unitName)
 	mountContent := fmt.Sprintf(`
 [Unit]
@@ -8892,7 +8892,7 @@ Before=local-fs.target
 
 [Mount]
 What=%s
-Where=/snap/test-snap/42
+Where=%s/test-snap/42
 Type=squashfs
 Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
@@ -8900,7 +8900,7 @@ LazyUnmount=yes
 [Install]
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
-`[1:], what)
+`[1:], what, dirs.StripRootDir(dirs.SnapMountDir))
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
 	err := ioutil.WriteFile(mountFile, []byte(mountContent), 0644)
 	c.Assert(err, IsNil)
@@ -8936,7 +8936,7 @@ apps:
 	s.state.Unlock()
 
 	what := fmt.Sprintf("%s/%s_%s.snap", "/var/lib/snapd/snaps", "test-snap", "42")
-	unitName := systemd.EscapeUnitNamePath(filepath.Join("/snap", "test-snap", fmt.Sprintf("%s.mount", "42")))
+	unitName := systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", fmt.Sprintf("%s.mount", "42"))))
 	mountFile := filepath.Join(dirs.SnapServicesDir, unitName)
 	if osutil.FileExists(mountFile) {
 		c.Assert(os.Remove(mountFile), IsNil)
@@ -8961,7 +8961,7 @@ Before=local-fs.target
 
 [Mount]
 What=%s
-Where=/snap/test-snap/42
+Where=%s/test-snap/42
 Type=squashfs
 Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
@@ -8969,7 +8969,7 @@ LazyUnmount=yes
 [Install]
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
-`[1:], what)
+`[1:], what, dirs.StripRootDir(dirs.SnapMountDir))
 
 	c.Assert(mountFile, testutil.FileEquals, expectedContent)
 }

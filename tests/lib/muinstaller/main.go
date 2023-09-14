@@ -155,7 +155,7 @@ func maybeCreatePartitionTable(bootDevice, schema string) error {
 	return nil
 }
 
-func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encType secboot.EncryptionType) ([]gadget.OnDiskStructure, error) {
+func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encType secboot.EncryptionType) ([]*gadget.OnDiskAndGadgetStructurePair, error) {
 	vol := firstVol(volumes)
 	// snapd does not create partition tables so we have to do it here
 	// or gadget.OnDiskVolumeFromDevice() will fail
@@ -171,22 +171,16 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encT
 		return nil, fmt.Errorf("cannot yet install on a disk that has partitions")
 	}
 
-	layoutOpts := &gadget.LayoutOptions{
-		IgnoreContent: true,
-		EncType:       encType,
-	}
-
-	lvol, err := gadget.LayoutVolume(vol, nil, layoutOpts)
-	if err != nil {
-		return nil, fmt.Errorf("cannot layout volume: %v", err)
-	}
-
 	opts := &install.CreateOptions{CreateAllMissingPartitions: true}
-	created, err := install.CreateMissingPartitions(diskLayout, lvol, opts)
+	// Fill index, as it is not passed around to muinstaller
+	for i := range vol.Structure {
+		vol.Structure[i].YamlIndex = i
+	}
+	created, err := install.CreateMissingPartitions(diskLayout, vol, opts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create partitions: %v", err)
 	}
-	logger.Noticef("created %v partitions", created)
+	logger.Noticef("created %d partitions", len(created))
 
 	return created, nil
 }
@@ -197,7 +191,7 @@ func runMntFor(label string) string {
 
 func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	onDiskParts []gadget.OnDiskStructure) (map[string]string, error) {
+	dgpairs []*gadget.OnDiskAndGadgetStructurePair) (map[string]string, error) {
 
 	// We are modifiying the details struct here
 	for _, gadgetVol := range details.Volumes {
@@ -208,12 +202,7 @@ func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 			default:
 				continue
 			}
-			for _, part := range onDiskParts {
-				if part.Name == gadgetVol.Structure[i].Name {
-					gadgetVol.Structure[i].Device = part.Node
-					break
-				}
-			}
+			gadgetVol.Structure[i].Device = nodeForPartLabel(dgpairs, gadgetVol.Structure[i].Name)
 		}
 	}
 
@@ -263,11 +252,22 @@ func waitChange(chgId string) error {
 	}
 }
 
+// nodeForPartLabel returns the node where a gadget structure is expected to be.
+func nodeForPartLabel(dgpairs []*gadget.OnDiskAndGadgetStructurePair, name string) string {
+	for _, pair := range dgpairs {
+		// Same partition label
+		if pair.GadgetStructure.Name == name {
+			return pair.DiskStructure.Node
+		}
+	}
+	return ""
+}
+
 // TODO laidoutStructs is used to get the devices, when encryption is
 // happening maybe we need to find the information differently.
 func postSystemsInstallFinish(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	onDiskParts []gadget.OnDiskStructure) error {
+	dgpairs []*gadget.OnDiskAndGadgetStructurePair) error {
 
 	vols := make(map[string]*gadget.Volume)
 	for volName, gadgetVol := range details.Volumes {
@@ -277,15 +277,8 @@ func postSystemsInstallFinish(cli *client.Client,
 				gadgetVol.Structure[i].Device = bootDevice
 				continue
 			}
-			for _, part := range onDiskParts {
-				// Same partition label
-				if part.Name == gadgetVol.Structure[i].Name {
-					node := part.Node
-					logger.Debugf("partition to install: %q", node)
-					gadgetVol.Structure[i].Device = node
-					break
-				}
-			}
+			gadgetVol.Structure[i].Device = nodeForPartLabel(dgpairs, gadgetVol.Structure[i].Name)
+			logger.Debugf("partition to install: %q", gadgetVol.Structure[i].Device)
 		}
 		vols[volName] = gadgetVol
 	}
@@ -385,24 +378,41 @@ func createClassicRootfsIfNeeded(rootfsCreator string) error {
 	return nil
 }
 
-func createSeedOnTarget(bootDevice, seedLabel string) error {
-	// XXX: too naive?
-	dataMnt := runMntFor("ubuntu-data")
+func copySeedDir(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	// Note that we do not use the -a option as cp returns an error if trying to
+	// preserve attributes in a fat filesystem. And this is fine for files from
+	// the seed, that do not need anything too special in that regard.
+	if output, err := exec.Command("cp", "-r", src, dst).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+
+	return nil
+}
+
+func copySeedToSeedPartition() error {
+	dst := runMntFor("ubuntu-seed")
+	for _, subDir := range []string{"snaps", "systems"} {
+		src := filepath.Join(dirs.SnapSeedDir, subDir)
+		if err := copySeedDir(src, dst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copySeedToDataPartition() error {
 	src := dirs.SnapSeedDir
+	dataMnt := runMntFor("ubuntu-data")
 	dst := dirs.SnapSeedDirUnder(dataMnt)
 	// Remove any existing seed on the target fs and then put the
 	// selected seed in place on the target
 	if err := os.RemoveAll(dst); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
-	if output, err := exec.Command("cp", "-a", src, dst).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
-	}
-
-	return nil
+	return copySeedDir(src, dst)
 }
 
 func detectStorageEncryption(seedLabel string) (bool, error) {
@@ -499,7 +509,8 @@ func fillPartiallyDefinedVolume(vol *gadget.Volume, bootDevice string) error {
 	return nil
 }
 
-func run(seedLabel, rootfsCreator, bootDevice string) error {
+func run(seedLabel, bootDevice, rootfsCreator string) error {
+	isCore := rootfsCreator == ""
 	logger.Noticef("installing on %q", bootDevice)
 
 	cli := client.New(nil)
@@ -526,13 +537,13 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	if shouldEncrypt {
 		encType = secboot.EncryptionTypeLUKS
 	}
-	laidoutStructs, err := createPartitions(bootDevice, details.Volumes, encType)
+	dgpairs, err := createPartitions(bootDevice, details.Volumes, encType)
 	if err != nil {
 		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
 	var encryptedDevices = make(map[string]string)
 	if shouldEncrypt {
-		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, laidoutStructs)
+		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, dgpairs)
 		if err != nil {
 			return fmt.Errorf("cannot setup storage encryption: %v", err)
 		}
@@ -541,16 +552,22 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	if err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
-	if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
-		return fmt.Errorf("cannot create classic rootfs: %v", err)
+	if isCore {
+		if err := copySeedToSeedPartition(); err != nil {
+			return fmt.Errorf("cannot create seed on seed partition: %v", err)
+		}
+	} else {
+		if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
+			return fmt.Errorf("cannot create classic rootfs: %v", err)
+		}
 	}
-	if err := createSeedOnTarget(bootDevice, seedLabel); err != nil {
-		return fmt.Errorf("cannot create seed on target: %v", err)
+	if err := copySeedToDataPartition(); err != nil {
+		return fmt.Errorf("cannot create seed on data partition: %v", err)
 	}
 	if err := unmountFilesystems(mntPts); err != nil {
 		return fmt.Errorf("cannot unmount filesystems: %v", err)
 	}
-	if err := postSystemsInstallFinish(cli, details, bootDevice, laidoutStructs); err != nil {
+	if err := postSystemsInstallFinish(cli, details, bootDevice, dgpairs); err != nil {
 		return fmt.Errorf("cannot finalize install: %v", err)
 	}
 	// TODO: reboot here automatically (optional)
@@ -559,21 +576,25 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 }
 
 func main() {
-	if len(os.Args) != 4 {
-		// XXX: allow installing real UC without a classic-rootfs later
-		fmt.Fprintf(os.Stderr, "Usage: %s <seed-label> <rootfs-creator> <target-device>\n", os.Args[0])
+	if len(os.Args) < 3 || len(os.Args) > 4 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <seed-label> <target-device> [rootfs-creator]\n"+
+			"If [rootfs-creator] is specified, classic Ubuntu with core boot will be installed.\n"+
+			"Otherwise, Ubuntu Core will be installed\n", os.Args[0])
 		os.Exit(1)
 	}
 	logger.SimpleSetup()
 
 	seedLabel := os.Args[1]
-	rootfsCreator := os.Args[2]
-	bootDevice := os.Args[3]
+	bootDevice := os.Args[2]
+	rootfsCreator := ""
+	if len(os.Args) > 3 {
+		rootfsCreator = os.Args[3]
+	}
 	if bootDevice == "auto" {
 		bootDevice = waitForDevice()
 	}
 
-	if err := run(seedLabel, rootfsCreator, bootDevice); err != nil {
+	if err := run(seedLabel, bootDevice, rootfsCreator); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}

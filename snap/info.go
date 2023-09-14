@@ -316,6 +316,8 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
+	Components map[string]Component
+
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
 
@@ -1411,7 +1413,7 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	addImplicitHooksFromContainer(info, snapf)
+	AddImplicitHooksFromContainer(info, snapf)
 
 	bindImplicitHooks(info, strk)
 

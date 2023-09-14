@@ -125,7 +125,7 @@ func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntryFailsWithBadExecuta
 	defer cmd.Restore()
 
 	err := s.launcher.OpenDesktopEntry("mircade_mircade.desktop", ":some-dbus-sender")
-	c.Check(err, ErrorMatches, `cannot run ".*": exit status 1`)
+	c.Check(err, ErrorMatches, `cannot run \[.*\]: exit status 1`)
 }
 
 func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntryFailsForNonSnap(c *C) {

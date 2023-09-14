@@ -2,6 +2,7 @@ package epoll_test
 
 import (
 	"os"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -204,12 +205,26 @@ func (*epollSuite) TestEpollWaitEintrHandling(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(e.RegisteredFdCount(), Equals, 1)
 
-	mockReturnedN := 0
-	mockReturnedErr := unix.EINTR
+	var mu sync.Mutex
+	eintr := true
+	shouldReturnEintr := func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return eintr
+	}
+	stopEintr := func() {
+		mu.Lock()
+		defer mu.Unlock()
+		eintr = false
+	}
 	restore := epoll.MockUnixEpollWait(func(epfd int, events []unix.EpollEvent, msec int) (n int, err error) {
-		time.Sleep(time.Millisecond * 10) // rate limit a bit
-		return mockReturnedN, mockReturnedErr
+		if shouldReturnEintr() {
+			time.Sleep(time.Millisecond * 10) // rate limit a bit
+			return 0, unix.EINTR
+		}
+		return unix.EpollWait(epfd, events, msec)
 	})
+	defer restore()
 
 	eventCh := make(chan []epoll.Event)
 	errCh := make(chan error)
@@ -226,7 +241,7 @@ func (*epollSuite) TestEpollWaitEintrHandling(c *C) {
 
 	startTime := time.Now()
 
-	time.AfterFunc(defaultDuration, restore)
+	time.AfterFunc(defaultDuration, stopEintr)
 
 	events = <-eventCh
 	err = <-errCh

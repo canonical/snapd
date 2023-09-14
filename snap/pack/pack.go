@@ -107,8 +107,8 @@ func CheckSkeleton(w io.Writer, sourceDir string) error {
 }
 
 func loadAndValidate(sourceDir string) (*snap.Info, error) {
-	// ensure we have valid content
-	yaml, err := ioutil.ReadFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
+	container := snapdir.New(sourceDir)
+	yaml, err := container.ReadFile("meta/snap.yaml")
 	if err != nil {
 		return nil, err
 	}
@@ -117,15 +117,16 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 	if err != nil {
 		return nil, err
 	}
+	snap.AddImplicitHooksFromContainer(info, container)
 
 	if err := snap.Validate(info); err != nil {
 		return nil, fmt.Errorf("cannot validate snap %q: %v", info.InstanceName(), err)
 	}
 
-	if err := snap.ValidateContainer(snapdir.New(sourceDir), info, logger.Noticef); err != nil {
+	if err := snap.ValidateContainer(container, info, logger.Noticef); err != nil {
 		return nil, err
 	}
-	if _, err := snap.ReadSnapshotYamlFromSnapFile(snapdir.New(sourceDir)); err != nil {
+	if _, err := snap.ReadSnapshotYamlFromSnapFile(container); err != nil {
 		return nil, err
 	}
 

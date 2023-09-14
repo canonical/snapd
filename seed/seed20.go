@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -837,6 +837,11 @@ func (s *seed20) LoadPreseedAssertion() (*asserts.Preseed, error) {
 		return nil, err
 	}
 	preseedAs := a.(*asserts.Preseed)
+
+	if !strutil.ListContains(model.PreseedAuthority(), preseedAs.AuthorityID()) {
+		return nil, fmt.Errorf("preseed authority-id %q is not allowed by the model", preseedAs.AuthorityID())
+	}
+
 	switch {
 	case preseedAs.SystemLabel() != sysLabel:
 		return nil, fmt.Errorf("preseed assertion system label %q doesn't match system label %q", preseedAs.SystemLabel(), sysLabel)

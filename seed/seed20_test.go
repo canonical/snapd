@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2022 Canonical Ltd
+ * Copyright (C) 2019-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -3322,8 +3322,8 @@ func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
 		{overrides: map[string]interface{}{"system-label": "other-label"}, err: `preseed assertion system label "other-label" doesn't match system label "20230406"`},
 		{overrides: map[string]interface{}{"model": "other-model"}, err: `preseed assertion model "other-model" doesn't match the model "my-model"`},
 		{overrides: map[string]interface{}{"series": "other-series"}, err: `preseed assertion series "other-series" doesn't match model series "16"`},
-		{overrides: map[string]interface{}{"brand-id": "other-brand"}, asserts: s.Brands.AccountsAndKeys("other-brand"), err: `preseed assertion brand "other-brand" doesn't match model brand "my-brand"`},
-		{overrides: map[string]interface{}{"brand-id": "other-brand"}, err: `cannot resolve prerequisite assertion:.*`},
+		{overrides: map[string]interface{}{"authority-id": "other-brand"}, asserts: s.Brands.AccountsAndKeys("other-brand"), err: `preseed authority-id "other-brand" is not allowed by the model`},
+		{overrides: map[string]interface{}{"brand-id": "other-brand", "authority-id": "other-brand"}, err: `cannot resolve prerequisite assertion:.*`},
 	}
 
 	for _, tc := range tests {
@@ -3331,6 +3331,7 @@ func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
 			"type":              "preseed",
 			"series":            "16",
 			"brand-id":          "my-brand",
+			"authority-id":      "my-brand",
 			"model":             "my-model",
 			"system-label":      sysLabel,
 			"artifact-sha3-384": digest,
@@ -3342,14 +3343,14 @@ func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
 			for h, v := range tc.overrides {
 				headers[h] = v
 			}
-			signer := s.Brands.Signing(headers["brand-id"].(string))
+			signer := s.Brands.Signing(headers["authority-id"].(string))
 			preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
 			c.Assert(err, IsNil)
 			as = append(as, preseedAs)
 		}
 		if tc.dupPreseedAssert {
 			headers["system-label"] = "other-label"
-			signer := s.Brands.Signing(headers["brand-id"].(string))
+			signer := s.Brands.Signing(headers["authority-id"].(string))
 			preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
 			c.Assert(err, IsNil)
 			as = append(as, preseedAs)
@@ -3416,4 +3417,94 @@ func (s *seed20Suite) TestPreseedCapableSeedNoPreseedAssertion(c *C) {
 
 	_, err = preseedSeed.LoadPreseedAssertion()
 	c.Assert(err, Equals, seed.ErrNoPreseedAssertion)
+}
+
+func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
+	r := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer r()
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	sysLabel := "20230406"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"preseed-authority": []interface{}{
+			"my-brand",
+			"my-signer",
+		},
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, nil)
+
+	preseedArtifact := filepath.Join(s.SeedDir, "systems", sysLabel, "preseed.tgz")
+	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
+	c.Assert(err, IsNil)
+	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
+	c.Assert(err, IsNil)
+
+	snaps := []interface{}{
+		map[string]interface{}{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
+		map[string]interface{}{"name": "core20", "id": s.AssertedSnapID("core20"), "revision": "1"},
+		map[string]interface{}{"name": "pc-kernel", "id": s.AssertedSnapID("pc-kernel"), "revision": "1"},
+		map[string]interface{}{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
+	}
+
+	signerKey, _ := assertstest.GenerateKey(752)
+	s.Brands.Register("my-signer", signerKey, nil)
+
+	headers := map[string]interface{}{
+		"type":              "preseed",
+		"series":            "16",
+		"brand-id":          "my-brand",
+		"authority-id":      "my-signer",
+		"model":             "my-model",
+		"system-label":      sysLabel,
+		"artifact-sha3-384": digest,
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+		"snaps":             snaps,
+	}
+	signer := s.Brands.Signing("my-signer")
+	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	systemDir := filepath.Join(s.SeedDir, "systems", sysLabel)
+	seedtest.WriteAssertions(
+		filepath.Join(systemDir, "assertions", "my-signer"),
+		s.Brands.AccountsAndKeys("my-signer")...,
+	)
+	seedtest.WriteAssertions(filepath.Join(systemDir, "preseed"), preseedAs)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	preseedSeed := seed20.(seed.PreseedCapable)
+
+	c.Check(preseedSeed.HasArtifact("preseed.tgz"), Equals, true)
+
+	err = preseedSeed.LoadAssertions(nil, nil)
+	c.Assert(err, IsNil)
+
+	err = preseedSeed.LoadEssentialMeta(nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	preseedAs2, err := preseedSeed.LoadPreseedAssertion()
+	c.Assert(err, IsNil)
+	c.Check(preseedAs2, DeepEquals, preseedAs)
 }

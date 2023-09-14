@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2021 Canonical Ltd
+ * Copyright (C) 2015-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -129,21 +129,35 @@ func (ak *AccountKey) publicKey() PublicKey {
 	return ak.pubKey
 }
 
-// canSign checks whether the given assertion matches the signing constraints of the account key.
-func (ak *AccountKey) canSign(a Assertion) bool {
+// ConstraintsPrecheck checks whether the given type and headers match the signing constraints of the account key.
+func (ak *AccountKey) ConstraintsPrecheck(assertType *AssertionType, headers map[string]interface{}) error {
+	headersWithType := copyHeaders(headers)
+	headersWithType["type"] = assertType.Name
+	if !ak.matchAgainstConstraints(headersWithType) {
+		return fmt.Errorf("headers do not match the account-key constraints")
+	}
+	return nil
+}
+
+func (ak *AccountKey) matchAgainstConstraints(headers map[string]interface{}) bool {
 	matchers := ak.constraintMatchers
 	// no constraints, everything is allowed
 	if len(matchers) == 0 {
 		return true
 	}
 	for _, m := range matchers {
-		if m.match("", a.Headers(), &attrMatchingContext{
+		if m.match("", headers, &attrMatchingContext{
 			attrWord: "header",
 		}) == nil {
 			return true
 		}
 	}
 	return false
+}
+
+// canSign checks whether the given assertion matches the signing constraints of the account key.
+func (ak *AccountKey) canSign(a Assertion) bool {
+	return ak.matchAgainstConstraints(a.Headers())
 }
 
 func checkPublicKey(ab *assertionBase, keyIDName string) (PublicKey, error) {

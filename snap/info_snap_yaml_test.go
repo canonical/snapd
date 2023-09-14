@@ -2160,3 +2160,43 @@ links:
 		c.Check(err, ErrorMatches, fmt.Sprintf(`links key is invalid: %s`, k))
 	}
 }
+
+func (s *YamlSuite) TestUnmarshalComponents(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+components:
+  test1:
+    type: test
+    summary: test component
+    description: long component description
+  test2:
+    type: test
+    summary: test component 2
+    description: long component description 2
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.Components, DeepEquals, map[string]snap.Component{
+		"test1": {
+			Type:        "test",
+			Summary:     "test component",
+			Description: "long component description",
+		},
+		"test2": {
+			Type:        "test",
+			Summary:     "test component 2",
+			Description: "long component description 2",
+		},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalComponentsError(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+components:
+  test1:
+    type: badtype
+`))
+	c.Assert(err.Error(), Equals, `cannot parse snap.yaml: unknown component type "badtype"`)
+	c.Assert(info, IsNil)
+}
