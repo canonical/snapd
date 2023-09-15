@@ -985,7 +985,7 @@ func (s *SquashfsTestSuite) TestBuildBelowMinimumSize(c *C) {
 	size, err := sn.Size()
 	c.Assert(err, IsNil)
 
-	c.Assert(int(size), testutil.IntEqual, int(squashfs.MinimumSnapSize))
+	c.Assert(size, Equals, squashfs.MinimumSnapSize)
 }
 
 func (s *SquashfsTestSuite) TestBuildAboveMinimumSize(c *C) {
