@@ -377,6 +377,12 @@ dbus (send)
     interface=org.gnome.DisplayManager.Manager
     member=RegisterSession
     peer=(label=unconfined),
+dbus (send)
+    bus=system
+    path=/org/gnome/DisplayManager/Manager
+    interface=org.freedesktop.DBus.Properties
+    member="Get{,All}"
+    peer=(label=unconfined),
 
 # Allow unconfined xdg-desktop-portal to communicate with impl
 # services provided by the snap.
