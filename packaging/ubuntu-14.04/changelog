@@ -1,3 +1,14 @@
+snapd (2.60.4~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - i/b/qualcomm_ipc_router.go: switch to plug/slot and add socket
+      permission
+    - interfaces/builtin: fix custom-device udev KERNEL values
+    - overlord: allow the firmware-updater snap to install user daemons
+    - interfaces: allow loopback as a block-device
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 15 Sep 2023 20:46:58 +0200
+
 snapd (2.60.3~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #2024007
