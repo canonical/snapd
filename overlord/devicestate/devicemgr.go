@@ -2317,6 +2317,22 @@ func (scb storeContextBackend) ProxyStore() (*asserts.Store, error) {
 	return proxyStore(st, config.NewTransaction(st))
 }
 
+func (scb storeContextBackend) StoreAccess() (string, error) {
+	tr := config.NewTransaction(scb.state)
+
+	var access string
+	if err := tr.GetMaybe("core", "store.access", &access); err != nil {
+		return "", err
+	}
+
+	// TODO: should i return the default here, rather than up a few layers?
+	if access == "" {
+		return "", state.ErrNoState
+	}
+
+	return access, nil
+}
+
 // SignDeviceSessionRequest produces a signed device-session-request with for given serial assertion and nonce.
 func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error) {
 	if serial == nil {
