@@ -293,8 +293,8 @@ type VolumeStructure struct {
 	// ID is the GPT partition ID, this should always be made upper case for
 	// comparison purposes.
 	ID string `yaml:"id" json:"id"`
-	// Filesystem used for the partition, 'fat16', 'vfat', 'ext4' or 'none' for
-	// structures of type 'bare'
+	// Filesystem used for the partition, 'vfat', 'vfat-{16,32}', 'ext4' or 'none' for
+	// structures of type 'bare'. 'vfat' is a synonymous for 'vfat-32'.
 	Filesystem string `yaml:"filesystem" json:"filesystem"`
 	// Content of the structure
 	Content []VolumeContent `yaml:"content" json:"content"`
@@ -347,7 +347,7 @@ func (vs *VolumeStructure) IsPartition() bool {
 }
 
 func isFatFilesystem(filesystem string) bool {
-	return strutil.ListContains([]string{"vfat", "fat16"}, filesystem)
+	return strutil.ListContains([]string{"vfat", "vfat-16", "vfat-32"}, filesystem)
 }
 
 // MatchesLinuxFilesystem checks if the filesystem specified in the
@@ -1397,7 +1397,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 		}
 		return fmt.Errorf("invalid %s: %v", what, err)
 	}
-	if vs.Filesystem != "" && !strutil.ListContains([]string{"ext4", "vfat", "fat16", "none"}, vs.Filesystem) {
+	if vs.Filesystem != "" && !strutil.ListContains([]string{"ext4", "vfat", "vfat-16", "vfat-32", "none"}, vs.Filesystem) {
 		return fmt.Errorf("invalid filesystem %q", vs.Filesystem)
 	}
 

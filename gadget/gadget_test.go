@@ -260,7 +260,7 @@ volumes:
           - image: pc-core.img
       - name: ubuntu-seed
         role: system-seed
-        filesystem: vfat
+        filesystem: vfat-32
         # UEFI will boot the ESP partition by default first
         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
         size: 1200M
@@ -1368,7 +1368,8 @@ func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
 		err string
 	}{
 		{"vfat", ""},
-		{"fat16", ""},
+		{"vfat-16", ""},
+		{"vfat-32", ""},
 		{"ext4", ""},
 		{"none", ""},
 		{"btrfs", `invalid filesystem "btrfs"`},
@@ -1556,8 +1557,9 @@ volumes:
 		err              string
 	}{
 		{"foo", "FOO", "vfat", "vfat", `invalid volume "minimal": filesystem label "FOO" is not unique`},
-		{"foo", "FOO", "vfat", "fat16", `invalid volume "minimal": filesystem label "FOO" is not unique`},
-		{"foo", "FOO", "fat16", "fat16", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"foo", "FOO", "vfat", "vfat-16", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"foo", "FOO", "vfat-16", "vfat-16", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"foo", "FOO", "vfat-16", "vfat-32", `invalid volume "minimal": filesystem label "FOO" is not unique`},
 		{"foo", "FOO", "ext4", "ext4", ""},
 		{"foo", "FOO", "vfat", "ext4", `invalid volume "minimal": filesystem label "FOO" is not unique`},
 		{"FOO", "foo", "vfat", "ext4", `invalid volume "minimal": filesystem label "foo" is not unique`},
@@ -5170,7 +5172,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityVfatPartitions(c *C) {
       - name: Writable
         role: system-data
         filesystem-label: writable
-        filesystem: fat16
+        filesystem: vfat-16
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         size: 64M
 `

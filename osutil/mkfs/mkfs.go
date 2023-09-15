@@ -38,9 +38,10 @@ type MakeFunc func(imgFile, label, contentsRootDir string, deviceSize, sectorSiz
 
 var (
 	mkfsHandlers = map[string]MakeFunc{
-		"fat16": mkfsVfat16,
-		"vfat":  mkfsVfat32,
-		"ext4":  mkfsExt4,
+		"vfat-16": mkfsVfat16,
+		"vfat":    mkfsVfat32,
+		"vfat-32": mkfsVfat32,
+		"ext4":    mkfsExt4,
 	}
 )
 

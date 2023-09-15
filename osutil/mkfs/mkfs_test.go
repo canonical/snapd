@@ -179,11 +179,12 @@ func (m *mkfsSuite) TestMkfsExt4Error(c *C) {
 }
 
 func (m *mkfsSuite) TestMkfsFat16HappySimple(c *C) {
-	m.testMkfsVfatHappySimple(c, "fat16", "16")
+	m.testMkfsVfatHappySimple(c, "vfat-16", "16")
 }
 
 func (m *mkfsSuite) TestMkfsFat32HappySimple(c *C) {
 	m.testMkfsVfatHappySimple(c, "vfat", "32")
+	m.testMkfsVfatHappySimple(c, "vfat-32", "32")
 }
 
 func (m *mkfsSuite) testMkfsVfatHappySimple(c *C, fatType, fatBits string) {
