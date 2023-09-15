@@ -1,6 +1,6 @@
 summary: Test that vendored apparmor does not break any system tunables
 
-# On ubuntu 18 and below snapd-internal is not available
+# On ubuntu systems below 18 snapd-internal is not available
 # On ubuntu 23+ the earliest snapd contains the vendored apparmor
 systems: [ubuntu-18*, ubuntu-20-*, ubuntu-22-*]
 
