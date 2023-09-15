@@ -39,7 +39,6 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
-	"golang.org/x/exp/slices"
 )
 
 // PlaceInfo offers all the information about where a snap and its data are
@@ -646,32 +645,13 @@ func (s *Info) CommonDataSaveDir() string {
 
 // DataHomeGlobs returns a slice of globbing expressions for the snap directories in use
 func DataHomeGlobs(opts *dirs.SnapDirOptions) []string {
-
 	if opts == nil {
 		opts = &dirs.SnapDirOptions{}
 	}
 
-	// If we cannot read the file or if the homedirs value is empty we use dirs defaults
-	if dirs.SnapHomeDirs == "" {
-		if opts.HiddenSnapDataDir {
-			return []string{dirs.HiddenSnapDataHomeGlob}
-		}
-		return []string{dirs.SnapDataHomeGlob}
-	}
-
-	list := strings.Split(dirs.SnapHomeDirs, ",")
-
-	// Make sure /home is part of the list
-	if !slices.Contains(list, "/home") {
-		list = append(list, "/home")
-	}
-
+	list := make([]string, len(dirs.GetSnapHomeDirs()))
+	copy(list, dirs.GetSnapHomeDirs())
 	for i, dir := range list {
-		// Necessary for tests. Removes any '/' present at the end of the path
-		// regardless of how many there are
-		for strings.HasSuffix(dir, "/") {
-			dir = strings.TrimSuffix(dir, "/")
-		}
 		// Convert each directory to a globbing expression
 		if opts.HiddenSnapDataDir {
 			list[i] = dir + "/*/" + dirs.HiddenSnapDataHomeDir

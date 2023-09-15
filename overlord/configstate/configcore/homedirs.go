@@ -118,7 +118,7 @@ func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
 	}
 
 	// Update value in dirs
-	dirs.SnapHomeDirs = config
+	dirs.SetSnapHomeDirs(config)
 
 	var homedirs []string
 	if len(config) > 0 {

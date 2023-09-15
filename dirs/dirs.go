@@ -25,8 +25,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/snapcore/snapd/release"
+	"golang.org/x/exp/slices"
 )
 
 // the various file paths
@@ -138,9 +140,13 @@ var (
 	SysfsDir        string
 
 	FeaturesDir string
+)
 
-	// Comma separated list of user defined home directories in system-params
-	SnapHomeDirs string
+// User defined home directory variables
+// Not exported, use GetSnapHomeDirs() and SetSnapHomeDirs() instead
+var (
+	snapHomeDirsMu sync.Mutex
+	snapHomeDirs   []string
 )
 
 const (
@@ -191,6 +197,34 @@ func init() {
 	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
 
 	SetRootDir(root)
+}
+
+func GetSnapHomeDirs() []string {
+	snapHomeDirsMu.Lock()
+	defer snapHomeDirsMu.Unlock()
+	return snapHomeDirs
+}
+
+// Sets SnapHomeDirs to the user defined values and appends /home if not defined
+// Homedir must be a comma separated list of the user defined home directories
+// If homedirs is empty, SnapHomeDirs will be a slice of length 1 containing "/home"
+func SetSnapHomeDirs(homedirs string) {
+	snapHomeDirsMu.Lock()
+	defer snapHomeDirsMu.Unlock()
+	snapHomeDirs = strings.Split(homedirs, ",")
+	for i := range snapHomeDirs {
+		// Necessary for tests. Removes any '/' present at the end of the path
+		// regardless of how many there are
+		for strings.HasSuffix(snapHomeDirs[i], "/") {
+			snapHomeDirs[i] = strings.TrimSuffix(snapHomeDirs[i], "/")
+		}
+	}
+
+	// Make sure /home is part of the list
+	if !slices.Contains(snapHomeDirs, "/home") {
+		snapHomeDirs = append(snapHomeDirs, "/home")
+	}
+
 }
 
 // StripRootDir strips the custom global root directory from the specified argument.

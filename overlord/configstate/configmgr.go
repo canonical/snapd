@@ -25,11 +25,11 @@ import (
 	"regexp"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap/sysparams"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -43,27 +43,18 @@ func MockConfigcoreRun(f func(sysconfig.Device, configcore.RunTransaction) error
 	}
 }
 
-// Get home directories from system-params file.
-// Home directories are returned as a ',' separated string
-func homeDirsSysParams(rootDir string) error {
-
-	ssp, err := sysparams.Open(rootDir)
-	if err != nil {
-		dirs.SnapHomeDirs = ""
-		return err
-	}
-	dirs.SnapHomeDirs = ssp.Homedirs
-	return nil
-}
-
 func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	delayedCrossMgrInit()
 
-	// Retrieve the list of home directories
-	err := homeDirsSysParams(dirs.GlobalRootDir)
-	if err != nil {
+	// Retrieve home directories
+	st.Lock()
+	defer st.Unlock()
+	tr := config.NewTransaction(st)
+	var homedirs string
+	if err := tr.GetMaybe("core", "homedirs", &homedirs); err != nil {
 		return err
 	}
+	dirs.SetSnapHomeDirs(homedirs)
 
 	// Default configuration is handled via the "default-configure" hook
 	hookManager.Register(regexp.MustCompile("^default-configure$"), newDefaultConfigureHandler)
