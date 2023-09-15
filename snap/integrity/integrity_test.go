@@ -218,6 +218,9 @@ func (s *IntegrityTestSuite) TestGenerateAndAppendSuccess(c *C) {
 
 	snapPath, _ := snaptest.MakeTestSnapInfoWithFiles(c, "name: foo\nversion: 1.0", nil, nil)
 
+	// 8192 is the hash size that is created when running 'veritysetup format'
+	// on a minimally sized snap. there is not an easy way to calculate this
+	// value dynamically.
 	const verityHashSize = 8192
 
 	// mock the verity-setup command, what it does is make a copy of the snap
