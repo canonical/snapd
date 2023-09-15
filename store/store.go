@@ -709,6 +709,16 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestO
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
+	// this gets used in retryRequestDecodeJSON, meaning we'll quickly retry
+	// this a few times. a potential solution is extending httputil.RetryRequest
+	// to short circuit on a specific set of errors?
+	//
+	// httputil.ShouldRetryError already does something like this. maybe add to
+	// that function a check for an exported store.errStoreOffline?
+	if err := s.isStoreOnline(); err != nil {
+		return nil, err
+	}
+
 	authRefreshes := 0
 	for {
 		req, err := s.newRequest(ctx, reqOptions, user)
@@ -1522,6 +1532,10 @@ type storeInfoAbbrev struct {
 var errUnexpectedConnCheckResponse = errors.New("unexpected response during connection check")
 
 func (s *Store) snapConnCheck() ([]string, error) {
+	if err := s.isStoreOnline(); err != nil {
+		return nil, err
+	}
+
 	var hosts []string
 	// NOTE: "core" is possibly the only snap that's sure to be in all stores
 	//       when we drop "core" in the move to snapd/core18/etc, change this
@@ -1585,6 +1599,25 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	}
 
 	return hosts, nil
+}
+
+var errStoreOffline = errors.New("store is offline, use 'snap set system store.access=online' to go online")
+
+func (s *Store) isStoreOnline() error {
+	if s.dauthCtx == nil {
+		return nil
+	}
+
+	access, err := s.dauthCtx.StoreAccess()
+	if err != nil { // TODO: how to handle this error? some places log, some places bubble it up
+		return fmt.Errorf("cannot get store access from state: %w", err)
+	}
+
+	if access == "offline" {
+		return errStoreOffline
+	}
+
+	return nil
 }
 
 func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {

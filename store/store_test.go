@@ -244,6 +244,8 @@ type testDauthContext struct {
 
 	storeID string
 
+	storeAccess string
+
 	cloudInfo *auth.CloudInfo
 }
 
@@ -312,6 +314,13 @@ func (dac *testDauthContext) ProxyStoreParams(defaultURL *url.URL) (string, *url
 		return dac.proxyStoreID, dac.proxyStoreURL, nil
 	}
 	return "", defaultURL, nil
+}
+
+func (dac *testDauthContext) StoreAccess() (string, error) {
+	if dac.storeAccess == "" {
+		return "online", nil
+	}
+	return dac.storeAccess, nil
 }
 
 func (dac *testDauthContext) CloudInfo() (*auth.CloudInfo, error) {
