@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.60.3
+Version:        2.60.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -997,6 +997,14 @@ fi
 
 
 %changelog
+* Fri Sep 15 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.4
+ - i/b/qualcomm_ipc_router.go: switch to plug/slot and add socket
+   permission
+ - interfaces/builtin: fix custom-device udev KERNEL values
+ - overlord: allow the firmware-updater snap to install user daemons
+ - interfaces: allow loopback as a block-device
+
 * Fri Aug 25 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.60.3
  - i/b/shared-memory: handle "private" plug attribute in shared-

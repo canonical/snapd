@@ -1,4 +1,11 @@
-# New in snapd 2.60.3:
+# New in snapd 2.60.4:
+* Switch to plug/slot in the "qualcomm-ipc-router" interface
+  but keeping backward compatibility
+* Fix "custom-device" udev KERNEL values
+* Allow firmware-updater snap to install user-daemons
+* Allow loopback as a block device
+
+# NEW in snapd 2.60.3:
 * Fix bug in the "private" plug attribute of the shared-memory
   interface that can result in a crash when upgrading from an
   old version of snapd.
