@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -4415,4 +4416,21 @@ func (s *storeTestSuite) TestCreateCohort(c *C) {
 	c.Assert(cohorts, DeepEquals, map[string]string{
 		"potato": "U3VwZXIgc2VjcmV0IHN0dWZmIGVuY3J5cHRlZCBoZXJlLg==",
 	})
+}
+
+func (s *storeTestSuite) TestStoreNoAccess(c *C) {
+	nowhereURL, err := url.Parse("http://nowhere.invalid")
+	c.Assert(err, IsNil)
+
+	dauthCtx := &testDauthContext{storeAccess: "offline"}
+
+	sto := store.New(&store.Config{
+		StoreBaseURL: nowhereURL,
+	}, dauthCtx)
+
+	_, err = sto.DoRequest(context.Background(), &http.Client{}, nil, nil)
+	c.Assert(errors.Is(err, store.ErrStoreOffline), Equals, true)
+
+	_, err = sto.ConnectivityCheck()
+	c.Assert(errors.Is(err, store.ErrStoreOffline), Equals, true)
 }

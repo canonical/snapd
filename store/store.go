@@ -714,7 +714,7 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 	// to short circuit on a specific set of errors?
 	//
 	// httputil.ShouldRetryError already does something like this. maybe add to
-	// that function a check for an exported store.errStoreOffline?
+	// that function a check for store.ErrStoreOffline?
 	if err := s.isStoreOnline(); err != nil {
 		return nil, err
 	}
@@ -1601,7 +1601,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	return hosts, nil
 }
 
-var errStoreOffline = errors.New("store is offline, use 'snap set system store.access=online' to go online")
+var ErrStoreOffline = errors.New("store is offline, use 'snap set system store.access=online' to go online")
 
 func (s *Store) isStoreOnline() error {
 	if s.dauthCtx == nil {
@@ -1614,13 +1614,17 @@ func (s *Store) isStoreOnline() error {
 	}
 
 	if access == "offline" {
-		return errStoreOffline
+		return ErrStoreOffline
 	}
 
 	return nil
 }
 
 func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {
+	if err := s.isStoreOnline(); err != nil {
+		return nil, err
+	}
+
 	status = make(map[string]bool)
 
 	checkers := []func() ([]string, error){
