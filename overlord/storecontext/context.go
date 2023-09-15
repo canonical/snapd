@@ -45,6 +45,8 @@ type Backend interface {
 	DeviceSessionRequestSigner
 
 	ProxyStoreer
+
+	StoreAccessQuerier
 }
 
 // A DeviceBackend exposes device information and device identity
@@ -74,13 +76,20 @@ type ProxyStoreer interface {
 	ProxyStore() (*asserts.Store, error)
 }
 
+type StoreAccessQuerier interface {
+	// StoreAccess returns a string indicating whether the store should have
+	// network access or not
+	StoreAccess() (string, error)
+}
+
 // storeContext implements store.DeviceAndAuthContext.
 type storeContext struct {
 	state *state.State
 
-	deviceBackend    DeviceBackend
-	sessionReqSigner DeviceSessionRequestSigner
-	proxyStoreer     ProxyStoreer
+	deviceBackend      DeviceBackend
+	sessionReqSigner   DeviceSessionRequestSigner
+	proxyStoreer       ProxyStoreer
+	storeAccessQuerier StoreAccessQuerier
 }
 
 var _ store.DeviceAndAuthContext = (*storeContext)(nil)
@@ -90,19 +99,20 @@ func New(st *state.State, b Backend) store.DeviceAndAuthContext {
 	if b == nil {
 		panic("store context backend cannot be nil")
 	}
-	return NewComposed(st, b, b, b)
+	return NewComposed(st, b, b, b, b)
 }
 
 // NewComposed returns a store.DeviceAndAuthContext using the given backends.
-func NewComposed(st *state.State, devb DeviceBackend, srqs DeviceSessionRequestSigner, pstoer ProxyStoreer) store.DeviceAndAuthContext {
+func NewComposed(st *state.State, devb DeviceBackend, srqs DeviceSessionRequestSigner, pstoer ProxyStoreer, soq StoreAccessQuerier) store.DeviceAndAuthContext {
 	if devb == nil || srqs == nil || pstoer == nil {
 		panic("store context composable backends cannot be nil")
 	}
 	return &storeContext{
-		state:            st,
-		deviceBackend:    devb,
-		sessionReqSigner: srqs,
-		proxyStoreer:     pstoer,
+		state:              st,
+		deviceBackend:      devb,
+		sessionReqSigner:   srqs,
+		proxyStoreer:       pstoer,
+		storeAccessQuerier: soq,
 	}
 }
 
@@ -245,6 +255,22 @@ func (sc *storeContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID stri
 	}
 
 	return "", defaultURL, nil
+}
+
+func (sc *storeContext) StoreAccess() (string, error) {
+	sc.state.Lock()
+	defer sc.state.Unlock()
+
+	access, err := sc.storeAccessQuerier.StoreAccess()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return "", err
+	}
+
+	if access == "" {
+		return "online", nil
+	}
+
+	return access, nil
 }
 
 // CloudInfo returns the cloud instance information (if available).

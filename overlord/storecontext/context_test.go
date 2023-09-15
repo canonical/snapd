@@ -304,9 +304,10 @@ AXNpZw=`
 )
 
 type testBackend struct {
-	nothing  bool
-	noSerial bool
-	device   *auth.DeviceState
+	nothing     bool
+	noSerial    bool
+	storeAccess string
+	device      *auth.DeviceState
 }
 
 func (b *testBackend) Device() (*auth.DeviceState, error) {
@@ -368,6 +369,14 @@ func (b *testBackend) ProxyStore() (*asserts.Store, error) {
 		return nil, err
 	}
 	return a.(*asserts.Store), nil
+}
+
+func (b *testBackend) StoreAccess() (string, error) {
+	if b.nothing {
+		return "", state.ErrNoState
+	}
+
+	return b.storeAccess, nil
 }
 
 func (s *storeCtxSuite) TestMissingDeviceAssertions(c *C) {
@@ -467,7 +476,7 @@ func (s *storeCtxSuite) TestComposable(c *C) {
 	b := &testBackend{}
 	bNoSerial := &testBackend{noSerial: true}
 
-	storeCtx := storecontext.NewComposed(s.state, b, bNoSerial, b)
+	storeCtx := storecontext.NewComposed(s.state, b, bNoSerial, b, b)
 
 	params, err := storeCtx.DeviceSessionRequestParams("NONCE-1")
 	c.Assert(err, IsNil)
@@ -476,12 +485,12 @@ func (s *storeCtxSuite) TestComposable(c *C) {
 	c.Check(strings.Contains(req, "nonce: NONCE-1\n"), Equals, true)
 	c.Check(strings.Contains(req, "serial: 9999\n"), Equals, true)
 
-	storeCtx = storecontext.NewComposed(s.state, bNoSerial, b, b)
+	storeCtx = storecontext.NewComposed(s.state, bNoSerial, b, b, b)
 	params, err = storeCtx.DeviceSessionRequestParams("NONCE-1")
 	c.Assert(err, Equals, store.ErrNoSerial)
 
 	srqs := testFailingDeviceSessionRequestSigner{}
-	storeCtx = storecontext.NewComposed(s.state, b, srqs, b)
+	storeCtx = storecontext.NewComposed(s.state, b, srqs, b, b)
 	params, err = storeCtx.DeviceSessionRequestParams("NONCE-1")
 	c.Assert(err, ErrorMatches, "boom")
 }
