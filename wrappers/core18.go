@@ -667,18 +667,9 @@ func undoSnapdDbusActivationOnCore() error {
 	return err
 }
 
-func snapdDesktopFileNames(s *snap.Info) ([]string, error) {
-	paths, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/share/applications/*.desktop"))
-	if err != nil {
-		return nil, err
-	}
-
-	fileNames := make([]string, len(paths))
-	for i, path := range paths {
-		fileNames[i] = filepath.Base(path)
-	}
-
-	return fileNames, nil
+var snapdDesktopFileNames = []string{
+	"io.snapcraft.SessionAgent.desktop",
+	"snap-handle-link.desktop",
 }
 
 func writeSnapdDesktopFilesOnCore(s *snap.Info) error {
@@ -687,27 +678,21 @@ func writeSnapdDesktopFilesOnCore(s *snap.Info) error {
 		return err
 	}
 
-	desktopFileNames, err := snapdDesktopFileNames(s)
-	if err != nil {
-		return err
+	desktopFiles := make(map[string]osutil.FileState, len(snapdDesktopFileNames))
+	for _, fileName := range snapdDesktopFileNames {
+		filePathInSnap := filepath.Join(s.MountDir(), "usr/share/applications", fileName)
+		if !osutil.FileExists(filePathInSnap) {
+			continue
+		}
+		desktopFiles[fileName] = &osutil.FileReference{Path: filePathInSnap}
 	}
 
-	desktopFiles := make(map[string]osutil.FileState, len(desktopFileNames))
-	for _, fileName := range desktopFileNames {
-		desktopFiles[fileName] = &osutil.FileReference{Path: filepath.Join(s.MountDir(), "usr/share/applications", fileName)}
-	}
-
-	_, _, err = osutil.EnsureDirStateGlobs(dirs.SnapDesktopFilesDir, desktopFileNames, desktopFiles)
+	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDesktopFilesDir, snapdDesktopFileNames, desktopFiles)
 	return err
 }
 
 func undoSnapdDesktopFilesOnCore(s *snap.Info) error {
-	desktopFileNames, err := snapdDesktopFileNames(s)
-	if err != nil {
-		return err
-	}
-
-	_, _, err = osutil.EnsureDirStateGlobs(dirs.SnapDesktopFilesDir, desktopFileNames, nil)
+	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDesktopFilesDir, snapdDesktopFileNames, nil)
 	return err
 }
 
