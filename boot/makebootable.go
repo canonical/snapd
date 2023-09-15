@@ -111,9 +111,10 @@ func SetEfiBootVariables() error {
 	if err != nil {
 		return err
 	}
+	devicePathStr := devicePath.String()
 	loadOption := &efi.LoadOption{
 		Attributes:   efi.LoadOptionActive | efi.LoadOptionCategoryBoot,
-		Description:  "Ubuntu Core",
+		Description:  "ubuntu",
 		FilePath:     devicePath,
 		OptionalData: make([]byte, 0),
 	}
@@ -131,14 +132,9 @@ func SetEfiBootVariables() error {
 		// error should never occur
 		return err
 	}
-	type bootVarInfo struct {
-		name  string
-		guid  efi.GUID
-		attrs efi.VariableAttributes
-	}
-	var bootNumber uint16
+	var bootNumber uint16 = 0xffff
+	matchingVarAttrs := defaultVarAttrs
 	skipWritingBootVar := false
-	bootVarsToDelete := make(map[uint16]*bootVarInfo)
 	usedBootNums := make(map[uint16]bool)
 	for _, varDesc := range variables {
 		varName := varDesc.Name
@@ -167,7 +163,7 @@ func SetEfiBootVariables() error {
 			// Exact match, no need to change the variable
 			bootNumber = varNumber
 			skipWritingBootVar = true
-			continue
+			break
 		}
 		// Parse the variable data into a efi.LoadOption so it can be used
 		dataReader := bytes.NewReader(varData)
@@ -176,30 +172,26 @@ func SetEfiBootVariables() error {
 			return err
 		}
 		varDevicePathStr := loadOption.FilePath.String()
-		if varDevicePathStr == EfiShimFilePath { // TODO: make sure this checks just path, not device ID as well
-			varInfo := &bootVarInfo{
-				name:  varName,
-				guid:  varGUID,
-				attrs: varAttrs,
-			}
-			bootVarsToDelete[varNumber] = varInfo
-		} else {
-			usedBootNums[varNumber] = true
+		if varDevicePathStr == devicePathStr {
+			// existing variable points to correct device path, use it
+			bootNumber = varNumber
+			matchingVarAttrs = varAttrs
+			break
 		}
-	}
-	for _, varInfo := range bootVarsToDelete {
-		efi.WriteVariable(varInfo.name, varInfo.guid, varInfo.attrs, nil) // delete the variable
+		usedBootNums[varNumber] = true
 	}
 
 	if !skipWritingBootVar {
-		// Find first unused boot number
-		for bootNumber = 0; bootNumber < 65535; bootNumber += 1 {
-			if usedBootNums[bootNumber] == false {
-				break
+		if bootNumber == 0xffff {
+			// Find first unused boot number
+			for bootNumber = 0; bootNumber < 65535; bootNumber += 1 {
+				if usedBootNums[bootNumber] == false {
+					break
+				}
 			}
 		}
 		varName := fmt.Sprintf("Boot%04X", bootNumber)
-		err = efi.WriteVariable(varName, defaultVarGUID, defaultVarAttrs, loadOptionSerialized)
+		err = efi.WriteVariable(varName, defaultVarGUID, matchingVarAttrs, loadOptionSerialized)
 		if err != nil {
 			return err
 		}
