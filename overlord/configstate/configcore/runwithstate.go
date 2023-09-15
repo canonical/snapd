@@ -45,6 +45,9 @@ func init() {
 	// proxy.store
 	addWithStateHandler(validateProxyStore, handleProxyStore, nil)
 
+	// store.access
+	addWithStateHandler(validateStoreAccess, handleStoreAccess, coreOnly)
+
 	// resilience.vitality-hint
 	addWithStateHandler(validateVitalitySettings, handleVitalityConfiguration, nil)
 
