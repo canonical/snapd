@@ -239,8 +239,11 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	s.d = nil
 	s.ctx = nil
 
-	dirs.SetRootDir("")
+	// this must come before dirs.SetRootDir because tearing down the base test
+	// waits for a goroutine to exit that happens to read from dirs.GlobalRootDir,
+	// causing 'go test -race' to fail
 	s.BaseTest.TearDownTest(c)
+	dirs.SetRootDir("")
 }
 
 func (s *apiBaseSuite) mockModel(st *state.State, model *asserts.Model) {
