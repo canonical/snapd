@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/release"
@@ -4430,4 +4431,8 @@ func (s *storeTestSuite) TestStoreNoAccess(c *C) {
 
 	_, err = sto.ConnectivityCheck()
 	c.Assert(errors.Is(err, store.ErrStoreOffline), Equals, true)
+}
+
+func (s *storeTestSuite) TestStoreNoRetryStoreOffline(c *C) {
+	c.Assert(httputil.ShouldRetryError(store.ErrStoreOffline), Equals, false)
 }
