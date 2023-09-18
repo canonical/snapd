@@ -30,7 +30,7 @@ func init() {
 	supportedConfigurations["core.store.access"] = true
 }
 
-var errInvalidStoreAccess = errors.New("store access can only be set to 'online' or 'offline'")
+var errInvalidStoreAccess = errors.New("store access can only be set to 'offline'")
 
 func validateStoreAccess(tr RunTransaction) error {
 	storeAccess, err := coreCfg(tr, "store.access")
@@ -39,7 +39,7 @@ func validateStoreAccess(tr RunTransaction) error {
 	}
 
 	switch storeAccess {
-	case "", "online", "offline":
+	case "", "offline":
 		return nil
 	default:
 		return errInvalidStoreAccess

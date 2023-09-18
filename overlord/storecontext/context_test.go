@@ -503,16 +503,12 @@ func (s *storeCtxSuite) TestStoreAccess(c *C) {
 
 	cases := []testCase{
 		{
-			storeAccess: "online",
-			expected:    "online",
-		},
-		{
 			storeAccess: "offline",
 			expected:    "offline",
 		},
 		{
 			storeAccess: "",
-			expected:    "online",
+			expected:    "",
 		},
 	}
 

@@ -266,10 +266,6 @@ func (sc *storeContext) StoreAccess() (string, error) {
 		return "", err
 	}
 
-	if access == "" {
-		return "online", nil
-	}
-
 	return access, nil
 }
 

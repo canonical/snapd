@@ -48,15 +48,13 @@ func (s *storeSuite) SetUpTest(c *C) {
 }
 
 func (s *storeSuite) TestValidateStoreAccessHappy(c *C) {
-	for _, access := range []string{"offline", "online"} {
-		err := configcore.Run(coreDev, &mockConf{
-			state: s.state,
-			changes: map[string]interface{}{
-				"store.access": access,
-			},
-		})
-		c.Assert(err, IsNil)
-	}
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"store.access": "offline",
+		},
+	})
+	c.Assert(err, IsNil)
 }
 
 func (s *storeSuite) TestValidateStoreAccessUnhappy(c *C) {
@@ -66,5 +64,5 @@ func (s *storeSuite) TestValidateStoreAccessUnhappy(c *C) {
 			"store.access": "invalid",
 		},
 	})
-	c.Assert(err, ErrorMatches, ".*store access can only be set to 'online' or 'offline'$")
+	c.Assert(err, ErrorMatches, ".*store access can only be set to 'offline'$")
 }

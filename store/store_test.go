@@ -318,9 +318,6 @@ func (dac *testDauthContext) ProxyStoreParams(defaultURL *url.URL) (string, *url
 }
 
 func (dac *testDauthContext) StoreAccess() (string, error) {
-	if dac.storeAccess == "" {
-		return "online", nil
-	}
 	return dac.storeAccess, nil
 }
 
