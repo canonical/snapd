@@ -619,43 +619,43 @@ func (*schemaSuite) TestStringChoicesWrongFormat(c *C) {
 
 func (*schemaSuite) TestStringBasedUserType(c *C) {
 	schemaStr := []byte(`{
-  "types": {
-    "snap-name": {
-      "type": "string",
+	"types": {
+		"snap-name": {
+			"type": "string",
 			"pattern": "^[a-z0-9-]*[a-z][a-z0-9-]*$"
-    },
+		},
 		"status": {
 			"type": "string",
 			"choices": ["active", "inactive"]
 		}
-  },
-  "schema": {
-    "snaps": {
-      "keys": "$snap-name",
-      "values": {
-        "schema": {
-          "name": "$snap-name",
-          "version": "string",
-          "status": "$status"
-        }
-      }
-    }
-  }
+	},
+	"schema": {
+		"snaps": {
+			"keys": "$snap-name",
+			"values": {
+				"schema": {
+					"name": "$snap-name",
+					"version": "string",
+					"status": "$status"
+				}
+			}
+		}
+	}
 }`)
 
 	input := []byte(`{
-  "snaps": {
-    "core20": {
-      "name": "core20",
-      "version": "20230503",
-      "status": "active"
-    },
-    "snapd": {
-      "name": "snapd",
-      "version": "2.59.5+git948.gb447044",
-      "status": "inactive"
-    }
-  }
+	"snaps": {
+		"core20": {
+			"name": "core20",
+			"version": "20230503",
+			"status": "active"
+		},
+		"snapd": {
+			"name": "snapd",
+			"version": "2.59.5+git948.gb447044",
+			"status": "inactive"
+		}
+	}
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -667,17 +667,17 @@ func (*schemaSuite) TestStringBasedUserType(c *C) {
 
 func (*schemaSuite) TestMapKeyMustBeStringUserType(c *C) {
 	schemaStr := []byte(`{
-  "types": {
-    "key-type": {
-      "type": "map",
+	"types": {
+		"key-type": {
+			"type": "map",
 			"schema": {}
-    }
-  },
-  "schema": {
-    "snaps": {
-      "keys": "$key-type"
-    }
-  }
+		}
+	},
+	"schema": {
+		"snaps": {
+			"keys": "$key-type"
+		}
+	}
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
@@ -686,7 +686,7 @@ func (*schemaSuite) TestMapKeyMustBeStringUserType(c *C) {
 
 func (*schemaSuite) TestUserDefinedTypesWrongFormat(c *C) {
 	schemaStr := []byte(`{
-  "types": ["foo"],
+	"types": ["foo"],
 	"schema": {}
 }`)
 
@@ -696,11 +696,11 @@ func (*schemaSuite) TestUserDefinedTypesWrongFormat(c *C) {
 
 func (*schemaSuite) TestBadUserDefinedType(c *C) {
 	schemaStr := []byte(`{
-  "types": {
-    "mytype": {
-      "type": "bad-type"
-    }
-  },
+	"types": {
+		"mytype": {
+			"type": "bad-type"
+		}
+	},
 	"schema": {}
 }`)
 
@@ -710,11 +710,11 @@ func (*schemaSuite) TestBadUserDefinedType(c *C) {
 
 func (*schemaSuite) TestUnknownUserDefinedType(c *C) {
 	schemaStr := []byte(`{
-  "schema": {
-    "snaps": {
-      "values": "$foo"
-    }
-  }
+	"schema": {
+		"snaps": {
+			"values": "$foo"
+		}
+	}
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
@@ -723,11 +723,11 @@ func (*schemaSuite) TestUnknownUserDefinedType(c *C) {
 
 func (*schemaSuite) TestUnknownUserDefinedTypeInKeys(c *C) {
 	schemaStr := []byte(`{
-  "schema": {
-    "snaps": {
-      "keys": "$foo"
-    }
-  }
+	"schema": {
+		"snaps": {
+			"keys": "$foo"
+		}
+	}
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
@@ -736,33 +736,33 @@ func (*schemaSuite) TestUnknownUserDefinedTypeInKeys(c *C) {
 
 func (*schemaSuite) TestMapBasedUserDefinedTypeHappy(c *C) {
 	schemaStr := []byte(`{
-  "types": {
-    "snap": {
+	"types": {
+		"snap": {
 			"schema": {
 				"name": "string",
 				"status": "string"
 			}
-    }
-  },
-  "schema": {
-    "snaps": {
-      "values": "$snap"
-    }
-  }
+		}
+	},
+	"schema": {
+		"snaps": {
+			"values": "$snap"
+		}
+	}
 }`)
 
 	input := []byte(`{
-  "snaps": {
-    "core20": {
-      "name": "core20",
-      "version": "20230503",
-      "status": "active"
-    },
-    "snapd": {
-      "name": "snapd",
-      "status": "inactive"
-    }
-  }
+	"snaps": {
+		"core20": {
+			"name": "core20",
+			"version": "20230503",
+			"status": "active"
+		},
+		"snapd": {
+			"name": "snapd",
+			"status": "inactive"
+		}
+	}
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -774,28 +774,28 @@ func (*schemaSuite) TestMapBasedUserDefinedTypeHappy(c *C) {
 
 func (*schemaSuite) TestMapBasedUserDefinedTypeFail(c *C) {
 	schemaStr := []byte(`{
-  "types": {
-    "snap": {
+	"types": {
+		"snap": {
 			"schema": {
 				"name": "string",
 				"version": "string"
 			}
-    }
-  },
-  "schema": {
-    "snaps": {
-      "values": "$snap"
-    }
-  }
+		}
+	},
+	"schema": {
+		"snaps": {
+			"values": "$snap"
+		}
+	}
 }`)
 
 	input := []byte(`{
-  "snaps": {
-    "core20": {
-      "name": "core20",
-      "version": 123
-    }
-  }
+	"snaps": {
+		"core20": {
+			"name": "core20",
+			"version": 123
+		}
+	}
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
