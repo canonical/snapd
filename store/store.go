@@ -709,12 +709,6 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestO
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
-	// this gets used in retryRequestDecodeJSON, meaning we'll quickly retry
-	// this a few times. a potential solution is extending httputil.RetryRequest
-	// to short circuit on a specific set of errors?
-	//
-	// httputil.ShouldRetryError already does something like this. maybe add to
-	// that function a check for store.ErrStoreOffline?
 	if err := s.checkStoreOnline(); err != nil {
 		return nil, err
 	}
