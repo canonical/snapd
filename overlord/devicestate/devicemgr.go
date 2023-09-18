@@ -2325,7 +2325,6 @@ func (scb storeContextBackend) StoreAccess() (string, error) {
 		return "", err
 	}
 
-	// TODO: should i return the default here, rather than up a few layers?
 	if access == "" {
 		return "", state.ErrNoState
 	}
