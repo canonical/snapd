@@ -193,9 +193,8 @@ type DownloadOptions struct {
 // after use to prevent the disk from running out of space.
 func (s *Store) Download(ctx context.Context, name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
 	// most other store network operations use s.endpointURL, which returns an
-	// error if the store is offline. downloading a snap uses a URL in the
-	// downloadInfo parameter, so we need to explicitly check if we are offline
-	// here
+	// error if the store is offline. this doesn't, so we need to explicitly
+	// check.
 	if err := s.checkStoreOnline(); err != nil {
 		return err
 	}
@@ -596,6 +595,9 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 
 // DownloadStream will copy the snap from the request to the io.Reader
 func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, resume int64, user *auth.UserState) (io.ReadCloser, int, error) {
+	// most other store network operations use s.endpointURL, which returns an
+	// error if the store is offline. this doesn't, so we need to explicitly
+	// check.
 	if err := s.checkStoreOnline(); err != nil {
 		return nil, 0, err
 	}
