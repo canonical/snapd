@@ -130,7 +130,7 @@ def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, main
             fh.write(ch_line)
         fh.write("\n")
         # write the rest of the original spec file
-        fh.write(spec_file_content[idx + len(changelog_section) :])
+        fh.write(spec_file_content[idx + len(changelog_section):])
 
 
 def update_opensuse_changelog(
