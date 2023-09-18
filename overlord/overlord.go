@@ -347,7 +347,7 @@ func (o *Overlord) newStoreWithContext(storeCtx store.DeviceAndAuthContext) snap
 // The device backend will tie them to the remodeling device state.
 func (o *Overlord) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
 	scb := o.deviceMgr.StoreContextBackend()
-	stoCtx := storecontext.NewComposed(o.State(), devBE, scb, scb, scb)
+	stoCtx := storecontext.NewComposed(o.State(), devBE, scb, scb)
 	return o.newStoreWithContext(stoCtx)
 }
 

@@ -476,7 +476,7 @@ func (s *storeCtxSuite) TestComposable(c *C) {
 	b := &testBackend{}
 	bNoSerial := &testBackend{noSerial: true}
 
-	storeCtx := storecontext.NewComposed(s.state, b, bNoSerial, b, b)
+	storeCtx := storecontext.NewComposed(s.state, b, bNoSerial, b)
 
 	params, err := storeCtx.DeviceSessionRequestParams("NONCE-1")
 	c.Assert(err, IsNil)
@@ -485,12 +485,12 @@ func (s *storeCtxSuite) TestComposable(c *C) {
 	c.Check(strings.Contains(req, "nonce: NONCE-1\n"), Equals, true)
 	c.Check(strings.Contains(req, "serial: 9999\n"), Equals, true)
 
-	storeCtx = storecontext.NewComposed(s.state, bNoSerial, b, b, b)
+	storeCtx = storecontext.NewComposed(s.state, bNoSerial, b, b)
 	params, err = storeCtx.DeviceSessionRequestParams("NONCE-1")
 	c.Assert(err, Equals, store.ErrNoSerial)
 
 	srqs := testFailingDeviceSessionRequestSigner{}
-	storeCtx = storecontext.NewComposed(s.state, b, srqs, b, b)
+	storeCtx = storecontext.NewComposed(s.state, b, srqs, b)
 	params, err = storeCtx.DeviceSessionRequestParams("NONCE-1")
 	c.Assert(err, ErrorMatches, "boom")
 }
@@ -517,7 +517,7 @@ func (s *storeCtxSuite) TestStoreAccess(c *C) {
 			storeAccess: cs.storeAccess,
 		}
 
-		storeCtx := storecontext.NewComposed(s.state, b, b, b, b)
+		storeCtx := storecontext.NewComposed(s.state, b, b, b)
 
 		access, err := storeCtx.StoreAccess()
 		c.Check(err, IsNil)

@@ -44,9 +44,7 @@ type Backend interface {
 
 	DeviceSessionRequestSigner
 
-	ProxyStoreer
-
-	StoreAccessQuerier
+	StoreOptions
 }
 
 // A DeviceBackend exposes device information and device identity
@@ -71,12 +69,10 @@ type DeviceSessionRequestSigner interface {
 	SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error)
 }
 
-type ProxyStoreer interface {
+type StoreOptions interface {
 	// ProxyStore returns the store assertion for the proxy store if one is set.
 	ProxyStore() (*asserts.Store, error)
-}
 
-type StoreAccessQuerier interface {
 	// StoreAccess returns a string indicating whether the store should have
 	// network access or not
 	StoreAccess() (string, error)
@@ -86,10 +82,9 @@ type StoreAccessQuerier interface {
 type storeContext struct {
 	state *state.State
 
-	deviceBackend      DeviceBackend
-	sessionReqSigner   DeviceSessionRequestSigner
-	proxyStoreer       ProxyStoreer
-	storeAccessQuerier StoreAccessQuerier
+	deviceBackend    DeviceBackend
+	sessionReqSigner DeviceSessionRequestSigner
+	storeOptions     StoreOptions
 }
 
 var _ store.DeviceAndAuthContext = (*storeContext)(nil)
@@ -99,20 +94,19 @@ func New(st *state.State, b Backend) store.DeviceAndAuthContext {
 	if b == nil {
 		panic("store context backend cannot be nil")
 	}
-	return NewComposed(st, b, b, b, b)
+	return NewComposed(st, b, b, b)
 }
 
 // NewComposed returns a store.DeviceAndAuthContext using the given backends.
-func NewComposed(st *state.State, devb DeviceBackend, srqs DeviceSessionRequestSigner, pstoer ProxyStoreer, soq StoreAccessQuerier) store.DeviceAndAuthContext {
-	if devb == nil || srqs == nil || pstoer == nil {
+func NewComposed(st *state.State, devb DeviceBackend, srqs DeviceSessionRequestSigner, storeOptions StoreOptions) store.DeviceAndAuthContext {
+	if devb == nil || srqs == nil || storeOptions == nil {
 		panic("store context composable backends cannot be nil")
 	}
 	return &storeContext{
-		state:              st,
-		deviceBackend:      devb,
-		sessionReqSigner:   srqs,
-		proxyStoreer:       pstoer,
-		storeAccessQuerier: soq,
+		state:            st,
+		deviceBackend:    devb,
+		sessionReqSigner: srqs,
+		storeOptions:     storeOptions,
 	}
 }
 
@@ -245,7 +239,7 @@ func (sc *storeContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID stri
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	sto, err := sc.proxyStoreer.ProxyStore()
+	sto, err := sc.storeOptions.ProxyStore()
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", nil, err
 	}
@@ -261,7 +255,7 @@ func (sc *storeContext) StoreAccess() (string, error) {
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	access, err := sc.storeAccessQuerier.StoreAccess()
+	access, err := sc.storeOptions.StoreAccess()
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", err
 	}
