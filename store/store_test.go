@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -4420,26 +4419,25 @@ func (s *storeTestSuite) TestStoreNoAccess(c *C) {
 	nowhereURL, err := url.Parse("http://nowhere.invalid")
 	c.Assert(err, IsNil)
 
-	dauthCtx := &testDauthContext{storeAccess: "offline"}
+	dauthCtx := &testDauthContext{storeAccess: "offline", device: &auth.DeviceState{
+		Serial: "serial",
+	}}
 
 	sto := store.New(&store.Config{
 		StoreBaseURL: nowhereURL,
 	}, dauthCtx)
 
-	_, err = sto.DoRequest(context.Background(), &http.Client{}, nil, nil)
-	c.Check(errors.Is(err, store.ErrStoreOffline), Equals, true)
-
 	_, err = sto.ConnectivityCheck()
-	c.Check(errors.Is(err, store.ErrStoreOffline), Equals, true)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
 
 	_, err = sto.UserInfo("me@example.com")
-	c.Check(errors.Is(err, store.ErrStoreOffline), Equals, true)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
 
 	_, _, err = sto.LoginUser("username", "password", "otp")
-	c.Check(errors.Is(err, store.ErrStoreOffline), Equals, true)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
 
 	err = sto.EnsureDeviceSession()
-	c.Check(errors.Is(err, store.ErrStoreOffline), Equals, true)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
 }
 
 func (s *storeTestSuite) TestStoreNoRetryStoreOffline(c *C) {

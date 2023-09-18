@@ -192,6 +192,14 @@ type DownloadOptions struct {
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
 func (s *Store) Download(ctx context.Context, name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
+	// most other store network operations use s.endpointURL, which returns an
+	// error if the store is offline. downloading a snap uses a URL in the
+	// downloadInfo parameter, so we need to explicitly check if we are offline
+	// here
+	if err := s.checkStoreOnline(); err != nil {
+		return err
+	}
+
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return err
 	}
