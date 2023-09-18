@@ -69,6 +69,10 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 
 		schema.userTypes = make(map[string]parser, len(userTypes))
 		for userTypeName, typeDef := range userTypes {
+			if !validUserType.Match([]byte(userTypeName)) {
+				return nil, fmt.Errorf(`cannot parse user-defined type name %q: must match %s`, userTypeName, validUserType)
+			}
+
 			userTypeSchema, err := schema.parse(typeDef)
 			if err != nil {
 				return nil, fmt.Errorf(`cannot parse user-defined type %q: %w`, userTypeName, err)

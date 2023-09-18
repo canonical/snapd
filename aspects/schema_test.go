@@ -668,20 +668,20 @@ func (*schemaSuite) TestStringBasedUserType(c *C) {
 func (*schemaSuite) TestMapKeyMustBeStringUserType(c *C) {
 	schemaStr := []byte(`{
   "types": {
-    "keyType": {
+    "key-type": {
       "type": "map",
 			"schema": {}
     }
   },
   "schema": {
     "snaps": {
-      "keys": "$keyType"
+      "keys": "$key-type"
     }
   }
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: key type "keyType" must be based on string`)
+	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: key type "key-type" must be based on string`)
 }
 
 func (*schemaSuite) TestUserDefinedTypesWrongFormat(c *C) {
@@ -803,4 +803,26 @@ func (*schemaSuite) TestMapBasedUserDefinedTypeFail(c *C) {
 
 	err = schema.Validate(input)
 	c.Assert(err, ErrorMatches, `cannot validate string: json: .*`)
+}
+
+func (*schemaSuite) TestBadUserDefinedTypeName(c *C) {
+	schemaStr := []byte(`{
+	"types": {
+		"-foo": {
+			"schema": {
+				"name": "string",
+				"version": "string"
+			}
+		}
+	},
+	"schema": {
+		"snaps": {
+			"values": "$-foo"
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, `cannot parse user-defined type name "-foo": must match ^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$`)
 }
