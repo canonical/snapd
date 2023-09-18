@@ -494,3 +494,37 @@ func (s *storeCtxSuite) TestComposable(c *C) {
 	params, err = storeCtx.DeviceSessionRequestParams("NONCE-1")
 	c.Assert(err, ErrorMatches, "boom")
 }
+
+func (s *storeCtxSuite) TestStoreAccess(c *C) {
+	type testCase struct {
+		storeAccess string
+		expected    string
+	}
+
+	cases := []testCase{
+		{
+			storeAccess: "online",
+			expected:    "online",
+		},
+		{
+			storeAccess: "offline",
+			expected:    "offline",
+		},
+		{
+			storeAccess: "",
+			expected:    "online",
+		},
+	}
+
+	for _, cs := range cases {
+		b := &testBackend{
+			storeAccess: cs.storeAccess,
+		}
+
+		storeCtx := storecontext.NewComposed(s.state, b, b, b, b)
+
+		access, err := storeCtx.StoreAccess()
+		c.Check(err, IsNil)
+		c.Check(access, Equals, cs.expected)
+	}
+}
