@@ -109,5 +109,3 @@ execute: |
   echo "Preseeding image"
   # TODO: Change to use developer1-pc-preseed-core20-configure-hooks.json ocne that is available
   snap prepare-image --preseed --preseed-sign-key=" (test)" --channel=stable --snap="$SNAPD_SNAP" --snap="$PC_SNAP" --snap="$CORE20_SNAP" --snap="$PC_KERNEL_SNAP" --snap="$TEST_SNAPD_WITH_DFLT_CONF_SNAP" "$TESTSLIB"/assertions/developer1-pc-20-test-preseed-with-configure-hooks.model "$PREPARE_IMAGE_DIR" > preseed.log 2>&1
-
-  exit 1
