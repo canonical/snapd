@@ -378,6 +378,7 @@ if [ "$UNIT" = 1 ]; then
     command -v python3 && python3 ./tests/lib/tools/mountinfo.query --run-unit-tests
     command -v python2 && python2 ./tests/lib/tools/version-compare --run-unit-tests
     command -v python3 && python3 ./tests/lib/tools/version-compare --run-unit-tests
+    command -v pytest-3 && pytest-3 ./release-tools
 fi
 
 UNCLEAN="$(git status -s|grep '^??')" || true
