@@ -167,6 +167,7 @@ func (e *Epoll) waitTimeoutInternal(duration time.Duration, eventCh chan []Event
 		errCh <- ErrEpollClosed
 		return
 	}
+	startTs := time.Now()
 	noTimeout := false
 	msec := int(duration.Milliseconds())
 	if duration < 0 {
@@ -189,7 +190,6 @@ func (e *Epoll) waitTimeoutInternal(duration time.Duration, eventCh chan []Event
 			bufLen = 1
 		}
 		sysEvents = make([]unix.EpollEvent, bufLen)
-		startTs := time.Now()
 		n, err = unixEpollWait(e.fd, sysEvents, msec)
 		runtime.KeepAlive(e)
 		// If the epoll fd was closed (thus set to -1) during epoll_wait
@@ -214,7 +214,7 @@ func (e *Epoll) waitTimeoutInternal(duration time.Duration, eventCh chan []Event
 		}
 		// adjust the timeout and restart the syscall
 		elapsed := time.Since(startTs)
-		msec -= int(elapsed.Milliseconds())
+		msec = int((duration - elapsed).Milliseconds())
 		if msec <= 0 {
 			n = 0
 			break
