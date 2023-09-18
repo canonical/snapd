@@ -1648,7 +1648,7 @@ func (s *Store) checkStoreOnline() error {
 	}
 
 	access, err := s.dauthCtx.StoreAccess()
-	if err != nil { // TODO: how to handle this error? some places log, some places bubble it up
+	if err != nil {
 		return fmt.Errorf("cannot get store access from state: %w", err)
 	}
 
