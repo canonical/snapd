@@ -566,5 +566,7 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s.modified = false
 	s.cache = make(map[interface{}]interface{})
 	s.pendingChangeByAttr = make(map[string]func(*Change) bool)
+	s.changeHandlers = make(map[int]func(chg *Change, old Status, new Status))
+	s.taskHandlers = make(map[int]func(t *Task, old Status, new Status))
 	return s, err
 }

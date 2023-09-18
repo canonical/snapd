@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -546,6 +547,29 @@ func (ss *stateSuite) TestEmptyStateDataAndCheckpointReadAndSet(c *C) {
 
 	// no crash
 	st2.Set("a", 1)
+
+	// ensure all maps of state are correctly initialized by ReadState
+	val := reflect.ValueOf(st2)
+	typ := val.Elem().Type()
+	var maps []string
+	for i := 0; i < typ.NumField(); i++ {
+		f := typ.Field(i)
+		if f.Type.Kind() == reflect.Map {
+			maps = append(maps, f.Name)
+			fv := val.Elem().Field(i)
+			c.Check(fv.IsNil(), Equals, false, Commentf("Map field %s of state was not initialized by ReadState", f.Name))
+		}
+	}
+	c.Check(maps, DeepEquals, []string{
+		"data",
+		"changes",
+		"tasks",
+		"warnings",
+		"cache",
+		"pendingChangeByAttr",
+		"taskHandlers",
+		"changeHandlers",
+	})
 }
 
 func (ss *stateSuite) TestEmptyTaskAndChangeDataAndCheckpointReadAndSet(c *C) {
