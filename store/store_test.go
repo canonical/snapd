@@ -4427,16 +4427,52 @@ func (s *storeTestSuite) TestStoreNoAccess(c *C) {
 		StoreBaseURL: nowhereURL,
 	}, dauthCtx)
 
+	_, err = sto.Categories(s.ctx, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
 	_, err = sto.ConnectivityCheck()
 	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
 
-	_, err = sto.UserInfo("me@example.com")
+	_, err = sto.CreateCohorts(s.ctx, nil)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.Download(s.ctx, "name", c.MkDir(), nil, nil, s.user, nil)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.DownloadAssertions([]string{nowhereURL.String()}, nil, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, _, err = sto.DownloadStream(s.ctx, "name", nil, 0, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.EnsureDeviceSession()
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.Find(s.ctx, &store.Search{Query: "foo", Private: true}, s.user)
 	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
 
 	_, _, err = sto.LoginUser("username", "password", "otp")
 	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
 
-	err = sto.EnsureDeviceSession()
+	err = sto.ReadyToBuy(s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.Sections(s.ctx, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.SeqFormingAssertion(asserts.RepairType, nil, 0, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, _, err = sto.SnapExists(s.ctx, store.SnapSpec{Name: "snap"}, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.SnapInfo(s.ctx, store.SnapSpec{Name: "snap"}, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.UserInfo("me@example.com")
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.WriteCatalogs(s.ctx, io.Discard, nil)
 	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
 }
 
