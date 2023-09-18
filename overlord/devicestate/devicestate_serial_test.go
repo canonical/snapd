@@ -1655,6 +1655,27 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendProxyStore(c *C) {
 	c.Assert(sto.URL().String(), Equals, mockServer.URL)
 }
 
+func (s *deviceMgrSerialSuite) TestStoreContextBackendStoreAccess(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	scb := s.mgr.StoreContextBackend()
+
+	// nothing in the state
+	_, err := scb.StoreAccess()
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
+
+	// set the store access to offline
+	tr := config.NewTransaction(s.state)
+	err = tr.Set("core", "store.access", "offline")
+	tr.Commit()
+	c.Assert(err, IsNil)
+
+	access, err := scb.StoreAccess()
+	c.Check(err, IsNil)
+	c.Check(access, Equals, "offline")
+}
+
 func (s *deviceMgrSerialSuite) TestInitialRegistrationContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
