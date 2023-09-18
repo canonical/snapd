@@ -715,7 +715,7 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 	//
 	// httputil.ShouldRetryError already does something like this. maybe add to
 	// that function a check for store.ErrStoreOffline?
-	if err := s.isStoreOnline(); err != nil {
+	if err := s.checkStoreOnline(); err != nil {
 		return nil, err
 	}
 
@@ -1532,7 +1532,7 @@ type storeInfoAbbrev struct {
 var errUnexpectedConnCheckResponse = errors.New("unexpected response during connection check")
 
 func (s *Store) snapConnCheck() ([]string, error) {
-	if err := s.isStoreOnline(); err != nil {
+	if err := s.checkStoreOnline(); err != nil {
 		return nil, err
 	}
 
@@ -1603,7 +1603,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 
 var ErrStoreOffline = errors.New("store is offline, use 'snap unset system store.access' to go online")
 
-func (s *Store) isStoreOnline() error {
+func (s *Store) checkStoreOnline() error {
 	if s.dauthCtx == nil {
 		return nil
 	}
@@ -1621,7 +1621,7 @@ func (s *Store) isStoreOnline() error {
 }
 
 func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {
-	if err := s.isStoreOnline(); err != nil {
+	if err := s.checkStoreOnline(); err != nil {
 		return nil, err
 	}
 
