@@ -23,6 +23,8 @@ package configcore
 
 import (
 	"errors"
+
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 func init() {
@@ -32,8 +34,8 @@ func init() {
 
 var errInvalidStoreAccess = errors.New("store access can only be set to 'offline'")
 
-func validateStoreAccess(tr RunTransaction) error {
-	storeAccess, err := coreCfg(tr, "store.access")
+func validateStoreAccess(cfg ConfGetter) error {
+	storeAccess, err := coreCfg(cfg, "store.access")
 	if err != nil {
 		return err
 	}
@@ -46,8 +48,8 @@ func validateStoreAccess(tr RunTransaction) error {
 	}
 }
 
-func handleStoreAccess(tr RunTransaction, opts *fsOnlyContext) error {
-	storeAccess, err := coreCfg(tr, "store.access")
+func handleStoreAccess(_ sysconfig.Device, cfg ConfGetter, _ *fsOnlyContext) error {
+	storeAccess, err := coreCfg(cfg, "store.access")
 	if err != nil {
 		return err
 	}
