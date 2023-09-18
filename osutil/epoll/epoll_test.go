@@ -1,6 +1,7 @@
 package epoll_test
 
 import (
+	"errors"
 	"os"
 	"sync"
 	"syscall"
@@ -57,6 +58,25 @@ func waitThenWriteToFd(duration time.Duration, fd int, msg []byte) error {
 	time.Sleep(duration)
 	_, err := unix.Write(fd, msg)
 	return err
+}
+
+func waitSomewhereElse(e *epoll.Epoll, eventCh chan []epoll.Event, errCh chan error) {
+	events, err := e.Wait()
+	eventCh <- events
+	errCh <- err
+}
+
+func waitTimeoutSomewhereElse(e *epoll.Epoll, timeout time.Duration, eventCh chan []epoll.Event, errCh chan error) {
+	events, err := e.WaitTimeout(timeout)
+	eventCh <- events
+	errCh <- err
+}
+
+func closeAfter(c *C, e *epoll.Epoll, duration time.Duration) {
+	_ = time.AfterFunc(duration, func() {
+		err := e.Close()
+		c.Assert(err, Equals, nil)
+	})
 }
 
 func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
@@ -447,18 +467,6 @@ func (epollSuite) TestRegisterDeregisterConcurrency(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func waitSomewhereElse(e *epoll.Epoll, eventCh chan []epoll.Event, errCh chan error) {
-	events, err := e.Wait()
-	eventCh <- events
-	errCh <- err
-}
-
-func waitTimeoutSomewhereElse(e *epoll.Epoll, timeout time.Duration, eventCh chan []epoll.Event, errCh chan error) {
-	events, err := e.WaitTimeout(timeout)
-	eventCh <- events
-	errCh <- err
-}
-
 func (*epollSuite) TestWaitWithoutRegistering(c *C) {
 	e, err := epoll.Open()
 	c.Assert(err, IsNil)
@@ -557,4 +565,93 @@ func (*epollSuite) TestWaitThenRegister(c *C) {
 
 	err = e.Close()
 	c.Assert(err, IsNil)
+}
+
+func (*epollSuite) TestErrorsOnClosedEpoll(c *C) {
+	e, err := epoll.Open()
+	c.Assert(err, IsNil)
+
+	err = e.Close()
+	c.Assert(err, IsNil)
+
+	err = e.Close()
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+
+	err = e.Register(0, epoll.Readable)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+
+	err = e.Deregister(0)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+
+	err = e.Modify(0, epoll.Readable)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+
+	err = e.Modify(0, epoll.Readable)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+
+	events, err := e.WaitTimeout(defaultDuration)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	c.Assert(events, HasLen, 0)
+
+	events, err = e.Wait()
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	c.Assert(events, HasLen, 0)
+}
+
+func (*epollSuite) TestWaitErrors(c *C) {
+	e, err := epoll.Open()
+	c.Assert(err, IsNil)
+
+	closeAfter(c, e, defaultDuration)
+
+	events, err := e.Wait()
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	c.Assert(events, HasLen, 0)
+
+	fakeError := errors.New("injected fake error")
+
+	restore := epoll.MockUnixEpollWait(func(epfd int, events []unix.EpollEvent, msec int) (n int, err error) {
+		return 0, fakeError
+	})
+	defer restore()
+
+	e, err = epoll.Open()
+	c.Assert(err, IsNil)
+
+	events, err = e.Wait()
+	c.Assert(err, Equals, fakeError)
+	c.Assert(events, HasLen, 0)
+
+	err = e.Close()
+	c.Assert(err, IsNil)
+}
+
+func (*epollSuite) TestWaitThenClose(c *C) {
+	e, err := epoll.Open()
+	c.Assert(err, IsNil)
+
+	closeAfter(c, e, defaultDuration)
+
+	startTime := time.Now()
+
+	events, err := e.Wait()
+
+	// Check that Wait() returned "immediately"
+	c.Assert(time.Now().Before(startTime.Add(2*defaultDuration)), Equals, true)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	c.Assert(events, HasLen, 0)
+
+	e, err = epoll.Open()
+	c.Assert(err, IsNil)
+
+	closeAfter(c, e, defaultDuration)
+
+	startTime = time.Now()
+
+	events, err = e.WaitTimeout(defaultDuration * 2)
+
+	// Check that WaitTimeout() returned "immediately"
+	c.Assert(time.Now().Before(startTime.Add(2*defaultDuration)), Equals, true)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	c.Assert(events, HasLen, 0)
 }
