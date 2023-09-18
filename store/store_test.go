@@ -4466,6 +4466,13 @@ func (s *storeTestSuite) TestStoreNoAccess(c *C) {
 	_, _, err = sto.SnapExists(s.ctx, store.SnapSpec{Name: "snap"}, s.user)
 	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
 
+	_, _, err = sto.SnapAction(s.ctx, nil, []*store.SnapAction{{
+		Action:       "download",
+		InstanceName: "example",
+		Channel:      "stable",
+	}}, nil, s.user, nil)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
 	_, err = sto.SnapInfo(s.ctx, store.SnapSpec{Name: "snap"}, s.user)
 	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
 
