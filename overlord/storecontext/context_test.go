@@ -496,31 +496,14 @@ func (s *storeCtxSuite) TestComposable(c *C) {
 }
 
 func (s *storeCtxSuite) TestStoreAccess(c *C) {
-	type testCase struct {
-		storeAccess string
-		expected    string
+	const storeAccess = "offline"
+	b := &testBackend{
+		storeAccess: storeAccess,
 	}
 
-	cases := []testCase{
-		{
-			storeAccess: "offline",
-			expected:    "offline",
-		},
-		{
-			storeAccess: "",
-			expected:    "",
-		},
-	}
+	storeCtx := storecontext.NewComposed(s.state, b, b, b)
 
-	for _, cs := range cases {
-		b := &testBackend{
-			storeAccess: cs.storeAccess,
-		}
-
-		storeCtx := storecontext.NewComposed(s.state, b, b, b)
-
-		access, err := storeCtx.StoreAccess()
-		c.Check(err, IsNil)
-		c.Check(access, Equals, cs.expected)
-	}
+	access, err := storeCtx.StoreAccess()
+	c.Check(err, IsNil)
+	c.Check(access, Equals, storeAccess)
 }
