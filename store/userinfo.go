@@ -41,6 +41,10 @@ type User struct {
 }
 
 func (s *Store) UserInfo(email string) (userinfo *User, err error) {
+	if err := s.checkStoreOnline(); err != nil {
+		return nil, err
+	}
+
 	var v keysReply
 	ssourl := fmt.Sprintf("%s/keys/%s", authURL(), url.QueryEscape(email))
 

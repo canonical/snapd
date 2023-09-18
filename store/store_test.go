@@ -4427,10 +4427,19 @@ func (s *storeTestSuite) TestStoreNoAccess(c *C) {
 	}, dauthCtx)
 
 	_, err = sto.DoRequest(context.Background(), &http.Client{}, nil, nil)
-	c.Assert(errors.Is(err, store.ErrStoreOffline), Equals, true)
+	c.Check(errors.Is(err, store.ErrStoreOffline), Equals, true)
 
 	_, err = sto.ConnectivityCheck()
-	c.Assert(errors.Is(err, store.ErrStoreOffline), Equals, true)
+	c.Check(errors.Is(err, store.ErrStoreOffline), Equals, true)
+
+	_, err = sto.UserInfo("me@example.com")
+	c.Check(errors.Is(err, store.ErrStoreOffline), Equals, true)
+
+	_, _, err = sto.LoginUser("username", "password", "otp")
+	c.Check(errors.Is(err, store.ErrStoreOffline), Equals, true)
+
+	err = sto.EnsureDeviceSession()
+	c.Check(errors.Is(err, store.ErrStoreOffline), Equals, true)
 }
 
 func (s *storeTestSuite) TestStoreNoRetryStoreOffline(c *C) {

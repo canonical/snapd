@@ -507,6 +507,10 @@ func (s *Store) endpointURL(p string, query url.Values) *url.URL {
 
 // LoginUser logs user in the store and returns the authentication macaroons.
 func (s *Store) LoginUser(username, password, otp string) (string, string, error) {
+	if err := s.checkStoreOnline(); err != nil {
+		return "", "", err
+	}
+
 	macaroon, err := requestStoreMacaroon(s.client)
 	if err != nil {
 		return "", "", err
@@ -533,6 +537,10 @@ func (s *Store) LoginUser(username, password, otp string) (string, string, error
 // EnsureDeviceSession makes sure the store has a device session available.
 // Expects the store to have an AuthContext.
 func (s *Store) EnsureDeviceSession() error {
+	if err := s.checkStoreOnline(); err != nil {
+		return err
+	}
+
 	if a, ok := s.auth.(*deviceAuthorizer); ok {
 		return a.EnsureDeviceSession(s.dauthCtx, s.client)
 	}
