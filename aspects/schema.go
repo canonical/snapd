@@ -148,13 +148,19 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 		return &stringSchema{}, nil
 	default:
 		if typ != "" && typ[0] == '$' {
-			if userType, ok := s.userTypes[typ[1:]]; ok {
-				return userType, nil
-			}
-			return nil, fmt.Errorf("cannot find user-defined type %q", typ[1:])
+			return s.getUserType(typ[1:])
 		}
+
 		return nil, fmt.Errorf("cannot parse unknown type %q", typ)
 	}
+}
+
+func (s *StorageSchema) getUserType(ref string) (parser, error) {
+	if userType, ok := s.userTypes[ref]; ok {
+		return userType, nil
+	}
+
+	return nil, fmt.Errorf("cannot find user-defined type %q", ref)
 }
 
 type mapSchema struct {
@@ -362,13 +368,16 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 	}
 
 	if typ != "" && typ[0] == '$' {
-		if userType, ok := v.topSchema.userTypes[typ[1:]]; ok {
-			if _, ok := userType.(*stringSchema); !ok {
-				return nil, fmt.Errorf(`key type %q must be based on string`, typ[1:])
-			}
-			return userType, nil
+		userType, err := v.topSchema.getUserType(typ[1:])
+		if err != nil {
+			return nil, err
 		}
-		return nil, fmt.Errorf(`cannot find user-defined type %q`, typ[1:])
+
+		if _, ok := userType.(*stringSchema); !ok {
+			return nil, fmt.Errorf(`key type %q must be based on string`, typ[1:])
+		}
+		return userType, nil
+
 	}
 
 	return nil, fmt.Errorf(`keys must be based on string but got %q`, typ)
