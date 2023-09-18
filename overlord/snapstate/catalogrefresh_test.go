@@ -294,3 +294,20 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
 	c.Check(dirs.SnapNamesFile, testutil.FilePresent)
 	c.Check(dirs.SnapCommandsDB, testutil.FilePresent)
 }
+
+func (s *catalogRefreshTestSuite) TestSnapStoreOffline(c *C) {
+	setStoreAccess(s.state, "offline")
+
+	af := snapstate.NewCatalogRefresh(s.state)
+	err := af.Ensure()
+	c.Check(err, IsNil)
+
+	c.Check(s.store.ops, HasLen, 0)
+
+	setStoreAccess(s.state, "online")
+
+	err = af.Ensure()
+	c.Check(err, IsNil)
+
+	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
+}

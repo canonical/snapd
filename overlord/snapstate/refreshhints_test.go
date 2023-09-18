@@ -557,3 +557,20 @@ func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongEpoch(c *C) {
 	// other-snap ignored due to epoch
 	c.Check(candidates["some-snap"], NotNil)
 }
+
+func (s *refreshHintsTestSuite) TestSnapStoreOffline(c *C) {
+	setStoreAccess(s.state, "offline")
+
+	rh := snapstate.NewRefreshHints(s.state)
+	err := rh.Ensure()
+	c.Check(err, IsNil)
+
+	c.Check(s.store.ops, HasLen, 0)
+
+	setStoreAccess(s.state, "online")
+
+	err = rh.Ensure()
+	c.Check(err, IsNil)
+
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+}
