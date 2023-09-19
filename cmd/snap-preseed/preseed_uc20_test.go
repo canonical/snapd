@@ -21,8 +21,12 @@ package main_test
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -32,11 +36,26 @@ import (
 	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/image/preseed"
+	"github.com/snapcore/snapd/store"
 )
 
+const accountAssertString = `type: account
+authority-id: canonical
+account-id: my-brand
+display-name: my-brand
+username: my-brand
+validation: unproven
+timestamp: 2020-01-01T00:00:00Z
+body-length: 0
+sign-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
+
+AXNpZw==`
+
 var (
-	defaultPrivKey, _ = assertstest.GenerateKey(752)
-	altPrivKey, _     = assertstest.GenerateKey(752)
+	defaultBrandPrivKey, _      = assertstest.GenerateKey(752)
+	defaultBrandKeyAssertString = generateAccountKeyAssert("my-brand", defaultBrandPrivKey)
+	altBrandPrivKey, _          = assertstest.GenerateKey(752)
+	altBrandKeyAssertString     = generateAccountKeyAssert("my-brand", altBrandPrivKey)
 )
 
 type fakeKeyMgr struct {
@@ -72,6 +91,21 @@ func (f *fakeKeyMgr) Export(keyName string) ([]byte, error)    { return nil, nil
 func (f *fakeKeyMgr) List() ([]asserts.ExternalKeyInfo, error) { return nil, nil }
 func (f *fakeKeyMgr) DeleteByName(keyName string) error        { return nil }
 
+func generateAccountKeyAssert(accountID string, key asserts.PrivateKey) string {
+	const accountKeySignerHash = "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
+	pubKeyBody, _ := asserts.EncodePublicKey(key.PublicKey())
+	return "type: account-key\n" +
+		"authority-id: canonical\n" +
+		"account-id: " + accountID + "\n" +
+		"name: default\n" +
+		"public-key-sha3-384: " + key.PublicKey().ID() + "\n" +
+		"since: " + time.Now().Format(time.RFC3339) + "\n" +
+		"body-length: " + fmt.Sprint(len(pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: " + accountKeySignerHash + "\n\n" +
+		string(pubKeyBody) + "\n\n" +
+		"AXNpZw=="
+}
+
 func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	tmpDir := c.MkDir()
 	dirs.SetRootDir(tmpDir)
@@ -86,16 +120,47 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	// we don't run tar, so create a fake artifact to make FileDigest happy
 	c.Assert(os.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
-	keyMgr := &fakeKeyMgr{defaultPrivKey, altPrivKey}
+	keyMgr := &fakeKeyMgr{defaultBrandPrivKey, altBrandPrivKey}
 	restoreGetKeypairMgr := main.MockGetKeypairManager(func() (signtool.KeypairManager, error) {
 		return keyMgr, nil
 	})
 	defer restoreGetKeypairMgr()
 
+	var server *httptest.Server
+	restoreStoreNew := main.MockStoreNew(func(cfg *store.Config, storeCtx store.DeviceAndAuthContext) *store.Store {
+		if cfg == nil {
+			cfg = store.DefaultConfig()
+		}
+		serverURL, _ := url.Parse(server.URL)
+		cfg.AssertionsBaseURL = serverURL
+		return store.New(cfg, storeCtx)
+	})
+	defer restoreStoreNew()
+
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.Method, Equals, "GET")
+		switch r.URL.Path {
+		case "/v2/assertions/account-key/" + altBrandPrivKey.PublicKey().ID():
+			fmt.Fprint(w, altBrandKeyAssertString)
+		case "/v2/assertions/account/my-brand":
+			fmt.Fprint(w, accountAssertString)
+		default:
+			c.Fatalf("invalid request: %q", r.URL.Path)
+		}
+	}))
+
+	accountAssert, err := asserts.Decode([]byte(accountAssertString))
+	c.Assert(err, IsNil)
+
+	accountKeyAssert, err := asserts.Decode([]byte(altBrandKeyAssertString))
+	c.Assert(err, IsNil)
+
 	var called bool
 	restorePreseed := main.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
 		c.Check(opts.PrepareImageDir, Equals, tmpDir)
-		c.Check(opts.PreseedSignKey, DeepEquals, &altPrivKey)
+		c.Check(opts.PreseedSignKey, DeepEquals, &altBrandPrivKey)
+		c.Check(opts.PreseedAccountAssert, DeepEquals, accountAssert.(*asserts.Account))
+		c.Check(opts.PreseedAccountKeyAssert, DeepEquals, accountKeyAssert.(*asserts.AccountKey))
 		c.Check(opts.AppArmorKernelFeaturesDir, Equals, "/custom/aa/features")
 		c.Check(opts.SysfsOverlay, Equals, "/sysfs-overlay")
 		called = true
@@ -121,16 +186,47 @@ func (s *startPreseedSuite) TestRunPreseedUC20HappyNoArgs(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
-	keyMgr := &fakeKeyMgr{defaultPrivKey, altPrivKey}
+	keyMgr := &fakeKeyMgr{defaultBrandPrivKey, altBrandPrivKey}
 	restoreGetKeypairMgr := main.MockGetKeypairManager(func() (signtool.KeypairManager, error) {
 		return keyMgr, nil
 	})
 	defer restoreGetKeypairMgr()
 
+	var server *httptest.Server
+	restoreStoreNew := main.MockStoreNew(func(cfg *store.Config, storeCtx store.DeviceAndAuthContext) *store.Store {
+		if cfg == nil {
+			cfg = store.DefaultConfig()
+		}
+		serverURL, _ := url.Parse(server.URL)
+		cfg.AssertionsBaseURL = serverURL
+		return store.New(cfg, storeCtx)
+	})
+	defer restoreStoreNew()
+
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.Method, Equals, "GET")
+		switch r.URL.Path {
+		case "/v2/assertions/account-key/" + defaultBrandPrivKey.PublicKey().ID():
+			fmt.Fprint(w, defaultBrandKeyAssertString)
+		case "/v2/assertions/account/my-brand":
+			fmt.Fprint(w, accountAssertString)
+		default:
+			c.Fatalf("invalid request: %q", r.URL.Path)
+		}
+	}))
+
+	accountAssert, err := asserts.Decode([]byte(accountAssertString))
+	c.Assert(err, IsNil)
+
+	accountKeyAssert, err := asserts.Decode([]byte(defaultBrandKeyAssertString))
+	c.Assert(err, IsNil)
+
 	var called bool
 	restorePreseed := main.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
 		c.Check(opts.PrepareImageDir, Equals, tmpDir)
-		c.Check(opts.PreseedSignKey, DeepEquals, &defaultPrivKey)
+		c.Check(opts.PreseedSignKey, DeepEquals, &defaultBrandPrivKey)
+		c.Check(opts.PreseedAccountAssert, DeepEquals, accountAssert.(*asserts.Account))
+		c.Check(opts.PreseedAccountKeyAssert, DeepEquals, accountKeyAssert.(*asserts.AccountKey))
 		c.Check(opts.AppArmorKernelFeaturesDir, Equals, "")
 		c.Check(opts.SysfsOverlay, Equals, "")
 		called = true

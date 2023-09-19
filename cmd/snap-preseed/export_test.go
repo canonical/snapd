@@ -22,6 +22,7 @@ package main
 import (
 	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/image/preseed"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,4 +64,12 @@ func MockResetPreseededChroot(f func(dir string) error) (restore func()) {
 	r := testutil.Backup(&preseedResetPreseededChroot)
 	preseedResetPreseededChroot = f
 	return r
+}
+
+func MockStoreNew(f func(*store.Config, store.DeviceAndAuthContext) *store.Store) (restore func()) {
+	storeNewOrig := storeNew
+	storeNew = f
+	return func() {
+		storeNew = storeNewOrig
+	}
 }
