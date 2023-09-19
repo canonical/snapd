@@ -38,10 +38,11 @@ func (*epollSuite) TestOpenClose(c *C) {
 	c.Assert(e.Fd() == 1, Equals, false)
 	c.Assert(e.Fd() == 2, Equals, false)
 	c.Assert(e.RegisteredFdCount(), Equals, 0)
+	c.Assert(e.IsClosed(), Equals, false)
 
 	err = e.Close()
 	c.Assert(err, IsNil)
-	c.Assert(e.Fd(), Equals, -1)
+	c.Assert(e.IsClosed(), Equals, true)
 }
 
 func concurrentlyRegister(e *epoll.Epoll, fd int, errCh chan error) {

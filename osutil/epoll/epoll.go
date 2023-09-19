@@ -45,7 +45,7 @@ func (r Readiness) String() string {
 
 // Epoll wraps a file descriptor which can be used for I/O readiness notification.
 type Epoll struct {
-	fd                int32
+	fd                int
 	registeredFdCount int32 // read/modify using helper functions
 	closed            chan struct{}
 	closingLock       sync.Mutex
@@ -58,12 +58,12 @@ func Open() (*Epoll, error) {
 		return nil, fmt.Errorf("cannot open epoll file descriptor: %w", err)
 	}
 	e := &Epoll{
-		fd:                int32(fd),
+		fd:                fd,
 		registeredFdCount: 0,
 		closed:            make(chan struct{}),
 	}
 	runtime.SetFinalizer(e, func(e *Epoll) {
-		if e.fd != -1 {
+		if !e.IsClosed() {
 			e.Close()
 		}
 	})
@@ -71,7 +71,12 @@ func Open() (*Epoll, error) {
 }
 
 func (e *Epoll) IsClosed() bool {
-	return e.Fd() == -1
+	select {
+	case <-e.closed:
+		return true
+	default:
+		return false
+	}
 }
 
 // Close closes the event monitoring descriptor.
@@ -82,15 +87,13 @@ func (e *Epoll) Close() error {
 		return ErrEpollClosed
 	}
 	runtime.SetFinalizer(e, nil)
-	fd := e.Fd()
-	atomic.StoreInt32(&e.fd, -1)
 	close(e.closed)
-	return unix.Close(fd)
+	return unix.Close(e.fd)
 }
 
 // Fd returns the integer unix file descriptor referencing the open file.
 func (e *Epoll) Fd() int {
-	return int(atomic.LoadInt32(&e.fd))
+	return e.fd
 }
 
 // RegisteredFdCount returns the number of file descriptors which are currently
@@ -111,12 +114,11 @@ func (e *Epoll) decrementRegisteredFdCount() {
 //
 // Please refer to epoll_ctl(2) and EPOLL_CTL_ADD for details.
 func (e *Epoll) Register(fd int, mask Readiness) error {
-	epollFd := e.Fd()
 	if e.IsClosed() {
 		return ErrEpollClosed
 	}
 	e.incrementRegisteredFdCount()
-	err := unix.EpollCtl(epollFd, unix.EPOLL_CTL_ADD, fd, &unix.EpollEvent{
+	err := unix.EpollCtl(e.Fd(), unix.EPOLL_CTL_ADD, fd, &unix.EpollEvent{
 		Events: uint32(mask),
 		Fd:     int32(fd),
 	})
@@ -132,11 +134,10 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 //
 // Please refer to epoll_ctl(2) and EPOLL_CTL_DEL for details.
 func (e *Epoll) Deregister(fd int) error {
-	epollFd := e.Fd()
 	if e.IsClosed() {
 		return ErrEpollClosed
 	}
-	err := unix.EpollCtl(epollFd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{})
+	err := unix.EpollCtl(e.Fd(), unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{})
 	if err != nil {
 		return err
 	}
@@ -148,11 +149,10 @@ func (e *Epoll) Deregister(fd int) error {
 //
 // Please refer to epoll_ctl(2) and EPOLL_CTL_MOD for details.
 func (e *Epoll) Modify(fd int, mask Readiness) error {
-	epollFd := e.Fd()
 	if e.IsClosed() {
 		return ErrEpollClosed
 	}
-	err := unix.EpollCtl(epollFd, unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{
+	err := unix.EpollCtl(e.Fd(), unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{
 		Events: uint32(mask),
 		Fd:     int32(fd),
 	})
@@ -169,7 +169,6 @@ type Event struct {
 var unixEpollWait = unix.EpollWait
 
 func (e *Epoll) waitTimeoutInternal(duration time.Duration, eventCh chan []Event, errCh chan error) {
-	epollFd := e.Fd()
 	if e.IsClosed() {
 		errCh <- ErrEpollClosed
 		return
@@ -197,9 +196,9 @@ func (e *Epoll) waitTimeoutInternal(duration time.Duration, eventCh chan []Event
 			bufLen = 1
 		}
 		sysEvents = make([]unix.EpollEvent, bufLen)
-		n, err = unixEpollWait(epollFd, sysEvents, msec)
+		n, err = unixEpollWait(e.Fd(), sysEvents, msec)
 		runtime.KeepAlive(e)
-		// If the epoll fd was closed (thus set to -1) during epoll_wait
+		// If the epoll fd was closed during epoll_wait
 		// then return ErrEpollClosed immediately.
 		if e.IsClosed() {
 			errCh <- ErrEpollClosed
