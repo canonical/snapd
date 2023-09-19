@@ -200,7 +200,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	}
 
 	// add the CLI apps from the snap.yaml
-	if err = wrappers.AddSnapBinaries(s); err != nil {
+	if err = wrappers.EnsureSnapBinaries(s); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
@@ -226,13 +226,13 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDBusActivationFiles)
 
 	// add the desktop files
-	if err = wrappers.AddSnapDesktopFiles(s); err != nil {
+	if err = wrappers.EnsureSnapDesktopFiles(s); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDesktopFiles)
 
 	// add the desktop icons
-	if err = wrappers.AddSnapIcons(s); err != nil {
+	if err = wrappers.EnsureSnapIcons(s); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapIcons)
