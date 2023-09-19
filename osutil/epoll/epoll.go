@@ -68,9 +68,13 @@ func Open() (*Epoll, error) {
 	return e, nil
 }
 
+func (e *Epoll) IsClosed() bool {
+	return e.fd == -1
+}
+
 // Close closes the event monitoring descriptor.
 func (e *Epoll) Close() error {
-	if e.fd == -1 {
+	if e.IsClosed() {
 		return ErrEpollClosed
 	}
 	runtime.SetFinalizer(e, nil)
@@ -108,7 +112,7 @@ func (e *Epoll) zeroRegisteredFdCount() {
 //
 // Please refer to epoll_ctl(2) and EPOLL_CTL_ADD for details.
 func (e *Epoll) Register(fd int, mask Readiness) error {
-	if e.fd == -1 {
+	if e.IsClosed() {
 		return ErrEpollClosed
 	}
 	e.incrementRegisteredFdCount()
@@ -128,7 +132,7 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 //
 // Please refer to epoll_ctl(2) and EPOLL_CTL_DEL for details.
 func (e *Epoll) Deregister(fd int) error {
-	if e.fd == -1 {
+	if e.IsClosed() {
 		return ErrEpollClosed
 	}
 	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{})
@@ -143,7 +147,7 @@ func (e *Epoll) Deregister(fd int) error {
 //
 // Please refer to epoll_ctl(2) and EPOLL_CTL_MOD for details.
 func (e *Epoll) Modify(fd int, mask Readiness) error {
-	if e.fd == -1 {
+	if e.IsClosed() {
 		return ErrEpollClosed
 	}
 	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{
@@ -163,7 +167,7 @@ type Event struct {
 var unixEpollWait = unix.EpollWait
 
 func (e *Epoll) waitTimeoutInternal(duration time.Duration, eventCh chan []Event, errCh chan error) {
-	if e.fd == -1 {
+	if e.IsClosed() {
 		errCh <- ErrEpollClosed
 		return
 	}
@@ -194,7 +198,7 @@ func (e *Epoll) waitTimeoutInternal(duration time.Duration, eventCh chan []Event
 		runtime.KeepAlive(e)
 		// If the epoll fd was closed (thus set to -1) during epoll_wait
 		// then return ErrEpollClosed immediately.
-		if e.fd == -1 {
+		if e.IsClosed() {
 			errCh <- ErrEpollClosed
 			return
 		}
@@ -240,7 +244,7 @@ func (e *Epoll) waitTimeoutInternal(duration time.Duration, eventCh chan []Event
 //
 // Warning, using epoll from Golang explicitly is tricky.
 func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
-	if e.fd == -1 {
+	if e.IsClosed() {
 		return nil, ErrEpollClosed
 	}
 	eventCh := make(chan []Event, 1)
