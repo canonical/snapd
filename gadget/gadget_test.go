@@ -5199,3 +5199,19 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityVfatPartitions(c *C) {
 	_, err = gadget.EnsureVolumeCompatibility(gadgetVolumeWithExtras, &deviceLayout, opts)
 	c.Assert(err, IsNil)
 }
+
+func (s *gadgetYamlTestSuite) TestGadgetToLinuxFilesystem(c *C) {
+
+	for i, tc := range []struct {
+		vs    *gadget.VolumeStructure
+		linFs string
+	}{
+		{&gadget.VolumeStructure{Filesystem: "ext4"}, "ext4"},
+		{&gadget.VolumeStructure{Filesystem: "vfat"}, "vfat"},
+		{&gadget.VolumeStructure{Filesystem: "vfat-16"}, "vfat"},
+		{&gadget.VolumeStructure{Filesystem: "vfat-32"}, "vfat"},
+	} {
+		c.Logf("case %d: %s", i, tc.linFs)
+		c.Check(tc.vs.GadgetToLinuxFilesystem(), Equals, tc.linFs)
+	}
+}

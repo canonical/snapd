@@ -359,6 +359,17 @@ func (vs *VolumeStructure) MatchesLinuxFilesystem(linuxFsystem string) bool {
 	return vs.Filesystem == linuxFsystem
 }
 
+// GadgetToLinuxFilesystem returns the linux filesystem that corresponds to the
+// one specified in the gadget.
+func (vs *VolumeStructure) GadgetToLinuxFilesystem() string {
+	switch vs.Filesystem {
+	case "vfat-16", "vfat-32":
+		return "vfat"
+	default:
+		return vs.Filesystem
+	}
+}
+
 // HasLabel checks if label matches the VolumeStructure label. It ignores
 // capitals if the structure has a fat filesystem.
 func (vs *VolumeStructure) HasLabel(label string) bool {
