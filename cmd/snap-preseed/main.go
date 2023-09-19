@@ -35,8 +35,11 @@ import (
 	"github.com/snapcore/snapd/snap"
 
 	// for private key resolution
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/store"
 )
 
 const (
@@ -70,6 +73,7 @@ var (
 	preseedResetPreseededChroot = preseed.ResetPreseededChroot
 
 	getKeypairManager = signtool.GetKeypairManager
+	storeNew          = store.New
 
 	opts options
 )
@@ -150,9 +154,21 @@ func run(parser *flags.Parser, args []string) (err error) {
 			return fmt.Errorf(i18n.G("cannot use %q key: %v"), keyName, err)
 		}
 
+		accountKey, err := mustGetOneAssert("account-key", map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})
+		if err != nil {
+			return err
+		}
+
+		account, err := mustGetOneAssert("account", map[string]string{"account-id": accountKey.(*asserts.AccountKey).AccountID()})
+		if err != nil {
+			return err
+		}
+
 		coreOpts := &preseed.CoreOptions{
 			PrepareImageDir:           chrootDir,
 			PreseedSignKey:            &privKey,
+			PreseedAccountAssert:      account.(*asserts.Account),
+			PreseedAccountKeyAssert:   accountKey.(*asserts.AccountKey),
 			AppArmorKernelFeaturesDir: opts.AppArmorFeaturesDir,
 			SysfsOverlay:              opts.SysfsOverlay,
 		}
@@ -165,4 +181,43 @@ func run(parser *flags.Parser, args []string) (err error) {
 		return preseedClassicReset(chrootDir)
 	}
 	return preseedClassic(chrootDir)
+}
+
+func downloadAssertion(typeName string, headers map[string]string) ([]asserts.Assertion, error) {
+	var user *auth.UserState
+
+	// FIXME: set auth context
+	var storeCtx store.DeviceAndAuthContext
+
+	at := asserts.Type(typeName)
+	if at == nil {
+		return nil, fmt.Errorf("cannot find assertion type %q", typeName)
+	}
+	primaryKeys, err := asserts.PrimaryKeyFromHeaders(at, headers)
+	if err != nil {
+		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
+	}
+
+	sto := storeNew(nil, storeCtx)
+	as, err := sto.Assertion(at, primaryKeys, user)
+	if err != nil {
+		return nil, err
+	}
+
+	return []asserts.Assertion{as}, nil
+}
+
+// call this function in a way that is guaranteed to specify a unique assertion
+// (i.e. with a header specifying a value for the assertion's primary key)
+func mustGetOneAssert(assertType string, headers map[string]string) (asserts.Assertion, error) {
+	asserts, err := downloadAssertion(assertType, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(asserts) != 1 {
+		return nil, fmt.Errorf(i18n.G("internal error: cannot identify unique %s assertion for specified headers"), assertType)
+	}
+
+	return asserts[0], nil
 }
