@@ -650,7 +650,8 @@ func (s JSONDataBag) Query(path string, params map[string]string, res interface{
 }
 
 func query(subKeys []string, index int, node map[string]json.RawMessage, params map[string]string, res interface{}) error {
-	key, fieldFilter := splitKeyAndFilter(subKeys[index], params)
+	key := subKeys[index]
+	key, filt, fieldFilt := splitKeyAndFilter(key, params)
 
 	if key != "*" {
 		nextLevel, ok := node[key]
@@ -668,8 +669,8 @@ func query(subKeys []string, index int, node map[string]json.RawMessage, params 
 			return err
 		}
 
-		if fieldFilter != nil {
-			pass, err := fieldFilter(node)
+		if fieldFilt != nil {
+			pass, err := fieldFilt(node)
 
 			if err != nil {
 				return err
@@ -680,7 +681,7 @@ func query(subKeys []string, index int, node map[string]json.RawMessage, params 
 				node = map[string]json.RawMessage{}
 			}
 		}
-	} else if fieldFilter != nil {
+	} else {
 		// return all objects but filtered
 		for field, val := range node {
 			var nextLevel map[string]json.RawMessage
@@ -692,7 +693,17 @@ func query(subKeys []string, index int, node map[string]json.RawMessage, params 
 				return err
 			}
 
-			pass, err := fieldFilter(nextLevel)
+			// filter element by it's key
+			if !filt(field) {
+				delete(node, field)
+			}
+
+			if fieldFilt == nil {
+				continue
+			}
+
+			// filter element by it's field
+			pass, err := fieldFilt(nextLevel)
 			if err != nil {
 				return err
 			}
@@ -716,32 +727,49 @@ func query(subKeys []string, index int, node map[string]json.RawMessage, params 
 	return query(subKeys, index+1, node, params, res)
 }
 
-func splitKeyAndFilter(key string, params map[string]string) (string, filter) {
-	start := strings.Index(key, "[")
-
-	var filt filter
-	if start != -1 {
-		filt = getFieldFilter(key[start:], params)
-
-		// ignore the processed field filter
-		key = key[:start]
+func splitKeyAndFilter(key string, params map[string]string) (string, keyFilter, objFilter) {
+	if strings.IndexAny(key, "{[") == -1 {
+		return key, nil, nil
 	}
 
-	if key[0] == '{' && key[len(key)-1] == '}' {
-		key = key[1 : len(key)-1]
-		var ok bool
-		key, ok = params[key]
-		if !ok {
-			key = "*"
+	// the subkey can have an object filter and/or a field filter, parse them
+	var rawFieldFilter string
+	fieldFiltStart := strings.Index(key, "[")
+	if fieldFiltStart != -1 {
+		// strip square brackets around filter filter
+		rawFieldFilter = key[fieldFiltStart+1 : len(key)-1]
+	}
+
+	var rawObjFilter string
+	if key[0] == '{' {
+		endObjFilter := strings.Index(key, "}")
+		// strip brackets around placeholder
+		rawObjFilter = key[1:endObjFilter]
+
+		// if there's an object filter, we want get all elements and them filter them
+		key = "*"
+	} else {
+		key = key[:fieldFiltStart]
+	}
+
+	var filt keyFilter
+	if rawObjFilter != "" {
+		value := params[rawObjFilter]
+		filt = func(val string) bool {
+			return value == "" || val == value
 		}
 	}
 
-	return key, filt
+	var fieldFilt objFilter
+	if rawFieldFilter != "" {
+		fieldFilt = getFieldFilter(rawFieldFilter, params)
+	}
+
+	return key, filt, fieldFilt
 }
 
-func getFieldFilter(key string, params map[string]string) filter {
-	// strip the square brackets and split the field and placeholder
-	key = key[1 : len(key)-1]
+func getFieldFilter(key string, params map[string]string) objFilter {
+	// split the field reference and the placeholder
 	parts := strings.Split(key, "=")
 	field, placeholder := parts[0], parts[1]
 
@@ -773,7 +801,8 @@ func getFieldFilter(key string, params map[string]string) filter {
 	}
 }
 
-type filter func(map[string]json.RawMessage) (bool, error)
+type objFilter func(map[string]json.RawMessage) (bool, error)
+type keyFilter func(string) bool
 
 // Get takes a path and a pointer to a variable into which the value referenced
 // by the path is written. The path can be dotted. For each dot a JSON object

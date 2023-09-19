@@ -293,9 +293,16 @@ func (s *filterSampleSuite) TestQueryFilterNameWithParameter(c *C) {
 	c.Assert(err, IsNil)
 	obj, ok := res.(map[string]json.RawMessage)
 	c.Assert(ok, Equals, true)
-	c.Assert(obj, HasLen, 2)
-	assertField(c, obj, "name", "firefox")
-	assertField(c, obj, "status", "active")
+	c.Assert(obj, HasLen, 1)
+
+	raw, ok := obj["firefox"]
+	c.Assert(ok, Equals, true)
+	var firefoxObj map[string]json.RawMessage
+	err = json.Unmarshal(raw, &firefoxObj)
+	c.Assert(err, IsNil)
+
+	assertField(c, firefoxObj, "name", "firefox")
+	assertField(c, firefoxObj, "status", "active")
 }
 
 func (s *filterSampleSuite) TestQueryFilterNameWithRequest(c *C) {
