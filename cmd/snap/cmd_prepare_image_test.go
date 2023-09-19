@@ -284,7 +284,7 @@ sign-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9
 
 AXNpZw==`
 
-	var accountAssertKeyString = generateAccountKeyAssert("my-brand", altBrandPrivKey)
+	var accountKeyAssertString = generateAccountKeyAssert("my-brand", altBrandPrivKey)
 
 	var opts *image.Options
 	prep := func(o *image.Options) error {
@@ -315,7 +315,7 @@ AXNpZw==`
 		c.Assert(r.Method, Equals, "GET")
 		switch r.URL.Path {
 		case "/v2/assertions/account-key/" + altBrandPrivKey.PublicKey().ID():
-			fmt.Fprint(w, accountAssertKeyString)
+			fmt.Fprint(w, accountKeyAssertString)
 		case "/v2/assertions/account/my-brand":
 			fmt.Fprint(w, accountAssertString)
 		default:
@@ -327,25 +327,19 @@ AXNpZw==`
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
-	accountAssertDecode, err := asserts.Decode([]byte(accountAssertString))
+	accountAssert, err := asserts.Decode([]byte(accountAssertString))
 	c.Assert(err, IsNil)
 
-	accountAssert, ok := accountAssertDecode.(*asserts.Account)
-	c.Assert(ok, Equals, true)
-
-	accountAssertKeyDecode, err := asserts.Decode([]byte(accountAssertKeyString))
+	accountKeyAssert, err := asserts.Decode([]byte(accountKeyAssertString))
 	c.Assert(err, IsNil)
-
-	accountKeyAssert, ok := accountAssertKeyDecode.(*asserts.AccountKey)
-	c.Assert(ok, Equals, true)
 
 	c.Check(opts, DeepEquals, &image.Options{
 		ModelFile:                 "model",
 		PrepareDir:                "prepare-dir",
 		Preseed:                   true,
 		PreseedSignKey:            &altBrandPrivKey,
-		PreseedAccountAssert:      accountAssert,
-		PreseedAccountKeyAssert:   accountKeyAssert,
+		PreseedAccountAssert:      accountAssert.(*asserts.Account),
+		PreseedAccountKeyAssert:   accountKeyAssert.(*asserts.AccountKey),
 		SysfsOverlay:              "sys-overlay",
 		AppArmorKernelFeaturesDir: "aafeatures-dir",
 	})
