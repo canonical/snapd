@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -2379,4 +2380,55 @@ func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvIncorrectPermissions(c
 	})
 	err = runner.LoadState()
 	c.Check(err, ErrorMatches, "cannot set device information: open /.*/modeenv: permission denied")
+}
+
+func (s *runnerSuite) TestStoreOffline(c *C) {
+	runner := repair.NewRunner()
+
+	data, err := json.Marshal(configcore.RepairConfig{
+		StoreOffline: true,
+	})
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755)
+	c.Assert(err, IsNil)
+
+	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644, 0)
+	c.Assert(err, IsNil)
+
+	_, _, err = runner.Fetch("canonical", 2, -1)
+	c.Assert(err, testutil.ErrorIs, repair.ErrStoreOffline)
+
+	_, err = runner.Peek("brand", 0)
+	c.Assert(err, testutil.ErrorIs, repair.ErrStoreOffline)
+}
+
+func (s *runnerSuite) TestStoreOnlineIfFileBroken(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Equals, "/repairs/canonical/2")
+		io.WriteString(w, testRepair)
+		io.WriteString(w, "\n")
+		io.WriteString(w, testKey)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	err := os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755)
+	c.Assert(err, IsNil)
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+
+	// file is missing
+	_, _, err = runner.Fetch("canonical", 2, -1)
+	c.Assert(err, IsNil)
+
+	// file is invalid json
+	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, []byte("}{"), 0644, 0)
+	c.Assert(err, IsNil)
+
+	_, _, err = runner.Fetch("canonical", 2, -1)
+	c.Assert(err, IsNil)
 }
