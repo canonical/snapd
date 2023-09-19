@@ -195,7 +195,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	// most other store network operations use s.endpointURL, which returns an
 	// error if the store is offline. this doesn't, so we need to explicitly
 	// check.
-	if err := s.checkStoreOnline(); err != nil {
+	if err := s.checkStoreOffline(); err != nil {
 		return err
 	}
 
@@ -598,7 +598,7 @@ func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *s
 	// most other store network operations use s.endpointURL, which returns an
 	// error if the store is offline. this doesn't, so we need to explicitly
 	// check.
-	if err := s.checkStoreOnline(); err != nil {
+	if err := s.checkStoreOffline(); err != nil {
 		return nil, 0, err
 	}
 

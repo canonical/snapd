@@ -36,7 +36,7 @@ import (
 )
 
 func (s *Store) assertionsEndpointURL(p string, query url.Values) (*url.URL, error) {
-	if err := s.checkStoreOnline(); err != nil {
+	if err := s.checkStoreOffline(); err != nil {
 		return nil, err
 	}
 
