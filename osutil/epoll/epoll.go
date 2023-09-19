@@ -47,7 +47,7 @@ func (r Readiness) String() string {
 type Epoll struct {
 	fd                int32
 	registeredFdCount int32 // read/modify using helper functions
-	closed            chan interface{}
+	closed            chan struct{}
 	closingLock       sync.Mutex
 }
 
@@ -60,7 +60,7 @@ func Open() (*Epoll, error) {
 	e := &Epoll{
 		fd:                int32(fd),
 		registeredFdCount: 0,
-		closed:            make(chan interface{}),
+		closed:            make(chan struct{}),
 	}
 	runtime.SetFinalizer(e, func(e *Epoll) {
 		if e.fd != -1 {
