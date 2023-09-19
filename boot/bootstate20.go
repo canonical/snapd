@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2022 Canonical Ltd
+ * Copyright (C) 2019-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -183,6 +183,10 @@ func newBootStateUpdate20(m *Modeenv) (*bootStateUpdate20, error) {
 
 // commit will write out boot state persistently to disk.
 func (u20 *bootStateUpdate20) commit() error {
+	if !isModeeenvLocked() {
+		return fmt.Errorf("internal error: cannot commit modeenv without the lock")
+	}
+
 	// The actual actions taken here will depend on what things were called
 	// before commit(), either setNextBoot for a single type of kernel snap, or
 	// markSuccessful for kernel and/or base snaps.
