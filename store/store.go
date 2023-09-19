@@ -1640,7 +1640,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	return hosts, nil
 }
 
-var ErrStoreOffline = errors.New("store is offline, use 'snap unset system store.access' to go online")
+var ErrStoreOffline = errors.New("store is marked offline, use 'snap unset system store.access' to go online")
 
 func (s *Store) checkStoreOnline() error {
 	if s.dauthCtx == nil {
