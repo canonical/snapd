@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -54,6 +54,17 @@ func (ss *stateSuite) TestLockUnlock(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	st.Unlock()
+}
+
+func (ss *stateSuite) TestUnlocker(c *C) {
+	st := state.New(nil)
+	unlocker := st.Unlocker()
+	st.Lock()
+	defer st.Unlock()
+	relock := unlocker()
+	st.Lock()
+	st.Unlock()
+	relock()
 }
 
 func (ss *stateSuite) TestGetAndSet(c *C) {
