@@ -346,22 +346,9 @@ func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
 }
 
-func isFatFilesystem(filesystem string) bool {
-	return strutil.ListContains([]string{"vfat", "vfat-16", "vfat-32"}, filesystem)
-}
-
-// MatchesLinuxFilesystem checks if the filesystem specified in the
-// gadget matches the filesystem as specified in Linux.
-func (vs *VolumeStructure) MatchesLinuxFilesystem(linuxFsystem string) bool {
-	if isFatFilesystem(vs.Filesystem) && linuxFsystem == "vfat" {
-		return true
-	}
-	return vs.Filesystem == linuxFsystem
-}
-
-// GadgetToLinuxFilesystem returns the linux filesystem that corresponds to the
+// LinuxFilesystem returns the linux filesystem that corresponds to the
 // one specified in the gadget.
-func (vs *VolumeStructure) GadgetToLinuxFilesystem() string {
+func (vs *VolumeStructure) LinuxFilesystem() string {
 	switch vs.Filesystem {
 	case "vfat-16", "vfat-32":
 		return "vfat"
@@ -373,7 +360,7 @@ func (vs *VolumeStructure) GadgetToLinuxFilesystem() string {
 // HasLabel checks if label matches the VolumeStructure label. It ignores
 // capitals if the structure has a fat filesystem.
 func (vs *VolumeStructure) HasLabel(label string) bool {
-	if isFatFilesystem(vs.Filesystem) {
+	if vs.LinuxFilesystem() == "vfat" {
 		return strings.EqualFold(vs.Label, label)
 	}
 	return vs.Label == label
@@ -1058,7 +1045,7 @@ func setKnownLabel(label, filesystem string, knownFsLabels, knownVfatFsLabels ma
 	if seen := knownVfatFsLabels[lowerLabel]; seen {
 		return false
 	}
-	if isFatFilesystem(filesystem) {
+	if filesystem == "vfat" {
 		// labels with same name (ignoring capitals) as an already
 		// existing fat label are not allowed
 		for knownLabel := range knownFsLabels {
@@ -1097,7 +1084,7 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 	knownVfatFsLabels := make(map[string]bool, len(vol.Structure))
 	for _, s := range vol.Structure {
 		if s.Label != "" {
-			if !setKnownLabel(s.Label, s.Filesystem, knownFsLabels, knownVfatFsLabels) {
+			if !setKnownLabel(s.Label, s.LinuxFilesystem(), knownFsLabels, knownVfatFsLabels) {
 				return fmt.Errorf("filesystem label %q is not unique", s.Label)
 			}
 		}
@@ -1173,7 +1160,7 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLa
 			implicitLabel = ubuntuSaveLabel
 		}
 		if implicitLabel != "" {
-			if !setKnownLabel(implicitLabel, vs.Filesystem, knownFsLabels, knownVfatFsLabels) {
+			if !setKnownLabel(implicitLabel, vs.LinuxFilesystem(), knownFsLabels, knownVfatFsLabels) {
 				return fmt.Errorf("filesystem label %q is implied by %s role but was already set elsewhere", implicitLabel, vs.Role)
 			}
 			vs.Label = implicitLabel

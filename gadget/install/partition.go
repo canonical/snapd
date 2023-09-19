@@ -226,7 +226,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 			Name:             vs.Name,
 			PartitionFSLabel: vs.Label,
 			Type:             vs.Type,
-			PartitionFSType:  vs.GadgetToLinuxFilesystem(),
+			PartitionFSType:  vs.LinuxFilesystem(),
 			StartOffset:      offset,
 			Node:             node,
 			DiskIndex:        pIndex,

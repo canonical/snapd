@@ -121,7 +121,7 @@ func (l LaidOutStructure) Label() string {
 
 // Filesystem for formatting the structure.
 func (l LaidOutStructure) Filesystem() string {
-	return l.VolumeStructure.GadgetToLinuxFilesystem()
+	return l.VolumeStructure.LinuxFilesystem()
 }
 
 // Role for the structure as specified in the gadget.

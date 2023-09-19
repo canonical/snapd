@@ -5212,6 +5212,6 @@ func (s *gadgetYamlTestSuite) TestGadgetToLinuxFilesystem(c *C) {
 		{&gadget.VolumeStructure{Filesystem: "vfat-32"}, "vfat"},
 	} {
 		c.Logf("case %d: %s", i, tc.linFs)
-		c.Check(tc.vs.GadgetToLinuxFilesystem(), Equals, tc.linFs)
+		c.Check(tc.vs.LinuxFilesystem(), Equals, tc.linFs)
 	}
 }
