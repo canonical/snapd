@@ -22,8 +22,13 @@
 package configcore
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -48,15 +53,26 @@ func validateStoreAccess(cfg ConfGetter) error {
 	}
 }
 
+type RepairConfig struct {
+	StoreOffline bool `json:"store-offline"`
+}
+
 func handleStoreAccess(_ sysconfig.Device, cfg ConfGetter, _ *fsOnlyContext) error {
-	storeAccess, err := coreCfg(cfg, "store.access")
+	access, err := coreCfg(cfg, "store.access")
 	if err != nil {
 		return err
 	}
 
-	// TODO: write something to disk somewhere for snap-repair to read from
-	// here?
-	_ = storeAccess
+	data, err := json.Marshal(RepairConfig{
+		StoreOffline: access == "offline",
+	})
+	if err != nil {
+		return err
+	}
 
-	return nil
+	if err := os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755); err != nil {
+		return err
+	}
+
+	return osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644, 0)
 }

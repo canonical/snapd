@@ -22,6 +22,7 @@
 package configcore_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 
@@ -47,7 +48,7 @@ func (s *storeSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *storeSuite) TestValidateStoreAccessHappy(c *C) {
+func (s *storeSuite) TestStoreAccessHappy(c *C) {
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
@@ -55,9 +56,19 @@ func (s *storeSuite) TestValidateStoreAccessHappy(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
+
+	f, err := os.Open(dirs.SnapRepairConfigFile)
+	c.Assert(err, IsNil)
+	defer f.Close()
+
+	var repairConfig configcore.RepairConfig
+	err = json.NewDecoder(f).Decode(&repairConfig)
+	c.Assert(err, IsNil)
+
+	c.Check(repairConfig.StoreOffline, Equals, true)
 }
 
-func (s *storeSuite) TestValidateStoreAccessUnhappy(c *C) {
+func (s *storeSuite) TestStoreAccessUnhappy(c *C) {
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
