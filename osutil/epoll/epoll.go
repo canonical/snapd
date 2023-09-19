@@ -71,7 +71,7 @@ func Open() (*Epoll, error) {
 }
 
 func (e *Epoll) IsClosed() bool {
-	return e.fd == -1
+	return e.Fd() == -1
 }
 
 // Close closes the event monitoring descriptor.
