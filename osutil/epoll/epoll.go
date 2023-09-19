@@ -91,11 +91,6 @@ func (e *Epoll) Close() error {
 	return unix.Close(e.fd)
 }
 
-// Fd returns the integer unix file descriptor referencing the open file.
-func (e *Epoll) Fd() int {
-	return e.fd
-}
-
 // RegisteredFdCount returns the number of file descriptors which are currently
 // registered to the epoll instance.
 func (e *Epoll) RegisteredFdCount() int {
@@ -118,7 +113,7 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 		return ErrEpollClosed
 	}
 	e.incrementRegisteredFdCount()
-	err := unix.EpollCtl(e.Fd(), unix.EPOLL_CTL_ADD, fd, &unix.EpollEvent{
+	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_ADD, fd, &unix.EpollEvent{
 		Events: uint32(mask),
 		Fd:     int32(fd),
 	})
@@ -137,7 +132,7 @@ func (e *Epoll) Deregister(fd int) error {
 	if e.IsClosed() {
 		return ErrEpollClosed
 	}
-	err := unix.EpollCtl(e.Fd(), unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{})
+	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{})
 	if err != nil {
 		return err
 	}
@@ -152,7 +147,7 @@ func (e *Epoll) Modify(fd int, mask Readiness) error {
 	if e.IsClosed() {
 		return ErrEpollClosed
 	}
-	err := unix.EpollCtl(e.Fd(), unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{
+	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{
 		Events: uint32(mask),
 		Fd:     int32(fd),
 	})
@@ -196,7 +191,7 @@ func (e *Epoll) waitTimeoutInternal(duration time.Duration, eventCh chan []Event
 			bufLen = 1
 		}
 		sysEvents = make([]unix.EpollEvent, bufLen)
-		n, err = unixEpollWait(e.Fd(), sysEvents, msec)
+		n, err = unixEpollWait(e.fd, sysEvents, msec)
 		runtime.KeepAlive(e)
 		// If the epoll fd was closed during epoll_wait
 		// then return ErrEpollClosed immediately.

@@ -33,10 +33,6 @@ func (*epollSuite) TestString(c *C) {
 func (*epollSuite) TestOpenClose(c *C) {
 	e, err := epoll.Open()
 	c.Assert(err, IsNil)
-	c.Assert(e.Fd() == -1, Equals, false)
-	c.Assert(e.Fd() == 0, Equals, false)
-	c.Assert(e.Fd() == 1, Equals, false)
-	c.Assert(e.Fd() == 2, Equals, false)
 	c.Assert(e.RegisteredFdCount(), Equals, 0)
 	c.Assert(e.IsClosed(), Equals, false)
 
