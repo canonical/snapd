@@ -52,7 +52,7 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 		}
 
 		if typ != "map" {
-			return nil, fmt.Errorf(`cannot parse top level schema: expected map but got %s`, typ)
+			return nil, fmt.Errorf(`cannot parse top level schema: unexpected declared type %q, should be "map" or omitted`, typ)
 		}
 	}
 
