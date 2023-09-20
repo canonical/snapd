@@ -394,6 +394,14 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 	// "<bl-name>.conf" file indicates precisely which bootloader
 	// the gadget uses and as such there cannot be more than one
 	// such bootloader
+	var kernelInfo *kernel.Info
+	if kernelSnapRootDir != "" {
+		var err error
+		kernelInfo, err = kernel.ReadInfo(kernelSnapRootDir)
+		if err != nil {
+			return err
+		}
+	}
 	for name, vol := range info.Volumes {
 		// Check that files shipped in the gadget have the expected sizes
 		for idx := range vol.Structure {
@@ -402,11 +410,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 			}
 		}
 		// Make sure that content can be resolved if the kernel snap is known.
-		if kernelSnapRootDir != "" {
-			kernelInfo, err := kernel.ReadInfo(kernelSnapRootDir)
-			if err != nil {
-				return err
-			}
+		if kernelInfo != nil {
 			for idx := range vol.Structure {
 				if _, err := resolveVolumeContent(gadgetSnapRootDir, kernelSnapRootDir, kernelInfo, &vol.Structure[idx], nil); err != nil {
 					return err
@@ -420,14 +424,10 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 
 	// Ensure that at least one kernel.yaml reference can be resolved
 	// by the gadget
-	if kernelSnapRootDir != "" {
-		kinfo, err := kernel.ReadInfo(kernelSnapRootDir)
-		if err != nil {
-			return err
-		}
+	if kernelInfo != nil {
 		resolvedOnce := false
 		for _, vol := range info.Volumes {
-			err := gadgetVolumeConsumesOneKernelUpdateAsset(vol, kinfo)
+			err := gadgetVolumeConsumesOneKernelUpdateAsset(vol, kernelInfo)
 			if err == nil {
 				resolvedOnce = true
 			}
