@@ -466,3 +466,59 @@ func (s *ondiskTestSuite) TestOnDiskVolumeFromGadgetVol(c *C) {
 	c.Check(err.Error(), Equals, "bad disk")
 	c.Check(diskVol, IsNil)
 }
+
+func (s *ondiskTestSuite) TestOnDiskStructsFromGadget(c *C) {
+	gadgetYaml := `
+volumes:
+  disk:
+    bootloader: u-boot
+    structure:
+      - name: ubuntu-seed
+        filesystem: vfat
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: ubuntu-save
+        offset: 1100M
+        size: 10485760
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: ubuntu-data
+        filesystem: ext4
+        size: 1G
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+`
+	vol := mustParseVolume(c, gadgetYaml, "disk")
+	c.Assert(vol.Structure, HasLen, 4)
+
+	onDisk := gadget.OnDiskStructsFromGadget(vol)
+	c.Assert(onDisk, DeepEquals, map[int]*gadget.OnDiskStructure{
+		0: {
+			Name:        "ubuntu-seed",
+			Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			StartOffset: quantity.OffsetMiB,
+			Size:        500 * quantity.SizeMiB,
+		},
+		1: {
+			Name:        "ubuntu-boot",
+			Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			StartOffset: 501 * quantity.OffsetMiB,
+			Size:        500 * quantity.SizeMiB,
+		},
+		2: {
+			Name:        "ubuntu-save",
+			Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			StartOffset: 1100 * quantity.OffsetMiB,
+			Size:        10 * quantity.SizeMiB,
+		},
+		3: {
+			Name:        "ubuntu-data",
+			Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			StartOffset: 1110 * quantity.OffsetMiB,
+			Size:        quantity.SizeGiB,
+		},
+	})
+}
