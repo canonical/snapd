@@ -154,12 +154,12 @@ func run(parser *flags.Parser, args []string) (err error) {
 			return fmt.Errorf(i18n.G("cannot use %q key: %v"), keyName, err)
 		}
 
-		accountKey, err := mustGetOneAssert("account-key", map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})
+		accountKey, err := downloadAssertion(asserts.AccountKeyType, map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})
 		if err != nil {
 			return err
 		}
 
-		account, err := mustGetOneAssert("account", map[string]string{"account-id": accountKey.(*asserts.AccountKey).AccountID()})
+		account, err := downloadAssertion(asserts.AccountType, map[string]string{"account-id": accountKey.(*asserts.AccountKey).AccountID()})
 		if err != nil {
 			return err
 		}
@@ -183,41 +183,22 @@ func run(parser *flags.Parser, args []string) (err error) {
 	return preseedClassic(chrootDir)
 }
 
-func downloadAssertion(typeName string, headers map[string]string) ([]asserts.Assertion, error) {
+func downloadAssertion(assertType *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error) {
 	var user *auth.UserState
 
 	// FIXME: set auth context
 	var storeCtx store.DeviceAndAuthContext
 
-	at := asserts.Type(typeName)
-	if at == nil {
-		return nil, fmt.Errorf("cannot find assertion type %q", typeName)
-	}
-	primaryKeys, err := asserts.PrimaryKeyFromHeaders(at, headers)
+	primaryKeys, err := asserts.PrimaryKeyFromHeaders(assertType, headers)
 	if err != nil {
 		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
 	}
 
-	sto := storeNew(nil, storeCtx)
-	as, err := sto.Assertion(at, primaryKeys, user)
+	snapStore := storeNew(nil, storeCtx)
+	assert, err := snapStore.Assertion(assertType, primaryKeys, user)
 	if err != nil {
 		return nil, err
 	}
 
-	return []asserts.Assertion{as}, nil
-}
-
-// call this function in a way that is guaranteed to specify a unique assertion
-// (i.e. with a header specifying a value for the assertion's primary key)
-func mustGetOneAssert(assertType string, headers map[string]string) (asserts.Assertion, error) {
-	asserts, err := downloadAssertion(assertType, headers)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(asserts) != 1 {
-		return nil, fmt.Errorf(i18n.G("internal error: cannot identify unique %s assertion for specified headers"), assertType)
-	}
-
-	return asserts[0], nil
+	return assert, nil
 }
