@@ -503,7 +503,7 @@ func checkGadgetContentImages(gadgetRootDir string, vs *VolumeStructure) error {
 
 		if c.Size != 0 {
 			if c.Size < fileSize {
-				return fmt.Errorf("structure %v: content %q size %v is larger than declared %v", vs, c.Image, fileSize, c.Size)
+				return fmt.Errorf("structure #%d (%q): content %q size %v is larger than declared %v", vs.YamlIndex, vs.Name, c.Image, fileSize, c.Size)
 			}
 		}
 	}

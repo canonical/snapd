@@ -647,7 +647,7 @@ func (s *validateGadgetTestSuite) TestRuleValidateHybridGadgetBrokenDupRole(c *C
 	c.Check(err, ErrorMatches, `cannot have more than one partition with system-boot role`)
 }
 
-func (s *validateGadgetTestSuite) TestValidateContentMissingRawContent(c *C) {
+func (s *validateGadgetTestSuite) TestValidateContentRawContent(c *C) {
 	var gadgetYamlContent = `
 volumes:
   pc:
@@ -659,7 +659,7 @@ volumes:
         offset: 1M
         content:
           - image: foo.img
-
+            size: 1
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
@@ -667,6 +667,20 @@ volumes:
 	c.Assert(err, IsNil)
 	err = gadget.ValidateContent(ginfo, s.dir, "")
 	c.Assert(err, ErrorMatches, `structure #0 \("foo"\): content "foo.img": stat .*/foo.img: no such file or directory`)
+
+	// Now create the file with wrong size
+	makeSizedFile(c, filepath.Join(s.dir, "foo.img"), 100, nil)
+	ginfo, err = gadget.ReadInfo(s.dir, nil)
+	c.Assert(err, IsNil)
+	err = gadget.ValidateContent(ginfo, s.dir, "")
+	c.Assert(err, ErrorMatches, `structure #0 \("foo"\): content "foo.img" size 100 is larger than declared 1`)
+
+	// Now with the right size
+	makeSizedFile(c, filepath.Join(s.dir, "foo.img"), 1, nil)
+	ginfo, err = gadget.ReadInfo(s.dir, nil)
+	c.Assert(err, IsNil)
+	err = gadget.ValidateContent(ginfo, s.dir, "")
+	c.Assert(err, IsNil)
 }
 
 func (s *validateGadgetTestSuite) TestValidateContentMultiVolumeContent(c *C) {
