@@ -393,7 +393,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	targetRevision := snapsup.Revision()
 	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
 
-	ts := state.NewTaskSet()
 	if snapst.IsInstalled() {
 		// consider also the current revision to set plugs-only hint
 		info, err := snapst.CurrentInfo()
@@ -437,6 +436,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 						}
 					}
 
+					ts := state.NewTaskSet()
 					preDownTask := st.NewTask("pre-download-snap", fmt.Sprintf(i18n.G("Pre-download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
 					preDownTask.Set("snap-setup", snapsup)
 					preDownTask.Set("refresh-info", busyErr.PendingSnapRefreshInfo())
@@ -706,7 +706,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	installSet := state.NewTaskSet(tasks...)
-	installSet.WaitAll(ts)
 	installSet.MarkEdge(prereq, BeginEdge)
 	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
 	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge)
@@ -728,20 +727,18 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		return installSet, nil
 	}
 
-	ts.AddAllWithEdges(installSet)
-
 	if isConfigureAllowed(snapsup) {
 		confFlags := configureSnapFlags(snapst, snapsup)
 		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
-		configSet.WaitAll(ts)
-		ts.AddAll(configSet)
+		configSet.WaitAll(installSet)
+		installSet.AddAll(configSet)
 	}
 
 	healthCheck := CheckHealthHook(st, snapsup.InstanceName(), snapsup.Revision())
-	healthCheck.WaitAll(ts)
-	ts.AddTask(healthCheck)
+	healthCheck.WaitAll(installSet)
+	installSet.AddTask(healthCheck)
 
-	return ts, nil
+	return installSet, nil
 }
 
 func findTasksMatchingKindAndSnap(st *state.State, kind string, snapName string, revision snap.Revision) ([]*state.Task, error) {
