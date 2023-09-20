@@ -57,13 +57,13 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model,
 // gadget.yaml string and works for either single or multiple volume
 // gadget.yaml's. An empty directory to use to create a gadget.yaml file should
 // be provided, such as c.MkDir() in tests.
-func LayoutMultiVolumeFromYaml(newDir, kernelDir, gadgetYaml string, model gadget.Model, volToGadgetToDiskStruct map[string]map[int]*gadget.OnDiskStructure) (map[string]*gadget.LaidOutVolume, error) {
+func LayoutMultiVolumeFromYaml(newDir, kernelDir, gadgetYaml string, model gadget.Model) (map[string]*gadget.LaidOutVolume, error) {
 	gadgetRoot, err := WriteGadgetYaml(newDir, gadgetYaml)
 	if err != nil {
 		return nil, err
 	}
 
-	allVolumes, err := LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone, volToGadgetToDiskStruct)
+	allVolumes, err := LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volumes: %v", err)
 	}

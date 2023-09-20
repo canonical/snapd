@@ -2377,13 +2377,16 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 	err = os.WriteFile(filepath.Join(s.dir, "u-boot.imz"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, mockOnDiskForMultiVolumeUC20GadgetYaml())
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(all, HasLen, 2)
 	c.Assert(all["u-boot-frobinator"].LaidOutStructure[0], DeepEquals, gadget.LaidOutStructure{
 		OnDiskStructure: gadget.OnDiskStructure{
-			Name: "u-boot",
+			Name:        "u-boot",
+			Type:        "bare",
+			StartOffset: 24576,
+			Size:        623000,
 		},
 		VolumeStructure: &gadget.VolumeStructure{
 			VolumeName: "u-boot-frobinator",
@@ -2402,6 +2405,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 				VolumeContent: &gadget.VolumeContent{
 					Image: "u-boot.imz",
 				},
+				StartOffset: 24576,
 			},
 		},
 	})
@@ -2437,7 +2441,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetHappy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", coreMod, secboot.EncryptionTypeNone, mockOnDiskForGadgetYamlPC())
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", coreMod, secboot.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"].Volume.Bootloader, Equals, "grub")
@@ -2461,10 +2465,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetAndDiskHappy(c *C) {
 		4: {Name: "ubuntu-save"},
 		5: {Name: "ubuntu-data"},
 	}
-	volToGadgetToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{
-		"pc": gadgetToDiskStruct,
-	}
-	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, volToGadgetToDiskStruct)
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"].Volume.Bootloader, Equals, "grub")
@@ -2523,7 +2524,7 @@ func mockOnDiskForGadgetYamlUC20PC() map[string]map[int]*gadget.OnDiskStructure 
 	return volToIdxToDiskStruct
 }
 
-func (s *gadgetYamlTestSuite) testLaidOutVolumesFromGadgetUCHappy(c *C, gadgetYaml []byte, volToIdxToStruct map[string]map[int]*gadget.OnDiskStructure) {
+func (s *gadgetYamlTestSuite) testLaidOutVolumesFromGadgetUCHappy(c *C, gadgetYaml []byte) {
 	err := os.WriteFile(s.gadgetYamlPath, gadgetYaml, 0644)
 	c.Assert(err, IsNil)
 	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
@@ -2531,7 +2532,7 @@ func (s *gadgetYamlTestSuite) testLaidOutVolumesFromGadgetUCHappy(c *C, gadgetYa
 		c.Assert(err, IsNil)
 	}
 
-	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, volToIdxToStruct)
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"].Volume.Bootloader, Equals, "grub")
@@ -2540,8 +2541,8 @@ func (s *gadgetYamlTestSuite) testLaidOutVolumesFromGadgetUCHappy(c *C, gadgetYa
 }
 
 func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetUCHappy(c *C) {
-	s.testLaidOutVolumesFromGadgetUCHappy(c, gadgetYamlUC20PC, mockOnDiskForGadgetYamlUC20PC())
-	s.testLaidOutVolumesFromGadgetUCHappy(c, gadgetYamlMinSizePC, mockOnDiskForGadgetYamlUC20PC())
+	s.testLaidOutVolumesFromGadgetUCHappy(c, gadgetYamlUC20PC)
+	s.testLaidOutVolumesFromGadgetUCHappy(c, gadgetYamlMinSizePC)
 }
 
 func (s *gadgetYamlTestSuite) TestStructureBareFilesystem(c *C) {
@@ -4139,16 +4140,6 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsTriesAllStructures(c 
 	})
 }
 
-func mockOnDiskVolumeFromDiskMapping(c *C, mapping *disks.MockDiskMapping, firstIdx int) map[int]*gadget.OnDiskStructure {
-	odss := map[int]*gadget.OnDiskStructure{}
-	for i, part := range mapping.Structure {
-		ods, err := gadget.OnDiskStructureFromPartition(part)
-		c.Assert(err, IsNil)
-		odss[i+firstIdx] = &ods
-	}
-	return odss
-}
-
 func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c *C) {
 	// make a symlink for the partition label for nofspart to /dev/vdb1
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
@@ -4186,21 +4177,11 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c 
 		HasModes: true,
 	}
 
-	volToGadgetToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{}
-	volToGadgetToDiskStruct["pc"] = mockOnDiskVolumeFromDiskMapping(c, gadgettest.VMSystemVolumeDiskMapping, 1)
-	volToGadgetToDiskStruct["pc"][0] = &gadget.OnDiskStructure{
-		Name: "mbr",
-	}
-	volToGadgetToDiskStruct["foo"] = mockOnDiskVolumeFromDiskMapping(c, gadgettest.VMExtraVolumeDiskMapping, 1)
-	volToGadgetToDiskStruct["foo"][0] = &gadget.OnDiskStructure{
-		Name: "some-filesystem",
-	}
 	laidOutVols, err := gadgettest.LayoutMultiVolumeFromYaml(
 		c.MkDir(),
 		"",
 		gadgettest.MultiVolumeUC20GadgetYaml,
 		mod,
-		volToGadgetToDiskStruct,
 	)
 	c.Assert(err, IsNil)
 
@@ -4382,43 +4363,6 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeStructureInternalFieldsNoJSON(
 	c.Check(volS, DeepEquals, newVolS)
 }
 
-func mockOnDiskForGadgetYamlClassicWithModes() map[string]map[int]*gadget.OnDiskStructure {
-	volToIdxToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{
-		"pc": {
-			0: {
-				Name: "mbr",
-			},
-			1: {
-				Name:      "BIOS Boot",
-				Node:      "/dev/vda1",
-				DiskIndex: 1,
-			},
-			2: {
-				Name:      "EFI System partition",
-				Node:      "/dev/vda2",
-				DiskIndex: 2,
-			},
-			3: {
-				Name:      "ubuntu-boot",
-				Node:      "/dev/vda3",
-				DiskIndex: 3,
-			},
-			4: {
-				Name:      "ubuntu-save",
-				Node:      "/dev/vda4",
-				DiskIndex: 4,
-			},
-			5: {
-				Name:      "ubuntu-data",
-				Node:      "/dev/vda5",
-				DiskIndex: 5,
-			},
-		},
-	}
-
-	return volToIdxToDiskStruct
-}
-
 func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromClassicWithModesGadgetHappy(c *C) {
 	err := os.WriteFile(s.gadgetYamlPath, gadgetYamlClassicWithModes, 0644)
 	c.Assert(err, IsNil)
@@ -4427,7 +4371,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromClassicWithModesGadgetHappy(
 		c.Assert(err, IsNil)
 	}
 
-	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", classicWithModesMod, secboot.EncryptionTypeNone, mockOnDiskForGadgetYamlClassicWithModes())
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", classicWithModesMod, secboot.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Assert(all["pc"].Volume.Bootloader, Equals, "grub")
