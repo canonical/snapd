@@ -88,11 +88,3 @@ func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
 		isRootWritableOverlay = old
 	}
 }
-
-func MockGrowSnapToMinSize(newGrow func(string, int64) error) (restore func()) {
-	oldGrow := growSnapToMinSize
-	growSnapToMinSize = newGrow
-	return func() {
-		growSnapToMinSize = oldGrow
-	}
-}

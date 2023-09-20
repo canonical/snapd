@@ -543,6 +543,7 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 		"-no-fragments",
 		"-no-progress",
 	)
+
 	if len(opts.ExcludeFiles) > 0 {
 		cmd.Args = append(cmd.Args, "-wildcards")
 		for _, excludeFile := range opts.ExcludeFiles {
@@ -568,12 +569,27 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 
 	// Grow the snap if it is smaller than the minimum snap size. See
 	// MinimumSnapSize for more details.
-	return growSnapToMinSize(fullSnapPath, MinimumSnapSize)
+	return s.growSnapToMinSize(MinimumSnapSize)
 }
 
 // BuildDate returns the "Creation or last append time" as reported by unsquashfs.
 func (s *Snap) BuildDate() time.Time {
 	return BuildDate(s.path)
+}
+
+func (s *Snap) growSnapToMinSize(minSize int64) error {
+	size, err := s.Size()
+	if err != nil {
+		return fmt.Errorf("cannot get size of snap: %w", err)
+	}
+	if size >= minSize {
+		return nil
+	}
+	if err := os.Truncate(s.path, minSize); err != nil {
+		return fmt.Errorf("cannot grow snap to minimum size: %w", err)
+	}
+
+	return nil
 }
 
 // BuildDate returns the "Creation or last append time" as reported by unsquashfs.
@@ -599,21 +615,4 @@ func BuildDate(path string) time.Time {
 	}
 	t0, _ = time.Parse(time.ANSIC, matches[0][len(prefix):])
 	return t0
-}
-
-var growSnapToMinSize = func(snapPath string, minSize int64) error {
-	info, err := os.Stat(snapPath)
-	if err != nil {
-		return fmt.Errorf("cannot get size of snap: %w", err)
-	}
-
-	if info.Size() >= minSize {
-		return nil
-	}
-
-	if err := os.Truncate(snapPath, minSize); err != nil {
-		return fmt.Errorf("cannot grow snap to minimum size: %w", err)
-	}
-
-	return nil
 }
