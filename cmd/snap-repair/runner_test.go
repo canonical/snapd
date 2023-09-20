@@ -46,7 +46,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -2385,8 +2384,8 @@ func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvIncorrectPermissions(c
 func (s *runnerSuite) TestStoreOffline(c *C) {
 	runner := repair.NewRunner()
 
-	data, err := json.Marshal(configcore.RepairConfig{
-		StoreOffline: true,
+	data, err := json.Marshal(map[string]any{
+		"store-offline": true,
 	})
 	c.Assert(err, IsNil)
 

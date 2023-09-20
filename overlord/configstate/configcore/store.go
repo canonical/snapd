@@ -51,7 +51,11 @@ func validateStoreAccess(cfg ConfGetter) error {
 	}
 }
 
-type RepairConfig struct {
+// repairConfig is a set of configuration data that is consumed by the
+// snap-repair command. This struct is duplicated in cmd/snap-repair.
+type repairConfig struct {
+	// StoreOffline is true if the store is marked as offline and should not be
+	// accessed.
 	StoreOffline bool `json:"store-offline"`
 }
 
@@ -61,7 +65,7 @@ func handleStoreAccess(_ sysconfig.Device, cfg ConfGetter, _ *fsOnlyContext) err
 		return err
 	}
 
-	data, err := json.Marshal(RepairConfig{
+	data, err := json.Marshal(repairConfig{
 		StoreOffline: access == "offline",
 	})
 	if err != nil {

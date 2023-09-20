@@ -49,7 +49,6 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
@@ -331,6 +330,15 @@ var (
 	maxRepairScriptSize = 24 * 1024 * 1024
 )
 
+// repairConfig is a set of configuration data that is consumed by the
+// snap-repair command. This struct is duplicated in
+// overlord/configstate/configcore.
+type repairConfig struct {
+	// StoreOffline is true if the store is marked as offline and should not be
+	// accessed.
+	StoreOffline bool `json:"store-offline"`
+}
+
 func isStoreOffline(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
@@ -338,7 +346,7 @@ func isStoreOffline(path string) bool {
 	}
 	defer f.Close()
 
-	var repairConfig configcore.RepairConfig
+	var repairConfig repairConfig
 	if err := json.NewDecoder(f).Decode(&repairConfig); err != nil {
 		return false
 	}
