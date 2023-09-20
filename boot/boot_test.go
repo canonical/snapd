@@ -4422,7 +4422,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameGadgetSnap(c *C) {
 		s.normalDefaultState,
 	)
 	defer r()
-	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, expectReseal bool) error {
+	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, expectReseal bool, _ boot.Unlocker) error {
 		c.Assert(expectReseal, Equals, false)
 		return nil
 	})
@@ -4457,7 +4457,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewGadgetSnap(c *C) {
 		s.normalDefaultState,
 	)
 	defer r()
-	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, expectReseal bool) error {
+	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, expectReseal bool, _ boot.Unlocker) error {
 		c.Assert(expectReseal, Equals, false)
 		return nil
 	})

@@ -46,7 +46,13 @@ func ClearTryRecoverySystem(dev snap.Device, systemLabel string) error {
 	if !dev.HasModeenv() {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20+")
 	}
+	modeenvLock()
+	defer modeenvUnlock()
 
+	return clearTryRecoverySystem(dev, systemLabel)
+}
+
+func clearTryRecoverySystem(dev snap.Device, systemLabel string) error {
 	m, err := loadModeenv()
 	if err != nil {
 		return err
@@ -89,7 +95,7 @@ func ClearTryRecoverySystem(dev snap.Device, systemLabel string) error {
 	// but we still want to reseal, in case the cleanup did not reach this
 	// point before
 	const expectReseal = true
-	resealErr := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal)
+	resealErr := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, nil)
 
 	if resealErr != nil {
 		return resealErr
@@ -107,6 +113,8 @@ func SetTryRecoverySystem(dev snap.Device, systemLabel string) (err error) {
 	if !dev.HasModeenv() {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20+")
 	}
+	modeenvLock()
+	defer modeenvUnlock()
 
 	m, err := loadModeenv()
 	if err != nil {
@@ -149,7 +157,7 @@ func SetTryRecoverySystem(dev snap.Device, systemLabel string) (err error) {
 		if err == nil {
 			return
 		}
-		if cleanupErr := ClearTryRecoverySystem(dev, systemLabel); cleanupErr != nil {
+		if cleanupErr := clearTryRecoverySystem(dev, systemLabel); cleanupErr != nil {
 			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
 		}
 	}()
@@ -169,7 +177,7 @@ func SetTryRecoverySystem(dev snap.Device, systemLabel string) (err error) {
 	// tried system, data will still be inaccessible and the system will be
 	// considered as nonoperational
 	const expectReseal = true
-	return resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal)
+	return resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, nil)
 }
 
 type errInconsistentRecoverySystemState struct {
@@ -314,6 +322,9 @@ func observeSuccessfulSystems(m *Modeenv) (*Modeenv, error) {
 // TryRecoverySystemOutcomeNoneTried. The caller is responsible for clearing the
 // bootenv once the status bas been properly acted on.
 func InspectTryRecoverySystemOutcome(dev snap.Device) (outcome TryRecoverySystemOutcome, label string, err error) {
+	modeenvLock()
+	defer modeenvUnlock()
+
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
 		Role: bootloader.RoleRecovery,
@@ -349,7 +360,7 @@ func InspectTryRecoverySystemOutcome(dev snap.Device) (outcome TryRecoverySystem
 	case status == "tried":
 		// check that try_recovery_system ended up in the modeenv's
 		// CurrentRecoverySystems
-		m, err := ReadModeenv("")
+		m, err := loadModeenv()
 		if err != nil {
 			return TryRecoverySystemOutcomeFailure, trySystem, err
 		}
@@ -382,6 +393,8 @@ func PromoteTriedRecoverySystem(dev snap.Device, systemLabel string, triedSystem
 	if !dev.HasModeenv() {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20+")
 	}
+	modeenvLock()
+	defer modeenvUnlock()
 
 	if !strutil.ListContains(triedSystems, systemLabel) {
 		// system is not among the tried systems
@@ -408,8 +421,8 @@ func PromoteTriedRecoverySystem(dev snap.Device, systemLabel string, triedSystem
 	}
 
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal); err != nil {
-		if cleanupErr := DropRecoverySystem(dev, systemLabel); cleanupErr != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, nil); err != nil {
+		if cleanupErr := dropRecoverySystem(dev, systemLabel); cleanupErr != nil {
 			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
 		}
 		return err
@@ -424,7 +437,12 @@ func DropRecoverySystem(dev snap.Device, systemLabel string) error {
 	if !dev.HasModeenv() {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20+")
 	}
+	modeenvLock()
+	defer modeenvUnlock()
+	return dropRecoverySystem(dev, systemLabel)
+}
 
+func dropRecoverySystem(dev snap.Device, systemLabel string) error {
 	m, err := loadModeenv()
 	if err != nil {
 		return err
@@ -446,7 +464,7 @@ func DropRecoverySystem(dev snap.Device, systemLabel string) error {
 	}
 
 	const expectReseal = true
-	return resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal)
+	return resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, nil)
 }
 
 // MarkRecoveryCapableSystem records a given system as one that we can recover
