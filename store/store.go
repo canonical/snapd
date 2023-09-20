@@ -502,7 +502,7 @@ func (s *Store) baseURL(defaultURL *url.URL) *url.URL {
 }
 
 func (s *Store) endpointURL(p string, query url.Values) (*url.URL, error) {
-	if err := s.checkStoreOffline(); err != nil {
+	if err := s.checkStoreOnline(); err != nil {
 		return nil, err
 	}
 
@@ -514,7 +514,7 @@ func (s *Store) LoginUser(username, password, otp string) (string, string, error
 	// most other store network operations use s.endpointURL, which returns an
 	// error if the store is offline. this doesn't, so we need to explicitly
 	// check.
-	if err := s.checkStoreOffline(); err != nil {
+	if err := s.checkStoreOnline(); err != nil {
 		return "", "", err
 	}
 
@@ -1642,7 +1642,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 
 var ErrStoreOffline = errors.New("store is marked offline, use 'snap unset system store.access' to go online")
 
-func (s *Store) checkStoreOffline() error {
+func (s *Store) checkStoreOnline() error {
 	if s.dauthCtx == nil {
 		return nil
 	}
