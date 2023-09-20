@@ -494,6 +494,20 @@ func (p *Prompting) PostRequest(userID int, requestID string, reply *PromptReply
 		return make([]string, 0), nil
 	}
 
+	// Check that reply.PathPattern contains original requested path.
+	// AppArmor is responsible for pre-vetting that all paths which appear
+	// in requests from the kernel are allowed by the appropriate
+	// interfaces, so we do not assert anything else particular about the
+	// reply.PathPattern.
+	// TODO: Should this be reconsidered?
+	matches, err := common.PathPatternMatches(reply.PathPattern, req.Path)
+	if err != nil {
+		return nil, common.ErrInvalidPathPattern
+	}
+	if !matches {
+		return nil, fmt.Errorf("path pattern in reply does not match originally requested path: '%s' does not match '%s'; skipping rule generation", reply.PathPattern, req.Path)
+	}
+
 	// Create new rule based on the reply.
 	newRule, err := p.rules.CreateAccessRule(userID, req.Snap, req.App, reply.PathPattern, reply.Outcome, reply.Lifespan, reply.Duration, reply.Permissions)
 	if err != nil {
