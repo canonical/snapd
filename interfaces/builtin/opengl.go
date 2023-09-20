@@ -39,7 +39,7 @@ const openglConnectedPlugAppArmor = `
 /usr/share/libdrm/amdgpu.ids r,
 
 # Bi-arch distribution nvidia support
-/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcuda*.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{cuda}*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvidia*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvoptix*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}tls/libnvidia*.so{,.*} rm,
@@ -61,19 +61,13 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}nvidia/wine/*.dll rm,
 
 # Support reading the Vulkan ICD files
-/var/lib/snapd/lib/vulkan/ r,
-/var/lib/snapd/lib/vulkan/** r,
-/var/lib/snapd/hostfs/usr/share/vulkan/icd.d/*nvidia*.json r,
-
 # Support reading the GLVND EGL vendor files
-/var/lib/snapd/lib/glvnd/ r,
-/var/lib/snapd/lib/glvnd/** r,
-/var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/ r,
-/var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/*nvidia*.json r,
+/var/lib/snapd/lib/{glvnd,vulkan}/{,**} r,
+/var/lib/snapd/hostfs/usr/share/vulkan/icd.d/*nvidia*.json r,
+/var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/{,*nvidia*.json} r,
 
 # Support Nvidia EGL external platform
-/var/lib/snapd/hostfs/usr/share/egl/egl_external_platform.d/ r,
-/var/lib/snapd/hostfs/usr/share/egl/egl_external_platform.d/*nvidia*.json r,
+/var/lib/snapd/hostfs/usr/share/egl/egl_external_platform.d/{,*nvidia*.json} r,
 
 # Main bi-arch GL libraries
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{OpenGL,GL,GLU,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
@@ -110,23 +104,18 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 /sys/module/tegra_fuse/parameters/tegra_* r,
 unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /{dev,run}/shm/cuda.* rw,
-/dev/nvhost-* rw,
-/dev/nvmap rw,
+/dev/{nvmap,nvhost-*} rw,
 
 # Tegra display driver
-/dev/tegra_dc_ctrl rw,
-/dev/tegra_dc_[0-9]* rw,
+/dev/tegra_dc_{ctrl,[0-9]*} rw,
 
 # Xilinx zocl DRM driver
 # https://github.com/Xilinx/XRT/tree/master/src/runtime_src/core/edge/drm
 /sys/devices/platform/amba{,_pl@[0-9]*}/amba{,_pl@[0-9]*}:zyxclmm_drm/* r,
 
 # Imagination PowerVR driver
-/dev/pvr_sync rw,
-
 # ARM Mali driver
-/dev/mali[0-9]* rw,
-/dev/dma_buf_te rw,
+/dev/{pvr_sync,dma_buf_te,mali[0-9]*} rw,
 /dev/dma_heap/linux,cma rw,
 /dev/dma_heap/system rw,
 
@@ -135,37 +124,27 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /dev/galcore rw,
 
 # OpenCL ICD files
-/etc/OpenCL/vendors/ r,
-/etc/OpenCL/vendors/** r,
+/etc/OpenCL/vendors/{,**} r,
 
 # Parallels guest tools 3D acceleration (video toolgate)
 @{PROC}/driver/prl_vtg rw,
 
 # /sys/devices
-/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/config r,
-/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/revision r,
-/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/resource r,
-/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/irq r,
-/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/boot_vga r,
-/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/{,subsystem_}class r,
-/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/{,subsystem_}device r,
-/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/{,subsystem_}vendor r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/{config,revision,resource,irq,boot_vga,{,subsystem_}{class,device,vendor}} r,
 /sys/devices/**/drm{,_dp_aux_dev}/** r,
 
 # FIXME: this is an information leak and snapd should instead query udev for
 # the specific accesses associated with the above devices.
 /sys/bus/pci/devices/ r,
 /sys/bus/platform/devices/soc:gpu/ r,
-/run/udev/data/+drm:card* r,
-/run/udev/data/+pci:[0-9a-f]* r,
-/run/udev/data/+platform:soc:gpu* r,
+/run/udev/data/{+drm:card,+pci:[0-9a-f],+platform:soc:gpu,c226:[0-9]}* r,
 
 # FIXME: for each device in /dev that this policy references, lookup the
 # device type, major and minor and create rules of this form:
 # /run/udev/data/<type><major>:<minor> r,
 # For now, allow 'c'haracter devices and 'b'lock devices based on
 # https://www.kernel.org/doc/Documentation/devices.txt
-/run/udev/data/c226:[0-9]* r,  # 226 drm
+# /run/udev/data/c226:[0-9]* r,  # 226 drm
 
 # From https://bugs.launchpad.net/snapd/+bug/1862832
 /run/nvidia-xdriver-* rw,
