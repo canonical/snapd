@@ -513,6 +513,16 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 	}
 
 	st := t.State()
+
+	shouldRequest, err := shouldRequestSerial(st, regCtx.GadgetForSerialRequestConfig(), device.Serial)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !shouldRequest {
+		return nil, nil, errors.New("store is marked offline")
+	}
+
 	proxyConf := proxyconf.New(st)
 	client := httputilNewHTTPClient(&httputil.ClientOptions{
 		Timeout:            30 * time.Second,
@@ -677,6 +687,46 @@ func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *h
 	cfg.setURLs(proxyURL, svcURL)
 
 	return &cfg, nil
+}
+
+func shouldRequestSerial(s *state.State, gadgetName string, deviceSerial string) (bool, error) {
+	tr := config.NewTransaction(s)
+
+	var storeAccess string
+	if err := tr.GetMaybe("core", "store.access", &storeAccess); err != nil {
+		return false, err
+	}
+
+	// if there isn't a gadget, just use store.access to determine if we should
+	// request
+	if gadgetName == "" {
+		return storeAccess != "offline", nil
+	}
+
+	var deviceServiceAccess string
+	if err := tr.GetMaybe(gadgetName, "device-service.access", &deviceServiceAccess); err != nil {
+		return false, err
+	}
+
+	// if we have a gadget and device-service.access is set to offline, then we
+	// will not request a serial
+	if deviceServiceAccess == "offline" {
+		return false, nil
+	}
+
+	var deviceServiceURL string
+	if err := tr.GetMaybe(gadgetName, "device-service.url", &deviceServiceURL); err != nil {
+		return false, err
+	}
+
+	// if we already have a device serial and we'd be using the fallback
+	// device-service.url (which is the store), then use store.access to
+	// determine if we should request
+	if deviceSerial != "" && deviceServiceURL == "" {
+		return storeAccess != "offline", nil
+	}
+
+	return true, nil
 }
 
 func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
