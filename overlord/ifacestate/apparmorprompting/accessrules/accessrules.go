@@ -283,7 +283,7 @@ func (ardb *AccessRuleDB) save() error {
 	return osutil.AtomicWriteFile(target, b, 0600, 0)
 }
 
-func validatePatternOutcomeLifespanDuration(pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int) (string, error) {
+func validatePatternOutcomeLifespanDuration(pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (string, error) {
 	if err := common.ValidatePathPattern(pathPattern); err != nil {
 		return "", err
 	}
@@ -302,7 +302,7 @@ func validatePatternOutcomeLifespanDuration(pathPattern string, outcome common.O
 // time, to compute the expiration time for the rule, and stores that as part
 // of the access rule which is returned.  If any of the given parameters are
 // invalid, returns a corresponding error.
-func (ardb *AccessRuleDB) PopulateNewAccessRule(user int, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) PopulateNewAccessRule(user int, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration string, permissions []common.PermissionType) (*AccessRule, error) {
 	pathPattern = common.StripTrailingSlashes(pathPattern)
 	expiration, err := validatePatternOutcomeLifespanDuration(pathPattern, outcome, lifespan, duration)
 	if err != nil {
@@ -421,7 +421,7 @@ func (ardb *AccessRuleDB) RuleWithID(user int, id string) (*AccessRule, error) {
 // database.  If any of the given parameters are invalid, returns an error.
 // Otherwise, returns the newly-created access rule, and saves the database to
 // disk.
-func (ardb *AccessRuleDB) CreateAccessRule(user int, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) CreateAccessRule(user int, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration string, permissions []common.PermissionType) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	pathPattern = common.StripTrailingSlashes(pathPattern)
@@ -464,7 +464,7 @@ func (ardb *AccessRuleDB) DeleteAccessRule(user int, id string) (*AccessRule, er
 // modified rule to the database, rolls back to the previous unmodified rule,
 // leaving the database unchanged.  If the database is changed, it is saved to
 // disk.
-func (ardb *AccessRuleDB) ModifyAccessRule(user int, id string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration int, permissions []common.PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) ModifyAccessRule(user int, id string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration string, permissions []common.PermissionType) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	origRule, err := ardb.ruleWithIDInternal(user, id)

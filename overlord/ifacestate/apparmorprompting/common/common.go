@@ -4,6 +4,7 @@ import (
 	"encoding/base32"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -18,7 +19,10 @@ var ErrInvalidSnapLabel = errors.New("the given label cannot be converted to sna
 var ErrInvalidPathPattern = errors.New("the given path pattern is not allowed")
 var ErrInvalidOutcome = errors.New(`invalid rule outcome; must be "allow" or "deny"`)
 var ErrInvalidLifespan = errors.New("invalid lifespan")
-var ErrInvalidDuration = errors.New("invalid duration for accompanying lifespan")
+var ErrInvalidDurationForLifespan = fmt.Errorf(`invalid duration: duration must be empty unless lifespan is "%v"`, LifespanTimespan)
+var ErrInvalidDurationEmpty = fmt.Errorf(`invalid duration: duration must be specified if lifespan is "%v"`, LifespanTimespan)
+var ErrInvalidDurationParseError = errors.New("invalid duration: error parsing duration string")
+var ErrInvalidDurationNegative = errors.New("invalid duration: duration must be greater than zero")
 var ErrNoPatterns = errors.New("no patterns given, cannot establish precedence")
 var ErrUnrecognizedFilePermission = errors.New("file permissions mask contains unrecognized permission")
 
@@ -247,23 +251,30 @@ func ValidateOutcome(outcome OutcomeType) error {
 
 // ValidateLifespanParseDuration checks that the given lifespan is valid and
 // that the given duration is valid for that lifespan.  If the lifespan is
-// LifespanTimespan, then duration must be a positive integer representing the
-// number of seconds for which the rule should be valid. Otherwise, it must be
-// 0. Returns an error if any of the above are invalid, otherwise computes the
-// expiration time of the rule based on the current time and the given duration
-// and returns it.
-func ValidateLifespanParseDuration(lifespan LifespanType, duration int) (string, error) {
+// LifespanTimespan, then duration must be a string parsable by
+// time.ParseDuration(), representing the duration of time for which the rule
+// should be valid. Otherwise, it must be empty. Returns an error if any of the
+// above are invalid, otherwise computes the expiration time of the rule based
+// on the current time and the given duration and returns it.
+func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (string, error) {
 	expirationString := ""
 	switch lifespan {
 	case LifespanForever, LifespanSession, LifespanSingle:
-		if duration != 0 {
-			return "", ErrInvalidDuration
+		if duration != "" {
+			return "", ErrInvalidDurationForLifespan
 		}
 	case LifespanTimespan:
-		if duration <= 0 {
-			return "", ErrInvalidDuration
+		if duration == "" {
+			return "", ErrInvalidDurationEmpty
 		}
-		expirationString = time.Now().Add(time.Duration(duration) * time.Second).Format(time.RFC3339)
+		parsedDuration, err := time.ParseDuration(duration)
+		if err != nil {
+			return "", ErrInvalidDurationParseError
+		}
+		if parsedDuration <= 0 {
+			return "", ErrInvalidDurationNegative
+		}
+		expirationString = time.Now().Add(parsedDuration).Format(time.RFC3339)
 	}
 	return expirationString, nil
 }

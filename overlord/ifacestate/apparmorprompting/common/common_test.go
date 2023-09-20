@@ -347,9 +347,12 @@ func (s *commonSuite) TestValidateOutcome(c *C) {
 }
 
 func (s *commonSuite) TestValidateLifespanParseDuration(c *C) {
-	unsetDuration := 0
-	sampleDuration := 600
-	sampleDurationAsTime := time.Duration(sampleDuration) * time.Second
+	unsetDuration := ""
+	invalidDuration := "foo"
+	negativeDuration := "-5s"
+	validDuration := "10m"
+	parsedValidDuration, err := time.ParseDuration(validDuration)
+	c.Assert(err, IsNil)
 
 	for _, lifespan := range []common.LifespanType{
 		common.LifespanForever,
@@ -359,21 +362,31 @@ func (s *commonSuite) TestValidateLifespanParseDuration(c *C) {
 		expiration, err := common.ValidateLifespanParseDuration(lifespan, unsetDuration)
 		c.Check(expiration, Equals, "")
 		c.Check(err, IsNil)
-		expiration, err = common.ValidateLifespanParseDuration(lifespan, sampleDuration)
-		c.Check(expiration, Equals, "")
-		c.Check(err, Equals, common.ErrInvalidDuration)
+		for _, dur := range []string{invalidDuration, negativeDuration, validDuration} {
+			expiration, err = common.ValidateLifespanParseDuration(lifespan, dur)
+			c.Check(expiration, Equals, "")
+			c.Check(err, Equals, common.ErrInvalidDurationForLifespan)
+		}
 	}
 
 	expiration, err := common.ValidateLifespanParseDuration(common.LifespanTimespan, unsetDuration)
 	c.Check(expiration, Equals, "")
-	c.Check(err, Equals, common.ErrInvalidDuration)
+	c.Check(err, Equals, common.ErrInvalidDurationEmpty)
 
-	expiration, err = common.ValidateLifespanParseDuration(common.LifespanTimespan, sampleDuration)
+	expiration, err = common.ValidateLifespanParseDuration(common.LifespanTimespan, invalidDuration)
+	c.Check(expiration, Equals, "")
+	c.Check(err, Equals, common.ErrInvalidDurationParseError)
+
+	expiration, err = common.ValidateLifespanParseDuration(common.LifespanTimespan, negativeDuration)
+	c.Check(expiration, Equals, "")
+	c.Check(err, Equals, common.ErrInvalidDurationNegative)
+
+	expiration, err = common.ValidateLifespanParseDuration(common.LifespanTimespan, validDuration)
 	c.Check(err, Equals, nil)
 	expirationTime, err := time.Parse(time.RFC3339, expiration)
 	c.Check(err, IsNil)
 	c.Check(expirationTime.After(time.Now()), Equals, true)
-	c.Check(expirationTime.Before(time.Now().Add(sampleDurationAsTime)), Equals, true)
+	c.Check(expirationTime.Before(time.Now().Add(parsedValidDuration)), Equals, true)
 }
 
 func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {

@@ -34,7 +34,7 @@ func (s *accessruleSuite) TestPopulateNewAccessRule(c *C) {
 	app := "lxc"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanSession
-	duration := 0
+	duration := ""
 	permissions := []common.PermissionType{
 		common.PermissionRead,
 		common.PermissionWrite,
@@ -78,7 +78,7 @@ func (s *accessruleSuite) TestCreateDeleteAccessRuleSimple(c *C) {
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
-	duration := 0
+	duration := ""
 	permissions := []common.PermissionType{
 		common.PermissionRead,
 		common.PermissionWrite,
@@ -152,7 +152,7 @@ func (s *accessruleSuite) TestCreateAccessRuleUnhappy(c *C) {
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
-	duration := 0
+	duration := ""
 	permissions := []common.PermissionType{
 		common.PermissionRead,
 		common.PermissionWrite,
@@ -184,7 +184,7 @@ func (s *accessruleSuite) TestModifyAccessRule(c *C) {
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
-	duration := 0
+	duration := ""
 	permissions := []common.PermissionType{
 		common.PermissionRead,
 		common.PermissionWrite,
@@ -212,7 +212,7 @@ func (s *accessruleSuite) TestModifyAccessRule(c *C) {
 	c.Assert(unchangedRule1, DeepEquals, storedRule)
 	c.Assert(ardb.ByID, HasLen, 2)
 
-	unchangedRule2, err := ardb.ModifyAccessRule(user, storedRule.ID, "", common.OutcomeUnset, common.LifespanUnset, 0, nil)
+	unchangedRule2, err := ardb.ModifyAccessRule(user, storedRule.ID, "", common.OutcomeUnset, common.LifespanUnset, "", nil)
 	c.Assert(err, IsNil)
 	// Timestamp should be different, the rest should be the same
 	unchangedRule2.Timestamp = storedRule.Timestamp
@@ -222,7 +222,7 @@ func (s *accessruleSuite) TestModifyAccessRule(c *C) {
 	newPathPattern := otherPathPattern
 	newOutcome := common.OutcomeDeny
 	newLifespan := common.LifespanTimespan
-	newDuration := 1
+	newDuration := "1s"
 	newPermissions := []common.PermissionType{common.PermissionAppend}
 	modifiedRule, err := ardb.ModifyAccessRule(user, storedRule.ID, newPathPattern, newOutcome, newLifespan, newDuration, newPermissions)
 	c.Assert(err, IsNil)
@@ -258,7 +258,7 @@ func (s *accessruleSuite) TestRuleWithID(c *C) {
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
-	duration := 0
+	duration := ""
 	permissions := []common.PermissionType{
 		common.PermissionRead,
 		common.PermissionWrite,
@@ -291,7 +291,7 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
-	duration := 0
+	duration := ""
 	permissions := []common.PermissionType{
 		common.PermissionRead,
 		common.PermissionWrite,
@@ -337,7 +337,7 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
-	duration := 0
+	duration := ""
 	permissions := []common.PermissionType{
 		common.PermissionRead,
 		common.PermissionWrite,
@@ -438,7 +438,7 @@ func (s *accessruleSuite) TestNewSaveLoad(c *C) {
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
-	duration := 0
+	duration := ""
 	permissions := []common.PermissionType{
 		common.PermissionRead,
 		common.PermissionWrite,
@@ -464,7 +464,7 @@ func (s *accessruleSuite) TestIsPathAllowed(c *C) {
 	snap := "lxd"
 	app := "lxc"
 	lifespan := common.LifespanForever
-	duration := 0
+	duration := ""
 	permissions := []common.PermissionType{
 		common.PermissionRead,
 		common.PermissionWrite,
@@ -542,21 +542,21 @@ func (s *accessruleSuite) TestRuleExpiration(c *C) {
 	pathPattern := "/home/test/**"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanSingle
-	duration := 0
+	duration := ""
 	_, err := ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
 	pathPattern = "/home/test/Pictures/**"
 	outcome = common.OutcomeDeny
 	lifespan = common.LifespanTimespan
-	duration = 2
+	duration = "2s"
 	_, err = ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
 	pathPattern = "/home/test/Pictures/**/*.png"
 	outcome = common.OutcomeAllow
 	lifespan = common.LifespanTimespan
-	duration = 1
+	duration = "1s"
 	_, err = ardb.CreateAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
@@ -606,7 +606,7 @@ func (s *accessruleSuite) TestRulesLookup(c *C) {
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
-	duration := 0
+	duration := ""
 	permissions := []common.PermissionType{
 		common.PermissionRead,
 		common.PermissionWrite,
