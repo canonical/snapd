@@ -10930,6 +10930,66 @@ func (s *snapmgrTestSuite) TestPreDownloadWithIgnoreRunningRefresh(c *C) {
 	monitorSignal <- "some-snap"
 }
 
+func (s *snapmgrTestSuite) TestPreDownloadCleansSnapDownloads(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: some-snap`, si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstate.SnapSequence{
+			Revisions: []*snapstate.RevisionSideState{{Snap: si}},
+		},
+		Current: si.Revision,
+	})
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "some-snap",
+			Revision: snap.R(2),
+		},
+		Flags: snapstate.Flags{IsAutoRefresh: true},
+	}
+	s.state.Set("refresh-candidates", map[string]*snapstate.RefreshCandidate{
+		"some-snap": {SnapSetup: *snapsup},
+	})
+
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {})
+	defer restore()
+
+	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		c.Assert(info.InstanceName(), Equals, "some-snap")
+		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	// mock that snap is monitored (i.e. non-nil abort channel)
+	mockAbortChans := map[string]interface{}{"some-snap": func() {}}
+	s.state.Cache("monitored-snaps", mockAbortChans)
+
+	preDlChg := s.state.NewChange("pre-download", "pre-download change")
+	preDlTask := s.state.NewTask("pre-download-snap", "pre-download task")
+
+	preDlTask.Set("snap-setup", snapsup)
+	preDlTask.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "some-snap"})
+	preDlChg.AddTask(preDlTask)
+
+	cleanSnapDownloadsCalled := false
+	restore = snapstate.MockCleanSnapDownloads(func(st *state.State, snapName string) error {
+		if snapName == "some-snap" {
+			cleanSnapDownloadsCalled = true
+		}
+		return nil
+	})
+	defer restore()
+
+	s.settle(c)
+	c.Check(cleanSnapDownloadsCalled, Equals, true)
+}
+
 func (s *snapmgrTestSuite) TestRefreshNoRelatedMonitoring(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -11032,7 +11092,13 @@ func (s *snapmgrTestSuite) TestMonitoringIsPersistedAndRestored(c *C) {
 
 func (s *snapmgrTestSuite) TestNoMonitoringIfOnlyOtherRefreshCandidates(c *C) {
 	s.testNoMonitoringWithCands(c, map[string]*snapstate.RefreshCandidate{
-		"other-snap": {},
+		"other-snap": {
+			SnapSetup: snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{
+					Revision: snap.R(11),
+				},
+			},
+		},
 	})
 }
 

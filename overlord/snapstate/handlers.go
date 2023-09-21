@@ -856,6 +856,11 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	}
 
+	// remove snap downloads that are no longer needed
+	if err := cleanSnapDownloads(st, snapsup.InstanceName()); err != nil {
+		return err
+	}
+
 	_, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
