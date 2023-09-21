@@ -177,7 +177,15 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 		KeyringPrefix:    keyringPrefix,
 	}
 
-	if err := sbActivateVolumeWithRecoveryKey(name, device, nil, &options); err != nil {
+	authRequestor, err := sb.NewSystemdAuthRequestor(
+		"Please enter passphrase for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+		"Please enter recovery key for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+	)
+	if err != nil {
+		return fmt.Errorf("cannot build an auth requestor: %v", err)
+	}
+
+	if err := sbActivateVolumeWithRecoveryKey(name, device, authRequestor, &options); err != nil {
 		return fmt.Errorf("cannot unlock encrypted device %q: %v", device, err)
 	}
 
