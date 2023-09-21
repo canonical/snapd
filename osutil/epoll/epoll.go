@@ -137,6 +137,9 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 		Events: uint32(mask),
 		Fd:     int32(fd),
 	})
+	if e.IsClosed() {
+		return ErrEpollClosed
+	}
 	if err != nil {
 		e.decrementRegisteredFdCount()
 		return err
@@ -153,6 +156,9 @@ func (e *Epoll) Deregister(fd int) error {
 		return ErrEpollClosed
 	}
 	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{})
+	if e.IsClosed() {
+		return ErrEpollClosed
+	}
 	if err != nil {
 		return err
 	}
@@ -172,6 +178,9 @@ func (e *Epoll) Modify(fd int, mask Readiness) error {
 		Fd:     int32(fd),
 	})
 	runtime.KeepAlive(e)
+	if e.IsClosed() {
+		return ErrEpollClosed
+	}
 	return err
 }
 
