@@ -11,7 +11,7 @@ description: |
 adopt-info: snapd-deb
 # build-base is needed here for snapcraft to build this snap as with "modern"
 # snapcraft
-build-base: core22
+build-base: core20
 package-repositories:
   - type: apt
     ppa: snappy-dev/image
@@ -56,7 +56,7 @@ parts:
       sudo -E apt-get build-dep -y "$SNAPCRAFT_PROJECT_DIR"
       # Get archives from xenial; we are not shipping these, we just need to
       # build against them
-      if [ "${SNAPCRAFT_TARGET_ARCH}" == "amd64" ] || [ "${SNAPCRAFT_TARGET_ARCH}" == "i386" ]; then
+      if [ "${SNAPCRAFT_TARGET_ARCH}" = "amd64" ] || [ "${SNAPCRAFT_TARGET_ARCH}" = "i386" ]; then
           UBUNTU_POOL="archive.ubuntu.com/ubuntu/pool"
       else
           UBUNTU_POOL="ports.ubuntu.com/pool"
