@@ -1,11 +1,30 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2023 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package epoll
+
 // Package epoll contains a thin wrapper around the epoll(7) facility.
 //
 // Using epoll from Go is unusual as the language provides facilities that
 // normally make using it directly pointless. Epoll is strictly required for
 // unusual kernel interfaces that use event notification but don't implement
 // file descriptors that provide usual read/write semantics.
-
-package epoll
 
 import (
 	"errors"
