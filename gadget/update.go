@@ -1421,6 +1421,8 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 		return err
 	}
 
+	// TODO: set EFI bootvariables when gadget updates
+
 	return nil
 }
 

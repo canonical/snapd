@@ -1,5 +1,5 @@
-github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 h1:F0bRDzPy/j2IX/iIWqCEA23S1nal+f7A+/vLyj6Ye+4=
-github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93/go.mod h1:9b2PNAuPcZsB76x75/uwH99D8CyH/A2y4rq1/+bvplg=
+github.com/canonical/go-efilib v0.4.0 h1:2ee5pvhIZ+g1EO4HxFE/owBgs5Up2g7dw1+Ls9/fiSs=
+github.com/canonical/go-efilib v0.4.0/go.mod h1:9b2PNAuPcZsB76x75/uwH99D8CyH/A2y4rq1/+bvplg=
 github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9 h1:USzKjrfWo/ESzozv2i3OMM7XDgxrZRvaHFrKkIKRtwU=
 github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9/go.mod h1:Zrs3YjJr+w51u0R/dyLh/oWt/EcBVdLPCVFYC4daW5s=
 github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 h1:oe6fCvaEpkhyW3qAicT0TnGtyht/UrgvOwMcEgLb7Aw=
@@ -71,6 +71,7 @@ golang.org/x/term v0.7.0 h1:BEvjmm5fURWqcfbSKTdpkDXYBrUS1c0m8agp14W48vQ=
 golang.org/x/term v0.7.0/go.mod h1:P32HKFT3hSsZrRxla30E9HqToFYAQPCMs/zFMBUFqPY=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.9.0 h1:2sjJmO8cDvYveuX97RDLsxlyUxLl+GHoLxBiRdHllBE=
+golang.org/x/text v0.9.0/go.mod h1:e1OnstbJyHTd6l/uOt8jFFHp6TRDWZR/bV3emEE/zU8=
 golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f h1:uF6paiQQebLeSXkrTqHqz0MXhXXS1KgF41eUdBNvxK0=
@@ -80,8 +81,6 @@ gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntN
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c/go.mod h1:JHkPIbrfpd72SG/EVd6muEfDQjcINNoR0C8j2r3qZ4Q=
 gopkg.in/macaroon.v1 v1.0.0-20150121114231-ab3940c6c165 h1:85xqOSyTpSzplW7fyO9bOZpSsemJc9UKzEQR2L4k32k=
 gopkg.in/macaroon.v1 v1.0.0-20150121114231-ab3940c6c165/go.mod h1:PABpHZvxAbIuSYTPWJdQsNu0mtx+HX/1NIm3IT95IX0=
-gopkg.in/mgo.v2 v2.0.0-20180704144907-a7e2c1d573e1 h1:pZKliRm58MUzYBqgNxAAGvnLp27Oy76J6Il8oSsaSrI=
-gopkg.in/mgo.v2 v2.0.0-20180704144907-a7e2c1d573e1/go.mod h1:yeKp02qBN3iKW1OzL3MGk2IdtZzaj7SFntXj72NppTA=
 gopkg.in/retry.v1 v1.0.3 h1:a9CArYczAVv6Qs6VGoLMio99GEs7kY9UzSF9+LD+iGs=
 gopkg.in/retry.v1 v1.0.3/go.mod h1:FJkXmWiMaAo7xB+xhvDF59zhfjDWyzmyAxiT4dB688g=
 gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637 h1:yiW+nvdHb9LVqSHQBXfZCieqV4fzYhNBql77zY0ykqs=

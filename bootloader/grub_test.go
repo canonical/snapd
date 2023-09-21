@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1376,4 +1376,25 @@ func (s *grubTestSuite) TestBootChainsNotRecoveryBootloader(c *C) {
 
 	_, err := tab.BootChain(g2, "kernel.snap")
 	c.Assert(err, ErrorMatches, "not a recovery bootloader")
+}
+
+func (s *grubTestSuite) TestConstructShimEfiLoadOption(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, nil)
+	ubl, ok := g.(bootloader.UefiBootloader)
+	c.Assert(ok, Equals, true)
+
+	description, assetPath, optionalData, err := ubl.EfiLoadOptionParameters()
+	c.Assert(err, IsNil)
+	c.Assert(description, Equals, "ubuntu")
+	c.Assert(assetPath, Equals, fmt.Sprintf("%s/EFI/boot/bootx64.efi", s.rootdir))
+	c.Assert(optionalData, HasLen, 0)
+
+	s.makeFakeShimFallback(c)
+
+	description, assetPath, optionalData, err = ubl.EfiLoadOptionParameters()
+	c.Assert(err, IsNil)
+	c.Assert(description, Equals, "ubuntu")
+	c.Assert(assetPath, Equals, fmt.Sprintf("%s/EFI/ubuntu/shimx64.efi", s.rootdir))
+	c.Assert(optionalData, HasLen, 0)
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -498,28 +498,28 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 
 // grubBootAssetPath contains the paths for assets in the boot chain.
 type grubBootAssetPath struct {
-	shimBinary         string
-	grubBinary         string
-	fallbackBinary     string
-	shimFallbackBinary string
-	grubFallbackBinary string
+	defaultShimBinary string
+	defaultGrubBinary string
+	fallbackBinary    string
+	shimBinary        string
+	grubBinary        string
 }
 
 // grubBootAssetsForArch contains the paths for assets for different
 // architectures in a map
 var grubBootAssetsForArch = map[string]grubBootAssetPath{
 	"amd64": {
-		shimBinary:         filepath.Join("EFI/boot/", "bootx64.efi"),
-		grubBinary:         filepath.Join("EFI/boot/", "grubx64.efi"),
-		fallbackBinary:     filepath.Join("EFI/boot/", "fbx64.efi"),
-		shimFallbackBinary: filepath.Join("EFI/ubuntu/", "shimx64.efi"),
-		grubFallbackBinary: filepath.Join("EFI/ubuntu/", "grubx64.efi")},
+		defaultShimBinary: filepath.Join("EFI/boot/", "bootx64.efi"),
+		defaultGrubBinary: filepath.Join("EFI/boot/", "grubx64.efi"),
+		fallbackBinary:    filepath.Join("EFI/boot/", "fbx64.efi"),
+		shimBinary:        filepath.Join("EFI/ubuntu/", "shimx64.efi"),
+		grubBinary:        filepath.Join("EFI/ubuntu/", "grubx64.efi")},
 	"arm64": {
-		shimBinary:         filepath.Join("EFI/boot/", "bootaa64.efi"),
-		grubBinary:         filepath.Join("EFI/boot/", "grubaa64.efi"),
-		fallbackBinary:     filepath.Join("EFI/boot/", "fbaa64.efi"),
-		shimFallbackBinary: filepath.Join("EFI/ubuntu/", "shimaa64.efi"),
-		grubFallbackBinary: filepath.Join("EFI/ubuntu/", "grubaa64.efi")},
+		defaultShimBinary: filepath.Join("EFI/boot/", "bootaa64.efi"),
+		defaultGrubBinary: filepath.Join("EFI/boot/", "grubaa64.efi"),
+		fallbackBinary:    filepath.Join("EFI/boot/", "fbaa64.efi"),
+		shimBinary:        filepath.Join("EFI/ubuntu/", "shimaa64.efi"),
+		grubBinary:        filepath.Join("EFI/ubuntu/", "grubaa64.efi")},
 }
 
 func (g *grub) getGrubBootAssetsForArch() (*grubBootAssetPath, error) {
@@ -542,9 +542,9 @@ func (g *grub) getGrubRecoveryModeTrustedAssets() ([]string, error) {
 		return nil, err
 	}
 	if osutil.FileExists(filepath.Join(g.rootdir, assets.fallbackBinary)) {
-		return []string{assets.shimFallbackBinary, assets.grubFallbackBinary}, nil
+		return []string{assets.shimBinary, assets.grubBinary}, nil
 	}
-	return []string{assets.shimBinary, assets.grubBinary}, nil
+	return []string{assets.defaultShimBinary, assets.defaultGrubBinary}, nil
 }
 
 // getGrubRunModeTrustedAssets returns the assets for run mode, which is
@@ -554,7 +554,19 @@ func (g *grub) getGrubRunModeTrustedAssets() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []string{assets.grubBinary}, nil
+	return []string{assets.defaultGrubBinary}, nil
+}
+
+// getGrubShimBinaryFullPath returns the full filepath of the shim binary.
+func (g *grub) getGrubShimBinaryFullPath() (string, error) {
+	assets, err := g.getGrubBootAssetsForArch()
+	if err != nil {
+		return "", err
+	}
+	if osutil.FileExists(filepath.Join(g.rootdir, assets.fallbackBinary)) {
+		return filepath.Join(g.rootdir, assets.shimBinary), nil
+	}
+	return filepath.Join(g.rootdir, assets.defaultShimBinary), nil
 }
 
 // TrustedAssets returns the list of relative paths to assets inside
@@ -623,4 +635,16 @@ func (g *grub) BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error
 	chain = append(chain, NewBootFile(kernelPath, "kernel.efi", RoleRunMode))
 
 	return chain, nil
+}
+
+// ConstructShimEfiLoadOption returns a serialized load option for the shim
+// binary. It should be called on a UefiBootloader.
+func (g *grub) EfiLoadOptionParameters() (description string, assetPath string, optionalData []byte, err error) {
+	assetPath, err = g.getGrubShimBinaryFullPath()
+	if err != nil {
+		return "", "", nil, err
+	}
+	description = "ubuntu"
+	optionalData = nil
+	return description, assetPath, optionalData, nil
 }
