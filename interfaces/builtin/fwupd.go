@@ -111,8 +111,10 @@ const fwupdPermanentSlotAppArmor = `
   # MTD plugin
   /dev/mtd[0-9]* rw,
   # Plugin for Logitech Whiteboard camera
-  /dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] r,
   /dev/video[0-9]* r,
+  # Multiple plugins need to access to USB devices through character
+  # device nodes: DFU, FPC, logitech cameras
+  /dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,
   # Realtek MST plugin
   /dev/i2c-[0-9]* rw,
 
