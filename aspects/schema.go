@@ -144,12 +144,14 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 }
 
 func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
-	// TODO: add any, int, number, bool and array
+	// TODO: add any, number, bool and array
 	switch typ {
 	case "map":
 		return &mapSchema{topSchema: s}, nil
 	case "string":
 		return &stringSchema{}, nil
+	case "int":
+		return &intSchema{}, nil
 	default:
 		if typ != "" && typ[0] == '$' {
 			return s.getUserType(typ[1:])
@@ -440,6 +442,85 @@ func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) 
 		if v.pattern, err = regexp.Compile(patt); err != nil {
 			return fmt.Errorf(`cannot parse "pattern" constraint: %w`, err)
 		}
+	}
+
+	return nil
+}
+
+type intSchema struct {
+	min     *int
+	max     *int
+	choices []int
+}
+
+func (v *intSchema) Validate(raw []byte) error {
+	var num int
+	if err := json.Unmarshal(raw, &num); err != nil {
+		return err
+	}
+
+	if len(v.choices) != 0 {
+		var found bool
+		for _, choice := range v.choices {
+			if num == choice {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return fmt.Errorf(`integer %d is not one of the allowed choices`, num)
+		}
+	}
+
+	if v.min != nil && num < *v.min {
+		return fmt.Errorf(`integer %d is less than allowed minimum %d`, num, *v.min)
+	}
+
+	if v.max != nil && num > *v.max {
+		return fmt.Errorf(`integer %d is greater than allowed maximum %d`, num, *v.max)
+	}
+
+	return nil
+}
+
+func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	if rawChoices, ok := constraints["choices"]; ok {
+		var choices []int
+		err := json.Unmarshal(rawChoices, &choices)
+		if err != nil {
+			return fmt.Errorf(`cannot parse "choices" constraint: %v`, err)
+		}
+
+		if len(choices) == 0 {
+			return fmt.Errorf(`cannot have "choices" constraint with empty list`)
+		}
+
+		v.choices = choices
+	}
+
+	if rawMin, ok := constraints["min"]; ok {
+		if v.choices != nil {
+			return fmt.Errorf(`cannot have "choices" and "min" constraints`)
+		}
+
+		var min int
+		if err := json.Unmarshal(rawMin, &min); err != nil {
+			return fmt.Errorf(`cannot parse "min" constraint: %v`, err)
+		}
+		v.min = &min
+	}
+
+	if rawMax, ok := constraints["max"]; ok {
+		if v.choices != nil {
+			return fmt.Errorf(`cannot have "choices" and "max" constraints`)
+		}
+
+		var max int
+		if err := json.Unmarshal(rawMax, &max); err != nil {
+			return fmt.Errorf(`cannot parse "max" constraint: %v`, err)
+		}
+		v.max = &max
 	}
 
 	return nil
