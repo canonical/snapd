@@ -35,8 +35,6 @@ func init() {
 	supportedConfigurations["core.store.access"] = true
 }
 
-var errInvalidStoreAccess = errors.New("store access can only be set to 'offline'")
-
 func validateStoreAccess(cfg ConfGetter) error {
 	storeAccess, err := coreCfg(cfg, "store.access")
 	if err != nil {
@@ -47,7 +45,7 @@ func validateStoreAccess(cfg ConfGetter) error {
 	case "", "offline":
 		return nil
 	default:
-		return errInvalidStoreAccess
+		return errors.New("store access can only be set to 'offline'")
 	}
 }
 
