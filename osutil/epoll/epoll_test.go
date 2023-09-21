@@ -596,15 +596,6 @@ func (*epollSuite) TestErrorsOnClosedEpoll(c *C) {
 }
 
 func (*epollSuite) TestWaitErrors(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
-
-	closeAfter(c, e, defaultDuration)
-
-	events, err := e.Wait()
-	c.Assert(err, Equals, epoll.ErrEpollClosed)
-	c.Assert(events, HasLen, 0)
-
 	fakeError := errors.New("injected fake error")
 
 	restore := epoll.MockUnixEpollWait(func(epfd int, events []unix.EpollEvent, msec int) (n int, err error) {
@@ -612,15 +603,50 @@ func (*epollSuite) TestWaitErrors(c *C) {
 	})
 	defer restore()
 
-	e, err = epoll.Open()
+	e, err := epoll.Open()
 	c.Assert(err, IsNil)
 
-	events, err = e.Wait()
+	events, err := e.Wait()
 	c.Assert(err, Equals, fakeError)
 	c.Assert(events, HasLen, 0)
 
 	err = e.Close()
 	c.Assert(err, IsNil)
+
+	restore = epoll.MockUnixEpollWait(func(epfd int, events []unix.EpollEvent, msec int) (n int, err error) {
+		return unix.EpollWait(-1, events, msec)
+	})
+	defer restore()
+
+	e, err = epoll.Open()
+	c.Assert(err, IsNil)
+
+	events, err = e.Wait()
+	c.Assert(err, Equals, unix.EBADF)
+	c.Assert(events, HasLen, 0)
+
+	err = e.Close()
+	c.Assert(err, IsNil)
+
+	restore = epoll.MockUnixEpollWait(func(epfd int, events []unix.EpollEvent, msec int) (n int, err error) {
+		// Make syscall on bad fd, as if it had been closed.
+		n, err = unix.EpollWait(-1, events, msec)
+		// Close the epoll, as if it had been the reason the fd in the syscall
+		// had been closed.
+		e.Close()
+		return n, err
+	})
+	defer restore()
+
+	e, err = epoll.Open()
+	c.Assert(err, IsNil)
+
+	events, err = e.Wait()
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	c.Assert(events, HasLen, 0)
+
+	err = e.Close()
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
 }
 
 func (*epollSuite) TestWaitThenClose(c *C) {
