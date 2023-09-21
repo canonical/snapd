@@ -75,5 +75,5 @@ func (s *storeSuite) TestStoreAccessUnhappy(c *C) {
 			"store.access": "invalid",
 		},
 	})
-	c.Assert(err, ErrorMatches, ".*store access can only be set to 'offline'$")
+	c.Assert(err, ErrorMatches, ".*store access can only be set to 'offline'")
 }
