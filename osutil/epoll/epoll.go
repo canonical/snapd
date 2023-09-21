@@ -70,6 +70,7 @@ func Open() (*Epoll, error) {
 	return e, nil
 }
 
+// IsClosed returns whether Close has been called on the epoll instance.
 func (e *Epoll) IsClosed() bool {
 	select {
 	case <-e.closed:
