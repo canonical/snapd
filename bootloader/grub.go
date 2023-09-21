@@ -598,6 +598,18 @@ func (g *grub) getGrubRunModeTrustedAssets() ([][]taggedPath, error) {
 	return [][]taggedPath{{assets.defaultGrubBinary}}, nil
 }
 
+// getGrubShimBinaryFullPath returns the full filepath of the shim binary.
+func (g *grub) getGrubShimBinaryFullPath() (string, error) {
+	assets, err := g.getGrubBootAssetsForArch()
+	if err != nil {
+		return "", err
+	}
+	if osutil.FileExists(filepath.Join(g.rootdir, assets.fallbackBinary)) {
+		return filepath.Join(g.rootdir, assets.shimBinary), nil
+	}
+	return filepath.Join(g.rootdir, assets.defaultShimBinary), nil
+}
+
 // TrustedAssets returns the map of relative paths to asset
 // identifers. The relative paths are relative to the bootloader's
 // rootdir. The asset identifiers correspond to the backward
@@ -689,4 +701,16 @@ func (g *grub) BootChains(runBl Bootloader, kernelPath string) ([][]BootFile, er
 	}
 
 	return chains, nil
+}
+
+// ConstructShimEfiLoadOption returns a serialized load option for the shim
+// binary. It should be called on a UefiBootloader.
+func (g *grub) EfiLoadOptionParameters() (description string, assetPath string, optionalData []byte, err error) {
+	assetPath, err = g.getGrubShimBinaryFullPath()
+	if err != nil {
+		return "", "", nil, err
+	}
+	description = "ubuntu"
+	optionalData = nil
+	return description, assetPath, optionalData, nil
 }
