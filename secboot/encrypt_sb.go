@@ -39,7 +39,7 @@ import (
 
 var (
 	sbInitializeLUKS2Container       = sb.InitializeLUKS2Container
-	sbAddRecoveryKeyToLUKS2Container = sb.AddRecoveryKeyToLUKS2Container
+	sbAddRecoveryKeyToLUKS2Container = sb.AddLUKS2ContainerRecoveryKey
 )
 
 const keyslotsAreaKiBSize = 2560 // 2.5MB
@@ -71,7 +71,7 @@ func FormatEncryptedDevice(key keys.EncryptionKey, encType EncryptionType, label
 		},
 		InlineCryptoEngine: useICE,
 	}
-	return sbInitializeLUKS2Container(node, label, key[:], opts)
+	return sbInitializeLUKS2Container(node, label, sb.DiskUnlockKey(key), opts)
 }
 
 // AddRecoveryKey adds a fallback recovery key rkey to the existing encrypted
