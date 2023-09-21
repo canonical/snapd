@@ -170,7 +170,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	}
 
 	// add the CLI apps from the snap.yaml
-	if err = wrappers.AddSnapBinaries(s); err != nil {
+	if err = wrappers.EnsureSnapBinaries(s); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
@@ -196,13 +196,13 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDBusActivationFiles)
 
 	// add the desktop files
-	if err = wrappers.AddSnapDesktopFiles(s); err != nil {
+	if err = wrappers.EnsureSnapDesktopFiles(s); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDesktopFiles)
 
 	// add the desktop icons
-	if err = wrappers.AddSnapIcons(s); err != nil {
+	if err = wrappers.EnsureSnapIcons(s); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapIcons)
@@ -289,6 +289,7 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 
 // ServicesEnableState returns the current enabled/disabled states of a snap's
 // services, primarily for committing before snap removal/disable/revert.
+// XXX: Not able to find where this is actually used?
 func (b Backend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
 	return wrappers.ServicesEnableState(info, meter)
 }

@@ -20,53 +20,27 @@
 package gadget
 
 import (
-	"fmt"
-
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/strutil"
 )
-
-type kargKey struct{ par, val string }
-type kernelArgsSet map[kargKey]bool
 
 // FilterKernelCmdline returns a filtered command line, removing
 // arguments that are not on a list of allowed kernel arguments. A
 // wild card ('*') can be used in the allow list for the
 // values. Additionally, a string with the arguments that have been
 // filtered out is also returned.
-func FilterKernelCmdline(cmdline string, allowedSl []osutil.KernelArgument) (argsAllowed, argsDenied string) {
-	// Set of allowed arguments
-	allowed := kernelArgsSet{}
-	wildcards := map[string]bool{}
-	for _, p := range allowedSl {
-		if p.Value == "*" && !p.Quoted {
-			// Currently only allowed globbing
-			wildcards[p.Param] = true
-		} else {
-			allowed[kargKey{par: p.Param, val: p.Value}] = true
-		}
-	}
+func FilterKernelCmdline(cmdline string, allowedSl []kcmdline.ArgumentPattern) (argsAllowed, argsDenied string) {
+	matcher := kcmdline.NewMatcher(allowedSl)
 
-	proposed := osutil.ParseKernelCommandline(cmdline)
+	proposed := kcmdline.Parse(cmdline)
 
-	buildArg := func(arg osutil.KernelArgument) string {
-		if arg.Value == "" {
-			return arg.Param
-		} else {
-			val := arg.Value
-			if arg.Quoted {
-				val = "\"" + arg.Value + "\""
-			}
-			return fmt.Sprintf("%s=%s", arg.Param, val)
-		}
-	}
 	in := []string{}
 	out := []string{}
 	for _, p := range proposed {
-		if allowed[kargKey{par: p.Param, val: p.Value}] || wildcards[p.Param] {
-			in = append(in, buildArg(p))
+		if matcher.Match(p) {
+			in = append(in, p.String())
 		} else {
-			out = append(out, buildArg(p))
+			out = append(out, p.String())
 		}
 	}
 

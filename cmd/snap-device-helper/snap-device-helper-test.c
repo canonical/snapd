@@ -153,22 +153,29 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
 
     int ret = snap_device_helper_run(&inv_block);
     g_assert_cmpint(ret, ==, 0);
-    g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
-    if (g_strcmp0(td->action, "add") == 0 || g_strcmp0(td->action, "change") == 0) {
+    if (g_strcmp0(td->action, "add") == 0 || g_strcmp0(td->action, "change") == 0 || g_strcmp0(td->action, "bind") == 0) {
+        g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
     } else if (g_strcmp0(td->action, "remove") == 0) {
+        g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 0);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 1);
+    } else if (g_strcmp0(td->action, "unbind") == 0) {
+        g_assert_cmpint(mocks.cgroup_new_calls, ==, 0);
+        g_assert_cmpint(mocks.cgroup_allow_calls, ==, 0);
+        g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
     }
-    g_assert_cmpint(mocks.device_major, ==, 8);
-    g_assert_cmpint(mocks.device_minor, ==, 4);
-    g_assert_cmpint(mocks.device_type, ==, S_IFBLK);
-    g_assert_nonnull(mocks.new_tag);
-    g_assert_nonnull(td->app);
-    g_assert_cmpstr(mocks.new_tag, ==, td->app);
-    g_assert_cmpint(mocks.new_flags, !=, 0);
-    g_assert_cmpint(mocks.new_flags, ==, SC_DEVICE_CGROUP_FROM_EXISTING);
+    if (g_strcmp0(td->action, "unbind") != 0) {
+        g_assert_cmpint(mocks.device_major, ==, 8);
+        g_assert_cmpint(mocks.device_minor, ==, 4);
+        g_assert_cmpint(mocks.device_type, ==, S_IFBLK);
+        g_assert_nonnull(mocks.new_tag);
+        g_assert_nonnull(td->app);
+        g_assert_cmpstr(mocks.new_tag, ==, td->app);
+        g_assert_cmpint(mocks.new_flags, !=, 0);
+        g_assert_cmpint(mocks.new_flags, ==, SC_DEVICE_CGROUP_FROM_EXISTING);
+    }
 
     g_debug("reset");
     mocks_reset();
@@ -184,22 +191,29 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
     symlink_in_sysroot(fixture, "/sys/devices/foo/tty/ttyS0/subsystem", "../../../../class/other");
     ret = snap_device_helper_run(&inv_serial);
     g_assert_cmpint(ret, ==, 0);
-    g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
-    if (g_strcmp0(td->action, "add") == 0 || g_strcmp0(td->action, "change") == 0) {
+    if (g_strcmp0(td->action, "add") == 0 || g_strcmp0(td->action, "change") == 0 || g_strcmp0(td->action, "bind") == 0) {
+        g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
     } else if (g_strcmp0(td->action, "remove") == 0) {
+        g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 0);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 1);
+    } else if (g_strcmp0(td->action, "unbind") == 0) {
+        g_assert_cmpint(mocks.cgroup_new_calls, ==, 0);
+        g_assert_cmpint(mocks.cgroup_allow_calls, ==, 0);
+        g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
     }
-    g_assert_cmpint(mocks.device_major, ==, 6);
-    g_assert_cmpint(mocks.device_minor, ==, 64);
-    g_assert_cmpint(mocks.device_type, ==, S_IFCHR);
-    g_assert_nonnull(mocks.new_tag);
-    g_assert_nonnull(td->app);
-    g_assert_cmpstr(mocks.new_tag, ==, td->app);
-    g_assert_cmpint(mocks.new_flags, !=, 0);
-    g_assert_cmpint(mocks.new_flags, ==, SC_DEVICE_CGROUP_FROM_EXISTING);
+    if (g_strcmp0(td->action, "unbind") != 0) {
+        g_assert_cmpint(mocks.device_major, ==, 6);
+        g_assert_cmpint(mocks.device_minor, ==, 64);
+        g_assert_cmpint(mocks.device_type, ==, S_IFCHR);
+        g_assert_nonnull(mocks.new_tag);
+        g_assert_nonnull(td->app);
+        g_assert_cmpstr(mocks.new_tag, ==, td->app);
+        g_assert_cmpint(mocks.new_flags, !=, 0);
+        g_assert_cmpint(mocks.new_flags, ==, SC_DEVICE_CGROUP_FROM_EXISTING);
+    }
 }
 
 static void test_sdh_action_nvme(sdh_test_fixture *fixture, gconstpointer test_data) {
@@ -498,11 +512,17 @@ static void test_sdh_err_funtag8(sdh_test_fixture *fixture, gconstpointer test_d
 static struct sdh_test_data add_data = {"add", "snap.foo.bar", "snap_foo_bar"};
 static struct sdh_test_data change_data = {"change", "snap.foo.bar", "snap_foo_bar"};
 
+static struct sdh_test_data bind_data = {"bind", "snap.foo.bar", "snap_foo_bar"};
+static struct sdh_test_data unbind_data = {"unbind", "snap.foo.bar", "snap_foo_bar"};
+
 static struct sdh_test_data remove_data = {"remove", "snap.foo.bar", "snap_foo_bar"};
 
 static struct sdh_test_data instance_add_data = {"add", "snap.foo_bar.baz", "snap_foo_bar_baz"};
 
 static struct sdh_test_data instance_change_data = {"change", "snap.foo_bar.baz", "snap_foo_bar_baz"};
+
+static struct sdh_test_data instance_bind_data = {"bind", "snap.foo_bar.baz", "snap_foo_bar_baz"};
+static struct sdh_test_data instance_unbind_data = {"unbind", "snap.foo_bar.baz", "snap_foo_bar_baz"};
 
 static struct sdh_test_data instance_remove_data = {"remove", "snap.foo_bar.baz", "snap_foo_bar_baz"};
 
@@ -520,6 +540,8 @@ static void __attribute__((constructor)) init(void) {
 
     _test_add("/snap-device-helper/add", &add_data, test_sdh_action);
     _test_add("/snap-device-helper/change", &change_data, test_sdh_action);
+    _test_add("/snap-device-helper/bind", &bind_data, test_sdh_action);
+    _test_add("/snap-device-helper/unbind", &unbind_data, test_sdh_action);
     _test_add("/snap-device-helper/remove", &remove_data, test_sdh_action);
     _test_add("/snap-device-helper/remove_fallback", NULL, test_sdh_action_remove_fallback_devtype);
 
@@ -544,6 +566,8 @@ static void __attribute__((constructor)) init(void) {
     // parallel instances
     _test_add("/snap-device-helper/parallel/add", &instance_add_data, test_sdh_action);
     _test_add("/snap-device-helper/parallel/change", &instance_change_data, test_sdh_action);
+    _test_add("/snap-device-helper/parallel/bind", &instance_bind_data, test_sdh_action);
+    _test_add("/snap-device-helper/parallel/unbind", &instance_unbind_data, test_sdh_action);
     _test_add("/snap-device-helper/parallel/remove", &instance_remove_data, test_sdh_action);
     // hooks
     _test_add("/snap-device-helper/hook/add", &add_hook_data, test_sdh_action);

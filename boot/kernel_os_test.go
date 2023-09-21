@@ -170,7 +170,12 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernel(c *C) {
 		"kernel_status": boot.TryStatus,
 	})
 
-	c.Check(rebootInfo, Equals, boot.RebootInfo{RebootRequired: true})
+	c.Check(rebootInfo, DeepEquals, boot.RebootInfo{
+		RebootRequired: true,
+		BootloaderOptions: &bootloader.Options{
+			Role: bootloader.RoleRunMode,
+		},
+	})
 
 	// check that SetNextBoot enabled kernel2 as a TryKernel
 	actual, _ := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
@@ -213,7 +218,12 @@ func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernel(c *C) {
 		"snap_kernel":     s.kern1.Filename(),
 	})
 
-	c.Check(rebootInfo, Equals, boot.RebootInfo{RebootRequired: true})
+	c.Check(rebootInfo, DeepEquals, boot.RebootInfo{
+		RebootRequired: true,
+		BootloaderOptions: &bootloader.Options{
+			Role: bootloader.RoleRunMode,
+		},
+	})
 
 	// and that the modeenv now has this kernel listed
 	m2, err := boot.ReadModeenv("")
@@ -716,8 +726,8 @@ func (s *bootenv20RebootBootloaderSuite) TestSetNextBoot20ForKernel(c *C) {
 	})
 
 	c.Assert(rebootInfo.RebootRequired, Equals, true)
-	// Test that we retrieve a RebootBootloader interface
-	c.Assert(rebootInfo.RebootBootloader, NotNil)
+	// Test that we get the bootloader options
+	c.Assert(rebootInfo.BootloaderOptions, DeepEquals, &bootloader.Options{Role: bootloader.RoleRunMode})
 
 	// and that the modeenv now has this kernel listed
 	m2, err := boot.ReadModeenv("")

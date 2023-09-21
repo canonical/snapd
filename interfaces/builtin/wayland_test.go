@@ -102,6 +102,7 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/drirc r,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "unix (send, receive) type=stream peer=(label=\"snap.wayland.app1\"),")
 
 	// connected core slot to plug
 	spec = &apparmor.Specification{}
@@ -109,6 +110,7 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.wayland.app1"})
 	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "owner /run/user/[0-9]*/snap.consumer/{mesa,mutter,sdl,wayland-cursor,weston,xwayland}-shared-* rw,")
 	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "owner /{dev,run}/shm/snap.consumer.wayland.mozilla.ipc.[0-9]* rw,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "unix (send, receive) type=stream peer=(label=\"snap.consumer.app\"),")
 
 	// permanent core slot
 	spec = &apparmor.Specification{}
@@ -127,6 +129,7 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/wayland-[0-9]* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "unix (send, receive) type=stream")
 
 	// connected classic slot to plug
 	spec = &apparmor.Specification{}
@@ -181,7 +184,7 @@ KERNEL=="mouse[0-9]*", TAG+="snap_wayland_app1"`)
 KERNEL=="ts[0-9]*", TAG+="snap_wayland_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# wayland
 KERNEL=="tty[0-9]*", TAG+="snap_wayland_app1"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_wayland_app1", RUN+="%v/snap-device-helper $env{ACTION} snap_wayland_app1 $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_wayland_app1", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_wayland_app1 $devpath $major:$minor"`, dirs.DistroLibExecDir))
 	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 }
 

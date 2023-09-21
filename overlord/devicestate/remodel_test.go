@@ -988,7 +988,7 @@ func (s *uc20RemodelLogicSuite) SetUpTest(c *C) {
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool) error {
+	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool, _ boot.Unlocker) error {
 		return fmt.Errorf("not expected to be called")
 	})
 	s.AddCleanup(restore)
@@ -1089,7 +1089,7 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 	c.Assert(err, IsNil)
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool) error {
+	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool, u boot.Unlocker) error {
 		resealKeysCalls++
 		c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"0000", "1234"})
 		c.Check(m.GoodRecoverySystems, DeepEquals, []string{"0000", "1234"})
@@ -1107,6 +1107,8 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 		default:
 			c.Fatalf("unexpected call #%v to reseal key to modeenv", resealKeysCalls)
 		}
+		// check unlocker
+		u()()
 		// this is running as part of post finish step, so the state has
 		// already been updated
 		serial, err = s.mgr.Serial()
@@ -1197,7 +1199,7 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 	c.Assert(chg.Get("new-model", &encNewModel), IsNil)
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool) error {
+	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool, u boot.Unlocker) error {
 		resealKeysCalls++
 		c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"0000", "1234"})
 		c.Check(m.GoodRecoverySystems, DeepEquals, []string{"0000", "1234"})
@@ -1217,6 +1219,8 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 		default:
 			c.Fatalf("unexpected call #%v to reseal key to modeenv", resealKeysCalls)
 		}
+		// check unlocker
+		u()()
 		return nil
 	})
 	s.AddCleanup(restore)
@@ -1296,7 +1300,7 @@ func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
 	c.Assert(chg.Get("new-model", &encNewModel), IsNil)
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool) error {
+	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool, u boot.Unlocker) error {
 		resealKeysCalls++
 		c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"0000", "1234"})
 		c.Check(m.GoodRecoverySystems, DeepEquals, []string{"0000", "1234"})
@@ -1311,6 +1315,8 @@ func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
 		default:
 			c.Fatalf("unexpected call #%v to reseal key to modeenv", resealKeysCalls)
 		}
+		// check unlocker
+		u()()
 		return nil
 	})
 	s.AddCleanup(restore)

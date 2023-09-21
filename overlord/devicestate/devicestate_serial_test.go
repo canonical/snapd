@@ -1147,27 +1147,37 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithHookAndNewProxy(c *C) {
-	s.testFullDeviceRegistrationHappyWithHookAndProxy(c, true)
+	s.testFullDeviceRegistrationHappyWithHookAndProxy(c, "new-enough")
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithHookAndOldProxy(c *C) {
-	s.testFullDeviceRegistrationHappyWithHookAndProxy(c, false)
+	s.testFullDeviceRegistrationHappyWithHookAndProxy(c, "old-proxy")
 }
 
-func (s *deviceMgrSerialSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c *C, newEnough bool) {
+func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithHookAndBrokenProxy(c *C) {
+	s.testFullDeviceRegistrationHappyWithHookAndProxy(c, "error-from-proxy")
+}
+
+func (s *deviceMgrSerialSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c *C, proxyBehavior string) {
 	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
 
 	var reqID string
 	var storeVersion string
 	head := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Snap-Store-Version", storeVersion)
+		switch proxyBehavior {
+		case "error-from-proxy":
+			w.WriteHeader(500)
+		default:
+			w.Header().Set("Snap-Store-Version", storeVersion)
+		}
 	}
 	bhv := &devicestatetest.DeviceServiceBehavior{
 		Head: head,
 	}
 	svcPath := "/svc/"
-	if newEnough {
+	switch proxyBehavior {
+	case "new-enough":
 		reqID = "REQID-42"
 		storeVersion = "6"
 		bhv.PostPreflight = func(c *C, bhv *devicestatetest.DeviceServiceBehavior, w http.ResponseWriter, r *http.Request) {
@@ -1175,7 +1185,7 @@ func (s *deviceMgrSerialSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c
 			c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
 		}
 		svcPath = "/bad/svc/"
-	} else {
+	case "old-proxy", "error-from-proxy":
 		reqID = "REQID-41"
 		storeVersion = "5"
 		bhv.RequestIDURLPath = "/svc/request-id"
@@ -1183,6 +1193,8 @@ func (s *deviceMgrSerialSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c
 		bhv.PostPreflight = func(c *C, bhv *devicestatetest.DeviceServiceBehavior, w http.ResponseWriter, r *http.Request) {
 			c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
 		}
+	default:
+		c.Fatalf("unknown proxy behavior %v", proxyBehavior)
 	}
 
 	mockServer := s.mockServer(c, reqID, bhv)

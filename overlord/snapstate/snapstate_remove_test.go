@@ -1716,9 +1716,9 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 
 	held, err := snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh)
 	c.Assert(err, IsNil)
-	c.Check(held, DeepEquals, map[string]bool{
-		"foo-snap":  true,
-		"some-snap": true,
+	c.Check(held, DeepEquals, map[string][]string{
+		"foo-snap":  {"some-snap"},
+		"some-snap": {"another-snap"},
 	})
 
 	chg := st.NewChange("remove", "remove a snap")
@@ -1771,7 +1771,7 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 
 	held, err := snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh)
 	c.Assert(err, IsNil)
-	c.Check(held, DeepEquals, map[string]bool{"some-snap": true})
+	c.Check(held, DeepEquals, map[string][]string{"some-snap": {"some-snap"}})
 
 	chg := st.NewChange("remove", "remove a snap")
 	ts, err := snapstate.Remove(st, "some-snap", snap.R(12), nil)
@@ -1788,7 +1788,7 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 	// held snaps are intact
 	held, err = snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh)
 	c.Assert(err, IsNil)
-	c.Check(held, DeepEquals, map[string]bool{"some-snap": true})
+	c.Check(held, DeepEquals, map[string][]string{"some-snap": {"some-snap"}})
 
 	// refresh-candidates are intact
 	var candidates map[string]*snapstate.RefreshCandidate

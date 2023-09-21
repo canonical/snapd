@@ -59,7 +59,7 @@ execute: |
 
         echo "Verify that a random signal does not trigger the failure handling"
         echo "and snapd is just restarted"
-        systemctl kill --signal=SIGSEGV snapd.service
+        systemctl kill --signal=SIGKILL snapd.service
 
         started_after_rand_sig="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
 

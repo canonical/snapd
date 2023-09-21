@@ -154,6 +154,7 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if deviceCtx.HasModeenv() && deviceCtx.RunMode() {
+		// XXX make this a boot method
 		modeEnv, err := maybeReadModeenv()
 		if err != nil {
 			return err

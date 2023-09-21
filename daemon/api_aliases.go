@@ -142,9 +142,6 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	for snapName, snapst := range allStates {
-		if err != nil {
-			return InternalError("cannot retrieve info for snap %q: %v", snapName, err)
-		}
 		if len(snapst.Aliases) != 0 {
 			snapAliases := make(map[string]aliasStatus)
 			res[snapName] = snapAliases

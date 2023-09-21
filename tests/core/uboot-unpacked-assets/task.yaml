@@ -7,6 +7,11 @@ environment:
     NAME/kernelimg: kernel.img
 
 execute: |
+    if snap list pc; then
+        echo "Neither kernel.img not initrd.img in images with pc gadget installed"
+        exit
+    fi
+
     if os.query is-core20 || os.query is-core22; then
         echo "Check that on UC20 and UC22, the kernel snap is extracted onto ubuntu-seed, not on ubuntu-boot"
         output=$(find /run/mnt/ubuntu-seed/systems/*/kernel/ -name "$NAME" )

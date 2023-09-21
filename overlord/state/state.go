@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -87,6 +87,9 @@ type State struct {
 	lastTaskId   int
 	lastChangeId int
 	lastLaneId   int
+	// lastHandlerId is not serialized, it's only used during runtime
+	// for registering runtime callbacks
+	lastHandlerId int
 
 	backend  Backend
 	data     customData
@@ -99,6 +102,10 @@ type State struct {
 	cache map[interface{}]interface{}
 
 	pendingChangeByAttr map[string]func(*Change) bool
+
+	// task/changes observing
+	taskHandlers   map[int]func(t *Task, old, new Status)
+	changeHandlers map[int]func(chg *Change, old, new Status)
 }
 
 // New returns a new empty state.
@@ -112,6 +119,8 @@ func New(backend Backend) *State {
 		modified:            true,
 		cache:               make(map[interface{}]interface{}),
 		pendingChangeByAttr: make(map[string]func(*Change) bool),
+		taskHandlers:        make(map[int]func(t *Task, old Status, new Status)),
+		changeHandlers:      make(map[int]func(chg *Change, old Status, new Status)),
 	}
 }
 
@@ -210,6 +219,15 @@ var (
 	unlockCheckpointRetryMaxTime  = 5 * time.Minute
 	unlockCheckpointRetryInterval = 3 * time.Second
 )
+
+// Unlocker returns a closure that will unlock and checkpoint the state and
+// in turn return a function to relock it.
+func (s *State) Unlocker() (unlock func() (relock func())) {
+	return func() func() {
+		s.Unlock()
+		return s.Lock
+	}
+}
 
 // Unlock releases the state lock and checkpoints the state.
 // It does not return until the state is correctly checkpointed.
@@ -482,6 +500,62 @@ func (s *State) GetMaybeTimings(timings interface{}) error {
 	return nil
 }
 
+// AddTaskStatusChangedHandler adds a callback function that will be invoked
+// whenever tasks change status.
+// NOTE: Callbacks registered this way may be invoked in the context
+// of the taskrunner, so the callbacks should be as simple as possible, and return
+// as quickly as possible, and should avoid the use of i/o code or blocking, as this
+// will stop the entire task system.
+func (s *State) AddTaskStatusChangedHandler(f func(t *Task, old, new Status)) (id int) {
+	// We are reading here as we want to ensure access to the state is serialized,
+	// and not writing as we are not changing the part of state that goes on the disk.
+	s.reading()
+	id = s.lastHandlerId
+	s.lastHandlerId++
+	s.taskHandlers[id] = f
+	return id
+}
+
+func (s *State) RemoveTaskStatusChangedHandler(id int) {
+	s.reading()
+	delete(s.taskHandlers, id)
+}
+
+func (s *State) notifyTaskStatusChangedHandlers(t *Task, old, new Status) {
+	s.reading()
+	for _, f := range s.taskHandlers {
+		f(t, old, new)
+	}
+}
+
+// AddChangeStatusChangedHandler adds a callback function that will be invoked
+// whenever a Change changes status.
+// NOTE: Callbacks registered this way may be invoked in the context
+// of the taskrunner, so the callbacks should be as simple as possible, and return
+// as quickly as possible, and should avoid the use of i/o code or blocking, as this
+// will stop the entire task system.
+func (s *State) AddChangeStatusChangedHandler(f func(chg *Change, old, new Status)) (id int) {
+	// We are reading here as we want to ensure access to the state is serialized,
+	// and not writing as we are not changing the part of state that goes on the disk.
+	s.reading()
+	id = s.lastHandlerId
+	s.lastHandlerId++
+	s.changeHandlers[id] = f
+	return id
+}
+
+func (s *State) RemoveChangeStatusChangedHandler(id int) {
+	s.reading()
+	delete(s.changeHandlers, id)
+}
+
+func (s *State) notifyChangeStatusChangedHandlers(chg *Change, old, new Status) {
+	s.reading()
+	for _, f := range s.changeHandlers {
+		f(chg, old, new)
+	}
+}
+
 // SaveTimings implements timings.GetSaver
 func (s *State) SaveTimings(timings interface{}) {
 	s.Set("timings", timings)
@@ -501,5 +575,7 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s.modified = false
 	s.cache = make(map[interface{}]interface{})
 	s.pendingChangeByAttr = make(map[string]func(*Change) bool)
+	s.changeHandlers = make(map[int]func(chg *Change, old Status, new Status))
+	s.taskHandlers = make(map[int]func(t *Task, old Status, new Status))
 	return s, err
 }

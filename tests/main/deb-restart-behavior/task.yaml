@@ -6,9 +6,6 @@ systems:
   - ubuntu-2*
 
 execute: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-
     . /etc/os-release
 
     echo "Precondition check that snapd is active"

@@ -273,6 +273,9 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.StoreSigning.Find)
 	}
+	retrieveSeq := func(seq *asserts.AtSequence) (asserts.Assertion, error) {
+		return seq.Resolve(s.StoreSigning.Find)
+	}
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
 		save2 := func(a asserts.Assertion) error {
 			// for checking
@@ -285,8 +288,9 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 			}
 			return save(a)
 		}
-		return asserts.NewFetcher(db, retrieve, save2)
+		return asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, save2)
 	}
+	sf := seedwriter.MakeSeedAssertionFetcher(newFetcher)
 
 	opts := seedwriter.Options{
 		SeedDir: s.SeedDir,
@@ -298,7 +302,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	err = w.SetOptionsSnaps(optSnaps)
 	c.Assert(err, IsNil)
 
-	rf, err := w.Start(db, newFetcher)
+	err = w.Start(db, sf)
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -307,7 +311,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	localARefs := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, rf, db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, sf, db)
 		if !errors.Is(err, &asserts.NotFoundError{}) {
 			c.Assert(err, IsNil)
 		}
@@ -328,11 +332,11 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 		if aRefs, ok := localARefs[sn]; ok {
 			return aRefs, nil
 		}
-		prev := len(rf.Refs())
-		if err = rf.Save(s.snapRevs[sn.SnapName()]); err != nil {
+		prev := len(sf.Refs())
+		if err = sf.Save(s.snapRevs[sn.SnapName()]); err != nil {
 			return nil, err
 		}
-		return rf.Refs()[prev:], nil
+		return sf.Refs()[prev:], nil
 	}
 
 	for {

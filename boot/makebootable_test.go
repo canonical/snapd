@@ -483,7 +483,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
-func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, standalone, factoryReset, classic bool) {
+func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, standalone, factoryReset, classic bool, fromInitrd bool) {
 	restore := release.MockOnClassic(classic)
 	defer restore()
 	dirs.SetRootDir(dirs.GlobalRootDir)
@@ -618,6 +618,11 @@ version: 5.0
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
 	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		if fromInitrd {
+			c.Assert(seedDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
+		} else {
+			c.Assert(seedDir, Equals, dirs.SnapSeedDir)
+		}
 		readSystemEssentialCalls++
 		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
@@ -762,9 +767,11 @@ version: 5.0
 	defer restore()
 
 	switch {
-	case standalone:
+	case standalone && fromInitrd:
+		err = boot.MakeRunnableStandaloneSystemFromInitrd(model, bootWith, obs)
+	case standalone && !fromInitrd:
 		err = boot.MakeRunnableStandaloneSystem(model, bootWith, obs)
-	case factoryReset:
+	case factoryReset && !fromInitrd:
 		err = boot.MakeRunnableSystemAfterDataReset(model, bootWith, obs)
 	default:
 		err = boot.MakeRunnableSystem(model, bootWith, obs)
@@ -895,28 +902,40 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
 	const standalone = false
 	const factoryReset = false
 	const classic = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic)
+	const fromInitrd = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOnClassic(c *C) {
 	const standalone = false
 	const factoryReset = false
 	const classic = true
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic)
+	const fromInitrd = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryReset(c *C) {
 	const standalone = false
 	const factoryReset = true
 	const classic = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic)
+	const fromInitrd = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryResetOnClassic(c *C) {
 	const standalone = false
 	const factoryReset = true
 	const classic = true
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic)
+	const fromInitrd = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallFromInitrd(c *C) {
+	const standalone = true
+	const factoryReset = false
+	const classic = false
+	const fromInitrd = true
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
 }
 
 func (s *makeBootable20Suite) TestMakeRunnableSystem20ModeInstallBootConfigErr(c *C) {
@@ -2208,14 +2227,16 @@ func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20Install(c *C) {
 	const standalone = true
 	const factoryReset = false
 	const classic = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic)
+	const fromInitrd = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
 }
 
 func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20InstallOnClassic(c *C) {
 	const standalone = true
 	const factoryReset = false
 	const classic = true
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic)
+	const fromInitrd = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
 }
 
 func (s *makeBootable20Suite) testMakeBootableImageOptionalKernelArgs(c *C, model *asserts.Model, options map[string]string, expectedCmdline, errMsg string) {

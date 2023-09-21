@@ -424,7 +424,7 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedSlot(s.iface, s.privatePlug, s.privateSlot), IsNil)
 	privateSlotSnippet := spec.SnippetForTag("snap.core.app")
 
-	c.Check(privatePlugSnippet, testutil.Contains, `"/dev/shm/*" mrwlkix`)
+	c.Check(privatePlugSnippet, testutil.Contains, `"/dev/shm/**" mrwlkix`)
 	c.Check(privateSlotSnippet, Equals, "")
 	c.Check(strings.Join(privateUpdateNS, ""), Equals, `  # Private /dev/shm
   /dev/ r,
@@ -469,4 +469,35 @@ func (s *SharedMemoryInterfaceSuite) TestAutoConnect(c *C) {
 
 func (s *SharedMemoryInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *SharedMemoryInterfaceSuite) TestNoErrorOnMissingPrivate(c *C) {
+	consumerYaml := `name: consumer
+version: 0
+plugs:
+ shmem-missing:
+  interface: shared-memory
+  shared-memory: foo
+`
+	plug, _ := MockConnectedPlug(c, consumerYaml, nil, "shmem-missing")
+
+	spec := &mount.Specification{}
+	err := spec.AddConnectedPlug(s.iface, plug, nil)
+	c.Assert(err, IsNil)
+}
+
+func (s *SharedMemoryInterfaceSuite) TestErrorOnBadPlug(c *C) {
+	consumerYaml := `name: consumer
+version: 0
+plugs:
+ shmem-missing:
+  interface: shared-memory
+  shared-memory: foo
+  private: xxx
+`
+	plug, _ := MockConnectedPlug(c, consumerYaml, nil, "shmem-missing")
+
+	spec := &mount.Specification{}
+	err := spec.AddConnectedPlug(s.iface, plug, nil)
+	c.Assert(err, ErrorMatches, `snap "consumer" has interface "shared-memory" with invalid value type string for "private" attribute: \*bool`)
 }

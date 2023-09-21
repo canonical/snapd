@@ -412,7 +412,7 @@ func (m *DeviceManager) cleanupRecoverySystem(t *state.Task, _ *tomb.Tomb) error
 	if err != nil {
 		return err
 	}
-	if os.Remove(filepath.Join(setup.Directory, "snapd-new-file-log")); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(filepath.Join(setup.Directory, "snapd-new-file-log")); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil

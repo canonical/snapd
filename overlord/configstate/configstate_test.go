@@ -193,7 +193,7 @@ func (s *tasksetsSuite) TestConfigureNotInstalled(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *tasksetsSuite) TestConfigureDenyBases(c *C) {
+func (s *tasksetsSuite) TestConfigureInstalledDenyBases(c *C) {
 	patch := map[string]interface{}{"foo": "bar"}
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -210,7 +210,7 @@ func (s *tasksetsSuite) TestConfigureDenyBases(c *C) {
 	c.Check(err, ErrorMatches, `cannot configure snap "test-base" because it is of type 'base'`)
 }
 
-func (s *tasksetsSuite) TestConfigureDenySnapd(c *C) {
+func (s *tasksetsSuite) TestConfigureInstalledDenySnapd(c *C) {
 	patch := map[string]interface{}{"foo": "bar"}
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -225,6 +225,61 @@ func (s *tasksetsSuite) TestConfigureDenySnapd(c *C) {
 
 	_, err := configstate.ConfigureInstalled(s.state, "snapd", patch, 0)
 	c.Check(err, ErrorMatches, `cannot configure the "snapd" snap, please use "system" instead`)
+}
+
+func (s *tasksetsSuite) TestDefaultConfigure(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "test-snap", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	taskset := configstate.DefaultConfigure(s.state, "test-snap")
+	s.state.Unlock()
+
+	tasks := taskset.Tasks()
+	c.Assert(tasks, HasLen, 1)
+	task := tasks[0]
+	c.Check(task.Kind(), Equals, "run-hook")
+	c.Check(task.Summary(), Equals, `Run default-configure hook of "test-snap" snap if present`)
+
+	var hooksup hookstate.HookSetup
+	s.state.Lock()
+	err := task.Get("hook-setup", &hooksup)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	expectedHookSetup := hookstate.HookSetup{
+		Snap:        "test-snap",
+		Revision:    snap.Revision{},
+		Hook:        "default-configure",
+		Timeout:     5 * time.Minute,
+		Optional:    true,
+		Always:      false,
+		IgnoreError: false,
+		TrackError:  false,
+	}
+	c.Assert(hooksup, DeepEquals, expectedHookSetup)
+
+	context, err := hookstate.NewContext(task, task.State(), &hooksup, nil, "")
+	c.Check(err, IsNil)
+	c.Check(context.InstanceName(), Equals, "test-snap")
+	c.Check(context.SnapRevision(), Equals, snap.Revision{})
+	c.Check(context.HookName(), Equals, "default-configure")
+
+	var patch map[string]interface{}
+	var useDefaults bool
+	context.Lock()
+	context.Get("use-defaults", &useDefaults)
+	err = context.Get("patch", &patch)
+	context.Unlock()
+	// useDefaults is not set because it is implicit to the default-configure hook
+	c.Check(useDefaults, Equals, false)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
+	c.Check(patch, IsNil)
 }
 
 type configcoreHijackSuite struct {

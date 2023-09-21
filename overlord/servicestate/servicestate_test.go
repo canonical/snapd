@@ -193,7 +193,8 @@ NeedDaemonReload=no
 			{Name: "socket1", Type: "socket", Active: enabled, Enabled: enabled},
 		})
 
-		// service with D-Bus activation
+		// service with slot activation will always be enabled as we cannot
+		// disable/enable slot activation at the moment.
 		app = &client.AppInfo{
 			Snap:   snp.InstanceName(),
 			Name:   "svc",
@@ -220,7 +221,7 @@ NeedDaemonReload=no
 		err = sd.DecorateWithStatus(app, snapApp)
 		c.Assert(err, IsNil)
 		c.Check(app.Active, Equals, enabled)
-		c.Check(app.Enabled, Equals, enabled)
+		c.Check(app.Enabled, Equals, true)
 		c.Check(app.Activators, DeepEquals, []client.AppActivator{
 			{Name: "org.example.Svc", Type: "dbus", Active: true, Enabled: true},
 		})
@@ -263,7 +264,7 @@ NeedDaemonReload=no
 		err = sd.DecorateWithStatus(app, snapApp)
 		c.Assert(err, IsNil)
 		c.Check(app.Active, Equals, false)
-		c.Check(app.Enabled, Equals, enabled)
+		c.Check(app.Enabled, Equals, true) // when a service is slot activated its always enabled
 		c.Check(app.Activators, DeepEquals, []client.AppActivator{
 			{Name: "socket1", Type: "socket", Active: false, Enabled: enabled},
 			{Name: "svc", Type: "timer", Active: false, Enabled: enabled},

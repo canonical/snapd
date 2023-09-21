@@ -197,34 +197,42 @@ func checkRFC3339DateWithDefaultWhat(m map[string]interface{}, name, what string
 }
 
 func checkUint(headers map[string]interface{}, name string, bitSize int) (uint64, error) {
-	valueStr, err := checkNotEmptyString(headers, name)
+	return checkUintWhat(headers, name, bitSize, "header")
+}
+
+func checkUintWhat(headers map[string]interface{}, name string, bitSize int, what string) (uint64, error) {
+	valueStr, err := checkNotEmptyStringWhat(headers, name, what)
 	if err != nil {
 		return 0, err
 	}
 	value, err := strconv.ParseUint(valueStr, 10, bitSize)
 	if err != nil {
 		if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
-			return 0, fmt.Errorf("%q header is out of range: %v", name, valueStr)
+			return 0, fmt.Errorf("%q %s is out of range: %v", name, what, valueStr)
 		}
-		return 0, fmt.Errorf("%q header is not an unsigned integer: %v", name, valueStr)
+		return 0, fmt.Errorf("%q %s is not an unsigned integer: %v", name, what, valueStr)
 	}
 	if prefixZeros(valueStr) {
-		return 0, fmt.Errorf("%q header has invalid prefix zeros: %s", name, valueStr)
+		return 0, fmt.Errorf("%q %s has invalid prefix zeros: %s", name, what, valueStr)
 	}
 	return value, nil
 }
 
 func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]byte, error) {
-	digestStr, err := checkNotEmptyString(headers, name)
+	return checkDigestWhat(headers, name, h, "header")
+}
+
+func checkDigestWhat(headers map[string]interface{}, name string, h crypto.Hash, what string) ([]byte, error) {
+	digestStr, err := checkNotEmptyStringWhat(headers, name, what)
 	if err != nil {
 		return nil, err
 	}
 	b, err := base64.RawURLEncoding.DecodeString(digestStr)
 	if err != nil {
-		return nil, fmt.Errorf("%q header cannot be decoded: %v", name, err)
+		return nil, fmt.Errorf("%q %s cannot be decoded: %v", name, what, err)
 	}
 	if len(b) != h.Size() {
-		return nil, fmt.Errorf("%q header does not have the expected bit length: %d", name, len(b)*8)
+		return nil, fmt.Errorf("%q %s does not have the expected bit length: %d", name, what, len(b)*8)
 	}
 
 	return b, nil

@@ -464,7 +464,7 @@ func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
 			"jailmode":     "true",
 			"cohort-key":   `"what"`,
 			"leave-cohort": "true",
-			"purge":        "true",
+			"prefer":       "true",
 		} {
 			buf := strings.NewReader(fmt.Sprintf(`{"action": "%s","snaps":["foo","bar"], "%s": %s}`, action, weird, v))
 			req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -476,6 +476,107 @@ func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
 			c.Check(rspe.Message, testutil.Contains, `unsupported option provided for multi-snap operation`)
 		}
 	}
+}
+
+func (s *snapsSuite) TestPostSnapsOptionsUnsupportedActionError(c *check.C) {
+	s.daemon(c)
+	const expectedErr = "snapshot-options can only be specified for snapshot action"
+
+	for _, action := range []string{"install", "refresh", "revert", "remove", "hold", "unhold",
+		"enable", "disable", "switch", "xyzzy"} {
+		holdParams := ""
+		if action == "hold" {
+			holdParams = `"time": "forever", "hold-level": "general",`
+		}
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "snaps":["foo"], %s "snapshot-options": {}}`, action, holdParams))
+		req, err := http.NewRequest("POST", "/v2/snaps", buf)
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
+func (s *snapsSuite) TestPostSnapsOptionsOtherErrors(c *check.C) {
+	s.daemon(c)
+	const notListedErr = `cannot use snapshot-options for snap "xyzzy" that is not listed in snaps`
+	const invalidOptionsForSnapErr = `invalid snapshot-options for snap "bar":`
+
+	testMap := map[string]struct {
+		post          string
+		expectedError string
+	}{
+		"snap-not-listed-valid-options": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {"exclude":[""]}}}`, notListedErr},
+		"snap-not-listed-exclude-empty": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {"exclude":[]}}}`, notListedErr},
+		"snap-not-listed-options-empty": {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"xyzzy": {}}}`, notListedErr},
+		"invalid-options-for-snap":      {`{"action": "snapshot", "snaps":["foo", "bar"], "snapshot-options": {"bar": {"exclude":["../"]}}}`, invalidOptionsForSnapErr},
+	}
+
+	for name, test := range testMap {
+		buf := strings.NewReader(fmt.Sprintf(test.post))
+		req, err := http.NewRequest("POST", "/v2/snaps", buf)
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400)
+		c.Check(rspe.Message, testutil.Contains, test.expectedError, check.Commentf("test: %q", name))
+	}
+}
+
+func (s *snapsSuite) TestPostSnapsRemoveManyWithPurge(c *check.C) {
+	d := s.daemonWithOverlordMockAndStore()
+
+	defer daemon.MockSnapstateRemoveMany(func(s *state.State, names []string, opts *snapstate.RemoveFlags) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		c.Check(opts.Purge, check.Equals, true)
+		t := s.NewTask("fake-remove-2", "Remove two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	buf := strings.NewReader(fmt.Sprintf(`{"action": "remove", "snaps":["foo", "bar"], "purge":true}`))
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := s.jsonReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 202)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Check(chg.Summary(), check.Equals, `Remove snaps "foo", "bar"`)
+}
+
+func (s *snapsSuite) TestPostSnapsOptionsClean(c *check.C) {
+	var snapshotSaveCalled int
+	defer daemon.MockSnapshotSave(func(s *state.State, snaps, users []string,
+		options map[string]*snap.SnapshotOptions) (uint64, []string, *state.TaskSet, error) {
+		snapshotSaveCalled++
+
+		c.Check(snaps, check.HasLen, 3)
+		c.Check(snaps, check.DeepEquals, []string{"foo", "bar", "baz"})
+		c.Check(options, check.HasLen, 1)
+		c.Check(options, check.DeepEquals, map[string]*snap.SnapshotOptions{
+			"foo": {Exclude: []string{"$SNAP_DATA/foo-path-1"}},
+		})
+		t := s.NewTask("fake-snapshot-2", "Snapshot two")
+		return 1, snaps, state.NewTaskSet(t), nil
+	})()
+
+	s.daemonWithOverlordMockAndStore()
+	buf := strings.NewReader(`{"action": "snapshot", "snaps": ["foo", "bar", "baz"],
+	"snapshot-options": {"foo": {"exclude":["$SNAP_DATA/foo-path-1"]}, "bar":{"exclude":[]}, "baz":{}}}}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := s.asyncReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 202)
+	c.Check(snapshotSaveCalled, check.Equals, 1)
 }
 
 func (s *snapsSuite) TestPostSnapsOp(c *check.C) {
@@ -1520,6 +1621,21 @@ func (s *snapsSuite) TestPostSnapLeaveCohortUnsupportedAction(c *check.C) {
 	}
 }
 
+func (s *snapsSuite) TestPostSnapPreferWrongAction(c *check.C) {
+	s.daemonWithOverlordMock()
+	const expectedErr = "the prefer flag can only be specified on install"
+
+	for _, action := range []string{"remove", "refresh", "revert", "enable", "disable", "xyzzy"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "prefer": true}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
 func (s *snapsSuite) TestPostSnapCohortIncompat(c *check.C) {
 	s.daemonWithOverlordMock()
 	type T struct {
@@ -1592,6 +1708,22 @@ func (s *snapsSuite) TestPostSnapEnableDisableSwitchRevision(c *check.C) {
 		rspe := s.errorReq(c, req, nil)
 		c.Check(rspe.Status, check.Equals, 400)
 		c.Check(rspe.Message, testutil.Contains, "takes no revision")
+	}
+}
+
+func (s *snapsSuite) TestPostSnapOptionsUnsupportedAction(c *check.C) {
+	s.daemon(c)
+	const expectedErr = "snapshot-options can only be specified for snapshot action"
+
+	for _, action := range []string{"install", "refresh", "revert", "enable", "disable", "switch", "xyzzy"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "snapshot-options": {}}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/foo", buf)
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
 	}
 }
 
@@ -2916,4 +3048,16 @@ func (s *snapsSuite) TestHoldAllSnapsGeneralRefreshesNotSupported(c *check.C) {
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Assert(rspe.Error(), check.Matches, `cannot hold: holding general refreshes for all snaps is not supported.*`)
+}
+
+func (s *snapsSuite) TestOnlyAllowUnaliasedOrPrefer(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "install", "unaliased": true, "prefer": true}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/foo", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `cannot use unaliased and prefer flags together.*`)
 }

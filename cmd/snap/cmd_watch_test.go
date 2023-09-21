@@ -29,6 +29,7 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/progress/progresstest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var fmtWatchChangeJSON = `{"type": "sync", "result": {
@@ -151,4 +152,39 @@ func (s *SnapSuite) TestWatchLastQuestionmark(c *C) {
 	}
 
 	c.Check(n, Equals, 4)
+}
+
+func (s *SnapOpSuite) TestWatchWaitsForWaitTasks(c *C) {
+	meter := &progresstest.Meter{}
+	defer progress.MockMeter(meter)()
+	restore := snap.MockMaxGoneTime(time.Millisecond)
+	defer restore()
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {
+"ready": false,
+"status": "Doing",
+"tasks": [{"kind": "bar", "summary": "...", "status": "Wait", "progress": {"done": 1, "total": 1}, "log": ["INFO: Task set to wait until a manual system restart allows to continue"]}]
+}}`)
+		case 1:
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {
+"ready": true,
+"status": "Done",
+"tasks": [{"kind": "bar", "summary": "...", "status": "Done", "progress": {"done": 1, "total": 1}, "log": ["INFO: Task set to wait until a manual system restart allows to continue"]}]
+}}`)
+		}
+
+		n++
+	})
+
+	// snap watch will watch tasks in "Wait" state until they are done
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"watch", "x"})
+	c.Assert(err, IsNil)
+	c.Check(meter.Notices, testutil.Contains, "INFO: Task set to wait until a manual system restart allows to continue")
+	c.Check(n, Equals, 2)
 }

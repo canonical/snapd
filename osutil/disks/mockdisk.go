@@ -65,7 +65,7 @@ func (d *MockDiskMapping) FindMatchingPartitionWithFsLabel(label string) (Partit
 	osutil.MustBeTestBinary("mock disks only to be used in tests")
 
 	for _, p := range d.Structure {
-		if p.FilesystemLabel == label {
+		if p.hasFilesystemLabel(label) {
 			return p, nil
 		}
 	}
@@ -261,7 +261,7 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 	for _, disk := range mockedDisks {
 		sendDevNodes := map[string]bool{}
 		for _, p := range disk.Structure {
-			if p.KernelDevicePath == "" {
+			if p.KernelDeviceNode == "" {
 				continue
 			}
 

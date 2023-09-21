@@ -63,11 +63,11 @@ slots:
 	c.Assert(spec.Snippets(), DeepEquals, []string{
 		`# common
 KERNEL=="foo", TAG+="snap_consumer_app-a"`,
-		fmt.Sprintf(`TAG=="snap_consumer_app-a", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app-a $devpath $major:$minor"`, dirs.DistroLibExecDir),
+		fmt.Sprintf(`TAG=="snap_consumer_app-a", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app-a $devpath $major:$minor"`, dirs.DistroLibExecDir),
 		// NOTE: app-b is unaffected as it doesn't have a plug reference.
 		`# common
 KERNEL=="foo", TAG+="snap_consumer_app-c"`,
-		fmt.Sprintf(`TAG=="snap_consumer_app-c", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app-c $devpath $major:$minor"`, dirs.DistroLibExecDir),
+		fmt.Sprintf(`TAG=="snap_consumer_app-c", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app-c $devpath $major:$minor"`, dirs.DistroLibExecDir),
 	})
 
 	// connected plug udev rules are optional
@@ -167,6 +167,21 @@ slots:
 			&commonInterface{name: "common", suppressHomeIx: true},
 			Checks{
 				{(*apparmor.Specification).SuppressHomeIx, true},
+			},
+		},
+		// PycacheDeny
+		{
+			// setting nothing
+			&commonInterface{name: "common", suppressPycacheDeny: false},
+			Checks{
+				{(*apparmor.Specification).SuppressPycacheDeny, false},
+			},
+		},
+		{
+			// setting suppress
+			&commonInterface{name: "common", suppressPycacheDeny: true},
+			Checks{
+				{(*apparmor.Specification).SuppressPycacheDeny, true},
 			},
 		},
 		// sys_module capability

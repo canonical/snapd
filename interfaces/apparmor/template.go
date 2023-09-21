@@ -65,6 +65,7 @@ var templateCommon = `
 
 #include <tunables/global>
 
+###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
 ###INCLUDE_IF_EXISTS_SNAP_TUNING###
 
 # snapd supports the concept of 'parallel installs' where snaps with the same
@@ -92,6 +93,17 @@ var templateCommon = `
   # The base abstraction doesn't yet have this
   /etc/sysconfig/clock r,
   owner @{PROC}/@{pid}/maps k,
+
+  # /proc/XXXX/map_files contains the same info than /proc/XXXX/maps, but
+  # in a format that is simpler to manage, because it doesn't require to
+  # parse the text data inside a file, but just reading the contents of
+  # a directory.
+  # Reading /proc/XXXX/maps is already allowed in the base template
+  # via <abstractions/base>. Also, only the owner can read it, and the
+  # kernel limits access to it by requiring 'ptrace' enabled, so allowing
+  # to access /proc/XXXX/map_files can be considered secure too.
+  owner @{PROC}/@{pid}/map_files/ r,
+
   # While the base abstraction has rules for encryptfs encrypted home and
   # private directories, it is missing rules for directory read on the toplevel
   # directory of the mount (LP: #1848919)
@@ -102,13 +114,7 @@ var templateCommon = `
   #include <abstractions/python>
   /etc/python3.[0-9]*/**                                r,
 
-  # explicitly deny noisy denials to read-only filesystems (see LP: #1496895
-  # for details)
-  deny /usr/lib/python3*/{,**/}__pycache__/ w,
-  deny /usr/lib/python3*/{,**/}__pycache__/**.pyc.[0-9]* w,
-  # bind mount used here (see 'parallel installs', above)
-  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/             w,
-  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,
+  ###PYCACHEDENY###
 
   # for perl apps/services
   #include <abstractions/perl>
@@ -837,6 +843,8 @@ var coreSnippet = `
 var classicTemplate = `
 #include <tunables/global>
 
+###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
+
 ###VAR###
 
 ###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
@@ -891,6 +899,16 @@ deny ptrace (trace),
 deny capability sys_ptrace,
 `
 
+var pycacheDenySnippet = `
+# explicitly deny noisy denials to read-only filesystems (see LP: #1496895
+# for details)
+deny /usr/lib/python3*/{,**/}__pycache__/ w,
+deny /usr/lib/python3*/{,**/}__pycache__/**.pyc.[0-9]* w,
+# bind mount used here (see 'parallel installs', above)
+deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/             w,
+deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,
+`
+
 var sysModuleCapabilityDenySnippet = `
 # The rtnetlink kernel interface can trigger the loading of kernel modules,
 # first attempting to operate on a network module (this requires the net_admin
@@ -920,6 +938,8 @@ var updateNSTemplate = `
 # vim:syntax=apparmor
 
 #include <tunables/global>
+
+###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
 
 profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # The next four rules mirror those above. We want to be able to read
@@ -1058,6 +1078,10 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 
   # snapd logger.go checks /proc/cmdline
   @{PROC}/cmdline r,
+
+  # snap checks if vendored apparmor parser should be used at startup
+  /usr/lib/snapd/info r,
+  /lib/apparmor/functions r,
 
 ###SNIPPETS###
 }

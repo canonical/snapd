@@ -310,11 +310,11 @@ func removableBlockDevices() (removableDevices []string) {
 
 // inInstallmode returns true if it's UC20 system in install mode
 func inInstallMode() bool {
-	mode, _, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
+	modeenv, err := boot.ReadModeenv(dirs.GlobalRootDir)
 	if err != nil {
 		return false
 	}
-	return mode == "install"
+	return modeenv.Mode == "install"
 }
 
 func (x *cmdAutoImport) Execute(args []string) error {

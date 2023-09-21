@@ -80,6 +80,7 @@ func (s *assetsSuite) uc20UpdateObserver(c *C, gadgetDir string) (*boot.TrustedA
 	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir)
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
+	s.AddCleanup(obs.Done)
 	return obs, uc20Model
 }
 
@@ -660,7 +661,15 @@ func (s *assetsSuite) TestUpdateObserverNew(c *C) {
 	c.Assert(nonUC20obs, IsNil)
 }
 
-func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
+func (s *assetsSuite) TestUpdateObserverUpdateMockedWithResealSeed(c *C) {
+	s.testUpdateObserverUpdateMockedWithReseal(c, gadget.SystemSeed)
+}
+
+func (s *assetsSuite) TestUpdateObserverUpdateMockedWithResealSeedNull(c *C) {
+	s.testUpdateObserverUpdateMockedWithReseal(c, gadget.SystemSeedNull)
+}
+
+func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole string) {
 	// observe an update where some of the assets exist and some are new,
 	// followed by reseal
 
@@ -724,11 +733,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
+	res, err = obs.Observe(gadget.ContentUpdate, seedRole, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
+	res, err = obs.Observe(gadget.ContentUpdate, seedRole, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content
@@ -736,7 +745,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 		})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "nested/other-asset",
+	res, err = obs.Observe(gadget.ContentUpdate, seedRole, root, "nested/other-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
@@ -761,7 +770,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 	})
 
 	// verify that managed assets are to be preserved
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "managed-asset",
+	res, err = obs.Observe(gadget.ContentUpdate, seedRole, root, "managed-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeIgnore)
@@ -1002,6 +1011,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateTrivialErr(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 	c.Check(bl.TrustedAssetsCalls, Equals, 2)
+	defer obs.Done()
 
 	// no modeenv
 	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
@@ -1316,6 +1326,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(newM.CurrentTrustedBootAssets, HasLen, 0)
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, HasLen, 0)
+	obs.Done()
 
 	// new observer
 	obs, _ = s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
@@ -1850,6 +1861,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledEmptyModeenvAssets(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(afterCancelM.CurrentTrustedBootAssets, HasLen, 0)
 	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, HasLen, 0)
+	obs.Done()
 
 	// get a new observer, and observe an update for run bootloader asset only
 	obs, _ = s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)

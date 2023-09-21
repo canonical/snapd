@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2022 Canonical Ltd
+ * Copyright (C) 2017-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -80,7 +80,9 @@ var refreshRetryDelay = 20 * time.Minute
 // of auto-refresh.
 type refreshCandidate struct {
 	SnapSetup
-	Version string `json:"version,omitempty"`
+	// Monitored signals whether this snap is currently being monitored for closure
+	// so its auto-refresh can be continued.
+	Monitored bool `json:"monitored,omitempty"`
 }
 
 func (rc *refreshCandidate) Type() snap.Type {
@@ -99,16 +101,23 @@ func (rc *refreshCandidate) InstanceName() string {
 	return rc.SnapSetup.InstanceName()
 }
 
-func (rc *refreshCandidate) Prereq(st *state.State) []string {
+func (rc *refreshCandidate) Prereq(*state.State) []string {
 	return rc.SnapSetup.Prereq
 }
 
-func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, params updateParamsFunc, userID int, globalFlags *Flags) (*SnapSetup, *SnapState, error) {
+func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, _ updateParamsFunc, _ int, globalFlags *Flags) (*SnapSetup, *SnapState, error) {
 	var snapst SnapState
 	if err := Get(st, rc.InstanceName(), &snapst); err != nil {
 		return nil, nil, err
 	}
-	return &rc.SnapSetup, &snapst, nil
+
+	snapsup := &rc.SnapSetup
+	if globalFlags != nil {
+		snapsup.Flags.IsAutoRefresh = globalFlags.IsAutoRefresh
+		snapsup.Flags.IsContinuedAutoRefresh = globalFlags.IsContinuedAutoRefresh
+	}
+
+	return snapsup, &snapst, nil
 }
 
 // soundness check
@@ -123,6 +132,8 @@ type autoRefresh struct {
 	nextRefresh         time.Time
 	lastRefreshAttempt  time.Time
 	managedDeniedLogged bool
+
+	restoredMonitoring bool
 }
 
 func newAutoRefresh(st *state.State) *autoRefresh {
@@ -152,9 +163,13 @@ func (m *autoRefresh) LastRefresh() (time.Time, error) {
 // EffectiveRefreshHold returns the time until to which refreshes are
 // held if refresh.hold configuration is set.
 func (m *autoRefresh) EffectiveRefreshHold() (time.Time, error) {
+	return effectiveRefreshHold(m.state)
+}
+
+func effectiveRefreshHold(st *state.State) (time.Time, error) {
 	var holdValue string
 
-	tr := config.NewTransaction(m.state)
+	tr := config.NewTransaction(st)
 	err := tr.Get("core", "refresh.hold", &holdValue)
 	if err != nil && !config.IsNoOption(err) {
 		return time.Time{}, err
@@ -270,33 +285,16 @@ func (m *autoRefresh) Ensure() (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	if err := m.restoreMonitoring(); err != nil {
+		return fmt.Errorf("cannot restore monitoring: %v", err)
+	}
+
 	// see if it even makes sense to try to refresh
 	if CanAutoRefresh == nil {
 		return nil
 	}
 	if ok, err := CanAutoRefresh(m.state); err != nil || !ok {
 		return err
-	}
-
-	// is there a previously partially inhibited auto-refresh that can now be continued?
-	if attempt, ok := canContinueAutoRefresh(m.state); ok {
-		// override the auto-refresh delay if we're continuing an inhibited auto-refresh
-		// for the first time (because the snap just closed after we notified the user)
-		overrideDelay := attempt == 1
-		err := m.launchAutoRefresh(overrideDelay)
-		if err != nil {
-			if errors.Is(err, tooSoonError{}) {
-				// ignore error, retry the auto-refresh later
-				return nil
-			}
-
-			// we didn't auto-refresh, so keep flag but increase attempt counter
-			m.state.Cache("auto-refresh-continue-attempt", attempt+1)
-			return err
-		}
-		// clear the continue flag if the auto-refresh was scheduled successfully
-		m.state.Cache("auto-refresh-continue-attempt", nil)
-		return nil
 	}
 
 	// get lastRefresh and schedule
@@ -381,8 +379,7 @@ func (m *autoRefresh) Ensure() (err error) {
 				return nil
 			}
 
-			overrideDelay := false
-			err = m.launchAutoRefresh(overrideDelay)
+			err = m.launchAutoRefresh()
 			if _, ok := err.(*httputil.PersistentNetworkError); ok {
 				// refresh will be retried after refreshRetryDelay
 				return err
@@ -399,12 +396,48 @@ func (m *autoRefresh) Ensure() (err error) {
 	return err
 }
 
-func canContinueAutoRefresh(st *state.State) (int, bool) {
-	if cachedAttempt := st.Cached("auto-refresh-continue-attempt"); cachedAttempt != nil {
-		return cachedAttempt.(int), true
+func (m *autoRefresh) restoreMonitoring() error {
+	if m.restoredMonitoring {
+		return nil
 	}
 
-	return 0, false
+	// clear the old monitoring state; remove in a later snapd version
+	m.state.Set("monitored-snaps", nil)
+
+	var refreshHints map[string]*refreshCandidate
+	if err := m.state.Get("refresh-candidates", &refreshHints); err != nil && !errors.Is(err, &state.NoStateError{}) {
+		return fmt.Errorf("cannot get refresh-candidates: %v", err)
+	}
+
+	defer func() { m.restoredMonitoring = true }()
+
+	var monitored []*SnapSetup
+	for _, hint := range refreshHints {
+		if hint.Monitored {
+			monitored = append(monitored, &hint.SnapSetup)
+		}
+	}
+
+	if len(monitored) == 0 {
+		return nil
+	}
+
+	aborts := make(map[string]context.CancelFunc, len(monitored))
+	for _, snap := range monitored {
+		done := make(chan string, 1)
+		snapName := snap.InstanceName()
+		if err := cgroupMonitorSnapEnded(snapName, done); err != nil {
+			logger.Noticef("cannot restore monitoring for snap %q closure: %v", snapName, err)
+			continue
+		}
+
+		refreshCtx, abort := context.WithCancel(context.Background())
+		aborts[snapName] = abort
+		go continueRefreshOnSnapClose(m.state, snap.InstanceName(), done, refreshCtx)
+	}
+
+	m.state.Cache("monitored-snaps", aborts)
+	return nil
 }
 
 // isRefreshHeld returns whether an auto-refresh is currently held back or not,
@@ -545,13 +578,13 @@ func (tooSoonError) Is(err error) bool {
 }
 
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
-func (m *autoRefresh) launchAutoRefresh(overrideDelay bool) error {
+func (m *autoRefresh) launchAutoRefresh() error {
 	// Check that we have reasonable delays between attempts.
 	// If the store is under stress we need to make sure we do not
 	// hammer it too often
 	now := timeNow()
 	minAttempt := m.lastRefreshAttempt.Add(refreshRetryDelay)
-	if !overrideDelay && !m.lastRefreshAttempt.IsZero() && minAttempt.After(now) {
+	if !m.lastRefreshAttempt.IsZero() && minAttempt.After(now) {
 		return tooSoonError{}
 	}
 	m.lastRefreshAttempt = now
@@ -595,7 +628,9 @@ func (m *autoRefresh) launchAutoRefresh(overrideDelay bool) error {
 		return err
 	}
 
-	createPreDownloadChange(m.state, updateTss)
+	if _, err := createPreDownloadChange(m.state, updateTss); err != nil {
+		return err
+	}
 
 	if len(updateTss.Refresh) == 0 {
 		return nil
@@ -620,20 +655,31 @@ func (m *autoRefresh) launchAutoRefresh(overrideDelay bool) error {
 
 // createPreDownloadChange creates a pre-download change if any relevant tasksets
 // exist in the UpdateTaskSets and returns whether or not a change was created.
-func createPreDownloadChange(st *state.State, updateTss *UpdateTaskSets) bool {
+func createPreDownloadChange(st *state.State, updateTss *UpdateTaskSets) (bool, error) {
 	if updateTss != nil && len(updateTss.PreDownload) > 0 {
-		preDlChg := st.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
+		var snapNames []string
+		for _, ts := range updateTss.PreDownload {
+			task := ts.Tasks()[0]
+			var snapsup *SnapSetup
+			if err := task.Get("snap-setup", &snapsup); err != nil {
+				return false, err
+			}
+			snapNames = append(snapNames, snapsup.InstanceName())
+		}
+
+		chgSummary := fmt.Sprintf(i18n.G("Pre-download %s for auto-refresh"), strutil.Quoted(snapNames))
+		preDlChg := st.NewChange("pre-download", chgSummary)
 		for _, ts := range updateTss.PreDownload {
 			preDlChg.AddAll(ts)
 		}
-		return true
+		return true, nil
 	}
-	return false
+	return false, nil
 }
 
 func autoRefreshInFlight(st *state.State) bool {
 	for _, chg := range st.Changes() {
-		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
+		if chg.Kind() == "auto-refresh" && !chg.IsReady() {
 			return true
 		}
 	}
@@ -655,6 +701,7 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 // This allows the, possibly slow, communication with each snapd session agent,
 // to be performed without holding the snap state lock.
 var asyncPendingRefreshNotification = func(context context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	logger.Debugf("notifying agents about pending refresh for snap %q", refreshInfo.InstanceName)
 	go func() {
 		if err := client.PendingRefreshNotification(context, refreshInfo); err != nil {
 			logger.Noticef("Cannot send notification about pending refresh: %v", err)
@@ -725,16 +772,18 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		// refresh is happening now and ignore the error
 		refreshInfo := busyErr.PendingSnapRefreshInfo()
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
-		busyErr = nil
+		// important to return "nil" type here instead of
+		// setting busyErr to nil as otherwise we return a nil
+		// interface which is not the nil type
+		return nil
 	}
 
 	return busyErr
 }
 
 // for testing outside of snapstate
-func MockRefreshCandidate(snapSetup *SnapSetup, version string) interface{} {
+func MockRefreshCandidate(snapSetup *SnapSetup) interface{} {
 	return &refreshCandidate{
 		SnapSetup: *snapSetup,
-		Version:   version,
 	}
 }

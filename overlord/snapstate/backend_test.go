@@ -243,6 +243,8 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		confinement = "classic"
 	case "some-epoch-snap":
 		epoch = snap.E("42")
+	case "firmware-updater":
+		snapID = "EI0D1KHjP8XiwMZKqSjuh6W8zvcowUVP"
 	case "snapd-desktop-integration":
 		snapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
 	}
@@ -259,7 +261,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 			SnapID:   snapID,
 			Revision: spec.Revision,
 		},
-		Version: spec.Name,
+		Version: spec.Name + "Ver",
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
@@ -454,7 +456,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 			SnapID:   cand.snapID,
 			Revision: revno,
 		},
-		Version: name,
+		Version: name + "Ver",
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
@@ -706,7 +708,7 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 		macaroon = user.StoreMacaroon
 	}
 	// only add the options if they contain anything interesting
-	if *dlOpts == (store.DownloadOptions{}) {
+	if dlOpts != nil && *dlOpts == (store.DownloadOptions{}) {
 		dlOpts = nil
 	}
 	f.downloads = append(f.downloads, fakeDownload{
@@ -898,6 +900,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	// naive emulation for now, always works
 	info := &snap.Info{
 		SuggestedName: snapName,
+		Version:       snapName + "Ver",
 		SideInfo:      *si,
 		Architectures: []string{"all"},
 		SnapType:      snap.TypeApp,
@@ -1252,6 +1255,13 @@ func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
 	f.appendOp(&fakeOp{
 		op:   "discard-namespace",
 		name: snapName,
+	})
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) RemoveAllSnapAppArmorProfiles() error {
+	f.appendOp(&fakeOp{
+		op: "remove-apparmor-profiles",
 	})
 	return f.maybeErrForLastOp()
 }

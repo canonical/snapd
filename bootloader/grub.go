@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -380,7 +381,7 @@ func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents)
 	} else {
 		nonSnapdCmdline = pieces.FullArgs
 	}
-	args, err := osutil.KernelCommandLineSplit(nonSnapdCmdline)
+	args, err := kcmdline.Split(nonSnapdCmdline)
 	if err != nil {
 		return "", fmt.Errorf("cannot use badly formatted kernel command line: %v", err)
 	}

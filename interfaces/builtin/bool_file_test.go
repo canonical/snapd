@@ -161,6 +161,41 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetHandlesSymlinkErrors(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 }
 
+func (s *BoolFileInterfaceSuite) TestAddConnectedPlugAdditionalSnippetsForLeds(c *C) {
+	// Use a fake eval that returns just the path
+	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+		return path, nil
+	})
+	// Using a led that doesn't match, does not add
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.ledSlot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.Snippets(), DeepEquals, map[string][]string{
+		"snap.other.app": {
+			"/sys/class/leds/input27::capslock/brightness rwk,",
+		},
+	})
+
+	// Make the fake eval return a path that successfully leads to added snippets
+	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+		return "/sys/devices/platform/leds/leds/status-grn-led/brightness", nil
+	})
+
+	// Make sure that using a path that matches the boolFileLedPattern adds the
+	// additional snippets
+	apparmorSpec2 := &apparmor.Specification{}
+	err = apparmorSpec2.AddConnectedPlug(s.iface, s.plug, s.ledSlot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec2.Snippets(), DeepEquals, map[string][]string{
+		"snap.other.app": {
+			"/sys/devices/platform/leds/leds/status-grn-led/brightness rwk,",
+			"/sys/devices/platform/leds/leds/status-grn-led/delay_off rw,",
+			"/sys/devices/platform/leds/leds/status-grn-led/delay_on rw,",
+			"/sys/devices/platform/leds/leds/status-grn-led/trigger rw,",
+		},
+	})
+}
+
 func (s *BoolFileInterfaceSuite) TestPlugSnippetDereferencesSymlinks(c *C) {
 	// Use a fake (successful) dereferencing function for the remainder of the test.
 	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {

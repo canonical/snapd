@@ -7,13 +7,7 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
-CHECK_CFLAGS = -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes \
-	-Wno-missing-field-initializers -Wno-unused-parameter
-
-# Make all warnings errors when building for unit tests
-if WITH_UNIT_TESTS
-CHECK_CFLAGS += -Werror
-endif
+AM_CFLAGS = $(CHECK_CFLAGS)
 
 if USE_INTERNAL_BPF_HEADERS
 VENDOR_BPF_HEADERS_CFLAGS = -I$(srcdir)/libsnap-confine-private/bpf/vendor
@@ -172,11 +166,11 @@ libsnap_confine_private_a_SOURCES += \
 	libsnap-confine-private/bpf-support.c \
 	libsnap-confine-private/bpf-support.h
 endif
-libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS)
+libsnap_confine_private_a_CFLAGS = $(AM_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS)
 
 noinst_LIBRARIES += libsnap-confine-private-debug.a
 libsnap_confine_private_debug_a_SOURCES = $(libsnap_confine_private_a_SOURCES)
-libsnap_confine_private_debug_a_CFLAGS = $(CHECK_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) -DSNAP_CONFINE_DEBUG_BUILD=1
+libsnap_confine_private_debug_a_CFLAGS = $(AM_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) -DSNAP_CONFINE_DEBUG_BUILD=1
 
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += libsnap-confine-private/unit-tests
@@ -203,7 +197,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests.h \
 	libsnap-confine-private/utils-test.c
 
-libsnap_confine_private_unit_tests_CFLAGS = $(CHECK_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) $(GLIB_CFLAGS)
+libsnap_confine_private_unit_tests_CFLAGS = $(AM_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) $(GLIB_CFLAGS)
 libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
 libsnap_confine_private_unit_tests_STATIC =
@@ -284,7 +278,7 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/user-support.c \
 	snap-confine/user-support.h
 
-snap_confine_snap_confine_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\" -DNATIVE_LIBDIR=\"$(libdir)\"
+snap_confine_snap_confine_CFLAGS = $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\" -DNATIVE_LIBDIR=\"$(libdir)\"
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
 snap_confine_snap_confine_LDADD = libsnap-confine-private.a
 snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
@@ -450,7 +444,6 @@ libexec_PROGRAMS += \
 snap_device_helper_snap_device_helper_SOURCES = \
 	snap-device-helper/main.c \
 	snap-device-helper/snap-device-helper.c
-snap_device_helper_snap_device_helper_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS)
 snap_device_helper_snap_device_helper_LDFLAGS = $(AM_LDFLAGS)
 snap_device_helper_snap_device_helper_LDADD = libsnap-confine-private.a
 
@@ -468,7 +461,7 @@ snap_device_helper_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
 	snap-device-helper/snap-device-helper-test.c
-snap_device_helper_unit_tests_CFLAGS = $(snap_device_helper_snap_device_helper_CFLAGS) $(GLIB_CFLAGS)
+snap_device_helper_unit_tests_CFLAGS = $(AM_CFLAGS) $(snap_device_helper_snap_device_helper_CFLAGS) $(GLIB_CFLAGS)
 snap_device_helper_unit_tests_LDADD = $(GLIB_LIBS)
 snap_device_helper_unit_tests_LDFLAGS =$(snap_device_helper_snap_device_helper_LDFLAGS)
 
@@ -487,7 +480,6 @@ EXTRA_DIST += snap-discard-ns/snap-discard-ns.rst
 
 snap_discard_ns_snap_discard_ns_SOURCES = \
 	snap-discard-ns/snap-discard-ns.c
-snap_discard_ns_snap_discard_ns_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS)
 snap_discard_ns_snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
 snap_discard_ns_snap_discard_ns_LDADD = libsnap-confine-private.a
 snap_discard_ns_snap_discard_ns_STATIC =
@@ -510,8 +502,6 @@ system_shutdown_system_shutdown_SOURCES = \
 	system-shutdown/system-shutdown-utils.h \
 	system-shutdown/system-shutdown.c
 system_shutdown_system_shutdown_LDADD = libsnap-confine-private.a
-system_shutdown_system_shutdown_CFLAGS = $(CHECK_CFLAGS) $(filter-out -fPIE -pie,$(CFLAGS)) -static
-system_shutdown_system_shutdown_LDFLAGS = $(filter-out -fPIE -pie,$(LDFLAGS)) -static
 
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += system-shutdown/unit-tests
@@ -520,7 +510,7 @@ system_shutdown_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests.c \
 	system-shutdown/system-shutdown-utils-test.c
 system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
-system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
+system_shutdown_unit_tests_CFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS)
 system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
 

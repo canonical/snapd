@@ -615,6 +615,42 @@ func (cs *clientSuite) TestClientOpInstallTransactional(c *check.C) {
 		"(?s).*Content-Disposition: form-data; name=\"transaction\"\r\n\r\nall-snaps\r\n.*")
 }
 
+func (cs *clientSuite) TestClientOpInstallPrefer(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+	bodyData := []byte("snap-data")
+
+	snap := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snap, bodyData, 0644)
+	c.Assert(err, check.IsNil)
+
+	opts := client.SnapOptions{
+		Prefer: true,
+	}
+
+	_, err = cs.cli.Install("foo", &opts)
+	c.Assert(err, check.IsNil)
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var jsonBody map[string]interface{}
+	err = json.Unmarshal(body, &jsonBody)
+	c.Assert(err, check.IsNil, check.Commentf("body: %v", string(body)))
+	c.Check(jsonBody["prefer"], check.Equals, true, check.Commentf("body: %v", string(body)))
+
+	_, err = cs.cli.InstallPath(snap, "", &opts)
+	c.Assert(err, check.IsNil)
+
+	body, err = ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"prefer\"\r\n\r\ntrue\r\n.*")
+}
+
 func formToMap(c *check.C, mr *multipart.Reader) map[string]string {
 	formData := map[string]string{}
 	for {
@@ -704,6 +740,7 @@ func (cs *clientSuite) TestSnapOptionsSerialises(c *check.C) {
 		`{"unaliased":true}`:         {Unaliased: true},
 		`{"purge":true}`:             {Purge: true},
 		`{"amend":true}`:             {Amend: true},
+		`{"prefer":true}`:            {Prefer: true},
 	}
 	for expected, opts := range tests {
 		buf, err := json.Marshal(&opts)

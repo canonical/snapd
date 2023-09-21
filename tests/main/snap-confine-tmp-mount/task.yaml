@@ -15,6 +15,7 @@ prepare: |
 
 restore: |
     tests.session -u test restore
+    rm -f /tmp/snap-confine-stdout.log /tmp/snap-confine-stderr.log
 
 debug: |
     # Print snap-confine stdout
@@ -23,22 +24,6 @@ debug: |
     cat /tmp/snap-confine-stderr.log || true
 
 execute: |
-    # in general our systemd-tmpfiles configuration should have created
-    # /tmp/snap-private-tmp already, BUT if this is the first time a snapd deb
-    # has been installed which contains this configuration then it will not have
-    # been created yet so always reboot to ensure that our systemd-tmpfiles
-    # configuration gets run
-    if [ "$SPREAD_REBOOT" = "0" ]; then
-      # currently the systemd-tmpfiles config is not installed on UC so it will
-      # not get executed on reboot
-      if ! os.query is-core; then
-        echo "Rebooting to ensure systemd-tmpfiles gets triggered to create /tmp/snap-private-tmp"
-        REBOOT
-      fi
-    else
-      stat -c "%U %G %a" /tmp/snap-private-tmp | MATCH "root root 700"
-    fi
-
     SNAP_CONFINE=$(os.paths libexec-dir)/snapd/snap-confine
 
     # on Ubuntu Core we need to use the correct path to ensure it is
@@ -58,10 +43,9 @@ execute: |
     # /tmp/snap-private-tmp/snap.test-snapd-sh/ - snap-confine outputs to
     # stderr and id will output to stdout so capture each separately
     tests.session -u test exec sh -c "env -i SNAPD_DEBUG=1 SNAP_INSTANCE_NAME=test-snapd-sh $SNAP_CONFINE --base core snap.test-snapd-sh.sh /bin/bash -c id 1>/tmp/snap-confine-stdout.log 2>/tmp/snap-confine-stderr.log"
-    tests.cleanup defer rm -f /tmp/snap-confine-stdout.log /tmp/snap-confine-stderr.log
 
+    stat -c "%U %G %a" /tmp/snap-private-tmp | MATCH "root root 700"
     stat -c "%U %G %a" /tmp/snap-private-tmp/snap.test-snapd-sh | MATCH "root root 700"
-
     stat -c "%U %G %a" /tmp/snap-private-tmp/snap.test-snapd-sh/tmp | MATCH "root root 1777"
     # and snap-confine should ensure the target binary is executed as the test user
     MATCH "uid=12345\(test\) gid=12345\(test\)" /tmp/snap-confine-stdout.log
