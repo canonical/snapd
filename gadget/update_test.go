@@ -22,7 +22,6 @@ package gadget_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -823,7 +822,7 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -998,7 +997,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -1241,7 +1240,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", disks.BlkIDEncodeLabel("UBUNTU-SEED")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -1484,7 +1483,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -1708,7 +1707,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
 		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
 		0644,
@@ -1746,7 +1745,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -2045,7 +2044,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
 		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
 		0644,
@@ -2208,7 +2207,7 @@ volumes:
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
 		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
 		0644,
@@ -2246,7 +2245,7 @@ volumes:
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -2508,7 +2507,7 @@ volumes:
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
 		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
 		0644,
@@ -2546,7 +2545,7 @@ volumes:
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -3397,7 +3396,7 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	err = os.MkdirAll(filepath.Join(rootDir, "/dev/disk/by-label"), 0755)
 	c.Assert(err, IsNil)
 	fakedevice := filepath.Join(rootDir, "/dev/sdxxx2")
-	err = ioutil.WriteFile(fakedevice, []byte(""), 0644)
+	err = os.WriteFile(fakedevice, []byte(""), 0644)
 	c.Assert(err, IsNil)
 	err = os.Symlink(fakedevice, filepath.Join(rootDir, "/dev/disk/by-label/writable"))
 	c.Assert(err, IsNil)
@@ -4526,7 +4525,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC1
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -4593,7 +4592,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSin
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -4734,7 +4733,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("ubuntu-seed")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -4781,7 +4780,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/mmcblk0p1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("ubuntu-seed")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -4801,7 +4800,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 	err = os.MkdirAll(filepath.Dir(markerFile), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(markerFile, nil, 0644)
+	err = os.WriteFile(markerFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	vols := map[string]*gadget.Volume{}
@@ -5176,13 +5175,13 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 			fakedevicepart := filepath.Join(dirs.GlobalRootDir, firstPartDev)
 			err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", partlabel))
 			c.Assert(err, IsNil)
-			err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+			err = os.WriteFile(fakedevicepart, nil, 0644)
 			c.Assert(err, IsNil)
 		case "dos":
 			fakedevicepart := filepath.Join(dirs.GlobalRootDir, firstPartDev)
 			err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", fslabel))
 			c.Assert(err, IsNil)
-			err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+			err = os.WriteFile(fakedevicepart, nil, 0644)
 			c.Assert(err, IsNil)
 		default:
 			panic(fmt.Sprintf("unexpected schema %s", traits[volName].Schema))
@@ -5216,7 +5215,7 @@ func (s *updateTestSuite) testVolumeStructureToLocationMap(c *C,
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
 		[]byte(traitsJSON),
 		0644,

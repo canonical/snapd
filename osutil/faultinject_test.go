@@ -23,7 +23,6 @@ package osutil_test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -68,14 +67,14 @@ func (s *testhelperFaultInjectionSuite) TestFaultInject(c *C) {
 
 	os.Setenv("SNAPD_FAULT_INJECT", "tag:reboot,othertag:panic,funtag:reboot")
 
-	c.Assert(ioutil.WriteFile(sysrqFile, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(sysrqFile, nil, 0644), IsNil)
 	osutil.MaybeInjectFault("tag")
 	c.Assert(filepath.Join(s.sysroot, "/proc/sysrq-trigger"), testutil.FileEquals, "b\n")
 	c.Check(foreverLoopCalls, Equals, 1)
 	c.Check(filepath.Join(s.sysroot, "/var/lib/snapd/faults/tag:reboot"), testutil.FilePresent)
 	c.Check(stderrBuf.String(), Equals, "injecting \"reboot\" fault for tag \"tag\"\n")
 	// trying to inject a tag again does nothing as long as the stamp file is present
-	c.Assert(ioutil.WriteFile(sysrqFile, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(sysrqFile, nil, 0644), IsNil)
 	stderrBuf.Reset()
 	osutil.MaybeInjectFault("tag")
 	c.Check(foreverLoopCalls, Equals, 1)
@@ -90,7 +89,7 @@ func (s *testhelperFaultInjectionSuite) TestFaultInject(c *C) {
 	c.Check(stderrBuf.String(), Equals, "injecting \"reboot\" fault for tag \"tag\"\n")
 
 	// try another tag that triggers reboot
-	c.Assert(ioutil.WriteFile(sysrqFile, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(sysrqFile, nil, 0644), IsNil)
 	stderrBuf.Reset()
 	osutil.MaybeInjectFault("funtag")
 	c.Assert(filepath.Join(s.sysroot, "/proc/sysrq-trigger"), testutil.FileEquals, "b\n")
@@ -99,7 +98,7 @@ func (s *testhelperFaultInjectionSuite) TestFaultInject(c *C) {
 	c.Check(filepath.Join(s.sysroot, "/var/lib/snapd/faults/funtag:reboot"), testutil.FilePresent)
 
 	// clear sysrq-trigger file
-	c.Assert(ioutil.WriteFile(sysrqFile, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(sysrqFile, nil, 0644), IsNil)
 	stderrBuf.Reset()
 	c.Assert(func() {
 		osutil.MaybeInjectFault("othertag")

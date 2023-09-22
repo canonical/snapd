@@ -21,7 +21,6 @@ package boot_test
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -84,7 +83,7 @@ func setupRealGrub(c *C, rootDir, baseDir string, opts *bootloader.Options) boot
 	err := os.MkdirAll(filepath.Dir(grubCfg), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(grubCfg, nil, 0644)
+	err = os.WriteFile(grubCfg, nil, 0644)
 	c.Assert(err, IsNil)
 
 	genv := grubenv.NewEnv(filepath.Join(rootDir, baseDir, "grubenv"))
@@ -535,7 +534,7 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 			err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755)
 			c.Assert(err, IsNil, comment)
 
-			err = ioutil.WriteFile(degradedJSON, []byte(t.degradedJSON), 0644)
+			err = os.WriteFile(degradedJSON, []byte(t.degradedJSON), 0644)
 			c.Assert(err, IsNil, comment)
 		}
 

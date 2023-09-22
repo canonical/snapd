@@ -108,7 +108,7 @@ func writeAssert(a asserts.Assertion, targetDir string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
 		return "", err
 	}
-	err := ioutil.WriteFile(p, asserts.Encode(a), 0644)
+	err := os.WriteFile(p, asserts.Encode(a), 0644)
 	return p, err
 }
 

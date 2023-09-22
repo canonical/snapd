@@ -23,7 +23,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -4116,7 +4115,7 @@ volumes:
 `)
 
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(2)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	err := os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	gi, err := gadget.ReadInfo(info.MountDir(), nil)
@@ -5522,7 +5521,7 @@ version: 1
 	c.Assert(os.Chmod(dstDir, 0700), IsNil)
 
 	c.Assert(os.Mkdir(filepath.Join(dstDir, "meta"), 0700), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dstDir, "meta", "snap.yaml"), yaml, 0700), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dstDir, "meta", "snap.yaml"), yaml, 0700), IsNil)
 
 	// snapdir has /meta/snap.yaml, but / is 0700
 	brokenSnap := filepath.Join(c.MkDir(), "broken.snap")

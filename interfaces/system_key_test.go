@@ -246,7 +246,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"
 }`))
 	// and the on-disk version is v2
-	err := ioutil.WriteFile(dirs.SnapSystemKeyFile, []byte(`
+	err := os.WriteFile(dirs.SnapSystemKeyFile, []byte(`
 {
 "version":2,
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"

@@ -22,7 +22,6 @@ package devicestate_test
 import (
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -59,7 +58,7 @@ func mockSnapFDEFile(c *C, fname string, data []byte) {
 	p := filepath.Join(dirs.SnapFDEDir, fname)
 	err := os.MkdirAll(filepath.Dir(p), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(p, data, 0644)
+	err = os.WriteFile(p, data, 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -200,7 +199,7 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
 	p := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker")
 	err = os.MkdirAll(filepath.Dir(p), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(p, nil, 0644)
+	err = os.WriteFile(p, nil, 0644)
 	c.Assert(err, IsNil)
 
 	keys, err := s.mgr.EnsureRecoveryKeys()

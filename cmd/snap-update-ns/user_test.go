@@ -21,7 +21,6 @@ package main_test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -71,7 +70,7 @@ func (s *userSuite) TestLoadDesiredProfile(c *C) {
 	// Write a desired user mount profile for snap "foo".
 	path := update.DesiredUserProfilePath("foo")
 	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(path, []byte(input), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte(input), 0644), IsNil)
 
 	// Ask the user profile update helper to read the desired profile.
 	profile, err := upCtx.LoadDesiredProfile()
@@ -94,7 +93,7 @@ func (s *userSuite) TestLoadCurrentProfile(c *C) {
 	text := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
 	path := update.CurrentUserProfilePath(upCtx.InstanceName(), upCtx.UID())
 	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(path, []byte(text), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte(text), 0644), IsNil)
 
 	// Ask the user profile update helper to read the current profile.
 	profile, err := upCtx.LoadCurrentProfile()
@@ -123,7 +122,7 @@ func (s *userSuite) TestSaveCurrentProfile(c *C) {
 	// Write a fake current user mount profile for snap "foo".
 	path := update.CurrentUserProfilePath("foo", 1234)
 	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(path, []byte("banana"), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte("banana"), 0644), IsNil)
 
 	// Ask the user profile update helper to write the current profile.
 	err = upCtx.SaveCurrentProfile(profile)

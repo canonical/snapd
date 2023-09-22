@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -67,7 +66,7 @@ func (s *fdeSuite) TestHasRevealKey(c *C) {
 	c.Check(fde.HasRevealKey(), Equals, false)
 
 	// fde-reveal-key without +x
-	err = ioutil.WriteFile(mockBin+"fde-reveal-key", nil, 0644)
+	err = os.WriteFile(mockBin+"fde-reveal-key", nil, 0644)
 	c.Assert(err, IsNil)
 	c.Check(fde.HasRevealKey(), Equals, false)
 
@@ -420,7 +419,7 @@ func (s *fdeSuite) TestedRevealTruncatesStreamFiles(c *C) {
 		c.Assert(err, IsNil)
 		// but make the file world-readable as it should be reset to 0600 before
 		// the hook is run
-		err = ioutil.WriteFile(streamFile, []byte("blah blah blah blah blah blah blah blah blah blah"), 0755)
+		err = os.WriteFile(streamFile, []byte("blah blah blah blah blah blah blah blah blah blah"), 0755)
 		c.Assert(err, IsNil)
 	}
 

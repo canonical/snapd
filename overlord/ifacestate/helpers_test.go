@@ -22,7 +22,6 @@ package ifacestate_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -400,7 +399,7 @@ apps:
 	// Put a fake system key in place, we just want to see that file being removed.
 	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapSystemKeyFile, []byte("system-key"), 0755)
+	err = os.WriteFile(dirs.SnapSystemKeyFile, []byte("system-key"), 0755)
 	c.Assert(err, IsNil)
 
 	// Put up a fake logger to capture logged messages.

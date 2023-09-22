@@ -79,7 +79,7 @@ func (s *generateAssetsTestSuite) TestArgs(c *C) {
 
 func (s *generateAssetsTestSuite) TestSimpleAsset(c *C) {
 	d := c.MkDir()
-	err := ioutil.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
+	err := os.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
 		"multiline asset \"'``\nwith chars\n"), 0644)
 	c.Assert(err, IsNil)
 	err = generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "out"))
@@ -128,7 +128,7 @@ func (s *generateAssetsTestSuite) TestGoFmtClean(c *C) {
 	}
 
 	d := c.MkDir()
-	err = ioutil.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
+	err = os.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
 		"multiline asset \"'``\nuneven chars\n"), 0644)
 	c.Assert(err, IsNil)
 	err = generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "out"))
@@ -145,7 +145,7 @@ func (s *generateAssetsTestSuite) TestRunErrors(c *C) {
 	err := generate.Run("asset-name", filepath.Join(d, "missing"), filepath.Join(d, "out"))
 	c.Assert(err, ErrorMatches, "cannot open input file: open .*/missing: no such file or directory")
 
-	err = ioutil.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
+	err = os.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
 		"multiline asset \"'``\nuneven chars\n"), 0644)
 	c.Assert(err, IsNil)
 

@@ -474,7 +474,7 @@ fi
 		jsonBytes = []byte(gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON)
 	}
 
-	err = ioutil.WriteFile(dataFile, jsonBytes, 0644)
+	err = os.WriteFile(dataFile, jsonBytes, 0644)
 	c.Assert(err, IsNil)
 
 	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
@@ -531,7 +531,7 @@ func (s *installSuite) setupMockUdevSymlinks(c *C, devName string) {
 	err := os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-partlabel"), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(s.dir, "/dev/"+devName), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.dir, "/dev/"+devName), nil, 0644)
 	c.Assert(err, IsNil)
 	err = os.Symlink("../../"+devName, filepath.Join(s.dir, "/dev/disk/by-partlabel/ubuntu-seed"))
 	c.Assert(err, IsNil)
@@ -845,7 +845,7 @@ fi
 	// the static JSON to make sure they compare the same, this ensures that
 	// the JSON that is written always stays compatible
 	jsonBytes := []byte(opts.traitsJSON)
-	err = ioutil.WriteFile(dataFile, jsonBytes, 0644)
+	err = os.WriteFile(dataFile, jsonBytes, 0644)
 	c.Assert(err, IsNil)
 
 	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))

@@ -21,7 +21,7 @@ package configcore_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -181,7 +181,7 @@ NeedDaemonReload=no
 	// in install mode or uc20 run mode, etc. and we don't want to use the
 	// host's proc/cmdline
 	mockCmdline := filepath.Join(dirs.GlobalRootDir, "cmdline")
-	err := ioutil.WriteFile(mockCmdline, nil, 0644)
+	err := os.WriteFile(mockCmdline, nil, 0644)
 	c.Assert(err, IsNil)
 	restore = kcmdline.MockProcCmdline(mockCmdline)
 	s.AddCleanup(restore)

@@ -957,7 +957,7 @@ func (s *backendSuite) TestParallelCompileError(c *C) {
 func (s *backendSuite) TestParallelCompileRemovesFirst(c *C) {
 	err := os.MkdirAll(dirs.SnapSeccompDir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeccompDir, "profile-001.bin"), nil, 0755)
+	err = os.WriteFile(filepath.Join(dirs.SnapSeccompDir, "profile-001.bin"), nil, 0755)
 	c.Assert(err, IsNil)
 
 	// make profiles directory non-accessible

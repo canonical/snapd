@@ -23,7 +23,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -149,7 +148,7 @@ func (s *toolingSuite) TestNewToolingStoreInvalidUbuntuStoreURL(c *C) {
 func (s *toolingSuite) TestNewToolingStoreWithAuthFile(c *C) {
 	tmpdir := c.MkDir()
 	authFn := filepath.Join(tmpdir, "auth.json")
-	err := ioutil.WriteFile(authFn, []byte(`{
+	err := os.WriteFile(authFn, []byte(`{
 "macaroon": "MACAROON",
 "discharges": ["DISCHARGE"]
 }`), 0600)
@@ -175,7 +174,7 @@ func (s *toolingSuite) TestNewToolingStoreWithBase64AuthFile(c *C) {
 "d": "DISCHARGE"
 }`)
 	enc := []byte(base64.StdEncoding.EncodeToString(authObj))
-	err := ioutil.WriteFile(authFn, enc, 0600)
+	err := os.WriteFile(authFn, enc, 0600)
 	c.Assert(err, IsNil)
 
 	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
@@ -212,7 +211,7 @@ unbound_discharge =
 	}
 
 	for _, t := range tests {
-		err := ioutil.WriteFile(authFn, []byte(t.data), 0600)
+		err := os.WriteFile(authFn, []byte(t.data), 0600)
 		c.Assert(err, IsNil)
 
 		_, err = tooling.NewToolingStore()
@@ -223,7 +222,7 @@ unbound_discharge =
 func (s *toolingSuite) TestNewToolingStoreWithAuthFromSnapcraftLoginFile(c *C) {
 	tmpdir := c.MkDir()
 	authFn := filepath.Join(tmpdir, "auth.json")
-	err := ioutil.WriteFile(authFn, []byte(`[login.ubuntu.com]
+	err := os.WriteFile(authFn, []byte(`[login.ubuntu.com]
 macaroon = MACAROON
 unbound_discharge = DISCHARGE
 

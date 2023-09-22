@@ -244,7 +244,7 @@ func customizeImage(rootDir, defaultsDir string, custo *Customizations) error {
 		if err := os.MkdirAll(varCloudDir, 0755); err != nil {
 			return err
 		}
-		if err := ioutil.WriteFile(filepath.Join(varCloudDir, "meta-data"), []byte("instance-id: nocloud-static\n"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(varCloudDir, "meta-data"), []byte("instance-id: nocloud-static\n"), 0644); err != nil {
 			return err
 		}
 		dst := filepath.Join(varCloudDir, "user-data")
@@ -259,7 +259,7 @@ func customizeImage(rootDir, defaultsDir string, custo *Customizations) error {
 		if err := os.MkdirAll(filepath.Dir(consoleConfDisabled), 0755); err != nil {
 			return err
 		}
-		if err := ioutil.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by image customization\n"), 0644); err != nil {
+		if err := os.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by image customization\n"), 0644); err != nil {
 			return err
 		}
 	}

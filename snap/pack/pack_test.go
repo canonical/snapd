@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -79,7 +78,7 @@ func makeExampleSnapSourceDir(c *C, snapYamlContent string) string {
 	metaDir := filepath.Join(tempdir, "meta")
 	err := os.Mkdir(metaDir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYamlContent), 0644)
+	err = os.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYamlContent), 0644)
 	c.Assert(err, IsNil)
 
 	const helloBinContent = `#!/bin/sh
@@ -90,7 +89,7 @@ printf "hello world"
 	binDir := filepath.Join(tempdir, "bin")
 	err = os.Mkdir(binDir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(binDir, "hello-world"), []byte(helloBinContent), 0755)
+	err = os.WriteFile(filepath.Join(binDir, "hello-world"), []byte(helloBinContent), 0755)
 	c.Assert(err, IsNil)
 
 	// unusual permissions for dir
@@ -103,7 +102,7 @@ printf "hello world"
 
 	// and file
 	someFile := filepath.Join(tempdir, "file-with-perm")
-	err = ioutil.WriteFile(someFile, []byte(""), 0666)
+	err = os.WriteFile(someFile, []byte(""), 0666)
 	c.Assert(err, IsNil)
 	err = os.Chmod(someFile, 0666)
 	c.Assert(err, IsNil)
@@ -151,7 +150,7 @@ apps:
   command: bin/hello-world
 `)
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "default-configure"), []byte("#!/bin/sh"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "default-configure"), []byte("#!/bin/sh"), 0755), IsNil)
 	_, err := pack.Snap(sourceDir, pack.Defaults)
 	c.Check(err, ErrorMatches, "cannot validate snap \"hello\": cannot specify \"default-configure\" hook without \"configure\" hook")
 }
@@ -166,7 +165,7 @@ apps:
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
 	configureHooks := []string{"configure", "default-configure"}
 	for _, hook := range configureHooks {
-		c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0666), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0666), IsNil)
 		_, err := pack.Snap(sourceDir, pack.Defaults)
 		c.Check(err, ErrorMatches, "snap is unusable due to bad permissions")
 	}
@@ -182,7 +181,7 @@ apps:
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
 	configureHooks := []string{"configure", "default-configure"}
 	for _, hook := range configureHooks {
-		c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0755), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0755), IsNil)
 		_, err := pack.Snap(sourceDir, pack.Defaults)
 		c.Assert(err, IsNil)
 	}
@@ -200,7 +199,7 @@ apps:
     - $SNAP_DATA/one
     - $SNAP_UNKNOWN_DIR/two
 `
-	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0444), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0444), IsNil)
 	_, err := pack.Snap(sourceDir, pack.Defaults)
 	c.Assert(err, ErrorMatches, "snapshot exclude path must start with one of.*")
 }
@@ -217,7 +216,7 @@ apps:
     - $SNAP_DATA/one
     - $SNAP_COMMON/two
 `
-	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0411), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0411), IsNil)
 	_, err := pack.Snap(sourceDir, pack.Defaults)
 	c.Assert(err, ErrorMatches, "snap is unusable due to bad permissions")
 }
@@ -234,7 +233,7 @@ apps:
     - $SNAP_DATA/one
     - $SNAP_COMMON/two
 `
-	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0444), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0444), IsNil)
 	_, err := pack.Snap(sourceDir, pack.Defaults)
 	c.Assert(err, IsNil)
 }
@@ -264,7 +263,7 @@ func (s *packSuite) TestPackExcludesBackups(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	target := c.MkDir()
 	// add a backup file
-	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
 	snapfile, err := pack.Snap(sourceDir, &pack.Options{TargetDir: c.MkDir()})
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
@@ -300,7 +299,7 @@ func (s *packSuite) TestPackExcludesWholeDirs(c *C) {
 	target := c.MkDir()
 	// add a file inside a skipped dir
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
 	snapfile, err := pack.Snap(sourceDir, &pack.Options{TargetDir: c.MkDir()})
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
@@ -403,7 +402,7 @@ volumes:
           - image: bare.img
 
 `
-	err := ioutil.WriteFile(filepath.Join(sourceDir, "meta/gadget.yaml"), []byte(gadgetYamlContent), 0644)
+	err := os.WriteFile(filepath.Join(sourceDir, "meta/gadget.yaml"), []byte(gadgetYamlContent), 0644)
 	c.Assert(err, IsNil)
 
 	outputDir := filepath.Join(c.MkDir(), "output")
@@ -416,7 +415,7 @@ volumes:
 	})
 	c.Assert(err, ErrorMatches, `invalid layout of volume "bad": cannot lay out structure #1 \("bare-struct"\): content "bare.img": stat .*/bare.img: no such file or directory`)
 
-	err = ioutil.WriteFile(filepath.Join(sourceDir, "bare.img"), []byte("foo"), 0644)
+	err = os.WriteFile(filepath.Join(sourceDir, "bare.img"), []byte("foo"), 0644)
 	c.Assert(err, IsNil)
 
 	// gadget validation fails during content presence checks

@@ -21,7 +21,6 @@ package sysparams_test
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -92,7 +91,7 @@ func (s *sysParamsTestSuite) TestWriteFailure(c *C) {
 func (s *sysParamsTestSuite) TestOpenExisting(c *C) {
 	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(sspPath, []byte("homedirs=my-path/foo/bar,foo\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(sspPath, []byte("homedirs=my-path/foo/bar,foo\n"), 0644), IsNil)
 
 	ssp, err := sysparams.Open("")
 	c.Check(err, IsNil)
@@ -103,7 +102,7 @@ func (s *sysParamsTestSuite) TestOpenExisting(c *C) {
 func (s *sysParamsTestSuite) TestOpenExistingEmpty(c *C) {
 	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(sspPath, []byte("\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(sspPath, []byte("\n"), 0644), IsNil)
 
 	ssp, err := sysparams.Open("")
 	c.Check(err, IsNil)
@@ -113,7 +112,7 @@ func (s *sysParamsTestSuite) TestOpenExistingEmpty(c *C) {
 func (s *sysParamsTestSuite) TestOpenExistingWithInvalidContent(c *C) {
 	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(sspPath, []byte("xuifu93\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(sspPath, []byte("xuifu93\n"), 0644), IsNil)
 
 	ssp, err := sysparams.Open("")
 	c.Check(err, ErrorMatches, `cannot parse system-params: invalid line: "xuifu93"`)
@@ -123,7 +122,7 @@ func (s *sysParamsTestSuite) TestOpenExistingWithInvalidContent(c *C) {
 func (s *sysParamsTestSuite) TestOpenExistingWithComments(c *C) {
 	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(sspPath, []byte("# this is a comment line\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(sspPath, []byte("# this is a comment line\n"), 0644), IsNil)
 
 	ssp, err := sysparams.Open("")
 	c.Check(err, IsNil)
@@ -133,7 +132,7 @@ func (s *sysParamsTestSuite) TestOpenExistingWithComments(c *C) {
 func (s *sysParamsTestSuite) TestOpenExistingWithDoubleEqual(c *C) {
 	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(sspPath, []byte("homedirs=my-path/foo/bar,foo=bar\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(sspPath, []byte("homedirs=my-path/foo/bar,foo=bar\n"), 0644), IsNil)
 
 	ssp, err := sysparams.Open("")
 	c.Check(err, IsNil)
@@ -147,7 +146,7 @@ homedirs=foo/baz
 `
 	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(sspPath, []byte(contents), 0644), IsNil)
+	c.Assert(os.WriteFile(sspPath, []byte(contents), 0644), IsNil)
 
 	ssp, err := sysparams.Open("")
 	c.Check(err, ErrorMatches, `cannot parse system-params: duplicate entry found: "homedirs"`)

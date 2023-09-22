@@ -28,7 +28,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"net"
 	"net/http"
@@ -211,7 +210,7 @@ func (s *tlsSuite) TestClientEmptyExtraSSLCertsDirWorks(c *check.C) {
 }
 
 func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) {
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapdStoreSSLCertsDir, "garbage.pem"), []byte("garbage"), 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapdStoreSSLCertsDir, "garbage.pem"), []byte("garbage"), 0644)
 	c.Assert(err, check.IsNil)
 
 	cli := httputil.NewHTTPClient(&httputil.ClientOptions{

@@ -20,7 +20,7 @@
 package internal_test
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -43,7 +43,7 @@ snaps:
 
 func (s *options20Suite) TestSimple(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := ioutil.WriteFile(fn, mockOptions20, 0644)
+	err := os.WriteFile(fn, mockOptions20, 0644)
 	c.Assert(err, IsNil)
 
 	options20, err := internal.ReadOptions20(fn)
@@ -62,7 +62,7 @@ func (s *options20Suite) TestSimple(c *C) {
 
 func (s *options20Suite) TestEmpty(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  -
 `), 0644)
@@ -74,7 +74,7 @@ snaps:
 
 func (s *options20Suite) TestNoPathAllowed(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
    unasserted: foo/bar.snap
@@ -87,7 +87,7 @@ snaps:
 
 func (s *options20Suite) TestDuplicatedSnapName(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
    channel: stable
@@ -102,7 +102,7 @@ snaps:
 
 func (s *options20Suite) TestValidateChannelUnhappy(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
    channel: invalid/channel/
@@ -115,7 +115,7 @@ snaps:
 
 func (s *options20Suite) TestValidateSnapIDUnhappy(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
    id: foo
@@ -128,7 +128,7 @@ snaps:
 
 func (s *options20Suite) TestValidateNameUnhappy(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - name: invalid--name
    unasserted: ./foo.snap
@@ -141,7 +141,7 @@ snaps:
 
 func (s *options20Suite) TestValidateNameInstanceUnsupported(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - name: foo_1
    unasserted: ./foo.snap
@@ -154,7 +154,7 @@ snaps:
 
 func (s *options20Suite) TestValidateNameMissing(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - unasserted: ./foo.snap
 `), 0644)
@@ -166,7 +166,7 @@ snaps:
 
 func (s *options20Suite) TestValidateOptionMissing(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
 `), 0644)

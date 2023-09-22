@@ -204,7 +204,7 @@ func InitramfsExposeBootFlagsForSystem(flags []string) error {
 		return err
 	}
 
-	return ioutil.WriteFile(snapBootFlagsFile, []byte(s), 0644)
+	return os.WriteFile(snapBootFlagsFile, []byte(s), 0644)
 }
 
 // BootFlags returns the current set of boot flags active for this boot. It uses

@@ -60,7 +60,7 @@ func DisableCloudInit(rootDir string) error {
 	if err := os.MkdirAll(ubuntuDataCloud, 0755); err != nil {
 		return fmt.Errorf("cannot make cloud config dir: %v", err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(ubuntuDataCloud, "cloud-init.disabled"), nil, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(ubuntuDataCloud, "cloud-init.disabled"), nil, 0644); err != nil {
 		return fmt.Errorf("cannot disable cloud-init: %v", err)
 	}
 
@@ -650,7 +650,7 @@ func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 		// measure
 		yaml := []byte(fmt.Sprintf(genericCloudRestrictYamlPattern, strings.Join(installOpts.AllowedDatasources, ",")))
 		restrictFile := filepath.Join(ubuntuDataCloudDir(WritableDefaultsDir(opts.TargetRootDir)), "cloud.cfg.d/99_snapd_datasource.cfg")
-		return ioutil.WriteFile(restrictFile, yaml, 0644)
+		return os.WriteFile(restrictFile, yaml, 0644)
 	}
 
 	return nil
@@ -931,13 +931,13 @@ func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (Cl
 		// labels to use as datasources, i.e. a USB drive inserted by an
 		// attacker with label CIDATA will defeat security measures on Ubuntu
 		// Core, so with the additional fs_label spec, we disable that import.
-		err = ioutil.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644)
+		err = os.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644)
 	default:
 		// all other cases are either not local on UC20, or not NoCloud and as
 		// such we simply restrict cloud-init to the specific datasource used so
 		// that an attack via NoCloud is protected against
 		yaml := []byte(fmt.Sprintf(genericCloudRestrictYamlPattern, res.DataSource))
-		err = ioutil.WriteFile(cloudInitRestrictFile, yaml, 0644)
+		err = os.WriteFile(cloudInitRestrictFile, yaml, 0644)
 	}
 
 	return res, err

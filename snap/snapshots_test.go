@@ -21,7 +21,6 @@ package snap_test
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -204,7 +203,7 @@ func (s *snapshotSuite) TestReadSnapshotYamlFailures(c *C) {
 		},
 	} {
 		manifestFile := filepath.Join(c.MkDir(), "snapshots.yaml")
-		err := ioutil.WriteFile(manifestFile, []byte(testData.contents), 0644)
+		err := os.WriteFile(manifestFile, []byte(testData.contents), 0644)
 		c.Assert(err, IsNil)
 		defer snap.MockOsOpen(func(string) (*os.File, error) {
 			return os.Open(manifestFile)
@@ -217,7 +216,7 @@ func (s *snapshotSuite) TestReadSnapshotYamlFailures(c *C) {
 
 func (s *snapshotSuite) TestReadSnapshotYamlHappy(c *C) {
 	manifestFile := filepath.Join(c.MkDir(), "snapshots.yaml")
-	err := ioutil.WriteFile(manifestFile, []byte(snapshotHappyYaml), 0644)
+	err := os.WriteFile(manifestFile, []byte(snapshotHappyYaml), 0644)
 	c.Assert(err, IsNil)
 
 	defer snap.MockOsOpen(func(path string) (*os.File, error) {

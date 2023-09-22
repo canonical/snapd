@@ -20,7 +20,6 @@
 package apparmor_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -65,11 +64,11 @@ func (s *apparmorSuite) TestSnapAppFromPidNewKernelPath(c *C) {
 	// when the new file exists we use that one
 	newProcFile := filepath.Join(d, "proc/42/attr/apparmor/current")
 	c.Assert(os.MkdirAll(filepath.Dir(newProcFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(newProcFile, []byte("snap.foo.app"), 0644), IsNil)
+	c.Assert(os.WriteFile(newProcFile, []byte("snap.foo.app"), 0644), IsNil)
 
 	oldProcFile := filepath.Join(d, "proc/42/attr/current")
 	c.Assert(os.MkdirAll(filepath.Dir(oldProcFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(oldProcFile, []byte("random-other-unread-data"), 0644), IsNil)
+	c.Assert(os.WriteFile(oldProcFile, []byte("random-other-unread-data"), 0644), IsNil)
 
 	name, app, hook, err := apparmor.SnapAppFromPid(42)
 	c.Assert(err, IsNil)
@@ -90,7 +89,7 @@ func (s *apparmorSuite) TestSnapAppFromPid(c *C) {
 	procFile := filepath.Join(d, "proc/42/attr/current")
 	c.Assert(os.MkdirAll(filepath.Dir(procFile), 0755), IsNil)
 
-	c.Assert(ioutil.WriteFile(procFile, []byte("not-read"), 0000), IsNil)
+	c.Assert(os.WriteFile(procFile, []byte("not-read"), 0000), IsNil)
 	_, _, _, err = apparmor.SnapAppFromPid(42)
 	c.Check(err, ErrorMatches, `open .*/proc/42/attr/current: permission denied`)
 	c.Assert(os.Remove(procFile), IsNil)
@@ -120,7 +119,7 @@ func (s *apparmorSuite) TestSnapAppFromPid(c *C) {
 		contents: "snap.foo.hook.app.garbage\n",
 		err:      `unknown snap related security label "snap.foo.hook.app.garbage"`,
 	}} {
-		c.Assert(ioutil.WriteFile(procFile, []byte(t.contents), 0644), IsNil)
+		c.Assert(os.WriteFile(procFile, []byte(t.contents), 0644), IsNil)
 		name, app, hook, err := apparmor.SnapAppFromPid(42)
 		if t.err != "" {
 			c.Check(err, ErrorMatches, t.err)

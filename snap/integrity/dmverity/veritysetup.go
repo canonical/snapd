@@ -23,7 +23,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -137,7 +137,7 @@ func Format(dataDevice string, hashDevice string) (*Info, error) {
 		return nil, err
 	} else if deploy {
 		space := make([]byte, 4096)
-		ioutil.WriteFile(hashDevice, space, 0644)
+		os.WriteFile(hashDevice, space, 0644)
 	}
 
 	cmd := exec.Command("veritysetup", "format", dataDevice, hashDevice)

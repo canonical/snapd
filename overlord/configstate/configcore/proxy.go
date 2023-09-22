@@ -24,7 +24,6 @@ package configcore
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,7 +73,7 @@ func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 	if toWrite != nil {
 		// XXX: would be great to atomically write but /etc/environment
 		//      is a single bind mount :/
-		return ioutil.WriteFile(path, []byte(strings.Join(toWrite, "\n")), 0644)
+		return os.WriteFile(path, []byte(strings.Join(toWrite, "\n")), 0644)
 	}
 
 	return nil

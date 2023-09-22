@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -83,7 +84,7 @@ func (s *cookiesSuite) TestSyncCookies(c *C) {
 		"some-snap":  nil,
 		"other-snap": nil})
 	staleCookieFile := filepath.Join(dirs.SnapCookieDir, "snap.stale-cookie-snap")
-	c.Assert(ioutil.WriteFile(staleCookieFile, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(staleCookieFile, nil, 0644), IsNil)
 	c.Assert(osutil.FileExists(staleCookieFile), Equals, true)
 
 	// some-snap doesn't have cookie
@@ -137,7 +138,7 @@ func (s *cookiesSuite) TestRemoveSnapCookie(c *C) {
 
 	cookieFile := filepath.Join(dirs.SnapCookieDir, "snap.bar")
 
-	c.Assert(ioutil.WriteFile(cookieFile, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(cookieFile, nil, 0644), IsNil)
 
 	// remove should not fail if cookie is not there
 	c.Assert(s.snapmgr.removeSnapCookie(s.st, "bar"), IsNil)

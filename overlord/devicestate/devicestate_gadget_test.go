@@ -22,7 +22,6 @@ package devicestate_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -367,7 +366,7 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 			// sealed keys stamp
 			stamp := filepath.Join(dirs.SnapFDEDir, "sealed-keys")
 			c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
-			err = ioutil.WriteFile(stamp, nil, 0644)
+			err = os.WriteFile(stamp, nil, 0644)
 			c.Assert(err, IsNil)
 		}
 	}
@@ -840,7 +839,7 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 	c.Assert(err, ErrorMatches, "cannot read current gadget snap details: .*/33/meta/gadget.yaml: no such file or directory")
 
 	// drop gadget.yaml for current snap
-	ioutil.WriteFile(filepath.Join(ci.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0644)
+	os.WriteFile(filepath.Join(ci.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0644)
 
 	current, err = devicestate.CurrentGadgetData(s.state, deviceCtx)
 	c.Assert(err, IsNil)
@@ -876,7 +875,7 @@ volumes:
 `
 
 	// drop gadget.yaml for update snap
-	ioutil.WriteFile(filepath.Join(ui.MountDir(), "meta/gadget.yaml"), []byte(updateGadgetYaml), 0644)
+	os.WriteFile(filepath.Join(ui.MountDir(), "meta/gadget.yaml"), []byte(updateGadgetYaml), 0644)
 
 	update, err = devicestate.PendingGadgetInfo(snapsup, deviceCtx)
 	c.Assert(err, IsNil)

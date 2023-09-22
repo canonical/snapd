@@ -21,7 +21,6 @@ package asserts
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -49,13 +48,13 @@ func (fs *findWildcardSuite) TestFindWildcard(c *check.C) {
 	err = os.MkdirAll(filepath.Join(top, "acc-id2", "f444"), os.ModePerm)
 	c.Assert(err, check.IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(top, "acc-id1", "abcd", "active"), nil, os.ModePerm)
+	err = os.WriteFile(filepath.Join(top, "acc-id1", "abcd", "active"), nil, os.ModePerm)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(top, "acc-id1", "abcd", "active.1"), nil, os.ModePerm)
+	err = os.WriteFile(filepath.Join(top, "acc-id1", "abcd", "active.1"), nil, os.ModePerm)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(top, "acc-id1", "e5cd", "active"), nil, os.ModePerm)
+	err = os.WriteFile(filepath.Join(top, "acc-id1", "e5cd", "active"), nil, os.ModePerm)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(top, "acc-id2", "f444", "active"), nil, os.ModePerm)
+	err = os.WriteFile(filepath.Join(top, "acc-id2", "f444", "active"), nil, os.ModePerm)
 	c.Assert(err, check.IsNil)
 
 	var res []string
@@ -114,7 +113,7 @@ func (fs *findWildcardSuite) TestFindWildcardSomeErrors(c *check.C) {
 	err = os.MkdirAll(filepath.Join(top, "acc-id2"), os.ModePerm)
 	c.Assert(err, check.IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(top, "acc-id1", "abcd"), nil, os.ModePerm)
+	err = os.WriteFile(filepath.Join(top, "acc-id1", "abcd"), nil, os.ModePerm)
 	c.Assert(err, check.IsNil)
 
 	err = os.MkdirAll(filepath.Join(top, "acc-id2", "dddd"), os.ModePerm)
@@ -154,7 +153,7 @@ func (fs *findWildcardSuite) TestFindWildcardSequence(c *check.C) {
 	for _, fn := range files {
 		err := os.MkdirAll(filepath.Dir(filepath.Join(top, fn)), os.ModePerm)
 		c.Assert(err, check.IsNil)
-		err = ioutil.WriteFile(filepath.Join(top, fn), nil, os.ModePerm)
+		err = os.WriteFile(filepath.Join(top, fn), nil, os.ModePerm)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -259,7 +258,7 @@ func (fs *findWildcardSuite) TestFindWildcardSequenceSomeErrors(c *check.C) {
 	for _, fn := range files {
 		err := os.MkdirAll(filepath.Dir(filepath.Join(top, fn)), os.ModePerm)
 		c.Assert(err, check.IsNil)
-		err = ioutil.WriteFile(filepath.Join(top, fn), nil, os.ModePerm)
+		err = os.WriteFile(filepath.Join(top, fn), nil, os.ModePerm)
 		c.Assert(err, check.IsNil)
 	}
 

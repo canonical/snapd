@@ -22,7 +22,6 @@ package seed_test
 import (
 	"crypto"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -3174,7 +3173,7 @@ func (s *seed20Suite) createMinimalSeed(c *C, grade string, sysLabel string) see
 func (s *seed20Suite) writeInvalidAutoImportAssertion(c *C, sysLabel string, perm os.FileMode) {
 	autoImportAssert := filepath.Join(s.SeedDir, "systems", sysLabel, "auto-import.assert")
 	// write invalid data
-	err := ioutil.WriteFile(autoImportAssert, []byte(strings.Repeat("a", 512)), perm)
+	err := os.WriteFile(autoImportAssert, []byte(strings.Repeat("a", 512)), perm)
 	c.Assert(err, IsNil)
 }
 
@@ -3217,7 +3216,7 @@ func (s *seed20Suite) TestPreseedCapableSeed(c *C) {
 	}, nil)
 
 	preseedArtifact := filepath.Join(s.SeedDir, "systems", sysLabel, "preseed.tgz")
-	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(preseedArtifact, nil, 0644), IsNil)
 	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
 	c.Assert(err, IsNil)
 	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
@@ -3294,7 +3293,7 @@ func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
 	}, nil)
 
 	preseedArtifact := filepath.Join(s.SeedDir, "systems", sysLabel, "preseed.tgz")
-	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(preseedArtifact, nil, 0644), IsNil)
 	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
 	c.Assert(err, IsNil)
 	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
@@ -3453,7 +3452,7 @@ func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
 	}, nil)
 
 	preseedArtifact := filepath.Join(s.SeedDir, "systems", sysLabel, "preseed.tgz")
-	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(preseedArtifact, nil, 0644), IsNil)
 	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
 	c.Assert(err, IsNil)
 	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)

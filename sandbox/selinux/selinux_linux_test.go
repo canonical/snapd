@@ -21,7 +21,7 @@ package selinux_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -86,14 +86,14 @@ func (s *selinuxSuite) TestIsEnforcingHappy(c *check.C) {
 
 	enforcePath := filepath.Join(dir, "enforce")
 
-	err := ioutil.WriteFile(enforcePath, []byte("1"), 0644)
+	err := os.WriteFile(enforcePath, []byte("1"), 0644)
 	c.Assert(err, check.IsNil)
 
 	enforcing, err := selinux.IsEnforcing()
 	c.Assert(err, check.IsNil)
 	c.Assert(enforcing, check.Equals, true)
 
-	err = ioutil.WriteFile(enforcePath, []byte("0"), 0644)
+	err = os.WriteFile(enforcePath, []byte("0"), 0644)
 	c.Assert(err, check.IsNil)
 
 	enforcing, err = selinux.IsEnforcing()
@@ -118,7 +118,7 @@ func (s *selinuxSuite) TestIsEnforcingFailGarbage(c *check.C) {
 
 	enforcePath := filepath.Join(dir, "enforce")
 
-	err := ioutil.WriteFile(enforcePath, []byte("garbage"), 0644)
+	err := os.WriteFile(enforcePath, []byte("garbage"), 0644)
 	c.Assert(err, check.IsNil)
 
 	enforcing, err := selinux.IsEnforcing()
@@ -134,7 +134,7 @@ func (s *selinuxSuite) TestIsEnforcingFailOther(c *check.C) {
 
 	enforcePath := filepath.Join(dir, "enforce")
 
-	err := ioutil.WriteFile(enforcePath, []byte("not-readable"), 0000)
+	err := os.WriteFile(enforcePath, []byte("not-readable"), 0000)
 	c.Assert(err, check.IsNil)
 
 	enforcing, err := selinux.IsEnforcing()
