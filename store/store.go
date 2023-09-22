@@ -1647,12 +1647,12 @@ func (s *Store) checkStoreOnline() error {
 		return nil
 	}
 
-	access, err := s.dauthCtx.StoreAccess()
+	offline, err := s.dauthCtx.StoreOffline()
 	if err != nil {
 		return fmt.Errorf("cannot get store access from state: %w", err)
 	}
 
-	if access == "offline" {
+	if offline {
 		return ErrStoreOffline
 	}
 

@@ -73,9 +73,9 @@ type StoreOptions interface {
 	// ProxyStore returns the store assertion for the proxy store if one is set.
 	ProxyStore() (*asserts.Store, error)
 
-	// StoreAccess returns a string indicating whether the store should have
+	// StoreOffline returns a string indicating whether the store should have
 	// network access or not
-	StoreAccess() (string, error)
+	StoreOffline() (bool, error)
 }
 
 // storeContext implements store.DeviceAndAuthContext.
@@ -251,16 +251,16 @@ func (sc *storeContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID stri
 	return "", defaultURL, nil
 }
 
-func (sc *storeContext) StoreAccess() (string, error) {
+func (sc *storeContext) StoreOffline() (bool, error) {
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	access, err := sc.storeOptions.StoreAccess()
+	offline, err := sc.storeOptions.StoreOffline()
 	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return "", err
+		return false, err
 	}
 
-	return access, nil
+	return offline, nil
 }
 
 // CloudInfo returns the cloud instance information (if available).

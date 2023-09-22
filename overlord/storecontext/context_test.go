@@ -304,10 +304,10 @@ AXNpZw=`
 )
 
 type testBackend struct {
-	nothing     bool
-	noSerial    bool
-	storeAccess string
-	device      *auth.DeviceState
+	nothing      bool
+	noSerial     bool
+	storeOffline bool
+	device       *auth.DeviceState
 }
 
 func (b *testBackend) Device() (*auth.DeviceState, error) {
@@ -371,12 +371,12 @@ func (b *testBackend) ProxyStore() (*asserts.Store, error) {
 	return a.(*asserts.Store), nil
 }
 
-func (b *testBackend) StoreAccess() (string, error) {
+func (b *testBackend) StoreOffline() (bool, error) {
 	if b.nothing {
-		return "", state.ErrNoState
+		return false, state.ErrNoState
 	}
 
-	return b.storeAccess, nil
+	return b.storeOffline, nil
 }
 
 func (s *storeCtxSuite) TestMissingDeviceAssertions(c *C) {
@@ -495,15 +495,14 @@ func (s *storeCtxSuite) TestComposable(c *C) {
 	c.Assert(err, ErrorMatches, "boom")
 }
 
-func (s *storeCtxSuite) TestStoreAccess(c *C) {
-	const storeAccess = "offline"
+func (s *storeCtxSuite) TestStoreOffline(c *C) {
 	b := &testBackend{
-		storeAccess: storeAccess,
+		storeOffline: true,
 	}
 
 	storeCtx := storecontext.NewComposed(s.state, b, b, b)
 
-	access, err := storeCtx.StoreAccess()
+	offline, err := storeCtx.StoreOffline()
 	c.Check(err, IsNil)
-	c.Check(access, Equals, storeAccess)
+	c.Check(offline, Equals, true)
 }

@@ -42,7 +42,7 @@ type DeviceAndAuthContext interface {
 
 	CloudInfo() (*auth.CloudInfo, error)
 
-	StoreAccess() (string, error)
+	StoreOffline() (bool, error)
 }
 
 // DeviceSessionRequestParams gathers the assertions and information to be sent to request a device session.

@@ -245,7 +245,7 @@ type testDauthContext struct {
 
 	storeID string
 
-	storeAccess string
+	storeOffline bool
 
 	cloudInfo *auth.CloudInfo
 }
@@ -317,8 +317,8 @@ func (dac *testDauthContext) ProxyStoreParams(defaultURL *url.URL) (string, *url
 	return "", defaultURL, nil
 }
 
-func (dac *testDauthContext) StoreAccess() (string, error) {
-	return dac.storeAccess, nil
+func (dac *testDauthContext) StoreOffline() (bool, error) {
+	return dac.storeOffline, nil
 }
 
 func (dac *testDauthContext) CloudInfo() (*auth.CloudInfo, error) {
@@ -4419,7 +4419,7 @@ func (s *storeTestSuite) TestStoreNoAccess(c *C) {
 	nowhereURL, err := url.Parse("http://nowhere.invalid")
 	c.Assert(err, IsNil)
 
-	dauthCtx := &testDauthContext{storeAccess: "offline", device: &auth.DeviceState{
+	dauthCtx := &testDauthContext{storeOffline: true, device: &auth.DeviceState{
 		Serial: "serial",
 	}}
 

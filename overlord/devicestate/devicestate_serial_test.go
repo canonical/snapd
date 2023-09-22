@@ -1662,7 +1662,7 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendStoreAccess(c *C) {
 	scb := s.mgr.StoreContextBackend()
 
 	// nothing in the state
-	_, err := scb.StoreAccess()
+	_, err := scb.StoreOffline()
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// set the store access to offline
@@ -1671,9 +1671,9 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendStoreAccess(c *C) {
 	tr.Commit()
 	c.Assert(err, IsNil)
 
-	access, err := scb.StoreAccess()
+	offline, err := scb.StoreOffline()
 	c.Check(err, IsNil)
-	c.Check(access, Equals, "offline")
+	c.Check(offline, Equals, true)
 }
 
 func (s *deviceMgrSerialSuite) TestInitialRegistrationContext(c *C) {
